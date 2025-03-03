@@ -38,7 +38,7 @@ interface SortableTabProps {
   tab: TabModel;
   activeTab: TabModel | null;
   icon: React.ReactNode;
-  activeTabRef: React.MutableRefObject<HTMLDivElement | null>;
+  activeTabRef: React.RefObject<HTMLDivElement | null>;
   onTabUpdate: (tab: TabModel) => void;
   handleDeleteTab: (tab: TabModel) => void;
   onClick: (tab: TabModel) => void;

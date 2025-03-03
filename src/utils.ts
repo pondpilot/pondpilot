@@ -1,3 +1,4 @@
+/* eslint-disable no-constant-condition */
 /* eslint-disable no-plusplus */
 import { openDB } from 'idb';
 import { CodeSource, Dataset } from 'models';
@@ -58,7 +59,6 @@ export const findUniqueName = async (
   const ext = paths.pop();
   const path = paths.join('.');
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const currentName = `${path}${counter > 0 ? `_${counter}` : ''}.${ext}`;
     const exists = await checkIfExists(currentName);

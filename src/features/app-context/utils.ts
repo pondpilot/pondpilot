@@ -7,6 +7,7 @@ import { syntaxTree } from '@codemirror/language';
 import { tableFromIPC } from 'apache-arrow';
 import { splitSqlQuery } from '../../utils/editor/statement-parser';
 import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse, SessionFiles } from './models';
+import { SessionWorker } from './app-session-worker';
 
 /**
  * Creates item name by removing the file extension and replacing hyphens with underscores.
@@ -111,7 +112,7 @@ interface QueryStatement {
 
 interface ExecuteQueriesProps {
   runQueryProps: DBRunQueryProps;
-  dbProxyRef: React.MutableRefObject<any>;
+  dbProxyRef: React.RefObject<any>;
   isCancelledPromise: Promise<never>;
   currentSources: SessionFiles | null;
 }
@@ -231,7 +232,7 @@ const executeStatement = async ({
   hasLimit,
 }: {
   query: string;
-  dbProxyRef: React.MutableRefObject<any>;
+  dbProxyRef: React.RefObject<any>;
   isCancelledPromise: Promise<never>;
   statement: QueryStatement;
   hasLimit: boolean;
@@ -282,4 +283,28 @@ export const buildColumnsQueryWithFilters = (
     ${whereClause}
     ORDER BY database_name, schema_name, table_name, column_index;
   `;
+};
+
+/**
+ * Checks if the file handle has permission to read the file.
+ */
+export const verifyPermission = async (fileHandle: FileSystemFileHandle) => {
+  if ((await fileHandle.queryPermission()) === 'granted') {
+    return true;
+  }
+
+  return false;
+};
+
+export const exportFilesAsArchive = async (proxyRef: React.RefObject<SessionWorker | null>) => {
+  if (!proxyRef.current) return;
+  try {
+    const result = await proxyRef.current.exportFilesAsArchive();
+    if (!result) throw new Error('Failed to export files as archive');
+
+    return result;
+  } catch (error) {
+    console.error('Error exporting files as archive: ', error);
+    return null;
+  }
 };
