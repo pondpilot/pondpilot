@@ -8,8 +8,11 @@ PondPilot is a blazing-fast, lightweight, 100% client-side data exploration tool
 
 - **100% Client-Side**: All processing happens in your browser - no data ever leaves your device
 - **PWA Support**: Install PondPilot as a Progressive Web App for offline use
+- **No data-copy**: Unlike similar tools, PondPilot doesn't copy files into browser cache, instead accessing them directly. Any changes outside of PondPilot are reflected in real-time
+- **Read-only**: PondPilot doesn't write to your files, so you can be sure your data is safe
+- **Cross-session persistence**: All data-handles and queries are automatically saved and restored between sessions
 - **Powered by DuckDB**: Leverage the powerful SQL engine for fast analysis of large datasets
-- **Multiple File Formats**: Support for CSV, Parquet, JSON, and eventually other format DuckDB can handle
+- **Multiple File Formats**: Support for CSV, Parquet, JSON, DuckDB database and more coming soon
 - **Interactive SQL Editor**: Write and execute SQL queries with syntax highlighting and auto-completion
 - **Data Visualization**: View, filter, and sort your query results in an interactive table
 - **Full-text Schema Explorer**: Easily navigate through tables and columns with auto-generated metadata [coming soon]
@@ -107,6 +110,8 @@ DuckDB is awesome, and there are many similar proejcts out there. And there is e
 * [QuackDB](https://github.com/mattf96s/QuackDB)
 * [TablePlus](https://tableplus.com)
 * [Outerbase Studio](https://github.com/outerbase/studio)
+* [harlequin](https://github.com/tconbeer/harlequin)
+* [duck-ui](https://github.com/caioricciuti/duck-ui)
 
 And many more!
 
