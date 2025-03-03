@@ -13,7 +13,6 @@ export const AppErrorFallback = ({ error }: FallbackProps) => {
       link.download = 'application_files.zip';
       link.click();
     } else {
-      // eslint-disable-next-line no-console
       console.error('Failed to export files.');
     }
   };
