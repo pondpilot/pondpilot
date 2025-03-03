@@ -1,6 +1,6 @@
 ---
 name: Feature request
-description: Suggest an idea for PondPilot
+about: Suggest an idea for PondPilot
 title: '[Feature]: '
 labels: ['enhancement', 'triage']
 assignees: ''

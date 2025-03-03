@@ -1,6 +1,6 @@
 ---
 name: Question
-description: Questions, help requests, documentation improvements, or anything else
+about: Questions, help requests, documentation improvements, or anything else
 title: '[Question]: '
 labels: ['question', 'triage']
 assignees: ''
