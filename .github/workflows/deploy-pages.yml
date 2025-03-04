@@ -47,7 +47,7 @@ jobs:
         run: yarn typecheck
 
       - name: Lint JS/TS
-        run: yarn lint:eslin
+        run: yarn lint:eslint
 
       - name: Build
         run: yarn build
