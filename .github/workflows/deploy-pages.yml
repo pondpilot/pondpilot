@@ -60,6 +60,7 @@ jobs:
             echo "branch=${{ github.head_ref }}" >> $GITHUB_ENV
           else
             echo "branch=main" >> $GITHUB_ENV
+          fi
         shell: bash
 
       - name: Deploy to Cloudflare Pages
