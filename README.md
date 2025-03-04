@@ -131,5 +131,6 @@ This means you're free to use, modify, and distribute the software, but if you m
 
 <p align="center">
   <a href="https://app.pondpilot.io">app.pondpilot.io</a> •
-  <a href="https://github.com/pondpilot/pondpilot">GitHub</a>
+  <a href="https://github.com/pondpilot/pondpilot">GitHub</a> •
+  <a href="https://t1a.com">Built at T1A with ❤️</a>
 </p>
