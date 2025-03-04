@@ -57,9 +57,9 @@ jobs:
         id: branch-name
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "branch=${{ github.head_ref }}" >> $GITHUB_ENV
+            echo "branch=${{ github.head_ref }}" >> $GITHUB_OUTPUT
           else
-            echo "branch=main" >> $GITHUB_ENV
+            echo "branch=main" >> $GITHUB_OUTPUT
           fi
         shell: bash
 
