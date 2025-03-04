@@ -53,11 +53,20 @@ jobs:
       - name: Build
         run: yarn build
 
+      - name: Determine branch name
+        id: branch-name
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "branch=${{ github.head_ref }}" >> $GITHUB_ENV
+          else
+            echo "branch=main" >> $GITHUB_ENV
+        shell: bash
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./dist --project-name=pondpilot --branch=${{ github.ref_name }}
+          command: pages deploy ./dist --project-name=pondpilot --branch=${{ steps.branch-name.outputs.branch }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }} # Enable GitHub Deployments
 
