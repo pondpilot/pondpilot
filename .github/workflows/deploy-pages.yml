@@ -10,6 +10,7 @@ on:
 
 jobs:
   deploy:
+    if: github.repository == 'pondpilot/pondpilot'
     runs-on: ubuntu-latest
     name: Deploy
     permissions:
@@ -57,5 +58,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./dist --project-name=pondpilot
+          command: pages deploy ./dist --project-name=pondpilot --branch=$GITHUB_REF
           gitHubToken: ${{ secrets.GITHUB_TOKEN }} # Enable GitHub Deployments
+
