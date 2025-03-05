@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
-import { useAppContext } from 'features/app-context';
-import { useAppStore } from 'store/app-store';
+import { useAppContext } from '@features/app-context';
+import { useAppStore } from '@store/app-store';
 import { Table as ApacheTable } from 'apache-arrow';
 
 export const useTableExport = () => {

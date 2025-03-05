@@ -2,9 +2,9 @@
 import { useReactTable, getCoreRowModel, Table as TableType, Cell } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
 import { memo, useMemo } from 'react';
-import { SortModel } from 'store/pagination-store';
+import { SortModel } from '@store/pagination-store';
 import { useClipboard, useDidUpdate, useHotkeys } from '@mantine/hooks';
-import { replaceSpecialChars } from 'utils';
+import { replaceSpecialChars } from '@utils/helpers';
 import { useAppNotifications } from '@components/app-notifications';
 import { CalculateColumnSummaryProps } from '@features/data-viewer/hooks';
 import { ResultColumn } from '@utils/arrow/helpers';

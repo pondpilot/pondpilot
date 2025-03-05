@@ -2,7 +2,8 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { tableToIPC } from 'apache-arrow';
 import { expose } from 'comlink';
-import { buildColumnsQueryWithFilters, createName, getCreateViewQuery } from './utils';
+import { createName } from '../../utils/helpers';
+import { buildColumnsQueryWithFilters, getCreateViewQuery } from './utils';
 import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
 import { GET_DBS_SQL_QUERY, GET_VIEWS_SQL_QUERY } from './consts';
 
@@ -193,8 +194,9 @@ async function runQuery({
       data: tableToIPC(result),
       pagination: totalRowsCount,
     };
-  } catch (error: any) {
-    throw new Error(error);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(message);
   } finally {
     conn.cancelSent();
     conn.close();

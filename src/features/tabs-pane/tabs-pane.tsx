@@ -4,7 +4,7 @@ import { TabModel } from '@features/app-context/models';
 import { ScrollArea, Group, Skeleton, Text, ActionIcon } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { useAppStore } from 'store/app-store';
+import { useAppStore } from '@store/app-store';
 import {
   DndContext,
   closestCenter,

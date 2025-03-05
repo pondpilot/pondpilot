@@ -4,9 +4,9 @@ import { IconTriangleInvertedFilled } from '@tabler/icons-react';
 import { Text } from '@mantine/core';
 import { Header, Table as TableType } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
-import { replaceSpecialChars } from 'utils';
+import { replaceSpecialChars } from '@utils/helpers';
 import { memo } from 'react';
-import { SortModel } from 'store/pagination-store';
+import { SortModel } from '@store/pagination-store';
 import { getIcon } from '../utils';
 
 interface TableHeadCellProps {

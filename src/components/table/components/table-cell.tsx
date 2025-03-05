@@ -3,7 +3,7 @@
 import { Cell, flexRender } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
 import { memo } from 'react';
-import { replaceSpecialChars } from 'utils';
+import { replaceSpecialChars } from '@utils/helpers';
 
 interface TableCellProps {
   cell: Cell<any, unknown>;

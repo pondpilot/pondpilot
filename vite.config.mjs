@@ -4,6 +4,7 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 import { VitePWA } from 'vite-plugin-pwa';
 import svgr from 'vite-plugin-svgr';
 import { execSync } from 'child_process';
+import { resolve } from 'path';
 
 // Function to get version information
 function getVersionInfo() {
@@ -30,7 +31,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      tsconfigPaths(),
+
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
@@ -84,6 +85,16 @@ export default defineConfig(({ mode }) => {
       }),
       svgr(),
     ],
+    resolve: {
+      alias: {
+        '@pages': resolve(__dirname, 'src/pages'),
+        '@components': resolve(__dirname, 'src/components'),
+        '@utils': resolve(__dirname, 'src/utils'),
+        '@features': resolve(__dirname, 'src/features'),
+        '@store': resolve(__dirname, 'src/store'),
+        '@hooks': resolve(__dirname, 'src/hooks'),
+      },
+    },
     build: {
       sourcemap: mode === 'development',
     },

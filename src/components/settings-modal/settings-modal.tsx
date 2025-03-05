@@ -2,7 +2,7 @@ import { useAppNotifications } from '@components/app-notifications';
 import { useAppContext } from '@features/app-context';
 import { Text, Modal, Stack, Button, Group } from '@mantine/core';
 import { openDB } from 'idb';
-import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from 'consts';
+import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '../../consts';
 import { clearFileSystem } from './utils';
 
 interface SettingsModalProps {
@@ -53,8 +53,9 @@ export const SettingsModal = ({
       const handles = await db.getAll(FILE_HANDLE_STORE_NAME);
       await Promise.all(handles.map((handle) => handle.requestPermission({ mode: 'read' })));
       window.location.reload();
-    } catch (error: any) {
-      showError({ title: 'Error restoring files', message: error.message });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      showError({ title: 'Error restoring files', message });
     }
   };
 

@@ -25,6 +25,35 @@ import {
 } from '@mantine/spotlight';
 
 export const theme = createTheme({
+  headings: {
+    sizes: {
+      h1: {
+        fontSize: '32px',
+        lineHeight: '1.3',
+        fontWeight: '500',
+      },
+      h2: {
+        fontSize: '24px',
+        lineHeight: '1.3',
+        fontWeight: '500',
+      },
+      h3: {
+        fontSize: '18px',
+        lineHeight: '1.3',
+        fontWeight: '500',
+      },
+      h4: {
+        fontSize: '16px',
+        lineHeight: '1.3',
+        fontWeight: '500',
+      },
+      h5: {
+        fontSize: '14px',
+        lineHeight: '1.3',
+        fontWeight: '500',
+      },
+    },
+  },
   colors: {
     'transparentWhite-004': colorsTuple('#FFFFFF0A'), // 4%
     'transparentWhite-008': colorsTuple('#FFFFFF14'), // 8%

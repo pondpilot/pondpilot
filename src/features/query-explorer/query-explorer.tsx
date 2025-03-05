@@ -2,9 +2,9 @@ import { useAppNotifications } from '@components/app-notifications';
 import { MenuItem, SourcesListView } from '@components/sources-list-view';
 import { ActionIcon, Divider, Group, Text } from '@mantine/core';
 import { useClipboard, useDisclosure } from '@mantine/hooks';
-import { useAppContext } from 'features/app-context';
+import { useAppContext } from '@features/app-context';
 import { memo, useState } from 'react';
-import { useAppStore } from 'store/app-store';
+import { useAppStore } from '@store/app-store';
 import { IconCode, IconPlus } from '@tabler/icons-react';
 
 export const QueryExplorer = memo(() => {
