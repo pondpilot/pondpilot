@@ -4,7 +4,7 @@ import { spotlight } from '@mantine/spotlight';
 import { cn } from '@utils/ui/styles';
 import { IconLayout, IconSearch } from '@tabler/icons-react';
 import { HotkeyPill } from '@components/hotkey-pill';
-import { useModifier } from 'hooks/useModifier';
+import { useModifier } from '@hooks/useModifier';
 import { SpotlightMenu } from '@components/spotlight';
 import { useNavigate } from 'react-router-dom';
 import Logo from '../../../assets/logo.svg?react';

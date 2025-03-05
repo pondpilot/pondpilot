@@ -21,14 +21,14 @@ import {
   IconJson,
   IconTable,
 } from '@tabler/icons-react';
-import { useFileHandlers } from 'hooks/useUploadFilesHandlers';
+import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAppStore } from 'store/app-store';
+import { useAppStore } from '@store/app-store';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { SettingsModal } from '@components/settings-modal';
 import { useDisclosure } from '@mantine/hooks';
 import { cn } from '@utils/ui/styles';
-import { useModifier } from 'hooks/useModifier';
+import { useModifier } from '@hooks/useModifier';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
