@@ -118,12 +118,12 @@ We welcome contributions from the community! Here's how to get started:
 
 DuckDB is awesome, and there are many similar proejcts out there. And there is even more SQL IDE's beyond that. We've been inspired by the following projects:
 
-* <a target="_blank" href="https://github.com/rilldata/rill">Rill</a>
-* <a target="_blank" href="https://github.com/mattf96s/QuackDB">QuackDB</a>
-* <a target="_blank" href="https://tableplus.com">TablePlus</a>
-* <a target="_blank" href="https://github.com/outerbase/studio">Outerbase Studio</a>
-* <a target="_blank" href="https://github.com/tconbeer/harlequin">harlequin</a>
-* <a target="_blank" href="https://github.com/caioricciuti/duck-ui">duck-ui</a>
+* [Rill](https://github.com/rilldata/rill)
+* [QuackDB](https://github.com/mattf96s/QuackDB)
+* [TablePlus](https://tableplus.com)
+* [Outerbase Studio](https://github.com/outerbase/studio)
+* [harlequin](https://github.com/tconbeer/harlequin)
+* [duck-ui](https://github.com/caioricciuti/duck-ui)
 
 And many more!
 
@@ -135,14 +135,14 @@ This means you're free to use, modify, and distribute the software, but if you m
 
 ## 🙏 Acknowledgments
 
-* Built with <a target="_blank" href="https://github.com/duckdb/duckdb-wasm">DuckDB-WASM</a> - the powerful SQL database that runs in your browser
-* UI components by <a target="_blank" href="https://mantine.dev/">Mantine</a>
-* This project incorporates and modifies code related to query editor from <a target="_blank" href="https://github.com/outerbase/studio">Outerbase Studio</a> which is licensed under the GNU Affero General Public License v3.0.
+* Built with [DuckDB-WASM](https://github.com/duckdb/duckdb-wasm) - the powerful SQL database that runs in your browser
+* UI components by [Mantine](https://mantine.dev/)
+* This project incorporates and modifies code related to query editor from [Outerbase Studio](https://github.com/outerbase/studio) which is licensed under the GNU Affero General Public License v3.0.
 
 ---
 
 <p align="center">
-  <a target="_blank" href="https://app.pondpilot.io">app.pondpilot.io</a> •
-  <a target="_blank" href="https://github.com/pondpilot/pondpilot">GitHub</a> •
-  <a target="_blank" href="https://t1a.com">Built at T1A with ❤️</a>
+  <a href="https://app.pondpilot.io">app.pondpilot.io</a> •
+  <a href="https://github.com/pondpilot/pondpilot">GitHub</a> •
+  <a href="https://t1a.com">Built at T1A with ❤️</a>
 </p>
