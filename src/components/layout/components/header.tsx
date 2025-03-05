@@ -6,24 +6,37 @@ import { IconLayout, IconSearch } from '@tabler/icons-react';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { useModifier } from '@hooks/useModifier';
 import { SpotlightMenu } from '@components/spotlight';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Logo from '../../../assets/logo.svg?react';
 import DarkLogo from '../../../assets/dark-logo.svg?react';
 
 export const Header = memo(() => {
   const { colorScheme } = useMantineColorScheme();
   const navigate = useNavigate();
-
+  const location = useLocation();
   const mod = useModifier();
+  const isSettingsPage = location.pathname.includes('settings');
+
+  const logoPlaceholder = isSettingsPage ? (
+    <Group className="gap-2">
+      <Text component="button" onClick={() => navigate('/')} size="xs" c="text-secondary">
+        HOME
+      </Text>
+      <Text size="xs">/</Text>
+      <Text size="xs">SETTINGS</Text>
+    </Group>
+  ) : (
+    <Text onClick={() => navigate('/')} size="xl" className="cursor-pointer">
+      {colorScheme === 'dark' ? <DarkLogo /> : <Logo />}
+    </Text>
+  );
 
   return (
     <>
       <SpotlightMenu />
       <Group justify="space-between" className="h-full">
         <Group gap={40} w={150}>
-          <Text onClick={() => navigate('/')} size="xl" className="cursor-pointer">
-            {colorScheme === 'dark' ? <DarkLogo /> : <Logo />}
-          </Text>
+          {logoPlaceholder}
         </Group>
         <Group>
           <TextInput

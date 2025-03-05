@@ -146,7 +146,3 @@ export interface DataBaseModel {
   name: string;
   schemas: SchemaModel[];
 }
-
-export type ErrorModel = {
-  message: string;
-};

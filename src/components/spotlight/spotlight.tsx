@@ -25,10 +25,9 @@ import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@store/app-store';
 import { HotkeyPill } from '@components/hotkey-pill';
-import { SettingsModal } from '@components/settings-modal';
-import { useDisclosure } from '@mantine/hooks';
 import { cn } from '@utils/ui/styles';
 import { useModifier } from '@hooks/useModifier';
+import { useNavigate } from 'react-router-dom';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
@@ -51,6 +50,7 @@ export const SpotlightMenu = () => {
   const { setColorScheme } = useMantineColorScheme();
   const { handleAddSource } = useFileHandlers();
   const { command, option } = useModifier();
+  const navigate = useNavigate();
 
   /**
    * Store access
@@ -65,8 +65,6 @@ export const SpotlightMenu = () => {
   const [searchValue, setSearchValue] = useState('');
   const [spotlightView, setSpotlightView] = useState<SpotlightView>('home');
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [settingsOpened, { open: openSettings, close: closeSettings }] = useDisclosure(false);
-  const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
 
   const resetSpotlight = () => {
     setSpotlightView('home');
@@ -216,7 +214,7 @@ export const SpotlightMenu = () => {
       label: 'General',
       icon: <IconSettings size={20} className={iconClasses} />,
       handler: () => {
-        openSettings();
+        navigate('/settings');
         Spotlight.close();
       },
     },
@@ -503,13 +501,6 @@ export const SpotlightMenu = () => {
 
   return (
     <>
-      <SettingsModal
-        opened={settingsOpened}
-        onClose={closeSettings}
-        confirmOpened={confirmOpened}
-        onConfirmOpen={openConfirm}
-        onConfirmClose={closeConfirm}
-      />
       <Spotlight.Root
         closeOnActionTrigger={false}
         onSpotlightClose={resetSpotlight}

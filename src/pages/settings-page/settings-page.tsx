@@ -1,12 +1,27 @@
-import { Box, Group, Stack, Text, Title } from '@mantine/core';
-import { useHotkeys } from '@mantine/hooks';
-import { useNavigate } from 'react-router-dom';
+import { Box, Button, Divider, Group, Stack, Text, Title } from '@mantine/core';
+import { clearFileSystem } from '@components/settings-modal/utils';
+import { useAppContext } from '@features/app-context';
 import { ThemeSwitcher } from './components/theme-switcher';
 
 export const SettingsPage = () => {
-  const navigate = useNavigate();
+  const { exportFilesAsArchive } = useAppContext();
 
-  useHotkeys([['Escape', () => navigate('/')]]);
+  // TODO: Separate this into a hook
+  const handleClearData = async () => {
+    await clearFileSystem();
+  };
+
+  const downloadArchive = async () => {
+    const archiveBlob = await exportFilesAsArchive();
+    if (archiveBlob) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(archiveBlob);
+      link.download = 'queries.zip';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   return (
     <Group align="start" justify="center" className="h-full p-4">
@@ -29,19 +44,43 @@ export const SettingsPage = () => {
 
           <ThemeSwitcher />
         </Stack>
+        <Divider />
         <Stack className="gap-8">
           <Title c="text-primary" order={2}>
-            Reset
+            Saved data
           </Title>
           <Stack>
             <Box>
               <Title c="text-primary" order={3}>
-                Reset all settings
+                Export queries
               </Title>
-              <Text c="text-secondary">
-                Reset all settings to their default values. This includes all appearance settings,
-                and any other settings you have changed.
-              </Text>
+              <Stack>
+                <Text c="text-secondary">Export all queries to a single ZIP archive.</Text>
+                <Button
+                  className="w-fit"
+                  onClick={downloadArchive}
+                  variant="outline"
+                  color="background-accent"
+                >
+                  Export All
+                </Button>
+              </Stack>
+            </Box>
+          </Stack>
+          <Stack>
+            <Box>
+              <Title c="text-primary" order={3}>
+                Clear app data
+              </Title>
+              <Stack>
+                <Text c="text-secondary">
+                  This action will permanently delete all saved queries and uploaded files. It
+                  cannot be undone.
+                </Text>
+                <Button className="w-fit" onClick={handleClearData} variant="outline" color="red">
+                  Clear all
+                </Button>
+              </Stack>
             </Box>
           </Stack>
         </Stack>
