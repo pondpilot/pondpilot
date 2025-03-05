@@ -36,7 +36,19 @@ As of today PondPilot only guranteed to work best in Chrome due to the use of Fi
 
 ### Running Locally
 
-If you prefer to run PondPilot locally:
+#### Using Docker
+
+Run PondPilot with a single command:
+
+```bash
+docker run -d -p 4173:80 --name pondpilot ghcr.io/pondpilot/pondpilot:latest
+```
+
+Visit `http://localhost:4173` in your browser to access the app.
+
+#### Using Yarn
+
+Alternatively, you can build & run PondPilot using Yarn:
 
 ```bash
 # Clone the repository
@@ -106,12 +118,12 @@ We welcome contributions from the community! Here's how to get started:
 
 DuckDB is awesome, and there are many similar proejcts out there. And there is even more SQL IDE's beyond that. We've been inspired by the following projects:
 
-* [Rill](https://github.com/rilldata/rill)
-* [QuackDB](https://github.com/mattf96s/QuackDB)
-* [TablePlus](https://tableplus.com)
-* [Outerbase Studio](https://github.com/outerbase/studio)
-* [harlequin](https://github.com/tconbeer/harlequin)
-* [duck-ui](https://github.com/caioricciuti/duck-ui)
+* <a target="_blank" href="https://github.com/rilldata/rill">Rill</a>
+* <a target="_blank" href="https://github.com/mattf96s/QuackDB">QuackDB</a>
+* <a target="_blank" href="https://tableplus.com">TablePlus</a>
+* <a target="_blank" href="https://github.com/outerbase/studio">Outerbase Studio</a>
+* <a target="_blank" href="https://github.com/tconbeer/harlequin">harlequin</a>
+* <a target="_blank" href="https://github.com/caioricciuti/duck-ui">duck-ui</a>
 
 And many more!
 
@@ -123,14 +135,14 @@ This means you're free to use, modify, and distribute the software, but if you m
 
 ## 🙏 Acknowledgments
 
-* Built with [DuckDB-WASM](https://github.com/duckdb/duckdb-wasm) - the powerful SQL database that runs in your browser
-* UI components by [Mantine](https://mantine.dev/)
-* This project incorporates and modifies code related to query editor from [Outerbase Studio](https://github.com/outerbase/studio) which is licensed under the GNU Affero General Public License v3.0.
+* Built with <a target="_blank" href="https://github.com/duckdb/duckdb-wasm">DuckDB-WASM</a> - the powerful SQL database that runs in your browser
+* UI components by <a target="_blank" href="https://mantine.dev/">Mantine</a>
+* This project incorporates and modifies code related to query editor from <a target="_blank" href="https://github.com/outerbase/studio">Outerbase Studio</a> which is licensed under the GNU Affero General Public License v3.0.
 
 ---
 
 <p align="center">
-  <a href="https://app.pondpilot.io">app.pondpilot.io</a> •
-  <a href="https://github.com/pondpilot/pondpilot">GitHub</a> •
-  <a href="https://t1a.com">Built at T1A with ❤️</a>
+  <a target="_blank" href="https://app.pondpilot.io">app.pondpilot.io</a> •
+  <a target="_blank" href="https://github.com/pondpilot/pondpilot">GitHub</a> •
+  <a target="_blank" href="https://t1a.com">Built at T1A with ❤️</a>
 </p>
