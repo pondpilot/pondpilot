@@ -36,7 +36,19 @@ As of today PondPilot only guranteed to work best in Chrome due to the use of Fi
 
 ### Running Locally
 
-If you prefer to run PondPilot locally:
+#### Using Docker
+
+Run PondPilot with a single command:
+
+```bash
+docker run -d -p 4173:80 --name pondpilot ghcr.io/pondpilot/pondpilot:latest
+```
+
+Visit `http://localhost:4173` in your browser to access the app.
+
+#### Using Yarn
+
+Alternatively, you can build & run PondPilot using Yarn:
 
 ```bash
 # Clone the repository
