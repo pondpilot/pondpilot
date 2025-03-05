@@ -21,5 +21,5 @@ export const clearFileSystem = async () => {
       await root.removeEntry(entry.name, { recursive: true });
     }
   }
-  window.location.reload();
+  window.location.href = '/';
 };
