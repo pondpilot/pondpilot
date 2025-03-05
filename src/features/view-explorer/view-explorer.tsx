@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { MenuItem, SourcesListView } from '@components/sources-list-view';
-import { useAppContext } from 'features/app-context';
-import { useAppStore } from 'store/app-store';
+import { useAppContext } from '@features/app-context';
+import { useAppStore } from '@store/app-store';
 import { useClipboard } from '@mantine/hooks';
 import { memo, useCallback } from 'react';
 import { useAppNotifications } from '@components/app-notifications';

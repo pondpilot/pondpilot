@@ -7,8 +7,8 @@ import './index.css';
 
 import { MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import { AppProvider } from 'features/app-context';
-import { theme } from 'theme/theme';
+import { AppProvider } from '@features/app-context';
+import { theme } from './theme/theme';
 
 import { Router } from './router/router';
 

@@ -5,7 +5,7 @@ import { getColumnType } from '@utils/duckdb';
 import React, { useCallback, useMemo } from 'react';
 import { Tooltip } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
-import { usePaginationStore } from 'store/pagination-store';
+import { usePaginationStore } from '@store/pagination-store';
 import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
 import { ResultColumn } from '@utils/arrow/helpers';

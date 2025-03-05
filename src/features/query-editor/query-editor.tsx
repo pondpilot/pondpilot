@@ -1,11 +1,11 @@
 import { Group, Text, useMantineColorScheme } from '@mantine/core';
 import { useDebouncedCallback, useLocalStorage } from '@mantine/hooks';
 import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
-import { useAppContext } from 'features/app-context';
+import { useAppContext } from '@features/app-context';
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { useAppStore } from 'store/app-store';
-import { useEditorStore } from 'store/editor-store';
-import { usePaginationStore } from 'store/pagination-store';
+import { useAppStore } from '@store/app-store';
+import { useEditorStore } from '@store/editor-store';
+import { usePaginationStore } from '@store/pagination-store';
 import { SqlEditor } from '@features/editor';
 import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';

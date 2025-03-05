@@ -8,7 +8,7 @@ import { useDisclosure, useLocalStorage } from '@mantine/hooks';
 import { IconPlus, IconSettings } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
-import { useFileHandlers } from 'hooks/useUploadFilesHandlers';
+import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 

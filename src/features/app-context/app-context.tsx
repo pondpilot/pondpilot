@@ -1,17 +1,18 @@
 /* eslint-disable no-console */
 import { createContext, useContext, useEffect, useState } from 'react';
 import { releaseProxy, wrap } from 'comlink';
-import { useAppStore } from 'store/app-store';
+import { useAppStore } from '@store/app-store';
 import { AddDataSourceProps, SaveEditorProps } from 'models';
 import { tableFromIPC } from 'apache-arrow';
-import { usePaginationStore } from 'store/pagination-store';
+import { usePaginationStore } from '@store/pagination-store';
 import { useAppNotifications } from '@components/app-notifications';
-import { useAbortController } from 'hooks/useAbortController';
-import { useEditorStore } from 'store/editor-store';
+import { useAbortController } from '@hooks/useAbortController';
+import { useEditorStore } from '@store/editor-store';
 import { openDB } from 'idb';
 import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { createName } from '@utils/helpers';
 import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '../../consts';
 import {
   AddTabProps,
@@ -24,7 +25,7 @@ import {
   TabModel,
 } from './models';
 import { useShowPermsAlert, useWorkersRefs } from './hooks';
-import { createName, executeQueries, updateDatabasesWithColumns } from './utils';
+import { executeQueries, updateDatabasesWithColumns } from './utils';
 import { SessionWorker } from './app-session-worker';
 import { ErrorModal } from './components/error-modal';
 
@@ -182,8 +183,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       const tabsToDelete = idbTabs.filter((tab) => paths.includes(tab.path));
 
       await onDeleteTabs(tabsToDelete);
-    } catch (e: any) {
-      showError({ title: 'App context: Failed to delete sources', message: e.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      showError({ title: 'App context: Failed to delete sources', message });
       console.error('Failed to delete sources: ', e);
     }
   };
@@ -291,8 +293,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       setSessionFiles(sessionFiles);
       setDatabases(transformedTables);
       setViews(newViews);
-    } catch (e: any) {
-      showError({ title: 'App context: Failed to add data source', message: e.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      showError({ title: 'App context: Failed to add data source', message });
       console.error(e);
     }
   };
@@ -329,9 +332,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         stable: true,
         createNew: !!openInNewTab,
       });
-    } catch (e: any) {
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
       console.error('App context: Failed to create queries: ', e);
-      showError({ message: e.message, title: 'App context: Failed to create queries' });
+      showError({ message, title: 'App context: Failed to create queries' });
     }
   };
 
@@ -488,9 +492,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       const currentSources = await proxyRef.current.getFileSystemSources();
 
       setQueries(currentSources?.editors ?? []);
-    } catch (e: any) {
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
       console.error('App context: Failed to save editor: ', e);
-      showError({ title: 'App context: Failed to save editor', message: e.message });
+      showError({ title: 'App context: Failed to save editor', message });
     }
   };
 
@@ -567,10 +572,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           });
         }
       }
-    } catch (e: any) {
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
       setCurrentView(null);
       console.error('App context: Failed to open view: ', e);
-      showError({ title: 'App context: Failed to open view', message: e.message });
+      showError({ title: 'App context: Failed to open view', message });
     } finally {
       setQueryRunning(false);
     }
@@ -587,9 +593,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (Number.isInteger(activeTabIndex)) {
         setActiveTab(updatedTabs[activeTabIndex]);
       }
-    } catch (e: any) {
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
       console.error('App context: Failed to set tabs order: ', e);
-      showError({ title: 'App context: Failed to set tabs order', message: e.message });
+      showError({ title: 'App context: Failed to set tabs order', message });
     }
   };
 

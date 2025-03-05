@@ -7,8 +7,12 @@ import * as Comlink from 'comlink';
 import { Dataset, CodeSource, CodeEditor, SaveEditorResponse, SaveEditorProps } from 'models';
 import { openDB } from 'idb';
 import JSZip from 'jszip';
-import { findUniqueName, getSessionDirectory, getSupportedMimeType } from '../../utils';
-import { createName } from './utils';
+import {
+  createName,
+  findUniqueName,
+  getSessionDirectory,
+  getSupportedMimeType,
+} from '../../utils/helpers';
 import {
   AddDataSourceBase,
   AddTabProps,
