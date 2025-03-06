@@ -2,7 +2,7 @@ import { SettingsModal } from '@components/settings-modal';
 import { DbExplorer } from '@features/db-explorer/db-explorer';
 import { QueryExplorer } from '@features/query-explorer';
 import { ViewExplorer } from '@features/view-explorer';
-import { ActionIcon, Button, Divider, Group } from '@mantine/core';
+import { ActionIcon, Button, Divider, Group, Text } from '@mantine/core';
 import { useDisclosure, useLocalStorage } from '@mantine/hooks';
 import { IconBrandGithub, IconPlus, IconSettings } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
@@ -119,6 +119,9 @@ export const Navbar = memo(() => {
                 <IconBrandGithub />
               </ActionIcon>
             </Group>
+            <Text c="text-secondary" maw={100} truncate="end">
+              {__VERSION__}
+            </Text>
           </Group>
         </Allotment.Pane>
       </Allotment>

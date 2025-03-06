@@ -36,9 +36,7 @@ export const SettingsPage = () => {
               Theme
             </Title>
             <Text c="text-secondary">
-              Choose how PondPilot looks to you. Select a single theme, or sync with your system and
-              automatically switch between day and night themes. Selections are applied immediately
-              and saved automatically.
+              Customize how the app looks. Choose a theme or sync with your system.
             </Text>
           </Box>
 
@@ -74,7 +72,7 @@ export const SettingsPage = () => {
               </Title>
               <Stack>
                 <Text c="text-secondary">
-                  This action will permanently delete all saved queries and uploaded files. It
+                  This action will permanently delete all saved queries and uploaded files. This
                   cannot be undone.
                 </Text>
                 <Button className="w-fit" onClick={handleClearData} variant="outline" color="red">
