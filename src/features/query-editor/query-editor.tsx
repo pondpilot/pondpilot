@@ -1,5 +1,5 @@
 import { Group, Text, useMantineColorScheme } from '@mantine/core';
-import { useDebouncedCallback, useLocalStorage } from '@mantine/hooks';
+import { useDebouncedCallback } from '@mantine/hooks';
 import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { useAppContext } from '@features/app-context';
 import { useEffect, useRef, useState, useMemo } from 'react';
@@ -28,7 +28,6 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
   const context = useAppContext();
 
   const { colorScheme } = useMantineColorScheme();
-  const [autoSaveValue] = useLocalStorage({ key: 'editor-auto-save' });
 
   const currentQuery = useAppStore((state) => state.currentQuery);
   const queries = useAppStore((state) => state.queries);
@@ -112,7 +111,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
   };
 
   const handleSearch = useDebouncedCallback(async () => {
-    if (autoSaveValue && lastQueryDirty) {
+    if (lastQueryDirty) {
       handleQuerySave();
     }
   }, 300);
@@ -120,9 +119,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
   const handleChange = (value: string | undefined) => {
     setEditorValue(value || '');
     if (value !== currentQueryData?.content) {
-      if (autoSaveValue) {
-        handleSearch();
-      }
+      handleSearch();
       setLastQueryDirty(true);
     } else {
       setLastQueryDirty(false);
