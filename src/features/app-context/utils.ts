@@ -1,27 +1,13 @@
 /* eslint-disable no-continue */
-import { DataBaseModel } from 'models';
 
 import { EditorState } from '@uiw/react-codemirror';
 import { PostgreSQL, sql } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
 import { tableFromIPC } from 'apache-arrow';
+import { createName } from '@utils/helpers';
+import { DataBaseModel } from '@models/common';
 import { splitSqlQuery } from '../../utils/editor/statement-parser';
 import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse, SessionFiles } from './models';
-
-/**
- * Creates item name by removing the file extension and replacing hyphens with underscores.
- *
- * @param {string} fileName - The name of the file with extension.
- * @returns {string} The generated view name.
- */
-export const createName = (fileName: string): string => {
-  const sanitize = (str: string): string => str.replace(/[- ()/]/g, '_');
-
-  const name = sanitize(fileName.split('.')[0]);
-  const ext = fileName.split('.').pop();
-
-  return Number.isNaN(Number(name[0])) ? name : `${ext}_${name}`;
-};
 
 export const transformDatabaseStructure = (
   input: {

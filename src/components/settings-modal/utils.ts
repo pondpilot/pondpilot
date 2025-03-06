@@ -1,4 +1,9 @@
-import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME, TABS_DB_NAME, TABS_STORE_NAME } from 'consts';
+import {
+  FILE_HANDLE_DB_NAME,
+  FILE_HANDLE_STORE_NAME,
+  TABS_DB_NAME,
+  TABS_STORE_NAME,
+} from '@consts/idb';
 import { openDB } from 'idb';
 
 export const clearFileSystem = async () => {
@@ -16,5 +21,5 @@ export const clearFileSystem = async () => {
       await root.removeEntry(entry.name, { recursive: true });
     }
   }
-  window.location.reload();
+  window.location.href = '/';
 };

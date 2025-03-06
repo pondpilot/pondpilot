@@ -1,6 +1,6 @@
 import { Center, Stack, Text } from '@mantine/core';
 import { useOs } from '@mantine/hooks';
-import { useModifier } from 'hooks/useModifier';
+import { useModifier } from '@hooks/useModifier';
 
 export const StartGuide = () => {
   const os = useOs();

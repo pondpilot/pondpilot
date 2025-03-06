@@ -30,8 +30,6 @@ export const datasetMimeTypes = [
   'text/x-uri',
 ];
 
-// ------ Dataset Mime Types ------ //
-
 export type DatasetMimeType = (typeof datasetMimeTypes)[number];
 
 export function isDatasetMimeType(x: unknown): x is DatasetMimeType {
@@ -61,9 +59,8 @@ export type Dataset = {
 };
 
 // ---------- Code Ext files ----------- //
-
 /**
- * Only support sql for now (python, js, ts, rs are possible future additions).
+ * Only support sql for now
  */
 export const codeFileExts = ['sql'] as const;
 
@@ -118,7 +115,6 @@ type DataSource = {
 
 export type AddDataSourceProps = DataSource[];
 
-// saving file
 export type SaveEditorProps = {
   content: string;
   path: string;
@@ -146,3 +142,5 @@ export interface DataBaseModel {
   name: string;
   schemas: SchemaModel[];
 }
+
+export type Limit = 100 | 1000 | 10000;

@@ -22,6 +22,12 @@
       "@components/*": ["components/*"],
       "@utils/*": ["utils/*"],
       "@features/*": ["features/*"],
+      "@store/*": ["store/*"],
+      "@hooks/*": ["hooks/*"],
+      "@theme/*": ["theme/*"],
+      "@router/*": ["router/*"],
+      "@consts/*": ["consts/*"],
+      "@models/*": ["models/*"]
     }
   },
   "include": ["src"]

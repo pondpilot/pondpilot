@@ -4,7 +4,7 @@
  * Licensed under GNU AGPL v3.0
  */
 
-import { DataBaseModel } from 'models';
+import { DataBaseModel } from '@models/common';
 import type { SQLNamespace } from '@codemirror/lang-sql';
 import type { Completion } from '@codemirror/autocomplete';
 

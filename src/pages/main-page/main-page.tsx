@@ -1,13 +1,12 @@
 import { Stack, useMantineColorScheme } from '@mantine/core';
 import { Allotment } from 'allotment';
-import { useAppContext } from 'features/app-context';
+import { useAppContext } from '@features/app-context';
 import { useHotkeys, useLocalStorage } from '@mantine/hooks';
 import { TabsPane } from '@features/tabs-pane';
 import { Spotlight } from '@mantine/spotlight';
-import { useFileHandlers } from 'hooks/useUploadFilesHandlers';
+import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { DataViewer } from '@features/data-viewer';
-import { SpotlightMenu } from '@components/spotlight';
-import { Navbar } from './components/navbar';
+import { Navbar } from './components';
 
 export const MainPage = () => {
   /**
@@ -67,8 +66,6 @@ export const MainPage = () => {
 
   return (
     <>
-      <SpotlightMenu />
-
       <Allotment
         className={colorScheme === 'dark' ? 'custom-allotment-dark' : 'custom-allotment'}
         onDragEnd={handleOuterLayoutResize}

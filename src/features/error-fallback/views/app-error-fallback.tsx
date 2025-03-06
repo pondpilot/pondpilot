@@ -1,7 +1,7 @@
 import { Stack, Group, Button, Text } from '@mantine/core';
 import React from 'react';
 import { FallbackProps } from 'react-error-boundary';
-import { exportApplicationFiles } from 'utils';
+import { exportApplicationFiles } from '@utils/helpers';
 import { deleteApplicationData } from '../utils';
 
 export const AppErrorFallback = ({ error }: FallbackProps) => {

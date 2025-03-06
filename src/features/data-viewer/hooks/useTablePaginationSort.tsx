@@ -1,8 +1,8 @@
 import { useAppContext } from '@features/app-context';
 import { tableFromIPC } from 'apache-arrow';
 import { useCallback, useMemo } from 'react';
-import { useAppStore } from 'store/app-store';
-import { usePaginationStore } from 'store/pagination-store';
+import { useAppStore } from '@store/app-store';
+import { usePaginationStore } from '@store/pagination-store';
 
 export const useTableSort = () => {
   const { runQuery } = useAppContext();

@@ -1,11 +1,11 @@
 import { memo, useCallback, useEffect, useMemo } from 'react';
 
 import { Allotment } from 'allotment';
-import { useAppContext } from 'features/app-context';
-import { useAppStore } from 'store/app-store';
+import { useAppContext } from '@features/app-context';
+import { useAppStore } from '@store/app-store';
 import { useClipboard, useDebouncedState, useHotkeys, useLocalStorage } from '@mantine/hooks';
-import { usePaginationStore } from 'store/pagination-store';
-import { QueryEditor } from 'features/query-editor';
+import { usePaginationStore } from '@store/pagination-store';
+import { QueryEditor } from '@features/query-editor';
 import { getArrowTableSchema } from '@utils/arrow/helpers';
 import {
   ActionIcon,
@@ -115,11 +115,12 @@ export const DataViewer = memo(() => {
           loading: false,
           autoClose: 800,
         });
-      } catch (error: any) {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
         notifications.update({
           id: notificationId,
           title: 'Failed to copy selected columns to clipboard',
-          message: error.message,
+          message,
           loading: false,
           autoClose: 5000,
           color: 'red',

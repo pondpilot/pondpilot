@@ -1,15 +1,15 @@
 import { SettingsModal } from '@components/settings-modal';
-import { ThemeSwitcher } from '@components/theme-switcher';
 import { DbExplorer } from '@features/db-explorer/db-explorer';
 import { QueryExplorer } from '@features/query-explorer';
 import { ViewExplorer } from '@features/view-explorer';
 import { ActionIcon, Button, Divider, Group, Text } from '@mantine/core';
 import { useDisclosure, useLocalStorage } from '@mantine/hooks';
-import { IconPlus } from '@tabler/icons-react';
+import { IconBrandGithub, IconPlus, IconSettings } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
-import { useFileHandlers } from 'hooks/useUploadFilesHandlers';
+import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { memo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Displays the navigation bar
@@ -22,6 +22,7 @@ export const Navbar = memo(() => {
   const [settingsOpened, { close: closeSettings }] = useDisclosure(false);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
   const { handleAddSource } = useFileHandlers();
+  const navigate = useNavigate();
 
   /**
    * Local state
@@ -104,7 +105,20 @@ export const Navbar = memo(() => {
         </Allotment.Pane>
         <Allotment.Pane maxSize={34} minSize={34}>
           <Group className="h-full px-3 justify-between">
-            <ThemeSwitcher />
+            <Group>
+              <ActionIcon size={20} onClick={() => navigate('/settings')}>
+                <IconSettings />
+              </ActionIcon>
+              <ActionIcon
+                size={20}
+                component="a"
+                href="https://github.com/pondpilot/pondpilot"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <IconBrandGithub />
+              </ActionIcon>
+            </Group>
             <Text c="text-secondary" maw={100} truncate="end">
               {__VERSION__}
             </Text>

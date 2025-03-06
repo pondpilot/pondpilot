@@ -4,27 +4,23 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 import { VitePWA } from 'vite-plugin-pwa';
 import svgr from 'vite-plugin-svgr';
 import { execSync } from 'child_process';
+import { resolve } from 'path';
 
-// Function to get version information
-function getVersionInfo() {
+const getVersionInfo = () => {
   try {
-    // Check if this is a tagged commit (for release)
     const gitTag = execSync('git describe --exact-match --tags 2> /dev/null || echo ""')
       .toString()
       .trim();
 
     if (gitTag) {
-      // Return the tag as version for tagged commits
       return `v${gitTag}`;
     } else {
-      // For non-tagged commits, return the build date
-      return `Build: ${new Date().toUTCString()}`;
+      return ``;
     }
   } catch (e) {
-    // Fallback in case of any errors
-    return `Build: ${new Date().toUTCString()}`;
+    return ``;
   }
-}
+};
 
 export default defineConfig(({ mode }) => {
   return {
@@ -102,6 +98,11 @@ export default defineConfig(({ mode }) => {
       }),
       svgr(),
     ],
+    worker: {
+      format: 'es',
+      plugins: () => [tsconfigPaths()],
+    },
+
     build: {
       sourcemap: mode === 'development',
     },
