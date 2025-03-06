@@ -20,7 +20,7 @@ export const RunQueryButton = ({ disabled, handleRunQuery }: RunQueryButtonProps
   });
 
   const buttonText = {
-    all: 'Run All',
+    all: 'Run',
     selection: 'Run Selection',
   }[defaultOption];
 
@@ -59,7 +59,7 @@ export const RunQueryButton = ({ disabled, handleRunQuery }: RunQueryButtonProps
             }
             onClick={() => handleRunQuery('all')}
           >
-            Run all
+            Run
           </Menu.Item>
           <Menu.Item
             rightSection={
@@ -83,7 +83,7 @@ export const RunQueryButton = ({ disabled, handleRunQuery }: RunQueryButtonProps
                 rightSection={defaultOption === 'all' ? '✓' : null}
                 onClick={() => setDefaultOption('all')}
               >
-                Run all
+                Run
               </Menu.Item>
               <Menu.Item
                 rightSection={defaultOption === 'selection' ? '✓' : null}
