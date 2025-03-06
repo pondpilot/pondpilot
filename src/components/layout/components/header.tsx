@@ -1,17 +1,14 @@
 import { memo } from 'react';
-import { ActionIcon, Group, Text, TextInput, useMantineColorScheme } from '@mantine/core';
+import { ActionIcon, Group, Text, TextInput } from '@mantine/core';
 import { spotlight } from '@mantine/spotlight';
 import { cn } from '@utils/ui/styles';
-import { IconLayout, IconSearch } from '@tabler/icons-react';
+import { IconLayout, IconLayoutSidebar, IconSearch } from '@tabler/icons-react';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { useModifier } from '@hooks/useModifier';
 import { SpotlightMenu } from '@components/spotlight';
 import { useLocation, useNavigate } from 'react-router-dom';
-import Logo from '../../../assets/logo.svg?react';
-import DarkLogo from '../../../assets/dark-logo.svg?react';
 
 export const Header = memo(() => {
-  const { colorScheme } = useMantineColorScheme();
   const navigate = useNavigate();
   const location = useLocation();
   const mod = useModifier();
@@ -26,9 +23,9 @@ export const Header = memo(() => {
       <Text size="xs">SETTINGS</Text>
     </Group>
   ) : (
-    <Text onClick={() => navigate('/')} size="xl" className="cursor-pointer">
-      {colorScheme === 'dark' ? <DarkLogo /> : <Logo />}
-    </Text>
+    <ActionIcon size={20} disabled>
+      <IconLayoutSidebar />
+    </ActionIcon>
   );
 
   return (
