@@ -97,7 +97,7 @@ interface QueryStatement {
 
 interface ExecuteQueriesProps {
   runQueryProps: DBRunQueryProps;
-  dbProxyRef: React.MutableRefObject<any>;
+  dbProxyRef: React.RefObject<any>;
   isCancelledPromise: Promise<never>;
   currentSources: SessionFiles | null;
 }
@@ -217,7 +217,7 @@ const executeStatement = async ({
   hasLimit,
 }: {
   query: string;
-  dbProxyRef: React.MutableRefObject<any>;
+  dbProxyRef: React.RefObject<any>;
   isCancelledPromise: Promise<never>;
   statement: QueryStatement;
   hasLimit: boolean;

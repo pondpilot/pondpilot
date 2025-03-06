@@ -33,12 +33,13 @@ import {
 } from '@tabler/icons-react';
 import { getArrowTableSchema } from '@utils/arrow/helpers';
 import { useAppNotifications } from '@components/app-notifications';
+import { useEditorStore } from 'store/editor-store';
 
 interface SortableTabProps {
   tab: TabModel;
   activeTab: TabModel | null;
   icon: React.ReactNode;
-  activeTabRef: React.MutableRefObject<HTMLDivElement | null>;
+  activeTabRef: React.RefObject<HTMLDivElement | null>;
   onTabUpdate: (tab: TabModel) => void;
   handleDeleteTab: (tab: TabModel) => void;
   onClick: (tab: TabModel) => void;
@@ -124,7 +125,7 @@ export const TabsPane = memo(() => {
   /**
    * Common hooks
    */
-  const { onDeleteTabs, onTabUpdate, onOpenView, onSetTabsOrder, onCreateQueryFile } =
+  const { onDeleteTabs, onTabUpdate, onOpenView, onSetTabsOrder, onCreateQueryFile, onSaveEditor } =
     useAppContext();
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -155,6 +156,11 @@ export const TabsPane = memo(() => {
   const queryView = useAppStore((state) => state.queryView);
   const queryResults = useAppStore((state) => state.queryResults);
   const sessionFiles = useAppStore((state) => state.sessionFiles);
+
+  const editorValue = useEditorStore((state) => state.editorValue);
+  const lastQueryDirty = useEditorStore((state) => state.lastQueryDirty);
+  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
+
   const appInitializing = appStatus === 'initializing';
 
   /**
@@ -185,12 +191,24 @@ export const TabsPane = memo(() => {
     }
   };
 
+  const saveCurrentQuery = async () => {
+    if (activeTab) {
+      await onSaveEditor({ content: editorValue, path: activeTab.path });
+      setLastQueryDirty(false);
+    }
+  };
+
   const handleTabChange = async (tabId: string | null) => {
     setIsUserTabChange(true);
     const tab = tabs.find((t) => t.id === tabId);
     if (!tab) return;
     if (tab.id === activeTab?.id) return;
+    if (queryView && lastQueryDirty) {
+      saveCurrentQuery();
+    }
+
     setActiveTab(tab);
+
     if (tab.mode === 'view') {
       onOpenView(tab.path);
     }
@@ -206,8 +224,13 @@ export const TabsPane = memo(() => {
     onDeleteTabs([tab]);
   };
 
-  const handleTabClick = (tab: TabModel) => {
+  const handleTabClick = async (tab: TabModel) => {
     if (tab.id === activeTab?.id) return;
+
+    if (queryView && lastQueryDirty) {
+      saveCurrentQuery();
+    }
+
     setIsUserTabChange(true);
     setActiveTab(tab);
     if (tab.mode === 'view') {
@@ -222,6 +245,9 @@ export const TabsPane = memo(() => {
   };
 
   const handleAddQuery = () => {
+    if (queryView && lastQueryDirty) {
+      saveCurrentQuery();
+    }
     onCreateQueryFile({ entities: [{ name: 'query' }], openInNewTab: true });
   };
 

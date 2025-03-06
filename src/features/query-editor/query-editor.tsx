@@ -115,7 +115,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
     if (autoSaveValue && lastQueryDirty) {
       handleQuerySave();
     }
-  }, 1000);
+  }, 300);
 
   const handleChange = (value: string | undefined) => {
     setEditorValue(value || '');
