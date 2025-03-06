@@ -6,7 +6,6 @@ import { tableFromIPC } from 'apache-arrow';
 import { usePaginationStore } from '@store/pagination-store';
 import { useAppNotifications } from '@components/app-notifications';
 import { useAbortController } from '@hooks/useAbortController';
-import { useEditorStore } from '@store/editor-store';
 import { openDB } from 'idb';
 import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
@@ -43,7 +42,6 @@ interface AppContextType {
   runQuery: (runQueryProps: DBRunQueryProps) => Promise<RunQueryResponse | undefined>;
   onCreateQueryFile: (v: CreateQueryFileProps) => Promise<void>;
   onCancelQuery: (v?: string) => Promise<void>;
-  onSaveCurrentEditor: () => Promise<void>;
   onDeleteTabs: (tabs: TabModel[]) => Promise<void>;
   onTabUpdate: (tab: TabModel) => Promise<void>;
   onOpenView: (name: string) => Promise<void>;
@@ -97,7 +95,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const tabsState = useAppStore((state) => state.tabs);
   const cachedPagination = useAppStore((state) => state.cachedPagination);
 
-  const { getEditorValue } = useEditorStore.getState();
   const setRowsCount = usePaginationStore((state) => state.setRowsCount);
   const setCurrentPage = usePaginationStore((state) => state.setCurrentPage);
   const resetPagination = usePaginationStore((state) => state.resetPagination);
@@ -497,14 +494,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('App context: Failed to save editor: ', e);
       showError({ title: 'App context: Failed to save editor', message });
     }
-  };
-
-  const onSaveCurrentEditor = async () => {
-    if (!currentQuery) return;
-    onSaveEditor({
-      content: getEditorValue(),
-      path: currentQuery,
-    });
   };
 
   const onOpenQuery = async (path: string) => {
@@ -989,7 +978,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     runQuery,
     onSaveEditor,
     onCancelQuery,
-    onSaveCurrentEditor,
     onRenameDataSource,
     onDeleteTabs,
     onTabUpdate,
