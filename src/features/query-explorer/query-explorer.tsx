@@ -6,6 +6,7 @@ import { useAppContext } from '@features/app-context';
 import { memo, useState } from 'react';
 import { useAppStore } from '@store/app-store';
 import { IconCode, IconPlus } from '@tabler/icons-react';
+import { useEditorStore } from '@store/editor-store';
 
 export const QueryExplorer = memo(() => {
   /**
@@ -18,6 +19,7 @@ export const QueryExplorer = memo(() => {
     onOpenQuery,
     onTabSwitch,
     onDeleteTabs,
+    onSaveEditor,
   } = useAppContext();
   const { showSuccess } = useAppNotifications();
   const { copy } = useClipboard();
@@ -31,6 +33,11 @@ export const QueryExplorer = memo(() => {
   const appStatus = useAppStore((state) => state.appStatus);
   const activeTab = useAppStore((state) => state.activeTab);
   const tabs = useAppStore((state) => state.tabs);
+  const queryView = useAppStore((state) => state.queryView);
+
+  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
+  const editorValue = useEditorStore((state) => state.editorValue);
+  const lastQueryDirty = useEditorStore((state) => state.lastQueryDirty);
 
   /**
    * Local state
@@ -67,17 +74,28 @@ export const QueryExplorer = memo(() => {
   /**
    * Common handlers
    */
+
+  const saveCurrentQuery = async () => {
+    if (activeTab) {
+      await onSaveEditor({ content: editorValue, path: activeTab.path });
+      setLastQueryDirty(false);
+    }
+  };
+
   const handleSetQuery = async (path: string) => {
     if (activeTab?.path === path) return;
+    if (queryView && lastQueryDirty) {
+      saveCurrentQuery();
+    }
+
     onOpenQuery(path);
     onTabSwitch({ path, mode: 'query' });
   };
 
-  const handleQueryClick = (path: string) => {
-    handleSetQuery(path);
-  };
-
-  const handleAddQuery = () => {
+  const handleAddQuery = async () => {
+    if (queryView && lastQueryDirty) {
+      saveCurrentQuery();
+    }
     onCreateQueryFile({ entities: [{ name: 'query' }] });
   };
 
@@ -188,7 +206,7 @@ export const QueryExplorer = memo(() => {
         onDeleteSelected={handleDeleteSelected}
         list={queriesList}
         menuItems={menuItems}
-        onItemClick={handleQueryClick}
+        onItemClick={handleSetQuery}
         disabled={queryLoading}
         activeItemKey={currentQuery}
         loading={appStatus === 'initializing'}
