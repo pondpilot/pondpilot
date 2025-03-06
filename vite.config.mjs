@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-
+      tsconfigPaths(),
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
@@ -85,20 +85,11 @@ export default defineConfig(({ mode }) => {
       }),
       svgr(),
     ],
-    resolve: {
-      alias: {
-        '@pages': resolve(__dirname, 'src/pages'),
-        '@components': resolve(__dirname, 'src/components'),
-        '@utils': resolve(__dirname, 'src/utils'),
-        '@features': resolve(__dirname, 'src/features'),
-        '@store': resolve(__dirname, 'src/store'),
-        '@hooks': resolve(__dirname, 'src/hooks'),
-        '@theme': resolve(__dirname, 'src/theme'),
-        '@router': resolve(__dirname, 'src/router'),
-        '@consts': resolve(__dirname, 'src/consts'),
-        '@models': resolve(__dirname, 'src/models'),
-      },
+    worker: {
+      format: 'es',
+      plugins: () => [tsconfigPaths()],
     },
+
     build: {
       sourcemap: mode === 'development',
     },
