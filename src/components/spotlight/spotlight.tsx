@@ -222,26 +222,35 @@ export const SpotlightMenu = () => {
 
   const helpActions: Action[] = [
     {
-      id: 'keyboard-shortcuts',
-      label: 'Keyboard Shortcuts',
-      icon: <IconKeyboard size={20} className={iconClasses} />,
-      disabled: true,
-
-      handler: () => {},
-    },
-    {
       id: 'documentation',
       label: 'Documentation',
       icon: <IconBooks size={20} className={iconClasses} />,
-      disabled: true,
-
-      handler: () => {},
+      handler: () => {
+        window.open(
+          'https://github.com/pondpilot/pondpilot/blob/main/README.md',
+          '_blank',
+          'noopener,noreferrer',
+        );
+      },
     },
     {
       id: 'report-issue',
       label: 'Report an Issue',
       icon: <IconFileSad size={20} className={iconClasses} />,
+      handler: () => {
+        window.open(
+          'https://github.com/pondpilot/pondpilot/issues/new/choose',
+          '_blank',
+          'noopener,noreferrer',
+        );
+      },
+    },
+    {
+      id: 'keyboard-shortcuts',
+      label: 'Keyboard Shortcuts',
+      icon: <IconKeyboard size={20} className={iconClasses} />,
       disabled: true,
+
       handler: () => {},
     },
   ];
