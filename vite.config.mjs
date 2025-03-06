@@ -93,6 +93,10 @@ export default defineConfig(({ mode }) => {
         '@features': resolve(__dirname, 'src/features'),
         '@store': resolve(__dirname, 'src/store'),
         '@hooks': resolve(__dirname, 'src/hooks'),
+        '@theme': resolve(__dirname, 'src/theme'),
+        '@router': resolve(__dirname, 'src/router'),
+        '@consts': resolve(__dirname, 'src/consts'),
+        '@models': resolve(__dirname, 'src/models'),
       },
     },
     build: {

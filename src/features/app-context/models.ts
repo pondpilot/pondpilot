@@ -1,5 +1,5 @@
+import { AddDataSourceProps, AppStateModel } from '@models/common';
 import { tableToIPC } from 'apache-arrow';
-import { AddDataSourceProps, AppStateModel } from 'models';
 
 export interface DBRunQueryProps {
   query: string;
