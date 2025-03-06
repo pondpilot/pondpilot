@@ -4,9 +4,21 @@
 /// <reference lib="webworker" />
 
 import * as Comlink from 'comlink';
-import { Dataset, CodeSource, CodeEditor, SaveEditorResponse, SaveEditorProps } from 'models';
 import { openDB } from 'idb';
 import JSZip from 'jszip';
+import {
+  FILE_HANDLE_DB_NAME,
+  FILE_HANDLE_STORE_NAME,
+  TABS_DB_NAME,
+  TABS_STORE_NAME,
+} from '@consts/idb';
+import {
+  Dataset,
+  CodeEditor,
+  SaveEditorProps,
+  SaveEditorResponse,
+  CodeSource,
+} from '@models/common';
 import {
   createName,
   findUniqueName,
@@ -21,11 +33,6 @@ import {
   SessionFiles,
   TabModel,
 } from './models';
-
-export const FILE_HANDLE_DB_NAME = 'FileHandlesDB';
-export const TABS_DB_NAME = 'TabsDB';
-export const FILE_HANDLE_STORE_NAME = 'fileHandles';
-export const TABS_STORE_NAME = 'tabs';
 
 const getSessionFiles = async (
   directoryHandle: FileSystemDirectoryHandle,

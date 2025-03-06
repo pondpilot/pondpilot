@@ -2,7 +2,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { releaseProxy, wrap } from 'comlink';
 import { useAppStore } from '@store/app-store';
-import { AddDataSourceProps, SaveEditorProps } from 'models';
 import { tableFromIPC } from 'apache-arrow';
 import { usePaginationStore } from '@store/pagination-store';
 import { useAppNotifications } from '@components/app-notifications';
@@ -13,7 +12,8 @@ import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { createName } from '@utils/helpers';
-import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '../../consts';
+import { AddDataSourceProps, SaveEditorProps } from '@models/common';
+import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
 import {
   AddTabProps,
   ChangeTabProps,

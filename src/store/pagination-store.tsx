@@ -1,5 +1,5 @@
+import { Limit } from '@models/common';
 import { create } from 'zustand';
-import { Limit } from 'models/table';
 
 export interface SortModel {
   field: string | null;

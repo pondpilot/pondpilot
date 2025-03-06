@@ -36,7 +36,7 @@ export const SettingsPage = () => {
               Theme
             </Title>
             <Text c="text-secondary">
-              Choose how WAT looks to you. Select a single theme, or sync with your system and
+              Choose how PondPilot looks to you. Select a single theme, or sync with your system and
               automatically switch between day and night themes. Selections are applied immediately
               and saved automatically.
             </Text>

@@ -1,6 +1,7 @@
 /* eslint-disable no-plusplus */
+import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
+import { CodeSource, Dataset } from '@models/common';
 import { openDB } from 'idb';
-import { CodeSource, Dataset } from 'models';
 
 import JSZip from 'jszip';
 
@@ -12,11 +13,6 @@ export const formatNumber = (value: number): string => {
   });
   return formatter.format(value);
 };
-
-export const FILE_HANDLE_DB_NAME = 'FileHandlesDB';
-export const TABS_DB_NAME = 'TabsDB';
-export const FILE_HANDLE_STORE_NAME = 'fileHandles';
-export const TABS_STORE_NAME = 'tabs';
 
 export function getSupportedMimeType(
   name: string,

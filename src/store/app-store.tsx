@@ -1,8 +1,7 @@
 import { create } from 'zustand';
-import { CodeEditor, DataBaseModel } from 'models';
 import { Table } from 'apache-arrow';
 import { SessionFiles, TabModel } from '@features/app-context/models';
-import { Limit } from 'models/table';
+import { Limit, DataBaseModel, CodeEditor } from '@models/common';
 import { SortModel } from './pagination-store';
 
 interface CachedPaginationValue {
