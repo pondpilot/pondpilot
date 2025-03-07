@@ -30,6 +30,7 @@ export const RunQueryButton = ({ disabled, handleRunQuery }: RunQueryButtonProps
         onClick={() => handleRunQuery(defaultOption)}
         className="px-3 min-w-20 font-normal"
         color="background-accent"
+        data-testid="run-query-button"
       >
         {buttonText}
       </Button>

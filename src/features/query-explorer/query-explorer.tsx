@@ -173,7 +173,7 @@ export const QueryExplorer = memo(() => {
         <Group className="gap-2">
           <Divider orientation="vertical" />
           {actions.map((action) => (
-            <ActionIcon onClick={action.onClick} size={16} key={action.label}>
+            <ActionIcon id="add-query" onClick={action.onClick} size={16} key={action.label}>
               {action.icon}
             </ActionIcon>
           ))}
