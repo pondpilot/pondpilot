@@ -352,9 +352,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       const result = await dbProxyRef.current.runQuery({ query });
 
       return tableFromIPC(result.data);
-    } catch (error: any) {
-      console.error('Error executing query:', error);
-      showError({ title: 'Error executing query', message: error.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      console.error('Error executing query:', message);
+      showError({ title: 'Error executing query', message });
     }
   };
 
@@ -647,9 +648,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         addNewTab();
       }
-    } catch (error: any) {
-      console.error('App context: Failed to switch tab: ', error);
-      showError({ title: 'App context: Failed to switch tab', message: error.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      console.error('App context: Failed to switch tab: ', message);
+      showError({ title: 'App context: Failed to switch tab', message });
     }
   };
 
@@ -661,9 +663,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       const idbTabs = await proxyRef.current.getTabs();
       setTabs(idbTabs);
       return createdTab;
-    } catch (error: any) {
-      console.error('App context: Failed to add tab: ', error);
-      showError({ title: 'App context: Failed to add tab', message: error.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      console.error('App context: Failed to add tab: ', message);
+      showError({ title: 'App context: Failed to add tab', message });
     }
   };
 
@@ -678,9 +681,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         setActiveTab(tab);
       }
       setTabs(idbTabs);
-    } catch (error: any) {
-      console.error('App context: Failed to update tab: ', error);
-      showError({ title: 'App context: Failed to update tab', message: error.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+
+      console.error('App context: Failed to update tab:', message);
+      showError({ title: 'App context: Failed to update tab', message });
     }
   };
 
@@ -729,9 +734,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
       setTabs(updatedIdbTabs);
-    } catch (error: any) {
-      console.error('App context: Failed to delete tabs: ', error);
-      showError({ title: 'App context: Failed to delete tabs', message: error.message });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      console.error('App context: Failed to delete tabs: ', message);
+      showError({ title: 'App context: Failed to delete tabs', message });
     }
   };
 
