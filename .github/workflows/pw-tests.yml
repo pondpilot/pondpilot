@@ -9,6 +9,8 @@ jobs:
     name: Run Playwright tests
     if: github.repository == 'pondpilot/pondpilot'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -18,16 +20,28 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'yarn'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Setup Yarn
+        run: corepack prepare yarn@4.4.0 --activate
 
       - name: Install dependencies
         run: yarn install --immutable
+
+      - name: Build application
+        run: yarn build
 
       - name: Install Playwright browsers
         run: yarn playwright install --with-deps chromium
 
       - name: Run Playwright tests
-        run: yarn playwright test
+        run: |
+          # Запускаем dev-сервер и тесты
+          yarn playwright test
+        env:
+          CI: true
 
       - name: Upload test results
         if: always()
