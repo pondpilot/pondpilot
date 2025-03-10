@@ -13,24 +13,40 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
 
       - name: Enable Corepack
-        run: corepack enable
+        run: |
+          corepack enable
 
-      - name: Setup Yarn
-        run: corepack prepare yarn@4.4.0 --activate
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+
+      - name: Cache Yarn Dependencies
+        uses: actions/cache@v4
+        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: yarn install --frozen-lockfile
 
-      - name: Build application
+      - name: Type check
+        run: yarn typecheck
+
+      - name: Lint JS/TS
+        run: yarn lint:eslint
+
+      - name: Build
         run: yarn build
 
       - name: Install Playwright browsers
@@ -41,11 +57,3 @@ jobs:
           yarn playwright test
         env:
           CI: true
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30

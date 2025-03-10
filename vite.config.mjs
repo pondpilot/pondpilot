@@ -8,18 +8,11 @@ import { resolve } from 'path';
 
 const getVersionInfo = () => {
   try {
-    const gitTag = execSync('git describe --exact-match --tags 2> /dev/null || echo ""')
-      .toString()
-      .trim();
+    const packageJson = require('./package.json');
 
-    if (gitTag) {
-      return `v${gitTag}`;
-    } else {
-      const packageJson = require('./package.json');
-      return `v${packageJson.version}`;
-    }
+    return `v${packageJson.version}`;
   } catch (e) {
-    return '';
+    throw new Error('Failed to get version info: ' + e);
   }
 };
 
