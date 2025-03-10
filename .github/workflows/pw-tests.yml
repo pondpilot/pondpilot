@@ -54,6 +54,14 @@ jobs:
 
       - name: Run Playwright tests
         run: |
-          yarn playwright test
+          yarn playwright test --reporter=junit
         env:
           CI: true
+
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v5
+        if: always()
+        with:
+          report_paths: 'laywright-report/results.xml'
+          check_name: 'Integration Tests'
+          comment: true
