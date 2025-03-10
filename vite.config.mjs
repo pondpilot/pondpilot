@@ -15,10 +15,11 @@ const getVersionInfo = () => {
     if (gitTag) {
       return `v${gitTag}`;
     } else {
-      return ``;
+      const packageJson = require('./package.json');
+      return `v${packageJson.version}`;
     }
   } catch (e) {
-    return ``;
+    return '';
   }
 };
 
