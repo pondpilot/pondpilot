@@ -140,7 +140,8 @@ export const exportApplicationFiles = async (): Promise<Blob | null> => {
   }
 };
 
-export const replaceSpecialChars = (str: string): string => str.replace(/[\s#()[\].-]/g, '_');
+export const replaceSpecialChars = (str: string): string =>
+  str.trim().replace(/[^a-zA-Z0-9]/g, '_');
 
 /**
  * Creates item name by removing the file extension and replacing hyphens with underscores.

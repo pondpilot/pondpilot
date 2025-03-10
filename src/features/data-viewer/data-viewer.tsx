@@ -169,7 +169,7 @@ export const DataViewer = memo(() => {
               {hasTableData && (
                 <Group
                   justify="space-between"
-                  className={cn('h-7 mt-4 mb-2 px-6', queryView && 'mt-3')}
+                  className={cn('h-7 mt-4 mb-2 px-3', queryView && 'mt-3')}
                 >
                   {queryView ? (
                     <>
@@ -221,7 +221,7 @@ export const DataViewer = memo(() => {
                 </Group>
               )}
 
-              <div className={cn('overflow-auto px-6 custom-scroll-hidden pb-6 flex-1')}>
+              <div className={cn('overflow-auto px-3 custom-scroll-hidden pb-6 flex-1')}>
                 <Table
                   data={convertedTable.data}
                   columns={convertedTable.columns}
