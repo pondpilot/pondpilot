@@ -101,7 +101,7 @@ jobs:
 
       - name: Run Playwright tests
         run: |
-          yarn playwright test --reporter=junit, html
+          PLAYWRIGHT_JUNIT_OUTPUT_NAME=playwright-report/results.xml yarn playwright test --reporter=junit,html
         env:
           CI: true
 
