@@ -84,6 +84,7 @@ export const useTableColumns = ({ columns, onRowSelectionChange }: UseTableColum
 
                   const cellValue = (
                     <div
+                      data-testid={`cell-${col.name}-${info.row.index}`}
                       className={cn(
                         'text-sm p-2',
                         ['integer', 'date', 'number'].includes(col.type) &&
