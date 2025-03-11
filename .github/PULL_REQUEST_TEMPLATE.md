@@ -10,8 +10,8 @@
 
 <!-- Add instructions on how to test this PR -->
 
-## Reviewer Checklist
+## Checklist
 
 - [ ] I have added appropriate labels for changelog generation
-- [ ] I have added at least one test for the new feature/fixed bug, or PR is has no app code changes
+- [ ] I have added at least one test for the new feature/fixed bug, or PR has no app code changes
 - [ ] I have tested the new version using Cloudflare preview deployment

@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*.*.*'
   pull_request:
 
 concurrency:
@@ -14,6 +12,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # This is used to upload the PR number to be used in dependent workflows
+  upload-pr:
+    name: Upload PR
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Save PR number to file
+        run: echo ${{ github.event.number }} > pr-number
+
+      - name: Upload pr-number
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-number
+          path: pr-number
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
