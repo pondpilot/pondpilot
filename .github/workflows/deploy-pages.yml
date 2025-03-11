@@ -14,6 +14,8 @@ jobs:
     permissions:
       contents: read
       deployments: write
+      pull-requests: write
+      checks: write
     steps:
       - name: Download Build Artifacts
         uses: dawidd6/action-download-artifact@v9
@@ -21,24 +23,81 @@ jobs:
           name: build
           workflow: ${{ github.event.workflow.id }}
           run_id: ${{ github.event.workflow_run.id }}
-          path: dist
           if_no_artifact_found: fail
+          allow_forks: true
 
-      - name: Determine branch name
-        id: branch-name
-        run: |
-          if [ "${{ github.event.workflow_run.event }}" == "pull_request" ]; then
-            echo "branch=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
-          else
-            echo "branch=main" >> $GITHUB_OUTPUT
-          fi
-        shell: bash
-
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy to Cloudflare Pages (prod)
+        id: deploy-prod
+        if: github.event.workflow_run.event != 'pull_request'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./dist --project-name=pondpilot --branch=${{ steps.branch-name.outputs.branch }} --commit-hash=${{ github.event.workflow_run.head_sha }}
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }} # Enable GitHub Deployments
+          command: pages deploy ./dist --project-name=pondpilot --branch=main
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Deploy to Cloudflare Pages (preview)
+        id: deploy-pr
+        if: github.event.workflow_run.event == 'pull_request'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ./dist --project-name=pondpilot --branch=${{ github.event.workflow_run.head_branch }} --commit-hash=${{ github.event.workflow_run.head_sha }}
+          # gitHubToken: ${{ secrets.GITHUB_TOKEN }} # we can't use this to Enable GitHub Deployments, because it runs on main (via workflow_run), and CloudFlare actions doesn't support it
+
+      - name: Create a check on the PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          # Adapted from https://github.com/cloudflare/wrangler-action/blob/main/src/service/github.ts
+          script: |
+            // Return early if the workflow run is not a pull request
+            if (github.context.eventName !== 'workflow_run' || github.context.payload.workflow_run.event !== 'pull_request') {
+              return;
+            }
+
+            // Create a check on the PR
+            await github.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: "Cloudflare Pages (preview)",
+              head_sha: github.context.payload.workflow_run.head_sha,
+              status: "completed",
+              conclusion: "${{ steps.deploy-pr.conclusion }}",
+            });
+
+      - name: Create GitHub Deployment
+        if: github.event.workflow_run.event == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          # Adapted from https://github.com/cloudflare/wrangler-action/blob/main/src/service/github.ts
+          script: |
+            // Create a GitHub deployment
+            const deployment = await github.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: ${{ github.event.workflow_run.head_branch }},
+              auto_merge: false,
+              description: "Cloudflare Pages (preview)",
+              required_contexts: [],
+              environment: "preview",
+              production_environment: false,
+            });
+
+            if (deployment.status !== 201) {
+             return;
+            }
+             
+            await github.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.data.id,
+              environment,
+              environment_url: deploymentUrl,
+              production_environment: productionEnvironment,
+              log_url: `https://dash.cloudflare.com/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/view/pondpilot/${{ steps.deploy-pr.outputs.pages-deployment-id }}`,
+              description: "Cloudflare Pages",
+              state: "success",
+              auto_inactive: false,
+            });
