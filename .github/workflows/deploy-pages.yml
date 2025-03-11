@@ -34,7 +34,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./dist --project-name=pondpilot --branch=main
+          command: pages deploy ./dist --project-name=pondpilot --branch=main --commit-hash=${{ github.event.workflow_run.head_sha }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy to Cloudflare Pages (preview)
@@ -75,10 +75,10 @@ jobs:
           # Adapted from https://github.com/cloudflare/wrangler-action/blob/main/src/service/github.ts
           script: |
             // Create a GitHub deployment
-            const deployment = await github.repos.createDeployment({
+            const deployment = await github.rest.repos.createDeployment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ref: ${{ github.event.workflow_run.head_branch }},
+              ref: context.payload.workflow_run.head_branch,
               auto_merge: false,
               description: "Cloudflare Pages (preview)",
               required_contexts: [],
@@ -90,15 +90,15 @@ jobs:
              return;
             }
              
-            await github.repos.createDeploymentStatus({
+            await github.rest.repos.createDeploymentStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
               deployment_id: deployment.data.id,
-              environment,
-              environment_url: deploymentUrl,
-              production_environment: productionEnvironment,
-              log_url: `https://dash.cloudflare.com/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/view/pondpilot/${{ steps.deploy-pr.outputs.pages-deployment-id }}`,
-              description: "Cloudflare Pages",
+              environment: "preview",
+              environment_url: "${{ steps.deploy-pr.outputs.pages-deployment-alias-url }}",
+              production_environment: false,
+              log_url: "https://dash.cloudflare.com/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/view/pondpilot/${{ steps.deploy-pr.outputs.pages-deployment-id }}",
+              description: "Deployed to Cloudflare Pages (preview)",
               state: "success",
               auto_inactive: false,
             });
