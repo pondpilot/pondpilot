@@ -12,6 +12,8 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,16 +36,19 @@ jobs:
             const draft = releases.data.find(r => r.draft);
             if (!draft) {
                 core.setFailed("No draft release found.");
+                return;
             }
 
             const expectedTag = `v${version}`;
             if (draft.tag_name !== expectedTag && !dryRun) {
                 core.setFailed(`Draft release tag '${draft.tag_name}' does not match expected tag '${expectedTag}'.`);
+                return;
             }
 
             // Check if the draft release already has a body
             if (!draft.body) {
                 core.setFailed("Draft release has no body.");
+                return;
             }
             // Set outputs for later steps
             core.setOutput("release_body", draft.body);
