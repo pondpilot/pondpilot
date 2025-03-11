@@ -2,7 +2,7 @@ name: Deploy to Cloudflare Pages
 
 on:
   workflow_run:
-    workflows: ['Build & Test']
+    workflows: ['Lint, Build & Test']
     types:
       - completed
 

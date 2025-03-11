@@ -2,7 +2,7 @@ name: Update PR with test results
 
 on:
   workflow_run:
-    workflows: ['Build & Test']
+    workflows: ['Lint, Build & Test']
     types:
       - completed
 

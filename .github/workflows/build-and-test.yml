@@ -1,5 +1,5 @@
-name: Build & Test App
-description: Runs shared build & tests. Some artifacts are used in dependent privileged workflows.
+name: Lint, Build & Test
+description: Runs linting, build & tests. Some artifacts are used in dependent privileged workflows.
 
 on:
   push:
@@ -8,9 +8,6 @@ on:
     tags:
       - 'v*.*.*'
   pull_request:
-
-permissions:
-  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
@@ -101,7 +98,7 @@ jobs:
 
       - name: Run Playwright tests
         run: |
-          PLAYWRIGHT_JUNIT_OUTPUT_NAME=playwright-report/results.xml yarn playwright test --reporter=junit,html
+          yarn playwright test
         env:
           CI: true
 

@@ -1,5 +1,8 @@
 name: Build and Publish Docker Image
 
+# We do not use the `workflow_run` event, so we can use
+# the `Extract metadata` step to determine the branch name.
+
 on:
   push:
     branches:
