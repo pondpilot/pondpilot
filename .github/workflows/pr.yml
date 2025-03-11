@@ -17,8 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       github.event.workflow_run.event == 'pull_request' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.repository == 'pondpilot/pondpilot'
+      github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: Download Test Report
@@ -33,6 +32,7 @@ jobs:
         uses: mikepenz/action-junit-report@v5
         if: always()
         with:
+          commit: ${{github.event.workflow_run.head_sha}}
           report_paths: 'playwright-report/results.xml'
           check_name: 'Integration Tests'
           comment: true
