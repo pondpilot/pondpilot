@@ -1,0 +1,50 @@
+# We do not use drafter to actually publish release,
+# so this is just a sane default to easy manual touch ups.
+name-template: 'v$NEXT_MINOR_VERSION'
+tag-template: 'v$NEXT_MINOR_VERSION'
+template: |
+  ## ✨ Highlights
+
+  <!-- Add release highlights here manually -->
+
+  ## 📋 Full Changelog
+
+  $CHANGES
+
+  ## 👥 Contributors
+
+  $CONTRIBUTORS
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+# Use compatible markdown, so we could also pull the resulting
+# text into a unified CHANGELOG.md
+change-template: '- $TITLE [#$NUMBER]($URL)'
+change-title-escapes: '\<*_&#@`' # You can add # and @ here if needed
+
+categories:
+  - title: '💥 Breaking'
+    label: 'breaking'
+  - title: '🚀 New'
+    labels:
+      - 'enhancement'
+      - 'ux'
+  - title: '🐛 Fixed'
+    labels:
+      - 'bug'
+      - 'bug third party'
+  - title: '🔒 Security'
+    labels:
+      - 'security'
+  - title: '🔧 Maintenance'
+    labels:
+      - 'refactor'
+    collapse-after: 3
+  - title: '📚 Documentation'
+    labels:
+      - 'documentation'
+
+exclude-labels:
+  - 'skip-changelog'
+  - 'chore'
+  - 'infra'
