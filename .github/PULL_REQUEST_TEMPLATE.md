@@ -15,11 +15,13 @@
 - [ ] I have added at least one test for the new feature or fixed bug, or this PR does not include any app code changes.
 - [ ] I have tested the new version using the auto-generated preview URL.
 
-### How to Find the Preview URL
+<details>
+  <summary>How to Find the Preview URL</summary>
 
-The app will be deployed to a preview URL automatically every time you push a commit to this PR.
+  The app will be deployed to a preview URL automatically every time you push a commit to this PR.
 
-You can find the preview link in the "Deployments" section at the bottom of this PR:
-- Look for the section with the 🚀 rocket icon that says "This branch was successfully deployed."
-- Alternatively, look for "github-actions bot deployed to preview" in the timeline.
-- Click "View deployment" to open the preview URL.
+  You can find the preview link in the "Deployments" section at the bottom of this PR:
+  - Look for the section with the 🚀 rocket icon that says "This branch was successfully deployed."
+  - Alternatively, look for "github-actions bot deployed to preview" in the timeline.
+  - Click "View deployment" to open the preview URL.
+</details>

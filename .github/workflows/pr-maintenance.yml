@@ -38,7 +38,19 @@ jobs:
         with:
           # Make sure that the list of lables matches release-drafter.yml categories section
           script: |
-            const requiredLabels = ['breaking', 'enhancement', 'ux', 'bug', 'bug third party', 'security', 'refactor', 'documentation' ];
+            const requiredLabels = [
+              'breaking',
+              'enhancement',
+              'ux',
+              'bug',
+              'bug third party',
+              'security',
+              'refactor',
+              'documentation',
+              'skip-changelog'
+              'chore',
+              'infra'
+            ];
             const prLabels = context.payload.pull_request.labels.map(label => label.name);
 
             // Check if PR has at least one of the required labels

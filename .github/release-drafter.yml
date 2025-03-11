@@ -7,7 +7,7 @@ template: |
 
   <!-- Add release highlights here manually -->
 
-  ## 📋 Full Changelog
+  ## 📋 Changelog
 
   $CHANGES
 
