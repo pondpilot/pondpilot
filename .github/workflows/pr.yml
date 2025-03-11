@@ -1,0 +1,38 @@
+name: Update PR with test results
+
+on:
+  workflow_run:
+    workflows: ['Lint, Build & Test']
+    types:
+      - completed
+
+# Privileged access to the repository
+permissions:
+  checks: write
+  pull-requests: write
+
+jobs:
+  update-pr:
+    name: Update PR with test results
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Download Test Report
+        uses: dawidd6/action-download-artifact@v9
+        with:
+          name: playwright-report
+          workflow: ${{ github.event.workflow.id }}
+          run_id: ${{ github.event.workflow_run.id }}
+          path: playwright-report
+          if_no_artifact_found: fail
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v5
+        if: always()
+        with:
+          commit: ${{github.event.workflow_run.head_sha}}
+          report_paths: 'playwright-report/results.xml'
+          check_name: 'Integration Tests'
+          comment: true

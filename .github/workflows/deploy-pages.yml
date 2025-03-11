@@ -1,62 +1,33 @@
 name: Deploy to Cloudflare Pages
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - 'main'
+  workflow_run:
+    workflows: ['Lint, Build & Test']
+    types:
+      - completed
 
 jobs:
   deploy:
-    if: github.repository == 'pondpilot/pondpilot'
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     name: Deploy
     permissions:
       contents: read
       deployments: write
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Download Build Artifacts
+        uses: dawidd6/action-download-artifact@v9
         with:
-          node-version: '22'
-
-      - name: Enable Corepack
-        run: |
-          corepack enable
-
-      - name: Get yarn cache directory path
-        id: yarn-cache-dir-path
-        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
-
-      - name: Cache Yarn Dependencies
-        uses: actions/cache@v4
-        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
-        with:
-          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-
-      - name: Type check
-        run: yarn typecheck
-
-      - name: Lint JS/TS
-        run: yarn lint:eslint
-
-      - name: Build
-        run: yarn build
+          name: build
+          workflow: ${{ github.event.workflow.id }}
+          run_id: ${{ github.event.workflow_run.id }}
+          path: dist
+          if_no_artifact_found: fail
 
       - name: Determine branch name
         id: branch-name
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
+          if [ "${{ github.event.workflow_run.event }}" == "pull_request" ]; then
             echo "branch=${{ github.head_ref }}" >> $GITHUB_OUTPUT
           else
             echo "branch=main" >> $GITHUB_OUTPUT

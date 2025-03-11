@@ -7,6 +7,9 @@ default:
     just --list
 
 docker-build:
+    corepack enable
+    yarn install --immutable
+    yarn build
     docker build -t pondpilot:latest -f docker/Dockerfile .
 
 docker-run:
