@@ -63,7 +63,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               name: "Cloudflare Pages (preview)",
-              head_sha: github.context.payload.workflow_run.head_sha,
+              head_sha: context.payload.workflow_run.head_sha,
               status: "completed",
               conclusion: "${{ steps.deploy-pr.conclusion }}",
             });
