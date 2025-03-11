@@ -31,7 +31,7 @@ jobs:
                 repo: context.repo.repo,
             });
 
-            const draft = releases.find(r => r.draft);
+            const draft = releases.data.find(r => r.draft);
             if (!draft) {
                 core.setFailed("No draft release found.");
             }
@@ -67,7 +67,7 @@ jobs:
         run: |
           if [ "${{ github.event.inputs.version }}" = "dry-run" ]; then
               echo "Dry run: showing diff and exiting"
-              git diff
+              git --no-pager diff
               exit 0
           fi
           git config --global user.name "GitHub Actions"
