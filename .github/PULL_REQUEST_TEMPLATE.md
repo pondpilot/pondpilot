@@ -1,16 +1,27 @@
 ## Description
 
-<!-- Describe the changes in this PR -->
+<!-- Provide a brief summary of the changes in this PR -->
 
-## Related issues
+## Related Issues
 
-<!-- Link any related issues here -->
+<!-- Link any related issues here, e.g., "Fixes #123" -->
 
-## How to test
+## How to Test
 
-<!-- Add instructions on how to test this PR -->
+<!-- Provide step-by-step instructions on how to test this PR -->
 
-## Reviewer Checklist
+## Checklist
 
-- [ ] I have added appropriate labels for changelog generation
-- [ ] I have tested the new version using Cloudflare preview deployment
+- [ ] I have added at least one test for the new feature or fixed bug, or this PR does not include any app code changes.
+- [ ] I have tested the new version using the auto-generated preview URL.
+
+<details>
+  <summary>How to Find the Preview URL</summary>
+
+  The app will be deployed to a preview URL automatically every time you push a commit to this PR.
+
+  You can find the preview link in the "Deployments" section at the bottom of this PR:
+  - Look for the section with the 🚀 rocket icon that says "This branch was successfully deployed."
+  - Alternatively, look for "github-actions bot deployed to preview" in the timeline.
+  - Click "View deployment" to open the preview URL.
+</details>

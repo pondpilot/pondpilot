@@ -1,0 +1,63 @@
+# Various jobs & checks to be run on PRs not related to the app
+name: Maintenance checks & jobs on PRs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  # This is used to upload the PR number to be used in dependent workflows
+  upload-pr:
+    name: Upload PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Save PR number to file
+        run: echo ${{ github.event.number }} > pr-number
+
+      - name: Upload pr-number
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-number
+          path: pr-number
+
+  # Check that PR has a minimum set of labels as required by our release drafter
+  check-pr-labels:
+    name: Check PR Labels
+    runs-on: ubuntu-latest
+    # Only run against PRs into main branch
+    if: github.event.pull_request.base.ref == 'main'
+
+    steps:
+      - name: Check for required labels
+        uses: actions/github-script@v7
+        with:
+          # Make sure that the list of lables matches release-drafter.yml categories section
+          script: |
+            const requiredLabels = [
+              'breaking',
+              'enhancement',
+              'ux',
+              'bug',
+              'bug third party',
+              'security',
+              'refactor',
+              'documentation',
+              'skip-changelog',
+              'chore',
+              'infra'
+            ];
+            const prLabels = context.payload.pull_request.labels.map(label => label.name);
+
+            // Check if PR has at least one of the required labels
+            const hasRequiredLabel = requiredLabels.some(label => prLabels.includes(label));
+
+            if (!hasRequiredLabel) {
+              core.setFailed(`PR must have at least one of these labels: ${requiredLabels.join(', ')}`);
+            } else {
+              console.log(`PR has required label(s): ${requiredLabels.filter(label => prLabels.includes(label)).join(', ')}`);
+            }

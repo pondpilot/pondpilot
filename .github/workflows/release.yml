@@ -1,0 +1,99 @@
+name: Publish Release and Update CHANGELOG
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version (e.g., 1.2.3). Omit to do a dry-run.'
+        required: true
+        default: dry-run
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find draft release
+        id: get_draft
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = context.payload.inputs.version;
+
+            // Check if this is a dry-run
+            const dryRun = version === "dry-run";
+
+            const releases = await github.rest.repos.listReleases({
+                owner,
+                repo,
+            });
+
+            const draft = releases.find(r => r.draft);
+            if (!draft) {
+                core.setFailed("No draft release found.");
+            }
+
+            const expectedTag = `v${version}`;
+            if (draft.tag_name !== expectedTag && !dryRun) {
+                core.setFailed(`Draft release tag '${draft.tag_name}' does not match expected tag '${expectedTag}'.`);
+            }
+
+            // Check if the draft release already has a body
+            if (!draft.body) {
+                core.setFailed("Draft release has no body.");
+            }
+            // Set outputs for later steps
+            core.setOutput("release_body", draft.body);
+
+            // To avoid potential errors, save incorrect release ID during dry-run
+            core.setOutput("release_id", dryRun ? -1 : draft.id);
+
+      - name: Insert draft content to CHANGELOG.md
+        run: |
+          echo "Inserting draft release notes into CHANGELOG.md at <!-- next-header -->..."
+          temp_entry=$(mktemp)
+          # Write the draft content into temp_entry
+          echo "${{ steps.get_draft.outputs.release_body }}" > "$temp_entry"
+          echo "" >> "$temp_entry"
+          temp_file=$(mktemp)
+          # Insert the draft content right after the <!-- next-header --> marker
+          awk '/<!-- next-header -->/ { print; system("cat '"$temp_entry"'"); next }1' CHANGELOG.md > "$temp_file"
+          mv "$temp_file" CHANGELOG.md
+
+      - name: Commit CHANGELOG.md update
+        run: |
+          if [ "${{ github.event.inputs.version }}" = "dry-run" ]; then
+              echo "Dry run: showing diff and exiting"
+              git diff
+              exit 0
+          fi
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add CHANGELOG.md
+          git commit -m "Update CHANGELOG with release notes for v${{ github.event.inputs.version }}"
+          git push origin main
+
+      - name: Publish the draft release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releaseId = parseInt("${{ steps.get_draft.outputs.release_id }}", 10);
+
+            // If this is a dry-run, skip publishing the release
+            const version = context.payload.inputs.version;
+
+            if (version === "dry-run") {
+                core.info("This is a dry-run. Skipping release publishing.");
+                return;
+            }
+            
+            const result = await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              draft: false
+            });
+            core.info("Release published: " + result.data.html_url);
