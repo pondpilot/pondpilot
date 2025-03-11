@@ -23,6 +23,7 @@ jobs:
           name: build
           workflow: ${{ github.event.workflow.id }}
           run_id: ${{ github.event.workflow_run.id }}
+          path: dist
           if_no_artifact_found: fail
           allow_forks: true
 
@@ -53,7 +54,7 @@ jobs:
           # Adapted from https://github.com/cloudflare/wrangler-action/blob/main/src/service/github.ts
           script: |
             // Return early if the workflow run is not a pull request
-            if (github.context.eventName !== 'workflow_run' || github.context.payload.workflow_run.event !== 'pull_request') {
+            if (context.eventName !== 'workflow_run' || context.payload.workflow_run.event !== 'pull_request') {
               return;
             }
 
