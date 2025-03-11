@@ -28,7 +28,7 @@ jobs:
         id: branch-name
         run: |
           if [ "${{ github.event.workflow_run.event }}" == "pull_request" ]; then
-            echo "branch=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+            echo "branch=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
           else
             echo "branch=main" >> $GITHUB_OUTPUT
           fi
@@ -39,6 +39,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./dist --project-name=pondpilot --branch=${{ steps.branch-name.outputs.branch }}
+          command: pages deploy ./dist --project-name=pondpilot --branch=${{ steps.branch-name.outputs.branch }} --commit-hash=${{ github.event.workflow_run.head_sha }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }} # Enable GitHub Deployments
 
