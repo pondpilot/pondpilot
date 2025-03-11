@@ -9,7 +9,6 @@ on:
 # Privileged access to the repository
 permissions:
   checks: write
-  pull-requests: write
 
 jobs:
   update-pr:
@@ -35,4 +34,3 @@ jobs:
           commit: ${{github.event.workflow_run.head_sha}}
           report_paths: 'playwright-report/results.xml'
           check_name: 'Integration Tests'
-          comment: true
