@@ -270,12 +270,7 @@ const createQueryFile = async (name: string, text?: string) => {
     const syncHandle = await draftHandle.createSyncAccessHandle();
 
     const textEncoder = new TextEncoder();
-    syncHandle.write(
-      textEncoder.encode(
-        // text || "SELECT * FROM read_json_auto('https://api.datamuse.com/words?ml=sql');",
-        text || '',
-      ),
-    );
+    syncHandle.write(textEncoder.encode(text || ''));
 
     syncHandle.flush();
     syncHandle.close();

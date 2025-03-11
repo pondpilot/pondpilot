@@ -36,7 +36,6 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
   const queryRunning = useAppStore((state) => state.queryRunning);
   const databases = useAppStore((state) => state.databases);
 
-  const lastQueryDirty = useEditorStore((state) => state.lastQueryDirty);
   const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
   const setEditorValue = useEditorStore((state) => state.setEditorValue);
   const setSaving = useEditorStore((state) => state.setSaving);
@@ -100,8 +99,6 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
     if (!currentQuery) return;
     setSaving(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
     await context.onSaveEditor({
       content: editorRef.current?.view?.state?.doc.toString() || '',
       path: currentQuery,
@@ -110,16 +107,14 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
     setSaving(false);
   };
 
-  const handleSearch = useDebouncedCallback(async () => {
-    if (lastQueryDirty) {
-      handleQuerySave();
-    }
+  const handleEditorValueChange = useDebouncedCallback(async () => {
+    handleQuerySave();
   }, 300);
 
-  const handleChange = (value: string | undefined) => {
+  const onSqlEditorChange = (value: string | undefined) => {
     setEditorValue(value || '');
     if (value !== currentQueryData?.content) {
-      handleSearch();
+      handleEditorValueChange();
       setLastQueryDirty(true);
     } else {
       setLastQueryDirty(false);
@@ -174,7 +169,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
           ref={editorRef}
           colorSchemeDark={colorScheme === 'dark'}
           value={currentQueryData?.content || ''}
-          onChange={handleChange}
+          onChange={onSqlEditorChange}
           schema={schema}
           fontSize={fontSize}
           onFontSizeChanged={setFontSize}

@@ -319,8 +319,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         ...editor,
         content: contents[index],
       }));
+      const currentSources = await proxyRef.current.getFileSystemSources();
 
-      setQueries([...queries, ...newQueries]);
+      setQueries(currentSources?.editors ?? []);
 
       await onOpenQuery(newQueries[0].path);
       await onTabSwitch({

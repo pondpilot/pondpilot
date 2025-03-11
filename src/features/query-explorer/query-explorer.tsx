@@ -33,7 +33,6 @@ export const QueryExplorer = memo(() => {
   const appStatus = useAppStore((state) => state.appStatus);
   const activeTab = useAppStore((state) => state.activeTab);
   const tabs = useAppStore((state) => state.tabs);
-  const queryView = useAppStore((state) => state.queryView);
 
   const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
   const editorValue = useEditorStore((state) => state.editorValue);
@@ -76,7 +75,7 @@ export const QueryExplorer = memo(() => {
    */
 
   const saveCurrentQuery = async () => {
-    if (activeTab) {
+    if (activeTab?.mode === 'query' && lastQueryDirty) {
       await onSaveEditor({ content: editorValue, path: activeTab.path });
       setLastQueryDirty(false);
     }
@@ -84,24 +83,21 @@ export const QueryExplorer = memo(() => {
 
   const handleSetQuery = async (path: string) => {
     if (activeTab?.path === path) return;
-    if (queryView && lastQueryDirty) {
-      saveCurrentQuery();
-    }
+    await saveCurrentQuery();
 
     onOpenQuery(path);
     onTabSwitch({ path, mode: 'query' });
   };
 
   const handleAddQuery = async () => {
-    if (queryView && lastQueryDirty) {
-      saveCurrentQuery();
-    }
+    await saveCurrentQuery();
     onCreateQueryFile({ entities: [{ name: 'query' }] });
   };
 
   const handleDeleteTab = async (id: string) => {
     const tab = tabs.find((t) => t.path === id);
     if (tab) {
+      await saveCurrentQuery();
       onDeleteTabs([tab]);
     }
   };
@@ -203,6 +199,7 @@ export const QueryExplorer = memo(() => {
         </Group>
       </Group>
       <SourcesListView
+        parentDataTestId="queries-list"
         onDeleteSelected={handleDeleteSelected}
         list={queriesList}
         menuItems={menuItems}

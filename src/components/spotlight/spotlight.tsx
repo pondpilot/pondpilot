@@ -28,6 +28,7 @@ import { HotkeyPill } from '@components/hotkey-pill';
 import { cn } from '@utils/ui/styles';
 import { useModifier } from '@hooks/useModifier';
 import { useNavigate } from 'react-router-dom';
+import { useEditorStore } from '@store/editor-store';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
@@ -45,7 +46,7 @@ export const SpotlightMenu = () => {
   /**
    * Common hooks
    */
-  const { onCreateQueryFile, importSQLFiles, onOpenQuery, onTabSwitch, onOpenView } =
+  const { onCreateQueryFile, importSQLFiles, onOpenQuery, onTabSwitch, onOpenView, onSaveEditor } =
     useAppContext();
   const { setColorScheme } = useMantineColorScheme();
   const { handleAddSource } = useFileHandlers();
@@ -58,6 +59,10 @@ export const SpotlightMenu = () => {
   const queries = useAppStore((state) => state.queries);
   const views = useAppStore((state) => state.views);
   const sessionFiles = useAppStore((state) => state.sessionFiles);
+  const activeTab = useAppStore((state) => state.activeTab);
+
+  const editorValue = useEditorStore((state) => state.editorValue);
+  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
 
   /**
    * Local state
@@ -65,6 +70,13 @@ export const SpotlightMenu = () => {
   const [searchValue, setSearchValue] = useState('');
   const [spotlightView, setSpotlightView] = useState<SpotlightView>('home');
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const saveCurrentQuery = async () => {
+    if (activeTab?.mode === 'query') {
+      await onSaveEditor({ content: editorValue, path: activeTab.path });
+      setLastQueryDirty(false);
+    }
+  };
 
   const resetSpotlight = () => {
     setSpotlightView('home');
@@ -182,7 +194,8 @@ export const SpotlightMenu = () => {
       label: 'New Query',
       icon: <IconPlus size={20} className={iconClasses} />,
       hotkey: [option, 'N'],
-      handler: () => {
+      handler: async () => {
+        await saveCurrentQuery();
         onCreateQueryFile({ entities: [{ name: 'query-name.sql' }] });
         resetSpotlight();
       },
@@ -192,7 +205,8 @@ export const SpotlightMenu = () => {
       label: 'Import Query',
       icon: <IconFileImport size={20} className={iconClasses} />,
       hotkey: [<IconChevronUp size={20} />, 'I'],
-      handler: () => {
+      handler: async () => {
+        await saveCurrentQuery();
         importSQLFiles();
         resetSpotlight();
       },

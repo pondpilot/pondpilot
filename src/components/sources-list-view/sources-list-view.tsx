@@ -48,15 +48,18 @@ export interface ListItemProps extends ListProps {
 
 interface ListViewProps {
   list: ListProps[];
+  activeItemKey: string | null;
+  parentDataTestId: string;
+
   disabled?: boolean;
   loading?: boolean;
-  activeItemKey: string | null;
   menuItems: MenuItem[];
   renameItemId?: string | null;
   renameValue?: string;
   isItemRenaming?: boolean;
   renameInputError?: string;
   onRenameChange?: React.ChangeEventHandler<HTMLInputElement>;
+
   onRenameClose?: () => void;
   onRenameSubmit?: () => void;
   renderIcon: (item: string | undefined) => ReactNode;
@@ -210,6 +213,7 @@ export const SourcesListView = ({
   onRenameClose,
   onRenameSubmit,
   onDeleteSelected,
+  parentDataTestId,
 }: ListViewProps) => {
   /**
    * Common hooks
@@ -366,10 +370,11 @@ export const SourcesListView = ({
               </Group>
             ) : (
               <Tree
+                id={parentDataTestId}
                 data={sortedList}
                 tree={tree}
                 selectOnClick
-                // clearSelectionOnOutsideClick
+                clearSelectionOnOutsideClick
                 renderNode={(node) => {
                   const active = node.elementProps['data-value'] === activeItemKey;
                   const isRenaming =
