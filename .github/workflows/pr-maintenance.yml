@@ -1,5 +1,5 @@
+# Various jobs & checks to be run on PRs not related to the app
 name: Maintenance checks & jobs on PRs
-description: Various jobs & checks to be run on PRs not related to the app
 
 on:
   pull_request:
@@ -47,7 +47,7 @@ jobs:
               'security',
               'refactor',
               'documentation',
-              'skip-changelog'
+              'skip-changelog',
               'chore',
               'infra'
             ];
