@@ -24,7 +24,7 @@ import {
   TabModel,
 } from './models';
 import { useShowPermsAlert, useWorkersRefs } from './hooks';
-import { executeQueries, updateDatabasesWithColumns, verifyPermission } from './utils';
+import { executeQueries, updateDatabasesWithColumns } from './utils';
 import { SessionWorker } from './app-session-worker';
 import { ErrorModal } from './components/error-modal';
 
@@ -773,6 +773,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error('Error importing SQL files: ', error);
     }
+  };
+
+  const verifyPermission = async (fileHandle: FileSystemFileHandle) => {
+    if ((await fileHandle.queryPermission()) === 'granted') {
+      return true;
+    }
+
+    return false;
   };
 
   /**

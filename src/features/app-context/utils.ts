@@ -271,17 +271,6 @@ export const buildColumnsQueryWithFilters = (
   `;
 };
 
-/**
- * Checks if the file handle has permission to read the file.
- */
-export const verifyPermission = async (fileHandle: FileSystemFileHandle) => {
-  if ((await fileHandle.queryPermission()) === 'granted') {
-    return true;
-  }
-
-  return false;
-};
-
 export const exportFilesAsArchive = async (proxyRef: React.RefObject<SessionWorker | null>) => {
   if (!proxyRef.current) return;
   try {
