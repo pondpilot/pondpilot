@@ -14,6 +14,7 @@ const test = base.extend<QueryFixture>({
   createQueryAndSwitchToItsTab: async ({ page }, use) => {
     await use(async () => {
       await page.click('data-testid=add-query-button');
+      await page.waitForTimeout(500);
     });
   },
 
@@ -37,6 +38,7 @@ const test = base.extend<QueryFixture>({
   fillQuery: async ({ page }, use) => {
     await use(async (content: string) => {
       await page.fill('.cm-content', content);
+      await expect(page.locator('.cm-content')).toContainText(content);
     });
   },
 
@@ -74,6 +76,8 @@ const test = base.extend<QueryFixture>({
     // ---------- BEFORE EACH TEST ----------
     await page.goto('http://localhost:5173/');
     await page.waitForSelector('[data-app-ready="true"]', { state: 'attached' });
+    page.on('console', (msg) => console.log(`[BROWSER LOG] ${msg.type()}: ${msg.text()}`));
+
     await use(page);
   },
 });
