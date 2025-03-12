@@ -68,6 +68,10 @@ jobs:
           awk '/<!-- next-header -->/ { print; system("cat '"$temp_entry"'"); next }1' CHANGELOG.md > "$temp_file"
           mv "$temp_file" CHANGELOG.md
 
+      - name: Bump package version
+        run: |
+          yarn version "${{ github.event.inputs.version }}"
+
       - name: Commit CHANGELOG.md update
         run: |
           if [ "${{ github.event.inputs.version }}" = "dry-run" ]; then
@@ -77,8 +81,12 @@ jobs:
           fi
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
-          git add CHANGELOG.md
-          git commit -m "Update CHANGELOG with release notes for v${{ github.event.inputs.version }}"
+          git add CHANGELOG.md package.json
+          # Check no other unstaged changes
+          git diff --exit-code
+
+          # Commit the changes, but prevent downstream workflows from running (otherwise release drafter will overwrite release notes)
+          git commit -m "[skip ci] Update CHANGELOG with release notes for v${{ github.event.inputs.version }}"
           git push origin main
 
       - name: Publish the draft release
