@@ -81,13 +81,7 @@ export const Navbar = memo(() => {
               <Group className="gap-2">
                 <Divider orientation="vertical" />
                 <ActionIcon
-                  onClick={handleAddSource('file', [
-                    '.parquet',
-                    '.csv',
-                    '.json',
-                    '.xlsx',
-                    '.duckdb',
-                  ])}
+                  onClick={handleAddSource('file', ['.parquet', '.csv', '.json', '.duckdb'])}
                   size={16}
                   key="Upload file"
                 >

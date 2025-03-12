@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { MenuItem, SourcesListView } from '@components/sources-list-view';
 import { useAppContext } from '@features/app-context';
 import { useAppStore } from '@store/app-store';

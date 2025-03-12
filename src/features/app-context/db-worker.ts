@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { tableToIPC } from 'apache-arrow';
 import { expose } from 'comlink';
@@ -28,8 +27,6 @@ async function initDB() {
 
     // Load parquet extension
     // await loadExtension(db, 'parquet');
-
-    console.log('DuckDB initialized successfully with extensions');
   } catch (error) {
     console.error('Failed to initialize DuckDB:', error);
     throw error;

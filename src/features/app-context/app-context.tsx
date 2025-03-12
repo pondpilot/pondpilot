@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { createContext, useContext, useEffect, useState } from 'react';
 import { releaseProxy, wrap } from 'comlink';
 import { useAppStore } from '@store/app-store';

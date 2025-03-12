@@ -1,5 +1,3 @@
-/* eslint-disable no-continue */
-
 import { EditorState } from '@uiw/react-codemirror';
 import { PostgreSQL, sql } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
