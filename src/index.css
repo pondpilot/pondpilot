@@ -97,21 +97,26 @@ body {
   max-width: 300px;
 }
 
-.cm-completionIcon-database:after {
+.cm-completionIcon-database::after {
   content: url('/assets/database.svg');
 }
-.cm-completionIcon-table:after {
+
+.cm-completionIcon-table::after {
   content: url('/assets/table.svg');
 }
-.cm-completionIcon-schema:after {
+
+.cm-completionIcon-schema::after {
   content: url('/assets/schema.svg');
 }
-[data-mantine-color-scheme='dark'] .cm-completionIcon-database:after {
+
+[data-mantine-color-scheme='dark'] .cm-completionIcon-database::after {
   content: url('/assets/database-dark.svg');
 }
-[data-mantine-color-scheme='dark'] .cm-completionIcon-table:after {
+
+[data-mantine-color-scheme='dark'] .cm-completionIcon-table::after {
   content: url('/assets/table-dark.svg');
 }
-[data-mantine-color-scheme='dark'] .cm-completionIcon-schema:after {
+
+[data-mantine-color-scheme='dark'] .cm-completionIcon-schema::after {
   content: url('/assets/schema-dark.svg');
 }
