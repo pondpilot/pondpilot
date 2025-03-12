@@ -2,11 +2,9 @@ import { Layout } from '@components/layout';
 import { AppErrorFallback } from '@features/error-fallback';
 import { DataViewErrorFallback } from '@features/error-fallback/views/data-view-error-fallback';
 import { MainPage } from '@pages/main-page';
-import { lazy } from 'react';
+import { SettingsPage } from '@pages/settings-page';
 import { ErrorBoundary } from 'react-error-boundary';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-
-const SettingsPage = lazy(() => import('@pages/settings-page/settings-page'));
 
 const router = createBrowserRouter(
   [

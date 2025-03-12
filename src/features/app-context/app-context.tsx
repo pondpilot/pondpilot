@@ -41,7 +41,7 @@ interface AppContextType {
   onSaveEditor: (props: SaveEditorProps) => Promise<void>;
   runQuery: (runQueryProps: DBRunQueryProps) => Promise<RunQueryResponse | undefined>;
   onCreateQueryFile: (v: CreateQueryFileProps) => Promise<void>;
-  onCancelQuery: (v?: string) => void;
+  onCancelQuery: (v?: string) => Promise<void>;
   onDeleteTabs: (tabs: TabModel[]) => Promise<void>;
   onTabUpdate: (tab: TabModel) => Promise<void>;
   onOpenView: (name: string) => Promise<void>;
@@ -190,34 +190,29 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const onRenameDataSource: AppContextType['onRenameDataSource'] = async (path, newPath) => {
     if (!proxyRef.current) return;
 
-    try {
-      const updatedItem = await proxyRef.current?.onRenameDataSource({
-        newPath,
-        path,
+    const updatedItem = await proxyRef.current?.onRenameDataSource({
+      newPath,
+      path,
+    });
+
+    const updatedTab = tabsStore.find((tab) => tab.path === path);
+
+    if (updatedTab && updatedItem?.path) {
+      await proxyRef.current.updateTabState({
+        ...updatedTab,
+        path: updatedItem?.path,
       });
-
-      const updatedTab = tabsStore.find((tab) => tab.path === path);
-
-      if (updatedTab && updatedItem?.path) {
-        await proxyRef.current.updateTabState({
-          ...updatedTab,
-          path: updatedItem?.path,
-        });
-        const idbTabs = await proxyRef.current.getTabs();
-        setTabs(idbTabs);
-      }
-
-      if (currentQuery === path && updatedItem) {
-        setCurrentQuery(updatedItem.name);
-      }
-
-      const currentSources = await proxyRef.current.getFileSystemSources();
-
-      setQueries(currentSources?.editors ?? []);
-    } catch (e: any) {
-      console.error('Error renaming file:', e);
-      showError({ title: 'Error renaming file', message: e.message });
+      const idbTabs = await proxyRef.current.getTabs();
+      setTabs(idbTabs);
     }
+
+    if (currentQuery === path && updatedItem) {
+      setCurrentQuery(updatedItem.name);
+    }
+
+    const currentSources = await proxyRef.current.getFileSystemSources();
+
+    setQueries(currentSources?.editors ?? []);
   };
 
   /**
@@ -265,10 +260,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
               proxyRef.current?.onDeleteDataSource({
                 paths: [source.path],
                 type: 'dataset',
-              });
-              showError({
-                title: 'App context: Error registering file handle in the database',
-                message: e.message,
               });
             }),
         ),
@@ -349,15 +340,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const executeQuery = async (query: string) => {
     if (!dbProxyRef.current) return;
 
-    try {
-      const result = await dbProxyRef.current.runQuery({ query });
+    const result = await dbProxyRef.current.runQuery({ query });
 
-      return tableFromIPC(result.data);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unknown error';
-      console.error('Error executing query:', message);
-      showError({ title: 'Error executing query', message });
-    }
+    return tableFromIPC(result.data);
   };
 
   /**
@@ -485,7 +470,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const onCancelQuery = (reason?: string) => {
+  const onCancelQuery = async (reason?: string) => {
     abortSignal(reason);
     setQueryRunning(false);
   };
@@ -512,9 +497,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  /**
-   * Open query file
-   */
   const onOpenQuery = async (path: string) => {
     /**
      * Reset the current view and query cachedResults to avoid showing the previous query cachedResults
@@ -611,135 +593,118 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const onTabSwitch = async ({ path, stable = false, mode, createNew }: ChangeTabProps) => {
     if (!proxyRef.current) return;
 
-    try {
-      const tabBase = { path, mode, stable };
-      const hasTab = tabsState.find((tab) => tab.path === path);
-      const addNewTab = async () => {
-        const tab = await onAddTab(tabBase);
-        if (tab) {
-          setActiveTab(tab);
-        }
+    const tabBase = { path, mode, stable };
+    const hasTab = tabsState.find((tab) => tab.path === path);
+    const addNewTab = async () => {
+      const tab = await onAddTab(tabBase);
+      if (tab) {
+        setActiveTab(tab);
+      }
+    };
+
+    if (hasTab) {
+      setActiveTab(hasTab);
+      return;
+    }
+
+    if (!activeTab || createNew) {
+      addNewTab();
+      return;
+    }
+
+    /**
+     * If user sets another tab, but current tab is unstable, update the current tab
+     */
+    const unstableTab = tabsState.find((tab) => tab.stable === false);
+
+    if (unstableTab) {
+      const tabUpdatePayload = {
+        ...tabBase,
+        id: unstableTab.id,
       };
+      setActiveTab(tabUpdatePayload);
+      setCachedResults(unstableTab.path, null);
+      setCachedPagination(unstableTab.path, null);
 
-      if (hasTab) {
-        setActiveTab(hasTab);
-        return;
-      }
-
-      if (!activeTab || createNew) {
-        addNewTab();
-        return;
-      }
-
-      /**
-       * If user sets another tab, but current tab is unstable, update the current tab
-       */
-      const unstableTab = tabsState.find((tab) => tab.stable === false);
-
-      if (unstableTab) {
-        const tabUpdatePayload = {
-          ...tabBase,
-          id: unstableTab.id,
-        };
-        setActiveTab(tabUpdatePayload);
-        setCachedResults(unstableTab.path, null);
-        setCachedPagination(unstableTab.path, null);
-
-        onTabUpdate(tabUpdatePayload);
-      } else {
-        addNewTab();
-      }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unknown error';
-      console.error('App context: Failed to switch tab: ', message);
-      showError({ title: 'App context: Failed to switch tab', message });
+      onTabUpdate(tabUpdatePayload);
+    } else {
+      addNewTab();
     }
   };
 
   const onAddTab = async (tab: AddTabProps) => {
     if (!proxyRef.current) return;
-    try {
-      const createdTab = await proxyRef.current.addTab(tab);
+    const createdTab = await proxyRef.current.addTab(tab);
 
-      const idbTabs = await proxyRef.current.getTabs();
-      setTabs(idbTabs);
-      return createdTab;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unknown error';
-      console.error('App context: Failed to add tab: ', message);
-      showError({ title: 'App context: Failed to add tab', message });
-    }
+    const idbTabs = await proxyRef.current.getTabs();
+    setTabs(idbTabs);
+    return createdTab;
   };
 
   const onTabUpdate = async (tab: TabModel) => {
     if (!proxyRef.current) return;
 
-    try {
-      await proxyRef.current.updateTabState(tab);
+    await proxyRef.current.updateTabState(tab);
 
-      const idbTabs = await proxyRef.current.getTabs();
-      if (tab.id === activeTab?.id) {
-        setActiveTab(tab);
-      }
-      setTabs(idbTabs);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unknown error';
-
-      console.error('App context: Failed to update tab:', message);
-      showError({ title: 'App context: Failed to update tab', message });
+    const idbTabs = await proxyRef.current.getTabs();
+    if (tab.id === activeTab?.id) {
+      setActiveTab(tab);
     }
+    setTabs(idbTabs);
   };
 
   const onDeleteTabs = async (tabsToDelete: TabModel[]) => {
     if (!proxyRef.current) return;
 
-    try {
-      await proxyRef.current.deleteTabs(
-        tabsToDelete.map((tab) => {
-          setCachedResults(tab.path, null);
-          setCachedPagination(tab.path, null);
-          return tab.id;
-        }),
-      );
+    await proxyRef.current.deleteTabs(
+      tabsToDelete.map((tab) => {
+        setCachedResults(tab.path, null);
+        setCachedPagination(tab.path, null);
+        return tab.id;
+      }),
+    );
 
-      /**
-       * If the current view or query is in the list of tabs to delete, reset the current view and query
-       */
-      if (tabsToDelete.some((tab) => tab.path === currentView || tab.path === currentQuery)) {
-        setCurrentView(null);
-        setQueryResults(null);
-        setQueryView(false);
-        setCurrentQuery(null);
-      }
-
-      const updatedIdbTabs = await proxyRef.current.getTabs();
-
-      if (tabsToDelete.some((tab) => tab.path === activeTab?.path)) {
-        const lastTab = updatedIdbTabs[updatedIdbTabs.length - 1];
-
-        if (lastTab) {
-          onTabSwitch({
-            path: lastTab.path,
-            mode: lastTab.mode,
-          });
-
-          if (lastTab.mode === 'view') {
-            onOpenView(lastTab.path);
-          } else {
-            onOpenQuery(lastTab.path);
-          }
-        } else {
-          setActiveTab(null);
-          setQueryResults(null);
-          setOriginalQuery('');
-        }
-      }
-      setTabs(updatedIdbTabs);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unknown error';
-      console.error('App context: Failed to delete tabs: ', message);
-      showError({ title: 'App context: Failed to delete tabs', message });
+    /**
+     * If the current view or query is in the list of tabs to delete, reset the current view and query
+     */
+    if (tabsToDelete.some((tab) => tab.path === currentView || tab.path === currentQuery)) {
+      setCurrentView(null);
+      setQueryResults(null);
+      setQueryView(false);
+      setCurrentQuery(null);
     }
+
+    const updatedIdbTabs = await proxyRef.current.getTabs();
+
+    if (tabsToDelete.some((tab) => tab.path === activeTab?.path)) {
+      const lastTab = updatedIdbTabs[updatedIdbTabs.length - 1];
+
+      if (lastTab) {
+        onTabSwitch({
+          path: lastTab.path,
+          mode: lastTab.mode,
+        });
+
+        if (lastTab.mode === 'view') {
+          onOpenView(lastTab.path);
+        } else {
+          onOpenQuery(lastTab.path);
+        }
+      } else {
+        setActiveTab(null);
+        setQueryResults(null);
+        setOriginalQuery('');
+      }
+    }
+    setTabs(updatedIdbTabs);
+  };
+
+  const verifyPermission = async (fileHandle: FileSystemFileHandle) => {
+    if ((await fileHandle.queryPermission()) === 'granted') {
+      return true;
+    }
+
+    return false;
   };
 
   const exportFilesAsArchive = async () => {
@@ -747,9 +712,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const result = await proxyRef.current.exportFilesAsArchive();
       if (!result) throw new Error('Failed to export files as archive');
+
       return result;
     } catch (error) {
       console.error('Error exporting files as archive: ', error);
+      return null;
     }
   };
 
@@ -773,14 +740,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error('Error importing SQL files: ', error);
     }
-  };
-
-  const verifyPermission = async (fileHandle: FileSystemFileHandle) => {
-    if ((await fileHandle.queryPermission()) === 'granted') {
-      return true;
-    }
-
-    return false;
   };
 
   /**
