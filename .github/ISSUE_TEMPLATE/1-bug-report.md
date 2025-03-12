@@ -7,7 +7,7 @@ assignees: ''
 ---
 
 ## Bug Description
-A clear and concise description of what the bug is.
+A clear and concise summary of what the bug is.
 
 ## Steps To Reproduce
 1. Go to '...'
@@ -22,10 +22,9 @@ A clear and concise description of what you expected to happen.
 What actually happened instead.
 
 ## Environment
-- Browser: [e.g. Chrome 123, Firefox 98]
-- OS: [e.g. Windows 11, macOS 13.0]
-- PondPilot Version: [e.g. website or local version/commit]
-- File types/formats being used: [e.g. CSV, Parquet, JSON]
+- Browser: [e.g. Chrome, Edge]
+- OS: [e.g. Windows, macOS]
+- How did you access PondPilot: [app.pondpilot.io, docker, vite dev server]
 
 ## Optional
 
