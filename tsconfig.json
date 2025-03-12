@@ -30,5 +30,5 @@
       "@models/*": ["models/*"]
     }
   },
-  "include": ["src", "tests", "playwright.config.ts", "playwright-report"]
+  "include": ["src", "tests", "playwright.config.ts"]
 }
