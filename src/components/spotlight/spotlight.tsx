@@ -190,13 +190,13 @@ export const SpotlightMenu = () => {
 
   const queriesActions: Action[] = [
     {
-      id: 'new-query',
+      id: 'create-new-query',
       label: 'New Query',
       icon: <IconPlus size={20} className={iconClasses} />,
       hotkey: [option, 'N'],
       handler: async () => {
         await saveCurrentQuery();
-        onCreateQueryFile({ entities: [{ name: 'query-name.sql' }] });
+        onCreateQueryFile({ entities: [{ name: 'query' }] });
         resetSpotlight();
       },
     },
@@ -338,7 +338,12 @@ export const SpotlightMenu = () => {
     return (
       <Spotlight.ActionsGroup label={label} className="text-red-200">
         {actions.map((action) => (
-          <Spotlight.Action disabled={action.disabled} key={action.id} onClick={action.handler}>
+          <Spotlight.Action
+            data-testid={action.id}
+            disabled={action.disabled}
+            key={action.id}
+            onClick={action.handler}
+          >
             <Group
               justify="space-between"
               className={cn('w-full', action.disabled && 'opacity-50')}
@@ -546,7 +551,7 @@ export const SpotlightMenu = () => {
             wrapper: 'mb-2',
           }}
         />
-        <Spotlight.ActionsList>
+        <Spotlight.ActionsList data-testid="spotlight-menu">
           {spotlightView === 'home' && !searchValue.endsWith('?') && (
             <Group gap={4} c="text-secondary" className="px-4 text-sm mb-4">
               Type{' '}
