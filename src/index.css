@@ -97,14 +97,21 @@ body {
   max-width: 300px;
 }
 
-.cm-completionIcon-database::after {
-  content: url('/database.svg');
+.cm-completionIcon-database:after {
+  content: url('/assets/database.svg');
 }
-
-.cm-completionIcon-table::after {
-  content: url('/table.svg');
+.cm-completionIcon-table:after {
+  content: url('/assets/table.svg');
 }
-
-.cm-completionIcon-schema::after {
-  content: url('/schema.svg');
+.cm-completionIcon-schema:after {
+  content: url('/assets/schema.svg');
+}
+[data-mantine-color-scheme='dark'] .cm-completionIcon-database:after {
+  content: url('/assets/database-dark.svg');
+}
+[data-mantine-color-scheme='dark'] .cm-completionIcon-table:after {
+  content: url('/assets/table-dark.svg');
+}
+[data-mantine-color-scheme='dark'] .cm-completionIcon-schema:after {
+  content: url('/assets/schema-dark.svg');
 }

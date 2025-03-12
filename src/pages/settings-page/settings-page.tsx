@@ -3,7 +3,7 @@ import { clearFileSystem } from '@components/settings-modal/utils';
 import { useAppContext } from '@features/app-context';
 import { ThemeSwitcher } from './components/theme-switcher';
 
-export const SettingsPage = () => {
+const SettingsPage = () => {
   const { exportFilesAsArchive } = useAppContext();
 
   // TODO: Separate this into a hook
@@ -86,3 +86,5 @@ export const SettingsPage = () => {
     </Group>
   );
 };
+
+export default SettingsPage;
