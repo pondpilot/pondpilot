@@ -20,6 +20,10 @@ PondPilot is a blazing-fast, lightweight, 100% client-side data exploration tool
 - **Keyboard Shortcuts**: Navigate efficiently with intuitive keyboard shortcuts
 - **Dark/Light Mode**: Choose the interface that's easiest on your eyes
 
+## 🖥️ Demo
+
+![](https://github.com/user-attachments/assets/a47547ba-3b25-440d-816a-05d47c7d60ec)
+
 ## 🚀 Getting Started
 
 ### Using the Web App
