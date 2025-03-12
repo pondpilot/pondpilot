@@ -1,8 +1,8 @@
 import { memo } from 'react';
-import { ActionIcon, Group, Text, TextInput } from '@mantine/core';
+import { Group, Text, TextInput } from '@mantine/core';
 import { spotlight } from '@mantine/spotlight';
 import { cn } from '@utils/ui/styles';
-import { IconLayout, IconLayoutSidebar, IconSearch } from '@tabler/icons-react';
+import { IconSearch } from '@tabler/icons-react';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { useModifier } from '@hooks/useModifier';
 import { SpotlightMenu } from '@components/spotlight';
@@ -23,9 +23,11 @@ export const Header = memo(() => {
       <Text size="xs">SETTINGS</Text>
     </Group>
   ) : (
-    <ActionIcon size={20} disabled>
-      <IconLayoutSidebar />
-    </ActionIcon>
+    <></>
+    // TODO: Implement this
+    // <ActionIcon size={20} disabled>
+    //   <IconLayoutSidebar />
+    // </ActionIcon>
   );
 
   return (
@@ -70,16 +72,17 @@ export const Header = memo(() => {
           />
         </Group>
         <Group w={150} justify="end" gap={8}>
+          {/* // TODO: Implement this */}
           {/* <ActionIcon size={20} disabled>
           <IconLayoutSidebarFilled />
         </ActionIcon>
         <ActionIcon size={20} disabled>
           <IconLayoutBottombarFilled />
         </ActionIcon>
-        <Divider orientation="vertical" /> */}
+        <Divider orientation="vertical" />
           <ActionIcon size={20} disabled>
             <IconLayout />
-          </ActionIcon>
+          </ActionIcon> */}
         </Group>
       </Group>
     </>
