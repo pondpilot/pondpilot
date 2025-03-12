@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { IconNumber123, IconCalendarStats, IconTextSize } from '@tabler/icons-react';
 import { formatNumber } from '@utils/helpers';
 import { DynamicTypeViewerProps } from './models';
@@ -47,7 +46,7 @@ export const dynamicTypeViewer = (props: DynamicTypeViewerProps): string => {
         return '';
     }
   } catch (error) {
-    console.log('Error in dynamicTypeViewer', error);
+    console.error('Error in dynamicTypeViewer', error);
     return 'N/A';
   }
 };

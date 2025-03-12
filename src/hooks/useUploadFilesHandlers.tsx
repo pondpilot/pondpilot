@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { getSupportedMimeType } from '@utils/helpers';
 import { useAppContext } from '@features/app-context';
 import { useAppNotifications } from '@components/app-notifications';
@@ -7,9 +6,7 @@ export const useFileHandlers = () => {
   const { onAddDataSources } = useAppContext();
   const { showError } = useAppNotifications();
 
-  const handleFileUpload = async (
-    accept = ['.parquet', '.csv', '.json', '.xlsx'] as FileExtension[],
-  ) => {
+  const handleFileUpload = async (accept = ['.parquet', '.csv', '.json'] as FileExtension[]) => {
     try {
       const fileHandles = await window.showOpenFilePicker({
         types: [
@@ -62,10 +59,7 @@ export const useFileHandlers = () => {
   };
 
   const handleAddSource =
-    (
-      sourceType: 'folder' | 'file',
-      accept = ['.parquet', '.csv', '.json', '.xlsx'] as FileExtension[],
-    ) =>
+    (sourceType: 'folder' | 'file', accept = ['.parquet', '.csv', '.json'] as FileExtension[]) =>
     () => {
       if ('showDirectoryPicker' in window && 'showOpenFilePicker' in window) {
         if (sourceType === 'folder') {
