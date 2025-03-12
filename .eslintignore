@@ -4,4 +4,4 @@
 *.d.ts
 *.d.mts
 vite.config.ts
-/playwright-report/
+playwright-report

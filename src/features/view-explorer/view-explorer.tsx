@@ -6,6 +6,7 @@ import { useClipboard } from '@mantine/hooks';
 import { memo, useCallback } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { IconCsv, IconJson, IconTable } from '@tabler/icons-react';
+import { useEditorStore } from '@store/editor-store';
 
 /**
  * Displays a list of views
@@ -14,8 +15,14 @@ export const ViewExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const { onDeleteDataSource, onOpenView, onTabSwitch, onCreateQueryFile, onDeleteTabs } =
-    useAppContext();
+  const {
+    onDeleteDataSource,
+    onOpenView,
+    onTabSwitch,
+    onCreateQueryFile,
+    onDeleteTabs,
+    onSaveEditor,
+  } = useAppContext();
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
 
@@ -30,6 +37,10 @@ export const ViewExplorer = memo(() => {
   const tabs = useAppStore((state) => state.tabs);
   const sessionFiles = useAppStore((state) => state.sessionFiles);
 
+  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
+  const editorValue = useEditorStore((state) => state.editorValue);
+  const lastQueryDirty = useEditorStore((state) => state.lastQueryDirty);
+
   /**
    * Consts
    */
@@ -39,18 +50,25 @@ export const ViewExplorer = memo(() => {
     nodeProps: { canSelect: true, id: view },
   }));
 
+  /**
+   * Handlers
+   */
+  const saveCurrentQuery = async () => {
+    if (lastQueryDirty && activeTab?.mode === 'query') {
+      await onSaveEditor({ content: editorValue, path: activeTab.path });
+      setLastQueryDirty(false);
+    }
+  };
+
   const openView = async (viewName: string) => {
     if (activeTab?.path === viewName) return;
+    await saveCurrentQuery();
 
     onOpenView(viewName);
     onTabSwitch({
       path: viewName,
       mode: 'view',
     });
-  };
-
-  const handleViewClick = async (viewName: string) => {
-    openView(viewName);
   };
 
   const handleDeleteSelected = async (items: string[]) => {
@@ -120,9 +138,10 @@ export const ViewExplorer = memo(() => {
 
   return (
     <SourcesListView
+      parentDataTestId="view-explorer"
       list={viewsToDisplay}
       onDeleteSelected={handleDeleteSelected}
-      onItemClick={handleViewClick}
+      onItemClick={openView}
       menuItems={menuItems}
       disabled={queryLoading}
       activeItemKey={currentView}

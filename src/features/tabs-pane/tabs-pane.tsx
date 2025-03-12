@@ -1,7 +1,7 @@
 /* eslint-disable jsx-a11y/click-events-have-key-events */
 import { useAppContext } from '@features/app-context';
 import { TabModel } from '@features/app-context/models';
-import { ScrollArea, Group, Skeleton, Text, ActionIcon } from '@mantine/core';
+import { ScrollArea, Group, Skeleton, Text, ActionIcon, Box } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@store/app-store';
@@ -33,12 +33,13 @@ import {
 } from '@tabler/icons-react';
 import { getArrowTableSchema } from '@utils/arrow/helpers';
 import { useAppNotifications } from '@components/app-notifications';
+import { useEditorStore } from 'store/editor-store';
 
 interface SortableTabProps {
   tab: TabModel;
   activeTab: TabModel | null;
   icon: React.ReactNode;
-  activeTabRef: React.MutableRefObject<HTMLDivElement | null>;
+  activeTabRef: React.RefObject<HTMLDivElement | null>;
   onTabUpdate: (tab: TabModel) => void;
   handleDeleteTab: (tab: TabModel) => void;
   onClick: (tab: TabModel) => void;
@@ -72,17 +73,17 @@ const SortableTab = ({
     transform: CSS.Transform.toString(transform),
     transition,
   };
+  const active = activeTab?.id === tab.id;
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <div
+      <Box
         ref={(el) => {
-          if (tab.id === activeTab?.id) {
+          if (active) {
             activeTabRef.current = el;
           }
         }}
-        role="button"
-        tabIndex={0}
+        data-active={active}
         onClick={() => onClick(tab)}
         onDoubleClick={(e) => {
           e.stopPropagation();
@@ -93,8 +94,7 @@ const SortableTab = ({
           !isDragging && 'hover:bg-transparent008-light dark:hover:bg-transparent008-dark',
           'text-textPrimary-light dark:text-textPrimary-dark',
           'bg-backgroundTertiary-light dark:bg-transparent008-dark',
-
-          tab.id === activeTab?.id &&
+          active &&
             'bg-backgroundPrimary-light hover:bg-white dark:bg-backgroundPrimary-dark z-50 dark:hover:bg-backgroundPrimary-dark',
         )}
       >
@@ -106,6 +106,7 @@ const SortableTab = ({
             </Text>
           </Group>
           <ActionIcon
+            data-testid="close-tab-button"
             onClick={(e) => {
               e.stopPropagation();
               handleDeleteTab(tab);
@@ -115,7 +116,7 @@ const SortableTab = ({
             <IconX size={20} className={cn('text-iconDefault-light dark:text-iconDefault-dark')} />
           </ActionIcon>
         </Group>
-      </div>
+      </Box>
     </div>
   );
 };
@@ -124,7 +125,7 @@ export const TabsPane = memo(() => {
   /**
    * Common hooks
    */
-  const { onDeleteTabs, onTabUpdate, onOpenView, onSetTabsOrder, onCreateQueryFile } =
+  const { onDeleteTabs, onTabUpdate, onOpenView, onSetTabsOrder, onCreateQueryFile, onSaveEditor } =
     useAppContext();
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -155,6 +156,11 @@ export const TabsPane = memo(() => {
   const queryView = useAppStore((state) => state.queryView);
   const queryResults = useAppStore((state) => state.queryResults);
   const sessionFiles = useAppStore((state) => state.sessionFiles);
+
+  const editorValue = useEditorStore((state) => state.editorValue);
+  const lastQueryDirty = useEditorStore((state) => state.lastQueryDirty);
+  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
+
   const appInitializing = appStatus === 'initializing';
 
   /**
@@ -185,12 +191,22 @@ export const TabsPane = memo(() => {
     }
   };
 
+  const saveCurrentQuery = async () => {
+    if (activeTab?.mode === 'query' && lastQueryDirty) {
+      await onSaveEditor({ content: editorValue, path: activeTab.path });
+      setLastQueryDirty(false);
+    }
+  };
+
   const handleTabChange = async (tabId: string | null) => {
     setIsUserTabChange(true);
     const tab = tabs.find((t) => t.id === tabId);
     if (!tab) return;
     if (tab.id === activeTab?.id) return;
+    await saveCurrentQuery();
+
     setActiveTab(tab);
+
     if (tab.mode === 'view') {
       onOpenView(tab.path);
     }
@@ -203,11 +219,15 @@ export const TabsPane = memo(() => {
   };
 
   const handleDeleteTab = async (tab: TabModel) => {
+    await saveCurrentQuery();
     onDeleteTabs([tab]);
   };
 
-  const handleTabClick = (tab: TabModel) => {
+  const handleTabClick = async (tab: TabModel) => {
     if (tab.id === activeTab?.id) return;
+
+    await saveCurrentQuery();
+
     setIsUserTabChange(true);
     setActiveTab(tab);
     if (tab.mode === 'view') {
@@ -221,7 +241,8 @@ export const TabsPane = memo(() => {
     }
   };
 
-  const handleAddQuery = () => {
+  const handleAddQuery = async () => {
+    await saveCurrentQuery();
     onCreateQueryFile({ entities: [{ name: 'query' }], openInNewTab: true });
   };
 
@@ -305,7 +326,7 @@ export const TabsPane = memo(() => {
               items={tabs.map((tab) => tab.id)}
               strategy={horizontalListSortingStrategy}
             >
-              <div className="flex items-center h-9 ">
+              <div className="flex items-center h-9" data-testid="tabs-list">
                 {tabs.map((tab) => (
                   <SortableTab
                     key={tab.id}

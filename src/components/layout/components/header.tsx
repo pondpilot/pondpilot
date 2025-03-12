@@ -37,6 +37,7 @@ export const Header = memo(() => {
         </Group>
         <Group>
           <TextInput
+            data-testid="spotlight-trigger-input"
             className="cursor-pointer"
             classNames={{
               input: cn(
