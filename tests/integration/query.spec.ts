@@ -76,7 +76,6 @@ const test = base.extend<QueryFixture>({
     // ---------- BEFORE EACH TEST ----------
     await page.goto('http://localhost:5173/');
     await page.waitForSelector('[data-app-ready="true"]', { state: 'attached' });
-    page.on('console', (msg) => console.log(`[BROWSER LOG] ${msg.type()}: ${msg.text()}`));
 
     await use(page);
   },
