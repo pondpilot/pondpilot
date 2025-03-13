@@ -4,13 +4,53 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Semantic version (e.g., 1.2.3). Omit to do a dry-run.'
+        description: 'Semantic version (e.g., 1.2.3)'
         required: true
-        default: dry-run
         type: string
+      dry_run:
+        description: 'Perform a dry run without making changes'
+        required: true
+        default: true
+        type: boolean
 
 jobs:
+  validate-version:
+    runs-on: ubuntu-latest
+    steps:      
+      - name: Validate semantic version
+        run: |
+          if ! [[ "${{ github.event.inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid semantic version: ${{ github.event.inputs.version }}"
+            echo "Version must be in format: X.Y.Z"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check non-decreasing version
+        run: |
+          version="${{ github.event.inputs.version }}"
+          cur_version=$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' package.json)
+          semver_gt() {
+            local ver1=$1
+            local ver2=$2
+            IFS=. read -r major1 minor1 patch1 <<< "$ver1"
+            IFS=. read -r major2 minor2 patch2 <<< "$ver2"
+            if [ "$major1" -gt "$major2" ]; then return 0; fi
+            if [ "$major1" -lt "$major2" ]; then return 1; fi
+            if [ "$minor1" -gt "$minor2" ]; then return 0; fi
+            if [ "$minor1" -lt "$minor2" ]; then return 1; fi
+            if [ "$patch1" -gt "$patch2" ]; then return 0; fi
+            return 1
+          }
+          if ! semver_gt "${version}" "${cur_version}"; then
+            echo "Version ${version} is not strictly greater than the current version ${cur_version}"
+            exit 1
+          fi
+      
   release:
+    needs: validate-version
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -24,9 +64,9 @@ jobs:
         with:
           script: |
             const version = context.payload.inputs.version;
-
-            // Check if this is a dry-run
-            const dryRun = version === "dry-run";
+            const dryRun = context.payload.inputs.dry_run;
+            
+            console.log(`Processing version: ${version}, dry-run: ${dryRun}`);
 
             const releases = await github.rest.repos.listReleases({
                 owner: context.repo.owner,
@@ -40,7 +80,7 @@ jobs:
             }
 
             const expectedTag = `v${version}`;
-            if (draft.tag_name !== expectedTag && !dryRun) {
+            if (draft.tag_name !== expectedTag) {
                 core.setFailed(`Draft release tag '${draft.tag_name}' does not match expected tag '${expectedTag}'.`);
                 return;
             }
@@ -52,9 +92,8 @@ jobs:
             }
             // Set outputs for later steps
             core.setOutput("release_body", draft.body);
-
-            // To avoid potential errors, save incorrect release ID during dry-run
-            core.setOutput("release_id", dryRun ? -1 : draft.id);
+            core.setOutput("release_id", draft.id);
+            core.setOutput("tag_name", draft.tag_name);
 
       - name: Insert draft content to CHANGELOG.md
         run: |
@@ -68,17 +107,21 @@ jobs:
           awk '/<!-- next-header -->/ { print; system("cat '"$temp_entry"'"); next }1' CHANGELOG.md > "$temp_file"
           mv "$temp_file" CHANGELOG.md
 
-      - name: Bump package version
+      - name: Bump version in package.json
         run: |
-          yarn version "${{ github.event.inputs.version }}"
-
-      - name: Commit CHANGELOG.md update
+          version="${{ github.event.inputs.version }}"
+          echo "Bumping version in package.json to ${version}"
+          jq ".version = \"${version}\"" package.json > package.json.tmp
+          mv package.json.tmp package.json
+      
+      - name: Commit changes
         run: |
-          if [ "${{ github.event.inputs.version }}" = "dry-run" ]; then
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
               echo "Dry run: showing diff and exiting"
               git --no-pager diff
               exit 0
           fi
+          
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add CHANGELOG.md package.json
@@ -87,19 +130,19 @@ jobs:
 
           # Commit the changes, but prevent downstream workflows from running (otherwise release drafter will overwrite release notes)
           git commit -m "[skip ci] Update CHANGELOG with release notes for v${{ github.event.inputs.version }}"
-          git push origin main
+          git push origin main          
 
       - name: Publish the draft release
         uses: actions/github-script@v7
         with:
           script: |
             const releaseId = parseInt("${{ steps.get_draft.outputs.release_id }}", 10);
-
-            // If this is a dry-run, skip publishing the release
+            const dryRun = context.payload.inputs.dry_run;
             const version = context.payload.inputs.version;
 
-            if (version === "dry-run") {
-                core.info("This is a dry-run. Skipping release publishing.");
+            if (dryRun) {
+                core.info(`Dry run for version ${version}. Would publish release with ID: ${releaseId}`);
+                core.info(`Tag name would be: ${{ steps.get_draft.outputs.tag_name }}`);
                 return;
             }
             
