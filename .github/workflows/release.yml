@@ -130,7 +130,8 @@ jobs:
 
           # Commit the changes, but prevent downstream workflows from running (otherwise release drafter will overwrite release notes)
           git commit -m "[skip ci] Update CHANGELOG with release notes for v${{ github.event.inputs.version }}"
-          git push origin main          
+          git remote set-url origin https://x-access-token:${{ secrets.WRITE_TOKEN }}@github.com/${{ github.repository }}.git
+          git push origin main
 
       - name: Publish the draft release
         uses: actions/github-script@v7
