@@ -1,4 +1,5 @@
 import { test as base, expect } from '@playwright/test';
+import { GET_TABLE_WITH_SPECIAL_CHARS_COLUMNS } from './consts';
 
 type QueryFixture = {
   createQueryAndSwitchToItsTab: () => Promise<void>;
@@ -179,4 +180,70 @@ test('Create queries using spotlight menu', async ({
   // Switch to second query and verify content
   await switchToTab('query_1.sql');
   await expect(page.locator('.cm-content')).toContainText('select 4 as spotlight_query_2');
+});
+
+test('Autocomplete converts keywords to uppercase', async ({
+  createQueryAndSwitchToItsTab,
+  page,
+}) => {
+  await createQueryAndSwitchToItsTab();
+
+  // Type 'select' in the editor
+  const editor = page.locator('.cm-content');
+  await editor.pressSequentially('select');
+
+  // Wait for autocomplete to appear and check it's visible
+  const autocompleteTooltip = page.locator('.cm-tooltip-autocomplete');
+  await expect(autocompleteTooltip).toBeVisible();
+
+  // Use a more specific selector that matches only the exact "SELECT" option
+  const selectOption = autocompleteTooltip.getByRole('option', { name: 'SELECT', exact: true });
+  await expect(selectOption).toBeVisible();
+
+  // Click on the exact SELECT option
+  await selectOption.click();
+
+  // Verify that 'select' has been converted to uppercase 'SELECT'
+  await expect(editor).toContainText('SELECT');
+});
+
+test('Header cell width matches data cell width for special character columns', async ({
+  createQueryAndSwitchToItsTab,
+  fillQuery,
+  runQuery,
+  page,
+}) => {
+  // Create a new query
+  await createQueryAndSwitchToItsTab();
+  // Fill the query with the special character columns query
+  await fillQuery(GET_TABLE_WITH_SPECIAL_CHARS_COLUMNS);
+  // Run the query
+  await runQuery();
+  // Wait for table to be fully rendered
+  await page.waitForSelector('data-testid=result-table', { state: 'visible' });
+
+  // Get all header cells
+  const headerCells = page.locator('data-testid=thead-cell');
+  const headerCount = await headerCells.count();
+
+  // Verify we have header cells
+  expect(headerCount).toBeGreaterThan(0);
+
+  // For each header cell, check if its width matches the corresponding data cell
+  for (let i = 0; i < headerCount; i += 1) {
+    // Get the current header cell
+    const headerCell = headerCells.nth(i);
+    await expect(headerCell).toBeVisible();
+
+    // Get the corresponding data cell in the first row
+    const dataCell = page.locator(`data-testid=table-cell >> nth=${i}`);
+    await expect(dataCell).toBeVisible();
+
+    // Get bounding boxes for both cells
+    const headerBoundingBox = await headerCell.boundingBox();
+    const dataBoundingBox = await dataCell.boundingBox();
+
+    // Check that the width of the header cell is equal to the width of the data cell
+    expect(headerBoundingBox?.width).toBeCloseTo(dataBoundingBox?.width as number, 1);
+  }
 });

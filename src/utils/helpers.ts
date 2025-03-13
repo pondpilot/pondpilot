@@ -1,4 +1,3 @@
-/* eslint-disable no-plusplus */
 import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
 import { CodeSource, Dataset } from '@models/common';
 import { openDB } from 'idb';
@@ -69,7 +68,7 @@ export const findUniqueName = async (
     const exists = await checkIfExists(currentName);
 
     if (!exists) break;
-    counter++;
+    counter += 1;
   }
 
   return `${path}${counter > 0 ? `_${counter}` : ''}.${ext}`;

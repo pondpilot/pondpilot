@@ -1,5 +1,4 @@
 /* eslint-disable no-console */
-/* eslint-disable no-plusplus */
 /* eslint-disable no-continue */
 /// <reference lib="webworker" />
 

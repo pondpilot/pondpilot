@@ -1,4 +1,3 @@
-/* eslint-disable no-plusplus */
 import { useReactTable, getCoreRowModel, Table as TableType, Cell } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
 import { memo, useMemo } from 'react';
@@ -120,7 +119,7 @@ export const Table = memo(
     const columnSizeVars = useMemo(() => {
       const headers = table.getFlatHeaders();
       const colSizes: { [key: string]: number } = {};
-      for (let i = 0; i < headers.length; i++) {
+      for (let i = 0; i < headers.length; i += 1) {
         const header = headers[i]!;
 
         const headerName = replaceSpecialChars(header.id);
@@ -166,6 +165,7 @@ export const Table = memo(
           width: table.getTotalSize(),
         }}
         className="relative w-fit rounded-xl"
+        data-testid="result-table"
       >
         {/* Header */}
         <div className="sticky top-0 z-10 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark">
