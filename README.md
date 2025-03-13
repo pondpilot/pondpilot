@@ -88,6 +88,10 @@ Here is what we are planning before reaching feature completeness:
 * Basic statistics & metadata view without the need to run queries (think data distribution, column types, etc.)
 * Additional popular local & remote sources support: XLSX, SQLite, MotherDuck
 
+## 🏷️ Tagged Releases
+
+The official [hosted version](https://app.pondpilot.io/) of PondPilot and the latest tag for our [Docker image](https://ghcr.io/pondpilot/pondpilot) are continuously updated based on the `main` branch. However, we occasionally tag releases to mark significant milestones. You can read the draft release notes for the upcoming tagged version and all released versions on the [release page](https://github.com/pondpilot/pondpilot/releases) or in the [CHANGELOG](CHANGELOG.md).
+
 ## 🤝 Contributing
 
 We welcome contributions from the community! Here's how to get started:
