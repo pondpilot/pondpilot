@@ -1,14 +1,52 @@
 name: Deploy to Cloudflare Pages
 
 on:
+  # This allows to trigger the workflow manually from the Actions tab.
+  # E.g. when we push commit to main with [skip ci] in the commit message
+  workflow_dispatch:
+  # Production builds run directly on main
+  push:
+    branches:
+      - main
+  # PR's run on the workflow_run event for security reasons
   workflow_run:
     workflows: ['Lint, Build & Test']
     types:
       - completed
 
 jobs:
-  deploy:
-    if: github.event.workflow_run.conclusion == 'success'
+  # Deploy to Cloudflare Pages main site on push to main or workflow_dispatch
+  test-and-build-prod:
+    if: github.repository == 'pondpilot/pondpilot' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    uses: ./.github/workflows/build-and-test.yml
+
+  deploy-prod:
+    if: github.repository == 'pondpilot/pondpilot' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    name: Deploy
+    needs: test-and-build-prod
+    permissions:
+      contents: read
+      deployments: write      
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: dist
+
+      - name: Deploy to Cloudflare Pages (prod)
+        id: deploy-prod
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ./dist --project-name=pondpilot --branch=main --commit-hash=${{ github.event.workflow_run.head_sha }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+  # Deploy to Cloudflare Pages preview site on PR
+  deploy-pr:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     name: Deploy
     permissions:
@@ -27,19 +65,8 @@ jobs:
           if_no_artifact_found: fail
           allow_forks: true
 
-      - name: Deploy to Cloudflare Pages (prod)
-        id: deploy-prod
-        if: github.event.workflow_run.event != 'pull_request'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./dist --project-name=pondpilot --branch=main --commit-hash=${{ github.event.workflow_run.head_sha }}
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Deploy to Cloudflare Pages (preview)
         id: deploy-pr
-        if: github.event.workflow_run.event == 'pull_request'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -69,7 +96,6 @@ jobs:
             });
 
       - name: Create GitHub Deployment
-        if: github.event.workflow_run.event == 'pull_request'
         uses: actions/github-script@v7
         with:
           # Adapted from https://github.com/cloudflare/wrangler-action/blob/main/src/service/github.ts

@@ -1,10 +1,9 @@
+# Runs linting, build & tests. Some artifacts are used in dependent privileged workflows.
 name: Lint, Build & Test
-description: Runs linting, build & tests. Some artifacts are used in dependent privileged workflows.
 
 on:
-  push:
-    branches:
-      - main
+  # called on main from cloudflare pages deploy
+  workflow_call:
   pull_request:
 
 concurrency:
