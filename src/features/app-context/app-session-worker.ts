@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-/* eslint-disable no-continue */
 /// <reference lib="webworker" />
 
 import * as Comlink from 'comlink';

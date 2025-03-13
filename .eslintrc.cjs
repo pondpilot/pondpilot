@@ -9,5 +9,6 @@ module.exports = {
     'consistent-return': 'off',
     'no-promise-executor-return': 'off',
     'no-console': ['error', { allow: ['warn', 'error'] }],
+    'no-continue': 'off',
   },
 };
