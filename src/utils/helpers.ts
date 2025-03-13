@@ -1,4 +1,3 @@
-/* eslint-disable no-plusplus */
 import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
 import { CodeSource, Dataset } from '@models/common';
 import { openDB } from 'idb';
@@ -69,7 +68,7 @@ export const findUniqueName = async (
     const exists = await checkIfExists(currentName);
 
     if (!exists) break;
-    counter++;
+    counter += 1;
   }
 
   return `${path}${counter > 0 ? `_${counter}` : ''}.${ext}`;
@@ -140,7 +139,8 @@ export const exportApplicationFiles = async (): Promise<Blob | null> => {
   }
 };
 
-export const replaceSpecialChars = (str: string): string => str.replace(/[\s#()[\].-]/g, '_');
+export const replaceSpecialChars = (str: string): string =>
+  str.trim().replace(/[^a-zA-Z0-9]/g, '_');
 
 /**
  * Creates item name by removing the file extension and replacing hyphens with underscores.

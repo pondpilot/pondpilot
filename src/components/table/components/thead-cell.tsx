@@ -106,6 +106,7 @@ export const TableHeadCell = memo(
 
     return (
       <div
+        data-testid="thead-cell"
         className={cn(
           'relative z-10 flex items-center justify-between gap-1 px-4 py-[11px] h-[40px] text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark whitespace-nowrap select-none border-transparent',
           'border-borderLight-light dark:border-borderLight-dark border-r',

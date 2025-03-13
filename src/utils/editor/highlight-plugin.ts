@@ -3,7 +3,6 @@
  * Copyright (C) [2025] Outerbase
  * Licensed under GNU AGPL v3.0
  */
-/* eslint-disable no-plusplus */
 import { Decoration, EditorState, EditorView, StateField, Range } from '@uiw/react-codemirror';
 import { resolveToNearestStatement } from './statement-parser';
 
@@ -19,7 +18,7 @@ function getDecorationFromState(state: EditorState) {
   const toLineNumber = state.doc.lineAt(statement.to).number;
   const decorations: Range<Decoration>[] = [];
 
-  for (let i = fromLineNumber; i <= toLineNumber; i++) {
+  for (let i = fromLineNumber; i <= toLineNumber; i += 1) {
     decorations.push(statementLineHighlight.range(state.doc.line(i).from));
   }
 

@@ -33,6 +33,7 @@ export const TableCell = memo(
 
     return (
       <div
+        data-testid="table-cell"
         className={cn(
           'whitespace-nowrap overflow-hidden border-transparent select-none',
           'border-r border-borderLight-light dark:border-borderLight-dark first:border-l ',

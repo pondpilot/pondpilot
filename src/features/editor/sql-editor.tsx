@@ -121,6 +121,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
     const extensions = useMemo(() => {
       const sqlDialect = sql({
         dialect: PostgreSQL,
+        upperCaseKeywords: true,
         schema,
       });
       const tooltipExtension = functionTooltip(duckdbFunctionList);

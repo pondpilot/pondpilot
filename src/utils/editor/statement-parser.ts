@@ -3,7 +3,6 @@
  * Copyright (C) [2025] Outerbase
  * Licensed under GNU AGPL v3.0
  */
-/* eslint-disable no-plusplus */
 import { EditorState } from '@uiw/react-codemirror';
 import { syntaxTree } from '@codemirror/language';
 import { SyntaxNode } from '@lezer/common';
@@ -21,7 +20,7 @@ export function splitSqlQuery(
   const statementGroups: SyntaxNode[][] = [];
   let accumulateNodes: SyntaxNode[] = [];
 
-  for (let i = 0; i < statements.length; i++) {
+  for (let i = 0; i < statements.length; i += 1) {
     const statement = statements[i];
     needEndStatementCounter += isRequireEndStatement(state, statement);
     if (needEndStatementCounter) {
@@ -30,7 +29,7 @@ export function splitSqlQuery(
       statementGroups.push([statement]);
     }
     if (needEndStatementCounter && isEndStatement(state, statement)) {
-      needEndStatementCounter--;
+      needEndStatementCounter -= 1;
       if (needEndStatementCounter === 0) {
         statementGroups.push(accumulateNodes);
         accumulateNodes = [];
@@ -54,7 +53,7 @@ export function resolveToNearestStatement(state: EditorState) {
   const statements = splitSqlQuery(state, false);
   if (statements.length === 0) return null;
 
-  for (let i = 0; i < statements.length; i++) {
+  for (let i = 0; i < statements.length; i += 1) {
     const statement = statements[i];
     if (cursor < statement.from) {
       if (i === 0) return statements[0];
