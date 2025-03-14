@@ -22,12 +22,14 @@ test('Long action names are truncated in spotlight results', async ({ page, open
     'ThisIsAVeryLongActionNameThatShouldBeTruncatedInTheSpotlightSearchResults12';
   expect(longActionName.length).toBe(75);
 
+  // Check if at least one spotlight action is visible
+  await expect(page.locator('[data-testid^="spotlight-action-"]').first()).toBeVisible();
+
   // Find all spotlight actions
   const actionIds = await page.evaluate(() => {
     const actions = Array.from(document.querySelectorAll('[data-testid^="spotlight-action-"]'));
     return actions.map((action) => action.getAttribute('data-testid'));
   });
-
   expect(actionIds.length).toBeGreaterThan(0);
 
   // Test each action
