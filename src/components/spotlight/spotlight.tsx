@@ -253,7 +253,7 @@ export const SpotlightMenu = () => {
       icon: <IconFileSad size={20} className={iconClasses} />,
       handler: () => {
         window.open(
-          'https://github.com/pondpilot/pondpilot/issues/new/choose',
+          'https://github.com/pondpilot/pondpilot/issues',
           '_blank',
           'noopener,noreferrer',
         );
