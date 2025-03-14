@@ -1,5 +1,6 @@
-import { test as base, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
 import { GET_TABLE_WITH_SPECIAL_CHARS_COLUMNS } from './consts';
+import { baseTest } from '../baseTest';
 
 type QueryFixture = {
   createQueryAndSwitchToItsTab: () => Promise<void>;
@@ -9,9 +10,10 @@ type QueryFixture = {
   closeActiveTab: () => Promise<void>;
   openQueryFromExplorer: (queryName: string) => Promise<void>;
   createQueryViaSpotlight: () => Promise<void>;
+  renameQueryInExplorer: (oldName: string, newName: string) => Promise<void>;
 };
 
-const test = base.extend<QueryFixture>({
+const test = baseTest.extend<QueryFixture>({
   createQueryAndSwitchToItsTab: async ({ page }, use) => {
     await use(async () => {
       await page.click('data-testid=add-query-button');
@@ -29,7 +31,7 @@ const test = base.extend<QueryFixture>({
       await expect(spotlightRoot).toBeVisible();
 
       // Create new query through spotlight
-      await spotlightRoot.locator('data-testid=create-new-query').click();
+      await spotlightRoot.locator('data-testid=spotlight-action-create-new-query').click();
 
       // Verify spotlight is closed after creating query
       await expect(spotlightRoot).not.toBeVisible();
@@ -73,12 +75,27 @@ const test = base.extend<QueryFixture>({
     });
   },
 
-  page: async ({ page }, use) => {
-    // ---------- BEFORE EACH TEST ----------
-    await page.goto('http://localhost:5173/');
-    await page.waitForSelector('[data-app-ready="true"]', { state: 'attached' });
+  renameQueryInExplorer: async ({ page }, use) => {
+    await use(async (oldName: string, newName: string) => {
+      // Find the query item in the explorer
+      const queryItem = page.locator(`[data-testid="query-list-item-${oldName}"]`);
 
-    await use(page);
+      // Double-click to initiate rename
+      await queryItem.dblclick();
+
+      // Find and fill the rename input
+      const renameInput = page.locator(`[data-testid="query-list-item-${oldName}-rename-input"]`);
+
+      await expect(renameInput).toBeVisible();
+
+      await renameInput.fill(newName);
+
+      // Press Enter to confirm
+      await page.keyboard.press('Enter');
+
+      // Wait for the renamed query to appear
+      await page.waitForSelector(`[data-testid="query-list-item-${newName}.sql"]`);
+    });
   },
 });
 

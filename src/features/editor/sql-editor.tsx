@@ -28,6 +28,7 @@ interface SqlEditorProps {
   fontSize?: number;
   onFontSizeChanged?: (fontSize: number) => void;
   onCursorChange?: (pos: number, lineNumber: number, columnNumber: number) => void;
+  onBlur: () => void;
 }
 
 export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
@@ -42,6 +43,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
       readOnly,
       fontSize,
       onFontSizeChanged,
+      onBlur,
     }: SqlEditorProps,
     ref,
   ) => {
@@ -153,6 +155,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
           drawSelection: false,
         }}
         theme={colorSchemeDark ? darkTheme : lightTheme}
+        onBlur={onBlur}
         value={value}
         height="100%"
         width="100%"

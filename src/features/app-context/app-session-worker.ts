@@ -349,7 +349,7 @@ const getTabs = async (): Promise<TabModel[]> => {
   const db = await openDB(TABS_DB_NAME, 1, {
     upgrade: (d) => {
       if (!d.objectStoreNames.contains(TABS_STORE_NAME)) {
-        d.createObjectStore(TABS_STORE_NAME, { keyPath: 'id' }); // Указываем keyPath
+        d.createObjectStore(TABS_STORE_NAME, { keyPath: 'id' });
       }
     },
   });
