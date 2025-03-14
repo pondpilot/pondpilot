@@ -272,7 +272,7 @@ test('Header cell width matches data cell width for special character columns', 
   }
 });
 
-test.only('Long query names are truncated in spotlight results', async ({
+test('Long query names are truncated in spotlight results', async ({
   createQueryAndSwitchToItsTab,
   fillQuery,
   renameQueryInExplorer,
