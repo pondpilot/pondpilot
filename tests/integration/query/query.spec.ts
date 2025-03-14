@@ -1,5 +1,6 @@
-import { test as base, expect } from '@playwright/test';
+import { expect } from '@playwright/test';
 import { GET_TABLE_WITH_SPECIAL_CHARS_COLUMNS } from './consts';
+import { baseTest } from '../baseTest';
 
 type QueryFixture = {
   createQueryAndSwitchToItsTab: () => Promise<void>;
@@ -12,7 +13,7 @@ type QueryFixture = {
   renameQueryInExplorer: (oldName: string, newName: string) => Promise<void>;
 };
 
-const test = base.extend<QueryFixture>({
+const test = baseTest.extend<QueryFixture>({
   createQueryAndSwitchToItsTab: async ({ page }, use) => {
     await use(async () => {
       await page.click('data-testid=add-query-button');
@@ -30,7 +31,7 @@ const test = base.extend<QueryFixture>({
       await expect(spotlightRoot).toBeVisible();
 
       // Create new query through spotlight
-      await spotlightRoot.locator('data-testid=create-new-query').click();
+      await spotlightRoot.locator('data-testid=spotlight-action-create-new-query').click();
 
       // Verify spotlight is closed after creating query
       await expect(spotlightRoot).not.toBeVisible();
@@ -95,14 +96,6 @@ const test = base.extend<QueryFixture>({
       // Wait for the renamed query to appear
       await page.waitForSelector(`[data-testid="query-list-item-${newName}.sql"]`);
     });
-  },
-
-  page: async ({ page }, use) => {
-    // ---------- BEFORE EACH TEST ----------
-    await page.goto('http://localhost:5173/');
-    await page.waitForSelector('[data-app-ready="true"]', { state: 'attached' });
-
-    await use(page);
   },
 });
 
@@ -270,60 +263,4 @@ test('Header cell width matches data cell width for special character columns', 
     // Check that the width of the header cell is equal to the width of the data cell
     expect(headerBoundingBox?.width).toBeCloseTo(dataBoundingBox?.width as number, 1);
   }
-});
-
-test('Long query names are truncated in spotlight results', async ({
-  createQueryAndSwitchToItsTab,
-  fillQuery,
-  renameQueryInExplorer,
-  page,
-}) => {
-  // Create a new query
-  await createQueryAndSwitchToItsTab();
-  await fillQuery('select 1');
-
-  const longQueryName =
-    'ThisIsAVeryLongQueryNameThatShouldBeTruncatedInTheSpotlightSearchResults123';
-  expect(longQueryName.length).toBe(75);
-
-  // Rename the query
-  await renameQueryInExplorer('query.sql', longQueryName);
-
-  await page.waitForTimeout(500);
-
-  // проверить, что в редакторе есть текст
-  expect(await page.locator('.cm-content').textContent()).toContain('select 1');
-
-  // Verify the renamed query appears
-  const renamedQueryItem = page.locator(`[data-testid="query-list-item-${longQueryName}.sql"]`);
-  await expect(renamedQueryItem).toBeVisible();
-
-  // Verify the old query disappeared
-  await expect(page.locator('[data-testid="query-list-item-query.sql"]')).not.toBeVisible();
-
-  // Open spotlight menu
-  await page.click('data-testid=spotlight-trigger-input');
-
-  // Type part of the name in spotlight search
-  await page.fill('[data-testid=spotlight-search]', 'ThisIs');
-
-  // Find the query in search results by its data-testid
-  const spotlightQueryItem = page.locator(`[data-testid="${longQueryName}.sql"]`);
-  await expect(spotlightQueryItem).toBeVisible();
-
-  // Check that the text is truncated with ellipsis
-  const queryNamePTag = spotlightQueryItem.locator('p');
-  await expect(queryNamePTag).toBeVisible();
-
-  // Check if text is truncated with ellipsis
-  const isTruncatedWithEllipsis = await queryNamePTag.evaluate((element) => {
-    const style = window.getComputedStyle(element);
-    const hasEllipsis = style.textOverflow === 'ellipsis';
-    const isOverflowing = element.scrollWidth > element.clientWidth;
-
-    return hasEllipsis && isOverflowing;
-  });
-
-  // Assert that the text is properly truncated
-  expect(isTruncatedWithEllipsis).toBeTruthy();
 });

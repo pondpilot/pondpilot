@@ -334,7 +334,7 @@ export const SpotlightMenu = () => {
   const renderActions = (actions: Action[]) =>
     actions.map((action) => (
       <Spotlight.Action
-        data-testid={action.id}
+        data-testid={`spotlight-action-${action.id}`}
         disabled={action.disabled}
         key={action.id}
         onClick={action.handler}
