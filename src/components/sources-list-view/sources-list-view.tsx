@@ -400,6 +400,7 @@ export const SourcesListView = ({
                   return (
                     <div
                       {...node.elementProps}
+                      data-testid={`query-list-item-${node.node.value}`}
                       className={cn(
                         node.elementProps.className,
                         itemClasses.base,
@@ -419,6 +420,7 @@ export const SourcesListView = ({
                           <Popover opened={!!renameInputError}>
                             <Popover.Target>
                               <TextInput
+                                data-testid={`query-list-item-${node.node.value}-rename-input`}
                                 value={renameValue}
                                 onChange={onRenameChange}
                                 onKeyDown={(event) => {

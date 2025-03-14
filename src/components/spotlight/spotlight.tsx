@@ -331,35 +331,35 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const renderFilteredActions = (actions: Action[], label: string) => {
+  const renderActions = (actions: Action[]) =>
+    actions.map((action) => (
+      <Spotlight.Action
+        data-testid={action.id}
+        disabled={action.disabled}
+        key={action.id}
+        onClick={action.handler}
+      >
+        <Group justify="space-between" className={cn('w-full', action.disabled && 'opacity-50')}>
+          <Group className="gap-2">
+            {action.icon ? <div>{action.icon}</div> : undefined}
+            <Text truncate="end" maw={250}>
+              {action.label}
+            </Text>
+          </Group>
+          <Group>
+            {action.hotkey ? <HotkeyPill variant="secondary" value={action.hotkey} /> : undefined}
+          </Group>
+        </Group>
+      </Spotlight.Action>
+    ));
+
+  const renderActionsGroup = (actions: Action[], label: string) => {
     if (!actions.length) {
       return <Spotlight.Empty>Nothing found...</Spotlight.Empty>;
     }
     return (
       <Spotlight.ActionsGroup label={label} className="text-red-200">
-        {actions.map((action) => (
-          <Spotlight.Action
-            data-testid={action.id}
-            disabled={action.disabled}
-            key={action.id}
-            onClick={action.handler}
-          >
-            <Group
-              justify="space-between"
-              className={cn('w-full', action.disabled && 'opacity-50')}
-            >
-              <Group className="gap-2">
-                {action.icon ? <div>{action.icon}</div> : undefined}
-                {action.label}
-              </Group>
-              <Group>
-                {action.hotkey ? (
-                  <HotkeyPill variant="secondary" value={action.hotkey} />
-                ) : undefined}
-              </Group>
-            </Group>
-          </Spotlight.Action>
-        ))}
+        {renderActions(actions)}
       </Spotlight.ActionsGroup>
     );
   };
@@ -394,16 +394,7 @@ export const SpotlightMenu = () => {
           <>
             <Spotlight.ActionsGroup label="Queries">
               {filteredQueries.length > 0 ? (
-                filteredQueries.map((query) => (
-                  <Spotlight.Action key={query.id} onClick={query.handler}>
-                    <Group justify="space-between" className="w-full">
-                      <Group className="gap-2">
-                        {query.icon}
-                        {query.label}
-                      </Group>
-                    </Group>
-                  </Spotlight.Action>
-                ))
+                renderActions(filteredQueries)
               ) : (
                 <Spotlight.Action
                   onClick={() => {
@@ -421,56 +412,45 @@ export const SpotlightMenu = () => {
 
             {filteredViews.length > 0 && (
               <Spotlight.ActionsGroup label="Views">
-                {filteredViews.map((view) => (
-                  <Spotlight.Action key={view.id} onClick={view.handler}>
-                    <Group justify="space-between" className="w-full">
-                      <Group className="gap-2">
-                        {view.icon}
-                        {view.label}
-                      </Group>
-                    </Group>
-                  </Spotlight.Action>
-                ))}
+                {renderActions(filteredViews)}
               </Spotlight.ActionsGroup>
             )}
           </>
         )}
         {filteredQuickActions.length > 0 &&
-          renderFilteredActions(filteredQuickActions, 'Quick Actions')}
+          renderActionsGroup(filteredQuickActions, 'Quick Actions')}
         {filteredNavigateActions.length > 0 &&
-          renderFilteredActions(filteredNavigateActions, 'Navigate')}
-        {filteredHelpActions.length > 0 && renderFilteredActions(filteredHelpActions, 'Help')}
+          renderActionsGroup(filteredNavigateActions, 'Navigate')}
+        {filteredHelpActions.length > 0 && renderActionsGroup(filteredHelpActions, 'Help')}
       </>
     );
   };
   const renderDataSourcesView = () => {
     const filteredActions = filterActions([...dataSourcesActions, ...viewActions], searchValue);
-    return (
-      <>{filteredActions.length > 0 && renderFilteredActions(filteredActions, 'Data Sources')}</>
-    );
+    return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Data Sources')}</>;
   };
 
   const renderQueriesView = () => {
     const filteredActions = filterActions([...queriesActions, ...mappedQueries], searchValue);
 
-    return <>{filteredActions.length > 0 && renderFilteredActions(filteredActions, 'Queries')}</>;
+    return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Queries')}</>;
   };
 
   const renderSettingsView = () => {
     const filteredActions = filterActions(settingsActions, searchValue);
 
-    return <>{filteredActions.length > 0 && renderFilteredActions(filteredActions, 'Settings')}</>;
+    return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Settings')}</>;
   };
 
   const renderSettingsThemeView = () => {
     const filteredActions = filterActions(themeActions, searchValue);
 
-    return <>{filteredActions.length > 0 && renderFilteredActions(filteredActions, 'Theme')}</>;
+    return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Theme')}</>;
   };
 
   const getCurrentView = () => {
     if (searchValue.endsWith('?')) {
-      return renderFilteredActions(modeActions, 'Modes');
+      return renderActionsGroup(modeActions, 'Modes');
     }
 
     const searchTerm = searchValue.slice(1).toLowerCase();
@@ -479,14 +459,14 @@ export const SpotlightMenu = () => {
       const filteredViews = viewActions.filter((view) =>
         view.label.toLowerCase().includes(searchTerm),
       );
-      return renderFilteredActions(filteredViews, 'Views');
+      return renderActionsGroup(filteredViews, 'Views');
     }
 
     if (searchValue.startsWith('&')) {
       const filteredQueries = getQueryActions().filter((query) =>
         query.label.toLowerCase().includes(searchTerm),
       );
-      return renderFilteredActions(filteredQueries, 'Queries');
+      return renderActionsGroup(filteredQueries, 'Queries');
     }
 
     switch (spotlightView) {
@@ -540,6 +520,7 @@ export const SpotlightMenu = () => {
       >
         <SpotlightBreadcrumbs currentView={spotlightView} onNavigate={setSpotlightView} />
         <Spotlight.Search
+          data-testid="spotlight-search"
           ref={searchInputRef}
           value={searchValue}
           onKeyDown={handleSpotlightKeyPress}

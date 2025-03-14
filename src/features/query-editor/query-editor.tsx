@@ -166,6 +166,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
       </Group>
       <Group className="h-[calc(100%-40px)]">
         <SqlEditor
+          onBlur={handleQuerySave}
           ref={editorRef}
           colorSchemeDark={colorScheme === 'dark'}
           value={currentQueryData?.content || ''}
