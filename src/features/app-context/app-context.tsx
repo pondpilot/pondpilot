@@ -954,17 +954,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       dbWorkerRef.current = null;
     });
 
-    if ('showDirectoryPicker' in window && 'showOpenFilePicker' in window) {
-      initAppData();
-    } else {
-      showError({
-        title: 'Error',
-        color: 'red',
-        message: 'Browser is not supported',
-        autoClose: false,
-      });
-      setAppStatus('ready');
-    }
+    initAppData();
 
     return () => {
       controller.abort();

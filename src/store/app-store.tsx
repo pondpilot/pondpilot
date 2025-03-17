@@ -11,7 +11,7 @@ interface CachedPaginationValue {
   sort: SortModel;
 }
 
-type AppStatus = 'initializing' | 'ready' | 'error';
+type AppStatus = 'initializing' | 'ready' | 'error' | 'unsupported-browser';
 
 interface AppStateModel {
   databases: DataBaseModel[];

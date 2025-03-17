@@ -20,6 +20,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "playwright test",
     "preview": "tsc && vite build && vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "yarn lint:eslint && yarn lint:stylelint",
