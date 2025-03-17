@@ -6,6 +6,8 @@ import { TabsPane } from '@features/tabs-pane';
 import { Spotlight } from '@mantine/spotlight';
 import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { DataViewer } from '@features/data-viewer';
+import { ErrorBoundary } from 'react-error-boundary';
+import { DataViewErrorFallback } from '@components/error-fallback';
 import { Navbar } from './components';
 
 export const MainPage = () => {
@@ -79,7 +81,9 @@ export const MainPage = () => {
             className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
           >
             <TabsPane />
-            <DataViewer />
+            <ErrorBoundary FallbackComponent={DataViewErrorFallback}>
+              <DataViewer />
+            </ErrorBoundary>
           </Stack>
         </Allotment.Pane>
       </Allotment>

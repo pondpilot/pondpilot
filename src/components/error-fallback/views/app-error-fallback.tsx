@@ -1,10 +1,12 @@
 import { Stack, Group, Button, Text } from '@mantine/core';
 import React from 'react';
-import { FallbackProps } from 'react-error-boundary';
 import { exportApplicationFiles } from '@utils/helpers';
+import { useRouteError } from 'react-router-dom';
 import { deleteApplicationData } from '../utils';
 
-export const AppErrorFallback = ({ error }: FallbackProps) => {
+export const AppErrorFallback = () => {
+  const error = useRouteError() as { message: string; stack: string };
+
   const exportArchive = async () => {
     const archiveBlob = await exportApplicationFiles();
     if (archiveBlob) {
