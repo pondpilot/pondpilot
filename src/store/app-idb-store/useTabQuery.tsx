@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Tab, TabMetaInfo, tabStoreApi } from './tab-store';
+import { CreateTab, Tab, TabMetaInfo, tabStoreApi, UpdateTab } from './app-idb-store';
 
 export const useTabQuery = (id: string) =>
   useQuery({
@@ -27,16 +27,38 @@ export const useTabMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (tab: Tab) => {
-      if (tab.id) {
-        await tabStoreApi.updateTab(tab.id, () => tab);
-        return tab;
+    mutationFn: async (params: CreateTab | (UpdateTab & { id: string })): Promise<Tab> => {
+      const tabs = await tabStoreApi.getAllTabs();
+
+      if ('id' in params) {
+        const { id, ...updateData } = params;
+        await tabStoreApi.updateTab(id, (currentTab) => ({
+          ...currentTab,
+          ...updateData,
+          updatedAt: Date.now(),
+        }));
+
+        const updatedTab = await tabStoreApi.getTab(id);
+        if (!updatedTab) {
+          throw new Error(`Tab with id ${id} not found`);
+        }
+        return updatedTab;
       }
 
-      const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...tabData } = tab as Tab;
-      return tabStoreApi.createTab(tabData);
+      const maxOrder = tabs.length > 0 ? Math.max(...tabs.map((tab) => tab.order)) : -1;
+
+      const newTabWithOrder: CreateTab = {
+        ...params,
+        order: maxOrder + 1,
+      };
+
+      const createdTab = await tabStoreApi.createTab(newTabWithOrder);
+      if (!createdTab) {
+        throw new Error('Failed to create tab');
+      }
+      return createdTab;
     },
-    onSuccess: (tab) => {
+    onSuccess: (tab: Tab) => {
       queryClient.setQueryData(['tab', tab.id], tab);
       queryClient.invalidateQueries({ queryKey: ['tabs'] });
     },

@@ -56,6 +56,7 @@ export type Dataset = {
   handle: FileSystemFileHandle;
   path: string;
   name: string;
+  id?: string;
 };
 
 // ---------- Code Ext files ----------- //
@@ -84,6 +85,7 @@ export const codeExtMap: Record<CodeFileExt, CodeMimeType> = {
 };
 
 export type CodeSource = {
+  id?: string;
   kind: 'CODE';
   mimeType: CodeMimeType;
   ext: CodeFileExt;

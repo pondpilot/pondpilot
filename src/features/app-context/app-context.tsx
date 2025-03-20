@@ -299,7 +299,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   /**
    * Add query to the session
    */
-  const onCreateQueryFile = async ({ entities, openInNewTab }: CreateQueryFileProps) => {
+  const onCreateQueryFile = async ({ entities, openInNewTab, noTab }: CreateQueryFileProps) => {
     if (!proxyRef.current) return;
 
     try {
@@ -323,12 +323,14 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       setQueries(currentSources?.editors ?? []);
 
       await onOpenQuery(newQueries[0].path);
-      await onTabSwitch({
-        path: newQueries[0].path,
-        mode: 'query',
-        stable: true,
-        createNew: !!openInNewTab,
-      });
+      if (!noTab) {
+        await onTabSwitch({
+          path: newQueries[0].path,
+          mode: 'query',
+          stable: true,
+          createNew: !!openInNewTab,
+        });
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unknown error';
       console.error('App context: Failed to create queries: ', e);
