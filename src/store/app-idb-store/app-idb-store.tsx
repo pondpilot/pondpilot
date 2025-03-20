@@ -65,6 +65,7 @@ export interface TabBase {
   layout: TabLayout;
   dataView: DataViewState;
   order: number;
+  sourceId: string;
 }
 
 export interface Tab extends TabBase {
@@ -185,7 +186,16 @@ export const fileHandleStoreApi = {
   },
 };
 export const queryStoreApi = {
-  createQueryFile: async (name: string, content?: string): Promise<void> => {
+  createQueryFile: async (
+    name: string,
+    content?: string,
+  ): Promise<{
+    id: string;
+    name: string;
+    content: string;
+    mimeType: string;
+    ext: string;
+  }> => {
     const queries = await entries(queriesStore);
     const checkIfExists = async (value: string) => !!queries.find(([key]) => key === value);
 
@@ -200,6 +210,8 @@ export const queryStoreApi = {
     };
 
     await set(entry.id, entry, queriesStore);
+
+    return entry;
   },
   getQueryFiles: async (): Promise<CodeSource[]> => {
     const queries = await values<CodeSource>(queriesStore);

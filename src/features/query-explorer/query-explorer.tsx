@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { useAppNotifications } from '@components/app-notifications';
 import { MenuItem, SourcesListView } from '@components/sources-list-view';
 import { ActionIcon, Divider, Group, Text } from '@mantine/core';
@@ -7,6 +8,7 @@ import { memo, useState } from 'react';
 import { useAppStore } from '@store/app-store';
 import { IconCode, IconPlus } from '@tabler/icons-react';
 import { useEditorStore } from '@store/editor-store';
+import { useQueryFilesQuery } from '@store/app-idb-store/useEditorFileQuery';
 
 export const QueryExplorer = memo(() => {
   /**
@@ -44,6 +46,12 @@ export const QueryExplorer = memo(() => {
   const [renaming, { open: openRename, close: closeRename }] = useDisclosure(false);
   const [newItemName, setNewName] = useState('');
   const [itemIdBufferValue, setItemIdBufferValue] = useState<string | null>(null);
+
+  const { data: queryFiles } = useQueryFilesQuery();
+
+  console.log({
+    queryFiles,
+  });
 
   /**
    * Consts

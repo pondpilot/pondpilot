@@ -8,7 +8,7 @@ import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { DataViewer } from '@features/data-viewer';
 import { ErrorBoundary } from 'react-error-boundary';
 import { DataViewErrorFallback } from '@components/error-fallback';
-// import { DataView } from '@features/data-view/data-view';
+import { DataView } from '@features/data-view/data-view';
 import { Navbar } from './components';
 
 export const MainPage = () => {
@@ -77,8 +77,8 @@ export const MainPage = () => {
           <Navbar />
         </Allotment.Pane>
         <Allotment.Pane preferredSize={layoutSizes?.[1]}>
-          {/* <DataView /> */}
-          <Stack
+          <DataView />
+          {/* <Stack
             gap={0}
             className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
           >
@@ -86,7 +86,7 @@ export const MainPage = () => {
             <ErrorBoundary FallbackComponent={DataViewErrorFallback}>
               <DataViewer />
             </ErrorBoundary>
-          </Stack>
+          </Stack> */}
         </Allotment.Pane>
       </Allotment>
     </>

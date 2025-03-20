@@ -2,28 +2,37 @@
 import { useAppContext } from '@features/app-context';
 import { ActionIcon, Group } from '@mantine/core';
 import { useAllTabsQuery, useTabDeleteMutation, useTabMutation } from '@store/app-idb-store';
+import { useCreateQueryFileMutation } from '@store/app-idb-store/useEditorFileQuery';
 import React from 'react';
 
 export const DataView = () => {
   const { onCreateQueryFile } = useAppContext();
   const { data: tabs = [] } = useAllTabsQuery();
   const { mutate } = useTabMutation();
-  const { mutate: deleteTab } = useTabDeleteMutation();
+  const { mutateAsync: deleteTab } = useTabDeleteMutation();
+  const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
 
-  console.log({
-    tabs,
-  });
   const onCreateQueryTab = async () => {
     const maxOrder = tabs?.length > 0 ? Math.max(...tabs.map((tab) => tab.order)) : -1;
 
-    await onCreateQueryFile({
-      entities: [
-        {
-          name: `New Query ${maxOrder + 1}`,
-        },
-      ],
+    // await onCreateQueryFile({
+    //   entities: [
+    //     {
+    //       name: `New Query ${maxOrder + 1}`,
+    //     },
+    //   ],
+    // });
+
+    const newQueryFile = await createQueryFile({
+      name: `New Query ${maxOrder + 1}`,
     });
+
+    console.log({
+      newQueryFile,
+    });
+
     mutate({
+      sourceId: newQueryFile.id,
       name: `New Query ${maxOrder + 1}`,
       type: 'query',
       active: true,
