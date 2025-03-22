@@ -65,4 +65,5 @@ export interface OnSetOrderProps {
 export interface CreateQueryFileProps {
   entities: { name: string; content?: string }[];
   openInNewTab?: boolean;
+  noTab?: boolean;
 }
