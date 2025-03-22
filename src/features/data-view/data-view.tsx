@@ -1,39 +1,24 @@
 /* eslint-disable no-console */
-import { useAppContext } from '@features/app-context';
-import { ActionIcon, Group } from '@mantine/core';
-import { useAllTabsQuery, useTabDeleteMutation, useTabMutation } from '@store/app-idb-store';
+import { TabsPane } from '@features/tabs-pane';
+import { useAllTabsQuery, useTabMutation } from '@store/app-idb-store';
 import { useCreateQueryFileMutation } from '@store/app-idb-store/useEditorFileQuery';
 import React from 'react';
 
 export const DataView = () => {
-  const { onCreateQueryFile } = useAppContext();
   const { data: tabs = [] } = useAllTabsQuery();
   const { mutate } = useTabMutation();
-  const { mutateAsync: deleteTab } = useTabDeleteMutation();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
 
   const onCreateQueryTab = async () => {
     const maxOrder = tabs?.length > 0 ? Math.max(...tabs.map((tab) => tab.order)) : -1;
 
-    // await onCreateQueryFile({
-    //   entities: [
-    //     {
-    //       name: `New Query ${maxOrder + 1}`,
-    //     },
-    //   ],
-    // });
-
     const newQueryFile = await createQueryFile({
-      name: `New Query ${maxOrder + 1}`,
-    });
-
-    console.log({
-      newQueryFile,
+      name: 'query',
     });
 
     mutate({
       sourceId: newQueryFile.id,
-      name: `New Query ${maxOrder + 1}`,
+      name: newQueryFile.name,
       type: 'query',
       active: true,
       state: 'pending',
@@ -68,21 +53,9 @@ export const DataView = () => {
     });
   };
 
-  const handleDeleteTab = (id: string) => {
-    deleteTab(id);
-  };
-
   return (
-    <div>
-      <Group>
-        {tabs?.map((tab) => (
-          <div key={tab.id}>
-            {tab.name}
-            <ActionIcon onClick={() => handleDeleteTab(tab.id)}>X</ActionIcon>
-          </div>
-        ))}
-      </Group>
-      <ActionIcon onClick={onCreateQueryTab}>+</ActionIcon>
-    </div>
+    <>
+      <TabsPane onAddTabClick={onCreateQueryTab} />
+    </>
   );
 };

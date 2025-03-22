@@ -1,17 +1,21 @@
-import { AddDataSourceProps, CodeSource, Dataset } from '@models/common';
+import { AddDataSourceProps, Dataset } from '@models/common';
 import { createName, findUniqueName, getSupportedMimeType } from '@utils/helpers';
-import { get, set, update, del, delMany, getMany, entries, createStore, values } from 'idb-keyval';
+import { openDB } from 'idb';
 import { v4 as uuidv4 } from 'uuid';
 
-const APP_DB = 'app-database';
-
-const tabsStore = createStore(APP_DB, 'tabs-store');
-const fileHandlesStore = createStore(APP_DB, 'file-handles-store');
-const queriesStore = createStore(APP_DB, 'queries-store');
-
+const APP_DB_NAME = 'app-database';
+const DB_VERSION = 1;
 const TAB_PREFIX = 'tab_';
 const FILE_HANDLE_PREFIX = 'file_';
 const QUERY_PREFIX = 'query_';
+
+const dbPromise = openDB(APP_DB_NAME, DB_VERSION, {
+  upgrade(db) {
+    db.createObjectStore('tabs-store');
+    db.createObjectStore('file-handles-store');
+    db.createObjectStore('queries-store');
+  },
+});
 
 export type TabType = 'query' | 'file';
 export type TabState = 'fetching' | 'error' | 'success' | 'pending';
@@ -84,6 +88,7 @@ export interface TabMetaInfo {
   type: 'query' | 'file';
   active: boolean;
   state: 'fetching' | 'error' | 'success' | 'pending';
+  sourceId: string;
 }
 
 export const tabStoreApi = {
@@ -96,108 +101,136 @@ export const tabStoreApi = {
       updatedAt: now,
       ...tab,
     };
-    await set(id, newTab, tabsStore);
+
+    await (await dbPromise).put('tabs-store', newTab, id);
     return newTab;
   },
 
   async getTab(id: string): Promise<Tab | undefined> {
-    return get(id, tabsStore);
+    return (await dbPromise).get('tabs-store', id);
   },
 
   async getTabs(ids: string[]): Promise<(Tab | undefined)[]> {
-    return getMany(ids, tabsStore);
+    const db = await dbPromise;
+    return Promise.all(ids.map((id) => db.get('tabs-store', id)));
   },
 
   async getAllTabs(): Promise<Tab[]> {
-    const allEntries = await values(tabsStore);
-    return allEntries;
+    return (await dbPromise).getAll('tabs-store');
   },
 
   async updateTab(id: string, updateFn: (tab: Tab) => Tab): Promise<void> {
-    return update(
-      id,
-      (tab) => {
-        if (!tab) return undefined;
-        const updatedTab = updateFn({
-          ...tab,
-          updatedAt: Date.now(),
-        });
-        return updatedTab;
-      },
-      tabsStore,
-    );
+    const db = await dbPromise;
+    const tx = db.transaction('tabs-store', 'readwrite');
+
+    const tab = await tx.store.get(id);
+
+    if (!tab) return;
+
+    const updatedTab = updateFn({
+      ...tab,
+      updatedAt: Date.now(),
+    });
+
+    await tx.store.put(updatedTab, id);
+    await tx.done;
   },
 
   async deleteTab(id: string): Promise<void> {
-    await del(id, tabsStore);
+    await (await dbPromise).delete('tabs-store', id);
   },
 
   async deleteTabs(ids: string[]): Promise<void> {
-    await delMany(ids, tabsStore);
+    const db = await dbPromise;
+    const tx = db.transaction('tabs-store', 'readwrite');
+
+    for (const id of ids) {
+      await tx.store.delete(id);
+    }
+
+    await tx.done;
   },
 };
 
 export const fileHandleStoreApi = {
   addDataSources: async (data: AddDataSourceProps): Promise<void> => {
+    const db = await dbPromise;
+    const tx = db.transaction('file-handles-store', 'readwrite');
+
     for await (const { entry, filename: filenameRaw, type } of data) {
       const meta = getSupportedMimeType(filenameRaw);
-
       if (!entry || !meta || meta.ext === 'sql') {
         continue;
       }
 
       if (type === 'FILE_HANDLE') {
         const id = `${FILE_HANDLE_PREFIX}${uuidv4()}`;
-        await set(id, entry, fileHandlesStore);
+        await tx.store.put(entry, id);
       }
     }
+
+    await tx.done;
   },
+
   getDataSources: async (): Promise<Dataset[]> => {
-    const handles = await entries<string, FileSystemFileHandle>(fileHandlesStore);
+    const db = await dbPromise;
+    const allKeys = await db.getAllKeys('file-handles-store');
     const sources: Dataset[] = [];
-    for (const [id, handle] of handles) {
+
+    for (const key of allKeys) {
+      const handle = await db.get('file-handles-store', key);
       const meta = getSupportedMimeType(handle.name);
 
       if (!meta) {
         continue;
       }
-      const { mimeType, kind, ext } = meta;
 
-      switch (kind) {
-        case 'DATASET': {
-          const entry: Dataset = {
-            id,
-            kind,
-            ext,
-            mimeType,
-            handle,
-            path: handle.name,
-            name: createName(handle.name),
-          };
-          sources.push(entry);
-          break;
-        }
+      const { mimeType, kind, ext } = meta;
+      if (kind === 'DATASET') {
+        const entry: Dataset = {
+          id: key as string,
+          kind,
+          ext,
+          mimeType,
+          handle,
+          path: handle.name,
+          name: createName(handle.name),
+        };
+        sources.push(entry);
       }
     }
+
     return sources;
   },
+
   onDeleteDataSource: async (ids: string[]): Promise<void> => {
-    await delMany(ids, fileHandlesStore);
+    const db = await dbPromise;
+    const tx = db.transaction('file-handles-store', 'readwrite');
+
+    for (const id of ids) {
+      await tx.store.delete(id);
+    }
+
+    await tx.done;
   },
 };
+
+interface QueryFile {
+  id: string;
+  name: string;
+  content: string;
+  mimeType: string;
+  ext: string;
+}
+
 export const queryStoreApi = {
-  createQueryFile: async (
-    name: string,
-    content?: string,
-  ): Promise<{
-    id: string;
-    name: string;
-    content: string;
-    mimeType: string;
-    ext: string;
-  }> => {
-    const queries = await entries(queriesStore);
-    const checkIfExists = async (value: string) => !!queries.find(([key]) => key === value);
+  createQueryFile: async (name: string, content?: string): Promise<QueryFile> => {
+    const db = await dbPromise;
+    const allKeys = await db
+      .getAll('queries-store')
+      .then((queries) => queries.map((query) => query.name));
+
+    const checkIfExists = async (value: string) => allKeys.some((key) => key === value);
 
     const fileName = await findUniqueName(`${name}.sql`, checkIfExists);
 
@@ -209,41 +242,40 @@ export const queryStoreApi = {
       ext: 'sql',
     };
 
-    await set(entry.id, entry, queriesStore);
-
+    await db.put('queries-store', entry, entry.id);
     return entry;
   },
-  getQueryFiles: async (): Promise<CodeSource[]> => {
-    const queries = await values<CodeSource>(queriesStore);
-    return queries;
-  },
+
+  getQueryFiles: async (): Promise<QueryFile[]> => (await dbPromise).getAll('queries-store'),
+
   deleteQueryFiles: async (ids: string[]): Promise<void> => {
-    await delMany(ids, queriesStore);
+    const db = await dbPromise;
+    const tx = db.transaction('queries-store', 'readwrite');
+
+    for (const id of ids) {
+      await tx.store.delete(id);
+    }
+
+    await tx.done;
   },
+
   renameQueryFile: async (id: string, name: string): Promise<void> => {
-    await update(
-      id,
-      (query) => {
-        if (!query) return undefined;
-        return {
-          ...query,
-          name,
-        };
-      },
-      queriesStore,
-    );
+    const db = await dbPromise;
+    const query = await db.get('queries-store', id);
+
+    if (!query) return;
+
+    query.name = name;
+    await db.put('queries-store', query, id);
   },
+
   changeQueryContent: async (id: string, content: string): Promise<void> => {
-    await update(
-      id,
-      (query) => {
-        if (!query) return undefined;
-        return {
-          ...query,
-          content,
-        };
-      },
-      queriesStore,
-    );
+    const db = await dbPromise;
+    const query = await db.get('queries-store', id);
+
+    if (!query) return;
+
+    query.content = content;
+    await db.put('queries-store', query, id);
   },
 };

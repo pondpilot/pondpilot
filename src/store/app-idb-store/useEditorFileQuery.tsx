@@ -32,21 +32,23 @@ export const useCreateQueryFileMutation = () => {
   });
 };
 
-export const useDeleteQueryFileMutation = () => {
+export const useDeleteQueryFilesMutation = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async (id: string) => {
-      await queryStoreApi.deleteQueryFiles([id]);
-      return id;
+    mutationFn: async (ids: string[]) => {
+      await queryStoreApi.deleteQueryFiles(ids);
+      return ids;
     },
-    onSuccess: (id) => {
-      queryClient.removeQueries({ queryKey: ['queryFile', id] });
+    onSuccess: (ids) => {
+      // Remove individual query cache entries
+      ids.forEach((id) => {
+        queryClient.removeQueries({ queryKey: ['queryFile', id] });
+      });
+      // Invalidate the list of query files
       queryClient.invalidateQueries({ queryKey: ['queryFiles'] });
     },
   });
 };
-
 export const useRenameQueryFileMutation = () => {
   const queryClient = useQueryClient();
 

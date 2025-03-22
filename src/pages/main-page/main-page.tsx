@@ -2,7 +2,7 @@ import { Stack, useMantineColorScheme } from '@mantine/core';
 import { Allotment } from 'allotment';
 import { useAppContext } from '@features/app-context';
 import { useHotkeys, useLocalStorage } from '@mantine/hooks';
-import { TabsPane } from '@features/tabs-pane';
+import { TabsPane } from '@features/old-tabs-pane';
 import { Spotlight } from '@mantine/spotlight';
 import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { DataViewer } from '@features/data-viewer';

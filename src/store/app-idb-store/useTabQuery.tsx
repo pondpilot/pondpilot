@@ -19,15 +19,17 @@ export const useAllTabsQuery = () =>
         order: tab.order,
         type: tab.type,
         state: tab.state,
+        sourceId: tab.sourceId,
       }));
     },
   });
 
 export const useTabMutation = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: async (params: CreateTab | (UpdateTab & { id: string })): Promise<Tab> => {
+    mutationFn: async (
+      params: Omit<CreateTab, 'order'> | (UpdateTab & { id: string }),
+    ): Promise<Tab> => {
       const tabs = await tabStoreApi.getAllTabs();
 
       if ('id' in params) {
@@ -37,7 +39,6 @@ export const useTabMutation = () => {
           ...updateData,
           updatedAt: Date.now(),
         }));
-
         const updatedTab = await tabStoreApi.getTab(id);
         if (!updatedTab) {
           throw new Error(`Tab with id ${id} not found`);
@@ -45,12 +46,22 @@ export const useTabMutation = () => {
         return updatedTab;
       }
 
+      // For new tab creation
       const maxOrder = tabs.length > 0 ? Math.max(...tabs.map((tab) => tab.order)) : -1;
-
       const newTabWithOrder: CreateTab = {
         ...params,
         order: maxOrder + 1,
+        active: true, // Always set new tab as active
       };
+
+      // Deactivate current active tab if exists
+      const currentActiveTab = tabs.find((tab) => tab.active);
+      if (currentActiveTab) {
+        await tabStoreApi.updateTab(currentActiveTab.id, (tab) => ({
+          ...tab,
+          active: false,
+        }));
+      }
 
       const createdTab = await tabStoreApi.createTab(newTabWithOrder);
       if (!createdTab) {
@@ -60,6 +71,41 @@ export const useTabMutation = () => {
     },
     onSuccess: (tab: Tab) => {
       queryClient.setQueryData(['tab', tab.id], tab);
+      queryClient.invalidateQueries({ queryKey: ['tabs'] });
+    },
+  });
+};
+
+export const useTabsDeleteMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const tabs = await tabStoreApi.getAllTabs();
+      const isDeletingActiveTab = tabs.some((tab) => tab.active && ids.includes(tab.id));
+
+      // If deleting the active tab, set a new active tab
+      if (isDeletingActiveTab && tabs.length > ids.length) {
+        // Get remaining tabs that won't be deleted
+        const remainingTabs = tabs.filter((tab) => !ids.includes(tab.id));
+        // Sort by updatedAt to find the most recently updated tab
+        const tabsToActivate = [...remainingTabs].sort(
+          (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
+        );
+
+        if (tabsToActivate.length > 0) {
+          await tabStoreApi.updateTab(tabsToActivate[0].id, (tab) => ({
+            ...tab,
+            active: true,
+          }));
+        }
+      }
+
+      return tabStoreApi.deleteTabs(ids);
+    },
+    onSuccess: (_, ids) => {
+      ids.forEach((id) => {
+        queryClient.removeQueries({ queryKey: ['tab', id] });
+      });
       queryClient.invalidateQueries({ queryKey: ['tabs'] });
     },
   });
@@ -93,13 +139,37 @@ export const useSetActiveTabMutation = () => {
   });
 };
 
-export const useTabDeleteMutation = () => {
+export const useTabsReorderMutation = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: (id: string) => tabStoreApi.deleteTab(id),
-    onSuccess: (_, id) => {
-      queryClient.removeQueries({ queryKey: ['tab', id] });
+    mutationFn: async (list: TabMetaInfo[]) => {
+      const updatePromises = list.map((tab, index) =>
+        tabStoreApi.updateTab(tab.id, (currentTab) => ({
+          ...currentTab,
+          order: index,
+          updatedAt: Date.now(),
+        })),
+      );
+
+      await Promise.all(updatePromises);
+
+      return list;
+    },
+    onMutate: async (list) => {
+      await queryClient.cancelQueries({ queryKey: ['tabs'] });
+
+      const previousTabs = queryClient.getQueryData(['tabs']);
+
+      queryClient.setQueryData(['tabs'], list);
+
+      return { previousTabs };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousTabs) {
+        queryClient.setQueryData(['tabs'], context.previousTabs);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['tabs'] });
     },
   });
