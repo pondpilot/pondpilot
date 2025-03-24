@@ -21,7 +21,6 @@ import {
 import { Table } from '@components/table/table';
 import { IconChevronDown, IconClipboardSmile, IconCopy } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
-import { formatNumber } from '@utils/helpers';
 import { Table as ApacheTable } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
@@ -76,7 +75,15 @@ export const DataViewer = memo(() => {
   /**
    * Consts
    */
-  const outOf = `${(currentPage - 1) * limit + 1}-${currentPage * limit} out of ${formatNumber(rowCount)}`;
+  const isSinglePage = rowCount <= limit;
+  const startItem = rowCount > 0 ? (currentPage - 1) * limit + 1 : 0;
+  const endItem = Math.min(currentPage * limit, rowCount);
+  const outOf =
+    rowCount > 0
+      ? !isSinglePage
+        ? `${startItem}-${endItem} out of ${rowCount}`
+        : `${endItem} out of ${rowCount}`
+      : 'No data';
   const hasTableData = !!convertedTable.data.length && !!convertedTable.columns.length;
 
   const onSelectedColsCopy = useCallback(
@@ -215,7 +222,7 @@ export const DataViewer = memo(() => {
                     </>
                   ) : (
                     <Text c="text-secondary" className="text-sm font-medium">
-                      {convertedTable.columns.length} columns, {formatNumber(rowCount)} rows
+                      {convertedTable.columns.length} columns, {rowCount} rows
                     </Text>
                   )}
                 </Group>
@@ -255,7 +262,12 @@ export const DataViewer = memo(() => {
 
       {hasTableData && (
         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50">
-          <PaginationControl onNextPage={onNextPage} onPrevPage={onPrevPage} outOf={outOf} />
+          <PaginationControl
+            isSinglePage={isSinglePage}
+            outOf={outOf}
+            onPrevPage={onPrevPage}
+            onNextPage={onNextPage}
+          />
         </div>
       )}
     </div>
