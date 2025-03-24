@@ -35,11 +35,4 @@ By participating, you agree to maintain a respectful and inclusive environment f
 - Update documentation if necessary
 - Keep PRs focused on a single change
 
-## Getting Help
-
-If you need help, feel free to:
-
-- Open a discussion in the GitHub repository
-- Comment on relevant issues
-
 Thank you for contributing to make PondPilot better!
