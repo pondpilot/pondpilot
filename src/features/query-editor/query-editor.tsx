@@ -164,7 +164,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
         </Group>
         <RunQueryButton disabled={queryRunning} handleRunQuery={handleRunQuery} />
       </Group>
-      <Group className="h-[calc(100%-40px)]">
+      <Group className="h-[calc(100%-40px)]" data-testid="query-editor">
         <SqlEditor
           onBlur={handleQuerySave}
           ref={editorRef}
