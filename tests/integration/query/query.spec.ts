@@ -16,7 +16,7 @@ type QueryFixture = {
 const test = baseTest.extend<QueryFixture>({
   createQueryAndSwitchToItsTab: async ({ page }, use) => {
     await use(async () => {
-      await page.click('data-testid=add-query-button');
+      await page.getByTestId('add-query-button').click();
       await page.waitForTimeout(500);
     });
   },
@@ -24,14 +24,14 @@ const test = baseTest.extend<QueryFixture>({
   createQueryViaSpotlight: async ({ page }, use) => {
     await use(async () => {
       // Open spotlight menu using trigger
-      await page.click('data-testid=spotlight-trigger-input');
+      await page.getByTestId('spotlight-trigger-input').click();
 
       // Verify spotlight is visible
-      const spotlightRoot = page.locator('data-testid=spotlight-menu');
+      const spotlightRoot = page.getByTestId('spotlight-menu');
       await expect(spotlightRoot).toBeVisible();
 
       // Create new query through spotlight
-      await spotlightRoot.locator('data-testid=spotlight-action-create-new-query').click();
+      await spotlightRoot.getByTestId('spotlight-action-create-new-query').click();
 
       // Verify spotlight is closed after creating query
       await expect(spotlightRoot).not.toBeVisible();
@@ -54,7 +54,7 @@ const test = baseTest.extend<QueryFixture>({
 
   switchToTab: async ({ page }, use) => {
     await use(async (tabName: string) => {
-      const tabsList = page.locator('[data-testid="tabs-list"]');
+      const tabsList = page.getByTestId('tabs-list');
       const tab = tabsList.getByText(tabName);
       await tab.click();
     });
@@ -63,7 +63,7 @@ const test = baseTest.extend<QueryFixture>({
   closeActiveTab: async ({ page }, use) => {
     await use(async () => {
       const activeTab = page.locator('[data-active="true"]');
-      await activeTab.locator('[data-testid="close-tab-button"]').click();
+      await activeTab.getByTestId('close-tab-button').click();
     });
   },
 
@@ -78,13 +78,13 @@ const test = baseTest.extend<QueryFixture>({
   renameQueryInExplorer: async ({ page }, use) => {
     await use(async (oldName: string, newName: string) => {
       // Find the query item in the explorer
-      const queryItem = page.locator(`[data-testid="query-list-item-${oldName}"]`);
+      const queryItem = page.getByTestId(`query-list-item-${oldName}`);
 
       // Double-click to initiate rename
       await queryItem.dblclick();
 
       // Find and fill the rename input
-      const renameInput = page.locator(`[data-testid="query-list-item-${oldName}-rename-input"]`);
+      const renameInput = page.getByTestId(`query-list-item-${oldName}-rename-input`);
 
       await expect(renameInput).toBeVisible();
 
@@ -94,7 +94,7 @@ const test = baseTest.extend<QueryFixture>({
       await page.keyboard.press('Enter');
 
       // Wait for the renamed query to appear
-      await page.waitForSelector(`[data-testid="query-list-item-${newName}.sql"]`);
+      await page.getByTestId(`query-list-item-${newName}.sql`).waitFor();
     });
   },
 });
@@ -237,10 +237,10 @@ test('Header cell width matches data cell width for special character columns', 
   // Run the query
   await runQuery();
   // Wait for table to be fully rendered
-  await page.waitForSelector('data-testid=result-table', { state: 'visible' });
+  await page.getByTestId('result-table').waitFor({ state: 'visible' });
 
   // Get all header cells
-  const headerCells = page.locator('data-testid=thead-cell');
+  const headerCells = page.getByTestId('thead-cell');
   const headerCount = await headerCells.count();
 
   // Verify we have header cells
@@ -253,7 +253,7 @@ test('Header cell width matches data cell width for special character columns', 
     await expect(headerCell).toBeVisible();
 
     // Get the corresponding data cell in the first row
-    const dataCell = page.locator(`data-testid=table-cell >> nth=${i}`);
+    const dataCell = page.getByTestId('table-cell').nth(i);
     await expect(dataCell).toBeVisible();
 
     // Get bounding boxes for both cells
