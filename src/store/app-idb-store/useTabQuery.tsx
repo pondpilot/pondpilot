@@ -20,6 +20,9 @@ export const useAllTabsQuery = () =>
         type: tab.type,
         state: tab.state,
         sourceId: tab.sourceId,
+        stable: tab.stable,
+        updatedAt: tab.updatedAt,
+        createdAt: tab.createdAt,
       }));
     },
   });

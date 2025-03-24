@@ -109,6 +109,7 @@ export const QueryExplorer = memo(() => {
         name: queryFile.name,
         type: 'query',
         active: true,
+        stable: false,
         state: 'pending',
         editor: {
           fullQuery: '',
@@ -156,6 +157,7 @@ export const QueryExplorer = memo(() => {
       name: newQueryFile.name,
       type: 'query',
       active: true,
+      stable: true,
       state: 'pending',
       editor: {
         fullQuery: '',

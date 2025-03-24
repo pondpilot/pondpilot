@@ -38,6 +38,7 @@ import {
   TabMetaInfo,
   useAllTabsQuery,
   useSetActiveTabMutation,
+  useTabMutation,
   useTabsDeleteMutation,
   useTabsReorderMutation,
 } from '@store/app-idb-store';
@@ -60,6 +61,7 @@ const SortableTab = ({
   onClick,
   icon,
 }: SortableTabProps) => {
+  const { mutateAsync: onTabUpdate } = useTabMutation();
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tab.id });
   const [isDragging, setIsDragging] = useState(false);
 
@@ -91,10 +93,10 @@ const SortableTab = ({
         }}
         data-active={active}
         onClick={() => onClick(tab.id)}
-        // onDoubleClick={(e) => {
-        //   e.stopPropagation();
-        //   onTabUpdate({ ...tab, stable: true });
-        // }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          onTabUpdate({ ...tab, stable: true });
+        }}
         className={cn(
           'px-2 h-9 flex items-center w-[175px] cursor-pointer border-l border-transparent004-light dark:border-transparent004-dark',
           !isDragging && 'hover:bg-transparent008-light dark:hover:bg-transparent008-dark',
@@ -107,11 +109,7 @@ const SortableTab = ({
         <Group gap={2} className="justify-between w-full">
           <Group gap={4}>
             {icon}
-            <Text
-              maw={110}
-              truncate="end"
-              // className={cn(!tab.stable && 'italic', 'select-none')}
-            >
+            <Text maw={110} truncate="end" className={cn(!tab.stable && 'italic', 'select-none')}>
               {tab.name}
             </Text>
           </Group>

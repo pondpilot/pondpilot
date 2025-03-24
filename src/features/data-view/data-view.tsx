@@ -21,6 +21,7 @@ export const DataView = () => {
       name: newQueryFile.name,
       type: 'query',
       active: true,
+      stable: true,
       state: 'pending',
       order: maxOrder + 1,
       editor: {

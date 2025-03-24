@@ -70,6 +70,7 @@ export interface TabBase {
   dataView: DataViewState;
   order: number;
   sourceId: string;
+  stable: boolean;
 }
 
 export interface Tab extends TabBase {
@@ -81,15 +82,8 @@ export interface Tab extends TabBase {
 export type CreateTab = TabBase;
 export type UpdateTab = Partial<Tab>;
 
-export interface TabMetaInfo {
-  id: string;
-  name: string;
-  order: number;
-  type: 'query' | 'file';
-  active: boolean;
-  state: 'fetching' | 'error' | 'success' | 'pending';
-  sourceId: string;
-}
+export interface TabMetaInfo
+  extends Omit<Tab, 'editor' | 'layout' | 'dataView' | 'pagination' | 'sort'> {}
 
 export const tabStoreApi = {
   async createTab(tab: CreateTab): Promise<Tab> {
