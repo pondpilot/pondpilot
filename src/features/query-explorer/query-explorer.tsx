@@ -111,9 +111,12 @@ export const QueryExplorer = memo(() => {
         active: true,
         stable: false,
         state: 'pending',
+        query: {
+          state: 'pending',
+          originalQuery: '',
+        },
         editor: {
-          fullQuery: '',
-          lastQuery: '',
+          value: '',
           codeSelection: {
             start: 0,
             end: 0,
@@ -126,7 +129,7 @@ export const QueryExplorer = memo(() => {
           dataViewPaneHeight: 0,
         },
         dataView: {
-          data: null,
+          data: undefined,
           rowCount: 0,
           columnCount: 0,
         },
@@ -159,9 +162,12 @@ export const QueryExplorer = memo(() => {
       active: true,
       stable: true,
       state: 'pending',
+      query: {
+        state: 'pending',
+        originalQuery: '',
+      },
       editor: {
-        fullQuery: '',
-        lastQuery: '',
+        value: '',
         codeSelection: {
           start: 0,
           end: 0,
@@ -174,7 +180,7 @@ export const QueryExplorer = memo(() => {
         dataViewPaneHeight: 0,
       },
       dataView: {
-        data: null,
+        data: undefined,
         rowCount: 0,
         columnCount: 0,
       },

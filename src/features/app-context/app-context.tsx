@@ -429,7 +429,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         setDatabases(transformedTables);
         setViews(filteredViews);
         setRowsCount(queryResults.pagination);
-        setQueryResults(tableFromIPC(queryResults.data));
+        // setQueryResults(tableFromIPC(queryResults.data));
+        return {
+          data: queryResults.data,
+          pagination: queryResults.pagination,
+        };
       }
 
       return queryResults;

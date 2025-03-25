@@ -23,6 +23,7 @@ export const useAllTabsQuery = () =>
         stable: tab.stable,
         updatedAt: tab.updatedAt,
         createdAt: tab.createdAt,
+        query: tab.query,
       }));
     },
   });

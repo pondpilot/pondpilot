@@ -18,7 +18,7 @@ const dbPromise = openDB(APP_DB_NAME, DB_VERSION, {
 });
 
 export type TabType = 'query' | 'file';
-export type TabState = 'fetching' | 'error' | 'success' | 'pending';
+export type LoadingState = 'fetching' | 'error' | 'success' | 'pending';
 export type SortOrder = 'asc' | 'desc';
 
 export interface TabPagination {
@@ -32,13 +32,23 @@ export interface TabSort {
 }
 
 export interface EditorState {
-  fullQuery: string;
-  lastQuery: string;
+  value: string;
   codeSelection: {
     start: number;
     end: number;
   };
   undoHistory: string[];
+}
+
+/**
+ * Query state for the query tab.
+ *
+ * @property {LoadingState} state - The current state of the query.
+ * @property {string} originalQuery - The original query statement for pagination.
+ */
+export interface QueryState {
+  state: LoadingState;
+  originalQuery: string;
 }
 
 export interface TabLayout {
@@ -48,7 +58,7 @@ export interface TabLayout {
 }
 
 export interface DataViewState {
-  data: Uint8Array | null;
+  data: Uint8Array<ArrayBufferLike> | undefined;
   rowCount: number;
   columnCount: number;
   selection?: {
@@ -61,7 +71,8 @@ export interface DataViewState {
 export interface TabBase {
   name: string;
   type: TabType;
-  state: TabState;
+  state: LoadingState;
+  query: QueryState;
   active: boolean;
   pagination: TabPagination;
   sort: TabSort;

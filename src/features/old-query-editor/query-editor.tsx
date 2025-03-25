@@ -4,13 +4,14 @@ import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { useAppContext } from '@features/app-context';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useAppStore } from '@store/app-store';
+import { useEditorStore } from '@store/editor-store';
+import { usePaginationStore } from '@store/pagination-store';
 import { SqlEditor } from '@features/editor';
 import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { Spotlight } from '@mantine/spotlight';
 import { formatNumber } from '@utils/helpers';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
-import { useTabMutation, useTabQuery } from '@store/app-idb-store';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
@@ -18,12 +19,9 @@ interface QueryEditorProps {
   columnsCount: number;
   rowsCount: number;
   hasTableData: boolean;
-  id: string;
 }
 
-export const QueryEditor = ({ columnsCount, rowsCount, hasTableData, id }: QueryEditorProps) => {
-  const { data: tab } = useTabQuery(id);
-  const { mutateAsync: updateTab } = useTabMutation();
+export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEditorProps) => {
   /**
    * Common hooks
    */
@@ -31,9 +29,20 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData, id }: Query
 
   const { colorScheme } = useMantineColorScheme();
 
+  const currentQuery = useAppStore((state) => state.currentQuery);
+  const queries = useAppStore((state) => state.queries);
+  const setOriginalQuery = useAppStore((state) => state.setOriginalQuery);
+  const setQueryRunning = useAppStore((state) => state.setQueryRunning);
+  const queryRunning = useAppStore((state) => state.queryRunning);
   const databases = useAppStore((state) => state.databases);
 
-  const queryRunning = tab?.query.state === 'fetching';
+  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
+  const setEditorValue = useEditorStore((state) => state.setEditorValue);
+  const setSaving = useEditorStore((state) => state.setSaving);
+
+  const setCurrentPage = usePaginationStore((state) => state.setCurrentPage);
+
+  const currentQueryData = queries.find((query) => query.path === currentQuery);
 
   /**
    * State
@@ -56,7 +65,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData, id }: Query
    */
   const handleRunQuery = async (mode?: 'all' | 'selection') => {
     const editor = editorRef.current?.view;
-    if (!editor?.state || !tab) return;
+    if (!editor?.state) return;
 
     const getCurrentStatement = () => {
       const cursor = editor.state.selection.main.head;
@@ -79,47 +88,37 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData, id }: Query
 
     const queryToRun = mode === 'selection' ? selectedText : fullQuery;
 
-    await updateTab({
-      id: tab.id,
-      query: {
-        ...tab.query,
-        state: 'fetching',
-      },
-    });
-    const res = await context.runQuery({ query: queryToRun });
-    await updateTab({
-      id: tab.id,
-      dataView: {
-        data: res?.data,
-        columnCount: 0,
-        rowCount: 0,
-      },
-      query: {
-        ...tab.query,
-        state: 'success',
-        originalQuery: queryToRun,
-      },
-    });
+    setCurrentPage(1);
+    setOriginalQuery('');
+    setQueryRunning(true);
+    await context.runQuery({ query: queryToRun });
+    setQueryRunning(false);
   };
 
   const handleQuerySave = async () => {
-    if (!tab) return;
+    if (!currentQuery) return;
+    setSaving(true);
 
-    await updateTab({
-      id: tab.id,
-      editor: {
-        ...tab.editor,
-        value: editorRef.current?.view?.state?.doc.toString() || '',
-      },
+    await context.onSaveEditor({
+      content: editorRef.current?.view?.state?.doc.toString() || '',
+      path: currentQuery,
     });
+    setLastQueryDirty(false);
+    setSaving(false);
   };
 
   const handleEditorValueChange = useDebouncedCallback(async () => {
     handleQuerySave();
   }, 300);
 
-  const onSqlEditorChange = () => {
-    handleEditorValueChange();
+  const onSqlEditorChange = (value: string | undefined) => {
+    setEditorValue(value || '');
+    if (value !== currentQueryData?.content) {
+      handleEditorValueChange();
+      setLastQueryDirty(true);
+    } else {
+      setLastQueryDirty(false);
+    }
   };
 
   /**
@@ -134,13 +133,14 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData, id }: Query
       changes: {
         from: 0,
         to: view.state.doc.length,
-        insert: tab?.editor.value || '',
+        insert: currentQueryData?.content || '',
       },
     });
     if (transaction) {
       view.dispatch(transaction);
     }
-  }, [tab?.id]);
+    setLastQueryDirty(false);
+  }, [currentQuery]);
 
   return (
     <div className="h-full">
@@ -169,7 +169,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData, id }: Query
           onBlur={handleQuerySave}
           ref={editorRef}
           colorSchemeDark={colorScheme === 'dark'}
-          value={tab?.editor.value || ''}
+          value={currentQueryData?.content || ''}
           onChange={onSqlEditorChange}
           schema={schema}
           fontSize={fontSize}
