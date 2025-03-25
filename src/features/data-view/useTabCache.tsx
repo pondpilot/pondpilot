@@ -9,10 +9,6 @@ import { useSet } from '@mantine/hooks';
 export function useTabCache(maxSize = 10) {
   // Use Mantine's useSet with proper typing
   const cachedTabs = useSet<string>(['']);
-  // Initialize with empty string and then clear it to avoid type issues
-  useEffect(() => {
-    cachedTabs.delete('');
-  }, []);
 
   /**
    * Adds a tab to cache
@@ -60,31 +56,10 @@ export function useTabCache(maxSize = 10) {
     cachedTabs.clear();
   }, [cachedTabs]);
 
-  // Optional: Save cache state to localStorage
+  // Initialize with empty string and then clear it to avoid type issues
   useEffect(() => {
-    const cachedTabsArray = Array.from(cachedTabs);
-    if (cachedTabsArray.length > 0) {
-      localStorage.setItem('cachedTabIds', JSON.stringify(cachedTabsArray));
-    }
-  }, [cachedTabs]);
-
-  // Optional: Initialize from localStorage
-  useEffect(() => {
-    try {
-      const savedIds = localStorage.getItem('cachedTabIds');
-      if (savedIds) {
-        const parsedIds = JSON.parse(savedIds);
-        if (Array.isArray(parsedIds)) {
-          // Take only up to maxSize items
-          const limitedIds = parsedIds.slice(0, maxSize);
-          cachedTabs.clear();
-          limitedIds.forEach((id) => cachedTabs.add(id));
-        }
-      }
-    } catch (e) {
-      console.error('Error restoring tab cache', e);
-    }
-  }, [cachedTabs, maxSize]);
+    cachedTabs.delete('');
+  }, []);
 
   return {
     addToCache,
