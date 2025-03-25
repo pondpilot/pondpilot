@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Table } from 'apache-arrow';
-import { SessionFiles, TabModel } from '@features/app-context/models';
+import { SessionFiles } from '@features/app-context/models';
 import { Limit, DataBaseModel, CodeEditor } from '@models/common';
 import { SortModel } from './pagination-store';
 
@@ -25,19 +25,15 @@ interface AppStateModel {
   sessionFiles: SessionFiles | null;
 
   queries: CodeEditor[];
-  tabs: TabModel[];
   queryResults: Table | null;
   currentView: string | null;
   currentQuery: string | null;
-  activeTab: TabModel | null;
   originalQuery: string;
   appStatus: AppStatus;
   setViews: (v: string[]) => void;
   setDatabases: (v: DataBaseModel[]) => void;
-  setTabs: (v: TabModel[]) => void;
   setQueryView: (v: boolean) => void;
   setCurrentView: (v: string | null) => void;
-  setActiveTab: (v: TabModel | null) => void;
   setQueries: (v: CodeEditor[]) => void;
   setQueryResults: (v: Table | null) => void;
   setCurrentQuery: (v: string | null) => void;
@@ -65,12 +61,9 @@ export const useAppStore = create<AppStateModel>()((set) => ({
   queryResults: null,
   currentView: null,
   currentQuery: null,
-  activeTab: null,
-  setActiveTab: (activeTab) => set({ activeTab }),
   setDatabases: (databases) => set({ databases }),
   setCurrentView: (currentView) => set({ currentView }),
   setViews: (views) => set({ views }),
-  setTabs: (tabs) => set({ tabs }),
   setQueryView: (queryView) => set({ queryView }),
   setQueries: (queries) => set({ queries }),
   setQueryResults: (queryResults) => set({ queryResults }),

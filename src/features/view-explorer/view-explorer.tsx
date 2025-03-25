@@ -5,7 +5,11 @@ import { useClipboard } from '@mantine/hooks';
 import { memo, useCallback } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { IconCsv, IconJson, IconTable } from '@tabler/icons-react';
-import { useCreateQueryFileMutation, useTabsDeleteMutation } from '@store/app-idb-store';
+import {
+  useAllTabsQuery,
+  useCreateQueryFileMutation,
+  useTabsDeleteMutation,
+} from '@store/app-idb-store';
 
 /**
  * Displays a list of views
@@ -27,8 +31,8 @@ export const ViewExplorer = memo(() => {
   const queryLoading = useAppStore((state) => state.queryRunning);
   const currentView = useAppStore((state) => state.currentView);
   const appStatus = useAppStore((state) => state.appStatus);
-  const activeTab = useAppStore((state) => state.activeTab);
-  const tabs = useAppStore((state) => state.tabs);
+  const { data: tabs = [] } = useAllTabsQuery();
+  const activeTab = tabs.find((t) => t.active);
   const sessionFiles = useAppStore((state) => state.sessionFiles);
 
   /**
@@ -52,7 +56,7 @@ export const ViewExplorer = memo(() => {
   };
 
   const openView = async (viewName: string) => {
-    if (activeTab?.path === viewName) return;
+    if (activeTab?.sourceId === viewName) return;
     await saveCurrentQuery();
 
     onOpenView(viewName);
@@ -105,7 +109,7 @@ export const ViewExplorer = memo(() => {
   ];
 
   const handleDeleteTab = async (id: string) => {
-    const tab = tabs.find((t) => t.path === id);
+    const tab = tabs.find((t) => t.sourceId === id);
     if (tab) {
       deleteTabs([tab.id]);
     }

@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useAppContext } from '@features/app-context';
-import { tableFromIPC } from 'apache-arrow';
 import { useCallback, useMemo } from 'react';
 import { useAppStore } from '@store/app-store';
 import { usePaginationStore } from '@store/pagination-store';
@@ -9,12 +9,8 @@ export const useTablePaginationSort = () => {
 
   const setQueryRunning = useAppStore((state) => state.setQueryRunning);
   const originalQuery = useAppStore((state) => state.originalQuery);
-  const setCachedResults = useAppStore((state) => state.setCachedResults);
-  const activeTab = useAppStore((state) => state.activeTab);
-  const queryView = useAppStore((state) => state.queryView);
 
   const rowsCount = usePaginationStore((state) => state.rowsCount);
-  const setCachedPagination = useAppStore((state) => state.setCachedPagination);
   const limit = usePaginationStore((state) => state.limit);
   const currentPage = usePaginationStore((state) => state.currentPage);
   const setSort = usePaginationStore((state) => state.setSort);
@@ -22,21 +18,6 @@ export const useTablePaginationSort = () => {
   const setCurrentPage = usePaginationStore((state) => state.setCurrentPage);
 
   const totalPages = useMemo(() => Math.ceil(rowsCount / limit), [rowsCount, limit]);
-
-  const updateCache = useCallback(
-    (result: any, page: number, sortState = sort) => {
-      if (result && activeTab && !queryView) {
-        setCachedResults(activeTab.path, tableFromIPC(result.data));
-        setCachedPagination(activeTab.path, {
-          rowsCount,
-          limit,
-          currentPage: page,
-          sort: sortState,
-        });
-      }
-    },
-    [activeTab, queryView, setCachedResults, setCachedPagination, rowsCount, limit, sort],
-  );
 
   const executeQuery = useCallback(
     async (query: string, page: number) => {
@@ -66,13 +47,10 @@ export const useTablePaginationSort = () => {
         ? originalQuery
         : `select * from (${originalQuery}) order by "${id}" ${newDir}`;
 
+      // TODO: set the result to a tab
       const result = await executeQuery(query, currentPage);
-      updateCache(result, currentPage, {
-        field: id,
-        direction: newDir,
-      });
     },
-    [sort, setSort, originalQuery, executeQuery, currentPage, updateCache],
+    [sort, setSort, originalQuery, executeQuery, currentPage],
   );
 
   const handlePaginationChange = useCallback(
@@ -83,10 +61,10 @@ export const useTablePaginationSort = () => {
         ? `select * from (${originalQuery}) order by "${sort.field}" ${sort.direction}`
         : originalQuery;
 
+      // TODO: set the result to a tab
       const result = await executeQuery(query, page);
-      updateCache(result, page);
     },
-    [setCurrentPage, sort.field, sort.direction, originalQuery, executeQuery, updateCache],
+    [setCurrentPage, sort.field, sort.direction, originalQuery, executeQuery],
   );
 
   const onNextPage = useCallback(() => {
