@@ -1,24 +1,24 @@
 import { useReactTable, getCoreRowModel, Table as TableType, Cell } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
 import { memo, useMemo } from 'react';
-import { SortModel } from '@store/pagination-store';
 import { useClipboard, useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { replaceSpecialChars } from '@utils/helpers';
 import { useAppNotifications } from '@components/app-notifications';
 import { CalculateColumnSummaryProps } from '@features/tab-view/hooks';
 import { ResultColumn } from '@utils/arrow/helpers';
+import { TableSort } from '@store/app-idb-store';
 import { TableCell, TableHeadCell } from './components';
 import { useTableColumns, useTableSelection } from './hooks';
 
 interface TableProps {
   data: Record<string, any>[];
   columns: ResultColumn[];
+  sort: TableSort | undefined;
   onSort?: (columnId: string) => void;
   onSelectedColsCopy: (cols: Record<string, boolean>) => void;
   onRowSelectChange: () => void;
   onCellSelectChange: () => void;
   onColumnSelectChange: ({ columnName, dataType }: CalculateColumnSummaryProps) => void;
-  sort: SortModel;
 }
 
 const fallbackData = [] as any[];

@@ -1,5 +1,6 @@
 import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
 import { CodeSource, Dataset } from '@models/common';
+import { queryStoreApi } from '@store/app-idb-store';
 import { openDB } from 'idb';
 
 import JSZip from 'jszip';
@@ -53,25 +54,22 @@ export function getSupportedMimeType(
   }
 }
 
-export const findUniqueName = async (
+export const findUniqueQueryFileName = async (
   name: string,
-  checkIfExists: (name: string) => Promise<boolean>,
+  checkIfExists: (name: string) => boolean,
 ) => {
   let counter = 0;
-  const paths = name.split('.');
-  const ext = paths.pop();
-  const path = paths.join('.');
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const currentName = `${path}${counter > 0 ? `_${counter}` : ''}.${ext}`;
-    const exists = await checkIfExists(currentName);
+    const currentName = `${name}${counter > 0 ? `_${counter}` : ''}`;
+    const exists = checkIfExists(currentName);
 
     if (!exists) break;
     counter += 1;
   }
 
-  return `${path}${counter > 0 ? `_${counter}` : ''}.${ext}`;
+  return `${name}${counter > 0 ? `_${counter}` : ''}`;
 };
 
 /**
@@ -155,4 +153,23 @@ export const createName = (fileName: string): string => {
   const ext = fileName.split('.').pop();
 
   return Number.isNaN(Number(name[0])) ? name : `${ext}_${name}`;
+};
+
+export const getFileNameWithExt = (name: string, ext: string) => (ext ? `${name}.${ext}` : name);
+
+export const exportQueryFiles = async () => {
+  const queryFiles = await queryStoreApi.getQueryFiles();
+  const zip = new JSZip();
+
+  for (const queryFile of queryFiles) {
+    zip.file(`${queryFile.name}.${queryFile.ext}`, queryFile.content);
+  }
+
+  try {
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    return zipBlob;
+  } catch (error) {
+    console.error('Error while exporting query files: ', error);
+    return null;
+  }
 };

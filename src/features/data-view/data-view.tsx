@@ -20,9 +20,7 @@ export const DataView = () => {
   // Create a new query tab
   const onCreateQueryTab = async () => {
     const maxOrder = tabs?.length > 0 ? Math.max(...tabs.map((tab) => tab.order)) : -1;
-    const newQueryFile = await createQueryFile({
-      name: 'query',
-    });
+    const newQueryFile = await createQueryFile({ name: 'query' });
 
     mutate({
       sourceId: newQueryFile.id,
@@ -56,6 +54,7 @@ export const DataView = () => {
       },
       pagination: {
         page: 0,
+        count: 0,
         limit: 0,
       },
       sort: {

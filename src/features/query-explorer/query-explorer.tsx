@@ -17,6 +17,7 @@ import {
   useTabMutation,
   useTabsDeleteMutation,
 } from '@store/app-idb-store';
+import { getFileNameWithExt } from '@utils/helpers';
 
 export const QueryExplorer = memo(() => {
   /**
@@ -29,7 +30,7 @@ export const QueryExplorer = memo(() => {
    * Global state
    */
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
-  const { mutateAsync: createTab } = useTabMutation();
+  const { mutateAsync: mutateTab } = useTabMutation();
   const { data: queryFiles = [] } = useQueryFilesQuery();
   const { data: tabsList = [] } = useAllTabsQuery();
   const { mutateAsync: deleteTabs } = useTabsDeleteMutation();
@@ -50,15 +51,15 @@ export const QueryExplorer = memo(() => {
    */
   const queriesList = queryFiles.map((query) => ({
     value: query.id,
-    label: query.name,
+    label: getFileNameWithExt(query.name, query.ext),
     nodeProps: { canSelect: true },
   }));
   const textInputError = newItemName.length === 0 ? 'Name cannot be empty' : undefined;
   const notUniqueError = queriesList.some((query) => {
     if (itemIdBufferValue === query.value) return false;
 
-    const name = query.label.toLowerCase().split('.')[0];
-    return name === newItemName;
+    const name = query.label;
+    return name.toLowerCase() === newItemName.toLowerCase();
   })
     ? 'Name must be unique'
     : undefined;
@@ -83,17 +84,17 @@ export const QueryExplorer = memo(() => {
   const handleSetQuery = async (sourceId: string) => {
     await saveCurrentQuery();
 
-    const tabExists = tabsList.find((tab) => tab.sourceId === sourceId);
+    const tab = tabsList.find((t) => t.sourceId === sourceId);
     const queryFile = queryFiles.find((query) => query.id === sourceId);
 
     if (!queryFile) {
       throw new Error(`Query file with id ${sourceId} not found`);
     }
 
-    if (tabExists) {
-      await switchTab(tabExists.id);
+    if (tab) {
+      await switchTab(tab.id);
     } else {
-      await createTab({
+      await mutateTab({
         sourceId: queryFile.id,
         name: queryFile.name,
         type: 'query',
@@ -125,6 +126,7 @@ export const QueryExplorer = memo(() => {
         pagination: {
           page: 0,
           limit: 0,
+          count: 0,
         },
         sort: {
           column: '',
@@ -141,9 +143,9 @@ export const QueryExplorer = memo(() => {
       name: 'query',
     });
 
-    createTab({
+    mutateTab({
       sourceId: newQueryFile.id,
-      name: newQueryFile.name,
+      name: getFileNameWithExt(newQueryFile.name, newQueryFile.ext),
       type: 'query',
       active: true,
       stable: true,
@@ -173,6 +175,7 @@ export const QueryExplorer = memo(() => {
       pagination: {
         page: 0,
         limit: 0,
+        count: 0,
       },
       sort: {
         column: '',
@@ -193,10 +196,17 @@ export const QueryExplorer = memo(() => {
    */
   const handleRenameSubmit = async () => {
     if (itemIdBufferValue) {
-      await onRenameDataSource({
+      const updatedSource = await onRenameDataSource({
         name: newItemName,
         id: itemIdBufferValue!,
       });
+      const tab = tabsList.find((t) => t.sourceId === itemIdBufferValue);
+      if (tab) {
+        await mutateTab({
+          id: tab.id,
+          name: updatedSource.name,
+        });
+      }
     }
     closeRename();
   };
@@ -213,7 +223,7 @@ export const QueryExplorer = memo(() => {
 
   const handleRenameClick = (id: string) => {
     const queryToChange = queriesList.find((query) => query.value === id)!.label;
-    setNewName(queryToChange.split('.')[0] || 'query-name');
+    setNewName(queryToChange || 'query');
     setItemIdBufferValue(id);
     openRename();
   };

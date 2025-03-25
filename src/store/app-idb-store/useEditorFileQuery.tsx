@@ -7,7 +7,7 @@ export const useQueryFilesQuery = () =>
     queryFn: () => queryStoreApi.getQueryFiles(),
   });
 
-export const useQueryFileQuery = (id: string) =>
+export const useQueryFileQuery = (id: string | undefined) =>
   useQuery({
     queryKey: ['queryFile', id],
     queryFn: async () => {
@@ -21,8 +21,8 @@ export const useCreateQueryFileMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name, content }: { name: string; content?: string }) => {
-      const data = await queryStoreApi.createQueryFile(name, content);
+    mutationFn: async (props: { name: string; content?: string }) => {
+      const data = await queryStoreApi.createQueryFile(props.name, props.content);
       return data;
     },
 
@@ -75,6 +75,19 @@ export const useChangeQueryContentMutation = () => {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['queryFile', data.id] });
+    },
+  });
+};
+
+export const useCreateMultipleQueryFilesMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (props: { entities: { name: string; content: string }[] }) => {
+      const data = await queryStoreApi.createMultipleQueryFiles(props.entities);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['queryFiles'] });
     },
   });
 };

@@ -31,9 +31,7 @@ export const useAllTabsQuery = () =>
 export const useTabMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (
-      params: Omit<CreateTab, 'order'> | (UpdateTab & { id: string }),
-    ): Promise<Tab> => {
+    mutationFn: async (params: Omit<CreateTab, 'order'> | UpdateTab): Promise<Tab> => {
       const tabs = await tabStoreApi.getAllTabs();
 
       if ('id' in params) {

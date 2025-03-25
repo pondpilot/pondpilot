@@ -4,7 +4,7 @@ import { useCallback, useMemo } from 'react';
 import { useAppStore } from '@store/app-store';
 import { usePaginationStore } from '@store/pagination-store';
 
-export const useTableSort = () => {
+export const useTablePaginationSort = () => {
   const { runQuery } = useAppContext();
 
   const setQueryRunning = useAppStore((state) => state.setQueryRunning);

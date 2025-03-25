@@ -6,7 +6,7 @@ import { Header, Table as TableType } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
 import { replaceSpecialChars } from '@utils/helpers';
 import { memo } from 'react';
-import { SortModel } from '@store/pagination-store';
+import { TableSort } from '@store/app-idb-store';
 import { getIcon } from '../utils';
 
 interface TableHeadCellProps {
@@ -15,7 +15,7 @@ interface TableHeadCellProps {
   index: number;
   totalHeaders: number;
   isSelected: boolean;
-  sort: SortModel;
+  sort?: TableSort;
   resizingColumnId?: string | false;
   deltaOffset: number | null;
 
@@ -60,9 +60,9 @@ const THeadTitle = memo(
             }}
             className={cn(
               'opacity-0 text-iconDefault-light dark:text-iconDefault-dark',
-              sort.field === header.column.id && 'opacity-100',
+              sort?.column === header.column.id && 'opacity-100',
               'group-hover:opacity-100',
-              sort.direction === 'asc' && sort.field === header.column.id && 'rotate-180',
+              sort?.order === 'asc' && sort?.column === header.column.id && 'rotate-180',
               !isNumber && 'ml-auto',
               isSelected && 'text-iconDisabled',
             )}
@@ -73,8 +73,8 @@ const THeadTitle = memo(
   ),
   (prevProps, nextProps) =>
     prevProps.isSelected === nextProps.isSelected &&
-    prevProps.sort.field === nextProps.sort.field &&
-    prevProps.sort.direction === nextProps.sort.direction,
+    prevProps.sort?.column === nextProps.sort?.column &&
+    prevProps.sort?.order === nextProps.sort?.order,
 );
 
 export const TableHeadCell = memo(
@@ -158,8 +158,8 @@ export const TableHeadCell = memo(
     );
   },
   (prevProps, nextProps) =>
-    prevProps.sort.field === nextProps.sort.field &&
-    prevProps.sort.direction === nextProps.sort.direction &&
+    prevProps.sort?.column === nextProps.sort?.column &&
+    prevProps.sort?.order === nextProps.sort?.order &&
     prevProps.resizingColumnId === nextProps.resizingColumnId &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.deltaOffset === nextProps.deltaOffset &&

@@ -109,7 +109,7 @@ const SortableTab = ({
       >
         <Group gap={2} className="justify-between w-full">
           <Group gap={4}>
-            {loading ? <Loader size={10} /> : icon}
+            {loading ? <Loader color="icon-default" size={16} /> : icon}
             <Text maw={110} truncate="end" className={cn(!tab.stable && 'italic', 'select-none')}>
               {tab.name}
             </Text>

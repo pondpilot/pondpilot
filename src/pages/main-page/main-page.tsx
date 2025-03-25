@@ -5,16 +5,18 @@ import { useHotkeys, useLocalStorage } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
 import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { DataView } from '@features/data-view/data-view';
+import { useCreateQueryFileMutation } from '@store/app-idb-store';
 import { Navbar } from './components';
 
 export const MainPage = () => {
   /**
    * Common hooks
    */
-  const { importSQLFiles, onCreateQueryFile } = useAppContext();
+  const { importSQLFiles } = useAppContext();
   const { handleAddSource } = useFileHandlers();
   const { colorScheme } = useMantineColorScheme();
   const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({ key: 'layout-sizes' });
+  const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
 
   /**
    * Handlers
@@ -55,8 +57,8 @@ export const MainPage = () => {
     [
       'Alt+N',
       () => {
-        onCreateQueryFile({
-          entities: [{ name: 'query-name.sql' }],
+        createQueryFile({
+          name: 'query.sql',
         });
         Spotlight.close();
       },

@@ -2,8 +2,7 @@ import { memo, useCallback, useEffect, useMemo } from 'react';
 
 import { Allotment } from 'allotment';
 import { useAppContext } from '@features/app-context';
-import { useClipboard, useDebouncedState, useHotkeys, useLocalStorage } from '@mantine/hooks';
-import { usePaginationStore } from '@store/pagination-store';
+import { useClipboard, useDebouncedState, useHotkeys } from '@mantine/hooks';
 import { QueryEditor } from '@features/query-editor';
 import { getArrowTableSchema } from '@utils/arrow/helpers';
 import {
@@ -24,25 +23,21 @@ import { formatNumber } from '@utils/helpers';
 import { Table as ApacheTable, tableFromIPC } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
-import { useTabQuery } from '@store/app-idb-store';
+import { useTabMutation, useTabQuery } from '@store/app-idb-store';
 import { PaginationControl, StartGuide, TableLoadingOverlay } from './components';
-import { useTableSort } from './hooks/useTablePaginationSort';
+import { useTablePaginationSort } from './hooks/useTablePaginationSort';
 import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
 
-interface TabViewProps {
-  id: string;
-}
-
-export const TabView = memo(({ id }: TabViewProps) => {
+export const TabView = memo(({ id }: { id: string }) => {
   const { data: tab } = useTabQuery(id);
+  const { mutateAsync: updateTab } = useTabMutation();
 
   /**
    * Common hooks
    */
   const { onCancelQuery, executeQuery } = useAppContext();
-  const [panelSize, setPanelSize] = useLocalStorage<number[]>({ key: 'main-panel-sizes' });
-  const { onNextPage, onPrevPage, handleSort } = useTableSort();
+  const { onNextPage, onPrevPage, handleSort } = useTablePaginationSort();
   const { handleCopyToClipboard, exportTableToCSV } = useTableExport();
   const { showSuccess } = useAppNotifications();
   const clipboard = useClipboard();
@@ -59,10 +54,15 @@ export const TabView = memo(({ id }: TabViewProps) => {
   const queryView = tab?.type === 'query';
   const activeTab = tab?.active;
 
-  const rowCount = usePaginationStore((state) => state.rowsCount);
-  const limit = usePaginationStore((state) => state.limit);
-  const currentPage = usePaginationStore((state) => state.currentPage);
-  const sort = usePaginationStore((state) => state.sort);
+  const { editorPaneHeight = 0, dataViewPaneHeight = 0 } = tab?.layout ?? {};
+  const { rowCount, limit, currentPage } = useMemo(
+    () => ({
+      rowCount: tab?.pagination.count ?? 0,
+      limit: tab?.pagination.limit ?? 100,
+      currentPage: tab?.pagination.page ?? 1,
+    }),
+    [tab?.pagination],
+  );
 
   /**
    * Local state
@@ -136,6 +136,20 @@ export const TabView = memo(({ id }: TabViewProps) => {
     },
     [activeTab, tab?.query.originalQuery],
   );
+
+  const setPanelSize = ([editor, table]: number[]) => {
+    if (tab) {
+      updateTab({
+        id: tab.id,
+        layout: {
+          ...tab.layout,
+          editorPaneHeight: editor,
+          dataViewPaneHeight: table,
+        },
+      });
+    }
+  };
+
   useHotkeys([['Alt+Q', onCancel]]);
   useEffect(() => {
     if (queryRunning) {
@@ -147,9 +161,13 @@ export const TabView = memo(({ id }: TabViewProps) => {
 
   return (
     <div className="h-full relative">
-      <Allotment vertical onDragEnd={setPanelSize} defaultSizes={panelSize}>
+      <Allotment
+        vertical
+        onDragEnd={setPanelSize}
+        defaultSizes={[editorPaneHeight, dataViewPaneHeight]}
+      >
         {queryView && (
-          <Allotment.Pane preferredSize={panelSize?.[0]} minSize={200}>
+          <Allotment.Pane preferredSize={editorPaneHeight} minSize={200}>
             <QueryEditor
               columnsCount={convertedTable.columns.length}
               rowsCount={rowCount}
@@ -158,7 +176,7 @@ export const TabView = memo(({ id }: TabViewProps) => {
             />
           </Allotment.Pane>
         )}
-        <Allotment.Pane preferredSize={panelSize?.[1]} minSize={120}>
+        <Allotment.Pane preferredSize={dataViewPaneHeight} minSize={120}>
           {!hasTableData && !queryRunning && activeTab && (
             <Center className="h-full font-bold">
               <Stack align="center" c="icon-default" gap={4}>
@@ -234,7 +252,7 @@ export const TabView = memo(({ id }: TabViewProps) => {
                   data={convertedTable.data}
                   columns={convertedTable.columns}
                   onSort={handleSort}
-                  sort={sort}
+                  sort={tab?.sort}
                   onSelectedColsCopy={onSelectedColsCopy}
                   onColumnSelectChange={calculateColumnSummary}
                   onRowSelectChange={resetTotal}

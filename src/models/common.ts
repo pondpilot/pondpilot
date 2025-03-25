@@ -117,16 +117,6 @@ type DataSource = {
 
 export type AddDataSourceProps = DataSource[];
 
-export type SaveEditorProps = {
-  content: string;
-  path: string;
-};
-
-export type SaveEditorResponse = SaveEditorProps & {
-  handle: FileSystemFileHandle | undefined;
-  error: Error | null;
-};
-
 interface TableModel {
   name: string;
   columns: {

@@ -10,7 +10,14 @@ import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { Spotlight } from '@mantine/spotlight';
 import { formatNumber } from '@utils/helpers';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
-import { useTabMutation, useTabQuery } from '@store/app-idb-store';
+import {
+  useChangeQueryContentMutation,
+  useQueryFileQuery,
+  useTabMutation,
+  useTabQuery,
+} from '@store/app-idb-store';
+
+import { useAppNotifications } from '@components/app-notifications';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
@@ -23,12 +30,14 @@ interface QueryEditorProps {
 
 export const QueryEditor = ({ columnsCount, rowsCount, hasTableData, id }: QueryEditorProps) => {
   const { data: tab } = useTabQuery(id);
+  const { data: queryFile } = useQueryFileQuery(tab?.sourceId || '');
   const { mutateAsync: updateTab } = useTabMutation();
+  const { mutateAsync: updateQueryFile } = useChangeQueryContentMutation();
   /**
    * Common hooks
    */
-  const context = useAppContext();
-
+  const { runQuery } = useAppContext();
+  const { showError } = useAppNotifications();
   const { colorScheme } = useMantineColorScheme();
 
   const databases = useAppStore((state) => state.databases);
@@ -86,7 +95,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData, id }: Query
         state: 'fetching',
       },
     });
-    const res = await context.runQuery({ query: queryToRun });
+    const res = await runQuery({ query: queryToRun });
     await updateTab({
       id: tab.id,
       dataView: {
@@ -103,14 +112,22 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData, id }: Query
   };
 
   const handleQuerySave = async () => {
-    if (!tab) return;
+    if (!tab || !queryFile) {
+      showError({ title: 'Query file not found', message: '' });
+      return;
+    }
 
-    await updateTab({
-      id: tab.id,
-      editor: {
-        ...tab.editor,
-        value: editorRef.current?.view?.state?.doc.toString() || '',
-      },
+    // TODO: save editor state
+    // await updateTab({
+    //   id: tab.id,
+    //   editor: {
+    //     ...tab.editor,
+    //     value: editorRef.current?.view?.state?.doc.toString() || '',
+    //   },
+    // });
+    await updateQueryFile({
+      id: queryFile.id,
+      content: editorRef.current?.view?.state?.doc.toString() || '',
     });
   };
 
@@ -128,19 +145,19 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData, id }: Query
   useEffect(() => {
     const view = editorRef.current?.view;
 
-    if (!view) return;
+    if (!view || !queryFile?.id) return;
 
     const transaction = view.state.update({
       changes: {
         from: 0,
         to: view.state.doc.length,
-        insert: tab?.editor.value || '',
+        insert: queryFile.content || '',
       },
     });
     if (transaction) {
       view.dispatch(transaction);
     }
-  }, [tab?.id]);
+  }, [tab?.id, queryFile?.id]);
 
   return (
     <div className="h-full">
