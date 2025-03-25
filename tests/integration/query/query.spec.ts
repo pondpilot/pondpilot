@@ -1,115 +1,12 @@
-import { expect } from '@playwright/test';
+import { expect, mergeTests } from '@playwright/test';
 import { GET_TABLE_WITH_SPECIAL_CHARS_COLUMNS } from './consts';
-import { baseTest } from '../baseTest';
+import { test as baseTest } from '../fixtures/page';
+import { test as explorerTest } from '../fixtures/explorer';
+import { test as tabTest } from '../fixtures/tab';
+import { test as spotlightTest } from '../fixtures/spotlight';
+import { test as queryEditorTest } from '../fixtures/query-editor';
 
-type QueryFixture = {
-  createQueryAndSwitchToItsTab: () => Promise<void>;
-  fillQuery: (content: string) => Promise<void>;
-  runQuery: () => Promise<void>;
-  switchToTab: (tabName: string) => Promise<void>;
-  closeActiveTab: () => Promise<void>;
-  openQueryFromExplorer: (queryName: string) => Promise<void>;
-  createQueryViaSpotlight: () => Promise<void>;
-  renameQueryInExplorer: (oldName: string, newName: string) => Promise<void>;
-};
-
-const test = baseTest.extend<QueryFixture>({
-  createQueryAndSwitchToItsTab: async ({ page }, use) => {
-    await use(async () => {
-      await page.getByTestId('add-query-button').click();
-      await page.waitForTimeout(500);
-    });
-  },
-
-  createQueryViaSpotlight: async ({ page }, use) => {
-    await use(async () => {
-      // Open spotlight menu using trigger
-      await page.getByTestId('spotlight-trigger-input').click();
-
-      // Verify spotlight is visible
-      const spotlightRoot = page.getByTestId('spotlight-menu');
-      await expect(spotlightRoot).toBeVisible();
-
-      // Create new query through spotlight
-      await spotlightRoot.getByTestId('spotlight-action-create-new-query').click();
-
-      // Verify spotlight is closed after creating query
-      await expect(spotlightRoot).not.toBeVisible();
-    });
-  },
-
-  fillQuery: async ({ page }, use) => {
-    await use(async (content: string) => {
-      // Verify the query tab is active
-      await expect(
-        page.getByTestId('query-editor'),
-        'Did you forget to open a query tab before calling this fixture? Use `createQueryAndSwitchToItsTab` or similar fixture first',
-      ).toBeVisible({ timeout: 100 });
-
-      await page.fill('.cm-content', content);
-      await expect(page.locator('.cm-content')).toContainText(content);
-    });
-  },
-
-  runQuery: async ({ page }, use) => {
-    await use(async () => {
-      // Verify the query tab is active
-      await expect(
-        page.getByTestId('query-editor'),
-        'Did you forget to open a query tab before calling this fixture? Use `createQueryAndSwitchToItsTab` or similar fixture first',
-      ).toBeVisible({ timeout: 100 });
-
-      await page.click('data-testid=run-query-button');
-      await expect(page.getByText('Query ran successfully')).toBeVisible();
-    });
-  },
-
-  switchToTab: async ({ page }, use) => {
-    await use(async (tabName: string) => {
-      const tabsList = page.getByTestId('tabs-list');
-      const tab = tabsList.getByText(tabName);
-      await tab.click();
-    });
-  },
-
-  closeActiveTab: async ({ page }, use) => {
-    await use(async () => {
-      const activeTab = page.locator('[data-active="true"]');
-      await activeTab.getByTestId('close-tab-button').click();
-    });
-  },
-
-  openQueryFromExplorer: async ({ page }, use) => {
-    await use(async (queryName: string) => {
-      const queriesList = page.locator('#queries-list');
-      const queryItem = queriesList.locator('p', { hasText: queryName });
-      await queryItem.click();
-    });
-  },
-
-  renameQueryInExplorer: async ({ page }, use) => {
-    await use(async (oldName: string, newName: string) => {
-      // Find the query item in the explorer
-      const queryItem = page.getByTestId(`query-list-item-${oldName}`);
-
-      // Double-click to initiate rename
-      await queryItem.dblclick();
-
-      // Find and fill the rename input
-      const renameInput = page.getByTestId(`query-list-item-${oldName}-rename-input`);
-
-      await expect(renameInput).toBeVisible();
-
-      await renameInput.fill(newName);
-
-      // Press Enter to confirm
-      await page.keyboard.press('Enter');
-
-      // Wait for the renamed query to appear
-      await page.getByTestId(`query-list-item-${newName}.sql`).waitFor();
-    });
-  },
-});
+const test = mergeTests(baseTest, explorerTest, tabTest, queryEditorTest, spotlightTest);
 
 test('Create and run simple query', async ({
   createQueryAndSwitchToItsTab,
