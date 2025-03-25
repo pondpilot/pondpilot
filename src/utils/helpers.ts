@@ -1,6 +1,5 @@
 import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
 import { CodeSource, Dataset } from '@models/common';
-import { queryStoreApi } from '@store/app-idb-store';
 import { openDB } from 'idb';
 
 import JSZip from 'jszip';
@@ -81,23 +80,6 @@ export const getSessionDirectory = async (sessionDirId = 'main') => {
   return dir;
 };
 
-export const exportQueryFiles = async () => {
-  const queryFiles = await queryStoreApi.getQueryFiles();
-  const zip = new JSZip();
-
-  for (const queryFile of queryFiles) {
-    zip.file(`${queryFile.name}.${queryFile.ext}`, queryFile.content);
-  }
-
-  try {
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
-    return zipBlob;
-  } catch (error) {
-    console.error('Error while exporting query files: ', error);
-    return null;
-  }
-};
-
 /**
  * Exports all application files into a ZIP archive:
  * - `queries/` directory: `.sql` files from `navigator.storage`
@@ -108,19 +90,15 @@ export const exportApplicationFiles = async (): Promise<Blob | null> => {
   try {
     const zip = new JSZip();
 
-    // Export queries (.sql files) using the exportQueryFiles utility
-    const queriesZipBlob = await exportQueryFiles();
-    if (queriesZipBlob) {
-      const queriesZip = await JSZip.loadAsync(queriesZipBlob);
-      const queriesFolder = zip.folder('queries');
-
-      // Extract query files from the queries zip and add them to the main zip
-      const queryFiles = Object.keys(queriesZip.files);
-      for (const fileName of queryFiles) {
-        if (!queriesZip.files[fileName].dir) {
-          const content = await queriesZip.files[fileName].async('string');
-          queriesFolder?.file(fileName, content);
-        }
+    // Export queries (.sql files) from `navigator.storage`
+    const queriesFolder = zip.folder('queries');
+    const directory = await getSessionDirectory();
+    const entries = directory.entries();
+    for await (const [fileName, handle] of entries) {
+      if (handle.kind === 'file' && fileName.endsWith('.sql')) {
+        const file = await handle.getFile();
+        const content = await file.text();
+        queriesFolder?.file(fileName, content);
       }
     }
 
