@@ -1,13 +1,9 @@
-import { Stack, useMantineColorScheme } from '@mantine/core';
+import { useMantineColorScheme } from '@mantine/core';
 import { Allotment } from 'allotment';
 import { useAppContext } from '@features/app-context';
 import { useHotkeys, useLocalStorage } from '@mantine/hooks';
-import { TabsPane } from '@features/old-tabs-pane';
 import { Spotlight } from '@mantine/spotlight';
 import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
-import { DataViewer } from '@features/data-viewer';
-import { ErrorBoundary } from 'react-error-boundary';
-import { DataViewErrorFallback } from '@components/error-fallback';
 import { DataView } from '@features/data-view/data-view';
 import { Navbar } from './components';
 
@@ -78,15 +74,6 @@ export const MainPage = () => {
         </Allotment.Pane>
         <Allotment.Pane preferredSize={layoutSizes?.[1]}>
           <DataView />
-          {/* <Stack
-            gap={0}
-            className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
-          >
-            <TabsPane />
-            <ErrorBoundary FallbackComponent={DataViewErrorFallback}>
-              <DataViewer />
-            </ErrorBoundary>
-          </Stack> */}
         </Allotment.Pane>
       </Allotment>
     </>

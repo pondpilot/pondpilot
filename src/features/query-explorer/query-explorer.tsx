@@ -1,17 +1,15 @@
-/* eslint-disable no-console */
 import { useAppNotifications } from '@components/app-notifications';
 import { MenuItem, SourcesListView } from '@components/sources-list-view';
 import { ActionIcon, Divider, Group, Text } from '@mantine/core';
 import { useClipboard, useDisclosure } from '@mantine/hooks';
-import { useAppContext } from '@features/app-context';
 import { memo, useState } from 'react';
 import { useAppStore } from '@store/app-store';
 import { IconCode, IconPlus } from '@tabler/icons-react';
-import { useEditorStore } from '@store/editor-store';
 import {
   useCreateQueryFileMutation,
   useDeleteQueryFilesMutation,
   useQueryFilesQuery,
+  useRenameQueryFileMutation,
 } from '@store/app-idb-store/useEditorFileQuery';
 import {
   useAllTabsQuery,
@@ -24,28 +22,12 @@ export const QueryExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const { onRenameDataSource, onOpenQuery, onTabSwitch, onSaveEditor } = useAppContext();
   const { showSuccess } = useAppNotifications();
   const { copy } = useClipboard();
 
   /**
    * Global state
    */
-  const queryLoading = useAppStore((state) => state.queryRunning);
-  const appStatus = useAppStore((state) => state.appStatus);
-  const activeTab = useAppStore((state) => state.activeTab);
-
-  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
-  const editorValue = useEditorStore((state) => state.editorValue);
-  const lastQueryDirty = useEditorStore((state) => state.lastQueryDirty);
-
-  /**
-   * Local state
-   */
-  const [renaming, { open: openRename, close: closeRename }] = useDisclosure(false);
-  const [newItemName, setNewName] = useState('');
-  const [itemIdBufferValue, setItemIdBufferValue] = useState<string | null>(null);
-
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
   const { mutateAsync: createTab } = useTabMutation();
   const { data: queryFiles = [] } = useQueryFilesQuery();
@@ -53,6 +35,15 @@ export const QueryExplorer = memo(() => {
   const { mutateAsync: deleteTabs } = useTabsDeleteMutation();
   const { mutateAsync: deleteQueryFile } = useDeleteQueryFilesMutation();
   const { mutateAsync: switchTab } = useSetActiveTabMutation();
+  const { mutateAsync: onRenameDataSource } = useRenameQueryFileMutation();
+  const appStatus = useAppStore((state) => state.appStatus);
+
+  /**
+   * Local state
+   */
+  const [renaming, { open: openRename, close: closeRename }] = useDisclosure(false);
+  const [newItemName, setNewName] = useState('');
+  const [itemIdBufferValue, setItemIdBufferValue] = useState<string | null>(null);
 
   /**
    * Consts
@@ -82,23 +73,21 @@ export const QueryExplorer = memo(() => {
   /**
    * Common handlers
    */
-
   const saveCurrentQuery = async () => {
-    if (activeTab?.mode === 'query' && lastQueryDirty) {
-      await onSaveEditor({ content: editorValue, path: activeTab.path });
-      setLastQueryDirty(false);
-    }
+    // if (activeTab?.mode === 'query' && lastQueryDirty) {
+    //   await onSaveEditor({ content: editorValue, path: activeTab.path });
+    //   setLastQueryDirty(false);
+    // }
   };
 
-  const handleSetQuery = async (path: string) => {
-    if (activeTab?.path === path) return;
+  const handleSetQuery = async (sourceId: string) => {
     await saveCurrentQuery();
 
-    const tabExists = tabsList.find((tab) => tab.sourceId === path);
-    const queryFile = queryFiles.find((query) => query.id === path);
+    const tabExists = tabsList.find((tab) => tab.sourceId === sourceId);
+    const queryFile = queryFiles.find((query) => query.id === sourceId);
 
     if (!queryFile) {
-      throw new Error(`Query file with id ${path} not found`);
+      throw new Error(`Query file with id ${sourceId} not found`);
     }
 
     if (tabExists) {
@@ -109,7 +98,7 @@ export const QueryExplorer = memo(() => {
         name: queryFile.name,
         type: 'query',
         active: true,
-        stable: false,
+        stable: true,
         state: 'pending',
         query: {
           state: 'pending',
@@ -143,9 +132,6 @@ export const QueryExplorer = memo(() => {
         },
       });
     }
-
-    onOpenQuery(path);
-    onTabSwitch({ path, mode: 'query' });
   };
 
   const handleAddQuery = async () => {
@@ -206,8 +192,12 @@ export const QueryExplorer = memo(() => {
    * Rename query handlers
    */
   const handleRenameSubmit = async () => {
-    await onRenameDataSource(itemIdBufferValue!, newItemName);
-
+    if (itemIdBufferValue) {
+      await onRenameDataSource({
+        name: newItemName,
+        id: itemIdBufferValue!,
+      });
+    }
     closeRename();
   };
 
@@ -304,7 +294,6 @@ export const QueryExplorer = memo(() => {
         list={queriesList}
         menuItems={menuItems}
         onItemClick={handleSetQuery}
-        disabled={queryLoading}
         activeItemKey={tabsList.find((tab) => tab.active)?.sourceId || ''}
         loading={appStatus === 'initializing'}
         onActiveCloseClick={handleDeleteTab}

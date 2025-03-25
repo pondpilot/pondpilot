@@ -2,7 +2,6 @@ import { memo, useCallback, useEffect, useMemo } from 'react';
 
 import { Allotment } from 'allotment';
 import { useAppContext } from '@features/app-context';
-import { useAppStore } from '@store/app-store';
 import { useClipboard, useDebouncedState, useHotkeys, useLocalStorage } from '@mantine/hooks';
 import { usePaginationStore } from '@store/pagination-store';
 import { QueryEditor } from '@features/query-editor';
@@ -22,15 +21,22 @@ import { Table } from '@components/table/table';
 import { IconChevronDown, IconClipboardSmile, IconCopy } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { formatNumber } from '@utils/helpers';
-import { Table as ApacheTable } from 'apache-arrow';
+import { Table as ApacheTable, tableFromIPC } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
+import { useTabQuery } from '@store/app-idb-store';
 import { PaginationControl, StartGuide, TableLoadingOverlay } from './components';
 import { useTableSort } from './hooks/useTablePaginationSort';
 import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
 
-export const DataViewer = memo(() => {
+interface TabViewProps {
+  id: string;
+}
+
+export const TabView = memo(({ id }: TabViewProps) => {
+  const { data: tab } = useTabQuery(id);
+
   /**
    * Common hooks
    */
@@ -46,11 +52,12 @@ export const DataViewer = memo(() => {
   /**
    * Store access
    */
-  const queryResults: ApacheTable<any> | null = useAppStore((state) => state.queryResults);
-  const queryView = useAppStore((state) => state.queryView);
-  const queryRunning = useAppStore((state) => state.queryRunning);
-  const activeTab = useAppStore((state) => state.activeTab);
-  const originalQuery = useAppStore((state) => state.originalQuery);
+  const queryResults: ApacheTable<any> | null | undefined = tab?.dataView.data
+    ? tableFromIPC(tab?.dataView.data)
+    : null;
+  const queryRunning = tab?.query.state === 'fetching';
+  const queryView = tab?.type === 'query';
+  const activeTab = tab?.active;
 
   const rowCount = usePaginationStore((state) => state.rowsCount);
   const limit = usePaginationStore((state) => state.limit);
@@ -95,7 +102,7 @@ export const DataViewer = memo(() => {
           .map((col) => `"${col}"`);
 
         const result: ApacheTable<any> = await executeQuery(
-          `SELECT ${selectedCols.join(', ')} FROM (${originalQuery})`,
+          `SELECT ${selectedCols.join(', ')} FROM (${tab?.query.originalQuery})`,
         );
 
         const data = result.toArray().map((row) => row.toJSON());
@@ -127,7 +134,7 @@ export const DataViewer = memo(() => {
         });
       }
     },
-    [activeTab, originalQuery],
+    [activeTab, tab?.query.originalQuery],
   );
   useHotkeys([['Alt+Q', onCancel]]);
   useEffect(() => {
@@ -147,7 +154,7 @@ export const DataViewer = memo(() => {
               columnsCount={convertedTable.columns.length}
               rowsCount={rowCount}
               hasTableData={hasTableData}
-              id="123"
+              id={id}
             />
           </Allotment.Pane>
         )}
@@ -263,4 +270,4 @@ export const DataViewer = memo(() => {
   );
 });
 
-DataViewer.displayName = 'DataViewer';
+TabView.displayName = 'TabView';

@@ -2,7 +2,7 @@ import { TabsPane } from '@features/tabs-pane';
 import { useAllTabsQuery, useTabMutation } from '@store/app-idb-store';
 import { useCreateQueryFileMutation } from '@store/app-idb-store/useEditorFileQuery';
 import { useEffect } from 'react';
-import { TabView } from '@features/data-viewer';
+import { TabView } from '@features/tab-view';
 import { useTabCache } from './useTabCache';
 
 /**
@@ -15,14 +15,6 @@ export const DataView = () => {
 
   // Use our cache with maximum size of 10 tabs
   const { addToCache, isTabCached } = useTabCache(10);
-
-  // Initialize: add active tab to cache
-  useEffect(() => {
-    const activeTab = tabs.find((tab) => tab.active);
-    if (activeTab) {
-      addToCache(activeTab.id);
-    }
-  }, [tabs.map((tab) => tab.active).join(','), addToCache]);
 
   // Create a new query tab
   const onCreateQueryTab = async () => {
@@ -71,6 +63,14 @@ export const DataView = () => {
       },
     });
   };
+
+  // Initialize: add active tab to cache
+  useEffect(() => {
+    const activeTab = tabs.find((tab) => tab.active);
+    if (activeTab) {
+      addToCache(activeTab.id);
+    }
+  }, [tabs.map((tab) => tab.active).join(','), addToCache]);
 
   return (
     <>

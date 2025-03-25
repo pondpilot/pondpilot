@@ -137,8 +137,9 @@ export const useSetActiveTabMutation = () => {
 
       return tabId;
     },
-    onSuccess: () => {
+    onSuccess: (tabId: string) => {
       queryClient.invalidateQueries({ queryKey: ['tabs'] });
+      queryClient.invalidateQueries({ queryKey: ['tab', tabId] });
     },
   });
 };

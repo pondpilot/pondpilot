@@ -1,7 +1,5 @@
 /* eslint-disable jsx-a11y/click-events-have-key-events */
-import { useAppContext } from '@features/app-context';
-import { TabModel } from '@features/app-context/models';
-import { ScrollArea, Group, Skeleton, Text, ActionIcon, Box } from '@mantine/core';
+import { ScrollArea, Group, Skeleton, Text, ActionIcon, Box, Loader } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@store/app-store';
@@ -36,21 +34,23 @@ import { getArrowTableSchema } from '@utils/arrow/helpers';
 import { useAppNotifications } from '@components/app-notifications';
 import {
   TabMetaInfo,
+  tabStoreApi,
   useAllTabsQuery,
   useSetActiveTabMutation,
   useTabMutation,
   useTabsDeleteMutation,
   useTabsReorderMutation,
 } from '@store/app-idb-store';
+import { tableFromIPC } from 'apache-arrow';
 
 interface SortableTabProps {
   tab: TabMetaInfo;
   activeTab: TabMetaInfo | undefined;
   icon: React.ReactNode;
   activeTabRef: React.RefObject<HTMLDivElement | null>;
-  onTabUpdate: (tab: TabModel) => void;
   handleDeleteTab: (id: string) => void;
   onClick: (tab: string) => void;
+  loading: boolean;
 }
 
 const SortableTab = ({
@@ -60,6 +60,7 @@ const SortableTab = ({
   handleDeleteTab,
   onClick,
   icon,
+  loading,
 }: SortableTabProps) => {
   const { mutateAsync: onTabUpdate } = useTabMutation();
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tab.id });
@@ -108,7 +109,7 @@ const SortableTab = ({
       >
         <Group gap={2} className="justify-between w-full">
           <Group gap={4}>
-            {icon}
+            {loading ? <Loader size={10} /> : icon}
             <Text maw={110} truncate="end" className={cn(!tab.stable && 'italic', 'select-none')}>
               {tab.name}
             </Text>
@@ -137,7 +138,6 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
   /**
    * Common hooks
    */
-  const { onTabUpdate } = useAppContext();
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -159,22 +159,12 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
   const { mutateAsync: setActiveTab } = useSetActiveTabMutation();
   const { mutateAsync: onDeleteTabs } = useTabsDeleteMutation();
 
-  // const setQueryView = useAppStore((state) => state.setQueryView);
-  // const setCurrentQuery = useAppStore((state) => state.setCurrentQuery);
-  // const setQueryResults = useAppStore((state) => state.setQueryResults);
-  // const setCurrentView = useAppStore((state) => state.setCurrentView);
-  // const setTabs = useAppStore((state) => state.setTabs);
   const appStatus = useAppStore((state) => state.appStatus);
-  const queryView = useAppStore((state) => state.queryView);
-  const queryResults = useAppStore((state) => state.queryResults);
   const sessionFiles = useAppStore((state) => state.sessionFiles);
-
-  // const editorValue = useEditorStore((state) => state.editorValue);
-  // const lastQueryDirty = useEditorStore((state) => state.lastQueryDirty);
-  // const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
 
   const appInitializing = appStatus === 'initializing';
   const activeTab = tabs.find((tab) => tab.active);
+  const isEditorView = activeTab?.type === 'query';
 
   /**
    * Local state
@@ -234,15 +224,6 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
 
     setIsUserTabChange(true);
     await setActiveTab(id);
-    // if (tab.mode === 'view') {
-    //   onOpenView(tab.path);
-    // }
-    // if (tab.mode === 'query') {
-    //   setCurrentView(null);
-    //   setQueryResults(null);
-    //   setQueryView(true);
-    //   setCurrentQuery(tab.path);
-    // }
   };
 
   const handleAddQuery = async () => {
@@ -250,7 +231,13 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
     onAddTabClick();
   };
 
-  const handleCopyToClipboard = () => {
+  //TODO: Move to a separate file / hook
+  const handleCopyToClipboard = async () => {
+    if (!activeTab) return;
+
+    const tabData = await tabStoreApi.getTab(activeTab?.id);
+    const queryResults = tabData?.dataView.data ? tableFromIPC(tabData?.dataView.data) : null;
+
     if (!queryResults) return;
 
     if (!queryResults || queryResults.numRows === 0) return { columns: [], data: [] };
@@ -303,10 +290,6 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
     setIsUserTabChange(false);
   }, [activeTab]);
 
-  // if (!tabs.length) {
-  //   return null;
-  // }
-
   useEffect(() => {
     // Only update localTabs if they're different from the current tabs
     // This prevents unnecessary re-renders
@@ -349,9 +332,9 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
                     tab={tab}
                     activeTab={activeTab}
                     activeTabRef={activeTabRef}
-                    onTabUpdate={onTabUpdate}
                     handleDeleteTab={handleDeleteTab}
                     onClick={handleTabClick}
+                    loading={tab.query.state === 'fetching'}
                     icon={getIcon('query')}
                   />
                 ))}
@@ -364,7 +347,7 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
           </ActionIcon>
         </div>
       </ScrollArea>
-      {!queryView && (
+      {!isEditorView && (
         <Group className=" bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark h-full px-4">
           <ActionIcon size={16} onClick={handleCopyToClipboard}>
             <IconCopy />

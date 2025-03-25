@@ -5,7 +5,7 @@ import { SortModel } from '@store/pagination-store';
 import { useClipboard, useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { replaceSpecialChars } from '@utils/helpers';
 import { useAppNotifications } from '@components/app-notifications';
-import { CalculateColumnSummaryProps } from '@features/data-viewer/hooks';
+import { CalculateColumnSummaryProps } from '@features/tab-view/hooks';
 import { ResultColumn } from '@utils/arrow/helpers';
 import { TableCell, TableHeadCell } from './components';
 import { useTableColumns, useTableSelection } from './hooks';

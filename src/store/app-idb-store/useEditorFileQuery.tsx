@@ -60,6 +60,7 @@ export const useRenameQueryFileMutation = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['queryFile', data.id] });
       queryClient.invalidateQueries({ queryKey: ['queryFiles'] });
+      queryClient.invalidateQueries({ queryKey: ['tabs'] });
     },
   });
 };
