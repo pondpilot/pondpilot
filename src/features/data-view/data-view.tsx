@@ -3,6 +3,7 @@ import { useAllTabsQuery, useTabMutation } from '@store/app-idb-store';
 import { useCreateQueryFileMutation } from '@store/app-idb-store/useEditorFileQuery';
 import { useEffect } from 'react';
 import { TabView } from '@features/tab-view';
+import { Stack } from '@mantine/core';
 import { useTabCache } from './useTabCache';
 
 /**
@@ -73,7 +74,7 @@ export const DataView = () => {
   }, [tabs.map((tab) => tab.active).join(','), addToCache]);
 
   return (
-    <>
+    <Stack gap={0} className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark">
       <TabsPane onAddTabClick={onCreateQueryTab} />
 
       {tabs.map((tab) => {
@@ -92,6 +93,6 @@ export const DataView = () => {
         }
         return null;
       })}
-    </>
+    </Stack>
   );
 };
