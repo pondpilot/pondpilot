@@ -267,6 +267,7 @@ export const DataViewer = memo(() => {
             outOf={outOf}
             onPrevPage={onPrevPage}
             onNextPage={onNextPage}
+            data-testid="data-table-pagination-control"
           />
         </div>
       )}
