@@ -32,7 +32,6 @@ interface AppContextType {
   onCancelQuery: (v?: string) => Promise<void>;
   onOpenView: (name: string) => Promise<void>;
   onOpenQuery: (queryName: string) => Promise<void>;
-  exportFilesAsArchive: () => Promise<Blob | null | undefined>;
   importSQLFiles: () => Promise<void>;
   executeQuery: (query: string) => Promise<any>;
 }
@@ -61,13 +60,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
    */
   const setCurrentView = useAppStore((state) => state.setCurrentView);
   const setViews = useAppStore((state) => state.setViews);
-  const setTabs = useAppStore((state) => state.setTabs);
   const setQueries = useAppStore((state) => state.setQueries);
   const setQueryRunning = useAppStore((state) => state.setQueryRunning);
   const setQueryResults = useAppStore((state) => state.setQueryResults);
   const setCurrentQuery = useAppStore((state) => state.setCurrentQuery);
   const setAppStatus = useAppStore((state) => state.setAppStatus);
-  const setActiveTab = useAppStore((state) => state.setActiveTab);
   const setQueryView = useAppStore((state) => state.setQueryView);
   const setOriginalQuery = useAppStore((state) => state.setOriginalQuery);
   const setCachedResults = useAppStore((state) => state.setCachedResults);
@@ -703,7 +700,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     onCancelQuery,
     onOpenView,
     onOpenQuery,
-    exportFilesAsArchive,
     importSQLFiles,
     executeQuery,
   };
