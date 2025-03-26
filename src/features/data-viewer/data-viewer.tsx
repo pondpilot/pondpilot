@@ -24,12 +24,12 @@ import { cn } from '@utils/ui/styles';
 import { Table as ApacheTable } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
-import { formatNumber } from '@utils/helpers';
 import { setDataTestId } from '@utils/test-id';
 import { PaginationControl, StartGuide, TableLoadingOverlay } from './components';
 import { useTableSort } from './hooks/useTablePaginationSort';
 import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
+import { formatNumber } from '@utils/helpers';
 
 export const DataViewer = memo(() => {
   /**
@@ -78,14 +78,6 @@ export const DataViewer = memo(() => {
    * Consts
    */
   const isSinglePage = rowCount <= limit;
-  const startItem = rowCount > 0 ? (currentPage - 1) * limit + 1 : 0;
-  const endItem = Math.min(currentPage * limit, rowCount);
-  const outOf =
-    rowCount > 0
-      ? !isSinglePage
-        ? `${formatNumber(startItem)}-${formatNumber(endItem)} out of ${formatNumber(rowCount)}`
-        : `${formatNumber(rowCount)} rows`
-      : '0 rows';
   const hasTableData = !!convertedTable.data.length && !!convertedTable.columns.length;
 
   const onSelectedColsCopy = useCallback(
@@ -220,7 +212,7 @@ export const DataViewer = memo(() => {
                     </>
                   ) : (
                     <Text c="text-secondary" className="text-sm font-medium">
-                      {convertedTable.columns.length} columns, {rowCount} rows
+                      {convertedTable.columns.length} columns, {formatNumber(rowCount)} rows
                     </Text>
                   )}
                 </Group>
@@ -263,7 +255,13 @@ export const DataViewer = memo(() => {
           className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
           data-testid={setDataTestId('data-table-pagination-control')}
         >
-          <PaginationControl outOf={outOf} onPrevPage={onPrevPage} onNextPage={onNextPage} />
+          <PaginationControl
+            currentPage={currentPage}
+            limit={limit}
+            rowCount={rowCount}
+            onPrevPage={onPrevPage}
+            onNextPage={onNextPage}
+          />
         </div>
       )}
     </div>
