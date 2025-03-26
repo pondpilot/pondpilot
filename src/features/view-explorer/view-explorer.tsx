@@ -38,10 +38,10 @@ export const ViewExplorer = memo(() => {
   /**
    * Consts
    */
-  const viewsToDisplay = views.map((view) => ({
-    value: view,
-    label: view,
-    nodeProps: { canSelect: true, id: view },
+  const viewsToDisplay = views.map(({ view_name }) => ({
+    value: view_name,
+    label: view_name,
+    nodeProps: { canSelect: true, id: view_name },
   }));
 
   /**

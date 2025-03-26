@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Table } from 'apache-arrow';
 import { SessionFiles } from '@features/app-context/models';
-import { Limit, DataBaseModel, CodeEditor } from '@models/common';
+import { Limit, DataBaseModel, CodeEditor, DuckDBView } from '@models/common';
 import { SortModel } from './pagination-store';
 
 interface CachedPaginationValue {
@@ -21,7 +21,7 @@ interface AppStateModel {
   cachedResults: Record<string, Table | null>;
   cachedPagination: Record<string, CachedPaginationValue | null>;
 
-  views: string[];
+  views: DuckDBView[];
   sessionFiles: SessionFiles | null;
 
   queries: CodeEditor[];
@@ -30,7 +30,7 @@ interface AppStateModel {
   currentQuery: string | null;
   originalQuery: string;
   appStatus: AppStatus;
-  setViews: (v: string[]) => void;
+  setViews: (v: DuckDBView[]) => void;
   setDatabases: (v: DataBaseModel[]) => void;
   setQueryView: (v: boolean) => void;
   setCurrentView: (v: string | null) => void;

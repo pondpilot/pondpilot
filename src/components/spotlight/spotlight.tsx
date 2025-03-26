@@ -122,12 +122,12 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const viewActions: Action[] = views.map((view) => ({
-    id: view,
-    label: view,
-    icon: getIcon(view),
+  const viewActions: Action[] = views.map(({ view_name }) => ({
+    id: view_name,
+    label: view_name,
+    icon: getIcon(view_name),
     handler: () => {
-      onOpenView(view);
+      onOpenView(view_name);
       // onTabSwitch({
       //   path: view,
       //   mode: 'view',

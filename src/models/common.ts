@@ -151,3 +151,20 @@ export interface TableSort {
   column: string;
   order: SortOrder;
 }
+
+export interface DuckDBView {
+  database_name: string;
+  schema_name: string;
+  view_name: string;
+  sql: string;
+  comment: string;
+}
+
+export interface DuckDBDatabase {
+  database_name: string;
+  path: string;
+  comment: string;
+  internal: boolean;
+  type: string;
+  readonly: string;
+}

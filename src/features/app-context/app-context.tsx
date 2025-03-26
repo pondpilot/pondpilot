@@ -9,7 +9,7 @@ import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { createName } from '@utils/helpers';
-import { AddDataSourceProps } from '@models/common';
+import { AddDataSourceProps, DuckDBDatabase, DuckDBView } from '@models/common';
 import {
   fileHandleStoreApi,
   useAddFileHandlesMutation,
@@ -257,7 +257,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       // Ensure necessary proxies are initialized
       if (!dbProxyRef.current || !proxyRef.current) throw new Error('Proxy not initialized');
-      const currentSources = await proxyRef.current.getFileSystemSources();
 
       // Create a cancelation signal to support cancelable queries
       const signal = getSignal();
@@ -276,7 +275,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         runQueryProps: queryProps,
         dbProxyRef,
         isCancelledPromise,
-        currentSources,
+        currentSources: dataSources,
       });
 
       // Set the original query in the state for later reference
@@ -299,7 +298,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           .map((row) => row.toJSON().database_name);
 
         // Identify unused resources and clean them up
-        const filesToDelete = currentSources?.sources.filter(
+        const filesToDelete = dataSources.filter(
           (source) =>
             source.kind === 'DATASET' &&
             !viewsNames.includes(source.name) &&
@@ -316,7 +315,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Filter out unused views and update the state
         const filteredViews = viewsNames.filter((view) =>
-          currentSources?.sources.some((source) => source.name === view),
+          dataSources?.some((source) => source.name === view),
         );
 
         // If the current view is deleted, reset it
@@ -330,7 +329,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         setDatabases(transformedTables);
         setViews(filteredViews);
         setRowsCount(queryResults.pagination);
-        // setQueryResults(tableFromIPC(queryResults.data));
         return {
           data: queryResults.data,
           pagination: queryResults.pagination,
@@ -614,41 +612,27 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       /**
        * Get views and databases from the database
        */
-      const dbExternalViews = tableFromIPC(
+      const dbExternalViews: DuckDBView[] = tableFromIPC(
         await dbProxyRef.current.getDBUserInstances('views').catch((e) => {
           showError({ title: 'App context: Failed to get views', message: e.message });
           return [];
         }),
       )
         .toArray()
-        .map((row) => row.toJSON().view_name);
+        .map((row) => row.toJSON());
 
-      const duckdbDatabases = tableFromIPC(
+      const duckdbDatabases: string[] = tableFromIPC(
         await dbProxyRef.current.getDBUserInstances('databases').catch((e) => {
           showError({ title: 'App context: Failed to get databases', message: e.message });
           return [];
         }),
       )
         .toArray()
-        .map((row) => row.toJSON().database_name);
+        .map((row) => (row.toJSON() as DuckDBDatabase).database_name);
 
-      const initViews = dbExternalViews.filter((name) =>
-        sessionFiles?.some((source) => source.name === name),
+      const initViews = dbExternalViews.filter((view) =>
+        sessionFiles?.some((source) => (view.comment || '').includes(source.id)),
       );
-
-      /**
-      // TODO: Implement delete tabs using idb API
-       * Delete tabs that are not in the session
-       */
-      // const viewsTabsToDelete = viewsTabs.filter(
-      //   (tab) => !sessionFiles?.sources.some((source) => source.name === tab.path),
-      // );
-      // const queriesTabsToDelete = queriesTabs.filter(
-      //   (tab) => !sessionFiles?.editors.some((editor) => editor.path === tab.path),
-      // );
-      // if (viewsTabsToDelete.length || queriesTabsToDelete.length) {
-      //   await deltabs([...viewsTabsToDelete, ...queriesTabsToDelete]);
-      // }
 
       const transformedTables = await updateDatabasesWithColumns(
         dbProxyRef.current,
