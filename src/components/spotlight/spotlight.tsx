@@ -29,6 +29,7 @@ import { cn } from '@utils/ui/styles';
 import { useModifier } from '@hooks/useModifier';
 import { useNavigate } from 'react-router-dom';
 import { useEditorStore } from '@store/editor-store';
+import { setDataTestId } from '@utils/test-id';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
@@ -334,7 +335,7 @@ export const SpotlightMenu = () => {
   const renderActions = (actions: Action[]) =>
     actions.map((action) => (
       <Spotlight.Action
-        data-testid={`spotlight-action-${action.id}`}
+        data-testid={setDataTestId(`spotlight-action-${action.id}`)}
         disabled={action.disabled}
         key={action.id}
         onClick={action.handler}
@@ -520,7 +521,7 @@ export const SpotlightMenu = () => {
       >
         <SpotlightBreadcrumbs currentView={spotlightView} onNavigate={setSpotlightView} />
         <Spotlight.Search
-          data-testid="spotlight-search"
+          data-testid={setDataTestId('spotlight-search')}
           ref={searchInputRef}
           value={searchValue}
           onKeyDown={handleSpotlightKeyPress}
@@ -532,7 +533,7 @@ export const SpotlightMenu = () => {
             wrapper: 'mb-2',
           }}
         />
-        <Spotlight.ActionsList data-testid="spotlight-menu">
+        <Spotlight.ActionsList data-testid={setDataTestId('spotlight-menu')}>
           {spotlightView === 'home' && !searchValue.endsWith('?') && (
             <Group gap={4} c="text-secondary" className="px-4 text-sm mb-4">
               Type{' '}

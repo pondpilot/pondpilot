@@ -1,23 +1,31 @@
 import { expect, mergeTests } from '@playwright/test';
-import { GET_TABLE_WITH_SPECIAL_CHARS_COLUMNS } from './consts';
+import { COLUMN_NAMES_WITH_SPECIAL_CHARS } from './consts';
 import { test as baseTest } from '../fixtures/page';
 import { test as explorerTest } from '../fixtures/explorer';
 import { test as tabTest } from '../fixtures/tab';
 import { test as spotlightTest } from '../fixtures/spotlight';
 import { test as queryEditorTest } from '../fixtures/query-editor';
+import { test as dataViewTest, getDataCellContainer, getHeaderCell } from '../fixtures/data-view';
 
-const test = mergeTests(baseTest, explorerTest, tabTest, queryEditorTest, spotlightTest);
+const test = mergeTests(
+  baseTest,
+  explorerTest,
+  tabTest,
+  queryEditorTest,
+  spotlightTest,
+  dataViewTest,
+);
 
 test('Create and run simple query', async ({
   createQueryAndSwitchToItsTab,
   fillQuery,
   runQuery,
-  page,
+  assertDataTableMatches,
 }) => {
   await createQueryAndSwitchToItsTab();
   await fillQuery('select 1');
   await runQuery();
-  await expect(page.getByTestId('cell-1-0')).toHaveText('1');
+  await assertDataTableMatches({ 1: [1] });
 });
 
 test('Close and reopen query', async ({
@@ -25,48 +33,48 @@ test('Close and reopen query', async ({
   fillQuery,
   closeActiveTab,
   openQueryFromExplorer,
-  page,
+  queryEditorContent,
 }) => {
   await createQueryAndSwitchToItsTab();
   await fillQuery('select 1');
   await closeActiveTab();
   await openQueryFromExplorer('query.sql');
-  await expect(page.locator('.cm-content')).toContainText('select 1');
+  await expect(queryEditorContent).toContainText('select 1');
 });
 
 test('Switch between tabs using tabs pane', async ({
   createQueryAndSwitchToItsTab,
   fillQuery,
   switchToTab,
-  page,
+  queryEditorContent,
 }) => {
   await createQueryAndSwitchToItsTab();
   await fillQuery('select 1');
   await createQueryAndSwitchToItsTab();
-  await expect(page.locator('.cm-content')).toContainText('');
+  await expect(queryEditorContent).toContainText('');
   await switchToTab('query.sql');
-  await expect(page.locator('.cm-content')).toContainText('select 1');
+  await expect(queryEditorContent).toContainText('select 1');
 });
 
 test('Switch between tabs using query explorer', async ({
   createQueryAndSwitchToItsTab,
   fillQuery,
   openQueryFromExplorer,
-  page,
+  queryEditorContent,
 }) => {
   await createQueryAndSwitchToItsTab();
   await fillQuery('select 1');
   await createQueryAndSwitchToItsTab();
-  await expect(page.locator('.cm-content')).toContainText('');
+  await expect(queryEditorContent).toContainText('');
   await openQueryFromExplorer('query.sql');
-  await expect(page.locator('.cm-content')).toContainText('select 1');
+  await expect(queryEditorContent).toContainText('select 1');
 });
 
 test('Create two queries with different content and switch between them', async ({
   createQueryAndSwitchToItsTab,
   fillQuery,
   switchToTab,
-  page,
+  queryEditorContent,
 }) => {
   // Create and fill first query
   await createQueryAndSwitchToItsTab();
@@ -78,18 +86,18 @@ test('Create two queries with different content and switch between them', async 
 
   // Switch back to first query and verify content
   await switchToTab('query.sql');
-  await expect(page.locator('.cm-content')).toContainText('select 1 as first_query');
+  await expect(queryEditorContent).toContainText('select 1 as first_query');
 
   // Switch back to second query and verify content
   await switchToTab('query_1.sql');
-  await expect(page.locator('.cm-content')).toContainText('select 2 as second_query');
+  await expect(queryEditorContent).toContainText('select 2 as second_query');
 });
 
 test('Create queries using spotlight menu', async ({
   createQueryViaSpotlight,
   fillQuery,
   switchToTab,
-  page,
+  queryEditorContent,
 }) => {
   // Create first query via spotlight
   await createQueryViaSpotlight();
@@ -101,21 +109,22 @@ test('Create queries using spotlight menu', async ({
 
   // Switch to first query and verify content
   await switchToTab('query.sql');
-  await expect(page.locator('.cm-content')).toContainText('select 3 as spotlight_query_1');
+  await expect(queryEditorContent).toContainText('select 3 as spotlight_query_1');
 
   // Switch to second query and verify content
   await switchToTab('query_1.sql');
-  await expect(page.locator('.cm-content')).toContainText('select 4 as spotlight_query_2');
+  await expect(queryEditorContent).toContainText('select 4 as spotlight_query_2');
 });
 
 test('Autocomplete converts keywords to uppercase', async ({
   createQueryAndSwitchToItsTab,
   page,
+  queryEditorContent,
 }) => {
   await createQueryAndSwitchToItsTab();
 
   // Type 'select' in the editor
-  const editor = page.locator('.cm-content');
+  const editor = queryEditorContent;
   await editor.pressSequentially('select');
 
   // Wait for autocomplete to appear and check it's visible
@@ -137,32 +146,46 @@ test('Header cell width matches data cell width for special character columns', 
   createQueryAndSwitchToItsTab,
   fillQuery,
   runQuery,
-  page,
+  waitForDataTable,
+  assertDataTableMatches,
 }) => {
   // Create a new query
   await createQueryAndSwitchToItsTab();
-  // Fill the query with the special character columns query
-  await fillQuery(GET_TABLE_WITH_SPECIAL_CHARS_COLUMNS);
+  // Fill the query with the special character columns query.
+  // We have to create a table, because of some duckdb-wasm bug that causes `;` to
+  // to disappear from column name when running plain select query.
+  const queryText = `CREATE OR REPLACE TABLE test_table AS
+    SELECT ${COLUMN_NAMES_WITH_SPECIAL_CHARS.map(
+      (columnName, index) => `${index} as "${columnName.replace(/"/g, '""')}"`,
+    ).join(', ')};
+    SELECT * FROM test_table;`;
+
+  await fillQuery(queryText);
   // Run the query
   await runQuery();
-  // Wait for table to be fully rendered
-  await page.getByTestId('result-table').waitFor({ state: 'visible' });
 
-  // Get all header cells
-  const headerCells = page.getByTestId('thead-cell');
-  const headerCount = await headerCells.count();
+  // Wait for the data table to be visible
+  const dataTable = await waitForDataTable();
 
-  // Verify we have header cells
-  expect(headerCount).toBeGreaterThan(0);
+  // Validate the data table
+  await assertDataTableMatches({
+    ...COLUMN_NAMES_WITH_SPECIAL_CHARS.reduce(
+      (acc, columnName, index) => ({
+        ...acc,
+        [columnName]: [index],
+      }),
+      {},
+    ),
+  });
 
-  // For each header cell, check if its width matches the corresponding data cell
-  for (let i = 0; i < headerCount; i += 1) {
+  // For each column name, get corresponding header cell and data container in the first row
+  // and check if its width matches the corresponding data cell
+  for (const columnName of COLUMN_NAMES_WITH_SPECIAL_CHARS) {
     // Get the current header cell
-    const headerCell = headerCells.nth(i);
-    await expect(headerCell).toBeVisible();
+    const headerCell = getHeaderCell(dataTable, columnName);
 
     // Get the corresponding data cell in the first row
-    const dataCell = page.getByTestId('table-cell').nth(i);
+    const dataCell = getDataCellContainer(dataTable, columnName, 0);
     await expect(dataCell).toBeVisible();
 
     // Get bounding boxes for both cells

@@ -7,6 +7,7 @@ import { HotkeyPill } from '@components/hotkey-pill';
 import { useModifier } from '@hooks/useModifier';
 import { SpotlightMenu } from '@components/spotlight';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { setDataTestId } from '@utils/test-id';
 
 export const Header = memo(() => {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export const Header = memo(() => {
         </Group>
         <Group>
           <TextInput
-            data-testid="spotlight-trigger-input"
+            data-testid={setDataTestId('spotlight-trigger-input')}
             className="cursor-pointer"
             classNames={{
               input: cn(

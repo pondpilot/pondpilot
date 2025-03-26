@@ -7,6 +7,7 @@ import {
   IconArrowBigUp,
   IconArrowBack,
 } from '@tabler/icons-react';
+import { setDataTestId } from '@utils/test-id';
 
 interface RunQueryButtonProps {
   disabled?: boolean;
@@ -30,7 +31,7 @@ export const RunQueryButton = ({ disabled, handleRunQuery }: RunQueryButtonProps
         onClick={() => handleRunQuery(defaultOption)}
         className="px-3 min-w-20 font-normal"
         color="background-accent"
-        data-testid="run-query-button"
+        data-testid={setDataTestId('run-query-button')}
       >
         {buttonText}
       </Button>

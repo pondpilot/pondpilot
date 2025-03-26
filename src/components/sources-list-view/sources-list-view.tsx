@@ -15,6 +15,7 @@ import {
 } from '@mantine/core';
 import { useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { IconDotsVertical, IconX } from '@tabler/icons-react';
+import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -400,7 +401,7 @@ export const SourcesListView = ({
                   return (
                     <div
                       {...node.elementProps}
-                      data-testid={`query-list-item-${node.node.value}`}
+                      data-testid={setDataTestId(`query-list-item-${node.node.value}`)}
                       className={cn(
                         node.elementProps.className,
                         itemClasses.base,
@@ -420,7 +421,9 @@ export const SourcesListView = ({
                           <Popover opened={!!renameInputError}>
                             <Popover.Target>
                               <TextInput
-                                data-testid={`query-list-item-${node.node.value}-rename-input`}
+                                data-testid={setDataTestId(
+                                  `query-list-item-${node.node.value}-rename-input`,
+                                )}
                                 value={renameValue}
                                 onChange={onRenameChange}
                                 onKeyDown={(event) => {

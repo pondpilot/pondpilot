@@ -34,6 +34,7 @@ import {
 import { getArrowTableSchema } from '@utils/arrow/helpers';
 import { useAppNotifications } from '@components/app-notifications';
 import { useEditorStore } from 'store/editor-store';
+import { setDataTestId } from '@utils/test-id';
 
 interface SortableTabProps {
   tab: TabModel;
@@ -106,7 +107,7 @@ const SortableTab = ({
             </Text>
           </Group>
           <ActionIcon
-            data-testid="close-tab-button"
+            data-testid={setDataTestId('close-tab-button')}
             onClick={(e) => {
               e.stopPropagation();
               handleDeleteTab(tab);
@@ -326,7 +327,7 @@ export const TabsPane = memo(() => {
               items={tabs.map((tab) => tab.id)}
               strategy={horizontalListSortingStrategy}
             >
-              <div className="flex items-center h-9" data-testid="tabs-list">
+              <div className="flex items-center h-9" data-testid={setDataTestId('tabs-list')}>
                 {tabs.map((tab) => (
                   <SortableTab
                     key={tab.id}

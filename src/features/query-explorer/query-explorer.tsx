@@ -7,6 +7,7 @@ import { memo, useState } from 'react';
 import { useAppStore } from '@store/app-store';
 import { IconCode, IconPlus } from '@tabler/icons-react';
 import { useEditorStore } from '@store/editor-store';
+import { setDataTestId } from '@utils/test-id';
 
 export const QueryExplorer = memo(() => {
   /**
@@ -188,7 +189,7 @@ export const QueryExplorer = memo(() => {
           <Divider orientation="vertical" />
           {actions.map((action) => (
             <ActionIcon
-              data-testid="add-query-button"
+              data-testid={setDataTestId('add-query-button')}
               onClick={action.onClick}
               size={16}
               key={action.label}

@@ -12,16 +12,16 @@ import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { Spotlight } from '@mantine/spotlight';
 import { formatNumber } from '@utils/helpers';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
+import { setDataTestId } from '@utils/test-id';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
 interface QueryEditorProps {
   columnsCount: number;
   rowsCount: number;
-  hasTableData: boolean;
 }
 
-export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEditorProps) => {
+export const QueryEditor = ({ columnsCount, rowsCount }: QueryEditorProps) => {
   /**
    * Common hooks
    */
@@ -60,6 +60,8 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
     [duckdbNamespace, sqlNamespace],
   );
 
+  const [queryExecuted, setQueryExecuted] = useState(false);
+
   /**
    * Handlers
    */
@@ -91,8 +93,10 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
     setCurrentPage(1);
     setOriginalQuery('');
     setQueryRunning(true);
+    setQueryExecuted(false);
     await context.runQuery({ query: queryToRun });
     setQueryRunning(false);
+    setQueryExecuted(true);
   };
 
   const handleQuerySave = async () => {
@@ -113,6 +117,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
 
   const onSqlEditorChange = (value: string | undefined) => {
     setEditorValue(value || '');
+    setQueryExecuted(false);
     if (value !== currentQueryData?.content) {
       handleEditorValueChange();
       setLastQueryDirty(true);
@@ -151,7 +156,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
               Processing Query...
             </Text>
           )}
-          {hasTableData && !queryRunning && (
+          {queryExecuted && !queryRunning && (
             <>
               <Text c="text-success" className="text-sm font-medium">
                 Query ran successfully.
@@ -164,7 +169,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, hasTableData }: QueryEdit
         </Group>
         <RunQueryButton disabled={queryRunning} handleRunQuery={handleRunQuery} />
       </Group>
-      <Group className="h-[calc(100%-40px)]" data-testid="query-editor">
+      <Group className="h-[calc(100%-40px)]" data-testid={setDataTestId('query-editor')}>
         <SqlEditor
           onBlur={handleQuerySave}
           ref={editorRef}

@@ -4,6 +4,7 @@ import { Cell, flexRender } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
 import { memo } from 'react';
 import { replaceSpecialChars } from '@utils/helpers';
+import { setDataTestId } from '@utils/test-id';
 
 interface TableCellProps {
   cell: Cell<any, unknown>;
@@ -33,7 +34,7 @@ export const TableCell = memo(
 
     return (
       <div
-        data-testid="table-cell"
+        data-testid={setDataTestId(`data-table-cell-container-${cell.column.id}-${cell.row.index}`)}
         className={cn(
           'whitespace-nowrap overflow-hidden border-transparent select-none',
           'border-r border-borderLight-light dark:border-borderLight-dark first:border-l ',
