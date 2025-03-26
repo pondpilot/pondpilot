@@ -25,11 +25,11 @@ import { Table as ApacheTable } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { setDataTestId } from '@utils/test-id';
+import { formatNumber } from '@utils/helpers';
 import { PaginationControl, StartGuide, TableLoadingOverlay } from './components';
 import { useTableSort } from './hooks/useTablePaginationSort';
 import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
-import { formatNumber } from '@utils/helpers';
 
 export const DataViewer = memo(() => {
   /**
