@@ -151,7 +151,7 @@ export const tabStoreApi = {
 };
 
 export const fileHandleStoreApi = {
-  addDataSources: async (data: AddDataSourceProps): Promise<void> => {
+  addFileHandles: async (data: AddDataSourceProps): Promise<void> => {
     const db = await dbPromise;
     const tx = db.transaction('file-handles-store', 'readwrite');
 
@@ -170,7 +170,7 @@ export const fileHandleStoreApi = {
     await tx.done;
   },
 
-  getDataSources: async (): Promise<Dataset[]> => {
+  getFileHandles: async (): Promise<Dataset[]> => {
     const db = await dbPromise;
     const allKeys = await db.getAllKeys('file-handles-store');
     const sources: Dataset[] = [];
@@ -201,7 +201,7 @@ export const fileHandleStoreApi = {
     return sources;
   },
 
-  onDeleteDataSource: async (ids: string[]): Promise<void> => {
+  deleteFileHandles: async (ids: string[]): Promise<void> => {
     const db = await dbPromise;
     const tx = db.transaction('file-handles-store', 'readwrite');
 

@@ -3,7 +3,7 @@ import { Allotment } from 'allotment';
 import { useAppContext } from '@features/app-context';
 import { useHotkeys, useLocalStorage } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
-import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
+import { useUploadFileHandles } from '@hooks/useUploadFileHandles';
 import { DataView } from '@features/data-view/data-view';
 import { useCreateQueryFileMutation } from '@store/app-idb-store';
 import { Navbar } from './components';
@@ -13,7 +13,7 @@ export const MainPage = () => {
    * Common hooks
    */
   const { importSQLFiles } = useAppContext();
-  const { handleAddSource } = useFileHandlers();
+  const { handleAddSource } = useUploadFileHandles();
   const { colorScheme } = useMantineColorScheme();
   const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({ key: 'layout-sizes' });
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();

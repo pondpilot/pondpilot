@@ -2,7 +2,7 @@ import { getSupportedMimeType } from '@utils/helpers';
 import { useAppContext } from '@features/app-context';
 import { useAppNotifications } from '@components/app-notifications';
 
-export const useFileHandlers = () => {
+export const useUploadFileHandles = () => {
   const { onAddDataSources } = useAppContext();
   const { showError } = useAppNotifications();
 

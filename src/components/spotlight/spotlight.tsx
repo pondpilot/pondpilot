@@ -21,7 +21,7 @@ import {
   IconJson,
   IconTable,
 } from '@tabler/icons-react';
-import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
+import { useUploadFileHandles } from '@hooks/useUploadFileHandles';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@store/app-store';
 import { HotkeyPill } from '@components/hotkey-pill';
@@ -48,7 +48,7 @@ export const SpotlightMenu = () => {
    */
   const { importSQLFiles, onOpenQuery, onOpenView } = useAppContext();
   const { setColorScheme } = useMantineColorScheme();
-  const { handleAddSource } = useFileHandlers();
+  const { handleAddSource } = useUploadFileHandles();
   const { command, option } = useModifier();
   const navigate = useNavigate();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();

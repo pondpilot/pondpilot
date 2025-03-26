@@ -5,14 +5,17 @@ import { tableFromIPC } from 'apache-arrow';
 import { usePaginationStore } from '@store/pagination-store';
 import { useAppNotifications } from '@components/app-notifications';
 import { useAbortController } from '@hooks/useAbortController';
-import { openDB } from 'idb';
 import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { createName } from '@utils/helpers';
 import { AddDataSourceProps } from '@models/common';
-import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
-import { useCreateMultipleQueryFilesMutation } from '@store/app-idb-store';
+import {
+  fileHandleStoreApi,
+  useAddFileHandlesMutation,
+  useCreateMultipleQueryFilesMutation,
+  useFileHandlesQuery,
+} from '@store/app-idb-store';
 import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
 import { useShowPermsAlert, useWorkersRefs } from './hooks';
 import { executeQueries, updateDatabasesWithColumns } from './utils';
@@ -54,6 +57,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
    * Query state
    */
   const { mutateAsync: createMultipleQueryFiles } = useCreateMultipleQueryFilesMutation();
+  const { mutateAsync: addSource } = useAddFileHandlesMutation();
+  const { data: dataSources = [] } = useFileHandlesQuery();
 
   /**
    * Store access
@@ -69,7 +74,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const setOriginalQuery = useAppStore((state) => state.setOriginalQuery);
   const setCachedResults = useAppStore((state) => state.setCachedResults);
   const setDatabases = useAppStore((state) => state.setDatabases);
-  const setSessionFiles = useAppStore((state) => state.setSessionFiles);
 
   const setCachedPagination = useAppStore((state) => state.setCachedPagination);
   const queries = useAppStore((state) => state.queries);
@@ -175,14 +179,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (entries.length === 0) throw new Error('No data sources selected');
       if (!proxyRef.current || !dbProxyRef.current) throw new Error('Proxy not initialized');
 
-      const db = await openDB(FILE_HANDLE_DB_NAME, 1);
-      const allKeys = await db.getAllKeys(FILE_HANDLE_STORE_NAME);
-      const items: FileSystemFileHandle[] = await Promise.all(
-        allKeys.map(async (key) => db.get(FILE_HANDLE_STORE_NAME, key)),
-      );
-
       const onlyNewEntries = entries.filter(({ entry }) => {
-        const exists = items.some((item) => item.name === entry.name);
+        const exists = dataSources.some((item) => item.name === entry.name);
         return !exists;
       });
 
@@ -196,21 +194,17 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       /**
        * Register file handle in the navigator
        */
-      const sources = await proxyRef.current.onAddDataSource({
-        entries: onlyNewEntries,
-      });
+      await addSource(entries);
 
       await Promise.all(
-        sources.map((source) =>
-          dbProxyRef.current
-            ?.registerFileHandleAndCreateDBInstance(source.handle.name, source.handle)
-            .catch((e) => {
-              console.error('Failed to register file handle in the database', e, { source });
-              proxyRef.current?.onDeleteDataSource({
-                paths: [source.path],
-                type: 'dataset',
-              });
-            }),
+        dataSources.map((source) =>
+          dbProxyRef.current?.registerFileHandleAndCreateDBInstance(source).catch((e) => {
+            console.error('Failed to register file handle in the database', e, { source });
+            proxyRef.current?.onDeleteDataSource({
+              paths: [source.path],
+              type: 'dataset',
+            });
+          }),
         ),
       );
 
@@ -236,7 +230,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         duckdbDatabases,
       );
 
-      setSessionFiles(sessionFiles);
       setDatabases(transformedTables);
       setViews(newViews);
     } catch (e) {
@@ -529,7 +522,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       /**
        * Get list of files in the session
        */
-      const sessionFiles = await proxyRef.current.getFileSystemSources().catch((e) => {
+      const sessionFiles = await fileHandleStoreApi.getFileHandles().catch((e) => {
         showError({ title: 'App context: Failed to get session files', message: e.message });
         return null;
       });
@@ -537,9 +530,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       /**
        * Check if the files are available for reading. Request permission if necessary
        */
-      if (sessionFiles?.sources) {
+      if (sessionFiles) {
         const statuses = await Promise.all(
-          sessionFiles.sources.map(async (source) => {
+          sessionFiles.map(async (source) => {
             const status = await verifyPermission(source.handle);
             return status;
           }),
@@ -552,7 +545,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             return;
           }
           await Promise.all(
-            sessionFiles.sources.map(async (source) => {
+            sessionFiles.map(async (source) => {
               await source.handle.requestPermission({ mode: 'read' });
             }),
           );
@@ -562,7 +555,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
          * It is necessary to check if the file is available for reading. Application can't work with files that are not available (deleted, moved, renamed, etc.)
          */
         const checkedFiles = await Promise.all(
-          sessionFiles.sources.map(async (source) => {
+          sessionFiles.map(async (source) => {
             try {
               await source.handle.getFile();
               return {
@@ -594,25 +587,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         await Promise.all(
-          sessionFiles.sources
+          sessionFiles
             .filter((source) =>
               availableFiles.some(
                 (file) => file.source.path === source.path && file.status === 'success',
               ),
             )
             .map(async (source) =>
-              dbProxy
-                .registerFileHandleAndCreateDBInstance(source.handle.name, source.handle)
-                .catch((e) => {
-                  proxyRef.current?.onDeleteDataSource({
-                    paths: [source.path],
-                    type: 'dataset',
-                  });
-                  showError({
-                    title: 'App context: Error registering file handle in the database',
-                    message: e.message,
-                  });
-                }),
+              dbProxy.registerFileHandleAndCreateDBInstance(source).catch((e) => {
+                proxyRef.current?.onDeleteDataSource({
+                  paths: [source.path],
+                  type: 'dataset',
+                });
+                showError({
+                  title: 'App context: Error registering file handle in the database',
+                  message: e.message,
+                });
+              }),
             ),
         ).catch((e) => {
           console.error(e);
@@ -642,7 +633,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         .map((row) => row.toJSON().database_name);
 
       const initViews = dbExternalViews.filter((name) =>
-        sessionFiles?.sources?.some((source) => source.name === name),
+        sessionFiles?.some((source) => source.name === name),
       );
 
       /**
@@ -667,10 +658,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       /**
        * Set the initial state of the application
        */
-      setSessionFiles(sessionFiles);
       setViews(initViews);
       setDatabases(transformedTables);
-      setQueries(sessionFiles?.editors ?? []);
       setAppStatus('ready');
     };
 

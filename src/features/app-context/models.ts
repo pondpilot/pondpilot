@@ -1,4 +1,4 @@
-import { AddDataSourceProps, AppStateModel } from '@models/common';
+import { AddDataSourceProps, AppStateModel, Dataset } from '@models/common';
 import { tableToIPC } from 'apache-arrow';
 
 export interface DBRunQueryProps {
@@ -30,10 +30,7 @@ export type AddDataSourceBase = {
 export interface DBWorkerAPIType {
   initDB: () => Promise<void>;
   runQuery: ({ query, hasLimit }: DBRunQueryProps) => Promise<RunQueryResponse>;
-  registerFileHandleAndCreateDBInstance: (
-    fileName: string,
-    handle: FileSystemFileHandle,
-  ) => Promise<void>;
+  registerFileHandleAndCreateDBInstance: (dataset: Dataset) => Promise<void>;
   dropFilesAndDBInstances: (paths: string[], type: 'database' | 'view') => Promise<void>;
   getDBUserInstances: (type: 'databases' | 'views') => Promise<Uint8Array>;
   getTablesAndColumns: (database?: string, schema?: string) => Promise<Uint8Array<ArrayBufferLike>>;

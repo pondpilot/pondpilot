@@ -2,7 +2,6 @@ import { EditorState } from '@uiw/react-codemirror';
 import { PostgreSQL, sql } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
 import { tableFromIPC } from 'apache-arrow';
-import { createName } from '@utils/helpers';
 import { DataBaseModel } from '@models/common';
 import { splitSqlQuery } from '../../utils/editor/statement-parser';
 import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse, SessionFiles } from './models';
@@ -228,18 +227,6 @@ const executeStatement = async ({
     }),
     isCancelledPromise,
   ]);
-
-/**
- * Generates a SQL query to create or replace a view with the app prefix.
- *
- * @param {string} fileName - The name of the file with extension.
- * @returns {string} The SQL query to create or replace the view.
- */
-export const getCreateViewQuery = (fileName: string): string => {
-  const viewName = createName(fileName);
-
-  return `CREATE or REPLACE VIEW ${viewName} AS SELECT * FROM "${fileName}";`;
-};
 
 export const buildColumnsQueryWithFilters = (
   database_name?: string,

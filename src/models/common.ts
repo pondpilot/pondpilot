@@ -56,7 +56,7 @@ export type Dataset = {
   handle: FileSystemFileHandle;
   path: string;
   name: string;
-  id?: string;
+  id: string;
 };
 
 // ---------- Code Ext files ----------- //
