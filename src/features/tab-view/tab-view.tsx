@@ -2,9 +2,7 @@ import { memo, useCallback, useEffect, useMemo } from 'react';
 
 import { Allotment } from 'allotment';
 import { useAppContext } from '@features/app-context';
-import { useAppStore } from '@store/app-store';
-import { useClipboard, useDebouncedState, useHotkeys, useLocalStorage } from '@mantine/hooks';
-import { usePaginationStore } from '@store/pagination-store';
+import { useClipboard, useDebouncedState, useHotkeys } from '@mantine/hooks';
 import { QueryEditor } from '@features/query-editor';
 import { getArrowTableSchema } from '@utils/arrow/helpers';
 import {
@@ -22,21 +20,24 @@ import { Table } from '@components/table/table';
 import { IconChevronDown, IconClipboardSmile, IconCopy } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { formatNumber } from '@utils/helpers';
-import { Table as ApacheTable } from 'apache-arrow';
+import { Table as ApacheTable, tableFromIPC } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
+import { useTabMutation, useTabQuery } from '@store/app-idb-store';
 import { PaginationControl, StartGuide, TableLoadingOverlay } from './components';
-import { useTableSort } from './hooks/useTablePaginationSort';
+import { useTablePaginationSort } from './hooks/useTablePaginationSort';
 import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
 
-export const DataViewer = memo(() => {
+export const TabView = memo(({ id }: { id: string }) => {
+  const { data: tab } = useTabQuery(id);
+  const { mutateAsync: updateTab } = useTabMutation();
+
   /**
    * Common hooks
    */
   const { onCancelQuery, executeQuery } = useAppContext();
-  const [panelSize, setPanelSize] = useLocalStorage<number[]>({ key: 'main-panel-sizes' });
-  const { onNextPage, onPrevPage, handleSort } = useTableSort();
+  const { onNextPage, onPrevPage, handleSort } = useTablePaginationSort();
   const { handleCopyToClipboard, exportTableToCSV } = useTableExport();
   const { showSuccess } = useAppNotifications();
   const clipboard = useClipboard();
@@ -46,16 +47,22 @@ export const DataViewer = memo(() => {
   /**
    * Store access
    */
-  const queryResults: ApacheTable<any> | null = useAppStore((state) => state.queryResults);
-  const queryView = useAppStore((state) => state.queryView);
-  const queryRunning = useAppStore((state) => state.queryRunning);
-  const activeTab = useAppStore((state) => state.activeTab);
-  const originalQuery = useAppStore((state) => state.originalQuery);
+  const queryResults: ApacheTable<any> | null | undefined = tab?.dataView.data
+    ? tableFromIPC(tab?.dataView.data)
+    : null;
+  const queryRunning = tab?.query.state === 'fetching';
+  const queryView = tab?.type === 'query';
+  const activeTab = tab?.active;
 
-  const rowCount = usePaginationStore((state) => state.rowsCount);
-  const limit = usePaginationStore((state) => state.limit);
-  const currentPage = usePaginationStore((state) => state.currentPage);
-  const sort = usePaginationStore((state) => state.sort);
+  const { editorPaneHeight = 0, dataViewPaneHeight = 0 } = tab?.layout ?? {};
+  const { rowCount, limit, currentPage } = useMemo(
+    () => ({
+      rowCount: tab?.pagination.count ?? 0,
+      limit: tab?.pagination.limit ?? 100,
+      currentPage: tab?.pagination.page ?? 1,
+    }),
+    [tab?.pagination],
+  );
 
   /**
    * Local state
@@ -95,7 +102,7 @@ export const DataViewer = memo(() => {
           .map((col) => `"${col}"`);
 
         const result: ApacheTable<any> = await executeQuery(
-          `SELECT ${selectedCols.join(', ')} FROM (${originalQuery})`,
+          `SELECT ${selectedCols.join(', ')} FROM (${tab?.query.originalQuery})`,
         );
 
         const data = result.toArray().map((row) => row.toJSON());
@@ -127,8 +134,22 @@ export const DataViewer = memo(() => {
         });
       }
     },
-    [activeTab, originalQuery],
+    [activeTab, tab?.query.originalQuery],
   );
+
+  const setPanelSize = ([editor, table]: number[]) => {
+    if (tab) {
+      updateTab({
+        id: tab.id,
+        layout: {
+          ...tab.layout,
+          editorPaneHeight: editor,
+          dataViewPaneHeight: table,
+        },
+      });
+    }
+  };
+
   useHotkeys([['Alt+Q', onCancel]]);
   useEffect(() => {
     if (queryRunning) {
@@ -140,17 +161,22 @@ export const DataViewer = memo(() => {
 
   return (
     <div className="h-full relative">
-      <Allotment vertical onDragEnd={setPanelSize} defaultSizes={panelSize}>
+      <Allotment
+        vertical
+        onDragEnd={setPanelSize}
+        defaultSizes={[editorPaneHeight, dataViewPaneHeight]}
+      >
         {queryView && (
-          <Allotment.Pane preferredSize={panelSize?.[0]} minSize={200}>
+          <Allotment.Pane preferredSize={editorPaneHeight} minSize={200}>
             <QueryEditor
               columnsCount={convertedTable.columns.length}
               rowsCount={rowCount}
               hasTableData={hasTableData}
+              id={id}
             />
           </Allotment.Pane>
         )}
-        <Allotment.Pane preferredSize={panelSize?.[1]} minSize={120}>
+        <Allotment.Pane preferredSize={dataViewPaneHeight} minSize={120}>
           {!hasTableData && !queryRunning && activeTab && (
             <Center className="h-full font-bold">
               <Stack align="center" c="icon-default" gap={4}>
@@ -226,7 +252,7 @@ export const DataViewer = memo(() => {
                   data={convertedTable.data}
                   columns={convertedTable.columns}
                   onSort={handleSort}
-                  sort={sort}
+                  sort={tab?.sort}
                   onSelectedColsCopy={onSelectedColsCopy}
                   onColumnSelectChange={calculateColumnSummary}
                   onRowSelectChange={resetTotal}
@@ -262,4 +288,4 @@ export const DataViewer = memo(() => {
   );
 });
 
-DataViewer.displayName = 'DataViewer';
+TabView.displayName = 'TabView';

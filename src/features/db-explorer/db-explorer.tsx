@@ -5,6 +5,7 @@ import { memo } from 'react';
 import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
 import { SYSTEM_DUCKDB_SHEMAS } from '@features/editor/auto-complete';
+import { useCreateQueryFileMutation } from '@store/app-idb-store';
 import { getDBIconByType } from './utils';
 
 /**
@@ -14,9 +15,10 @@ export const DbExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const { onDeleteDataSource, onCreateQueryFile } = useAppContext();
+  const { onDeleteDataSource } = useAppContext();
   const clipboard = useClipboard();
   const { showSuccess } = useAppNotifications();
+  const { mutate: createQueryFile } = useCreateQueryFileMutation();
 
   /**
    * Store access
@@ -84,13 +86,9 @@ export const DbExplorer = memo(() => {
               ? `SELECT * FROM ${item.label}.data;`
               : `SELECT * FROM ${item.value.replaceAll('/', '.')};`;
 
-            onCreateQueryFile({
-              entities: [
-                {
-                  name: `${item.label}_query`,
-                  content: query,
-                },
-              ],
+            createQueryFile({
+              name: `${item.label}_query`,
+              content: query,
             });
           },
         },

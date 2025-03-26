@@ -5,7 +5,11 @@ import { useClipboard } from '@mantine/hooks';
 import { memo, useCallback } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { IconCsv, IconJson, IconTable } from '@tabler/icons-react';
-import { useEditorStore } from '@store/editor-store';
+import {
+  useAllTabsQuery,
+  useCreateQueryFileMutation,
+  useTabsDeleteMutation,
+} from '@store/app-idb-store';
 
 /**
  * Displays a list of views
@@ -14,16 +18,11 @@ export const ViewExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const {
-    onDeleteDataSource,
-    onOpenView,
-    onTabSwitch,
-    onCreateQueryFile,
-    onDeleteTabs,
-    onSaveEditor,
-  } = useAppContext();
+  const { onDeleteDataSource, onOpenView } = useAppContext();
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
+  const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
+  const { mutateAsync: deleteTabs } = useTabsDeleteMutation();
 
   /**
    * Store access
@@ -32,42 +31,39 @@ export const ViewExplorer = memo(() => {
   const queryLoading = useAppStore((state) => state.queryRunning);
   const currentView = useAppStore((state) => state.currentView);
   const appStatus = useAppStore((state) => state.appStatus);
-  const activeTab = useAppStore((state) => state.activeTab);
-  const tabs = useAppStore((state) => state.tabs);
+  const { data: tabs = [] } = useAllTabsQuery();
+  const activeTab = tabs.find((t) => t.active);
   const sessionFiles = useAppStore((state) => state.sessionFiles);
-
-  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
-  const editorValue = useEditorStore((state) => state.editorValue);
-  const lastQueryDirty = useEditorStore((state) => state.lastQueryDirty);
 
   /**
    * Consts
    */
-  const viewsToDisplay = views.map((view) => ({
-    value: view,
-    label: view,
-    nodeProps: { canSelect: true, id: view },
+  const viewsToDisplay = views.map(({ view_name }) => ({
+    value: view_name,
+    label: view_name,
+    nodeProps: { canSelect: true, id: view_name },
   }));
 
   /**
    * Handlers
    */
   const saveCurrentQuery = async () => {
-    if (lastQueryDirty && activeTab?.mode === 'query') {
-      await onSaveEditor({ content: editorValue, path: activeTab.path });
-      setLastQueryDirty(false);
-    }
+    // TODO: Implement saving of the query file
+    // if (lastQueryDirty && activeTab?.mode === 'query') {
+    //   await onSaveEditor({ content: editorValue, path: activeTab.path });
+    //   setLastQueryDirty(false);
+    // }
   };
 
   const openView = async (viewName: string) => {
-    if (activeTab?.path === viewName) return;
+    if (activeTab?.sourceId === viewName) return;
     await saveCurrentQuery();
 
     onOpenView(viewName);
-    onTabSwitch({
-      path: viewName,
-      mode: 'view',
-    });
+    // onTabSwitch({
+    //   path: viewName,
+    //   mode: 'view',
+    // });
   };
 
   const handleDeleteSelected = async (items: string[]) => {
@@ -83,13 +79,9 @@ export const ViewExplorer = memo(() => {
         {
           label: 'Create a query',
           onClick: (item) => {
-            onCreateQueryFile({
-              entities: [
-                {
-                  name: `${item.label}_query`,
-                  content: `SELECT * FROM ${item.label};`,
-                },
-              ],
+            createQueryFile({
+              name: `${item.label}_query`,
+              content: `SELECT * FROM ${item.label};`,
             });
           },
         },
@@ -117,9 +109,9 @@ export const ViewExplorer = memo(() => {
   ];
 
   const handleDeleteTab = async (id: string) => {
-    const tab = tabs.find((t) => t.path === id);
+    const tab = tabs.find((t) => t.sourceId === id);
     if (tab) {
-      onDeleteTabs([tab]);
+      deleteTabs([tab.id]);
     }
   };
 

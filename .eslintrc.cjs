@@ -10,5 +10,9 @@ module.exports = {
     'no-promise-executor-return': 'off',
     'no-console': ['error', { allow: ['warn', 'error'] }],
     'no-continue': 'off',
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+    ],
   },
 };

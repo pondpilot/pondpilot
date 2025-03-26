@@ -1,8 +1,9 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { tableToIPC } from 'apache-arrow';
 import { expose } from 'comlink';
+import { Dataset } from '@models/common';
 import { createName } from '../../utils/helpers';
-import { buildColumnsQueryWithFilters, getCreateViewQuery } from './utils';
+import { buildColumnsQueryWithFilters } from './utils';
 import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
 import { GET_DBS_SQL_QUERY, GET_VIEWS_SQL_QUERY } from './consts';
 
@@ -101,10 +102,9 @@ async function getTablesAndColumns(database_name?: string, schema_name?: string)
  * @param fileName - Name of the file
  * @param handle - File handle
  */
-async function registerFileHandleAndCreateDBInstance(
-  fileName: string,
-  handle: FileSystemFileHandle,
-) {
+async function registerFileHandleAndCreateDBInstance(dataset: Dataset) {
+  const fileName = dataset.handle.name;
+  const { handle } = dataset;
   const conn = await db?.connect();
   const formatSupported = ['.csv', '.parquet', '.duckdb', '.json', '.xlsx'].some((ext) =>
     fileName.endsWith(ext),
@@ -131,7 +131,10 @@ async function registerFileHandleAndCreateDBInstance(
   if (fileName.endsWith('.duckdb')) {
     await conn.query(`ATTACH '${fileName}' AS ${createName(fileName)} (READ_ONLY); `);
   } else {
-    await conn.query(getCreateViewQuery(fileName));
+    const viewName = createName(fileName);
+
+    await conn.query(`CREATE or REPLACE VIEW ${viewName} AS SELECT * FROM "${fileName}";`);
+    await conn.query(`COMMENT ON VIEW ${viewName} IS 'sourceId=${dataset.id}';`);
   }
 
   await conn.close();

@@ -1,8 +1,8 @@
 import { useAppNotifications } from '@components/app-notifications';
-import { useAppContext } from '@features/app-context';
 import { Text, Modal, Stack, Button, Group } from '@mantine/core';
 import { openDB } from 'idb';
 import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
+import { exportQueryFiles } from '@utils/exportData';
 import { clearFileSystem } from './utils';
 
 interface SettingsModalProps {
@@ -20,7 +20,6 @@ export const SettingsModal = ({
   onConfirmOpen,
   onConfirmClose,
 }: SettingsModalProps) => {
-  const { exportFilesAsArchive } = useAppContext();
   const { showError } = useAppNotifications();
 
   const onClearClick = () => {
@@ -34,7 +33,7 @@ export const SettingsModal = ({
   };
 
   const downloadArchive = async () => {
-    const archiveBlob = await exportFilesAsArchive();
+    const archiveBlob = await exportQueryFiles();
     if (archiveBlob) {
       const link = document.createElement('a');
       link.href = URL.createObjectURL(archiveBlob);

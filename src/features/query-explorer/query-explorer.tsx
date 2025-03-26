@@ -2,41 +2,42 @@ import { useAppNotifications } from '@components/app-notifications';
 import { MenuItem, SourcesListView } from '@components/sources-list-view';
 import { ActionIcon, Divider, Group, Text } from '@mantine/core';
 import { useClipboard, useDisclosure } from '@mantine/hooks';
-import { useAppContext } from '@features/app-context';
 import { memo, useState } from 'react';
 import { useAppStore } from '@store/app-store';
 import { IconCode, IconPlus } from '@tabler/icons-react';
-import { useEditorStore } from '@store/editor-store';
+import {
+  useCreateQueryFileMutation,
+  useDeleteQueryFilesMutation,
+  useQueryFilesQuery,
+  useRenameQueryFileMutation,
+} from '@store/app-idb-store/useEditorFileQuery';
+import {
+  useAllTabsQuery,
+  useSetActiveTabMutation,
+  useTabMutation,
+  useTabsDeleteMutation,
+} from '@store/app-idb-store';
+import { getFileNameWithExt } from '@utils/helpers';
 
 export const QueryExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const {
-    onCreateQueryFile,
-    onDeleteDataSource,
-    onRenameDataSource,
-    onOpenQuery,
-    onTabSwitch,
-    onDeleteTabs,
-    onSaveEditor,
-  } = useAppContext();
   const { showSuccess } = useAppNotifications();
   const { copy } = useClipboard();
 
   /**
    * Global state
    */
-  const queries = useAppStore((state) => state.queries);
-  const queryLoading = useAppStore((state) => state.queryRunning);
-  const currentQuery = useAppStore((state) => state.currentQuery);
+  const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
+  const { mutateAsync: mutateTab } = useTabMutation();
+  const { data: queryFiles = [] } = useQueryFilesQuery();
+  const { data: tabsList = [] } = useAllTabsQuery();
+  const { mutateAsync: deleteTabs } = useTabsDeleteMutation();
+  const { mutateAsync: deleteQueryFile } = useDeleteQueryFilesMutation();
+  const { mutateAsync: switchTab } = useSetActiveTabMutation();
+  const { mutateAsync: onRenameDataSource } = useRenameQueryFileMutation();
   const appStatus = useAppStore((state) => state.appStatus);
-  const activeTab = useAppStore((state) => state.activeTab);
-  const tabs = useAppStore((state) => state.tabs);
-
-  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
-  const editorValue = useEditorStore((state) => state.editorValue);
-  const lastQueryDirty = useEditorStore((state) => state.lastQueryDirty);
 
   /**
    * Local state
@@ -48,17 +49,17 @@ export const QueryExplorer = memo(() => {
   /**
    * Consts
    */
-  const queriesList = queries.map((query) => ({
-    value: query.path,
-    label: query.handle.name,
+  const queriesList = queryFiles.map((query) => ({
+    value: query.id,
+    label: getFileNameWithExt(query.name, query.ext),
     nodeProps: { canSelect: true },
   }));
   const textInputError = newItemName.length === 0 ? 'Name cannot be empty' : undefined;
-  const notUniqueError = queries.some((query) => {
-    if (itemIdBufferValue === query.path) return false;
+  const notUniqueError = queriesList.some((query) => {
+    if (itemIdBufferValue === query.value) return false;
 
-    const name = query.handle.name.split('.')[0];
-    return name === newItemName;
+    const name = query.label;
+    return name.toLowerCase() === newItemName.toLowerCase();
   })
     ? 'Name must be unique'
     : undefined;
@@ -73,32 +74,120 @@ export const QueryExplorer = memo(() => {
   /**
    * Common handlers
    */
-
   const saveCurrentQuery = async () => {
-    if (activeTab?.mode === 'query' && lastQueryDirty) {
-      await onSaveEditor({ content: editorValue, path: activeTab.path });
-      setLastQueryDirty(false);
+    // if (activeTab?.mode === 'query' && lastQueryDirty) {
+    //   await onSaveEditor({ content: editorValue, path: activeTab.path });
+    //   setLastQueryDirty(false);
+    // }
+  };
+
+  const handleSetQuery = async (sourceId: string) => {
+    await saveCurrentQuery();
+
+    const tab = tabsList.find((t) => t.sourceId === sourceId);
+    const queryFile = queryFiles.find((query) => query.id === sourceId);
+
+    if (!queryFile) {
+      throw new Error(`Query file with id ${sourceId} not found`);
+    }
+
+    if (tab) {
+      await switchTab(tab.id);
+    } else {
+      await mutateTab({
+        sourceId: queryFile.id,
+        name: queryFile.name,
+        type: 'query',
+        active: true,
+        stable: true,
+        state: 'pending',
+        query: {
+          state: 'pending',
+          originalQuery: '',
+        },
+        editor: {
+          value: '',
+          codeSelection: {
+            start: 0,
+            end: 0,
+          },
+          undoHistory: [],
+        },
+        layout: {
+          tableColumnWidth: {},
+          editorPaneHeight: 0,
+          dataViewPaneHeight: 0,
+        },
+        dataView: {
+          data: undefined,
+          rowCount: 0,
+          columnCount: 0,
+        },
+        pagination: {
+          page: 0,
+          limit: 0,
+          count: 0,
+        },
+        sort: {
+          column: '',
+          order: 'desc',
+        },
+      });
     }
   };
 
-  const handleSetQuery = async (path: string) => {
-    if (activeTab?.path === path) return;
-    await saveCurrentQuery();
-
-    onOpenQuery(path);
-    onTabSwitch({ path, mode: 'query' });
-  };
-
   const handleAddQuery = async () => {
-    await saveCurrentQuery();
-    onCreateQueryFile({ entities: [{ name: 'query' }] });
+    // await saveCurrentQuery();
+
+    const newQueryFile = await createQueryFile({
+      name: 'query',
+    });
+
+    mutateTab({
+      sourceId: newQueryFile.id,
+      name: getFileNameWithExt(newQueryFile.name, newQueryFile.ext),
+      type: 'query',
+      active: true,
+      stable: true,
+      state: 'pending',
+      query: {
+        state: 'pending',
+        originalQuery: '',
+      },
+      editor: {
+        value: '',
+        codeSelection: {
+          start: 0,
+          end: 0,
+        },
+        undoHistory: [],
+      },
+      layout: {
+        tableColumnWidth: {},
+        editorPaneHeight: 0,
+        dataViewPaneHeight: 0,
+      },
+      dataView: {
+        data: undefined,
+        rowCount: 0,
+        columnCount: 0,
+      },
+      pagination: {
+        page: 0,
+        limit: 0,
+        count: 0,
+      },
+      sort: {
+        column: '',
+        order: 'desc',
+      },
+    });
   };
 
   const handleDeleteTab = async (id: string) => {
-    const tab = tabs.find((t) => t.path === id);
+    const tab = tabsList.find((t) => t.sourceId === id);
     if (tab) {
-      await saveCurrentQuery();
-      onDeleteTabs([tab]);
+      await deleteTabs([tab.id]);
     }
   };
 
@@ -106,8 +195,19 @@ export const QueryExplorer = memo(() => {
    * Rename query handlers
    */
   const handleRenameSubmit = async () => {
-    await onRenameDataSource(itemIdBufferValue!, newItemName);
-
+    if (itemIdBufferValue) {
+      const updatedSource = await onRenameDataSource({
+        name: newItemName,
+        id: itemIdBufferValue!,
+      });
+      const tab = tabsList.find((t) => t.sourceId === itemIdBufferValue);
+      if (tab) {
+        await mutateTab({
+          id: tab.id,
+          name: updatedSource.name,
+        });
+      }
+    }
     closeRename();
   };
 
@@ -122,25 +222,25 @@ export const QueryExplorer = memo(() => {
   };
 
   const handleRenameClick = (id: string) => {
-    const queryToChange = queries.find((query) => query.path === id)!.handle.name;
-    setNewName(queryToChange.split('.')[0] || 'query-name');
+    const queryToChange = queriesList.find((query) => query.value === id)!.label;
+    setNewName(queryToChange || 'query');
     setItemIdBufferValue(id);
     openRename();
   };
 
   const handleDeleteSource = async (id: string) => {
-    onDeleteDataSource({
-      type: 'query',
-      paths: [id],
-    });
+    await handleDeleteTab(id);
+    await deleteQueryFile([id]);
   };
 
   const handleDeleteSelected = async (items: string[]) => {
     if (items.length) {
-      onDeleteDataSource({
-        paths: items,
-        type: 'query',
-      });
+      const tabsIdToDelete = tabsList
+        .filter((tab) => items.includes(tab.sourceId))
+        .map((tab) => tab.id);
+
+      await deleteTabs(tabsIdToDelete);
+      await deleteQueryFile(items);
     }
   };
 
@@ -164,7 +264,7 @@ export const QueryExplorer = memo(() => {
         },
         {
           label: 'Rename',
-          onClick: (item) => handleRenameClick(item.label),
+          onClick: (item) => handleRenameClick(item.value),
         },
       ],
     },
@@ -172,7 +272,7 @@ export const QueryExplorer = memo(() => {
       children: [
         {
           label: 'Delete',
-          onClick: (item) => handleDeleteSource(item.label),
+          onClick: (item) => handleDeleteSource(item.value),
         },
       ],
     },
@@ -204,8 +304,7 @@ export const QueryExplorer = memo(() => {
         list={queriesList}
         menuItems={menuItems}
         onItemClick={handleSetQuery}
-        disabled={queryLoading}
-        activeItemKey={currentQuery}
+        activeItemKey={tabsList.find((tab) => tab.active)?.sourceId || ''}
         loading={appStatus === 'initializing'}
         onActiveCloseClick={handleDeleteTab}
         renderIcon={() => <IconCode size={16} />}

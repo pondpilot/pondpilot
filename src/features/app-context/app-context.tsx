@@ -5,23 +5,18 @@ import { tableFromIPC } from 'apache-arrow';
 import { usePaginationStore } from '@store/pagination-store';
 import { useAppNotifications } from '@components/app-notifications';
 import { useAbortController } from '@hooks/useAbortController';
-import { openDB } from 'idb';
 import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { createName } from '@utils/helpers';
-import { AddDataSourceProps, SaveEditorProps } from '@models/common';
-import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
+import { AddDataSourceProps, DuckDBDatabase, DuckDBView } from '@models/common';
 import {
-  AddTabProps,
-  ChangeTabProps,
-  CreateQueryFileProps,
-  DBRunQueryProps,
-  DBWorkerAPIType,
-  OnSetOrderProps,
-  RunQueryResponse,
-  TabModel,
-} from './models';
+  fileHandleStoreApi,
+  useAddFileHandlesMutation,
+  useCreateMultipleQueryFilesMutation,
+  useFileHandlesQuery,
+} from '@store/app-idb-store';
+import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
 import { useShowPermsAlert, useWorkersRefs } from './hooks';
 import { executeQueries, updateDatabasesWithColumns } from './utils';
 import { SessionWorker } from './app-session-worker';
@@ -36,19 +31,11 @@ interface AppContextType {
     type: 'database' | 'query' | 'view';
     paths: string[];
   }) => Promise<void>;
-  onRenameDataSource: (oldPath: string, path: string) => Promise<void>;
-  onSaveEditor: (props: SaveEditorProps) => Promise<void>;
   runQuery: (runQueryProps: DBRunQueryProps) => Promise<RunQueryResponse | undefined>;
-  onCreateQueryFile: (v: CreateQueryFileProps) => Promise<void>;
   onCancelQuery: (v?: string) => Promise<void>;
-  onDeleteTabs: (tabs: TabModel[]) => Promise<void>;
-  onTabUpdate: (tab: TabModel) => Promise<void>;
   onOpenView: (name: string) => Promise<void>;
   onOpenQuery: (queryName: string) => Promise<void>;
-  onTabSwitch: (v: ChangeTabProps) => Promise<void>;
-  exportFilesAsArchive: () => Promise<Blob | null | undefined>;
   importSQLFiles: () => Promise<void>;
-  onSetTabsOrder: (v: OnSetOrderProps) => Promise<void>;
   executeQuery: (query: string) => Promise<any>;
 }
 
@@ -67,31 +54,31 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const [errortext, setErrorModalText] = useState('');
 
   /**
+   * Query state
+   */
+  const { mutateAsync: createMultipleQueryFiles } = useCreateMultipleQueryFilesMutation();
+  const { mutateAsync: addSource } = useAddFileHandlesMutation();
+  const { data: dataSources = [] } = useFileHandlesQuery();
+
+  /**
    * Store access
    */
   const setCurrentView = useAppStore((state) => state.setCurrentView);
   const setViews = useAppStore((state) => state.setViews);
-  const setTabs = useAppStore((state) => state.setTabs);
   const setQueries = useAppStore((state) => state.setQueries);
   const setQueryRunning = useAppStore((state) => state.setQueryRunning);
   const setQueryResults = useAppStore((state) => state.setQueryResults);
   const setCurrentQuery = useAppStore((state) => state.setCurrentQuery);
   const setAppStatus = useAppStore((state) => state.setAppStatus);
-  const activeTab = useAppStore((state) => state.activeTab);
-  const setActiveTab = useAppStore((state) => state.setActiveTab);
   const setQueryView = useAppStore((state) => state.setQueryView);
   const setOriginalQuery = useAppStore((state) => state.setOriginalQuery);
   const setCachedResults = useAppStore((state) => state.setCachedResults);
   const setDatabases = useAppStore((state) => state.setDatabases);
-  const setSessionFiles = useAppStore((state) => state.setSessionFiles);
 
   const setCachedPagination = useAppStore((state) => state.setCachedPagination);
   const queries = useAppStore((state) => state.queries);
   const currentView = useAppStore((state) => state.currentView);
-  const currentQuery = useAppStore((state) => state.currentQuery);
-  const tabsStore = useAppStore((state) => state.tabs);
   const cachedResults = useAppStore((state) => state.cachedResults);
-  const tabsState = useAppStore((state) => state.tabs);
   const cachedPagination = useAppStore((state) => state.cachedPagination);
 
   const setRowsCount = usePaginationStore((state) => state.setRowsCount);
@@ -174,44 +161,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
         setQueries(queries.filter((query) => !result?.paths.includes(query.path)));
       }
-
-      const idbTabs = await proxyRef.current.getTabs();
-      const tabsToDelete = idbTabs.filter((tab) => paths.includes(tab.path));
-
-      await onDeleteTabs(tabsToDelete);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unknown error';
       showError({ title: 'App context: Failed to delete sources', message });
       console.error('Failed to delete sources: ', e);
     }
-  };
-
-  const onRenameDataSource: AppContextType['onRenameDataSource'] = async (path, newPath) => {
-    if (!proxyRef.current) return;
-
-    const updatedItem = await proxyRef.current?.onRenameDataSource({
-      newPath,
-      path,
-    });
-
-    const updatedTab = tabsStore.find((tab) => tab.path === path);
-
-    if (updatedTab && updatedItem?.path) {
-      await proxyRef.current.updateTabState({
-        ...updatedTab,
-        path: updatedItem?.path,
-      });
-      const idbTabs = await proxyRef.current.getTabs();
-      setTabs(idbTabs);
-    }
-
-    if (currentQuery === path && updatedItem) {
-      setCurrentQuery(updatedItem.name);
-    }
-
-    const currentSources = await proxyRef.current.getFileSystemSources();
-
-    setQueries(currentSources?.editors ?? []);
   };
 
   /**
@@ -225,14 +179,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (entries.length === 0) throw new Error('No data sources selected');
       if (!proxyRef.current || !dbProxyRef.current) throw new Error('Proxy not initialized');
 
-      const db = await openDB(FILE_HANDLE_DB_NAME, 1);
-      const allKeys = await db.getAllKeys(FILE_HANDLE_STORE_NAME);
-      const items: FileSystemFileHandle[] = await Promise.all(
-        allKeys.map(async (key) => db.get(FILE_HANDLE_STORE_NAME, key)),
-      );
-
       const onlyNewEntries = entries.filter(({ entry }) => {
-        const exists = items.some((item) => item.name === entry.name);
+        const exists = dataSources.some((item) => item.name === entry.name);
         return !exists;
       });
 
@@ -246,21 +194,17 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       /**
        * Register file handle in the navigator
        */
-      const sources = await proxyRef.current.onAddDataSource({
-        entries: onlyNewEntries,
-      });
+      await addSource(entries);
 
       await Promise.all(
-        sources.map((source) =>
-          dbProxyRef.current
-            ?.registerFileHandleAndCreateDBInstance(source.handle.name, source.handle)
-            .catch((e) => {
-              console.error('Failed to register file handle in the database', e, { source });
-              proxyRef.current?.onDeleteDataSource({
-                paths: [source.path],
-                type: 'dataset',
-              });
-            }),
+        dataSources.map((source) =>
+          dbProxyRef.current?.registerFileHandleAndCreateDBInstance(source).catch((e) => {
+            console.error('Failed to register file handle in the database', e, { source });
+            proxyRef.current?.onDeleteDataSource({
+              paths: [source.path],
+              type: 'dataset',
+            });
+          }),
         ),
       );
 
@@ -286,53 +230,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         duckdbDatabases,
       );
 
-      setSessionFiles(sessionFiles);
       setDatabases(transformedTables);
       setViews(newViews);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unknown error';
       showError({ title: 'App context: Failed to add data source', message });
       console.error(e);
-    }
-  };
-
-  /**
-   * Add query to the session
-   */
-  const onCreateQueryFile = async ({ entities, openInNewTab }: CreateQueryFileProps) => {
-    if (!proxyRef.current) return;
-
-    try {
-      const newEditors = await Promise.all(
-        entities.map(async ({ name, content }) => proxyRef.current!.createQueryFile(name, content)),
-      );
-
-      const validEditors = newEditors.filter((editor) => editor !== null);
-
-      if (validEditors.length === 0) throw new Error('Failed to create queries');
-
-      const files = await Promise.all(validEditors.map((editor) => editor.handle.getFile()));
-      const contents = await Promise.all(files.map((file) => file.text()));
-
-      const newQueries = validEditors.map((editor, index) => ({
-        ...editor,
-        content: contents[index],
-      }));
-      const currentSources = await proxyRef.current.getFileSystemSources();
-
-      setQueries(currentSources?.editors ?? []);
-
-      await onOpenQuery(newQueries[0].path);
-      await onTabSwitch({
-        path: newQueries[0].path,
-        mode: 'query',
-        stable: true,
-        createNew: !!openInNewTab,
-      });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unknown error';
-      console.error('App context: Failed to create queries: ', e);
-      showError({ message, title: 'App context: Failed to create queries' });
     }
   };
 
@@ -354,7 +257,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       // Ensure necessary proxies are initialized
       if (!dbProxyRef.current || !proxyRef.current) throw new Error('Proxy not initialized');
-      const currentSources = await proxyRef.current.getFileSystemSources();
 
       // Create a cancelation signal to support cancelable queries
       const signal = getSignal();
@@ -373,7 +275,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         runQueryProps: queryProps,
         dbProxyRef,
         isCancelledPromise,
-        currentSources,
+        currentSources: dataSources,
       });
 
       // Set the original query in the state for later reference
@@ -396,7 +298,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           .map((row) => row.toJSON().database_name);
 
         // Identify unused resources and clean them up
-        const filesToDelete = currentSources?.sources.filter(
+        const filesToDelete = dataSources.filter(
           (source) =>
             source.kind === 'DATASET' &&
             !viewsNames.includes(source.name) &&
@@ -413,7 +315,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Filter out unused views and update the state
         const filteredViews = viewsNames.filter((view) =>
-          currentSources?.sources.some((source) => source.name === view),
+          dataSources?.some((source) => source.name === view),
         );
 
         // If the current view is deleted, reset it
@@ -427,7 +329,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         setDatabases(transformedTables);
         setViews(filteredViews);
         setRowsCount(queryResults.pagination);
-        setQueryResults(tableFromIPC(queryResults.data));
+        return {
+          data: queryResults.data,
+          pagination: queryResults.pagination,
+        };
       }
 
       return queryResults;
@@ -473,28 +378,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     abortSignal(reason);
     setQueryRunning(false);
   };
-  /**
-   * Save query
-   */
-  const onSaveEditor = async (props: SaveEditorProps) => {
-    if (!proxyRef.current) return;
-
-    try {
-      const result = await proxyRef.current.onSaveEditor(props);
-
-      if (result.error) throw result.error;
-
-      if (!result.handle) throw new Error('Failed to save editor');
-
-      const currentSources = await proxyRef.current.getFileSystemSources();
-
-      setQueries(currentSources?.editors ?? []);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unknown error';
-      console.error('App context: Failed to save editor: ', e);
-      showError({ title: 'App context: Failed to save editor', message });
-    }
-  };
 
   const onOpenQuery = async (path: string) => {
     /**
@@ -534,10 +417,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           setLimit(cachedPagination[viewName].limit);
         }
 
-        onTabSwitch({
-          path: viewName,
-          mode: 'view',
-        });
         return;
       }
 
@@ -571,133 +450,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const onSetTabsOrder = async ({ tabs, activeTabIndex }: OnSetOrderProps) => {
-    if (!proxyRef.current) return;
-    try {
-      await proxyRef.current.setTabsOrder(tabs);
-
-      const updatedTabs = await proxyRef.current.getTabs();
-
-      setTabs(updatedTabs);
-      if (Number.isInteger(activeTabIndex)) {
-        setActiveTab(updatedTabs[activeTabIndex]);
-      }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unknown error';
-      console.error('App context: Failed to set tabs order: ', e);
-      showError({ title: 'App context: Failed to set tabs order', message });
-    }
-  };
-
-  const onTabSwitch = async ({ path, stable = false, mode, createNew }: ChangeTabProps) => {
-    if (!proxyRef.current) return;
-
-    const tabBase = { path, mode, stable };
-    const hasTab = tabsState.find((tab) => tab.path === path);
-    const addNewTab = async () => {
-      const tab = await onAddTab(tabBase);
-      if (tab) {
-        setActiveTab(tab);
-      }
-    };
-
-    if (hasTab) {
-      setActiveTab(hasTab);
-      return;
-    }
-
-    if (!activeTab || createNew) {
-      addNewTab();
-      return;
-    }
-
-    /**
-     * If user sets another tab, but current tab is unstable, update the current tab
-     */
-    const unstableTab = tabsState.find((tab) => tab.stable === false);
-
-    if (unstableTab) {
-      const tabUpdatePayload = {
-        ...tabBase,
-        id: unstableTab.id,
-      };
-      setActiveTab(tabUpdatePayload);
-      setCachedResults(unstableTab.path, null);
-      setCachedPagination(unstableTab.path, null);
-
-      onTabUpdate(tabUpdatePayload);
-    } else {
-      addNewTab();
-    }
-  };
-
-  const onAddTab = async (tab: AddTabProps) => {
-    if (!proxyRef.current) return;
-    const createdTab = await proxyRef.current.addTab(tab);
-
-    const idbTabs = await proxyRef.current.getTabs();
-    setTabs(idbTabs);
-    return createdTab;
-  };
-
-  const onTabUpdate = async (tab: TabModel) => {
-    if (!proxyRef.current) return;
-
-    await proxyRef.current.updateTabState(tab);
-
-    const idbTabs = await proxyRef.current.getTabs();
-    if (tab.id === activeTab?.id) {
-      setActiveTab(tab);
-    }
-    setTabs(idbTabs);
-  };
-
-  const onDeleteTabs = async (tabsToDelete: TabModel[]) => {
-    if (!proxyRef.current) return;
-
-    await proxyRef.current.deleteTabs(
-      tabsToDelete.map((tab) => {
-        setCachedResults(tab.path, null);
-        setCachedPagination(tab.path, null);
-        return tab.id;
-      }),
-    );
-
-    /**
-     * If the current view or query is in the list of tabs to delete, reset the current view and query
-     */
-    if (tabsToDelete.some((tab) => tab.path === currentView || tab.path === currentQuery)) {
-      setCurrentView(null);
-      setQueryResults(null);
-      setQueryView(false);
-      setCurrentQuery(null);
-    }
-
-    const updatedIdbTabs = await proxyRef.current.getTabs();
-
-    if (tabsToDelete.some((tab) => tab.path === activeTab?.path)) {
-      const lastTab = updatedIdbTabs[updatedIdbTabs.length - 1];
-
-      if (lastTab) {
-        onTabSwitch({
-          path: lastTab.path,
-          mode: lastTab.mode,
-        });
-
-        if (lastTab.mode === 'view') {
-          onOpenView(lastTab.path);
-        } else {
-          onOpenQuery(lastTab.path);
-        }
-      } else {
-        setActiveTab(null);
-        setQueryResults(null);
-        setOriginalQuery('');
-      }
-    }
-    setTabs(updatedIdbTabs);
-  };
-
   const verifyPermission = async (fileHandle: FileSystemFileHandle) => {
     if ((await fileHandle.queryPermission()) === 'granted') {
       return true;
@@ -706,21 +458,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     return false;
   };
 
-  const exportFilesAsArchive = async () => {
-    if (!proxyRef.current) return;
-    try {
-      const result = await proxyRef.current.exportFilesAsArchive();
-      if (!result) throw new Error('Failed to export files as archive');
-
-      return result;
-    } catch (error) {
-      console.error('Error exporting files as archive: ', error);
-      return null;
-    }
-  };
-
   const importSQLFiles = async () => {
-    if (!proxyRef.current) return;
     try {
       const fileHandles = await window.showOpenFilePicker({
         multiple: true,
@@ -731,10 +469,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           },
         ],
       });
-      const result = await proxyRef.current.importSQLFiles(fileHandles);
 
-      if (result.length) {
-        await onCreateQueryFile({ entities: result });
+      // TODO: Create interface
+      const importedEntries: { name: string; content: string }[] = [];
+
+      for (const handle of fileHandles) {
+        const file = await handle.getFile();
+        const name = file.name.replace(/\.sql$/, '');
+        const content = await file.text();
+
+        importedEntries.push({
+          name,
+          content,
+        });
+      }
+
+      if (importedEntries.length) {
+        await createMultipleQueryFiles({ entities: importedEntries });
       }
     } catch (error) {
       console.error('Error importing SQL files: ', error);
@@ -769,7 +520,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       /**
        * Get list of files in the session
        */
-      const sessionFiles = await proxyRef.current.getFileSystemSources().catch((e) => {
+      const sessionFiles = await fileHandleStoreApi.getFileHandles().catch((e) => {
         showError({ title: 'App context: Failed to get session files', message: e.message });
         return null;
       });
@@ -777,9 +528,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       /**
        * Check if the files are available for reading. Request permission if necessary
        */
-      if (sessionFiles?.sources) {
+      if (sessionFiles) {
         const statuses = await Promise.all(
-          sessionFiles.sources.map(async (source) => {
+          sessionFiles.map(async (source) => {
             const status = await verifyPermission(source.handle);
             return status;
           }),
@@ -792,7 +543,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             return;
           }
           await Promise.all(
-            sessionFiles.sources.map(async (source) => {
+            sessionFiles.map(async (source) => {
               await source.handle.requestPermission({ mode: 'read' });
             }),
           );
@@ -802,7 +553,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
          * It is necessary to check if the file is available for reading. Application can't work with files that are not available (deleted, moved, renamed, etc.)
          */
         const checkedFiles = await Promise.all(
-          sessionFiles.sources.map(async (source) => {
+          sessionFiles.map(async (source) => {
             try {
               await source.handle.getFile();
               return {
@@ -834,25 +585,23 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         await Promise.all(
-          sessionFiles.sources
+          sessionFiles
             .filter((source) =>
               availableFiles.some(
                 (file) => file.source.path === source.path && file.status === 'success',
               ),
             )
             .map(async (source) =>
-              dbProxy
-                .registerFileHandleAndCreateDBInstance(source.handle.name, source.handle)
-                .catch((e) => {
-                  proxyRef.current?.onDeleteDataSource({
-                    paths: [source.path],
-                    type: 'dataset',
-                  });
-                  showError({
-                    title: 'App context: Error registering file handle in the database',
-                    message: e.message,
-                  });
-                }),
+              dbProxy.registerFileHandleAndCreateDBInstance(source).catch((e) => {
+                proxyRef.current?.onDeleteDataSource({
+                  paths: [source.path],
+                  type: 'dataset',
+                });
+                showError({
+                  title: 'App context: Error registering file handle in the database',
+                  message: e.message,
+                });
+              }),
             ),
         ).catch((e) => {
           console.error(e);
@@ -863,68 +612,27 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       /**
        * Get views and databases from the database
        */
-      const dbExternalViews = tableFromIPC(
+      const dbExternalViews: DuckDBView[] = tableFromIPC(
         await dbProxyRef.current.getDBUserInstances('views').catch((e) => {
           showError({ title: 'App context: Failed to get views', message: e.message });
           return [];
         }),
       )
         .toArray()
-        .map((row) => row.toJSON().view_name);
+        .map((row) => row.toJSON());
 
-      const duckdbDatabases = tableFromIPC(
+      const duckdbDatabases: string[] = tableFromIPC(
         await dbProxyRef.current.getDBUserInstances('databases').catch((e) => {
           showError({ title: 'App context: Failed to get databases', message: e.message });
           return [];
         }),
       )
         .toArray()
-        .map((row) => row.toJSON().database_name);
+        .map((row) => (row.toJSON() as DuckDBDatabase).database_name);
 
-      const initViews = dbExternalViews.filter((name) =>
-        sessionFiles?.sources?.some((source) => source.name === name),
+      const initViews = dbExternalViews.filter((view) =>
+        sessionFiles?.some((source) => (view.comment || '').includes(source.id)),
       );
-
-      const idbTabs = await proxyRef.current.getTabs();
-
-      const viewsTabs = idbTabs.filter((tab) => tab.mode === 'view');
-      const queriesTabs = idbTabs.filter((tab) => tab.mode === 'query');
-
-      /**
-       * Delete tabs that are not in the session
-       */
-      const viewsTabsToDelete = viewsTabs.filter(
-        (tab) => !sessionFiles?.sources.some((source) => source.name === tab.path),
-      );
-
-      const queriesTabsToDelete = queriesTabs.filter(
-        (tab) => !sessionFiles?.editors.some((editor) => editor.path === tab.path),
-      );
-
-      if (viewsTabsToDelete.length || queriesTabsToDelete.length) {
-        await onDeleteTabs([...viewsTabsToDelete, ...queriesTabsToDelete]);
-      }
-
-      const isExistingEntity = (tab: TabModel) =>
-        sessionFiles?.sources.some((source) => source.name === tab.path) ||
-        sessionFiles?.editors.some((editor) => editor.path === tab.path);
-
-      const existingEntityTabs = idbTabs.filter(isExistingEntity);
-
-      /**
-       * If there are tabs in the session, set the first tab as active
-       */
-      if (existingEntityTabs.length) {
-        const [firstTab] = existingEntityTabs;
-        setActiveTab(firstTab);
-
-        if (firstTab.mode === 'view') {
-          onOpenView(firstTab.path);
-        }
-        if (firstTab.mode === 'query') {
-          onOpenQuery(firstTab.path);
-        }
-      }
 
       const transformedTables = await updateDatabasesWithColumns(
         dbProxyRef.current,
@@ -934,11 +642,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       /**
        * Set the initial state of the application
        */
-      setSessionFiles(sessionFiles);
-      setTabs(existingEntityTabs);
       setViews(initViews);
       setDatabases(transformedTables);
-      setQueries(sessionFiles?.editors ?? []);
       setAppStatus('ready');
     };
 
@@ -963,20 +668,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const value: AppContextType = {
     onAddDataSources,
-    onCreateQueryFile,
     onDeleteDataSource,
     runQuery,
-    onSaveEditor,
     onCancelQuery,
-    onRenameDataSource,
-    onDeleteTabs,
-    onTabUpdate,
     onOpenView,
-    onTabSwitch,
     onOpenQuery,
-    exportFilesAsArchive,
     importSQLFiles,
-    onSetTabsOrder,
     executeQuery,
   };
 
