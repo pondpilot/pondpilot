@@ -49,6 +49,7 @@ export const QueryExplorer = memo(() => {
   /**
    * Consts
    */
+  const activeTab = tabsList.find((t) => t.active);
   const queriesList = queryFiles.map((query) => ({
     value: query.id,
     label: getFileNameWithExt(query.name, query.ext),
@@ -304,7 +305,7 @@ export const QueryExplorer = memo(() => {
         list={queriesList}
         menuItems={menuItems}
         onItemClick={handleSetQuery}
-        activeItemKey={tabsList.find((tab) => tab.active)?.sourceId || ''}
+        activeItemKey={activeTab?.sourceId || ''}
         loading={appStatus === 'initializing'}
         onActiveCloseClick={handleDeleteTab}
         renderIcon={() => <IconCode size={16} />}

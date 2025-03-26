@@ -8,7 +8,6 @@ import { useAbortController } from '@hooks/useAbortController';
 import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { createName } from '@utils/helpers';
 import { AddDataSourceProps, DuckDBDatabase, DuckDBView } from '@models/common';
 import {
   fileHandleStoreApi,
@@ -33,8 +32,6 @@ interface AppContextType {
   }) => Promise<void>;
   runQuery: (runQueryProps: DBRunQueryProps) => Promise<RunQueryResponse | undefined>;
   onCancelQuery: (v?: string) => Promise<void>;
-  onOpenView: (name: string) => Promise<void>;
-  onOpenQuery: (queryName: string) => Promise<void>;
   importSQLFiles: () => Promise<void>;
   executeQuery: (query: string) => Promise<any>;
 }
@@ -65,27 +62,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
    */
   const setCurrentView = useAppStore((state) => state.setCurrentView);
   const setViews = useAppStore((state) => state.setViews);
-  const setQueries = useAppStore((state) => state.setQueries);
   const setQueryRunning = useAppStore((state) => state.setQueryRunning);
   const setQueryResults = useAppStore((state) => state.setQueryResults);
-  const setCurrentQuery = useAppStore((state) => state.setCurrentQuery);
   const setAppStatus = useAppStore((state) => state.setAppStatus);
-  const setQueryView = useAppStore((state) => state.setQueryView);
   const setOriginalQuery = useAppStore((state) => state.setOriginalQuery);
-  const setCachedResults = useAppStore((state) => state.setCachedResults);
   const setDatabases = useAppStore((state) => state.setDatabases);
 
-  const setCachedPagination = useAppStore((state) => state.setCachedPagination);
-  const queries = useAppStore((state) => state.queries);
   const currentView = useAppStore((state) => state.currentView);
-  const cachedResults = useAppStore((state) => state.cachedResults);
-  const cachedPagination = useAppStore((state) => state.cachedPagination);
 
   const setRowsCount = usePaginationStore((state) => state.setRowsCount);
-  const setCurrentPage = usePaginationStore((state) => state.setCurrentPage);
-  const resetPagination = usePaginationStore((state) => state.resetPagination);
-  const setLimit = usePaginationStore((state) => state.setLimit);
-  const setSort = usePaginationStore((state) => state.setSort);
   const limit = usePaginationStore((state) => state.limit);
   const currentPage = usePaginationStore((state) => state.currentPage);
 
@@ -157,9 +142,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (type === 'query') {
-        const result = await deleteSource(paths);
-
-        setQueries(queries.filter((query) => !result?.paths.includes(query.path)));
+        // const result = await deleteSource(paths);
+        // setQueries(queries.filter((query) => !result?.paths.includes(query.path)));
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unknown error';
@@ -377,77 +361,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const onCancelQuery = async (reason?: string) => {
     abortSignal(reason);
     setQueryRunning(false);
-  };
-
-  const onOpenQuery = async (path: string) => {
-    /**
-     * Reset the current view and query cachedResults to avoid showing the previous query cachedResults
-     */
-    setCurrentView(null);
-    setQueryResults(null);
-    setRowsCount(0);
-    setOriginalQuery('');
-
-    /**
-     * Set the current query and query view
-     */
-    setQueryView(true);
-    setCurrentQuery(path);
-  };
-
-  const onOpenView = async (viewName: string) => {
-    if (!proxyRef.current || !dbProxyRef.current) return;
-    try {
-      if (viewName === currentView) {
-        return;
-      }
-      setCurrentQuery(null);
-      setQueryView(false);
-      setCurrentView(viewName);
-      const query = viewName ? `select  * from ${createName(viewName)}` : '';
-      setOriginalQuery(query);
-
-      if (cachedResults[viewName]) {
-        setQueryResults(cachedResults[viewName]);
-
-        if (cachedPagination[viewName]) {
-          setSort(cachedPagination[viewName].sort);
-          setRowsCount(cachedPagination[viewName].rowsCount);
-          setCurrentPage(cachedPagination[viewName].currentPage);
-          setLimit(cachedPagination[viewName].limit);
-        }
-
-        return;
-      }
-
-      /**
-       * Reset query state before opening the view
-       */
-      setQueryResults(null);
-      setQueryRunning(true);
-      resetPagination();
-
-      if (query) {
-        const result = await runQuery({ query });
-
-        if (result) {
-          setCachedResults(viewName, tableFromIPC(result.data));
-          setCachedPagination(viewName, {
-            rowsCount: result.pagination,
-            limit: 100,
-            currentPage: 1,
-            sort: { field: null, direction: null },
-          });
-        }
-      }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unknown error';
-      setCurrentView(null);
-      console.error('App context: Failed to open view: ', e);
-      showError({ title: 'App context: Failed to open view', message });
-    } finally {
-      setQueryRunning(false);
-    }
   };
 
   const verifyPermission = async (fileHandle: FileSystemFileHandle) => {
@@ -671,8 +584,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     onDeleteDataSource,
     runQuery,
     onCancelQuery,
-    onOpenView,
-    onOpenQuery,
     importSQLFiles,
     executeQuery,
   };

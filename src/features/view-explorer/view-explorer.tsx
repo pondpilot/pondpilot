@@ -8,6 +8,7 @@ import { IconCsv, IconJson, IconTable } from '@tabler/icons-react';
 import {
   useAllTabsQuery,
   useCreateQueryFileMutation,
+  useFileHandlesQuery,
   useTabsDeleteMutation,
 } from '@store/app-idb-store';
 
@@ -18,7 +19,7 @@ export const ViewExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const { onDeleteDataSource, onOpenView } = useAppContext();
+  const { onDeleteDataSource } = useAppContext();
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
@@ -28,10 +29,9 @@ export const ViewExplorer = memo(() => {
    * Store access
    */
   const views = useAppStore((state) => state.views);
-  const queryLoading = useAppStore((state) => state.queryRunning);
-  const currentView = useAppStore((state) => state.currentView);
   const appStatus = useAppStore((state) => state.appStatus);
   const { data: tabs = [] } = useAllTabsQuery();
+  const { data: dataSources = [] } = useFileHandlesQuery();
   const activeTab = tabs.find((t) => t.active);
   const sessionFiles = useAppStore((state) => state.sessionFiles);
 
@@ -59,7 +59,7 @@ export const ViewExplorer = memo(() => {
     if (activeTab?.sourceId === viewName) return;
     await saveCurrentQuery();
 
-    onOpenView(viewName);
+    // onOpenView(viewName);
     // onTabSwitch({
     //   path: viewName,
     //   mode: 'view',
@@ -117,7 +117,7 @@ export const ViewExplorer = memo(() => {
 
   const getIcon = useCallback(
     (id: string | undefined) => {
-      const fileExt = sessionFiles?.sources.find((f) => f.name === id)?.ext as string;
+      const fileExt = dataSources.find((f) => f.id === id)?.ext as string;
       const iconsMap = {
         csv: <IconCsv size={16} />,
         json: <IconJson size={16} />,
@@ -134,8 +134,7 @@ export const ViewExplorer = memo(() => {
       onDeleteSelected={handleDeleteSelected}
       onItemClick={openView}
       menuItems={menuItems}
-      disabled={queryLoading}
-      activeItemKey={currentView}
+      activeItemKey={activeTab?.sourceId || ''}
       loading={appStatus === 'initializing'}
       onActiveCloseClick={handleDeleteTab}
       renderIcon={getIcon}

@@ -5,7 +5,7 @@ import { memo } from 'react';
 import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
 import { SYSTEM_DUCKDB_SHEMAS } from '@features/editor/auto-complete';
-import { useCreateQueryFileMutation } from '@store/app-idb-store';
+import { useCreateQueryFileMutation, useFileHandlesQuery } from '@store/app-idb-store';
 import { getDBIconByType } from './utils';
 
 /**
@@ -24,16 +24,14 @@ export const DbExplorer = memo(() => {
    * Store access
    */
   const databases = useAppStore((state) => state.databases);
-  const queryLoading = useAppStore((state) => state.queryRunning);
-  const currentView = useAppStore((state) => state.currentView);
   const appStatus = useAppStore((state) => state.appStatus);
-  const sessionFiles = useAppStore((state) => state.sessionFiles);
+  const { data: sessionFiles = [] } = useFileHandlesQuery();
 
   /**
    * Consts
    */
   const itemsToDisplay = databases
-    .filter((item) => sessionFiles?.sources.some((source) => source.name === item.name))
+    .filter((item) => sessionFiles.some((source) => source.name === item.name))
     .map((item) => ({
       value: item.name,
       label: item.name,
@@ -109,8 +107,7 @@ export const DbExplorer = memo(() => {
       list={itemsToDisplay}
       onDeleteSelected={handleDeleteSelected}
       menuItems={menuItems}
-      disabled={queryLoading}
-      activeItemKey={currentView}
+      activeItemKey=""
       loading={appStatus === 'initializing'}
       renderIcon={(id) => getDBIconByType(id as any)}
     />

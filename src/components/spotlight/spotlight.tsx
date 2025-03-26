@@ -28,7 +28,7 @@ import { HotkeyPill } from '@components/hotkey-pill';
 import { cn } from '@utils/ui/styles';
 import { useModifier } from '@hooks/useModifier';
 import { useNavigate } from 'react-router-dom';
-import { useCreateQueryFileMutation } from '@store/app-idb-store';
+import { useCreateQueryFileMutation, useQueryFilesQuery } from '@store/app-idb-store';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
@@ -46,17 +46,17 @@ export const SpotlightMenu = () => {
   /**
    * Common hooks
    */
-  const { importSQLFiles, onOpenQuery, onOpenView } = useAppContext();
+  const { importSQLFiles } = useAppContext();
   const { setColorScheme } = useMantineColorScheme();
   const { handleAddSource } = useUploadFileHandles();
   const { command, option } = useModifier();
   const navigate = useNavigate();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
+  const { data: queries = [] } = useQueryFilesQuery();
 
   /**
    * Store access
    */
-  const queries = useAppStore((state) => state.queries);
   const views = useAppStore((state) => state.views);
   const sessionFiles = useAppStore((state) => state.sessionFiles);
 
@@ -127,7 +127,7 @@ export const SpotlightMenu = () => {
     label: view_name,
     icon: getIcon(view_name),
     handler: () => {
-      onOpenView(view_name);
+      // onOpenView(view_name);
       // onTabSwitch({
       //   path: view,
       //   mode: 'view',
@@ -138,11 +138,11 @@ export const SpotlightMenu = () => {
   }));
 
   const mappedQueries = queries.map((query) => ({
-    id: query.path,
-    label: query.path || '',
+    id: query.id,
+    label: `${query.name}.${query.name}`,
     icon: <IconCode size={20} className={iconClasses} />,
     handler: () => {
-      onOpenQuery(query.path);
+      // onOpenQuery(query.path);
       // onTabSwitch({
       //   path: query.handle.name,
       //   mode: 'query',
