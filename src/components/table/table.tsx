@@ -6,7 +6,7 @@ import { replaceSpecialChars } from '@utils/helpers';
 import { useAppNotifications } from '@components/app-notifications';
 import { CalculateColumnSummaryProps } from '@features/tab-view/hooks';
 import { ResultColumn } from '@utils/arrow/helpers';
-import { TableSort } from '@store/app-idb-store';
+import { TableSort } from '@models/common';
 import { TableCell, TableHeadCell } from './components';
 import { useTableColumns, useTableSelection } from './hooks';
 

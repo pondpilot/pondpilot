@@ -6,7 +6,7 @@ import { Header, Table as TableType } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
 import { replaceSpecialChars } from '@utils/helpers';
 import { memo } from 'react';
-import { TableSort } from '@store/app-idb-store';
+import { TableSort } from '@models/common';
 import { getIcon } from '../utils';
 
 interface TableHeadCellProps {

@@ -2,8 +2,7 @@ import { useAppNotifications } from '@components/app-notifications';
 import { Text, Modal, Stack, Button, Group } from '@mantine/core';
 import { openDB } from 'idb';
 import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
-import { queryStoreApi } from '@store/app-idb-store';
-import JSZip from 'jszip';
+import { exportQueryFiles } from '@utils/exportData';
 import { clearFileSystem } from './utils';
 
 interface SettingsModalProps {
@@ -31,23 +30,6 @@ export const SettingsModal = ({
   const handleClearData = () => {
     clearFileSystem();
     onConfirmClose();
-  };
-
-  const exportQueryFiles = async () => {
-    const queryFiles = await queryStoreApi.getQueryFiles();
-    const zip = new JSZip();
-
-    for (const queryFile of queryFiles) {
-      zip.file(`${queryFile.name}.${queryFile.ext}`, queryFile.content);
-    }
-
-    try {
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      return zipBlob;
-    } catch (error) {
-      console.error('Error while exporting query files: ', error);
-      return null;
-    }
   };
 
   const downloadArchive = async () => {

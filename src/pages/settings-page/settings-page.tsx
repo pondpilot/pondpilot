@@ -1,31 +1,13 @@
 import { Box, Button, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { clearFileSystem } from '@components/settings-modal/utils';
 
-import { queryStoreApi } from '@store/app-idb-store';
-import JSZip from 'jszip';
+import { exportQueryFiles } from '@utils/exportData';
 import { ThemeSwitcher } from './components/theme-switcher';
 
 export const SettingsPage = () => {
   // TODO: Separate this into a hook
   const handleClearData = async () => {
     await clearFileSystem();
-  };
-
-  const exportQueryFiles = async () => {
-    const queryFiles = await queryStoreApi.getQueryFiles();
-    const zip = new JSZip();
-
-    for (const queryFile of queryFiles) {
-      zip.file(`${queryFile.name}.${queryFile.ext}`, queryFile.content);
-    }
-
-    try {
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      return zipBlob;
-    } catch (error) {
-      console.error('Error while exporting query files: ', error);
-      return null;
-    }
   };
 
   const downloadArchive = async () => {

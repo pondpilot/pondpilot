@@ -1,4 +1,11 @@
-import { AddDataSourceProps, Dataset } from '@models/common';
+import {
+  AddDataSourceProps,
+  Dataset,
+  LoadingState,
+  Pagination,
+  TableSort,
+  TabType,
+} from '@models/common';
 import { createName, findUniqueQueryFileName, getSupportedMimeType } from '@utils/helpers';
 import { openDB } from 'idb';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,22 +24,7 @@ const dbPromise = openDB(APP_DB_NAME, DB_VERSION, {
   },
 });
 
-export type TabType = 'query' | 'file';
-export type LoadingState = 'fetching' | 'error' | 'success' | 'pending';
-export type SortOrder = 'asc' | 'desc';
-
-export interface Pagination {
-  page: number;
-  limit: number;
-  count: number;
-}
-
-export interface TableSort {
-  column: string;
-  order: SortOrder;
-}
-
-export interface EditorState {
+interface AppEditorState {
   value: string;
   codeSelection: {
     start: number;
@@ -47,18 +39,18 @@ export interface EditorState {
  * @property {LoadingState} state - The current state of the query.
  * @property {string} originalQuery - The original query statement for pagination.
  */
-export interface QueryState {
+interface QueryState {
   state: LoadingState;
   originalQuery: string;
 }
 
-export interface TabLayout {
+interface TabLayout {
   tableColumnWidth: Record<string, number>;
   editorPaneHeight: number;
   dataViewPaneHeight: number;
 }
 
-export interface DataViewState {
+interface DataViewState {
   data: Uint8Array<ArrayBufferLike> | undefined;
   rowCount: number;
   columnCount: number;
@@ -69,7 +61,7 @@ export interface DataViewState {
   };
 }
 
-export interface TabBase {
+interface TabBase {
   name: string;
   type: TabType;
   state: LoadingState;
@@ -77,7 +69,7 @@ export interface TabBase {
   active: boolean;
   pagination: Pagination;
   sort: TableSort;
-  editor: EditorState;
+  editor: AppEditorState;
   layout: TabLayout;
   dataView: DataViewState;
   order: number;
@@ -233,17 +225,14 @@ export const queryStoreApi = {
   async _getQueryFiles(): Promise<QueryFile[]> {
     return (await dbPromise).getAll('queries-store');
   },
-
   async _getQueryFileNames(): Promise<string[]> {
-    const queries = await this._getQueryFiles();
+    const queries = await queryStoreApi._getQueryFiles();
     return queries.map((query) => query.name);
   },
-
   async _createQueryFileEntry(name: string, content: string = ''): Promise<QueryFile> {
-    const allNames = await this._getQueryFileNames();
+    const allNames = await queryStoreApi._getQueryFileNames();
     const checkIfExists = (value: string) => allNames.includes(value);
     const fileName = await findUniqueQueryFileName(name, checkIfExists);
-
     return {
       id: `${QUERY_PREFIX}${uuidv4()}`,
       name: fileName,
@@ -252,28 +241,22 @@ export const queryStoreApi = {
       ext: 'sql',
     };
   },
-
   async createQueryFile(name = 'query', content = ''): Promise<QueryFile> {
     const db = await dbPromise;
-    const entry = await this._createQueryFileEntry(name, content);
-
+    const entry = await queryStoreApi._createQueryFileEntry(name, content);
     await db.put('queries-store', entry, entry.id);
     return entry;
   },
-
   async createMultipleQueryFiles(
     entries: { name: string; content: string }[],
   ): Promise<QueryFile[]> {
     if (!entries.length) return [];
-
-    const allNames = await this._getQueryFileNames();
+    const allNames = await queryStoreApi._getQueryFileNames();
     const createdEntries: QueryFile[] = [];
-
     const namesToCheck = [...allNames];
     for (const entry of entries) {
       const checkIfExists = (value: string) => namesToCheck.includes(value);
       const fileName = await findUniqueQueryFileName(entry.name, checkIfExists);
-
       const newEntry = {
         id: `${QUERY_PREFIX}${uuidv4()}`,
         name: fileName,
@@ -281,50 +264,37 @@ export const queryStoreApi = {
         mimeType: 'text/sql',
         ext: 'sql',
       };
-
       createdEntries.push(newEntry);
       namesToCheck.push(fileName);
     }
-
     const db = await dbPromise;
     const tx = db.transaction('queries-store', 'readwrite');
-
     await Promise.all([...createdEntries.map((entry) => tx.store.put(entry, entry.id)), tx.done]);
-
     return createdEntries;
   },
-
   async getQueryFiles(): Promise<QueryFile[]> {
-    return this._getQueryFiles();
+    return queryStoreApi._getQueryFiles();
   },
-
   async updateQueryFile(
     id: string,
     updates: Partial<Pick<QueryFile, 'name' | 'content'>>,
   ): Promise<void> {
     const db = await dbPromise;
     const query = await db.get('queries-store', id);
-
     if (!query) return;
-
     const updatedQuery = { ...query, ...updates };
     await db.put('queries-store', updatedQuery, id);
   },
-
   async renameQueryFile(id: string, name: string): Promise<void> {
-    return this.updateQueryFile(id, { name });
+    return queryStoreApi.updateQueryFile(id, { name });
   },
-
   async changeQueryContent(id: string, content: string): Promise<void> {
-    return this.updateQueryFile(id, { content });
+    return queryStoreApi.updateQueryFile(id, { content });
   },
-
   async deleteQueryFiles(ids: string[]): Promise<void> {
     if (!ids.length) return;
-
     const db = await dbPromise;
     const tx = db.transaction('queries-store', 'readwrite');
-
     await Promise.all(ids.map((id) => tx.store.delete(id)));
     await tx.done;
   },

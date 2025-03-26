@@ -136,3 +136,18 @@ export interface DataBaseModel {
 }
 
 export type Limit = 100 | 1000 | 10000;
+
+export type TabType = 'query' | 'file';
+export type LoadingState = 'fetching' | 'error' | 'success' | 'pending';
+export type SortOrder = 'asc' | 'desc';
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  count: number;
+}
+
+export interface TableSort {
+  column: string;
+  order: SortOrder;
+}
