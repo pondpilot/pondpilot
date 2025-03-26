@@ -7,6 +7,7 @@ import { replaceSpecialChars } from '@utils/helpers';
 import { useAppNotifications } from '@components/app-notifications';
 import { CalculateColumnSummaryProps } from '@features/data-viewer/hooks';
 import { ResultColumn } from '@utils/arrow/helpers';
+import { setDataTestId } from '@utils/test-id';
 import { TableCell, TableHeadCell } from './components';
 import { useTableColumns, useTableSelection } from './hooks';
 
@@ -165,7 +166,7 @@ export const Table = memo(
           width: table.getTotalSize(),
         }}
         className="relative w-fit rounded-xl"
-        data-testid="result-table"
+        data-testid={setDataTestId('data-table')}
       >
         {/* Header */}
         <div className="sticky top-0 z-10 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark">

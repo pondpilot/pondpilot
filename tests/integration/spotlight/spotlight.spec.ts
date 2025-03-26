@@ -1,17 +1,8 @@
-import { expect } from '@playwright/test';
-import { baseTest } from '../baseTest';
+import { expect, mergeTests } from '@playwright/test';
+import { test as baseTest } from '../fixtures/page';
+import { test as spotlightTest } from '../fixtures/spotlight';
 
-interface SpotlightFixture {
-  openSpotlight: () => Promise<void>;
-}
-
-const test = baseTest.extend<SpotlightFixture>({
-  openSpotlight: async ({ page }, use) => {
-    await use(async () => {
-      await page.click('[data-testid=spotlight-trigger-input]');
-    });
-  },
-});
+const test = mergeTests(baseTest, spotlightTest);
 
 test('Long action names are truncated in spotlight results', async ({ page, openSpotlight }) => {
   // Open spotlight menu

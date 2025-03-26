@@ -9,6 +9,7 @@ import { usePaginationStore } from '@store/pagination-store';
 import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
 import { ResultColumn } from '@utils/arrow/helpers';
+import { setDataTestId } from '@utils/test-id';
 import { dynamicTypeViewer } from '../utils';
 
 interface UseTableColumnsProps {
@@ -57,6 +58,7 @@ export const useTableColumns = ({ columns, onRowSelectionChange }: UseTableColum
                 return (
                   <div
                     onMouseDown={onRowClick}
+                    data-testid={setDataTestId(`data-table-cell-value-#-${rowIndex}`)}
                     className="p-2 text-sm font-mono flex w-full justify-end"
                   >
                     {index}
@@ -84,7 +86,9 @@ export const useTableColumns = ({ columns, onRowSelectionChange }: UseTableColum
 
                   const cellValue = (
                     <div
-                      data-testid={`cell-${col.name}-${info.row.index}`}
+                      data-testid={setDataTestId(
+                        `data-table-cell-value-${col.name}-${info.row.index}`,
+                      )}
                       className={cn(
                         'text-sm p-2',
                         ['integer', 'date', 'number'].includes(col.type) &&

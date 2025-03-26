@@ -21,10 +21,11 @@ import {
 import { Table } from '@components/table/table';
 import { IconChevronDown, IconClipboardSmile, IconCopy } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
-import { formatNumber } from '@utils/helpers';
 import { Table as ApacheTable } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
+import { setDataTestId } from '@utils/test-id';
+import { formatNumber } from '@utils/helpers';
 import { PaginationControl, StartGuide, TableLoadingOverlay } from './components';
 import { useTableSort } from './hooks/useTablePaginationSort';
 import { useTableExport } from './hooks/useTableExport';
@@ -76,7 +77,7 @@ export const DataViewer = memo(() => {
   /**
    * Consts
    */
-  const outOf = `${(currentPage - 1) * limit + 1}-${currentPage * limit} out of ${formatNumber(rowCount)}`;
+  const isSinglePage = rowCount <= limit;
   const hasTableData = !!convertedTable.data.length && !!convertedTable.columns.length;
 
   const onSelectedColsCopy = useCallback(
@@ -143,11 +144,7 @@ export const DataViewer = memo(() => {
       <Allotment vertical onDragEnd={setPanelSize} defaultSizes={panelSize}>
         {queryView && (
           <Allotment.Pane preferredSize={panelSize?.[0]} minSize={200}>
-            <QueryEditor
-              columnsCount={convertedTable.columns.length}
-              rowsCount={rowCount}
-              hasTableData={hasTableData}
-            />
+            <QueryEditor columnsCount={convertedTable.columns.length} rowsCount={rowCount} />
           </Allotment.Pane>
         )}
         <Allotment.Pane preferredSize={panelSize?.[1]} minSize={120}>
@@ -253,9 +250,18 @@ export const DataViewer = memo(() => {
         </Allotment.Pane>
       </Allotment>
 
-      {hasTableData && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50">
-          <PaginationControl onNextPage={onNextPage} onPrevPage={onPrevPage} outOf={outOf} />
+      {hasTableData && !isSinglePage && (
+        <div
+          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
+          data-testid={setDataTestId('data-table-pagination-control')}
+        >
+          <PaginationControl
+            currentPage={currentPage}
+            limit={limit}
+            rowCount={rowCount}
+            onPrevPage={onPrevPage}
+            onNextPage={onNextPage}
+          />
         </div>
       )}
     </div>

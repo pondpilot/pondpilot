@@ -1,10 +1,10 @@
 import { BackgroundImage, Box, Center, Image, Stack, Text, Title } from '@mantine/core';
-import React from 'react';
+import { setDataTestId } from '@utils/test-id';
 import browserNotSupportedImg from './assets/wat.png';
 import CrackDuck from './assets/crack-duck.svg';
 
 export const BrowserNotSupported = () => (
-  <Box h="100vh" w="100vw" pos="relative" data-testid="browser-not-supported">
+  <Box h="100vh" w="100vw" pos="relative" data-testid={setDataTestId('browser-not-supported')}>
     <BackgroundImage className=" opacity-20 h-[130%] w-[130%]" src={browserNotSupportedImg} />
     <Center pos="absolute" top={0} left={0} w="100%" h="100%">
       <Box w={675} h={480} bg="background-primary" className="rounded-2xl pt-8 px-4 pb-14">
