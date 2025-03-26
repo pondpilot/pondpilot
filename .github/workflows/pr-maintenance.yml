@@ -3,28 +3,9 @@ name: Maintenance checks & jobs on PRs
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: true
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 jobs:
-  # This is used to upload the PR number to be used in dependent workflows
-  upload-pr:
-    name: Upload PR
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Save PR number to file
-        run: echo ${{ github.event.number }} > pr-number
-
-      - name: Upload pr-number
-        uses: actions/upload-artifact@v4
-        with:
-          name: pr-number
-          path: pr-number
-
   # Check that PR has a minimum set of labels as required by our release drafter
   check-pr-labels:
     name: Check PR Labels
