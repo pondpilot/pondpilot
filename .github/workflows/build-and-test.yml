@@ -49,6 +49,9 @@ jobs:
       - name: Lint JS/TS
         run: yarn lint
 
+      - name: Check for formatting issues
+        run: yarn prettier
+
   build-test:
     name: Build & Test
     runs-on: ubuntu-latest

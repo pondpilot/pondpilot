@@ -16,4 +16,9 @@ docker-run:
     docker run -d -p 4173:80 --name pondpilot pondpilot:latest
 
 docker-stop:
-    docker stop pondpilot 
+    docker stop pondpilot
+
+check-and-fix:
+    yarn typecheck
+    yarn lint:fix
+    yarn prettier:write
