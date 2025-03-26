@@ -14,6 +14,10 @@ on:
     types:
       - completed
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.head_branch || 'main' }}
+  cancel-in-progress: true
+
 jobs:
   # Deploy to Cloudflare Pages main site on push to main or workflow_dispatch
   test-and-build-prod:
@@ -45,8 +49,30 @@ jobs:
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
   # Deploy to Cloudflare Pages preview site on PR
+  get_workflow_conclusion:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request'
+    name: Lookup Conclusion of Workflow_Run Event
+    runs-on: ubuntu-latest
+    outputs:
+      conclusion: ${{ steps.get_conclusion.outputs.conclusion }}
+    steps:
+      - name: Get Workflow Run
+        uses: actions/github-script@v7
+        id: get_conclusion
+        with:
+          script: |
+            const response = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: ${{ github.event.workflow_run.id }}
+            });
+            
+            return response.data.conclusion;
+          result-encoding: string
+
   deploy-pr:
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && needs.get_workflow_conclusion.outputs.conclusion == 'success'
+    needs: get_workflow_conclusion
     runs-on: ubuntu-latest
     name: Deploy
     permissions:
