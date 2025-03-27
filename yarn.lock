@@ -3835,6 +3835,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@vitejs/plugin-basic-ssl@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@vitejs/plugin-basic-ssl@npm:2.0.0"
+  peerDependencies:
+    vite: ^6.0.0
+  checksum: 10c0/673f46dc5ee042f6fcfa7ecf514e717e770085f8979d4608cab952f3e9003fe7aed589cc812a67f3dcd5e80655975c6490ce8a07a4b6feef98766003256d4283
+  languageName: node
+  linkType: hard
+
 "@vitejs/plugin-react@npm:^4.3.1":
   version: 4.3.4
   resolution: "@vitejs/plugin-react@npm:4.3.4"
@@ -9559,6 +9568,7 @@ __metadata:
     "@typescript-eslint/parser": "npm:^7.13.1"
     "@uiw/codemirror-themes": "npm:^4.23.8"
     "@uiw/react-codemirror": "npm:^4.23.8"
+    "@vitejs/plugin-basic-ssl": "npm:^2.0.0"
     "@vitejs/plugin-react": "npm:^4.3.1"
     allotment: "npm:^1.20.2"
     apache-arrow: "npm:^17.0.0"

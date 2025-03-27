@@ -3,6 +3,7 @@ import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { VitePWA } from 'vite-plugin-pwa';
 import svgr from 'vite-plugin-svgr';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 
 const getVersionInfo = () => {
   try {
@@ -19,12 +20,18 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tsconfigPaths(),
+      basicSsl(),
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
-          maximumFileSizeToCacheInBytes: 25000000,
+          maximumFileSizeToCacheInBytes: 50000000,
           // Cache duckdb CDN resources
           runtimeCaching: [
+            {
+              urlPattern: ({ request }) =>
+                request.destination === 'script' && request.url.endsWith('.wasm'),
+              handler: 'NetworkOnly',
+            },
             {
               urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@duckdb\/duckdb-wasm.*/,
               handler: 'CacheFirst',
@@ -115,6 +122,20 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       exclude: ['@duckdb/duckdb-wasm'],
+    },
+    server: {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
+      https: true,
+    },
+    preview: {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
+      https: true,
     },
     define: {
       __VERSION__: JSON.stringify(getVersionInfo()),

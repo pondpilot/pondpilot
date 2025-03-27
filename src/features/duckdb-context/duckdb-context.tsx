@@ -48,6 +48,32 @@ export const useInitializedDuckDBConnectionPool = (): AsyncDuckDBConnectionPool 
 export const useDuckDBConnectionPool = (): AsyncDuckDBConnectionPool | null =>
   useContext(DuckDBConnPoolContext)!;
 
+// COI is still experimental, so is not provided in the DuckDB API `getJsDelivrBundles`.
+// We're using local files for COI version and CDN for the others
+function getJsDelivrBundles(): duckdb.DuckDBBundles {
+  const jsdelivr_dist_url = `https://cdn.jsdelivr.net/npm/${duckdb.PACKAGE_NAME}@${duckdb.PACKAGE_VERSION}/dist/`;
+  const local_coi_path = 'https://localhost:5173/assets/';
+
+  return {
+    mvp: {
+      mainModule: `${jsdelivr_dist_url}duckdb-mvp.wasm`,
+      mainWorker: `${jsdelivr_dist_url}duckdb-browser-mvp.worker.js`,
+    },
+    eh: {
+      mainModule: `${jsdelivr_dist_url}duckdb-eh.wasm`,
+      mainWorker: `${jsdelivr_dist_url}duckdb-browser-eh.worker.js`,
+    },
+    coi: {
+      mainModule: `${local_coi_path}duckdb-coi.wasm`,
+      mainWorker: `${jsdelivr_dist_url}duckdb-browser-coi.worker.js`,
+      pthreadWorker: `${local_coi_path}duckdb-browser-coi.pthread.worker.js`,
+    },
+  };
+}
+
+// Use static cdn hosted bundles
+const JSDELIVR_BUNDLES = getJsDelivrBundles();
+
 export const DuckDBConnectionPoolProvider = ({
   maxPoolSize,
   children,
@@ -61,9 +87,6 @@ export const DuckDBConnectionPoolProvider = ({
   });
 
   const [connectionPool, setConnectionPool] = useState<AsyncDuckDBConnectionPool | null>(null);
-
-  // Use static cdn hosted bundles
-  const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
 
   // create a logger
   const logger = new duckdb.ConsoleLogger(
