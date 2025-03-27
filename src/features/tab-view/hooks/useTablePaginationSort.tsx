@@ -1,7 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useAppContext } from '@features/app-context';
 import { useCallback, useMemo } from 'react';
-import { useAppStore } from '@store/app-store';
 import { useActiveTabQuery, useTabMutation } from '@store/app-idb-store';
 
 export const useTablePaginationSort = () => {
@@ -84,6 +82,7 @@ export const useTablePaginationSort = () => {
         : activeTab.query.originalQuery;
 
       // TODO: set the result to a tab
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const result = await executeQuery(query, page);
     },
     [activeTab, updateTab, sort, executeQuery],

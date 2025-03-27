@@ -1,18 +1,18 @@
 import { useMantineColorScheme } from '@mantine/core';
 import { Allotment } from 'allotment';
-import { useAppContext } from '@features/app-context';
 import { useHotkeys, useLocalStorage } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
 import { useUploadFileHandles } from '@hooks/useUploadFileHandles';
-import { DataView } from '@features/data-view/data-view';
+import { ContentView } from '@features/content-view';
 import { useCreateQueryFileMutation } from '@store/app-idb-store';
+import { useImportSQLFiles } from '@store/hooks';
 import { Navbar } from './components';
 
 export const MainPage = () => {
   /**
    * Common hooks
    */
-  const { importSQLFiles } = useAppContext();
+  const { importSQLFiles } = useImportSQLFiles();
   const { handleAddSource } = useUploadFileHandles();
   const { colorScheme } = useMantineColorScheme();
   const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({ key: 'layout-sizes' });
@@ -75,7 +75,7 @@ export const MainPage = () => {
           <Navbar />
         </Allotment.Pane>
         <Allotment.Pane preferredSize={layoutSizes?.[1]}>
-          <DataView />
+          <ContentView />
         </Allotment.Pane>
       </Allotment>
     </>

@@ -1,4 +1,3 @@
-import { useAppContext } from '@features/app-context';
 import { Group, Text, useMantineColorScheme } from '@mantine/core';
 import { Spotlight } from '@mantine/spotlight';
 import {
@@ -29,6 +28,7 @@ import { cn } from '@utils/ui/styles';
 import { useModifier } from '@hooks/useModifier';
 import { useNavigate } from 'react-router-dom';
 import { useCreateQueryFileMutation, useQueryFilesQuery } from '@store/app-idb-store';
+import { useImportSQLFiles } from '@store/hooks';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
@@ -46,7 +46,7 @@ export const SpotlightMenu = () => {
   /**
    * Common hooks
    */
-  const { importSQLFiles } = useAppContext();
+  const { importSQLFiles } = useImportSQLFiles();
   const { setColorScheme } = useMantineColorScheme();
   const { handleAddSource } = useUploadFileHandles();
   const { command, option } = useModifier();

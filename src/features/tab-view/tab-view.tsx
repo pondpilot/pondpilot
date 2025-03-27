@@ -177,6 +177,7 @@ export const TabView = memo(({ id }: { id: string }) => {
           </Allotment.Pane>
         )}
         <Allotment.Pane preferredSize={dataViewPaneHeight} minSize={120}>
+          {/* // TODO: Create DataView component */}
           {!hasTableData && !queryRunning && isActive && (
             <Center className="h-full font-bold">
               <Stack align="center" c="icon-default" gap={4}>

@@ -9,7 +9,7 @@ import { useTabCache } from './useTabCache';
 /**
  * Data view component
  */
-export const DataView = () => {
+export const ContentView = () => {
   const { data: tabs = [] } = useAllTabsQuery();
   const { mutate } = useTabMutation();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
