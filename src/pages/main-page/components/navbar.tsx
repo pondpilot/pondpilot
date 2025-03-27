@@ -10,6 +10,7 @@ import { Allotment } from 'allotment';
 import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { setDataTestId } from '@utils/test-id';
 
 /**
  * Displays the navigation bar
@@ -100,7 +101,11 @@ export const Navbar = memo(() => {
         <Allotment.Pane maxSize={34} minSize={34}>
           <Group className="h-full px-3 justify-between">
             <Group>
-              <ActionIcon size={20} onClick={() => navigate('/settings')}>
+              <ActionIcon
+                size={20}
+                data-testid={setDataTestId('settings-button')}
+                onClick={() => navigate('/settings')}
+              >
                 <IconSettings />
               </ActionIcon>
               <ActionIcon

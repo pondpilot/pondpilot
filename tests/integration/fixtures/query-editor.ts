@@ -20,6 +20,8 @@ type QueryEditorFixtures = {
   runQuery: () => Promise<void>;
 };
 
+const QUERY_EDITOR_TIMEOUT = Number(process.env.PLAYWRIGHT_QUERY_EDITOR_TIMEOUT) || 100;
+
 export const test = base.extend<QueryEditorFixtures>({
   queryEditor: async ({ page }, use) => {
     await use(page.getByTestId('query-editor'));
@@ -39,7 +41,7 @@ export const test = base.extend<QueryEditorFixtures>({
       await expect(
         queryEditor,
         'Did you forget to open a query tab before calling this fixture? Use `createQueryAndSwitchToItsTab` or similar fixture first',
-      ).toBeVisible({ timeout: 100 });
+      ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
       await queryEditorContent.fill(content);
       await expect(queryEditorContent).toContainText(content);
@@ -52,7 +54,7 @@ export const test = base.extend<QueryEditorFixtures>({
       await expect(
         queryEditor,
         'Did you forget to open a query tab before calling this fixture? Use `createQueryAndSwitchToItsTab` or similar fixture first',
-      ).toBeVisible({ timeout: 100 });
+      ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
       await runQueryButton.click();
       await expect(page.getByText('Query ran successfully')).toBeVisible();

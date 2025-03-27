@@ -1,5 +1,5 @@
 import { useAppContext } from '@features/app-context';
-import { Group, Text, useMantineColorScheme } from '@mantine/core';
+import { Group, Text } from '@mantine/core';
 import { Spotlight } from '@mantine/spotlight';
 import {
   IconDatabase,
@@ -10,8 +10,6 @@ import {
   IconFolderPlus,
   IconDatabasePlus,
   IconChevronUp,
-  IconSun,
-  IconMoon,
   IconSettings,
   IconFileSad,
   IconBooks,
@@ -48,7 +46,6 @@ export const SpotlightMenu = () => {
    */
   const { onCreateQueryFile, importSQLFiles, onOpenQuery, onTabSwitch, onOpenView, onSaveEditor } =
     useAppContext();
-  const { setColorScheme } = useMantineColorScheme();
   const { handleAddSource } = useFileHandlers();
   const { command, option } = useModifier();
   const navigate = useNavigate();
@@ -102,7 +99,7 @@ export const SpotlightMenu = () => {
   );
 
   const ensure_home = () => {
-    if (location.pathname !== '/') {
+    if (window.location.pathname !== '/') {
       navigate('/');
     }
   };
@@ -124,7 +121,7 @@ export const SpotlightMenu = () => {
       id: 'settings',
       label: 'Settings',
       handler: () => {
-        if (!location.pathname.includes('settings')) {
+        if (!window.location.pathname.includes('settings')) {
           navigate('/settings');
         }
         Spotlight.close();
@@ -259,27 +256,6 @@ export const SpotlightMenu = () => {
       disabled: true,
 
       handler: () => {},
-    },
-  ];
-
-  const themeActions: Action[] = [
-    {
-      id: 'theme-light',
-      label: 'Light',
-      icon: <IconSun size={20} className={iconClasses} />,
-      handler: () => {
-        setColorScheme('light');
-        Spotlight.close();
-      },
-    },
-    {
-      id: 'theme-dark',
-      label: 'Dark',
-      icon: <IconMoon size={20} className={iconClasses} />,
-      handler: () => {
-        setColorScheme('dark');
-        Spotlight.close();
-      },
     },
   ];
 

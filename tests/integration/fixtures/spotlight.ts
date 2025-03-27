@@ -3,6 +3,7 @@ import { test as base, expect, Locator } from '@playwright/test';
 type SpotlightFixtures = {
   openSpotlight: () => Promise<Locator>;
   createQueryViaSpotlight: () => Promise<void>;
+  openSettingsViaSpotlight: () => Promise<void>;
 };
 
 export const test = base.extend<SpotlightFixtures>({
@@ -31,6 +32,18 @@ export const test = base.extend<SpotlightFixtures>({
       await spotlightRoot.getByTestId('spotlight-action-create-new-query').click();
 
       // Verify spotlight is closed after creating query
+      await expect(spotlightRoot).not.toBeVisible();
+    });
+  },
+
+  openSettingsViaSpotlight: async ({ openSpotlight }, use) => {
+    await use(async () => {
+      const spotlightRoot = await openSpotlight();
+
+      // Open settings through spotlight
+      await spotlightRoot.getByTestId('spotlight-action-settings').click();
+
+      // Verify spotlight is closed after opening settings
       await expect(spotlightRoot).not.toBeVisible();
     });
   },
