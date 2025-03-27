@@ -54,7 +54,7 @@ jobs:
     name: Lookup Conclusion of Workflow_Run Event
     runs-on: ubuntu-latest
     outputs:
-      conclusion: ${{ steps.get_conclusion.outputs.conclusion }}
+      conclusion: ${{ steps.get_conclusion.outputs.result }}
     steps:
       - name: Get Workflow Run
         uses: actions/github-script@v7
