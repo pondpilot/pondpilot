@@ -1,18 +1,37 @@
 import { BackgroundImage, Box, Center, Image, Stack, Text, Title } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
-import browserNotSupportedImg from './assets/wat.png';
+import browserNotSupportedImgWat from './assets/wat.svg';
+import browserNotSupportedImgBsod from './assets/bsod.svg';
+import browserNotSupportedImgMatrix from './assets/matrix.svg';
 import CrackDuck from './assets/crack-duck.svg';
+
+const backgroundImages = [
+  browserNotSupportedImgWat,
+  browserNotSupportedImgBsod,
+  browserNotSupportedImgMatrix,
+];
 
 export const BrowserNotSupported = () => (
   <Box h="100vh" w="100vw" pos="relative" data-testid={setDataTestId('browser-not-supported')}>
-    <BackgroundImage className=" opacity-20 h-[130%] w-[130%]" src={browserNotSupportedImg} />
+    <BackgroundImage
+      className="h-[100%] w-[100%]"
+      visibleFrom="md"
+      src={backgroundImages[Math.floor(Math.random() * backgroundImages.length)]}
+    />
     <Center pos="absolute" top={0} left={0} w="100%" h="100%">
-      <Box w={675} h={480} bg="background-primary" className="rounded-2xl pt-8 px-4 pb-14">
+      <Box
+        w={{ base: 'calc(100% - 80px)', md: 675 }}
+        h={480}
+        bg={{ base: 'transparent', md: 'background-primary' }}
+        className="rounded-2xl pt-8 px-4 pb-14"
+      >
         <Stack gap={16} align="center">
           <Title order={1} fw={400}>
             Unsupported Browser
           </Title>
-          <Text size="md">We’re sorry, but you have to use Chrome or Edge to use PondPilot.</Text>
+          <Text size="md" ta="center">
+            We’re sorry, but you have to use Chrome or Edge to use PondPilot.
+          </Text>
         </Stack>
         <Stack align="center" className="mt-8" gap={16}>
           <Image src={CrackDuck} w={210} h={175} />

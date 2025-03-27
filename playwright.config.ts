@@ -36,4 +36,10 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000, // 2 minutes
   },
+  /* Set the timeout for each test from the environment variable if it exists. Default value is 30_000 ms */
+  ...(process.env.PLAYWRIGHT_TIMEOUT
+    ? {
+        timeout: Number(process.env.PLAYWRIGHT_TIMEOUT),
+      }
+    : {}),
 });
