@@ -214,27 +214,6 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const settingsActions: Action[] = [
-    {
-      id: 'theme',
-      label: 'Theme',
-      icon: <IconBrush size={20} className={iconClasses} />,
-      handler: () => {
-        setSpotlightView('settings-theme');
-        setSearchValue('');
-      },
-    },
-    {
-      id: 'general',
-      label: 'General',
-      icon: <IconSettings size={20} className={iconClasses} />,
-      handler: () => {
-        navigate('/settings');
-        Spotlight.close();
-      },
-    },
-  ];
-
   const helpActions: Action[] = [
     {
       id: 'documentation',
@@ -438,15 +417,9 @@ export const SpotlightMenu = () => {
   };
 
   const renderSettingsView = () => {
-    const filteredActions = filterActions(settingsActions, searchValue);
-
-    return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Settings')}</>;
-  };
-
-  const renderSettingsThemeView = () => {
-    const filteredActions = filterActions(themeActions, searchValue);
-
-    return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Theme')}</>;
+    navigate('/settings');
+    Spotlight.close();
+    return null;
   };
 
   const getCurrentView = () => {
@@ -479,9 +452,6 @@ export const SpotlightMenu = () => {
       case 'settings':
         return renderSettingsView();
 
-      case 'settings-theme':
-        return renderSettingsThemeView();
-
       default:
         return renderHomeView();
     }
@@ -502,9 +472,6 @@ export const SpotlightMenu = () => {
 
     if (['queries', 'dataSources', 'settings'].includes(spotlightView)) {
       return setSpotlightView('home');
-    }
-    if (['settings-theme'].includes(spotlightView)) {
-      return setSpotlightView('settings');
     }
   };
 
