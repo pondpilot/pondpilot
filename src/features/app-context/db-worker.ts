@@ -11,7 +11,7 @@ let db: duckdb.AsyncDuckDB | null = null;
 // COI is still experimental, so is not provided in the DuckDB API `getJsDelivrBundles`.
 // This is a copy-paste from the DuckDB API, but with the COI bundle added.
 function getJsDelivrBundles(): duckdb.DuckDBBundles {
-  const jsdelivr_dist_url = `https://cdn.jsdelivr.net/npm/${duckdb.PACKAGE_NAME}@${duckdb.PACKAGE_VERSION}/dist/`;
+  const jsdelivr_dist_url = `/assets/`;
   return {
     mvp: {
       mainModule: `${jsdelivr_dist_url}duckdb-mvp.wasm`,
@@ -37,12 +37,12 @@ async function initDB() {
     const JSDELIVR_BUNDLES = getJsDelivrBundles();
     const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
 
-    const worker_url = URL.createObjectURL(
-      new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' }),
-    );
+    // const worker_url = URL.createObjectURL(
+    //   new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' }),
+    // );
 
     const logger = new duckdb.ConsoleLogger();
-    const worker = new Worker(worker_url);
+    const worker = new Worker(bundle.mainWorker!);
     db = new duckdb.AsyncDuckDB(logger, worker);
     await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
 
