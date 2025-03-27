@@ -15,7 +15,8 @@ import {
   useAllTabsQuery,
   useSetActiveTabMutation,
   useTabMutation,
-  useTabsDeleteMutation,
+  useDeleteTabsMutatuion,
+  useActiveTabQuery,
 } from '@store/app-idb-store';
 import { getFileNameWithExt } from '@utils/helpers';
 
@@ -33,10 +34,11 @@ export const QueryExplorer = memo(() => {
   const { mutateAsync: mutateTab } = useTabMutation();
   const { data: queryFiles = [] } = useQueryFilesQuery();
   const { data: tabsList = [] } = useAllTabsQuery();
-  const { mutateAsync: deleteTabs } = useTabsDeleteMutation();
+  const { mutateAsync: deleteTabs } = useDeleteTabsMutatuion();
   const { mutateAsync: deleteQueryFile } = useDeleteQueryFilesMutation();
   const { mutateAsync: switchTab } = useSetActiveTabMutation();
   const { mutateAsync: onRenameDataSource } = useRenameQueryFileMutation();
+  const { data: activeTab } = useActiveTabQuery();
   const appStatus = useAppStore((state) => state.appStatus);
 
   /**
@@ -49,7 +51,6 @@ export const QueryExplorer = memo(() => {
   /**
    * Consts
    */
-  const activeTab = tabsList.find((t) => t.active);
   const queriesList = queryFiles.map((query) => ({
     value: query.id,
     label: getFileNameWithExt(query.name, query.ext),

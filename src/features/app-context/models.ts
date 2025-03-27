@@ -26,12 +26,16 @@ export interface DeleteDataSourceProps {
 export type AddDataSourceBase = {
   entries: AddDataSourceProps;
 };
+export type DropFilesAndDBInstancesProps = {
+  ids: string[];
+  type: 'databases' | 'views';
+};
 
 export interface DBWorkerAPIType {
   initDB: () => Promise<void>;
   runQuery: ({ query, hasLimit }: DBRunQueryProps) => Promise<RunQueryResponse>;
   registerFileHandleAndCreateDBInstance: (dataset: Dataset) => Promise<void>;
-  dropFilesAndDBInstances: (paths: string[], type: 'database' | 'view') => Promise<void>;
+  dropFilesAndDBInstances: (v: DropFilesAndDBInstancesProps) => Promise<void>;
   getDBUserInstances: (type: 'databases' | 'views') => Promise<Uint8Array>;
   getTablesAndColumns: (database?: string, schema?: string) => Promise<Uint8Array<ArrayBufferLike>>;
 }

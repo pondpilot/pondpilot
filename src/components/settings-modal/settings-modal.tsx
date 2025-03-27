@@ -1,7 +1,5 @@
 import { useAppNotifications } from '@components/app-notifications';
 import { Text, Modal, Stack, Button, Group } from '@mantine/core';
-import { openDB } from 'idb';
-import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
 import { exportQueryFiles } from '@utils/exportData';
 import { clearFileSystem } from './utils';
 
@@ -45,17 +43,7 @@ export const SettingsModal = ({
   };
 
   const handleRestoreFiles = async () => {
-    try {
-      const db = await openDB(FILE_HANDLE_DB_NAME, 1, {
-        upgrade: (d) => d.createObjectStore(FILE_HANDLE_STORE_NAME),
-      });
-      const handles = await db.getAll(FILE_HANDLE_STORE_NAME);
-      await Promise.all(handles.map((handle) => handle.requestPermission({ mode: 'read' })));
-      window.location.reload();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      showError({ title: 'Error restoring files', message });
-    }
+    // TODO: Implement file restore from idb
   };
 
   return (

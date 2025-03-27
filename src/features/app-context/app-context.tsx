@@ -1,8 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { releaseProxy, wrap } from 'comlink';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { releaseProxy, Remote, wrap } from 'comlink';
 import { useAppStore } from '@store/app-store';
 import { tableFromIPC } from 'apache-arrow';
-import { usePaginationStore } from '@store/pagination-store';
 import { useAppNotifications } from '@components/app-notifications';
 import { useAbortController } from '@hooks/useAbortController';
 import { notifications } from '@mantine/notifications';
@@ -13,23 +12,24 @@ import {
   fileHandleStoreApi,
   useAddFileHandlesMutation,
   useCreateMultipleQueryFilesMutation,
+  useDeleteFileHandlesMutation,
   useFileHandlesQuery,
+  useDeleteTabsMutatuion,
+  useAllTabsQuery,
 } from '@store/app-idb-store';
-import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
-import { useShowPermsAlert, useWorkersRefs } from './hooks';
+import {
+  DBRunQueryProps,
+  DBWorkerAPIType,
+  DropFilesAndDBInstancesProps,
+  RunQueryResponse,
+} from './models';
+import { useShowPermsAlert } from './hooks';
 import { executeQueries, updateDatabasesWithColumns } from './utils';
-import { SessionWorker } from './app-session-worker';
 import { ErrorModal } from './components/error-modal';
 
 interface AppContextType {
   onAddDataSources: (entries: AddDataSourceProps) => Promise<any>;
-  onDeleteDataSource: ({
-    type,
-    paths,
-  }: {
-    type: 'database' | 'query' | 'view';
-    paths: string[];
-  }) => Promise<void>;
+  onDeleteDataSource: (v: DropFilesAndDBInstancesProps) => Promise<void>;
   runQuery: (runQueryProps: DBRunQueryProps) => Promise<RunQueryResponse | undefined>;
   onCancelQuery: (v?: string) => Promise<void>;
   importSQLFiles: () => Promise<void>;
@@ -42,7 +42,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const { showError, showSuccess, showWarning } = useAppNotifications();
   const { abortSignal, getSignal } = useAbortController();
   const { showPermsAlert } = useShowPermsAlert();
-  const { workerRef, proxyRef, dbWorkerRef, dbProxyRef } = useWorkersRefs();
+  const dbWorkerRef = useRef<Worker | null>(null);
+  const dbProxyRef = useRef<Remote<DBWorkerAPIType> | null>(null);
 
   /**
    * Local state
@@ -54,25 +55,19 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
    * Query state
    */
   const { mutateAsync: createMultipleQueryFiles } = useCreateMultipleQueryFilesMutation();
+  const { mutateAsync: deleteSources } = useDeleteFileHandlesMutation();
+  const { mutateAsync: deleteTabs } = useDeleteTabsMutatuion();
+
   const { mutateAsync: addSource } = useAddFileHandlesMutation();
   const { data: dataSources = [] } = useFileHandlesQuery();
+  const { data: tabs = [] } = useAllTabsQuery();
 
   /**
    * Store access
    */
-  const setCurrentView = useAppStore((state) => state.setCurrentView);
   const setViews = useAppStore((state) => state.setViews);
-  const setQueryRunning = useAppStore((state) => state.setQueryRunning);
-  const setQueryResults = useAppStore((state) => state.setQueryResults);
   const setAppStatus = useAppStore((state) => state.setAppStatus);
-  const setOriginalQuery = useAppStore((state) => state.setOriginalQuery);
   const setDatabases = useAppStore((state) => state.setDatabases);
-
-  const currentView = useAppStore((state) => state.currentView);
-
-  const setRowsCount = usePaginationStore((state) => state.setRowsCount);
-  const limit = usePaginationStore((state) => state.limit);
-  const currentPage = usePaginationStore((state) => state.currentPage);
 
   const handleClosingErrorModal = () => {
     setErrorModalText('');
@@ -82,72 +77,59 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   /**
    * Delete data source from the session
    */
-  const onDeleteDataSource: AppContextType['onDeleteDataSource'] = async ({ paths, type }) => {
-    if (!proxyRef.current || !dbProxyRef.current) return;
-
-    const deleteSource = async (_paths: string[]) => {
-      if (!proxyRef.current || !dbProxyRef.current) {
-        return null;
-      }
-
-      const result = await proxyRef.current.onDeleteDataSource({
-        paths: _paths,
-        type: type === 'query' ? 'query' : 'dataset',
-      });
-
-      return result;
-    };
+  const onDeleteDataSource: AppContextType['onDeleteDataSource'] = async ({ ids, type }) => {
+    if (!dbProxyRef.current) return;
 
     try {
-      if (type === 'database' || type === 'view') {
-        const sourcesData = await proxyRef.current.getFileSystemSources();
-
-        if (!sourcesData) throw new Error('Failed to get sources data');
-
-        const filesPathsToDelete = sourcesData?.sources.filter((source) =>
-          paths.includes(source.name),
-        );
-
-        await deleteSource(filesPathsToDelete.map((file) => file.path));
-        await dbProxyRef.current.dropFilesAndDBInstances(
-          filesPathsToDelete.map((file) => file.name),
-          type,
-        );
-
-        if (currentView && filesPathsToDelete.some((file) => file.name === currentView)) {
-          setCurrentView(null);
-          setQueryResults(null);
-        }
-
-        const dbExternalViews = tableFromIPC(await dbProxyRef.current.getDBUserInstances('views'))
-          .toArray()
-          .map((row) => row.toJSON().view_name);
-        const duckdbDatabases = tableFromIPC(
-          await dbProxyRef.current.getDBUserInstances('databases'),
-        )
-          .toArray()
-          .map((row) => row.toJSON().database_name);
-
-        const updatedViews = dbExternalViews.filter((name) =>
-          sourcesData?.sources?.some((source) => source.name === name),
-        );
-
-        const transformedTables = await updateDatabasesWithColumns(
-          dbProxyRef.current,
-          duckdbDatabases,
-        );
-
-        setDatabases(transformedTables);
-        setViews(updatedViews);
+      if (!dataSources.length) {
+        throw new Error('Failed to get sources data');
       }
 
-      if (type === 'query') {
-        // const result = await deleteSource(paths);
-        // setQueries(queries.filter((query) => !result?.paths.includes(query.path)));
+      const tabsToDelete = tabs.filter((tab) => ids.includes(tab.sourceId));
+      if (tabsToDelete.length) {
+        await deleteTabs(tabsToDelete.map((tab) => tab.id));
       }
+      await dbProxyRef.current.dropFilesAndDBInstances({
+        ids,
+        type,
+      });
+      await deleteSources(ids);
+
+      /**
+       * Get views and databases from the database
+       */
+      const dbExternalViews: DuckDBView[] = tableFromIPC(
+        await dbProxyRef.current.getDBUserInstances('views').catch((e) => {
+          showError({ title: 'Failed to get views', message: e.message });
+          return [];
+        }),
+      )
+        .toArray()
+        .map((row) => row.toJSON());
+
+      const duckdbDatabases: string[] = tableFromIPC(
+        await dbProxyRef.current.getDBUserInstances('databases').catch((e) => {
+          showError({ title: 'Failed to get databases', message: e.message });
+          return [];
+        }),
+      )
+        .toArray()
+        .map((row) => (row.toJSON() as DuckDBDatabase).database_name);
+
+      const updatedViews = dbExternalViews.filter((view) =>
+        dataSources?.some((source) => (view.comment || '').includes(source.id)),
+      );
+
+      const transformedTables = await updateDatabasesWithColumns(
+        dbProxyRef.current,
+        duckdbDatabases,
+      );
+
+      setDatabases(transformedTables);
+      setViews(updatedViews);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unknown error';
-      showError({ title: 'App context: Failed to delete sources', message });
+      showError({ title: 'Failed to delete sources', message });
       console.error('Failed to delete sources: ', e);
     }
   };
@@ -160,8 +142,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       /**
        * Error handling. Check if the user selected any data sources and if the proxy is initialized
        */
-      if (entries.length === 0) throw new Error('No data sources selected');
-      if (!proxyRef.current || !dbProxyRef.current) throw new Error('Proxy not initialized');
+      if (entries.length === 0) return;
+      if (!dbProxyRef.current) throw new Error('Proxy not initialized');
 
       const onlyNewEntries = entries.filter(({ entry }) => {
         const exists = dataSources.some((item) => item.name === entry.name);
@@ -170,7 +152,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (onlyNewEntries.length !== entries.length) {
         showWarning({
-          title: 'App context: Warning',
+          title: 'Warning',
           message: 'Some files were not added because they already exist.',
         });
       }
@@ -184,18 +166,10 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         dataSources.map((source) =>
           dbProxyRef.current?.registerFileHandleAndCreateDBInstance(source).catch((e) => {
             console.error('Failed to register file handle in the database', e, { source });
-            proxyRef.current?.onDeleteDataSource({
-              paths: [source.path],
-              type: 'dataset',
-            });
+            deleteSources([source.id]);
           }),
         ),
       );
-
-      const sessionFiles = await proxyRef.current.getFileSystemSources().catch((e) => {
-        showError({ title: 'App context: Failed to get session files', message: e.message });
-        return null;
-      });
 
       const dbExternalViews = tableFromIPC(await dbProxyRef.current.getDBUserInstances('views'))
         .toArray()
@@ -206,7 +180,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         .map((row) => row.toJSON().database_name);
 
       const newViews = dbExternalViews.filter((name) =>
-        sessionFiles?.sources?.some((source) => source.name === name),
+        dataSources.some((source) => source.name === name),
       );
 
       const transformedTables = await updateDatabasesWithColumns(
@@ -218,7 +192,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       setViews(newViews);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unknown error';
-      showError({ title: 'App context: Failed to add data source', message });
+      showError({ title: 'Failed to add data source', message });
       console.error(e);
     }
   };
@@ -240,7 +214,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   ): Promise<RunQueryResponse | undefined> => {
     try {
       // Ensure necessary proxies are initialized
-      if (!dbProxyRef.current || !proxyRef.current) throw new Error('Proxy not initialized');
+      if (!dbProxyRef.current) throw new Error('Proxy not initialized');
 
       // Create a cancelation signal to support cancelable queries
       const signal = getSignal();
@@ -250,22 +224,19 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         });
       });
 
+      // TODO: Implement pagination using tab data
       const queryProps = !runQueryProps.isPagination
-        ? { ...runQueryProps, limit, offset: (currentPage - 1) * limit }
-        : runQueryProps;
+        ? { ...runQueryProps }
+        : // ? { ...runQueryProps, limit, offset: (currentPage - 1) * limit }
+          runQueryProps;
 
       // Use executeQueries utility function to parse and execute the query
-      const { queryResults, originalQuery } = await executeQueries({
+      const { queryResults } = await executeQueries({
         runQueryProps: queryProps,
         dbProxyRef,
         isCancelledPromise,
         currentSources: dataSources,
       });
-
-      // Set the original query in the state for later reference
-      if (!runQueryProps.isPagination) {
-        setOriginalQuery(originalQuery);
-      }
 
       // Post-process the final query result
       if (queryResults) {
@@ -290,10 +261,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         );
 
         if (filesToDelete?.length) {
-          await proxyRef.current.onDeleteDataSource({
-            paths: filesToDelete.map((file) => file.path),
-            type: 'dataset',
-          });
+          await deleteSources(filesToDelete.map((file) => file.id));
           showSuccess({ title: 'Success', message: 'View deleted' });
         }
 
@@ -302,17 +270,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           dataSources?.some((source) => source.name === view),
         );
 
-        // If the current view is deleted, reset it
-        if (filesToDelete?.some((file) => file.name === currentView)) {
-          setCurrentView(null);
-        }
-
         const transformedTables = await updateDatabasesWithColumns(dbProxyRef.current, dbsNames);
 
         // Update the application state with processed data
         setDatabases(transformedTables);
         setViews(filteredViews);
-        setRowsCount(queryResults.pagination);
         return {
           data: queryResults.data,
           pagination: queryResults.pagination,
@@ -337,7 +299,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         notifications.clean();
       };
       showError({
-        title: 'App context: Failed to run query',
+        title: 'Failed to run query',
         message: (
           <Stack>
             <Text c="text-tertiary">{e?.message.slice(0, 100)}</Text>
@@ -354,21 +316,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       });
     } finally {
       // Ensure state is reset regardless of success or failure
-      setQueryRunning(false);
     }
   };
 
   const onCancelQuery = async (reason?: string) => {
     abortSignal(reason);
-    setQueryRunning(false);
-  };
-
-  const verifyPermission = async (fileHandle: FileSystemFileHandle) => {
-    if ((await fileHandle.queryPermission()) === 'granted') {
-      return true;
-    }
-
-    return false;
   };
 
   const importSQLFiles = async () => {
@@ -414,11 +366,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
     const initAppData = async () => {
       setAppStatus('initializing');
-      const { worker, proxy, dbWorker, dbProxy } = await initWorkers();
-      workerRef.current = worker;
-      proxyRef.current = proxy;
+
+      const dbWorker = new Worker(new URL('./db-worker.ts', import.meta.url), {
+        name: 'DBWorker',
+        type: 'module',
+      });
+      const dbProxy = wrap<DBWorkerAPIType>(dbWorker);
       dbWorkerRef.current = dbWorker;
       dbProxyRef.current = dbProxy;
+
       if (controller.signal.aborted) return;
 
       /**
@@ -426,15 +382,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
        */
       await dbProxyRef.current
         .initDB()
-        .catch((e) =>
-          showError({ title: 'App context: Failed to initialize database', message: e.message }),
-        );
+        .catch((e) => showError({ title: 'Failed to initialize database', message: e.message }));
 
       /**
        * Get list of files in the session
        */
       const sessionFiles = await fileHandleStoreApi.getFileHandles().catch((e) => {
-        showError({ title: 'App context: Failed to get session files', message: e.message });
+        showError({ title: 'Failed to get session files', message: e.message });
         return null;
       });
 
@@ -444,14 +398,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (sessionFiles) {
         const statuses = await Promise.all(
           sessionFiles.map(async (source) => {
-            const status = await verifyPermission(source.handle);
+            const status = (await source.handle.queryPermission()) === 'granted';
             return status;
           }),
         );
 
         if (statuses.includes(false)) {
           const userResponse = await showPermsAlert();
-
           if (!userResponse) {
             return;
           }
@@ -486,10 +439,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         const unavailableFiles = checkedFiles.filter((file) => file.status === 'error');
 
         if (unavailableFiles.length) {
-          await proxyRef.current?.onDeleteDataSource({
-            paths: unavailableFiles.map((file) => file.source.path),
-            type: 'dataset',
-          });
+          await deleteSources(unavailableFiles.map((file) => file.source.id));
           showWarning({
             title: 'Warning',
             message:
@@ -506,19 +456,16 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             )
             .map(async (source) =>
               dbProxy.registerFileHandleAndCreateDBInstance(source).catch((e) => {
-                proxyRef.current?.onDeleteDataSource({
-                  paths: [source.path],
-                  type: 'dataset',
-                });
+                deleteSources([source.id]);
                 showError({
-                  title: 'App context: Error registering file handle in the database',
+                  title: 'Error registering file handle in the database',
                   message: e.message,
                 });
               }),
             ),
         ).catch((e) => {
           console.error(e);
-          showError({ title: 'App context: Failed to register file handle', message: e.message });
+          showError({ title: 'Failed to register file handle', message: e.message });
         });
       }
 
@@ -527,7 +474,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
        */
       const dbExternalViews: DuckDBView[] = tableFromIPC(
         await dbProxyRef.current.getDBUserInstances('views').catch((e) => {
-          showError({ title: 'App context: Failed to get views', message: e.message });
+          showError({ title: 'Failed to get views', message: e.message });
           return [];
         }),
       )
@@ -536,7 +483,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
       const duckdbDatabases: string[] = tableFromIPC(
         await dbProxyRef.current.getDBUserInstances('databases').catch((e) => {
-          showError({ title: 'App context: Failed to get databases', message: e.message });
+          showError({ title: 'Failed to get databases', message: e.message });
           return [];
         }),
       )
@@ -561,11 +508,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     controller.signal.addEventListener('abort', () => {
-      proxyRef.current?.[releaseProxy]();
-      proxyRef.current = null;
-      workerRef.current?.terminate();
-      workerRef.current = null;
-
       dbProxyRef.current?.[releaseProxy]();
       dbProxyRef.current = null;
       dbWorkerRef.current?.terminate();
@@ -606,26 +548,4 @@ export const useAppContext = () => {
     throw new Error('useSessionContext must be used within a SessionProvider');
   }
   return context;
-};
-
-export const initWorkers = async () => {
-  const worker = new Worker(new URL('./app-session-worker.ts', import.meta.url), {
-    name: 'SessionWorker',
-    type: 'module',
-  });
-
-  const dbWorker = new Worker(new URL('./db-worker.ts', import.meta.url), {
-    name: 'DBWorker',
-    type: 'module',
-  });
-
-  const proxy = wrap<SessionWorker>(worker);
-  const dbProxy = wrap<DBWorkerAPIType>(dbWorker);
-
-  return {
-    worker,
-    proxy,
-    dbWorker,
-    dbProxy,
-  };
 };

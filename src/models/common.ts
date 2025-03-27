@@ -139,7 +139,7 @@ export type Limit = 100 | 1000 | 10000;
 
 export type TabType = 'query' | 'file';
 export type LoadingState = 'fetching' | 'error' | 'success' | 'pending';
-export type SortOrder = 'asc' | 'desc';
+export type SortOrder = 'asc' | 'desc' | null;
 
 export interface Pagination {
   page: number;

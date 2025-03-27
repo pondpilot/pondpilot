@@ -2,82 +2,106 @@
 import { useAppContext } from '@features/app-context';
 import { useCallback, useMemo } from 'react';
 import { useAppStore } from '@store/app-store';
-import { usePaginationStore } from '@store/pagination-store';
+import { useActiveTabQuery, useTabMutation } from '@store/app-idb-store';
 
 export const useTablePaginationSort = () => {
   const { runQuery } = useAppContext();
 
-  const setQueryRunning = useAppStore((state) => state.setQueryRunning);
-  const originalQuery = useAppStore((state) => state.originalQuery);
+  const { data: activeTab } = useActiveTabQuery();
+  const { mutateAsync: updateTab } = useTabMutation();
 
-  const rowsCount = usePaginationStore((state) => state.rowsCount);
-  const limit = usePaginationStore((state) => state.limit);
-  const currentPage = usePaginationStore((state) => state.currentPage);
-  const setSort = usePaginationStore((state) => state.setSort);
-  const sort = usePaginationStore((state) => state.sort);
-  const setCurrentPage = usePaginationStore((state) => state.setCurrentPage);
-
-  const totalPages = useMemo(() => Math.ceil(rowsCount / limit), [rowsCount, limit]);
+  const { pagination, dataView, sort } = activeTab ?? {};
+  const { limit = 100 } = pagination ?? {};
+  const { rowCount = 0 } = dataView ?? {};
+  // rowCount / limit TODO: get limit from appsettings
+  const totalPages = useMemo(() => Math.ceil(rowCount / 100), [rowCount, limit]);
 
   const executeQuery = useCallback(
     async (query: string, page: number) => {
-      setQueryRunning(true);
+      if (!activeTab) return;
+      await updateTab({
+        id: activeTab.id,
+        query: {
+          ...activeTab.query,
+          state: 'fetching',
+        },
+      });
       const offset = (page - 1) * limit;
       return runQuery({
         query,
-        limit,
         offset,
+        limit: 100,
         isPagination: true,
       });
     },
-    [setQueryRunning, limit, runQuery],
+    [runQuery],
   );
 
   const handleSort = useCallback(
     async (id: string) => {
-      const current = sort.field === id ? sort.direction : null;
+      if (!activeTab) return;
+      const current = sort?.column === id ? sort.order : null;
       const newDir = !current ? 'asc' : current === 'asc' ? 'desc' : null;
 
-      setSort({
-        field: newDir ? id : null,
-        direction: newDir,
+      await updateTab({
+        id: activeTab.id,
+        sort: {
+          column: id,
+          order: newDir,
+        },
       });
 
       const query = !newDir
-        ? originalQuery
-        : `select * from (${originalQuery}) order by "${id}" ${newDir}`;
+        ? activeTab.query.originalQuery
+        : `select * from (${activeTab.query.originalQuery}) order by "${id}" ${newDir}`;
 
       // TODO: set the result to a tab
-      const result = await executeQuery(query, currentPage);
+      const result = await executeQuery(query, activeTab.pagination.page);
+      await updateTab({
+        id: activeTab.id,
+        query: {
+          ...activeTab.query,
+          state: 'success',
+        },
+      });
     },
-    [sort, setSort, originalQuery, executeQuery, currentPage],
+    [activeTab, updateTab, sort, executeQuery],
   );
 
   const handlePaginationChange = useCallback(
     async (page: number) => {
-      setCurrentPage(page);
+      if (!activeTab) return;
+      await updateTab({
+        id: activeTab.id,
+        pagination: {
+          ...activeTab.pagination,
+          page,
+        },
+      });
 
-      const query = sort.field
-        ? `select * from (${originalQuery}) order by "${sort.field}" ${sort.direction}`
-        : originalQuery;
+      const query = sort?.column
+        ? `select * from (${activeTab.query.originalQuery}) order by "${sort.column}" ${sort.order}`
+        : activeTab.query.originalQuery;
 
       // TODO: set the result to a tab
       const result = await executeQuery(query, page);
     },
-    [setCurrentPage, sort.field, sort.direction, originalQuery, executeQuery],
+    [activeTab, updateTab, sort, executeQuery],
   );
 
   const onNextPage = useCallback(() => {
-    if (currentPage < totalPages) {
-      handlePaginationChange(currentPage + 1);
+    if (!activeTab) return;
+    if (activeTab.pagination.page < totalPages) {
+      handlePaginationChange(activeTab.pagination.page + 1);
     }
-  }, [currentPage, totalPages, handlePaginationChange]);
+  }, [activeTab, handlePaginationChange, totalPages]);
 
   const onPrevPage = useCallback(() => {
-    if (currentPage > 1) {
-      handlePaginationChange(currentPage - 1);
+    if (!activeTab) return;
+    if (activeTab.pagination.page > 1) {
+      handlePaginationChange(activeTab.pagination.page - 1);
     }
-  }, [currentPage, handlePaginationChange]);
+  }, [activeTab, handlePaginationChange]);
 
   return { handleSort, handlePaginationChange, onNextPage, onPrevPage };
 };

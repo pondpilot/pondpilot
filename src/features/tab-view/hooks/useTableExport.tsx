@@ -3,14 +3,13 @@ import { useAppNotifications } from '@components/app-notifications';
 import { useAppContext } from '@features/app-context';
 import { useAppStore } from '@store/app-store';
 import { Table as ApacheTable } from 'apache-arrow';
-import { useAllTabsQuery } from '@store/app-idb-store';
+import { useActiveTabQuery } from '@store/app-idb-store';
 
 export const useTableExport = () => {
   const { executeQuery } = useAppContext();
   const { showSuccess } = useAppNotifications();
   const originalQuery = useAppStore((state) => state.originalQuery);
-  const { data: tabs = [] } = useAllTabsQuery();
-  const activeTab = tabs.find((t) => t.active);
+  const { data: activeTab } = useActiveTabQuery();
 
   const handleCopyToClipboard = useCallback((convertedTable: { columns: any[]; data: any[] }) => {
     const { columns, data } = convertedTable;

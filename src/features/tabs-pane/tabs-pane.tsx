@@ -38,24 +38,25 @@ import {
   useAllTabsQuery,
   useSetActiveTabMutation,
   useTabMutation,
-  useTabsDeleteMutation,
+  useDeleteTabsMutatuion,
   useTabsReorderMutation,
+  useActiveTabQuery,
 } from '@store/app-idb-store';
 import { tableFromIPC } from 'apache-arrow';
 
 interface SortableTabProps {
   tab: TabMetaInfo;
-  activeTab: TabMetaInfo | undefined;
+  active: boolean;
+  loading: boolean;
   icon: React.ReactNode;
   activeTabRef: React.RefObject<HTMLDivElement | null>;
   handleDeleteTab: (id: string) => void;
   onClick: (tab: string) => void;
-  loading: boolean;
 }
 
 const SortableTab = ({
   tab,
-  activeTab,
+  active,
   activeTabRef,
   handleDeleteTab,
   onClick,
@@ -82,7 +83,6 @@ const SortableTab = ({
     transform: CSS.Transform.toString(transform),
     transition,
   };
-  const active = activeTab?.id === tab.id;
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
@@ -155,15 +155,16 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
    * Store access
    */
   const activeTabRef = useRef<HTMLDivElement | null>(null);
+  const { data: activeTab } = useActiveTabQuery();
   const { data: tabs = [] } = useAllTabsQuery();
   const { mutateAsync: setActiveTab } = useSetActiveTabMutation();
-  const { mutateAsync: onDeleteTabs } = useTabsDeleteMutation();
+  const { mutateAsync: onDeleteTabs } = useDeleteTabsMutatuion();
 
   const appStatus = useAppStore((state) => state.appStatus);
   const sessionFiles = useAppStore((state) => state.sessionFiles);
 
   const appInitializing = appStatus === 'initializing';
-  const activeTab = tabs.find((tab) => tab.active);
+
   const isEditorView = activeTab?.type === 'query';
 
   /**
@@ -330,7 +331,7 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
                   <SortableTab
                     key={tab.id}
                     tab={tab}
-                    activeTab={activeTab}
+                    active={tab.id === activeTab?.id}
                     activeTabRef={activeTabRef}
                     handleDeleteTab={handleDeleteTab}
                     onClick={handleTabClick}

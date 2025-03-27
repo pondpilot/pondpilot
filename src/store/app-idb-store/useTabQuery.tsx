@@ -74,11 +74,12 @@ export const useTabMutation = () => {
     onSuccess: (tab: Tab) => {
       queryClient.setQueryData(['tab', tab.id], tab);
       queryClient.invalidateQueries({ queryKey: ['tabs'] });
+      queryClient.invalidateQueries({ queryKey: ['activeTab'] });
     },
   });
 };
 
-export const useTabsDeleteMutation = () => {
+export const useDeleteTabsMutatuion = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (ids: string[]) => {
@@ -109,6 +110,7 @@ export const useTabsDeleteMutation = () => {
         queryClient.removeQueries({ queryKey: ['tab', id] });
       });
       queryClient.invalidateQueries({ queryKey: ['tabs'] });
+      queryClient.invalidateQueries({ queryKey: ['activeTab'] });
     },
   });
 };
@@ -138,6 +140,7 @@ export const useSetActiveTabMutation = () => {
     onSuccess: (tabId: string) => {
       queryClient.invalidateQueries({ queryKey: ['tabs'] });
       queryClient.invalidateQueries({ queryKey: ['tab', tabId] });
+      queryClient.invalidateQueries({ queryKey: ['activeTab'] });
     },
   });
 };
@@ -177,3 +180,14 @@ export const useTabsReorderMutation = () => {
     },
   });
 };
+
+export const useActiveTabQuery = () =>
+  useQuery({
+    queryKey: ['activeTab'],
+    queryFn: async (): Promise<Tab | null> => {
+      const tabs = await tabStoreApi.getAllTabs();
+      const activeTab = tabs.find((tab) => tab.active);
+      return activeTab || null;
+    },
+    staleTime: 0,
+  });

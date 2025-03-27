@@ -52,7 +52,7 @@ export const TabView = memo(({ id }: { id: string }) => {
     : null;
   const queryRunning = tab?.query.state === 'fetching';
   const queryView = tab?.type === 'query';
-  const activeTab = tab?.active;
+  const isActive = tab?.active;
 
   const { editorPaneHeight = 0, dataViewPaneHeight = 0 } = tab?.layout ?? {};
   const { rowCount, limit, currentPage } = useMemo(
@@ -134,7 +134,7 @@ export const TabView = memo(({ id }: { id: string }) => {
         });
       }
     },
-    [activeTab, tab?.query.originalQuery],
+    [isActive, tab?.query.originalQuery],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {
@@ -177,7 +177,7 @@ export const TabView = memo(({ id }: { id: string }) => {
           </Allotment.Pane>
         )}
         <Allotment.Pane preferredSize={dataViewPaneHeight} minSize={120}>
-          {!hasTableData && !queryRunning && activeTab && (
+          {!hasTableData && !queryRunning && isActive && (
             <Center className="h-full font-bold">
               <Stack align="center" c="icon-default" gap={4}>
                 <IconClipboardSmile size={32} stroke={1} />
@@ -185,7 +185,7 @@ export const TabView = memo(({ id }: { id: string }) => {
               </Stack>
             </Center>
           )}
-          {activeTab ? (
+          {isActive ? (
             <div className="flex flex-col h-full">
               <TableLoadingOverlay
                 queryView={queryView}

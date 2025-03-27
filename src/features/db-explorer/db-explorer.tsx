@@ -61,8 +61,8 @@ export const DbExplorer = memo(() => {
 
   const handleDeleteSelected = async (items: string[]) => {
     onDeleteDataSource({
-      paths: items,
-      type: 'database',
+      ids: items,
+      type: 'databases',
     });
   };
 
@@ -96,7 +96,7 @@ export const DbExplorer = memo(() => {
       children: [
         {
           label: 'Delete',
-          onClick: (item) => onDeleteDataSource({ paths: [item.label], type: 'database' }),
+          onClick: (item) => onDeleteDataSource({ ids: [item.value], type: 'databases' }),
         },
       ],
     },

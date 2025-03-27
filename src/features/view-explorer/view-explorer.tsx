@@ -9,7 +9,8 @@ import {
   useAllTabsQuery,
   useCreateQueryFileMutation,
   useFileHandlesQuery,
-  useTabsDeleteMutation,
+  useDeleteTabsMutatuion,
+  useActiveTabQuery,
 } from '@store/app-idb-store';
 
 /**
@@ -23,7 +24,7 @@ export const ViewExplorer = memo(() => {
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
-  const { mutateAsync: deleteTabs } = useTabsDeleteMutation();
+  const { mutateAsync: deleteTabs } = useDeleteTabsMutatuion();
 
   /**
    * Store access
@@ -32,14 +33,14 @@ export const ViewExplorer = memo(() => {
   const appStatus = useAppStore((state) => state.appStatus);
   const { data: tabs = [] } = useAllTabsQuery();
   const { data: dataSources = [] } = useFileHandlesQuery();
-  const activeTab = tabs.find((t) => t.active);
+  const { data: activeTab } = useActiveTabQuery();
   const sessionFiles = useAppStore((state) => state.sessionFiles);
 
   /**
    * Consts
    */
-  const viewsToDisplay = views.map(({ view_name }) => ({
-    value: view_name,
+  const viewsToDisplay = views.map(({ view_name, comment }) => ({
+    value: JSON.parse(comment || '{}').sourceId,
     label: view_name,
     nodeProps: { canSelect: true, id: view_name },
   }));
@@ -68,8 +69,8 @@ export const ViewExplorer = memo(() => {
 
   const handleDeleteSelected = async (items: string[]) => {
     onDeleteDataSource({
-      paths: items,
-      type: 'view',
+      ids: items,
+      type: 'views',
     });
   };
 
@@ -102,7 +103,7 @@ export const ViewExplorer = memo(() => {
       children: [
         {
           label: 'Delete',
-          onClick: (item) => onDeleteDataSource({ paths: [item.label], type: 'view' }),
+          onClick: (item) => onDeleteDataSource({ ids: [item.value], type: 'views' }),
         },
       ],
     },

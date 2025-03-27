@@ -4,7 +4,12 @@ import { expose } from 'comlink';
 import { Dataset } from '@models/common';
 import { createName } from '../../utils/helpers';
 import { buildColumnsQueryWithFilters } from './utils';
-import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
+import {
+  DBRunQueryProps,
+  DBWorkerAPIType,
+  DropFilesAndDBInstancesProps,
+  RunQueryResponse,
+} from './models';
 import { GET_DBS_SQL_QUERY, GET_VIEWS_SQL_QUERY } from './consts';
 
 let db: duckdb.AsyncDuckDB | null = null;
@@ -134,7 +139,8 @@ async function registerFileHandleAndCreateDBInstance(dataset: Dataset) {
     const viewName = createName(fileName);
 
     await conn.query(`CREATE or REPLACE VIEW ${viewName} AS SELECT * FROM "${fileName}";`);
-    await conn.query(`COMMENT ON VIEW ${viewName} IS 'sourceId=${dataset.id}';`);
+    const id = JSON.stringify({ sourceId: dataset.id });
+    await conn.query(`COMMENT ON VIEW ${viewName} IS '${id}';`);
   }
 
   await conn.close();
@@ -143,21 +149,39 @@ async function registerFileHandleAndCreateDBInstance(dataset: Dataset) {
 /**
  * Drop file and view
  */
-async function dropFilesAndDBInstances(paths: string[], type: 'database' | 'view') {
+async function dropFilesAndDBInstances({ ids, type }: DropFilesAndDBInstancesProps) {
   const conn = await db?.connect();
   if (!conn) throw new Error('Connection not initialized');
 
-  await Promise.all(
-    paths.map(async (path) => {
-      await db?.dropFile(path);
-      if (type === 'database') {
-        await conn.query(`DETACH ${path}; `);
-      }
-      if (type === 'view') {
-        await conn.query(`DROP VIEW ${path}; `);
-      }
-    }),
-  );
+  if (type === 'databases') {
+    const databases = await conn.query('SELECT * FROM duckdb_databases');
+    const databasesToDelete = databases.toArray().filter((row) => {
+      const id = JSON.parse(row.comment || '{}').sourceId;
+      return ids.includes(id);
+    });
+    await Promise.all(
+      databasesToDelete.map(async (row) => {
+        await conn.query(`DETACH ${row.name};`);
+      }),
+    );
+  }
+
+  if (type === 'views') {
+    const views = await conn.query('SELECT * FROM duckdb_views');
+    const viewsToDelete = views
+      .toArray()
+      .filter((row) => {
+        const id = JSON.parse(row.comment || '{}').sourceId;
+        return ids.includes(id);
+      })
+      .map((row) => row.toJSON());
+
+    await Promise.all(
+      viewsToDelete.map(async (row) => {
+        await conn.query(`DROP VIEW ${row.view_name};`);
+      }),
+    );
+  }
 
   await conn.close();
 }
