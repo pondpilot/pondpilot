@@ -10,7 +10,6 @@ import {
   IconFolderPlus,
   IconDatabasePlus,
   IconChevronUp,
-  IconBrush,
   IconSun,
   IconMoon,
   IconSettings,
@@ -102,6 +101,12 @@ export const SpotlightMenu = () => {
     [sessionFiles],
   );
 
+  const ensure_home = () => {
+    if (location.pathname !== '/') {
+      navigate('/');
+    }
+  };
+
   const navigateActions: Action[] = [
     {
       id: 'data-sources',
@@ -119,8 +124,10 @@ export const SpotlightMenu = () => {
       id: 'settings',
       label: 'Settings',
       handler: () => {
-        setSpotlightView('settings');
-        setSearchValue('');
+        if (!location.pathname.includes('settings')) {
+          navigate('/settings');
+        }
+        Spotlight.close();
       },
       icon: <IconSettings size={20} className={iconClasses} />,
     },
@@ -153,6 +160,7 @@ export const SpotlightMenu = () => {
         stable: true,
       });
       Spotlight.close();
+      ensure_home();
     },
   }));
 
@@ -165,6 +173,7 @@ export const SpotlightMenu = () => {
       handler: () => {
         handleAddSource('file')();
         resetSpotlight();
+        ensure_home();
       },
     },
     {
@@ -175,6 +184,7 @@ export const SpotlightMenu = () => {
       handler: () => {
         handleAddSource('folder')();
         resetSpotlight();
+        ensure_home();
       },
     },
     {
@@ -185,6 +195,7 @@ export const SpotlightMenu = () => {
       handler: () => {
         handleAddSource('file', ['.duckdb'])();
         resetSpotlight();
+        ensure_home();
       },
     },
   ];
@@ -199,6 +210,7 @@ export const SpotlightMenu = () => {
         await saveCurrentQuery();
         onCreateQueryFile({ entities: [{ name: 'query' }] });
         resetSpotlight();
+        ensure_home();
       },
     },
     {
@@ -210,6 +222,7 @@ export const SpotlightMenu = () => {
         await saveCurrentQuery();
         importSQLFiles();
         resetSpotlight();
+        ensure_home();
       },
     },
   ];
@@ -416,12 +429,6 @@ export const SpotlightMenu = () => {
     return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Queries')}</>;
   };
 
-  const renderSettingsView = () => {
-    navigate('/settings');
-    Spotlight.close();
-    return null;
-  };
-
   const getCurrentView = () => {
     if (searchValue.endsWith('?')) {
       return renderActionsGroup(modeActions, 'Modes');
@@ -448,10 +455,6 @@ export const SpotlightMenu = () => {
         return renderDataSourcesView();
       case 'queries':
         return renderQueriesView();
-
-      case 'settings':
-        return renderSettingsView();
-
       default:
         return renderHomeView();
     }
@@ -470,7 +473,7 @@ export const SpotlightMenu = () => {
       return resetSpotlight();
     }
 
-    if (['queries', 'dataSources', 'settings'].includes(spotlightView)) {
+    if (['queries', 'dataSources'].includes(spotlightView)) {
       return setSpotlightView('home');
     }
   };

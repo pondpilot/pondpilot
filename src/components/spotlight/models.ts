@@ -1,1 +1,1 @@
-export type SpotlightView = 'home' | 'dataSources' | 'queries' | 'settings';
+export type SpotlightView = 'home' | 'dataSources' | 'queries';

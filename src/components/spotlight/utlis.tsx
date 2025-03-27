@@ -16,7 +16,6 @@ export const getBreadcrumbText = (view: SpotlightView) =>
   ({
     dataSources: 'Data Sources',
     queries: 'Queries',
-    settings: 'Settings',
     home: 'Home',
   })[view];
 
