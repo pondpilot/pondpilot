@@ -8,12 +8,33 @@ import { GET_DBS_SQL_QUERY, GET_VIEWS_SQL_QUERY } from './consts';
 
 let db: duckdb.AsyncDuckDB | null = null;
 
+// COI is still experimental, so is not provided in the DuckDB API `getJsDelivrBundles`.
+// This is a copy-paste from the DuckDB API, but with the COI bundle added.
+function getJsDelivrBundles(): duckdb.DuckDBBundles {
+  const jsdelivr_dist_url = `https://cdn.jsdelivr.net/npm/${duckdb.PACKAGE_NAME}@${duckdb.PACKAGE_VERSION}/dist/`;
+  return {
+    mvp: {
+      mainModule: `${jsdelivr_dist_url}duckdb-mvp.wasm`,
+      mainWorker: `${jsdelivr_dist_url}duckdb-browser-mvp.worker.js`,
+    },
+    eh: {
+      mainModule: `${jsdelivr_dist_url}duckdb-eh.wasm`,
+      mainWorker: `${jsdelivr_dist_url}duckdb-browser-eh.worker.js`,
+    },
+    coi: {
+      mainModule: `${jsdelivr_dist_url}duckdb-coi.wasm`,
+      mainWorker: `${jsdelivr_dist_url}duckdb-browser-coi.worker.js`,
+      pthreadWorker: `${jsdelivr_dist_url}duckdb-browser-coi.pthread.worker.js`,
+    },
+  };
+}
+
 /**
  * Database initialization
  */
 async function initDB() {
   try {
-    const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+    const JSDELIVR_BUNDLES = getJsDelivrBundles();
     const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
 
     const worker_url = URL.createObjectURL(

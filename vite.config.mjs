@@ -3,8 +3,7 @@ import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { VitePWA } from 'vite-plugin-pwa';
 import svgr from 'vite-plugin-svgr';
-import { execSync } from 'child_process';
-import { resolve } from 'path';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 
 const getVersionInfo = () => {
   try {
@@ -21,6 +20,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tsconfigPaths(),
+      basicSsl(),
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
@@ -102,6 +102,20 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       exclude: ['@duckdb/duckdb-wasm'],
+    },
+    server: {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
+      https: true,
+    },
+    preview: {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
+      https: true,
     },
     define: {
       __VERSION__: JSON.stringify(getVersionInfo()),
