@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tsconfigPaths(),
-      basicSsl(),
+      // basicSsl(),
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
@@ -128,14 +128,14 @@ export default defineConfig(({ mode }) => {
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'require-corp',
       },
-      https: true,
+      // https: true,
     },
     preview: {
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'require-corp',
       },
-      https: true,
+      // https: true,
     },
     define: {
       __VERSION__: JSON.stringify(getVersionInfo()),
