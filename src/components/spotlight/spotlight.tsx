@@ -24,7 +24,7 @@ import { useAppStore } from '@store/app-store';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { cn } from '@utils/ui/styles';
 import { useModifier } from '@hooks/useModifier';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useEditorStore } from '@store/editor-store';
 import { setDataTestId } from '@utils/test-id';
 import { SpotlightView } from './models';
@@ -49,6 +49,7 @@ export const SpotlightMenu = () => {
   const { handleAddSource } = useFileHandlers();
   const { command, option } = useModifier();
   const navigate = useNavigate();
+  const location = useLocation();
 
   /**
    * Store access
@@ -98,8 +99,8 @@ export const SpotlightMenu = () => {
     [sessionFiles],
   );
 
-  const ensure_home = () => {
-    if (window.location.pathname !== '/') {
+  const ensureHome = () => {
+    if (location.pathname !== '/') {
       navigate('/');
     }
   };
@@ -121,7 +122,7 @@ export const SpotlightMenu = () => {
       id: 'settings',
       label: 'Settings',
       handler: () => {
-        if (!window.location.pathname.includes('settings')) {
+        if (location.pathname !== '/settings') {
           navigate('/settings');
         }
         Spotlight.close();
@@ -157,7 +158,7 @@ export const SpotlightMenu = () => {
         stable: true,
       });
       Spotlight.close();
-      ensure_home();
+      ensureHome();
     },
   }));
 
@@ -170,7 +171,7 @@ export const SpotlightMenu = () => {
       handler: () => {
         handleAddSource('file')();
         resetSpotlight();
-        ensure_home();
+        ensureHome();
       },
     },
     {
@@ -181,7 +182,7 @@ export const SpotlightMenu = () => {
       handler: () => {
         handleAddSource('folder')();
         resetSpotlight();
-        ensure_home();
+        ensureHome();
       },
     },
     {
@@ -192,7 +193,7 @@ export const SpotlightMenu = () => {
       handler: () => {
         handleAddSource('file', ['.duckdb'])();
         resetSpotlight();
-        ensure_home();
+        ensureHome();
       },
     },
   ];
@@ -207,7 +208,7 @@ export const SpotlightMenu = () => {
         await saveCurrentQuery();
         onCreateQueryFile({ entities: [{ name: 'query' }] });
         resetSpotlight();
-        ensure_home();
+        ensureHome();
       },
     },
     {
@@ -219,7 +220,7 @@ export const SpotlightMenu = () => {
         await saveCurrentQuery();
         importSQLFiles();
         resetSpotlight();
-        ensure_home();
+        ensureHome();
       },
     },
   ];

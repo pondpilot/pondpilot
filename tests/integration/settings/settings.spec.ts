@@ -6,9 +6,10 @@ import { test as QueryEditorTest } from '../fixtures/query-editor';
 
 const test = mergeTests(baseTest, spotlightTest, settingsTest, QueryEditorTest);
 
-test('Open settings page using spotlight menu', async ({ page, openSettingsViaSpotlight }) => {
-  const settingsPage = page.getByTestId('settings-page');
-
+test('Open settings page using spotlight menu', async ({
+  settingsPage,
+  openSettingsViaSpotlight,
+}) => {
   // Check settings page is not attached
   expect(settingsPage).not.toBeAttached;
 

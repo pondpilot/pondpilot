@@ -1,13 +1,16 @@
 import { test as base, expect, Locator } from '@playwright/test';
 
 type SettingsFixtures = {
+  settingsPage: Locator;
   openSettings: () => Promise<Locator>;
 };
 
 export const test = base.extend<SettingsFixtures>({
-  openSettings: async ({ page }, use) => {
-    const settingsPage = page.getByTestId('settings-page');
+  settingsPage: async ({ page }, use) => {
+    await use(page.getByTestId('settings-page'));
+  },
 
+  openSettings: async ({ page, settingsPage }, use) => {
     await use(async () => {
       // Verify settings page is not attached
       expect(settingsPage).not.toBeAttached;
