@@ -25,6 +25,9 @@ import {
 } from '@mantine/spotlight';
 
 export const theme = createTheme({
+  breakpoints: {
+    desktop: '64em',
+  },
   headings: {
     sizes: {
       h1: {

@@ -15,14 +15,14 @@ export const BrowserNotSupported = () => (
   <Box h="100vh" w="100vw" pos="relative" data-testid={setDataTestId('browser-not-supported')}>
     <BackgroundImage
       className="h-[100%] w-[100%]"
-      visibleFrom="md"
+      visibleFrom="desktop"
       src={backgroundImages[Math.floor(Math.random() * backgroundImages.length)]}
     />
     <Center pos="absolute" top={0} left={0} w="100%" h="100%">
       <Box
-        w={{ base: 'calc(100% - 80px)', md: 675 }}
+        w={{ base: 'calc(100% - 80px)', desktop: 675 }}
         h={480}
-        bg={{ base: 'transparent', md: 'background-primary' }}
+        bg={{ base: 'transparent', desktop: 'background-primary' }}
         className="rounded-2xl pt-8 px-4 pb-14"
       >
         <Stack gap={16} align="center">
