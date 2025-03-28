@@ -61,7 +61,10 @@ export const Header = memo(() => {
               </Group>
             }
             leftSectionProps={{ onClick: spotlight.open }}
-            rightSectionProps={{ onClick: spotlight.open }}
+            rightSectionProps={{
+              onClick: spotlight.open,
+              className: 'w-auto pr-1',
+            }}
             rightSectionWidth={74}
             leftSectionWidth={100}
             rightSection={<HotkeyPill value={[mod.command, 'K']} />}

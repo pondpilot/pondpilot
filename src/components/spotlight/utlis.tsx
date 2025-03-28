@@ -16,9 +16,7 @@ export const getBreadcrumbText = (view: SpotlightView) =>
   ({
     dataSources: 'Data Sources',
     queries: 'Queries',
-    settings: 'Settings',
     home: 'Home',
-    'settings-theme': 'Theme',
   })[view];
 
 export const filterActions = (actions: any[], _searchValue: string) => {

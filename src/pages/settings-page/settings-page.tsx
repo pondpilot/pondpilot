@@ -1,6 +1,7 @@
 import { Box, Button, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { clearFileSystem } from '@components/settings-modal/utils';
 import { useAppContext } from '@features/app-context';
+import { setDataTestId } from '@utils/test-id';
 import { ThemeSwitcher } from './components/theme-switcher';
 
 export const SettingsPage = () => {
@@ -24,7 +25,12 @@ export const SettingsPage = () => {
   };
 
   return (
-    <Group align="start" justify="center" className="h-full p-4">
+    <Group
+      align="start"
+      justify="center"
+      className="h-full p-4"
+      data-testid={setDataTestId('settings-page')}
+    >
       <Box w={300}></Box>
       <Stack w={700} className="gap-8">
         <Title c="text-primary" order={2}>

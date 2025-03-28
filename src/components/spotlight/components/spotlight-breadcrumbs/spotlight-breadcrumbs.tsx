@@ -19,12 +19,7 @@ export const SpotlightBreadcrumbs = ({
   const getBreadcrumbPath = (): BreadcrumbItem[] => {
     const path: BreadcrumbItem[] = [{ label: getBreadcrumbText('home'), view: 'home' }];
 
-    if (currentView === 'settings-theme') {
-      path.push(
-        { label: getBreadcrumbText('settings'), view: 'settings' },
-        { label: getBreadcrumbText('settings-theme'), view: 'settings-theme' },
-      );
-    } else if (currentView !== 'home') {
+    if (currentView !== 'home') {
       path.push({ label: getBreadcrumbText(currentView), view: currentView });
     }
 

@@ -1,5 +1,5 @@
 import { useAppContext } from '@features/app-context';
-import { Group, Text, useMantineColorScheme } from '@mantine/core';
+import { Group, Text } from '@mantine/core';
 import { Spotlight } from '@mantine/spotlight';
 import {
   IconDatabase,
@@ -10,9 +10,6 @@ import {
   IconFolderPlus,
   IconDatabasePlus,
   IconChevronUp,
-  IconBrush,
-  IconSun,
-  IconMoon,
   IconSettings,
   IconFileSad,
   IconBooks,
@@ -27,7 +24,7 @@ import { useAppStore } from '@store/app-store';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { cn } from '@utils/ui/styles';
 import { useModifier } from '@hooks/useModifier';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useEditorStore } from '@store/editor-store';
 import { setDataTestId } from '@utils/test-id';
 import { SpotlightView } from './models';
@@ -49,10 +46,10 @@ export const SpotlightMenu = () => {
    */
   const { onCreateQueryFile, importSQLFiles, onOpenQuery, onTabSwitch, onOpenView, onSaveEditor } =
     useAppContext();
-  const { setColorScheme } = useMantineColorScheme();
   const { handleAddSource } = useFileHandlers();
   const { command, option } = useModifier();
   const navigate = useNavigate();
+  const location = useLocation();
 
   /**
    * Store access
@@ -102,6 +99,12 @@ export const SpotlightMenu = () => {
     [sessionFiles],
   );
 
+  const ensureHome = () => {
+    if (location.pathname !== '/') {
+      navigate('/');
+    }
+  };
+
   const navigateActions: Action[] = [
     {
       id: 'data-sources',
@@ -119,8 +122,10 @@ export const SpotlightMenu = () => {
       id: 'settings',
       label: 'Settings',
       handler: () => {
-        setSpotlightView('settings');
-        setSearchValue('');
+        if (location.pathname !== '/settings') {
+          navigate('/settings');
+        }
+        Spotlight.close();
       },
       icon: <IconSettings size={20} className={iconClasses} />,
     },
@@ -153,6 +158,7 @@ export const SpotlightMenu = () => {
         stable: true,
       });
       Spotlight.close();
+      ensureHome();
     },
   }));
 
@@ -165,6 +171,7 @@ export const SpotlightMenu = () => {
       handler: () => {
         handleAddSource('file')();
         resetSpotlight();
+        ensureHome();
       },
     },
     {
@@ -175,6 +182,7 @@ export const SpotlightMenu = () => {
       handler: () => {
         handleAddSource('folder')();
         resetSpotlight();
+        ensureHome();
       },
     },
     {
@@ -185,6 +193,7 @@ export const SpotlightMenu = () => {
       handler: () => {
         handleAddSource('file', ['.duckdb'])();
         resetSpotlight();
+        ensureHome();
       },
     },
   ];
@@ -199,6 +208,7 @@ export const SpotlightMenu = () => {
         await saveCurrentQuery();
         onCreateQueryFile({ entities: [{ name: 'query' }] });
         resetSpotlight();
+        ensureHome();
       },
     },
     {
@@ -210,27 +220,7 @@ export const SpotlightMenu = () => {
         await saveCurrentQuery();
         importSQLFiles();
         resetSpotlight();
-      },
-    },
-  ];
-
-  const settingsActions: Action[] = [
-    {
-      id: 'theme',
-      label: 'Theme',
-      icon: <IconBrush size={20} className={iconClasses} />,
-      handler: () => {
-        setSpotlightView('settings-theme');
-        setSearchValue('');
-      },
-    },
-    {
-      id: 'general',
-      label: 'General',
-      icon: <IconSettings size={20} className={iconClasses} />,
-      handler: () => {
-        navigate('/settings');
-        Spotlight.close();
+        ensureHome();
       },
     },
   ];
@@ -267,27 +257,6 @@ export const SpotlightMenu = () => {
       disabled: true,
 
       handler: () => {},
-    },
-  ];
-
-  const themeActions: Action[] = [
-    {
-      id: 'theme-light',
-      label: 'Light',
-      icon: <IconSun size={20} className={iconClasses} />,
-      handler: () => {
-        setColorScheme('light');
-        Spotlight.close();
-      },
-    },
-    {
-      id: 'theme-dark',
-      label: 'Dark',
-      icon: <IconMoon size={20} className={iconClasses} />,
-      handler: () => {
-        setColorScheme('dark');
-        Spotlight.close();
-      },
     },
   ];
 
@@ -437,18 +406,6 @@ export const SpotlightMenu = () => {
     return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Queries')}</>;
   };
 
-  const renderSettingsView = () => {
-    const filteredActions = filterActions(settingsActions, searchValue);
-
-    return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Settings')}</>;
-  };
-
-  const renderSettingsThemeView = () => {
-    const filteredActions = filterActions(themeActions, searchValue);
-
-    return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Theme')}</>;
-  };
-
   const getCurrentView = () => {
     if (searchValue.endsWith('?')) {
       return renderActionsGroup(modeActions, 'Modes');
@@ -475,13 +432,6 @@ export const SpotlightMenu = () => {
         return renderDataSourcesView();
       case 'queries':
         return renderQueriesView();
-
-      case 'settings':
-        return renderSettingsView();
-
-      case 'settings-theme':
-        return renderSettingsThemeView();
-
       default:
         return renderHomeView();
     }
@@ -500,11 +450,8 @@ export const SpotlightMenu = () => {
       return resetSpotlight();
     }
 
-    if (['queries', 'dataSources', 'settings'].includes(spotlightView)) {
+    if (['queries', 'dataSources'].includes(spotlightView)) {
       return setSpotlightView('home');
-    }
-    if (['settings-theme'].includes(spotlightView)) {
-      return setSpotlightView('settings');
     }
   };
 
