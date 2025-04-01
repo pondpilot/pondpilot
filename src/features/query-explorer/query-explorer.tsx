@@ -75,24 +75,11 @@ export const QueryExplorer = memo(() => {
     ? ''
     : textInputError || notUniqueError || invalidCharactersError;
 
-  /**
-   * Common handlers
-   */
-  const saveCurrentQuery = async () => {
-    // if (activeTab?.mode === 'query' && lastQueryDirty) {
-    //   await onSaveEditor({ content: editorValue, path: activeTab.path });
-    //   setLastQueryDirty(false);
-    // }
-  };
-
   const handleSetQuery = async (sourceId: string) => {
-    await saveCurrentQuery();
     openTab(sourceId, 'query');
   };
 
   const handleAddQuery = async () => {
-    // await saveCurrentQuery();
-
     const newQueryFile = await createQueryFile({
       name: 'query',
     });

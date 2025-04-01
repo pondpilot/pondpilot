@@ -197,39 +197,27 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
     }
   };
 
-  const saveCurrentQuery = async () => {
-    // if (activeTab?.mode === 'query' && lastQueryDirty) {
-    //   await onSaveEditor({ content: editorValue, path: activeTab.path });
-    //   setLastQueryDirty(false);
-    // }
-  };
-
   const handleTabChange = async (tabId: string | null) => {
     setIsUserTabChange(true);
     const tab = tabs.find((t) => t.id === tabId);
     if (!tab) return;
     if (tab.id === activeTab?.id) return;
-    await saveCurrentQuery();
 
     await setActiveTab(tab.id);
   };
 
   const handleDeleteTab = async (id: string) => {
-    await saveCurrentQuery();
     onDeleteTabs([id]);
   };
 
   const handleTabClick = async (id: string) => {
     if (id === activeTab?.id) return;
 
-    await saveCurrentQuery();
-
     setIsUserTabChange(true);
     await setActiveTab(id);
   };
 
   const handleAddQuery = async () => {
-    await saveCurrentQuery();
     onAddTabClick();
   };
 

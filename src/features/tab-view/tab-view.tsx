@@ -23,7 +23,7 @@ import { formatNumber } from '@utils/helpers';
 import { Table as ApacheTable, tableFromIPC } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
-import { useTabQuery, useUpdateTabMutation } from '@store/app-idb-store';
+import { useAllTabsQuery, useTabQuery, useUpdateTabMutation } from '@store/app-idb-store';
 import { useAppStore } from '@store/app-store';
 import { PaginationControl, TableLoadingOverlay } from './components';
 import { useTablePaginationSort } from './hooks/useTablePaginationSort';
@@ -31,8 +31,9 @@ import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
 import { setDataTestId } from '@utils/test-id';
 
-export const TabView = memo(({ id }: { id: string }) => {
+export const TabView = memo(({ id, active }: { id: string; active: boolean }) => {
   const { data: tab } = useTabQuery(id);
+  const { data: tabs } = useAllTabsQuery();
   const { mutateAsync: updateTab } = useUpdateTabMutation();
 
   /**
@@ -52,7 +53,6 @@ export const TabView = memo(({ id }: { id: string }) => {
     : null;
   const queryRunning = tab?.query.state === 'fetching';
   const queryView = tab?.type === 'query';
-  const isActive = tab?.active;
 
   const { editorPaneHeight = 0, dataViewPaneHeight = 0 } = tab?.layout ?? {};
   const rowCount = tab?.dataView.rowCount || 0;
@@ -81,9 +81,14 @@ export const TabView = memo(({ id }: { id: string }) => {
   const isSinglePage = rowCount <= limit;
   const hasTableData = !!convertedTable.data.length && !!convertedTable.columns.length;
 
+  console.log({
+    isSinglePage,
+    rowCount,
+    limit,
+  });
+
   const onSelectedColsCopy = useCallback(
     async (cols: Record<string, boolean>) => {
-      if (!isActive) return;
       const notificationId = showSuccess({
         title: 'Copying selected columns to clipboard...',
         message: '',
@@ -130,7 +135,7 @@ export const TabView = memo(({ id }: { id: string }) => {
         });
       }
     },
-    [isActive, tab?.query.originalQuery],
+    [active, tab?.query.originalQuery],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {
@@ -206,7 +211,7 @@ export const TabView = memo(({ id }: { id: string }) => {
         )}
         <Allotment.Pane preferredSize={dataViewPaneHeight} minSize={120}>
           {/* // TODO: Create DataView component */}
-          {!hasTableData && !queryRunning && isActive && (
+          {!hasTableData && !queryRunning && active && (
             <Center className="h-full font-bold">
               <Stack align="center" c="icon-default" gap={4}>
                 <IconClipboardSmile size={32} stroke={1} />
@@ -283,6 +288,7 @@ export const TabView = memo(({ id }: { id: string }) => {
                 onColumnSelectChange={calculateColumnSummary}
                 onRowSelectChange={resetTotal}
                 onCellSelectChange={resetTotal}
+                visible={!!active}
               />
             </div>
 

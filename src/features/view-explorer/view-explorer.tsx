@@ -46,27 +46,10 @@ export const ViewExplorer = memo(() => {
       nodeProps: { canSelect: true, id },
     }));
 
-  /**
-   * Handlers
-   */
-  const saveCurrentQuery = async () => {
-    // TODO: Implement saving of the query file
-    // if (lastQueryDirty && activeTab?.mode === 'query') {
-    //   await onSaveEditor({ content: editorValue, path: activeTab.path });
-    //   setLastQueryDirty(false);
-    // }
-  };
-
   const openView = async (id: string) => {
     if (activeTab?.sourceId === id) return;
-    await saveCurrentQuery();
 
     openTab(id, 'file');
-    // onOpenView(viewName);
-    // onTabSwitch({
-    //   path: viewName,
-    //   mode: 'view',
-    // });
   };
 
   const handleDeleteSelected = async (items: string[]) => {
