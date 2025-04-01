@@ -46,11 +46,6 @@ export const useTablePaginationSort = (tab: Tab | undefined) => {
       ? tab.query.originalQuery
       : `select * from (${tab.query.originalQuery}) order by "${id}" ${newOrder}`;
 
-    console.log({
-      page: tab.pagination.page,
-      query,
-    });
-
     const result = await executeQuery(query, tab.pagination.page);
     if (result) {
       await updateTab({
@@ -66,12 +61,6 @@ export const useTablePaginationSort = (tab: Tab | undefined) => {
       });
     }
   };
-
-  if (tab?.name === 'customers_10000') {
-    console.log({
-      tab,
-    });
-  }
 
   const handlePaginationChange = async (page: number) => {
     if (!tab) return;

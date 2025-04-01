@@ -71,14 +71,6 @@ export const SpotlightMenu = () => {
   const [spotlightView, setSpotlightView] = useState<SpotlightView>('home');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const saveCurrentQuery = async () => {
-    // TODO: save query file
-    // if (activeTab?.mode === 'query') {
-    // await onSaveEditor({ content: editorValue, path: activeTab.path });
-    // setLastQueryDirty(false);
-    // }
-  };
-
   const resetSpotlight = () => {
     setSpotlightView('home');
     Spotlight.close();
@@ -198,7 +190,6 @@ export const SpotlightMenu = () => {
       icon: <IconPlus size={20} className={iconClasses} />,
       hotkey: [option, 'N'],
       handler: async () => {
-        await saveCurrentQuery();
         createQueryFile({ name: 'query' });
         resetSpotlight();
         ensureHome();
@@ -210,7 +201,6 @@ export const SpotlightMenu = () => {
       icon: <IconFileImport size={20} className={iconClasses} />,
       hotkey: [<IconChevronUp size={20} />, 'I'],
       handler: async () => {
-        await saveCurrentQuery();
         importSQLFiles();
         resetSpotlight();
         ensureHome();
