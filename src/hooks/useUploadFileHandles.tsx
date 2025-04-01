@@ -1,9 +1,9 @@
 import { getSupportedMimeType } from '@utils/helpers';
-import { useAppContext } from '@features/app-context';
+import { useAppContext, useDataSourcesActions } from '@features/app-context';
 import { useAppNotifications } from '@components/app-notifications';
 
 export const useUploadFileHandles = () => {
-  const { onAddDataSources } = useAppContext();
+  const { onAddDataSources } = useDataSourcesActions();
   const { showError } = useAppNotifications();
 
   const handleFileUpload = async (accept = ['.parquet', '.csv', '.json'] as FileExtension[]) => {

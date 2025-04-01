@@ -14,21 +14,26 @@ import {
   useQueryFilesQuery,
   useSetActiveTabMutation,
 } from '@store/app-idb-store';
-import { DBRunQueryProps, DropFilesAndDBInstancesProps, RunQueryResponse } from './models';
+import {
+  DBRunQueryProps,
+  DBWorkerAPIType,
+  DropFilesAndDBInstancesProps,
+  RunQueryResponse,
+} from './models';
 import { executeQueries, updateDatabasesWithColumns } from './utils';
 import { ErrorModal } from './components/error-modal';
 import { useDataSourcesActions } from './hooks/useDataSourcesActions';
 import { useAppInitialization } from './hooks/useInitApplication';
+import { Remote } from 'comlink';
 
 interface AppContextType {
-  onAddDataSources: (entries: AddDataSourceProps) => Promise<any>;
-  onDeleteDataSource: (v: DropFilesAndDBInstancesProps) => Promise<void>;
   runQuery: (
     runQueryProps: DBRunQueryProps,
   ) => Promise<(RunQueryResponse & { originalQuery: string }) | undefined>;
   openTab: (sourceId: string, type: 'query' | 'file') => Promise<void>;
   onCancelQuery: (v?: string) => Promise<void>;
   executeQuery: (query: string) => Promise<any>;
+  dbProxyRef: React.RefObject<Remote<DBWorkerAPIType> | null>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -60,11 +65,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
    */
   const setDatabases = useAppStore((state) => state.setDatabases);
   const views = useAppStore((state) => state.views);
-
-  /**
-   * Actions
-   */
-  const { onAddDataSources, onDeleteDataSource } = useDataSourcesActions(dbProxyRef);
 
   const handleClosingErrorModal = () => {
     setErrorModalText('');
@@ -201,12 +201,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const value: AppContextType = {
-    onAddDataSources,
-    onDeleteDataSource,
     runQuery,
     onCancelQuery,
     executeQuery,
     openTab,
+    dbProxyRef,
   };
 
   return (
