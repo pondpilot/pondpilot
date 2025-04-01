@@ -68,35 +68,35 @@ test('Switch between tabs using tabs pane', async ({
   createQueryAndSwitchToItsTab,
   fillQuery,
   switchToTab,
-  queryEditorContent,
+  getQueryEditorContent,
 }) => {
   await createQueryAndSwitchToItsTab();
   await fillQuery('select 1');
   await createQueryAndSwitchToItsTab();
-  await expect(queryEditorContent).toContainText('');
+  await expect(await getQueryEditorContent()).toContainText('');
   await switchToTab('query.sql');
-  await expect(queryEditorContent).toContainText('select 1');
+  await expect(await getQueryEditorContent()).toContainText('select 1');
 });
 
 test('Switch between tabs using query explorer', async ({
   createQueryAndSwitchToItsTab,
   fillQuery,
   openQueryFromExplorer,
-  queryEditorContent,
+  getQueryEditorContent,
 }) => {
   await createQueryAndSwitchToItsTab();
   await fillQuery('select 1');
   await createQueryAndSwitchToItsTab();
-  await expect(queryEditorContent).toContainText('');
+  await expect(await getQueryEditorContent()).toContainText('');
   await openQueryFromExplorer('query.sql');
-  await expect(queryEditorContent).toContainText('select 1');
+  await expect(await getQueryEditorContent()).toContainText('select 1');
 });
 
 test('Create two queries with different content and switch between them', async ({
   createQueryAndSwitchToItsTab,
   fillQuery,
   switchToTab,
-  queryEditorContent,
+  getQueryEditorContent,
 }) => {
   // Create and fill first query
   await createQueryAndSwitchToItsTab();
@@ -108,18 +108,18 @@ test('Create two queries with different content and switch between them', async 
 
   // Switch back to first query and verify content
   await switchToTab('query.sql');
-  await expect(queryEditorContent).toContainText('select 1 as first_query');
+  await expect(await getQueryEditorContent()).toContainText('select 1 as first_query');
 
   // Switch back to second query and verify content
   await switchToTab('query_1.sql');
-  await expect(queryEditorContent).toContainText('select 2 as second_query');
+  await expect(await getQueryEditorContent()).toContainText('select 2 as second_query');
 });
 
 test('Create queries using spotlight menu', async ({
   createQueryViaSpotlight,
   fillQuery,
   switchToTab,
-  queryEditorContent,
+  getQueryEditorContent,
 }) => {
   // Create first query via spotlight
   await createQueryViaSpotlight();
@@ -131,11 +131,11 @@ test('Create queries using spotlight menu', async ({
 
   // Switch to first query and verify content
   await switchToTab('query.sql');
-  await expect(queryEditorContent).toContainText('select 3 as spotlight_query_1');
+  await expect(await getQueryEditorContent()).toContainText('select 3 as spotlight_query_1');
 
   // Switch to second query and verify content
   await switchToTab('query_1.sql');
-  await expect(queryEditorContent).toContainText('select 4 as spotlight_query_2');
+  await expect(await getQueryEditorContent()).toContainText('select 4 as spotlight_query_2');
 });
 
 test('Autocomplete converts keywords to uppercase', async ({

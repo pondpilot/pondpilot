@@ -81,12 +81,6 @@ export const TabView = memo(({ id, active }: { id: string; active: boolean }) =>
   const isSinglePage = rowCount <= limit;
   const hasTableData = !!convertedTable.data.length && !!convertedTable.columns.length;
 
-  console.log({
-    isSinglePage,
-    rowCount,
-    limit,
-  });
-
   const onSelectedColsCopy = useCallback(
     async (cols: Record<string, boolean>) => {
       const notificationId = showSuccess({
@@ -206,6 +200,7 @@ export const TabView = memo(({ id, active }: { id: string; active: boolean }) =>
               columnsCount={convertedTable.columns.length}
               rowsCount={rowCount}
               id={tab.id}
+              active={active}
             />
           </Allotment.Pane>
         )}

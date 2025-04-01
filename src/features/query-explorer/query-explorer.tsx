@@ -75,7 +75,7 @@ export const QueryExplorer = memo(() => {
     ? ''
     : textInputError || notUniqueError || invalidCharactersError;
 
-  const handleSetQuery = async (sourceId: string) => {
+  const handleSetQuery = (sourceId: string) => {
     openTab(sourceId, 'query');
   };
 

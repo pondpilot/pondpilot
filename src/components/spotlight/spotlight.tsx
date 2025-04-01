@@ -190,9 +190,13 @@ export const SpotlightMenu = () => {
       icon: <IconPlus size={20} className={iconClasses} />,
       hotkey: [option, 'N'],
       handler: async () => {
-        createQueryFile({ name: 'query' });
-        resetSpotlight();
-        ensureHome();
+        const queryFile = await createQueryFile({ name: 'query' });
+
+        if (queryFile) {
+          openTab(queryFile.id, 'query');
+          resetSpotlight();
+          ensureHome();
+        }
       },
     },
     {

@@ -27,9 +27,10 @@ interface QueryEditorProps {
   columnsCount: number;
   rowsCount: number;
   id: string;
+  active?: boolean;
 }
 
-export const QueryEditor = ({ columnsCount, rowsCount, id }: QueryEditorProps) => {
+export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditorProps) => {
   const { data: tab } = useTabQuery(id);
   const { data: queryFile } = useQueryFileQuery(tab?.sourceId || '');
   const { mutateAsync: updateTab } = useUpdateTabMutation();
@@ -172,7 +173,11 @@ export const QueryEditor = ({ columnsCount, rowsCount, id }: QueryEditorProps) =
         </Group>
         <RunQueryButton disabled={queryRunning} handleRunQuery={handleRunQuery} />
       </Group>
-      <Group className="h-[calc(100%-40px)]" data-testid={setDataTestId('query-editor')}>
+      <Group
+        className="h-[calc(100%-40px)]"
+        data-testid={setDataTestId(`query-editor`)}
+        data-active-editor={!!active}
+      >
         <SqlEditor
           onBlur={handleQuerySave}
           ref={editorRef}
