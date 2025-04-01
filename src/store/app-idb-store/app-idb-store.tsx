@@ -230,7 +230,7 @@ export const fileHandleStoreApi = {
   },
 };
 
-interface QueryFile {
+export interface QueryFile {
   id: string;
   name: string;
   content: string;

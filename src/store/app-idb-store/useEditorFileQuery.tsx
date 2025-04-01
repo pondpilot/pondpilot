@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryStoreApi } from './app-idb-store';
+import { QueryFile, queryStoreApi } from './app-idb-store';
 
 export const useQueryFilesQuery = () =>
   useQuery({
@@ -19,15 +19,21 @@ export const useQueryFileQuery = (id: string | undefined) =>
 
 export const useCreateQueryFileMutation = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (props: { name: string; content?: string }) => {
       const data = await queryStoreApi.createQueryFile(props.name, props.content);
       return data;
     },
+    onSuccess: async (newQueryFile) => {
+      // TODO: set new state syncronously
+      await queryClient.setQueryData(['queryFiles'], (oldData: QueryFile[]) => {
+        return oldData ? [...oldData, newQueryFile] : [newQueryFile];
+      });
 
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['queryFiles'] });
+      await queryClient.setQueryData(['queryFile', newQueryFile.id], newQueryFile);
+
+      // await queryClient.invalidateQueries({ queryKey: ['queryFiles'] });
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     },
   });
 };

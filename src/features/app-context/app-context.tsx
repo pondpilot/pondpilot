@@ -169,12 +169,18 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   const openTab = async (sourceId: string, type: 'query' | 'file') => {
     if (activeTab?.sourceId === sourceId) return;
+    console.log({
+      sourceId,
+      queryFiles,
+    });
 
     const tab = tabs?.find((t) => t.sourceId === sourceId);
     const queryFile = queryFiles.find((query) => query.id === sourceId);
     const view = views.find((v) => v.sourceId === sourceId);
 
     if (type === 'query' && !queryFile) {
+      console.log('asda');
+
       throw new Error(`Query file with id ${sourceId} not found`);
     }
     if (type === 'file' && !view) {
