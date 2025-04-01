@@ -100,14 +100,14 @@ export const QueryEditor = ({ columnsCount, rowsCount, id }: QueryEditorProps) =
     });
     setQueryExecuted(false);
 
-    const res = await runQuery({ query: queryToRun });
+    const result = await runQuery({ query: queryToRun });
     setQueryExecuted(true);
 
     await updateTab({
       id: tab.id,
       dataView: {
-        data: res?.data,
-        rowCount: 0,
+        data: result?.data,
+        rowCount: result?.pagination || 0,
       },
       query: {
         ...tab.query,

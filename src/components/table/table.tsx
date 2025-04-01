@@ -10,12 +10,14 @@ import { setDataTestId } from '@utils/test-id';
 import { TableSort } from '@models/common';
 import { TableCell, TableHeadCell } from './components';
 import { useTableColumns, useTableSelection } from './hooks';
+import { log } from 'console';
 
 interface TableProps {
   data: Record<string, any>[];
   columns: ResultColumn[];
   sort: TableSort | undefined;
   page: number;
+  visible: boolean;
   onSort?: (columnId: string) => void;
   onSelectedColsCopy: (cols: Record<string, boolean>) => void;
   onRowSelectChange: () => void;
@@ -86,6 +88,7 @@ export const Table = ({
   onCellSelectChange,
   onRowSelectChange,
   page,
+  visible,
 }: TableProps) => {
   const { showSuccess } = useAppNotifications();
   const clipboard = useClipboard();
@@ -104,6 +107,7 @@ export const Table = ({
     columns,
     onRowSelectChange,
     onCellSelectChange,
+    canCopy: visible,
   });
 
   const tableColumns = useTableColumns({ columns, onRowSelectionChange, page });
@@ -141,10 +145,11 @@ export const Table = ({
     [
       'mod+C',
       () => {
+        if (!visible) return;
         if (selectedCell.value) {
           clipboard.copy(selectedCell.value);
           showSuccess({
-            title: 'Copied to clipboard',
+            title: 'Selected cell copied to clipboard',
             message: '',
             autoClose: 800,
           });
