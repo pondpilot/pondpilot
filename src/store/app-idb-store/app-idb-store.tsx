@@ -68,7 +68,7 @@ interface TabBase {
   active: boolean;
   pagination: Pagination;
   sort?: TableSort;
-  editor: AppEditorState;
+  // editor: AppEditorState;
   layout: TabLayout;
   dataView: DataViewState;
   order: number;

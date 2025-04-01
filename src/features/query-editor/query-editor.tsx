@@ -21,6 +21,7 @@ import {
 import { useAppNotifications } from '@components/app-notifications';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
+import { on } from 'events';
 
 interface QueryEditorProps {
   columnsCount: number;
@@ -90,14 +91,18 @@ export const QueryEditor = ({ columnsCount, rowsCount, id }: QueryEditorProps) =
 
     const queryToRun = mode === 'selection' ? selectedText : fullQuery;
 
-    await updateTab({
+    updateTab({
       id: tab.id,
       query: {
         ...tab.query,
         state: 'fetching',
       },
     });
+    setQueryExecuted(false);
+
     const res = await runQuery({ query: queryToRun });
+    setQueryExecuted(true);
+
     await updateTab({
       id: tab.id,
       dataView: {
@@ -118,14 +123,6 @@ export const QueryEditor = ({ columnsCount, rowsCount, id }: QueryEditorProps) =
       return;
     }
 
-    // TODO: save editor state
-    // await updateTab({
-    //   id: tab.id,
-    //   editor: {
-    //     ...tab.editor,
-    //     value: editorRef.current?.view?.state?.doc.toString() || '',
-    //   },
-    // });
     await updateQueryFile({
       id: queryFile.id,
       content: editorRef.current?.view?.state?.doc.toString() || '',
@@ -137,28 +134,21 @@ export const QueryEditor = ({ columnsCount, rowsCount, id }: QueryEditorProps) =
   }, 300);
 
   const onSqlEditorChange = () => {
+    setQueryExecuted(false);
     handleEditorValueChange();
   };
 
-  /**
-   * Effects
-   */
   useEffect(() => {
-    const view = editorRef.current?.view;
-
-    if (!view || !queryFile?.id) return;
-
-    const transaction = view.state.update({
-      changes: {
-        from: 0,
-        to: view.state.doc.length,
-        insert: queryFile.content || '',
-      },
-    });
-    if (transaction) {
-      view.dispatch(transaction);
-    }
-  }, [tab?.id, queryFile?.id]);
+    return () => {
+      if (editorRef.current?.view) {
+        const editor = editorRef.current.view;
+        const currentQuery = editor.state.doc.toString();
+        if (currentQuery !== queryFile?.content) {
+          handleQuerySave();
+        }
+      }
+    };
+  }, []);
 
   return (
     <div className="h-full">
@@ -187,7 +177,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, id }: QueryEditorProps) =
           onBlur={handleQuerySave}
           ref={editorRef}
           colorSchemeDark={colorScheme === 'dark'}
-          value={tab?.editor.value || ''}
+          value={queryFile?.content || ''}
           onChange={onSqlEditorChange}
           schema={schema}
           fontSize={fontSize}

@@ -58,6 +58,7 @@ export const SpotlightMenu = () => {
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
   const { data: queries = [] } = useQueryFilesQuery();
   const { data: sessionFiles = [] } = useFileHandlesQuery();
+  const { openTab } = useAppContext();
 
   /**
    * Store access
@@ -133,17 +134,12 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const viewActions: Action[] = views.map(({ view_name }) => ({
+  const viewActions: Action[] = views.map(({ view_name, sourceId }) => ({
     id: view_name,
     label: view_name,
     icon: getIcon(view_name),
     handler: () => {
-      // onOpenView(view_name);
-      // onTabSwitch({
-      //   path: view,
-      //   mode: 'view',
-      //   stable: true,
-      // });
+      openTab(sourceId, 'file');
       Spotlight.close();
     },
   }));
@@ -153,12 +149,7 @@ export const SpotlightMenu = () => {
     label: `${query.name}.${query.name}`,
     icon: <IconCode size={20} className={iconClasses} />,
     handler: () => {
-      // onOpenQuery(query.path);
-      // onTabSwitch({
-      //   path: query.handle.name,
-      //   mode: 'query',
-      //   stable: true,
-      // });
+      openTab(query.id, 'query');
       Spotlight.close();
       ensureHome();
     },
