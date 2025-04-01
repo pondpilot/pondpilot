@@ -32,8 +32,8 @@ export const useColumnSummary = () => {
       }
 
       const summaryQuery = isNumeric
-        ? `SELECT CAST(sum("${columnName}") AS DOUBLE) as total FROM (${originalQuery});`
-        : `SELECT COUNT("${columnName}") as total FROM (${originalQuery});`;
+        ? `SELECT sum("${columnName}") AS total FROM (${originalQuery});`
+        : `SELECT count("${columnName}") AS total FROM (${originalQuery});`;
 
       setIsCalculating(true);
       const queryResult = await executeQuery(summaryQuery);

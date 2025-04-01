@@ -24,6 +24,13 @@ async function initDB() {
     const worker = new Worker(worker_url);
     db = new duckdb.AsyncDuckDB(logger, worker);
     await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+    await db.open({
+      query: {
+        // Enable Apache Arrow type and value patching DECIMAL -> DOUBLE on query materialization
+        // https://github.com/apache/arrow/issues/37920
+        castDecimalToDouble: true,
+      },
+    });
 
     // Load parquet extension
     // await loadExtension(db, 'parquet');
