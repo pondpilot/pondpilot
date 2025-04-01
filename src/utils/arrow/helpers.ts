@@ -1,4 +1,5 @@
-import type { DataType, Field, RecordBatch, Table } from 'apache-arrow';
+import type { DataType, Decimal, Field, RecordBatch, Table } from 'apache-arrow';
+import { BN } from 'apache-arrow/util/bn';
 
 /**
  * Returns the schema of an Apache Arrow table as an array of objects.
@@ -71,4 +72,59 @@ export function getArrowType(type: DataType): JavaScriptArrowType {
     default:
       return 'other';
   }
+}
+
+export type DataTable = {
+  schema: ResultColumn[];
+  data: any[];
+  numRows: number;
+};
+
+function patchDecimal(value: any, type: Decimal): any {
+  try {
+    return new BN(value, true).valueOf(type.scale);
+  } catch (error) {
+    console.error(`Error patching decimal value <${value}> of the type <${typeof value}>:`, error);
+    return value;
+  }
+}
+
+const createDecimalPatcher = (type: Decimal) => (value: any) => patchDecimal(value, type);
+
+export function getDataTableFromArrowTable(table: Table<any>, columnNames?: string[]): DataTable {
+  if (columnNames && columnNames.length > 0) {
+    table = table.select(columnNames);
+  }
+
+  const colnameToPatch: { [columnName: string]: (value: any) => any } = {};
+
+  for (const column of table.schema.fields) {
+    if (column.type.typeId === 7) {
+      // Decimal
+      colnameToPatch[column.name] = createDecimalPatcher(column.type as Decimal);
+    }
+  }
+
+  const hasPatches = Object.keys(colnameToPatch).length > 0;
+
+  return {
+    schema: getArrowTableSchema(table),
+    data: table.toArray().map((row) => {
+      const jsonRow = row.toJSON();
+
+      if (!hasPatches) {
+        return jsonRow;
+      }
+
+      // Apply patch functions for columns that need patching
+      for (const columnName in jsonRow) {
+        if (columnName in colnameToPatch) {
+          jsonRow[columnName] = colnameToPatch[columnName](jsonRow[columnName]);
+        }
+      }
+
+      return jsonRow;
+    }),
+    numRows: table.numRows,
+  };
 }
