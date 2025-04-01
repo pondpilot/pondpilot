@@ -28,6 +28,28 @@ test('Create and run simple query', async ({
   await assertDataTableMatches({ 1: [1] });
 });
 
+test('Create and run query with decimals', async ({
+  createQueryAndSwitchToItsTab,
+  fillQuery,
+  runQuery,
+  assertDataTableMatches,
+}) => {
+  await createQueryAndSwitchToItsTab();
+  await fillQuery(`
+    select
+      sum(col1) as col1,
+      0.5 as col2,
+      (-123.123)::DECIMAL(10,2) as col3,
+      1::INT128 as col4
+    from (
+      select 1 as col1
+      union select 2 as col1
+    )
+  `);
+  await runQuery();
+  await assertDataTableMatches({ col1: [3], col2: [0.5], col3: [-123.12], col4: [1] });
+});
+
 test('Close and reopen query', async ({
   createQueryAndSwitchToItsTab,
   fillQuery,
