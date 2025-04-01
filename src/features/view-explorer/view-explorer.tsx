@@ -1,5 +1,5 @@
 import { MenuItem, SourcesListView } from '@components/sources-list-view';
-import { useAppContext } from '@features/app-context';
+import { useAppContext, useDataSourcesActions } from '@features/app-context';
 import { useAppStore } from '@store/app-store';
 import { useClipboard } from '@mantine/hooks';
 import { memo, useCallback } from 'react';
@@ -19,7 +19,8 @@ export const ViewExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const { onDeleteDataSource, openTab } = useAppContext();
+  const { onDeleteDataSource } = useDataSourcesActions();
+  const { openTab } = useAppContext();
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
