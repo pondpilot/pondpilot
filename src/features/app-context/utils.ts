@@ -2,10 +2,9 @@ import { EditorState } from '@uiw/react-codemirror';
 import { PostgreSQL, sql } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
 import { tableFromIPC } from 'apache-arrow';
-import { createName } from '@utils/helpers';
-import { DataBaseModel } from '@models/common';
+import { DataBaseModel, Dataset } from '@models/common';
 import { splitSqlQuery } from '../../utils/editor/statement-parser';
-import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse, SessionFiles } from './models';
+import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
 
 export const transformDatabaseStructure = (
   input: {
@@ -97,7 +96,7 @@ interface ExecuteQueriesProps {
   runQueryProps: DBRunQueryProps;
   dbProxyRef: React.RefObject<any>;
   isCancelledPromise: Promise<never>;
-  currentSources: SessionFiles | null;
+  currentSources: Dataset[] | null;
 }
 
 interface QueryResult {
@@ -154,7 +153,7 @@ const parseStatements = (query: string): QueryStatement[] => {
 
 const validateStatements = async (
   statements: QueryStatement[],
-  currentSources: SessionFiles | null,
+  currentSources: Dataset[] | null,
 ): Promise<void> => {
   if (!statements.length) {
     throw new Error('No valid SQL statements found');
@@ -165,7 +164,7 @@ const validateStatements = async (
     throw new Error('USE statements are not supported');
   }
 
-  if (!currentSources?.sources.length) return;
+  if (!currentSources?.length) return;
 
   // Check all DROP statements against source tables
   const dropStatements = statements.filter((s) => s.isDrop);
@@ -186,7 +185,7 @@ const validateStatements = async (
       }
     }
 
-    const isSourceTable = currentSources.sources.some(
+    const isSourceTable = currentSources.some(
       (source) => source.name.toLowerCase() === tableName.toLowerCase(),
     );
 
@@ -203,7 +202,7 @@ const buildQuery = (statement: QueryStatement, runQueryProps: DBRunQueryProps): 
   }
 
   return statement.isSelect
-    ? `select * from (${clearedQuery}) LIMIT ${runQueryProps.limit} OFFSET ${runQueryProps.offset}`
+    ? `select * from (${clearedQuery}) LIMIT ${runQueryProps.limit || 100} OFFSET ${runQueryProps.offset || 0}`
     : statement.text;
 };
 
@@ -228,18 +227,6 @@ const executeStatement = async ({
     }),
     isCancelledPromise,
   ]);
-
-/**
- * Generates a SQL query to create or replace a view with the app prefix.
- *
- * @param {string} fileName - The name of the file with extension.
- * @returns {string} The SQL query to create or replace the view.
- */
-export const getCreateViewQuery = (fileName: string): string => {
-  const viewName = createName(fileName);
-
-  return `CREATE or REPLACE VIEW ${viewName} AS SELECT * FROM "${fileName}";`;
-};
 
 export const buildColumnsQueryWithFilters = (
   database_name?: string,

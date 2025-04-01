@@ -1,9 +1,15 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { tableToIPC } from 'apache-arrow';
 import { expose } from 'comlink';
+import { Dataset } from '@models/common';
 import { createName } from '../../utils/helpers';
-import { buildColumnsQueryWithFilters, getCreateViewQuery } from './utils';
-import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
+import { buildColumnsQueryWithFilters } from './utils';
+import {
+  DBRunQueryProps,
+  DBWorkerAPIType,
+  DropFilesAndDBInstancesProps,
+  RunQueryResponse,
+} from './models';
 import { GET_DBS_SQL_QUERY, GET_VIEWS_SQL_QUERY } from './consts';
 
 let db: duckdb.AsyncDuckDB | null = null;
@@ -108,10 +114,9 @@ async function getTablesAndColumns(database_name?: string, schema_name?: string)
  * @param fileName - Name of the file
  * @param handle - File handle
  */
-async function registerFileHandleAndCreateDBInstance(
-  fileName: string,
-  handle: FileSystemFileHandle,
-) {
+async function registerFileHandleAndCreateDBInstance(dataset: Dataset) {
+  const fileName = dataset.handle.name;
+  const { handle } = dataset;
   const conn = await db?.connect();
   const formatSupported = ['.csv', '.parquet', '.duckdb', '.json', '.xlsx'].some((ext) =>
     fileName.endsWith(ext),
@@ -138,7 +143,11 @@ async function registerFileHandleAndCreateDBInstance(
   if (fileName.endsWith('.duckdb')) {
     await conn.query(`ATTACH '${fileName}' AS ${createName(fileName)} (READ_ONLY); `);
   } else {
-    await conn.query(getCreateViewQuery(fileName));
+    const viewName = createName(fileName);
+
+    await conn.query(`CREATE or REPLACE VIEW ${viewName} AS SELECT * FROM "${fileName}";`);
+    const id = JSON.stringify({ sourceId: dataset.id });
+    await conn.query(`COMMENT ON VIEW ${viewName} IS '${id}';`);
   }
 
   await conn.close();
@@ -147,21 +156,39 @@ async function registerFileHandleAndCreateDBInstance(
 /**
  * Drop file and view
  */
-async function dropFilesAndDBInstances(paths: string[], type: 'database' | 'view') {
+async function dropFilesAndDBInstances({ ids, type }: DropFilesAndDBInstancesProps) {
   const conn = await db?.connect();
   if (!conn) throw new Error('Connection not initialized');
 
-  await Promise.all(
-    paths.map(async (path) => {
-      await db?.dropFile(path);
-      if (type === 'database') {
-        await conn.query(`DETACH ${path}; `);
-      }
-      if (type === 'view') {
-        await conn.query(`DROP VIEW ${path}; `);
-      }
-    }),
-  );
+  if (type === 'databases') {
+    const databases = await conn.query('SELECT * FROM duckdb_databases');
+    const databasesToDelete = databases.toArray().filter((row) => {
+      const id = JSON.parse(row.comment || '{}').sourceId;
+      return ids.includes(id);
+    });
+    await Promise.all(
+      databasesToDelete.map(async (row) => {
+        await conn.query(`DETACH ${row.name};`);
+      }),
+    );
+  }
+
+  if (type === 'views') {
+    const views = await conn.query('SELECT * FROM duckdb_views');
+    const viewsToDelete = views
+      .toArray()
+      .filter((row) => {
+        const id = JSON.parse(row.comment || '{}').sourceId;
+        return ids.includes(id);
+      })
+      .map((row) => row.toJSON());
+
+    await Promise.all(
+      viewsToDelete.map(async (row) => {
+        await conn.query(`DROP VIEW ${row.view_name};`);
+      }),
+    );
+  }
 
   await conn.close();
 }
@@ -173,7 +200,7 @@ async function runQuery({
   query,
   hasLimit,
   queryWithoutLimit,
-}: DBRunQueryProps): Promise<RunQueryResponse> {
+}: DBRunQueryProps): Promise<Omit<RunQueryResponse, 'originalQuery'>> {
   const conn = await db?.connect();
 
   if (!conn) throw new Error('Connection not initialized');

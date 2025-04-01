@@ -1,4 +1,4 @@
-import { AddDataSourceProps, AppStateModel } from '@models/common';
+import { AddDataSourceProps, AppStateModel, Dataset } from '@models/common';
 import { tableToIPC } from 'apache-arrow';
 
 export interface DBRunQueryProps {
@@ -18,11 +18,6 @@ export interface RunQueryResponse {
   pagination: number;
 }
 
-export interface RenameDataSourceProps {
-  path: string;
-  newPath: string;
-}
-
 export interface DeleteDataSourceProps {
   paths: string[];
   type: 'dataset' | 'query';
@@ -31,38 +26,19 @@ export interface DeleteDataSourceProps {
 export type AddDataSourceBase = {
   entries: AddDataSourceProps;
 };
-
-export interface TabModel {
-  id: string;
-  mode: 'view' | 'query';
-  path: string;
-  stable: boolean;
-}
-
-export type AddTabProps = Omit<TabModel, 'id'>;
-export type ChangeTabProps = Omit<TabModel, 'id' | 'stable'> & {
-  stable?: boolean;
-  createNew?: boolean;
+export type DropFilesAndDBInstancesProps = {
+  ids: string[];
+  type: 'databases' | 'views';
 };
 
 export interface DBWorkerAPIType {
   initDB: () => Promise<void>;
-  runQuery: ({ query, hasLimit }: DBRunQueryProps) => Promise<RunQueryResponse>;
-  registerFileHandleAndCreateDBInstance: (
-    fileName: string,
-    handle: FileSystemFileHandle,
-  ) => Promise<void>;
-  dropFilesAndDBInstances: (paths: string[], type: 'database' | 'view') => Promise<void>;
+  runQuery: ({
+    query,
+    hasLimit,
+  }: DBRunQueryProps) => Promise<Omit<RunQueryResponse, 'originalQuery'>>;
+  registerFileHandleAndCreateDBInstance: (dataset: Dataset) => Promise<void>;
+  dropFilesAndDBInstances: (v: DropFilesAndDBInstancesProps) => Promise<void>;
   getDBUserInstances: (type: 'databases' | 'views') => Promise<Uint8Array>;
   getTablesAndColumns: (database?: string, schema?: string) => Promise<Uint8Array<ArrayBufferLike>>;
-}
-
-export interface OnSetOrderProps {
-  tabs: TabModel[];
-  activeTabIndex: number;
-}
-
-export interface CreateQueryFileProps {
-  entities: { name: string; content?: string }[];
-  openInNewTab?: boolean;
 }

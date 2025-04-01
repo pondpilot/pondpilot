@@ -1,23 +1,22 @@
-import { Stack, useMantineColorScheme } from '@mantine/core';
+import { useMantineColorScheme } from '@mantine/core';
 import { Allotment } from 'allotment';
-import { useAppContext } from '@features/app-context';
 import { useHotkeys, useLocalStorage } from '@mantine/hooks';
-import { TabsPane } from '@features/tabs-pane';
 import { Spotlight } from '@mantine/spotlight';
-import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
-import { DataViewer } from '@features/data-viewer';
-import { ErrorBoundary } from 'react-error-boundary';
-import { DataViewErrorFallback } from '@components/error-fallback';
+import { useUploadFileHandles } from '@hooks/useUploadFileHandles';
+import { ContentView } from '@features/content-view';
+import { useCreateQueryFileMutation } from '@store/app-idb-store';
+import { useImportSQLFiles } from '@store/hooks';
 import { Navbar } from './components';
 
 export const MainPage = () => {
   /**
    * Common hooks
    */
-  const { importSQLFiles, onCreateQueryFile } = useAppContext();
-  const { handleAddSource } = useFileHandlers();
+  const { importSQLFiles } = useImportSQLFiles();
+  const { handleAddSource } = useUploadFileHandles();
   const { colorScheme } = useMantineColorScheme();
   const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({ key: 'layout-sizes' });
+  const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
 
   /**
    * Handlers
@@ -58,8 +57,8 @@ export const MainPage = () => {
     [
       'Alt+N',
       () => {
-        onCreateQueryFile({
-          entities: [{ name: 'query-name.sql' }],
+        createQueryFile({
+          name: 'query.sql',
         });
         Spotlight.close();
       },
@@ -76,15 +75,7 @@ export const MainPage = () => {
           <Navbar />
         </Allotment.Pane>
         <Allotment.Pane preferredSize={layoutSizes?.[1]}>
-          <Stack
-            gap={0}
-            className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
-          >
-            <TabsPane />
-            <ErrorBoundary FallbackComponent={DataViewErrorFallback}>
-              <DataViewer />
-            </ErrorBoundary>
-          </Stack>
+          <ContentView />
         </Allotment.Pane>
       </Allotment>
     </>

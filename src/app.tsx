@@ -14,9 +14,11 @@ import { AppStatus } from '@features/app-status';
 import { BrowserNotSupported } from '@components/browser-not-supported';
 import { useAppStore } from '@store/app-store';
 import { useEffect } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router } from './router/router';
 
 const isFileAccessApiSupported = 'showDirectoryPicker' in window && 'showOpenFilePicker' in window;
+const queryClient = new QueryClient();
 
 export default function App() {
   const setAppStatus = useAppStore((state) => state.setAppStatus);
@@ -29,16 +31,18 @@ export default function App() {
 
   return (
     <MantineProvider theme={theme}>
-      <Notifications />
-      <AppStatus />
+      <QueryClientProvider client={queryClient}>
+        <Notifications />
+        <AppStatus />
 
-      {isFileAccessApiSupported ? (
-        <AppProvider>
-          <Router />
-        </AppProvider>
-      ) : (
-        <BrowserNotSupported />
-      )}
+        {isFileAccessApiSupported ? (
+          <AppProvider>
+            <Router />
+          </AppProvider>
+        ) : (
+          <BrowserNotSupported />
+        )}
+      </QueryClientProvider>
     </MantineProvider>
   );
 }

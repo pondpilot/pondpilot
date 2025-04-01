@@ -5,7 +5,6 @@ import { getColumnType } from '@utils/duckdb';
 import React, { useCallback, useMemo } from 'react';
 import { Tooltip } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
-import { usePaginationStore } from '@store/pagination-store';
 import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
 import { ResultColumn } from '@utils/arrow/helpers';
@@ -14,6 +13,7 @@ import { dynamicTypeViewer } from '../utils';
 
 interface UseTableColumnsProps {
   columns: ResultColumn[];
+  page: number;
   onRowSelectionChange: (
     cell: CellContext<Record<string, string | number>, any>,
     e: React.MouseEvent<Element, MouseEvent>,
@@ -23,8 +23,7 @@ interface UseTableColumnsProps {
 const MIN_TOOLTIP_LENGTH = 30;
 const fallbackData = [] as any[];
 
-export const useTableColumns = ({ columns, onRowSelectionChange }: UseTableColumnsProps) => {
-  const currentPage = usePaginationStore((state) => state.currentPage);
+export const useTableColumns = ({ columns, onRowSelectionChange, page }: UseTableColumnsProps) => {
   const clipboard = useClipboard();
   const { showSuccess } = useAppNotifications();
 
@@ -50,7 +49,7 @@ export const useTableColumns = ({ columns, onRowSelectionChange }: UseTableColum
               size: 46,
               cell: (props) => {
                 const rowIndex = props.row.index;
-                const pageIndex = currentPage - 1;
+                const pageIndex = page - 1;
                 const index = pageIndex * 100 + rowIndex + 1;
                 const onRowClick = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
                   onRowSelectionChange(props, e);

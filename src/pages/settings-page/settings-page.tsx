@@ -1,19 +1,18 @@
 import { Box, Button, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { clearFileSystem } from '@components/settings-modal/utils';
-import { useAppContext } from '@features/app-context';
 import { setDataTestId } from '@utils/test-id';
+
+import { exportQueryFiles } from '@utils/exportData';
 import { ThemeSwitcher } from './components/theme-switcher';
 
 export const SettingsPage = () => {
-  const { exportFilesAsArchive } = useAppContext();
-
   // TODO: Separate this into a hook
   const handleClearData = async () => {
     await clearFileSystem();
   };
 
   const downloadArchive = async () => {
-    const archiveBlob = await exportFilesAsArchive();
+    const archiveBlob = await exportQueryFiles();
     if (archiveBlob) {
       const link = document.createElement('a');
       link.href = URL.createObjectURL(archiveBlob);
