@@ -7,7 +7,7 @@ import { useDisclosure, useLocalStorage } from '@mantine/hooks';
 import { IconBrandGithub, IconPlus, IconSettings } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
-import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
+import { useUploadFileHandles } from '@hooks/useUploadFileHandles';
 import { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
@@ -22,7 +22,7 @@ export const Navbar = memo(() => {
   const [navbarSizes, setInnerLayoutSizes] = useLocalStorage<number[]>({ key: 'navbar-sizes' });
   const [settingsOpened, { close: closeSettings }] = useDisclosure(false);
   const [confirmOpened, { open: openConfirm, close: closeConfirm }] = useDisclosure(false);
-  const { handleAddSource } = useFileHandlers();
+  const { handleAddSource } = useUploadFileHandles();
   const navigate = useNavigate();
 
   /**

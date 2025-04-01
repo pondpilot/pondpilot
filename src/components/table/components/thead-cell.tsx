@@ -6,8 +6,8 @@ import { Header, Table as TableType } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
 import { replaceSpecialChars } from '@utils/helpers';
 import { memo } from 'react';
-import { SortModel } from '@store/pagination-store';
 import { setDataTestId } from '@utils/test-id';
+import { TableSort } from '@models/common';
 import { getIcon } from '../utils';
 
 interface TableHeadCellProps {
@@ -16,7 +16,7 @@ interface TableHeadCellProps {
   index: number;
   totalHeaders: number;
   isSelected: boolean;
-  sort: SortModel;
+  sort?: TableSort;
   resizingColumnId?: string | false;
   deltaOffset: number | null;
 
@@ -34,48 +34,50 @@ interface THeadTitleProps
   icon: any;
 }
 
-const THeadTitle = memo(
-  ({ header, isIndex, isNumber, isSelected, icon, sort, onSort }: THeadTitleProps) => (
-    <>
-      {!isIndex && (
-        <div
+const THeadTitle = ({
+  header,
+  isIndex,
+  isNumber,
+  isSelected,
+  icon,
+  sort,
+  onSort,
+}: THeadTitleProps) => (
+  <>
+    {!isIndex && (
+      <div
+        className={cn(
+          'text-iconDefault-light dark:text-iconDefault-dark',
+          isSelected && 'text-iconDisabled',
+          isNumber && 'ml-auto',
+        )}
+      >
+        {icon}
+      </div>
+    )}
+    <Text truncate="end" fw={500}>
+      {header.isPlaceholder ? null : header.column.id}
+    </Text>
+    {!isIndex && (
+      <div>
+        <IconTriangleInvertedFilled
+          size={8}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            onSort?.(header.column.id);
+          }}
           className={cn(
-            'text-iconDefault-light dark:text-iconDefault-dark',
+            'opacity-0 text-iconDefault-light dark:text-iconDefault-dark',
+            sort?.column === header.column.id && 'opacity-100',
+            'group-hover:opacity-100',
+            sort?.order === 'asc' && sort?.column === header.column.id && 'rotate-180',
+            !isNumber && 'ml-auto',
             isSelected && 'text-iconDisabled',
-            isNumber && 'ml-auto',
           )}
-        >
-          {icon}
-        </div>
-      )}
-      <Text truncate="end" fw={500}>
-        {header.isPlaceholder ? null : header.column.id}
-      </Text>
-      {!isIndex && (
-        <div>
-          <IconTriangleInvertedFilled
-            size={8}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              onSort?.(header.column.id);
-            }}
-            className={cn(
-              'opacity-0 text-iconDefault-light dark:text-iconDefault-dark',
-              sort.field === header.column.id && 'opacity-100',
-              'group-hover:opacity-100',
-              sort.direction === 'asc' && sort.field === header.column.id && 'rotate-180',
-              !isNumber && 'ml-auto',
-              isSelected && 'text-iconDisabled',
-            )}
-          />
-        </div>
-      )}
-    </>
-  ),
-  (prevProps, nextProps) =>
-    prevProps.isSelected === nextProps.isSelected &&
-    prevProps.sort.field === nextProps.sort.field &&
-    prevProps.sort.direction === nextProps.sort.direction,
+        />
+      </div>
+    )}
+  </>
 );
 
 export const TableHeadCell = memo(
@@ -159,8 +161,8 @@ export const TableHeadCell = memo(
     );
   },
   (prevProps, nextProps) =>
-    prevProps.sort.field === nextProps.sort.field &&
-    prevProps.sort.direction === nextProps.sort.direction &&
+    prevProps.sort?.column === nextProps.sort?.column &&
+    prevProps.sort?.order === nextProps.sort?.order &&
     prevProps.resizingColumnId === nextProps.resizingColumnId &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.deltaOffset === nextProps.deltaOffset &&

@@ -1,17 +1,15 @@
 import { useCallback, useState } from 'react';
 import { formatNumber } from '@utils/helpers';
 import { useAppContext } from '@features/app-context';
-import { useAppStore } from '@store/app-store';
+import { Tab } from '@store/app-idb-store';
 
 export interface CalculateColumnSummaryProps {
   columnName: string | null;
   dataType: string;
 }
 
-export const useColumnSummary = () => {
+export const useColumnSummary = (tab: Tab | undefined) => {
   const { executeQuery } = useAppContext();
-  const originalQuery = useAppStore((state) => state.originalQuery);
-
   const [columnTotal, setColumnTotal] = useState<string | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [columnDataType, setColumnDataType] = useState<string | null>(null);
@@ -20,6 +18,9 @@ export const useColumnSummary = () => {
     columnDataType === 'bigint' || columnDataType === 'integer' || columnDataType === 'number';
 
   const calculateColumnSummary = async ({ columnName, dataType }: CalculateColumnSummaryProps) => {
+    if (!tab?.query.originalQuery) {
+      return;
+    }
     try {
       const isNumeric = dataType === 'bigint' || dataType === 'integer' || dataType === 'number';
 
@@ -32,8 +33,8 @@ export const useColumnSummary = () => {
       }
 
       const summaryQuery = isNumeric
-        ? `SELECT sum("${columnName}") AS total FROM (${originalQuery});`
-        : `SELECT count("${columnName}") AS total FROM (${originalQuery});`;
+        ? `SELECT sum("${columnName}") AS total FROM (${tab?.query.originalQuery});`
+        : `SELECT count("${columnName}") AS total FROM (${tab?.query.originalQuery});`;
 
       setIsCalculating(true);
       const queryResult = await executeQuery(summaryQuery);

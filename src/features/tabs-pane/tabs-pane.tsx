@@ -1,7 +1,5 @@
 /* eslint-disable jsx-a11y/click-events-have-key-events */
-import { useAppContext } from '@features/app-context';
-import { TabModel } from '@features/app-context/models';
-import { ScrollArea, Group, Skeleton, Text, ActionIcon, Box } from '@mantine/core';
+import { ScrollArea, Group, Skeleton, Text, ActionIcon, Box, Loader } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@store/app-store';
@@ -15,6 +13,7 @@ import {
   useDndMonitor,
 } from '@dnd-kit/core';
 import {
+  arrayMove,
   horizontalListSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
@@ -33,28 +32,39 @@ import {
 } from '@tabler/icons-react';
 import { getArrowTableSchema } from '@utils/arrow/helpers';
 import { useAppNotifications } from '@components/app-notifications';
-import { useEditorStore } from 'store/editor-store';
 import { setDataTestId } from '@utils/test-id';
+import {
+  TabMetaInfo,
+  tabStoreApi,
+  useAllTabsQuery,
+  useSetActiveTabMutation,
+  useDeleteTabsMutatuion,
+  useTabsReorderMutation,
+  useUpdateTabMutation,
+  useFileHandlesQuery,
+} from '@store/app-idb-store';
+import { tableFromIPC } from 'apache-arrow';
 
 interface SortableTabProps {
-  tab: TabModel;
-  activeTab: TabModel | null;
+  tab: TabMetaInfo;
+  active: boolean;
+  loading: boolean;
   icon: React.ReactNode;
   activeTabRef: React.RefObject<HTMLDivElement | null>;
-  onTabUpdate: (tab: TabModel) => void;
-  handleDeleteTab: (tab: TabModel) => void;
-  onClick: (tab: TabModel) => void;
+  handleDeleteTab: (id: string) => void;
+  onClick: (tab: string) => void;
 }
 
 const SortableTab = ({
   tab,
-  activeTab,
+  active,
   activeTabRef,
-  onTabUpdate,
   handleDeleteTab,
   onClick,
   icon,
+  loading,
 }: SortableTabProps) => {
+  const { mutateAsync: onTabUpdate } = useUpdateTabMutation();
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tab.id });
   const [isDragging, setIsDragging] = useState(false);
 
@@ -74,7 +84,6 @@ const SortableTab = ({
     transform: CSS.Transform.toString(transform),
     transition,
   };
-  const active = activeTab?.id === tab.id;
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
@@ -85,7 +94,7 @@ const SortableTab = ({
           }
         }}
         data-active={active}
-        onClick={() => onClick(tab)}
+        onClick={() => onClick(tab.id)}
         onDoubleClick={(e) => {
           e.stopPropagation();
           onTabUpdate({ ...tab, stable: true });
@@ -101,16 +110,16 @@ const SortableTab = ({
       >
         <Group gap={2} className="justify-between w-full">
           <Group gap={4}>
-            {icon}
+            {loading ? <Loader color="icon-default" size={16} /> : icon}
             <Text maw={110} truncate="end" className={cn(!tab.stable && 'italic', 'select-none')}>
-              {tab.path}
+              {tab.name}
             </Text>
           </Group>
           <ActionIcon
             data-testid={setDataTestId('close-tab-button')}
             onClick={(e) => {
               e.stopPropagation();
-              handleDeleteTab(tab);
+              handleDeleteTab(tab.id);
             }}
             size={20}
           >
@@ -122,12 +131,14 @@ const SortableTab = ({
   );
 };
 
-export const TabsPane = memo(() => {
+interface TabsPaneProps {
+  onAddTabClick: () => void;
+}
+
+export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
   /**
    * Common hooks
    */
-  const { onDeleteTabs, onTabUpdate, onOpenView, onSetTabsOrder, onCreateQueryFile, onSaveEditor } =
-    useAppContext();
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -145,58 +156,52 @@ export const TabsPane = memo(() => {
    * Store access
    */
   const activeTabRef = useRef<HTMLDivElement | null>(null);
-  const tabs = useAppStore((state) => state.tabs);
-  const activeTab = useAppStore((state) => state.activeTab);
-  const setActiveTab = useAppStore((state) => state.setActiveTab);
-  const setQueryView = useAppStore((state) => state.setQueryView);
-  const setCurrentQuery = useAppStore((state) => state.setCurrentQuery);
-  const setQueryResults = useAppStore((state) => state.setQueryResults);
-  const setCurrentView = useAppStore((state) => state.setCurrentView);
-  const appStatus = useAppStore((state) => state.appStatus);
-  const setTabs = useAppStore((state) => state.setTabs);
-  const queryView = useAppStore((state) => state.queryView);
-  const queryResults = useAppStore((state) => state.queryResults);
-  const sessionFiles = useAppStore((state) => state.sessionFiles);
+  const { data: tabs = [] } = useAllTabsQuery();
+  const activeTab = tabs.find((tab) => tab.active);
+  const { data: dataSources = [] } = useFileHandlesQuery();
+  const { mutateAsync: setActiveTab } = useSetActiveTabMutation();
+  const { mutateAsync: onDeleteTabs } = useDeleteTabsMutatuion();
 
-  const editorValue = useEditorStore((state) => state.editorValue);
-  const lastQueryDirty = useEditorStore((state) => state.lastQueryDirty);
-  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
+  const appStatus = useAppStore((state) => state.appStatus);
 
   const appInitializing = appStatus === 'initializing';
+
+  const isEditorView = activeTab?.type === 'query';
 
   /**
    * Local state
    */
   const [isUserTabChange, setIsUserTabChange] = useState(false);
+  const [localTabs, setLocalTabs] = useState<TabMetaInfo[]>([]);
 
   /**
    * Handlers
    */
-  const handleDragEnd = (event: any) => {
+  const reorderMutation = useTabsReorderMutation();
+
+  const handleDragEnd = async (event: any) => {
     const { active, over } = event;
     if (active.id !== over.id) {
-      const oldIndex = tabs.findIndex((tab) => tab.id === active.id);
-      const newIndex = tabs.findIndex((tab) => tab.id === over.id);
+      const oldIndex = localTabs.findIndex((tab) => tab.id === active.id);
+      const newIndex = localTabs.findIndex((tab) => tab.id === over.id);
 
-      const newTabs = [...tabs];
-      const [removed] = newTabs.splice(oldIndex, 1);
-      newTabs.splice(newIndex, 0, removed);
-
-      const activeTabIndex = newTabs.findIndex((tab) => tab.id === activeTab?.id);
-
-      setTabs(newTabs);
-      onSetTabsOrder({
-        tabs: newTabs,
-        activeTabIndex,
-      });
+      const orderedArray = arrayMove<TabMetaInfo>(localTabs, oldIndex, newIndex);
+      setLocalTabs(orderedArray);
+      // Simply swap the order values between source and target tabs
+      await reorderMutation.mutateAsync(
+        orderedArray.map((tab, index) => ({
+          ...tab,
+          order: index,
+        })),
+      );
     }
   };
 
   const saveCurrentQuery = async () => {
-    if (activeTab?.mode === 'query' && lastQueryDirty) {
-      await onSaveEditor({ content: editorValue, path: activeTab.path });
-      setLastQueryDirty(false);
-    }
+    // if (activeTab?.mode === 'query' && lastQueryDirty) {
+    //   await onSaveEditor({ content: editorValue, path: activeTab.path });
+    //   setLastQueryDirty(false);
+    // }
   };
 
   const handleTabChange = async (tabId: string | null) => {
@@ -206,48 +211,35 @@ export const TabsPane = memo(() => {
     if (tab.id === activeTab?.id) return;
     await saveCurrentQuery();
 
-    setActiveTab(tab);
-
-    if (tab.mode === 'view') {
-      onOpenView(tab.path);
-    }
-    if (tab.mode === 'query') {
-      setCurrentView(null);
-      setQueryResults(null);
-      setQueryView(true);
-      setCurrentQuery(tab.path);
-    }
+    await setActiveTab(tab.id);
   };
 
-  const handleDeleteTab = async (tab: TabModel) => {
+  const handleDeleteTab = async (id: string) => {
     await saveCurrentQuery();
-    onDeleteTabs([tab]);
+    onDeleteTabs([id]);
   };
 
-  const handleTabClick = async (tab: TabModel) => {
-    if (tab.id === activeTab?.id) return;
+  const handleTabClick = async (id: string) => {
+    if (id === activeTab?.id) return;
 
     await saveCurrentQuery();
 
     setIsUserTabChange(true);
-    setActiveTab(tab);
-    if (tab.mode === 'view') {
-      onOpenView(tab.path);
-    }
-    if (tab.mode === 'query') {
-      setCurrentView(null);
-      setQueryResults(null);
-      setQueryView(true);
-      setCurrentQuery(tab.path);
-    }
+    await setActiveTab(id);
   };
 
   const handleAddQuery = async () => {
     await saveCurrentQuery();
-    onCreateQueryFile({ entities: [{ name: 'query' }], openInNewTab: true });
+    onAddTabClick();
   };
 
-  const handleCopyToClipboard = () => {
+  //TODO: Move to a separate file / hook
+  const handleCopyToClipboard = async () => {
+    if (!activeTab) return;
+
+    const tabData = await tabStoreApi.getTab(activeTab?.id);
+    const queryResults = tabData?.dataView.data ? tableFromIPC(tabData?.dataView.data) : null;
+
     if (!queryResults) return;
 
     if (!queryResults || queryResults.numRows === 0) return { columns: [], data: [] };
@@ -278,7 +270,7 @@ export const TabsPane = memo(() => {
         size: 16,
         className: cn('text-iconDefault-light dark:text-iconDefault-dark'),
       };
-      const fileExt = sessionFiles?.sources.find((f) => f.name === id)?.ext as string;
+      const fileExt = dataSources.find((f) => f.name === id)?.ext as string;
       if (!fileExt) return <IconCode {...iconProps} />;
 
       const iconsMap = {
@@ -287,7 +279,7 @@ export const TabsPane = memo(() => {
       }[fileExt];
       return iconsMap || <IconTable {...iconProps} />;
     },
-    [sessionFiles],
+    [dataSources],
   );
 
   useEffect(() => {
@@ -300,9 +292,17 @@ export const TabsPane = memo(() => {
     setIsUserTabChange(false);
   }, [activeTab]);
 
-  if (!tabs.length) {
-    return null;
-  }
+  useEffect(() => {
+    // Only update localTabs if they're different from the current tabs
+    // This prevents unnecessary re-renders
+    const sortedTabs = [...tabs].sort((a, b) => a.order - b.order);
+
+    // Deep comparison to avoid unnecessary updates
+    const areTabsEqual = JSON.stringify(sortedTabs) === JSON.stringify(localTabs);
+    if (!areTabsEqual) {
+      setLocalTabs(sortedTabs);
+    }
+  }, [tabs]);
 
   return (
     <Group className="w-full justify-between gap-0">
@@ -324,20 +324,20 @@ export const TabsPane = memo(() => {
             }}
           >
             <SortableContext
-              items={tabs.map((tab) => tab.id)}
+              items={localTabs.map((tab) => tab.id)}
               strategy={horizontalListSortingStrategy}
             >
               <div className="flex items-center h-9" data-testid={setDataTestId('tabs-list')}>
-                {tabs.map((tab) => (
+                {localTabs.map((tab) => (
                   <SortableTab
                     key={tab.id}
                     tab={tab}
-                    activeTab={activeTab}
+                    active={tab.id === activeTab?.id}
                     activeTabRef={activeTabRef}
-                    onTabUpdate={onTabUpdate}
                     handleDeleteTab={handleDeleteTab}
                     onClick={handleTabClick}
-                    icon={getIcon(tab.path)}
+                    loading={tab.query.state === 'fetching'}
+                    icon={getIcon('query')}
                   />
                 ))}
                 {appInitializing && <Skeleton className="ml-2" width={100} height={20} />}
@@ -349,7 +349,7 @@ export const TabsPane = memo(() => {
           </ActionIcon>
         </div>
       </ScrollArea>
-      {!queryView && (
+      {!isEditorView && (
         <Group className=" bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark h-full px-4">
           <ActionIcon size={16} onClick={handleCopyToClipboard}>
             <IconCopy />

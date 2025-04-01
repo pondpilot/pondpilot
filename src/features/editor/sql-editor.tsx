@@ -8,7 +8,7 @@ import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/reac
 import { acceptCompletion, completionStatus, startCompletion } from '@codemirror/autocomplete';
 import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
 import { showNotification } from '@mantine/notifications';
-import { defaultKeymap, insertTab } from '@codemirror/commands';
+import { defaultKeymap, insertTab, history } from '@codemirror/commands';
 import { keymap } from '@codemirror/view';
 import { forwardRef, KeyboardEventHandler, useMemo } from 'react';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
@@ -129,6 +129,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
       const tooltipExtension = functionTooltip(duckdbFunctionList);
 
       return [
+        history(),
         keyExtensions,
         sqlDialect,
         tooltipExtension,

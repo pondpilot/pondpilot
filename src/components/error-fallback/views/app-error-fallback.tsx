@@ -1,14 +1,14 @@
 import { Stack, Group, Button, Text } from '@mantine/core';
 import React from 'react';
-import { exportApplicationFiles } from '@utils/helpers';
 import { useRouteError } from 'react-router-dom';
+import { exportQueryFiles } from '@utils/exportData';
 import { deleteApplicationData } from '../utils';
 
 export const AppErrorFallback = () => {
   const error = useRouteError() as { message: string; stack: string };
 
   const exportArchive = async () => {
-    const archiveBlob = await exportApplicationFiles();
+    const archiveBlob = await exportQueryFiles();
     if (archiveBlob) {
       const link = document.createElement('a');
       link.href = URL.createObjectURL(archiveBlob);
