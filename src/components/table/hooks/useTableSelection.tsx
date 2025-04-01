@@ -2,7 +2,7 @@ import { Cell, CellContext, Table } from '@tanstack/react-table';
 import { useCallback, useState } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { useDidUpdate } from '@mantine/hooks';
-import { CalculateColumnSummaryProps } from '@features/data-viewer/hooks';
+import { CalculateColumnSummaryProps } from '@features/tab-view/hooks';
 import { ResultColumn } from '@utils/arrow/helpers';
 import { dynamicTypeViewer } from '../utils';
 

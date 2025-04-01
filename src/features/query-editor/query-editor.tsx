@@ -4,8 +4,6 @@ import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { useAppContext } from '@features/app-context';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useAppStore } from '@store/app-store';
-import { useEditorStore } from '@store/editor-store';
-import { usePaginationStore } from '@store/pagination-store';
 import { SqlEditor } from '@features/editor';
 import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
@@ -13,36 +11,38 @@ import { Spotlight } from '@mantine/spotlight';
 import { formatNumber } from '@utils/helpers';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { setDataTestId } from '@utils/test-id';
+import {
+  useChangeQueryContentMutation,
+  useQueryFileQuery,
+  useTabQuery,
+  useUpdateTabMutation,
+} from '@store/app-idb-store';
+
+import { useAppNotifications } from '@components/app-notifications';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
 interface QueryEditorProps {
   columnsCount: number;
   rowsCount: number;
+  id: string;
 }
 
-export const QueryEditor = ({ columnsCount, rowsCount }: QueryEditorProps) => {
+export const QueryEditor = ({ columnsCount, rowsCount, id }: QueryEditorProps) => {
+  const { data: tab } = useTabQuery(id);
+  const { data: queryFile } = useQueryFileQuery(tab?.sourceId || '');
+  const { mutateAsync: updateTab } = useUpdateTabMutation();
+  const { mutateAsync: updateQueryFile } = useChangeQueryContentMutation();
   /**
    * Common hooks
    */
-  const context = useAppContext();
-
+  const { runQuery } = useAppContext();
+  const { showError } = useAppNotifications();
   const { colorScheme } = useMantineColorScheme();
 
-  const currentQuery = useAppStore((state) => state.currentQuery);
-  const queries = useAppStore((state) => state.queries);
-  const setOriginalQuery = useAppStore((state) => state.setOriginalQuery);
-  const setQueryRunning = useAppStore((state) => state.setQueryRunning);
-  const queryRunning = useAppStore((state) => state.queryRunning);
   const databases = useAppStore((state) => state.databases);
 
-  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
-  const setEditorValue = useEditorStore((state) => state.setEditorValue);
-  const setSaving = useEditorStore((state) => state.setSaving);
-
-  const setCurrentPage = usePaginationStore((state) => state.setCurrentPage);
-
-  const currentQueryData = queries.find((query) => query.path === currentQuery);
+  const queryRunning = tab?.query.state === 'fetching';
 
   /**
    * State
@@ -67,7 +67,7 @@ export const QueryEditor = ({ columnsCount, rowsCount }: QueryEditorProps) => {
    */
   const handleRunQuery = async (mode?: 'all' | 'selection') => {
     const editor = editorRef.current?.view;
-    if (!editor?.state) return;
+    if (!editor?.state || !tab) return;
 
     const getCurrentStatement = () => {
       const cursor = editor.state.selection.main.head;
@@ -90,40 +90,54 @@ export const QueryEditor = ({ columnsCount, rowsCount }: QueryEditorProps) => {
 
     const queryToRun = mode === 'selection' ? selectedText : fullQuery;
 
-    setCurrentPage(1);
-    setOriginalQuery('');
-    setQueryRunning(true);
-    setQueryExecuted(false);
-    await context.runQuery({ query: queryToRun });
-    setQueryRunning(false);
-    setQueryExecuted(true);
+    await updateTab({
+      id: tab.id,
+      query: {
+        ...tab.query,
+        state: 'fetching',
+      },
+    });
+    const res = await runQuery({ query: queryToRun });
+    await updateTab({
+      id: tab.id,
+      dataView: {
+        data: res?.data,
+        rowCount: 0,
+      },
+      query: {
+        ...tab.query,
+        state: 'success',
+        originalQuery: queryToRun,
+      },
+    });
   };
 
   const handleQuerySave = async () => {
-    if (!currentQuery) return;
-    setSaving(true);
+    if (!tab || !queryFile) {
+      showError({ title: 'Query file not found', message: '' });
+      return;
+    }
 
-    await context.onSaveEditor({
+    // TODO: save editor state
+    // await updateTab({
+    //   id: tab.id,
+    //   editor: {
+    //     ...tab.editor,
+    //     value: editorRef.current?.view?.state?.doc.toString() || '',
+    //   },
+    // });
+    await updateQueryFile({
+      id: queryFile.id,
       content: editorRef.current?.view?.state?.doc.toString() || '',
-      path: currentQuery,
     });
-    setLastQueryDirty(false);
-    setSaving(false);
   };
 
   const handleEditorValueChange = useDebouncedCallback(async () => {
     handleQuerySave();
   }, 300);
 
-  const onSqlEditorChange = (value: string | undefined) => {
-    setEditorValue(value || '');
-    setQueryExecuted(false);
-    if (value !== currentQueryData?.content) {
-      handleEditorValueChange();
-      setLastQueryDirty(true);
-    } else {
-      setLastQueryDirty(false);
-    }
+  const onSqlEditorChange = () => {
+    handleEditorValueChange();
   };
 
   /**
@@ -132,20 +146,19 @@ export const QueryEditor = ({ columnsCount, rowsCount }: QueryEditorProps) => {
   useEffect(() => {
     const view = editorRef.current?.view;
 
-    if (!view) return;
+    if (!view || !queryFile?.id) return;
 
     const transaction = view.state.update({
       changes: {
         from: 0,
         to: view.state.doc.length,
-        insert: currentQueryData?.content || '',
+        insert: queryFile.content || '',
       },
     });
     if (transaction) {
       view.dispatch(transaction);
     }
-    setLastQueryDirty(false);
-  }, [currentQuery]);
+  }, [tab?.id, queryFile?.id]);
 
   return (
     <div className="h-full">
@@ -174,7 +187,7 @@ export const QueryEditor = ({ columnsCount, rowsCount }: QueryEditorProps) => {
           onBlur={handleQuerySave}
           ref={editorRef}
           colorSchemeDark={colorScheme === 'dark'}
-          value={currentQueryData?.content || ''}
+          value={tab?.editor.value || ''}
           onChange={onSqlEditorChange}
           schema={schema}
           fontSize={fontSize}

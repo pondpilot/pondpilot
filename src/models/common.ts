@@ -56,6 +56,7 @@ export type Dataset = {
   handle: FileSystemFileHandle;
   path: string;
   name: string;
+  id: string;
 };
 
 // ---------- Code Ext files ----------- //
@@ -84,6 +85,7 @@ export const codeExtMap: Record<CodeFileExt, CodeMimeType> = {
 };
 
 export type CodeSource = {
+  id?: string;
   kind: 'CODE';
   mimeType: CodeMimeType;
   ext: CodeFileExt;
@@ -115,16 +117,6 @@ type DataSource = {
 
 export type AddDataSourceProps = DataSource[];
 
-export type SaveEditorProps = {
-  content: string;
-  path: string;
-};
-
-export type SaveEditorResponse = SaveEditorProps & {
-  handle: FileSystemFileHandle | undefined;
-  error: Error | null;
-};
-
 interface TableModel {
   name: string;
   columns: {
@@ -144,3 +136,34 @@ export interface DataBaseModel {
 }
 
 export type Limit = 100 | 1000 | 10000;
+
+export type TabType = 'query' | 'file';
+export type LoadingState = 'fetching' | 'error' | 'success' | 'pending';
+export type SortOrder = 'asc' | 'desc' | null;
+
+export interface Pagination {
+  page: number;
+}
+
+export interface TableSort {
+  column: string;
+  order: SortOrder;
+}
+
+export interface DuckDBView {
+  database_name: string;
+  schema_name: string;
+  view_name: string;
+  sql: string;
+  sourceId: string;
+  comment: string;
+}
+
+export interface DuckDBDatabase {
+  database_name: string;
+  path: string;
+  comment: string;
+  internal: boolean;
+  type: string;
+  readonly: string;
+}

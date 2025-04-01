@@ -1,14 +1,14 @@
 import { useCallback } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { useAppContext } from '@features/app-context';
-import { useAppStore } from '@store/app-store';
 import { Table as ApacheTable } from 'apache-arrow';
+import { useAllTabsQuery } from '@store/app-idb-store';
 
 export const useTableExport = () => {
   const { executeQuery } = useAppContext();
   const { showSuccess } = useAppNotifications();
-  const originalQuery = useAppStore((state) => state.originalQuery);
-  const activeTab = useAppStore((state) => state.activeTab);
+  const { data: tabsList = [] } = useAllTabsQuery();
+  const activeTab = tabsList?.find((tab) => tab.active);
 
   const handleCopyToClipboard = useCallback((convertedTable: { columns: any[]; data: any[] }) => {
     const { columns, data } = convertedTable;
@@ -26,7 +26,8 @@ export const useTableExport = () => {
   }, []);
 
   const exportTableToCSV = useCallback(async () => {
-    const queryResult: ApacheTable = await executeQuery(originalQuery);
+    if (!activeTab?.query.originalQuery) return;
+    const queryResult: ApacheTable = await executeQuery(activeTab?.query.originalQuery);
     if (!queryResult) return;
     const csv = queryResult
       .toArray()
@@ -37,13 +38,13 @@ export const useTableExport = () => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `${activeTab?.path.split('.')[0]}.csv`;
+    link.download = `${activeTab?.name.split('.')[0]}.csv`;
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
-  }, [activeTab?.path, executeQuery, originalQuery]);
+  }, [activeTab?.name, executeQuery, activeTab?.query.originalQuery]);
 
   return {
     handleCopyToClipboard,
