@@ -12,11 +12,11 @@ import {
 } from '@store/app-idb-store';
 import { DBWorkerAPIType, DropFilesAndDBInstancesProps } from '../models';
 import { updateDatabasesWithColumns } from '../utils';
+import { useAppContext } from '../app-context';
 
-export const useDataSourcesActions = (
-  dbProxyRef: React.RefObject<Remote<DBWorkerAPIType> | null>,
-) => {
+export const useDataSourcesActions = () => {
   const { showError, showWarning } = useAppNotifications();
+  const { dbProxyRef } = useAppContext();
 
   /**
    * Query state
