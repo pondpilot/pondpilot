@@ -1,22 +1,22 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 
-type AppState = 'init' | 'ready' | 'error';
+type AppLoadState = 'init' | 'ready' | 'error';
 
 // A small store to manage the state before the "heavy" parts of the app are loaded.
 type InitStore = {
-  appState: AppState;
+  appLoadState: AppLoadState;
 };
 
 export const useInitStore = create<InitStore>()(
   devtools(
     () => ({
-      appState: 'init',
+      appLoadState: 'init',
     }),
     { name: 'InitStore' },
   ),
 );
 
-export const setAppState = (status: AppState) => {
-  useInitStore.setState({ appState: status }, undefined, 'InitStore/setAppState');
+export const setAppLoadState = (status: AppLoadState) => {
+  useInitStore.setState({ appLoadState: status }, undefined, 'InitStore/setAppLoadState');
 };

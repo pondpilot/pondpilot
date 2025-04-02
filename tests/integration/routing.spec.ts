@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { test } from '@playwright/test';
 
 // This test does not use our base page fixture, since we want to immitate cold loading
 // from the browser
