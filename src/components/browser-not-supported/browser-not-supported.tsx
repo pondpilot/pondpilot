@@ -5,7 +5,7 @@ import browserNotSupportedImgBsod from './assets/bsod.svg';
 import browserNotSupportedImgMatrix from './assets/matrix.svg';
 import CrackDuck from './assets/crack-duck.svg';
 import { useEffect } from 'react';
-import { setAppState } from '@store/init-store';
+import { setAppLoadState } from '@store/init-store';
 
 const backgroundImages = [
   browserNotSupportedImgWat,
@@ -16,7 +16,7 @@ const backgroundImages = [
 export const BrowserNotSupported = () => {
   useEffect(() => {
     // Update app state on mount
-    setAppState('ready');
+    setAppLoadState('ready');
   }, []);
 
   return (

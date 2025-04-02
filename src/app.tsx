@@ -10,7 +10,7 @@ import { Notifications } from '@mantine/notifications';
 import { AppProvider } from '@features/app-context';
 
 import { theme } from '@theme/theme';
-import { AppState } from '@features/app-status';
+import { AppState } from '@features/app-state';
 import { BrowserNotSupported } from '@components/browser-not-supported';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router } from './router/router';
