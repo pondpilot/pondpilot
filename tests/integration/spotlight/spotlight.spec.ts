@@ -1,4 +1,5 @@
 import { expect, mergeTests } from '@playwright/test';
+
 import { test as baseTest } from '../fixtures/page';
 import { test as spotlightTest } from '../fixtures/spotlight';
 

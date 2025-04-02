@@ -1,10 +1,10 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions */
 /* eslint-disable jsx-a11y/click-events-have-key-events */
 import { Cell, flexRender } from '@tanstack/react-table';
-import { cn } from '@utils/ui/styles';
-import { memo } from 'react';
 import { replaceSpecialChars } from '@utils/helpers';
 import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
+import { memo } from 'react';
 
 interface TableCellProps {
   cell: Cell<any, unknown>;

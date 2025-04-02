@@ -1,5 +1,5 @@
-import { Layout } from '@components/layout';
 import { AppErrorFallback, DataViewErrorFallback } from '@components/error-fallback';
+import { Layout } from '@components/layout';
 import { MainPage } from '@pages/main-page';
 import { SettingsPage } from '@pages/settings-page';
 import { ErrorBoundary } from 'react-error-boundary';
