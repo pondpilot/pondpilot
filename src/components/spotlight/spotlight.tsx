@@ -35,6 +35,7 @@ import { useImportSQLFiles } from '@store/hooks';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
+import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from 'app-urls';
 
 interface Action {
   id: string;
@@ -218,11 +219,7 @@ export const SpotlightMenu = () => {
       label: 'Documentation',
       icon: <IconBooks size={20} className={iconClasses} />,
       handler: () => {
-        window.open(
-          'https://github.com/pondpilot/pondpilot/blob/main/README.md',
-          '_blank',
-          'noopener,noreferrer',
-        );
+        window.open(APP_DOCS_URL, '_blank', 'noopener,noreferrer');
       },
     },
     {
@@ -230,11 +227,7 @@ export const SpotlightMenu = () => {
       label: 'Report an Issue',
       icon: <IconFileSad size={20} className={iconClasses} />,
       handler: () => {
-        window.open(
-          'https://github.com/pondpilot/pondpilot/issues',
-          '_blank',
-          'noopener,noreferrer',
-        );
+        window.open(APP_OPEN_ISSUES_URL, '_blank', 'noopener,noreferrer');
       },
     },
     {
