@@ -11,6 +11,7 @@ import { useUploadFileHandles } from '@hooks/useUploadFileHandles';
 import { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
+import { APP_GITHUB_URL } from 'app-urls';
 
 /**
  * Displays the navigation bar
@@ -112,7 +113,7 @@ export const Navbar = memo(() => {
               <ActionIcon
                 size={20}
                 component="a"
-                href="https://github.com/pondpilot/pondpilot"
+                href={APP_GITHUB_URL}
                 target="_blank"
                 rel="noopener noreferrer"
               >
