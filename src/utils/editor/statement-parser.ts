@@ -6,6 +6,7 @@
 import { syntaxTree } from '@codemirror/language';
 import { SyntaxNode } from '@lezer/common';
 import { EditorState } from '@uiw/react-codemirror';
+
 import { isEndStatement, isRequireEndStatement } from './helpers';
 import { StatementSegment } from './models';
 

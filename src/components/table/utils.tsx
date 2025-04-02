@@ -1,5 +1,6 @@
 import { IconNumber123, IconCalendarStats, IconTextSize } from '@tabler/icons-react';
 import { formatNumber } from '@utils/helpers';
+
 import { DynamicTypeViewerProps } from './models';
 
 export const getIcon = (colType: string) =>

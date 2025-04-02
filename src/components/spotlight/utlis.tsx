@@ -1,4 +1,5 @@
 import { matchSorter } from 'match-sorter';
+
 import { SpotlightView } from './models';
 
 export const getSpotlightSearchPlaceholder = (spotlightView: SpotlightView) => {

@@ -8,6 +8,7 @@ import { useHotkeys, useLocalStorage } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
 import { Allotment } from 'allotment';
 import { ErrorBoundary } from 'react-error-boundary';
+
 import { Navbar } from './components';
 
 export const MainPage = () => {

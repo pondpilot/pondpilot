@@ -2,6 +2,7 @@ import { Stack, Group, Button, Text } from '@mantine/core';
 import { exportApplicationFiles } from '@utils/helpers';
 import React from 'react';
 import { useRouteError } from 'react-router-dom';
+
 import { deleteApplicationData } from '../utils';
 
 export const AppErrorFallback = () => {

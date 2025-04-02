@@ -5,6 +5,7 @@ import { SYSTEM_DUCKDB_SHEMAS } from '@features/editor/auto-complete';
 import { useClipboard } from '@mantine/hooks';
 import { useAppStore } from '@store/app-store';
 import { memo } from 'react';
+
 import { getDBIconByType } from './utils';
 
 /**

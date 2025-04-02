@@ -13,6 +13,7 @@ import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/reac
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { forwardRef, KeyboardEventHandler, useMemo } from 'react';
+
 import duckdbFunctionList from './duckdb-function-tooltip.json';
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';

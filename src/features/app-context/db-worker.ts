@@ -1,6 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { tableToIPC } from 'apache-arrow';
 import { expose } from 'comlink';
+
 import { GET_DBS_SQL_QUERY, GET_VIEWS_SQL_QUERY } from './consts';
 import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
 import { buildColumnsQueryWithFilters, getCreateViewQuery } from './utils';

@@ -1,4 +1,5 @@
 import { expect, mergeTests } from '@playwright/test';
+
 import { COLUMN_NAMES_WITH_SPECIAL_CHARS } from './consts';
 import { test as dataViewTest, getDataCellContainer, getHeaderCell } from '../fixtures/data-view';
 import { test as explorerTest } from '../fixtures/explorer';

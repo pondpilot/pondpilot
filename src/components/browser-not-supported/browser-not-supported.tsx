@@ -1,5 +1,6 @@
 import { BackgroundImage, Box, Center, Image, Stack, Text, Title } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
+
 import browserNotSupportedImgBsod from './assets/bsod.svg';
 import CrackDuck from './assets/crack-duck.svg';
 import browserNotSupportedImgMatrix from './assets/matrix.svg';

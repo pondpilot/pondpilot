@@ -3,6 +3,7 @@ import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
 import { useAppContext } from '@features/app-context';
 import { Text, Modal, Stack, Button, Group } from '@mantine/core';
 import { openDB } from 'idb';
+
 import { clearFileSystem } from './utils';
 
 interface SettingsModalProps {

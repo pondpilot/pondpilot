@@ -13,6 +13,7 @@ import { formatNumber } from '@utils/helpers';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { setDataTestId } from '@utils/test-id';
 import { useEffect, useRef, useState, useMemo } from 'react';
+
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 

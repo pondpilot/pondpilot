@@ -27,6 +27,7 @@ import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+
 import { SpotlightBreadcrumbs } from './components';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';

@@ -8,6 +8,7 @@ import { replaceSpecialChars } from '@utils/helpers';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { memo } from 'react';
+
 import { getIcon } from '../utils';
 
 interface TableHeadCellProps {

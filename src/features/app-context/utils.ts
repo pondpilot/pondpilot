@@ -4,6 +4,7 @@ import { DataBaseModel } from '@models/common';
 import { EditorState } from '@uiw/react-codemirror';
 import { createName } from '@utils/helpers';
 import { tableFromIPC } from 'apache-arrow';
+
 import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse, SessionFiles } from './models';
 import { splitSqlQuery } from '../../utils/editor/statement-parser';
 

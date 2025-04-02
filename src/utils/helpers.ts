@@ -1,7 +1,6 @@
 import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
 import { CodeSource, Dataset } from '@models/common';
 import { openDB } from 'idb';
-
 import JSZip from 'jszip';
 
 export const formatNumber = (value: number): string => {

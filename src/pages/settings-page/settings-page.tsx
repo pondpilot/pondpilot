@@ -2,6 +2,7 @@ import { clearFileSystem } from '@components/settings-modal/utils';
 import { useAppContext } from '@features/app-context';
 import { Box, Button, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
+
 import { ThemeSwitcher } from './components/theme-switcher';
 
 export const SettingsPage = () => {

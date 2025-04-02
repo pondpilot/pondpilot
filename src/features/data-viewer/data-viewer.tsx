@@ -25,6 +25,7 @@ import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
 import { Table as ApacheTable } from 'apache-arrow';
 import { memo, useCallback, useEffect, useMemo } from 'react';
+
 import { PaginationControl, StartGuide, TableLoadingOverlay } from './components';
 import { useColumnSummary } from './hooks';
 import { useTableExport } from './hooks/useTableExport';

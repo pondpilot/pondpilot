@@ -12,6 +12,7 @@ import { tableFromIPC } from 'apache-arrow';
 import { releaseProxy, wrap } from 'comlink';
 import { openDB } from 'idb';
 import { createContext, useContext, useEffect, useState } from 'react';
+
 import { SessionWorker } from './app-session-worker';
 import { ErrorModal } from './components/error-modal';
 import { useShowPermsAlert, useWorkersRefs } from './hooks';

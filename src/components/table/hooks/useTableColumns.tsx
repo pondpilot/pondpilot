@@ -10,6 +10,7 @@ import { getColumnType } from '@utils/duckdb';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import React, { useCallback, useMemo } from 'react';
+
 import { dynamicTypeViewer } from '../utils';
 
 interface UseTableColumnsProps {

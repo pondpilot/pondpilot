@@ -10,10 +10,10 @@ import { AppProvider } from '@features/app-context';
 import { AppStatus } from '@features/app-status';
 import { MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-
 import { useAppStore } from '@store/app-store';
 import { theme } from '@theme/theme';
 import { useEffect } from 'react';
+
 import { Router } from './router/router';
 
 const isFileAccessApiSupported = 'showDirectoryPicker' in window && 'showOpenFilePicker' in window;

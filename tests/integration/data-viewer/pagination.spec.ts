@@ -1,4 +1,5 @@
 import { expect, mergeTests } from '@playwright/test';
+
 import { test as dataViewTest } from '../fixtures/data-view';
 import { test as baseTest } from '../fixtures/page';
 import { test as queryEditorTest } from '../fixtures/query-editor';

@@ -8,6 +8,7 @@ import { replaceSpecialChars } from '@utils/helpers';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { memo, useMemo } from 'react';
+
 import { TableCell, TableHeadCell } from './components';
 import { useTableColumns, useTableSelection } from './hooks';
 
