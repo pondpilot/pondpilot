@@ -36,6 +36,10 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000, // 2 minutes
   },
+  use: {
+    /* Base URL to use in actions like `await page.goto('/')`. */
+    baseURL: 'http://localhost:5173',
+  },
   /* Set the timeout for each test */
   timeout: Number(process.env.PLAYWRIGHT_TIMEOUT ?? 30_000),
 });
