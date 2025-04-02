@@ -1,7 +1,7 @@
-import createTheme from '@uiw/codemirror-themes';
 import { tags as t } from '@lezer/highlight';
-import { useMemo } from 'react';
 import { useMantineTheme } from '@mantine/core';
+import createTheme from '@uiw/codemirror-themes';
+import { useMemo } from 'react';
 
 export const useEditorTheme = (colorSchemeDark: boolean) => {
   const { colors } = useMantineTheme();

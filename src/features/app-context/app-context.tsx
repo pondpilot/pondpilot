@@ -1,17 +1,20 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { releaseProxy, wrap } from 'comlink';
-import { useAppStore } from '@store/app-store';
-import { tableFromIPC } from 'apache-arrow';
-import { usePaginationStore } from '@store/pagination-store';
 import { useAppNotifications } from '@components/app-notifications';
+import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
 import { useAbortController } from '@hooks/useAbortController';
-import { openDB } from 'idb';
-import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { createName } from '@utils/helpers';
+import { notifications } from '@mantine/notifications';
 import { AddDataSourceProps, SaveEditorProps } from '@models/common';
-import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
+import { useAppStore } from '@store/app-store';
+import { usePaginationStore } from '@store/pagination-store';
+import { createName } from '@utils/helpers';
+import { tableFromIPC } from 'apache-arrow';
+import { releaseProxy, wrap } from 'comlink';
+import { openDB } from 'idb';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { SessionWorker } from './app-session-worker';
+import { ErrorModal } from './components/error-modal';
+import { useShowPermsAlert, useWorkersRefs } from './hooks';
 import {
   AddTabProps,
   ChangeTabProps,
@@ -22,10 +25,7 @@ import {
   RunQueryResponse,
   TabModel,
 } from './models';
-import { useShowPermsAlert, useWorkersRefs } from './hooks';
 import { executeQueries, updateDatabasesWithColumns } from './utils';
-import { SessionWorker } from './app-session-worker';
-import { ErrorModal } from './components/error-modal';
 
 interface AppContextType {
   onAddDataSources: (entries: AddDataSourceProps) => Promise<any>;

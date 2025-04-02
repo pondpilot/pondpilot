@@ -1,10 +1,10 @@
+import { useAppNotifications } from '@components/app-notifications';
 import { MenuItem, SourcesListView } from '@components/sources-list-view';
 import { useAppContext } from '@features/app-context';
+import { SYSTEM_DUCKDB_SHEMAS } from '@features/editor/auto-complete';
+import { useClipboard } from '@mantine/hooks';
 import { useAppStore } from '@store/app-store';
 import { memo } from 'react';
-import { useClipboard } from '@mantine/hooks';
-import { useAppNotifications } from '@components/app-notifications';
-import { SYSTEM_DUCKDB_SHEMAS } from '@features/editor/auto-complete';
 import { getDBIconByType } from './utils';
 
 /**

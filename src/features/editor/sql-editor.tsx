@@ -4,19 +4,19 @@
  * Modified by Andrii Butko (C) [2025]
  * Licensed under GNU AGPL v3.0
  */
-import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { acceptCompletion, completionStatus, startCompletion } from '@codemirror/autocomplete';
-import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
-import { showNotification } from '@mantine/notifications';
 import { defaultKeymap, insertTab } from '@codemirror/commands';
+import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
 import { keymap } from '@codemirror/view';
-import { forwardRef, KeyboardEventHandler, useMemo } from 'react';
-import { KEY_BINDING } from '@utils/hotkey/key-matcher';
+import { showNotification } from '@mantine/notifications';
+import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
-import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
-import { functionTooltip } from './function-tooltips';
+import { KEY_BINDING } from '@utils/hotkey/key-matcher';
+import { forwardRef, KeyboardEventHandler, useMemo } from 'react';
 import duckdbFunctionList from './duckdb-function-tooltip.json';
+import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
+import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
 
 interface SqlEditorProps {
   colorSchemeDark: boolean;

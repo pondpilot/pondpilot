@@ -1,11 +1,11 @@
-import { EditorState } from '@uiw/react-codemirror';
 import { PostgreSQL, sql } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
-import { tableFromIPC } from 'apache-arrow';
-import { createName } from '@utils/helpers';
 import { DataBaseModel } from '@models/common';
-import { splitSqlQuery } from '../../utils/editor/statement-parser';
+import { EditorState } from '@uiw/react-codemirror';
+import { createName } from '@utils/helpers';
+import { tableFromIPC } from 'apache-arrow';
 import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse, SessionFiles } from './models';
+import { splitSqlQuery } from '../../utils/editor/statement-parser';
 
 export const transformDatabaseStructure = (
   input: {

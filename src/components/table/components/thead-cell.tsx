@@ -1,13 +1,13 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions */
 /* eslint-disable jsx-a11y/click-events-have-key-events */
-import { IconTriangleInvertedFilled } from '@tabler/icons-react';
 import { Text } from '@mantine/core';
-import { Header, Table as TableType } from '@tanstack/react-table';
-import { cn } from '@utils/ui/styles';
-import { replaceSpecialChars } from '@utils/helpers';
-import { memo } from 'react';
 import { SortModel } from '@store/pagination-store';
+import { IconTriangleInvertedFilled } from '@tabler/icons-react';
+import { Header, Table as TableType } from '@tanstack/react-table';
+import { replaceSpecialChars } from '@utils/helpers';
 import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
+import { memo } from 'react';
 import { getIcon } from '../utils';
 
 interface TableHeadCellProps {

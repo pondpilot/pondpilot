@@ -1,12 +1,7 @@
-import { memo, useCallback, useEffect, useMemo } from 'react';
-
-import { Allotment } from 'allotment';
+import { useAppNotifications } from '@components/app-notifications';
+import { Table } from '@components/table/table';
 import { useAppContext } from '@features/app-context';
-import { useAppStore } from '@store/app-store';
-import { useClipboard, useDebouncedState, useHotkeys, useLocalStorage } from '@mantine/hooks';
-import { usePaginationStore } from '@store/pagination-store';
 import { QueryEditor } from '@features/query-editor';
-import { getArrowTableSchema } from '@utils/arrow/helpers';
 import {
   ActionIcon,
   Button,
@@ -18,18 +13,22 @@ import {
   Text,
   Tooltip,
 } from '@mantine/core';
-import { Table } from '@components/table/table';
-import { IconChevronDown, IconClipboardSmile, IconCopy } from '@tabler/icons-react';
-import { cn } from '@utils/ui/styles';
-import { Table as ApacheTable } from 'apache-arrow';
-import { useAppNotifications } from '@components/app-notifications';
+import { useClipboard, useDebouncedState, useHotkeys, useLocalStorage } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { setDataTestId } from '@utils/test-id';
+import { useAppStore } from '@store/app-store';
+import { usePaginationStore } from '@store/pagination-store';
+import { IconChevronDown, IconClipboardSmile, IconCopy } from '@tabler/icons-react';
+import { getArrowTableSchema } from '@utils/arrow/helpers';
 import { formatNumber } from '@utils/helpers';
+import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
+import { Allotment } from 'allotment';
+import { Table as ApacheTable } from 'apache-arrow';
+import { memo, useCallback, useEffect, useMemo } from 'react';
 import { PaginationControl, StartGuide, TableLoadingOverlay } from './components';
-import { useTableSort } from './hooks/useTablePaginationSort';
-import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
+import { useTableExport } from './hooks/useTableExport';
+import { useTableSort } from './hooks/useTablePaginationSort';
 
 export const DataViewer = memo(() => {
   /**

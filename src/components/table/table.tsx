@@ -1,13 +1,13 @@
-import { useReactTable, getCoreRowModel, Table as TableType, Cell } from '@tanstack/react-table';
-import { cn } from '@utils/ui/styles';
-import { memo, useMemo } from 'react';
-import { SortModel } from '@store/pagination-store';
-import { useClipboard, useDidUpdate, useHotkeys } from '@mantine/hooks';
-import { replaceSpecialChars } from '@utils/helpers';
 import { useAppNotifications } from '@components/app-notifications';
 import { CalculateColumnSummaryProps } from '@features/data-viewer/hooks';
+import { useClipboard, useDidUpdate, useHotkeys } from '@mantine/hooks';
+import { SortModel } from '@store/pagination-store';
+import { useReactTable, getCoreRowModel, Table as TableType, Cell } from '@tanstack/react-table';
 import { ResultColumn } from '@utils/arrow/helpers';
+import { replaceSpecialChars } from '@utils/helpers';
 import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
+import { memo, useMemo } from 'react';
 import { TableCell, TableHeadCell } from './components';
 import { useTableColumns, useTableSelection } from './hooks';
 

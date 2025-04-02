@@ -2,15 +2,15 @@ import { SettingsModal } from '@components/settings-modal';
 import { DbExplorer } from '@features/db-explorer/db-explorer';
 import { QueryExplorer } from '@features/query-explorer';
 import { ViewExplorer } from '@features/view-explorer';
+import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { ActionIcon, Button, Divider, Group, Text } from '@mantine/core';
 import { useDisclosure, useLocalStorage } from '@mantine/hooks';
 import { IconBrandGithub, IconPlus, IconSettings } from '@tabler/icons-react';
+import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
-import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setDataTestId } from '@utils/test-id';
 
 /**
  * Displays the navigation bar

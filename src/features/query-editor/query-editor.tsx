@@ -1,18 +1,18 @@
+import { useAppContext } from '@features/app-context';
+import { SqlEditor } from '@features/editor';
+import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
 import { Group, Text, useMantineColorScheme } from '@mantine/core';
 import { useDebouncedCallback } from '@mantine/hooks';
-import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
-import { useAppContext } from '@features/app-context';
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { Spotlight } from '@mantine/spotlight';
 import { useAppStore } from '@store/app-store';
 import { useEditorStore } from '@store/editor-store';
 import { usePaginationStore } from '@store/pagination-store';
-import { SqlEditor } from '@features/editor';
-import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
-import { KEY_BINDING } from '@utils/hotkey/key-matcher';
-import { Spotlight } from '@mantine/spotlight';
-import { formatNumber } from '@utils/helpers';
+import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
+import { formatNumber } from '@utils/helpers';
+import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { setDataTestId } from '@utils/test-id';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 

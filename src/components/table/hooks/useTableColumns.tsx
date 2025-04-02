@@ -1,15 +1,15 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions */
 /* eslint-disable jsx-a11y/click-events-have-key-events */
-import { CellContext, ColumnDef } from '@tanstack/react-table';
-import { getColumnType } from '@utils/duckdb';
-import React, { useCallback, useMemo } from 'react';
-import { Tooltip } from '@mantine/core';
-import { cn } from '@utils/ui/styles';
-import { usePaginationStore } from '@store/pagination-store';
-import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
+import { Tooltip } from '@mantine/core';
+import { useClipboard } from '@mantine/hooks';
+import { usePaginationStore } from '@store/pagination-store';
+import { CellContext, ColumnDef } from '@tanstack/react-table';
 import { ResultColumn } from '@utils/arrow/helpers';
+import { getColumnType } from '@utils/duckdb';
 import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
+import React, { useCallback, useMemo } from 'react';
 import { dynamicTypeViewer } from '../utils';
 
 interface UseTableColumnsProps {

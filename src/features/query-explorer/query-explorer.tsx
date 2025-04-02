@@ -1,13 +1,13 @@
 import { useAppNotifications } from '@components/app-notifications';
 import { MenuItem, SourcesListView } from '@components/sources-list-view';
+import { useAppContext } from '@features/app-context';
 import { ActionIcon, Divider, Group, Text } from '@mantine/core';
 import { useClipboard, useDisclosure } from '@mantine/hooks';
-import { useAppContext } from '@features/app-context';
-import { memo, useState } from 'react';
 import { useAppStore } from '@store/app-store';
-import { IconCode, IconPlus } from '@tabler/icons-react';
 import { useEditorStore } from '@store/editor-store';
+import { IconCode, IconPlus } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
+import { memo, useState } from 'react';
 
 export const QueryExplorer = memo(() => {
   /**

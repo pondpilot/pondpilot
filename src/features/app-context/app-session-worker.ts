@@ -1,8 +1,5 @@
 /// <reference lib="webworker" />
 
-import * as Comlink from 'comlink';
-import { openDB } from 'idb';
-import JSZip from 'jszip';
 import {
   FILE_HANDLE_DB_NAME,
   FILE_HANDLE_STORE_NAME,
@@ -16,12 +13,9 @@ import {
   SaveEditorResponse,
   CodeSource,
 } from '@models/common';
-import {
-  createName,
-  findUniqueName,
-  getSessionDirectory,
-  getSupportedMimeType,
-} from '../../utils/helpers';
+import * as Comlink from 'comlink';
+import { openDB } from 'idb';
+import JSZip from 'jszip';
 import {
   AddDataSourceBase,
   AddTabProps,
@@ -30,6 +24,12 @@ import {
   SessionFiles,
   TabModel,
 } from './models';
+import {
+  createName,
+  findUniqueName,
+  getSessionDirectory,
+  getSupportedMimeType,
+} from '../../utils/helpers';
 
 const getSessionFiles = async (
   directoryHandle: FileSystemDirectoryHandle,

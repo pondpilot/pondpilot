@@ -1,8 +1,8 @@
 import { expect, mergeTests } from '@playwright/test';
 import { test as baseTest } from '../fixtures/page';
-import { test as spotlightTest } from '../fixtures/spotlight';
-import { test as settingsTest } from '../fixtures/settings';
 import { test as QueryEditorTest } from '../fixtures/query-editor';
+import { test as settingsTest } from '../fixtures/settings';
+import { test as spotlightTest } from '../fixtures/spotlight';
 
 const test = mergeTests(baseTest, spotlightTest, settingsTest, QueryEditorTest);
 

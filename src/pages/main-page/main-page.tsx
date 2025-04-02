@@ -1,13 +1,13 @@
-import { Stack, useMantineColorScheme } from '@mantine/core';
-import { Allotment } from 'allotment';
-import { useAppContext } from '@features/app-context';
-import { useHotkeys, useLocalStorage } from '@mantine/hooks';
-import { TabsPane } from '@features/tabs-pane';
-import { Spotlight } from '@mantine/spotlight';
-import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
-import { DataViewer } from '@features/data-viewer';
-import { ErrorBoundary } from 'react-error-boundary';
 import { DataViewErrorFallback } from '@components/error-fallback';
+import { useAppContext } from '@features/app-context';
+import { DataViewer } from '@features/data-viewer';
+import { TabsPane } from '@features/tabs-pane';
+import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
+import { Stack, useMantineColorScheme } from '@mantine/core';
+import { useHotkeys, useLocalStorage } from '@mantine/hooks';
+import { Spotlight } from '@mantine/spotlight';
+import { Allotment } from 'allotment';
+import { ErrorBoundary } from 'react-error-boundary';
 import { Navbar } from './components';
 
 export const MainPage = () => {

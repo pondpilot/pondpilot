@@ -1,13 +1,13 @@
-import { memo } from 'react';
+import { HotkeyPill } from '@components/hotkey-pill';
+import { SpotlightMenu } from '@components/spotlight';
+import { useModifier } from '@hooks/useModifier';
 import { Group, Text, TextInput } from '@mantine/core';
 import { spotlight } from '@mantine/spotlight';
-import { cn } from '@utils/ui/styles';
 import { IconSearch } from '@tabler/icons-react';
-import { HotkeyPill } from '@components/hotkey-pill';
-import { useModifier } from '@hooks/useModifier';
-import { SpotlightMenu } from '@components/spotlight';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
+import { memo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export const Header = memo(() => {
   const navigate = useNavigate();

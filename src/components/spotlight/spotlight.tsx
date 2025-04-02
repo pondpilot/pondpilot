@@ -1,6 +1,11 @@
+import { HotkeyPill } from '@components/hotkey-pill';
 import { useAppContext } from '@features/app-context';
+import { useModifier } from '@hooks/useModifier';
+import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
 import { Group, Text } from '@mantine/core';
 import { Spotlight } from '@mantine/spotlight';
+import { useAppStore } from '@store/app-store';
+import { useEditorStore } from '@store/editor-store';
 import {
   IconDatabase,
   IconCode,
@@ -18,18 +23,13 @@ import {
   IconJson,
   IconTable,
 } from '@tabler/icons-react';
-import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAppStore } from '@store/app-store';
-import { HotkeyPill } from '@components/hotkey-pill';
-import { cn } from '@utils/ui/styles';
-import { useModifier } from '@hooks/useModifier';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useEditorStore } from '@store/editor-store';
 import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { SpotlightBreadcrumbs } from './components';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
-import { SpotlightBreadcrumbs } from './components';
 
 interface Action {
   id: string;

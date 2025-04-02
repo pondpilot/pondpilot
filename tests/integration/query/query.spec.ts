@@ -1,11 +1,11 @@
 import { expect, mergeTests } from '@playwright/test';
 import { COLUMN_NAMES_WITH_SPECIAL_CHARS } from './consts';
-import { test as baseTest } from '../fixtures/page';
-import { test as explorerTest } from '../fixtures/explorer';
-import { test as tabTest } from '../fixtures/tab';
-import { test as spotlightTest } from '../fixtures/spotlight';
-import { test as queryEditorTest } from '../fixtures/query-editor';
 import { test as dataViewTest, getDataCellContainer, getHeaderCell } from '../fixtures/data-view';
+import { test as explorerTest } from '../fixtures/explorer';
+import { test as baseTest } from '../fixtures/page';
+import { test as queryEditorTest } from '../fixtures/query-editor';
+import { test as spotlightTest } from '../fixtures/spotlight';
+import { test as tabTest } from '../fixtures/tab';
 
 const test = mergeTests(
   baseTest,
