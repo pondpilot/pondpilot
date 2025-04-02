@@ -8,6 +8,7 @@ import { DuckDBDatabase, DuckDBView } from '@models/common';
 import { DBWorkerAPIType } from '../models';
 import { useShowPermsAlert } from '.';
 import { updateDatabasesWithColumns } from '../utils';
+import { setAppState } from '@store/init-store';
 
 export function useAppInitialization() {
   const { showError, showWarning } = useAppNotifications();
@@ -16,7 +17,6 @@ export function useAppInitialization() {
   const dbProxyRef = useRef<Remote<DBWorkerAPIType> | null>(null);
 
   const setViews = useAppStore((state) => state.setViews);
-  const setAppStatus = useAppStore((state) => state.setAppStatus);
   const setDatabases = useAppStore((state) => state.setDatabases);
 
   const { mutateAsync: deleteSources } = useDeleteFileHandlesMutation();
@@ -25,7 +25,7 @@ export function useAppInitialization() {
     const controller = new AbortController();
 
     const initAppData = async () => {
-      setAppStatus('initializing');
+      setAppState('init');
 
       // Create and initialize worker
       const dbWorker = new Worker(new URL('../db-worker.ts', import.meta.url), {
@@ -160,7 +160,7 @@ export function useAppInitialization() {
       // Set the initial state
       setViews(initViews);
       setDatabases(transformedTables);
-      setAppStatus('ready');
+      setAppState('ready');
     };
 
     controller.signal.addEventListener('abort', () => {

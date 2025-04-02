@@ -1,10 +1,13 @@
-import { test as base } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
 
 export const test = base.extend({
   page: async ({ page }, use) => {
     // ---------- BEFORE EACH TEST ----------
-    await page.goto('http://localhost:5173/');
-    await page.locator('[data-app-status="ready"]').waitFor({ state: 'attached' });
+    await page.goto('/');
+
+    const appStatus = page.getByTestId('app-status');
+    await expect(appStatus).toHaveAttribute('data-app-status', 'ready');
+
     await use(page);
   },
 });
