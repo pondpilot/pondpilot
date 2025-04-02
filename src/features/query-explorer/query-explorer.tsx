@@ -3,7 +3,6 @@ import { MenuItem, SourcesListView } from '@components/sources-list-view';
 import { ActionIcon, Divider, Group, Text } from '@mantine/core';
 import { useClipboard, useDisclosure } from '@mantine/hooks';
 import { memo, useState } from 'react';
-import { useAppStore } from '@store/app-store';
 import { IconCode, IconPlus } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import {
@@ -20,6 +19,7 @@ import {
 } from '@store/app-idb-store';
 import { getFileNameWithExt } from '@utils/helpers';
 import { useAppContext } from '@features/app-context';
+import { useInitStore } from '@store/init-store';
 
 export const QueryExplorer = memo(() => {
   /**
@@ -41,7 +41,7 @@ export const QueryExplorer = memo(() => {
   const { mutateAsync: deleteQueryFile } = useDeleteQueryFilesMutation();
   const { mutateAsync: onRenameDataSource } = useRenameQueryFileMutation();
   const activeTab = tabsList?.find((tab) => tab.active);
-  const appStatus = useAppStore((state) => state.appStatus);
+  const appLoadState = useInitStore((state) => state.appLoadState);
 
   /**
    * Local state
@@ -215,7 +215,7 @@ export const QueryExplorer = memo(() => {
         menuItems={menuItems}
         onItemClick={handleSetQuery}
         activeItemKey={activeTab?.sourceId || ''}
-        loading={appStatus === 'initializing'}
+        loading={appLoadState === 'init'}
         onActiveCloseClick={handleDeleteTab}
         renderIcon={() => <IconCode size={16} />}
         renameItemId={itemIdBufferValue}

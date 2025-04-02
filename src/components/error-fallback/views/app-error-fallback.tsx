@@ -5,11 +5,13 @@ import { IconCircleCheck, IconRefresh, IconDownload, IconTrash } from '@tabler/i
 import { exportQueryFiles } from '@utils/exportData';
 import { deleteApplicationData } from '../utils';
 import { APP_SUPPORT_URL } from 'app-urls';
+import { setDataTestId } from '@utils/test-id';
 
 export const AppErrorFallback = () => {
   const [exportError, setExportError] = useState<boolean>(false);
   const error = useRouteError() as { message: string; stack: string };
 
+  // Handlers
   const exportArchive = async () => {
     const archiveBlob = await exportQueryFiles();
     if (archiveBlob) {
@@ -27,7 +29,7 @@ export const AppErrorFallback = () => {
   };
 
   return (
-    <div role="alert">
+    <div role="alert" data-testid={setDataTestId('error-fallback')}>
       <Stack p="lg">
         <Text size="xl" fw={700}>
           Something went wrong 🤷‍♂️

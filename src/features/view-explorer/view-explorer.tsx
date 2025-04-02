@@ -11,6 +11,7 @@ import {
   useFileHandlesQuery,
   useDeleteTabsMutatuion,
 } from '@store/app-idb-store';
+import { useInitStore } from '@store/init-store';
 
 /**
  * Displays a list of views
@@ -30,7 +31,7 @@ export const ViewExplorer = memo(() => {
    * Store access
    */
   const views = useAppStore((state) => state.views);
-  const appStatus = useAppStore((state) => state.appStatus);
+  const appLoadState = useInitStore((state) => state.appLoadState);
   const { data: tabs = [] } = useAllTabsQuery();
   const { data: dataSources = [] } = useFileHandlesQuery();
   const activeTab = tabs.find((tab) => tab.active);
@@ -121,7 +122,7 @@ export const ViewExplorer = memo(() => {
       onItemClick={openView}
       menuItems={menuItems}
       activeItemKey={activeTab?.sourceId || ''}
-      loading={appStatus === 'initializing'}
+      loading={appLoadState === 'init'}
       onActiveCloseClick={handleDeleteTab}
       renderIcon={getIcon}
     />

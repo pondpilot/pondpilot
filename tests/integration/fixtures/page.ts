@@ -5,8 +5,8 @@ export const test = base.extend({
     // ---------- BEFORE EACH TEST ----------
     await page.goto('/');
 
-    const appStatus = page.getByTestId('app-status');
-    await expect(appStatus).toHaveAttribute('data-app-status', 'ready');
+    const appState = page.getByTestId('app-state');
+    await expect(appState).toHaveAttribute('data-app-load-state', 'ready');
 
     await use(page);
   },

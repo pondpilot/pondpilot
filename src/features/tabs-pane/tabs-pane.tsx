@@ -2,7 +2,6 @@
 import { ScrollArea, Group, Skeleton, Text, ActionIcon, Box, Loader } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { useAppStore } from '@store/app-store';
 import {
   DndContext,
   closestCenter,
@@ -44,6 +43,7 @@ import {
   useFileHandlesQuery,
 } from '@store/app-idb-store';
 import { tableFromIPC } from 'apache-arrow';
+import { useInitStore } from '@store/init-store';
 
 interface SortableTabProps {
   tab: TabMetaInfo;
@@ -162,9 +162,9 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
   const { mutateAsync: setActiveTab } = useSetActiveTabMutation();
   const { mutateAsync: onDeleteTabs } = useDeleteTabsMutatuion();
 
-  const appStatus = useAppStore((state) => state.appStatus);
+  const appLoadState = useInitStore((state) => state.appLoadState);
 
-  const appInitializing = appStatus === 'initializing';
+  const appInitializing = appLoadState === 'init';
 
   const isEditorView = activeTab?.type === 'query';
 

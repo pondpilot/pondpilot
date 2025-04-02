@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
 import { DataBaseModel, DuckDBView } from '@models/common';
 
 interface AppStateModel {
@@ -12,7 +11,6 @@ interface AppStateModel {
 export const useAppStore = create<AppStateModel>()((set) => ({
   views: [],
   databases: [],
-  appStatus: 'initializing',
   setDatabases: (databases) => set({ databases }),
   setViews: (views) => set({ views }),
 }));

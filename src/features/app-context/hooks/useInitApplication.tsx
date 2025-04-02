@@ -8,7 +8,7 @@ import { DuckDBDatabase, DuckDBView } from '@models/common';
 import { DBWorkerAPIType } from '../models';
 import { useShowPermsAlert } from '.';
 import { updateDatabasesWithColumns } from '../utils';
-import { setAppState } from '@store/init-store';
+import { setAppLoadState } from '@store/init-store';
 
 export function useAppInitialization() {
   const { showError, showWarning } = useAppNotifications();
@@ -25,7 +25,7 @@ export function useAppInitialization() {
     const controller = new AbortController();
 
     const initAppData = async () => {
-      setAppState('init');
+      setAppLoadState('init');
 
       // Create and initialize worker
       const dbWorker = new Worker(new URL('../db-worker.ts', import.meta.url), {
@@ -160,7 +160,7 @@ export function useAppInitialization() {
       // Set the initial state
       setViews(initViews);
       setDatabases(transformedTables);
-      setAppState('ready');
+      setAppLoadState('ready');
     };
 
     controller.signal.addEventListener('abort', () => {
