@@ -5,6 +5,16 @@ module.exports = {
   },
   plugins: ['unused-imports'],
   rules: {
+    'import/order': [
+      'error',
+      {
+        groups: ['builtin', 'external', 'internal', ['parent', 'sibling', 'index']],
+        alphabetize: {
+          order: 'asc',
+          caseInsensitive: true,
+        },
+      },
+    ],
     'react/react-in-jsx-scope': 'off',
     'import/extensions': 'off',
     'consistent-return': 'off',
