@@ -26,9 +26,9 @@ export const useCreateQueryFileMutation = () => {
     },
     onSuccess: async (newQueryFile) => {
       // TODO: set new state syncronously
-      await queryClient.setQueryData(['queryFiles'], (oldData: QueryFile[]) => {
-        return oldData ? [...oldData, newQueryFile] : [newQueryFile];
-      });
+      await queryClient.setQueryData(['queryFiles'], (oldData: QueryFile[]) =>
+        oldData ? [...oldData, newQueryFile] : [newQueryFile],
+      );
 
       await queryClient.setQueryData(['queryFile', newQueryFile.id], newQueryFile);
 

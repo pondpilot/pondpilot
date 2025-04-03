@@ -1,7 +1,6 @@
 import { Group, ActionIcon } from '@mantine/core';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { memo } from 'react';
 import { formatNumber } from '@utils/helpers';
 
 interface PaginationControlProps {

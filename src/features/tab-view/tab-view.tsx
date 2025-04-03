@@ -23,17 +23,16 @@ import { formatNumber } from '@utils/helpers';
 import { Table as ApacheTable, tableFromIPC } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
-import { useAllTabsQuery, useTabQuery, useUpdateTabMutation } from '@store/app-idb-store';
+import { useTabQuery, useUpdateTabMutation } from '@store/app-idb-store';
 import { useAppStore } from '@store/app-store';
+import { setDataTestId } from '@utils/test-id';
 import { PaginationControl, TableLoadingOverlay } from './components';
 import { useTablePaginationSort } from './hooks/useTablePaginationSort';
 import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
-import { setDataTestId } from '@utils/test-id';
 
 export const TabView = memo(({ id, active }: { id: string; active: boolean }) => {
   const { data: tab } = useTabQuery(id);
-  const { data: tabs } = useAllTabsQuery();
   const { mutateAsync: updateTab } = useUpdateTabMutation();
 
   /**
@@ -265,9 +264,18 @@ export const TabView = memo(({ id, active }: { id: string; active: boolean }) =>
                     </Group>
                   </>
                 ) : (
-                  <Text c="text-secondary" className="text-sm font-medium">
-                    {convertedTable.columns.length} columns, {formatNumber(rowCount)} rows
-                  </Text>
+                  <>
+                    <Group>
+                      <Text c="text-secondary" className="text-sm font-medium">
+                        {convertedTable.columns.length} columns, {formatNumber(rowCount)} rows
+                      </Text>
+                    </Group>
+                    <Group className="h-full px-4">
+                      <ActionIcon size={16} onClick={() => handleCopyToClipboard(convertedTable)}>
+                        <IconCopy />
+                      </ActionIcon>
+                    </Group>
+                  </>
                 )}
               </Group>
             )}

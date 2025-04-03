@@ -1,5 +1,5 @@
 import { getSupportedMimeType } from '@utils/helpers';
-import { useAppContext, useDataSourcesActions } from '@features/app-context';
+import { useDataSourcesActions } from '@features/app-context';
 import { useAppNotifications } from '@components/app-notifications';
 
 export const useUploadFileHandles = () => {

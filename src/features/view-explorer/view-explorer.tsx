@@ -31,7 +31,7 @@ export const ViewExplorer = memo(() => {
    * Store access
    */
   const views = useAppStore((state) => state.views);
-  const appLoadState = useInitStore((state) => state.appLoadState);
+  const appLoadState = useInitStore.use.appLoadState();
   const { data: tabs = [] } = useAllTabsQuery();
   const { data: dataSources = [] } = useFileHandlesQuery();
   const activeTab = tabs.find((tab) => tab.active);

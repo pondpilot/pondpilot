@@ -40,14 +40,6 @@ export const useCreateTabMutation = () => {
           state: 'pending',
           originalQuery: '',
         },
-        editor: {
-          value: '',
-          codeSelection: {
-            start: 0,
-            end: 0,
-          },
-          undoHistory: [],
-        },
         layout: {
           tableColumnWidth: {},
           editorPaneHeight: 0,
@@ -176,42 +168,6 @@ export const useSetActiveTabMutation = () => {
     onSuccess: (tabId: string) => {
       queryClient.invalidateQueries({ queryKey: ['tabs'] });
       queryClient.invalidateQueries({ queryKey: ['tab', tabId] });
-    },
-  });
-};
-
-export const useTabsReorderMutation = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (list: TabMetaInfo[]) => {
-      const updatePromises = list.map((tab, index) =>
-        tabStoreApi.updateTab(tab.id, (currentTab) => ({
-          ...currentTab,
-          order: index,
-          updatedAt: Date.now(),
-        })),
-      );
-
-      await Promise.all(updatePromises);
-
-      return list;
-    },
-    onMutate: async (list) => {
-      await queryClient.cancelQueries({ queryKey: ['tabs'] });
-
-      const previousTabs = queryClient.getQueryData(['tabs']);
-
-      queryClient.setQueryData(['tabs'], list);
-
-      return { previousTabs };
-    },
-    onError: (err, variables, context) => {
-      if (context?.previousTabs) {
-        queryClient.setQueryData(['tabs'], context.previousTabs);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['tabs'] });
     },
   });
 };

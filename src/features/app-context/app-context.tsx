@@ -6,7 +6,6 @@ import { useAbortController } from '@hooks/useAbortController';
 import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { AddDataSourceProps } from '@models/common';
 import {
   useAllTabsQuery,
   useCreateTabMutation,
@@ -14,17 +13,11 @@ import {
   useQueryFilesQuery,
   useSetActiveTabMutation,
 } from '@store/app-idb-store';
-import {
-  DBRunQueryProps,
-  DBWorkerAPIType,
-  DropFilesAndDBInstancesProps,
-  RunQueryResponse,
-} from './models';
+import { Remote } from 'comlink';
+import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
 import { executeQueries, updateDatabasesWithColumns } from './utils';
 import { ErrorModal } from './components/error-modal';
-import { useDataSourcesActions } from './hooks/useDataSourcesActions';
 import { useAppInitialization } from './hooks/useInitApplication';
-import { Remote } from 'comlink';
 
 interface AppContextType {
   runQuery: (
