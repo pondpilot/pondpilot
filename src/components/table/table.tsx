@@ -10,7 +10,6 @@ import { setDataTestId } from '@utils/test-id';
 import { TableSort } from '@models/common';
 import { TableCell, TableHeadCell } from './components';
 import { useTableColumns, useTableSelection } from './hooks';
-import { log } from 'console';
 
 interface TableProps {
   data: Record<string, any>[];

@@ -19,43 +19,43 @@ import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
-export interface ListProps {
-  value: string;
+export interface ListProps<ID extends string = string> {
+  value: ID;
   label: string;
   children?: ListProps[];
 }
 
-interface MenuItemChildren {
+interface MenuItemChildren<ID extends string = string> {
   label: string;
-  onClick: (item: ListProps) => void;
+  onClick: (item: ListProps<ID>) => void;
 }
 
-export interface MenuItem {
-  children: MenuItemChildren[];
+export interface MenuItem<ID extends string = string> {
+  children: MenuItemChildren<ID>[];
 }
 
-export interface ListItemProps extends ListProps {
+export interface ListItemProps<ID extends string = string> extends ListProps<ID> {
   disabled?: boolean;
   active: boolean;
-  menuItems: MenuItem[];
+  menuItems: MenuItem<ID>[];
   label: string;
   node: TreeNodeData;
   icon?: React.ReactNode;
   level: number;
   onClick: (e: React.MouseEvent, node: TreeNodeData) => void;
-  onItemDoubleClick?: (id: string) => void;
-  onActiveCloseClick?: (v: string) => void;
+  onItemDoubleClick?: (id: ID) => void;
+  onActiveCloseClick?: (v: ID) => void;
 }
 
-interface ListViewProps {
-  list: ListProps[];
-  activeItemKey: string | null;
+interface ListViewProps<ID extends string = string> {
+  list: ListProps<ID>[];
+  activeItemKey: ID | null;
   parentDataTestId: string;
 
   disabled?: boolean;
   loading?: boolean;
-  menuItems: MenuItem[];
-  renameItemId?: string | null;
+  menuItems: MenuItem<ID>[];
+  renameItemId?: ID | null;
   renameValue?: string;
   isItemRenaming?: boolean;
   renameInputError?: string;
@@ -63,14 +63,14 @@ interface ListViewProps {
 
   onRenameClose?: () => void;
   onRenameSubmit?: () => void;
-  renderIcon: (item: string | undefined) => ReactNode;
-  onItemClick?: (id: string) => void;
-  onItemRename?: (id: string) => void;
-  onDeleteSelected: (items: string[]) => void;
-  onActiveCloseClick?: (v: string) => void;
+  renderIcon: (item: ID | undefined) => ReactNode;
+  onItemClick?: (id: ID) => void;
+  onItemRename?: (id: ID) => void;
+  onDeleteSelected: (items: ID[]) => void;
+  onActiveCloseClick?: (id: ID) => void;
 }
 
-const ListItem = ({
+const ListItem = <ID extends string = string>({
   label,
   onClick,
   value,
@@ -82,7 +82,7 @@ const ListItem = ({
   onActiveCloseClick,
   level,
   onItemDoubleClick,
-}: ListItemProps) => {
+}: ListItemProps<ID>) => {
   const [menuOpened, setMenuOpened] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{
     x: number | undefined;
@@ -196,7 +196,7 @@ const ListItem = ({
   );
 };
 
-export const SourcesListView = ({
+export const SourcesListView = <ID extends string = string>({
   list,
   onItemClick,
   disabled,
@@ -215,7 +215,7 @@ export const SourcesListView = ({
   onRenameSubmit,
   onDeleteSelected,
   parentDataTestId,
-}: ListViewProps) => {
+}: ListViewProps<ID>) => {
   /**
    * Common hooks
    */
@@ -256,7 +256,7 @@ export const SourcesListView = ({
     tree.clearSelected();
   };
 
-  const handleItemClick = (item: string) => {
+  const handleItemClick = (item: ID) => {
     setIsUserSelection(true);
     onItemClick?.(item);
   };
@@ -267,7 +267,7 @@ export const SourcesListView = ({
 
     if (node.nodeProps?.canSelect && e.shiftKey) {
       if (tree.selectedState.length === 0) {
-        handleItemClick(value);
+        handleItemClick(value as ID);
         return;
       }
       return;
@@ -279,11 +279,11 @@ export const SourcesListView = ({
       return;
     }
     if (!disabled) {
-      handleItemClick?.(value);
+      handleItemClick?.(value as ID);
     }
   };
 
-  const menuList: MenuItem[] = useMemo(() => {
+  const menuList: MenuItem<ID>[] = useMemo(() => {
     if (tree.selectedState.length > 1) {
       return [
         {
@@ -291,7 +291,7 @@ export const SourcesListView = ({
             {
               label: 'Delete selected',
               onClick: () => {
-                onDeleteSelected(tree.selectedState);
+                onDeleteSelected(tree.selectedState as ID[]);
                 handleDeselectAll();
               },
             },
@@ -319,7 +319,7 @@ export const SourcesListView = ({
       'mod+Backspace',
       () => {
         if (!tree.selectedState.length) return;
-        onDeleteSelected(tree.selectedState);
+        onDeleteSelected(tree.selectedState as ID[]);
         handleDeselectAll();
       },
     ],
@@ -446,7 +446,7 @@ export const SourcesListView = ({
                       ) : (
                         <ListItem
                           label={node.node.label as string}
-                          value={node.elementProps['data-value']}
+                          value={node.elementProps['data-value'] as ID}
                           active={active}
                           onClick={handleListItemClick}
                           disabled={disabled}

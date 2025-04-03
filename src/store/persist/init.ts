@@ -3,6 +3,7 @@ import { TabId } from '@models/tab';
 import { useInitStore } from '@store/init-store';
 import { AppIdbSchema } from './model';
 import {
+  ALL_TABLES,
   APP_DB_NAME,
   CONTENT_VIEW_TABLE_NAME,
   DB_VERSION,
@@ -13,11 +14,7 @@ import {
 function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB(APP_DB_NAME, DB_VERSION, {
     upgrade(db) {
-      for (const storeName of [
-        TAB_TABLE_NAME,
-        SQL_SCRIPT_TABLE_NAME,
-        CONTENT_VIEW_TABLE_NAME,
-      ] as const) {
+      for (const storeName of ALL_TABLES) {
         db.createObjectStore(storeName);
       }
     },
@@ -76,4 +73,12 @@ export const hydrateAppData = async (): Promise<void> => {
     previewTabId,
     tabOrder,
   });
+};
+
+export const resetAppData = async (db: IDBPDatabase<AppIdbSchema>) => {
+  const tx = db.transaction(ALL_TABLES, 'readwrite');
+
+  // Clear all data from the stores
+  await Promise.all(ALL_TABLES.map((tableName) => tx.objectStore(tableName).clear()));
+  await tx.done;
 };

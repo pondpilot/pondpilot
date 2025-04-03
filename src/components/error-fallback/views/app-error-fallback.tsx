@@ -2,7 +2,7 @@ import { Stack, Button, Text, Anchor, List, ThemeIcon, Box } from '@mantine/core
 import { useState } from 'react';
 import { useRouteError } from 'react-router-dom';
 import { IconCircleCheck, IconRefresh, IconDownload, IconTrash } from '@tabler/icons-react';
-import { exportQueryFiles } from '@utils/exportData';
+import { exportSQLScripts } from '@store/export-data';
 import { APP_SUPPORT_URL } from 'app-urls';
 import { setDataTestId } from '@utils/test-id';
 import { deleteApplicationData } from '../utils';
@@ -13,7 +13,7 @@ export const AppErrorFallback = () => {
 
   // Handlers
   const exportArchive = async () => {
-    const archiveBlob = await exportQueryFiles();
+    const archiveBlob = await exportSQLScripts();
     if (archiveBlob) {
       const link = document.createElement('a');
       link.href = URL.createObjectURL(archiveBlob);
