@@ -41,7 +41,7 @@ export const QueryExplorer = memo(() => {
   const { mutateAsync: deleteQueryFile } = useDeleteQueryFilesMutation();
   const { mutateAsync: onRenameDataSource } = useRenameQueryFileMutation();
   const activeTab = tabsList?.find((tab) => tab.active);
-  const appLoadState = useInitStore((state) => state.appLoadState);
+  const appLoadState = useInitStore.use.appLoadState();
 
   /**
    * Local state

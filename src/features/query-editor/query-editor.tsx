@@ -21,7 +21,6 @@ import {
 import { useAppNotifications } from '@components/app-notifications';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
-import { on } from 'events';
 
 interface QueryEditorProps {
   columnsCount: number;
@@ -139,6 +138,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
     handleEditorValueChange();
   };
 
+  // eslint-disable-next-line arrow-body-style
   useEffect(() => {
     return () => {
       if (editorRef.current?.view) {
@@ -175,7 +175,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
       </Group>
       <Group
         className="h-[calc(100%-40px)]"
-        data-testid={setDataTestId(`query-editor`)}
+        data-testid={setDataTestId('query-editor')}
         data-active-editor={!!active}
       >
         <SqlEditor

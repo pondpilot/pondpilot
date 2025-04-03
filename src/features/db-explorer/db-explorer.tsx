@@ -1,5 +1,5 @@
 import { MenuItem, SourcesListView } from '@components/sources-list-view';
-import { useAppContext, useDataSourcesActions } from '@features/app-context';
+import { useDataSourcesActions } from '@features/app-context';
 import { useAppStore } from '@store/app-store';
 import { memo } from 'react';
 import { useClipboard } from '@mantine/hooks';
@@ -25,7 +25,7 @@ export const DbExplorer = memo(() => {
    * Store access
    */
   const databases = useAppStore((state) => state.databases);
-  const appLoadState = useInitStore((state) => state.appLoadState);
+  const appLoadState = useInitStore.use.appLoadState();
   const { data: sessionFiles = [] } = useFileHandlesQuery();
 
   /**

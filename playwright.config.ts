@@ -22,11 +22,11 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    // browser-unsupported
+    // tests that use non-chromium browsers
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
-      testDir: './tests/integration/browser-unsupported',
+      testDir: './tests/integration/webkit',
     },
   ],
   /* Configure the web server for tests */

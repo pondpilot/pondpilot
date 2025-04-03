@@ -1,7 +1,7 @@
 /* eslint-disable jsx-a11y/click-events-have-key-events */
 import { ScrollArea, Group, Skeleton, Text, ActionIcon, Box, Loader } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -10,6 +10,7 @@ import {
   useSensor,
   useSensors,
   useDndMonitor,
+  DragEndEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -20,52 +21,47 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
-import {
-  IconCode,
-  IconCopy,
-  IconCsv,
-  IconJson,
-  IconPlus,
-  IconTable,
-  IconX,
-} from '@tabler/icons-react';
-import { getArrowTableSchema } from '@utils/arrow/helpers';
-import { useAppNotifications } from '@components/app-notifications';
+import { IconPlus, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import {
-  TabMetaInfo,
-  tabStoreApi,
-  useAllTabsQuery,
-  useSetActiveTabMutation,
-  useDeleteTabsMutatuion,
-  useTabsReorderMutation,
-  useUpdateTabMutation,
-  useFileHandlesQuery,
-} from '@store/app-idb-store';
-import { tableFromIPC } from 'apache-arrow';
-import { useInitStore } from '@store/init-store';
+  createSQLScript,
+  createTabFromScript,
+  deleteTab,
+  setActiveTabId,
+  setPreviewTabId,
+  setTabOrder,
+  useInitStore,
+  useTabMetaInfoMap,
+} from '@store/init-store';
+import { DataSourceIcon } from '@features/data-source-icon';
+import { TabId } from '@models/tab';
 
 interface SortableTabProps {
-  tab: TabMetaInfo;
+  tabId: string;
+  name: string;
   active: boolean;
+  preview: boolean;
   loading: boolean;
   icon: React.ReactNode;
   activeTabRef: React.RefObject<HTMLDivElement | null>;
-  handleDeleteTab: (id: string) => void;
-  onClick: (tab: string) => void;
+  handleDeleteTab: () => void;
+  onClick: () => void;
+  onDoubleClick: () => void;
 }
 
 const SortableTab = ({
-  tab,
+  tabId,
+  name,
   active,
+  preview,
+  loading,
+  icon,
   activeTabRef,
   handleDeleteTab,
   onClick,
-  icon,
-  loading,
+  onDoubleClick,
 }: SortableTabProps) => {
-  const { mutateAsync: onTabUpdate } = useUpdateTabMutation();
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tab.id });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tabId });
   const [isDragging, setIsDragging] = useState(false);
 
   useDndMonitor({
@@ -93,11 +89,13 @@ const SortableTab = ({
             activeTabRef.current = el;
           }
         }}
-        data-active={active}
-        onClick={() => onClick(tab.id)}
+        data-testid={setDataTestId(`data-tab-handle-${tabId}`)}
+        data-tab-handle-active={active}
+        data-tab-handle-preview={preview}
+        onClick={onClick}
         onDoubleClick={(e) => {
           e.stopPropagation();
-          onTabUpdate({ ...tab, stable: true });
+          onDoubleClick();
         }}
         className={cn(
           'px-2 h-9 flex items-center w-[175px] cursor-pointer border-l border-transparent004-light dark:border-transparent004-dark',
@@ -111,15 +109,15 @@ const SortableTab = ({
         <Group gap={2} className="justify-between w-full">
           <Group gap={4}>
             {loading ? <Loader color="icon-default" size={16} /> : icon}
-            <Text maw={110} truncate="end" className={cn(!tab.stable && 'italic', 'select-none')}>
-              {tab.name}
+            <Text maw={110} truncate="end" className={cn(preview && 'italic', 'select-none')}>
+              {name}
             </Text>
           </Group>
           <ActionIcon
             data-testid={setDataTestId('close-tab-button')}
             onClick={(e) => {
               e.stopPropagation();
-              handleDeleteTab(tab.id);
+              handleDeleteTab();
             }}
             size={20}
           >
@@ -131,11 +129,12 @@ const SortableTab = ({
   );
 };
 
-interface TabsPaneProps {
-  onAddTabClick: () => void;
-}
+const tabIconProps = {
+  size: 16,
+  className: cn('text-iconDefault-light dark:text-iconDefault-dark'),
+};
 
-export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
+export const TabsPane = memo(() => {
   /**
    * Common hooks
    */
@@ -150,147 +149,85 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
-  const { showSuccess } = useAppNotifications();
 
   /**
    * Store access
    */
-  const activeTabRef = useRef<HTMLDivElement | null>(null);
-  const { data: tabs = [] } = useAllTabsQuery();
-  const activeTab = tabs.find((tab) => tab.active);
-  const { data: dataSources = [] } = useFileHandlesQuery();
-  const { mutateAsync: setActiveTab } = useSetActiveTabMutation();
-  const { mutateAsync: onDeleteTabs } = useDeleteTabsMutatuion();
-
-  const appLoadState = useInitStore((state) => state.appLoadState);
-
+  const appLoadState = useInitStore.use.appLoadState();
   const appInitializing = appLoadState === 'init';
 
-  const isEditorView = activeTab?.type === 'query';
+  const previewTabId = useInitStore.use.previewTabId();
+  const activeTabId = useInitStore.use.activeTabId();
+  const activeTabRef = useRef<HTMLDivElement | null>(null);
+  const orderedTabIds = useInitStore.use.tabOrder();
+  const tabInfos = useTabMetaInfoMap();
 
   /**
    * Local state
    */
   const [isUserTabChange, setIsUserTabChange] = useState(false);
-  const [localTabs, setLocalTabs] = useState<TabMetaInfo[]>([]);
 
   /**
    * Handlers
    */
-  const reorderMutation = useTabsReorderMutation();
-
-  const handleDragEnd = async (event: any) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (active.id !== over.id) {
-      const oldIndex = localTabs.findIndex((tab) => tab.id === active.id);
-      const newIndex = localTabs.findIndex((tab) => tab.id === over.id);
+    const draggedTabId = active.id as TabId;
+    const overTabId = over?.id as TabId;
 
-      const orderedArray = arrayMove<TabMetaInfo>(localTabs, oldIndex, newIndex);
-      setLocalTabs(orderedArray);
-      // Simply swap the order values between source and target tabs
-      await reorderMutation.mutateAsync(
-        orderedArray.map((tab, index) => ({
-          ...tab,
-          order: index,
-        })),
-      );
+    if (draggedTabId !== overTabId) {
+      const oldIndex = orderedTabIds.findIndex((tabId) => tabId === draggedTabId);
+      const newIndex = orderedTabIds.findIndex((tabId) => tabId === overTabId);
+
+      // Calculate the new order of tabs
+      const orderedArray = arrayMove<TabId>(orderedTabIds, oldIndex, newIndex);
+
+      // Update the state
+      setTabOrder(orderedArray);
     }
   };
 
-  const handleTabChange = async (tabId: string | null) => {
-    setIsUserTabChange(true);
-    const tab = tabs.find((t) => t.id === tabId);
-    if (!tab) return;
-    if (tab.id === activeTab?.id) return;
-
-    await setActiveTab(tab.id);
-  };
-
-  const handleDeleteTab = async (id: string) => {
-    onDeleteTabs([id]);
-  };
-
-  const handleTabClick = async (id: string) => {
-    if (id === activeTab?.id) return;
+  const handleTabChange = (tabId: TabId) => {
+    if (tabId === activeTabId) return;
 
     setIsUserTabChange(true);
-    await setActiveTab(id);
+    setActiveTabId(tabId);
   };
 
-  const handleAddQuery = async () => {
-    onAddTabClick();
+  const handleDeleteTab = (tabId: TabId) => {
+    deleteTab(tabId);
   };
 
-  //TODO: Move to a separate file / hook
-  const handleCopyToClipboard = async () => {
-    if (!activeTab) return;
+  const handleTabClick = (tabId: TabId) => {
+    if (tabId === activeTabId) return;
 
-    const tabData = await tabStoreApi.getTab(activeTab?.id);
-    const queryResults = tabData?.dataView.data ? tableFromIPC(tabData?.dataView.data) : null;
-
-    if (!queryResults) return;
-
-    if (!queryResults || queryResults.numRows === 0) return { columns: [], data: [] };
-
-    const data = queryResults.toArray().map((row) => row.toJSON());
-
-    const columns = getArrowTableSchema(queryResults) || [];
-
-    if (Array.isArray(data) && Array.isArray(columns)) {
-      const headers = columns.map((col) => col.name).join('\t');
-
-      const rows = data.map((row) => columns.map((col) => row[col.name] ?? '').join('\t'));
-
-      const tableText = [headers, ...rows].join('\n');
-
-      navigator.clipboard.writeText(tableText);
-      showSuccess({
-        title: 'Table copied to clipboard',
-        message: '',
-        autoClose: 800,
-      });
-    }
+    setIsUserTabChange(true);
+    setActiveTabId(tabId);
   };
 
-  const getIcon = useCallback(
-    (id: string | undefined) => {
-      const iconProps = {
-        size: 16,
-        className: cn('text-iconDefault-light dark:text-iconDefault-dark'),
-      };
-      const fileExt = dataSources.find((f) => f.name === id)?.ext as string;
-      if (!fileExt) return <IconCode {...iconProps} />;
+  const handleTabDoubleClick = (tabId: TabId) => {
+    if (tabId === previewTabId) return;
 
-      const iconsMap = {
-        csv: <IconCsv {...iconProps} />,
-        json: <IconJson {...iconProps} />,
-      }[fileExt];
-      return iconsMap || <IconTable {...iconProps} />;
-    },
-    [dataSources],
-  );
+    setIsUserTabChange(true);
+    setPreviewTabId(tabId);
+    setActiveTabId(tabId);
+  };
+
+  const handleAddQuery = () => {
+    const newEmptyScript = createSQLScript();
+    const newTab = createTabFromScript(newEmptyScript);
+    setActiveTabId(newTab.id);
+  };
 
   useEffect(() => {
-    if (activeTabRef.current && activeTab && !isUserTabChange) {
+    if (activeTabRef.current && activeTabId && !isUserTabChange) {
       activeTabRef.current.scrollIntoView({
         block: 'nearest',
         inline: 'nearest',
       });
     }
     setIsUserTabChange(false);
-  }, [activeTab]);
-
-  useEffect(() => {
-    // Only update localTabs if they're different from the current tabs
-    // This prevents unnecessary re-renders
-    const sortedTabs = [...tabs].sort((a, b) => a.order - b.order);
-
-    // Deep comparison to avoid unnecessary updates
-    const areTabsEqual = JSON.stringify(sortedTabs) === JSON.stringify(localTabs);
-    if (!areTabsEqual) {
-      setLocalTabs(sortedTabs);
-    }
-  }, [tabs]);
+  }, [activeTabId]);
 
   return (
     <Group className="w-full justify-between gap-0">
@@ -307,43 +244,45 @@ export const TabsPane = memo(({ onAddTabClick }: TabsPaneProps) => {
             modifiers={[restrictToHorizontalAxis]}
             onDragStart={({ active }) => {
               if (active.id) {
-                handleTabChange(active.id as string);
+                handleTabChange(active.id as TabId);
               }
             }}
           >
-            <SortableContext
-              items={localTabs.map((tab) => tab.id)}
-              strategy={horizontalListSortingStrategy}
-            >
+            <SortableContext items={orderedTabIds} strategy={horizontalListSortingStrategy}>
               <div className="flex items-center h-9" data-testid={setDataTestId('tabs-list')}>
-                {localTabs.map((tab) => (
-                  <SortableTab
-                    key={tab.id}
-                    tab={tab}
-                    active={tab.id === activeTab?.id}
-                    activeTabRef={activeTabRef}
-                    handleDeleteTab={handleDeleteTab}
-                    onClick={handleTabClick}
-                    loading={tab.query.state === 'fetching'}
-                    icon={getIcon('query')}
-                  />
-                ))}
-                {appInitializing && <Skeleton className="ml-2" width={100} height={20} />}
+                {appInitializing ? (
+                  <Skeleton className="ml-2" width={100} height={20} />
+                ) : (
+                  orderedTabIds.map((tabId) => {
+                    const tabInfo = tabInfos.get(tabId)!;
+
+                    return (
+                      <SortableTab
+                        key={tabId}
+                        tabId={tabId}
+                        name={tabInfo.name}
+                        active={tabId === activeTabId}
+                        preview={tabId === previewTabId}
+                        loading={false} // TODO: add loading state
+                        icon={<DataSourceIcon iconType={tabInfo.iconType} {...tabIconProps} />}
+                        activeTabRef={activeTabRef}
+                        handleDeleteTab={() => handleDeleteTab(tabId)}
+                        onClick={() => handleTabClick(tabId)}
+                        onDoubleClick={() => {
+                          handleTabDoubleClick(tabId);
+                        }}
+                      />
+                    );
+                  })
+                )}
               </div>
             </SortableContext>
           </DndContext>
-          <ActionIcon onClick={handleAddQuery} size={28} className="mx-2">
-            <IconPlus size={20} />
-          </ActionIcon>
         </div>
       </ScrollArea>
-      {!isEditorView && (
-        <Group className=" bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark h-full px-4">
-          <ActionIcon size={16} onClick={handleCopyToClipboard}>
-            <IconCopy />
-          </ActionIcon>
-        </Group>
-      )}
+      <ActionIcon onClick={handleAddQuery} size={28} className="mx-2" disabled={appInitializing}>
+        <IconPlus size={20} />
+      </ActionIcon>
     </Group>
   );
 });

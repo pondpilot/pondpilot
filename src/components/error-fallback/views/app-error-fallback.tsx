@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { useRouteError } from 'react-router-dom';
 import { IconCircleCheck, IconRefresh, IconDownload, IconTrash } from '@tabler/icons-react';
 import { exportQueryFiles } from '@utils/exportData';
-import { deleteApplicationData } from '../utils';
 import { APP_SUPPORT_URL } from 'app-urls';
 import { setDataTestId } from '@utils/test-id';
+import { deleteApplicationData } from '../utils';
 
 export const AppErrorFallback = () => {
   const [exportError, setExportError] = useState<boolean>(false);
@@ -97,8 +97,8 @@ export const AppErrorFallback = () => {
             {exportError && (
               <Box bg="red.0" p="md" mt="md" style={{ borderRadius: '8px' }}>
                 <Text c="red" fw={500}>
-                  Unfortunately, export failed. This means that PondPilot won't be able to restore
-                  your scripts. We are really sorry for this inconvenience.
+                  Unfortunately, export failed. This means that PondPilot won&apos;t be able to
+                  restore your scripts. We are really sorry for this inconvenience.
                 </Text>
                 <Text mt="sm">
                   Please contact us via{' '}
