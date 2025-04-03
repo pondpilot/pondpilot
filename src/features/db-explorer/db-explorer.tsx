@@ -107,7 +107,7 @@ export const DbExplorer = memo(() => {
   ];
   return (
     <SourcesListView
-      parentDataTestId="db-explorer"
+      treeId="db-explorer"
       list={itemsToDisplay}
       onDeleteSelected={handleDeleteSelected}
       menuItems={menuItems}

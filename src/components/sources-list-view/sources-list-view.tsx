@@ -18,6 +18,7 @@ import { IconDotsVertical, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useTreeSelection } from './hooks/useTreeSelection';
 
 export interface ListProps {
   value: string;
@@ -50,7 +51,7 @@ export interface ListItemProps extends ListProps {
 interface ListViewProps {
   list: ListProps[];
   activeItemKey: string | null;
-  parentDataTestId: string;
+  treeId: string;
 
   disabled?: boolean;
   loading?: boolean;
@@ -214,7 +215,7 @@ export const SourcesListView = ({
   onRenameClose,
   onRenameSubmit,
   onDeleteSelected,
-  parentDataTestId,
+  treeId,
 }: ListViewProps) => {
   /**
    * Common hooks
@@ -225,6 +226,9 @@ export const SourcesListView = ({
    * Local state
    */
   const activeItemRef = useRef<HTMLDivElement>(null);
+  /**
+   * Needs to detect the change of the active element from outside, to scroll it into the visible area, but avoid scrolling if the user clicked on the list
+   */
   const [isUserSelection, setIsUserSelection] = useState(false);
 
   /**
@@ -249,40 +253,6 @@ export const SourcesListView = ({
     [],
   );
 
-  /**
-   * Handlers
-   */
-  const handleDeselectAll = () => {
-    tree.clearSelected();
-  };
-
-  const handleItemClick = (item: string) => {
-    setIsUserSelection(true);
-    onItemClick?.(item);
-  };
-
-  const handleListItemClick = (e: React.MouseEvent, node: TreeNodeData) => {
-    const { value } = node;
-    const selected = tree.selectedState.includes(value);
-
-    if (node.nodeProps?.canSelect && e.shiftKey) {
-      if (tree.selectedState.length === 0) {
-        handleItemClick(value);
-        return;
-      }
-      return;
-    }
-
-    if (node.nodeProps?.canSelect && (e.metaKey || e.ctrlKey)) {
-      selected ? tree.deselect(value) : tree.setSelectedState([...tree.selectedState, value]);
-      e.stopPropagation();
-      return;
-    }
-    if (!disabled) {
-      handleItemClick?.(value);
-    }
-  };
-
   const menuList: MenuItem[] = useMemo(() => {
     if (tree.selectedState.length > 1) {
       return [
@@ -292,7 +262,7 @@ export const SourcesListView = ({
               label: 'Delete selected',
               onClick: () => {
                 onDeleteSelected(tree.selectedState);
-                handleDeselectAll();
+                tree.clearSelected();
               },
             },
           ],
@@ -303,10 +273,24 @@ export const SourcesListView = ({
   }, [menuItems, tree.selectedState]);
 
   /**
+   * Handlers
+   */
+  const { handleTreeItemClick } = useTreeSelection({
+    tree,
+    items: sortedList,
+    onItemClick: (item: string) => {
+      setIsUserSelection(true);
+      onItemClick?.(item);
+    },
+    disabled,
+    activeItemKey,
+  });
+
+  /**
    * Effects
    */
   useHotkeys([
-    ['Escape', handleDeselectAll],
+    ['Escape', tree.clearSelected],
     [
       'mod+a',
       () => {
@@ -320,12 +304,12 @@ export const SourcesListView = ({
       () => {
         if (!tree.selectedState.length) return;
         onDeleteSelected(tree.selectedState);
-        handleDeselectAll();
+        tree.clearSelected();
       },
     ],
   ]);
 
-  // hack to set initial expanded state
+  // set expanded state for the tree when the data is loaded
   useDidUpdate(() => {
     if (Object.keys(tree.expandedState).length === 0) {
       tree.setExpandedState(getTreeExpandedState(sortedList, '*'));
@@ -371,10 +355,9 @@ export const SourcesListView = ({
               </Group>
             ) : (
               <Tree
-                id={parentDataTestId}
+                id={treeId}
                 data={sortedList}
                 tree={tree}
-                selectOnClick
                 clearSelectionOnOutsideClick
                 renderNode={(node) => {
                   const active = node.elementProps['data-value'] === activeItemKey;
@@ -402,6 +385,7 @@ export const SourcesListView = ({
                     <div
                       {...node.elementProps}
                       data-testid={setDataTestId(`query-list-item-${node.node.value}`)}
+                      data-selected={tree.selectedState.includes(node.node.value)}
                       className={cn(
                         node.elementProps.className,
                         itemClasses.base,
@@ -412,6 +396,7 @@ export const SourcesListView = ({
                           itemClasses.transparent008,
                           itemClasses.hover.active,
                         ],
+                        active && !selected && itemClasses.transparent004,
                         (isPrevSelected || isPrevActive) && 'rounded-t-none',
                         (isNextSelected || isNextActive) && 'rounded-b-none',
                       )}
@@ -448,7 +433,7 @@ export const SourcesListView = ({
                           label={node.node.label as string}
                           value={node.elementProps['data-value']}
                           active={active}
-                          onClick={handleListItemClick}
+                          onClick={handleTreeItemClick}
                           disabled={disabled}
                           menuItems={menuList}
                           node={node.node}
