@@ -49,22 +49,31 @@ export function getSupportedMimeType(
   }
 }
 
-export const findUniqueQueryFileName = async (
-  name: string,
-  checkIfExists: (name: string) => boolean,
-) => {
-  let counter = 0;
+/**
+ * Helper to find a unique name. Takes a base name and appends a counter to it until a unique name is found.
+ *
+ * @param {string} name - The base name to check.
+ * @param {function} checkIfExists - A function that checks if a name exists.
+ * @returns {string} - A unique name.
+ * @throws {Error} - Throws an error if too many files with the same name are found.
+ */
+export const findUniqueName = (name: string, checkIfExists: (name: string) => boolean): string => {
+  if (!checkIfExists(name)) return name;
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const currentName = `${name}${counter > 0 ? `_${counter}` : ''}`;
-    const exists = checkIfExists(currentName);
+  let counter = 1;
+  let uniqueName = `${name}_${counter}`;
 
-    if (!exists) break;
+  while (checkIfExists(uniqueName)) {
+    uniqueName = `${name}_${counter}`;
     counter += 1;
+
+    // Prevent infinite loop
+    if (counter > 10000) {
+      throw new Error('Too many files with the same name');
+    }
   }
 
-  return `${name}${counter > 0 ? `_${counter}` : ''}`;
+  return uniqueName;
 };
 
 /**

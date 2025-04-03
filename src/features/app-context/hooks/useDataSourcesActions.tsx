@@ -1,4 +1,3 @@
-import { Remote } from 'comlink';
 import { tableFromIPC } from 'apache-arrow';
 import { useAppStore } from '@store/app-store';
 import { useAppNotifications } from '@components/app-notifications';
@@ -10,7 +9,7 @@ import {
   useFileHandlesQuery,
   useAllTabsQuery,
 } from '@store/app-idb-store';
-import { DBWorkerAPIType, DropFilesAndDBInstancesProps } from '../models';
+import { DropFilesAndDBInstancesProps } from '../models';
 import { updateDatabasesWithColumns } from '../utils';
 import { useAppContext } from '../app-context';
 

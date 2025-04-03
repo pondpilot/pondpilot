@@ -5,10 +5,11 @@ import { useAppStore } from '@store/app-store';
 import { useAppNotifications } from '@components/app-notifications';
 import { fileHandleStoreApi, useDeleteFileHandlesMutation } from '@store/app-idb-store';
 import { DuckDBDatabase, DuckDBView } from '@models/common';
-import { DBWorkerAPIType } from '../models';
-import { useShowPermsAlert } from '.';
-import { updateDatabasesWithColumns } from '../utils';
 import { setAppLoadState } from '@store/init-store';
+import { hydrateAppData } from '@store/persist/init';
+import { DBWorkerAPIType } from '../models';
+import { useShowPermsAlert } from './useShowPermsAlert';
+import { updateDatabasesWithColumns } from '../utils';
 
 export function useAppInitialization() {
   const { showError, showWarning } = useAppNotifications();
@@ -156,6 +157,10 @@ export function useAppInitialization() {
         dbProxyRef.current,
         duckdbDatabases,
       );
+
+      // Init app db (state persistence)
+      // TODO: handle errors, e.g. blocking on older version from other tab
+      await hydrateAppData();
 
       // Set the initial state
       setViews(initViews);

@@ -6,7 +6,7 @@ import {
   TableSort,
   TabType,
 } from '@models/common';
-import { createName, findUniqueQueryFileName, getSupportedMimeType } from '@utils/helpers';
+import { createName, findUniqueName, getSupportedMimeType } from '@utils/helpers';
 import { openDB } from 'idb';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -23,15 +23,6 @@ const dbPromise = openDB(APP_DB_NAME, DB_VERSION, {
     db.createObjectStore('queries-store');
   },
 });
-
-interface AppEditorState {
-  value: string;
-  codeSelection: {
-    start: number;
-    end: number;
-  };
-  undoHistory: string[];
-}
 
 /**
  * Query state for the query tab.
@@ -249,7 +240,7 @@ export const queryStoreApi = {
   async _createQueryFileEntry(name: string, content: string = ''): Promise<QueryFile> {
     const allNames = await queryStoreApi._getQueryFileNames();
     const checkIfExists = (value: string) => allNames.includes(value);
-    const fileName = await findUniqueQueryFileName(name, checkIfExists);
+    const fileName = await findUniqueName(name, checkIfExists);
     return {
       id: `${QUERY_PREFIX}${uuidv4()}`,
       name: fileName,
@@ -273,7 +264,7 @@ export const queryStoreApi = {
     const namesToCheck = [...allNames];
     for (const entry of entries) {
       const checkIfExists = (value: string) => namesToCheck.includes(value);
-      const fileName = await findUniqueQueryFileName(entry.name, checkIfExists);
+      const fileName = await findUniqueName(entry.name, checkIfExists);
       const newEntry = {
         id: `${QUERY_PREFIX}${uuidv4()}`,
         name: fileName,
