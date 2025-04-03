@@ -200,7 +200,7 @@ export const QueryExplorer = memo(() => {
         </Group>
       </Group>
       <SourcesListView
-        parentDataTestId="queries-list"
+        treeId="queries-list"
         onDeleteSelected={handleDeleteSelected}
         list={queriesList}
         menuItems={menuItems}

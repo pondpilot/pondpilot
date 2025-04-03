@@ -1,15 +1,85 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, Locator } from '@playwright/test';
 
 type ExplorerFixtures = {
+  openQueryFromExplorerByIndex: (index: number) => Promise<void>;
+  getQueryItemsFromExplorer: () => Promise<Locator>;
+  findQueryItemInExplorerByName: (queryName: string) => Promise<Locator>;
+  getQueryListContainer: () => Promise<Locator>;
   openQueryFromExplorer: (queryName: string) => Promise<void>;
   renameQueryInExplorer: (oldName: string, newName: string) => Promise<void>;
+  selectQueryItemByIndex: (index: number) => Promise<void>;
+  selectMultipleQueryItems: (indices: number[]) => Promise<void>;
+  deselectAllQueryItems: () => Promise<void>;
+  isQueryItemSelected: (index: number) => Promise<boolean>;
 };
 
 export const test = base.extend<ExplorerFixtures>({
-  openQueryFromExplorer: async ({ page }, use) => {
-    await use(async (queryName: string) => {
+  selectQueryItemByIndex: async ({ getQueryItemsFromExplorer }, use) => {
+    await use(async (index: number) => {
+      const queryItems = await getQueryItemsFromExplorer();
+      await queryItems.nth(index).click();
+    });
+  },
+
+  selectMultipleQueryItems: async ({ page, getQueryItemsFromExplorer }, use) => {
+    await use(async (indices: number[]) => {
+      const queryItems = await getQueryItemsFromExplorer();
+      await page.keyboard.down('ControlOrMeta');
+      for (const index of indices) {
+        await queryItems.nth(index).click();
+      }
+      await page.keyboard.up('ControlOrMeta');
+    });
+  },
+
+  deselectAllQueryItems: async ({ page }, use) => {
+    await use(async () => {
+      await page.keyboard.press('Escape');
+    });
+  },
+
+  isQueryItemSelected: async ({ getQueryItemsFromExplorer }, use) => {
+    await use(async (index: number) => {
+      const queryItems = await getQueryItemsFromExplorer();
+      const item = queryItems.nth(index);
+      const attribute = await item.getAttribute('data-selected');
+      return attribute === 'true';
+    });
+  },
+  getQueryListContainer: async ({ page }, use) => {
+    await use(async () => {
       const queriesList = page.locator('#queries-list');
-      const queryItem = queriesList.locator('p', { hasText: queryName });
+      return queriesList;
+    });
+  },
+
+  getQueryItemsFromExplorer: async ({ getQueryListContainer }, use) => {
+    await use(async () => {
+      const queriesList = await getQueryListContainer();
+      const queryItems = queriesList.getByTestId(/query-list-item/);
+      return queryItems;
+    });
+  },
+
+  openQueryFromExplorerByIndex: async ({ getQueryItemsFromExplorer }, use) => {
+    await use(async (index: number) => {
+      const queriesList = await getQueryItemsFromExplorer();
+      const queryItem = queriesList.nth(index);
+      await queryItem.click();
+    });
+  },
+
+  findQueryItemInExplorerByName: async ({ getQueryListContainer }, use) => {
+    await use(async (queryName: string) => {
+      const queriesList = await getQueryListContainer();
+      const queryItem = queriesList.getByText(queryName);
+      return queryItem;
+    });
+  },
+
+  openQueryFromExplorer: async ({ findQueryItemInExplorerByName }, use) => {
+    await use(async (queryName: string) => {
+      const queryItem = await findQueryItemInExplorerByName(queryName);
       await queryItem.click();
     });
   },

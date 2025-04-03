@@ -137,7 +137,7 @@ export const ViewExplorer = memo(() => {
 
   return (
     <SourcesListView
-      parentDataTestId="view-explorer"
+      treeId="file-explorer"
       list={viewsToDisplay}
       onDeleteSelected={handleDeleteSelected}
       onItemClick={openView}
