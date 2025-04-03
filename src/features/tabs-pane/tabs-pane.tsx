@@ -206,11 +206,13 @@ export const TabsPane = memo(() => {
   };
 
   const handleTabDoubleClick = (tabId: TabId) => {
-    if (tabId === previewTabId) return;
+    // Double clicking on a preview tab makes it permanent
+    if (tabId === previewTabId) {
+      setPreviewTabId(null);
+    }
 
-    setIsUserTabChange(true);
-    setPreviewTabId(tabId);
-    setActiveTabId(tabId);
+    // The rest is the same as a single click
+    handleTabClick(tabId);
   };
 
   const handleAddQuery = () => {

@@ -54,16 +54,36 @@ export const useInitStore =
     ),
   );
 
+// Common selectors
+export function useSqlScriptForActiveTab(): SQLScriptId | null {
+  return useInitStore((state) =>
+    state.activeTabId ? (state.tabs.get(state.activeTabId)?.sqlScriptId ?? null) : null,
+  );
+}
+
 // Memoized selectors
-// eslint-disable-next-line arrow-body-style
-export const useTabMetaInfoMap = (): Map<TabId, TabMetaInfo> => {
+export function useSqlScriptNameMap(): Map<SQLScriptId, string> {
+  return useInitStore(
+    useShallow(
+      (state) =>
+        new Map(
+          Array.from(state.sqlScripts).map(([id, script]): [SQLScriptId, string] => [
+            id,
+            script.name,
+          ]),
+        ),
+    ),
+  );
+}
+
+export function useTabMetaInfoMap(): Map<TabId, TabMetaInfo> {
   return useInitStore(
     useShallow(
       (state) =>
         new Map(Array.from(state.tabs).map(([id, tab]): [TabId, TabMetaInfo] => [id, tab.meta])),
     ),
   );
-};
+}
 
 // Actions / setters
 export const setAppLoadState = (appState: AppLoadState) => {
@@ -135,24 +155,29 @@ export const setActiveTabId = (tabId: TabId | null) => {
 /**
  * Sets/resets the preview tab id.
  *
- * Idempotent, if the tab is already in preview, it does nothing.
+ * Idempotent, if no state change is needed, it does nothing.
+ *
+ * Logic:
+ * 1. No preview tab set, a new tabId is passed - just sets this tabId as preview.
+ * 2. A preview tab is set, null is passed - resets the previewTabId, effectively making
+ *  the preview tab a normal tab.
+ * 3. A preview tab is set, a new tabId is passed - not only replaces the previewTabId but
+ *  also deletes the old preview tab (with all associated logic of handling deleted active tabs),
+ *  as only one preview tab is allowed at a time.
+ *  NOTE: this logic doesn't set the preview tab as active! Use setActiveTabId for that.
  *
  * @param tabId - The id of the tab to set as preview or null to reset.
  */
 export const setPreviewTabId = (tabId: TabId | null) => {
   const { tabs, tabOrder, activeTabId, previewTabId, iDbConn } = useInitStore.getState();
 
-  // If the tab is already in preview, do nothing
+  // Check we have stuff to do
   if (previewTabId === tabId) return;
 
-  // Preview tabs are tricky. We have 3 situations:
-  // 1. Going from no preview to a preview tab - easy, just set it
-  // 2. Going from a preview tab to a new preview tab - we are supposed to replace it.
-  //  Effectively it means we need to delete the old tab first, and then set the new one.
-  // 3. Going from a preview tab to no preview - just delete the preview tab and set it to null.
+  // Preview tabs are tricky. See logic above
 
-  // Cases 2 and 3
-  if (previewTabId) {
+  // Cases 2 (with deletion)
+  if (previewTabId && tabId) {
     const { newTabs, newTabOrder, newActiveTabId } = deleteTabImpl(
       previewTabId,
       tabs,
@@ -180,7 +205,7 @@ export const setPreviewTabId = (tabId: TabId | null) => {
     return;
   }
 
-  // Simple case 1
+  // Case 1 or 3
   useInitStore.setState({ previewTabId: tabId }, undefined, 'AppStore/setPreviewTabId');
 
   if (iDbConn) {
