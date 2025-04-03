@@ -6,8 +6,8 @@ import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
 import { SYSTEM_DUCKDB_SHEMAS } from '@features/editor/auto-complete';
 import { useCreateQueryFileMutation, useFileHandlesQuery } from '@store/app-idb-store';
-import { getDBIconByType } from './utils';
 import { useInitStore } from '@store/init-store';
+import { getDBIconByType } from './utils';
 
 /**
  * Displays a list of views

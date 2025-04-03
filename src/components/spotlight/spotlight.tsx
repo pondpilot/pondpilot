@@ -32,10 +32,10 @@ import {
   useQueryFilesQuery,
 } from '@store/app-idb-store';
 import { useImportSQLFiles } from '@store/hooks';
+import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from 'app-urls';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
-import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from 'app-urls';
 
 interface Action {
   id: string;

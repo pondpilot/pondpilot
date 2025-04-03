@@ -102,5 +102,3 @@ export const createName = (fileName: string): string => {
 
   return Number.isNaN(Number(name[0])) ? name : `${ext}_${name}`;
 };
-
-export const getFileNameWithExt = (name: string, ext: string) => (ext ? `${name}.${ext}` : name);

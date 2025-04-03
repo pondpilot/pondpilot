@@ -11,6 +11,7 @@ import { DataSourceIconType, DataSourceId } from '@models/data-source';
 import { CONTENT_VIEW_TABLE_NAME, SQL_SCRIPT_TABLE_NAME, TAB_TABLE_NAME } from './persist/const';
 import { createSelectors } from './utils';
 import { AppIdbSchema } from './persist/model';
+import { resetAppData } from './persist/init';
 
 type AppLoadState = 'init' | 'ready' | 'error';
 
@@ -33,24 +34,23 @@ type AppStore = {
   sqlScripts: Map<SQLScriptId, SQLScript>;
 } & ContentViewState;
 
+const initialState: AppStore = {
+  appLoadState: 'init',
+  iDbConn: null,
+  sqlScripts: new Map(),
+  activeTabId: null,
+  previewTabId: null,
+  tabs: new Map(),
+  tabOrder: [],
+};
+
 export const useInitStore =
   // Wrapper that creates simple getters, so you can just call
   // `useInitStore.use.someStateAttr()` instead of `useInitStore((state) => state.someStateAttr)`
   createSelectors(
     create<AppStore>()(
       // Adds redux devtools support - use in Chrome!
-      devtools(
-        (): AppStore => ({
-          appLoadState: 'init',
-          iDbConn: null,
-          sqlScripts: new Map(),
-          activeTabId: null,
-          previewTabId: null,
-          tabs: new Map(),
-          tabOrder: [],
-        }),
-        { name: 'AppStore' },
-      ),
+      devtools(() => initialState, { name: 'AppStore' }),
     ),
   );
 
@@ -140,16 +140,51 @@ export const setActiveTabId = (tabId: TabId | null) => {
  * @param tabId - The id of the tab to set as preview or null to reset.
  */
 export const setPreviewTabId = (tabId: TabId | null) => {
-  const { previewTabId } = useInitStore.getState();
+  const { tabs, tabOrder, activeTabId, previewTabId, iDbConn } = useInitStore.getState();
 
   // If the tab is already in preview, do nothing
   if (previewTabId === tabId) return;
 
+  // Preview tabs are tricky. We have 3 situations:
+  // 1. Going from no preview to a preview tab - easy, just set it
+  // 2. Going from a preview tab to a new preview tab - we are supposed to replace it.
+  //  Effectively it means we need to delete the old tab first, and then set the new one.
+  // 3. Going from a preview tab to no preview - just delete the preview tab and set it to null.
+
+  // Cases 2 and 3
+  if (previewTabId) {
+    const { newTabs, newTabOrder, newActiveTabId } = deleteTabImpl(
+      previewTabId,
+      tabs,
+      tabOrder,
+      activeTabId,
+      previewTabId,
+    );
+
+    // Update the store with the new state
+    useInitStore.setState(
+      {
+        tabs: newTabs,
+        tabOrder: newTabOrder,
+        activeTabId: newActiveTabId,
+        previewTabId: tabId,
+      },
+      undefined,
+      'AppStore/setPreviewTabId',
+    );
+
+    if (iDbConn) {
+      persistDeleteTab(iDbConn, previewTabId, newActiveTabId, tabId, newTabOrder);
+    }
+
+    return;
+  }
+
+  // Simple case 1
   useInitStore.setState({ previewTabId: tabId }, undefined, 'AppStore/setPreviewTabId');
 
-  const iDb = useInitStore.getState().iDbConn;
-  if (iDb) {
-    iDb.put(CONTENT_VIEW_TABLE_NAME, tabId, 'previewTabId');
+  if (iDbConn) {
+    iDbConn.put(CONTENT_VIEW_TABLE_NAME, tabId, 'previewTabId');
   }
 };
 
@@ -177,11 +212,42 @@ const persistCreateTab = async (
   await tx.done;
 };
 
+const findTabFromScriptImpl = (tabs: Map<TabId, Tab>, sqlScriptId: SQLScriptId): Tab | undefined =>
+  Array.from(tabs.values()).find((tab) => tab.sqlScriptId === sqlScriptId);
+
+/**
+ * Finds a tab displaying an existing SQL script or undefined.
+ *
+ * @param sqlScriptOrId - The ID or a SQL script object to find the tab for.
+ * @returns A new Tab object if found.
+ * @throws An error if the SQL script with the given ID does not exist.
+ */
+export const findTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): Tab | undefined => {
+  const state = useInitStore.getState();
+
+  // Get the script object if not passed as an object
+  let sqlScript: SQLScript;
+  if (typeof sqlScriptOrId === 'string') {
+    const fromState = state.sqlScripts.get(sqlScriptOrId);
+
+    if (!fromState) {
+      throw new Error(`SQL script with id ${sqlScriptOrId} not found`);
+    }
+
+    sqlScript = fromState;
+  } else {
+    sqlScript = sqlScriptOrId;
+  }
+
+  // Check if the script already has an associated tab
+  return findTabFromScriptImpl(state.tabs, sqlScript.id);
+};
+
 /**
  * Creates a new tab from an existing SQL script.
  * If the SQL script is already associated with a tab, it returns that tab without creating a new one.
  *
- * @param sqlScriptOrId - The ID of the SQL script to create a tab from.
+ * @param sqlScriptOrId - The ID or a SQL script object to create a tab from.
  * @returns A new Tab object.
  * @throws An error if the SQL script with the given ID does not exist.
  */
@@ -203,9 +269,7 @@ export const createTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): Tab
   }
 
   // Check if the script already has an associated tab
-  const existingTab = Array.from(state.tabs.values()).find(
-    (tab) => tab.sqlScriptId === sqlScript.id,
-  );
+  const existingTab = findTabFromScriptImpl(state.tabs, sqlScript.id);
 
   // No need to create a new tab if one already exists
   if (existingTab) {
@@ -266,22 +330,50 @@ const persistDeleteTab = async (
   await tx.done;
 };
 
-export const deleteTab = (tabId: TabId) => {
-  const state = useInitStore.getState();
-  const { tabs, tabOrder, activeTabId, previewTabId } = state;
-  const newTabs = new Map(Array.from(tabs).filter(([id, _]) => id !== tabId));
-  const newTabOrder = tabOrder.filter((id) => id !== tabId);
+const deleteTabImpl = (
+  deleteTabId: TabId,
+  tabs: Map<TabId, Tab>,
+  tabOrder: TabId[],
+  activeTabId: TabId | null,
+  previewTabId: TabId | null,
+): {
+  newTabs: Map<TabId, Tab>;
+  newTabOrder: TabId[];
+  newActiveTabId: TabId | null;
+  newPreviewTabId: TabId | null;
+} => {
+  const newTabs = new Map(Array.from(tabs).filter(([id, _]) => id !== deleteTabId));
+  const newTabOrder = tabOrder.filter((id) => id !== deleteTabId);
   let newActiveTabId = activeTabId;
 
   // If the active tab is being deleted, set active to the next one in order (or null)
-  if (activeTabId === tabId) {
-    const prevTabIndex = tabOrder.findIndex((id) => id === tabId) - 1;
+  if (activeTabId === deleteTabId) {
+    const prevTabIndex = tabOrder.findIndex((id) => id === deleteTabId) - 1;
     newActiveTabId = newTabOrder[prevTabIndex] || null;
   }
 
   // If the preview tab is being deleted, reset it to null
-  const newPreviewTabId = previewTabId === tabId ? null : previewTabId;
+  const newPreviewTabId = previewTabId === deleteTabId ? null : previewTabId;
 
+  return {
+    newTabs,
+    newTabOrder,
+    newActiveTabId,
+    newPreviewTabId,
+  };
+};
+
+export const deleteTab = (tabId: TabId) => {
+  const { tabs, tabOrder, activeTabId, previewTabId, iDbConn } = useInitStore.getState();
+  const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl(
+    tabId,
+    tabs,
+    tabOrder,
+    activeTabId,
+    previewTabId,
+  );
+
+  // Update the store with the new state
   useInitStore.setState(
     {
       tabs: newTabs,
@@ -293,8 +385,23 @@ export const deleteTab = (tabId: TabId) => {
     'AppStore/deleteTab',
   );
 
-  const iDb = useInitStore.getState().iDbConn;
-  if (iDb) {
-    persistDeleteTab(iDb, tabId, newActiveTabId, newPreviewTabId, newTabOrder);
+  if (iDbConn) {
+    persistDeleteTab(iDbConn, tabId, newActiveTabId, newPreviewTabId, newTabOrder);
   }
+};
+
+export const resetAppState = async () => {
+  const { iDbConn, appLoadState } = useInitStore.getState();
+
+  // Drop all table data first
+  if (iDbConn) {
+    await resetAppData(iDbConn);
+  }
+
+  // Reset the store to its initial state except for the iDbConn and appLoadState
+  useInitStore.setState(
+    { ...initialState, iDbConn, appLoadState },
+    undefined,
+    'AppStore/resetAppState',
+  );
 };

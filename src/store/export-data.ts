@@ -1,16 +1,16 @@
-import { queryStoreApi } from '@store/app-idb-store';
 import JSZip from 'jszip';
+import { useInitStore } from './init-store';
 
 /**
  * Exports query files as a zip file.
  * @returns {Promise<Blob | null>} A promise that resolves to a Blob containing the zip file or null if an error occurs.
  */
-export async function exportQueryFiles(): Promise<Blob | null> {
-  const queryFiles = await queryStoreApi.getQueryFiles();
+export async function exportSQLScripts(): Promise<Blob | null> {
+  const { sqlScripts } = useInitStore.getState();
   const zip = new JSZip();
 
-  for (const queryFile of queryFiles) {
-    zip.file(`${queryFile.name}.${queryFile.ext}`, queryFile.content);
+  for (const sqlScript of sqlScripts.values()) {
+    zip.file(`${sqlScript.name}.sql`, sqlScript.content);
   }
 
   try {
