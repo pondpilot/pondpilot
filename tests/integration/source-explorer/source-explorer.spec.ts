@@ -15,7 +15,7 @@ const test = mergeTests(
   dataViewTest,
 );
 
-test.only('Select items in the query explorer list using Hotkeys', async ({
+test('Select items in the query explorer list using Hotkeys', async ({
   page,
   createQueryAndSwitchToItsTab,
   getQueryItemsFromExplorer,
