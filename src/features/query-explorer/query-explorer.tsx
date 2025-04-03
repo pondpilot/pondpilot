@@ -3,23 +3,29 @@ import { MenuItem, SourcesListView } from '@components/sources-list-view';
 import { ActionIcon, Divider, Group, Text } from '@mantine/core';
 import { useClipboard, useDisclosure } from '@mantine/hooks';
 import { memo, useState } from 'react';
-import { IconCode, IconPlus } from '@tabler/icons-react';
+import { IconPlus } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import {
-  useCreateQueryFileMutation,
   useDeleteQueryFilesMutation,
-  useQueryFilesQuery,
   useRenameQueryFileMutation,
 } from '@store/app-idb-store/useEditorFileQuery';
 import {
   useAllTabsQuery,
   useDeleteTabsMutatuion,
-  useCreateTabMutation,
   useUpdateTabMutation,
 } from '@store/app-idb-store';
-import { getFileNameWithExt } from '@utils/helpers';
-import { useAppContext } from '@features/app-context';
-import { useInitStore } from '@store/init-store';
+
+import {
+  createSQLScript,
+  createTabFromScript,
+  deleteTab,
+  findTabFromScript,
+  setActiveTabId,
+  setPreviewTabId,
+  useInitStore,
+} from '@store/init-store';
+import { DataSourceIcon } from '@features/data-source-icon';
+import { SQLScriptId } from '@models/sql-script';
 
 export const QueryExplorer = memo(() => {
   /**
@@ -27,39 +33,37 @@ export const QueryExplorer = memo(() => {
    */
   const { showSuccess } = useAppNotifications();
   const { copy } = useClipboard();
-  const { openTab } = useAppContext();
 
   /**
    * Global state
    */
-  const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
-  const { mutateAsync: createTab } = useCreateTabMutation();
   const { mutateAsync: updateTab } = useUpdateTabMutation();
-  const { data: queryFiles = [] } = useQueryFilesQuery();
   const { data: tabsList = [] } = useAllTabsQuery();
   const { mutateAsync: deleteTabs } = useDeleteTabsMutatuion();
   const { mutateAsync: deleteQueryFile } = useDeleteQueryFilesMutation();
   const { mutateAsync: onRenameDataSource } = useRenameQueryFileMutation();
-  const activeTab = tabsList?.find((tab) => tab.active);
+  const activeTabId = useInitStore.use.activeTabId();
   const appLoadState = useInitStore.use.appLoadState();
+
+  const sqlScripts = useInitStore.use.sqlScripts();
 
   /**
    * Local state
    */
   const [renaming, { open: openRename, close: closeRename }] = useDisclosure(false);
   const [newItemName, setNewName] = useState('');
-  const [itemIdBufferValue, setItemIdBufferValue] = useState<string | null>(null);
+  const [itemIdBufferValue, setItemIdBufferValue] = useState<SQLScriptId | null>(null);
 
   /**
    * Consts
    */
-  const queriesList = queryFiles.map((query) => ({
-    value: query.id,
-    label: getFileNameWithExt(query.name, query.ext),
+  const sqlScriptList = Array.from(sqlScripts).map(([sqlScriptId, sqlScript]) => ({
+    value: sqlScriptId,
+    label: `${sqlScript.name}.sql`,
     nodeProps: { canSelect: true },
   }));
   const textInputError = newItemName.length === 0 ? 'Name cannot be empty' : undefined;
-  const notUniqueError = queriesList.some((query) => {
+  const notUniqueError = sqlScriptList.some((query) => {
     if (itemIdBufferValue === query.value) return false;
 
     const name = query.label;
@@ -67,37 +71,40 @@ export const QueryExplorer = memo(() => {
   })
     ? 'Name must be unique'
     : undefined;
-  const invalidCharactersError = newItemName.match(/[^a-zA-Z0-9_-]/)
-    ? 'Name must contain only letters, numbers, underscores, and dashes'
+  const invalidCharactersError = newItemName.match(/[^a-zA-Z0-9()_-]/)
+    ? 'Name must contain only letters, numbers, underscores, dashes and parentheses'
     : undefined;
 
   const renameInputError = !renaming
     ? ''
     : textInputError || notUniqueError || invalidCharactersError;
 
-  const handleSetQuery = (sourceId: string) => {
-    openTab(sourceId, 'query');
+  const handleScriptSelect = (id: SQLScriptId) => {
+    // Check if the tab is already open
+    const existingTab = findTabFromScript(id);
+    if (existingTab) {
+      // If the tab is already open, just set as active and do not change preview
+      setActiveTabId(existingTab.id);
+      return;
+    }
+
+    // Net new. Create a tab
+    const tab = createTabFromScript(id);
+    // Then set it as active & preview
+    setActiveTabId(tab.id);
+    setPreviewTabId(tab.id);
   };
 
-  const handleAddQuery = async () => {
-    const newQueryFile = await createQueryFile({
-      name: 'query',
-    });
-
-    createTab({
-      sourceId: newQueryFile.id,
-      name: getFileNameWithExt(newQueryFile.name, newQueryFile.ext),
-      type: 'query',
-      active: true,
-      stable: true,
-      state: 'pending',
-    });
+  const handleAddQuery = () => {
+    const newEmptyScript = createSQLScript();
+    const newTab = createTabFromScript(newEmptyScript);
+    setActiveTabId(newTab.id);
   };
 
-  const handleDeleteTab = async (id: string) => {
-    const tab = tabsList.find((t) => t.sourceId === id);
+  const handleDeleteTab = (id: SQLScriptId) => {
+    const tab = findTabFromScript(id);
     if (tab) {
-      await deleteTabs([tab.id]);
+      deleteTab(tab.id);
     }
   };
 
@@ -131,8 +138,8 @@ export const QueryExplorer = memo(() => {
     setNewName(event.currentTarget.value);
   };
 
-  const handleRenameClick = (id: string) => {
-    const queryToChange = queriesList.find((query) => query.value === id)!.label;
+  const handleRenameClick = (id: SQLScriptId) => {
+    const queryToChange = sqlScriptList.find((sqlScript) => sqlScript.value === id)!.label;
     setNewName(queryToChange || 'query');
     setItemIdBufferValue(id);
     openRename();
@@ -162,19 +169,19 @@ export const QueryExplorer = memo(() => {
     },
   ];
 
-  const menuItems: MenuItem[] = [
+  const menuItems: MenuItem<SQLScriptId>[] = [
     {
       children: [
         {
           label: 'Copy name',
-          onClick: (query) => {
-            copy(query.label);
+          onClick: (sqlScript) => {
+            copy(sqlScript.label);
             showSuccess({ title: 'Copied', message: '', autoClose: 800 });
           },
         },
         {
           label: 'Rename',
-          onClick: (item) => handleRenameClick(item.value),
+          onClick: (sqlScript) => handleRenameClick(sqlScript.value),
         },
       ],
     },
@@ -208,16 +215,16 @@ export const QueryExplorer = memo(() => {
           ))}
         </Group>
       </Group>
-      <SourcesListView
+      <SourcesListView<SQLScriptId>
         parentDataTestId="queries-list"
         onDeleteSelected={handleDeleteSelected}
-        list={queriesList}
+        list={sqlScriptList}
         menuItems={menuItems}
-        onItemClick={handleSetQuery}
-        activeItemKey={activeTab?.sourceId || ''}
+        onItemClick={handleScriptSelect}
+        activeItemKey={activeTabId}
         loading={appLoadState === 'init'}
         onActiveCloseClick={handleDeleteTab}
-        renderIcon={() => <IconCode size={16} />}
+        renderIcon={() => <DataSourceIcon iconType="sql-script" size={16} />}
         renameItemId={itemIdBufferValue}
         isItemRenaming={renaming}
         onItemRename={handleRenameClick}
