@@ -18,24 +18,19 @@ import { IconDotsVertical, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { TreeItem } from './models';
 import { useTreeSelection } from './hooks/useTreeSelection';
-
-export interface ListProps {
-  value: string;
-  label: string;
-  children?: ListProps[];
-}
 
 interface MenuItemChildren {
   label: string;
-  onClick: (item: ListProps) => void;
+  onClick: (item: TreeItem) => void;
 }
 
 export interface MenuItem {
   children: MenuItemChildren[];
 }
 
-export interface ListItemProps extends ListProps {
+export interface ListItemProps extends TreeItem {
   disabled?: boolean;
   active: boolean;
   menuItems: MenuItem[];
@@ -49,7 +44,7 @@ export interface ListItemProps extends ListProps {
 }
 
 interface ListViewProps {
-  list: ListProps[];
+  list: TreeItem[];
   activeItemKey: string | null;
   treeId: string;
 

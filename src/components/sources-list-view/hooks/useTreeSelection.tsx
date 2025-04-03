@@ -1,25 +1,7 @@
 import { useCallback } from 'react';
 import { TreeNodeData, UseTreeReturnType } from '@mantine/core';
-
-export interface TreeItem {
-  value: string;
-  label: string;
-  children?: TreeItem[];
-}
-
-/**
- * Flattens a nested tree structure into a single-level array
- * @param items - Hierarchical tree items to flatten
- * @returns Flattened array of tree items preserving order
- */
-const flattenTreeItems = (items: TreeItem[]): TreeItem[] =>
-  items.reduce((acc: TreeItem[], item) => {
-    acc.push(item);
-    if (item.children && item.children.length > 0) {
-      acc.push(...flattenTreeItems(item.children));
-    }
-    return acc;
-  }, []);
+import { flattenTreeItems } from './utils';
+import { TreeItem } from '../models';
 
 export interface UseTreeSelectionProps {
   tree: UseTreeReturnType;
