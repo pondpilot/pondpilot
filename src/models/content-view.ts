@@ -1,7 +1,7 @@
 import { TabId, Tab } from './tab';
 
 /**
- * Represents the state of the content view.
+ * Represents the content view related part of the app state.
  */
 export type ContentViewState = {
   /**
