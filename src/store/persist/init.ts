@@ -376,7 +376,7 @@ export const hydrateAppData = async (
   // Finally update the store with the hydrated data
   useInitStore.setState({
     _iDbConn: db,
-    _localEntries: localEntriesMap,
+    localEntries: localEntriesMap,
     tabs,
     sqlScripts,
     activeTabId,

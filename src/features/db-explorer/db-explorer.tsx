@@ -1,4 +1,4 @@
-import { MenuItem, SourcesListView } from '@components/sources-list-view';
+import { MenuItem, SourcesListView, TypedTreeNodeData } from '@components/sources-list-view';
 import { useDataSourcesActions } from '@features/app-context';
 import { useAppStore } from '@store/app-store';
 import { memo } from 'react';
@@ -7,7 +7,6 @@ import { useAppNotifications } from '@components/app-notifications';
 import { SYSTEM_DUCKDB_SHEMAS } from '@features/editor/auto-complete';
 import { useCreateQueryFileMutation, useFileHandlesQuery } from '@store/app-idb-store';
 import { useInitStore } from '@store/init-store';
-import { getDBIconByType } from './utils';
 
 /**
  * Displays a list of views
@@ -33,32 +32,38 @@ export const DbExplorer = memo(() => {
    */
   const itemsToDisplay = databases
     .filter((item) => sessionFiles.some((source) => source.name === item.name))
-    .map((item) => ({
-      value: item.name,
-      label: item.name,
-      nodeProps: {
-        id: 'db',
-        canSelect: true,
-      },
-      children: item.schemas
-        ?.filter((schema) => !SYSTEM_DUCKDB_SHEMAS.includes(schema.name))
-        .map((schema) => ({
-          value: `${item.name}/${schema.name}`,
+    .map(
+      (item) =>
+        ({
+          value: item.name,
+          label: item.name,
+          iconType: 'db',
           nodeProps: {
-            id: 'schema',
-            canSelect: false,
+            id: 'db',
+            canSelect: true,
           },
-          label: schema.name,
-          children: schema.tables?.map((table) => ({
-            value: `${item.name}/${schema.name}/${table.name}`,
-            label: table.name,
-            nodeProps: {
-              id: 'table',
-              canSelect: false,
-            },
-          })),
-        })),
-    }));
+          children: item.schemas
+            ?.filter((schema) => !SYSTEM_DUCKDB_SHEMAS.includes(schema.name))
+            .map((schema) => ({
+              value: `${item.name}/${schema.name}`,
+              nodeProps: {
+                id: 'schema',
+                canSelect: false,
+              },
+              iconType: 'db-schema',
+              label: schema.name,
+              children: schema.tables?.map((table) => ({
+                value: `${item.name}/${schema.name}/${table.name}`,
+                label: table.name,
+                iconType: 'db-table',
+                nodeProps: {
+                  id: 'table',
+                  canSelect: false,
+                },
+              })),
+            })),
+        }) as TypedTreeNodeData,
+    );
 
   const handleDeleteSelected = async (items: string[]) => {
     onDeleteDataSource({
@@ -110,7 +115,6 @@ export const DbExplorer = memo(() => {
       menuItems={menuItems}
       activeItemKey=""
       loading={appLoadState === 'init'}
-      renderIcon={(id) => getDBIconByType(id as any)}
     />
   );
 });
