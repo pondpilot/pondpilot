@@ -36,17 +36,59 @@ async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   });
 }
 
+type DiscardedEntry = {
+  entry: LocalEntryPersistence;
+  type: 'denied' | 'removed' | 'error' | 'warning';
+  reason: string;
+};
+
+function createDiscardedEntryFromRemoved(entry: LocalEntryPersistence): DiscardedEntry {
+  return {
+    entry,
+    type: 'removed',
+    reason: entry.kind === 'directory' ? 'Folder is missing' : 'File is missing',
+  };
+}
+
+// Helper function to mark an entire directory subtree as discarded
+function markDirectorySubtreeAsDiscarded(
+  directoryId: LocalEntryId,
+  persistentMap: Map<LocalEntryId, LocalEntryPersistence[]>,
+  discardedEntries: DiscardedEntry[],
+): void {
+  const stack: LocalEntryId[] = [directoryId];
+  const visited = new Set<LocalEntryId>();
+
+  while (stack.length > 0) {
+    const currentId = stack.pop()!;
+
+    if (visited.has(currentId)) continue;
+    visited.add(currentId);
+
+    const children = persistentMap.get(currentId) || [];
+
+    for (const entry of children) {
+      discardedEntries.push(createDiscardedEntryFromRemoved(entry));
+
+      if (entry.kind === 'directory') {
+        stack.push(entry.id);
+      }
+    }
+  }
+}
+
 // Helper function to process a directory and its contents
 async function processDirectory(
   directory: LocalFolder,
   persistentMap: Map<LocalEntryId, LocalEntryPersistence[]>,
   resultMap: Map<LocalEntryId, LocalEntry>,
-  mismatchedEntries: LocalEntryPersistence[],
+  discardedEntries: DiscardedEntry[],
   getUniqueAlias: (name: string) => string,
 ): Promise<void> {
   const directoryHandle = directory.handle;
 
   const existingChildren = persistentMap.get(directory.id) || [];
+  const foundEntryIds = new Set<LocalEntryId>();
 
   // Get all entries in the directory
   for await (const [name, handle] of directoryHandle.entries()) {
@@ -70,6 +112,7 @@ async function processDirectory(
     }
 
     // If we have this entry in our persistent map, we need to do merging & checks
+    foundEntryIds.add(existingEntry.id);
 
     if (handle.kind === 'file' && existingEntry.kind === 'file') {
       // If we have this file in our persistent map, use its data, but update the handle
@@ -91,21 +134,46 @@ async function processDirectory(
         subDirectory,
         persistentMap,
         resultMap,
-        mismatchedEntries,
+        discardedEntries,
         getUniqueAlias,
       );
     } else {
-      // If the handle kind has changed, we need to mark this entry as mismatched
-      mismatchedEntries.push(existingEntry);
+      // If the handle kind has changed, we need to mark this entry as mismatched,
+      // to discard the old one and then create a new one
+      discardedEntries.push({
+        entry: existingEntry,
+        type: 'warning',
+        reason: 'Stored file or folder changed type on disk',
+      });
+
+      // Create a new entry based on the current handle
+      const newEntry = localEntryFromHandle(
+        handle,
+        directory.id,
+        false, // Not directly added by the user
+        getUniqueAlias,
+      );
+
+      if (newEntry) {
+        // If we have a valid local entry, add it to the result map
+        resultMap.set(newEntry.id, newEntry);
+      }
+    }
+  }
+
+  // Check for entries that are in our persistent map but not found in the directory
+  for (const entry of existingChildren) {
+    if (!foundEntryIds.has(entry.id)) {
+      // Mark this entry as removed
+      discardedEntries.push(createDiscardedEntryFromRemoved(entry));
+
+      if (entry.kind === 'directory') {
+        // For missing directories, we need to mark the entire subtree as removed
+        markDirectorySubtreeAsDiscarded(entry.id, persistentMap, discardedEntries);
+      }
     }
   }
 }
-
-type DiscardedEntry = {
-  entry: LocalEntryPersistence;
-  type: 'denied' | 'removed' | 'error';
-  reason: string;
-};
 
 async function restoreLocalEntries(
   localEntriesArray: LocalEntryPersistence[],
@@ -219,10 +287,6 @@ async function restoreLocalEntries(
   // Create an empty map to store the hydrated local entries
   const resultMap = new Map<LocalEntryId, LocalEntry>();
 
-  // We also need yet another list for possible cases where handles have mismatched
-  // types. I.e. we stored a file handle, but now the same named entry is a directory.
-  const mismatchedEntries: LocalEntryPersistence[] = [];
-
   // Process each root entry
   for (const rootEntry of rootEntries) {
     if (rootEntry.kind === 'file') {
@@ -237,19 +301,10 @@ async function restoreLocalEntries(
         rootEntry,
         parentToChildEntriesMap,
         resultMap,
-        mismatchedEntries,
+        discardEntries,
         getUniqueAlias,
       );
     }
-  }
-
-  // Add the mismatched entries to the discard list
-  for (const entry of mismatchedEntries) {
-    discardEntries.push({
-      entry,
-      type: 'error',
-      reason: 'Stored file or folder changed type on disk',
-    });
   }
 
   return [resultMap, discardEntries];
