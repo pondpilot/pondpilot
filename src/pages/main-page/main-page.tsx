@@ -66,18 +66,16 @@ export const MainPage = () => {
   ]);
 
   return (
-    <>
-      <Allotment
-        className={colorScheme === 'dark' ? 'custom-allotment-dark' : 'custom-allotment'}
-        onDragEnd={handleOuterLayoutResize}
-      >
-        <Allotment.Pane preferredSize={layoutSizes?.[0]} maxSize={500} minSize={220}>
-          <Navbar />
-        </Allotment.Pane>
-        <Allotment.Pane preferredSize={layoutSizes?.[1]}>
-          <ContentView />
-        </Allotment.Pane>
-      </Allotment>
-    </>
+    <Allotment
+      className={colorScheme === 'dark' ? 'custom-allotment-dark' : 'custom-allotment'}
+      onDragEnd={handleOuterLayoutResize}
+    >
+      <Allotment.Pane preferredSize={layoutSizes?.[0]} maxSize={500} minSize={220}>
+        <Navbar />
+      </Allotment.Pane>
+      <Allotment.Pane preferredSize={layoutSizes?.[1]}>
+        <ContentView />
+      </Allotment.Pane>
+    </Allotment>
   );
 };

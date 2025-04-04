@@ -27,21 +27,13 @@ import {
 } from './const';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
-  const db = await openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
+  return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
     upgrade(newDb) {
       for (const storeName of ALL_TABLE_NAMES) {
         newDb.createObjectStore(storeName);
       }
     },
   });
-
-  // Ensure all stores are created
-  for (const storeName_1 of ALL_TABLE_NAMES) {
-    if (!db.objectStoreNames.contains(storeName_1)) {
-      db.createObjectStore(storeName_1);
-    }
-  }
-  return db;
 }
 
 // Helper function to process a directory and its contents
@@ -136,7 +128,7 @@ async function restoreLocalEntries(
   // need to re-request permissions for the prompt handles and get the final list of roots
 
   // Check if the caller wants to request permissions for the prompt handles
-  if (!(await onBeforeRequestFilePermission(promptHandles))) {
+  if (promptHandles.length > 0 && !(await onBeforeRequestFilePermission(promptHandles))) {
     // If the caller doesn't want to request permissions, we can just consider the prompt handles
     // as denied...
     deniedHandles.push(...promptHandles);
