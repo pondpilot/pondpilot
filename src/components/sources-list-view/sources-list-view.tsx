@@ -1,3 +1,4 @@
+import { IconType, ListViewIcon } from '@features/list-view-icon';
 import {
   Stack,
   Group,
@@ -17,11 +18,12 @@ import { useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { IconDotsVertical, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
 export interface TypedTreeNodeData<ItemID extends string = string> extends TreeNodeData {
   value: ItemID;
   label: string;
+  iconType: IconType;
   children?: TypedTreeNodeData<ItemID>[];
 }
 
@@ -41,7 +43,7 @@ export interface ListItemProps<ItemID extends string = string> {
   menuItems: MenuItem<ItemID>[];
   label: string;
   node: TreeNodeData;
-  icon?: React.ReactNode;
+  iconType: IconType;
   level: number;
   onClick: (e: React.MouseEvent, node: TreeNodeData) => void;
   onItemDoubleClick?: (itemId: ItemID) => void;
@@ -64,7 +66,6 @@ interface ListViewProps<ItemID extends string = string> {
 
   onRenameClose?: () => void;
   onRenameSubmit?: () => void;
-  renderIcon: (itemId: ItemID | undefined) => ReactNode;
   onItemClick?: (itemId: ItemID) => void;
   onItemRename?: (itemId: ItemID) => void;
   onDeleteSelected: (itemIds: ItemID[]) => void;
@@ -79,7 +80,7 @@ const ListItem = <ItemID extends string = string>({
   active,
   menuItems,
   node,
-  icon,
+  iconType,
   onActiveCloseClick,
   level,
   onItemDoubleClick,
@@ -140,7 +141,7 @@ const ListItem = <ItemID extends string = string>({
                   key={child.label}
                   onClick={(e) => {
                     e.stopPropagation();
-                    child.onClick({ value: itemId, label });
+                    child.onClick({ value: itemId, label, iconType });
                     onClose();
                   }}
                 >
@@ -163,7 +164,9 @@ const ListItem = <ItemID extends string = string>({
       >
         {level !== 1 && <Divider orientation="vertical" />}
         {!active && (
-          <div className="text-iconDefault-light dark:text-iconDefault-dark p-[1px]">{icon}</div>
+          <div className="text-iconDefault-light dark:text-iconDefault-dark p-[1px]">
+            <ListViewIcon iconType={iconType} size={16} />
+          </div>
         )}
         {active && (
           <ActionIcon
@@ -205,7 +208,6 @@ export const SourcesListView = <ItemID extends string = string>({
   loading,
   menuItems,
   onActiveCloseClick,
-  renderIcon,
   renameInputError,
   renameItemId,
   renameValue,
@@ -454,7 +456,7 @@ export const SourcesListView = <ItemID extends string = string>({
                           disabled={disabled}
                           menuItems={menuList}
                           node={node.node}
-                          icon={renderIcon(node.node.nodeProps?.id || '')}
+                          iconType={(node.node as TypedTreeNodeData<ItemID>).iconType}
                           onActiveCloseClick={onActiveCloseClick}
                           level={node.level}
                           onItemDoubleClick={(id) => onItemRename?.(id)}

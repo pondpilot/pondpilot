@@ -38,19 +38,13 @@ type AppStore = {
 
   /**
    * A mapping of local entry identifiers to their corresponding LocalEntry objects.
-   *
-   * DO NOT READ THIS DIRECTLY.
-   *
    */
-  _localEntries: Map<LocalEntryId, LocalEntry>;
+  localEntries: Map<LocalEntryId, LocalEntry>;
 
   /**
    * A mapping of local entry identifiers to their corresponding DataSource objects.
-   *
-   * DO NOT READ THIS DIRECTLY.
-   *
    */
-  _dataSources: Map<DataSourceId, DataSource>;
+  dataSources: Map<DataSourceId, DataSource>;
 
   /**
    * The current state of the app, indicating whether it is loading, ready, or has encountered an error.
@@ -65,8 +59,8 @@ type AppStore = {
 
 const initialState: AppStore = {
   _iDbConn: null,
-  _localEntries: new Map(),
-  _dataSources: new Map(),
+  localEntries: new Map(),
+  dataSources: new Map(),
   appLoadState: 'init',
   sqlScripts: new Map(),
   activeTabId: null,
@@ -93,6 +87,10 @@ export function useSqlScriptForActiveTab(): SQLScriptId | null {
 }
 
 // Memoized selectors
+
+// We use separate memoized selectors for each necessary field, to avoid
+// using complex comparator functions...
+
 export function useSqlScriptNameMap(): Map<SQLScriptId, string> {
   return useInitStore(
     useShallow(
@@ -152,7 +150,11 @@ export const addLocalFileOrFolders = (
   newEntries: [LocalEntryId, LocalEntry][];
   newDataSources: [DataSourceId, AnyDataSource][];
 } => {
-  const { _iDbConn: iDbConn, _localEntries, _dataSources } = useInitStore.getState();
+  const {
+    _iDbConn: iDbConn,
+    localEntries: _localEntries,
+    dataSources: _dataSources,
+  } = useInitStore.getState();
 
   const usedAliases = new Set(
     _localEntries
@@ -198,14 +200,14 @@ export const addLocalFileOrFolders = (
 
   // Create an object to pass to store update
   const newState: {
-    _localEntries: Map<LocalEntryId, LocalEntry>;
-    _dataSources?: Map<DataSourceId, DataSource>;
+    localEntries: Map<LocalEntryId, LocalEntry>;
+    dataSources?: Map<DataSourceId, DataSource>;
   } = {
-    _localEntries: new Map(Array.from(_localEntries).concat(newEntries)),
+    localEntries: new Map(Array.from(_localEntries).concat(newEntries)),
   };
 
   if (newDataSources.length > 0) {
-    newState._dataSources = new Map(Array.from(_dataSources).concat(newDataSources));
+    newState.dataSources = new Map(Array.from(_dataSources).concat(newDataSources));
   }
 
   // Update the store
