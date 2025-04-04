@@ -4,11 +4,9 @@ import { useAppStore } from '@store/app-store';
 import { useClipboard } from '@mantine/hooks';
 import { memo, useCallback } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
-import { IconCsv, IconJson, IconTable } from '@tabler/icons-react';
 import {
   useAllTabsQuery,
   useCreateQueryFileMutation,
-  useFileHandlesQuery,
   useDeleteTabsMutatuion,
 } from '@store/app-idb-store';
 import { useInitStore } from '@store/init-store';
@@ -34,9 +32,81 @@ export const FileSystemExplorer = memo(() => {
   const views = useAppStore((state) => state.views);
   const appLoadState = useInitStore.use.appLoadState();
   const { data: tabs = [] } = useAllTabsQuery();
-  const { data: dataSources = [] } = useFileHandlesQuery();
-  const activeTab = tabs.find((tab) => tab.active);
 
+  const activeTab = tabs.find((tab) => tab.active);
+  const localEntries = useInitStore.use.localEntries();
+  const dataSources = useInitStore.use.dataSources();
+
+  /**
+   * Calculate views to display by doing a depth-first traversal of the entries tree
+   */
+  const buildEntryTree = useCallback(() => {
+    const result: Array<{
+      value: string;
+      label: string;
+      nodeProps: { canSelect: boolean; id: string; isFolder?: boolean };
+      children?: any[];
+    }> = [];
+
+    // Set to track visited nodes to avoid circular references
+    const visited = new Set<string>();
+
+    // Recursive depth-first function to build tree
+    const traverseEntries = (nodeId: string, parent: typeof result) => {
+      if (visited.has(nodeId)) return;
+      visited.add(nodeId);
+
+      const nodeName = localEntriesNameMap[nodeId] || nodeId;
+      const isFile = !localEntriesChildParentMap[nodeId];
+
+      const nodeItem = {
+        value: nodeId,
+        label: nodeName,
+        nodeProps: {
+          canSelect: isFile,
+          id: nodeId,
+          isFolder: !isFile,
+        },
+      };
+
+      if (!isFile) {
+        // It's a folder, process children
+        const children: typeof result = [];
+        nodeItem.children = children;
+
+        // Get all children of this folder
+        const childrenIds = Object.entries(localEntriesChildParentMap)
+          .filter(([_, parentId]) => parentId === nodeId)
+          .map(([childId]) => childId);
+
+        // Recursively process each child
+        childrenIds.forEach((childId) => traverseEntries(childId, children));
+
+        // Sort children (folders first, then alphabetically)
+        children.sort((a, b) => {
+          const aIsFolder = !!a.children;
+          const bIsFolder = !!b.children;
+          if (aIsFolder && !bIsFolder) return -1;
+          if (!aIsFolder && bIsFolder) return 1;
+          return a.label.localeCompare(b.label);
+        });
+      }
+
+      parent.push(nodeItem);
+    };
+
+    // Find root nodes (entries without parents)
+    const rootIds = Object.keys(localEntriesNameMap).filter(
+      (id) => !Object.values(localEntriesChildParentMap).includes(id),
+    );
+
+    // Process each root node
+    rootIds.forEach((rootId) => traverseEntries(rootId, result));
+
+    return result;
+  }, [localEntriesChildParentMap, localEntriesNameMap]);
+
+  const fileSystemEntries = buildEntryTree();
   /**
    * Consts
    */
@@ -103,18 +173,6 @@ export const FileSystemExplorer = memo(() => {
     }
   };
 
-  const getIcon = useCallback(
-    (id: string | undefined) => {
-      const fileExt = dataSources.find((f) => f.id === id)?.ext as string;
-      const iconsMap = {
-        csv: <IconCsv size={16} />,
-        json: <IconJson size={16} />,
-      }[fileExt];
-      return iconsMap || <IconTable size={16} />;
-    },
-    [dataSources],
-  );
-
   return (
     <SourcesListView
       parentDataTestId="view-explorer"
@@ -125,7 +183,6 @@ export const FileSystemExplorer = memo(() => {
       activeItemKey={activeTab?.sourceId || ''}
       loading={appLoadState === 'init'}
       onActiveCloseClick={handleDeleteTab}
-      renderIcon={getIcon}
     />
   );
 });
