@@ -1,4 +1,5 @@
-import { DataSourceIconType, DataSourceId } from './data-source';
+import { IconType } from '@features/list-view-icon';
+import { DataSourceId } from './data-source';
 import { SQLScriptId } from './sql-script';
 
 export type TabId = string & { readonly _: unique symbol };
@@ -11,7 +12,7 @@ export type TabLayout = {
 
 export type TabMetaInfo = {
   name: string;
-  iconType: DataSourceIconType;
+  iconType: IconType;
 };
 
 export type Tab = {

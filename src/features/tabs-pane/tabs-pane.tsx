@@ -33,7 +33,7 @@ import {
   useInitStore,
   useTabMetaInfoMap,
 } from '@store/init-store';
-import { DataSourceIcon } from '@features/data-source-icon';
+import { ListViewIcon } from '@features/list-view-icon';
 import { TabId } from '@models/tab';
 
 interface SortableTabProps {
@@ -266,7 +266,7 @@ export const TabsPane = memo(() => {
                         active={tabId === activeTabId}
                         preview={tabId === previewTabId}
                         loading={false} // TODO: add loading state
-                        icon={<DataSourceIcon iconType={tabInfo.iconType} {...tabIconProps} />}
+                        icon={<ListViewIcon iconType={tabInfo.iconType} {...tabIconProps} />}
                         activeTabRef={activeTabRef}
                         handleDeleteTab={() => handleDeleteTab(tabId)}
                         onClick={() => handleTabClick(tabId)}

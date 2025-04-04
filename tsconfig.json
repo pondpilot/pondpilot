@@ -27,6 +27,7 @@
       "@theme/*": ["theme/*"],
       "@router/*": ["router/*"],
       "@consts/*": ["consts/*"],
+      "@db/*": ["db/*"],
       "@models/*": ["models/*"]
     }
   },

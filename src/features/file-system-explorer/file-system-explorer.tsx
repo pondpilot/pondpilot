@@ -14,9 +14,10 @@ import {
 import { useInitStore } from '@store/init-store';
 
 /**
- * Displays a list of views
+ * Displays a file system tree for all registered local entities (files & folders)
+ * except databases, which are intentionally separated into DB Explorer
  */
-export const ViewExplorer = memo(() => {
+export const FileSystemExplorer = memo(() => {
   /**
    * Common hooks
    */

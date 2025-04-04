@@ -7,9 +7,18 @@ import { Tab, TabId, TabMetaInfo } from '@models/tab';
 import { IDBPDatabase } from 'idb';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ContentViewState } from '@models/content-view';
-import { DataSourceIconType, DataSourceId } from '@models/data-source';
-import { LocalEntryState } from '@models/file-system';
-import { CONTENT_VIEW_TABLE_NAME, SQL_SCRIPT_TABLE_NAME, TAB_TABLE_NAME } from './persist/const';
+import { AnyDataSource, DataSource, DataSourceId } from '@models/data-source';
+import { LocalEntry, LocalEntryId } from '@models/file-system';
+import { localEntryFromHandle } from '@utils/file-system';
+import { createCSVDataSource } from '@utils/data-sources/csv-data-source';
+import { getSerializedDataSource } from '@utils/data-source';
+import {
+  CONTENT_VIEW_TABLE_NAME,
+  DATA_SOURCE_TABLE_NAME,
+  LOCAL_ENTRY_TABLE_NAME,
+  SQL_SCRIPT_TABLE_NAME,
+  TAB_TABLE_NAME,
+} from './persist/const';
 import { createSelectors } from './utils';
 import { AppIdbSchema } from './persist/model';
 import { resetAppData } from './persist/init';
@@ -28,6 +37,22 @@ type AppStore = {
   _iDbConn: IDBPDatabase<AppIdbSchema> | null;
 
   /**
+   * A mapping of local entry identifiers to their corresponding LocalEntry objects.
+   *
+   * DO NOT READ THIS DIRECTLY.
+   *
+   */
+  _localEntries: Map<LocalEntryId, LocalEntry>;
+
+  /**
+   * A mapping of local entry identifiers to their corresponding DataSource objects.
+   *
+   * DO NOT READ THIS DIRECTLY.
+   *
+   */
+  _dataSources: Map<DataSourceId, DataSource>;
+
+  /**
    * The current state of the app, indicating whether it is loading, ready, or has encountered an error.
    */
   appLoadState: AppLoadState;
@@ -36,12 +61,12 @@ type AppStore = {
    * A mapping of SQL script identifiers to their corresponding SQLScript objects.
    */
   sqlScripts: Map<SQLScriptId, SQLScript>;
-} & ContentViewState &
-  LocalEntryState;
+} & ContentViewState;
 
 const initialState: AppStore = {
   _iDbConn: null,
   _localEntries: new Map(),
+  _dataSources: new Map(),
   appLoadState: 'init',
   sqlScripts: new Map(),
   activeTabId: null,
@@ -98,6 +123,104 @@ export const setAppLoadState = (appState: AppLoadState) => {
 
 export const setIDbConn = (iDbConn: IDBPDatabase<AppIdbSchema>) => {
   useInitStore.setState({ _iDbConn: iDbConn }, undefined, 'AppStore/setIDbConn');
+};
+
+const persistAddLocalEntry = async (
+  iDb: IDBPDatabase<AppIdbSchema>,
+  newEntries: [LocalEntryId, LocalEntry][],
+  newDataSources: [DataSourceId, AnyDataSource][],
+) => {
+  const tx = iDb.transaction([LOCAL_ENTRY_TABLE_NAME, DATA_SOURCE_TABLE_NAME], 'readwrite');
+
+  // Add new local entries
+  for (const [id, newLocalEntry] of newEntries) {
+    await tx.objectStore(LOCAL_ENTRY_TABLE_NAME).put(newLocalEntry, id);
+  }
+
+  // Add new data sources
+  for (const [id, newDataSource] of newDataSources) {
+    await tx.objectStore(DATA_SOURCE_TABLE_NAME).put(getSerializedDataSource(newDataSource), id);
+  }
+
+  // Commit the transaction
+  await tx.done;
+};
+
+export const addLocalFileOrFolders = (
+  handles: (FileSystemDirectoryHandle | FileSystemFileHandle)[],
+): {
+  newEntries: [LocalEntryId, LocalEntry][];
+  newDataSources: [DataSourceId, AnyDataSource][];
+} => {
+  const { _iDbConn: iDbConn, _localEntries, _dataSources } = useInitStore.getState();
+
+  const usedAliases = new Set(
+    _localEntries
+      .values()
+      .filter((entry) => entry.kind === 'file')
+      .map((entry) => entry.uniqueAlias),
+  );
+
+  const newEntries: [LocalEntryId, LocalEntry][] = [];
+  const newDataSources: [DataSourceId, AnyDataSource][] = [];
+
+  for (const handle of handles) {
+    const localEntry = localEntryFromHandle(handle, null, true, (fileName: string): string => {
+      const uniqueAlias = findUniqueName(fileName, (name: string) => usedAliases.has(name));
+      usedAliases.add(uniqueAlias);
+      return uniqueAlias;
+    });
+
+    if (!localEntry) {
+      // Unsupported file type. Nothing to add to store.
+      continue;
+    }
+
+    newEntries.push([localEntry.id, localEntry]);
+
+    // Check if this is a data source file ad create a data source if so
+    if (localEntry.kind === 'directory') {
+      throw new Error('TODO');
+    } else if (localEntry.fileType === 'data-source') {
+      let dataSource: AnyDataSource | null = null;
+
+      switch (localEntry.ext) {
+        case 'csv':
+          dataSource = createCSVDataSource(localEntry, (name: string) => name);
+          break;
+        default:
+          throw new Error('TODO: Supported data source file type');
+      }
+
+      newDataSources.push([dataSource.id, dataSource]);
+    }
+  }
+
+  // Create an object to pass to store update
+  const newState: {
+    _localEntries: Map<LocalEntryId, LocalEntry>;
+    _dataSources?: Map<DataSourceId, DataSource>;
+  } = {
+    _localEntries: new Map(Array.from(_localEntries).concat(newEntries)),
+  };
+
+  if (newDataSources.length > 0) {
+    newState._dataSources = new Map(Array.from(_dataSources).concat(newDataSources));
+  }
+
+  // Update the store
+  useInitStore.setState(newState, undefined, 'AppStore/addLocalEntry');
+
+  // If we have an IndexedDB connection, persist the new local entry
+  if (iDbConn) {
+    persistAddLocalEntry(iDbConn, newEntries, newDataSources);
+  }
+
+  // Return the new local entry and data source
+  return {
+    newEntries,
+    newDataSources,
+  };
 };
 
 export const createSQLScript = (name: string = 'query', content: string = ''): SQLScript => {
@@ -219,18 +342,6 @@ export const setPreviewTabId = (tabId: TabId | null) => {
   }
 };
 
-// Tab related CRUD
-const resolveTabIconType = (
-  sqlScriptId: SQLScriptId | null = null,
-  dataSourceId: DataSourceId | null = null,
-): DataSourceIconType => {
-  if (sqlScriptId) {
-    return 'sql-script';
-  }
-
-  throw new Error('TODO');
-};
-
 const persistCreateTab = async (
   iDb: IDBPDatabase<AppIdbSchema>,
   tab: Tab,
@@ -311,7 +422,7 @@ export const createTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): Tab
   const tabId = uuidv4() as TabId;
   const tab: Tab = {
     id: tabId,
-    meta: { name: sqlScript.name, iconType: resolveTabIconType(sqlScript.id, null) },
+    meta: { name: sqlScript.name, iconType: 'code-file' },
     sqlScriptId: sqlScript.id,
     dataSourceId: null,
     layout: {
