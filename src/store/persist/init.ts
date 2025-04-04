@@ -14,7 +14,7 @@ import {
   LocalFile,
   LocalFolder,
 } from '@models/file-system';
-import { findUniqueName, replaceSpecialChars } from '@utils/helpers';
+import { findUniqueName } from '@utils/helpers';
 import { AppIdbSchema } from './model';
 import {
   ALL_TABLE_NAMES,
@@ -277,7 +277,7 @@ async function restoreLocalEntries(
   }
 
   const getUniqueAlias = (fileName: string): string => {
-    const uniqueAlias = findUniqueName(replaceSpecialChars(fileName), usedAliases.has);
+    const uniqueAlias = findUniqueName(fileName, (name: string) => usedAliases.has(name));
     usedAliases.add(uniqueAlias);
     return uniqueAlias;
   };
