@@ -16,6 +16,13 @@ export const dataSourceFileExts = [
   'url',
 ] as const;
 
+export const supportedDataSourceFileExts: FileExtension[] = [
+  '.csv',
+  '.json',
+  '.duckdb',
+  '.parquet',
+];
+
 export type DataSourceFileExt = (typeof dataSourceFileExts)[number];
 
 export const dataSourceMimeTypes = [
@@ -47,9 +54,7 @@ export const dataSourceExtMap: Record<DataSourceFileExt, DataSourceMimeType> = {
 };
 
 // ---------- Code Ext files ----------- //
-/**
- * Only support sql for now
- */
+// Only support sql for now
 export const codeFileExts = ['sql'] as const;
 
 export type CodeFileExt = (typeof codeFileExts)[number];
@@ -63,10 +68,15 @@ export const codeExtMap: Record<CodeFileExt, CodeMimeType> = {
   sql: 'text/sql',
 };
 
+// Below are building blocks of a public LocalFile type. See it's definition
+// for more details.
 type LocalFileBase = {
   // Common fields for both file and directory
   readonly kind: 'file';
   id: LocalEntryId;
+  /**
+   * Name of the file without the extension.
+   */
   name: string;
   parentId: LocalEntryId | null;
 
@@ -83,7 +93,9 @@ type LocalFileBase = {
   uniqueAlias: string;
 };
 
-// Variant for data-source files
+/**
+ * A data source file in the local file system registered in the app.
+ */
 export type DataSourceLocalFile = LocalFileBase & {
   ext: DataSourceFileExt;
   mimeType: DataSourceMimeType;
@@ -94,7 +106,11 @@ type DataSourceLocalFilePersistence = Omit<DataSourceLocalFile, 'handle'> & {
   handle: FileSystemFileHandle | null;
 };
 
-// Variant for code files
+/**
+ * A code file in the local file system registered in the app.
+ *
+ * NOTE: currently unused, as we do not allow attaching local scripts yet.
+ */
 export type CodeLocalFile = LocalFileBase & {
   ext: CodeFileExt;
   mimeType: CodeMimeType;
@@ -162,16 +178,3 @@ export type LocalFolderPersistence = Omit<LocalFolder, 'handle'> & {
  */
 export type LocalEntry = LocalFile | LocalFolder;
 export type LocalEntryPersistence = LocalFilePersistence | LocalFolderPersistence;
-
-/**
- * Represents the file system related part of the app state.
- */
-export type LocalEntryState = {
-  /**
-   * A mapping of local entry identifiers to their corresponding LocalEntry objects.
-   *
-   * DO NOT READ THIS DIRECTLY.
-   *
-   */
-  _localEntries: Map<LocalEntryId, LocalEntry>;
-};

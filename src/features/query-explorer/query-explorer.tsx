@@ -17,7 +17,7 @@ import {
   useSqlScriptForActiveTab,
   useSqlScriptNameMap,
 } from '@store/init-store';
-import { DataSourceIcon } from '@features/data-source-icon';
+import { ListViewIcon } from '@features/list-view-icon';
 import { SQLScriptId } from '@models/sql-script';
 
 export const QueryExplorer = memo(() => {
@@ -215,7 +215,7 @@ export const QueryExplorer = memo(() => {
         activeItemKey={activeSqlScriptId}
         loading={appLoadState === 'init'}
         onActiveCloseClick={handleDeleteTab}
-        renderIcon={(_) => <DataSourceIcon iconType="sql-script" size={16} />}
+        renderIcon={(_) => <ListViewIcon iconType="code-file" size={16} />}
         renameItemId={pendingRenameItemId}
         isItemRenaming={renaming}
         onItemRename={handleRenameClick}

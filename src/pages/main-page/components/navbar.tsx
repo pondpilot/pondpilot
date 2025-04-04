@@ -1,16 +1,19 @@
 import { DbExplorer } from '@features/db-explorer/db-explorer';
 import { QueryExplorer } from '@features/query-explorer';
-import { ViewExplorer } from '@features/view-explorer';
+import { FileSystemExplorer } from '@features/file-system-explorer';
 import { ActionIcon, Button, Divider, Group, Text } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
 import { IconBrandGithub, IconPlus, IconSettings } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
-import { useUploadFileHandles } from '@hooks/useUploadFileHandles';
 import { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
 import { APP_GITHUB_URL } from 'app-urls';
+import { supportedDataSourceFileExts } from '@models/file-system';
+import { pickFiles } from '@utils/file-system';
+import { useAppNotifications } from '@components/app-notifications';
+import { addLocalFileOrFolders } from '@store/init-store';
 
 /**
  * Displays the navigation bar
@@ -20,8 +23,8 @@ export const Navbar = memo(() => {
    * Common hooks
    */
   const [navbarSizes, setInnerLayoutSizes] = useLocalStorage<number[]>({ key: 'navbar-sizes' });
-  const { handleAddSource } = useUploadFileHandles();
   const navigate = useNavigate();
+  const { showError } = useAppNotifications();
 
   /**
    * Local state
@@ -34,6 +37,17 @@ export const Navbar = memo(() => {
    */
   const handleNavbarLayoutResize = (sizes: number[]) => {
     setInnerLayoutSizes(sizes);
+  };
+
+  const handleAddFile = async () => {
+    const { handles, error } = await pickFiles(supportedDataSourceFileExts, 'Data Sources', true);
+
+    if (error) {
+      showError({ title: 'Failed to add files', message: error });
+      return;
+    }
+
+    addLocalFileOrFolders(handles);
   };
 
   return (
@@ -72,7 +86,7 @@ export const Navbar = memo(() => {
             <Group className="gap-2">
               <Divider orientation="vertical" />
               <ActionIcon
-                onClick={handleAddSource('file', ['.parquet', '.csv', '.json', '.duckdb'])}
+                onClick={handleAddFile}
                 size={16}
                 key="Upload file"
                 data-testid={setDataTestId('add-file-button')}
@@ -83,7 +97,7 @@ export const Navbar = memo(() => {
           </Group>
         </Group>
 
-        {isFiles ? <ViewExplorer /> : <DbExplorer />}
+        {isFiles ? <FileSystemExplorer /> : <DbExplorer />}
       </Allotment.Pane>
 
       <Allotment.Pane preferredSize={navbarSizes?.[1]} minSize={52}>
