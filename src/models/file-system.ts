@@ -1,0 +1,177 @@
+export type LocalEntryId = string & { readonly _: unique symbol };
+export type PersistentHandleId = string & { readonly _: unique symbol };
+
+export type LocalFileType = 'data-source' | 'code-file';
+
+export const dataSourceFileExts = [
+  'csv',
+  'json',
+  'txt',
+  'duckdb',
+  'sqlite',
+  'postgresql',
+  'parquet',
+  'arrow',
+  'xlsx',
+  'url',
+] as const;
+
+export type DataSourceFileExt = (typeof dataSourceFileExts)[number];
+
+export const dataSourceMimeTypes = [
+  'text/csv',
+  'application/json',
+  'text/plain',
+  'application/duckdb',
+  'application/sqlite',
+  'application/postgresql',
+  'application/parquet',
+  'application/arrow',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/x-uri',
+] as const;
+
+export type DataSourceMimeType = (typeof dataSourceMimeTypes)[number];
+
+export const dataSourceExtMap: Record<DataSourceFileExt, DataSourceMimeType> = {
+  csv: 'text/csv',
+  json: 'application/json',
+  txt: 'text/plain',
+  duckdb: 'application/duckdb',
+  sqlite: 'application/sqlite',
+  postgresql: 'application/postgresql',
+  parquet: 'application/parquet',
+  arrow: 'application/arrow',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  url: 'text/x-uri', // remote sources
+};
+
+// ---------- Code Ext files ----------- //
+/**
+ * Only support sql for now
+ */
+export const codeFileExts = ['sql'] as const;
+
+export type CodeFileExt = (typeof codeFileExts)[number];
+
+// ------ Code Mime Types ------ //
+export const codeMimeTypes = ['text/sql'] as const;
+
+export type CodeMimeType = (typeof codeMimeTypes)[number];
+
+export const codeExtMap: Record<CodeFileExt, CodeMimeType> = {
+  sql: 'text/sql',
+};
+
+type LocalFileBase = {
+  // Common fields for both file and directory
+  readonly kind: 'file';
+  id: LocalEntryId;
+  name: string;
+  parentId: LocalEntryId | null;
+
+  /**
+   * true if this entry was explicitly added via file picker.
+   */
+  userAdded: boolean;
+  handle: FileSystemFileHandle;
+
+  // Specific fields for file
+  /**
+   * Globally unique, database compatible (name-wise) alias of the file.
+   */
+  uniqueAlias: string;
+};
+
+// Variant for data-source files
+export type DataSourceLocalFile = LocalFileBase & {
+  ext: DataSourceFileExt;
+  mimeType: DataSourceMimeType;
+  fileType: 'data-source';
+};
+
+type DataSourceLocalFilePersistence = Omit<DataSourceLocalFile, 'handle'> & {
+  handle: FileSystemFileHandle | null;
+};
+
+// Variant for code files
+export type CodeLocalFile = LocalFileBase & {
+  ext: CodeFileExt;
+  mimeType: CodeMimeType;
+  fileType: 'code-file';
+};
+
+type CodeLocalFilePersistence = Omit<CodeLocalFile, 'handle'> & {
+  handle: FileSystemFileHandle | null;
+};
+
+/**
+ * A file in the local file system registered in the app.
+ *
+ * This type is used for entries added directly via file picker, and those
+ * found in added folders recursively.
+ */
+export type LocalFile = DataSourceLocalFile | CodeLocalFile;
+
+/**
+ * Represents the presisted model of the local file.
+ *
+ * We only store handles to entries directly added via file picker,
+ * thus unlike the state model, this one may not have a handle.
+ *
+ * Our iDB interface is responsible for converting the state to and from.
+ */
+export type LocalFilePersistence = DataSourceLocalFilePersistence | CodeLocalFilePersistence;
+
+/**
+ * A folder in the local file system registered in the app.
+ *
+ * This type is used for entries added directly via file picker, and those
+ * found in added folders recursively.
+ */
+export type LocalFolder = {
+  readonly kind: 'directory';
+  id: LocalEntryId;
+  name: string;
+  parentId: LocalEntryId | null;
+
+  /**
+   * true if this entry was explicitly added via file picker.
+   */
+  userAdded: boolean;
+  handle: FileSystemDirectoryHandle;
+};
+
+/**
+ * Represents the presisted model of the local folder.
+ *
+ * We only store handles to entries directly added via file picker,
+ * thus unlike the state model, this one may not have a handle.
+ *
+ * Our iDB interface is responsible for converting the state to and from.
+ */
+export type LocalFolderPersistence = Omit<LocalFolder, 'handle'> & {
+  handle: FileSystemDirectoryHandle | null;
+};
+
+/**
+ * A file or folder in the local file system registered in the app.
+ *
+ * This type is used for entries added directly via file picker, and those
+ * found in added folders recursively.
+ */
+export type LocalEntry = LocalFile | LocalFolder;
+export type LocalEntryPersistence = LocalFilePersistence | LocalFolderPersistence;
+
+/**
+ * Represents the file system related part of the app state.
+ */
+export type LocalEntryState = {
+  /**
+   * A mapping of local entry identifiers to their corresponding LocalEntry objects.
+   *
+   * DO NOT READ THIS DIRECTLY.
+   *
+   */
+  _localEntries: Map<LocalEntryId, LocalEntry>;
+};

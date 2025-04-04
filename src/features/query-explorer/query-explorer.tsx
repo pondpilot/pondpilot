@@ -1,19 +1,10 @@
 import { useAppNotifications } from '@components/app-notifications';
-import { MenuItem, SourcesListView } from '@components/sources-list-view';
+import { MenuItem, SourcesListView, TypedTreeNodeData } from '@components/sources-list-view';
 import { ActionIcon, Divider, Group, Text } from '@mantine/core';
 import { useClipboard, useDisclosure } from '@mantine/hooks';
 import { memo, useState } from 'react';
 import { IconPlus } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import {
-  useDeleteQueryFilesMutation,
-  useRenameQueryFileMutation,
-} from '@store/app-idb-store/useEditorFileQuery';
-import {
-  useAllTabsQuery,
-  useDeleteTabsMutatuion,
-  useUpdateTabMutation,
-} from '@store/app-idb-store';
 
 import {
   createSQLScript,
@@ -23,6 +14,8 @@ import {
   setActiveTabId,
   setPreviewTabId,
   useInitStore,
+  useSqlScriptForActiveTab,
+  useSqlScriptNameMap,
 } from '@store/init-store';
 import { DataSourceIcon } from '@features/data-source-icon';
 import { SQLScriptId } from '@models/sql-script';
@@ -37,41 +30,41 @@ export const QueryExplorer = memo(() => {
   /**
    * Global state
    */
-  const { mutateAsync: updateTab } = useUpdateTabMutation();
-  const { data: tabsList = [] } = useAllTabsQuery();
-  const { mutateAsync: deleteTabs } = useDeleteTabsMutatuion();
-  const { mutateAsync: deleteQueryFile } = useDeleteQueryFilesMutation();
-  const { mutateAsync: onRenameDataSource } = useRenameQueryFileMutation();
-  const activeTabId = useInitStore.use.activeTabId();
+  const activeSqlScriptId = useSqlScriptForActiveTab();
   const appLoadState = useInitStore.use.appLoadState();
 
-  const sqlScripts = useInitStore.use.sqlScripts();
+  const sqlScripts = useSqlScriptNameMap();
 
   /**
    * Local state
    */
+  // TODO: renaming is very inefficient, as we re-render this entire component on each
+  // keystroke. We should probably push the entire menu or make `rename` a feature of
+  // the sources-list-view and handle rename there, only passing the checkNewName callback
   const [renaming, { open: openRename, close: closeRename }] = useDisclosure(false);
-  const [newItemName, setNewName] = useState('');
-  const [itemIdBufferValue, setItemIdBufferValue] = useState<SQLScriptId | null>(null);
+  const [[pendingRenameItemName, pendingRenameItemId], setPendingRename] = useState<
+    [string, SQLScriptId | null]
+  >(['', null]);
 
   /**
    * Consts
    */
-  const sqlScriptList = Array.from(sqlScripts).map(([sqlScriptId, sqlScript]) => ({
-    value: sqlScriptId,
-    label: `${sqlScript.name}.sql`,
-    nodeProps: { canSelect: true },
-  }));
-  const textInputError = newItemName.length === 0 ? 'Name cannot be empty' : undefined;
-  const notUniqueError = sqlScriptList.some((query) => {
-    if (itemIdBufferValue === query.value) return false;
+  const sqlScriptList: TypedTreeNodeData<SQLScriptId>[] = Array.from(sqlScripts).map(
+    ([sqlScriptId, sqlScriptName]) => ({
+      value: sqlScriptId,
+      label: `${sqlScriptName}.sql`,
+      nodeProps: { canSelect: true },
+    }),
+  );
 
-    const name = query.label;
-    return name.toLowerCase() === newItemName.toLowerCase();
-  })
+  // Renaming errors
+  const textInputError = pendingRenameItemName.length === 0 ? 'Name cannot be empty' : undefined;
+  const notUniqueError = Array.from(sqlScripts)
+    .filter(([id, _]) => id !== pendingRenameItemId)
+    .some(([_, name]) => name.toLowerCase() === pendingRenameItemName.toLowerCase())
     ? 'Name must be unique'
     : undefined;
-  const invalidCharactersError = newItemName.match(/[^a-zA-Z0-9()_-]/)
+  const invalidCharactersError = pendingRenameItemName.match(/[^a-zA-Z0-9()_-]/)
     ? 'Name must contain only letters, numbers, underscores, dashes and parentheses'
     : undefined;
 
@@ -112,12 +105,12 @@ export const QueryExplorer = memo(() => {
    * Rename query handlers
    */
   const handleRenameSubmit = async () => {
-    if (itemIdBufferValue) {
+    if (pendingRenameItemId) {
       const updatedSource = await onRenameDataSource({
-        name: newItemName,
-        id: itemIdBufferValue!,
+        name: pendingRenameItemName,
+        id: pendingRenameItemId!,
       });
-      const tab = tabsList.find((t) => t.sourceId === itemIdBufferValue);
+      const tab = tabsList.find((t) => t.sourceId === pendingRenameItemId);
       if (tab) {
         await updateTab({
           id: tab.id,
@@ -129,19 +122,17 @@ export const QueryExplorer = memo(() => {
   };
 
   const handleRenameCancel = () => {
-    setNewName('');
-    setItemIdBufferValue(null);
+    setPendingRename(['', null]);
     closeRename();
   };
 
   const onRenameModalInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setNewName(event.currentTarget.value);
+    setPendingRename([event.currentTarget.value, pendingRenameItemId]);
   };
 
   const handleRenameClick = (id: SQLScriptId) => {
-    const queryToChange = sqlScriptList.find((sqlScript) => sqlScript.value === id)!.label;
-    setNewName(queryToChange || 'query');
-    setItemIdBufferValue(id);
+    const scriptName = sqlScripts.get(id)!;
+    setPendingRename([scriptName, id]);
     openRename();
   };
 
@@ -221,15 +212,15 @@ export const QueryExplorer = memo(() => {
         list={sqlScriptList}
         menuItems={menuItems}
         onItemClick={handleScriptSelect}
-        activeItemKey={activeTabId}
+        activeItemKey={activeSqlScriptId}
         loading={appLoadState === 'init'}
         onActiveCloseClick={handleDeleteTab}
-        renderIcon={() => <DataSourceIcon iconType="sql-script" size={16} />}
-        renameItemId={itemIdBufferValue}
+        renderIcon={(_) => <DataSourceIcon iconType="sql-script" size={16} />}
+        renameItemId={pendingRenameItemId}
         isItemRenaming={renaming}
         onItemRename={handleRenameClick}
         onRenameChange={onRenameModalInputChange}
-        renameValue={newItemName}
+        renameValue={pendingRenameItemName}
         onRenameClose={handleRenameCancel}
         onRenameSubmit={handleRenameSubmit}
         renameInputError={renameInputError}

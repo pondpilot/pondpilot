@@ -8,6 +8,7 @@ import { IDBPDatabase } from 'idb';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ContentViewState } from '@models/content-view';
 import { DataSourceIconType, DataSourceId } from '@models/data-source';
+import { LocalEntryState } from '@models/file-system';
 import { CONTENT_VIEW_TABLE_NAME, SQL_SCRIPT_TABLE_NAME, TAB_TABLE_NAME } from './persist/const';
 import { createSelectors } from './utils';
 import { AppIdbSchema } from './persist/model';
@@ -17,26 +18,31 @@ type AppLoadState = 'init' | 'ready' | 'error';
 
 type AppStore = {
   /**
-   * The current state of the app, indicating whether it is loading, ready, or has encountered an error.
-   */
-  appLoadState: AppLoadState;
-  /**
    * Connection to the IndexedDB database. May be null if we had an error
    * while opening the database.
    *
+   * This is a private property and should not be accessed directly.
+   *
    * Used to persist the app state when connection is available.
    */
-  iDbConn: IDBPDatabase<AppIdbSchema> | null;
+  _iDbConn: IDBPDatabase<AppIdbSchema> | null;
+
+  /**
+   * The current state of the app, indicating whether it is loading, ready, or has encountered an error.
+   */
+  appLoadState: AppLoadState;
 
   /**
    * A mapping of SQL script identifiers to their corresponding SQLScript objects.
    */
   sqlScripts: Map<SQLScriptId, SQLScript>;
-} & ContentViewState;
+} & ContentViewState &
+  LocalEntryState;
 
 const initialState: AppStore = {
+  _iDbConn: null,
+  _localEntries: new Map(),
   appLoadState: 'init',
-  iDbConn: null,
   sqlScripts: new Map(),
   activeTabId: null,
   previewTabId: null,
@@ -91,7 +97,7 @@ export const setAppLoadState = (appState: AppLoadState) => {
 };
 
 export const setIDbConn = (iDbConn: IDBPDatabase<AppIdbSchema>) => {
-  useInitStore.setState({ iDbConn }, undefined, 'AppStore/setIDbConn');
+  useInitStore.setState({ _iDbConn: iDbConn }, undefined, 'AppStore/setIDbConn');
 };
 
 export const createSQLScript = (name: string = 'query', content: string = ''): SQLScript => {
@@ -116,7 +122,7 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
   );
 
   // Persist the new SQL script to IndexedDB
-  const iDb = useInitStore.getState().iDbConn;
+  const iDb = useInitStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(SQL_SCRIPT_TABLE_NAME, sqlScript, sqlScriptId);
   }
@@ -127,7 +133,7 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
 export const setTabOrder = (tabOrder: TabId[]) => {
   useInitStore.setState({ tabOrder }, undefined, 'AppStore/setTabOrder');
 
-  const iDb = useInitStore.getState().iDbConn;
+  const iDb = useInitStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(CONTENT_VIEW_TABLE_NAME, tabOrder, 'tabOrder');
   }
@@ -146,7 +152,7 @@ export const setActiveTabId = (tabId: TabId | null) => {
 
   useInitStore.setState({ activeTabId: tabId }, undefined, 'AppStore/setActiveTabId');
 
-  const iDb = useInitStore.getState().iDbConn;
+  const iDb = useInitStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(CONTENT_VIEW_TABLE_NAME, tabId, 'activeTabId');
   }
@@ -169,7 +175,7 @@ export const setActiveTabId = (tabId: TabId | null) => {
  * @param tabId - The id of the tab to set as preview or null to reset.
  */
 export const setPreviewTabId = (tabId: TabId | null) => {
-  const { tabs, tabOrder, activeTabId, previewTabId, iDbConn } = useInitStore.getState();
+  const { tabs, tabOrder, activeTabId, previewTabId, _iDbConn: iDbConn } = useInitStore.getState();
 
   // Check we have stuff to do
   if (previewTabId === tabId) return;
@@ -329,7 +335,7 @@ export const createTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): Tab
   );
 
   // Persist the new tab to IndexedDB
-  const iDb = state.iDbConn;
+  const iDb = state._iDbConn;
   if (iDb) {
     persistCreateTab(iDb, tab, newTabOrder);
   }
@@ -389,7 +395,7 @@ const deleteTabImpl = (
 };
 
 export const deleteTab = (tabId: TabId) => {
-  const { tabs, tabOrder, activeTabId, previewTabId, iDbConn } = useInitStore.getState();
+  const { tabs, tabOrder, activeTabId, previewTabId, _iDbConn: iDbConn } = useInitStore.getState();
   const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl(
     tabId,
     tabs,
@@ -416,7 +422,7 @@ export const deleteTab = (tabId: TabId) => {
 };
 
 export const resetAppState = async () => {
-  const { iDbConn, appLoadState } = useInitStore.getState();
+  const { _iDbConn: iDbConn, appLoadState } = useInitStore.getState();
 
   // Drop all table data first
   if (iDbConn) {
@@ -425,7 +431,7 @@ export const resetAppState = async () => {
 
   // Reset the store to its initial state except for the iDbConn and appLoadState
   useInitStore.setState(
-    { ...initialState, iDbConn, appLoadState },
+    { ...initialState, _iDbConn: iDbConn, appLoadState },
     undefined,
     'AppStore/resetAppState',
   );
