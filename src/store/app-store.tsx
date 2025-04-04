@@ -23,6 +23,7 @@ interface AppStateModel {
 
   views: string[];
   sessionFiles: SessionFiles | null;
+  registeredFileHandleContent: Record<string, File>;
 
   queries: CodeEditor[];
   tabs: TabModel[];
@@ -47,6 +48,8 @@ interface AppStateModel {
   setCachedResults: (key: string, value: Table | null) => void;
   setCachedPagination: (key: string, value: CachedPaginationValue | null) => void;
   setSessionFiles: (v: SessionFiles | null) => void;
+  setBatchRegisteredFileHandleContent: (updates: Record<string, File>) => void;
+  removeBatchRegisteredFileHandleContent: (keys: string[]) => void;
 }
 
 export const useAppStore = create<AppStateModel>()((set) => ({
@@ -54,6 +57,7 @@ export const useAppStore = create<AppStateModel>()((set) => ({
   databases: [],
   queries: [],
   sessionFiles: null,
+  registeredFileHandleContent: {},
 
   tabs: [],
   cachedResults: {},
@@ -93,4 +97,27 @@ export const useAppStore = create<AppStateModel>()((set) => ({
         [key]: value,
       },
     })),
+  setBatchRegisteredFileHandleContent: (updates) =>
+    set((state) => {
+      if (Object.keys(updates).length === 0) {
+        return { registeredFileHandleContent: state.registeredFileHandleContent };
+      }
+      return {
+        registeredFileHandleContent: {
+          ...state.registeredFileHandleContent,
+          ...updates,
+        },
+      };
+    }),
+  removeBatchRegisteredFileHandleContent: (keys) =>
+    set((state) => {
+      if (keys.length === 0) {
+        return { registeredFileHandleContent: state.registeredFileHandleContent };
+      }
+      const newContent = { ...state.registeredFileHandleContent };
+      keys.forEach((key) => {
+        delete newContent[key];
+      });
+      return { registeredFileHandleContent: newContent };
+    }),
 }));

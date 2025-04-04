@@ -267,3 +267,24 @@ export const buildColumnsQueryWithFilters = (
     ORDER BY database_name, schema_name, table_name, column_index;
   `;
 };
+
+export type FileReadabilityStatus = 'readable' | 'notFound' | 'notReadable';
+
+export const checkFileReadability = async (
+  file: File | FileSystemFileHandle,
+): Promise<FileReadabilityStatus> => {
+  try {
+    const f = file instanceof File ? file : await file.getFile();
+    // Cheapest and shortest way to check if the file is readable is to slice the first byte
+    await f.slice(0, 1).arrayBuffer();
+    return 'readable';
+  } catch (error: any) {
+    if (error.name === 'NotFoundError') {
+      return 'notFound';
+    }
+    if (error.name === 'NotReadableError') {
+      return 'notReadable';
+    }
+  }
+  return 'notReadable';
+};
