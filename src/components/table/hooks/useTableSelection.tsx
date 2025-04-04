@@ -2,7 +2,7 @@ import { Cell, CellContext, Table } from '@tanstack/react-table';
 import { useCallback, useState } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { useDidUpdate } from '@mantine/hooks';
-import { CalculateColumnSummaryProps } from '@features/data-viewer/hooks';
+import { CalculateColumnSummaryProps } from '@features/tab-view/hooks';
 import { ResultColumn } from '@utils/arrow/helpers';
 import { dynamicTypeViewer } from '../utils';
 
@@ -13,6 +13,7 @@ interface SelectedCell {
 
 interface UseTableSelectionProps {
   columns: ResultColumn[];
+  canCopy: boolean;
   onRowSelectChange: () => void;
   onCellSelectChange: () => void;
   onColumnSelectChange: ({ columnName, dataType }: CalculateColumnSummaryProps) => void;
@@ -23,6 +24,7 @@ export const useTableSelection = ({
   onColumnSelectChange,
   onRowSelectChange,
   onCellSelectChange,
+  canCopy,
 }: UseTableSelectionProps) => {
   const { showSuccess } = useAppNotifications();
   const [lastSelectedRow, setLastSelectedRow] = useState<string>('0');

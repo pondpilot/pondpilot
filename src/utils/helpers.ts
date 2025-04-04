@@ -1,8 +1,4 @@
-import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
 import { CodeSource, Dataset } from '@models/common';
-import { openDB } from 'idb';
-
-import JSZip from 'jszip';
 
 export const formatNumber = (value: number): string => {
   if (Number.isNaN(value as number)) return '';
@@ -53,25 +49,31 @@ export function getSupportedMimeType(
   }
 }
 
-export const findUniqueName = async (
-  name: string,
-  checkIfExists: (name: string) => Promise<boolean>,
-) => {
-  let counter = 0;
-  const paths = name.split('.');
-  const ext = paths.pop();
-  const path = paths.join('.');
+/**
+ * Helper to find a unique name. Takes a base name and appends a counter to it until a unique name is found.
+ *
+ * @param {string} name - The base name to check.
+ * @param {function} checkIfExists - A function that checks if a name exists.
+ * @returns {string} - A unique name.
+ * @throws {Error} - Throws an error if too many files with the same name are found.
+ */
+export const findUniqueName = (name: string, checkIfExists: (name: string) => boolean): string => {
+  if (!checkIfExists(name)) return name;
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const currentName = `${path}${counter > 0 ? `_${counter}` : ''}.${ext}`;
-    const exists = await checkIfExists(currentName);
+  let counter = 1;
+  let uniqueName = `${name}_${counter}`;
 
-    if (!exists) break;
+  while (checkIfExists(uniqueName)) {
+    uniqueName = `${name}_${counter}`;
     counter += 1;
+
+    // Prevent infinite loop
+    if (counter > 10000) {
+      throw new Error('Too many files with the same name');
+    }
   }
 
-  return `${path}${counter > 0 ? `_${counter}` : ''}.${ext}`;
+  return uniqueName;
 };
 
 /**
@@ -81,62 +83,6 @@ export const getSessionDirectory = async (sessionDirId = 'main') => {
   const root = await navigator.storage.getDirectory();
   const dir = await root.getDirectoryHandle(sessionDirId, { create: true });
   return dir;
-};
-
-/**
- * Exports all application files into a ZIP archive:
- * - `queries/` directory: `.sql` files from `navigator.storage`
- * - `databases/` directory: `.duckdb` files from IndexedDB
- * - `files/` directory: non-`.duckdb` files from IndexedDB
- */
-export const exportApplicationFiles = async (): Promise<Blob | null> => {
-  try {
-    const zip = new JSZip();
-
-    // Export queries (.sql files) from `navigator.storage`
-    const queriesFolder = zip.folder('queries');
-    const directory = await getSessionDirectory();
-    const entries = directory.entries();
-    for await (const [fileName, handle] of entries) {
-      if (handle.kind === 'file' && fileName.endsWith('.sql')) {
-        const file = await handle.getFile();
-        const content = await file.text();
-        queriesFolder?.file(fileName, content);
-      }
-    }
-
-    // Open IndexedDB to access file handles
-    const db = await openDB(FILE_HANDLE_DB_NAME, 1);
-    const fileHandles: FileSystemFileHandle[] = await db.getAll(FILE_HANDLE_STORE_NAME);
-
-    // Export databases (.duckdb) from IndexedDB to `databases/`
-    const databasesFolder = zip.folder('databases');
-    for (const handle of fileHandles) {
-      if (handle.name.endsWith('.duckdb')) {
-        const file = await handle.getFile();
-        const content = await file.arrayBuffer();
-        databasesFolder?.file(handle.name, content);
-      }
-    }
-
-    // Export other files (non-`.duckdb`) from IndexedDB to `files/`
-    const filesFolder = zip.folder('files');
-    for (const handle of fileHandles) {
-      if (!handle.name.endsWith('.duckdb')) {
-        const file = await handle.getFile();
-        const content = await file.arrayBuffer();
-        filesFolder?.file(handle.name, content);
-      }
-    }
-
-    // Generate ZIP archive as a Blob
-    const archiveBlob = await zip.generateAsync({ type: 'blob' });
-    return archiveBlob;
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Error while exporting application files: ', error);
-    return null;
-  }
 };
 
 export const replaceSpecialChars = (str: string): string =>

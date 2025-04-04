@@ -1,89 +1,17 @@
-export const datasetFileExts = [
-  'csv',
-  'json',
-  'txt',
-  'duckdb',
-  'sqlite',
-  'postgresql',
-  'parquet',
-  'arrow',
-  'xlsx',
-  'url',
-] as const;
-
-export type DatasetFileExt = (typeof datasetFileExts)[number];
-
-export function isDatasetFileExt(x: unknown): x is DatasetFileExt {
-  return datasetFileExts.includes(x as DatasetFileExt);
-}
-
-export const datasetMimeTypes = [
-  'text/csv',
-  'application/json',
-  'text/plain',
-  'application/duckdb',
-  'application/sqlite',
-  'application/postgresql',
-  'application/parquet',
-  'application/arrow',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'text/x-uri',
-];
-
-export type DatasetMimeType = (typeof datasetMimeTypes)[number];
-
-export function isDatasetMimeType(x: unknown): x is DatasetMimeType {
-  return datasetMimeTypes.includes(x as DatasetMimeType);
-}
-
-export const datasetExtMap: Record<DatasetFileExt, DatasetMimeType> = {
-  csv: 'text/csv',
-  json: 'application/json',
-  txt: 'text/plain',
-  duckdb: 'application/duckdb',
-  sqlite: 'application/sqlite',
-  postgresql: 'application/postgresql',
-  parquet: 'application/parquet',
-  arrow: 'application/arrow',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  url: 'text/x-uri', // remote sources
-};
+import { CodeFileExt, CodeMimeType, DataSourceFileExt, DataSourceMimeType } from './file-system';
 
 export type Dataset = {
   kind: 'DATASET';
-  mimeType: DatasetMimeType;
-  ext: DatasetFileExt;
+  mimeType: DataSourceMimeType;
+  ext: DataSourceFileExt;
   handle: FileSystemFileHandle;
   path: string;
   name: string;
-};
-
-// ---------- Code Ext files ----------- //
-/**
- * Only support sql for now
- */
-export const codeFileExts = ['sql'] as const;
-
-type CodeFileExt = (typeof codeFileExts)[number];
-
-export function isCodeFileExt(x: unknown): x is CodeFileExt {
-  return codeFileExts.includes(x as CodeFileExt);
-}
-
-// ------ Code Mime Types ------ //
-export const codeMimeTypes = ['text/sql'] as const;
-
-type CodeMimeType = (typeof codeMimeTypes)[number];
-
-export function isCodeMimeType(mimeType: unknown): mimeType is CodeMimeType {
-  return codeMimeTypes.includes(mimeType as CodeMimeType);
-}
-
-export const codeExtMap: Record<CodeFileExt, CodeMimeType> = {
-  sql: 'text/sql',
+  id: string;
 };
 
 export type CodeSource = {
+  id?: string;
   kind: 'CODE';
   mimeType: CodeMimeType;
   ext: CodeFileExt;
@@ -115,16 +43,6 @@ type DataSource = {
 
 export type AddDataSourceProps = DataSource[];
 
-export type SaveEditorProps = {
-  content: string;
-  path: string;
-};
-
-export type SaveEditorResponse = SaveEditorProps & {
-  handle: FileSystemFileHandle | undefined;
-  error: Error | null;
-};
-
 interface TableModel {
   name: string;
   columns: {
@@ -144,3 +62,34 @@ export interface DataBaseModel {
 }
 
 export type Limit = 100 | 1000 | 10000;
+
+export type TabType = 'query' | 'file';
+export type LoadingState = 'fetching' | 'error' | 'success' | 'pending';
+export type SortOrder = 'asc' | 'desc' | null;
+
+export interface Pagination {
+  page: number;
+}
+
+export interface TableSort {
+  column: string;
+  order: SortOrder;
+}
+
+export interface DuckDBView {
+  database_name: string;
+  schema_name: string;
+  view_name: string;
+  sql: string;
+  sourceId: string;
+  comment: string;
+}
+
+export interface DuckDBDatabase {
+  database_name: string;
+  path: string;
+  comment: string;
+  internal: boolean;
+  type: string;
+  readonly: string;
+}

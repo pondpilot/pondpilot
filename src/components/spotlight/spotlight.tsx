@@ -18,15 +18,21 @@ import {
   IconJson,
   IconTable,
 } from '@tabler/icons-react';
-import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
+import { useUploadFileHandles } from '@hooks/useUploadFileHandles';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@store/app-store';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { cn } from '@utils/ui/styles';
 import { useModifier } from '@hooks/useModifier';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useEditorStore } from '@store/editor-store';
 import { setDataTestId } from '@utils/test-id';
+import {
+  useCreateQueryFileMutation,
+  useFileHandlesQuery,
+  useQueryFilesQuery,
+} from '@store/app-idb-store';
+import { useImportSQLFiles } from '@store/hooks';
+import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from 'app-urls';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
@@ -44,37 +50,27 @@ export const SpotlightMenu = () => {
   /**
    * Common hooks
    */
-  const { onCreateQueryFile, importSQLFiles, onOpenQuery, onTabSwitch, onOpenView, onSaveEditor } =
-    useAppContext();
-  const { handleAddSource } = useFileHandlers();
-  const { command, option } = useModifier();
+
   const navigate = useNavigate();
   const location = useLocation();
+  const { importSQLFiles } = useImportSQLFiles();
+  const { handleAddSource } = useUploadFileHandles();
+  const { command, option } = useModifier();
+  const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
+  const { data: queries = [] } = useQueryFilesQuery();
+  const { data: sessionFiles = [] } = useFileHandlesQuery();
+  const { openTab } = useAppContext();
 
   /**
    * Store access
    */
-  const queries = useAppStore((state) => state.queries);
   const views = useAppStore((state) => state.views);
-  const sessionFiles = useAppStore((state) => state.sessionFiles);
-  const activeTab = useAppStore((state) => state.activeTab);
-
-  const editorValue = useEditorStore((state) => state.editorValue);
-  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
-
   /**
    * Local state
    */
   const [searchValue, setSearchValue] = useState('');
   const [spotlightView, setSpotlightView] = useState<SpotlightView>('home');
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  const saveCurrentQuery = async () => {
-    if (activeTab?.mode === 'query') {
-      await onSaveEditor({ content: editorValue, path: activeTab.path });
-      setLastQueryDirty(false);
-    }
-  };
 
   const resetSpotlight = () => {
     setSpotlightView('home');
@@ -88,7 +84,7 @@ export const SpotlightMenu = () => {
         size: 20,
         className: iconClasses,
       };
-      const fileExt = sessionFiles?.sources.find((f) => f.name === id)?.ext as string;
+      const fileExt = sessionFiles.find((f) => f.name === id)?.ext as string;
 
       const iconsMap = {
         csv: <IconCsv {...iconProps} />,
@@ -131,32 +127,22 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const viewActions: Action[] = views.map((view) => ({
-    id: view,
-    label: view,
-    icon: getIcon(view),
+  const viewActions: Action[] = views.map(({ view_name, sourceId }) => ({
+    id: view_name,
+    label: view_name,
+    icon: getIcon(view_name),
     handler: () => {
-      onOpenView(view);
-      onTabSwitch({
-        path: view,
-        mode: 'view',
-        stable: true,
-      });
+      openTab(sourceId, 'file');
       Spotlight.close();
     },
   }));
 
   const mappedQueries = queries.map((query) => ({
-    id: query.path,
-    label: query.path || '',
+    id: query.id,
+    label: `${query.name}.${query.name}`,
     icon: <IconCode size={20} className={iconClasses} />,
     handler: () => {
-      onOpenQuery(query.path);
-      onTabSwitch({
-        path: query.handle.name,
-        mode: 'query',
-        stable: true,
-      });
+      openTab(query.id, 'query');
       Spotlight.close();
       ensureHome();
     },
@@ -205,10 +191,13 @@ export const SpotlightMenu = () => {
       icon: <IconPlus size={20} className={iconClasses} />,
       hotkey: [option, 'N'],
       handler: async () => {
-        await saveCurrentQuery();
-        onCreateQueryFile({ entities: [{ name: 'query' }] });
-        resetSpotlight();
-        ensureHome();
+        const queryFile = await createQueryFile({ name: 'query' });
+
+        if (queryFile) {
+          openTab(queryFile.id, 'query');
+          resetSpotlight();
+          ensureHome();
+        }
       },
     },
     {
@@ -217,7 +206,6 @@ export const SpotlightMenu = () => {
       icon: <IconFileImport size={20} className={iconClasses} />,
       hotkey: [<IconChevronUp size={20} />, 'I'],
       handler: async () => {
-        await saveCurrentQuery();
         importSQLFiles();
         resetSpotlight();
         ensureHome();
@@ -231,11 +219,7 @@ export const SpotlightMenu = () => {
       label: 'Documentation',
       icon: <IconBooks size={20} className={iconClasses} />,
       handler: () => {
-        window.open(
-          'https://github.com/pondpilot/pondpilot/blob/main/README.md',
-          '_blank',
-          'noopener,noreferrer',
-        );
+        window.open(APP_DOCS_URL, '_blank', 'noopener,noreferrer');
       },
     },
     {
@@ -243,11 +227,7 @@ export const SpotlightMenu = () => {
       label: 'Report an Issue',
       icon: <IconFileSad size={20} className={iconClasses} />,
       handler: () => {
-        window.open(
-          'https://github.com/pondpilot/pondpilot/issues',
-          '_blank',
-          'noopener,noreferrer',
-        );
+        window.open(APP_OPEN_ISSUES_URL, '_blank', 'noopener,noreferrer');
       },
     },
     {
@@ -271,7 +251,7 @@ export const SpotlightMenu = () => {
         label: `Create "${name}" query`,
         icon: <IconPlus size={20} className={iconClasses} />,
         handler: () => {
-          onCreateQueryFile({ entities: [{ name }] });
+          createQueryFile({ name: 'query' });
           Spotlight.close();
         },
       });
@@ -368,7 +348,7 @@ export const SpotlightMenu = () => {
               ) : (
                 <Spotlight.Action
                   onClick={() => {
-                    onCreateQueryFile({ entities: [{ name: searchValue }] });
+                    createQueryFile({ name: 'query' });
                     resetSpotlight();
                   }}
                 >
