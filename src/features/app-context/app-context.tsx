@@ -10,7 +10,7 @@ import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { createName } from '@utils/helpers';
-import { AddDataSourceProps, SaveEditorProps } from '@models/common';
+import { AddDataSourceProps, Dataset, SaveEditorProps } from '@models/common';
 import { FILE_HANDLE_DB_NAME, FILE_HANDLE_STORE_NAME } from '@consts/idb';
 import {
   AddTabProps,
@@ -23,7 +23,7 @@ import {
   TabModel,
 } from './models';
 import { useShowPermsAlert, useWorkersRefs } from './hooks';
-import { executeQueries, updateDatabasesWithColumns } from './utils';
+import { checkFileReadability, executeQueries, updateDatabasesWithColumns } from './utils';
 import { SessionWorker } from './app-session-worker';
 import { ErrorModal } from './components/error-modal';
 
@@ -84,6 +84,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const setCachedResults = useAppStore((state) => state.setCachedResults);
   const setDatabases = useAppStore((state) => state.setDatabases);
   const setSessionFiles = useAppStore((state) => state.setSessionFiles);
+  const setBatchRegisteredFileHandleContent = useAppStore(
+    (state) => state.setBatchRegisteredFileHandleContent,
+  );
+  const removeBatchRegisteredFileHandleContent = useAppStore(
+    (state) => state.removeBatchRegisteredFileHandleContent,
+  );
+  const registeredFileHandleContent = useAppStore((state) => state.registeredFileHandleContent);
 
   const setCachedPagination = useAppStore((state) => state.setCachedPagination);
   const queries = useAppStore((state) => state.queries);
@@ -250,19 +257,29 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         entries: onlyNewEntries,
       });
 
+      const fileHandleNameToContent: Record<string, File> = {};
+
       await Promise.all(
-        sources.map((source) =>
-          dbProxyRef.current
-            ?.registerFileHandleAndCreateDBInstance(source.handle.name, source.handle)
-            .catch((e) => {
-              console.error('Failed to register file handle in the database', e, { source });
-              proxyRef.current?.onDeleteDataSource({
-                paths: [source.path],
-                type: 'dataset',
-              });
-            }),
-        ),
+        sources.map(async (source) => {
+          try {
+            const fileContent = await dbProxyRef.current?.registerFileHandleAndCreateDBInstance(
+              source.handle.name,
+              source.handle,
+            );
+            if (fileContent) {
+              fileHandleNameToContent[source.handle.name] = fileContent;
+            }
+          } catch (e) {
+            console.error('Failed to register file handle in the database', e, { source });
+            proxyRef.current?.onDeleteDataSource({
+              paths: [source.path],
+              type: 'dataset',
+            });
+          }
+        }),
       );
+
+      setBatchRegisteredFileHandleContent(fileHandleNameToContent);
 
       const sessionFiles = await proxyRef.current.getFileSystemSources().catch((e) => {
         showError({ title: 'App context: Failed to get session files', message: e.message });
@@ -336,6 +353,74 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const syncFiles = async (filterFileHandleNames: string[]) => {
+    const currentSources = await proxyRef.current?.getFileSystemSources();
+    if (!currentSources) return;
+
+    const handleNamesToRemove: string[] = [];
+    const fileHandleNameToContent: Record<string, File> = {};
+
+    let filesToCheck = currentSources.sources ?? [];
+    if (filterFileHandleNames.length > 0) {
+      filesToCheck = filesToCheck.filter((file) =>
+        filterFileHandleNames.some(
+          (name) =>
+            name === (name.includes('.') ? file.handle.name : file.handle.name.split('.')[0]),
+        ),
+      );
+    }
+
+    await Promise.all(
+      filesToCheck.map(async (source) => {
+        if (!dbProxyRef.current) return;
+
+        const snapshotFile = registeredFileHandleContent[source.handle.name];
+        const checkSnapshotFile = snapshotFile
+          ? await checkFileReadability(snapshotFile)
+          : undefined;
+
+        if (checkSnapshotFile === 'readable') return;
+        const checkCurrentFile = await checkFileReadability(source.handle);
+
+        if (checkCurrentFile === 'readable') {
+          // File content was changed
+          // Try to register it again
+          try {
+            const currentFile = await dbProxyRef.current.registerFileHandleAndCreateDBInstance(
+              source.handle.name,
+              source.handle,
+            );
+            fileHandleNameToContent[source.handle.name] = currentFile;
+          } catch (e) {
+            console.error('Failed to register file handle in the database', e, { sf: source });
+            handleNamesToRemove.push(source.handle.name);
+            proxyRef.current?.onDeleteDataSource({
+              paths: [source.path],
+              type: 'dataset',
+            });
+          }
+        } else {
+          // File was deleted/moved or read permission was revoked
+          // TODO: full sync with whole state
+          // For now, just delete from session files and idb
+          handleNamesToRemove.push(source.handle.name);
+          proxyRef.current?.onDeleteDataSource({
+            paths: [source.path],
+            type: 'dataset',
+          });
+        }
+      }),
+    );
+
+    removeBatchRegisteredFileHandleContent(handleNamesToRemove);
+    setBatchRegisteredFileHandleContent(fileHandleNameToContent);
+
+    if (handleNamesToRemove.length > 0) {
+      const updFiles = await proxyRef.current?.getFileSystemSources();
+      if (updFiles) setSessionFiles(updFiles);
+    }
+  };
+
   const executeQuery = async (query: string) => {
     if (!dbProxyRef.current) return;
 
@@ -350,6 +435,8 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
    */
   const runQuery = async (
     runQueryProps: DBRunQueryProps,
+    viewName?: string,
+    syncFilesAndRerunOnReadFailure: boolean = true,
   ): Promise<RunQueryResponse | undefined> => {
     try {
       // Ensure necessary proxies are initialized
@@ -435,6 +522,13 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       if (e.name === 'AbortError') {
         console.warn('Query execution was cancelled by the user.');
         return;
+      }
+
+      if (e.message?.includes('NotReadableError')) {
+        if (syncFilesAndRerunOnReadFailure) {
+          await syncFiles(viewName ? [viewName] : []);
+          return await runQuery(runQueryProps, viewName, false);
+        }
       }
 
       console.error('Failed to run query: ', e);
@@ -549,7 +643,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
       resetPagination();
 
       if (query) {
-        const result = await runQuery({ query });
+        const result = await runQuery({ query }, viewName);
 
         if (result) {
           setCachedResults(viewName, tableFromIPC(result.data));
@@ -801,29 +895,25 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         /**
          * It is necessary to check if the file is available for reading. Application can't work with files that are not available (deleted, moved, renamed, etc.)
          */
-        const checkedFiles = await Promise.all(
+        const availableSources: Dataset[] = [];
+        const unavailableSources: Dataset[] = [];
+        await Promise.all(
           sessionFiles.sources.map(async (source) => {
-            try {
-              await source.handle.getFile();
-              return {
-                status: 'success',
-                source,
-              };
-            } catch (e) {
-              return {
-                status: 'error',
-                source,
-              };
+            const status = await checkFileReadability(source.handle);
+            if (status === 'readable') {
+              availableSources.push(source);
+            } else {
+              unavailableSources.push(source);
             }
           }),
         );
 
-        const availableFiles = checkedFiles.filter((file) => file.status === 'success');
-        const unavailableFiles = checkedFiles.filter((file) => file.status === 'error');
+        // Keep only available sources
+        sessionFiles.sources = availableSources;
 
-        if (unavailableFiles.length) {
+        if (unavailableSources.length) {
           await proxyRef.current?.onDeleteDataSource({
-            paths: unavailableFiles.map((file) => file.source.path),
+            paths: unavailableSources.map((file) => file.path),
             type: 'dataset',
           });
           showWarning({
@@ -833,31 +923,34 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           });
         }
 
+        const fileHandleNameToContent: Record<string, File> = {};
+
         await Promise.all(
-          sessionFiles.sources
-            .filter((source) =>
-              availableFiles.some(
-                (file) => file.source.path === source.path && file.status === 'success',
-              ),
-            )
-            .map(async (source) =>
-              dbProxy
-                .registerFileHandleAndCreateDBInstance(source.handle.name, source.handle)
-                .catch((e) => {
-                  proxyRef.current?.onDeleteDataSource({
-                    paths: [source.path],
-                    type: 'dataset',
-                  });
-                  showError({
-                    title: 'App context: Error registering file handle in the database',
-                    message: e.message,
-                  });
-                }),
-            ),
+          sessionFiles.sources.map(async (source) => {
+            try {
+              const fileContent = await dbProxy.registerFileHandleAndCreateDBInstance(
+                source.handle.name,
+                source.handle,
+              );
+              fileHandleNameToContent[source.handle.name] = fileContent;
+            } catch (e: any) {
+              console.error('Failed to register file handle in the database', e, { source });
+              proxyRef.current?.onDeleteDataSource({
+                paths: [source.path],
+                type: 'dataset',
+              });
+              showError({
+                title: 'App context: Error registering file handle in the database',
+                message: e.message,
+              });
+            }
+          }),
         ).catch((e) => {
           console.error(e);
           showError({ title: 'App context: Failed to register file handle', message: e.message });
         });
+
+        setBatchRegisteredFileHandleContent(fileHandleNameToContent);
       }
 
       /**

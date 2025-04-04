@@ -107,11 +107,12 @@ async function getTablesAndColumns(database_name?: string, schema_name?: string)
  *
  * @param fileName - Name of the file
  * @param handle - File handle
+ * @returns Registered file content
  */
 async function registerFileHandleAndCreateDBInstance(
   fileName: string,
   handle: FileSystemFileHandle,
-) {
+): Promise<File> {
   const conn = await db?.connect();
   const formatSupported = ['.csv', '.parquet', '.duckdb', '.json', '.xlsx'].some((ext) =>
     fileName.endsWith(ext),
@@ -142,6 +143,8 @@ async function registerFileHandleAndCreateDBInstance(
   }
 
   await conn.close();
+
+  return file;
 }
 
 /**
