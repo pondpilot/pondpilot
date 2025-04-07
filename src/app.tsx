@@ -1,6 +1,7 @@
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import '@mantine/spotlight/styles.css';
+import '@mantine/tiptap/styles.css';
 import 'allotment/dist/style.css';
 
 import './index.css';
@@ -14,6 +15,10 @@ import { AppStatus } from '@features/app-status';
 import { BrowserNotSupported } from '@components/browser-not-supported';
 import { useAppStore } from '@store/app-store';
 import { useEffect } from 'react';
+import { ModalsProvider } from '@mantine/modals';
+import { OnboardingModal } from '@components/onboarding-modal';
+import { WhatsNewModal } from '@components/whats-new-modal';
+import { StartModal } from '@features/start-modal';
 import { Router } from './router/router';
 
 const isFileAccessApiSupported = 'showDirectoryPicker' in window && 'showOpenFilePicker' in window;
@@ -29,16 +34,24 @@ export default function App() {
 
   return (
     <MantineProvider theme={theme}>
-      <Notifications />
-      <AppStatus />
-
-      {isFileAccessApiSupported ? (
-        <AppProvider>
-          <Router />
-        </AppProvider>
-      ) : (
-        <BrowserNotSupported />
-      )}
+      {/* // TODO: Set all modals here  */}
+      <ModalsProvider
+        modals={{
+          onboarding: OnboardingModal,
+          whatsNew: WhatsNewModal,
+        }}
+      >
+        <Notifications />
+        <AppStatus />
+        <StartModal />
+        {isFileAccessApiSupported ? (
+          <AppProvider>
+            <Router />
+          </AppProvider>
+        ) : (
+          <BrowserNotSupported />
+        )}
+      </ModalsProvider>
     </MantineProvider>
   );
 }
