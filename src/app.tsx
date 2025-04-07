@@ -17,6 +17,8 @@ import { AppContextProvider } from '@features/app-context';
 import { useLocalStorage } from '@mantine/hooks';
 import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { Router } from './router/router';
+import { OnboardingModal } from '@components/onboarding-modal';
+import { WhatsNewModal } from '@components/whats-new-modal';
 
 export default function App() {
   const [connectionPoolSize] = useLocalStorage({
@@ -25,7 +27,12 @@ export default function App() {
   });
   return (
     <MantineProvider theme={theme}>
-      <ModalsProvider>
+      <ModalsProvider
+        modals={{
+          onboarding: OnboardingModal,
+          whatsNew: WhatsNewModal,
+        }}
+      >
         <ModifierProvider>
           <DuckDBConnectionPoolProvider maxPoolSize={connectionPoolSize}>
             <AppContextProvider>
