@@ -40,6 +40,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
   const databases = useAppStore((state) => state.databases);
 
   // TODO: get query loading state from the store
+  // const queryRunning = tab?.query.state === 'fetching';
   const queryRunning = false;
 
   /**
@@ -89,10 +90,42 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
     const queryToRun = mode === 'selection' ? selectedText : fullQuery;
 
     // TODO: Run sql script
+    // updateTab({
+    //   id: tab.id,
+    //   query: {
+    //     ...tab.query,
+    //     state: 'fetching',
+    //   },
+    // });
+    // setQueryExecuted(false);
+
+    // const result = await runQuery({ query: queryToRun });
+    // setQueryExecuted(true);
+
+    // await updateTab({
+    //   id: tab.id,
+    //   dataView: {
+    //     data: result?.data,
+    //     rowCount: result?.pagination || 0,
+    //   },
+    //   query: {
+    //     ...tab.query,
+    //     state: 'success',
+    //     originalQuery: queryToRun,
+    //   },
+    // });
   };
 
   const handleQuerySave = async () => {
     // TODO: save sql script to the store
+    // if (!tab || !queryFile) {
+    //   showError({ title: 'Query file not found', message: '' });
+    //   return;
+    // }
+    // await updateQueryFile({
+    //   id: queryFile.id,
+    //   content: editorRef.current?.view?.state?.doc.toString() || '',
+    // });
   };
 
   const handleEditorValueChange = useDebouncedCallback(async () => {

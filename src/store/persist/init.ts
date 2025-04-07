@@ -97,6 +97,8 @@ async function processDirectory(
 
     if (!existingEntry) {
       // If we don't have this entry in our persistent map, we need to create a new one
+
+      // TODO: recursively process this entry if it's a directory
       const localEntry = localEntryFromHandle(
         handle,
         directory.id,

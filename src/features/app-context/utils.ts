@@ -3,8 +3,10 @@ import { PostgreSQL, sql } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
 import { tableFromIPC } from 'apache-arrow';
 import { DataBaseModel, Dataset } from '@models/common';
+import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { splitSqlQuery } from '../../utils/editor/statement-parser';
-import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
+import { DBRunQueryProps, RunQueryResponse } from './models';
+import { dbApiProxi } from './db-worker';
 
 export const transformDatabaseStructure = (
   input: {
@@ -42,10 +44,10 @@ export const transformDatabaseStructure = (
 };
 
 export const updateDatabasesWithColumns = async (
-  dbProxyRef: DBWorkerAPIType,
+  conn: AsyncDuckDBConnection,
   databases: string[],
 ): Promise<DataBaseModel[]> => {
-  const duckdbColumns = await dbProxyRef.getTablesAndColumns();
+  const duckdbColumns = await dbApiProxi.getTablesAndColumns(conn);
   const allColumns = tableFromIPC(duckdbColumns)
     .toArray()
     .map((row) => row.toJSON())
@@ -94,7 +96,7 @@ interface QueryStatement {
 
 interface ExecuteQueriesProps {
   runQueryProps: DBRunQueryProps;
-  dbProxyRef: React.RefObject<any>;
+  conn: AsyncDuckDBConnection;
   isCancelledPromise: Promise<never>;
   currentSources: Dataset[] | null;
 }
@@ -106,7 +108,7 @@ interface QueryResult {
 
 export const executeQueries = async ({
   runQueryProps,
-  dbProxyRef,
+  conn,
   isCancelledPromise,
   currentSources,
 }: ExecuteQueriesProps): Promise<QueryResult> => {
@@ -120,7 +122,7 @@ export const executeQueries = async ({
 
     const result = await executeStatement({
       query: queryToExecute,
-      dbProxyRef,
+      conn,
       isCancelledPromise,
       statement,
       hasLimit: statement.isSelect,
@@ -208,49 +210,23 @@ const buildQuery = (statement: QueryStatement, runQueryProps: DBRunQueryProps): 
 
 const executeStatement = async ({
   query,
-  dbProxyRef,
+  conn,
   isCancelledPromise,
   statement,
   hasLimit,
 }: {
   query: string;
-  dbProxyRef: React.RefObject<any>;
+  conn: AsyncDuckDBConnection;
   isCancelledPromise: Promise<never>;
   statement: QueryStatement;
   hasLimit: boolean;
 }): Promise<RunQueryResponse> =>
   Promise.race([
-    dbProxyRef.current.runQuery({
+    dbApiProxi.runQuery({
+      conn,
       query,
       hasLimit,
       queryWithoutLimit: statement.text.replaceAll(';', ''),
     }),
     isCancelledPromise,
   ]);
-
-export const buildColumnsQueryWithFilters = (
-  database_name?: string,
-  schema_name?: string,
-): string => {
-  let whereClause = '';
-  if (database_name || schema_name) {
-    const conditions = [];
-    if (database_name) conditions.push(`database_name = '${database_name}'`);
-    if (schema_name) conditions.push(`schema_name = '${schema_name}'`);
-    whereClause = `WHERE ${conditions.join(' AND ')}`;
-  }
-
-  return `
-    SELECT
-      database_name,
-      schema_name,
-      table_name,
-      column_name,
-      column_index,
-      data_type,
-      is_nullable
-    FROM duckdb_columns()
-    ${whereClause}
-    ORDER BY database_name, schema_name, table_name, column_index;
-  `;
-};

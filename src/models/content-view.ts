@@ -24,6 +24,12 @@ export type ContentViewState = {
   tabs: Map<TabId, Tab>;
 
   /**
+   * a maximum of 100 rows of data per tab used to display tabs after refresh or re-open
+   * a tab before actual data is loaded.
+   */
+  tabDataCache: Map<TabId, any>;
+
+  /**
    * An array of TabId's in the order they should be displayed.
    *
    * Invariant: all TabId's in this array should be present in the tabs map.

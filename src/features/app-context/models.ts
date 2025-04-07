@@ -1,3 +1,4 @@
+import { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { AddDataSourceProps, AppStateModel, Dataset } from '@models/common';
 import { tableToIPC } from 'apache-arrow';
 
@@ -31,14 +32,28 @@ export type DropFilesAndDBInstancesProps = {
   type: 'databases' | 'views';
 };
 
-export interface DBWorkerAPIType {
-  initDB: () => Promise<void>;
+export interface DbAPIType {
   runQuery: ({
     query,
     hasLimit,
-  }: DBRunQueryProps) => Promise<Omit<RunQueryResponse, 'originalQuery'>>;
-  registerFileHandleAndCreateDBInstance: (dataset: Dataset) => Promise<void>;
-  dropFilesAndDBInstances: (v: DropFilesAndDBInstancesProps) => Promise<void>;
-  getDBUserInstances: (type: 'databases' | 'views') => Promise<Uint8Array>;
-  getTablesAndColumns: (database?: string, schema?: string) => Promise<Uint8Array<ArrayBufferLike>>;
+  }: DBRunQueryProps & { conn: AsyncDuckDBConnection }) => Promise<
+    Omit<RunQueryResponse, 'originalQuery'>
+  >;
+  registerFileHandleAndCreateDBInstance: (
+    db: AsyncDuckDB,
+    conn: AsyncDuckDBConnection,
+    dataset: Dataset,
+  ) => Promise<void>;
+  dropFilesAndDBInstances: (
+    v: DropFilesAndDBInstancesProps & { conn: AsyncDuckDBConnection },
+  ) => Promise<void>;
+  getDBUserInstances: (
+    conn: AsyncDuckDBConnection,
+    type: 'databases' | 'views',
+  ) => Promise<Uint8Array>;
+  getTablesAndColumns: (
+    conn: AsyncDuckDBConnection,
+    database?: string,
+    schema?: string,
+  ) => Promise<Uint8Array<ArrayBufferLike>>;
 }
