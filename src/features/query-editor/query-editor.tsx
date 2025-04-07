@@ -11,27 +11,23 @@ import { Spotlight } from '@mantine/spotlight';
 import { formatNumber } from '@utils/helpers';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { setDataTestId } from '@utils/test-id';
-import {
-  useChangeQueryContentMutation,
-  useQueryFileQuery,
-  useTabQuery,
-  useUpdateTabMutation,
-} from '@store/app-idb-store';
+import { useChangeQueryContentMutation, useUpdateTabMutation } from '@store/app-idb-store';
 
 import { useAppNotifications } from '@components/app-notifications';
+import { SQLScriptId } from '@models/sql-script';
+import { useSqlScript } from '@store/init-store';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
 interface QueryEditorProps {
   columnsCount: number;
   rowsCount: number;
-  id: string;
+  id: SQLScriptId;
   active?: boolean;
 }
 
 export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditorProps) => {
-  const { data: tab } = useTabQuery(id);
-  const { data: queryFile } = useQueryFileQuery(tab?.sourceId || '');
+  const sqlScript = useSqlScript(id);
   const { mutateAsync: updateTab } = useUpdateTabMutation();
   const { mutateAsync: updateQueryFile } = useChangeQueryContentMutation();
   /**
@@ -43,7 +39,8 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
 
   const databases = useAppStore((state) => state.databases);
 
-  const queryRunning = tab?.query.state === 'fetching';
+  // TODO: get query loading state from the store
+  const queryRunning = false;
 
   /**
    * State
@@ -68,7 +65,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
    */
   const handleRunQuery = async (mode?: 'all' | 'selection') => {
     const editor = editorRef.current?.view;
-    if (!editor?.state || !tab) return;
+    if (!editor?.state) return;
 
     const getCurrentStatement = () => {
       const cursor = editor.state.selection.main.head;
@@ -91,42 +88,11 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
 
     const queryToRun = mode === 'selection' ? selectedText : fullQuery;
 
-    updateTab({
-      id: tab.id,
-      query: {
-        ...tab.query,
-        state: 'fetching',
-      },
-    });
-    setQueryExecuted(false);
-
-    const result = await runQuery({ query: queryToRun });
-    setQueryExecuted(true);
-
-    await updateTab({
-      id: tab.id,
-      dataView: {
-        data: result?.data,
-        rowCount: result?.pagination || 0,
-      },
-      query: {
-        ...tab.query,
-        state: 'success',
-        originalQuery: queryToRun,
-      },
-    });
+    // TODO: Run sql script
   };
 
   const handleQuerySave = async () => {
-    if (!tab || !queryFile) {
-      showError({ title: 'Query file not found', message: '' });
-      return;
-    }
-
-    await updateQueryFile({
-      id: queryFile.id,
-      content: editorRef.current?.view?.state?.doc.toString() || '',
-    });
+    // TODO: save sql script to the store
   };
 
   const handleEditorValueChange = useDebouncedCallback(async () => {
@@ -144,7 +110,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
       if (editorRef.current?.view) {
         const editor = editorRef.current.view;
         const currentQuery = editor.state.doc.toString();
-        if (currentQuery !== queryFile?.content) {
+        if (currentQuery !== sqlScript?.content) {
           handleQuerySave();
         }
       }
@@ -182,7 +148,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
           onBlur={handleQuerySave}
           ref={editorRef}
           colorSchemeDark={colorScheme === 'dark'}
-          value={queryFile?.content || ''}
+          value={sqlScript?.content || ''}
           onChange={onSqlEditorChange}
           schema={schema}
           fontSize={fontSize}

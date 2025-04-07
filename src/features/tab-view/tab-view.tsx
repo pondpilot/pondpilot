@@ -23,23 +23,27 @@ import { formatNumber } from '@utils/helpers';
 import { Table as ApacheTable, tableFromIPC } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
-import { useTabQuery, useUpdateTabMutation } from '@store/app-idb-store';
+import { useUpdateTabMutation } from '@store/app-idb-store';
 import { useAppStore } from '@store/app-store';
 import { setDataTestId } from '@utils/test-id';
+import { Tab } from '@models/tab';
 import { PaginationControl, TableLoadingOverlay } from './components';
-import { useTablePaginationSort } from './hooks/useTablePaginationSort';
 import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
 
-export const TabView = memo(({ id, active }: { id: string; active: boolean }) => {
-  const { data: tab } = useTabQuery(id);
+interface TabViewProps {
+  data: Tab;
+  active: boolean;
+}
+
+export const TabView = memo(({ data: tab, active }: TabViewProps) => {
   const { mutateAsync: updateTab } = useUpdateTabMutation();
 
   /**
    * Common hooks
    */
   const { onCancelQuery, executeQuery, runQuery } = useAppContext();
-  const { onNextPage, onPrevPage, handleSort } = useTablePaginationSort(tab);
+  // const { onNextPage, onPrevPage, handleSort } = useTablePaginationSort(tab);
   const { handleCopyToClipboard, exportTableToCSV } = useTableExport();
   const { showSuccess } = useAppNotifications();
   const clipboard = useClipboard();
@@ -284,8 +288,12 @@ export const TabView = memo(({ id, active }: { id: string; active: boolean }) =>
               <Table
                 data={convertedTable.data}
                 columns={convertedTable.columns}
-                onSort={handleSort}
-                sort={tab?.sort}
+                onSort={(colId: string) => {
+                  // TODO: Pass sort function to set the sort state
+                  console.log('colId', colId);
+                }}
+                // TODO: get the sort state from the store
+                sort={undefined}
                 page={currentPage}
                 onSelectedColsCopy={onSelectedColsCopy}
                 onColumnSelectChange={calculateColumnSummary}

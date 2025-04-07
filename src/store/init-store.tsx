@@ -97,6 +97,12 @@ export function useDataSourceIdForActiveTab(): DataSourceId | null {
 // We use separate memoized selectors for each necessary field, to avoid
 // using complex comparator functions...
 
+export function useSqlScript(sqlScriptId: SQLScriptId | null): SQLScript | null {
+  return useInitStore(
+    useShallow((state) => (sqlScriptId ? state.sqlScripts.get(sqlScriptId) || null : null)),
+  );
+}
+
 export function useSqlScriptNameMap(): Map<SQLScriptId, string> {
   return useInitStore(
     useShallow(
