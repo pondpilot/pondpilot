@@ -1,8 +1,8 @@
-import { MenuItem, SourcesListView } from '@components/sources-list-view';
+import { MenuItem, SourcesListView, TypedTreeNodeData } from '@components/sources-list-view';
 import { useAppContext, useDataSourcesActions } from '@features/app-context';
 import { useAppStore } from '@store/app-store';
 import { useClipboard } from '@mantine/hooks';
-import { memo, useCallback } from 'react';
+import { memo, useMemo } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import {
   useAllTabsQuery,
@@ -10,6 +10,7 @@ import {
   useDeleteTabsMutatuion,
 } from '@store/app-idb-store';
 import { useInitStore } from '@store/init-store';
+import { LocalEntryId } from '@models/file-system';
 
 /**
  * Displays a file system tree for all registered local entities (files & folders)
@@ -34,89 +35,82 @@ export const FileSystemExplorer = memo(() => {
   const { data: tabs = [] } = useAllTabsQuery();
 
   const activeTab = tabs.find((tab) => tab.active);
-  const localEntries = useInitStore.use.localEntries();
-  const dataSources = useInitStore.use.dataSources();
+  const entries = useInitStore.use.localEntries();
+  const sources = useInitStore.use.dataSources();
 
   /**
    * Calculate views to display by doing a depth-first traversal of the entries tree
    */
-  const buildEntryTree = useCallback(() => {
-    const result: Array<{
-      value: string;
-      label: string;
-      nodeProps: { canSelect: boolean; id: string; isFolder?: boolean };
-      children?: any[];
-    }> = [];
+  const viewsToDisplay = useMemo(() => {
+    const visited = new Set<LocalEntryId>();
 
-    // Set to track visited nodes to avoid circular references
-    const visited = new Set<string>();
+    const buildTree = (parentId: LocalEntryId | null): TypedTreeNodeData[] => {
+      const children: TypedTreeNodeData[] = [];
 
-    // Recursive depth-first function to build tree
-    const traverseEntries = (nodeId: string, parent: typeof result) => {
-      if (visited.has(nodeId)) return;
-      visited.add(nodeId);
+      entries.forEach((entry) => {
+        if (entry.parentId !== parentId || visited.has(entry.id)) return;
 
-      const nodeName = localEntriesNameMap[nodeId] || nodeId;
-      const isFile = !localEntriesChildParentMap[nodeId];
+        visited.add(entry.id);
 
-      const nodeItem = {
-        value: nodeId,
-        label: nodeName,
-        nodeProps: {
-          canSelect: isFile,
-          id: nodeId,
-          isFolder: !isFile,
-        },
-      };
+        if (entry.kind === 'directory') {
+          children.push({
+            value: entry.id,
+            label: entry.name,
+            iconType: 'folder',
+            children: buildTree(entry.id),
+          });
+        } else if (entry.kind === 'file') {
+          const relatedSources = Array.from(sources.values()).filter(
+            (src) => src.fileSourceId === entry.id,
+          );
+          const fileNode: TypedTreeNodeData = {
+            value: entry.id,
+            label: entry.name,
+            // TODO: find out how to get the icon type from the file type
+            iconType: entry.fileType === 'data-source' ? 'csv' : 'csv',
+          };
 
-      if (!isFile) {
-        // It's a folder, process children
-        const children: typeof result = [];
-        nodeItem.children = children;
+          if (relatedSources.length > 0) {
+            fileNode.children = relatedSources.map((src) => ({
+              value: src.id,
+              label: src.displayName,
+              // TODO: find out how to get the icon type from the file type
+              iconType: 'csv',
+            }));
 
-        // Get all children of this folder
-        const childrenIds = Object.entries(localEntriesChildParentMap)
-          .filter(([_, parentId]) => parentId === nodeId)
-          .map(([childId]) => childId);
+            // Sort sources alphabetically
+            fileNode.children.sort((a, b) => a.label.localeCompare(b.label));
+          }
 
-        // Recursively process each child
-        childrenIds.forEach((childId) => traverseEntries(childId, children));
+          children.push(fileNode);
+        }
+      });
 
-        // Sort children (folders first, then alphabetically)
-        children.sort((a, b) => {
-          const aIsFolder = !!a.children;
-          const bIsFolder = !!b.children;
-          if (aIsFolder && !bIsFolder) return -1;
-          if (!aIsFolder && bIsFolder) return 1;
-          return a.label.localeCompare(b.label);
-        });
-      }
+      // Sort (folders first, then alphabetically)
+      children.sort((a, b) => {
+        const aIsFolder = a.iconType === 'folder';
+        const bIsFolder = b.iconType === 'folder';
+        if (aIsFolder && !bIsFolder) return -1;
+        if (!aIsFolder && bIsFolder) return 1;
+        return a.label.localeCompare(b.label);
+      });
 
-      parent.push(nodeItem);
+      return children;
     };
 
-    // Find root nodes (entries without parents)
-    const rootIds = Object.keys(localEntriesNameMap).filter(
-      (id) => !Object.values(localEntriesChildParentMap).includes(id),
-    );
-
-    // Process each root node
-    rootIds.forEach((rootId) => traverseEntries(rootId, result));
-
-    return result;
-  }, [localEntriesChildParentMap, localEntriesNameMap]);
-
-  const fileSystemEntries = buildEntryTree();
+    return buildTree(null);
+  }, [entries, sources, views, appLoadState, tabs, openTab, onDeleteDataSource]);
   /**
    * Consts
    */
-  const viewsToDisplay = views
-    .filter((view) => !!view.sourceId)
-    .map(({ view_name, sourceId: id }) => ({
-      value: id,
-      label: view_name,
-      nodeProps: { canSelect: true, id },
-    }));
+  // OLD
+  // const viewsToDisplay = views
+  //   .filter((view) => !!view.sourceId)
+  //   .map(({ view_name, sourceId: id }) => ({
+  //     value: id,
+  //     label: view_name,
+  //     nodeProps: { canSelect: true, id },
+  //   }));
 
   const openView = async (id: string) => {
     if (activeTab?.sourceId === id) return;
