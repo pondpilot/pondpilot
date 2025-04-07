@@ -9,13 +9,14 @@ import {
   useFileHandlesQuery,
   useAllTabsQuery,
 } from '@store/app-idb-store';
+import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { DropFilesAndDBInstancesProps } from '../models';
 import { updateDatabasesWithColumns } from '../utils';
-import { useAppContext } from '../app-context';
+import { dbApiProxi } from '../db-worker';
 
 export const useDataSourcesActions = () => {
   const { showError, showWarning } = useAppNotifications();
-  const { dbProxyRef } = useAppContext();
+  const { db, conn } = useDuckDBConnection();
 
   /**
    * Query state
@@ -40,8 +41,10 @@ export const useDataSourcesActions = () => {
    * Delete data source from the session
    */
   const onDeleteDataSource = async ({ ids, type }: DropFilesAndDBInstancesProps) => {
-    if (!dbProxyRef.current) return;
     try {
+      if (!conn) {
+        throw new Error('DuckDB connection is not ready');
+      }
       if (!dataSources.length) {
         throw new Error('Failed to get sources data');
       }
@@ -49,16 +52,13 @@ export const useDataSourcesActions = () => {
       if (tabsToDelete.length) {
         await deleteTabs(tabsToDelete.map((tab) => tab.id));
       }
-      await dbProxyRef.current.dropFilesAndDBInstances({
-        ids,
-        type,
-      });
+      await dbApiProxi.dropFilesAndDBInstances({ conn, ids, type });
       await deleteSources(ids);
       /**
        * Get views and databases from the database
        */
       const dbExternalViews: DuckDBView[] = tableFromIPC(
-        await dbProxyRef.current.getDBUserInstances('views').catch((e) => {
+        await dbApiProxi.getDBUserInstances(conn, 'views').catch((e) => {
           showError({ title: 'Failed to get views', message: e.message });
           return [];
         }),
@@ -66,7 +66,7 @@ export const useDataSourcesActions = () => {
         .toArray()
         .map((row) => row.toJSON());
       const duckdbDatabases: string[] = tableFromIPC(
-        await dbProxyRef.current.getDBUserInstances('databases').catch((e) => {
+        await dbApiProxi.getDBUserInstances(conn, 'databases').catch((e) => {
           showError({ title: 'Failed to get databases', message: e.message });
           return [];
         }),
@@ -76,10 +76,7 @@ export const useDataSourcesActions = () => {
       const updatedViews = dbExternalViews.filter((view) =>
         dataSources?.some((source) => (view.comment || '').includes(source.id)),
       );
-      const transformedTables = await updateDatabasesWithColumns(
-        dbProxyRef.current,
-        duckdbDatabases,
-      );
+      const transformedTables = await updateDatabasesWithColumns(conn, duckdbDatabases);
       setDatabases(transformedTables);
       setViews(updatedViews);
     } catch (e) {
@@ -94,11 +91,14 @@ export const useDataSourcesActions = () => {
    */
   const onAddDataSources = async (entries: AddDataSourceProps) => {
     try {
+      if (!conn || !db) {
+        throw new Error('DuckDB connection is not ready');
+      }
       /**
        * Error handling. Check if the user selected any data sources and if the proxy is initialized
        */
       if (entries.length === 0) return;
-      if (!dbProxyRef.current) throw new Error('Proxy not initialized');
+
       const onlyNewEntries = entries.filter(({ entry }) => {
         const exists = dataSources.some((item) => item.name === entry.name);
         return !exists;
@@ -116,7 +116,7 @@ export const useDataSourcesActions = () => {
 
       await Promise.all(
         updatedDataSources.map((source) =>
-          dbProxyRef.current?.registerFileHandleAndCreateDBInstance(source).catch((e) => {
+          dbApiProxi.registerFileHandleAndCreateDBInstance(db, conn, source).catch((e) => {
             console.error('Failed to register file handle in the database', e, { source });
             deleteSources([source.id]);
           }),
@@ -124,7 +124,7 @@ export const useDataSourcesActions = () => {
       );
       // Get views and databases
       const dbExternalViews: DuckDBView[] = tableFromIPC(
-        await dbProxyRef.current.getDBUserInstances('views').catch((e) => {
+        await dbApiProxi.getDBUserInstances(conn, 'views').catch((e) => {
           showError({ title: 'Failed to get views', message: e.message });
           return [];
         }),
@@ -132,7 +132,7 @@ export const useDataSourcesActions = () => {
         .toArray()
         .map((row) => row.toJSON());
 
-      const duckdbDatabases = tableFromIPC(await dbProxyRef.current.getDBUserInstances('databases'))
+      const duckdbDatabases = tableFromIPC(await dbApiProxi.getDBUserInstances(conn, 'databases'))
         .toArray()
         .map((row) => row.toJSON().database_name);
 
@@ -148,10 +148,7 @@ export const useDataSourcesActions = () => {
           };
         });
 
-      const transformedTables = await updateDatabasesWithColumns(
-        dbProxyRef.current,
-        duckdbDatabases,
-      );
+      const transformedTables = await updateDatabasesWithColumns(conn, duckdbDatabases);
       setDatabases(transformedTables);
       setViews(views);
     } catch (e) {

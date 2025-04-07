@@ -19,7 +19,10 @@ export const ContentView = () => {
     const tab = tabs.get(id);
     if (tab) {
       acc.push(tab);
+    } else {
+      console.warn(`Tab with id ${id} is present in ordered tabs but not found in tabs map.`);
     }
+
     return acc;
   }, [] as Tab[]);
 

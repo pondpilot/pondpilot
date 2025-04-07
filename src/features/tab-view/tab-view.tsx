@@ -52,6 +52,11 @@ export const TabView = memo(({ data: tab, active }: TabViewProps) => {
     useColumnSummary(undefined);
   const views = useAppStore((state) => state.views);
 
+  // TODO
+  // const queryResults: ApacheTable<any> | null | undefined = tab?.dataView.data
+  //   ? tableFromIPC(tab?.dataView.data)
+  //   : null;
+  // const queryRunning = tab?.query.state === 'fetching';
   const queryResults: ApacheTable<any> | null | undefined = null;
   const queryRunning = false;
   const queryView = tab.sqlScriptId !== undefined;
