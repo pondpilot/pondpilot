@@ -24,6 +24,7 @@ export interface TypedTreeNodeData<ItemID extends string = string> extends TreeN
   value: ItemID;
   label: string;
   iconType: IconType;
+  onClick?: (item: TypedTreeNodeData<ItemID>) => void;
   children?: TypedTreeNodeData<ItemID>[];
 }
 

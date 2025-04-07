@@ -1,15 +1,10 @@
 import { MenuItem, SourcesListView, TypedTreeNodeData } from '@components/sources-list-view';
 import { useAppContext, useDataSourcesActions } from '@features/app-context';
-import { useAppStore } from '@store/app-store';
 import { useClipboard } from '@mantine/hooks';
 import { memo, useMemo } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
-import {
-  useAllTabsQuery,
-  useCreateQueryFileMutation,
-  useDeleteTabsMutatuion,
-} from '@store/app-idb-store';
-import { useInitStore } from '@store/init-store';
+import { useCreateQueryFileMutation } from '@store/app-idb-store';
+import { useDataSourceIdForActiveTab, useInitStore } from '@store/init-store';
 import { LocalEntryId } from '@models/file-system';
 
 /**
@@ -25,16 +20,12 @@ export const FileSystemExplorer = memo(() => {
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
-  const { mutateAsync: deleteTabs } = useDeleteTabsMutatuion();
-
+  const activeDataSourceId = useDataSourceIdForActiveTab();
   /**
    * Store access
    */
-  const views = useAppStore((state) => state.views);
   const appLoadState = useInitStore.use.appLoadState();
-  const { data: tabs = [] } = useAllTabsQuery();
 
-  const activeTab = tabs.find((tab) => tab.active);
   const entries = useInitStore.use.localEntries();
   const sources = useInitStore.use.dataSources();
 
@@ -99,23 +90,22 @@ export const FileSystemExplorer = memo(() => {
     };
 
     return buildTree(null);
-  }, [entries, sources, views, appLoadState, tabs, openTab, onDeleteDataSource]);
+  }, [entries, sources, appLoadState, openTab, onDeleteDataSource]);
   /**
    * Consts
    */
-  // OLD
-  // const viewsToDisplay = views
-  //   .filter((view) => !!view.sourceId)
-  //   .map(({ view_name, sourceId: id }) => ({
-  //     value: id,
-  //     label: view_name,
-  //     nodeProps: { canSelect: true, id },
-  //   }));
 
-  const openView = async (id: string) => {
-    if (activeTab?.sourceId === id) return;
-
-    openTab(id, 'file');
+  // TODO: create a function to create a new tab from a data source
+  // TODO: define a function inside viewsToDisplay for each item to separate types and logic
+  const onItemClick = async (id: string) => {
+    // find an existing tab for this source
+    // const tab = findTabFromSource(id);
+    // if (tab) {
+    //   setActiveTabId(tab.id);
+    // } else {
+    //   const newTab = createTabFromDataSource(id);
+    //   setActiveTabId(newTab.id);
+    // }
   };
 
   const handleDeleteSelected = async (items: string[]) => {
@@ -161,10 +151,7 @@ export const FileSystemExplorer = memo(() => {
   ];
 
   const handleDeleteTab = async (id: string) => {
-    const tab = tabs.find((t) => t.sourceId === id);
-    if (tab) {
-      deleteTabs([tab.id]);
-    }
+    // delete the tab
   };
 
   return (
@@ -172,9 +159,9 @@ export const FileSystemExplorer = memo(() => {
       parentDataTestId="view-explorer"
       list={viewsToDisplay}
       onDeleteSelected={handleDeleteSelected}
-      onItemClick={openView}
+      onItemClick={onItemClick}
       menuItems={menuItems}
-      activeItemKey={activeTab?.sourceId || ''}
+      activeItemKey={activeDataSourceId}
       loading={appLoadState === 'init'}
       onActiveCloseClick={handleDeleteTab}
     />

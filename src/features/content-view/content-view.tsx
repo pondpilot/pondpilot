@@ -1,47 +1,60 @@
 import { TabsPane } from '@features/tabs-pane';
-import { useAllTabsQuery } from '@store/app-idb-store';
-import { useEffect } from 'react';
 import { TabView } from '@features/tab-view';
 import { Stack } from '@mantine/core';
 import { StartGuide } from '@features/tab-view/components';
+import { useInitStore } from '@store/init-store';
+import { Tab } from '@models/tab';
+import { useEffect } from 'react';
 import { useTabCache } from './useTabCache';
 
-/**
- * Data view component
- */
 export const ContentView = () => {
-  const { data: tabs = [] } = useAllTabsQuery();
+  // OLD
+  // const { data: tabs = [] } = useAllTabsQuery();
+
+  const tabs = useInitStore.use.tabs();
+  const tabsOrder = useInitStore.use.tabOrder();
+  const activeTabId = useInitStore.use.activeTabId();
+
+  const orderedTabs = tabsOrder.reduce((acc, id) => {
+    const tab = tabs.get(id);
+    if (tab) {
+      acc.push(tab);
+    }
+    return acc;
+  }, [] as Tab[]);
 
   // Use our cache with maximum size of 10 tabs
   const { addToCache, isTabCached } = useTabCache(10);
 
   // Initialize: add active tab to cache
   useEffect(() => {
-    const activeTab = tabs.find((tab) => tab.active);
+    if (activeTabId === null) return;
+    const activeTab = tabs.get(activeTabId);
     if (activeTab) {
       addToCache(activeTab.id);
     }
-  }, [tabs.map((tab) => tab.active).join(','), addToCache]);
+  }, [activeTabId, addToCache, tabs]);
 
   return (
     <Stack gap={0} className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark">
       <TabsPane />
-      {tabs.length === 0 ? (
+      {orderedTabs.length === 0 ? (
         <div className="h-full">
           <StartGuide />
         </div>
       ) : null}
-      {tabs.map((tab) => {
+      {orderedTabs.map((tab) => {
+        const isActive = tab.id === activeTabId;
         // Render only tabs from cache or active tabs
-        if (isTabCached(tab.id) || tab.active) {
+        if (isTabCached(tab.id) || isActive) {
           // If tab is active but not yet cached - add it
-          if (tab.active && !isTabCached(tab.id)) {
+          if (isActive && !isTabCached(tab.id)) {
             addToCache(tab.id);
           }
 
           return (
-            <div style={{ display: tab.active ? 'block' : 'none' }} className="h-full" key={tab.id}>
-              <TabView key={tab.id} id={tab.id} active={tab.active} />
+            <div style={{ display: isActive ? 'block' : 'none' }} className="h-full" key={tab.id}>
+              <TabView key={tab.id} id={tab.id} active={isActive} />
             </div>
           );
         }

@@ -80,9 +80,15 @@ export const useInitStore =
   );
 
 // Common selectors
-export function useSqlScriptForActiveTab(): SQLScriptId | null {
+export function useSqlScriptIdForActiveTab(): SQLScriptId | null {
   return useInitStore((state) =>
     state.activeTabId ? (state.tabs.get(state.activeTabId)?.sqlScriptId ?? null) : null,
+  );
+}
+
+export function useDataSourceIdForActiveTab(): DataSourceId | null {
+  return useInitStore((state) =>
+    state.activeTabId ? (state.tabs.get(state.activeTabId)?.dataSourceId ?? null) : null,
   );
 }
 
@@ -358,6 +364,39 @@ const persistCreateTab = async (
 
 const findTabFromScriptImpl = (tabs: Map<TabId, Tab>, sqlScriptId: SQLScriptId): Tab | undefined =>
   Array.from(tabs.values()).find((tab) => tab.sqlScriptId === sqlScriptId);
+
+const findTabFromSourceImpl = (
+  tabs: Map<TabId, Tab>,
+  dataSourceId: DataSourceId,
+): Tab | undefined => Array.from(tabs.values()).find((tab) => tab.dataSourceId === dataSourceId);
+
+/**
+ * Finds a tab displaying an existing data source or undefined.
+ *
+ * @param dataSourceOrId - The ID or a DataSource object to find the tab for.
+ * @returns A new Tab object if found.
+ * @throws An error if the DataSource with the given ID does not exist.
+ */
+export const findTabFromSource = (dataSourceOrId: DataSource | DataSourceId): Tab | undefined => {
+  const state = useInitStore.getState();
+
+  // Get the data source object if not passed as an object
+  let dataSource: DataSource;
+  if (typeof dataSourceOrId === 'string') {
+    const fromState = state.dataSources.get(dataSourceOrId);
+
+    if (!fromState) {
+      throw new Error(`Data source with id ${dataSourceOrId} not found`);
+    }
+
+    dataSource = fromState;
+  } else {
+    dataSource = dataSourceOrId;
+  }
+
+  // Check if the script already has an associated tab
+  return findTabFromSourceImpl(state.tabs, dataSource.id);
+};
 
 /**
  * Finds a tab displaying an existing SQL script or undefined.
