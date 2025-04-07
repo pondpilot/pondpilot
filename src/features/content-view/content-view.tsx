@@ -54,7 +54,7 @@ export const ContentView = () => {
 
           return (
             <div style={{ display: isActive ? 'block' : 'none' }} className="h-full" key={tab.id}>
-              <TabView key={tab.id} id={tab.id} active={isActive} />
+              <TabView key={tab.id} data={tab} active={isActive} />
             </div>
           );
         }
