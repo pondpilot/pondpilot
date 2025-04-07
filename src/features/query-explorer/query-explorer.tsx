@@ -14,7 +14,7 @@ import {
   setActiveTabId,
   setPreviewTabId,
   useInitStore,
-  useSqlScriptForActiveTab,
+  useSqlScriptIdForActiveTab,
   useSqlScriptNameMap,
 } from '@store/init-store';
 import { SQLScriptId } from '@models/sql-script';
@@ -29,7 +29,7 @@ export const QueryExplorer = memo(() => {
   /**
    * Global state
    */
-  const activeSqlScriptId = useSqlScriptForActiveTab();
+  const activeSqlScriptId = useSqlScriptIdForActiveTab();
   const appLoadState = useInitStore.use.appLoadState();
 
   const sqlScripts = useSqlScriptNameMap();
@@ -137,7 +137,7 @@ export const QueryExplorer = memo(() => {
   };
 
   const handleDeleteSource = async (id: string) => {
-    await handleDeleteTab(id);
+    handleDeleteTab(id);
     await deleteQueryFile([id]);
   };
 
