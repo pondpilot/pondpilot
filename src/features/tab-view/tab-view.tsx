@@ -20,7 +20,7 @@ import { Table } from '@components/table/table';
 import { IconChevronDown, IconClipboardSmile, IconCopy } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { formatNumber } from '@utils/helpers';
-import { Table as ApacheTable, tableFromIPC } from 'apache-arrow';
+import { Table as ApacheTable } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { useUpdateTabMutation } from '@store/app-idb-store';
@@ -47,20 +47,21 @@ export const TabView = memo(({ data: tab, active }: TabViewProps) => {
   const { handleCopyToClipboard, exportTableToCSV } = useTableExport();
   const { showSuccess } = useAppNotifications();
   const clipboard = useClipboard();
+  // TODO: Pass the data to calculateColumnSummary
   const { calculateColumnSummary, columnTotal, isCalculating, isNumericType, resetTotal } =
-    useColumnSummary(tab);
+    useColumnSummary(undefined);
   const views = useAppStore((state) => state.views);
 
-  const queryResults: ApacheTable<any> | null | undefined = tab?.dataView.data
-    ? tableFromIPC(tab?.dataView.data)
-    : null;
-  const queryRunning = tab?.query.state === 'fetching';
-  const queryView = tab?.type === 'query';
+  const queryResults: ApacheTable<any> | null | undefined = null;
+  const queryRunning = false;
+  const queryView = tab.sqlScriptId !== undefined;
 
   const { editorPaneHeight = 0, dataViewPaneHeight = 0 } = tab?.layout ?? {};
-  const rowCount = tab?.dataView.rowCount || 0;
+
+  // TODO: Get rowCount from the query result
+  const rowCount = 0;
   const limit = 100;
-  const currentPage = tab?.pagination.page ?? 1;
+  const currentPage = 1;
 
   /**
    * Local state
@@ -70,7 +71,7 @@ export const TabView = memo(({ data: tab, active }: TabViewProps) => {
   const onCancel = () => onCancelQuery();
 
   const convertedTable = useMemo(() => {
-    if (!queryResults || queryResults.numRows === 0) return { columns: [], data: [] };
+    return { columns: [], data: [] };
 
     const data = queryResults.toArray().map((row) => row.toJSON());
     const columns = getArrowTableSchema(queryResults) || [];
@@ -132,7 +133,7 @@ export const TabView = memo(({ data: tab, active }: TabViewProps) => {
         });
       }
     },
-    [active, tab?.query.originalQuery],
+    [active, tab],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {
@@ -159,9 +160,10 @@ export const TabView = memo(({ data: tab, active }: TabViewProps) => {
   }, [queryRunning]);
 
   useEffect(() => {
-    const view = views.find((v) => v.sourceId === tab?.sourceId);
-    if (!view || !tab) return;
+    // const view = views.find((v) => v.sourceId === tab?.sourceId);
 
+    return;
+    // TODO: Currently, this functionality may not be needed due to the fact that data can be obtained directly from the state during initialization
     const setData = async () => {
       await updateTab({
         state: 'fetching',
@@ -197,12 +199,12 @@ export const TabView = memo(({ data: tab, active }: TabViewProps) => {
         onDragEnd={setPanelSize}
         defaultSizes={[editorPaneHeight, dataViewPaneHeight]}
       >
-        {queryView && (
+        {queryView && tab.sqlScriptId && (
           <Allotment.Pane preferredSize={editorPaneHeight} minSize={200}>
             <QueryEditor
               columnsCount={convertedTable.columns.length}
               rowsCount={rowCount}
-              id={tab.id}
+              id={tab.sqlScriptId}
               active={active}
             />
           </Allotment.Pane>
@@ -328,8 +330,8 @@ export const TabView = memo(({ data: tab, active }: TabViewProps) => {
             currentPage={currentPage}
             limit={limit}
             rowCount={rowCount}
-            onPrevPage={onPrevPage}
-            onNextPage={onNextPage}
+            onPrevPage={() => {}}
+            onNextPage={() => {}}
           />
         </div>
       )}
