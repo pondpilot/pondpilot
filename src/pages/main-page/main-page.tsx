@@ -2,10 +2,10 @@ import { useMantineColorScheme } from '@mantine/core';
 import { Allotment } from 'allotment';
 import { useHotkeys, useLocalStorage } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
-import { useUploadFileHandles } from '@hooks/useUploadFileHandles';
 import { ContentView } from '@features/content-view';
-import { useCreateQueryFileMutation } from '@store/app-idb-store';
 import { useImportSQLFiles } from '@store/hooks';
+import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
+import { createSQLScript, getOrCreateTabFromScript, setActiveTabId } from '@store/init-store';
 import { Navbar } from './components';
 
 export const MainPage = () => {
@@ -13,10 +13,15 @@ export const MainPage = () => {
    * Common hooks
    */
   const { importSQLFiles } = useImportSQLFiles();
-  const { handleAddSource } = useUploadFileHandles();
+  const { handleAddFile, handleAddFolder } = useLocalFilesOrFolders();
   const { colorScheme } = useMantineColorScheme();
   const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({ key: 'layout-sizes' });
-  const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
+
+  const handleAddQuery = () => {
+    const newEmptyScript = createSQLScript();
+    const newTab = getOrCreateTabFromScript(newEmptyScript);
+    setActiveTabId(newTab.id);
+  };
 
   /**
    * Handlers
@@ -29,14 +34,14 @@ export const MainPage = () => {
     [
       'Ctrl+F',
       () => {
-        handleAddSource('file')();
+        handleAddFile();
         Spotlight.close();
       },
     ],
     [
       'Ctrl+D',
       () => {
-        handleAddSource('file', ['.duckdb'])();
+        handleAddFile(['.duckdb']);
         Spotlight.close();
       },
     ],
@@ -50,16 +55,14 @@ export const MainPage = () => {
     [
       'Alt+mod+F',
       () => {
-        handleAddSource('folder')();
+        handleAddFolder();
         Spotlight.close();
       },
     ],
     [
       'Alt+N',
       () => {
-        createQueryFile({
-          name: 'query.sql',
-        });
+        handleAddQuery();
         Spotlight.close();
       },
     ],

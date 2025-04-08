@@ -1,38 +1,14 @@
-import { useCreateMultipleQueryFilesMutation } from '@store/app-idb-store';
 import { useAppNotifications } from '@components/app-notifications';
+import { pickFiles } from '@utils/file-system';
+import { importSQLFilesAndCreateScripts } from '@store/init-store';
 
 export const useImportSQLFiles = () => {
   const { showError } = useAppNotifications();
-  const { mutateAsync: createMultipleQueryFiles } = useCreateMultipleQueryFilesMutation();
 
   const importSQLFiles = async (): Promise<void> => {
     try {
-      const fileHandles = await window.showOpenFilePicker({
-        multiple: true,
-        types: [
-          {
-            description: 'SQL files',
-            accept: { 'text/sql': ['.sql'] },
-          },
-        ],
-      });
-
-      // TODO: Create interface
-      const importedEntries: { name: string; content: string }[] = [];
-
-      for (const handle of fileHandles) {
-        const file = await handle.getFile();
-        const name = file.name.replace(/\.sql$/, '');
-        const content = await file.text();
-        importedEntries.push({
-          name,
-          content,
-        });
-      }
-
-      if (importedEntries.length) {
-        await createMultipleQueryFiles({ entities: importedEntries });
-      }
+      const fileHandles = await pickFiles(['.sql'], 'Import SQL Files');
+      importSQLFilesAndCreateScripts(fileHandles.handles);
     } catch (error) {
       console.error('Error importing SQL files: ', error);
       showError({
