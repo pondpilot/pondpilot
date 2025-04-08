@@ -18,7 +18,6 @@ import {
   IconJson,
   IconTable,
 } from '@tabler/icons-react';
-import { useUploadFileHandles } from '@hooks/useUploadFileHandles';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@store/app-store';
 import { HotkeyPill } from '@components/hotkey-pill';
@@ -33,6 +32,7 @@ import {
 } from '@store/app-idb-store';
 import { useImportSQLFiles } from '@store/hooks';
 import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from 'app-urls';
+import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
@@ -54,7 +54,7 @@ export const SpotlightMenu = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { importSQLFiles } = useImportSQLFiles();
-  const { handleAddSource } = useUploadFileHandles();
+  const { handleAddFile, handleAddFolder } = useLocalFilesOrFolders();
   const { command, option } = useModifier();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
   const { data: queries = [] } = useQueryFilesQuery();
@@ -155,7 +155,7 @@ export const SpotlightMenu = () => {
       icon: <IconFilePlus size={20} className={iconClasses} />,
       hotkey: [<IconChevronUp size={20} />, 'F'],
       handler: () => {
-        handleAddSource('file')();
+        handleAddFile();
         resetSpotlight();
         ensureHome();
       },
@@ -166,7 +166,7 @@ export const SpotlightMenu = () => {
       icon: <IconFolderPlus size={20} className={iconClasses} />,
       hotkey: [option, command, 'F'],
       handler: () => {
-        handleAddSource('folder')();
+        handleAddFolder();
         resetSpotlight();
         ensureHome();
       },
@@ -177,7 +177,7 @@ export const SpotlightMenu = () => {
       icon: <IconDatabasePlus size={20} className={iconClasses} />,
       hotkey: [<IconChevronUp size={20} />, 'D'],
       handler: () => {
-        handleAddSource('file', ['.duckdb'])();
+        handleAddFile(['.duckdb']);
         resetSpotlight();
         ensureHome();
       },

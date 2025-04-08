@@ -219,6 +219,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AppContext.Provider value={value}>
+      {/* // TODO: Render via ModalContextProvider */}
       <ErrorModal
         opened={errorModalOpened}
         onClose={handleClosingErrorModal}

@@ -10,11 +10,8 @@ import { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
 import { APP_GITHUB_URL } from 'app-urls';
-import { supportedDataSourceFileExts } from '@models/file-system';
-import { pickFiles } from '@utils/file-system';
-import { useAppNotifications } from '@components/app-notifications';
-import { addLocalFileOrFolders, useInitStore } from '@store/init-store';
-import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
+import { useInitStore } from '@store/init-store';
+import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
 
 /**
  * Displays the navigation bar
@@ -25,14 +22,10 @@ export const Navbar = memo(() => {
    */
   const [navbarSizes, setInnerLayoutSizes] = useLocalStorage<number[]>({ key: 'navbar-sizes' });
   const navigate = useNavigate();
-  const { showError } = useAppNotifications();
 
   const appLoadState = useInitStore.use.appLoadState();
-  // todo we should be able to use non-null hook with db-conn,
-  // but to do that, we need to extract the "plus" as a separate component
-  // that is only loaded after app is ready
-  // const { db, conn } = useInitializedDuckDBConnection();
-  const { db, conn } = useDuckDBConnection();
+
+  const { handleAddFile } = useLocalFilesOrFolders();
 
   /**
    * Local state
@@ -45,17 +38,6 @@ export const Navbar = memo(() => {
    */
   const handleNavbarLayoutResize = (sizes: number[]) => {
     setInnerLayoutSizes(sizes);
-  };
-
-  const handleAddFile = async () => {
-    const { handles, error } = await pickFiles(supportedDataSourceFileExts, 'Data Sources', true);
-
-    if (error) {
-      showError({ title: 'Failed to add files', message: error });
-      return;
-    }
-
-    await addLocalFileOrFolders(db!, conn!, handles);
   };
 
   return (
@@ -95,7 +77,7 @@ export const Navbar = memo(() => {
               <Group className="gap-2">
                 <Divider orientation="vertical" />
                 <ActionIcon
-                  onClick={handleAddFile}
+                  onClick={() => handleAddFile()}
                   size={16}
                   key="Upload file"
                   data-testid={setDataTestId('add-file-button')}
