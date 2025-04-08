@@ -15,7 +15,7 @@ import { useChangeQueryContentMutation, useUpdateTabMutation } from '@store/app-
 
 import { useAppNotifications } from '@components/app-notifications';
 import { SQLScriptId } from '@models/sql-script';
-import { useSqlScript } from '@store/init-store';
+import { useInitStore } from '@store/init-store';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
@@ -27,7 +27,7 @@ interface QueryEditorProps {
 }
 
 export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditorProps) => {
-  const sqlScript = useSqlScript(id);
+  const sqlScript = useInitStore((state) => state.sqlScripts.get(id) || null);
   const { mutateAsync: updateTab } = useUpdateTabMutation();
   const { mutateAsync: updateQueryFile } = useChangeQueryContentMutation();
   /**

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Allotment } from 'allotment';
 import { useAppContext } from '@features/app-context';
@@ -20,13 +20,16 @@ import { Table } from '@components/table/table';
 import { IconChevronDown, IconClipboardSmile, IconCopy } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { formatNumber } from '@utils/helpers';
-import { Table as ApacheTable } from 'apache-arrow';
+import { Table as ApacheTable, AsyncRecordBatchStreamReader } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { useUpdateTabMutation } from '@store/app-idb-store';
 import { useAppStore } from '@store/app-store';
 import { setDataTestId } from '@utils/test-id';
-import { AnyTab } from '@models/tab';
+import { AnyTab, FileDataSourceTab } from '@models/tab';
+import { useInitStore } from '@store/init-store';
+import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
+import { getDataViewAdapter } from '@controllers/db/data-view';
 import { PaginationControl, TableLoadingOverlay } from './components';
 import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
@@ -52,18 +55,43 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
     useColumnSummary(undefined);
   const views = useAppStore((state) => state.views);
 
-  // TODO
-  // const queryResults: ApacheTable<any> | null | undefined = tab?.dataView.data
-  //   ? tableFromIPC(tab?.dataView.data)
-  //   : null;
-  // const queryRunning = tab?.query.state === 'fetching';
-  const queryResults: ApacheTable<any> | null | undefined = null;
-  const queryRunning = false;
+  // TODO - thefollowing should all move to data view component, only the dataViewData object should be passed
+  // Also, we should use different Tab components for 3 types of tabs we have, as they
+  // all fetch/create dataViews differently
+
+  const { conn } = useInitializedDuckDBConnection();
+  const persistentTab = tab as FileDataSourceTab;
+  const dataView = useInitStore((state) => state.dataViews.get(persistentTab.dataViewId)!);
+  const dataViewAdapter = useMemo(() => getDataViewAdapter(dataView), [dataView]);
+  const [dataViewReader, setReader] = useState<AsyncRecordBatchStreamReader<any> | null>(null);
+  const [isQueryRunning, setQueryRunning] = useState<boolean>(false);
+  const [fetchedData, setFetchedData] = useState<ApacheTable<any> | null>(null);
+
+  // Create a new reader on first load. The rest should be updated on sorting etc.
+  useEffect(() => {
+    (async () => {
+      const reader = await dataViewAdapter.getReader(conn, []);
+      setQueryRunning(true);
+
+      // Fetch the first batch
+      const batch = await reader.next();
+
+      if (batch.value) {
+        setFetchedData(batch.value as ApacheTable<any>);
+        setQueryRunning(false);
+      }
+
+      setReader(reader);
+    })();
+  }, []);
+
   const isSctiptTab = tab.type === 'script';
 
-  const { editorPaneHeight = 0, dataViewPaneHeight = 0 } = tab?.layout ?? {};
+  // const { editorPaneHeight = 0, dataViewPaneHeight = 0 } = tab?.layout ?? {};
+  const editorPaneHeight = 0;
+  const { dataViewPaneHeight = 0 } = tab?.layout ?? {};
 
-  // TODO: Get rowCount from the query result
+  // TODO: Get rowCount using data view adapter if available
   const rowCount = 0;
   const limit = 100;
   const currentPage = 1;
@@ -75,14 +103,19 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
 
   const onCancel = () => onCancelQuery();
 
+  // TODO: this should not happen this way. schema should be part of the data adapter
+  // and be fetched separately. conversion of table to JSON and storing in cache should
+  // be part of handlers
   const convertedTable = useMemo(() => {
-    return { columns: [], data: [] };
+    if (!fetchedData) {
+      return { columns: [], data: [] };
+    }
 
-    const data = queryResults.toArray().map((row) => row.toJSON());
-    const columns = getArrowTableSchema(queryResults) || [];
+    const data = fetchedData.toArray().map((row) => row.toJSON());
+    const columns = getArrowTableSchema(fetchedData) || [];
 
     return { columns, data };
-  }, [queryResults]);
+  }, [fetchedData]);
 
   /**
    * Consts
@@ -157,12 +190,12 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
   useHotkeys([['Alt+Q', onCancel]]);
 
   useEffect(() => {
-    if (queryRunning) {
+    if (isQueryRunning) {
       setDebouncedLoading(true);
     } else {
       setDebouncedLoading(false);
     }
-  }, [queryRunning]);
+  }, [isQueryRunning]);
 
   useEffect(() => {
     // const view = views.find((v) => v.sourceId === tab?.sourceId);
@@ -216,7 +249,7 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
         )}
         <Allotment.Pane preferredSize={dataViewPaneHeight} minSize={120}>
           {/* // TODO: Create DataView component */}
-          {!hasTableData && !queryRunning && active && (
+          {!hasTableData && !isQueryRunning && active && (
             <Center className="h-full font-bold">
               <Stack align="center" c="icon-default" gap={4}>
                 <IconClipboardSmile size={32} stroke={1} />
@@ -228,7 +261,7 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
             <TableLoadingOverlay
               queryView={isSctiptTab}
               onCancel={onCancel}
-              visible={hasTableData ? debouncedLoading : queryRunning}
+              visible={hasTableData ? debouncedLoading : isQueryRunning}
             />
             {hasTableData && (
               <Group

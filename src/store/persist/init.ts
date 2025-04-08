@@ -20,6 +20,7 @@ import {
   ALL_TABLE_NAMES,
   APP_DB_NAME,
   CONTENT_VIEW_TABLE_NAME,
+  DATA_VIEW_TABLE_NAME,
   DB_VERSION,
   LOCAL_ENTRY_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
@@ -359,6 +360,9 @@ export const hydrateAppData = async (
   const tabsArray = await tx.objectStore(TAB_TABLE_NAME).getAll();
   const tabs = new Map(tabsArray.map((tab) => [tab.id, tab]));
 
+  const dataViewsArray = await tx.objectStore(DATA_VIEW_TABLE_NAME).getAll();
+  const dataViews = new Map(dataViewsArray.map((tab) => [tab.id, tab]));
+
   // Restore local entries
   const localEntriesStore = tx.objectStore(LOCAL_ENTRY_TABLE_NAME);
   const localEntriesArray = await localEntriesStore.getAll();
@@ -384,6 +388,7 @@ export const hydrateAppData = async (
     activeTabId,
     previewTabId,
     tabOrder,
+    dataViews,
   });
 
   // Return the discarded entries for error reporting

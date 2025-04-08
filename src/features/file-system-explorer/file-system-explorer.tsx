@@ -4,8 +4,16 @@ import { useClipboard } from '@mantine/hooks';
 import { memo, useMemo } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { useCreateQueryFileMutation } from '@store/app-idb-store';
-import { useDataSourceIdForActiveTab, useInitStore } from '@store/init-store';
+import {
+  findTabFromDataView,
+  getOrCreateTabFromPersistentDataView,
+  setActiveTabId,
+  useDataViewIdForActiveTab,
+  useInitStore,
+} from '@store/init-store';
 import { LocalEntryId } from '@models/file-system';
+import { IconType } from '@features/list-view-icon';
+import { PersistentDataViewId } from '@models/data-view';
 
 /**
  * Displays a file system tree for all registered local entities (files & folders)
@@ -20,14 +28,14 @@ export const FileSystemExplorer = memo(() => {
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
-  const activeDataSourceId = useDataSourceIdForActiveTab();
+  const activeDataSourceId = useDataViewIdForActiveTab();
   /**
    * Store access
    */
   const appLoadState = useInitStore.use.appLoadState();
 
   const entries = useInitStore.use.localEntries();
-  const sources = useInitStore.use.dataSources();
+  const sources = useInitStore.use.dataViews();
 
   /**
    * Calculate views to display by doing a depth-first traversal of the entries tree
@@ -51,27 +59,43 @@ export const FileSystemExplorer = memo(() => {
             children: buildTree(entry.id),
           });
         } else if (entry.kind === 'file') {
-          const relatedSources = Array.from(sources.values()).filter(
+          const relatedSource = Array.from(sources.values()).find(
             (src) => src.fileSourceId === entry.id,
           );
+
+          let value = entry.id;
+          let label = entry.name;
+          let iconType = 'folder';
+
+          if (relatedSource) {
+            if (relatedSource.displayName !== entry.name) {
+              label = `${relatedSource.displayName} (${entry.name})`;
+            }
+
+            // TODO this is not the full logic of course. probably need to
+            // extract to an utility function OR stored on data view model...
+            iconType = relatedSource.sourceType as IconType;
+            value = relatedSource.id;
+          }
+
           const fileNode: TypedTreeNodeData = {
-            value: entry.id,
-            label: entry.name,
-            // TODO: find out how to get the icon type from the file type
-            iconType: entry.fileType === 'data-source' ? 'csv' : 'csv',
+            value,
+            label,
+            iconType,
           };
 
-          if (relatedSources.length > 0) {
-            fileNode.children = relatedSources.map((src) => ({
-              value: src.id,
-              label: src.displayName,
-              // TODO: find out how to get the icon type from the file type
-              iconType: 'csv',
-            }));
+          // This would be needed for multi-view file sources
+          // if (relatedSource.length > 0) {
+          //   fileNode.children = relatedSource.map((src) => ({
+          //     value: src.id,
+          //     label: src.displayName,
+          //     // TODO: find out how to get the icon type from the file type
+          //     iconType: 'csv',
+          //   }));
 
-            // Sort sources alphabetically
-            fileNode.children.sort((a, b) => a.label.localeCompare(b.label));
-          }
+          //   // Sort sources alphabetically
+          //   fileNode.children.sort((a, b) => a.label.localeCompare(b.label));
+          // }
 
           children.push(fileNode);
         }
@@ -99,13 +123,8 @@ export const FileSystemExplorer = memo(() => {
   // TODO: define a function inside viewsToDisplay for each item to separate types and logic
   const onItemClick = async (id: string) => {
     // find an existing tab for this source
-    // const tab = findTabFromSource(id);
-    // if (tab) {
-    //   setActiveTabId(tab.id);
-    // } else {
-    //   const newTab = createTabFromDataSource(id);
-    //   setActiveTabId(newTab.id);
-    // }
+    const tab = getOrCreateTabFromPersistentDataView(id);
+    setActiveTabId(tab.id);
   };
 
   const handleDeleteSelected = async (items: string[]) => {

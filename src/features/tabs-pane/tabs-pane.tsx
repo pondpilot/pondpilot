@@ -25,7 +25,7 @@ import { IconPlus, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import {
   createSQLScript,
-  createTabFromScript,
+  getOrCreateTabFromScript,
   deleteTab,
   setActiveTabId,
   setPreviewTabId,
@@ -217,7 +217,7 @@ export const TabsPane = memo(() => {
 
   const handleAddQuery = () => {
     const newEmptyScript = createSQLScript();
-    const newTab = createTabFromScript(newEmptyScript);
+    const newTab = getOrCreateTabFromScript(newEmptyScript);
     setActiveTabId(newTab.id);
   };
 
