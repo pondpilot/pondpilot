@@ -1,5 +1,5 @@
 import { test as base, JSHandle } from '@playwright/test';
-import { createReadStream, readdirSync } from 'fs';
+import { createReadStream, readdirSync, ReadStream } from 'fs';
 import path from 'path';
 import { parsePath } from '../../utils';
 
@@ -49,31 +49,32 @@ export const test = base.extend<StorageFixtures>({
         // 64KB chunks
         const chunkSize = 64 * 1024;
 
-        // Create a local read stream
-        const readStream = createReadStream(localPath, {
-          highWaterMark: chunkSize,
-        });
-
-        // Get browser's writable stream
-        const writeStream = await page.evaluateHandle(async (filePath) => {
-          let dirHandle = await navigator.storage.getDirectory();
-          for (const dir of filePath.dirs) {
-            dirHandle = await dirHandle.getDirectoryHandle(dir, { create: true });
-          }
-          const fileHandle = await dirHandle.getFileHandle(filePath.basename, { create: true });
-          const ws = await fileHandle.createWritable({ keepExistingData: false });
-          return ws;
-        }, parsePath(remotePath));
-
-        // Reusable browser's buffer for writing
-        const chunkBuffer = await page.evaluateHandle(
-          async (size) => new Uint8Array(size),
-          chunkSize,
-        );
+        let readStream: ReadStream | null = null;
+        let writeStream: JSHandle<FileSystemWritableFileStream> | null = null;
+        let chunkBuffer: JSHandle<Uint8Array<ArrayBuffer>> | null = null;
 
         // const startAll = performance.now();
         // let size = 0;
         try {
+          // Create a local read stream
+          readStream = createReadStream(localPath, {
+            highWaterMark: chunkSize,
+          });
+
+          // Get browser's writable stream
+          writeStream = await page.evaluateHandle(async (filePath) => {
+            let dirHandle = await navigator.storage.getDirectory();
+            for (const dir of filePath.dirs) {
+              dirHandle = await dirHandle.getDirectoryHandle(dir, { create: true });
+            }
+            const fileHandle = await dirHandle.getFileHandle(filePath.basename, { create: true });
+            const ws = await fileHandle.createWritable({ keepExistingData: false });
+            return ws;
+          }, parsePath(remotePath));
+
+          // Reusable browser's buffer for writing
+          chunkBuffer = await page.evaluateHandle(async (size) => new Uint8Array(size), chunkSize);
+
           for await (const chunk of readStream) {
             // const start = performance.now();
             const byteArray = Object.values(chunk);
@@ -99,12 +100,14 @@ export const test = base.extend<StorageFixtures>({
         } finally {
           // const durationAll = performance.now() - startAll;
           // console.log(`Total time ${durationAll.toFixed(2)}ms`);
-          readStream.close();
-          await page.evaluate(async (ws) => {
-            await ws.close();
-          }, writeStream);
-          await writeStream.dispose();
-          await chunkBuffer.dispose();
+          if (readStream !== null) readStream.close();
+          if (writeStream !== null) {
+            await page.evaluate(async (ws) => {
+              await ws.close();
+            }, writeStream);
+            await writeStream.dispose();
+          }
+          if (chunkBuffer !== null) await chunkBuffer.dispose();
         }
       },
       createDir: async (remotePath: string) => {
