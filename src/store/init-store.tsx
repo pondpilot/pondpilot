@@ -3,7 +3,7 @@ import { devtools } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { v4 as uuidv4 } from 'uuid';
 import { findUniqueName } from '@utils/helpers';
-import { Tab, TabId, TabMetaInfo } from '@models/tab';
+import { AnyTab, DataSourceTab, ScriptTab, TabId, TabMetaInfo } from '@models/tab';
 import { IDBPDatabase } from 'idb';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ContentViewState } from '@models/content-view';
@@ -37,9 +37,9 @@ type AppStore = {
   _iDbConn: IDBPDatabase<AppIdbSchema> | null;
 
   /**
-   * A mapping of local entry identifiers to their corresponding LocalEntry objects.
+   * The current state of the app, indicating whether it is loading, ready, or has encountered an error.
    */
-  localEntries: Map<LocalEntryId, LocalEntry>;
+  appLoadState: AppLoadState;
 
   /**
    * A mapping of local entry identifiers to their corresponding DataSource objects.
@@ -47,25 +47,39 @@ type AppStore = {
   dataSources: Map<DataSourceId, DataSource>;
 
   /**
-   * The current state of the app, indicating whether it is loading, ready, or has encountered an error.
+   * A mapping of local entry identifiers to their corresponding LocalEntry objects.
    */
-  appLoadState: AppLoadState;
+  localEntries: Map<LocalEntryId, LocalEntry>;
 
   /**
    * A mapping of SQL script identifiers to their corresponding SQLScript objects.
    */
   sqlScripts: Map<SQLScriptId, SQLScript>;
+
+  /**
+   * TODO!!!
+   * a maximum of N rows of data per tab used to display tabs after refresh or re-open
+   * a tab before actual data is loaded.
+   */
+  tabDataCache: Map<TabId, any>;
+
+  /**
+   * A mapping of tab identifiers to their corresponding Tab objects.
+   */
+  tabs: Map<TabId, AnyTab>;
 } & ContentViewState;
 
 const initialState: AppStore = {
   _iDbConn: null,
-  localEntries: new Map(),
-  dataSources: new Map(),
   appLoadState: 'init',
+  dataSources: new Map(),
+  localEntries: new Map(),
   sqlScripts: new Map(),
+  tabDataCache: new Map(),
+  tabs: new Map(),
+  // From ContentViewState
   activeTabId: null,
   previewTabId: null,
-  tabs: new Map(),
   tabOrder: [],
 };
 
@@ -81,15 +95,33 @@ export const useInitStore =
 
 // Common selectors
 export function useSqlScriptIdForActiveTab(): SQLScriptId | null {
-  return useInitStore((state) =>
-    state.activeTabId ? (state.tabs.get(state.activeTabId)?.sqlScriptId ?? null) : null,
-  );
+  return useInitStore((state) => {
+    if (!state.activeTabId) return null;
+
+    const tab = state.tabs.get(state.activeTabId);
+    if (!tab) return null;
+    if (tab.type !== 'script') {
+      console.warn(`Attempted to get SQLScriptId for non-script tab: ${tab.id}`);
+      return null;
+    }
+
+    return tab.sqlScriptId;
+  });
 }
 
 export function useDataSourceIdForActiveTab(): DataSourceId | null {
-  return useInitStore((state) =>
-    state.activeTabId ? (state.tabs.get(state.activeTabId)?.dataSourceId ?? null) : null,
-  );
+  return useInitStore((state) => {
+    if (!state.activeTabId) return null;
+
+    const tab = state.tabs.get(state.activeTabId);
+    if (!tab) return null;
+    if (tab.type !== 'data-source') {
+      console.warn(`Attempted to get DataSourceId for non-data-source tab: ${tab.id}`);
+      return null;
+    }
+
+    return tab.dataSourceId;
+  });
 }
 
 // Memoized selectors
@@ -358,7 +390,7 @@ export const setPreviewTabId = (tabId: TabId | null) => {
 
 const persistCreateTab = async (
   iDb: IDBPDatabase<AppIdbSchema>,
-  tab: Tab,
+  tab: AnyTab,
   newTabOrder: TabId[],
 ) => {
   const tx = iDb.transaction([TAB_TABLE_NAME, CONTENT_VIEW_TABLE_NAME], 'readwrite');
@@ -368,13 +400,13 @@ const persistCreateTab = async (
   await tx.done;
 };
 
-const findTabFromScriptImpl = (tabs: Map<TabId, Tab>, sqlScriptId: SQLScriptId): Tab | undefined =>
-  Array.from(tabs.values()).find((tab) => tab.sqlScriptId === sqlScriptId);
-
 const findTabFromSourceImpl = (
-  tabs: Map<TabId, Tab>,
+  tabs: Map<TabId, AnyTab>,
   dataSourceId: DataSourceId,
-): Tab | undefined => Array.from(tabs.values()).find((tab) => tab.dataSourceId === dataSourceId);
+): DataSourceTab | undefined =>
+  Array.from(tabs.values())
+    .filter((tab) => tab.type === 'data-source')
+    .find((tab) => tab.dataSourceId === dataSourceId);
 
 /**
  * Finds a tab displaying an existing data source or undefined.
@@ -383,7 +415,9 @@ const findTabFromSourceImpl = (
  * @returns A new Tab object if found.
  * @throws An error if the DataSource with the given ID does not exist.
  */
-export const findTabFromSource = (dataSourceOrId: DataSource | DataSourceId): Tab | undefined => {
+export const findTabFromSource = (
+  dataSourceOrId: DataSource | DataSourceId,
+): DataSourceTab | undefined => {
   const state = useInitStore.getState();
 
   // Get the data source object if not passed as an object
@@ -392,7 +426,8 @@ export const findTabFromSource = (dataSourceOrId: DataSource | DataSourceId): Ta
     const fromState = state.dataSources.get(dataSourceOrId);
 
     if (!fromState) {
-      throw new Error(`Data source with id ${dataSourceOrId} not found`);
+      console.warn(`Data source with id ${dataSourceOrId} not found`);
+      return undefined;
     }
 
     dataSource = fromState;
@@ -404,6 +439,32 @@ export const findTabFromSource = (dataSourceOrId: DataSource | DataSourceId): Ta
   return findTabFromSourceImpl(state.tabs, dataSource.id);
 };
 
+function ensureScript(
+  sqlScriptOrId: SQLScript | SQLScriptId,
+  sqlScripts: Map<SQLScriptId, SQLScript>,
+): SQLScript {
+  // Get the script object if not passed as an object
+  if (typeof sqlScriptOrId === 'string') {
+    const fromState = sqlScripts.get(sqlScriptOrId);
+
+    if (!fromState) {
+      throw new Error(`SQL script with id ${sqlScriptOrId} not found`);
+    }
+
+    return fromState;
+  }
+
+  return sqlScriptOrId;
+}
+
+const findTabFromScriptImpl = (
+  tabs: Map<TabId, AnyTab>,
+  sqlScriptId: SQLScriptId,
+): ScriptTab | undefined =>
+  Array.from(tabs.values())
+    .filter((tab) => tab.type === 'script')
+    .find((tab) => tab.sqlScriptId === sqlScriptId);
+
 /**
  * Finds a tab displaying an existing SQL script or undefined.
  *
@@ -411,22 +472,13 @@ export const findTabFromSource = (dataSourceOrId: DataSource | DataSourceId): Ta
  * @returns A new Tab object if found.
  * @throws An error if the SQL script with the given ID does not exist.
  */
-export const findTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): Tab | undefined => {
+export const findTabFromScript = (
+  sqlScriptOrId: SQLScript | SQLScriptId,
+): ScriptTab | undefined => {
   const state = useInitStore.getState();
 
   // Get the script object if not passed as an object
-  let sqlScript: SQLScript;
-  if (typeof sqlScriptOrId === 'string') {
-    const fromState = state.sqlScripts.get(sqlScriptOrId);
-
-    if (!fromState) {
-      throw new Error(`SQL script with id ${sqlScriptOrId} not found`);
-    }
-
-    sqlScript = fromState;
-  } else {
-    sqlScript = sqlScriptOrId;
-  }
+  const sqlScript: SQLScript = ensureScript(sqlScriptOrId, state.sqlScripts);
 
   // Check if the script already has an associated tab
   return findTabFromScriptImpl(state.tabs, sqlScript.id);
@@ -440,22 +492,11 @@ export const findTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): Tab |
  * @returns A new Tab object.
  * @throws An error if the SQL script with the given ID does not exist.
  */
-export const createTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): Tab => {
+export const createTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): ScriptTab => {
   const state = useInitStore.getState();
 
   // Get the script object if not passed as an object
-  let sqlScript: SQLScript;
-  if (typeof sqlScriptOrId === 'string') {
-    const fromState = state.sqlScripts.get(sqlScriptOrId);
-
-    if (!fromState) {
-      throw new Error(`SQL script with id ${sqlScriptOrId} not found`);
-    }
-
-    sqlScript = fromState;
-  } else {
-    sqlScript = sqlScriptOrId;
-  }
+  const sqlScript: SQLScript = ensureScript(sqlScriptOrId, state.sqlScripts);
 
   // Check if the script already has an associated tab
   const existingTab = findTabFromScriptImpl(state.tabs, sqlScript.id);
@@ -467,16 +508,17 @@ export const createTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): Tab
 
   // Create a new tab
   const tabId = uuidv4() as TabId;
-  const tab: Tab = {
+  const tab: ScriptTab = {
+    type: 'script',
     id: tabId,
     meta: { name: sqlScript.name, iconType: 'code-file' },
     sqlScriptId: sqlScript.id,
-    dataSourceId: null,
+
     layout: {
       tableColumnWidth: {},
-      editorPaneHeight: 0,
       dataViewPaneHeight: 0,
     },
+    editorPaneHeight: 0,
   };
 
   // Add the new tab to the store
@@ -521,12 +563,12 @@ const persistDeleteTab = async (
 
 const deleteTabImpl = (
   deleteTabId: TabId,
-  tabs: Map<TabId, Tab>,
+  tabs: Map<TabId, AnyTab>,
   tabOrder: TabId[],
   activeTabId: TabId | null,
   previewTabId: TabId | null,
 ): {
-  newTabs: Map<TabId, Tab>;
+  newTabs: Map<TabId, AnyTab>;
   newTabOrder: TabId[];
   newActiveTabId: TabId | null;
   newPreviewTabId: TabId | null;

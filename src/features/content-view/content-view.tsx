@@ -3,7 +3,7 @@ import { TabView } from '@features/tab-view';
 import { Stack } from '@mantine/core';
 import { StartGuide } from '@features/tab-view/components';
 import { useInitStore } from '@store/init-store';
-import { Tab } from '@models/tab';
+import { AnyTab } from '@models/tab';
 import { useEffect } from 'react';
 import { useTabCache } from './useTabCache';
 
@@ -24,7 +24,7 @@ export const ContentView = () => {
     }
 
     return acc;
-  }, [] as Tab[]);
+  }, [] as AnyTab[]);
 
   // Use our cache with maximum size of 10 tabs
   const { addToCache, isTabCached } = useTabCache(10);
@@ -57,7 +57,7 @@ export const ContentView = () => {
 
           return (
             <div style={{ display: isActive ? 'block' : 'none' }} className="h-full" key={tab.id}>
-              <TabView key={tab.id} data={tab} active={isActive} />
+              <TabView key={tab.id} tab={tab} active={isActive} />
             </div>
           );
         }

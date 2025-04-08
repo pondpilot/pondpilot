@@ -1,6 +1,6 @@
 import { ContentViewPersistence } from '@models/content-view';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
-import { Tab, TabId } from '@models/tab';
+import { AnyTab, TabId } from '@models/tab';
 import { DBSchema } from 'idb';
 import { LocalEntryId, LocalEntryPersistence } from '@models/file-system';
 import { DataSourceId, DataSourcePersistece } from '@models/data-source';
@@ -15,7 +15,7 @@ import {
 export type AppIdbSchema = DBSchema & {
   [TAB_TABLE_NAME]: {
     key: TabId;
-    value: Tab;
+    value: AnyTab;
   };
   [SQL_SCRIPT_TABLE_NAME]: {
     key: SQLScriptId;

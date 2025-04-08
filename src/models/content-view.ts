@@ -1,4 +1,4 @@
-import { TabId, Tab } from './tab';
+import { TabId } from './tab';
 
 /**
  * Represents the content view related part of the app state.
@@ -19,17 +19,6 @@ export type ContentViewState = {
   previewTabId: TabId | null;
 
   /**
-   * A mapping of tab identifiers to their corresponding Tab objects.
-   */
-  tabs: Map<TabId, Tab>;
-
-  /**
-   * a maximum of 100 rows of data per tab used to display tabs after refresh or re-open
-   * a tab before actual data is loaded.
-   */
-  tabDataCache: Map<TabId, any>;
-
-  /**
    * An array of TabId's in the order they should be displayed.
    *
    * Invariant: all TabId's in this array should be present in the tabs map.
@@ -42,4 +31,4 @@ export type ContentViewState = {
  *
  * Our iDB interface is responsible for converting the state to and from.
  */
-export type ContentViewPersistence = Omit<ContentViewState, 'tabs'>;
+export type ContentViewPersistence = ContentViewState;

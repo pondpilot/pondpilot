@@ -26,17 +26,17 @@ import { notifications } from '@mantine/notifications';
 import { useUpdateTabMutation } from '@store/app-idb-store';
 import { useAppStore } from '@store/app-store';
 import { setDataTestId } from '@utils/test-id';
-import { Tab } from '@models/tab';
+import { AnyTab } from '@models/tab';
 import { PaginationControl, TableLoadingOverlay } from './components';
 import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
 
 interface TabViewProps {
-  data: Tab;
+  tab: AnyTab;
   active: boolean;
 }
 
-export const TabView = memo(({ data: tab, active }: TabViewProps) => {
+export const TabView = memo(({ tab, active }: TabViewProps) => {
   const { mutateAsync: updateTab } = useUpdateTabMutation();
 
   /**
@@ -59,7 +59,7 @@ export const TabView = memo(({ data: tab, active }: TabViewProps) => {
   // const queryRunning = tab?.query.state === 'fetching';
   const queryResults: ApacheTable<any> | null | undefined = null;
   const queryRunning = false;
-  const queryView = tab.sqlScriptId !== undefined;
+  const isSctiptTab = tab.type === 'script';
 
   const { editorPaneHeight = 0, dataViewPaneHeight = 0 } = tab?.layout ?? {};
 
@@ -204,7 +204,7 @@ export const TabView = memo(({ data: tab, active }: TabViewProps) => {
         onDragEnd={setPanelSize}
         defaultSizes={[editorPaneHeight, dataViewPaneHeight]}
       >
-        {queryView && tab.sqlScriptId && (
+        {isSctiptTab && tab.sqlScriptId && (
           <Allotment.Pane preferredSize={editorPaneHeight} minSize={200}>
             <QueryEditor
               columnsCount={convertedTable.columns.length}
@@ -226,16 +226,16 @@ export const TabView = memo(({ data: tab, active }: TabViewProps) => {
           )}
           <div className="flex flex-col h-full">
             <TableLoadingOverlay
-              queryView={queryView}
+              queryView={isSctiptTab}
               onCancel={onCancel}
               visible={hasTableData ? debouncedLoading : queryRunning}
             />
             {hasTableData && (
               <Group
                 justify="space-between"
-                className={cn('h-7 mt-4 mb-2 px-3', queryView && 'mt-3')}
+                className={cn('h-7 mt-4 mb-2 px-3', isSctiptTab && 'mt-3')}
               >
-                {queryView ? (
+                {isSctiptTab ? (
                   <>
                     <Group>
                       <Text c="text-primary" className="text-sm font-medium cursor-pointer">
