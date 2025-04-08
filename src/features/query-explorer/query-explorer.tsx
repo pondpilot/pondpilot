@@ -8,7 +8,7 @@ import { setDataTestId } from '@utils/test-id';
 
 import {
   createSQLScript,
-  createTabFromScript,
+  getOrCreateTabFromScript,
   deleteTab,
   findTabFromScript,
   setActiveTabId,
@@ -82,7 +82,7 @@ export const QueryExplorer = memo(() => {
     }
 
     // Net new. Create a tab
-    const tab = createTabFromScript(id);
+    const tab = getOrCreateTabFromScript(id);
     // Then set it as active & preview
     setActiveTabId(tab.id);
     setPreviewTabId(tab.id);
@@ -90,7 +90,7 @@ export const QueryExplorer = memo(() => {
 
   const handleAddQuery = () => {
     const newEmptyScript = createSQLScript();
-    const newTab = createTabFromScript(newEmptyScript);
+    const newTab = getOrCreateTabFromScript(newEmptyScript);
     setActiveTabId(newTab.id);
   };
 

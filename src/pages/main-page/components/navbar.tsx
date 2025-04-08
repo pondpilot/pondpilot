@@ -13,7 +13,8 @@ import { APP_GITHUB_URL } from 'app-urls';
 import { supportedDataSourceFileExts } from '@models/file-system';
 import { pickFiles } from '@utils/file-system';
 import { useAppNotifications } from '@components/app-notifications';
-import { addLocalFileOrFolders } from '@store/init-store';
+import { addLocalFileOrFolders, useInitStore } from '@store/init-store';
+import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 
 /**
  * Displays the navigation bar
@@ -25,6 +26,13 @@ export const Navbar = memo(() => {
   const [navbarSizes, setInnerLayoutSizes] = useLocalStorage<number[]>({ key: 'navbar-sizes' });
   const navigate = useNavigate();
   const { showError } = useAppNotifications();
+
+  const appLoadState = useInitStore.use.appLoadState();
+  // todo we should be able to use non-null hook with db-conn,
+  // but to do that, we need to extract the "plus" as a separate component
+  // that is only loaded after app is ready
+  // const { db, conn } = useInitializedDuckDBConnection();
+  const { db, conn } = useDuckDBConnection();
 
   /**
    * Local state
@@ -47,7 +55,7 @@ export const Navbar = memo(() => {
       return;
     }
 
-    addLocalFileOrFolders(handles);
+    await addLocalFileOrFolders(db!, conn!, handles);
   };
 
   return (
@@ -82,19 +90,21 @@ export const Navbar = memo(() => {
               Databases
             </Button>
           </Group>
-          <Group justify="space-between">
-            <Group className="gap-2">
-              <Divider orientation="vertical" />
-              <ActionIcon
-                onClick={handleAddFile}
-                size={16}
-                key="Upload file"
-                data-testid={setDataTestId('add-file-button')}
-              >
-                <IconPlus />
-              </ActionIcon>
+          {appLoadState === 'ready' && (
+            <Group justify="space-between">
+              <Group className="gap-2">
+                <Divider orientation="vertical" />
+                <ActionIcon
+                  onClick={handleAddFile}
+                  size={16}
+                  key="Upload file"
+                  data-testid={setDataTestId('add-file-button')}
+                >
+                  <IconPlus />
+                </ActionIcon>
+              </Group>
             </Group>
-          </Group>
+          )}
         </Group>
 
         {isFiles ? <FileSystemExplorer /> : <DbExplorer />}

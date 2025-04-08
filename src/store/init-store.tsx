@@ -3,18 +3,27 @@ import { devtools } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { v4 as uuidv4 } from 'uuid';
 import { findUniqueName } from '@utils/helpers';
-import { AnyTab, DataSourceTab, ScriptTab, TabId, TabMetaInfo } from '@models/tab';
+import { AnyTab, FileDataSourceTab, ScriptTab, TabId, TabMetaInfo } from '@models/tab';
 import { IDBPDatabase } from 'idb';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ContentViewState } from '@models/content-view';
-import { AnyDataSource, DataSource, DataSourceId } from '@models/data-source';
-import { LocalEntry, LocalEntryId } from '@models/file-system';
+import {
+  AnyPersistentDataView,
+  PersistentDataViewId,
+  PersistentDataViewData,
+} from '@models/data-view';
+import { DataSourceLocalFile, LocalEntry, LocalEntryId } from '@models/file-system';
 import { localEntryFromHandle } from '@utils/file-system';
-import { createCSVDataSource } from '@utils/data-sources/csv-data-source';
-import { getSerializedDataSource } from '@utils/data-source';
+
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
+import {
+  registerAndAttachDatabase,
+  registerFileSourceAndCreateView,
+} from '@controllers/db/file-handle';
 import {
   CONTENT_VIEW_TABLE_NAME,
-  DATA_SOURCE_TABLE_NAME,
+  DATA_VIEW_TABLE_NAME,
   LOCAL_ENTRY_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
   TAB_TABLE_NAME,
@@ -42,9 +51,9 @@ type AppStore = {
   appLoadState: AppLoadState;
 
   /**
-   * A mapping of local entry identifiers to their corresponding DataSource objects.
+   * A mapping of persistent data view ids to their corresponding objects.
    */
-  dataSources: Map<DataSourceId, DataSource>;
+  dataViews: Map<PersistentDataViewId, PersistentDataViewData>;
 
   /**
    * A mapping of local entry identifiers to their corresponding LocalEntry objects.
@@ -72,7 +81,7 @@ type AppStore = {
 const initialState: AppStore = {
   _iDbConn: null,
   appLoadState: 'init',
-  dataSources: new Map(),
+  dataViews: new Map(),
   localEntries: new Map(),
   sqlScripts: new Map(),
   tabDataCache: new Map(),
@@ -109,7 +118,7 @@ export function useSqlScriptIdForActiveTab(): SQLScriptId | null {
   });
 }
 
-export function useDataSourceIdForActiveTab(): DataSourceId | null {
+export function useDataViewIdForActiveTab(): PersistentDataViewId | null {
   return useInitStore((state) => {
     if (!state.activeTabId) return null;
 
@@ -120,7 +129,7 @@ export function useDataSourceIdForActiveTab(): DataSourceId | null {
       return null;
     }
 
-    return tab.dataSourceId;
+    return tab.dataViewId;
   });
 }
 
@@ -128,12 +137,6 @@ export function useDataSourceIdForActiveTab(): DataSourceId | null {
 
 // We use separate memoized selectors for each necessary field, to avoid
 // using complex comparator functions...
-
-export function useSqlScript(sqlScriptId: SQLScriptId | null): SQLScript | null {
-  return useInitStore(
-    useShallow((state) => (sqlScriptId ? state.sqlScripts.get(sqlScriptId) || null : null)),
-  );
-}
 
 export function useSqlScriptNameMap(): Map<SQLScriptId, string> {
   return useInitStore(
@@ -170,9 +173,9 @@ export const setIDbConn = (iDbConn: IDBPDatabase<AppIdbSchema>) => {
 const persistAddLocalEntry = async (
   iDb: IDBPDatabase<AppIdbSchema>,
   newEntries: [LocalEntryId, LocalEntry][],
-  newDataSources: [DataSourceId, AnyDataSource][],
+  newDataViews: [PersistentDataViewId, AnyPersistentDataView][],
 ) => {
-  const tx = iDb.transaction([LOCAL_ENTRY_TABLE_NAME, DATA_SOURCE_TABLE_NAME], 'readwrite');
+  const tx = iDb.transaction([LOCAL_ENTRY_TABLE_NAME, DATA_VIEW_TABLE_NAME], 'readwrite');
 
   // Add new local entries
   for (const [id, newLocalEntry] of newEntries) {
@@ -180,35 +183,66 @@ const persistAddLocalEntry = async (
   }
 
   // Add new data sources
-  for (const [id, newDataSource] of newDataSources) {
-    await tx.objectStore(DATA_SOURCE_TABLE_NAME).put(getSerializedDataSource(newDataSource), id);
+  for (const [id, newDataView] of newDataViews) {
+    await tx.objectStore(DATA_VIEW_TABLE_NAME).put(newDataView, id);
   }
 
   // Commit the transaction
   await tx.done;
 };
 
-export const addLocalFileOrFolders = (
+function addPersistentDataView(localEntry: DataSourceLocalFile): AnyPersistentDataView {
+  const dataViewId = uuidv4() as PersistentDataViewId;
+
+  // TODO: fetch all views currently in memory db from state to avoid duplicates
+  const reservedViews = new Set([] as string[]);
+  const viewName = findUniqueName(toDuckDBIdentifier(localEntry.uniqueAlias), (name: string) =>
+    reservedViews.has(name),
+  );
+
+  switch (localEntry.ext) {
+    case 'csv':
+      return {
+        id: dataViewId,
+        type: 'persistent',
+        sourceType: localEntry.ext,
+        fileSourceId: localEntry.id,
+        displayName: viewName,
+        queryableName: viewName,
+        fullyQualifiedName: `main.${viewName}`,
+      };
+    case 'parquet':
+      return {
+        id: dataViewId,
+        type: 'persistent',
+        sourceType: localEntry.ext,
+        fileSourceId: localEntry.id,
+        displayName: viewName,
+        queryableName: viewName,
+        fullyQualifiedName: `main.${viewName}`,
+        registeredFileName: localEntry.uniqueAlias,
+      };
+    default:
+      throw new Error('TODO: Supported data source file type');
+  }
+}
+
+export const addLocalFileOrFolders = async (
+  db: AsyncDuckDB,
+  conn: AsyncDuckDBConnection,
   handles: (FileSystemDirectoryHandle | FileSystemFileHandle)[],
-): {
-  newEntries: [LocalEntryId, LocalEntry][];
-  newDataSources: [DataSourceId, AnyDataSource][];
-} => {
-  const {
-    _iDbConn: iDbConn,
-    localEntries: _localEntries,
-    dataSources: _dataSources,
-  } = useInitStore.getState();
+) => {
+  const { _iDbConn: iDbConn, localEntries, dataViews } = useInitStore.getState();
 
   const usedAliases = new Set(
-    _localEntries
+    localEntries
       .values()
       .filter((entry) => entry.kind === 'file')
       .map((entry) => entry.uniqueAlias),
   );
 
   const newEntries: [LocalEntryId, LocalEntry][] = [];
-  const newDataSources: [DataSourceId, AnyDataSource][] = [];
+  const newDataViews: [PersistentDataViewId, AnyPersistentDataView][] = [];
 
   for (const handle of handles) {
     const localEntry = localEntryFromHandle(handle, null, true, (fileName: string): string => {
@@ -228,30 +262,55 @@ export const addLocalFileOrFolders = (
     if (localEntry.kind === 'directory') {
       throw new Error('TODO');
     } else if (localEntry.fileType === 'data-source') {
-      let dataSource: AnyDataSource | null = null;
-
       switch (localEntry.ext) {
-        case 'csv':
-          dataSource = createCSVDataSource(localEntry, (name: string) => name);
-          break;
-        default:
-          throw new Error('TODO: Supported data source file type');
-      }
+        case 'duckdb': {
+          // TODO: fetch all attached dbs in memory db from state to avoid duplicates
+          const reservedDbs = new Set([] as string[]);
+          const dbName = findUniqueName(
+            toDuckDBIdentifier(localEntry.uniqueAlias),
+            (name: string) => reservedDbs.has(name),
+          );
 
-      newDataSources.push([dataSource.id, dataSource]);
+          await registerAndAttachDatabase(
+            db,
+            conn,
+            localEntry.handle,
+            localEntry.uniqueAlias,
+            dbName,
+          );
+          break;
+        }
+        default: {
+          // First create a data view object
+          const dataView = addPersistentDataView(localEntry);
+
+          // Then register the file source and create the view.
+          // TODO: this may potentially fail - we should handle this case
+          await registerFileSourceAndCreateView(
+            db,
+            conn,
+            localEntry.handle,
+            `${localEntry.uniqueAlias}.${localEntry.ext}`,
+            dataView.queryableName,
+          );
+
+          newDataViews.push([dataView.id, dataView]);
+          break;
+        }
+      }
     }
   }
 
   // Create an object to pass to store update
   const newState: {
     localEntries: Map<LocalEntryId, LocalEntry>;
-    dataSources?: Map<DataSourceId, DataSource>;
+    dataViews?: Map<PersistentDataViewId, PersistentDataViewData>;
   } = {
-    localEntries: new Map(Array.from(_localEntries).concat(newEntries)),
+    localEntries: new Map(Array.from(localEntries).concat(newEntries)),
   };
 
-  if (newDataSources.length > 0) {
-    newState.dataSources = new Map(Array.from(_dataSources).concat(newDataSources));
+  if (newDataViews.length > 0) {
+    newState.dataViews = new Map(Array.from(dataViews).concat(newDataViews));
   }
 
   // Update the store
@@ -259,13 +318,13 @@ export const addLocalFileOrFolders = (
 
   // If we have an IndexedDB connection, persist the new local entry
   if (iDbConn) {
-    persistAddLocalEntry(iDbConn, newEntries, newDataSources);
+    persistAddLocalEntry(iDbConn, newEntries, newDataViews);
   }
 
   // Return the new local entry and data source
   return {
     newEntries,
-    newDataSources,
+    newDataViews,
   };
 };
 
@@ -400,43 +459,48 @@ const persistCreateTab = async (
   await tx.done;
 };
 
-const findTabFromSourceImpl = (
+function ensureDataView(
+  dataViewOrId: PersistentDataViewData | PersistentDataViewId,
+  dataViews: Map<PersistentDataViewId, PersistentDataViewData>,
+): PersistentDataViewData {
+  if (typeof dataViewOrId === 'string') {
+    const fromState = dataViews.get(dataViewOrId);
+
+    if (!fromState) {
+      throw new Error(`Data view with id ${dataViewOrId} not found`);
+    }
+
+    return fromState;
+  }
+
+  return dataViewOrId;
+}
+
+const findTabFromDataViewImpl = (
   tabs: Map<TabId, AnyTab>,
-  dataSourceId: DataSourceId,
-): DataSourceTab | undefined =>
+  dataViewId: PersistentDataViewId,
+): FileDataSourceTab | undefined =>
   Array.from(tabs.values())
     .filter((tab) => tab.type === 'data-source')
-    .find((tab) => tab.dataSourceId === dataSourceId);
+    .find((tab) => tab.dataViewId === dataViewId);
 
 /**
- * Finds a tab displaying an existing data source or undefined.
+ * Finds a tab displaying an existing data view or undefined.
  *
- * @param dataSourceOrId - The ID or a DataSource object to find the tab for.
+ * @param dataViewOrId - The ID or a DataView object to find the tab for.
  * @returns A new Tab object if found.
- * @throws An error if the DataSource with the given ID does not exist.
+ * @throws An error if the DataView with the given ID does not exist.
  */
-export const findTabFromSource = (
-  dataSourceOrId: DataSource | DataSourceId,
-): DataSourceTab | undefined => {
+export const findTabFromDataView = (
+  dataViewOrId: PersistentDataViewData | PersistentDataViewId,
+): FileDataSourceTab | undefined => {
   const state = useInitStore.getState();
 
   // Get the data source object if not passed as an object
-  let dataSource: DataSource;
-  if (typeof dataSourceOrId === 'string') {
-    const fromState = state.dataSources.get(dataSourceOrId);
-
-    if (!fromState) {
-      console.warn(`Data source with id ${dataSourceOrId} not found`);
-      return undefined;
-    }
-
-    dataSource = fromState;
-  } else {
-    dataSource = dataSourceOrId;
-  }
+  const dataView = ensureDataView(dataViewOrId, state.dataViews);
 
   // Check if the script already has an associated tab
-  return findTabFromSourceImpl(state.tabs, dataSource.id);
+  return findTabFromDataViewImpl(state.tabs, dataView.id);
 };
 
 function ensureScript(
@@ -492,7 +556,7 @@ export const findTabFromScript = (
  * @returns A new Tab object.
  * @throws An error if the SQL script with the given ID does not exist.
  */
-export const createTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): ScriptTab => {
+export const getOrCreateTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): ScriptTab => {
   const state = useInitStore.getState();
 
   // Get the script object if not passed as an object
@@ -532,6 +596,67 @@ export const createTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): Scr
     }),
     undefined,
     'AppStore/createTabFromScript',
+  );
+
+  // Persist the new tab to IndexedDB
+  const iDb = state._iDbConn;
+  if (iDb) {
+    persistCreateTab(iDb, tab, newTabOrder);
+  }
+
+  return tab;
+};
+
+/**
+ * Creates a new tab from an existing persistent data view.
+ * If the view is already associated with a tab, it returns that tab without creating a new one.
+ *
+ * @param dataViewId - The ID of an object to create a tab from.
+ * @returns A new Tab object.
+ * @throws An error if the SQL script with the given ID does not exist.
+ */
+export const getOrCreateTabFromPersistentDataView = (
+  dataViewId: PersistentDataViewId,
+): FileDataSourceTab => {
+  const state = useInitStore.getState();
+
+  // Get the script object if not passed as an object
+  const dataView = ensureDataView(dataViewId, state.dataViews);
+
+  // Check if the script already has an associated tab
+  const existingTab = findTabFromDataViewImpl(state.tabs, dataViewId);
+
+  // No need to create a new tab if one already exists
+  if (existingTab) {
+    return existingTab;
+  }
+
+  // Create a new tab
+  const tabId = uuidv4() as TabId;
+  const tab: FileDataSourceTab = {
+    type: 'data-source',
+    id: tabId,
+    // TODO proper iconType or move it to the data view model
+    meta: { name: dataView.displayName, iconType: 'csv' },
+    dataViewId: dataView.id,
+
+    layout: {
+      tableColumnWidth: {},
+      dataViewPaneHeight: 0,
+    },
+  };
+
+  // Add the new tab to the store
+  const newTabs = new Map(state.tabs).set(tabId, tab);
+  const newTabOrder = [...state.tabOrder, tabId];
+
+  useInitStore.setState(
+    (_) => ({
+      tabs: newTabs,
+      tabOrder: newTabOrder,
+    }),
+    undefined,
+    'AppStore/createTabFromPersistentDataView',
   );
 
   // Persist the new tab to IndexedDB

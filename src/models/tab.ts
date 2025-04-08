@@ -1,5 +1,5 @@
 import { IconType } from '@features/list-view-icon';
-import { DataSourceId } from './data-source';
+import { PersistentDataViewId } from './data-view';
 import { SQLScriptId } from './sql-script';
 
 export type TabId = string & { readonly _: unique symbol };
@@ -27,9 +27,20 @@ export interface ScriptTab extends TabBase {
   editorPaneHeight: number;
 }
 
-export interface DataSourceTab extends TabBase {
+export interface FileDataSourceTab extends TabBase {
   type: 'data-source';
-  dataSourceId: DataSourceId;
+  dataViewId: PersistentDataViewId;
 }
 
-export type AnyTab = ScriptTab | DataSourceTab;
+export interface AttachedDBDataTab extends TabBase {
+  type: 'data-source';
+
+  schemaName: string;
+
+  /**
+   * Name of the table/view in the database.
+   */
+  objectName: string;
+}
+
+export type AnyTab = ScriptTab | FileDataSourceTab;
