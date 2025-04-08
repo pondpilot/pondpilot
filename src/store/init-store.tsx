@@ -328,6 +328,44 @@ export const addLocalFileOrFolders = async (
   };
 };
 
+export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHandle[]) => {
+  const { _iDbConn: iDbConn, sqlScripts } = useInitStore.getState();
+
+  const newScripts: [SQLScriptId, SQLScript][] = [];
+
+  for (const handle of handles) {
+    const fileName = handle.name;
+    const nameWithoutExt = fileName.split('.').slice(0, -1).join('.');
+    const fileContent = await handle.getFile().then((file) => file.text());
+
+    const sqlScriptId = uuidv4() as SQLScriptId;
+    const sqlScript: SQLScript = {
+      id: sqlScriptId,
+      name: nameWithoutExt,
+      content: fileContent,
+    };
+
+    newScripts.push([sqlScriptId, sqlScript]);
+  }
+
+  // Create an object to pass to store update
+  const newState: {
+    sqlScripts: Map<SQLScriptId, SQLScript>;
+  } = {
+    sqlScripts: new Map(Array.from(sqlScripts).concat(newScripts)),
+  };
+
+  // Update the store
+  useInitStore.setState(newState, undefined, 'AppStore/importSQLFiles');
+
+  // If we have an IndexedDB connection, persist the new SQL scripts
+  if (iDbConn) {
+    for (const [id, script] of newScripts) {
+      iDbConn.put(SQL_SCRIPT_TABLE_NAME, script, id);
+    }
+  }
+};
+
 export const createSQLScript = (name: string = 'query', content: string = ''): SQLScript => {
   const { sqlScripts } = useInitStore.getState();
   const allNames = new Set(sqlScripts.values().map((script) => script.name));

@@ -8,9 +8,6 @@ import { useEffect } from 'react';
 import { useTabCache } from './useTabCache';
 
 export const ContentView = () => {
-  // OLD
-  // const { data: tabs = [] } = useAllTabsQuery();
-
   const tabs = useInitStore.use.tabs();
   const tabsOrder = useInitStore.use.tabOrder();
   const activeTabId = useInitStore.use.activeTabId();
