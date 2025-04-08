@@ -85,6 +85,7 @@ export const Navbar = memo(() => {
                   onClick={handleAddSource('file', ['.parquet', '.csv', '.json', '.duckdb'])}
                   size={16}
                   key="Upload file"
+                  data-testid={setDataTestId('add-file-button')}
                 >
                   <IconPlus />
                 </ActionIcon>
