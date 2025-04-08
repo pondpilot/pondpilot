@@ -42,6 +42,7 @@
     "@hello-pangea/dnd": "^17.0.0",
     "@mantine/core": "^7.17.0",
     "@mantine/hooks": "^7.17.0",
+    "@mantine/modals": "^7.17.4",
     "@mantine/notifications": "^7.17.0",
     "@mantine/spotlight": "^7.17.0",
     "@tabler/icons-react": "^3.28.1",

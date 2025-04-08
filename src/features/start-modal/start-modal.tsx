@@ -1,7 +1,9 @@
 import { ONBOARDING_MODAL_OPTIONS } from '@components/onboarding-modal';
+import { WHATS_NEW_MODAL_OPTIONS } from '@components/whats-new-modal';
 import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { useAppStore } from '@store/app-store';
+import { isVersionGreater } from '@utils/compare-versions';
 
 export const StartModal = () => {
   const appStatus = useAppStore((state) => state.appStatus);
@@ -17,25 +19,31 @@ export const StartModal = () => {
 
   useDidUpdate(() => {
     if (appStatus === 'ready') {
-      // if (isOnboardingShown && __VERSION__ !== whatsNewVersionShown) {
-      //   modals.openContextModal({
-      //     ...WHATS_NEW_MODAL_OPTIONS,
-      //     onClose() {
-      //       setWhatsNewVersionShown(__VERSION__);
-      //     },
-      //   });
-      // }
-
+      // If a user is using the app for the first time, show the Onboarding modal, not the Release Notes
       if (!isOnboardingShown) {
-        //  TODO:  need for tests setWhatsNewVersionShown(__VERSION__);
+        setWhatsNewVersionShown(__VERSION__);
         modals.openContextModal({
           ...ONBOARDING_MODAL_OPTIONS,
           onClose() {
             setIsOnboardingShown(true);
           },
         });
+        return;
       }
+
+      if (whatsNewVersionShown && isVersionGreater(__VERSION__, whatsNewVersionShown)) {
+        modals.openContextModal({
+          ...WHATS_NEW_MODAL_OPTIONS,
+          onClose() {
+            setWhatsNewVersionShown(__VERSION__);
+          },
+        });
+        return;
+      }
+      // Set the current version by dfault
+      setWhatsNewVersionShown(__VERSION__);
     }
   }, [appStatus]);
+
   return null;
 };

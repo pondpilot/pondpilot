@@ -2274,6 +2274,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@mantine/modals@npm:^7.17.4":
+  version: 7.17.4
+  resolution: "@mantine/modals@npm:7.17.4"
+  peerDependencies:
+    "@mantine/core": 7.17.4
+    "@mantine/hooks": 7.17.4
+    react: ^18.x || ^19.x
+    react-dom: ^18.x || ^19.x
+  checksum: 10c0/fbdd680c0668eea9ddce3723dfdf6384abdc94bad8c84c5b802d9b17e3260be7596ffcd9432805f9b57fb01c97821787bbbf68be8f85448d2e6adf1267b923f0
+  languageName: node
+  linkType: hard
+
 "@mantine/notifications@npm:^7.17.0":
   version: 7.17.0
   resolution: "@mantine/notifications@npm:7.17.0"
@@ -7906,6 +7918,7 @@ __metadata:
     "@hello-pangea/dnd": "npm:^17.0.0"
     "@mantine/core": "npm:^7.17.0"
     "@mantine/hooks": "npm:^7.17.0"
+    "@mantine/modals": "npm:^7.17.4"
     "@mantine/notifications": "npm:^7.17.0"
     "@mantine/spotlight": "npm:^7.17.0"
     "@playwright/test": "npm:^1.51.0"

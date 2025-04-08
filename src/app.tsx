@@ -1,7 +1,6 @@
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import '@mantine/spotlight/styles.css';
-import '@mantine/tiptap/styles.css';
 import 'allotment/dist/style.css';
 
 import './index.css';
@@ -34,7 +33,6 @@ export default function App() {
 
   return (
     <MantineProvider theme={theme}>
-      {/* // TODO: Set all modals here  */}
       <ModalsProvider
         modals={{
           onboarding: OnboardingModal,

@@ -1,3 +1,4 @@
+/* eslint-disable unused-imports/no-unused-vars */
 import { Text, Stack, Title, List } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -15,14 +16,23 @@ export const WHATS_NEW_MODAL_OPTIONS = {
 
 export const WhatsNewModal = () => {
   const [ghReleaseNotesData, setGhReleaseNotesData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
 
   useEffect(() => {
     const fetchGhReleaseNotesData = async () => {
-      const response = await fetch(
-        `https://api.github.com/repos/pondpilot/pondpilot/releases/tags/${__VERSION__}`,
-      );
-      const data = await response.json();
-      setGhReleaseNotesData(data);
+      try {
+        const response = await fetch(
+          `https://api.github.com/repos/pondpilot/pondpilot/releases/tags/${__VERSION__}`,
+        );
+        const data = await response.json();
+        setGhReleaseNotesData(data);
+      } catch (error) {
+        console.error('Error fetching release notes:', error);
+        setIsError(true);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchGhReleaseNotesData();
@@ -30,6 +40,16 @@ export const WhatsNewModal = () => {
 
   return (
     <Stack gap={16} maw={660}>
+      {isLoading && (
+        <Text c="text-secondary" className="text-base">
+          Loading release notes...
+        </Text>
+      )}
+      {isError && (
+        <Text c="text-error" className="text-base">
+          Error loading release notes. Please try again later.
+        </Text>
+      )}
       {ghReleaseNotesData && (
         <ReactMarkdown
           components={{
