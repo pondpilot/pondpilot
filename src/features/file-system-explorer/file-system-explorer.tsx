@@ -5,7 +5,6 @@ import { memo, useMemo } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { useCreateQueryFileMutation } from '@store/app-idb-store';
 import {
-  findTabFromDataView,
   getOrCreateTabFromPersistentDataView,
   setActiveTabId,
   useDataViewIdForActiveTab,
@@ -13,7 +12,6 @@ import {
 } from '@store/init-store';
 import { LocalEntryId } from '@models/file-system';
 import { IconType } from '@features/list-view-icon';
-import { PersistentDataViewId } from '@models/data-view';
 
 /**
  * Displays a file system tree for all registered local entities (files & folders)

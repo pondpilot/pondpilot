@@ -2,6 +2,9 @@ import { getSupportedMimeType } from '@utils/helpers';
 import { useDataSourcesActions } from '@features/app-context';
 import { useAppNotifications } from '@components/app-notifications';
 
+/**
+ * @deprecated - Use `useLocalFilesOrFolders` instead
+ */
 export const useUploadFileHandles = () => {
   const { onAddDataSources } = useDataSourcesActions();
   const { showError } = useAppNotifications();

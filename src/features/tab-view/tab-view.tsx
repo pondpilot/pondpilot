@@ -62,6 +62,7 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
   const { conn } = useInitializedDuckDBConnection();
   const persistentTab = tab as FileDataSourceTab;
   const dataView = useInitStore((state) => state.dataViews.get(persistentTab.dataViewId)!);
+
   const dataViewAdapter = useMemo(() => getDataViewAdapter(dataView), [dataView]);
   const [dataViewReader, setReader] = useState<AsyncRecordBatchStreamReader<any> | null>(null);
   const [isQueryRunning, setQueryRunning] = useState<boolean>(false);
@@ -139,7 +140,9 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
           .map((col) => `"${col}"`);
 
         const result: ApacheTable<any> = await executeQuery(
-          `SELECT ${selectedCols.join(', ')} FROM (${tab?.query?.originalQuery?.replaceAll(';', '')})`,
+          // `SELECT ${selectedCols.join(', ')} FROM (${tab?.query?.originalQuery?.replaceAll(';', '')})`,
+          // TODO: Call duckdb to get the data
+          'SELECT ...',
         );
 
         const data = result.toArray().map((row) => row.toJSON());
@@ -199,35 +202,32 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
 
   useEffect(() => {
     // const view = views.find((v) => v.sourceId === tab?.sourceId);
-
-    return;
     // TODO: Currently, this functionality may not be needed due to the fact that data can be obtained directly from the state during initialization
-    const setData = async () => {
-      await updateTab({
-        state: 'fetching',
-        id: tab.id,
-      });
-      const result = await runQuery({
-        query: `SELECT * FROM ${view.view_name}`,
-      });
-
-      if (result) {
-        await updateTab({
-          id: tab.id,
-          query: {
-            originalQuery: result.originalQuery,
-            state: 'success',
-          },
-          dataView: {
-            data: result.data,
-            rowCount: result.pagination,
-          },
-        });
-      }
-    };
-    if (tab.type === 'file' && !tab.dataView.data) {
-      setData();
-    }
+    // const setData = async () => {
+    //   await updateTab({
+    //     state: 'fetching',
+    //     id: tab.id,
+    //   });
+    //   const result = await runQuery({
+    //     query: `SELECT * FROM ${view.view_name}`,
+    //   });
+    //   if (result) {
+    //     await updateTab({
+    //       id: tab.id,
+    //       query: {
+    //         originalQuery: result.originalQuery,
+    //         state: 'success',
+    //       },
+    //       dataView: {
+    //         data: result.data,
+    //         rowCount: result.pagination,
+    //       },
+    //     });
+    //   }
+    // };
+    // if (tab.type === 'file' && !tab.dataView.data) {
+    //   setData();
+    // }
   }, [tab?.id]);
 
   return (
@@ -330,7 +330,6 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
                 columns={convertedTable.columns}
                 onSort={(colId: string) => {
                   // TODO: Pass sort function to set the sort state
-                  console.log('colId', colId);
                 }}
                 // TODO: get the sort state from the store
                 sort={undefined}

@@ -37,6 +37,7 @@ export function getDataViewAdapter(dataView: DataViewData): DataViewAdapterApi {
           const result = await db.query(
             `SELECT num_rows FROM parquet_file_metadata('${persistentDataView.registeredFileName}')`,
           );
+
           const count = Number(result.getChildAt(0)?.get(0));
           return count;
         },
