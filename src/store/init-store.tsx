@@ -396,6 +396,51 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
   return sqlScript;
 };
 
+export const renameSQLScript = (sqlScriptId: SQLScriptId, newName: string): void => {
+  const { sqlScripts } = useInitStore.getState();
+
+  // Check if the script exists
+  const sqlScript = sqlScripts.get(sqlScriptId);
+  if (!sqlScript) {
+    console.error(`SQL script with ID ${sqlScriptId} not found`);
+    return;
+  }
+
+  // Make sure the name is unique among other scripts
+  const allNames = new Set(
+    Array.from(sqlScripts.values())
+      .filter((script) => script.id !== sqlScriptId)
+      .map((script) => script.name),
+  );
+
+  const uniqueName = findUniqueName(newName, (value) => allNames.has(value));
+
+  // Create updated script
+  const updatedScript: SQLScript = {
+    ...sqlScript,
+    name: uniqueName,
+  };
+
+  // Update the store
+  const newSqlScripts = new Map(sqlScripts);
+  newSqlScripts.set(sqlScriptId, updatedScript);
+
+  // Update the store with changes
+  useInitStore.setState(
+    {
+      sqlScripts: newSqlScripts,
+    },
+    undefined,
+    'AppStore/renameSQLScript',
+  );
+
+  // Persist the changes to IndexedDB
+  const iDb = useInitStore.getState()._iDbConn;
+  if (iDb) {
+    iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScriptId);
+  }
+};
+
 export const setTabOrder = (tabOrder: TabId[]) => {
   useInitStore.setState({ tabOrder }, undefined, 'AppStore/setTabOrder');
 
@@ -673,8 +718,8 @@ export const getOrCreateTabFromPersistentDataView = (
   const tabId = uuidv4() as TabId;
   const tab: FileDataSourceTab = {
     type: 'data-source',
-    id: tabId,
     // TODO proper iconType or move it to the data view model
+    id: tabId,
     meta: { name: dataView.displayName, iconType: 'csv' },
     dataViewId: dataView.id,
 

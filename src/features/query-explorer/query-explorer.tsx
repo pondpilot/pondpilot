@@ -16,6 +16,7 @@ import {
   useInitStore,
   useSqlScriptIdForActiveTab,
   useSqlScriptNameMap,
+  renameSQLScript,
 } from '@store/init-store';
 import { SQLScriptId } from '@models/sql-script';
 
@@ -106,17 +107,15 @@ export const QueryExplorer = memo(() => {
    */
   const handleRenameSubmit = async () => {
     if (pendingRenameItemId) {
-      const updatedSource = await onRenameDataSource({
-        name: pendingRenameItemName,
-        id: pendingRenameItemId!,
-      });
-      const tab = tabsList.find((t) => t.sourceId === pendingRenameItemId);
-      if (tab) {
-        await updateTab({
-          id: tab.id,
-          name: updatedSource.name,
-        });
-      }
+      const updatedSource = renameSQLScript(pendingRenameItemId, pendingRenameItemName);
+      // TODO: Rename tab
+      // const tab = tabsList.find((t) => t.sourceId === pendingRenameItemId);
+      // if (tab) {
+      //   await updateTab({
+      //     id: tab.id,
+      //     name: updatedSource.name,
+      //   });
+      // }
     }
     closeRename();
   };
