@@ -6,7 +6,6 @@ export type TabId = string & { readonly _: unique symbol };
 
 export type TabLayout = {
   tableColumnWidth: Record<string, number>;
-  editorPaneHeight: number;
   dataViewPaneHeight: number;
 };
 
@@ -15,10 +14,22 @@ export type TabMetaInfo = {
   iconType: IconType;
 };
 
-export type Tab = {
+export interface TabBase {
+  readonly type: 'script' | 'data-source';
   id: TabId;
   meta: TabMetaInfo;
-  sqlScriptId: SQLScriptId | null;
-  dataSourceId: DataSourceId | null;
   layout: TabLayout;
-};
+}
+
+export interface ScriptTab extends TabBase {
+  type: 'script';
+  sqlScriptId: SQLScriptId;
+  editorPaneHeight: number;
+}
+
+export interface DataSourceTab extends TabBase {
+  type: 'data-source';
+  dataSourceId: DataSourceId;
+}
+
+export type AnyTab = ScriptTab | DataSourceTab;
