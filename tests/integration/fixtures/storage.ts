@@ -1,7 +1,14 @@
-import { test as base, JSHandle } from '@playwright/test';
+import { test as base } from '@playwright/test';
 import { createReadStream, readdirSync, ReadStream } from 'fs';
 import path from 'path';
 import { parsePath } from '../../utils';
+
+declare global {
+  interface Window {
+    _writeStream?: FileSystemWritableFileStream;
+    _writeBuffer?: Uint8Array;
+  }
+}
 
 interface Storage {
   // Manipulate files in the browser's storage.
@@ -48,13 +55,7 @@ export const test = base.extend<StorageFixtures>({
       uploadFile: async (localPath: string, remotePath: string) => {
         // 64KB chunks
         const chunkSize = 64 * 1024;
-
         let readStream: ReadStream | null = null;
-        let writeStream: JSHandle<FileSystemWritableFileStream> | null = null;
-        let chunkBuffer: JSHandle<Uint8Array<ArrayBuffer>> | null = null;
-
-        // const startAll = performance.now();
-        // let size = 0;
         try {
           // Create a local read stream
           readStream = createReadStream(localPath, {
@@ -62,52 +63,40 @@ export const test = base.extend<StorageFixtures>({
           });
 
           // Get browser's writable stream
-          writeStream = await page.evaluateHandle(async (filePath) => {
+          await page.evaluate(async (filePath) => {
             let dirHandle = await navigator.storage.getDirectory();
             for (const dir of filePath.dirs) {
               dirHandle = await dirHandle.getDirectoryHandle(dir, { create: true });
             }
             const fileHandle = await dirHandle.getFileHandle(filePath.basename, { create: true });
-            const ws = await fileHandle.createWritable({ keepExistingData: false });
-            return ws;
+            window._writeStream = await fileHandle.createWritable({ keepExistingData: false });
           }, parsePath(remotePath));
 
           // Reusable browser's buffer for writing
-          chunkBuffer = await page.evaluateHandle(async (size) => new Uint8Array(size), chunkSize);
+          await page.evaluate((size) => {
+            window._writeBuffer = new Uint8Array(size);
+          }, chunkSize);
 
           for await (const chunk of readStream) {
-            // const start = performance.now();
             const byteArray = Object.values(chunk);
-            await page.evaluate<
-              void,
-              [JSHandle<FileSystemWritableFileStream>, any[], JSHandle<Uint8Array<ArrayBuffer>>]
-            >(
-              async ([ws, bytes, buffer]) => {
-                buffer.set(bytes);
-                // The fix-sized buffer is used, but real size of chunk can be less than size of buffer, so we create a lightweight view.
-                await ws.write(buffer.subarray(0, bytes.length));
-              },
-              [writeStream, byteArray, chunkBuffer],
-            );
-            // const duration = performance.now() - start;
-            // console.log(`Chunk time ${duration.toFixed(2)}ms`);
-            // size += byteArray.length;
-            // console.log('Size (bytes):', size);
+            await page.evaluate<void, any[]>(async (bytes) => {
+              const buffer = window._writeBuffer!;
+              buffer.set(bytes);
+              // The fix-sized buffer is used, but real size of chunk can be less than size of buffer, so we create a lightweight view.
+              await window._writeStream!.write(buffer.subarray(0, bytes.length));
+            }, byteArray);
           }
         } catch (error) {
           console.error('Error during upload file to storage');
           throw error;
         } finally {
-          // const durationAll = performance.now() - startAll;
-          // console.log(`Total time ${durationAll.toFixed(2)}ms`);
+          // Close streams
           if (readStream !== null) readStream.close();
-          if (writeStream !== null) {
-            await page.evaluate(async (ws) => {
-              await ws.close();
-            }, writeStream);
-            await writeStream.dispose();
-          }
-          if (chunkBuffer !== null) await chunkBuffer.dispose();
+          await page.evaluate(async () => {
+            if (window._writeStream) await window._writeStream.close();
+            window._writeStream = undefined;
+            window._writeBuffer = undefined;
+          });
         }
       },
       createDir: async (remotePath: string) => {
@@ -119,16 +108,17 @@ export const test = base.extend<StorageFixtures>({
         }, parsePath(remotePath));
       },
       uploadDir: async (localPath: string, remotePath: string) => {
-        readdirSync(localPath, { withFileTypes: true, recursive: true }).forEach((entry) => {
+        const entries = readdirSync(localPath, { withFileTypes: true, recursive: true });
+        for (const entry of entries) {
           const entryLocalPath = path.join(entry.parentPath, entry.name);
           const entryLocalRelativePath = path.relative(localPath, entryLocalPath);
           const entryRemotePath = path.join(remotePath, entryLocalRelativePath);
           if (entry.isDirectory()) {
-            storage.createDir(entryRemotePath);
+            await storage.createDir(entryRemotePath);
           } else if (entry.isFile()) {
-            storage.uploadFile(entryLocalPath, entryRemotePath);
+            await storage.uploadFile(entryLocalPath, entryRemotePath);
           }
-        });
+        }
       },
       removeEntry: async (remotePath: string) => {
         await page.evaluate(async (filePath) => {
