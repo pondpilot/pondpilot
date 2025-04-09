@@ -6,7 +6,7 @@ import { useAppContext } from '@features/app-context';
 import { cn } from '@utils/ui/styles';
 import { useClipboard } from '@mantine/hooks';
 import { Table as ApacheTable } from 'apache-arrow';
-import { getArrowTableSchema, ResultColumn } from '@utils/arrow/helpers';
+import { getArrowTableSchema } from '@utils/arrow/helpers';
 import { useAppNotifications } from '@components/app-notifications';
 import { setDataTestId } from '@utils/test-id';
 import { formatNumber } from '@utils/helpers';
@@ -33,24 +33,15 @@ export const DataResultView = memo(
     // TODO: this should not happen this way. schema should be part of the data adapter
     // and be fetched separately. conversion of table to JSON and storing in cache should
     // be part of handlers
-    const convertedTable: {
-      columns: ResultColumn[];
-      data: any[];
-    } = useMemo(() => {
+    const convertedTable = useMemo(() => {
       if (!data) {
         return { columns: [], data: [] };
       }
 
-      const tableData = data
-        .toArray()
-        .slice(0, 100)
-        .map((row) => row.toJSON());
+      const tableData = data.toArray().map((row) => row.toJSON());
       const columns = getArrowTableSchema(data) || [];
 
-      return { columns, data: tableData } as {
-        columns: ResultColumn[];
-        data: any[];
-      };
+      return { columns, data: tableData };
     }, [data]);
     // Constants for UI rendering conditions
     const hasTableData = !!convertedTable.columns.length;
