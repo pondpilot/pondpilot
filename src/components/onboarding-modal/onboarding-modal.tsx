@@ -1,5 +1,6 @@
 import { Button, Group, Stack, Text, Title } from '@mantine/core';
 import { ContextModalProps } from '@mantine/modals';
+import { setDataTestId } from '@utils/test-id';
 import PlugSVG from './plug.svg?react';
 
 export const ONBOARDING_MODAL_OPTIONS = {
@@ -14,7 +15,7 @@ export const ONBOARDING_MODAL_OPTIONS = {
 };
 
 export const OnboardingModal = ({ context, id }: ContextModalProps) => (
-  <Stack gap={16}>
+  <Stack gap={16} data-testid={setDataTestId('onboarding-modal')}>
     <Stack justify="center" align="center" gap={4}>
       <Title order={1}>👋 Welcome to PondPilod</Title>
       <Text c="text-secondary">Query and transform your data - effortlessly.</Text>
@@ -24,7 +25,11 @@ export const OnboardingModal = ({ context, id }: ContextModalProps) => (
       <PlugSVG />
     </Stack>
     <Group justify="end" mt={60}>
-      <Button onClick={() => context.closeModal(id)} color="background-accent">
+      <Button
+        onClick={() => context.closeModal(id)}
+        color="background-accent"
+        data-testid={setDataTestId('onboarding-modal-submit-button')}
+      >
         Got it!
       </Button>
     </Group>

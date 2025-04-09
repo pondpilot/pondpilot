@@ -1,5 +1,6 @@
 import { ONBOARDING_MODAL_OPTIONS } from '@components/onboarding-modal';
 import { WHATS_NEW_MODAL_OPTIONS } from '@components/whats-new-modal';
+import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { useAppStore } from '@store/app-store';
@@ -9,12 +10,12 @@ export const StartModal = () => {
   const appStatus = useAppStore((state) => state.appStatus);
 
   const [isOnboardingShown, setIsOnboardingShown] = useLocalStorage({
-    key: 'onboarding-shown',
+    key: LOCAL_STORAGE_KEYS.ONBOARDING_SHOWN,
     defaultValue: false,
   });
 
   const [whatsNewVersionShown, setWhatsNewVersionShown] = useLocalStorage({
-    key: 'whats-new-version-shown',
+    key: LOCAL_STORAGE_KEYS.WHATS_NEW_VERSION_SHOWN,
   });
 
   useDidUpdate(() => {
@@ -24,6 +25,9 @@ export const StartModal = () => {
         setWhatsNewVersionShown(__VERSION__);
         modals.openContextModal({
           ...ONBOARDING_MODAL_OPTIONS,
+          innerProps: {
+            isOnboardingShown: String(isOnboardingShown),
+          },
           onClose() {
             setIsOnboardingShown(true);
           },
