@@ -1,10 +1,10 @@
 import { TabsPane } from '@features/tabs-pane';
-import { TabView } from '@features/tab-view';
 import { Stack } from '@mantine/core';
 import { StartGuide } from '@features/tab-view/components';
 import { useInitStore } from '@store/init-store';
 import { AnyTab } from '@models/tab';
 import { useEffect } from 'react';
+import { TabFactory } from '@features/tab-view/tab-factory';
 import { useTabCache } from './useTabCache';
 
 export const ContentView = () => {
@@ -45,6 +45,15 @@ export const ContentView = () => {
       ) : null}
       {orderedTabs.map((tab) => {
         const isActive = tab.id === activeTabId;
+        // Is better to render just 1 active tab for now to make debugging easier
+        // if (isActive) {
+        //   return (
+        //     <div style={{ display: isActive ? 'block' : 'none' }} className="h-full" key={tab.id}>
+        //       <TabFactory key={tab.id} tab={tab} active={isActive} />
+        //     </div>
+        //   );
+        // }
+        // return null;
         // Render only tabs from cache or active tabs
         if (isTabCached(tab.id) || isActive) {
           // If tab is active but not yet cached - add it
@@ -54,7 +63,8 @@ export const ContentView = () => {
 
           return (
             <div style={{ display: isActive ? 'block' : 'none' }} className="h-full" key={tab.id}>
-              <TabView key={tab.id} tab={tab} active={isActive} />
+              {/* <TabView key={tab.id} tab={tab} active={isActive} /> */}
+              <TabFactory key={tab.id} tab={tab} active={isActive} />
             </div>
           );
         }
