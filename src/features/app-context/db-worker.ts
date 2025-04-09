@@ -202,7 +202,7 @@ async function runQuery({
      * Return data and pagination
      */
     return {
-      data: tableToIPC(result),
+      data: result,
       pagination: totalRowsCount,
     };
   } catch (error) {

@@ -5,7 +5,7 @@ import { Spotlight } from '@mantine/spotlight';
 import { ContentView } from '@features/content-view';
 import { useImportSQLFiles } from '@store/hooks';
 import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
-import { createSQLScript, getOrCreateTabFromScript, setActiveTabId } from '@store/init-store';
+import { createSQLScript, getOrCreateTabFromScript } from '@store/init-store';
 import { Navbar } from './components';
 
 export const MainPage = () => {
@@ -19,8 +19,7 @@ export const MainPage = () => {
 
   const handleAddQuery = () => {
     const newEmptyScript = createSQLScript();
-    const newTab = getOrCreateTabFromScript(newEmptyScript);
-    setActiveTabId(newTab.id);
+    getOrCreateTabFromScript(newEmptyScript, true);
   };
 
   /**

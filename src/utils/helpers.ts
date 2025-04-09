@@ -1,4 +1,4 @@
-import { CodeSource, Dataset } from '@models/common';
+import { Dataset } from '@models/common';
 
 export const formatNumber = (value: number): string => {
   if (Number.isNaN(value as number)) return '';
@@ -11,10 +11,7 @@ export const formatNumber = (value: number): string => {
 
 export function getSupportedMimeType(
   name: string,
-):
-  | Pick<Dataset, 'mimeType' | 'kind' | 'ext'>
-  | Pick<CodeSource, 'mimeType' | 'kind' | 'ext'>
-  | null {
+): Pick<Dataset, 'mimeType' | 'kind' | 'ext'> | null {
   const lastDot = name.lastIndexOf('.'); // allow index.worker.ts
   if (lastDot === -1) {
     return null;
@@ -33,8 +30,6 @@ export function getSupportedMimeType(
       return { mimeType: 'text/csv', kind: 'DATASET', ext: 'csv' };
     case 'json':
       return { mimeType: 'application/json', kind: 'DATASET', ext: 'json' };
-    case 'sql':
-      return { mimeType: 'text/sql', kind: 'CODE', ext: 'sql' };
     case 'xlsx':
       return {
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -54,22 +49,34 @@ export function getSupportedMimeType(
  *
  * @param {string} name - The base name to check.
  * @param {function} checkIfExists - A function that checks if a name exists.
+ * @param {boolean} maybeQuotedId - Whether the name might be a quoted identifier. In this case
+ *  the counter will be applied within the quotes. But `checkIfExists` should still accept quoted names.
  * @returns {string} - A unique name.
  * @throws {Error} - Throws an error if too many files with the same name are found.
  */
-export const findUniqueName = (name: string, checkIfExists: (name: string) => boolean): string => {
+export const findUniqueName = (
+  name: string,
+  checkIfExists: (name: string) => boolean,
+  maybeQuotedId: boolean = false,
+): string => {
   if (!checkIfExists(name)) return name;
 
   let counter = 1;
-  let uniqueName = `${name}_${counter}`;
+  let baseName = name;
+  let quote = '';
+  if (maybeQuotedId && name.startsWith('"') && name.endsWith('"')) {
+    baseName = name.slice(1, -1);
+    quote = '"';
+  }
+  let uniqueName = `${quote}${baseName}_${counter}${quote}`;
 
   while (checkIfExists(uniqueName)) {
-    uniqueName = `${name}_${counter}`;
+    uniqueName = `${quote}${baseName}_${counter}${quote}`;
     counter += 1;
 
     // Prevent infinite loop
     if (counter > 10000) {
-      throw new Error('Too many files with the same name');
+      throw new Error('Too many items with the same name');
     }
   }
 

@@ -82,17 +82,15 @@ export const QueryExplorer = memo(() => {
       return;
     }
 
-    // Net new. Create a tab
-    const tab = getOrCreateTabFromScript(id);
-    // Then set it as active & preview
-    setActiveTabId(tab.id);
+    // Net new. Create an active tab
+    const tab = getOrCreateTabFromScript(id, true);
+    // Then set as & preview
     setPreviewTabId(tab.id);
   };
 
   const handleAddQuery = () => {
     const newEmptyScript = createSQLScript();
-    const newTab = getOrCreateTabFromScript(newEmptyScript);
-    setActiveTabId(newTab.id);
+    getOrCreateTabFromScript(newEmptyScript, true);
   };
 
   const handleDeleteTab = (id: SQLScriptId) => {

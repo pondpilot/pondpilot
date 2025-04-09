@@ -31,7 +31,8 @@ import {
   setPreviewTabId,
   setTabOrder,
   useInitStore,
-  useTabMetaInfoMap,
+  useTabNameMap,
+  useTabIconMap,
 } from '@store/init-store';
 import { ListViewIcon } from '@features/list-view-icon';
 import { TabId } from '@models/tab';
@@ -160,7 +161,8 @@ export const TabsPane = memo(() => {
   const activeTabId = useInitStore.use.activeTabId();
   const activeTabRef = useRef<HTMLDivElement | null>(null);
   const orderedTabIds = useInitStore.use.tabOrder();
-  const tabInfos = useTabMetaInfoMap();
+  const tabNameMap = useTabNameMap();
+  const tabIconMap = useTabIconMap();
 
   /**
    * Local state
@@ -217,8 +219,7 @@ export const TabsPane = memo(() => {
 
   const handleAddQuery = () => {
     const newEmptyScript = createSQLScript();
-    const newTab = getOrCreateTabFromScript(newEmptyScript);
-    setActiveTabId(newTab.id);
+    getOrCreateTabFromScript(newEmptyScript, true);
   };
 
   useEffect(() => {
@@ -256,17 +257,18 @@ export const TabsPane = memo(() => {
                   <Skeleton className="ml-2" width={100} height={20} />
                 ) : (
                   orderedTabIds.map((tabId) => {
-                    const tabInfo = tabInfos.get(tabId)!;
+                    const tabName = tabNameMap.get(tabId)!;
+                    const tabIcon = tabIconMap.get(tabId)!;
 
                     return (
                       <SortableTab
                         key={tabId}
                         tabId={tabId}
-                        name={tabInfo.name}
+                        name={tabName}
                         active={tabId === activeTabId}
                         preview={tabId === previewTabId}
                         loading={false} // TODO: add loading state
-                        icon={<ListViewIcon iconType={tabInfo.iconType} {...tabIconProps} />}
+                        icon={<ListViewIcon iconType={tabIcon} {...tabIconProps} />}
                         activeTabRef={activeTabRef}
                         handleDeleteTab={() => handleDeleteTab(tabId)}
                         onClick={() => handleTabClick(tabId)}

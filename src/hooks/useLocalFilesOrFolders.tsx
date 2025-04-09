@@ -1,6 +1,6 @@
 import { useAppNotifications } from '@components/app-notifications';
 import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
-import { supportedDataSourceFileExts } from '@models/file-system';
+import { supportedDataSourceFileExtArray, supportedDataSourceFileExts } from '@models/file-system';
 import { addLocalFileOrFolders } from '@store/init-store';
 import { pickFiles, pickFolder } from '@utils/file-system';
 
@@ -14,8 +14,13 @@ export const useLocalFilesOrFolders = () => {
   // @mishamsk , We can handle it just using the appLoadState with disabled state.
   const { db, conn } = useDuckDBConnection();
 
-  const handleAddFile = async (exts = supportedDataSourceFileExts) => {
-    const { handles, error } = await pickFiles(exts, 'Data Sources');
+  const handleAddFile = async (
+    exts: supportedDataSourceFileExtArray = supportedDataSourceFileExts,
+  ) => {
+    const { handles, error } = await pickFiles(
+      exts.map((dotlessExt) => `.${dotlessExt}` as FileExtension),
+      'Data Sources',
+    );
 
     if (error) {
       showError({ title: 'Failed to add files', message: error });

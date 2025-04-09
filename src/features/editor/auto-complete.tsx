@@ -93,7 +93,7 @@ const postgresDialectFunctions = new Set([
   'rank',
 ]);
 
-export const SYSTEM_DUCKDB_SHEMAS = [
+export const SYSTEM_DUCKDB_SCHEMAS = [
   'information_schema',
   'pg_catalog',
   'pg_toast',
@@ -144,7 +144,12 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
           );
 
           namespace[table.name] = {
-            self: createCompletion(table.name, 'table', table.name, 95),
+            self: createCompletion(
+              table.name,
+              table.type || 'table',
+              table.label || table.name,
+              95,
+            ),
             children: columns,
           };
 
@@ -163,7 +168,7 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
     db.schemas.forEach((schema) => {
       const schemaNamespace: SQLNamespace = {};
 
-      if (SYSTEM_DUCKDB_SHEMAS.includes(schema.name)) return;
+      if (SYSTEM_DUCKDB_SCHEMAS.includes(schema.name)) return;
 
       schema.tables.forEach((table) => {
         const columns = table.columns.map((col) =>

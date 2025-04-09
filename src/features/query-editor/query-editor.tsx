@@ -1,7 +1,6 @@
 import { Group, Text, useMantineColorScheme } from '@mantine/core';
 import { useDebouncedCallback } from '@mantine/hooks';
 import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
-import { useAppContext } from '@features/app-context';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useAppStore } from '@store/app-store';
 import { SqlEditor } from '@features/editor';
@@ -11,11 +10,9 @@ import { Spotlight } from '@mantine/spotlight';
 import { formatNumber } from '@utils/helpers';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { setDataTestId } from '@utils/test-id';
-import { useChangeQueryContentMutation, useUpdateTabMutation } from '@store/app-idb-store';
 
-import { useAppNotifications } from '@components/app-notifications';
 import { SQLScriptId } from '@models/sql-script';
-import { useInitStore } from '@store/init-store';
+import { updateSQLScriptContent, useInitStore } from '@store/init-store';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
@@ -24,17 +21,20 @@ interface QueryEditorProps {
   rowsCount: number;
   id: SQLScriptId;
   active?: boolean;
+  runScriptQuery: (query: string) => Promise<void>;
 }
 
-export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditorProps) => {
-  const sqlScript = useInitStore((state) => state.sqlScripts.get(id) || null);
-  const { mutateAsync: updateTab } = useUpdateTabMutation();
-  const { mutateAsync: updateQueryFile } = useChangeQueryContentMutation();
+export const QueryEditor = ({
+  columnsCount,
+  rowsCount,
+  id,
+  active,
+  runScriptQuery,
+}: QueryEditorProps) => {
+  const sqlScript = useInitStore((state) => state.sqlScripts.get(id)!);
   /**
    * Common hooks
    */
-  const { runQuery } = useAppContext();
-  const { showError } = useAppNotifications();
   const { colorScheme } = useMantineColorScheme();
 
   const databases = useAppStore((state) => state.databases);
@@ -89,17 +89,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
 
     const queryToRun = mode === 'selection' ? selectedText : fullQuery;
 
-    // TODO: Run sql script
-    // updateTab({
-    //   id: tab.id,
-    //   query: {
-    //     ...tab.query,
-    //     state: 'fetching',
-    //   },
-    // });
-    // setQueryExecuted(false);
-
-    // const result = await runQuery({ query: queryToRun });
+    runScriptQuery(queryToRun);
     // setQueryExecuted(true);
 
     // await updateTab({
@@ -117,15 +107,7 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
   };
 
   const handleQuerySave = async () => {
-    // TODO: save sql script to the store
-    // if (!tab || !queryFile) {
-    //   showError({ title: 'Query file not found', message: '' });
-    //   return;
-    // }
-    // await updateQueryFile({
-    //   id: queryFile.id,
-    //   content: editorRef.current?.view?.state?.doc.toString() || '',
-    // });
+    updateSQLScriptContent(sqlScript, editorRef.current?.view?.state?.doc.toString() || '');
   };
 
   const handleEditorValueChange = useDebouncedCallback(async () => {
@@ -142,8 +124,8 @@ export const QueryEditor = ({ columnsCount, rowsCount, id, active }: QueryEditor
     return () => {
       if (editorRef.current?.view) {
         const editor = editorRef.current.view;
-        const currentQuery = editor.state.doc.toString();
-        if (currentQuery !== sqlScript?.content) {
+        const currentScript = editor.state.doc.toString();
+        if (currentScript !== sqlScript?.content) {
           handleQuerySave();
         }
       }

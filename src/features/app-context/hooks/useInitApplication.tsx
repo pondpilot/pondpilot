@@ -5,20 +5,13 @@ import { useAppNotifications } from '@components/app-notifications';
 import { fileHandleStoreApi, useDeleteFileHandlesMutation } from '@store/app-idb-store';
 import { DuckDBDatabase, DuckDBView } from '@models/common';
 import { setAppLoadState } from '@store/init-store';
-import { hydrateAppData } from '@store/persist/init';
-import {
-  duckDBConnectionContextType,
-  useDuckDBInitializer,
-} from '@features/duckdb-context/duckdb-context';
-import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
+import { restoreAppDataFromIDB } from '@store/persist/init';
+import { useDuckDBConnection, useDuckDBInitializer } from '@features/duckdb-context/duckdb-context';
 import { useShowPermsAlert } from './useShowPermsAlert';
 import { updateDatabasesWithColumns } from '../utils';
 import { dbApiProxi } from '../db-worker';
 
-export function useAppInitialization({
-  db,
-  conn,
-}: duckDBConnectionContextType & { connectDuckDb: () => Promise<AsyncDuckDBConnection | null> }) {
+export function useAppInitialization() {
   const { showError, showWarning } = useAppNotifications();
   const { showPermsAlert } = useShowPermsAlert();
 
@@ -27,7 +20,8 @@ export function useAppInitialization({
 
   const { mutateAsync: deleteSources } = useDeleteFileHandlesMutation();
 
-  const { state: dbInitState, connectDuckDb } = useDuckDBInitializer();
+  const { db, conn } = useDuckDBConnection();
+  const connectDuckDb = useDuckDBInitializer();
 
   const initAppData = async () => {
     if (!db || !conn) {
@@ -147,7 +141,7 @@ export function useAppInitialization({
 
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
-    const discardedHandles = await hydrateAppData((_) => showPermsAlert());
+    const discardedHandles = await restoreAppDataFromIDB(db, conn, (_) => showPermsAlert());
 
     // TODO: more detailed/better message
     if (discardedHandles.length) {
@@ -194,10 +188,10 @@ export function useAppInitialization({
 
   useEffect(() => {
     // Start initialization of data when the database is ready
-    if (dbInitState === 'ready') {
+    if (conn) {
       initAppData();
-    } else if (dbInitState === 'none') {
+    } else {
       connectDuckDb();
     }
-  }, [dbInitState]);
+  }, [conn]);
 }
