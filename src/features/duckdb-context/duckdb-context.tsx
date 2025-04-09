@@ -3,22 +3,35 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 
 // Context used to provide progress of duckdb initialization
 type duckDBInitState = 'none' | 'loading' | 'ready' | 'error';
-type duckDBInitializerContextType = {
+type duckDBInitializerStatusContextType = {
   state: duckDBInitState;
   message: string;
-  connectDuckDb: () => Promise<duckdb.AsyncDuckDBConnection | null>;
 };
 
-export type duckDBConnectionContextType = {
-  db: duckdb.AsyncDuckDB | null;
-  conn: duckdb.AsyncDuckDBConnection | null;
-};
+type duckDBInitializerContextType = () => Promise<duckdb.AsyncDuckDBConnection | null>;
+
+export type duckDBConnectionContextType =
+  | {
+      db: duckdb.AsyncDuckDB;
+      conn: duckdb.AsyncDuckDBConnection;
+    }
+  | {
+      db: null;
+      conn: null;
+    };
 
 export type duckDBInitializedConnectionType = {
   db: duckdb.AsyncDuckDB;
   conn: duckdb.AsyncDuckDBConnection;
 };
 
+// Create context that supplies the messages and changes during initialization
+export const duckDBInitializerStatusContext =
+  createContext<duckDBInitializerStatusContextType | null>(null);
+export const useDuckDBInitializerStatus = (): duckDBInitializerStatusContextType =>
+  useContext(duckDBInitializerStatusContext)!;
+
+// Create context that supplies the lazy function to connect to DuckDB
 export const duckDBInitializerContext = createContext<duckDBInitializerContextType | null>(null);
 export const useDuckDBInitializer = (): duckDBInitializerContextType =>
   useContext(duckDBInitializerContext)!;
@@ -52,16 +65,15 @@ export const useDuckDBConnection = (): duckDBConnectionContextType =>
   useContext(duckDBConnContext)!;
 
 export const DuckDBConnectionProvider = ({ children }: { children: React.ReactNode }) => {
-  const [initState, setInitState] = useState<{
-    state: duckDBInitState;
-    message: string;
-  }>({
+  const [initStatus, setInitStatus] = useState<duckDBInitializerStatusContextType>({
     state: 'none',
     message: "DuckDB initialization hasn't started yet",
   });
 
-  const [db, setDb] = useState<duckdb.AsyncDuckDB | null>(null);
-  const [conn, setConn] = useState<duckdb.AsyncDuckDBConnection | null>(null);
+  const [dbAndConn, setDbAndConn] = useState<duckDBConnectionContextType>({
+    db: null,
+    conn: null,
+  });
 
   // Use static cdn hosted bundles
   const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
@@ -87,13 +99,13 @@ export const DuckDBConnectionProvider = ({ children }: { children: React.ReactNo
 
   const inFlight = useRef<Promise<duckdb.AsyncDuckDBConnection | null> | null>(null);
 
-  const connect = useCallback(async (): Promise<duckdb.AsyncDuckDBConnection | null> => {
+  const connectDuckDb = useCallback(async (): Promise<duckdb.AsyncDuckDBConnection | null> => {
     // This is the inverse of creating a function on first call. Saves indentation
     if (inFlight.current) return inFlight.current;
 
     inFlight.current = (async (): Promise<duckdb.AsyncDuckDBConnection | null> => {
       // Set the state to loading
-      setInitState({
+      setInitStatus({
         state: 'loading',
         message: 'Starting DuckDB worker...',
       });
@@ -110,13 +122,12 @@ export const DuckDBConnectionProvider = ({ children }: { children: React.ReactNo
       try {
         worker.current = new Worker(worker_url);
         newDb = new duckdb.AsyncDuckDB(logger, worker.current);
-        setDb(newDb);
-        setInitState({
+        setInitStatus({
           state: 'loading',
           message: 'Loading DuckDB... 0%',
         });
       } catch (e: any) {
-        setInitState({
+        setInitStatus({
           state: 'error',
           message: `Error setting up DuckDB worker: ${e.toString()}`,
         });
@@ -137,7 +148,7 @@ export const DuckDBConnectionProvider = ({ children }: { children: React.ReactNo
                 0.0,
               );
               try {
-                setInitState({
+                setInitStatus({
                   state: 'loading',
                   message: `Loading DuckDB... ${progress}%`,
                 });
@@ -145,7 +156,7 @@ export const DuckDBConnectionProvider = ({ children }: { children: React.ReactNo
                 console.warn(`progress handler failed with error: ${e.toString()}`);
               }
             } else {
-              setInitState({
+              setInitStatus({
                 state: 'loading',
                 message: 'Loading DuckDB...',
               });
@@ -153,7 +164,7 @@ export const DuckDBConnectionProvider = ({ children }: { children: React.ReactNo
           },
         );
       } catch (e: any) {
-        setInitState({
+        setInitStatus({
           state: 'error',
           message: `Error instantiating DuckDB: ${e.toString()}`,
         });
@@ -170,7 +181,7 @@ export const DuckDBConnectionProvider = ({ children }: { children: React.ReactNo
           },
         });
       } catch (e: any) {
-        setInitState({
+        setInitStatus({
           state: 'error',
           message: `Error opening DuckDB connection: ${e.toString()}`,
         });
@@ -179,12 +190,12 @@ export const DuckDBConnectionProvider = ({ children }: { children: React.ReactNo
 
       // Finally, get the connection
       try {
-        const connection = await newDb.connect();
-        setConn(connection);
-        setInitState({ state: 'ready', message: 'DuckDB is ready!' });
-        return connection;
+        const conn = await newDb.connect();
+        setDbAndConn({ db: newDb, conn });
+        setInitStatus({ state: 'ready', message: 'DuckDB is ready!' });
+        return conn;
       } catch (e: any) {
-        setInitState({
+        setInitStatus({
           state: 'error',
           message: `Error getting DuckDB connection: ${e.toString()}`,
         });
@@ -195,20 +206,11 @@ export const DuckDBConnectionProvider = ({ children }: { children: React.ReactNo
     return inFlight.current;
   }, []);
 
-  const initValue = {
-    state: initState.state,
-    message: initState.message,
-    connectDuckDb: connect,
-  };
-
-  const dbConnValue = {
-    db,
-    conn,
-  };
-
   return (
-    <duckDBInitializerContext.Provider value={initValue}>
-      <duckDBConnContext.Provider value={dbConnValue}>{children}</duckDBConnContext.Provider>
+    <duckDBInitializerContext.Provider value={connectDuckDb}>
+      <duckDBInitializerStatusContext.Provider value={initStatus}>
+        <duckDBConnContext.Provider value={dbAndConn}>{children}</duckDBConnContext.Provider>
+      </duckDBInitializerStatusContext.Provider>
     </duckDBInitializerContext.Provider>
   );
 };

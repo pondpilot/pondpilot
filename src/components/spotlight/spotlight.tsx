@@ -14,25 +14,24 @@ import {
   IconFileSad,
   IconBooks,
   IconKeyboard,
-  IconCsv,
-  IconJson,
-  IconTable,
 } from '@tabler/icons-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAppStore } from '@store/app-store';
+import { useEffect, useRef, useState } from 'react';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { cn } from '@utils/ui/styles';
 import { useModifier } from '@hooks/useModifier';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
-import {
-  useCreateQueryFileMutation,
-  useFileHandlesQuery,
-  useQueryFilesQuery,
-} from '@store/app-idb-store';
+import { useCreateQueryFileMutation, useQueryFilesQuery } from '@store/app-idb-store';
 import { useImportSQLFiles } from '@store/hooks';
 import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from 'app-urls';
 import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
+import {
+  getOrCreateTabFromPersistentDataView,
+  useDataViewIconMap,
+  useDataViewNameMap,
+  useInitStore,
+} from '@store/init-store';
+import { ListViewIcon } from '@features/list-view-icon';
 import { SpotlightView } from './models';
 import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
@@ -58,13 +57,15 @@ export const SpotlightMenu = () => {
   const { command, option } = useModifier();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
   const { data: queries = [] } = useQueryFilesQuery();
-  const { data: sessionFiles = [] } = useFileHandlesQuery();
   const { openTab } = useAppContext();
 
   /**
    * Store access
    */
-  const views = useAppStore((state) => state.views);
+  const fileDataViews = useInitStore.use.dataViews();
+  const dataViewIconMap = useDataViewIconMap();
+  const dataViewNameMap = useDataViewNameMap();
+
   /**
    * Local state
    */
@@ -77,23 +78,6 @@ export const SpotlightMenu = () => {
     Spotlight.close();
   };
   const iconClasses = 'text-textSecondary-light dark:text-textSecondary-dark';
-
-  const getIcon = useCallback(
-    (id: string | undefined) => {
-      const iconProps = {
-        size: 20,
-        className: iconClasses,
-      };
-      const fileExt = sessionFiles.find((f) => f.name === id)?.ext as string;
-
-      const iconsMap = {
-        csv: <IconCsv {...iconProps} />,
-        json: <IconJson {...iconProps} />,
-      }[fileExt];
-      return iconsMap || <IconTable {...iconProps} />;
-    },
-    [sessionFiles],
-  );
 
   const ensureHome = () => {
     if (location.pathname !== '/') {
@@ -127,15 +111,23 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const viewActions: Action[] = views.map(({ view_name, sourceId }) => ({
-    id: view_name,
-    label: view_name,
-    icon: getIcon(view_name),
-    handler: () => {
-      openTab(sourceId, 'file');
-      Spotlight.close();
-    },
-  }));
+  const fileDataViewsActions: Action[] = Array.from(
+    fileDataViews.entries().map(([id, view]) => ({
+      id,
+      label: dataViewNameMap.get(id) || view.displayName,
+      icon: (
+        <ListViewIcon
+          iconType={dataViewIconMap.get(id) || 'error'}
+          size={20}
+          className={iconClasses}
+        />
+      ),
+      handler: () => {
+        getOrCreateTabFromPersistentDataView(id, true);
+        Spotlight.close();
+      },
+    })),
+  );
 
   const mappedQueries = queries.map((query) => ({
     id: query.id,
@@ -324,7 +316,9 @@ export const SpotlightMenu = () => {
         )
       : [];
     const filteredViews = searchValue
-      ? viewActions.filter((view) => view.label.toLowerCase().includes(searchValue.toLowerCase()))
+      ? fileDataViewsActions.filter((view) =>
+          view.label.toLowerCase().includes(searchValue.toLowerCase()),
+        )
       : [];
 
     if (
@@ -376,7 +370,10 @@ export const SpotlightMenu = () => {
     );
   };
   const renderDataSourcesView = () => {
-    const filteredActions = filterActions([...dataSourcesActions, ...viewActions], searchValue);
+    const filteredActions = filterActions(
+      [...dataSourcesActions, ...fileDataViewsActions],
+      searchValue,
+    );
     return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Data Sources')}</>;
   };
 
@@ -394,7 +391,7 @@ export const SpotlightMenu = () => {
     const searchTerm = searchValue.slice(1).toLowerCase();
 
     if (searchValue.startsWith('/')) {
-      const filteredViews = viewActions.filter((view) =>
+      const filteredViews = fileDataViewsActions.filter((view) =>
         view.label.toLowerCase().includes(searchTerm),
       );
       return renderActionsGroup(filteredViews, 'Views');

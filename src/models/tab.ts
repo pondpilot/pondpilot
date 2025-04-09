@@ -1,24 +1,20 @@
-import { IconType } from '@features/list-view-icon';
 import { PersistentDataViewId } from './data-view';
 import { SQLScriptId } from './sql-script';
+import { LocalEntryId } from './file-system';
 
 export type TabId = string & { readonly _: unique symbol };
 
-export type TabLayout = {
+export type DataViewLayout = {
   tableColumnWidth: Record<string, number>;
   dataViewPaneHeight: number;
-};
-
-export type TabMetaInfo = {
-  name: string;
-  iconType: IconType;
 };
 
 export interface TabBase {
   readonly type: 'script' | 'data-source';
   id: TabId;
-  meta: TabMetaInfo;
-  layout: TabLayout;
+  // tab name & icon is derived from the source for some tab types,
+  // so it is not available in the base type
+  dataViewLayout: DataViewLayout;
 }
 
 export interface ScriptTab extends TabBase {
@@ -29,12 +25,31 @@ export interface ScriptTab extends TabBase {
 
 export interface FileDataSourceTab extends TabBase {
   type: 'data-source';
+  readonly dataSourceType: 'file';
   dataViewId: PersistentDataViewId;
 }
 
+// The reason why we do not create persistent dataViews and treat tabs
+// that show attached database objects same as other files is that it allows
+// us to easily restore app after restart or when database has been changed
+// externally, or when the user decides to change database alias.
+// Tab knows the qualified name of the object in the database, and the rest
+// can be inferred. This causes more complex controller functions, but simplifies
+// state management and data view model.
 export interface AttachedDBDataTab extends TabBase {
   type: 'data-source';
+  readonly dataSourceType: 'db';
+  /**
+   * Unique identifier for the database file. You should use
+   * `uniqueAlias` as assumed attached database name.
+   */
+  localEntryId: LocalEntryId;
 
+  dbType: 'table' | 'view';
+
+  /**
+   * Name of the schema in the database.
+   */
   schemaName: string;
 
   /**
@@ -43,4 +58,4 @@ export interface AttachedDBDataTab extends TabBase {
   objectName: string;
 }
 
-export type AnyTab = ScriptTab | FileDataSourceTab;
+export type AnyTab = ScriptTab | FileDataSourceTab | AttachedDBDataTab;

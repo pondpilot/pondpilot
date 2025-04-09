@@ -1,5 +1,5 @@
 import { MenuItem, SourcesListView, TypedTreeNodeData } from '@components/sources-list-view';
-import { useAppContext, useDataSourcesActions } from '@features/app-context';
+import { useDataSourcesActions } from '@features/app-context';
 import { useClipboard } from '@mantine/hooks';
 import { memo, useMemo } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
@@ -22,7 +22,6 @@ export const FileSystemExplorer = memo(() => {
    * Common hooks
    */
   const { onDeleteDataSource } = useDataSourcesActions();
-  const { openTab } = useAppContext();
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
   const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
@@ -112,7 +111,7 @@ export const FileSystemExplorer = memo(() => {
     };
 
     return buildTree(null);
-  }, [entries, sources, appLoadState, openTab, onDeleteDataSource]);
+  }, [entries, sources, appLoadState, onDeleteDataSource]);
   /**
    * Consts
    */
@@ -121,8 +120,7 @@ export const FileSystemExplorer = memo(() => {
   // TODO: define a function inside viewsToDisplay for each item to separate types and logic
   const onItemClick = async (id: string) => {
     // find an existing tab for this source
-    const tab = getOrCreateTabFromPersistentDataView(id);
-    setActiveTabId(tab.id);
+    getOrCreateTabFromPersistentDataView(id, true);
   };
 
   const handleDeleteSelected = async (items: string[]) => {

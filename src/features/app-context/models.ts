@@ -1,6 +1,6 @@
 import { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
-import { AddDataSourceProps, AppStateModel, Dataset } from '@models/common';
-import { tableToIPC } from 'apache-arrow';
+import { AddDataSourceProps, Dataset } from '@models/common';
+import { Table } from 'apache-arrow';
 
 export interface DBRunQueryProps {
   query: string;
@@ -10,12 +10,8 @@ export interface DBRunQueryProps {
   isPagination?: boolean;
   queryWithoutLimit?: string;
 }
-export type SessionFiles = Pick<
-  AppStateModel,
-  'directoryHandle' | 'sources' | 'editors' | 'sessionDirId'
->;
 export interface RunQueryResponse {
-  data: ReturnType<typeof tableToIPC>;
+  data: Table;
   pagination: number;
 }
 

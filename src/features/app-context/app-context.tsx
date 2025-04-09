@@ -1,11 +1,10 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useCallback } from 'react';
 import { useAppStore } from '@store/app-store';
 import { tableFromIPC } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { useAbortController } from '@hooks/useAbortController';
 import { notifications } from '@mantine/notifications';
-import { Button, Group, Modal, Stack, Text } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { Button, Group, Stack, Text } from '@mantine/core';
 import {
   useAllTabsQuery,
   useCreateTabMutation,
@@ -13,13 +12,14 @@ import {
   useQueryFilesQuery,
   useSetActiveTabMutation,
 } from '@store/app-idb-store';
-import { useDuckDBInitializer, useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
+import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
+import { openQueryErrorModal } from '@features/error-modal/query-error-modal';
 import { DBRunQueryProps, RunQueryResponse } from './models';
 import { executeQueries, updateDatabasesWithColumns } from './utils';
-import { ErrorModal } from './components/error-modal';
 import { useAppInitialization } from './hooks/useInitApplication';
 import { dbApiProxi } from './db-worker';
+import { DevModal } from './components/dev-modal';
 
 interface AppContextType {
   runQuery: (
@@ -36,15 +36,13 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const { showError } = useAppNotifications();
   const { abortSignal, getSignal } = useAbortController();
-  const { db, conn } = useDuckDBConnection();
-  const { state: dbInitState, message, connectDuckDb } = useDuckDBInitializer();
-  useAppInitialization({ db, conn, connectDuckDb });
+  const { conn } = useDuckDBConnection();
+
+  useAppInitialization();
 
   /**
    * Local state
    */
-  const [errorModalOpened, { open: openErrorModal, close: closeErrorModal }] = useDisclosure(false);
-  const [errortext, setErrorModalText] = useState('');
 
   /**
    * Query state
@@ -62,11 +60,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
    */
   const setDatabases = useAppStore((state) => state.setDatabases);
   const views = useAppStore((state) => state.views);
-
-  const handleClosingErrorModal = () => {
-    setErrorModalText('');
-    closeErrorModal();
-  };
 
   const executeQuery = useCallback(
     async (query: string) => {
@@ -141,12 +134,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
         console.error('Failed to run query: ', e);
         const errorMessageTooLong = e.message.length > 500;
-        if (errorMessageTooLong) {
-          setErrorModalText(e.message);
-        }
 
         const onOpenMoreModal = () => {
-          openErrorModal();
+          openQueryErrorModal(e.message);
           notifications.clean();
         };
         showError({
@@ -167,7 +157,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         });
       }
     },
-    [conn, dataSources, getSignal, openErrorModal, setDatabases, setErrorModalText, showError],
+    [conn, dataSources, getSignal, setDatabases, showError],
   );
 
   const openTab = useCallback(
@@ -219,24 +209,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AppContext.Provider value={value}>
-      {/* // TODO: Render via ModalContextProvider */}
-      <ErrorModal
-        opened={errorModalOpened}
-        onClose={handleClosingErrorModal}
-        errorText={errortext}
-      />
-      {import.meta.env.DEV && dbInitState !== 'ready' && (
-        <Modal size="lg" opened onClose={() => {}} withCloseButton={false} centered>
-          <Stack align="center" gap="md" py="lg">
-            <Text size="lg" mb="sm">
-              DuckDB init progress
-            </Text>
-            <Text size="sm" c="dimmed">
-              {message}
-            </Text>
-          </Stack>
-        </Modal>
-      )}
+      {import.meta.env.DEV && <DevModal />}
       {children}
     </AppContext.Provider>
   );

@@ -23,13 +23,16 @@ import { formatNumber } from '@utils/helpers';
 import { Table as ApacheTable, AsyncRecordBatchStreamReader } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
-import { useUpdateTabMutation } from '@store/app-idb-store';
-import { useAppStore } from '@store/app-store';
 import { setDataTestId } from '@utils/test-id';
 import { AnyTab, FileDataSourceTab } from '@models/tab';
-import { useInitStore } from '@store/init-store';
+import {
+  updateScriptTabEditorPaneHeight,
+  updateTabDataViewLayout,
+  useInitStore,
+} from '@store/init-store';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { getDataViewAdapter } from '@controllers/db/data-view';
+import { dbApiProxi } from '@features/app-context/db-worker';
 import { PaginationControl, TableLoadingOverlay } from './components';
 import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
@@ -40,12 +43,10 @@ interface TabViewProps {
 }
 
 export const TabView = memo(({ tab, active }: TabViewProps) => {
-  const { mutateAsync: updateTab } = useUpdateTabMutation();
-
   /**
    * Common hooks
    */
-  const { onCancelQuery, executeQuery, runQuery } = useAppContext();
+  const { onCancelQuery, executeQuery } = useAppContext();
   // const { onNextPage, onPrevPage, handleSort } = useTablePaginationSort(tab);
   const { handleCopyToClipboard, exportTableToCSV } = useTableExport();
   const { showSuccess } = useAppNotifications();
@@ -53,23 +54,43 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
   // TODO: Pass the data to calculateColumnSummary
   const { calculateColumnSummary, columnTotal, isCalculating, isNumericType, resetTotal } =
     useColumnSummary(undefined);
-  const views = useAppStore((state) => state.views);
 
   // TODO - thefollowing should all move to data view component, only the dataViewData object should be passed
   // Also, we should use different Tab components for 3 types of tabs we have, as they
   // all fetch/create dataViews differently
 
   const { conn } = useInitializedDuckDBConnection();
-  const persistentTab = tab as FileDataSourceTab;
-  const dataView = useInitStore((state) => state.dataViews.get(persistentTab.dataViewId)!);
+  const persistentTab: FileDataSourceTab | null =
+    tab.type === 'data-source' && tab.dataSourceType === 'file' ? tab : null;
+  const dataView = useInitStore((state) =>
+    persistentTab ? state.dataViews.get(persistentTab.dataViewId) : null,
+  );
 
-  const dataViewAdapter = useMemo(() => getDataViewAdapter(dataView), [dataView]);
+  const dataViewAdapter = useMemo(
+    () => (dataView ? getDataViewAdapter(dataView) : null),
+    [dataView],
+  );
   const [dataViewReader, setReader] = useState<AsyncRecordBatchStreamReader<any> | null>(null);
   const [isQueryRunning, setQueryRunning] = useState<boolean>(false);
   const [fetchedData, setFetchedData] = useState<ApacheTable<any> | null>(null);
 
+  // TODO - this should only be part of the scipt tab view and be cleaned up
+  const runScriptQuery = useCallback(
+    async (query: string) => {
+      setQueryRunning(true);
+      const { data } = await dbApiProxi.runQuery({ query, conn });
+      setFetchedData(data);
+      setQueryRunning(false);
+    },
+    [conn],
+  );
+
   // Create a new reader on first load. The rest should be updated on sorting etc.
   useEffect(() => {
+    if (!dataViewAdapter || !conn) {
+      return;
+    }
+
     (async () => {
       const reader = await dataViewAdapter.getReader(conn, []);
       setQueryRunning(true);
@@ -84,13 +105,12 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
 
       setReader(reader);
     })();
-  }, []);
+  }, [dataViewAdapter, conn]);
 
   const isSctiptTab = tab.type === 'script';
 
-  // const { editorPaneHeight = 0, dataViewPaneHeight = 0 } = tab?.layout ?? {};
-  const editorPaneHeight = 0;
-  const { dataViewPaneHeight = 0 } = tab?.layout ?? {};
+  const editorPaneHeight = tab.type === 'script' ? tab.editorPaneHeight : 0;
+  const { dataViewPaneHeight } = tab.dataViewLayout;
 
   // TODO: Get rowCount using data view adapter if available
   const rowCount = 0;
@@ -122,7 +142,8 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
    * Consts
    */
   const isSinglePage = rowCount <= limit;
-  const hasTableData = !!convertedTable.data.length && !!convertedTable.columns.length;
+  // const hasTableData = !!convertedTable.data.length && !!convertedTable.columns.length;
+  const hasTableData = !!convertedTable.columns.length;
 
   const onSelectedColsCopy = useCallback(
     async (cols: Record<string, boolean>) => {
@@ -178,15 +199,15 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
   );
 
   const setPanelSize = ([editor, table]: number[]) => {
-    if (tab) {
-      updateTab({
-        id: tab.id,
-        layout: {
-          ...tab.layout,
-          editorPaneHeight: editor,
-          dataViewPaneHeight: table,
-        },
-      });
+    // All tabs have data view layout
+    updateTabDataViewLayout(tab, {
+      ...tab.dataViewLayout,
+      dataViewPaneHeight: table,
+    });
+
+    if (tab.type === 'script') {
+      // Also update the editor pane height
+      updateScriptTabEditorPaneHeight(tab, editor);
     }
   };
 
@@ -244,6 +265,7 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
               rowsCount={rowCount}
               id={tab.sqlScriptId}
               active={active}
+              runScriptQuery={runScriptQuery}
             />
           </Allotment.Pane>
         )}

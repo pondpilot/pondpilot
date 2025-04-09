@@ -2287,6 +2287,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@mantine/modals@npm:^7.17.4":
+  version: 7.17.4
+  resolution: "@mantine/modals@npm:7.17.4"
+  peerDependencies:
+    "@mantine/core": 7.17.4
+    "@mantine/hooks": 7.17.4
+    react: ^18.x || ^19.x
+    react-dom: ^18.x || ^19.x
+  checksum: 10c0/fbdd680c0668eea9ddce3723dfdf6384abdc94bad8c84c5b802d9b17e3260be7596ffcd9432805f9b57fb01c97821787bbbf68be8f85448d2e6adf1267b923f0
+  languageName: node
+  linkType: hard
+
 "@mantine/notifications@npm:^7.17.0":
   version: 7.17.2
   resolution: "@mantine/notifications@npm:7.17.2"
@@ -2999,10 +3011,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/wicg-file-system-access@npm:^2023.10.5":
-  version: 2023.10.5
-  resolution: "@types/wicg-file-system-access@npm:2023.10.5"
-  checksum: 10c0/3c6099320a2517ab405bd65712eb19ba2c1f7f0c30f952744102b76809ed9ad5205f881c79ebe6f92ac7af7a13667df8c23dd59b0a5182119c74afa17335bfd3
+"@types/wicg-file-system-access@npm:^2023.10.6":
+  version: 2023.10.6
+  resolution: "@types/wicg-file-system-access@npm:2023.10.6"
+  checksum: 10c0/6d1086450b28351ea5c8c6078411930984a16588b40d999f9abdc42c9bff63de93101bd7b1edcaba5c5c9ea83acdeb277bcaff913f39f6dac12091459974631f
   languageName: node
   linkType: hard
 
@@ -7395,6 +7407,7 @@ __metadata:
     "@hello-pangea/dnd": "npm:^17.0.0"
     "@mantine/core": "npm:^7.17.0"
     "@mantine/hooks": "npm:^7.17.0"
+    "@mantine/modals": "npm:^7.17.4"
     "@mantine/notifications": "npm:^7.17.0"
     "@mantine/spotlight": "npm:^7.17.0"
     "@playwright/test": "npm:^1.51.0"
@@ -7405,7 +7418,7 @@ __metadata:
     "@types/node": "npm:^22.13.9"
     "@types/react": "npm:^19.0.0"
     "@types/react-dom": "npm:^19.0.0"
-    "@types/wicg-file-system-access": "npm:^2023.10.5"
+    "@types/wicg-file-system-access": "npm:^2023.10.6"
     "@typescript-eslint/eslint-plugin": "npm:^7.13.1"
     "@typescript-eslint/parser": "npm:^7.13.1"
     "@uiw/codemirror-themes": "npm:^4.23.8"

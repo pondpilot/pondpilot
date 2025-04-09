@@ -1,29 +1,25 @@
+import { assertNeverType } from '@utils/typing';
+
 export type LocalEntryId = string & { readonly _: unique symbol };
 export type PersistentHandleId = string & { readonly _: unique symbol };
 
 export type LocalFileType = 'data-source' | 'code-file';
 
-export const dataSourceFileExts = [
-  'csv',
-  'json',
-  'txt',
-  'duckdb',
-  'sqlite',
-  'postgresql',
-  'parquet',
-  'arrow',
-  'xlsx',
-  'url',
-] as const;
+export const supportedDataSourceFileExts = ['csv', 'json', 'duckdb', 'parquet'] as const;
+export type supportedDataSourceFileExt = (typeof supportedDataSourceFileExts)[number];
+export type supportedDataSourceFileExtArray = readonly supportedDataSourceFileExt[number][];
 
-export const supportedDataSourceFileExts: FileExtension[] = [
-  '.csv',
-  '.json',
-  '.duckdb',
-  '.parquet',
-];
-
-export type DataSourceFileExt = (typeof dataSourceFileExts)[number];
+export type AllDataSourceFileExt =
+  | 'csv'
+  | 'json'
+  | 'txt'
+  | 'duckdb'
+  | 'sqlite'
+  | 'postgresql'
+  | 'parquet'
+  | 'arrow'
+  | 'xlsx'
+  | 'url';
 
 export const dataSourceMimeTypes = [
   'text/csv',
@@ -38,9 +34,9 @@ export const dataSourceMimeTypes = [
   'text/x-uri',
 ] as const;
 
-export type DataSourceMimeType = (typeof dataSourceMimeTypes)[number];
+export type DataSourceMimeType = (typeof dataSourceExtMap)[AllDataSourceFileExt];
 
-export const dataSourceExtMap: Record<DataSourceFileExt, DataSourceMimeType> = {
+export const dataSourceExtMap = {
   csv: 'text/csv',
   json: 'application/json',
   txt: 'text/plain',
@@ -51,7 +47,10 @@ export const dataSourceExtMap: Record<DataSourceFileExt, DataSourceMimeType> = {
   arrow: 'application/arrow',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   url: 'text/x-uri', // remote sources
-};
+} as const;
+
+// Check extension to mime type mapping has no gaps
+assertNeverType<Exclude<(typeof dataSourceMimeTypes)[number], DataSourceMimeType>>();
 
 // ---------- Code Ext files ----------- //
 // Only support sql for now
@@ -97,8 +96,7 @@ type LocalFileBase = {
  * A data source file in the local file system registered in the app.
  */
 export type DataSourceLocalFile = LocalFileBase & {
-  ext: DataSourceFileExt;
-  mimeType: DataSourceMimeType;
+  ext: supportedDataSourceFileExt;
   fileType: 'data-source';
 };
 
@@ -113,7 +111,6 @@ type DataSourceLocalFilePersistence = Omit<DataSourceLocalFile, 'handle'> & {
  */
 export type CodeLocalFile = LocalFileBase & {
   ext: CodeFileExt;
-  mimeType: CodeMimeType;
   fileType: 'code-file';
 };
 

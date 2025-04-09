@@ -1,9 +1,10 @@
 import { create } from 'zustand';
+import { shallow } from 'zustand/shallow';
 import { devtools } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { v4 as uuidv4 } from 'uuid';
 import { findUniqueName } from '@utils/helpers';
-import { AnyTab, FileDataSourceTab, ScriptTab, TabId, TabMetaInfo } from '@models/tab';
+import { AnyTab, DataViewLayout, FileDataSourceTab, ScriptTab, TabId } from '@models/tab';
 import { IDBPDatabase } from 'idb';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ContentViewState } from '@models/content-view';
@@ -12,7 +13,7 @@ import {
   PersistentDataViewId,
   PersistentDataViewData,
 } from '@models/data-view';
-import { DataSourceLocalFile, LocalEntry, LocalEntryId } from '@models/file-system';
+import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { localEntryFromHandle } from '@utils/file-system';
 
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
@@ -21,6 +22,9 @@ import {
   registerAndAttachDatabase,
   registerFileSourceAndCreateView,
 } from '@controllers/db/file-handle';
+import { getDataViewIcon, getDataViewName, getTabIcon, getTabName } from '@utils/navigation';
+import { IconType } from '@features/list-view-icon';
+import { addPersistentDataView } from '@utils/data-view';
 import {
   CONTENT_VIEW_TABLE_NAME,
   DATA_VIEW_TABLE_NAME,
@@ -124,8 +128,7 @@ export function useDataViewIdForActiveTab(): PersistentDataViewId | null {
 
     const tab = state.tabs.get(state.activeTabId);
     if (!tab) return null;
-    if (tab.type !== 'data-source') {
-      console.warn(`Attempted to get DataSourceId for non-data-source tab: ${tab.id}`);
+    if (tab.type !== 'data-source' || tab.dataSourceType !== 'file') {
       return null;
     }
 
@@ -152,11 +155,58 @@ export function useSqlScriptNameMap(): Map<SQLScriptId, string> {
   );
 }
 
-export function useTabMetaInfoMap(): Map<TabId, TabMetaInfo> {
+export function useDataViewIconMap(): Map<PersistentDataViewId, IconType> {
   return useInitStore(
     useShallow(
       (state) =>
-        new Map(Array.from(state.tabs).map(([id, tab]): [TabId, TabMetaInfo] => [id, tab.meta])),
+        new Map(
+          Array.from(state.dataViews).map(([id, dv]): [PersistentDataViewId, IconType] => [
+            id,
+            getDataViewIcon(dv, state.localEntries),
+          ]),
+        ),
+    ),
+  );
+}
+
+export function useDataViewNameMap(): Map<PersistentDataViewId, string> {
+  return useInitStore(
+    useShallow(
+      (state) =>
+        new Map(
+          Array.from(state.dataViews).map(([id, dv]): [PersistentDataViewId, string] => [
+            id,
+            getDataViewName(dv, state.localEntries),
+          ]),
+        ),
+    ),
+  );
+}
+
+export function useTabIconMap(): Map<TabId, IconType> {
+  return useInitStore(
+    useShallow(
+      (state) =>
+        new Map(
+          Array.from(state.tabs).map(([id, tab]): [TabId, IconType] => [
+            id,
+            getTabIcon(tab, state.dataViews, state.localEntries),
+          ]),
+        ),
+    ),
+  );
+}
+
+export function useTabNameMap(): Map<TabId, string> {
+  return useInitStore(
+    useShallow(
+      (state) =>
+        new Map(
+          Array.from(state.tabs).map(([id, tab]): [TabId, string] => [
+            id,
+            getTabName(tab, state.sqlScripts, state.dataViews, state.localEntries),
+          ]),
+        ),
     ),
   );
 }
@@ -190,42 +240,6 @@ const persistAddLocalEntry = async (
   // Commit the transaction
   await tx.done;
 };
-
-function addPersistentDataView(localEntry: DataSourceLocalFile): AnyPersistentDataView {
-  const dataViewId = uuidv4() as PersistentDataViewId;
-
-  // TODO: fetch all views currently in memory db from state to avoid duplicates
-  const reservedViews = new Set([] as string[]);
-  const viewName = findUniqueName(toDuckDBIdentifier(localEntry.uniqueAlias), (name: string) =>
-    reservedViews.has(name),
-  );
-
-  switch (localEntry.ext) {
-    case 'csv':
-      return {
-        id: dataViewId,
-        type: 'persistent',
-        sourceType: localEntry.ext,
-        fileSourceId: localEntry.id,
-        displayName: viewName,
-        queryableName: viewName,
-        fullyQualifiedName: `main.${viewName}`,
-      };
-    case 'parquet':
-      return {
-        id: dataViewId,
-        type: 'persistent',
-        sourceType: localEntry.ext,
-        fileSourceId: localEntry.id,
-        displayName: viewName,
-        queryableName: viewName,
-        fullyQualifiedName: `main.${viewName}`,
-        registeredFileName: localEntry.uniqueAlias,
-      };
-    default:
-      throw new Error('TODO: Supported data source file type');
-  }
-}
 
 export const addLocalFileOrFolders = async (
   db: AsyncDuckDB,
@@ -265,10 +279,12 @@ export const addLocalFileOrFolders = async (
       switch (localEntry.ext) {
         case 'duckdb': {
           // TODO: fetch all attached dbs in memory db from state to avoid duplicates
+          // from user created databases (is it even possible?)
           const reservedDbs = new Set([] as string[]);
           const dbName = findUniqueName(
             toDuckDBIdentifier(localEntry.uniqueAlias),
             (name: string) => reservedDbs.has(name),
+            true,
           );
 
           await registerAndAttachDatabase(
@@ -314,7 +330,7 @@ export const addLocalFileOrFolders = async (
   }
 
   // Update the store
-  useInitStore.setState(newState, undefined, 'AppStore/addLocalEntry');
+  useInitStore.setState(newState, undefined, 'AppStore/addLocalFileOrFolders');
 
   // If we have an IndexedDB connection, persist the new local entry
   if (iDbConn) {
@@ -396,20 +412,16 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
   return sqlScript;
 };
 
-export const renameSQLScript = (sqlScriptId: SQLScriptId, newName: string): void => {
+export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName: string): void => {
   const { sqlScripts } = useInitStore.getState();
 
   // Check if the script exists
-  const sqlScript = sqlScripts.get(sqlScriptId);
-  if (!sqlScript) {
-    console.error(`SQL script with ID ${sqlScriptId} not found`);
-    return;
-  }
+  const sqlScript = ensureScript(sqlScriptOrId, sqlScripts);
 
   // Make sure the name is unique among other scripts
   const allNames = new Set(
     Array.from(sqlScripts.values())
-      .filter((script) => script.id !== sqlScriptId)
+      .filter((script) => script.id !== sqlScript.id)
       .map((script) => script.name),
   );
 
@@ -423,7 +435,7 @@ export const renameSQLScript = (sqlScriptId: SQLScriptId, newName: string): void
 
   // Update the store
   const newSqlScripts = new Map(sqlScripts);
-  newSqlScripts.set(sqlScriptId, updatedScript);
+  newSqlScripts.set(sqlScript.id, updatedScript);
 
   // Update the store with changes
   useInitStore.setState(
@@ -437,7 +449,42 @@ export const renameSQLScript = (sqlScriptId: SQLScriptId, newName: string): void
   // Persist the changes to IndexedDB
   const iDb = useInitStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScriptId);
+    iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id);
+  }
+};
+
+export const updateSQLScriptContent = (
+  sqlScriptOrId: SQLScript | SQLScriptId,
+  newContent: string,
+): void => {
+  const { sqlScripts } = useInitStore.getState();
+
+  // Check if the script exists
+  const sqlScript = ensureScript(sqlScriptOrId, sqlScripts);
+
+  // Create updated script
+  const updatedScript: SQLScript = {
+    ...sqlScript,
+    content: newContent,
+  };
+
+  // Update the store
+  const newSqlScripts = new Map(sqlScripts);
+  newSqlScripts.set(sqlScript.id, updatedScript);
+
+  // Update the store with changes
+  useInitStore.setState(
+    {
+      sqlScripts: newSqlScripts,
+    },
+    undefined,
+    'AppStore/updateSQLScriptContent',
+  );
+
+  // Persist the changes to IndexedDB
+  const iDb = useInitStore.getState()._iDbConn;
+  if (iDb) {
+    iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id);
   }
 };
 
@@ -534,10 +581,12 @@ const persistCreateTab = async (
   iDb: IDBPDatabase<AppIdbSchema>,
   tab: AnyTab,
   newTabOrder: TabId[],
+  activeTabId: TabId | null,
 ) => {
   const tx = iDb.transaction([TAB_TABLE_NAME, CONTENT_VIEW_TABLE_NAME], 'readwrite');
   await tx.objectStore(TAB_TABLE_NAME).put(tab, tab.id);
   await tx.objectStore(CONTENT_VIEW_TABLE_NAME).put(newTabOrder, 'tabOrder');
+  await tx.objectStore(CONTENT_VIEW_TABLE_NAME).put(activeTabId, 'activeTabId');
 
   await tx.done;
 };
@@ -564,7 +613,7 @@ const findTabFromDataViewImpl = (
   dataViewId: PersistentDataViewId,
 ): FileDataSourceTab | undefined =>
   Array.from(tabs.values())
-    .filter((tab) => tab.type === 'data-source')
+    .filter((tab) => tab.type === 'data-source' && tab.dataSourceType === 'file')
     .find((tab) => tab.dataViewId === dataViewId);
 
 /**
@@ -632,14 +681,19 @@ export const findTabFromScript = (
 };
 
 /**
- * Creates a new tab from an existing SQL script.
+ * Gets existing or creates a new tab from an existing SQL script.
  * If the SQL script is already associated with a tab, it returns that tab without creating a new one.
  *
  * @param sqlScriptOrId - The ID or a SQL script object to create a tab from.
+ * @param setActive - Whether to set the new tab as active. This is a shortcut for
+ *                  calling `setActiveTabId(tab.id)` on the returned tab.
  * @returns A new Tab object.
  * @throws An error if the SQL script with the given ID does not exist.
  */
-export const getOrCreateTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId): ScriptTab => {
+export const getOrCreateTabFromScript = (
+  sqlScriptOrId: SQLScript | SQLScriptId,
+  setActive: boolean = false,
+): ScriptTab => {
   const state = useInitStore.getState();
 
   // Get the script object if not passed as an object
@@ -650,6 +704,11 @@ export const getOrCreateTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId)
 
   // No need to create a new tab if one already exists
   if (existingTab) {
+    // Since we didn't change any state, we can reuse existing action directly
+    if (setActive) {
+      setActiveTabId(existingTab.id);
+    }
+
     return existingTab;
   }
 
@@ -658,10 +717,8 @@ export const getOrCreateTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId)
   const tab: ScriptTab = {
     type: 'script',
     id: tabId,
-    meta: { name: sqlScript.name, iconType: 'code-file' },
     sqlScriptId: sqlScript.id,
-
-    layout: {
+    dataViewLayout: {
       tableColumnWidth: {},
       dataViewPaneHeight: 0,
     },
@@ -671,9 +728,11 @@ export const getOrCreateTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId)
   // Add the new tab to the store
   const newTabs = new Map(state.tabs).set(tabId, tab);
   const newTabOrder = [...state.tabOrder, tabId];
+  const newActiveTabId = setActive ? tabId : state.activeTabId;
 
   useInitStore.setState(
     (_) => ({
+      activeTabId: newActiveTabId,
       tabs: newTabs,
       tabOrder: newTabOrder,
     }),
@@ -684,22 +743,25 @@ export const getOrCreateTabFromScript = (sqlScriptOrId: SQLScript | SQLScriptId)
   // Persist the new tab to IndexedDB
   const iDb = state._iDbConn;
   if (iDb) {
-    persistCreateTab(iDb, tab, newTabOrder);
+    persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
   }
 
   return tab;
 };
 
 /**
- * Creates a new tab from an existing persistent data view.
+ * Gets existing or creates a new tab from an existing persistent data view.
  * If the view is already associated with a tab, it returns that tab without creating a new one.
  *
  * @param dataViewId - The ID of an object to create a tab from.
+ * @param setActive - Whether to set the new tab as active. This is a shortcut for
+ *                  calling `setActiveTabId(tab.id)` on the returned tab.
  * @returns A new Tab object.
  * @throws An error if the SQL script with the given ID does not exist.
  */
 export const getOrCreateTabFromPersistentDataView = (
   dataViewId: PersistentDataViewId,
+  setActive: boolean = false,
 ): FileDataSourceTab => {
   const state = useInitStore.getState();
 
@@ -711,6 +773,10 @@ export const getOrCreateTabFromPersistentDataView = (
 
   // No need to create a new tab if one already exists
   if (existingTab) {
+    // Since we didn't change any state, we can reuse existing action directly
+    if (setActive) {
+      setActiveTabId(existingTab.id);
+    }
     return existingTab;
   }
 
@@ -718,12 +784,11 @@ export const getOrCreateTabFromPersistentDataView = (
   const tabId = uuidv4() as TabId;
   const tab: FileDataSourceTab = {
     type: 'data-source',
-    // TODO proper iconType or move it to the data view model
+    dataSourceType: 'file',
     id: tabId,
-    meta: { name: dataView.displayName, iconType: 'csv' },
     dataViewId: dataView.id,
 
-    layout: {
+    dataViewLayout: {
       tableColumnWidth: {},
       dataViewPaneHeight: 0,
     },
@@ -732,9 +797,11 @@ export const getOrCreateTabFromPersistentDataView = (
   // Add the new tab to the store
   const newTabs = new Map(state.tabs).set(tabId, tab);
   const newTabOrder = [...state.tabOrder, tabId];
+  const newActiveTabId = setActive ? tabId : state.activeTabId;
 
   useInitStore.setState(
     (_) => ({
+      activeTabId: newActiveTabId,
       tabs: newTabs,
       tabOrder: newTabOrder,
     }),
@@ -745,11 +812,26 @@ export const getOrCreateTabFromPersistentDataView = (
   // Persist the new tab to IndexedDB
   const iDb = state._iDbConn;
   if (iDb) {
-    persistCreateTab(iDb, tab, newTabOrder);
+    persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
   }
 
   return tab;
 };
+
+function ensureTab(tabOrId: AnyTab | TabId, tabs: Map<TabId, AnyTab>): AnyTab {
+  // Get the tab object if not passed as an object
+  if (typeof tabOrId === 'string') {
+    const fromState = tabs.get(tabOrId);
+
+    if (!fromState) {
+      throw new Error(`Tab with id ${tabOrId} not found`);
+    }
+
+    return fromState;
+  }
+
+  return tabOrId;
+}
 
 const persistDeleteTab = async (
   iDb: IDBPDatabase<AppIdbSchema>,
@@ -826,6 +908,85 @@ export const deleteTab = (tabId: TabId) => {
 
   if (iDbConn) {
     persistDeleteTab(iDbConn, tabId, newActiveTabId, newPreviewTabId, newTabOrder);
+  }
+};
+
+export const updateTabDataViewLayout = (
+  tabOrId: AnyTab | TabId,
+  newLayout: DataViewLayout,
+): void => {
+  const { tabs } = useInitStore.getState();
+
+  // Get the tab object if not passed as an object
+  const tab = ensureTab(tabOrId, tabs);
+
+  // Check for changes
+  if (
+    tab.dataViewLayout.dataViewPaneHeight === newLayout.dataViewPaneHeight &&
+    shallow(tab.dataViewLayout.tableColumnWidth, newLayout.tableColumnWidth)
+  ) {
+    // No changes, nothing to do
+    return;
+  }
+
+  // Create new tab object with updated layout
+  const updatedTab: AnyTab = {
+    ...tab,
+    dataViewLayout: newLayout,
+  };
+
+  // Update the store
+  const newTabs = new Map(tabs);
+  newTabs.set(tab.id, updatedTab);
+
+  // Update the store with changes
+  useInitStore.setState(
+    {
+      tabs: newTabs,
+    },
+    undefined,
+    'AppStore/updateTabDataViewLayout',
+  );
+
+  // Persist the changes to IndexedDB
+  const iDb = useInitStore.getState()._iDbConn;
+  if (iDb) {
+    iDb.put(TAB_TABLE_NAME, updatedTab, tab.id);
+  }
+};
+
+export const updateScriptTabEditorPaneHeight = (tab: ScriptTab, newPaneHeight: number): void => {
+  const { tabs } = useInitStore.getState();
+
+  // Check for changes
+  if (tab.editorPaneHeight === newPaneHeight) {
+    // No changes, nothing to do
+    return;
+  }
+
+  // Create new tab object with updated layout
+  const updatedTab: ScriptTab = {
+    ...tab,
+    editorPaneHeight: newPaneHeight,
+  };
+
+  // Update the store
+  const newTabs = new Map(tabs);
+  newTabs.set(tab.id, updatedTab);
+
+  // Update the store with changes
+  useInitStore.setState(
+    {
+      tabs: newTabs,
+    },
+    undefined,
+    'AppStore/updateScriptTabEditorPaneHeight',
+  );
+
+  // Persist the changes to IndexedDB
+  const iDb = useInitStore.getState()._iDbConn;
+  if (iDb) {
+    iDb.put(TAB_TABLE_NAME, updatedTab, tab.id);
   }
 };
 

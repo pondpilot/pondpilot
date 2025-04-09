@@ -4,7 +4,7 @@ import { useAppStore } from '@store/app-store';
 import { memo } from 'react';
 import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
-import { SYSTEM_DUCKDB_SHEMAS } from '@features/editor/auto-complete';
+import { SYSTEM_DUCKDB_SCHEMAS } from '@features/editor/auto-complete';
 import { useCreateQueryFileMutation, useFileHandlesQuery } from '@store/app-idb-store';
 import { useInitStore } from '@store/init-store';
 
@@ -43,7 +43,7 @@ export const DbExplorer = memo(() => {
             canSelect: true,
           },
           children: item.schemas
-            ?.filter((schema) => !SYSTEM_DUCKDB_SHEMAS.includes(schema.name))
+            ?.filter((schema) => !SYSTEM_DUCKDB_SCHEMAS.includes(schema.name))
             .map((schema) => ({
               value: `${item.name}/${schema.name}`,
               nodeProps: {

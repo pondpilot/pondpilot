@@ -1,38 +1,13 @@
-import { CodeFileExt, CodeMimeType, DataSourceFileExt, DataSourceMimeType } from './file-system';
+import { AllDataSourceFileExt, DataSourceMimeType } from './file-system';
 
 export type Dataset = {
   kind: 'DATASET';
   mimeType: DataSourceMimeType;
-  ext: DataSourceFileExt;
+  ext: AllDataSourceFileExt;
   handle: FileSystemFileHandle;
   path: string;
   name: string;
   id: string;
-};
-
-export type CodeSource = {
-  id?: string;
-  kind: 'CODE';
-  mimeType: CodeMimeType;
-  ext: CodeFileExt;
-  handle: FileSystemFileHandle;
-  path: string;
-};
-
-/**
- * Each code file and its state including within the tabs.
- */
-export type CodeEditor = CodeSource & {
-  handle: FileSystemFileHandle;
-  content: string;
-};
-
-export type AppStateModel = {
-  status: 'initializing_worker' | 'loading_session' | 'ready' | 'error';
-  sessionDirId: string;
-  directoryHandle: FileSystemDirectoryHandle | null;
-  editors: CodeEditor[];
-  sources: Dataset[];
 };
 
 type DataSource = {
@@ -43,8 +18,10 @@ type DataSource = {
 
 export type AddDataSourceProps = DataSource[];
 
-interface TableModel {
+interface TableOrViewModel {
   name: string;
+  label?: string;
+  type?: 'table' | 'view';
   columns: {
     name: string;
     type: string;
@@ -53,7 +30,7 @@ interface TableModel {
 }
 interface SchemaModel {
   name: string;
-  tables: TableModel[];
+  tables: TableOrViewModel[];
 }
 
 export interface DataBaseModel {

@@ -1,35 +1,21 @@
 import {
-  codeExtMap,
   CodeFileExt,
   codeFileExts,
-  CodeMimeType,
-  codeMimeTypes,
-  dataSourceExtMap,
-  DataSourceFileExt,
-  dataSourceFileExts,
-  DataSourceMimeType,
-  dataSourceMimeTypes,
+  supportedDataSourceFileExts,
   LocalEntry,
   LocalEntryId,
   LocalFile,
   LocalFolder,
+  supportedDataSourceFileExt,
 } from '@models/file-system';
 import { v4 as uuidv4 } from 'uuid';
 
-export function isDataSourceMimeType(x: unknown): x is DataSourceMimeType {
-  return dataSourceMimeTypes.includes(x as DataSourceMimeType);
-}
-
-export function isDataSourceFileExt(x: unknown): x is DataSourceFileExt {
-  return dataSourceFileExts.includes(x as DataSourceFileExt);
+export function isSupportedDataSourceFileExt(x: unknown): x is supportedDataSourceFileExt {
+  return supportedDataSourceFileExts.includes(x as supportedDataSourceFileExt);
 }
 
 export function isCodeFileExt(x: unknown): x is CodeFileExt {
   return codeFileExts.includes(x as CodeFileExt);
-}
-
-export function isCodeMimeType(mimeType: unknown): mimeType is CodeMimeType {
-  return codeMimeTypes.includes(mimeType as CodeMimeType);
 }
 
 export async function collectFileHandlePersmissions(handles: FileSystemHandle[]): Promise<{
@@ -167,10 +153,9 @@ export function localEntryFromHandle(
     };
     const extLower = ext.toLowerCase();
 
-    if (isDataSourceFileExt(extLower)) {
+    if (isSupportedDataSourceFileExt(extLower)) {
       return {
         ...commonFile,
-        mimeType: dataSourceExtMap[extLower],
         fileType: 'data-source',
         ext: extLower,
       };
@@ -179,7 +164,6 @@ export function localEntryFromHandle(
     if (isCodeFileExt(extLower)) {
       return {
         ...commonFile,
-        mimeType: codeExtMap[extLower],
         fileType: 'code-file',
         ext: extLower,
       };

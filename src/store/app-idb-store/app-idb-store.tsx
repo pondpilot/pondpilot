@@ -165,7 +165,7 @@ export const fileHandleStoreApi = {
 
     for await (const { entry, filename: filenameRaw, type } of data) {
       const meta = getSupportedMimeType(filenameRaw);
-      if (!entry || !meta || meta.ext === 'sql') {
+      if (!entry || !meta) {
         continue;
       }
 
