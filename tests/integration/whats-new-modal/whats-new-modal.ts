@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { test } from '../fixtures/page';
 
-test.only('Release notes modal is displayed when version is newer', async ({ page }) => {
+test('Whats new modal is displayed when version is newer', async ({ page }) => {
   // Set up localStorage with old version
   await page.goto('http://localhost:5173/');
 
