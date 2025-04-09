@@ -410,54 +410,54 @@ export const restoreAppDataFromIDB = async (
 
   // Re-create data views and attached db's in duckDB
   await Promise.all(
-    localEntriesMap
-      .values()
-      .filter((entry) => entry.kind === 'file' && entry.fileType === 'data-source')
-      .map((localEntry) => async () => {
-        switch (localEntry.ext) {
-          case 'duckdb': {
-            // There should be no other attached dbs, so we do not need to check for duplicates
-            const dbName = findUniqueName(
-              toDuckDBIdentifier(localEntry.uniqueAlias),
-              (_: string) => true,
-              true,
-            );
+    localEntriesMap.values().map(async (localEntry) => {
+      if (localEntry.kind !== 'file' || localEntry.fileType !== 'data-source') {
+        return;
+      }
+      switch (localEntry.ext) {
+        case 'duckdb': {
+          // There should be no other attached dbs, so we do not need to check for duplicates
+          const dbName = findUniqueName(
+            toDuckDBIdentifier(localEntry.uniqueAlias),
+            (_: string) => true,
+            true,
+          );
 
-            await registerAndAttachDatabase(
-              db,
-              conn,
-              localEntry.handle,
-              localEntry.uniqueAlias,
-              dbName,
-            );
-            break;
-          }
-          default: {
-            // Get the existing data view for this entry
-            let dataView = dataViewByLocalEntryId.get(localEntry.id);
-
-            if (!dataView) {
-              // This is a data corruption, but we can recover from it
-              dataView = addPersistentDataView(localEntry);
-
-              // save to the map
-              missingDataViews.set(dataView.id, dataView);
-            }
-            // First create a data view object
-
-            // Then register the file source and create the view.
-            // TODO: this may potentially fail - we should handle this case
-            await registerFileSourceAndCreateView(
-              db,
-              conn,
-              localEntry.handle,
-              `${localEntry.uniqueAlias}.${localEntry.ext}`,
-              dataView.queryableName,
-            );
-            break;
-          }
+          await registerAndAttachDatabase(
+            db,
+            conn,
+            localEntry.handle,
+            localEntry.uniqueAlias,
+            dbName,
+          );
+          break;
         }
-      }),
+        default: {
+          // Get the existing data view for this entry
+          let dataView = dataViewByLocalEntryId.get(localEntry.id);
+
+          if (!dataView) {
+            // This is a data corruption, but we can recover from it
+            dataView = addPersistentDataView(localEntry);
+
+            // save to the map
+            missingDataViews.set(dataView.id, dataView);
+          }
+          // First create a data view object
+
+          // Then register the file source and create the view.
+          // TODO: this may potentially fail - we should handle this case
+          await registerFileSourceAndCreateView(
+            db,
+            conn,
+            localEntry.handle,
+            `${localEntry.uniqueAlias}.${localEntry.ext}`,
+            dataView.queryableName,
+          );
+          break;
+        }
+      }
+    }),
   );
 
   if (missingDataViews.size > 0) {
