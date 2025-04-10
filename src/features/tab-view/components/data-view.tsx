@@ -1,252 +1,156 @@
-import { memo, useCallback, useMemo } from 'react';
 import { Table } from '@components/table/table';
 import { Group, Text, ActionIcon, Center, Stack, Tooltip } from '@mantine/core';
 import { IconClipboardSmile, IconCopy } from '@tabler/icons-react';
-import { useAppContext } from '@features/app-context';
 import { cn } from '@utils/ui/styles';
-import { useClipboard } from '@mantine/hooks';
-import { Table as ApacheTable } from 'apache-arrow';
-import { getArrowTableSchema } from '@utils/arrow/schema';
-import { useAppNotifications } from '@components/app-notifications';
 import { setDataTestId } from '@utils/test-id';
 import { formatNumber } from '@utils/helpers';
-import { useTableExport } from '../hooks/useTableExport';
+import { useState } from 'react';
+import { ArrowColumn } from '@models/arrow';
 import { PaginationControl, TableLoadingOverlay } from '.';
+import { useTableExport } from '../hooks/useTableExport';
 import { useColumnSummary } from '../hooks';
 
 const PAGE_SIZE = 100;
 
-interface DataResultViewProps {
-  data: ApacheTable<any> | null;
+interface DataViewProps {
+  data: Record<string, any>[] | null;
+  columns: ArrowColumn[];
+
   isLoading: boolean;
-  active: boolean;
+  isActive: boolean;
   isScriptTab?: boolean;
+  initialData?: Record<string, any>[] | undefined;
 }
 
-export const DataView = memo(
-  ({ data, isLoading, isScriptTab = false, active }: DataResultViewProps) => {
-    const { onCancelQuery } = useAppContext();
-    const { handleCopyToClipboard } = useTableExport();
-    const { showSuccess } = useAppNotifications();
-    const clipboard = useClipboard();
-    const { calculateColumnSummary, columnTotal, isCalculating, isNumericType, resetTotal } =
-      useColumnSummary(undefined);
+export const DataView = ({ isScriptTab = false, isActive, isLoading, columns }: DataViewProps) => {
+  // TODO: take out from the hook
+  const { handleCopyToClipboard } = useTableExport();
+  const { calculateColumnSummary, columnTotal, isCalculating, isNumericType, resetTotal } =
+    useColumnSummary(undefined);
 
-    // TODO: this should not happen this way. schema should be part of the data adapter
-    // and be fetched separately. conversion of table to JSON and storing in cache should
-    // be part of handlers
-    const convertedTable = useMemo(() => {
-      if (!data) {
-        return { columns: [], data: [] };
-      }
+  const [currentPage, setCurrentPage] = useState(0);
+  const [displayedData, setDisplayedData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [totalRows, setTotalRows] = useState(0);
 
-      const tableData = data.toArray().map((row) => row.toJSON());
-      const columns = getArrowTableSchema(data) || [];
+  const nextPage = () => setCurrentPage((prev) => prev + 1);
+  const prevPage = () => setCurrentPage((prev) => Math.max(0, prev - 1));
 
-      return { columns, data: tableData };
-    }, [data]);
-    // Constants for UI rendering conditions
-    const hasTableData = !!convertedTable.columns.length;
-    const rowCount = convertedTable.data.length || 0;
-    const isSinglePage = rowCount <= PAGE_SIZE;
-    const currentPage = 1; // Would be managed by pagination logic in a full implementation
+  const isSinglePage = totalRows <= PAGE_SIZE;
 
-    // Event handlers
-    const onCancel = () => onCancelQuery();
+  return (
+    <div className="flex flex-col h-full">
+      <TableLoadingOverlay
+        queryView={isScriptTab}
+        onCancel={() => {
+          console.warn('Cancel query not implemented');
+        }}
+        visible={isLoading}
+      />
 
-    const onSelectedColsCopy = useCallback(
-      async (cols: Record<string, boolean>) => {
-        const notificationId = showSuccess({
-          title: 'Copying selected columns to clipboard...',
-          message: '',
-          loading: true,
-          autoClose: false,
-          color: 'text-accent',
-        });
+      {!displayedData && !isLoading && isActive && (
+        <Center className="h-full font-bold">
+          <Stack align="center" c="icon-default" gap={4}>
+            <IconClipboardSmile size={32} stroke={1} />
+            <Text c="text-secondary">Your query results will be displayed here.</Text>
+          </Stack>
+        </Center>
+      )}
 
-        try {
-          const selectedCols = Object.keys(cols)
-            .filter((col) => cols[col])
-            .map((col) => `"${col}"`);
-
-          // In a real implementation, we would execute a query to get just the selected columns
-          // For now, we'll just filter the data we already have
-          const selectedData = convertedTable.data.map((row) => {
-            const newRow: Record<string, any> = {};
-            Object.keys(cols).forEach((col) => {
-              if (cols[col]) {
-                newRow[col] = row[col];
-              }
-            });
-            return newRow;
-          });
-
-          const headers = Object.keys(cols)
-            .filter((col) => cols[col])
-            .join('\t');
-          const rows = selectedData.map((row) =>
-            Object.keys(row)
-              .map((col) => row[col] ?? '')
-              .join('\t'),
-          );
-          const tableText = [headers, ...rows].join('\n');
-
-          clipboard.copy(tableText);
-
-          // Update notification
-          showSuccess({
-            id: notificationId,
-            title: 'Selected columns copied to clipboard',
-            message: '',
-            loading: false,
-            autoClose: 800,
-          });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          showSuccess({
-            id: notificationId,
-            title: 'Failed to copy selected columns',
-            message,
-            loading: false,
-            autoClose: 5000,
-            color: 'red',
-          });
-        }
-      },
-      [clipboard, convertedTable.data, showSuccess],
-    );
-
-    return (
-      <div className="flex flex-col h-full">
-        <TableLoadingOverlay queryView={isScriptTab} onCancel={onCancel} visible={isLoading} />
-
-        {!hasTableData && !isLoading && active && (
-          <Center className="h-full font-bold">
-            <Stack align="center" c="icon-default" gap={4}>
-              <IconClipboardSmile size={32} stroke={1} />
-              <Text c="text-secondary">Your query results will be displayed here.</Text>
-            </Stack>
-          </Center>
-        )}
-
-        {hasTableData && (
-          <>
-            {/* Header toolbar */}
-            {hasTableData && (
-              <Group
-                justify="space-between"
-                className={cn('h-7 mt-4 mb-2 px-3', isScriptTab && 'mt-3')}
-              >
-                {isScriptTab ? (
-                  <>
-                    <Group>
-                      <Text c="text-primary" className="text-sm font-medium cursor-pointer">
-                        Result
+      {displayedData && (
+        <>
+          {/* Header toolbar */}
+          {displayedData && (
+            <Group
+              justify="space-between"
+              className={cn('h-7 mt-4 mb-2 px-3', isScriptTab && 'mt-3')}
+            >
+              {isScriptTab ? (
+                <>
+                  <Group>
+                    <Text c="text-primary" className="text-sm font-medium cursor-pointer">
+                      Result
+                    </Text>
+                    <Tooltip label="Soon">
+                      <Text c="text-secondary" className="text-sm font-medium cursor-not-allowed">
+                        Metadata View
                       </Text>
-                      <Tooltip label="Soon">
-                        <Text c="text-secondary" className="text-sm font-medium cursor-not-allowed">
-                          Metadata View
-                        </Text>
-                      </Tooltip>
-                    </Group>
-                    <Group>
-                      <ActionIcon size={16} onClick={() => handleCopyToClipboard(convertedTable)}>
-                        <IconCopy />
-                      </ActionIcon>
-                      {/* // TODO: Fix export functionality */}
-                      {/* <Menu position="bottom">
-                        <Menu.Target>
-                          <Button
-                            color="background-tertiary"
-                            c="text-primary"
-                            rightSection={
-                              <IconChevronDown
-                                className="text-iconDefault-light dark:text-iconDefault-dark"
-                                size={20}
-                              />
-                            }
-                          >
-                            Export
-                          </Button>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                          <Menu.Item onClick={exportTableToCSV}>
-                            Comma-Separated Values (.csv)
-                          </Menu.Item>
-                        </Menu.Dropdown>
-                      </Menu> */}
-                    </Group>
-                  </>
-                ) : (
-                  <>
-                    <Group>
-                      <Text c="text-secondary" className="text-sm font-medium">
-                        {convertedTable.columns.length} columns, {formatNumber(rowCount)} rows
-                      </Text>
-                    </Group>
-                    <Group className="h-full px-4">
-                      <ActionIcon size={16} onClick={() => handleCopyToClipboard(convertedTable)}>
-                        <IconCopy />
-                      </ActionIcon>
-                    </Group>
-                  </>
-                )}
-              </Group>
-            )}
+                    </Tooltip>
+                  </Group>
+                  <Group>
+                    <ActionIcon
+                      size={16}
+                      onClick={() => {
+                        // Copy to clipboard functionality would go here
+                        console.warn('Copy to clipboard not implemented');
+                      }}
+                    >
+                      <IconCopy />
+                    </ActionIcon>
+                  </Group>
+                </>
+              ) : (
+                <>
+                  <Group>
+                    <Text c="text-secondary" className="text-sm font-medium">
+                      {columns.length} columns, {formatNumber(totalRows)} rows
+                    </Text>
+                  </Group>
+                  <Group className="h-full px-4">
+                    <ActionIcon size={16} onClick={() => handleCopyToClipboard(displayedData)}>
+                      <IconCopy />
+                    </ActionIcon>
+                  </Group>
+                </>
+              )}
+            </Group>
+          )}
 
-            {/* Table */}
-            <div className={cn('overflow-auto px-3 custom-scroll-hidden pb-6 flex-1')}>
-              <Table
-                data={convertedTable.data}
-                columns={convertedTable.columns}
-                onSort={(colId: string) => {
-                  // Sort handler would go here
-                  // In a full implementation, this would update sort state
-                }}
-                sort={undefined}
-                page={currentPage}
-                onSelectedColsCopy={onSelectedColsCopy}
-                onColumnSelectChange={calculateColumnSummary}
-                onRowSelectChange={resetTotal}
-                onCellSelectChange={resetTotal}
-                visible={!!active}
-              />
-            </div>
-
-            {/* Footer with summary information */}
-            {columnTotal !== null && (
-              <Group
-                align="center"
-                className="border-t px-2 py-1 border-borderPrimary-light dark:border-borderPrimary-dark"
-              >
-                <Text c="text-primary" className="text-sm">
-                  {isNumericType ? 'SUM' : 'COUNT'}: {columnTotal}
-                </Text>
-              </Group>
-            )}
-          </>
-        )}
-
-        {/* Pagination control */}
-        {hasTableData && !isSinglePage && (
-          <div
-            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
-            data-testid={setDataTestId('data-table-pagination-control')}
-          >
-            <PaginationControl
-              currentPage={currentPage}
-              limit={PAGE_SIZE}
-              rowCount={rowCount}
-              onPrevPage={() => {
-                // In a full implementation, this would update the page
-              }}
-              onNextPage={() => {
-                // In a full implementation, this would update the page
-              }}
+          {/* Table */}
+          <div className={cn('overflow-auto px-3 custom-scroll-hidden pb-6 flex-1')}>
+            <Table
+              data={displayedData}
+              columns={columns}
+              sort={undefined}
+              page={currentPage}
+              visible={!!isActive}
+              onSelectedColsCopy={() => console.warn('Copy selected columns not implemented')}
+              onColumnSelectChange={() => console.warn('Column select change not implemented')}
+              onRowSelectChange={() => console.warn('Row select change not implemented')}
+              onCellSelectChange={() => console.warn('Cell select change not implemented')}
+              onSort={() => console.warn('Sort functionality not implemented')}
             />
           </div>
-        )}
-      </div>
-    );
-  },
-);
+
+          {/* Footer with summary information */}
+          {columns.length && (
+            <Group
+              align="center"
+              className="border-t px-2 py-1 border-borderPrimary-light dark:border-borderPrimary-dark"
+            >
+              <Text c="text-primary" className="text-sm">
+                {isNumericType ? 'SUM' : 'COUNT'}: {columnTotal}
+              </Text>
+            </Group>
+          )}
+        </>
+      )}
+
+      {/* Pagination control */}
+      {displayedData && !isSinglePage && (
+        <div
+          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
+          data-testid={setDataTestId('data-table-pagination-control')}
+        >
+          <PaginationControl
+            currentPage={currentPage}
+            limit={PAGE_SIZE}
+            rowCount={totalRows}
+            onPrevPage={prevPage}
+            onNextPage={nextPage}
+          />
+        </div>
+      )}
+    </div>
+  );
+};

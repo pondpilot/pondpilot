@@ -3,12 +3,12 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 
 // Context used to provide progress of duckdb initialization
 type duckDBInitState = 'none' | 'loading' | 'ready' | 'error';
-type duckDBInitializerStatusContextType = {
+type DuckDBInitializerStatusContextType = {
   state: duckDBInitState;
   message: string;
 };
 
-type duckDBInitializerContextType = () => Promise<duckdb.AsyncDuckDBConnection | null>;
+type DuckDBInitializerContextType = () => Promise<duckdb.AsyncDuckDBConnection | null>;
 
 export type duckDBConnectionContextType =
   | {
@@ -26,15 +26,15 @@ export type duckDBInitializedConnectionType = {
 };
 
 // Create context that supplies the messages and changes during initialization
-export const duckDBInitializerStatusContext =
-  createContext<duckDBInitializerStatusContextType | null>(null);
-export const useDuckDBInitializerStatus = (): duckDBInitializerStatusContextType =>
-  useContext(duckDBInitializerStatusContext)!;
+export const DuckDBInitializerStatusContext =
+  createContext<DuckDBInitializerStatusContextType | null>(null);
+export const useDuckDBInitializerStatus = (): DuckDBInitializerStatusContextType =>
+  useContext(DuckDBInitializerStatusContext)!;
 
 // Create context that supplies the lazy function to connect to DuckDB
-export const duckDBInitializerContext = createContext<duckDBInitializerContextType | null>(null);
-export const useDuckDBInitializer = (): duckDBInitializerContextType =>
-  useContext(duckDBInitializerContext)!;
+export const DuckDBInitializerContext = createContext<DuckDBInitializerContextType | null>(null);
+export const useDuckDBInitializer = (): DuckDBInitializerContextType =>
+  useContext(DuckDBInitializerContext)!;
 
 export const duckDBConnContext = createContext<duckDBConnectionContextType | null>(null);
 
@@ -65,7 +65,7 @@ export const useDuckDBConnection = (): duckDBConnectionContextType =>
   useContext(duckDBConnContext)!;
 
 export const DuckDBConnectionProvider = ({ children }: { children: React.ReactNode }) => {
-  const [initStatus, setInitStatus] = useState<duckDBInitializerStatusContextType>({
+  const [initStatus, setInitStatus] = useState<DuckDBInitializerStatusContextType>({
     state: 'none',
     message: "DuckDB initialization hasn't started yet",
   });
@@ -207,10 +207,10 @@ export const DuckDBConnectionProvider = ({ children }: { children: React.ReactNo
   }, []);
 
   return (
-    <duckDBInitializerContext.Provider value={connectDuckDb}>
-      <duckDBInitializerStatusContext.Provider value={initStatus}>
+    <DuckDBInitializerContext.Provider value={connectDuckDb}>
+      <DuckDBInitializerStatusContext.Provider value={initStatus}>
         <duckDBConnContext.Provider value={dbAndConn}>{children}</duckDBConnContext.Provider>
-      </duckDBInitializerStatusContext.Provider>
-    </duckDBInitializerContext.Provider>
+      </DuckDBInitializerStatusContext.Provider>
+    </DuckDBInitializerContext.Provider>
   );
 };
