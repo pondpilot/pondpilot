@@ -1,6 +1,6 @@
-import { getSupportedMimeType } from '@utils/helpers';
-import { useAppContext } from '@features/app-context';
 import { useAppNotifications } from '@components/app-notifications';
+import { useAppContext } from '@features/app-context';
+import { getSupportedMimeType } from '@utils/helpers';
 
 export const useFileHandlers = () => {
   const { onAddDataSources } = useAppContext();

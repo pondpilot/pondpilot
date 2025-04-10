@@ -5,15 +5,15 @@ import 'allotment/dist/style.css';
 
 import './index.css';
 
+import { BrowserNotSupported } from '@components/browser-not-supported';
+import { AppProvider } from '@features/app-context';
+import { AppStatus } from '@features/app-status';
 import { MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
-import { AppProvider } from '@features/app-context';
-
-import { theme } from '@theme/theme';
-import { AppStatus } from '@features/app-status';
-import { BrowserNotSupported } from '@components/browser-not-supported';
 import { useAppStore } from '@store/app-store';
+import { theme } from '@theme/theme';
 import { useEffect } from 'react';
+
 import { Router } from './router/router';
 
 const isFileAccessApiSupported = 'showDirectoryPicker' in window && 'showOpenFilePicker' in window;

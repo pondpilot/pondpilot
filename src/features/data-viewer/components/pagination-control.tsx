@@ -1,8 +1,8 @@
 import { Group, ActionIcon } from '@mantine/core';
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+import { formatNumber } from '@utils/helpers';
 import { setDataTestId } from '@utils/test-id';
 import { memo } from 'react';
-import { formatNumber } from '@utils/helpers';
 
 interface PaginationControlProps {
   currentPage: number;

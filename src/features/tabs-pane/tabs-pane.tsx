@@ -1,10 +1,5 @@
 /* eslint-disable jsx-a11y/click-events-have-key-events */
-import { useAppContext } from '@features/app-context';
-import { TabModel } from '@features/app-context/models';
-import { ScrollArea, Group, Skeleton, Text, ActionIcon, Box } from '@mantine/core';
-import { cn } from '@utils/ui/styles';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { useAppStore } from '@store/app-store';
+import { useAppNotifications } from '@components/app-notifications';
 import {
   DndContext,
   closestCenter,
@@ -14,6 +9,7 @@ import {
   useSensors,
   useDndMonitor,
 } from '@dnd-kit/core';
+import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
 import {
   horizontalListSortingStrategy,
   SortableContext,
@@ -21,7 +17,10 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
+import { useAppContext } from '@features/app-context';
+import { TabModel } from '@features/app-context/models';
+import { ScrollArea, Group, Skeleton, Text, ActionIcon, Box } from '@mantine/core';
+import { useAppStore } from '@store/app-store';
 import {
   IconCode,
   IconCopy,
@@ -32,9 +31,10 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { getArrowTableSchema } from '@utils/arrow/helpers';
-import { useAppNotifications } from '@components/app-notifications';
-import { useEditorStore } from 'store/editor-store';
 import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useEditorStore } from 'store/editor-store';
 
 interface SortableTabProps {
   tab: TabModel;

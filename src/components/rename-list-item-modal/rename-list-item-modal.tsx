@@ -1,5 +1,5 @@
-import React from 'react';
 import { Modal, TextInput, Group, Button } from '@mantine/core';
+import React from 'react';
 
 interface RenameListItemModalProps {
   opened: boolean;

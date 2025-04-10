@@ -1,8 +1,8 @@
 import { Stack, Text } from '@mantine/core';
 import { useDidUpdate } from '@mantine/hooks';
+import { useAppStore } from '@store/app-store';
 import { useEffect, useState } from 'react';
 import { FallbackProps } from 'react-error-boundary';
-import { useAppStore } from '@store/app-store';
 
 export const DataViewErrorFallback = ({ error }: FallbackProps) => {
   const currentView = useAppStore((state) => state.currentView);

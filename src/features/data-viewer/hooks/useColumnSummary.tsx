@@ -1,7 +1,7 @@
-import { useCallback, useState } from 'react';
-import { formatNumber } from '@utils/helpers';
 import { useAppContext } from '@features/app-context';
 import { useAppStore } from '@store/app-store';
+import { formatNumber } from '@utils/helpers';
+import { useCallback, useState } from 'react';
 
 export interface CalculateColumnSummaryProps {
   columnName: string | null;

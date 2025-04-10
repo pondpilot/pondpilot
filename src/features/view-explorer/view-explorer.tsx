@@ -1,11 +1,11 @@
+import { useAppNotifications } from '@components/app-notifications';
 import { MenuItem, SourcesListView } from '@components/sources-list-view';
 import { useAppContext } from '@features/app-context';
-import { useAppStore } from '@store/app-store';
 import { useClipboard } from '@mantine/hooks';
-import { memo, useCallback } from 'react';
-import { useAppNotifications } from '@components/app-notifications';
-import { IconCsv, IconJson, IconTable } from '@tabler/icons-react';
+import { useAppStore } from '@store/app-store';
 import { useEditorStore } from '@store/editor-store';
+import { IconCsv, IconJson, IconTable } from '@tabler/icons-react';
+import { memo, useCallback } from 'react';
 
 /**
  * Displays a list of views
