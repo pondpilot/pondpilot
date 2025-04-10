@@ -4,7 +4,7 @@ import { Allotment } from 'allotment';
 import { useAppContext } from '@features/app-context';
 import { useClipboard, useDebouncedState, useHotkeys } from '@mantine/hooks';
 import { QueryEditor } from '@features/query-editor';
-import { getArrowTableSchema } from '@utils/arrow/helpers';
+import { getArrowTableSchema } from '@utils/arrow/schema';
 import {
   ActionIcon,
   Button,
@@ -31,7 +31,7 @@ import {
   useInitStore,
 } from '@store/init-store';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
-import { getDataViewAdapter } from '@controllers/db/data-view';
+import { getFlatFileDataAdapterApi } from '@controllers/db/data-view';
 import { dbApiProxi } from '@features/app-context/db-worker';
 import { PaginationControl, TableLoadingOverlay } from './components';
 import { useTableExport } from './hooks/useTableExport';
@@ -62,13 +62,17 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
   const { conn } = useInitializedDuckDBConnection();
   const persistentTab: FileDataSourceTab | null =
     tab.type === 'data-source' && tab.dataSourceType === 'file' ? tab : null;
-  const dataView = useInitStore((state) =>
-    persistentTab ? state.dataViews.get(persistentTab.dataViewId) : null,
+  const dataSource = useInitStore((state) => state.dataSources.get(tab.dataSourceId));
+  const sourceFile = useInitStore((state) =>
+    dataSource?.fileSourceId ? state.localEntries.get(dataSource?.fileSourceId) : null,
   );
 
   const dataViewAdapter = useMemo(
-    () => (dataView ? getDataViewAdapter(dataView) : null),
-    [dataView],
+    () =>
+      dataSource && dataSource.type !== 'attached-db' && sourceFile
+        ? getFlatFileDataAdapterApi(dataSource, tab.id, sourceFile)
+        : null,
+    [dataSource],
   );
   const [dataViewReader, setReader] = useState<AsyncRecordBatchStreamReader<any> | null>(null);
   const [isQueryRunning, setQueryRunning] = useState<boolean>(false);

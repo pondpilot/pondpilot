@@ -7,7 +7,8 @@ import { cn } from '@utils/ui/styles';
 import { replaceSpecialChars } from '@utils/helpers';
 import { memo } from 'react';
 import { setDataTestId } from '@utils/test-id';
-import { TableSort } from '@models/common';
+
+import { ColumnSortSpec } from '@models/db';
 import { getIcon } from '../utils';
 
 interface TableHeadCellProps {
@@ -16,7 +17,7 @@ interface TableHeadCellProps {
   index: number;
   totalHeaders: number;
   isSelected: boolean;
-  sort?: TableSort;
+  sort?: ColumnSortSpec;
   resizingColumnId?: string | false;
   deltaOffset: number | null;
 

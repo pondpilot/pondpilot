@@ -28,6 +28,7 @@ export type IconType =
   // Local files that act as data sources
   | 'csv'
   | 'json'
+  | 'parquet'
   | 'xlsx-sheet'
   // In case of errors have a fallback icon
   | 'error';
@@ -57,6 +58,8 @@ export const ListViewIcon: React.FC<ListViewIconProps> = ({ iconType, ...iconPro
       return <IconFileTypeCsv {...iconProps} />;
     case 'json':
       return <IconJson {...iconProps} />;
+    case 'parquet':
+      return <IconTable {...iconProps} />;
     case 'xlsx':
       return <IconFileTypeXls {...iconProps} />;
     case 'xlsx-sheet':

@@ -1,24 +1,13 @@
 import { useEffect } from 'react';
-import { tableFromIPC } from 'apache-arrow';
-import { useAppStore } from '@store/app-store';
 import { useAppNotifications } from '@components/app-notifications';
-import { fileHandleStoreApi, useDeleteFileHandlesMutation } from '@store/app-idb-store';
-import { DuckDBDatabase, DuckDBView } from '@models/common';
 import { setAppLoadState } from '@store/init-store';
 import { restoreAppDataFromIDB } from '@store/persist/init';
 import { useDuckDBConnection, useDuckDBInitializer } from '@features/duckdb-context/duckdb-context';
 import { useShowPermsAlert } from './useShowPermsAlert';
-import { updateDatabasesWithColumns } from '../utils';
-import { dbApiProxi } from '../db-worker';
 
 export function useAppInitialization() {
-  const { showError, showWarning } = useAppNotifications();
+  const { showWarning } = useAppNotifications();
   const { showPermsAlert } = useShowPermsAlert();
-
-  const setViews = useAppStore((state) => state.setViews);
-  const setDatabases = useAppStore((state) => state.setDatabases);
-
-  const { mutateAsync: deleteSources } = useDeleteFileHandlesMutation();
 
   const { db, conn } = useDuckDBConnection();
   const connectDuckDb = useDuckDBInitializer();
@@ -28,124 +17,15 @@ export function useAppInitialization() {
       throw new Error('DuckDB connection is not ready');
     }
 
-    // Get list of files in the session
-    const sessionFiles = await fileHandleStoreApi.getFileHandles().catch((e) => {
-      showError({ title: 'Failed to get session files', message: e.message });
-      return null;
-    });
-
-    // Check permissions and process files
-    if (sessionFiles) {
-      const statuses = await Promise.all(
-        sessionFiles.map(async (source) => {
-          const status = (await source.handle.queryPermission()) === 'granted';
-          return status;
-        }),
-      );
-
-      if (statuses.includes(false)) {
-        const userResponse = await showPermsAlert();
-        if (!userResponse) {
-          return;
-        }
-        await Promise.all(
-          sessionFiles.map(async (source) => {
-            await source.handle.requestPermission({ mode: 'read' });
-          }),
-        );
-      }
-
-      // Check file availability
-      const checkedFiles = await Promise.all(
-        sessionFiles.map(async (source) => {
-          try {
-            await source.handle.getFile();
-            return {
-              status: 'success',
-              source,
-            };
-          } catch (e) {
-            return {
-              status: 'error',
-              source,
-            };
-          }
-        }),
-      );
-
-      const availableFiles = checkedFiles.filter((file) => file.status === 'success');
-      const unavailableFiles = checkedFiles.filter((file) => file.status === 'error');
-
-      if (unavailableFiles.length) {
-        await deleteSources(unavailableFiles.map((file) => file.source.id));
-        showWarning({
-          title: 'Warning',
-          message:
-            'Some views/files were removed from the session memory because it is not possible to read them.',
-        });
-      }
-
-      // Register available files
-      await Promise.all(
-        sessionFiles
-          .filter((source) =>
-            availableFiles.some(
-              (file) => file.source.path === source.path && file.status === 'success',
-            ),
-          )
-          .map(async (source) =>
-            dbApiProxi.registerFileHandleAndCreateDBInstance(db, conn, source).catch((e) => {
-              deleteSources([source.id]);
-              showError({
-                title: 'Error registering file handle in the database',
-                message: e.message,
-              });
-            }),
-          ),
-      ).catch((e) => {
-        console.error(e);
-        showError({ title: 'Failed to register file handle', message: e.message });
-      });
-    }
-
-    // Get views and databases
-    const dbExternalViews: DuckDBView[] = tableFromIPC(
-      await dbApiProxi.getDBUserInstances(conn, 'views').catch((e) => {
-        showError({ title: 'Failed to get views', message: e.message });
-        return [];
-      }),
-    )
-      .toArray()
-      .map((row) => row.toJSON());
-
-    const duckdbDatabases: string[] = tableFromIPC(
-      await dbApiProxi.getDBUserInstances(conn, 'databases').catch((e) => {
-        showError({ title: 'Failed to get databases', message: e.message });
-        return [];
-      }),
-    )
-      .toArray()
-      .map((row) => (row.toJSON() as DuckDBDatabase).database_name);
-
-    const initViews = dbExternalViews
-      .filter((view) => sessionFiles?.some((source) => (view.comment || '').includes(source.id)))
-      .map((view) => {
-        const { sourceId } = JSON.parse(view.comment || '{}');
-        return {
-          ...view,
-          sourceId,
-        };
-      });
-
-    const transformedTables = await updateDatabasesWithColumns(conn, duckdbDatabases);
-
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
-    const discardedHandles = await restoreAppDataFromIDB(db, conn, (_) => showPermsAlert());
+    const { discardedEntries, warnings } = await restoreAppDataFromIDB(db, conn, (_) =>
+      showPermsAlert(),
+    );
 
     // TODO: more detailed/better message
-    if (discardedHandles.length) {
-      const { totalErrors, totalDenied, totalRemoved } = discardedHandles.reduce(
+    if (discardedEntries.length) {
+      const { totalErrors, totalDenied, totalRemoved } = discardedEntries.reduce(
         (acc, entry) => {
           const what = entry.entry.kind === 'file' ? 'File' : 'Directory';
           switch (entry.type) {
@@ -170,6 +50,14 @@ export function useAppInitialization() {
         { totalErrors: 0, totalDenied: 0, totalRemoved: 0 },
       );
 
+      // Show warnings if any
+      if (warnings.length) {
+        showWarning({
+          title: 'Initialization Warnings',
+          message: warnings.map((w) => w).join('\n'),
+        });
+      }
+
       const totalDiscarded = totalErrors + totalDenied + totalRemoved;
 
       showWarning({
@@ -180,9 +68,7 @@ export function useAppInitialization() {
       });
     }
 
-    // Set the initial state
-    setViews(initViews);
-    setDatabases(transformedTables);
+    // Report we are ready
     setAppLoadState('ready');
   };
 

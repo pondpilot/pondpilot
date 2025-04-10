@@ -1,7 +1,7 @@
 import { tableFromIPC } from 'apache-arrow';
 import { useAppStore } from '@store/app-store';
 import { useAppNotifications } from '@components/app-notifications';
-import { AddDataSourceProps, DuckDBDatabase, DuckDBView } from '@models/common';
+import { AddDataSourceProps, DuckDBDatabase } from '@models/common';
 import {
   useAddFileHandlesMutation,
   useDeleteFileHandlesMutation,
@@ -10,8 +10,8 @@ import {
   useAllTabsQuery,
 } from '@store/app-idb-store';
 import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { DropFilesAndDBInstancesProps } from '../models';
-import { updateDatabasesWithColumns } from '../utils';
 import { dbApiProxi } from '../db-worker';
 
 export const useDataSourcesActions = () => {
@@ -34,7 +34,6 @@ export const useDataSourcesActions = () => {
   /**
    * Store access
    */
-  const setViews = useAppStore((state) => state.setViews);
   const setDatabases = useAppStore((state) => state.setDatabases);
 
   /**
@@ -57,14 +56,6 @@ export const useDataSourcesActions = () => {
       /**
        * Get views and databases from the database
        */
-      const dbExternalViews: DuckDBView[] = tableFromIPC(
-        await dbApiProxi.getDBUserInstances(conn, 'views').catch((e) => {
-          showError({ title: 'Failed to get views', message: e.message });
-          return [];
-        }),
-      )
-        .toArray()
-        .map((row) => row.toJSON());
       const duckdbDatabases: string[] = tableFromIPC(
         await dbApiProxi.getDBUserInstances(conn, 'databases').catch((e) => {
           showError({ title: 'Failed to get databases', message: e.message });
@@ -73,12 +64,11 @@ export const useDataSourcesActions = () => {
       )
         .toArray()
         .map((row) => (row.toJSON() as DuckDBDatabase).database_name);
-      const updatedViews = dbExternalViews.filter((view) =>
-        dataSources?.some((source) => (view.comment || '').includes(source.id)),
-      );
-      const transformedTables = await updateDatabasesWithColumns(conn, duckdbDatabases);
-      setDatabases(transformedTables);
-      setViews(updatedViews);
+
+      const transformedTables = await getDatabaseModel(conn, duckdbDatabases);
+      if (transformedTables) {
+        setDatabases(Array.from(transformedTables.values()));
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unknown error';
       showError({ title: 'Failed to delete sources', message });
@@ -123,34 +113,14 @@ export const useDataSourcesActions = () => {
         ),
       );
       // Get views and databases
-      const dbExternalViews: DuckDBView[] = tableFromIPC(
-        await dbApiProxi.getDBUserInstances(conn, 'views').catch((e) => {
-          showError({ title: 'Failed to get views', message: e.message });
-          return [];
-        }),
-      )
-        .toArray()
-        .map((row) => row.toJSON());
-
       const duckdbDatabases = tableFromIPC(await dbApiProxi.getDBUserInstances(conn, 'databases'))
         .toArray()
         .map((row) => row.toJSON().database_name);
 
-      const views = dbExternalViews
-        .filter((view) =>
-          updatedDataSources?.some((source) => (view.comment || '').includes(source.id)),
-        )
-        .map((view) => {
-          const { sourceId } = JSON.parse(view.comment || '{}');
-          return {
-            ...view,
-            sourceId,
-          };
-        });
-
-      const transformedTables = await updateDatabasesWithColumns(conn, duckdbDatabases);
-      setDatabases(transformedTables);
-      setViews(views);
+      const transformedTables = await getDatabaseModel(conn, duckdbDatabases);
+      if (transformedTables) {
+        setDatabases(Array.from(transformedTables.values()));
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unknown error';
       showError({ title: 'Failed to add data source', message });

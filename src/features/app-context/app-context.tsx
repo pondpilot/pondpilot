@@ -5,18 +5,13 @@ import { useAppNotifications } from '@components/app-notifications';
 import { useAbortController } from '@hooks/useAbortController';
 import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
-import {
-  useAllTabsQuery,
-  useCreateTabMutation,
-  useFileHandlesQuery,
-  useQueryFilesQuery,
-  useSetActiveTabMutation,
-} from '@store/app-idb-store';
+import { useFileHandlesQuery } from '@store/app-idb-store';
 import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { openQueryErrorModal } from '@features/error-modal/query-error-modal';
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { DBRunQueryProps, RunQueryResponse } from './models';
-import { executeQueries, updateDatabasesWithColumns } from './utils';
+import { executeQueries } from './utils';
 import { useAppInitialization } from './hooks/useInitApplication';
 import { dbApiProxi } from './db-worker';
 import { DevModal } from './components/dev-modal';
@@ -25,7 +20,6 @@ interface AppContextType {
   runQuery: (
     runQueryProps: DBRunQueryProps,
   ) => Promise<(RunQueryResponse & { originalQuery: string }) | undefined>;
-  openTab: (sourceId: string, type: 'query' | 'file') => Promise<void>;
   onCancelQuery: (v?: string) => Promise<void>;
   executeQuery: (query: string) => Promise<any>;
   conn: AsyncDuckDBConnection | null;
@@ -48,18 +42,11 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
    * Query state
    */
   const { data: dataSources = [] } = useFileHandlesQuery();
-  const { mutateAsync: mutateTab } = useCreateTabMutation();
-  const { data: tabs } = useAllTabsQuery();
-  const activeTab = tabs?.find((tab) => tab.active);
-
-  const { mutateAsync: switchTab } = useSetActiveTabMutation();
-  const { data: queryFiles = [] } = useQueryFilesQuery();
 
   /**
    * Store access
    */
   const setDatabases = useAppStore((state) => state.setDatabases);
-  const views = useAppStore((state) => state.views);
 
   const executeQuery = useCallback(
     async (query: string) => {
@@ -114,10 +101,12 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
             .toArray()
             .map((row) => row.toJSON().database_name);
 
-          const transformedTables = await updateDatabasesWithColumns(conn, dbsNames);
+          const transformedTables = await getDatabaseModel(conn, dbsNames);
 
           // Update the application state with processed data
-          setDatabases(transformedTables);
+          if (transformedTables) {
+            setDatabases(Array.from(transformedTables.values()));
+          }
           return {
             data: queryResults.data,
             pagination: queryResults.pagination,
@@ -160,38 +149,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     [conn, dataSources, getSignal, setDatabases, showError],
   );
 
-  const openTab = useCallback(
-    async (sourceId: string, type: 'query' | 'file') => {
-      if (activeTab?.sourceId === sourceId) return;
-
-      const tab = tabs?.find((t) => t.sourceId === sourceId);
-      const queryFile = queryFiles.find((query) => query.id === sourceId);
-      const view = views.find((v) => v.sourceId === sourceId);
-
-      if (type === 'query' && !queryFile) {
-        throw new Error(`Query file with id ${sourceId} not found`);
-      }
-      if (type === 'file' && !view) {
-        throw new Error(`Tab with id ${sourceId} not found`);
-      }
-
-      if (tab) {
-        await switchTab(tab.id);
-      } else {
-        // Create a new tab and set it as active
-        await mutateTab({
-          sourceId,
-          name: (type === 'query' ? queryFile?.name : view?.view_name) || '',
-          type,
-          state: 'pending',
-          active: true,
-          stable: true,
-        });
-      }
-    },
-    [activeTab, mutateTab, queryFiles, switchTab, tabs, views],
-  );
-
   const onCancelQuery = useCallback(
     async (reason?: string) => {
       abortSignal(reason);
@@ -203,7 +160,6 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
     runQuery,
     onCancelQuery,
     executeQuery,
-    openTab,
     conn,
   };
 

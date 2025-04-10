@@ -1,34 +1,17 @@
+import { ArrowColumn, JavaScriptArrowType } from '@models/arrow';
 import type { DataType, Field, RecordBatch, Table } from 'apache-arrow';
 
 /**
  * Returns the schema of an Apache Arrow table as an array of objects.
  */
-export function getArrowTableSchema(table: Table | RecordBatch) {
+export function getArrowTableSchema(table: Table | RecordBatch): ArrowColumn[] {
   return table.schema.fields.map(getArrowFieldSchema);
 }
-
-export type JavaScriptArrowType =
-  | 'integer'
-  | 'number'
-  | 'buffer'
-  | 'string'
-  | 'boolean'
-  | 'date'
-  | 'array'
-  | 'object'
-  | 'other';
-
-export type ResultColumn = {
-  name: string;
-  type: JavaScriptArrowType;
-  nullable: boolean;
-  databaseType: string;
-};
 
 /**
  * Returns the schema of an Apache Arrow field as an object.
  */
-function getArrowFieldSchema(field: Field): ResultColumn {
+function getArrowFieldSchema(field: Field): ArrowColumn {
   return {
     name: field.name,
     type: getArrowType(field.type),

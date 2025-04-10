@@ -47,9 +47,4 @@ export interface DbAPIType {
     conn: AsyncDuckDBConnection,
     type: 'databases' | 'views',
   ) => Promise<Uint8Array>;
-  getTablesAndColumns: (
-    conn: AsyncDuckDBConnection,
-    database?: string,
-    schema?: string,
-  ) => Promise<Uint8Array<ArrayBufferLike>>;
 }

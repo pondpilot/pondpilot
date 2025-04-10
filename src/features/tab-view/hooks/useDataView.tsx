@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Table as ApacheTable, AsyncRecordBatchStreamReader } from 'apache-arrow';
-import { getDataViewAdapter } from '@controllers/db/data-view';
+import { getFlatFileDataAdapterApi } from '@controllers/db/data-view';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { FileDataSourceTab } from '@models/tab';
 import { useInitStore } from '@store/init-store';
@@ -11,11 +11,17 @@ export const useDataView = (tab: FileDataSourceTab) => {
   const [isQueryRunning, setQueryRunning] = useState<boolean>(false);
 
   const { conn } = useInitializedDuckDBConnection();
-  const dataView = useInitStore((state) => state.dataViews.get(tab.dataViewId));
+  const dataSource = useInitStore((state) => state.dataSources.get(tab.dataSourceId));
+  const sourceFile = useInitStore((state) =>
+    dataSource?.fileSourceId ? state.localEntries.get(dataSource?.fileSourceId) : null,
+  );
 
   const dataViewAdapter = useMemo(
-    () => (dataView ? getDataViewAdapter(dataView) : null),
-    [dataView],
+    () =>
+      dataSource && dataSource.type !== 'attached-db' && sourceFile
+        ? getFlatFileDataAdapterApi(dataSource, tab.id, sourceFile)
+        : null,
+    [dataSource],
   );
 
   // Create a new reader on first load. The rest should be updated on sorting etc.

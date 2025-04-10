@@ -5,16 +5,17 @@ import { useClipboard, useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { replaceSpecialChars } from '@utils/helpers';
 import { useAppNotifications } from '@components/app-notifications';
 import { CalculateColumnSummaryProps } from '@features/tab-view/hooks';
-import { ResultColumn } from '@utils/arrow/helpers';
 import { setDataTestId } from '@utils/test-id';
-import { TableSort } from '@models/common';
+
+import { ArrowColumn } from '@models/arrow';
+import { ColumnSortSpec } from '@models/db';
 import { TableCell, TableHeadCell } from './components';
 import { useTableColumns, useTableSelection } from './hooks';
 
 interface TableProps {
   data: Record<string, any>[];
-  columns: ResultColumn[];
-  sort: TableSort | undefined;
+  columns: ArrowColumn[];
+  sort: ColumnSortSpec | undefined;
   page: number;
   visible: boolean;
   onSort?: (columnId: string) => void;

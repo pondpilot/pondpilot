@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { useDidUpdate } from '@mantine/hooks';
 import { CalculateColumnSummaryProps } from '@features/tab-view/hooks';
-import { ResultColumn } from '@utils/arrow/helpers';
+import { ArrowColumn } from '@models/arrow';
 import { dynamicTypeViewer } from '../utils';
 
 interface SelectedCell {
@@ -12,7 +12,7 @@ interface SelectedCell {
 }
 
 interface UseTableSelectionProps {
-  columns: ResultColumn[];
+  columns: ArrowColumn[];
   canCopy: boolean;
   onRowSelectChange: () => void;
   onCellSelectChange: () => void;

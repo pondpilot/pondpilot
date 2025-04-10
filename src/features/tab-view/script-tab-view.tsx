@@ -6,7 +6,7 @@ import { dbApiProxi } from '@features/app-context/db-worker';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@store/init-store';
 import { Table as ApacheTable } from 'apache-arrow';
-import { DataResultView } from './data-result-view';
+import { DataView } from './components/data-view';
 
 interface ScriptTabViewProps {
   tab: ScriptTab;
@@ -56,12 +56,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
         </Allotment.Pane>
 
         <Allotment.Pane preferredSize={tab.dataViewLayout.dataViewPaneHeight} minSize={120}>
-          <DataResultView
-            data={fetchedData}
-            isLoading={isQueryRunning}
-            isScriptTab
-            active={active}
-          />
+          <DataView data={fetchedData} isLoading={isQueryRunning} isScriptTab active={active} />
         </Allotment.Pane>
       </Allotment>
     </div>

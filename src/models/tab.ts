@@ -1,6 +1,5 @@
-import { PersistentDataViewId } from './data-view';
+import { PersistentDataSourceId } from './data-source';
 import { SQLScriptId } from './sql-script';
-import { LocalEntryId } from './file-system';
 
 export type TabId = string & { readonly _: unique symbol };
 
@@ -18,18 +17,18 @@ export interface TabBase {
 }
 
 export interface ScriptTab extends TabBase {
-  type: 'script';
+  readonly type: 'script';
   sqlScriptId: SQLScriptId;
   editorPaneHeight: number;
 }
 
 export interface FileDataSourceTab extends TabBase {
-  type: 'data-source';
+  readonly type: 'data-source';
   readonly dataSourceType: 'file';
-  dataViewId: PersistentDataViewId;
+  dataSourceId: PersistentDataSourceId;
 }
 
-// The reason why we do not create persistent dataViews and treat tabs
+// The reason why we do not create flat data sources and treat tabs
 // that show attached database objects same as other files is that it allows
 // us to easily restore app after restart or when database has been changed
 // externally, or when the user decides to change database alias.
@@ -37,14 +36,14 @@ export interface FileDataSourceTab extends TabBase {
 // can be inferred. This causes more complex controller functions, but simplifies
 // state management and data view model.
 export interface AttachedDBDataTab extends TabBase {
-  type: 'data-source';
+  readonly type: 'data-source';
   readonly dataSourceType: 'db';
-  /**
-   * Unique identifier for the database file. You should use
-   * `uniqueAlias` as assumed attached database name.
-   */
-  localEntryId: LocalEntryId;
 
+  dataSourceId: PersistentDataSourceId;
+
+  /**
+   * The type of the object in the database.
+   */
   dbType: 'table' | 'view';
 
   /**

@@ -179,6 +179,7 @@ export function localEntryFromHandle(
     parentId,
     userAdded,
     handle,
+    uniqueAlias: getUniqueAlias(handle.name),
   };
 }
 

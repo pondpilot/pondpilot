@@ -105,15 +105,7 @@ export const QueryExplorer = memo(() => {
    */
   const handleRenameSubmit = async () => {
     if (pendingRenameItemId) {
-      const updatedSource = renameSQLScript(pendingRenameItemId, pendingRenameItemName);
-      // TODO: Rename tab
-      // const tab = tabsList.find((t) => t.sourceId === pendingRenameItemId);
-      // if (tab) {
-      //   await updateTab({
-      //     id: tab.id,
-      //     name: updatedSource.name,
-      //   });
-      // }
+      renameSQLScript(pendingRenameItemId, pendingRenameItemName);
     }
     closeRename();
   };

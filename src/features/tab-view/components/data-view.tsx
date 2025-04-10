@@ -6,13 +6,15 @@ import { useAppContext } from '@features/app-context';
 import { cn } from '@utils/ui/styles';
 import { useClipboard } from '@mantine/hooks';
 import { Table as ApacheTable } from 'apache-arrow';
-import { getArrowTableSchema } from '@utils/arrow/helpers';
+import { getArrowTableSchema } from '@utils/arrow/schema';
 import { useAppNotifications } from '@components/app-notifications';
 import { setDataTestId } from '@utils/test-id';
 import { formatNumber } from '@utils/helpers';
-import { useTableExport } from './hooks/useTableExport';
-import { PaginationControl, TableLoadingOverlay } from './components';
-import { useColumnSummary } from './hooks';
+import { useTableExport } from '../hooks/useTableExport';
+import { PaginationControl, TableLoadingOverlay } from '.';
+import { useColumnSummary } from '../hooks';
+
+const PAGE_SIZE = 100;
 
 interface DataResultViewProps {
   data: ApacheTable<any> | null;
@@ -21,7 +23,7 @@ interface DataResultViewProps {
   isScriptTab?: boolean;
 }
 
-export const DataResultView = memo(
+export const DataView = memo(
   ({ data, isLoading, isScriptTab = false, active }: DataResultViewProps) => {
     const { onCancelQuery } = useAppContext();
     const { handleCopyToClipboard } = useTableExport();
@@ -46,8 +48,7 @@ export const DataResultView = memo(
     // Constants for UI rendering conditions
     const hasTableData = !!convertedTable.columns.length;
     const rowCount = convertedTable.data.length || 0;
-    const limit = 100; // Default page size
-    const isSinglePage = rowCount <= limit;
+    const isSinglePage = rowCount <= PAGE_SIZE;
     const currentPage = 1; // Would be managed by pagination logic in a full implementation
 
     // Event handlers
@@ -234,7 +235,7 @@ export const DataResultView = memo(
           >
             <PaginationControl
               currentPage={currentPage}
-              limit={limit}
+              limit={PAGE_SIZE}
               rowCount={rowCount}
               onPrevPage={() => {
                 // In a full implementation, this would update the page

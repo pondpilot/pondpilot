@@ -1,17 +1,15 @@
-import { DataViewAdapterApi, DataViewData, AnyPersistentDataView } from '@models/data-view';
+import { DataAdapterApi, DataViewCacheKey } from '@models/data-adapter';
+import { AnyFlatFileDataSource } from '@models/data-source';
+import { LocalEntry } from '@models/file-system';
+import { TabId } from '@models/tab';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
-function getGetReaderApi(dataView: AnyPersistentDataView): DataViewAdapterApi['getReader'] {
+function getFlatFileGetReaderApi(dataView: AnyFlatFileDataSource): DataAdapterApi['getReader'] {
   return async (db, sort) => {
-    let baseQuery = `SELECT * FROM ${dataView.fullyQualifiedName}`;
+    let baseQuery = `SELECT * FROM main.${toDuckDBIdentifier(dataView.viewName)}`;
 
     if (sort.length > 0) {
-      const orderBy = sort
-        .map((s) => {
-          const column = s[0];
-          const order = s[1] || 'asc';
-          return `${column} ${order}`;
-        })
-        .join(', ');
+      const orderBy = sort.map((s) => `${s.column} ${s.order || 'asc'}`).join(', ');
       baseQuery += ` ORDER BY ${orderBy}`;
     }
     const reader = await db.send(baseQuery);
@@ -19,33 +17,34 @@ function getGetReaderApi(dataView: AnyPersistentDataView): DataViewAdapterApi['g
   };
 }
 
-export function getDataViewAdapter(dataView: DataViewData): DataViewAdapterApi {
-  if (dataView.type === 'persistent') {
-    const persistentDataView = dataView as AnyPersistentDataView;
-    if (persistentDataView.sourceType === 'csv') {
-      return {
-        getRowCount: undefined,
-        // TODO: implement this
-        getEstimatedRowCount: undefined,
-        getReader: getGetReaderApi(persistentDataView),
-      };
-    }
+export function getFlatFileDataAdapterApi(
+  dataSource: AnyFlatFileDataSource,
+  tabId: TabId,
+  sourceFile: LocalEntry,
+): DataAdapterApi {
+  if (dataSource.type === 'csv') {
+    return {
+      getCacheKey: () => tabId as unknown as DataViewCacheKey,
+      getRowCount: undefined,
+      // TODO: implement this
+      getEstimatedRowCount: undefined,
+      getReader: getFlatFileGetReaderApi(dataSource),
+    };
+  }
 
-    if (dataView.sourceType === 'parquet') {
-      return {
-        getRowCount: async (db) => {
-          const result = await db.query(
-            `SELECT num_rows FROM parquet_file_metadata('${persistentDataView.registeredFileName}')`,
-          );
+  if (dataSource.type === 'parquet') {
+    return {
+      getCacheKey: () => tabId as unknown as DataViewCacheKey,
+      getRowCount: async (db) => {
+        const result = await db.query(
+          `SELECT num_rows FROM parquet_file_metadata('${sourceFile.uniqueAlias}')`,
+        );
 
-          const count = Number(result.getChildAt(0)?.get(0));
-          return count;
-        },
-        getReader: getGetReaderApi(persistentDataView),
-      };
-    }
-
-    throw new Error('TODO');
+        const count = Number(result.getChildAt(0)?.get(0));
+        return count;
+      },
+      getReader: getFlatFileGetReaderApi(dataSource),
+    };
   }
 
   throw new Error('TODO');

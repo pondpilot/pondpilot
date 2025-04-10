@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Allotment } from 'allotment';
 import { FileDataSourceTab } from '@models/tab';
 import { updateTabDataViewLayout } from '@store/init-store';
-import { DataResultView } from './data-result-view';
+import { DataView } from './components/data-view';
 import { useDataView } from './hooks/useDataView';
 
 interface FileDataSourceTabViewProps {
@@ -27,7 +27,7 @@ export const FileDataSourceTabView = memo(({ tab, active }: FileDataSourceTabVie
         defaultSizes={[0, tab.dataViewLayout.dataViewPaneHeight]}
       >
         <Allotment.Pane preferredSize={tab.dataViewLayout.dataViewPaneHeight} minSize={120}>
-          <DataResultView data={fetchedData} isLoading={isQueryRunning} active={active} />
+          <DataView data={fetchedData} isLoading={isQueryRunning} active={active} />
         </Allotment.Pane>
       </Allotment>
     </div>

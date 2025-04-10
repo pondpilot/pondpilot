@@ -1,20 +1,16 @@
-import {
-  AddDataSourceProps,
-  Dataset,
-  LoadingState,
-  Pagination,
-  TableSort,
-  TabType,
-} from '@models/common';
-import { createName, findUniqueName, getSupportedMimeType } from '@utils/helpers';
+import { AddDataSourceProps, Dataset, Pagination } from '@models/common';
+import { ColumnSortSpec } from '@models/db';
+import { createName, getSupportedMimeType } from '@utils/helpers';
 import { openDB } from 'idb';
 import { v4 as uuidv4 } from 'uuid';
+
+export type TabType = 'query' | 'file';
+export type LoadingState = 'fetching' | 'error' | 'success' | 'pending';
 
 const APP_DB_NAME = 'app-database';
 const DB_VERSION = 1;
 const TAB_PREFIX = 'tab_';
 const FILE_HANDLE_PREFIX = 'file_';
-const QUERY_PREFIX = 'query_';
 
 const dbPromise = openDB(APP_DB_NAME, DB_VERSION, {
   upgrade(db) {
@@ -58,7 +54,7 @@ interface TabBase {
   query: QueryState;
   active: boolean;
   pagination: Pagination;
-  sort?: TableSort;
+  sort?: ColumnSortSpec;
   // editor: AppEditorState;
   layout: TabLayout;
   dataView: DataViewState;
@@ -217,93 +213,6 @@ export const fileHandleStoreApi = {
       await tx.store.delete(id);
     }
 
-    await tx.done;
-  },
-};
-
-export interface QueryFile {
-  id: string;
-  name: string;
-  content: string;
-  mimeType: string;
-  ext: string;
-}
-
-export const queryStoreApi = {
-  async _getQueryFiles(): Promise<QueryFile[]> {
-    return (await dbPromise).getAll('queries-store');
-  },
-  async _getQueryFileNames(): Promise<string[]> {
-    const queries = await queryStoreApi._getQueryFiles();
-    return queries.map((query) => query.name);
-  },
-  async _createQueryFileEntry(name: string, content: string = ''): Promise<QueryFile> {
-    const allNames = await queryStoreApi._getQueryFileNames();
-    const checkIfExists = (value: string) => allNames.includes(value);
-    const fileName = await findUniqueName(name, checkIfExists);
-    return {
-      id: `${QUERY_PREFIX}${uuidv4()}`,
-      name: fileName,
-      content,
-      mimeType: 'text/sql',
-      ext: 'sql',
-    };
-  },
-  async createQueryFile(name = 'query', content = ''): Promise<QueryFile> {
-    const db = await dbPromise;
-    const entry = await queryStoreApi._createQueryFileEntry(name, content);
-    await db.put('queries-store', entry, entry.id);
-    return entry;
-  },
-  async createMultipleQueryFiles(
-    entries: { name: string; content: string }[],
-  ): Promise<QueryFile[]> {
-    if (!entries.length) return [];
-    const allNames = await queryStoreApi._getQueryFileNames();
-    const createdEntries: QueryFile[] = [];
-    const namesToCheck = [...allNames];
-    for (const entry of entries) {
-      const checkIfExists = (value: string) => namesToCheck.includes(value);
-      const fileName = await findUniqueName(entry.name, checkIfExists);
-      const newEntry = {
-        id: `${QUERY_PREFIX}${uuidv4()}`,
-        name: fileName,
-        content: entry.content || '',
-        mimeType: 'text/sql',
-        ext: 'sql',
-      };
-      createdEntries.push(newEntry);
-      namesToCheck.push(fileName);
-    }
-    const db = await dbPromise;
-    const tx = db.transaction('queries-store', 'readwrite');
-    await Promise.all([...createdEntries.map((entry) => tx.store.put(entry, entry.id)), tx.done]);
-    return createdEntries;
-  },
-  async getQueryFiles(): Promise<QueryFile[]> {
-    return queryStoreApi._getQueryFiles();
-  },
-  async updateQueryFile(
-    id: string,
-    updates: Partial<Pick<QueryFile, 'name' | 'content'>>,
-  ): Promise<void> {
-    const db = await dbPromise;
-    const query = await db.get('queries-store', id);
-    if (!query) return;
-    const updatedQuery = { ...query, ...updates };
-    await db.put('queries-store', updatedQuery, id);
-  },
-  async renameQueryFile(id: string, name: string): Promise<void> {
-    return queryStoreApi.updateQueryFile(id, { name });
-  },
-  async changeQueryContent(id: string, content: string): Promise<void> {
-    return queryStoreApi.updateQueryFile(id, { content });
-  },
-  async deleteQueryFiles(ids: string[]): Promise<void> {
-    if (!ids.length) return;
-    const db = await dbPromise;
-    const tx = db.transaction('queries-store', 'readwrite');
-    await Promise.all(ids.map((id) => tx.store.delete(id)));
     await tx.done;
   },
 };

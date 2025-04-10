@@ -4,9 +4,9 @@
  * Licensed under GNU AGPL v3.0
  */
 
-import { DataBaseModel } from '@models/common';
 import type { SQLNamespace } from '@codemirror/lang-sql';
 import type { Completion } from '@codemirror/autocomplete';
+import { DataBaseModel } from '@models/db';
 
 /**
  * Converts a column type to a more generic SQL type for autocompletion
