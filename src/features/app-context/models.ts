@@ -51,7 +51,7 @@ export interface DBWorkerAPIType {
   registerFileHandleAndCreateDBInstance: (
     fileName: string,
     handle: FileSystemFileHandle,
-  ) => Promise<void>;
+  ) => Promise<File>;
   dropFilesAndDBInstances: (paths: string[], type: 'database' | 'view') => Promise<void>;
   getDBUserInstances: (type: 'databases' | 'views') => Promise<Uint8Array>;
   getTablesAndColumns: (database?: string, schema?: string) => Promise<Uint8Array<ArrayBufferLike>>;
