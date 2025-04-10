@@ -1,10 +1,25 @@
-import { test as base } from '@playwright/test';
+import { test as base, Page } from '@playwright/test';
 
-export const test = base.extend({
+const waitForAppReady = async (page: Page) => {
+  // Wait for the app to be ready
+  await page.locator('[data-app-status="ready"]').waitFor({ state: 'attached' });
+};
+
+type PageFixtures = {
+  reloadPage: () => Promise<void>;
+};
+
+export const test = base.extend<PageFixtures>({
   page: async ({ page }, use) => {
     // ---------- BEFORE EACH TEST ----------
     await page.goto('http://localhost:5173/');
-    await page.locator('[data-app-status="ready"]').waitFor({ state: 'attached' });
+    await waitForAppReady(page);
     await use(page);
+  },
+  reloadPage: async ({ page }, use) => {
+    await use(async () => {
+      await page.reload();
+      await waitForAppReady(page);
+    });
   },
 });

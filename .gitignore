@@ -134,3 +134,6 @@ dist
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Test temporary files
+tests/test-tmp
