@@ -15,19 +15,20 @@ import {
   LocalFolder,
 } from '@models/file-system';
 import { findUniqueName } from '@utils/helpers';
-import { AnyPersistentDataView, PersistentDataViewId } from '@models/data-view';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import {
   registerAndAttachDatabase,
   registerFileSourceAndCreateView,
 } from '@controllers/db/file-handle';
 import { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
-import { addPersistentDataView } from '@utils/data-view';
+import { addAttachedDB, addFlatFileDataSource } from '@utils/data-source';
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import {
   ALL_TABLE_NAMES,
   APP_DB_NAME,
   CONTENT_VIEW_TABLE_NAME,
-  DATA_VIEW_TABLE_NAME,
+  DATA_SOURCE_TABLE_NAME,
+  DATA_VIEW_CACHE_TABLE_NAME,
   DB_VERSION,
   LOCAL_ENTRY_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
@@ -332,9 +333,10 @@ export const restoreAppDataFromIDB = async (
   db: AsyncDuckDB,
   conn: AsyncDuckDBConnection,
   onBeforeRequestFilePermission: (handles: FileSystemHandle[]) => Promise<boolean>,
-): Promise<DiscardedEntry[]> => {
+): Promise<{ discardedEntries: DiscardedEntry[]; warnings: string[] }> => {
   const iDbConn = await getAppDataDBConnection();
 
+  const warnings: string[] = [];
   // iDB doesn't allow holding transaction while we await something
   // except iDB operation, so we have to use multiple separate ones...
 
@@ -391,22 +393,32 @@ export const restoreAppDataFromIDB = async (
   const tabsArray = await tx.objectStore(TAB_TABLE_NAME).getAll();
   const tabs = new Map(tabsArray.map((tab) => [tab.id, tab]));
 
-  const dataViewStore = tx.objectStore(DATA_VIEW_TABLE_NAME);
-  const dataViewsArray = await dataViewStore.getAll();
-  let dataViews = new Map(dataViewsArray.map((dv) => [dv.id, dv]));
-  const dataViewByLocalEntryId = new Map<LocalEntryId, AnyPersistentDataView>(
-    dataViewsArray.map((dv) => [dv.fileSourceId, dv]),
+  const dataViewCacheArray = await tx.objectStore(DATA_VIEW_CACHE_TABLE_NAME).getAll();
+  const dataViewCache = new Map(dataViewCacheArray.map((dv) => [dv.key, dv]));
+
+  const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
+  const dataSourcesArray = await dataSourceStore.getAll();
+  let dataSources = new Map(dataSourcesArray.map((dv) => [dv.id, dv]));
+  const dataSourceByLocalEntryId = new Map<LocalEntryId, AnyDataSource>(
+    dataSourcesArray.map((dv) => [dv.fileSourceId, dv]),
   );
 
   await tx.done;
 
+  // The following mirrors the logic for adding new data sources.
+  // In reality currently our database is created from scratch, so it
+  // should be impossible to have duplicates during restore. But
+  // our shared api's require a set to be passed in so...
+  const _reservedViews = new Set([] as string[]);
+  const _reservedDbs = new Set([] as string[]);
+
   // TODO: Check for tabs that are missing associated data views/scripts and rop them
   // with some user warning
 
-  // Normally we should have all data views in the store, but we allow recovering
+  // Normally we should have all data sources in the store, but we allow recovering
   // from this specific inconsistency, as it is pretty easy to re-create them.
   // Except of course, none of the tabs may be using them as we generate new ids
-  const missingDataViews: Map<PersistentDataViewId, AnyPersistentDataView> = new Map();
+  const missingDataSources: Map<PersistentDataSourceId, AnyDataSource> = new Map();
 
   // Re-create data views and attached db's in duckDB
   await Promise.all(
@@ -416,32 +428,36 @@ export const restoreAppDataFromIDB = async (
       }
       switch (localEntry.ext) {
         case 'duckdb': {
-          // There should be no other attached dbs, so we do not need to check for duplicates
-          const dbName = findUniqueName(
-            toDuckDBIdentifier(localEntry.uniqueAlias),
-            (_: string) => true,
-            true,
-          );
+          // Get the existing data source for this entry
+          let dataSource = dataSourceByLocalEntryId.get(localEntry.id);
+
+          if (!dataSource || dataSource.type !== 'attached-db') {
+            // This is a data corruption, but we can recover from it
+            dataSource = addAttachedDB(localEntry, _reservedDbs);
+
+            // save to the map
+            missingDataSources.set(dataSource.id, dataSource);
+          }
 
           await registerAndAttachDatabase(
             db,
             conn,
             localEntry.handle,
-            localEntry.uniqueAlias,
-            dbName,
+            `${localEntry.uniqueAlias}.${localEntry.ext}`,
+            dataSource.dbName,
           );
           break;
         }
         default: {
-          // Get the existing data view for this entry
-          let dataView = dataViewByLocalEntryId.get(localEntry.id);
+          // Get the existing data source for this entry
+          let dataSource = dataSourceByLocalEntryId.get(localEntry.id);
 
-          if (!dataView) {
+          if (!dataSource || dataSource.type === 'attached-db') {
             // This is a data corruption, but we can recover from it
-            dataView = addPersistentDataView(localEntry);
+            dataSource = addFlatFileDataSource(localEntry, _reservedViews);
 
             // save to the map
-            missingDataViews.set(dataView.id, dataView);
+            missingDataSources.set(dataSource.id, dataSource);
           }
           // First create a data view object
 
@@ -452,7 +468,7 @@ export const restoreAppDataFromIDB = async (
             conn,
             localEntry.handle,
             `${localEntry.uniqueAlias}.${localEntry.ext}`,
-            dataView.queryableName,
+            dataSource.viewName,
           );
           break;
         }
@@ -460,38 +476,48 @@ export const restoreAppDataFromIDB = async (
     }),
   );
 
-  if (missingDataViews.size > 0) {
+  if (missingDataSources.size > 0) {
     // Ok, we need yet another transaction to add the missing data views
-    const missingDataViewsTx = iDbConn.transaction(DATA_VIEW_TABLE_NAME, 'readwrite');
+    const missingDataViewsTx = iDbConn.transaction(DATA_SOURCE_TABLE_NAME, 'readwrite');
 
     // Add missing data views to state and store
-    dataViews = new Map([...dataViews, ...missingDataViews]);
+    dataSources = new Map([...dataSources, ...missingDataSources]);
 
-    for (const [id, dv] of missingDataViews) {
+    for (const [id, dv] of missingDataSources) {
       await missingDataViewsTx.store.add(dv, id);
     }
 
     await missingDataViewsTx.done;
   }
 
+  // Read database meta data
+  let dataBaseMetadata = await getDatabaseModel(conn);
+
+  if (!dataBaseMetadata) {
+    dataBaseMetadata = new Map();
+    warnings.push('Failed to read database metadata');
+  }
+
   // Finally update the store with the hydrated data
   useInitStore.setState(
     {
       _iDbConn: iDbConn,
-      localEntries: localEntriesMap,
-      tabs,
-      sqlScripts,
       activeTabId,
+      dataBaseMetadata,
+      dataSources,
+      dataViewCache,
+      localEntries: localEntriesMap,
       previewTabId,
+      sqlScripts,
       tabOrder,
-      dataViews,
+      tabs,
     },
     undefined,
     'AppStore/restoreAppDataFromIDB',
   );
 
   // Return the discarded entries for error reporting
-  return discardedEntries;
+  return { discardedEntries, warnings };
 };
 
 export const resetAppData = async (db: IDBPDatabase<AppIdbSchema>) => {

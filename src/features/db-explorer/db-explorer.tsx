@@ -5,8 +5,8 @@ import { memo } from 'react';
 import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
 import { SYSTEM_DUCKDB_SCHEMAS } from '@features/editor/auto-complete';
-import { useCreateQueryFileMutation, useFileHandlesQuery } from '@store/app-idb-store';
-import { useInitStore } from '@store/init-store';
+import { useFileHandlesQuery } from '@store/app-idb-store';
+import { createSQLScript, getOrCreateTabFromScript, useInitStore } from '@store/init-store';
 
 /**
  * Displays a list of views
@@ -18,7 +18,6 @@ export const DbExplorer = memo(() => {
   const { onDeleteDataSource } = useDataSourcesActions();
   const clipboard = useClipboard();
   const { showSuccess } = useAppNotifications();
-  const { mutate: createQueryFile } = useCreateQueryFileMutation();
 
   /**
    * Store access
@@ -90,10 +89,8 @@ export const DbExplorer = memo(() => {
               ? `SELECT * FROM ${item.label}.data;`
               : `SELECT * FROM ${item.value.replaceAll('/', '.')};`;
 
-            createQueryFile({
-              name: `${item.label}_query`,
-              content: query,
-            });
+            const newScript = createSQLScript(`${item.label}_query`, query);
+            getOrCreateTabFromScript(newScript, true);
           },
         },
       ],

@@ -3,15 +3,17 @@ import { useDataSourcesActions } from '@features/app-context';
 import { useClipboard } from '@mantine/hooks';
 import { memo, useMemo } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
-import { useCreateQueryFileMutation } from '@store/app-idb-store';
 import {
-  getOrCreateTabFromPersistentDataView,
-  setActiveTabId,
-  useDataViewIdForActiveTab,
+  createSQLScript,
+  getOrCreateTabFromFlatFileDataSource,
+  getOrCreateTabFromScript,
+  useDataSourceIdForActiveTab,
   useInitStore,
 } from '@store/init-store';
 import { LocalEntryId } from '@models/file-system';
 import { IconType } from '@features/list-view-icon';
+import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
+import { getDataSourceIcon, getFlatFileDataSourceName, getlocalEntryIcon } from '@utils/navigation';
 
 /**
  * Displays a file system tree for all registered local entities (files & folders)
@@ -24,78 +26,74 @@ export const FileSystemExplorer = memo(() => {
   const { onDeleteDataSource } = useDataSourcesActions();
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
-  const { mutateAsync: createQueryFile } = useCreateQueryFileMutation();
-  const activeDataSourceId = useDataViewIdForActiveTab();
+  const activeDataSourceId = useDataSourceIdForActiveTab();
   /**
    * Store access
    */
   const appLoadState = useInitStore.use.appLoadState();
 
   const entries = useInitStore.use.localEntries();
-  const sources = useInitStore.use.dataViews();
+  const sources = useInitStore.use.dataSources();
+  const dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource> = useMemo(
+    () =>
+      new Map(
+        sources
+          .values()
+          .filter((source) => source.type !== 'attached-db')
+          .map((source) => [source.fileSourceId, source]),
+      ),
+    [sources],
+  );
 
   /**
    * Calculate views to display by doing a depth-first traversal of the entries tree
    */
   const viewsToDisplay = useMemo(() => {
-    const visited = new Set<LocalEntryId>();
-
     const buildTree = (parentId: LocalEntryId | null): TypedTreeNodeData[] => {
       const children: TypedTreeNodeData[] = [];
 
       entries.forEach((entry) => {
-        if (entry.parentId !== parentId || visited.has(entry.id)) return;
-
-        visited.add(entry.id);
+        if (entry.parentId !== parentId) return;
 
         if (entry.kind === 'directory') {
           children.push({
             value: entry.id,
-            label: entry.name,
-            iconType: 'folder',
+            label: entry.uniqueAlias,
+            iconType: getlocalEntryIcon(entry),
             children: buildTree(entry.id),
           });
-        } else if (entry.kind === 'file') {
-          const relatedSource = Array.from(sources.values()).find(
-            (src) => src.fileSourceId === entry.id,
-          );
-
-          let value = entry.id;
-          let label = entry.name;
-          let iconType = 'folder';
-
-          if (relatedSource) {
-            if (relatedSource.displayName !== entry.name) {
-              label = `${relatedSource.displayName} (${entry.name})`;
-            }
-
-            // TODO this is not the full logic of course. probably need to
-            // extract to an utility function OR stored on data view model...
-            iconType = relatedSource.sourceType as IconType;
-            value = relatedSource.id;
-          }
-
-          const fileNode: TypedTreeNodeData = {
-            value,
-            label,
-            iconType,
-          };
-
-          // This would be needed for multi-view file sources
-          // if (relatedSource.length > 0) {
-          //   fileNode.children = relatedSource.map((src) => ({
-          //     value: src.id,
-          //     label: src.displayName,
-          //     // TODO: find out how to get the icon type from the file type
-          //     iconType: 'csv',
-          //   }));
-
-          //   // Sort sources alphabetically
-          //   fileNode.children.sort((a, b) => a.label.localeCompare(b.label));
-          // }
-
-          children.push(fileNode);
+          return;
         }
+
+        const relatedSource = dataSourceByFileId.get(entry.id);
+
+        if (!relatedSource) {
+          return;
+        }
+        const label = getFlatFileDataSourceName(relatedSource, entry);
+        const iconType = getDataSourceIcon(relatedSource);
+        const value = relatedSource.id;
+
+        const fileNode: TypedTreeNodeData = {
+          value,
+          label,
+          iconType,
+        };
+
+        // This would be needed for multi-view file sources
+        // if (relatedSource.length > 0) {
+        //   fileNode.children = relatedSource.map((src) => ({
+        //     value: src.id,
+        //     label: src.displayName,
+        //     // TODO: find out how to get the icon type from the file type
+        //     iconType: 'csv',
+        //   }));
+
+        //   // Sort sources alphabetically
+        //   fileNode.children.sort((a, b) => a.label.localeCompare(b.label));
+        // }
+
+        children.push(fileNode);
       });
 
       // Sort (folders first, then alphabetically)
@@ -120,7 +118,7 @@ export const FileSystemExplorer = memo(() => {
   // TODO: define a function inside viewsToDisplay for each item to separate types and logic
   const onItemClick = async (id: string) => {
     // find an existing tab for this source
-    getOrCreateTabFromPersistentDataView(id, true);
+    getOrCreateTabFromFlatFileDataSource(id, true);
   };
 
   const handleDeleteSelected = async (items: string[]) => {
@@ -136,10 +134,11 @@ export const FileSystemExplorer = memo(() => {
         {
           label: 'Create a query',
           onClick: (item) => {
-            createQueryFile({
-              name: `${item.label}_query`,
-              content: `SELECT * FROM ${item.label};`,
-            });
+            const newScript = createSQLScript(
+              `${item.label}_query`,
+              `SELECT * FROM ${item.label};`,
+            );
+            getOrCreateTabFromScript(newScript, true);
           },
         },
       ],

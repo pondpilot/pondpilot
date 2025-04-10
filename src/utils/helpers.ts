@@ -49,29 +49,17 @@ export function getSupportedMimeType(
  *
  * @param {string} name - The base name to check.
  * @param {function} checkIfExists - A function that checks if a name exists.
- * @param {boolean} maybeQuotedId - Whether the name might be a quoted identifier. In this case
- *  the counter will be applied within the quotes. But `checkIfExists` should still accept quoted names.
  * @returns {string} - A unique name.
  * @throws {Error} - Throws an error if too many files with the same name are found.
  */
-export const findUniqueName = (
-  name: string,
-  checkIfExists: (name: string) => boolean,
-  maybeQuotedId: boolean = false,
-): string => {
+export const findUniqueName = (name: string, checkIfExists: (name: string) => boolean): string => {
   if (!checkIfExists(name)) return name;
 
   let counter = 1;
-  let baseName = name;
-  let quote = '';
-  if (maybeQuotedId && name.startsWith('"') && name.endsWith('"')) {
-    baseName = name.slice(1, -1);
-    quote = '"';
-  }
-  let uniqueName = `${quote}${baseName}_${counter}${quote}`;
+  let uniqueName = `${name}_${counter}`;
 
   while (checkIfExists(uniqueName)) {
-    uniqueName = `${quote}${baseName}_${counter}${quote}`;
+    uniqueName = `${name}_${counter}`;
     counter += 1;
 
     // Prevent infinite loop

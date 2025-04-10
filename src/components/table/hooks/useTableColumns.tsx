@@ -7,12 +7,12 @@ import { Tooltip } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
 import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
-import { ResultColumn } from '@utils/arrow/helpers';
 import { setDataTestId } from '@utils/test-id';
+import { ArrowColumn } from '@models/arrow';
 import { dynamicTypeViewer } from '../utils';
 
 interface UseTableColumnsProps {
-  columns: ResultColumn[];
+  columns: ArrowColumn[];
   page: number;
   onRowSelectionChange: (
     cell: CellContext<Record<string, string | number>, any>,

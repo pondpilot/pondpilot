@@ -1,4 +1,5 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 /**
  * Register regular data source file (not a databse) and create a view
@@ -36,7 +37,9 @@ export async function registerFileSourceAndCreateView(
   /**
    * Create view
    */
-  await conn.query(`CREATE OR REPLACE VIEW ${viewName} AS SELECT * FROM '${fileName}';`);
+  await conn.query(
+    `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM '${fileName}';`,
+  );
 }
 
 /**
@@ -75,10 +78,10 @@ export async function registerAndAttachDatabase(
   /**
    * Detach any existing database with the same name
    */
-  await conn.query(`DETACH DATABASE IF EXISTS ${dbName};`).catch(console.error);
+  await conn.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(dbName)};`).catch(console.error);
 
   /**
-   * Create view
+   * Attach the database
    */
-  await conn.query(`CREATE OR REPLACE VIEW ${dbName} AS SELECT * FROM "${fileName}";`);
+  await conn.query(`ATTACH '${fileName}' as ${toDuckDBIdentifier(dbName)} (READ_ONLY);`);
 }

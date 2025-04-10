@@ -5,12 +5,12 @@ import { addLocalFileOrFolders } from '@store/init-store';
 import { pickFiles, pickFolder } from '@utils/file-system';
 
 export const useLocalFilesOrFolders = () => {
-  const { showError } = useAppNotifications();
+  const { showError, showWarning } = useAppNotifications();
+
   // TODO: we should be able to use non-null hook with db-conn,
   // but to do that, we need to extract the "plus" as a separate component
   // that is only loaded after app is ready
   // const { db, conn } = useInitializedDuckDBConnection();
-
   // @mishamsk , We can handle it just using the appLoadState with disabled state.
   const { db, conn } = useDuckDBConnection();
 
@@ -27,7 +27,25 @@ export const useLocalFilesOrFolders = () => {
       return;
     }
 
-    await addLocalFileOrFolders(db!, conn!, handles);
+    const { skippedExistingEntries, skippedUnsupportedFiles } = await addLocalFileOrFolders(
+      db!,
+      conn!,
+      handles,
+    );
+
+    if (skippedExistingEntries.length) {
+      showWarning({
+        title: 'Warning',
+        message: `${skippedExistingEntries.length} files were not added because they already exist.`,
+      });
+    }
+
+    if (skippedUnsupportedFiles.length) {
+      showWarning({
+        title: 'Warning',
+        message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
+      });
+    }
   };
 
   const handleAddFolder = async () => {
@@ -43,7 +61,15 @@ export const useLocalFilesOrFolders = () => {
       return;
     }
 
-    await addLocalFileOrFolders(db!, conn!, [handle]);
+    // Folders are always supported, so no point in checking the second return value
+    const { skippedExistingEntries } = await addLocalFileOrFolders(db!, conn!, [handle]);
+
+    if (skippedExistingEntries.length) {
+      showWarning({
+        title: 'Warning',
+        message: `${skippedExistingEntries.length} folders were not added because they already exist.`,
+      });
+    }
   };
 
   return {

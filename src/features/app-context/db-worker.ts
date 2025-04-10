@@ -49,47 +49,6 @@ async function getDBUserInstances(conn: duckdb.AsyncDuckDBConnection, type: 'dat
   return tableToIPC(viewsResult);
 }
 
-const buildColumnsQueryWithFilters = (database_name?: string, schema_name?: string): string => {
-  let whereClause = '';
-  if (database_name || schema_name) {
-    const conditions = [];
-    if (database_name) conditions.push(`database_name = '${database_name}'`);
-    if (schema_name) conditions.push(`schema_name = '${schema_name}'`);
-    whereClause = `WHERE ${conditions.join(' AND ')}`;
-  }
-
-  return `
-    SELECT
-      database_name,
-      schema_name,
-      table_name,
-      column_name,
-      column_index,
-      data_type,
-      is_nullable
-    FROM duckdb_columns()
-    ${whereClause}
-    ORDER BY database_name, schema_name, table_name, column_index;
-  `;
-};
-
-/**
- * Get all tables and their columns
- *
- * @param database_name - Optional database name to filter by
- * @param schema_name - Optional schema name to filter by
- * @returns Table and column information in Arrow IPC format
- */
-async function getTablesAndColumns(
-  conn: duckdb.AsyncDuckDBConnection,
-  database_name?: string,
-  schema_name?: string,
-) {
-  const query = buildColumnsQueryWithFilters(database_name, schema_name);
-  const columnsResult = await conn.query(query);
-  return tableToIPC(columnsResult);
-}
-
 /**
  * Register file handle
  *
@@ -218,5 +177,4 @@ export const dbApiProxi: DbAPIType = {
   registerFileHandleAndCreateDBInstance,
   dropFilesAndDBInstances,
   getDBUserInstances,
-  getTablesAndColumns,
 };

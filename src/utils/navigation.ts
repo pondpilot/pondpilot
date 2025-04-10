@@ -1,5 +1,5 @@
 import { IconType } from '@features/list-view-icon';
-import { PersistentDataViewData, PersistentDataViewId } from '@models/data-view';
+import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { DataSourceLocalFile, LocalEntry, LocalEntryId } from '@models/file-system';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab } from '@models/tab';
@@ -12,29 +12,52 @@ import { AnyTab } from '@models/tab';
 export function getTabName(
   tab: AnyTab,
   sqlScripts: Map<SQLScriptId, SQLScript>,
-  dataViews: Map<PersistentDataViewId, PersistentDataViewData>,
+  dataSources: Map<PersistentDataSourceId, AnyDataSource>,
   localEntries: Map<LocalEntryId, LocalEntry>,
 ): string {
-  return tab.type === 'script'
-    ? sqlScripts.get(tab.sqlScriptId)!.name
-    : tab.dataSourceType === 'file'
-      ? dataViews.get(tab.dataViewId)!.displayName
-      : `${(localEntries.get(tab.localEntryId) as DataSourceLocalFile).uniqueAlias}` +
-        `.${tab.schemaName}` +
-        `.${tab.objectName}`;
+  // ScriptTab
+  if (tab.type === 'script') {
+    return sqlScripts.get(tab.sqlScriptId)?.name || 'Unknown script';
+  }
+
+  const dataSource = dataSources.get(tab.dataSourceId);
+
+  if (!dataSource) {
+    return 'Unknown data source';
+  }
+
+  // Attached DB objects
+  if (tab.dataSourceType === 'db') {
+    if (dataSource.type !== 'attached-db') {
+      return 'Unknown data source';
+    }
+
+    return `${dataSource.dbName}.${tab.schemaName}.${tab.objectName}`;
+  }
+
+  // Flat files
+  if (dataSource.type === 'attached-db') {
+    return 'Unknown data source';
+  }
+
+  return getFlatFileDataSourceName(dataSource, localEntries);
 }
 
 export function getTabIcon(
   tab: AnyTab,
-  dataViews: Map<PersistentDataViewId, PersistentDataViewData>,
-  localEntries: Map<LocalEntryId, LocalEntry>,
+  dataSources: Map<PersistentDataSourceId, AnyDataSource>,
 ): IconType {
   if (tab.type === 'script') {
     return 'code-file';
   }
 
   if (tab.dataSourceType === 'file') {
-    return getDataViewIcon(dataViews.get(tab.dataViewId)!, localEntries);
+    const dataSource = dataSources.get(tab.dataSourceId);
+
+    if (!dataSource || dataSource.type === 'attached-db') {
+      return 'error';
+    }
+    return getDataSourceIcon(dataSource);
   }
 
   // AttachedDBDataTab
@@ -54,38 +77,38 @@ export function getlocalEntryIcon(entry: LocalEntry): IconType {
 }
 
 /**
- * Constructs a data view name based on state.
+ * Constructs a data source name based on state.
  *
  * Doesn't do any consistency checks, assumes all maps are consistent.
  */
-export function getDataViewName(
-  dataView: PersistentDataViewData,
+export function getFlatFileDataSourceName(
+  dataSource: AnyFlatFileDataSource,
   localEntries: Map<LocalEntryId, LocalEntry>,
+): string;
+/**
+ * Constructs a data source name based on state.
+ */
+export function getFlatFileDataSourceName(
+  dataSource: AnyFlatFileDataSource,
+  localEntry: LocalEntry,
+): string;
+export function getFlatFileDataSourceName(
+  dataSource: AnyFlatFileDataSource,
+  localEntriesOrEntry: Map<LocalEntryId, LocalEntry> | LocalEntry,
 ): string {
-  const localEntry = localEntries.get(dataView.fileSourceId)! as DataSourceLocalFile;
+  let localEntry: LocalEntry;
 
-  return localEntry.uniqueAlias === dataView.displayName
-    ? dataView.displayName
-    : `${dataView.displayName} (${localEntry.uniqueAlias})`;
-}
-
-export function getDataViewIcon(
-  dataView: PersistentDataViewData,
-  localEntries: Map<LocalEntryId, LocalEntry>,
-): IconType {
-  const entry = localEntries.get(dataView.fileSourceId);
-
-  if (!entry) {
-    return 'error';
+  if (localEntriesOrEntry instanceof Map) {
+    localEntry = localEntriesOrEntry.get(dataSource.fileSourceId)!;
+  } else {
+    localEntry = localEntriesOrEntry;
   }
 
-  return entry.kind === 'directory'
-    ? 'folder'
-    : entry.fileType === 'code-file'
-      ? 'code-file'
-      : entry.ext === 'duckdb'
-        ? 'db'
-        : entry.ext === 'parquet'
-          ? 'db-table'
-          : entry.ext;
+  return localEntry.uniqueAlias === dataSource.viewName
+    ? dataSource.viewName
+    : `${dataSource.viewName} (${localEntry.uniqueAlias})`;
+}
+
+export function getDataSourceIcon(dataSource: AnyFlatFileDataSource): IconType {
+  return dataSource.type;
 }

@@ -1,6 +1,6 @@
 import { useAppContext } from '@features/app-context';
+import { SortOrder } from '@models/db';
 import { Tab, useUpdateTabMutation } from '@store/app-idb-store';
-import { SortOrder } from '@models/common';
 
 export const useTablePaginationSort = (tab: Tab | undefined) => {
   const { runQuery } = useAppContext();

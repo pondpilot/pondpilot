@@ -85,9 +85,9 @@ type LocalFileBase = {
   userAdded: boolean;
   handle: FileSystemFileHandle;
 
-  // Specific fields for file
   /**
-   * Globally unique, database compatible (name-wise) alias of the file.
+   * Globally unique file name - necessary to allow registering
+   * multiple files with the same name in our single duckdb instance.
    */
   uniqueAlias: string;
 };
@@ -153,6 +153,12 @@ export type LocalFolder = {
    */
   userAdded: boolean;
   handle: FileSystemDirectoryHandle;
+
+  /**
+   * Globally unique name - necessary to allow registering
+   * multiple top level folders with the same name
+   */
+  uniqueAlias: string;
 };
 
 /**

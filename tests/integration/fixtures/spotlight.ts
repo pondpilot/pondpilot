@@ -30,7 +30,7 @@ export const test = base.extend<SpotlightFixtures>({
       const spotlightRoot = await openSpotlight();
 
       // Create new query through spotlight
-      await spotlightRoot.getByTestId('spotlight-action-create-new-query').click();
+      await spotlightRoot.getByTestId('spotlight-action-create-new-script').click();
 
       // Verify spotlight is closed after creating query
       await expect(spotlightRoot).not.toBeVisible();
