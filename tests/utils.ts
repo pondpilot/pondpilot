@@ -27,5 +27,5 @@ export function createFile(filePath: string, content: string): void {
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
-  writeFileSync(filePath, content);
+  writeFileSync(filePath, content, { flush: true });
 }
