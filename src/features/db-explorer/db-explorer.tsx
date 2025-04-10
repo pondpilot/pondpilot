@@ -1,5 +1,4 @@
 import { MenuItem, SourcesListView, TypedTreeNodeData } from '@components/sources-list-view';
-import { useDataSourcesActions } from '@features/app-context';
 import { useAppStore } from '@store/app-store';
 import { memo } from 'react';
 import { useClipboard } from '@mantine/hooks';
@@ -15,7 +14,6 @@ export const DbExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const { onDeleteDataSource } = useDataSourcesActions();
   const clipboard = useClipboard();
   const { showSuccess } = useAppNotifications();
 
@@ -39,7 +37,6 @@ export const DbExplorer = memo(() => {
           iconType: 'db',
           nodeProps: {
             id: 'db',
-            canSelect: true,
           },
           children: item.schemas
             ?.filter((schema) => !SYSTEM_DUCKDB_SCHEMAS.includes(schema.name))
@@ -47,7 +44,6 @@ export const DbExplorer = memo(() => {
               value: `${item.name}/${schema.name}`,
               nodeProps: {
                 id: 'schema',
-                canSelect: false,
               },
               iconType: 'db-schema',
               label: schema.name,
@@ -57,19 +53,13 @@ export const DbExplorer = memo(() => {
                 iconType: 'db-table',
                 nodeProps: {
                   id: 'table',
-                  canSelect: false,
                 },
               })),
             })),
         }) as TypedTreeNodeData,
     );
 
-  const handleDeleteSelected = async (items: string[]) => {
-    onDeleteDataSource({
-      ids: items,
-      type: 'databases',
-    });
-  };
+  const handleDeleteSelected = async (items: string[]) => {};
 
   const menuItems: MenuItem[] = [
     {
@@ -99,7 +89,7 @@ export const DbExplorer = memo(() => {
       children: [
         {
           label: 'Delete',
-          onClick: (item) => onDeleteDataSource({ ids: [item.value], type: 'databases' }),
+          onClick: (item) => {},
         },
       ],
     },

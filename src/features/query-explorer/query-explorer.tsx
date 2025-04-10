@@ -9,14 +9,12 @@ import { setDataTestId } from '@utils/test-id';
 import {
   createSQLScript,
   getOrCreateTabFromScript,
-  deleteTab,
-  findTabFromScript,
-  setActiveTabId,
-  setPreviewTabId,
   useInitStore,
   useSqlScriptIdForActiveTab,
   useSqlScriptNameMap,
   renameSQLScript,
+  deleteSqlScript,
+  deleteTabByScriptId,
 } from '@store/init-store';
 import { SQLScriptId } from '@models/sql-script';
 
@@ -53,7 +51,10 @@ export const QueryExplorer = memo(() => {
     ([sqlScriptId, sqlScriptName]) => ({
       value: sqlScriptId,
       label: `${sqlScriptName}.sql`,
-      nodeProps: { canSelect: true },
+      nodeProps: {
+        onActiveClose: () => deleteTabByScriptId(sqlScriptId),
+        onClick: () => getOrCreateTabFromScript(sqlScriptId),
+      },
       iconType: 'code-file',
     }),
   );
@@ -73,31 +74,9 @@ export const QueryExplorer = memo(() => {
     ? ''
     : textInputError || notUniqueError || invalidCharactersError;
 
-  const handleScriptSelect = (id: SQLScriptId) => {
-    // Check if the tab is already open
-    const existingTab = findTabFromScript(id);
-    if (existingTab) {
-      // If the tab is already open, just set as active and do not change preview
-      setActiveTabId(existingTab.id);
-      return;
-    }
-
-    // Net new. Create an active tab
-    const tab = getOrCreateTabFromScript(id, true);
-    // Then set as & preview
-    setPreviewTabId(tab.id);
-  };
-
   const handleAddQuery = () => {
     const newEmptyScript = createSQLScript();
     getOrCreateTabFromScript(newEmptyScript, true);
-  };
-
-  const handleDeleteTab = (id: SQLScriptId) => {
-    const tab = findTabFromScript(id);
-    if (tab) {
-      deleteTab(tab.id);
-    }
   };
 
   /**
@@ -123,22 +102,6 @@ export const QueryExplorer = memo(() => {
     const scriptName = sqlScripts.get(id)!;
     setPendingRename([scriptName, id]);
     openRename();
-  };
-
-  const handleDeleteSource = async (id: string) => {
-    handleDeleteTab(id);
-    await deleteQueryFile([id]);
-  };
-
-  const handleDeleteSelected = async (items: string[]) => {
-    if (items.length) {
-      const tabsIdToDelete = tabsList
-        .filter((tab) => items.includes(tab.sourceId))
-        .map((tab) => tab.id);
-
-      await deleteTabs(tabsIdToDelete);
-      await deleteQueryFile(items);
-    }
   };
 
   const actions = [
@@ -169,7 +132,7 @@ export const QueryExplorer = memo(() => {
       children: [
         {
           label: 'Delete',
-          onClick: (item) => handleDeleteSource(item.value),
+          onClick: (item) => deleteSqlScript(item.value),
         },
       ],
     },
@@ -197,13 +160,11 @@ export const QueryExplorer = memo(() => {
       </Group>
       <SourcesListView<SQLScriptId>
         parentDataTestId="queries-list"
-        onDeleteSelected={handleDeleteSelected}
+        onDeleteSelected={deleteSqlScript}
         list={sqlScriptList}
         menuItems={menuItems}
-        onItemClick={handleScriptSelect}
         activeItemKey={activeSqlScriptId}
         loading={appLoadState === 'init'}
-        onActiveCloseClick={handleDeleteTab}
         renameItemId={pendingRenameItemId}
         isItemRenaming={renaming}
         onItemRename={handleRenameClick}

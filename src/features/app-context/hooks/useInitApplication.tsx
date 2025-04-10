@@ -16,7 +16,6 @@ export function useAppInitialization() {
     if (!db || !conn) {
       throw new Error('DuckDB connection is not ready');
     }
-
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
     const { discardedEntries, warnings } = await restoreAppDataFromIDB(db, conn, (_) =>
