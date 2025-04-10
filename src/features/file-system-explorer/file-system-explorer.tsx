@@ -1,18 +1,18 @@
 import { MenuItem, SourcesListView, TypedTreeNodeData } from '@components/sources-list-view';
-import { useDataSourcesActions } from '@features/app-context';
 import { useClipboard } from '@mantine/hooks';
 import { memo, useMemo } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import {
   createSQLScript,
+  deleteDataSource,
+  deleteTabByDataSourceId,
   getOrCreateTabFromFlatFileDataSource,
   getOrCreateTabFromScript,
   useDataSourceIdForActiveTab,
   useInitStore,
 } from '@store/init-store';
 import { LocalEntryId } from '@models/file-system';
-import { IconType } from '@features/list-view-icon';
-import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
+import { AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { getDataSourceIcon, getFlatFileDataSourceName, getlocalEntryIcon } from '@utils/navigation';
 
 /**
@@ -23,7 +23,6 @@ export const FileSystemExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const { onDeleteDataSource } = useDataSourcesActions();
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
   const activeDataSourceId = useDataSourceIdForActiveTab();
@@ -52,6 +51,7 @@ export const FileSystemExplorer = memo(() => {
     const buildTree = (parentId: LocalEntryId | null): TypedTreeNodeData[] => {
       const children: TypedTreeNodeData[] = [];
 
+      // TODO: avoid forEach to decrease complexity
       entries.forEach((entry) => {
         if (entry.parentId !== parentId) return;
 
@@ -78,6 +78,10 @@ export const FileSystemExplorer = memo(() => {
           value,
           label,
           iconType,
+          nodeProps: {
+            onClick: () => getOrCreateTabFromFlatFileDataSource(value, true),
+            onActiveClose: () => deleteTabByDataSourceId(value),
+          },
         };
 
         // This would be needed for multi-view file sources
@@ -109,23 +113,14 @@ export const FileSystemExplorer = memo(() => {
     };
 
     return buildTree(null);
-  }, [entries, sources, appLoadState, onDeleteDataSource]);
+  }, [entries, dataSourceByFileId, appLoadState, activeDataSourceId]);
+
   /**
    * Consts
    */
 
-  // TODO: create a function to create a new tab from a data source
-  // TODO: define a function inside viewsToDisplay for each item to separate types and logic
-  const onItemClick = async (id: string) => {
-    // find an existing tab for this source
-    getOrCreateTabFromFlatFileDataSource(id, true);
-  };
-
   const handleDeleteSelected = async (items: string[]) => {
-    onDeleteDataSource({
-      ids: items,
-      type: 'views',
-    });
+    deleteDataSource(items as PersistentDataSourceId[]);
   };
 
   const menuItems: MenuItem[] = [
@@ -158,26 +153,20 @@ export const FileSystemExplorer = memo(() => {
       children: [
         {
           label: 'Delete',
-          onClick: (item) => onDeleteDataSource({ ids: [item.value], type: 'views' }),
+          onClick: (item) => deleteDataSource(item.value as PersistentDataSourceId),
         },
       ],
     },
   ];
-
-  const handleDeleteTab = async (id: string) => {
-    // delete the tab
-  };
 
   return (
     <SourcesListView
       parentDataTestId="view-explorer"
       list={viewsToDisplay}
       onDeleteSelected={handleDeleteSelected}
-      onItemClick={onItemClick}
       menuItems={menuItems}
       activeItemKey={activeDataSourceId}
       loading={appLoadState === 'init'}
-      onActiveCloseClick={handleDeleteTab}
     />
   );
 });
