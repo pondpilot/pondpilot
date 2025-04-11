@@ -15,7 +15,7 @@ import { TableHeadCell } from './components/thead-cell';
 interface TableProps {
   data: Record<string, any>[];
   columns: ArrowColumn[];
-  sort: ColumnSortSpec | undefined;
+  sort?: ColumnSortSpec | null;
   page: number;
   visible: boolean;
   onSort?: (columnId: string) => void;

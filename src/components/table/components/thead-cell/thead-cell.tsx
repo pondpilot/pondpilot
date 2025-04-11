@@ -16,7 +16,7 @@ interface TableHeadCellProps {
   index: number;
   totalHeaders: number;
   isSelected: boolean;
-  sort?: ColumnSortSpec;
+  sort?: ColumnSortSpec | null;
   resizingColumnId?: string | false;
   deltaOffset: number | null;
 
