@@ -6,8 +6,10 @@ import { AsyncRecordBatchStreamReader, RecordBatch } from 'apache-arrow';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { getArrowTableSchema } from '@utils/arrow/schema';
 import { ArrowColumn } from '@models/arrow';
+import { setDataTestId } from '@utils/test-id';
 import { TableLoadingOverlay } from './table-loading-overlay';
 import { useSort } from '../useSort';
+import { PaginationControl } from './pagination-control';
 
 interface DataViewProps {
   isActive: boolean;
@@ -25,8 +27,9 @@ export const DataView = ({ isActive, dataAdapterApi }: DataViewProps) => {
   const readerRef = useRef<AsyncRecordBatchStreamReader | null>(null);
 
   const [recordBatch, setRecordBatch] = useState<RecordBatch | undefined>();
-
   const [isLoading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const ITEMS_PER_PAGE = 100;
 
   const { sortParams, handleSort } = useSort();
 
@@ -64,13 +67,38 @@ export const DataView = ({ isActive, dataAdapterApi }: DataViewProps) => {
     return [];
   }, [recordBatch]);
 
-  const tableData = useMemo(() => {
+  const allTableData = useMemo(() => {
     if (recordBatch) {
-      const result = recordBatch.toArray().map((row) => row.toJSON());
-      return result.slice(0, 10);
+      return recordBatch.toArray().map((row) => row.toJSON());
     }
     return [];
   }, [recordBatch]);
+
+  const tableData = useMemo(() => {
+    const startIndex = currentPage * ITEMS_PER_PAGE;
+    return allTableData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [allTableData, currentPage]);
+
+  const totalPages = useMemo(() => Math.ceil(allTableData.length / ITEMS_PER_PAGE), [allTableData]);
+
+  const hasTableData = tableData.length;
+  const isSinglePage = tableData.length < ITEMS_PER_PAGE;
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages - 1) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleResetPagination = () => {
+    setCurrentPage(0);
+  };
 
   /**
    * Handle sorting - create a new reader with sort parameters
@@ -84,6 +112,9 @@ export const DataView = ({ isActive, dataAdapterApi }: DataViewProps) => {
       const reader = await dataAdapterApi.getReader(conn, params ? [params] : []);
 
       readerRef.current = reader;
+
+      // Reset pagination when sorting
+      handleResetPagination();
 
       await processNewBatch(reader);
     } catch (error) {
@@ -133,13 +164,27 @@ export const DataView = ({ isActive, dataAdapterApi }: DataViewProps) => {
             data={tableData}
             columns={tableColumns}
             sort={sortParams}
-            page={0}
+            page={currentPage}
             visible={!!isActive}
             onSelectedColsCopy={() => console.warn('Copy selected columns not implemented')}
             onColumnSelectChange={() => console.warn('Column select change not implemented')}
             onRowSelectChange={() => console.warn('Row select change not implemented')}
             onCellSelectChange={() => console.warn('Cell select change not implemented')}
             onSort={handleSortAndGetNewReader}
+          />
+        </div>
+      )}
+      {hasTableData && !isSinglePage && (
+        <div
+          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
+          data-testid={setDataTestId('data-table-pagination-control')}
+        >
+          <PaginationControl
+            currentPage={currentPage + 1}
+            limit={100}
+            rowCount={allTableData.length}
+            onPrevPage={handlePrevPage}
+            onNextPage={handleNextPage}
           />
         </div>
       )}
