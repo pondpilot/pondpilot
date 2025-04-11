@@ -106,7 +106,11 @@ export const StartGuide = () => {
             {shortcustList.map((item) => (
               <Button
                 key={item.key}
-                onClick={item.handler}
+                onClick={(e) => {
+                  item.handler();
+                  // Remove focus after click
+                  e.currentTarget.blur();
+                }}
                 data-testid={setDataTestId(`start-guide-action-${item.key}`)}
                 variant="subtle"
                 styles={{
@@ -116,6 +120,7 @@ export const StartGuide = () => {
                 }}
                 px={10}
                 h="auto"
+                className="focus:outline-none focus:bg-transparentBrandBlue-016 dark:focus:bg-transparentBrandBlue-016 hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark"
               >
                 <Group w="100%" justify="space-between" wrap="nowrap">
                   <Group gap="sm" wrap="nowrap">
@@ -135,12 +140,17 @@ export const StartGuide = () => {
               {goToList.map((item) => (
                 <Button
                   key={item.key}
-                  onClick={item.handler}
+                  onClick={(e) => {
+                    item.handler();
+                    // Remove focus after click
+                    e.currentTarget.blur();
+                  }}
                   data-testid={setDataTestId(`start-guide-action-${item.key}`)}
                   variant="subtle"
                   px={10}
                   h="auto"
                   w="fit-content"
+                  className="focus:outline-none focus:bg-transparentBrandBlue-016 dark:focus:bg-transparentBrandBlue-016 hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark"
                 >
                   <Group wrap="nowrap">
                     <Text fw={400} c="text-secondary" className="text-base">
