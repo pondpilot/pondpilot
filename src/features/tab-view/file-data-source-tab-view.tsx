@@ -7,6 +7,7 @@ import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-
 import { AsyncRecordBatchStreamReader, RecordBatch } from 'apache-arrow';
 import { getArrowTableSchema } from '@utils/arrow/schema';
 import { DataView } from './components/data-view';
+import { TableLoadingOverlay } from './components';
 
 interface FileDataSourceTabViewProps {
   tab: FileDataSourceTab;
@@ -74,6 +75,11 @@ export const FileDataSourceTabView = memo(({ tab, active }: FileDataSourceTabVie
     createReader();
   }, [dataViewAdapter, conn]);
 
+  useEffect(() => {
+    if (!reader) return;
+    fetchData();
+  }, [reader]);
+
   return (
     <div className="h-full relative">
       <Allotment
@@ -88,13 +94,21 @@ export const FileDataSourceTabView = memo(({ tab, active }: FileDataSourceTabVie
       >
         <Allotment.Pane preferredSize={tab.dataViewLayout.dataViewPaneHeight} minSize={120}>
           {dataViewAdapter && (
-            <DataView
-              data={data}
-              columns={columns}
-              isActive={active}
-              isScriptTab={false}
-              isLoading={isLoading}
-            />
+            <div>
+              <TableLoadingOverlay
+                title="Opening your file, please wait..."
+                queryView={false}
+                onCancel={() => console.warn('Cancel query not implemented')}
+                visible={isLoading}
+              />
+              <DataView
+                data={data}
+                columns={columns}
+                isActive={active}
+                isScriptTab={false}
+                isLoading={isLoading}
+              />
+            </div>
           )}
         </Allotment.Pane>
       </Allotment>

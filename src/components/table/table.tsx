@@ -66,9 +66,7 @@ export const Table = ({
     columns: tableColumns,
     columnResizeMode: 'onEnd',
     getCoreRowModel: getCoreRowModel(),
-    state: {
-      rowSelection: selectedRows,
-    },
+    state: { rowSelection: selectedRows },
   });
 
   const columnSizeVars = useMemo(() => {
