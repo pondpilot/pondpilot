@@ -1,23 +1,26 @@
-import { Stack, useMantineColorScheme } from '@mantine/core';
+import { useMantineColorScheme } from '@mantine/core';
 import { Allotment } from 'allotment';
-import { useAppContext } from '@features/app-context';
 import { useHotkeys, useLocalStorage } from '@mantine/hooks';
-import { TabsPane } from '@features/tabs-pane';
 import { Spotlight } from '@mantine/spotlight';
-import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
-import { DataViewer } from '@features/data-viewer';
-import { ErrorBoundary } from 'react-error-boundary';
-import { DataViewErrorFallback } from '@components/error-fallback';
+import { ContentView } from '@features/content-view';
+import { useImportSQLFiles } from '@store/hooks';
+import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
+import { createSQLScript, getOrCreateTabFromScript } from '@store/init-store';
 import { Navbar } from './components';
 
 export const MainPage = () => {
   /**
    * Common hooks
    */
-  const { importSQLFiles, onCreateQueryFile } = useAppContext();
-  const { handleAddSource } = useFileHandlers();
+  const { importSQLFiles } = useImportSQLFiles();
+  const { handleAddFile, handleAddFolder } = useLocalFilesOrFolders();
   const { colorScheme } = useMantineColorScheme();
   const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({ key: 'layout-sizes' });
+
+  const handleAddQuery = () => {
+    const newEmptyScript = createSQLScript();
+    getOrCreateTabFromScript(newEmptyScript, true);
+  };
 
   /**
    * Handlers
@@ -30,14 +33,14 @@ export const MainPage = () => {
     [
       'Ctrl+F',
       () => {
-        handleAddSource('file')();
+        handleAddFile();
         Spotlight.close();
       },
     ],
     [
       'Ctrl+D',
       () => {
-        handleAddSource('file', ['.duckdb'])();
+        handleAddFile(['.duckdb']);
         Spotlight.close();
       },
     ],
@@ -51,42 +54,30 @@ export const MainPage = () => {
     [
       'Alt+mod+F',
       () => {
-        handleAddSource('folder')();
+        handleAddFolder();
         Spotlight.close();
       },
     ],
     [
       'Alt+N',
       () => {
-        onCreateQueryFile({
-          entities: [{ name: 'query-name.sql' }],
-        });
+        handleAddQuery();
         Spotlight.close();
       },
     ],
   ]);
 
   return (
-    <>
-      <Allotment
-        className={colorScheme === 'dark' ? 'custom-allotment-dark' : 'custom-allotment'}
-        onDragEnd={handleOuterLayoutResize}
-      >
-        <Allotment.Pane preferredSize={layoutSizes?.[0]} maxSize={500} minSize={220}>
-          <Navbar />
-        </Allotment.Pane>
-        <Allotment.Pane preferredSize={layoutSizes?.[1]}>
-          <Stack
-            gap={0}
-            className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
-          >
-            <TabsPane />
-            <ErrorBoundary FallbackComponent={DataViewErrorFallback}>
-              <DataViewer />
-            </ErrorBoundary>
-          </Stack>
-        </Allotment.Pane>
-      </Allotment>
-    </>
+    <Allotment
+      className={colorScheme === 'dark' ? 'custom-allotment-dark' : 'custom-allotment'}
+      onDragEnd={handleOuterLayoutResize}
+    >
+      <Allotment.Pane preferredSize={layoutSizes?.[0]} maxSize={500} minSize={220}>
+        <Navbar />
+      </Allotment.Pane>
+      <Allotment.Pane preferredSize={layoutSizes?.[1]}>
+        <ContentView />
+      </Allotment.Pane>
+    </Allotment>
   );
 };

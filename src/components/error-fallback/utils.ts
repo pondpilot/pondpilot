@@ -1,3 +1,5 @@
+import { APP_DB_NAME } from '@store/persist/const';
+
 /* eslint-disable no-alert */
 export const deleteApplicationData = async () => {
   const confirmDelete = window.confirm(
@@ -9,25 +11,8 @@ export const deleteApplicationData = async () => {
   }
 
   try {
-    const rootDirectory = await navigator.storage.getDirectory();
-    const entries = rootDirectory.entries();
-
-    for await (const [name] of entries) {
-      await rootDirectory.removeEntry(name, { recursive: true });
-    }
-
-    indexedDB.deleteDatabase('FileHandlesDB');
-    indexedDB.deleteDatabase('TabsDB');
-
-    const isNavigatorStoragePersisted = await navigator.storage.persisted();
-
-    if (isNavigatorStoragePersisted) {
-      const storageManager: any = navigator.storage as any;
-
-      if (typeof storageManager.clear === 'function') {
-        await storageManager.clear();
-      }
-    }
+    // TODO: Maybe we should't delete the entire database?
+    indexedDB.deleteDatabase(APP_DB_NAME);
 
     window.location.reload();
   } catch (error) {

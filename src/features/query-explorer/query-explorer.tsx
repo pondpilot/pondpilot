@@ -1,148 +1,107 @@
 import { useAppNotifications } from '@components/app-notifications';
-import { MenuItem, SourcesListView } from '@components/sources-list-view';
+import { MenuItem, SourcesListView, TypedTreeNodeData } from '@components/sources-list-view';
 import { ActionIcon, Divider, Group, Text } from '@mantine/core';
 import { useClipboard, useDisclosure } from '@mantine/hooks';
-import { useAppContext } from '@features/app-context';
 import { memo, useState } from 'react';
-import { useAppStore } from '@store/app-store';
-import { IconCode, IconPlus } from '@tabler/icons-react';
-import { useEditorStore } from '@store/editor-store';
+import { IconPlus } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
+
+import {
+  createSQLScript,
+  getOrCreateTabFromScript,
+  useInitStore,
+  useSqlScriptIdForActiveTab,
+  useSqlScriptNameMap,
+  renameSQLScript,
+  deleteSqlScript,
+  deleteTabByScriptId,
+} from '@store/init-store';
+import { SQLScriptId } from '@models/sql-script';
 
 export const QueryExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const {
-    onCreateQueryFile,
-    onDeleteDataSource,
-    onRenameDataSource,
-    onOpenQuery,
-    onTabSwitch,
-    onDeleteTabs,
-    onSaveEditor,
-  } = useAppContext();
   const { showSuccess } = useAppNotifications();
   const { copy } = useClipboard();
 
   /**
    * Global state
    */
-  const queries = useAppStore((state) => state.queries);
-  const queryLoading = useAppStore((state) => state.queryRunning);
-  const currentQuery = useAppStore((state) => state.currentQuery);
-  const appStatus = useAppStore((state) => state.appStatus);
-  const activeTab = useAppStore((state) => state.activeTab);
-  const tabs = useAppStore((state) => state.tabs);
+  const activeSqlScriptId = useSqlScriptIdForActiveTab();
+  const appLoadState = useInitStore.use.appLoadState();
 
-  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
-  const editorValue = useEditorStore((state) => state.editorValue);
-  const lastQueryDirty = useEditorStore((state) => state.lastQueryDirty);
+  const sqlScripts = useSqlScriptNameMap();
 
   /**
    * Local state
    */
+  // TODO: renaming is very inefficient, as we re-render this entire component on each
+  // keystroke. We should probably push the entire menu or make `rename` a feature of
+  // the sources-list-view and handle rename there, only passing the checkNewName callback
   const [renaming, { open: openRename, close: closeRename }] = useDisclosure(false);
-  const [newItemName, setNewName] = useState('');
-  const [itemIdBufferValue, setItemIdBufferValue] = useState<string | null>(null);
+  const [[pendingRenameItemName, pendingRenameItemId], setPendingRename] = useState<
+    [string, SQLScriptId | null]
+  >(['', null]);
 
   /**
    * Consts
    */
-  const queriesList = queries.map((query) => ({
-    value: query.path,
-    label: query.handle.name,
-    nodeProps: { canSelect: true },
-  }));
-  const textInputError = newItemName.length === 0 ? 'Name cannot be empty' : undefined;
-  const notUniqueError = queries.some((query) => {
-    if (itemIdBufferValue === query.path) return false;
+  const sqlScriptList: TypedTreeNodeData<SQLScriptId>[] = Array.from(sqlScripts).map(
+    ([sqlScriptId, sqlScriptName]) => ({
+      value: sqlScriptId,
+      label: `${sqlScriptName}.sql`,
+      nodeProps: {
+        onActiveClose: () => deleteTabByScriptId(sqlScriptId),
+        onClick: () => getOrCreateTabFromScript(sqlScriptId),
+      },
+      iconType: 'code-file',
+    }),
+  );
 
-    const name = query.handle.name.split('.')[0];
-    return name === newItemName;
-  })
+  // Renaming errors
+  const textInputError = pendingRenameItemName.length === 0 ? 'Name cannot be empty' : undefined;
+  const notUniqueError = Array.from(sqlScripts)
+    .filter(([id, _]) => id !== pendingRenameItemId)
+    .some(([_, name]) => name.toLowerCase() === pendingRenameItemName.toLowerCase())
     ? 'Name must be unique'
     : undefined;
-  const invalidCharactersError = newItemName.match(/[^a-zA-Z0-9_-]/)
-    ? 'Name must contain only letters, numbers, underscores, and dashes'
+  const invalidCharactersError = pendingRenameItemName.match(/[^a-zA-Z0-9()_-]/)
+    ? 'Name must contain only letters, numbers, underscores, dashes and parentheses'
     : undefined;
 
   const renameInputError = !renaming
     ? ''
     : textInputError || notUniqueError || invalidCharactersError;
 
-  /**
-   * Common handlers
-   */
-
-  const saveCurrentQuery = async () => {
-    if (activeTab?.mode === 'query' && lastQueryDirty) {
-      await onSaveEditor({ content: editorValue, path: activeTab.path });
-      setLastQueryDirty(false);
-    }
-  };
-
-  const handleSetQuery = async (path: string) => {
-    if (activeTab?.path === path) return;
-    await saveCurrentQuery();
-
-    onOpenQuery(path);
-    onTabSwitch({ path, mode: 'query' });
-  };
-
-  const handleAddQuery = async () => {
-    await saveCurrentQuery();
-    onCreateQueryFile({ entities: [{ name: 'query' }] });
-  };
-
-  const handleDeleteTab = async (id: string) => {
-    const tab = tabs.find((t) => t.path === id);
-    if (tab) {
-      await saveCurrentQuery();
-      onDeleteTabs([tab]);
-    }
+  const handleAddQuery = () => {
+    const newEmptyScript = createSQLScript();
+    getOrCreateTabFromScript(newEmptyScript, true);
   };
 
   /**
    * Rename query handlers
    */
   const handleRenameSubmit = async () => {
-    await onRenameDataSource(itemIdBufferValue!, newItemName);
-
+    if (pendingRenameItemId) {
+      renameSQLScript(pendingRenameItemId, pendingRenameItemName);
+    }
     closeRename();
   };
 
   const handleRenameCancel = () => {
-    setNewName('');
-    setItemIdBufferValue(null);
+    setPendingRename(['', null]);
     closeRename();
   };
 
   const onRenameModalInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setNewName(event.currentTarget.value);
+    setPendingRename([event.currentTarget.value, pendingRenameItemId]);
   };
 
-  const handleRenameClick = (id: string) => {
-    const queryToChange = queries.find((query) => query.path === id)!.handle.name;
-    setNewName(queryToChange.split('.')[0] || 'query-name');
-    setItemIdBufferValue(id);
+  const handleRenameClick = (id: SQLScriptId) => {
+    const scriptName = sqlScripts.get(id)!;
+    setPendingRename([scriptName, id]);
     openRename();
-  };
-
-  const handleDeleteSource = async (id: string) => {
-    onDeleteDataSource({
-      type: 'query',
-      paths: [id],
-    });
-  };
-
-  const handleDeleteSelected = async (items: string[]) => {
-    if (items.length) {
-      onDeleteDataSource({
-        paths: items,
-        type: 'query',
-      });
-    }
   };
 
   const actions = [
@@ -153,19 +112,19 @@ export const QueryExplorer = memo(() => {
     },
   ];
 
-  const menuItems: MenuItem[] = [
+  const menuItems: MenuItem<SQLScriptId>[] = [
     {
       children: [
         {
           label: 'Copy name',
-          onClick: (query) => {
-            copy(query.label);
+          onClick: (sqlScript) => {
+            copy(sqlScript.label);
             showSuccess({ title: 'Copied', message: '', autoClose: 800 });
           },
         },
         {
           label: 'Rename',
-          onClick: (item) => handleRenameClick(item.label),
+          onClick: (sqlScript) => handleRenameClick(sqlScript.value),
         },
       ],
     },
@@ -173,7 +132,7 @@ export const QueryExplorer = memo(() => {
       children: [
         {
           label: 'Delete',
-          onClick: (item) => handleDeleteSource(item.label),
+          onClick: (item) => deleteSqlScript(item.value),
         },
       ],
     },
@@ -199,22 +158,18 @@ export const QueryExplorer = memo(() => {
           ))}
         </Group>
       </Group>
-      <SourcesListView
+      <SourcesListView<SQLScriptId>
         parentDataTestId="queries-list"
-        onDeleteSelected={handleDeleteSelected}
-        list={queriesList}
+        onDeleteSelected={deleteSqlScript}
+        list={sqlScriptList}
         menuItems={menuItems}
-        onItemClick={handleSetQuery}
-        disabled={queryLoading}
-        activeItemKey={currentQuery}
-        loading={appStatus === 'initializing'}
-        onActiveCloseClick={handleDeleteTab}
-        renderIcon={() => <IconCode size={16} />}
-        renameItemId={itemIdBufferValue}
+        activeItemKey={activeSqlScriptId}
+        loading={appLoadState === 'init'}
+        renameItemId={pendingRenameItemId}
         isItemRenaming={renaming}
         onItemRename={handleRenameClick}
         onRenameChange={onRenameModalInputChange}
-        renameValue={newItemName}
+        renameValue={pendingRenameItemName}
         onRenameClose={handleRenameCancel}
         onRenameSubmit={handleRenameSubmit}
         renameInputError={renameInputError}

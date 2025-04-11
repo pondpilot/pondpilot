@@ -24,7 +24,7 @@ export const test = base.extend<TabFixtures>({
 
   closeActiveTab: async ({ page }, use) => {
     await use(async () => {
-      const activeTab = page.locator('[data-active="true"]');
+      const activeTab = page.locator('[data-tab-handle-active="true"]');
       await activeTab.getByTestId('close-tab-button').click();
     });
   },

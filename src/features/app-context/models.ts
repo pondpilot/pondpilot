@@ -1,5 +1,6 @@
-import { AddDataSourceProps, AppStateModel } from '@models/common';
-import { tableToIPC } from 'apache-arrow';
+import { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
+import { AddDataSourceProps, Dataset } from '@models/common';
+import { Table } from 'apache-arrow';
 
 export interface DBRunQueryProps {
   query: string;
@@ -9,18 +10,9 @@ export interface DBRunQueryProps {
   isPagination?: boolean;
   queryWithoutLimit?: string;
 }
-export type SessionFiles = Pick<
-  AppStateModel,
-  'directoryHandle' | 'sources' | 'editors' | 'sessionDirId'
->;
 export interface RunQueryResponse {
-  data: ReturnType<typeof tableToIPC>;
+  data: Table;
   pagination: number;
-}
-
-export interface RenameDataSourceProps {
-  path: string;
-  newPath: string;
 }
 
 export interface DeleteDataSourceProps {
@@ -31,38 +23,28 @@ export interface DeleteDataSourceProps {
 export type AddDataSourceBase = {
   entries: AddDataSourceProps;
 };
-
-export interface TabModel {
-  id: string;
-  mode: 'view' | 'query';
-  path: string;
-  stable: boolean;
-}
-
-export type AddTabProps = Omit<TabModel, 'id'>;
-export type ChangeTabProps = Omit<TabModel, 'id' | 'stable'> & {
-  stable?: boolean;
-  createNew?: boolean;
+export type DropFilesAndDBInstancesProps = {
+  ids: string[];
+  type: 'databases' | 'views';
 };
 
-export interface DBWorkerAPIType {
-  initDB: () => Promise<void>;
-  runQuery: ({ query, hasLimit }: DBRunQueryProps) => Promise<RunQueryResponse>;
+export interface DbAPIType {
+  runQuery: ({
+    query,
+    hasLimit,
+  }: DBRunQueryProps & { conn: AsyncDuckDBConnection }) => Promise<
+    Omit<RunQueryResponse, 'originalQuery'>
+  >;
   registerFileHandleAndCreateDBInstance: (
-    fileName: string,
-    handle: FileSystemFileHandle,
+    db: AsyncDuckDB,
+    conn: AsyncDuckDBConnection,
+    dataset: Dataset,
   ) => Promise<void>;
-  dropFilesAndDBInstances: (paths: string[], type: 'database' | 'view') => Promise<void>;
-  getDBUserInstances: (type: 'databases' | 'views') => Promise<Uint8Array>;
-  getTablesAndColumns: (database?: string, schema?: string) => Promise<Uint8Array<ArrayBufferLike>>;
-}
-
-export interface OnSetOrderProps {
-  tabs: TabModel[];
-  activeTabIndex: number;
-}
-
-export interface CreateQueryFileProps {
-  entities: { name: string; content?: string }[];
-  openInNewTab?: boolean;
+  dropFilesAndDBInstances: (
+    v: DropFilesAndDBInstancesProps & { conn: AsyncDuckDBConnection },
+  ) => Promise<void>;
+  getDBUserInstances: (
+    conn: AsyncDuckDBConnection,
+    type: 'databases' | 'views',
+  ) => Promise<Uint8Array>;
 }

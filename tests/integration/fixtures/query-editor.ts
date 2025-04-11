@@ -16,6 +16,12 @@ type QueryEditorFixtures = {
    */
   runQueryButton: Locator;
 
+  /**
+   * Returns the active query editor locator.
+   */
+  activeQueryEditor: Locator;
+
+  getQueryEditorContent: (baseLocator?: Locator) => Promise<Locator>;
   fillQuery: (content: string) => Promise<void>;
   runQuery: () => Promise<void>;
 };
@@ -33,6 +39,19 @@ export const test = base.extend<QueryEditorFixtures>({
 
   runQueryButton: async ({ page }, use) => {
     await use(page.getByTestId('run-query-button'));
+  },
+
+  activeQueryEditor: async ({ page }, use) => {
+    await use(page.locator('[data-active-editor="true"]'));
+  },
+
+  getQueryEditorContent: async ({ activeQueryEditor }, use) => {
+    await use(async (baseLocator?: Locator) => {
+      const activeEditor = baseLocator || activeQueryEditor;
+      const editorContent = activeEditor.locator('.cm-content');
+      await expect(editorContent).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
+      return editorContent;
+    });
   },
 
   fillQuery: async ({ queryEditor, queryEditorContent }, use) => {

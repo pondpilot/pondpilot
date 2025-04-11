@@ -1,57 +1,28 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { tableToIPC } from 'apache-arrow';
-import { expose } from 'comlink';
+
+import { Dataset } from '@models/common';
 import { createName } from '../../utils/helpers';
-import { buildColumnsQueryWithFilters, getCreateViewQuery } from './utils';
-import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse } from './models';
+import {
+  DBRunQueryProps,
+  DbAPIType,
+  DropFilesAndDBInstancesProps,
+  RunQueryResponse,
+} from './models';
 import { GET_DBS_SQL_QUERY, GET_VIEWS_SQL_QUERY } from './consts';
-
-let db: duckdb.AsyncDuckDB | null = null;
-
-/**
- * Database initialization
- */
-async function initDB() {
-  try {
-    const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
-    const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
-
-    const worker_url = URL.createObjectURL(
-      new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' }),
-    );
-
-    const logger = new duckdb.ConsoleLogger();
-    const worker = new Worker(worker_url);
-    db = new duckdb.AsyncDuckDB(logger, worker);
-    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-    await db.open({
-      query: {
-        // Enable Apache Arrow type and value patching DECIMAL -> DOUBLE on query materialization
-        // https://github.com/apache/arrow/issues/37920
-        castDecimalToDouble: true,
-      },
-    });
-
-    // Load parquet extension
-    // await loadExtension(db, 'parquet');
-  } catch (error) {
-    console.error('Failed to initialize DuckDB:', error);
-    throw error;
-  }
-}
 
 /**
  * Retrieves the total number of rows for pagination by executing a count query.
  *
- * @param {AsyncDuckDBConnection} connection - The DuckDB connection instance.
+ * @param {AsyncDuckDBConnection} conn - The DuckDB connection instance.
  * @param {string} query - The SQL query to count rows from.
  * @returns {Promise<number>} The total number of rows.
  */
 export const getPaginationRowsCount = async (
-  connection: duckdb.AsyncDuckDBConnection,
+  conn: duckdb.AsyncDuckDBConnection,
   query: string,
 ): Promise<number> => {
-  const pagination = await connection.query(`SELECT COUNT(*) FROM (${query});`);
+  const pagination = await conn.query(`SELECT COUNT(*) FROM (${query});`);
 
   const totalRowsCount = pagination?.toArray().map((row) => {
     const count = Object.values(row.toJSON())[0];
@@ -70,36 +41,12 @@ export const getPaginationRowsCount = async (
 /**
  * Get app-defined instances
  */
-async function getDBUserInstances(type: 'databases' | 'views') {
-  const conn = await db?.connect();
-  if (!conn) throw new Error('Connection not initialized');
-
+async function getDBUserInstances(conn: duckdb.AsyncDuckDBConnection, type: 'databases' | 'views') {
   const viewsResult = await conn.query(
     type === 'databases' ? GET_DBS_SQL_QUERY : GET_VIEWS_SQL_QUERY,
   );
 
-  await conn.close();
-
   return tableToIPC(viewsResult);
-}
-
-/**
- * Get all tables and their columns
- *
- * @param database_name - Optional database name to filter by
- * @param schema_name - Optional schema name to filter by
- * @returns Table and column information in Arrow IPC format
- */
-async function getTablesAndColumns(database_name?: string, schema_name?: string) {
-  const conn = await db?.connect();
-  if (!conn) throw new Error('Connection not initialized');
-  try {
-    const query = buildColumnsQueryWithFilters(database_name, schema_name);
-    const columnsResult = await conn.query(query);
-    return tableToIPC(columnsResult);
-  } finally {
-    await conn.close();
-  }
 }
 
 /**
@@ -109,15 +56,16 @@ async function getTablesAndColumns(database_name?: string, schema_name?: string)
  * @param handle - File handle
  */
 async function registerFileHandleAndCreateDBInstance(
-  fileName: string,
-  handle: FileSystemFileHandle,
+  db: duckdb.AsyncDuckDB,
+  conn: duckdb.AsyncDuckDBConnection,
+  dataset: Dataset,
 ) {
-  const conn = await db?.connect();
+  const fileName = dataset.handle.name;
+  const { handle } = dataset;
   const formatSupported = ['.csv', '.parquet', '.duckdb', '.json', '.xlsx'].some((ext) =>
     fileName.endsWith(ext),
   );
 
-  if (!db || !conn) throw new Error('Database not initialized');
   if (!formatSupported) throw new Error('Unsupported file format');
 
   const file = await handle.getFile();
@@ -138,32 +86,51 @@ async function registerFileHandleAndCreateDBInstance(
   if (fileName.endsWith('.duckdb')) {
     await conn.query(`ATTACH '${fileName}' AS ${createName(fileName)} (READ_ONLY); `);
   } else {
-    await conn.query(getCreateViewQuery(fileName));
-  }
+    const viewName = createName(fileName);
 
-  await conn.close();
+    await conn.query(`CREATE or REPLACE VIEW ${viewName} AS SELECT * FROM "${fileName}";`);
+    const id = JSON.stringify({ sourceId: dataset.id });
+    await conn.query(`COMMENT ON VIEW ${viewName} IS '${id}';`);
+  }
 }
 
 /**
  * Drop file and view
  */
-async function dropFilesAndDBInstances(paths: string[], type: 'database' | 'view') {
-  const conn = await db?.connect();
-  if (!conn) throw new Error('Connection not initialized');
+async function dropFilesAndDBInstances({
+  ids,
+  type,
+  conn,
+}: DropFilesAndDBInstancesProps & { conn: duckdb.AsyncDuckDBConnection }) {
+  if (type === 'databases') {
+    const databases = await conn.query('SELECT * FROM duckdb_databases');
+    const databasesToDelete = databases.toArray().filter((row) => {
+      const id = JSON.parse(row.comment || '{}').sourceId;
+      return ids.includes(id);
+    });
+    await Promise.all(
+      databasesToDelete.map(async (row) => {
+        await conn.query(`DETACH ${row.name};`);
+      }),
+    );
+  }
 
-  await Promise.all(
-    paths.map(async (path) => {
-      await db?.dropFile(path);
-      if (type === 'database') {
-        await conn.query(`DETACH ${path}; `);
-      }
-      if (type === 'view') {
-        await conn.query(`DROP VIEW ${path}; `);
-      }
-    }),
-  );
+  if (type === 'views') {
+    const views = await conn.query('SELECT * FROM duckdb_views');
+    const viewsToDelete = views
+      .toArray()
+      .filter((row) => {
+        const id = JSON.parse(row.comment || '{}').sourceId;
+        return ids.includes(id);
+      })
+      .map((row) => row.toJSON());
 
-  await conn.close();
+    await Promise.all(
+      viewsToDelete.map(async (row) => {
+        await conn.query(`DROP VIEW ${row.view_name};`);
+      }),
+    );
+  }
 }
 
 /**
@@ -173,11 +140,10 @@ async function runQuery({
   query,
   hasLimit,
   queryWithoutLimit,
-}: DBRunQueryProps): Promise<RunQueryResponse> {
-  const conn = await db?.connect();
-
-  if (!conn) throw new Error('Connection not initialized');
-
+  conn,
+}: DBRunQueryProps & { conn: duckdb.AsyncDuckDBConnection }): Promise<
+  Omit<RunQueryResponse, 'originalQuery'>
+> {
   try {
     /**
      * Run query
@@ -195,7 +161,7 @@ async function runQuery({
      * Return data and pagination
      */
     return {
-      data: tableToIPC(result),
+      data: result,
       pagination: totalRowsCount,
     };
   } catch (error) {
@@ -203,17 +169,12 @@ async function runQuery({
     throw new Error(message);
   } finally {
     conn.cancelSent();
-    conn.close();
   }
 }
 
-const DBWorkerAPI: DBWorkerAPIType = {
-  initDB,
+export const dbApiProxi: DbAPIType = {
   runQuery,
   registerFileHandleAndCreateDBInstance,
   dropFilesAndDBInstances,
   getDBUserInstances,
-  getTablesAndColumns,
 };
-
-expose(DBWorkerAPI);

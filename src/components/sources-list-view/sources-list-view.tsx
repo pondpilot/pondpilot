@@ -1,3 +1,4 @@
+import { IconType, ListViewIcon } from '@features/list-view-icon';
 import {
   Stack,
   Group,
@@ -17,45 +18,47 @@ import { useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { IconDotsVertical, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
-export interface ListProps {
-  value: string;
+export interface TypedTreeNodeData<ItemID extends string = string> extends TreeNodeData {
+  value: ItemID;
   label: string;
-  children?: ListProps[];
+  iconType: IconType;
+  children?: TypedTreeNodeData<ItemID>[];
 }
 
-interface MenuItemChildren {
+interface MenuItemChildren<ItemID extends string = string> {
   label: string;
-  onClick: (item: ListProps) => void;
+  onClick: (item: TypedTreeNodeData<ItemID>) => void;
 }
 
-export interface MenuItem {
-  children: MenuItemChildren[];
+export interface MenuItem<ItemID extends string = string> {
+  children: MenuItemChildren<ItemID>[];
 }
 
-export interface ListItemProps extends ListProps {
+export interface ListItemProps<ItemID extends string = string> {
+  itemId: ItemID;
   disabled?: boolean;
   active: boolean;
-  menuItems: MenuItem[];
+  menuItems: MenuItem<ItemID>[];
   label: string;
-  node: TreeNodeData;
-  icon?: React.ReactNode;
+  node: TypedTreeNodeData<ItemID>;
+  iconType: IconType;
   level: number;
-  onClick: (e: React.MouseEvent, node: TreeNodeData) => void;
-  onItemDoubleClick?: (id: string) => void;
-  onActiveCloseClick?: (v: string) => void;
+  onClick: (e: React.MouseEvent) => void;
+  onItemDoubleClick?: () => void;
+  onActiveCloseClick?: () => void;
 }
 
-interface ListViewProps {
-  list: ListProps[];
-  activeItemKey: string | null;
+interface ListViewProps<ItemID extends string = string> {
+  list: TypedTreeNodeData<ItemID>[];
+  activeItemKey: ItemID | null;
   parentDataTestId: string;
 
   disabled?: boolean;
   loading?: boolean;
-  menuItems: MenuItem[];
-  renameItemId?: string | null;
+  menuItems: MenuItem<ItemID>[];
+  renameItemId?: ItemID | null;
   renameValue?: string;
   isItemRenaming?: boolean;
   renameInputError?: string;
@@ -63,26 +66,34 @@ interface ListViewProps {
 
   onRenameClose?: () => void;
   onRenameSubmit?: () => void;
-  renderIcon: (item: string | undefined) => ReactNode;
-  onItemClick?: (id: string) => void;
-  onItemRename?: (id: string) => void;
-  onDeleteSelected: (items: string[]) => void;
-  onActiveCloseClick?: (v: string) => void;
+  onItemRename?: (itemId: ItemID) => void;
+  onDeleteSelected: (itemIds: ItemID[]) => void;
 }
 
-const ListItem = ({
+const itemClasses = {
+  base: 'cursor-pointer h-[30px] rounded group bg-transparent !outline-none',
+  disabled: 'opacity-50 cursor-default',
+  transparent004: 'bg-transparent004-light dark:bg-transparent004-dark',
+  transparent008: 'bg-transparent008-light dark:bg-transparent008-dark',
+  hover: {
+    default: 'hover:bg-transparent004-light dark:hover:bg-transparent004-dark',
+    active: 'hover:bg-transparent008-light dark:hover:bg-transparent008-dark',
+  },
+};
+
+const ListItem = <ItemID extends string = string>({
   label,
   onClick,
-  value,
+  itemId,
   disabled,
   active,
   menuItems,
   node,
-  icon,
+  iconType,
   onActiveCloseClick,
   level,
   onItemDoubleClick,
-}: ListItemProps) => {
+}: ListItemProps<ItemID>) => {
   const [menuOpened, setMenuOpened] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{
     x: number | undefined;
@@ -116,8 +127,13 @@ const ListItem = ({
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!disabled) {
-      onItemDoubleClick?.(value);
+      onItemDoubleClick?.();
     }
+  };
+
+  const onCloseClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onActiveCloseClick?.();
   };
 
   return (
@@ -139,7 +155,7 @@ const ListItem = ({
                   key={child.label}
                   onClick={(e) => {
                     e.stopPropagation();
-                    child.onClick({ value, label });
+                    child.onClick({ value: itemId, label, iconType });
                     onClose();
                   }}
                 >
@@ -153,7 +169,7 @@ const ListItem = ({
       </Menu.Dropdown>
 
       <Group
-        onClick={(e) => onClick(e, node)}
+        onClick={onClick}
         onContextMenu={handleContextMenuClick}
         onDoubleClick={handleDoubleClick}
         gap={5}
@@ -162,16 +178,12 @@ const ListItem = ({
       >
         {level !== 1 && <Divider orientation="vertical" />}
         {!active && (
-          <div className="text-iconDefault-light dark:text-iconDefault-dark p-[1px]">{icon}</div>
+          <div className="text-iconDefault-light dark:text-iconDefault-dark p-[1px]">
+            <ListViewIcon iconType={iconType} size={16} />
+          </div>
         )}
         {active && (
-          <ActionIcon
-            size={18}
-            onClick={(e) => {
-              e.stopPropagation();
-              onActiveCloseClick?.(value);
-            }}
-          >
+          <ActionIcon size={18} onClick={onCloseClick}>
             <IconX />
           </ActionIcon>
         )}
@@ -181,9 +193,7 @@ const ListItem = ({
         </Text>
         <Menu.Target>
           <ActionIcon
-            onClick={(event) => {
-              handleContextMenu(event);
-            }}
+            onClick={handleContextMenu}
             className={cn('opacity-0 group-hover:opacity-100', menuOpened && 'opacity-100')}
             ml="auto"
             size={16}
@@ -196,15 +206,12 @@ const ListItem = ({
   );
 };
 
-export const SourcesListView = ({
+export const SourcesListView = <ItemID extends string = string>({
   list,
-  onItemClick,
   disabled,
   activeItemKey,
   loading,
   menuItems,
-  onActiveCloseClick,
-  renderIcon,
   renameInputError,
   renameItemId,
   renameValue,
@@ -215,7 +222,7 @@ export const SourcesListView = ({
   onRenameSubmit,
   onDeleteSelected,
   parentDataTestId,
-}: ListViewProps) => {
+}: ListViewProps<ItemID>) => {
   /**
    * Common hooks
    */
@@ -235,19 +242,6 @@ export const SourcesListView = ({
     [list],
   );
   const hasData = !!sortedList.length;
-  const itemClasses = useMemo(
-    () => ({
-      base: 'cursor-pointer h-[30px] rounded group bg-transparent !outline-none',
-      disabled: 'opacity-50 cursor-default',
-      transparent004: 'bg-transparent004-light dark:bg-transparent004-dark',
-      transparent008: 'bg-transparent008-light dark:bg-transparent008-dark',
-      hover: {
-        default: 'hover:bg-transparent004-light dark:hover:bg-transparent004-dark',
-        active: 'hover:bg-transparent008-light dark:hover:bg-transparent008-dark',
-      },
-    }),
-    [],
-  );
 
   /**
    * Handlers
@@ -256,34 +250,40 @@ export const SourcesListView = ({
     tree.clearSelected();
   };
 
-  const handleItemClick = (item: string) => {
+  const handleItemClick = (node: TypedTreeNodeData<ItemID>) => {
+    const { onClick } = node.nodeProps || {};
     setIsUserSelection(true);
-    onItemClick?.(item);
+    onClick?.();
   };
 
-  const handleListItemClick = (e: React.MouseEvent, node: TreeNodeData) => {
+  const handleListItemClick = (node: TypedTreeNodeData<ItemID>) => (e: React.MouseEvent) => {
     const { value } = node;
     const selected = tree.selectedState.includes(value);
 
-    if (node.nodeProps?.canSelect && e.shiftKey) {
+    if (e.shiftKey) {
       if (tree.selectedState.length === 0) {
-        handleItemClick(value);
+        handleItemClick(node);
         return;
       }
       return;
     }
 
-    if (node.nodeProps?.canSelect && (e.metaKey || e.ctrlKey)) {
+    if (e.metaKey || e.ctrlKey) {
       selected ? tree.deselect(value) : tree.setSelectedState([...tree.selectedState, value]);
       e.stopPropagation();
       return;
     }
     if (!disabled) {
-      handleItemClick?.(value);
+      handleItemClick?.(node);
     }
   };
 
-  const menuList: MenuItem[] = useMemo(() => {
+  const handleActiveCloseClick = (node: TypedTreeNodeData<ItemID>) => () => {
+    const { onActiveClose } = node.nodeProps || {};
+    onActiveClose?.();
+  };
+
+  const menuList: MenuItem<ItemID>[] = useMemo(() => {
     if (tree.selectedState.length > 1) {
       return [
         {
@@ -291,7 +291,7 @@ export const SourcesListView = ({
             {
               label: 'Delete selected',
               onClick: () => {
-                onDeleteSelected(tree.selectedState);
+                onDeleteSelected(tree.selectedState as ItemID[]);
                 handleDeselectAll();
               },
             },
@@ -319,7 +319,7 @@ export const SourcesListView = ({
       'mod+Backspace',
       () => {
         if (!tree.selectedState.length) return;
-        onDeleteSelected(tree.selectedState);
+        onDeleteSelected(tree.selectedState as ItemID[]);
         handleDeselectAll();
       },
     ],
@@ -376,14 +376,13 @@ export const SourcesListView = ({
                 tree={tree}
                 selectOnClick
                 clearSelectionOnOutsideClick
-                renderNode={(node) => {
-                  const active = node.elementProps['data-value'] === activeItemKey;
-                  const isRenaming =
-                    isItemRenaming && node.elementProps['data-value'] === renameItemId;
-                  const { selected } = node;
-                  const currentIndex = sortedList.findIndex(
-                    (item) => item.value === node.node.value,
-                  );
+                renderNode={(payload) => {
+                  const { elementProps, selected, node: payloadNode, level } = payload;
+                  const node = payloadNode as TypedTreeNodeData<ItemID>;
+
+                  const active = elementProps['data-value'] === activeItemKey;
+                  const isRenaming = isItemRenaming && elementProps['data-value'] === renameItemId;
+                  const currentIndex = sortedList.findIndex((item) => item.value === node.value);
 
                   const isPrevSelected = tree.selectedState.includes(
                     sortedList[currentIndex - 1]?.value,
@@ -400,10 +399,10 @@ export const SourcesListView = ({
 
                   return (
                     <div
-                      {...node.elementProps}
-                      data-testid={setDataTestId(`query-list-item-${node.node.value}`)}
+                      {...elementProps}
+                      data-testid={setDataTestId(`query-list-item-${node.value}`)}
                       className={cn(
-                        node.elementProps.className,
+                        elementProps.className,
                         itemClasses.base,
 
                         disabled && itemClasses.disabled,
@@ -422,13 +421,14 @@ export const SourcesListView = ({
                             <Popover.Target>
                               <TextInput
                                 data-testid={setDataTestId(
-                                  `query-list-item-${node.node.value}-rename-input`,
+                                  `query-list-item-${node.value}-rename-input`,
                                 )}
                                 value={renameValue}
                                 onChange={onRenameChange}
                                 onKeyDown={(event) => {
                                   event.stopPropagation();
                                   event.key === 'Enter' && !renameInputError && onRenameSubmit?.();
+                                  event.key === 'Escape' && onRenameClose?.();
                                 }}
                                 error={!!renameInputError}
                                 onBlur={!renameInputError ? onRenameSubmit : onRenameClose}
@@ -445,17 +445,17 @@ export const SourcesListView = ({
                         </>
                       ) : (
                         <ListItem
-                          label={node.node.label as string}
-                          value={node.elementProps['data-value']}
+                          label={node.label as string}
+                          itemId={elementProps['data-value'] as ItemID}
                           active={active}
-                          onClick={handleListItemClick}
                           disabled={disabled}
                           menuItems={menuList}
-                          node={node.node}
-                          icon={renderIcon(node.node.nodeProps?.id || '')}
-                          onActiveCloseClick={onActiveCloseClick}
-                          level={node.level}
-                          onItemDoubleClick={(id) => onItemRename?.(id)}
+                          node={node}
+                          iconType={node.iconType}
+                          level={level}
+                          onClick={handleListItemClick(node)}
+                          onActiveCloseClick={handleActiveCloseClick(node)}
+                          onItemDoubleClick={() => onItemRename?.(node.value)}
                         />
                       )}
                     </div>

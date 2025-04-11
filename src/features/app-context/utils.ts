@@ -1,90 +1,12 @@
 import { EditorState } from '@uiw/react-codemirror';
 import { PostgreSQL, sql } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
-import { tableFromIPC } from 'apache-arrow';
-import { createName } from '@utils/helpers';
-import { DataBaseModel } from '@models/common';
+import { Dataset } from '@models/common';
+import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
+
 import { splitSqlQuery } from '../../utils/editor/statement-parser';
-import { DBRunQueryProps, DBWorkerAPIType, RunQueryResponse, SessionFiles } from './models';
-
-export const transformDatabaseStructure = (
-  input: {
-    database_name: string;
-    schema_name: string;
-    table_name: string;
-    columns: { name: string; type: string; nullable: boolean }[];
-  }[],
-): DataBaseModel[] => {
-  const dbMap = new Map<string, DataBaseModel>();
-
-  input.forEach((item) => {
-    if (!dbMap.has(item.database_name)) {
-      dbMap.set(item.database_name, {
-        name: item.database_name,
-        schemas: [],
-      });
-    }
-
-    const db = dbMap.get(item.database_name)!;
-    let schema = db.schemas.find((s) => s.name === item.schema_name);
-
-    if (!schema) {
-      schema = {
-        name: item.schema_name,
-        tables: [],
-      };
-      db.schemas.push(schema);
-    }
-
-    schema.tables.push({ name: item.table_name, columns: item.columns });
-  });
-
-  return Array.from(dbMap.values());
-};
-
-export const updateDatabasesWithColumns = async (
-  dbProxyRef: DBWorkerAPIType,
-  databases: string[],
-): Promise<DataBaseModel[]> => {
-  const duckdbColumns = await dbProxyRef.getTablesAndColumns();
-  const allColumns = tableFromIPC(duckdbColumns)
-    .toArray()
-    .map((row) => row.toJSON())
-    .filter((col) => databases.includes(col.database_name) || col.database_name === 'memory');
-
-  const tablesWithColumns = allColumns.reduce((acc: any[], col) => {
-    const existingTable = acc.find(
-      (t) =>
-        t.database_name === col.database_name &&
-        t.schema_name === col.schema_name &&
-        t.table_name === col.table_name,
-    );
-
-    if (existingTable) {
-      existingTable.columns.push({
-        name: col.column_name,
-        type: col.data_type,
-        nullable: col.is_nullable,
-      });
-    } else {
-      acc.push({
-        database_name: col.database_name,
-        schema_name: col.schema_name,
-        table_name: col.table_name,
-        columns: [
-          {
-            name: col.column_name,
-            type: col.data_type,
-            nullable: col.is_nullable,
-          },
-        ],
-      });
-    }
-    return acc;
-  }, []);
-
-  return transformDatabaseStructure(tablesWithColumns);
-};
+import { DBRunQueryProps, RunQueryResponse } from './models';
+import { dbApiProxi } from './db-worker';
 
 interface QueryStatement {
   text: string;
@@ -95,9 +17,9 @@ interface QueryStatement {
 
 interface ExecuteQueriesProps {
   runQueryProps: DBRunQueryProps;
-  dbProxyRef: React.RefObject<any>;
+  conn: AsyncDuckDBConnection;
   isCancelledPromise: Promise<never>;
-  currentSources: SessionFiles | null;
+  currentSources: Dataset[] | null;
 }
 
 interface QueryResult {
@@ -107,7 +29,7 @@ interface QueryResult {
 
 export const executeQueries = async ({
   runQueryProps,
-  dbProxyRef,
+  conn,
   isCancelledPromise,
   currentSources,
 }: ExecuteQueriesProps): Promise<QueryResult> => {
@@ -121,7 +43,7 @@ export const executeQueries = async ({
 
     const result = await executeStatement({
       query: queryToExecute,
-      dbProxyRef,
+      conn,
       isCancelledPromise,
       statement,
       hasLimit: statement.isSelect,
@@ -154,7 +76,7 @@ const parseStatements = (query: string): QueryStatement[] => {
 
 const validateStatements = async (
   statements: QueryStatement[],
-  currentSources: SessionFiles | null,
+  currentSources: Dataset[] | null,
 ): Promise<void> => {
   if (!statements.length) {
     throw new Error('No valid SQL statements found');
@@ -165,7 +87,7 @@ const validateStatements = async (
     throw new Error('USE statements are not supported');
   }
 
-  if (!currentSources?.sources.length) return;
+  if (!currentSources?.length) return;
 
   // Check all DROP statements against source tables
   const dropStatements = statements.filter((s) => s.isDrop);
@@ -186,7 +108,7 @@ const validateStatements = async (
       }
     }
 
-    const isSourceTable = currentSources.sources.some(
+    const isSourceTable = currentSources.some(
       (source) => source.name.toLowerCase() === tableName.toLowerCase(),
     );
 
@@ -203,67 +125,29 @@ const buildQuery = (statement: QueryStatement, runQueryProps: DBRunQueryProps): 
   }
 
   return statement.isSelect
-    ? `select * from (${clearedQuery}) LIMIT ${runQueryProps.limit} OFFSET ${runQueryProps.offset}`
+    ? `select * from (${clearedQuery}) LIMIT ${runQueryProps.limit || 100} OFFSET ${runQueryProps.offset || 0}`
     : statement.text;
 };
 
 const executeStatement = async ({
   query,
-  dbProxyRef,
+  conn,
   isCancelledPromise,
   statement,
   hasLimit,
 }: {
   query: string;
-  dbProxyRef: React.RefObject<any>;
+  conn: AsyncDuckDBConnection;
   isCancelledPromise: Promise<never>;
   statement: QueryStatement;
   hasLimit: boolean;
 }): Promise<RunQueryResponse> =>
   Promise.race([
-    dbProxyRef.current.runQuery({
+    dbApiProxi.runQuery({
+      conn,
       query,
       hasLimit,
       queryWithoutLimit: statement.text.replaceAll(';', ''),
     }),
     isCancelledPromise,
   ]);
-
-/**
- * Generates a SQL query to create or replace a view with the app prefix.
- *
- * @param {string} fileName - The name of the file with extension.
- * @returns {string} The SQL query to create or replace the view.
- */
-export const getCreateViewQuery = (fileName: string): string => {
-  const viewName = createName(fileName);
-
-  return `CREATE or REPLACE VIEW ${viewName} AS SELECT * FROM "${fileName}";`;
-};
-
-export const buildColumnsQueryWithFilters = (
-  database_name?: string,
-  schema_name?: string,
-): string => {
-  let whereClause = '';
-  if (database_name || schema_name) {
-    const conditions = [];
-    if (database_name) conditions.push(`database_name = '${database_name}'`);
-    if (schema_name) conditions.push(`schema_name = '${schema_name}'`);
-    whereClause = `WHERE ${conditions.join(' AND ')}`;
-  }
-
-  return `
-    SELECT
-      database_name,
-      schema_name,
-      table_name,
-      column_name,
-      column_index,
-      data_type,
-      is_nullable
-    FROM duckdb_columns()
-    ${whereClause}
-    ORDER BY database_name, schema_name, table_name, column_index;
-  `;
-};
