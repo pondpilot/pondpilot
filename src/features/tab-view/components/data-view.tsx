@@ -19,6 +19,7 @@ export const DataView = ({ isActive, dataAdapterApi }: DataViewProps) => {
    * Common hooks
    */
   const { conn } = useInitializedDuckDBConnection();
+  const initialized = useRef(false);
 
   // Common iterator
   const readerRef = useRef<AsyncRecordBatchStreamReader | null>(null);
@@ -95,34 +96,19 @@ export const DataView = ({ isActive, dataAdapterApi }: DataViewProps) => {
    * Initialize data when component mounts
    */
   useEffect(() => {
-    if (!conn || !dataAdapterApi) {
+    if (!conn || !dataAdapterApi || initialized.current) {
       return;
     }
-
+    initialized.current = true;
     const initializeData = async () => {
-      try {
-        setLoading(true);
-        console.log('Mount');
-
-        const reader = await dataAdapterApi.getReader(conn, []);
-        console.log('Request done');
-
-        readerRef.current = reader;
-        await processNewBatch(reader);
-      } catch (error) {
-        console.error('Failed to initialize data:', error);
-        setLoading(false);
-      }
+      const reader = await dataAdapterApi.getReader(conn, []);
+      readerRef.current = reader;
+      processNewBatch(reader);
     };
 
     initializeData();
 
-    // Unmount
     return () => {
-      console.log('Unmount', {
-        readerRef: readerRef.current,
-      });
-
       readerRef.current?.cancel();
       readerRef.current = null;
     };
