@@ -3,7 +3,7 @@ import { PropsWithChildren, ReactNode } from 'react';
 
 interface HotkeyPillProps extends PropsWithChildren {
   value?: Array<string | ReactNode>;
-  variant?: 'secondary' | 'tertiary';
+  variant?: 'secondary' | 'tertiary' | 'transparent';
 }
 
 export const HotkeyPill = ({ value, children, variant }: HotkeyPillProps) => {
@@ -11,9 +11,15 @@ export const HotkeyPill = ({ value, children, variant }: HotkeyPillProps) => {
 
   return (
     <Pill
-      bg={variant === 'secondary' ? 'background-secondary' : 'background-tertiary'}
+      bg={
+        variant === 'transparent'
+          ? 'transparent'
+          : variant === 'secondary'
+            ? 'background-secondary'
+            : 'background-tertiary'
+      }
       c="icon-default"
-      className="px-4 py-1 h-7 text-base font-mono"
+      className={`${variant === 'transparent' ? 'px-0' : 'px-4'} py-1 h-7 text-base font-mono`}
       classNames={{ label: 'flex items-center justify-center', root: 'justify-center' }}
     >
       {children || (

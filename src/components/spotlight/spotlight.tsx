@@ -9,7 +9,6 @@ import {
   IconFilePlus,
   IconFolderPlus,
   IconDatabasePlus,
-  IconChevronUp,
   IconSettings,
   IconFileSad,
   IconBooks,
@@ -47,7 +46,7 @@ export const SpotlightMenu = () => {
   const { onCreateQueryFile, importSQLFiles, onOpenQuery, onTabSwitch, onOpenView, onSaveEditor } =
     useAppContext();
   const { handleAddSource } = useFileHandlers();
-  const { command, option } = useModifier();
+  const { command, option, control } = useModifier();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -80,7 +79,7 @@ export const SpotlightMenu = () => {
     setSpotlightView('home');
     Spotlight.close();
   };
-  const iconClasses = 'text-textSecondary-light dark:text-textSecondary-dark';
+  const iconClasses = 'text-iconDefault-light dark:text-iconDefault-dark';
 
   const getIcon = useCallback(
     (id: string | undefined) => {
@@ -167,7 +166,7 @@ export const SpotlightMenu = () => {
       id: 'add-file',
       label: 'Add File',
       icon: <IconFilePlus size={20} className={iconClasses} />,
-      hotkey: [<IconChevronUp size={20} />, 'F'],
+      hotkey: [control, 'F'],
       handler: () => {
         handleAddSource('file')();
         resetSpotlight();
@@ -189,7 +188,7 @@ export const SpotlightMenu = () => {
       id: 'add-duckdb-db',
       label: 'Add DuckDB Database',
       icon: <IconDatabasePlus size={20} className={iconClasses} />,
-      hotkey: [<IconChevronUp size={20} />, 'D'],
+      hotkey: [control, 'D'],
       handler: () => {
         handleAddSource('file', ['.duckdb'])();
         resetSpotlight();
@@ -215,7 +214,7 @@ export const SpotlightMenu = () => {
       id: 'import-query',
       label: 'Import Query',
       icon: <IconFileImport size={20} className={iconClasses} />,
-      hotkey: [<IconChevronUp size={20} />, 'I'],
+      hotkey: [control, 'I'],
       handler: async () => {
         await saveCurrentQuery();
         importSQLFiles();

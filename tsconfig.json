@@ -27,7 +27,8 @@
       "@theme/*": ["theme/*"],
       "@router/*": ["router/*"],
       "@consts/*": ["consts/*"],
-      "@models/*": ["models/*"]
+      "@models/*": ["models/*"],
+      "@assets/*": ["assets/*"]
     }
   },
   "include": ["src", "tests", "playwright.config.ts"]
