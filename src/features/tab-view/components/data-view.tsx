@@ -1,12 +1,11 @@
 import { Table } from '@components/table/table';
-import { Group, Text, ActionIcon, Center, Stack, Tooltip } from '@mantine/core';
-import { IconClipboardSmile, IconCopy } from '@tabler/icons-react';
+import { Group, Text, Center, Stack } from '@mantine/core';
+import { IconClipboardSmile } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { setDataTestId } from '@utils/test-id';
-import { formatNumber } from '@utils/helpers';
 import { useState } from 'react';
 import { ArrowColumn } from '@models/arrow';
-import { PaginationControl, TableLoadingOverlay } from '.';
+import { PaginationControl } from '.';
 import { useTableExport } from '../hooks/useTableExport';
 import { useColumnSummary } from '../hooks';
 
@@ -22,14 +21,21 @@ interface DataViewProps {
   initialData?: Record<string, any>[] | undefined;
 }
 
-export const DataView = ({ isScriptTab = false, isActive, isLoading, columns }: DataViewProps) => {
+export const DataView = ({
+  isScriptTab = false,
+  isActive,
+  isLoading,
+  columns,
+  data: displayedData,
+  initialData,
+}: DataViewProps) => {
   // TODO: take out from the hook
   const { handleCopyToClipboard } = useTableExport();
   const { calculateColumnSummary, columnTotal, isCalculating, isNumericType, resetTotal } =
     useColumnSummary(undefined);
 
   const [currentPage, setCurrentPage] = useState(0);
-  const [displayedData, setDisplayedData] = useState(null);
+
   const [loading, setLoading] = useState(false);
   const [totalRows, setTotalRows] = useState(0);
 
@@ -40,14 +46,6 @@ export const DataView = ({ isScriptTab = false, isActive, isLoading, columns }: 
 
   return (
     <div className="flex flex-col h-full">
-      <TableLoadingOverlay
-        queryView={isScriptTab}
-        onCancel={() => {
-          console.warn('Cancel query not implemented');
-        }}
-        visible={isLoading}
-      />
-
       {!displayedData && !isLoading && isActive && (
         <Center className="h-full font-bold">
           <Stack align="center" c="icon-default" gap={4}>
@@ -59,53 +57,6 @@ export const DataView = ({ isScriptTab = false, isActive, isLoading, columns }: 
 
       {displayedData && (
         <>
-          {/* Header toolbar */}
-          {displayedData && (
-            <Group
-              justify="space-between"
-              className={cn('h-7 mt-4 mb-2 px-3', isScriptTab && 'mt-3')}
-            >
-              {isScriptTab ? (
-                <>
-                  <Group>
-                    <Text c="text-primary" className="text-sm font-medium cursor-pointer">
-                      Result
-                    </Text>
-                    <Tooltip label="Soon">
-                      <Text c="text-secondary" className="text-sm font-medium cursor-not-allowed">
-                        Metadata View
-                      </Text>
-                    </Tooltip>
-                  </Group>
-                  <Group>
-                    <ActionIcon
-                      size={16}
-                      onClick={() => {
-                        // Copy to clipboard functionality would go here
-                        console.warn('Copy to clipboard not implemented');
-                      }}
-                    >
-                      <IconCopy />
-                    </ActionIcon>
-                  </Group>
-                </>
-              ) : (
-                <>
-                  <Group>
-                    <Text c="text-secondary" className="text-sm font-medium">
-                      {columns.length} columns, {formatNumber(totalRows)} rows
-                    </Text>
-                  </Group>
-                  <Group className="h-full px-4">
-                    <ActionIcon size={16} onClick={() => handleCopyToClipboard(displayedData)}>
-                      <IconCopy />
-                    </ActionIcon>
-                  </Group>
-                </>
-              )}
-            </Group>
-          )}
-
           {/* Table */}
           <div className={cn('overflow-auto px-3 custom-scroll-hidden pb-6 flex-1')}>
             <Table
