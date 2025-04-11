@@ -101,9 +101,14 @@ export const DataView = ({ isActive, dataAdapterApi }: DataViewProps) => {
     }
     initialized.current = true;
     const initializeData = async () => {
-      const reader = await dataAdapterApi.getReader(conn, []);
-      readerRef.current = reader;
-      processNewBatch(reader);
+      try {
+        setLoading(true);
+        const reader = await dataAdapterApi.getReader(conn, []);
+        readerRef.current = reader;
+        processNewBatch(reader);
+      } catch (error) {
+        setLoading(false);
+      }
     };
 
     initializeData();
