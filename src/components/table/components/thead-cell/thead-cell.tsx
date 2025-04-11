@@ -1,5 +1,4 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions */
-/* eslint-disable jsx-a11y/click-events-have-key-events */
 import { IconTriangleInvertedFilled } from '@tabler/icons-react';
 import { Text } from '@mantine/core';
 import { Header, Table as TableType } from '@tanstack/react-table';
@@ -9,7 +8,7 @@ import { memo } from 'react';
 import { setDataTestId } from '@utils/test-id';
 
 import { ColumnSortSpec } from '@models/db';
-import { getIcon } from '../utils';
+import { getIcon } from '@components/table/utils';
 
 interface TableHeadCellProps {
   header: Header<Record<string, string | number>, unknown>;
