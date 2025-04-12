@@ -174,6 +174,7 @@ export type BaseTreeNodeProps<NTypeToIdTypeMap extends Record<string, string>> =
 
 type MenuItemChildren<NType> = {
   label: string;
+  isDisabled?: boolean;
   onClick: (node: NType) => void;
 };
 

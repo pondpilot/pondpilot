@@ -49,10 +49,14 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>>({
    * Local state
    */
   const treeRef = useRef<HTMLDivElement>(null);
-  const flattenedNodes = getFlattenNodes(nodes);
-  const flattenedNodeIds = flattenedNodes.map((node) => node.value);
-  const flattenedDeletableNodeIds = new Set(
-    flattenedNodes.filter((node) => !!node.onDelete).map((node) => node.value),
+  const flattenedNodes = useMemo(() => getFlattenNodes(nodes), [nodes]);
+  const flattenedNodeIds = useMemo(
+    () => flattenedNodes.map((node) => node.value),
+    [flattenedNodes],
+  );
+  const flattenedDeletableNodeIds = useMemo(
+    () => new Set(flattenedNodes.filter((node) => !!node.onDelete).map((node) => node.value)),
+    [flattenedNodes],
   );
 
   const isFocused = treeRef.current && treeRef.current.contains(document.activeElement);
@@ -61,16 +65,10 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>>({
    * Handlers
    */
   const overrideContextMenu: TreeMenu<TreeNodeData<NTypeToIdTypeMap>> | null = useMemo(() => {
-    // if there are multiple selected nodes and all of them are delteable,
-    // show the delete all menu instead of the default one
+    // if there are multiple selected nodes show the delete all menu instead of the default one
 
-    // 0, 1 or some non-deletable selected nodes
-    if (
-      tree.selectedState.length < 2 ||
-      tree.selectedState.some(
-        (id) => !flattenedDeletableNodeIds.has(id as NTypeToIdTypeMap[keyof NTypeToIdTypeMap]),
-      )
-    ) {
+    // 0, 1 = no multi-select
+    if (tree.selectedState.length < 2) {
       return null;
     }
 
@@ -79,6 +77,11 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>>({
         children: [
           {
             label: 'Delete selected',
+            // Disable if at least one selected node is not deletable
+            isDisabled: tree.selectedState.some(
+              (id) =>
+                !flattenedDeletableNodeIds.has(id as NTypeToIdTypeMap[keyof NTypeToIdTypeMap]),
+            ),
             onClick: (_) => {
               onDeleteSelected(tree.selectedState as NTypeToIdTypeMap[keyof NTypeToIdTypeMap][]);
               tree.clearSelected();
