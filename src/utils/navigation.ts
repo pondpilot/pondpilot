@@ -1,6 +1,6 @@
 import { IconType } from '@components/list-view-icon';
 import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
-import { DataSourceLocalFile, LocalEntry, LocalEntryId } from '@models/file-system';
+import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab } from '@models/tab';
 

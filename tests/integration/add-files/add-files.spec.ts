@@ -3,7 +3,7 @@ import { test as baseTest } from '../fixtures/page';
 import { test as storageTest } from '../fixtures/storage';
 import { test as filePickerTest } from '../fixtures/file-picker';
 import { test as testTmpTest } from '../fixtures/test-tmp';
-import { test as explorerTest } from '../fixtures/explorer';
+import { test as fileExplorerTest } from '../fixtures/file-system-explorer';
 import { test as dataViewTest } from '../fixtures/data-view';
 import { test as spotlightTest } from '../fixtures/spotlight';
 import { createFile } from '../../utils';
@@ -13,7 +13,7 @@ const test = mergeTests(
   storageTest,
   filePickerTest,
   testTmpTest,
-  explorerTest,
+  fileExplorerTest,
   dataViewTest,
   spotlightTest,
 );
@@ -28,7 +28,7 @@ test.describe('flaky test group with retries', () => {
     testTmp,
     openFileFromExplorer,
     assertDataTableMatches,
-    assertExplorerItems,
+    assertFileExplorerItems,
     addDirectoryViaSpotlight,
     reloadPage,
   }) => {
@@ -42,7 +42,7 @@ test.describe('flaky test group with retries', () => {
     // Click the add file button
     await page.getByTestId('add-file-button').click();
     // Verify explorer items
-    await assertExplorerItems(['test1']);
+    await assertFileExplorerItems(['test1']);
     // Verify file viewer
     await openFileFromExplorer('test1');
     await assertDataTableMatches({ id: [1, 2], name: ['test1', 'test2'] });
@@ -60,7 +60,7 @@ test.describe('flaky test group with retries', () => {
     // Click the add file button
     await page.getByTestId('add-file-button').click();
     // Verify explorer items
-    await assertExplorerItems(['test1', 'test2', 'test3']);
+    await assertFileExplorerItems(['test1', 'test2', 'test3']);
     // Verify file viewer
     await openFileFromExplorer('test2');
     await assertDataTableMatches({ col: ['test2'] });
@@ -79,7 +79,7 @@ test.describe('flaky test group with retries', () => {
     // Click the add folder button
     await addDirectoryViaSpotlight();
     // Verify explorer items
-    await assertExplorerItems(
+    await assertFileExplorerItems(
       ['test1', 'test2', 'test3', 'test_dir_file1', 'test_dir_file2'].sort((a, b) =>
         a.localeCompare(b),
       ),
@@ -96,6 +96,6 @@ test.describe('flaky test group with retries', () => {
     // Reload the page
     await reloadPage();
     // Verify explorer items
-    await assertExplorerItems(['test2', 'test3']);
+    await assertFileExplorerItems(['test2', 'test3']);
   });
 });

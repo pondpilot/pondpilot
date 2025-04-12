@@ -1,19 +1,11 @@
 import { test as base } from '@playwright/test';
 
 type TabFixtures = {
-  createScriptAndSwitchToItsTab: () => Promise<void>;
   switchToTab: (tabName: string) => Promise<void>;
   closeActiveTab: () => Promise<void>;
 };
 
 export const test = base.extend<TabFixtures>({
-  createScriptAndSwitchToItsTab: async ({ page }, use) => {
-    await use(async () => {
-      await page.getByTestId('add-query-button').click();
-      await page.waitForTimeout(500);
-    });
-  },
-
   switchToTab: async ({ page }, use) => {
     await use(async (tabName: string) => {
       const tabsList = page.getByTestId('tabs-list');

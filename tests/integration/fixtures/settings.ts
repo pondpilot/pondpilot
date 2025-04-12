@@ -13,7 +13,7 @@ export const test = base.extend<SettingsFixtures>({
   openSettings: async ({ page, settingsPage }, use) => {
     await use(async () => {
       // Verify settings page is not attached
-      expect(settingsPage).not.toBeAttached;
+      await expect(settingsPage).not.toBeAttached();
 
       // Open settings page
       await page.getByTestId('settings-button').click();
