@@ -197,7 +197,7 @@ export const TabsPane = memo(() => {
   };
 
   const handleDeleteTab = (tabId: TabId) => {
-    deleteTab(tabId);
+    deleteTab([tabId]);
   };
 
   const handleTabClick = (tabId: TabId) => {
