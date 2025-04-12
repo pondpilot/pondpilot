@@ -1,4 +1,4 @@
-import { IconType } from '@features/list-view-icon';
+import { IconType } from '@components/list-view-icon';
 import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { DataSourceLocalFile, LocalEntry, LocalEntryId } from '@models/file-system';
 import { SQLScript, SQLScriptId } from '@models/sql-script';

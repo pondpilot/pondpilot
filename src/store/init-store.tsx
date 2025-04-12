@@ -30,7 +30,7 @@ import {
   registerFileSourceAndCreateView,
 } from '@controllers/db/file-handle';
 import { getTabIcon, getTabName } from '@utils/navigation';
-import { IconType } from '@features/list-view-icon';
+import { IconType } from '@components/list-view-icon';
 import { addAttachedDB, addFlatFileDataSource } from '@utils/data-source';
 import { getAttachedDBs, getViews } from '@controllers/db/duckdb-meta';
 import { DataBaseModel } from '@models/db';
@@ -137,6 +137,22 @@ export function useSqlScriptIdForActiveTab(): SQLScriptId | null {
     }
 
     return tab.sqlScriptId;
+  });
+}
+
+export function useIsSqlScriptIdOnActiveTab(id: SQLScriptId | null): boolean {
+  return useInitStore((state) => {
+    if (!id) return false;
+    if (!state.activeTabId) return false;
+
+    const tab = state.tabs.get(state.activeTabId);
+    if (!tab) return false;
+    if (tab.type !== 'script') {
+      console.warn(`Attempted to get SQLScriptId for non-script tab: ${tab.id}`);
+      return false;
+    }
+
+    return tab.sqlScriptId === id;
   });
 }
 

@@ -1,4 +1,4 @@
-import { IconType, ListViewIcon } from '@features/list-view-icon';
+import { IconType, ListViewIcon } from '@components/list-view-icon';
 import {
   Stack,
   Group,
@@ -114,7 +114,7 @@ const ListItem = <ItemID extends string = string>({
     setMenuOpened(true);
   };
 
-  const onClose = () => {
+  const menuOnClose = () => {
     setMenuOpened(false);
   };
 
@@ -139,7 +139,7 @@ const ListItem = <ItemID extends string = string>({
   return (
     <Menu
       width={152}
-      onClose={onClose}
+      onClose={menuOnClose}
       opened={menuOpened}
       disabled={disabled}
       position="bottom-start"
@@ -156,7 +156,7 @@ const ListItem = <ItemID extends string = string>({
                   onClick={(e) => {
                     e.stopPropagation();
                     child.onClick({ value: itemId, label, iconType });
-                    onClose();
+                    menuOnClose();
                   }}
                 >
                   {child.label}

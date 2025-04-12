@@ -34,7 +34,7 @@ import {
   useTabNameMap,
   useTabIconMap,
 } from '@store/init-store';
-import { ListViewIcon } from '@features/list-view-icon';
+import { ListViewIcon } from '@components/list-view-icon';
 import { TabId } from '@models/tab';
 
 interface SortableTabProps {
