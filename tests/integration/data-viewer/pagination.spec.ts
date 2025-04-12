@@ -1,7 +1,7 @@
 import { expect, mergeTests } from '@playwright/test';
 import { test as baseTest } from '../fixtures/page';
 import { test as tabTest } from '../fixtures/tab';
-import { test as queryEditorTest } from '../fixtures/query-editor';
+import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as dataViewTest } from '../fixtures/data-view';
 
 type DataViewerFixtures = {
@@ -14,22 +14,22 @@ type DataViewerFixtures = {
 const test = mergeTests(
   baseTest,
   tabTest,
-  queryEditorTest,
+  scriptEditorTest,
   dataViewTest,
 ).extend<DataViewerFixtures>({
   generateTestData: async (
-    { createQueryAndSwitchToItsTab, fillQuery, runQuery, waitForDataTable },
+    { createScriptAndSwitchToItsTab, fillScript, runScript, waitForDataTable },
     use,
   ) => {
     await use(async (rowCount: number) => {
-      await createQueryAndSwitchToItsTab();
+      await createScriptAndSwitchToItsTab();
 
       const query =
         rowCount > 0
           ? `SELECT * FROM UNNEST(GENERATE_SERIES(1, ${rowCount})) AS numbers;`
           : 'SELECT 1 WHERE FALSE;';
-      await fillQuery(query);
-      await runQuery();
+      await fillScript(query);
+      await runScript();
 
       // FIXME: as of today we do not show the data viewer for empty results...
       if (rowCount === 0) {

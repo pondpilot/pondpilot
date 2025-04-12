@@ -2,7 +2,7 @@ import { test as base, expect, Locator } from '@playwright/test';
 
 type SpotlightFixtures = {
   openSpotlight: () => Promise<Locator>;
-  createQueryViaSpotlight: () => Promise<void>;
+  createScriptViaSpotlight: () => Promise<void>;
   openSettingsViaSpotlight: () => Promise<void>;
   addDirectoryViaSpotlight: () => Promise<void>;
 };
@@ -25,7 +25,7 @@ export const test = base.extend<SpotlightFixtures>({
     });
   },
 
-  createQueryViaSpotlight: async ({ openSpotlight }, use) => {
+  createScriptViaSpotlight: async ({ openSpotlight }, use) => {
     await use(async () => {
       const spotlightRoot = await openSpotlight();
 
