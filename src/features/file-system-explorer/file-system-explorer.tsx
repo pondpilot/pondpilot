@@ -153,7 +153,7 @@ export const FileSystemExplorer = memo(() => {
       children: [
         {
           label: 'Delete',
-          onClick: (item) => deleteDataSource(item.value as PersistentDataSourceId),
+          onClick: (item) => deleteDataSource([item.value as PersistentDataSourceId]),
         },
       ],
     },

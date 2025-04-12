@@ -586,7 +586,7 @@ export const setPreviewTabId = (tabId: TabId | null) => {
   // Cases 2 (with deletion)
   if (previewTabId && tabId) {
     const { newTabs, newTabOrder, newActiveTabId } = deleteTabImpl(
-      previewTabId,
+      [previewTabId],
       tabs,
       tabOrder,
       activeTabId,
@@ -606,7 +606,7 @@ export const setPreviewTabId = (tabId: TabId | null) => {
     );
 
     if (iDbConn) {
-      persistDeleteTab(iDbConn, previewTabId, newActiveTabId, tabId, newTabOrder);
+      persistDeleteTab(iDbConn, [previewTabId], newActiveTabId, tabId, newTabOrder);
     }
 
     return;
@@ -964,18 +964,15 @@ function ensureTab(tabOrId: AnyTab | TabId, tabs: Map<TabId, AnyTab>): AnyTab {
 
 const persistDeleteTab = async (
   iDb: IDBPDatabase<AppIdbSchema>,
-  deletedTabIds: TabId | TabId[],
+  deletedTabIds: TabId[],
   newActiveTabId: TabId | null,
   newPreviewTabId: TabId | null,
   newTabOrder: TabId[],
 ) => {
   const tx = iDb.transaction([TAB_TABLE_NAME, CONTENT_VIEW_TABLE_NAME], 'readwrite');
 
-  // Handle single tab ID or array of tab IDs
-  const tabsToDelete = Array.isArray(deletedTabIds) ? deletedTabIds : [deletedTabIds];
-
   // Delete each tab
-  for (const tabId of tabsToDelete) {
+  for (const tabId of deletedTabIds) {
     await tx.objectStore(TAB_TABLE_NAME).delete(tabId);
   }
 
@@ -989,17 +986,12 @@ const persistDeleteTab = async (
 
 const persistDeleteDataSource = async (
   iDb: IDBPDatabase<AppIdbSchema>,
-  deletedDataSourceIds: PersistentDataSourceId | PersistentDataSourceId[],
+  deletedDataSourceIds: PersistentDataSourceId[],
 ) => {
   const tx = iDb.transaction(DATA_SOURCE_TABLE_NAME, 'readwrite');
 
-  // Handle single data source ID or array of data source IDs
-  const dataSourcesToDelete = Array.isArray(deletedDataSourceIds)
-    ? deletedDataSourceIds
-    : [deletedDataSourceIds];
-
   // Delete each data source
-  for (const id of dataSourcesToDelete) {
+  for (const id of deletedDataSourceIds) {
     await tx.objectStore(DATA_SOURCE_TABLE_NAME).delete(id);
   }
 
@@ -1020,7 +1012,7 @@ export const deleteTabByScriptId = (sqlScriptId: SQLScriptId): boolean => {
 
   if (tab) {
     // Delete the found tab
-    deleteTab(tab.id);
+    deleteTab([tab.id]);
     return true;
   }
 
@@ -1052,7 +1044,7 @@ export const deleteTabByDataSourceId = (dataSourceId: PersistentDataSourceId): b
 };
 
 const deleteTabImpl = (
-  deleteTabIds: TabId | TabId[],
+  deleteTabIds: TabId[],
   tabs: Map<TabId, AnyTab>,
   tabOrder: TabId[],
   activeTabId: TabId | null,
@@ -1063,9 +1055,7 @@ const deleteTabImpl = (
   newActiveTabId: TabId | null;
   newPreviewTabId: TabId | null;
 } => {
-  const idsToDelete = Array.isArray(deleteTabIds) ? deleteTabIds : [deleteTabIds];
-
-  const deleteSet = new Set(idsToDelete);
+  const deleteSet = new Set(deleteTabIds);
 
   const newTabs = new Map(Array.from(tabs).filter(([id, _]) => !deleteSet.has(id)));
   const newTabOrder = tabOrder.filter((id) => !deleteSet.has(id));
@@ -1074,7 +1064,7 @@ const deleteTabImpl = (
   if (activeTabId !== null && deleteSet.has(activeTabId)) {
     // Find the index of the first tab being deleted in the original order
     const firstDeletedIndex = Math.min(
-      ...idsToDelete
+      ...deleteTabIds
         .map((id) => tabOrder.findIndex((tabId) => tabId === id))
         .filter((idx) => idx !== -1),
     );
@@ -1102,10 +1092,10 @@ const deleteTabImpl = (
   };
 };
 
-export const deleteTab = (tabId: TabId | TabId[]) => {
+export const deleteTab = (tabIds: TabId[]) => {
   const { tabs, tabOrder, activeTabId, previewTabId, _iDbConn: iDbConn } = useInitStore.getState();
   const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl(
-    tabId,
+    tabIds,
     tabs,
     tabOrder,
     activeTabId,
@@ -1126,7 +1116,7 @@ export const deleteTab = (tabId: TabId | TabId[]) => {
 
   if (iDbConn) {
     // Now we can pass the entire array (or single ID) directly
-    persistDeleteTab(iDbConn, tabId, newActiveTabId, newPreviewTabId, newTabOrder);
+    persistDeleteTab(iDbConn, tabIds, newActiveTabId, newPreviewTabId, newTabOrder);
   }
 };
 
@@ -1134,18 +1124,15 @@ export const deleteTab = (tabId: TabId | TabId[]) => {
  * Implementation of data source deletion that only removes the data sources from the map
  * without affecting any related data.
  *
- * @param deleteDataSourceIds - ID or array of IDs of data sources to delete
+ * @param deleteDataSourceIds - array of IDs of data sources to delete
  * @param dataSources - Current data sources map
  * @returns New data sources map with specified data sources removed
  */
 const deleteDataSourceImpl = (
-  deleteDataSourceIds: PersistentDataSourceId | PersistentDataSourceId[],
+  deleteDataSourceIds: PersistentDataSourceId[],
   dataSources: Map<PersistentDataSourceId, AnyDataSource>,
 ): Map<PersistentDataSourceId, AnyDataSource> => {
-  const idsToDelete = Array.isArray(deleteDataSourceIds)
-    ? deleteDataSourceIds
-    : [deleteDataSourceIds];
-  const deleteSet = new Set(idsToDelete);
+  const deleteSet = new Set(deleteDataSourceIds);
 
   return new Map(Array.from(dataSources).filter(([id, _]) => !deleteSet.has(id)));
 };
@@ -1154,11 +1141,9 @@ const deleteDataSourceImpl = (
  * Deletes one or more data sources from the store and persists the change.
  * This also deletes any tabs that are associated with the data sources being deleted.
  *
- * @param dataSourceId - ID or array of IDs of data sources to delete
+ * @param dataSourceIds - array of IDs of data sources to delete
  */
-export const deleteDataSource = (
-  dataSourceId: PersistentDataSourceId | PersistentDataSourceId[],
-) => {
+export const deleteDataSource = (dataSourceIds: PersistentDataSourceId[]) => {
   const {
     dataSources,
     tabs,
@@ -1168,10 +1153,9 @@ export const deleteDataSource = (
     _iDbConn: iDbConn,
   } = useInitStore.getState();
 
-  const dataSourceIdsArray = Array.isArray(dataSourceId) ? dataSourceId : [dataSourceId];
-  const dataSourceIdsToDelete = new Set(dataSourceIdsArray);
+  const dataSourceIdsToDelete = new Set(dataSourceIds);
 
-  const newDataSources = deleteDataSourceImpl(dataSourceIdsArray, dataSources);
+  const newDataSources = deleteDataSourceImpl(dataSourceIds, dataSources);
 
   const tabsToDelete: TabId[] = [];
 
@@ -1211,7 +1195,7 @@ export const deleteDataSource = (
 
   if (iDbConn) {
     // Delete data sources from IndexedDB
-    persistDeleteDataSource(iDbConn, dataSourceIdsArray);
+    persistDeleteDataSource(iDbConn, dataSourceIds);
 
     // Delete associated tabs from IndexedDB if any
     if (tabsToDelete.length) {
@@ -1224,33 +1208,27 @@ export const deleteDataSource = (
  * Implementation of SQL script deletion that only removes the scripts from the map
  * without affecting any related data.
  *
- * @param deleteSqlScriptIds - ID or array of IDs of SQL scripts to delete
+ * @param deleteSqlScriptIds - array of IDs of SQL scripts to delete
  * @param sqlScripts - Current SQL scripts map
  * @returns New SQL scripts map with specified scripts removed
  */
 const deleteSqlScriptImpl = (
-  deleteSqlScriptIds: SQLScriptId | SQLScriptId[],
+  deleteSqlScriptIds: SQLScriptId[],
   sqlScripts: Map<SQLScriptId, SQLScript>,
 ): Map<SQLScriptId, SQLScript> => {
-  const idsToDelete = Array.isArray(deleteSqlScriptIds) ? deleteSqlScriptIds : [deleteSqlScriptIds];
-  const deleteSet = new Set(idsToDelete);
+  const deleteSet = new Set(deleteSqlScriptIds);
 
   return new Map(Array.from(sqlScripts).filter(([id, _]) => !deleteSet.has(id)));
 };
 
 const persistDeleteSqlScript = async (
   iDb: IDBPDatabase<AppIdbSchema>,
-  deletedSqlScriptIds: SQLScriptId | SQLScriptId[],
+  deletedSqlScriptIds: SQLScriptId[],
 ) => {
   const tx = iDb.transaction(SQL_SCRIPT_TABLE_NAME, 'readwrite');
 
-  // Handle single SQL script ID or array of SQL script IDs
-  const sqlScriptsToDelete = Array.isArray(deletedSqlScriptIds)
-    ? deletedSqlScriptIds
-    : [deletedSqlScriptIds];
-
   // Delete each SQL script
-  for (const id of sqlScriptsToDelete) {
+  for (const id of deletedSqlScriptIds) {
     await tx.objectStore(SQL_SCRIPT_TABLE_NAME).delete(id);
   }
 
@@ -1261,9 +1239,9 @@ const persistDeleteSqlScript = async (
  * Deletes one or more SQL scripts from the store and persists the change.
  * This also deletes any tabs that are associated with the SQL scripts being deleted.
  *
- * @param sqlScriptId - ID or array of IDs of SQL scripts to delete
+ * @param sqlScriptIds - array of IDs of SQL scripts to delete
  */
-export const deleteSqlScript = (sqlScriptId: SQLScriptId | SQLScriptId[]) => {
+export const deleteSqlScripts = (sqlScriptIds: SQLScriptId[]) => {
   const {
     sqlScripts,
     tabs,
@@ -1273,16 +1251,15 @@ export const deleteSqlScript = (sqlScriptId: SQLScriptId | SQLScriptId[]) => {
     _iDbConn: iDbConn,
   } = useInitStore.getState();
 
-  const sqlScriptIdsArray = Array.isArray(sqlScriptId) ? sqlScriptId : [sqlScriptId];
-  const sqlScriptIdsToDelete = new Set(sqlScriptIdsArray);
+  const sqlScriptIdsToDeleteSet = new Set(sqlScriptIds);
 
-  const newSqlScripts = deleteSqlScriptImpl(sqlScriptIdsArray, sqlScripts);
+  const newSqlScripts = deleteSqlScriptImpl(sqlScriptIds, sqlScripts);
 
   const tabsToDelete: TabId[] = [];
 
   for (const [tabId, tab] of tabs.entries()) {
     if (tab.type === 'script') {
-      if (sqlScriptIdsToDelete.has(tab.sqlScriptId)) {
+      if (sqlScriptIdsToDeleteSet.has(tab.sqlScriptId)) {
         tabsToDelete.push(tabId);
       }
     }
@@ -1316,7 +1293,7 @@ export const deleteSqlScript = (sqlScriptId: SQLScriptId | SQLScriptId[]) => {
 
   if (iDbConn) {
     // Delete SQL scripts from IndexedDB
-    persistDeleteSqlScript(iDbConn, sqlScriptIdsArray);
+    persistDeleteSqlScript(iDbConn, sqlScriptIds);
 
     // Delete associated tabs from IndexedDB if any
     if (tabsToDelete.length) {

@@ -11,7 +11,7 @@ import {
   useInitStore,
   useSqlScriptNameMap,
   renameSQLScript,
-  deleteSqlScript,
+  deleteSqlScripts,
   deleteTabByScriptId,
   findTabFromScript,
   setActiveTabId,
@@ -46,7 +46,7 @@ const onCloseItemClick = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): void 
 };
 
 const onDelete = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): void => {
-  deleteSqlScript(node.value);
+  deleteSqlScripts([node.value]);
 };
 
 const validateRename = (
@@ -167,7 +167,7 @@ export const ScriptExplorer = memo(() => {
         loading={appLoadState === 'init'}
         dataTestIdPrefix="script-explorer"
         TreeNodeComponent={ScriptExplorerNode}
-        onDeleteSelected={deleteSqlScript}
+        onDeleteSelected={deleteSqlScripts}
       />
     </>
   );
