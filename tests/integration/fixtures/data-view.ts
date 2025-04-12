@@ -84,7 +84,7 @@ export const test = base.extend<DataViewFixtures>({
 
   waitForDataTable: async ({ dataTable }, use) => {
     await use(async () => {
-      expect(dataTable).toBeVisible();
+      await expect(dataTable).toBeVisible();
       return dataTable;
     });
   },
@@ -95,7 +95,7 @@ export const test = base.extend<DataViewFixtures>({
 
   waitForPaginationControl: async ({ paginationControl }, use) => {
     await use(async () => {
-      expect(paginationControl).toBeVisible();
+      await expect(paginationControl).toBeVisible();
       return paginationControl;
     });
   },

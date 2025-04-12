@@ -33,7 +33,7 @@ export const test = base.extend<SpotlightFixtures>({
       await spotlightRoot.getByTestId('spotlight-action-create-new-script').click();
 
       // Verify spotlight is closed after creating query
-      await expect(spotlightRoot).not.toBeVisible();
+      await expect(spotlightRoot).toBeHidden();
     });
   },
 
@@ -45,7 +45,7 @@ export const test = base.extend<SpotlightFixtures>({
       await spotlightRoot.getByTestId('spotlight-action-settings').click();
 
       // Verify spotlight is closed after opening settings
-      await expect(spotlightRoot).not.toBeVisible();
+      await expect(spotlightRoot).toBeHidden();
     });
   },
 
@@ -57,7 +57,7 @@ export const test = base.extend<SpotlightFixtures>({
       await spotlightRoot.getByTestId('spotlight-action-add-folder').click();
 
       // Verify spotlight is closed after adding directory
-      await expect(spotlightRoot).not.toBeVisible();
+      await expect(spotlightRoot).toBeHidden();
     });
   },
 });

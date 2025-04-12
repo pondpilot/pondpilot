@@ -1,8 +1,10 @@
 import { expect, mergeTests } from '@playwright/test';
 import { test as baseTest } from '../fixtures/page';
+import { test as tabTest } from '../fixtures/tab';
 import { test as spotlightTest } from '../fixtures/spotlight';
+import { test as scriptEditorTest } from '../fixtures/script-editor';
 
-const test = mergeTests(baseTest, spotlightTest);
+const test = mergeTests(baseTest, spotlightTest, tabTest, scriptEditorTest);
 
 test('Long action names are truncated in spotlight results', async ({ page, openSpotlight }) => {
   // Open spotlight menu
@@ -30,6 +32,8 @@ test('Long action names are truncated in spotlight results', async ({ page, open
 
     // Make sure the element exists before continuing
     const elementExists = (await truncatableElement.count()) > 0;
+
+    // eslint-disable-next-line playwright/no-conditional-in-test
     if (!elementExists) {
       continue;
     }
@@ -51,8 +55,7 @@ test('Long action names are truncated in spotlight results', async ({ page, open
     );
 
     // Verify the text content was updated
-    const textContent = await truncatableElement.textContent();
-    expect(textContent).toBe(longActionName);
+    await expect(truncatableElement).toHaveText(longActionName);
 
     // Check if text is truncated with ellipsis
     const isTruncatedWithEllipsis = await truncatableElement.evaluate((element) => {
@@ -65,4 +68,27 @@ test('Long action names are truncated in spotlight results', async ({ page, open
     // Assert that the text is properly truncated
     expect(isTruncatedWithEllipsis).toBeTruthy();
   }
+});
+
+test('Create scripts using spotlight menu', async ({
+  createScriptViaSpotlight,
+  fillScript,
+  switchToTab,
+  getScriptEditorContent,
+}) => {
+  // Create first script via spotlight
+  await createScriptViaSpotlight();
+  await fillScript('select 3 as spotlight_query_1');
+
+  // Create second script via spotlight
+  await createScriptViaSpotlight();
+  await fillScript('select 4 as spotlight_query_2');
+
+  // Switch to first script and verify content
+  await switchToTab('query.sql');
+  await expect(await getScriptEditorContent()).toContainText('select 3 as spotlight_query_1');
+
+  // Switch to second script and verify content
+  await switchToTab('query_1.sql');
+  await expect(await getScriptEditorContent()).toContainText('select 4 as spotlight_query_2');
 });

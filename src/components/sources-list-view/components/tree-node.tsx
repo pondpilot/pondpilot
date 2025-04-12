@@ -279,7 +279,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
   return (
     <div
       {...elementProps}
-      data-testid={setDataTestId(dataTestId)}
+      data-testid={setDataTestId(`${dataTestId}-node`)}
       data-selected={selected}
       className={cn(
         elementProps.className,

@@ -11,7 +11,7 @@ test('Open settings page using spotlight menu', async ({
   openSettingsViaSpotlight,
 }) => {
   // Check settings page is not attached
-  expect(settingsPage).not.toBeAttached;
+  await expect(settingsPage).not.toBeAttached();
 
   // Open settings via spotlight menu
   await openSettingsViaSpotlight();
@@ -35,7 +35,7 @@ test('Open new script from settings page', async ({
   await createScriptViaSpotlight();
 
   // Check settings page is not attached
-  expect(settingsPage).not.toBeAttached;
+  await expect(settingsPage).not.toBeAttached();
 
   // Verify script editor is visible
   await expect(scriptEditor).toBeVisible();

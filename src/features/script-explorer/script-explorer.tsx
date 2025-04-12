@@ -152,7 +152,7 @@ export const ScriptExplorer = memo(() => {
           <Divider orientation="vertical" />
           {actions.map((action) => (
             <ActionIcon
-              data-testid={setDataTestId('add-query-button')}
+              data-testid={setDataTestId('script-explorer-add-script-button')}
               onClick={action.onClick}
               size={16}
               key={action.label}
