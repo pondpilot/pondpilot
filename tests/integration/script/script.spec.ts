@@ -4,38 +4,38 @@ import { test as baseTest } from '../fixtures/page';
 import { test as explorerTest } from '../fixtures/explorer';
 import { test as tabTest } from '../fixtures/tab';
 import { test as spotlightTest } from '../fixtures/spotlight';
-import { test as queryEditorTest } from '../fixtures/query-editor';
+import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as dataViewTest, getDataCellContainer, getHeaderCell } from '../fixtures/data-view';
 
 const test = mergeTests(
   baseTest,
   explorerTest,
   tabTest,
-  queryEditorTest,
+  scriptEditorTest,
   spotlightTest,
   dataViewTest,
 );
 
-test('Create and run simple query', async ({
-  createQueryAndSwitchToItsTab,
-  fillQuery,
-  runQuery,
+test('Create and run simple script', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
   assertDataTableMatches,
 }) => {
-  await createQueryAndSwitchToItsTab();
-  await fillQuery('select 1');
-  await runQuery();
+  await createScriptAndSwitchToItsTab();
+  await fillScript('select 1');
+  await runScript();
   await assertDataTableMatches({ 1: [1] });
 });
 
-test('Create and run query with decimals', async ({
-  createQueryAndSwitchToItsTab,
-  fillQuery,
-  runQuery,
+test('Create and run script with decimals', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
   assertDataTableMatches,
 }) => {
-  await createQueryAndSwitchToItsTab();
-  await fillQuery(`
+  await createScriptAndSwitchToItsTab();
+  await fillScript(`
     select
       sum(col1) as col1,
       0.5 as col2,
@@ -46,107 +46,107 @@ test('Create and run query with decimals', async ({
       union select 2 as col1
     )
   `);
-  await runQuery();
+  await runScript();
   await assertDataTableMatches({ col1: [3], col2: [0.5], col3: [-123.12], col4: [1] });
 });
 
-test('Close and reopen query', async ({
-  createQueryAndSwitchToItsTab,
-  fillQuery,
+test('Close and reopen script', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
   closeActiveTab,
-  openQueryFromExplorer,
-  queryEditorContent,
+  openScriptFromExplorer,
+  scriptEditorContent,
 }) => {
-  await createQueryAndSwitchToItsTab();
-  await fillQuery('select 1');
+  await createScriptAndSwitchToItsTab();
+  await fillScript('select 1');
   await closeActiveTab();
-  await openQueryFromExplorer('query.sql');
-  await expect(queryEditorContent).toContainText('select 1');
+  await openScriptFromExplorer('query.sql');
+  await expect(scriptEditorContent).toContainText('select 1');
 });
 
 test('Switch between tabs using tabs pane', async ({
-  createQueryAndSwitchToItsTab,
-  fillQuery,
+  createScriptAndSwitchToItsTab,
+  fillScript,
   switchToTab,
-  getQueryEditorContent,
+  getScriptEditorContent,
 }) => {
-  await createQueryAndSwitchToItsTab();
-  await fillQuery('select 1');
-  await createQueryAndSwitchToItsTab();
-  await expect(await getQueryEditorContent()).toContainText('');
+  await createScriptAndSwitchToItsTab();
+  await fillScript('select 1');
+  await createScriptAndSwitchToItsTab();
+  await expect(await getScriptEditorContent()).toContainText('');
   await switchToTab('query.sql');
-  await expect(await getQueryEditorContent()).toContainText('select 1');
+  await expect(await getScriptEditorContent()).toContainText('select 1');
 });
 
-test('Switch between tabs using query explorer', async ({
-  createQueryAndSwitchToItsTab,
-  fillQuery,
-  openQueryFromExplorer,
-  getQueryEditorContent,
+test('Switch between tabs using script explorer', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  openScriptFromExplorer,
+  getScriptEditorContent,
 }) => {
-  await createQueryAndSwitchToItsTab();
-  await fillQuery('select 1');
-  await createQueryAndSwitchToItsTab();
-  await expect(await getQueryEditorContent()).toContainText('');
-  await openQueryFromExplorer('query.sql');
-  await expect(await getQueryEditorContent()).toContainText('select 1');
+  await createScriptAndSwitchToItsTab();
+  await fillScript('select 1');
+  await createScriptAndSwitchToItsTab();
+  await expect(await getScriptEditorContent()).toContainText('');
+  await openScriptFromExplorer('query.sql');
+  await expect(await getScriptEditorContent()).toContainText('select 1');
 });
 
 test('Create two queries with different content and switch between them', async ({
-  createQueryAndSwitchToItsTab,
-  fillQuery,
+  createScriptAndSwitchToItsTab,
+  fillScript,
   switchToTab,
-  getQueryEditorContent,
+  getScriptEditorContent,
 }) => {
-  // Create and fill first query
-  await createQueryAndSwitchToItsTab();
-  await fillQuery('select 1 as first_query');
+  // Create and fill first script
+  await createScriptAndSwitchToItsTab();
+  await fillScript('select 1 as first_query');
 
-  // Create and fill second query
-  await createQueryAndSwitchToItsTab();
-  await fillQuery('select 2 as second_query');
+  // Create and fill second script
+  await createScriptAndSwitchToItsTab();
+  await fillScript('select 2 as second_query');
 
-  // Switch back to first query and verify content
+  // Switch back to first script and verify content
   await switchToTab('query.sql');
-  await expect(await getQueryEditorContent()).toContainText('select 1 as first_query');
+  await expect(await getScriptEditorContent()).toContainText('select 1 as first_query');
 
-  // Switch back to second query and verify content
+  // Switch back to second script and verify content
   await switchToTab('query_1.sql');
-  await expect(await getQueryEditorContent()).toContainText('select 2 as second_query');
+  await expect(await getScriptEditorContent()).toContainText('select 2 as second_query');
 });
 
-test('Create queries using spotlight menu', async ({
-  createQueryViaSpotlight,
-  fillQuery,
+test('Create scripts using spotlight menu', async ({
+  createScriptViaSpotlight,
+  fillScript,
   switchToTab,
-  getQueryEditorContent,
+  getScriptEditorContent,
 }) => {
-  // Create first query via spotlight
-  await createQueryViaSpotlight();
-  await fillQuery('select 3 as spotlight_query_1');
+  // Create first script via spotlight
+  await createScriptViaSpotlight();
+  await fillScript('select 3 as spotlight_query_1');
 
-  // Create second query via spotlight
-  await createQueryViaSpotlight();
-  await fillQuery('select 4 as spotlight_query_2');
+  // Create second script via spotlight
+  await createScriptViaSpotlight();
+  await fillScript('select 4 as spotlight_query_2');
 
-  // Switch to first query and verify content
+  // Switch to first script and verify content
   await switchToTab('query.sql');
-  await expect(await getQueryEditorContent()).toContainText('select 3 as spotlight_query_1');
+  await expect(await getScriptEditorContent()).toContainText('select 3 as spotlight_query_1');
 
-  // Switch to second query and verify content
+  // Switch to second script and verify content
   await switchToTab('query_1.sql');
-  await expect(await getQueryEditorContent()).toContainText('select 4 as spotlight_query_2');
+  await expect(await getScriptEditorContent()).toContainText('select 4 as spotlight_query_2');
 });
 
 test('Autocomplete converts keywords to uppercase', async ({
-  createQueryAndSwitchToItsTab,
+  createScriptAndSwitchToItsTab,
   page,
-  queryEditorContent,
+  scriptEditorContent,
 }) => {
-  await createQueryAndSwitchToItsTab();
+  await createScriptAndSwitchToItsTab();
 
   // Type 'select' in the editor
-  const editor = queryEditorContent;
+  const editor = scriptEditorContent;
   await editor.pressSequentially('select');
 
   // Wait for autocomplete to appear and check it's visible
@@ -165,15 +165,15 @@ test('Autocomplete converts keywords to uppercase', async ({
 });
 
 test('Header cell width matches data cell width for special character columns', async ({
-  createQueryAndSwitchToItsTab,
-  fillQuery,
-  runQuery,
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
   waitForDataTable,
   assertDataTableMatches,
 }) => {
-  // Create a new query
-  await createQueryAndSwitchToItsTab();
-  // Fill the query with the special character columns query.
+  // Create a new script
+  await createScriptAndSwitchToItsTab();
+  // Fill the script with the special character columns query.
   // We have to create a table, because of some duckdb-wasm bug that causes `;` to
   // to disappear from column name when running plain select query.
   const queryText = `CREATE OR REPLACE TABLE test_table AS
@@ -182,9 +182,9 @@ test('Header cell width matches data cell width for special character columns', 
     ).join(', ')};
     SELECT * FROM test_table;`;
 
-  await fillQuery(queryText);
-  // Run the query
-  await runQuery();
+  await fillScript(queryText);
+  // Run the script
+  await runScript();
 
   // Wait for the data table to be visible
   const dataTable = await waitForDataTable();

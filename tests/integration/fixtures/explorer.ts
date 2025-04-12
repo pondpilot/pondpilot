@@ -1,28 +1,28 @@
 import { test as base, expect } from '@playwright/test';
 
 type ExplorerFixtures = {
-  openQueryFromExplorer: (queryName: string) => Promise<void>;
-  renameQueryInExplorer: (oldName: string, newName: string) => Promise<void>;
+  openScriptFromExplorer: (scriptName: string) => Promise<void>;
+  renameScriptInExplorer: (oldName: string, newName: string) => Promise<void>;
   openFileFromExplorer: (fileName: string) => Promise<void>;
   assertExplorerItems: (expected: string[]) => Promise<void>;
 };
 
 export const test = base.extend<ExplorerFixtures>({
-  openQueryFromExplorer: async ({ page }, use) => {
-    await use(async (queryName: string) => {
-      const queriesList = page.getByTestId('script-explorer');
-      const queryItem = queriesList.locator('p', { hasText: queryName });
-      await queryItem.click();
+  openScriptFromExplorer: async ({ page }, use) => {
+    await use(async (scriptName: string) => {
+      const scriptList = page.getByTestId('script-explorer');
+      const scriptItem = scriptList.locator('p', { hasText: scriptName });
+      await scriptItem.click();
     });
   },
 
-  renameQueryInExplorer: async ({ page }, use) => {
+  renameScriptInExplorer: async ({ page }, use) => {
     await use(async (oldName: string, newName: string) => {
-      // Find the query item in the explorer
-      const queryItem = page.getByTestId(`script-explorer-tree-item-${oldName}`);
+      // Find the script item in the explorer
+      const scriptItem = page.getByTestId(`script-explorer-tree-item-${oldName}`);
 
       // Double-click to initiate rename
-      await queryItem.dblclick();
+      await scriptItem.dblclick();
 
       // Find and fill the rename input
       const renameInput = page.getByTestId(`script-explorer-tree-item-${oldName}-rename-input`);
@@ -34,7 +34,7 @@ export const test = base.extend<ExplorerFixtures>({
       // Press Enter to confirm
       await page.keyboard.press('Enter');
 
-      // Wait for the renamed query to appear
+      // Wait for the renamed script to appear
       await page.getByTestId(`script-explorer-tree-item-${newName}.sql`).waitFor();
     });
   },
