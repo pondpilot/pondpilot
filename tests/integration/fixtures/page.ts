@@ -2,8 +2,8 @@ import { test as base, expect, Page } from '@playwright/test';
 
 const waitForAppReady = async (page: Page) => {
   // Wait for the app to be ready
-  const appStatus = page.getByTestId('app-status');
-  await expect(appStatus).toHaveAttribute('data-app-status', 'ready');
+  const appStatus = page.getByTestId('app-state');
+  await expect(appStatus).toHaveAttribute('data-app-load-state', 'ready');
 };
 
 type PageFixtures = {

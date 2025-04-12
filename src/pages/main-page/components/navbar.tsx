@@ -1,5 +1,5 @@
 import { DbExplorer } from '@features/db-explorer/db-explorer';
-import { QueryExplorer } from '@features/query-explorer';
+import { ScriptExplorer } from '@features/script-explorer';
 import { FileSystemExplorer } from '@features/file-system-explorer';
 import { ActionIcon, Button, Divider, Group, Text } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
@@ -93,7 +93,7 @@ export const Navbar = memo(() => {
       </Allotment.Pane>
 
       <Allotment.Pane preferredSize={navbarSizes?.[1]} minSize={52}>
-        <QueryExplorer />
+        <ScriptExplorer />
       </Allotment.Pane>
       <Allotment.Pane maxSize={34} minSize={34}>
         <Group className="h-full px-3 justify-between">

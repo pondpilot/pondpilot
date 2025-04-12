@@ -28,7 +28,7 @@ import {
   getOrCreateTabFromScript,
   useInitStore,
 } from '@store/init-store';
-import { ListViewIcon } from '@features/list-view-icon';
+import { ListViewIcon } from '@components/list-view-icon';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 import {
   DATA_SOURCE_GROUP_DISPLAY_NAME,
