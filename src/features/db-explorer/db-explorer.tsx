@@ -1,63 +1,112 @@
-import { MenuItem, SourcesListView, TypedTreeNodeData } from '@components/sources-list-view';
-import { useAppStore } from '@store/app-store';
+import { MenuItem } from '@components/sources-list-view';
 import { memo } from 'react';
 import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
-import { SYSTEM_DUCKDB_SCHEMAS } from '@features/editor/auto-complete';
-import { useFileHandlesQuery } from '@store/app-idb-store';
-import { createSQLScript, getOrCreateTabFromScript, useInitStore } from '@store/init-store';
+import {
+  createSQLScript,
+  deleteDataSource,
+  getOrCreateTabFromScript,
+  useAttachedDBNameMap,
+  useInitStore,
+} from '@store/init-store';
+import { ExplorerTree } from '@components/sources-list-view/explorer-tree';
+import { TreeMenu, TreeNodeData } from '@components/sources-list-view/model';
+import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
+import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
+import { DbExplorerNode } from './db-explorer-node';
 
 /**
- * Displays a list of views
+ * Displays attached databases and their schemas/tables/columns
  */
 export const DbExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const clipboard = useClipboard();
+  const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
+  const { db, conn } = useInitializedDuckDBConnection();
 
   /**
    * Store access
    */
-  const databases = useAppStore((state) => state.databases);
-  const appLoadState = useInitStore.use.appLoadState();
-  const { data: sessionFiles = [] } = useFileHandlesQuery();
+  const attachedDBNameMap = useAttachedDBNameMap();
+  const dataBaseMetadata = useInitStore.use.dataBaseMetadata();
+
+  /**
+   * Local state
+   */
+  const nodeIdsToFQNMap: DBExplorerNodeExtraType = new Map();
 
   /**
    * Consts
    */
-  const itemsToDisplay = databases
-    .filter((item) => sessionFiles.some((source) => source.name === item.name))
-    .map(
-      (item) =>
-        ({
-          value: item.name,
-          label: item.name,
-          iconType: 'db',
-          nodeProps: {
-            id: 'db',
+  const dbContextMenu: TreeMenu<TreeNodeData<DBExplorerNodeTypeToIdTypeMap>> = [
+    {
+      children: [
+        {
+          label: 'Copy name',
+          onClick: (dbNode) => {
+            copy(dbNode.label);
+            showSuccess({ title: 'Copied', message: '', autoClose: 800 });
           },
-          children: item.schemas
-            ?.filter((schema) => !SYSTEM_DUCKDB_SCHEMAS.includes(schema.name))
-            .map((schema) => ({
-              value: `${item.name}/${schema.name}`,
-              nodeProps: {
-                id: 'schema',
-              },
-              iconType: 'db-schema',
-              label: schema.name,
-              children: schema.tables?.map((table) => ({
-                value: `${item.name}/${schema.name}/${table.name}`,
-                label: table.name,
-                iconType: 'db-table',
-                nodeProps: {
-                  id: 'table',
-                },
-              })),
-            })),
-        }) as TypedTreeNodeData,
-    );
+        },
+      ],
+    },
+  ];
+
+  const sortedDBIdsAndNames = Array.from(attachedDBNameMap).sort(([, a], [, b]) =>
+    a.localeCompare(b),
+  );
+
+  const dbObjectsTree: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>[] = sortedDBIdsAndNames.map(
+    ([dbId, dbName]) => {
+      nodeIdsToFQNMap.set(dbId, { db: dbId, schemaName: null, objectName: null, columnName: null });
+
+      const sortedSchemas = dataBaseMetadata
+        .get(dbId)
+        ?.schemas?.sort((a, b) => a.name.localeCompare(b.name));
+
+      return {
+        nodeType: 'db',
+        value: dbId,
+        label: dbName,
+        iconType: 'db',
+        isDisabled: false,
+        isSelectable: false,
+        // TODO: implement renaming of database aliases
+        renameCallbacks: {
+          validateRename: () => {
+            throw new Error('TODO: implement renaming of database aliases');
+          },
+          onRenameSubmit: () => {
+            throw new Error('TODO: implement renaming of database aliases');
+          },
+        },
+        onDelete: (node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>): void => {
+          if (node.nodeType === 'db') {
+            deleteDataSource(db, conn, [node.value]);
+          }
+        },
+        contextMenu: dbContextMenu,
+        // children: sortedSchemas?.map((schema) => ({
+        //   value: `${item.name}/${schema.name}`,
+        //   nodeProps: {
+        //     id: 'schema',
+        //   },
+        //   iconType: 'db-schema',
+        //   label: schema.name,
+        //   children: schema.tables?.map((table) => ({
+        //     value: `${item.name}/${schema.name}/${table.name}`,
+        //     label: table.name,
+        //     iconType: 'db-table',
+        //     nodeProps: {
+        //       id: 'table',
+        //     },
+        //   })),
+        // })),
+      };
+    },
+  );
 
   const handleDeleteSelected = async (items: string[]) => {};
 
@@ -67,7 +116,7 @@ export const DbExplorer = memo(() => {
         {
           label: 'Copy name',
           onClick: (item) => {
-            clipboard.copy(item.label);
+            copy(item.label);
             showSuccess({ message: 'Copied', autoClose: 800 });
           },
         },
@@ -85,23 +134,14 @@ export const DbExplorer = memo(() => {
         },
       ],
     },
-    {
-      children: [
-        {
-          label: 'Delete',
-          onClick: (item) => {},
-        },
-      ],
-    },
   ];
   return (
-    <SourcesListView
-      parentDataTestId="db-explorer"
-      list={itemsToDisplay}
+    <ExplorerTree<DBExplorerNodeTypeToIdTypeMap, DBExplorerNodeExtraType>
+      nodes={dbObjectsTree}
+      extraData={nodeIdsToFQNMap}
+      dataTestIdPrefix="db-explorer"
+      TreeNodeComponent={DbExplorerNode}
       onDeleteSelected={handleDeleteSelected}
-      menuItems={menuItems}
-      activeItemKey=""
-      loading={appLoadState === 'init'}
     />
   );
 });

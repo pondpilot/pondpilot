@@ -1,7 +1,7 @@
 import { DbExplorer } from '@features/db-explorer/db-explorer';
 import { ScriptExplorer } from '@features/script-explorer';
 import { FileSystemExplorer } from '@features/file-system-explorer';
-import { ActionIcon, Button, Divider, Group, Text } from '@mantine/core';
+import { ActionIcon, Button, Divider, Group, Skeleton, Stack, Text } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
 import { IconBrandGithub, IconPlus, IconSettings } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
@@ -10,7 +10,7 @@ import { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
 import { APP_GITHUB_URL } from 'app-urls';
-import { useInitStore } from '@store/init-store';
+import { createSQLScript, getOrCreateTabFromScript, useInitStore } from '@store/init-store';
 import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
 
 /**
@@ -32,6 +32,7 @@ export const Navbar = memo(() => {
    */
   const [filesDbToggle, setFilesDbToggle] = useState<'files' | 'databases'>('files');
   const isFiles = filesDbToggle === 'files';
+  const appReady = appLoadState === 'ready';
 
   /**
    * Handlers
@@ -72,7 +73,7 @@ export const Navbar = memo(() => {
               Databases
             </Button>
           </Group>
-          {appLoadState === 'ready' && (
+          {appReady && (
             <Group justify="space-between">
               <Group className="gap-2">
                 <Divider orientation="vertical" />
@@ -89,11 +90,52 @@ export const Navbar = memo(() => {
           )}
         </Group>
 
-        {isFiles ? <FileSystemExplorer /> : <DbExplorer />}
+        {appReady ? (
+          isFiles ? (
+            <FileSystemExplorer />
+          ) : (
+            <DbExplorer />
+          )
+        ) : (
+          <Stack gap={6} className="px-3 py-1.5">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
+            ))}
+          </Stack>
+        )}
       </Allotment.Pane>
 
       <Allotment.Pane preferredSize={navbarSizes?.[1]} minSize={52}>
-        <ScriptExplorer />
+        <Group className="gap-2 justify-between pl-4 px-2 pt-4 pb-2 h-[50px]">
+          <Text size="sm" fw={500} className="" c="text-primary">
+            Queries
+          </Text>
+          <Group className="gap-2">
+            <Divider orientation="vertical" />
+            {appReady && (
+              <ActionIcon
+                data-testid={setDataTestId('script-explorer-add-script-button')}
+                onClick={() => {
+                  const newEmptyScript = createSQLScript();
+                  getOrCreateTabFromScript(newEmptyScript, true);
+                }}
+                size={16}
+                key="Add query"
+              >
+                <IconPlus />
+              </ActionIcon>
+            )}
+          </Group>
+        </Group>
+        {appReady ? (
+          <ScriptExplorer />
+        ) : (
+          <Stack gap={6} className="px-3 py-1.5">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
+            ))}
+          </Stack>
+        )}
       </Allotment.Pane>
       <Allotment.Pane maxSize={34} minSize={34}>
         <Group className="h-full px-3 justify-between">

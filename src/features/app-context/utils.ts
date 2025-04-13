@@ -1,9 +1,9 @@
 import { EditorState } from '@uiw/react-codemirror';
 import { PostgreSQL, sql } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
-import { Dataset } from '@models/common';
 import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { splitSqlQuery } from '../../utils/editor/statement-parser';
 import { DBRunQueryProps, RunQueryResponse } from './models';
 import { dbApiProxi } from './db-worker';
@@ -19,7 +19,7 @@ interface ExecuteQueriesProps {
   runQueryProps: DBRunQueryProps;
   conn: AsyncDuckDBConnection;
   isCancelledPromise: Promise<never>;
-  currentSources: Dataset[] | null;
+  protectedViews: Set<string> | null;
 }
 
 interface QueryResult {
@@ -31,11 +31,11 @@ export const executeQueries = async ({
   runQueryProps,
   conn,
   isCancelledPromise,
-  currentSources,
+  protectedViews,
 }: ExecuteQueriesProps): Promise<QueryResult> => {
   const statements = parseStatements(runQueryProps.query);
 
-  await validateStatements(statements, currentSources);
+  await validateStatements(statements, protectedViews);
 
   for (const [index, statement] of statements.entries()) {
     const queryToExecute = buildQuery(statement, runQueryProps);
@@ -76,7 +76,7 @@ const parseStatements = (query: string): QueryStatement[] => {
 
 const validateStatements = async (
   statements: QueryStatement[],
-  currentSources: Dataset[] | null,
+  protectedViews: Set<string> | null,
 ): Promise<void> => {
   if (!statements.length) {
     throw new Error('No valid SQL statements found');
@@ -87,7 +87,7 @@ const validateStatements = async (
     throw new Error('USE statements are not supported');
   }
 
-  if (!currentSources?.length) return;
+  if (!protectedViews?.size) return;
 
   // Check all DROP statements against source tables
   const dropStatements = statements.filter((s) => s.isDrop);
@@ -108,12 +108,14 @@ const validateStatements = async (
       }
     }
 
-    const isSourceTable = currentSources.some(
-      (source) => source.name.toLowerCase() === tableName.toLowerCase(),
-    );
+    const isSourceTable = protectedViews
+      .values()
+      .some((viewName) => toDuckDBIdentifier(viewName).toLowerCase() === tableName.toLowerCase());
 
     if (isSourceTable) {
-      throw new Error(`Cannot drop table "${tableName}" as it is a source file`);
+      throw new Error(
+        `Cannot drop view \`${tableName}\` as it is an app managed view providing access to a source file`,
+      );
     }
   }
 };

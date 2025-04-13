@@ -19,7 +19,7 @@ import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import {
   registerAndAttachDatabase,
   registerFileSourceAndCreateView,
-} from '@controllers/db/file-handle';
+} from '@controllers/db/data-source';
 import { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { addAttachedDB, addFlatFileDataSource } from '@utils/data-source';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';

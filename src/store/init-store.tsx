@@ -26,13 +26,15 @@ import { localEntryFromHandle } from '@utils/file-system';
 
 import { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import {
+  detachAndUnregisterDatabase,
+  dropViewAndUnregisterFile,
   registerAndAttachDatabase,
   registerFileSourceAndCreateView,
-} from '@controllers/db/file-handle';
+} from '@controllers/db/data-source';
 import { getTabIcon, getTabName } from '@utils/navigation';
 import { IconType } from '@components/list-view-icon';
 import { addAttachedDB, addFlatFileDataSource } from '@utils/data-source';
-import { getAttachedDBs, getViews } from '@controllers/db/duckdb-meta';
+import { getAttachedDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
 import { DataBaseModel } from '@models/db';
 import { DataViewCacheItem, DataViewCacheKey } from '@models/data-adapter';
 import {
@@ -148,11 +150,35 @@ export function useIsSqlScriptIdOnActiveTab(id: SQLScriptId | null): boolean {
     const tab = state.tabs.get(state.activeTabId);
     if (!tab) return false;
     if (tab.type !== 'script') {
-      console.warn(`Attempted to get SQLScriptId for non-script tab: ${tab.id}`);
       return false;
     }
 
     return tab.sqlScriptId === id;
+  });
+}
+
+export function useIsAttachedDBElementOnActiveTab(
+  id: PersistentDataSourceId | null | undefined,
+  schemaName: string | null | undefined,
+  objectName: string | null | undefined,
+  columnName: string | null | undefined,
+): boolean {
+  return useInitStore((state) => {
+    // If we do not have db source id, schema & object OR we have a column
+    // means this can't be displayed in the tab. Only tables/views aka objects
+    // can be displayed in the tab.
+    if (!id || !schemaName || !objectName || columnName) return false;
+    if (!state.activeTabId) return false;
+
+    const tab = state.tabs.get(state.activeTabId);
+    if (!tab) return false;
+    if (tab.type !== 'data-source' || tab.dataSourceType !== 'db') {
+      return false;
+    }
+
+    return (
+      tab.dataSourceId === id && tab.schemaName === schemaName && tab.objectName === objectName
+    );
   });
 }
 
@@ -174,6 +200,37 @@ export function useDataSourceIdForActiveTab(): PersistentDataSourceId | null {
 
 // We use separate memoized selectors for each necessary field, to avoid
 // using complex comparator functions...
+
+export function useProtectedViews(): Set<string> {
+  return useInitStore(
+    useShallow(
+      (state) =>
+        new Set(
+          state.dataSources
+            .values()
+            .filter((dataSource) => dataSource.type !== 'attached-db')
+            .map((dataSource): string => dataSource.viewName),
+        ),
+    ),
+  );
+}
+
+export function useAttachedDBNameMap(): Map<PersistentDataSourceId, string> {
+  return useInitStore(
+    useShallow(
+      (state) =>
+        new Map(
+          state.dataSources
+            .values()
+            .filter((dataSource) => dataSource.type === 'attached-db')
+            .map((dataSource): [PersistentDataSourceId, string] => [
+              dataSource.id,
+              dataSource.dbName,
+            ]),
+        ),
+    ),
+  );
+}
 
 export function useSqlScriptNameMap(): Map<SQLScriptId, string> {
   return useInitStore(
@@ -256,8 +313,14 @@ export const addLocalFileOrFolders = async (
   skippedUnsupportedFiles: string[];
   newEntries: [LocalEntryId, LocalEntry][];
   newDataSources: [PersistentDataSourceId, AnyDataSource][];
+  errors: string[];
 }> => {
-  const { _iDbConn: iDbConn, localEntries, dataSources } = useInitStore.getState();
+  const {
+    _iDbConn: iDbConn,
+    localEntries,
+    dataSources,
+    dataBaseMetadata,
+  } = useInitStore.getState();
 
   const usedEntryNames = new Set(
     localEntries
@@ -266,6 +329,8 @@ export const addLocalFileOrFolders = async (
       .map((entry) => (entry.kind === 'file' ? entry.uniqueAlias : entry.name)),
   );
 
+  const errors: string[] = [];
+  const newDatabaseNames: string[] = [];
   // Fetch currently attached databases, to avoid name collisions
   const reservedDbs = new Set((await getAttachedDBs(conn, false)) || ['memory']);
   // Same for views
@@ -321,6 +386,9 @@ export const addLocalFileOrFolders = async (
           // Assume it will be added, so reserve the name
           reservedDbs.add(dbSource.dbName);
 
+          // And save to new dbs as we'll need it later to get new metadata
+          newDatabaseNames.push(dbSource.dbName);
+
           // TODO: currently we assume this works, add proper error handling
           await registerAndAttachDatabase(
             db,
@@ -362,12 +430,29 @@ export const addLocalFileOrFolders = async (
   const newState: {
     localEntries: Map<LocalEntryId, LocalEntry>;
     dataSources?: Map<PersistentDataSourceId, AnyDataSource>;
+    dataBaseMetadata?: Map<string, DataBaseModel>;
   } = {
     localEntries: new Map(Array.from(localEntries).concat(newEntries)),
   };
 
   if (newDataSources.length > 0) {
     newState.dataSources = new Map(Array.from(dataSources).concat(newDataSources));
+  }
+
+  // Now read the metadata for the newly attached databases and
+  // add it to state as well
+  const newDataBaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
+
+  if (dataBaseMetadata) {
+    const mergedDataBaseMetadata = new Map(dataBaseMetadata);
+
+    newDataBaseMetadata?.forEach((dbModel, dbName) => mergedDataBaseMetadata.set(dbName, dbModel));
+
+    newState.dataBaseMetadata = mergedDataBaseMetadata;
+  } else {
+    errors.push(
+      'Failed to read newly attached database metadata. Neither explorer not auto-complete will not show objects for them. You may try deleting and re-attaching the database(s).',
+    );
   }
 
   // Update the store
@@ -384,6 +469,7 @@ export const addLocalFileOrFolders = async (
     skippedUnsupportedFiles,
     newEntries,
     newDataSources,
+    errors,
   };
 };
 
@@ -1143,17 +1229,27 @@ const deleteDataSourceImpl = (
  *
  * @param dataSourceIds - array of IDs of data sources to delete
  */
-export const deleteDataSource = (dataSourceIds: PersistentDataSourceId[]) => {
+export const deleteDataSource = (
+  db: AsyncDuckDB,
+  conn: AsyncDuckDBConnection,
+  dataSourceIds: PersistentDataSourceId[],
+) => {
   const {
     dataSources,
     tabs,
     tabOrder,
     activeTabId,
     previewTabId,
+    localEntries,
     _iDbConn: iDbConn,
   } = useInitStore.getState();
 
   const dataSourceIdsToDelete = new Set(dataSourceIds);
+
+  // Save objects to be deleted - we'll need them later to delete from db
+  const deletedDataSources = dataSourceIds
+    .map((id) => dataSources.get(id))
+    .filter((ds) => ds !== undefined);
 
   const newDataSources = deleteDataSourceImpl(dataSourceIds, dataSources);
 
@@ -1202,6 +1298,25 @@ export const deleteDataSource = (dataSourceIds: PersistentDataSourceId[]) => {
       persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
     }
   }
+
+  // Finally, delete the data sources from the database
+  deletedDataSources.forEach((dataSource) => {
+    if (dataSource.type === 'attached-db') {
+      detachAndUnregisterDatabase(
+        db,
+        conn,
+        dataSource.dbName,
+        localEntries.get(dataSource.fileSourceId)?.uniqueAlias,
+      );
+    } else {
+      dropViewAndUnregisterFile(
+        db,
+        conn,
+        dataSource.viewName,
+        localEntries.get(dataSource.fileSourceId)?.uniqueAlias,
+      );
+    }
+  });
 };
 
 /**

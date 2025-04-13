@@ -6,7 +6,6 @@ import { ScrtiptNodeTypeToIdTypeMap } from './model';
 export const ScriptExplorerNode = (props: RenderTreeNodePayload<ScrtiptNodeTypeToIdTypeMap>) => {
   const { flattenedNodeIds, node } = props;
   const { value: itemId } = node;
-
   const curNodeIndex = props.flattenedNodeIds.indexOf(itemId);
   const prevNodeId = curNodeIndex > 0 ? flattenedNodeIds[curNodeIndex - 1] : null;
   const nextNodeId =

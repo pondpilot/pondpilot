@@ -2,13 +2,14 @@ import { useCallback } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { useAppContext } from '@features/app-context';
 import { Table as ApacheTable } from 'apache-arrow';
-import { useAllTabsQuery } from '@store/app-idb-store';
+import { useInitStore } from '@store/init-store';
 
 export const useTableExport = () => {
   const { executeQuery } = useAppContext();
   const { showSuccess } = useAppNotifications();
-  const { data: tabsList = [] } = useAllTabsQuery();
-  const activeTab = tabsList?.find((tab) => tab.active);
+  const tabs = useInitStore.use.tabs();
+  const activeTabId = useInitStore.use.activeTabId();
+  const activeTab = tabs.values().find((tab) => tab.id === activeTabId);
 
   const handleCopyToClipboard = useCallback((convertedTable: { columns: any[]; data: any[] }) => {
     const { columns, data } = convertedTable;

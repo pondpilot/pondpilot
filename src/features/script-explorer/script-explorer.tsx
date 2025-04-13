@@ -1,14 +1,9 @@
 import { useAppNotifications } from '@components/app-notifications';
-import { ActionIcon, Divider, Group, Text } from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
 import { memo } from 'react';
-import { IconPlus } from '@tabler/icons-react';
-import { setDataTestId } from '@utils/test-id';
 
 import {
-  createSQLScript,
   getOrCreateTabFromScript,
-  useInitStore,
   useSqlScriptNameMap,
   renameSQLScript,
   deleteSqlScripts,
@@ -81,17 +76,14 @@ export const ScriptExplorer = memo(() => {
   /**
    * Global state
    */
-  const appLoadState = useInitStore.use.appLoadState();
   const sqlScripts = useSqlScriptNameMap();
-
-  /**
-   * Local state
-   */
 
   /**
    * Consts
    */
-  const scriptsArray = Array.from(sqlScripts);
+  const scriptsArray = Array.from(sqlScripts).sort(([, leftName], [, rightName]) =>
+    leftName.localeCompare(rightName),
+  );
   const contextMenu: TreeMenu<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> = [
     {
       children: [
@@ -129,46 +121,13 @@ export const ScriptExplorer = memo(() => {
     }),
   );
 
-  const handleAddQuery = () => {
-    const newEmptyScript = createSQLScript();
-    getOrCreateTabFromScript(newEmptyScript, true);
-  };
-
-  const actions = [
-    {
-      label: 'Add query',
-      onClick: handleAddQuery,
-      icon: <IconPlus />,
-    },
-  ];
-
   return (
-    <>
-      <Group className="gap-2 justify-between pl-4 px-2 pt-4 pb-2 h-[50px]">
-        <Text size="sm" fw={500} className="" c="text-primary">
-          Queries
-        </Text>
-        <Group className="gap-2">
-          <Divider orientation="vertical" />
-          {actions.map((action) => (
-            <ActionIcon
-              data-testid={setDataTestId('script-explorer-add-script-button')}
-              onClick={action.onClick}
-              size={16}
-              key={action.label}
-            >
-              {action.icon}
-            </ActionIcon>
-          ))}
-        </Group>
-      </Group>
-      <ExplorerTree<ScrtiptNodeTypeToIdTypeMap>
-        nodes={sqlScriptTree}
-        loading={appLoadState === 'init'}
-        dataTestIdPrefix="script-explorer"
-        TreeNodeComponent={ScriptExplorerNode}
-        onDeleteSelected={deleteSqlScripts}
-      />
-    </>
+    <ExplorerTree<ScrtiptNodeTypeToIdTypeMap>
+      nodes={sqlScriptTree}
+      dataTestIdPrefix="script-explorer"
+      TreeNodeComponent={ScriptExplorerNode}
+      onDeleteSelected={deleteSqlScripts}
+      extraData={undefined}
+    />
   );
 });

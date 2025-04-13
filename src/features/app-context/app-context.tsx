@@ -1,15 +1,13 @@
 import { createContext, useContext, useCallback } from 'react';
-import { useAppStore } from '@store/app-store';
 import { tableFromIPC } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { useAbortController } from '@hooks/useAbortController';
 import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
-import { useFileHandlesQuery } from '@store/app-idb-store';
 import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { openQueryErrorModal } from '@features/error-modal/query-error-modal';
-import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { useProtectedViews } from '@store/init-store';
 import { DBRunQueryProps, RunQueryResponse } from './models';
 import { executeQueries } from './utils';
 import { useAppInitialization } from './hooks/useInitApplication';
@@ -39,14 +37,9 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
    */
 
   /**
-   * Query state
-   */
-  const { data: dataSources = [] } = useFileHandlesQuery();
-
-  /**
    * Store access
    */
-  const setDatabases = useAppStore((state) => state.setDatabases);
+  const protectedViews = useProtectedViews();
 
   const executeQuery = useCallback(
     async (query: string) => {
@@ -90,23 +83,15 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
           runQueryProps: queryProps,
           conn,
           isCancelledPromise,
-          currentSources: dataSources,
+          protectedViews,
         });
 
         // Post-process the final query result
         if (queryResults) {
-          const duckdbDatabases = await dbApiProxi.getDBUserInstances(conn, 'databases');
-
-          const dbsNames = tableFromIPC(duckdbDatabases)
-            .toArray()
-            .map((row) => row.toJSON().database_name);
-
-          const transformedTables = await getDatabaseModel(conn, dbsNames);
-
           // Update the application state with processed data
-          if (transformedTables) {
-            setDatabases(Array.from(transformedTables.values()));
-          }
+          // When refactoring this - remember to check for DML and
+          // cleverly update parts of the dataBaseMetadata state
+
           return {
             data: queryResults.data,
             pagination: queryResults.pagination,
@@ -146,7 +131,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         });
       }
     },
-    [conn, dataSources, getSignal, setDatabases, showError],
+    [conn, protectedViews, getSignal, showError],
   );
 
   const onCancelQuery = useCallback(
