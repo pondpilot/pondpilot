@@ -25,7 +25,7 @@ import { Table as ApacheTable } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { setDataTestId } from '@utils/test-id';
-import { formatNumber } from '@utils/helpers';
+import { formatNumber, quote } from '@utils/helpers';
 import { PaginationControl, StartGuide, TableLoadingOverlay } from './components';
 import { useTableSort } from './hooks/useTablePaginationSort';
 import { useTableExport } from './hooks/useTableExport';
@@ -93,7 +93,7 @@ export const DataViewer = memo(() => {
       try {
         const selectedCols = Object.keys(cols)
           .filter((col) => cols[col])
-          .map((col) => `"${col}"`);
+          .map((col) => quote(col));
 
         const result: ApacheTable<any> = await executeQuery(
           `SELECT ${selectedCols.join(', ')} FROM (${originalQuery})`,
@@ -190,6 +190,7 @@ export const DataViewer = memo(() => {
                         <Menu position="bottom">
                           <Menu.Target>
                             <Button
+                              data-testid={setDataTestId('export-table-button')}
                               color="background-tertiary"
                               c="text-primary"
                               rightSection={
@@ -203,7 +204,10 @@ export const DataViewer = memo(() => {
                             </Button>
                           </Menu.Target>
                           <Menu.Dropdown>
-                            <Menu.Item onClick={exportTableToCSV}>
+                            <Menu.Item
+                              onClick={exportTableToCSV}
+                              data-testid={setDataTestId('export-table-csv-button')}
+                            >
                               Comma-Separated Values (.csv)
                             </Menu.Item>
                           </Menu.Dropdown>

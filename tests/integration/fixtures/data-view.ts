@@ -1,4 +1,4 @@
-import { test as base, expect, Locator } from '@playwright/test';
+import { test as base, expect, Locator, Page } from '@playwright/test';
 
 type ExpectedDataValue = number | string;
 
@@ -34,6 +34,13 @@ type DataViewFixtures = {
    * Asserts that the data table exactly matches the expected data.
    */
   assertDataTableMatches: (expected: ExpectedData) => Promise<void>;
+
+  /**
+   * Exports the data table to CSV.
+   *
+   * @param pathToSave The path to save the downloaded CSV file.
+   */
+  exportTableToCSV: (pathToSave: string) => Promise<void>;
 };
 
 /**
@@ -76,6 +83,18 @@ export const getDataCellContainer = (dataTable: Locator, columnName: string, row
  */
 export const getDataCellValue = (dataTable: Locator, columnName: string, rowIndex: number) =>
   dataTable.getByTestId(`data-table-cell-value-${columnName}-${rowIndex}`);
+
+/**
+ * Clicks the export button.
+ *
+ * @param page The page object.
+ * @returns
+ */
+export const clickExportButton = async (page: Page) => {
+  const exportButton = page.getByTestId('export-table-button');
+  await expect(exportButton).toBeVisible();
+  await exportButton.click();
+};
 
 export const test = base.extend<DataViewFixtures>({
   dataTable: async ({ page }, use) => {
@@ -137,6 +156,25 @@ export const test = base.extend<DataViewFixtures>({
           await expect(cellValue).toHaveText(String(values[i]));
         }
       }
+    });
+  },
+
+  exportTableToCSV: async ({ page }, use) => {
+    await use(async (pathToSave: string) => {
+      // Start waiting for download before clicking. Note no await.
+      const downloadPromise = page.waitForEvent('download');
+
+      // Click the export button
+      await clickExportButton(page);
+      const exportButton = page.getByTestId('export-table-csv-button');
+      await expect(exportButton).toBeVisible();
+      await exportButton.click();
+
+      // Get the special playwright download object
+      const download = await downloadPromise;
+
+      // Save the downloaded file
+      await download.saveAs(pathToSave);
     });
   },
 });

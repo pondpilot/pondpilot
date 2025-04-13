@@ -1,4 +1,5 @@
-import { mergeTests } from '@playwright/test';
+import { readFileSync } from 'fs';
+import { expect, mergeTests } from '@playwright/test';
 import { test as baseTest } from '../fixtures/page';
 import { test as storageTest } from '../fixtures/storage';
 import { test as filePickerTest } from '../fixtures/file-picker';
@@ -6,6 +7,7 @@ import { test as testTmpTest } from '../fixtures/test-tmp';
 import { test as explorerTest } from '../fixtures/explorer';
 import { test as dataViewTest } from '../fixtures/data-view';
 import { test as spotlightTest } from '../fixtures/spotlight';
+import { test as queryEditorTest } from '../fixtures/query-editor';
 import { createFile } from '../../utils';
 
 const test = mergeTests(
@@ -14,6 +16,7 @@ const test = mergeTests(
   filePickerTest,
   testTmpTest,
   explorerTest,
+  queryEditorTest,
   dataViewTest,
   spotlightTest,
 );
@@ -97,5 +100,40 @@ test.describe('flaky test group with retries', () => {
     await reloadPage();
     // Verify explorer items
     await assertExplorerItems(['test2', 'test3']);
+  });
+
+  test('roundtrip csv file with quotes and commas', async ({
+    page,
+    storage,
+    filePicker,
+    testTmp,
+    createQueryFromFileExplorer,
+    runQuery,
+    assertDataTableMatches,
+    assertExplorerItems,
+    exportTableToCSV,
+  }) => {
+    // Create a test file
+    const testFile = testTmp.join('test_file.csv');
+    const testFileContent = '"col,""name"\n"some,""value"';
+    createFile(testFile, testFileContent);
+    // Prepare test files
+    await storage.uploadFile(testFile, 'test_file.csv');
+    // Patch the file picker
+    await filePicker.selectFiles(['test_file.csv']);
+    // Click the add file button
+    await page.getByTestId('add-file-button').click();
+    // Verify explorer items
+    await assertExplorerItems(['test_file']);
+    // Verify file viewer
+    await createQueryFromFileExplorer('test_file');
+    await runQuery();
+    await assertDataTableMatches({ 'col,"name': ['some,"value'] });
+    // Export the table to CSV
+    const pathToSave = testTmp.join('exported_file.csv');
+    await exportTableToCSV(pathToSave);
+    // Compare the exported file with the original file
+    const fileContent = readFileSync(pathToSave, 'utf-8');
+    expect(fileContent).toBe(testFileContent);
   });
 });

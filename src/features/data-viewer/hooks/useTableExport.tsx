@@ -3,6 +3,7 @@ import { useAppNotifications } from '@components/app-notifications';
 import { useAppContext } from '@features/app-context';
 import { useAppStore } from '@store/app-store';
 import { Table as ApacheTable } from 'apache-arrow';
+import { escapeCSVField } from '@utils/helpers';
 
 export const useTableExport = () => {
   const { executeQuery } = useAppContext();
@@ -30,9 +31,13 @@ export const useTableExport = () => {
     if (!queryResult) return;
     const csv = queryResult
       .toArray()
-      .map((row) => Object.values(row).join(','))
+      .map((row) =>
+        Object.values(row)
+          .map((value) => (typeof value === 'string' ? escapeCSVField(value) : value))
+          .join(','),
+      )
       .join('\n');
-    const headers = queryResult.schema.fields.map((f) => f.name).join(',');
+    const headers = queryResult.schema.fields.map((f) => escapeCSVField(f.name)).join(',');
     const csvContent = `${headers}\n${csv}`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');

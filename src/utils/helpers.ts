@@ -156,3 +156,23 @@ export const createName = (fileName: string): string => {
 
   return Number.isNaN(Number(name[0])) ? name : `${ext}_${name}`;
 };
+
+export function quote(s: string): string {
+  // Replace each quote with two quotes and wrap result in quotes
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Escapes a string for CSV where commas are used as delimiters.
+ * If the string contains a comma, it will be wrapped in quotes.
+ * If the string contains quotes, they will be escaped by doubling them.
+ *
+ * @param {string} s - The string to escape.
+ * @returns {string} The escaped string.
+ */
+export function escapeCSVField(s: string): string {
+  if (!s.includes(',')) {
+    return s;
+  }
+  return quote(s);
+}

@@ -128,6 +128,7 @@ const ListItem = ({
       disabled={disabled}
       position="bottom-start"
       arrowOffset={8}
+      data-testid={setDataTestId(`menu-${label}`)}
     >
       <Menu.Dropdown style={menuStyles}>
         {menuItems.map((item, index) => {
@@ -137,6 +138,7 @@ const ListItem = ({
               {item.children.map((child) => (
                 <Menu.Item
                   key={child.label}
+                  data-testid={setDataTestId(`menu-item-${label}-${index}`)}
                   onClick={(e) => {
                     e.stopPropagation();
                     child.onClick({ value, label });
