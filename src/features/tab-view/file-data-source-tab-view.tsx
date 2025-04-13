@@ -1,7 +1,7 @@
-import { memo, useMemo } from 'react';
+import { cache, memo, useMemo } from 'react';
 import { Allotment } from 'allotment';
 import { FileDataSourceTab } from '@models/tab';
-import { updateTabDataViewLayout, useAppStore } from '@store/app-store';
+import { updateDataViewCache, updateTabDataViewLayout, useAppStore } from '@store/app-store';
 import { getFlatFileDataAdapterApi } from '@controllers/db/data-view';
 import { DataView } from './components/data-view';
 
@@ -35,7 +35,19 @@ export const FileDataSourceTabView = memo(({ tab, active }: FileDataSourceTabVie
         defaultSizes={[0, tab.dataViewLayout.dataViewPaneHeight]}
       >
         <Allotment.Pane preferredSize={tab.dataViewLayout.dataViewPaneHeight} minSize={120}>
-          {dataViewAdapter && <DataView isActive={active} dataAdapterApi={dataViewAdapter} />}
+          {dataViewAdapter && (
+            <DataView
+              isActive={active}
+              dataAdapterApi={dataViewAdapter}
+              cacheKey={dataViewAdapter.getCacheKey()}
+              saveCache={(cacheData) => {
+                updateDataViewCache({
+                  ...cacheData,
+                  key: dataViewAdapter.getCacheKey(),
+                });
+              }}
+            />
+          )}
         </Allotment.Pane>
       </Allotment>
     </div>

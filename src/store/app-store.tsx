@@ -40,6 +40,7 @@ import { DataViewCacheItem, DataViewCacheKey } from '@models/data-adapter';
 import {
   CONTENT_VIEW_TABLE_NAME,
   DATA_SOURCE_TABLE_NAME,
+  DATA_VIEW_CACHE_TABLE_NAME,
   LOCAL_ENTRY_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
   TAB_TABLE_NAME,
@@ -1523,4 +1524,73 @@ export const resetAppState = async () => {
     undefined,
     'AppStore/resetAppState',
   );
+};
+
+/**
+ * Updates the data view cache with a new value.
+ *
+ * @param entry - A single entry to update in the cache
+ */
+export const updateDataViewCache = (entry: DataViewCacheItem): void => {
+  const { dataViewCache, _iDbConn: iDbConn } = useAppStore.getState();
+  console.log({
+    entry,
+  });
+
+  // We assume the item has a property that can be used as a key
+  // This is a critical assumption - the item must have some unique identifier
+  if (!entry.key) {
+    console.error('DataViewCacheItem missing ID property', entry);
+    return;
+  }
+
+  // Create a new Map with all existing entries plus new/updated one
+  const newDataViewCache = new Map(dataViewCache);
+  newDataViewCache.set(entry.key, entry);
+
+  // Update the store
+  useAppStore.setState(
+    { dataViewCache: newDataViewCache },
+    undefined,
+    'AppStore/updateDataViewCache',
+  );
+
+  // If we have an IndexedDB connection, persist the cache update
+  if (iDbConn) {
+    iDbConn.put(DATA_VIEW_CACHE_TABLE_NAME, entry, entry.key);
+  }
+};
+
+/**
+ * Removes entries from the data view cache.
+ *
+ * @param keys - A single key or an array of keys to remove from the cache
+ */
+export const removeDataViewCacheEntries = (keys: DataViewCacheKey | DataViewCacheKey[]): void => {
+  const { dataViewCache, _iDbConn: iDbConn } = useAppStore.getState();
+
+  // Handle both single key and array of keys
+  const keysToRemove = Array.isArray(keys) ? keys : [keys];
+  const keysSet = new Set(keysToRemove);
+
+  // Skip if there's nothing to remove
+  if (keysToRemove.length === 0) return;
+
+  // Create a new Map excluding the keys to be removed
+  const newDataViewCache = new Map(Array.from(dataViewCache).filter(([key]) => !keysSet.has(key)));
+
+  // Update the store
+  useAppStore.setState(
+    { dataViewCache: newDataViewCache },
+    undefined,
+    'AppStore/removeDataViewCacheEntries',
+  );
+
+  // If we have an IndexedDB connection, persist the deletion
+  if (iDbConn) {
+    // Delete each entry from IndexedDB
+    for (const key of keysToRemove) {
+      iDbConn.delete(DATA_VIEW_CACHE_TABLE_NAME, key);
+    }
+  }
 };
