@@ -11,7 +11,7 @@ import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { setDataTestId } from '@utils/test-id';
 
 import { SQLScriptId } from '@models/sql-script';
-import { updateSQLScriptContent, useInitStore } from '@store/init-store';
+import { updateSQLScriptContent, useAppStore } from '@store/app-store';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
@@ -30,13 +30,13 @@ export const QueryEditor = ({
   active,
   runScriptQuery,
 }: QueryEditorProps) => {
-  const sqlScript = useInitStore((state) => state.sqlScripts.get(id)!);
+  const sqlScript = useAppStore((state) => state.sqlScripts.get(id)!);
   /**
    * Common hooks
    */
   const { colorScheme } = useMantineColorScheme();
 
-  const dataBaseMetadata = useInitStore.use.dataBaseMetadata();
+  const dataBaseMetadata = useAppStore.use.dataBaseMetadata();
   const databaseModelsArray = Array.from(dataBaseMetadata.values());
 
   // TODO: get query loading state from the store

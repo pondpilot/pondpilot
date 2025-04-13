@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Allotment } from 'allotment';
 import { FileDataSourceTab } from '@models/tab';
-import { updateTabDataViewLayout, useInitStore } from '@store/init-store';
+import { updateTabDataViewLayout, useAppStore } from '@store/app-store';
 import { getFlatFileDataAdapterApi } from '@controllers/db/data-view';
 import { DataView } from './components/data-view';
 
@@ -11,8 +11,8 @@ interface FileDataSourceTabViewProps {
 }
 
 export const FileDataSourceTabView = memo(({ tab, active }: FileDataSourceTabViewProps) => {
-  const dataSource = useInitStore((state) => state.dataSources.get(tab.dataSourceId));
-  const sourceFile = useInitStore((state) =>
+  const dataSource = useAppStore((state) => state.dataSources.get(tab.dataSourceId));
+  const sourceFile = useAppStore((state) =>
     dataSource?.fileSourceId ? state.localEntries.get(dataSource?.fileSourceId) : null,
   );
   const dataViewAdapter = useMemo(() => {

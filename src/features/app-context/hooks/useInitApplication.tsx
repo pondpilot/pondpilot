@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
-import { setAppLoadState } from '@store/init-store';
+import { setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/persist/init';
 import { useDuckDBConnection, useDuckDBInitializer } from '@features/duckdb-context/duckdb-context';
 import { useShowPermsAlert } from './useShowPermsAlert';

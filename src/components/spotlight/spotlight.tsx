@@ -26,8 +26,8 @@ import {
   getOrCreateTabFromAttachedDBObject,
   getOrCreateTabFromFlatFileDataSource,
   getOrCreateTabFromScript,
-  useInitStore,
-} from '@store/init-store';
+  useAppStore,
+} from '@store/app-store';
 import { ListViewIcon } from '@components/list-view-icon';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 import {
@@ -86,10 +86,10 @@ export const SpotlightMenu = () => {
   /**
    * Store access
    */
-  const sqlScripts = useInitStore.use.sqlScripts();
-  const dataSources = useInitStore.use.dataSources();
-  const dataBaseMetadata = useInitStore.use.dataBaseMetadata();
-  const localEntries = useInitStore.use.localEntries();
+  const sqlScripts = useAppStore.use.sqlScripts();
+  const dataSources = useAppStore.use.dataSources();
+  const dataBaseMetadata = useAppStore.use.dataBaseMetadata();
+  const localEntries = useAppStore.use.localEntries();
 
   /**
    * Local state

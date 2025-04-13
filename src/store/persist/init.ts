@@ -1,6 +1,6 @@
 import { IDBPDatabase, openDB } from 'idb';
 import { TabId } from '@models/tab';
-import { useInitStore } from '@store/init-store';
+import { useAppStore } from '@store/app-store';
 import {
   collectFileHandlePersmissions,
   isAvailableFileHandle,
@@ -365,7 +365,7 @@ export const restoreAppDataFromIDB = async (
   // This will effectively fetch whatever defaults are set in the store.
   // This is a safety measure, theoretically all data should be in the DB
   // and hence re-assigned below.
-  let { activeTabId, previewTabId, tabOrder } = useInitStore.getState();
+  let { activeTabId, previewTabId, tabOrder } = useAppStore.getState();
 
   // Restore configuration data
   let contentViewCursor = await tx.objectStore(CONTENT_VIEW_TABLE_NAME).openCursor();
@@ -499,7 +499,7 @@ export const restoreAppDataFromIDB = async (
   }
 
   // Finally update the store with the hydrated data
-  useInitStore.setState(
+  useAppStore.setState(
     {
       _iDbConn: iDbConn,
       activeTabId,

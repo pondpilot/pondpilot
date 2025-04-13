@@ -4,7 +4,7 @@ import { ScriptTab } from '@models/tab';
 import { QueryEditor } from '@features/query-editor';
 import { dbApiProxi } from '@features/app-context/db-worker';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
-import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@store/init-store';
+import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@store/app-store';
 import { Table as ApacheTable } from 'apache-arrow';
 
 interface ScriptTabViewProps {

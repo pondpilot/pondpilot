@@ -7,7 +7,7 @@ import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { openQueryErrorModal } from '@features/error-modal/query-error-modal';
-import { useProtectedViews } from '@store/init-store';
+import { useProtectedViews } from '@store/app-store';
 import { DBRunQueryProps, RunQueryResponse } from './models';
 import { executeQueries } from './utils';
 import { useAppInitialization } from './hooks/useInitApplication';
