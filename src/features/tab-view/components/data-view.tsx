@@ -1,7 +1,7 @@
 import { Table } from '@components/table/table';
 import { cn } from '@utils/ui/styles';
 import { DataAdapterApi } from '@models/data-adapter';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { AsyncRecordBatchStreamReader, RecordBatch } from 'apache-arrow';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { getArrowTableSchema } from '@utils/arrow/schema';
@@ -10,6 +10,11 @@ import { setDataTestId } from '@utils/test-id';
 import { TableLoadingOverlay } from './table-loading-overlay';
 import { useSort } from '../useSort';
 import { PaginationControl } from './pagination-control';
+import { useDidMount } from '@hooks/use-did-mount';
+import { ColumnSortSpec } from '@models/db';
+
+const LIMIT = 100;
+const OVERSCAN_PAGES = 2;
 
 interface DataViewProps {
   isActive: boolean;
@@ -21,134 +26,193 @@ export const DataView = ({ isActive, dataAdapterApi }: DataViewProps) => {
    * Common hooks
    */
   const { conn } = useInitializedDuckDBConnection();
-  const initialized = useRef(false);
 
-  // Common iterator
+  /**
+   * Local State
+   */
   const readerRef = useRef<AsyncRecordBatchStreamReader | null>(null);
+  const [tableBatchData, setTableBatchData] = useState<Record<string, any>[]>([]);
+  const [columns, setColumns] = useState<ArrowColumn[]>([]);
+  const [rowCount, setRowCount] = useState<number | null>(null);
+  const [loadedRowCount, setLoadedRowCount] = useState(0);
 
-  const [recordBatch, setRecordBatch] = useState<RecordBatch | undefined>();
-  const [isLoading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
-  const ITEMS_PER_PAGE = 100;
+
+  const [isAllDataLoaded, setIsAllDataLoaded] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isLoading, setLoading] = useState(false);
+
+  const [visibleRowRange, setVisibleRowRange] = useState<{ rowFrom: number; rowTo: number }>({
+    rowFrom: 0,
+    rowTo: LIMIT,
+  });
 
   const { sortParams, handleSort } = useSort();
 
-  /**
-   * Process a new batch of data
-   * Can use either a provided reader or the current ref
-   */
-  const processNewBatch = async (reader?: AsyncRecordBatchStreamReader) => {
-    const activeReader = reader || readerRef.current;
-    if (!activeReader) return;
+  const hasTableData = tableBatchData.length > 0;
 
-    try {
-      setLoading(true);
+  const totalRowsToConsider = rowCount !== null ? rowCount : loadedRowCount;
+  const isSinglePage = totalRowsToConsider < LIMIT;
 
-      const batchResult = await activeReader.next();
+  // Calculate total pages based on known data
+  const totalPages = Math.ceil(totalRowsToConsider / LIMIT);
 
-      if (batchResult && !batchResult.done) {
-        const batchValue = batchResult.value;
-        setRecordBatch(batchValue);
-      }
+  const shouldPreloadData = (targetPage: number): boolean => {
+    const remainingPages = Math.floor(loadedRowCount / LIMIT) - targetPage;
 
-      return batchResult;
-    } catch (error) {
-      console.error('Error');
-    } finally {
-      setLoading(false);
-    }
+    return remainingPages <= OVERSCAN_PAGES && !isAllDataLoaded && !isLoadingMore;
   };
 
-  // TODO: Think about schema fingerprinting to avoid unnecessary column recalculation
-  const tableColumns = useMemo(() => {
-    if (recordBatch) {
-      return getArrowTableSchema(recordBatch) || [];
+  const currentPageData = useMemo(() => {
+    const result = [];
+    const end = Math.min(visibleRowRange.rowTo, tableBatchData.length);
+
+    for (let i = visibleRowRange.rowFrom; i < end; i++) {
+      result.push(tableBatchData[i]);
     }
-    return [];
-  }, [recordBatch]);
 
-  const allTableData = useMemo(() => {
-    if (recordBatch) {
-      return recordBatch.toArray().map((row) => row.toJSON());
+    return result;
+  }, [tableBatchData, visibleRowRange]);
+
+  const handleNextPage = async () => {
+    const nextPage = currentPage + 1;
+
+    const nextPageStartRow = nextPage * LIMIT;
+    if (nextPageStartRow >= loadedRowCount && !isAllDataLoaded) {
+      await loadMoreData();
     }
-    return [];
-  }, [recordBatch]);
 
-  const tableData = useMemo(() => {
-    const startIndex = currentPage * ITEMS_PER_PAGE;
-    return allTableData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [allTableData, currentPage]);
+    // Preload in background
+    if (shouldPreloadData(nextPage)) {
+      loadMoreData();
+    }
 
-  const totalPages = useMemo(() => Math.ceil(allTableData.length / ITEMS_PER_PAGE), [allTableData]);
-
-  const hasTableData = tableData.length;
-  const isSinglePage = tableData.length < ITEMS_PER_PAGE;
-
-  const handleNextPage = () => {
-    if (currentPage < totalPages - 1) {
-      setCurrentPage(currentPage + 1);
+    if (nextPage < totalPages) {
+      const rowFrom = nextPage * LIMIT;
+      const rowTo = rowFrom + LIMIT;
+      setVisibleRowRange({ rowFrom, rowTo });
+      setCurrentPage(nextPage);
     }
   };
 
   const handlePrevPage = () => {
     if (currentPage > 0) {
-      setCurrentPage(currentPage - 1);
+      const prevPage = currentPage - 1;
+      const rowFrom = prevPage * LIMIT;
+      const rowTo = rowFrom + LIMIT;
+      setVisibleRowRange({ rowFrom, rowTo });
+      setCurrentPage(prevPage);
     }
   };
 
   const handleResetPagination = () => {
+    setVisibleRowRange({ rowFrom: 0, rowTo: LIMIT });
     setCurrentPage(0);
+  };
+
+  const loadMoreData = async () => {
+    if (!readerRef.current || isAllDataLoaded || isLoadingMore) {
+      return;
+    }
+
+    try {
+      setIsLoadingMore(true);
+      const batchResult = await readerRef.current.next();
+
+      if (batchResult && !batchResult.done) {
+        const batchValue = batchResult.value;
+        const newTableData = batchValue.toArray().map((row) => row.toJSON());
+
+        // APPEND!
+        setTableBatchData((prevData) => [...prevData, ...newTableData]);
+        setLoadedRowCount((prevCount) => prevCount + newTableData.length);
+
+        return batchValue;
+      } else {
+        setIsAllDataLoaded(true);
+
+        if (rowCount === null) {
+          setRowCount(loadedRowCount);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load more data:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const getNewReaderAndProcessBatch = async (sortParams?: ColumnSortSpec | null) => {
+    try {
+      // Reset state for new query
+      setLoading(true);
+      setTableBatchData([]);
+      setLoadedRowCount(0);
+      setIsAllDataLoaded(false);
+
+      // Get initial row count if available via API
+      const initialRowCount = (await dataAdapterApi.getRowCount?.(conn)) ?? null;
+      setRowCount(initialRowCount);
+      console.log({
+        initialRowCount,
+      });
+
+      // Get the reader
+      const reader = await dataAdapterApi.getReader(conn, sortParams ? [sortParams] : []);
+      readerRef.current = reader;
+
+      // Get first batch
+      const batchResult = await reader.next();
+
+      if (batchResult && !batchResult.done) {
+        const batchValue = batchResult.value;
+        const tableData = batchValue.toArray().map((row) => row.toJSON());
+        const hasLoadedColumns = columns.length > 0;
+
+        if (!hasLoadedColumns) {
+          const extractedColumns = getArrowTableSchema(batchValue);
+          setColumns(extractedColumns);
+        }
+
+        setTableBatchData(tableData);
+        setLoadedRowCount(tableData.length);
+
+        return batchValue;
+      } else {
+        setIsAllDataLoaded(true);
+        setRowCount(0);
+        return null;
+      }
+    } catch (error) {
+      console.error('Failed to get new reader and process batch:', error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
   };
 
   /**
    * Handle sorting - create a new reader with sort parameters
    */
   const handleSortAndGetNewReader = async (sortField: ArrowColumn['name']) => {
-    if (!conn || !dataAdapterApi) return;
-
-    try {
-      setLoading(true);
-      const params = handleSort(sortField);
-      const reader = await dataAdapterApi.getReader(conn, params ? [params] : []);
-
-      readerRef.current = reader;
-
-      // Reset pagination when sorting
-      handleResetPagination();
-
-      await processNewBatch(reader);
-    } catch (error) {
-      console.error('Failed to sort data:', error);
-      setLoading(false);
-    }
+    const params = handleSort(sortField);
+    handleResetPagination();
+    getNewReaderAndProcessBatch(params);
   };
 
   /**
    * Initialize data when component mounts
    */
-  useEffect(() => {
-    if (!conn || !dataAdapterApi || initialized.current) {
-      return;
-    }
-    initialized.current = true;
-    const initializeData = async () => {
-      try {
-        setLoading(true);
-        const reader = await dataAdapterApi.getReader(conn, []);
-        readerRef.current = reader;
-        processNewBatch(reader);
-      } catch (error) {
-        setLoading(false);
-      }
+  useDidMount(() => {
+    const init = async () => {
+      await getNewReaderAndProcessBatch();
     };
-
-    initializeData();
-
+    init();
     return () => {
       readerRef.current?.cancel();
       readerRef.current = null;
     };
-  }, []);
+  });
 
   return (
     <div className="flex flex-col h-full">
@@ -158,11 +222,11 @@ export const DataView = ({ isActive, dataAdapterApi }: DataViewProps) => {
         onCancel={() => console.warn('Cancel query not implemented')}
         visible={isLoading}
       />
-      {tableData && (
+      {hasTableData && (
         <div className={cn('overflow-auto px-3 custom-scroll-hidden pb-6 flex-1')}>
           <Table
-            data={tableData}
-            columns={tableColumns}
+            data={currentPageData}
+            columns={columns}
             sort={sortParams}
             page={currentPage}
             visible={!!isActive}
@@ -181,10 +245,11 @@ export const DataView = ({ isActive, dataAdapterApi }: DataViewProps) => {
         >
           <PaginationControl
             currentPage={currentPage + 1}
-            limit={100}
-            rowCount={allTableData.length}
+            limit={LIMIT}
+            rowCount={rowCount !== null ? rowCount : loadedRowCount}
             onPrevPage={handlePrevPage}
             onNextPage={handleNextPage}
+            hasMoreData={isAllDataLoaded}
           />
         </div>
       )}
