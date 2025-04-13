@@ -7,8 +7,8 @@ import {
   deleteDataSource,
   getOrCreateTabFromScript,
   useAttachedDBNameMap,
-  useInitStore,
-} from '@store/init-store';
+  useAppStore,
+} from '@store/app-store';
 import { ExplorerTree } from '@components/sources-list-view/explorer-tree';
 import { TreeMenu, TreeNodeData } from '@components/sources-list-view/model';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
@@ -30,7 +30,7 @@ export const DbExplorer = memo(() => {
    * Store access
    */
   const attachedDBNameMap = useAttachedDBNameMap();
-  const dataBaseMetadata = useInitStore.use.dataBaseMetadata();
+  const dataBaseMetadata = useAppStore.use.dataBaseMetadata();
 
   /**
    * Local state

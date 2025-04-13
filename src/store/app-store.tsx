@@ -116,7 +116,7 @@ const initialState: AppStore = {
   tabOrder: [],
 };
 
-export const useInitStore =
+export const useAppStore =
   // Wrapper that creates simple getters, so you can just call
   // `useInitStore.use.someStateAttr()` instead of `useInitStore((state) => state.someStateAttr)`
   createSelectors(
@@ -128,7 +128,7 @@ export const useInitStore =
 
 // Common selectors
 export function useSqlScriptIdForActiveTab(): SQLScriptId | null {
-  return useInitStore((state) => {
+  return useAppStore((state) => {
     if (!state.activeTabId) return null;
 
     const tab = state.tabs.get(state.activeTabId);
@@ -143,7 +143,7 @@ export function useSqlScriptIdForActiveTab(): SQLScriptId | null {
 }
 
 export function useIsSqlScriptIdOnActiveTab(id: SQLScriptId | null): boolean {
-  return useInitStore((state) => {
+  return useAppStore((state) => {
     if (!id) return false;
     if (!state.activeTabId) return false;
 
@@ -163,7 +163,7 @@ export function useIsAttachedDBElementOnActiveTab(
   objectName: string | null | undefined,
   columnName: string | null | undefined,
 ): boolean {
-  return useInitStore((state) => {
+  return useAppStore((state) => {
     // If we do not have db source id, schema & object OR we have a column
     // means this can't be displayed in the tab. Only tables/views aka objects
     // can be displayed in the tab.
@@ -183,7 +183,7 @@ export function useIsAttachedDBElementOnActiveTab(
 }
 
 export function useDataSourceIdForActiveTab(): PersistentDataSourceId | null {
-  return useInitStore((state) => {
+  return useAppStore((state) => {
     if (!state.activeTabId) return null;
 
     const tab = state.tabs.get(state.activeTabId);
@@ -202,7 +202,7 @@ export function useDataSourceIdForActiveTab(): PersistentDataSourceId | null {
 // using complex comparator functions...
 
 export function useProtectedViews(): Set<string> {
-  return useInitStore(
+  return useAppStore(
     useShallow(
       (state) =>
         new Set(
@@ -216,7 +216,7 @@ export function useProtectedViews(): Set<string> {
 }
 
 export function useAttachedDBNameMap(): Map<PersistentDataSourceId, string> {
-  return useInitStore(
+  return useAppStore(
     useShallow(
       (state) =>
         new Map(
@@ -233,7 +233,7 @@ export function useAttachedDBNameMap(): Map<PersistentDataSourceId, string> {
 }
 
 export function useSqlScriptNameMap(): Map<SQLScriptId, string> {
-  return useInitStore(
+  return useAppStore(
     useShallow(
       (state) =>
         new Map(
@@ -247,7 +247,7 @@ export function useSqlScriptNameMap(): Map<SQLScriptId, string> {
 }
 
 export function useTabIconMap(): Map<TabId, IconType> {
-  return useInitStore(
+  return useAppStore(
     useShallow(
       (state) =>
         new Map(
@@ -261,7 +261,7 @@ export function useTabIconMap(): Map<TabId, IconType> {
 }
 
 export function useTabNameMap(): Map<TabId, string> {
-  return useInitStore(
+  return useAppStore(
     useShallow(
       (state) =>
         new Map(
@@ -276,11 +276,11 @@ export function useTabNameMap(): Map<TabId, string> {
 
 // Actions / setters
 export const setAppLoadState = (appState: AppLoadState) => {
-  useInitStore.setState({ appLoadState: appState }, undefined, 'AppStore/setAppLoadState');
+  useAppStore.setState({ appLoadState: appState }, undefined, 'AppStore/setAppLoadState');
 };
 
 export const setIDbConn = (iDbConn: IDBPDatabase<AppIdbSchema>) => {
-  useInitStore.setState({ _iDbConn: iDbConn }, undefined, 'AppStore/setIDbConn');
+  useAppStore.setState({ _iDbConn: iDbConn }, undefined, 'AppStore/setIDbConn');
 };
 
 const persistAddLocalEntry = async (
@@ -315,12 +315,7 @@ export const addLocalFileOrFolders = async (
   newDataSources: [PersistentDataSourceId, AnyDataSource][];
   errors: string[];
 }> => {
-  const {
-    _iDbConn: iDbConn,
-    localEntries,
-    dataSources,
-    dataBaseMetadata,
-  } = useInitStore.getState();
+  const { _iDbConn: iDbConn, localEntries, dataSources, dataBaseMetadata } = useAppStore.getState();
 
   const usedEntryNames = new Set(
     localEntries
@@ -456,7 +451,7 @@ export const addLocalFileOrFolders = async (
   }
 
   // Update the store
-  useInitStore.setState(newState, undefined, 'AppStore/addLocalFileOrFolders');
+  useAppStore.setState(newState, undefined, 'AppStore/addLocalFileOrFolders');
 
   // If we have an IndexedDB connection, persist the new local entry
   if (iDbConn) {
@@ -474,7 +469,7 @@ export const addLocalFileOrFolders = async (
 };
 
 export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHandle[]) => {
-  const { _iDbConn: iDbConn, sqlScripts } = useInitStore.getState();
+  const { _iDbConn: iDbConn, sqlScripts } = useAppStore.getState();
 
   const newScripts: [SQLScriptId, SQLScript][] = [];
 
@@ -501,7 +496,7 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
   };
 
   // Update the store
-  useInitStore.setState(newState, undefined, 'AppStore/importSQLFiles');
+  useAppStore.setState(newState, undefined, 'AppStore/importSQLFiles');
 
   // If we have an IndexedDB connection, persist the new SQL scripts
   if (iDbConn) {
@@ -512,7 +507,7 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
 };
 
 export const createSQLScript = (name: string = 'query', content: string = ''): SQLScript => {
-  const { sqlScripts } = useInitStore.getState();
+  const { sqlScripts } = useAppStore.getState();
   const allNames = new Set(sqlScripts.values().map((script) => script.name));
 
   const fileName = findUniqueName(name, (value) => allNames.has(value));
@@ -524,7 +519,7 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
   };
 
   // Add the new SQL script to the store
-  useInitStore.setState(
+  useAppStore.setState(
     (state) => ({
       sqlScripts: new Map(state.sqlScripts).set(sqlScriptId, sqlScript),
     }),
@@ -533,7 +528,7 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
   );
 
   // Persist the new SQL script to IndexedDB
-  const iDb = useInitStore.getState()._iDbConn;
+  const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(SQL_SCRIPT_TABLE_NAME, sqlScript, sqlScriptId);
   }
@@ -542,7 +537,7 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
 };
 
 export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName: string): void => {
-  const { sqlScripts } = useInitStore.getState();
+  const { sqlScripts } = useAppStore.getState();
 
   // Check if the script exists
   const sqlScript = ensureScript(sqlScriptOrId, sqlScripts);
@@ -567,7 +562,7 @@ export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName:
   newSqlScripts.set(sqlScript.id, updatedScript);
 
   // Update the store with changes
-  useInitStore.setState(
+  useAppStore.setState(
     {
       sqlScripts: newSqlScripts,
     },
@@ -576,7 +571,7 @@ export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName:
   );
 
   // Persist the changes to IndexedDB
-  const iDb = useInitStore.getState()._iDbConn;
+  const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id);
   }
@@ -586,7 +581,7 @@ export const updateSQLScriptContent = (
   sqlScriptOrId: SQLScript | SQLScriptId,
   newContent: string,
 ): void => {
-  const { sqlScripts } = useInitStore.getState();
+  const { sqlScripts } = useAppStore.getState();
 
   // Check if the script exists
   const sqlScript = ensureScript(sqlScriptOrId, sqlScripts);
@@ -602,7 +597,7 @@ export const updateSQLScriptContent = (
   newSqlScripts.set(sqlScript.id, updatedScript);
 
   // Update the store with changes
-  useInitStore.setState(
+  useAppStore.setState(
     {
       sqlScripts: newSqlScripts,
     },
@@ -611,16 +606,16 @@ export const updateSQLScriptContent = (
   );
 
   // Persist the changes to IndexedDB
-  const iDb = useInitStore.getState()._iDbConn;
+  const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id);
   }
 };
 
 export const setTabOrder = (tabOrder: TabId[]) => {
-  useInitStore.setState({ tabOrder }, undefined, 'AppStore/setTabOrder');
+  useAppStore.setState({ tabOrder }, undefined, 'AppStore/setTabOrder');
 
-  const iDb = useInitStore.getState()._iDbConn;
+  const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(CONTENT_VIEW_TABLE_NAME, tabOrder, 'tabOrder');
   }
@@ -632,14 +627,14 @@ export const setTabOrder = (tabOrder: TabId[]) => {
  * Idempotent, if the tab is already active, it does nothing.
  */
 export const setActiveTabId = (tabId: TabId | null) => {
-  const { activeTabId } = useInitStore.getState();
+  const { activeTabId } = useAppStore.getState();
 
   // If the tab is already active, do nothing
   if (activeTabId === tabId) return;
 
-  useInitStore.setState({ activeTabId: tabId }, undefined, 'AppStore/setActiveTabId');
+  useAppStore.setState({ activeTabId: tabId }, undefined, 'AppStore/setActiveTabId');
 
-  const iDb = useInitStore.getState()._iDbConn;
+  const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(CONTENT_VIEW_TABLE_NAME, tabId, 'activeTabId');
   }
@@ -662,7 +657,7 @@ export const setActiveTabId = (tabId: TabId | null) => {
  * @param tabId - The id of the tab to set as preview or null to reset.
  */
 export const setPreviewTabId = (tabId: TabId | null) => {
-  const { tabs, tabOrder, activeTabId, previewTabId, _iDbConn: iDbConn } = useInitStore.getState();
+  const { tabs, tabOrder, activeTabId, previewTabId, _iDbConn: iDbConn } = useAppStore.getState();
 
   // Check we have stuff to do
   if (previewTabId === tabId) return;
@@ -680,7 +675,7 @@ export const setPreviewTabId = (tabId: TabId | null) => {
     );
 
     // Update the store with the new state
-    useInitStore.setState(
+    useAppStore.setState(
       {
         tabs: newTabs,
         tabOrder: newTabOrder,
@@ -699,7 +694,7 @@ export const setPreviewTabId = (tabId: TabId | null) => {
   }
 
   // Case 1 or 3
-  useInitStore.setState({ previewTabId: tabId }, undefined, 'AppStore/setPreviewTabId');
+  useAppStore.setState({ previewTabId: tabId }, undefined, 'AppStore/setPreviewTabId');
 
   if (iDbConn) {
     iDbConn.put(CONTENT_VIEW_TABLE_NAME, tabId, 'previewTabId');
@@ -789,7 +784,7 @@ const findTabFromScriptImpl = (
 export const findTabFromScript = (
   sqlScriptOrId: SQLScript | SQLScriptId,
 ): ScriptTab | undefined => {
-  const state = useInitStore.getState();
+  const state = useAppStore.getState();
 
   // Get the script object if not passed as an object
   const sqlScript: SQLScript = ensureScript(sqlScriptOrId, state.sqlScripts);
@@ -812,7 +807,7 @@ export const getOrCreateTabFromScript = (
   sqlScriptOrId: SQLScript | SQLScriptId,
   setActive: boolean = false,
 ): ScriptTab => {
-  const state = useInitStore.getState();
+  const state = useAppStore.getState();
 
   // Get the script object if not passed as an object
   const sqlScript: SQLScript = ensureScript(sqlScriptOrId, state.sqlScripts);
@@ -848,7 +843,7 @@ export const getOrCreateTabFromScript = (
   const newTabOrder = [...state.tabOrder, tabId];
   const newActiveTabId = setActive ? tabId : state.activeTabId;
 
-  useInitStore.setState(
+  useAppStore.setState(
     (_) => ({
       activeTabId: newActiveTabId,
       tabs: newTabs,
@@ -877,7 +872,7 @@ export const getOrCreateTabFromScript = (
 export const findTabFromFlatFileDataSource = (
   dataSourceOrId: AnyFlatFileDataSource | PersistentDataSourceId,
 ) => {
-  const state = useInitStore.getState();
+  const state = useAppStore.getState();
   const dataSource = ensureFlatFileDataSource(dataSourceOrId, state.dataSources);
   return findTabFromFlatFileDataSourceImpl(state.tabs, dataSource);
 };
@@ -896,7 +891,7 @@ export const getOrCreateTabFromFlatFileDataSource = (
   dataSourceOrId: AnyFlatFileDataSource | PersistentDataSourceId,
   setActive: boolean = false,
 ): FileDataSourceTab => {
-  const state = useInitStore.getState();
+  const state = useAppStore.getState();
 
   // Get the script object if not passed as an object
   const dataSource = ensureFlatFileDataSource(dataSourceOrId, state.dataSources);
@@ -932,7 +927,7 @@ export const getOrCreateTabFromFlatFileDataSource = (
   const newTabOrder = [...state.tabOrder, tabId];
   const newActiveTabId = setActive ? tabId : state.activeTabId;
 
-  useInitStore.setState(
+  useAppStore.setState(
     (_) => ({
       activeTabId: newActiveTabId,
       tabs: newTabs,
@@ -971,7 +966,7 @@ export const getOrCreateTabFromAttachedDBObject = (
   objectType: 'table' | 'view',
   setActive: boolean = false,
 ): AttachedDBDataTab => {
-  const state = useInitStore.getState();
+  const state = useAppStore.getState();
 
   // Check if the script already has an associated tab
   const existingTab = Array.from(state.tabs.values())
@@ -1014,7 +1009,7 @@ export const getOrCreateTabFromAttachedDBObject = (
   const newTabOrder = [...state.tabOrder, tabId];
   const newActiveTabId = setActive ? tabId : state.activeTabId;
 
-  useInitStore.setState(
+  useAppStore.setState(
     (_) => ({
       activeTabId: newActiveTabId,
       tabs: newTabs,
@@ -1091,7 +1086,7 @@ const persistDeleteDataSource = async (
  * @returns true if a tab was found and deleted, false otherwise
  */
 export const deleteTabByScriptId = (sqlScriptId: SQLScriptId): boolean => {
-  const { tabs } = useInitStore.getState();
+  const { tabs } = useAppStore.getState();
 
   // Find the tab associated with this script
   const tab = findTabFromScriptImpl(tabs, sqlScriptId);
@@ -1113,7 +1108,7 @@ export const deleteTabByScriptId = (sqlScriptId: SQLScriptId): boolean => {
  * @returns true if at least one tab was found and deleted, false otherwise
  */
 export const deleteTabByDataSourceId = (dataSourceId: PersistentDataSourceId): boolean => {
-  const { tabs } = useInitStore.getState();
+  const { tabs } = useAppStore.getState();
 
   // Find all tabs associated with this data source ID
   const tabsToDelete = Array.from(tabs.values())
@@ -1179,7 +1174,7 @@ const deleteTabImpl = (
 };
 
 export const deleteTab = (tabIds: TabId[]) => {
-  const { tabs, tabOrder, activeTabId, previewTabId, _iDbConn: iDbConn } = useInitStore.getState();
+  const { tabs, tabOrder, activeTabId, previewTabId, _iDbConn: iDbConn } = useAppStore.getState();
   const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl(
     tabIds,
     tabs,
@@ -1189,7 +1184,7 @@ export const deleteTab = (tabIds: TabId[]) => {
   );
 
   // Update the store with the new state
-  useInitStore.setState(
+  useAppStore.setState(
     {
       tabs: newTabs,
       tabOrder: newTabOrder,
@@ -1242,7 +1237,7 @@ export const deleteDataSource = (
     previewTabId,
     localEntries,
     _iDbConn: iDbConn,
-  } = useInitStore.getState();
+  } = useAppStore.getState();
 
   const dataSourceIdsToDelete = new Set(dataSourceIds);
 
@@ -1277,7 +1272,7 @@ export const deleteDataSource = (
     newPreviewTabId = result.newPreviewTabId;
   }
 
-  useInitStore.setState(
+  useAppStore.setState(
     {
       dataSources: newDataSources,
       tabs: newTabs,
@@ -1364,7 +1359,7 @@ export const deleteSqlScripts = (sqlScriptIds: SQLScriptId[]) => {
     activeTabId,
     previewTabId,
     _iDbConn: iDbConn,
-  } = useInitStore.getState();
+  } = useAppStore.getState();
 
   const sqlScriptIdsToDeleteSet = new Set(sqlScriptIds);
 
@@ -1394,7 +1389,7 @@ export const deleteSqlScripts = (sqlScriptIds: SQLScriptId[]) => {
     newPreviewTabId = result.newPreviewTabId;
   }
 
-  useInitStore.setState(
+  useAppStore.setState(
     {
       sqlScripts: newSqlScripts,
       tabs: newTabs,
@@ -1421,7 +1416,7 @@ export const updateTabDataViewLayout = (
   tabOrId: AnyTab | TabId,
   newLayout: DataViewLayout,
 ): void => {
-  const { tabs } = useInitStore.getState();
+  const { tabs } = useAppStore.getState();
 
   // Get the tab object if not passed as an object
   const tab = ensureTab(tabOrId, tabs);
@@ -1446,7 +1441,7 @@ export const updateTabDataViewLayout = (
   newTabs.set(tab.id, updatedTab);
 
   // Update the store with changes
-  useInitStore.setState(
+  useAppStore.setState(
     {
       tabs: newTabs,
     },
@@ -1455,14 +1450,14 @@ export const updateTabDataViewLayout = (
   );
 
   // Persist the changes to IndexedDB
-  const iDb = useInitStore.getState()._iDbConn;
+  const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(TAB_TABLE_NAME, updatedTab, tab.id);
   }
 };
 
 export const updateScriptTabEditorPaneHeight = (tab: ScriptTab, newPaneHeight: number): void => {
-  const { tabs } = useInitStore.getState();
+  const { tabs } = useAppStore.getState();
 
   // Check for changes
   if (tab.editorPaneHeight === newPaneHeight) {
@@ -1481,7 +1476,7 @@ export const updateScriptTabEditorPaneHeight = (tab: ScriptTab, newPaneHeight: n
   newTabs.set(tab.id, updatedTab);
 
   // Update the store with changes
-  useInitStore.setState(
+  useAppStore.setState(
     {
       tabs: newTabs,
     },
@@ -1490,14 +1485,14 @@ export const updateScriptTabEditorPaneHeight = (tab: ScriptTab, newPaneHeight: n
   );
 
   // Persist the changes to IndexedDB
-  const iDb = useInitStore.getState()._iDbConn;
+  const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(TAB_TABLE_NAME, updatedTab, tab.id);
   }
 };
 
 export const resetAppState = async () => {
-  const { _iDbConn: iDbConn, appLoadState } = useInitStore.getState();
+  const { _iDbConn: iDbConn, appLoadState } = useAppStore.getState();
 
   // Drop all table data first
   if (iDbConn) {
@@ -1505,7 +1500,7 @@ export const resetAppState = async () => {
   }
 
   // Reset the store to its initial state except for the iDbConn and appLoadState
-  useInitStore.setState(
+  useAppStore.setState(
     { ...initialState, _iDbConn: iDbConn, appLoadState },
     undefined,
     'AppStore/resetAppState',

@@ -11,7 +11,7 @@ import {
   findTabFromScript,
   setActiveTabId,
   setPreviewTabId,
-} from '@store/init-store';
+} from '@store/app-store';
 import { SQLScriptId } from '@models/sql-script';
 import { ExplorerTree } from '@components/sources-list-view/explorer-tree';
 import { TreeMenu, TreeNodeData } from '@components/sources-list-view/model';

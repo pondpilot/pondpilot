@@ -9,8 +9,8 @@ import {
   getOrCreateTabFromFlatFileDataSource,
   getOrCreateTabFromScript,
   useDataSourceIdForActiveTab,
-  useInitStore,
-} from '@store/init-store';
+  useAppStore,
+} from '@store/app-store';
 import { LocalEntryId } from '@models/file-system';
 import { AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { getDataSourceIcon, getFlatFileDataSourceName, getlocalEntryIcon } from '@utils/navigation';
@@ -32,8 +32,8 @@ export const FileSystemExplorer = memo(() => {
   /**
    * Store access
    */
-  const entries = useInitStore.use.localEntries();
-  const sources = useInitStore.use.dataSources();
+  const entries = useAppStore.use.localEntries();
+  const sources = useAppStore.use.dataSources();
   const dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource> = useMemo(
     () =>
       new Map(

@@ -1,6 +1,6 @@
 import { useAppNotifications } from '@components/app-notifications';
 import { pickFiles } from '@utils/file-system';
-import { importSQLFilesAndCreateScripts } from '@store/init-store';
+import { importSQLFilesAndCreateScripts } from '@store/app-store';
 
 export const useImportSQLFiles = () => {
   const { showError } = useAppNotifications();

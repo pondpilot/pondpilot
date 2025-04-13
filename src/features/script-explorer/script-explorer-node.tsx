@@ -1,5 +1,5 @@
 import { MemoizedBaseTreeNode } from '@components/sources-list-view/components/tree-node';
-import { useIsSqlScriptIdOnActiveTab } from '@store/init-store';
+import { useIsSqlScriptIdOnActiveTab } from '@store/app-store';
 import { RenderTreeNodePayload } from '@components/sources-list-view/model';
 import { ScrtiptNodeTypeToIdTypeMap } from './model';
 

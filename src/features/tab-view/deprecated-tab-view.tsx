@@ -28,8 +28,8 @@ import { AnyTab, FileDataSourceTab } from '@models/tab';
 import {
   updateScriptTabEditorPaneHeight,
   updateTabDataViewLayout,
-  useInitStore,
-} from '@store/init-store';
+  useAppStore,
+} from '@store/app-store';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { getFlatFileDataAdapterApi } from '@controllers/db/data-view';
 import { dbApiProxi } from '@features/app-context/db-worker';
@@ -62,8 +62,8 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
   const { conn } = useInitializedDuckDBConnection();
   const persistentTab: FileDataSourceTab | null =
     tab.type === 'data-source' && tab.dataSourceType === 'file' ? tab : null;
-  const dataSource = useInitStore((state) => state.dataSources.get(tab.dataSourceId));
-  const sourceFile = useInitStore((state) =>
+  const dataSource = useAppStore((state) => state.dataSources.get(tab.dataSourceId));
+  const sourceFile = useAppStore((state) =>
     dataSource?.fileSourceId ? state.localEntries.get(dataSource?.fileSourceId) : null,
   );
 

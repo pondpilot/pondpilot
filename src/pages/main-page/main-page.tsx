@@ -5,7 +5,7 @@ import { Spotlight } from '@mantine/spotlight';
 import { ContentView } from '@features/content-view';
 import { useImportSQLFiles } from '@store/hooks';
 import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
-import { createSQLScript, getOrCreateTabFromScript } from '@store/init-store';
+import { createSQLScript, getOrCreateTabFromScript } from '@store/app-store';
 import { Navbar } from './components';
 
 export const MainPage = () => {

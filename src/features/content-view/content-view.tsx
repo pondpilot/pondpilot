@@ -1,16 +1,16 @@
 import { TabsPane } from '@features/tabs-pane';
 import { Stack } from '@mantine/core';
 import { StartGuide } from '@features/tab-view/components';
-import { useInitStore } from '@store/init-store';
+import { useAppStore } from '@store/app-store';
 import { AnyTab } from '@models/tab';
 import { useEffect } from 'react';
 import { TabFactory } from '@features/tab-view/tab-factory';
 import { useTabCache } from './useTabCache';
 
 export const ContentView = () => {
-  const tabs = useInitStore.use.tabs();
-  const tabsOrder = useInitStore.use.tabOrder();
-  const activeTabId = useInitStore.use.activeTabId();
+  const tabs = useAppStore.use.tabs();
+  const tabsOrder = useAppStore.use.tabOrder();
+  const activeTabId = useAppStore.use.activeTabId();
 
   const orderedTabs = tabsOrder.reduce((acc, id) => {
     const tab = tabs.get(id);

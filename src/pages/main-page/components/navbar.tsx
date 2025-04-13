@@ -10,7 +10,7 @@ import { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
 import { APP_GITHUB_URL } from 'app-urls';
-import { createSQLScript, getOrCreateTabFromScript, useInitStore } from '@store/init-store';
+import { createSQLScript, getOrCreateTabFromScript, useAppStore } from '@store/app-store';
 import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
 
 /**
@@ -23,7 +23,7 @@ export const Navbar = memo(() => {
   const [navbarSizes, setInnerLayoutSizes] = useLocalStorage<number[]>({ key: 'navbar-sizes' });
   const navigate = useNavigate();
 
-  const appLoadState = useInitStore.use.appLoadState();
+  const appLoadState = useAppStore.use.appLoadState();
 
   const { handleAddFile } = useLocalFilesOrFolders();
 

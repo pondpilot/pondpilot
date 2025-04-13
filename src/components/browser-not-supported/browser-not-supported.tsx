@@ -1,6 +1,6 @@
 import { BackgroundImage, Box, Center, Image, Stack, Text, Title } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
-import { setAppLoadState } from '@store/init-store';
+import { setAppLoadState } from '@store/app-store';
 import { useEffect } from 'react';
 import browserNotSupportedImgWat from './assets/wat.svg';
 import browserNotSupportedImgBsod from './assets/bsod.svg';

@@ -30,10 +30,10 @@ import {
   setActiveTabId,
   setPreviewTabId,
   setTabOrder,
-  useInitStore,
+  useAppStore,
   useTabNameMap,
   useTabIconMap,
-} from '@store/init-store';
+} from '@store/app-store';
 import { ListViewIcon } from '@components/list-view-icon';
 import { TabId } from '@models/tab';
 
@@ -154,13 +154,13 @@ export const TabsPane = memo(() => {
   /**
    * Store access
    */
-  const appLoadState = useInitStore.use.appLoadState();
+  const appLoadState = useAppStore.use.appLoadState();
   const appInitializing = appLoadState === 'init';
 
-  const previewTabId = useInitStore.use.previewTabId();
-  const activeTabId = useInitStore.use.activeTabId();
+  const previewTabId = useAppStore.use.previewTabId();
+  const activeTabId = useAppStore.use.activeTabId();
   const activeTabRef = useRef<HTMLDivElement | null>(null);
-  const orderedTabIds = useInitStore.use.tabOrder();
+  const orderedTabIds = useAppStore.use.tabOrder();
   const tabNameMap = useTabNameMap();
   const tabIconMap = useTabIconMap();
 

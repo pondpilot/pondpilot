@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 // This test does not use our base page fixture, since we want to immitate cold loading
 // from the browser
@@ -8,4 +8,6 @@ test('Direct landing from unknown path redirects to main page', async ({ page, b
 
   // Wait for redirection to complete
   await page.waitForURL(`${baseURL}/`, { waitUntil: 'commit' });
+
+  expect(page.url()).toBe(`${baseURL}/`);
 });

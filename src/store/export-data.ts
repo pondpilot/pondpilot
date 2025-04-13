@@ -1,12 +1,12 @@
 import JSZip from 'jszip';
-import { useInitStore } from './init-store';
+import { useAppStore } from './app-store';
 
 /**
  * Exports query files as a zip file.
  * @returns {Promise<Blob | null>} A promise that resolves to a Blob containing the zip file or null if an error occurs.
  */
 export async function exportSQLScripts(): Promise<Blob | null> {
-  const { sqlScripts } = useInitStore.getState();
+  const { sqlScripts } = useAppStore.getState();
   const zip = new JSZip();
 
   for (const sqlScript of sqlScripts.values()) {
