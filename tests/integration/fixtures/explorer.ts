@@ -1,10 +1,33 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, Page } from '@playwright/test';
 
 type ExplorerFixtures = {
   openQueryFromExplorer: (queryName: string) => Promise<void>;
   renameQueryInExplorer: (oldName: string, newName: string) => Promise<void>;
   openFileFromExplorer: (fileName: string) => Promise<void>;
+  createQueryFromFileExplorer: (fileName: string) => Promise<void>;
   assertExplorerItems: (expected: string[]) => Promise<void>;
+};
+
+const getFileItemLocator = (page: Page, fileName: string) =>
+  page.getByTestId(`query-list-item-${fileName}`);
+
+const clickFileMenu = async (page: Page, fileName: string) => {
+  const fileMenu = getFileItemLocator(page, fileName).getByTestId(`menu-${fileName}`);
+  await expect(fileMenu).toBeVisible();
+  await fileMenu.click();
+};
+
+const fileMenuItemMap: Record<string, string> = {
+  'Create Query': '0',
+  'Copy Name': '1',
+  'Delete Item': '2',
+};
+
+const clickFileMenuItem = async (page: Page, fileName: string, itemName: string) => {
+  await clickFileMenu(page, fileName);
+  const menuItem = page.getByTestId(`menu-item-${fileName}-${fileMenuItemMap[itemName]}`);
+  await expect(menuItem).toBeVisible();
+  await menuItem.click();
 };
 
 export const test = base.extend<ExplorerFixtures>({
@@ -41,8 +64,14 @@ export const test = base.extend<ExplorerFixtures>({
 
   openFileFromExplorer: async ({ page }, use) => {
     await use(async (fileName: string) => {
-      const fileItem = page.getByTestId(`query-list-item-${fileName}`);
+      const fileItem = getFileItemLocator(page, fileName);
       await fileItem.click();
+    });
+  },
+
+  createQueryFromFileExplorer: async ({ page }, use) => {
+    await use(async (fileName: string) => {
+      await clickFileMenuItem(page, fileName, 'Create Query');
     });
   },
 

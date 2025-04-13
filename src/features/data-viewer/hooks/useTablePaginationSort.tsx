@@ -3,6 +3,7 @@ import { tableFromIPC } from 'apache-arrow';
 import { useCallback, useMemo } from 'react';
 import { useAppStore } from '@store/app-store';
 import { usePaginationStore } from '@store/pagination-store';
+import { quote } from '@utils/helpers';
 
 export const useTableSort = () => {
   const { runQuery } = useAppContext();
@@ -64,7 +65,7 @@ export const useTableSort = () => {
 
       const query = !newDir
         ? originalQuery
-        : `select * from (${originalQuery}) order by "${id}" ${newDir}`;
+        : `select * from (${originalQuery}) order by ${quote(id)} ${newDir}`;
 
       const result = await executeQuery(query, currentPage);
       updateCache(result, currentPage, {
@@ -80,7 +81,7 @@ export const useTableSort = () => {
       setCurrentPage(page);
 
       const query = sort.field
-        ? `select * from (${originalQuery}) order by "${sort.field}" ${sort.direction}`
+        ? `select * from (${originalQuery}) order by ${quote(sort.field)} ${sort.direction}`
         : originalQuery;
 
       const result = await executeQuery(query, page);

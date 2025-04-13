@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { formatNumber } from '@utils/helpers';
+import { formatNumber, quote } from '@utils/helpers';
 import { useAppContext } from '@features/app-context';
 import { useAppStore } from '@store/app-store';
 
@@ -32,8 +32,8 @@ export const useColumnSummary = () => {
       }
 
       const summaryQuery = isNumeric
-        ? `SELECT sum("${columnName}") AS total FROM (${originalQuery});`
-        : `SELECT count("${columnName}") AS total FROM (${originalQuery});`;
+        ? `SELECT sum(${quote(columnName)}) AS total FROM (${originalQuery});`
+        : `SELECT count(${quote(columnName)}) AS total FROM (${originalQuery});`;
 
       setIsCalculating(true);
       const queryResult = await executeQuery(summaryQuery);
