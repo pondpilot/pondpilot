@@ -323,6 +323,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
           withinPortal={false}
           floatingStrategy="fixed"
           closeDelay={0}
+          data-testid={setDataTestId(`${dataTestId}-tree-node-context-menu`)}
         >
           <Menu.Dropdown style={menuStyles}>
             {contextMenu.map((item, index) => {
@@ -336,6 +337,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
                       node={node}
                       tree={tree}
                       menuOnClose={menuOnClose}
+                      dataTestId={setDataTestId(`${dataTestId}-tree-node-context-item`)}
                     />
                   ))}
                   {!isLast && <Menu.Divider />}

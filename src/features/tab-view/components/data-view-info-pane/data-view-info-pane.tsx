@@ -8,6 +8,7 @@ import { DataAdapterApi } from '@models/data-adapter';
 import { useDebouncedValue } from '@mantine/hooks';
 import { TabType } from '@models/tab';
 import { assertNeverValueType } from '@utils/typing';
+import { setDataTestId } from '@utils/test-id';
 import { ColRowCount } from './components/col-row-count';
 
 interface DataViewInfoPaneProps {
@@ -136,6 +137,7 @@ export const DataViewInfoPane = ({ dataAdapter, tabType }: DataViewInfoPaneProps
           disabled={disableCopyAndExport}
           color="background-tertiary"
           c="text-primary"
+          data-testid={setDataTestId('export-table-csv-button')}
         >
           <Group gap={2}>Export CSV</Group>
         </Button>

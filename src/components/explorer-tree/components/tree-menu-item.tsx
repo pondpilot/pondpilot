@@ -7,11 +7,13 @@ export function TreeNodeMenuItem<NTypeToIdTypeMap extends Record<string, string>
   node,
   tree,
   menuOnClose,
+  dataTestId,
 }: {
   menuItem: TreeNodeMenuItemType<TreeNodeData<NTypeToIdTypeMap>>;
   node: TreeNodeData<NTypeToIdTypeMap>;
   tree: MantineRenderTreeNodePayload['tree'];
   menuOnClose: () => void;
+  dataTestId: string | undefined;
 }) {
   const modifiers = useModifierContext();
 
@@ -23,6 +25,7 @@ export function TreeNodeMenuItem<NTypeToIdTypeMap extends Record<string, string>
     <Menu.Item
       key={menuItem.label}
       disabled={menuItem.isDisabled}
+      data-testid={dataTestId}
       onClick={(e) => {
         onClick(node, tree);
         menuOnClose();

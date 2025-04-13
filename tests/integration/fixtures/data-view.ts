@@ -36,6 +36,13 @@ type DataViewFixtures = {
    * Asserts that the data table exactly matches the expected data.
    */
   assertDataTableMatches: (expected: ExpectedData) => Promise<void>;
+
+  /**
+   * Exports the data table to CSV.
+   *
+   * @param pathToSave The path to save the downloaded CSV file.
+   */
+  exportTableToCSV: (pathToSave: string) => Promise<void>;
 };
 
 /**
@@ -148,6 +155,24 @@ export const test = base.extend<DataViewFixtures>({
           await expect(cellValue).toHaveText(String(values[i]));
         }
       }
+    });
+  },
+
+  exportTableToCSV: async ({ page }, use) => {
+    await use(async (pathToSave: string) => {
+      // Start waiting for download before clicking. Note no await.
+      const downloadPromise = page.waitForEvent('download');
+
+      // Click the export button
+      const exportButton = page.getByTestId('export-table-csv-button');
+      await expect(exportButton).toBeVisible();
+      await exportButton.click();
+
+      // Get the special playwright download object
+      const download = await downloadPromise;
+
+      // Save the downloaded file
+      await download.saveAs(pathToSave);
     });
   },
 });
