@@ -7,6 +7,7 @@ interface PaginationControlProps {
   currentPage: number;
   limit: number;
   rowCount: number;
+  hasMoreData: boolean;
   onPrevPage: () => void;
   onNextPage: () => void;
 }
@@ -17,6 +18,7 @@ export const PaginationControl = ({
   currentPage,
   limit,
   rowCount,
+  hasMoreData,
 }: PaginationControlProps) => {
   const isSinglePage = rowCount <= limit;
   const startItem = rowCount > 0 ? (currentPage - 1) * limit + 1 : 0;
@@ -24,7 +26,7 @@ export const PaginationControl = ({
   const outOf =
     rowCount > 0
       ? !isSinglePage
-        ? `${formatNumber(startItem)}-${formatNumber(endItem)} out of ${formatNumber(rowCount)}`
+        ? `${formatNumber(startItem)}-${formatNumber(endItem)} out of ${formatNumber(rowCount)}${hasMoreData ? '+' : ''} rows`
         : `${formatNumber(rowCount)} rows`
       : '0 rows';
   return (
