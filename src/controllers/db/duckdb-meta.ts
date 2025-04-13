@@ -208,20 +208,20 @@ export async function getDatabaseModel(
     if (!schema) {
       schema = {
         name: item.schema_name,
-        tables: [],
+        objects: [],
       };
       db.schemas.push(schema);
     }
 
-    let table = schema.tables.find((t) => t.name === item.table_name);
-    if (!table) {
-      table = {
+    let tableOrView = schema.objects.find((t) => t.name === item.table_name);
+    if (!tableOrView) {
+      tableOrView = {
         name: item.table_name,
         label: item.table_name,
         type: item.is_table ? 'table' : 'view',
         columns: [],
       };
-      schema.tables.push(table);
+      schema.objects.push(tableOrView);
     }
 
     const column = {
@@ -229,7 +229,7 @@ export async function getDatabaseModel(
       type: item.data_type,
       nullable: item.is_nullable,
     };
-    table.columns.push(column);
+    tableOrView.columns.push(column);
   });
 
   return dbMap;

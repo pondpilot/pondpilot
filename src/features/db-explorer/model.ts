@@ -2,9 +2,9 @@ import { PersistentDataSourceId } from '@models/data-source';
 
 export type DBExplorerNodeTypeToIdTypeMap = {
   db: PersistentDataSourceId;
-  schema: `${string}.${string}`;
-  object: `${string}.${string}.${string}`;
-  column: `${string}.${string}.${string}::${string}`;
+  schema: string; // Use `${dbName}.${schema}`
+  object: string; // Use `${dbName}.${schemaName}.${tableName/viewName}`
+  column: string; // Use `${dbName}.${schemaName}.${tableName/viewName}::${columnName}`
 };
 
 type DBExplorerNodeExtraMapItem = {

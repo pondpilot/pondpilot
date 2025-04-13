@@ -7,12 +7,13 @@ export type ColumnSortSpec = {
 
 export type ColumnSortSpecList = ColumnSortSpec[];
 
-interface DBColumn {
+export interface DBColumn {
   name: string;
   type: string;
   nullable: boolean;
 }
-interface DBTableOrView {
+
+export interface DBTableOrView {
   name: string;
   /**
    * If the table or view should be shown in auto-complete
@@ -22,9 +23,10 @@ interface DBTableOrView {
   type: 'table' | 'view';
   columns: DBColumn[];
 }
-interface DBSchema {
+
+export interface DBSchema {
   name: string;
-  tables: DBTableOrView[];
+  objects: DBTableOrView[];
 }
 
 export interface DataBaseModel {

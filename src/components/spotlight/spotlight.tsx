@@ -147,13 +147,13 @@ export const SpotlightMenu = () => {
       }
 
       dbMetadata.schemas.forEach((schema) => {
-        schema.tables.forEach((table) => {
+        schema.objects.forEach((tableOrView) => {
           dataSourceActions.push({
-            id: `open-data-source-${dataSource.id}-${table.name}`,
-            label: table.label,
+            id: `open-data-source-${dataSource.id}-${tableOrView.name}`,
+            label: tableOrView.label,
             icon: (
               <ListViewIcon
-                iconType={table.type === 'table' ? 'db-table' : 'db-view'}
+                iconType={tableOrView.type === 'table' ? 'db-table' : 'db-view'}
                 size={20}
                 className={ICON_CLASSES}
               />
@@ -162,8 +162,8 @@ export const SpotlightMenu = () => {
               getOrCreateTabFromAttachedDBObject(
                 dataSource,
                 schema.name,
-                table.name,
-                table.type,
+                tableOrView.name,
+                tableOrView.type,
                 true,
               );
               Spotlight.close();

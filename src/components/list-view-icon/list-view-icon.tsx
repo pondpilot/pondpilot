@@ -12,6 +12,11 @@ import {
   IconFileTypeXls,
   IconQuestionMark,
   IconFile,
+  IconCalendar,
+  IconClock,
+  IconCheck,
+  Icon123,
+  IconLetterCaseToggle,
 } from '@tabler/icons-react';
 
 export type IconType =
@@ -30,6 +35,13 @@ export type IconType =
   | 'json'
   | 'parquet'
   | 'xlsx-sheet'
+  // Column types
+  | 'column-text'
+  | 'column-number'
+  | 'column-boolean'
+  | 'column-date'
+  | 'column-datetime'
+  | 'column-other'
   // In case of errors have a fallback icon
   | 'error';
 
@@ -54,6 +66,18 @@ export const ListViewIcon: React.FC<ListViewIconProps> = ({ iconType, ...iconPro
       return <IconTable {...iconProps} />;
     case 'db-view':
       return <IconTableAlias {...iconProps} />;
+    case 'column-text':
+      return <IconLetterCaseToggle {...iconProps} />;
+    case 'column-number':
+      return <Icon123 {...iconProps} />;
+    case 'column-boolean':
+      return <IconCheck {...iconProps} />;
+    case 'column-date':
+      return <IconCalendar {...iconProps} />;
+    case 'column-datetime':
+      return <IconClock {...iconProps} />;
+    case 'column-other':
+      return <IconQuestionMark {...iconProps} />;
     case 'csv':
       return <IconFileTypeCsv {...iconProps} />;
     case 'json':

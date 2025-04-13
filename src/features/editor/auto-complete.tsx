@@ -7,32 +7,7 @@
 import type { SQLNamespace } from '@codemirror/lang-sql';
 import type { Completion } from '@codemirror/autocomplete';
 import { DataBaseModel } from '@models/db';
-
-/**
- * Converts a column type to a more generic SQL type for autocompletion
- */
-const getSQLType = (type: string): string => {
-  const typeLower = type.toLowerCase();
-  if (
-    typeLower.includes('int') ||
-    typeLower.includes('decimal') ||
-    typeLower.includes('numeric') ||
-    typeLower.includes('float') ||
-    typeLower.includes('double')
-  ) {
-    return 'number';
-  }
-  if (typeLower.includes('char') || typeLower.includes('text') || typeLower.includes('string')) {
-    return 'text';
-  }
-  if (typeLower.includes('date') || typeLower.includes('time')) {
-    return 'datetime';
-  }
-  if (typeLower.includes('bool')) {
-    return 'boolean';
-  }
-  return 'other';
-};
+import { getSQLType } from '@utils/duckdb/sql-type';
 
 /**
  * Creates a completion item for a database object
@@ -132,28 +107,28 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
   if (memoryDb) {
     const mainSchema = memoryDb.schemas.find((schema) => schema.name === 'main');
     if (mainSchema) {
-      mainSchema.tables.forEach((table) => {
+      mainSchema.objects.forEach((tableOrView) => {
         // Skip system tables
         if (
-          !table.name.startsWith('duckdb_') &&
-          !table.name.startsWith('sqlite_') &&
-          !table.name.startsWith('pragma_')
+          !tableOrView.name.startsWith('duckdb_') &&
+          !tableOrView.name.startsWith('sqlite_') &&
+          !tableOrView.name.startsWith('pragma_')
         ) {
-          const columns = table.columns.map((col) =>
+          const columns = tableOrView.columns.map((col) =>
             createCompletion(col.name, 'variable', `${col.name} (${getSQLType(col.type)})`, 99),
           );
 
-          namespace[table.name] = {
+          namespace[tableOrView.name] = {
             self: createCompletion(
-              table.name,
-              table.type || 'table',
-              table.label || table.name,
+              tableOrView.name,
+              tableOrView.type || 'table',
+              tableOrView.label || tableOrView.name,
               95,
             ),
             children: columns,
           };
 
-          topTableNames.push(table.name);
+          topTableNames.push(tableOrView.name);
         }
       });
     }
@@ -170,7 +145,7 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
 
       if (SYSTEM_DUCKDB_SCHEMAS.includes(schema.name)) return;
 
-      schema.tables.forEach((table) => {
+      schema.objects.forEach((table) => {
         const columns = table.columns.map((col) =>
           createCompletion(col.name, 'column', `${col.name} (${getSQLType(col.type)})`),
         );

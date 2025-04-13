@@ -13,7 +13,7 @@ import {
 } from '@store/app-store';
 import { LocalEntryId } from '@models/file-system';
 import { AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
-import { getDataSourceIcon, getFlatFileDataSourceName, getlocalEntryIcon } from '@utils/navigation';
+import { getDataSourceIcon, getFlatFileDataSourceName, getLocalEntryIcon } from '@utils/navigation';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 
 /**
@@ -60,7 +60,7 @@ export const FileSystemExplorer = memo(() => {
           children.push({
             value: entry.id,
             label: entry.uniqueAlias,
-            iconType: getlocalEntryIcon(entry),
+            iconType: getLocalEntryIcon(entry),
             children: buildTree(entry.id),
           });
           return;
