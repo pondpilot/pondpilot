@@ -21,7 +21,7 @@ import {
   AttachedDB,
   PersistentDataSourceId,
 } from '@models/data-source';
-import { LocalEntry, LocalEntryId } from '@models/file-system';
+import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { localEntryFromHandle } from '@utils/file-system';
 
 import { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
@@ -215,18 +215,36 @@ export function useProtectedViews(): Set<string> {
   );
 }
 
-export function useAttachedDBNameMap(): Map<PersistentDataSourceId, string> {
+export function useAttachedDBDataSourceMap(): Map<PersistentDataSourceId, AttachedDB> {
+  return useAppStore(
+    useShallow(
+      (state) =>
+        new Map(
+          state.dataSources
+            .entries()
+            // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
+            .filter(([, dataSource]) => dataSource.type === 'attached-db') as IteratorObject<
+            [PersistentDataSourceId, AttachedDB]
+          >,
+        ),
+    ),
+  );
+}
+
+export function useAttachedDBLocalEntriesMap(): Map<LocalEntryId, LocalFile> {
   return useAppStore(
     useShallow(
       (state) =>
         new Map(
           state.dataSources
             .values()
+            // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
             .filter((dataSource) => dataSource.type === 'attached-db')
-            .map((dataSource): [PersistentDataSourceId, string] => [
-              dataSource.id,
-              dataSource.dbName,
-            ]),
+            .map((attachedDB) => state.localEntries.get(attachedDB.fileSourceId))
+            // This filter should be unnecessary as this should always be true,
+            // unless our state is inconsistent state. But for safety we check it.
+            .filter((entry): entry is LocalFile => !!entry && entry.kind === 'file')
+            .map((entry) => [entry.id, entry]),
         ),
     ),
   );

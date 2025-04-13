@@ -236,27 +236,29 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
 
   const defaultMenu: TreeMenu<TreeNodeData<NTypeToIdTypeMap>> = [];
 
-  if (renameCallbacks && !isDisabled) {
-    defaultMenu.push({
-      children: [
-        {
-          label: 'Rename',
-          onClick: () => handleStartRename(),
-        },
-      ],
-    });
-  }
+  //   if (renameCallbacks && !isDisabled) {
+  defaultMenu.push({
+    children: [
+      {
+        label: 'Rename',
+        onClick: () => handleStartRename(),
+        isDisabled: isDisabled || !renameCallbacks,
+      },
+    ],
+  });
+  //   }
 
-  if (onDelete && !isDisabled) {
-    defaultMenu.push({
-      children: [
-        {
-          label: 'Delete',
-          onClick: () => onDelete(node),
-        },
-      ],
-    });
-  }
+  //   if (onDelete && !isDisabled) {
+  defaultMenu.push({
+    children: [
+      {
+        label: 'Delete',
+        onClick: () => onDelete?.(node),
+        isDisabled: isDisabled || !onDelete,
+      },
+    ],
+  });
+  //   }
 
   const contextMenu = overrideContextMenu || mergeMenus([customContextMenu, defaultMenu]);
 
@@ -389,6 +391,10 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
   );
 };
 
+// The way this function is implemented (verbose) is to allow easy
+// debugging when necessary (see commented out logging code at the bottom).
+// When stable, we can remove the `comparisons` array and just do straight
+// compare and return
 function arePropsEqual<NTypeToIdTypeMap extends Record<string, any>>(
   oldProps: BaseTreeNodeProps<NTypeToIdTypeMap>,
   newProps: BaseTreeNodeProps<NTypeToIdTypeMap>,

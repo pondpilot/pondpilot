@@ -64,7 +64,7 @@ export function getTabIcon(
   return tab.dbType === 'table' ? 'db-table' : 'db-view';
 }
 
-export function getlocalEntryIcon(entry: LocalEntry): IconType {
+export function getLocalEntryIcon(entry: LocalEntry): IconType {
   return entry.kind === 'directory'
     ? 'folder'
     : entry.fileType === 'code-file'
@@ -107,6 +107,10 @@ export function getFlatFileDataSourceName(
   return localEntry.uniqueAlias === dataSource.viewName
     ? dataSource.viewName
     : `${dataSource.viewName} (${localEntry.uniqueAlias})`;
+}
+
+export function getAttachedDBDataSourceName(dbName: string, localEntry: LocalEntry): string {
+  return localEntry.uniqueAlias === dbName ? dbName : `${dbName} (${localEntry.uniqueAlias})`;
 }
 
 export function getDataSourceIcon(dataSource: AnyFlatFileDataSource): IconType {

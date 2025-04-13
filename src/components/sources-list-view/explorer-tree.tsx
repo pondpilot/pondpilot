@@ -19,7 +19,12 @@ type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>, ExtraT =
    * A sorted tree of nodes to be displayed
    */
   nodes: TreeNodeData<NTypeToIdTypeMap>[];
-  readonly extraData: ExtraT;
+
+  /**
+   * If set, will be used as initial expanded state of the tree. Otherwise
+   * the entire tree will be expanded on mount.
+   */
+  initialExpandedState?: Record<NTypeToIdTypeMap[keyof NTypeToIdTypeMap], boolean>;
 
   /**
    * Used as the data-testid for the tree. The resulting data-testid:
@@ -27,12 +32,27 @@ type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>, ExtraT =
    */
   dataTestIdPrefix: string;
 
+  /**
+   * Custom component for tree nodes. Should wrap BaseTreeNode and provide context
+   * aware state (see the difference between `RenderTreeNodePayload` vs. `BaseTreeNodeProps`)
+   */
   TreeNodeComponent: React.ComponentType<RenderTreeNodePayload<NTypeToIdTypeMap, ExtraT>>;
+
+  /**
+   * Callback for multi-node deletion
+   */
   onDeleteSelected: (ids: NTypeToIdTypeMap[keyof NTypeToIdTypeMap][]) => void;
+
+  /**
+   * Used to pass arbitrary extra data that is passed through to TreeNodeComponent
+   * for rendering.
+   */
+  readonly extraData: ExtraT;
 };
 
 export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, ExtraT = undefined>({
   nodes,
+  initialExpandedState,
   dataTestIdPrefix,
   TreeNodeComponent,
   onDeleteSelected,
@@ -42,7 +62,7 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
    * Common hooks
    */
   const tree = useTree({
-    initialExpandedState: getTreeExpandedState(nodes, '*'),
+    initialExpandedState: initialExpandedState || getTreeExpandedState(nodes, '*'),
   });
 
   /**
