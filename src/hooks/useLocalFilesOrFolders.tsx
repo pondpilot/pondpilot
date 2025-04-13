@@ -27,7 +27,7 @@ export const useLocalFilesOrFolders = () => {
       return;
     }
 
-    const { skippedExistingEntries, skippedUnsupportedFiles } = await addLocalFileOrFolders(
+    const { skippedExistingEntries, skippedUnsupportedFiles, errors } = await addLocalFileOrFolders(
       db!,
       conn!,
       handles,
@@ -46,6 +46,13 @@ export const useLocalFilesOrFolders = () => {
         message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
       });
     }
+
+    errors.forEach((errorMessage) => {
+      showError({
+        title: 'Error',
+        message: errorMessage,
+      });
+    });
   };
 
   const handleAddFolder = async () => {

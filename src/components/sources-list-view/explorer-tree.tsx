@@ -2,7 +2,6 @@ import {
   Stack,
   Group,
   Text,
-  Skeleton,
   Tree,
   useTree,
   getTreeExpandedState,
@@ -15,29 +14,30 @@ import { ReactNode, useCallback, useMemo, useRef } from 'react';
 import { RenderTreeNodePayload, TreeMenu, TreeNodeData } from './model';
 import { getFlattenNodes } from './utils/tree-manipulation';
 
-interface ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>> {
+type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>, ExtraT = undefined> = {
   /**
    * A sorted tree of nodes to be displayed
    */
   nodes: TreeNodeData<NTypeToIdTypeMap>[];
-  loading?: boolean;
+  readonly extraData: ExtraT;
+
   /**
    * Used as the data-testid for the tree. The resulting data-testid:
    * `${dataTestIdPrefix}-tree`.
    */
   dataTestIdPrefix: string;
 
-  TreeNodeComponent: React.ComponentType<RenderTreeNodePayload<NTypeToIdTypeMap>>;
+  TreeNodeComponent: React.ComponentType<RenderTreeNodePayload<NTypeToIdTypeMap, ExtraT>>;
   onDeleteSelected: (ids: NTypeToIdTypeMap[keyof NTypeToIdTypeMap][]) => void;
-}
+};
 
-export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>>({
+export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, ExtraT = undefined>({
   nodes,
-  loading,
   dataTestIdPrefix,
   TreeNodeComponent,
   onDeleteSelected,
-}: ExplorerTreeProps<NTypeToIdTypeMap>) => {
+  extraData,
+}: ExplorerTreeProps<NTypeToIdTypeMap, ExtraT>) => {
   /**
    * Common hooks
    */
@@ -103,6 +103,7 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>>({
         dataTestIdPrefix={dataTestIdPrefix}
         overrideContextMenu={overrideContextMenu}
         flattenedNodeIds={flattenedNodeIds}
+        extraData={extraData}
       />
     ),
     [flattenedNodeIds, dataTestIdPrefix, overrideContextMenu],
@@ -146,23 +147,15 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>>({
       ref={treeRef}
     >
       <Stack gap={0} className="overflow-y-scroll custom-scroll-hidden px-2 pb-1 h-full">
-        {loading ? (
-          <Stack gap={6} className="px-3 py-1.5">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
-            ))}
-          </Stack>
-        ) : (
-          <>
-            {nodes.length === 0 ? (
-              <Group justify="center" className="px-3 pt-2">
-                <Text c="text-secondary">No data to display</Text>
-              </Group>
-            ) : (
-              <Tree data={nodes} tree={tree} selectOnClick renderNode={handleRenderNode} />
-            )}
-          </>
-        )}
+        <>
+          {nodes.length === 0 ? (
+            <Group justify="center" className="px-3 pt-2">
+              <Text c="text-secondary">No data to display</Text>
+            </Group>
+          ) : (
+            <Tree data={nodes} tree={tree} selectOnClick renderNode={handleRenderNode} />
+          )}
+        </>
       </Stack>
     </Stack>
   );

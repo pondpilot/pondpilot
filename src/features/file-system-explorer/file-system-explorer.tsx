@@ -14,6 +14,7 @@ import {
 import { LocalEntryId } from '@models/file-system';
 import { AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { getDataSourceIcon, getFlatFileDataSourceName, getlocalEntryIcon } from '@utils/navigation';
+import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 
 /**
  * Displays a file system tree for all registered local entities (files & folders)
@@ -26,11 +27,11 @@ export const FileSystemExplorer = memo(() => {
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
   const activeDataSourceId = useDataSourceIdForActiveTab();
+  const { db, conn } = useInitializedDuckDBConnection();
+
   /**
    * Store access
    */
-  const appLoadState = useInitStore.use.appLoadState();
-
   const entries = useInitStore.use.localEntries();
   const sources = useInitStore.use.dataSources();
   const dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource> = useMemo(
@@ -113,14 +114,14 @@ export const FileSystemExplorer = memo(() => {
     };
 
     return buildTree(null);
-  }, [entries, dataSourceByFileId, appLoadState, activeDataSourceId]);
+  }, [entries, dataSourceByFileId, activeDataSourceId]);
 
   /**
    * Consts
    */
 
   const handleDeleteSelected = async (items: string[]) => {
-    deleteDataSource(items as PersistentDataSourceId[]);
+    deleteDataSource(db, conn, items as PersistentDataSourceId[]);
   };
 
   const menuItems: MenuItem[] = [
@@ -153,7 +154,7 @@ export const FileSystemExplorer = memo(() => {
       children: [
         {
           label: 'Delete',
-          onClick: (item) => deleteDataSource([item.value as PersistentDataSourceId]),
+          onClick: (item) => deleteDataSource(db, conn, [item.value as PersistentDataSourceId]),
         },
       ],
     },
@@ -166,7 +167,6 @@ export const FileSystemExplorer = memo(() => {
       onDeleteSelected={handleDeleteSelected}
       menuItems={menuItems}
       activeItemKey={activeDataSourceId}
-      loading={appLoadState === 'init'}
     />
   );
 });

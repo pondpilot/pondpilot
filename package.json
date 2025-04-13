@@ -46,7 +46,6 @@
     "@mantine/notifications": "^7.17.0",
     "@mantine/spotlight": "^7.17.0",
     "@tabler/icons-react": "^3.28.1",
-    "@tanstack/react-query": "^5.68.0",
     "@tanstack/react-table": "^8.20.5",
     "@uiw/codemirror-themes": "^4.23.8",
     "@uiw/react-codemirror": "^4.23.8",

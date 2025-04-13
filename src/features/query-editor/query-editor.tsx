@@ -2,7 +2,6 @@ import { Group, Text, useMantineColorScheme } from '@mantine/core';
 import { useDebouncedCallback } from '@mantine/hooks';
 import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { useAppStore } from '@store/app-store';
 import { SqlEditor } from '@features/editor';
 import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
@@ -37,7 +36,8 @@ export const QueryEditor = ({
    */
   const { colorScheme } = useMantineColorScheme();
 
-  const databases = useAppStore((state) => state.databases);
+  const dataBaseMetadata = useInitStore.use.dataBaseMetadata();
+  const databaseModelsArray = Array.from(dataBaseMetadata.values());
 
   // TODO: get query loading state from the store
   // const queryRunning = tab?.query.state === 'fetching';
@@ -49,7 +49,10 @@ export const QueryEditor = ({
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const [fontSize, setFontSize] = useState(0.875);
 
-  const sqlNamespace = useMemo(() => convertToSQLNamespace(databases), [databases]);
+  const sqlNamespace = useMemo(
+    () => convertToSQLNamespace(databaseModelsArray),
+    [databaseModelsArray],
+  );
   const duckdbNamespace = useMemo(() => createDuckDBCompletions(duckdbFunctionList), []);
   const schema = useMemo(
     () => ({

@@ -4,7 +4,6 @@ import {
   Group,
   Text,
   Menu,
-  Skeleton,
   Tree,
   useTree,
   getTreeExpandedState,
@@ -56,7 +55,6 @@ interface ListViewProps<ItemID extends string = string> {
   parentDataTestId: string;
 
   disabled?: boolean;
-  loading?: boolean;
   menuItems: MenuItem<ItemID>[];
   renameItemId?: ItemID | null;
   renameValue?: string;
@@ -210,7 +208,6 @@ export const SourcesListView = <ItemID extends string = string>({
   list,
   disabled,
   activeItemKey,
-  loading,
   menuItems,
   renameInputError,
   renameItemId,
@@ -357,113 +354,100 @@ export const SourcesListView = <ItemID extends string = string>({
   return (
     <Stack gap={0} className={cn('h-[calc(100%-50px)]')}>
       <Stack gap={0} className="overflow-y-scroll custom-scroll-hidden px-2 pb-1 h-full">
-        {loading ? (
-          <Stack gap={6} className="px-3 py-1.5">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
-            ))}
-          </Stack>
+        {!hasData ? (
+          <Group justify="center" className="px-3 pt-2">
+            <Text c="text-secondary">No data to display</Text>
+          </Group>
         ) : (
-          <>
-            {!hasData ? (
-              <Group justify="center" className="px-3 pt-2">
-                <Text c="text-secondary">No data to display</Text>
-              </Group>
-            ) : (
-              <Tree
-                id={parentDataTestId}
-                data={sortedList}
-                tree={tree}
-                selectOnClick
-                clearSelectionOnOutsideClick
-                renderNode={(payload) => {
-                  const { elementProps, selected, node: payloadNode, level } = payload;
-                  const node = payloadNode as TypedTreeNodeData<ItemID>;
+          <Tree
+            id={parentDataTestId}
+            data={sortedList}
+            tree={tree}
+            selectOnClick
+            clearSelectionOnOutsideClick
+            renderNode={(payload) => {
+              const { elementProps, selected, node: payloadNode, level } = payload;
+              const node = payloadNode as TypedTreeNodeData<ItemID>;
 
-                  const active = elementProps['data-value'] === activeItemKey;
-                  const isRenaming = isItemRenaming && elementProps['data-value'] === renameItemId;
-                  const currentIndex = sortedList.findIndex((item) => item.value === node.value);
+              const active = elementProps['data-value'] === activeItemKey;
+              const isRenaming = isItemRenaming && elementProps['data-value'] === renameItemId;
+              const currentIndex = sortedList.findIndex((item) => item.value === node.value);
 
-                  const isPrevSelected = tree.selectedState.includes(
-                    sortedList[currentIndex - 1]?.value,
-                  );
-                  const isNextSelected = tree.selectedState.includes(
-                    sortedList[currentIndex + 1]?.value,
-                  );
+              const isPrevSelected = tree.selectedState.includes(
+                sortedList[currentIndex - 1]?.value,
+              );
+              const isNextSelected = tree.selectedState.includes(
+                sortedList[currentIndex + 1]?.value,
+              );
 
-                  const isPrevActive =
-                    currentIndex > 0 && sortedList[currentIndex - 1].value === activeItemKey;
-                  const isNextActive =
-                    currentIndex < sortedList.length - 1 &&
-                    sortedList[currentIndex + 1].value === activeItemKey;
+              const isPrevActive =
+                currentIndex > 0 && sortedList[currentIndex - 1].value === activeItemKey;
+              const isNextActive =
+                currentIndex < sortedList.length - 1 &&
+                sortedList[currentIndex + 1].value === activeItemKey;
 
-                  return (
-                    <div
-                      {...elementProps}
-                      data-testid={setDataTestId(`query-list-item-${node.value}`)}
-                      className={cn(
-                        elementProps.className,
-                        itemClasses.base,
+              return (
+                <div
+                  {...elementProps}
+                  data-testid={setDataTestId(`query-list-item-${node.value}`)}
+                  className={cn(
+                    elementProps.className,
+                    itemClasses.base,
 
-                        disabled && itemClasses.disabled,
-                        !disabled && itemClasses.hover.default,
-                        (active || selected) && [
-                          itemClasses.transparent008,
-                          itemClasses.hover.active,
-                        ],
-                        (isPrevSelected || isPrevActive) && 'rounded-t-none',
-                        (isNextSelected || isNextActive) && 'rounded-b-none',
-                      )}
-                    >
-                      {isRenaming ? (
-                        <>
-                          <Popover opened={!!renameInputError}>
-                            <Popover.Target>
-                              <TextInput
-                                data-testid={setDataTestId(
-                                  `query-list-item-${node.value}-rename-input`,
-                                )}
-                                value={renameValue}
-                                onChange={onRenameChange}
-                                onKeyDown={(event) => {
-                                  event.stopPropagation();
-                                  event.key === 'Enter' && !renameInputError && onRenameSubmit?.();
-                                  event.key === 'Escape' && onRenameClose?.();
-                                }}
-                                error={!!renameInputError}
-                                onBlur={!renameInputError ? onRenameSubmit : onRenameClose}
-                                fw={500}
-                                classNames={{
-                                  input: 'px-3 py-1',
-                                }}
-                                size="xs"
-                                autoFocus
-                              />
-                            </Popover.Target>
-                            <Popover.Dropdown>{renameInputError}</Popover.Dropdown>
-                          </Popover>
-                        </>
-                      ) : (
-                        <ListItem
-                          label={node.label as string}
-                          itemId={elementProps['data-value'] as ItemID}
-                          active={active}
-                          disabled={disabled}
-                          menuItems={menuList}
-                          node={node}
-                          iconType={node.iconType}
-                          level={level}
-                          onClick={handleListItemClick(node)}
-                          onActiveCloseClick={handleActiveCloseClick(node)}
-                          onItemDoubleClick={() => onItemRename?.(node.value)}
-                        />
-                      )}
-                    </div>
-                  );
-                }}
-              />
-            )}
-          </>
+                    disabled && itemClasses.disabled,
+                    !disabled && itemClasses.hover.default,
+                    (active || selected) && [itemClasses.transparent008, itemClasses.hover.active],
+                    (isPrevSelected || isPrevActive) && 'rounded-t-none',
+                    (isNextSelected || isNextActive) && 'rounded-b-none',
+                  )}
+                >
+                  {isRenaming ? (
+                    <>
+                      <Popover opened={!!renameInputError}>
+                        <Popover.Target>
+                          <TextInput
+                            data-testid={setDataTestId(
+                              `query-list-item-${node.value}-rename-input`,
+                            )}
+                            value={renameValue}
+                            onChange={onRenameChange}
+                            onKeyDown={(event) => {
+                              event.stopPropagation();
+                              event.key === 'Enter' && !renameInputError && onRenameSubmit?.();
+                              event.key === 'Escape' && onRenameClose?.();
+                            }}
+                            error={!!renameInputError}
+                            onBlur={!renameInputError ? onRenameSubmit : onRenameClose}
+                            fw={500}
+                            classNames={{
+                              input: 'px-3 py-1',
+                            }}
+                            size="xs"
+                            autoFocus
+                          />
+                        </Popover.Target>
+                        <Popover.Dropdown>{renameInputError}</Popover.Dropdown>
+                      </Popover>
+                    </>
+                  ) : (
+                    <ListItem
+                      label={node.label as string}
+                      itemId={elementProps['data-value'] as ItemID}
+                      active={active}
+                      disabled={disabled}
+                      menuItems={menuList}
+                      node={node}
+                      iconType={node.iconType}
+                      level={level}
+                      onClick={handleListItemClick(node)}
+                      onActiveCloseClick={handleActiveCloseClick(node)}
+                      onItemDoubleClick={() => onItemRename?.(node.value)}
+                    />
+                  )}
+                </div>
+              );
+            }}
+          />
         )}
       </Stack>
     </Stack>

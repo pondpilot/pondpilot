@@ -43,6 +43,37 @@ export async function registerFileSourceAndCreateView(
 }
 
 /**
+ * Drop a view and unregister its file handle
+ *
+ * TODO: error handling - currently assumes this never fails
+ *
+ * @param db - DuckDB instance
+ * @param conn - DuckDB connection
+ * @param viewName - The view name that was created
+ * @param fileName - The file name that was used to register the file, undefined if not available
+ */
+export async function dropViewAndUnregisterFile(
+  db: duckdb.AsyncDuckDB,
+  conn: duckdb.AsyncDuckDBConnection,
+  viewName: string,
+  fileName: string | undefined,
+) {
+  /**
+   * Drop the view
+   */
+  await conn.query(`DROP VIEW IF EXISTS ${toDuckDBIdentifier(viewName)};`).catch(console.error);
+
+  if (!fileName) {
+    return;
+  }
+
+  /**
+   * Unregister file handle
+   */
+  await db.dropFile(fileName).catch(console.error);
+}
+
+/**
  * Register a database file and attach it to the DuckDB instance
  *
  * TODO: error handling - currently assumes this never fails
@@ -84,4 +115,35 @@ export async function registerAndAttachDatabase(
    * Attach the database
    */
   await conn.query(`ATTACH '${fileName}' as ${toDuckDBIdentifier(dbName)} (READ_ONLY);`);
+}
+
+/**
+ * Detach a database and unregister its file handle
+ *
+ * TODO: error handling - currently assumes this never fails
+ *
+ * @param db - DuckDB instance
+ * @param conn - DuckDB connection
+ * @param dbName - The database name that was used when attaching
+ * @param fileName - The file name that was used to register the database
+ */
+export async function detachAndUnregisterDatabase(
+  db: duckdb.AsyncDuckDB,
+  conn: duckdb.AsyncDuckDBConnection,
+  dbName: string,
+  fileName: string | undefined,
+) {
+  /**
+   * Detach the database
+   */
+  await conn.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(dbName)};`).catch(console.error);
+
+  if (!fileName) {
+    return;
+  }
+
+  /**
+   * Unregister file handle
+   */
+  await db.dropFile(fileName).catch(console.error);
 }

@@ -1,14 +1,14 @@
 import { useCallback, useState } from 'react';
 import { formatNumber } from '@utils/helpers';
 import { useAppContext } from '@features/app-context';
-import { Tab } from '@store/app-idb-store';
+import { AnyTab } from '@models/tab';
 
 export interface CalculateColumnSummaryProps {
   columnName: string | null;
   dataType: string;
 }
 
-export const useColumnSummary = (tab: Tab | undefined) => {
+export const useColumnSummary = (tab: AnyTab | undefined) => {
   const { executeQuery } = useAppContext();
   const [columnTotal, setColumnTotal] = useState<string | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);

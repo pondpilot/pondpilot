@@ -184,33 +184,36 @@ export type TreeMenuSection<NType> = {
 
 export type TreeMenu<NType> = TreeMenuSection<NType>[];
 
-export type RenderTreeNodePayload<NTypeToIdTypeMap extends Record<string, string>> =
-  keyof NTypeToIdTypeMap extends infer NType
-    ? NType extends keyof NTypeToIdTypeMap
-      ? {
-          node: TreeNodeData<NTypeToIdTypeMap>;
+export type RenderTreeNodePayload<
+  NTypeToIdTypeMap extends Record<string, string>,
+  ExtraT = undefined,
+> = keyof NTypeToIdTypeMap extends infer NType
+  ? NType extends keyof NTypeToIdTypeMap
+    ? {
+        node: TreeNodeData<NTypeToIdTypeMap>;
 
-          /**
-           * Used to construct the data-testid for the tree node. The resulting data-testid
-           * of various component items will have the following prefix:
-           * `${dataTestIdPrefix}-tree-item-${itemId}`. The top level node will have this
-           * data-testid exactly.
-           */
-          dataTestIdPrefix: string;
+        /**
+         * Used to construct the data-testid for the tree node. The resulting data-testid
+         * of various component items will have the following prefix:
+         * `${dataTestIdPrefix}-tree-item-${itemId}`. The top level node will have this
+         * data-testid exactly.
+         */
+        dataTestIdPrefix: string;
 
-          /**
-           * If not null, it will be used instead of the per-item context menu.
-           *
-           * This is used by the `ExplorerTree` component to modify context menu
-           * on multi-select.
-           */
-          overrideContextMenu: TreeMenu<TreeNodeData<NTypeToIdTypeMap>> | null;
+        /**
+         * If not null, it will be used instead of the per-item context menu.
+         *
+         * This is used by the `ExplorerTree` component to modify context menu
+         * on multi-select.
+         */
+        overrideContextMenu: TreeMenu<TreeNodeData<NTypeToIdTypeMap>> | null;
 
-          /**
-           * The itemIds list in the order they are displayed in the tree,
-           * ignoring the tree structure.
-           */
-          flattenedNodeIds: NTypeToIdTypeMap[NType][];
-        } & MantineRenderTreeNodePayload
-      : never
-    : never;
+        /**
+         * The itemIds list in the order they are displayed in the tree,
+         * ignoring the tree structure.
+         */
+        flattenedNodeIds: NTypeToIdTypeMap[NType][];
+      } & MantineRenderTreeNodePayload &
+        (ExtraT extends undefined ? {} : { extraData: ExtraT })
+    : never
+  : never;

@@ -81,8 +81,8 @@ function buildColumnsQueryWithFilters(database_names?: string[], schema_names?: 
         LEFT JOIN duckdb_tables as dt             
             ON dc.table_oid = dt.table_oid
     ${database_names || schema_names ? 'WHERE 1=1 ' : ''}
-    ${database_names ? `AND dc.database_name in '${database_names.join("','")}' ` : ''}
-    ${schema_names ? `AND dc.schema_name in '${schema_names.join("','")}' ` : ''}
+    ${database_names ? `AND dc.database_name in ('${database_names.join("','")}') ` : ''}
+    ${schema_names ? `AND dc.schema_name in ('${schema_names.join("','")}') ` : ''}
     ORDER BY dc.database_name, dc.schema_name, dc.table_name, dc.column_index;
   `;
 }
