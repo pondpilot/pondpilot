@@ -5,8 +5,11 @@ import { getFileDataAdapterApi } from '@controllers/db/tab';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { DataAdapterApi } from '@models/data-adapter';
 import { LoadingOverlay } from '@components/loading-overlay';
-import { Loader, Stack, Text } from '@mantine/core';
+import { ActionIcon, Group, Loader, Stack, Text } from '@mantine/core';
 import { DataView } from '../components';
+import { IconCopy } from '@tabler/icons-react';
+import { formatNumber } from '@utils/helpers';
+import { cn } from '@utils/ui/styles';
 
 interface FileDataSourceTabViewProps {
   tab: AnyFileSourceTab;
@@ -71,7 +74,7 @@ export const FileDataSourceTabView = memo(({ tab, visible }: FileDataSourceTabVi
   }, [conn, dataSource, tab, sourceFile]);
 
   return (
-    <div className="h-full relative">
+    <Stack className="gap-0 h-full relative">
       <LoadingOverlay visible={isLoading || isError}>
         <Stack align="center" gap={4} bg="background-primary" className="p-8 pt-4 rounded-2xl">
           <Loader size={24} color="text-secondary" />
@@ -94,8 +97,27 @@ export const FileDataSourceTabView = memo(({ tab, visible }: FileDataSourceTabVi
       </LoadingOverlay>
 
       {!isLoading && !isError && dataAdapter && (
-        <DataView visible={visible} dataAdapterApi={dataAdapter} />
+        <>
+          <Group justify="space-between" className={cn('h-7 my-2 px-3')}>
+            {/* // TODO: Design discussion: should we show the number of columns and rows outside the DataView? */}
+            <Group>
+              {/* <Text c="text-secondary" className="text-sm font-medium">
+                {displaySchema.length} columns, {formatNumber(realOrEstimatedRowCount)}
+                {realRowCount === null ? '+' : ''} rows
+              </Text> */}
+            </Group>
+            <Group className="h-full px-4">
+              <ActionIcon
+                size={16}
+                onClick={() => console.log('TODO: Implement copy to clipboard')}
+              >
+                <IconCopy />
+              </ActionIcon>
+            </Group>
+          </Group>
+          <DataView visible={visible} dataAdapterApi={dataAdapter} />
+        </>
       )}
-    </div>
+    </Stack>
   );
 });
