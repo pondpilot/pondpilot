@@ -8,12 +8,14 @@ import { ArrowColumn } from '@models/arrow';
 import { setDataTestId } from '@utils/test-id';
 import { useDidMount } from '@hooks/use-did-mount';
 import { updateDataViewCache, useAppStore } from '@store/app-store';
-import { Affix, Button, Stack, Text } from '@mantine/core';
+import { ActionIcon, Affix, Button, Group, Menu, Stack, Text, Tooltip } from '@mantine/core';
 import { DataViewCacheItem } from '@models/data-view';
 import { useDidUpdate } from '@mantine/hooks';
 import { RowCountAndPaginationControl } from './pagination-control';
 import { useSort } from '../useSort';
 import { TableLoadingOverlay } from './table-loading-overlay';
+import { IconCopy, IconChevronDown } from '@tabler/icons-react';
+import { formatNumber } from '@utils/helpers';
 
 const MAX_PAGE_SIZE = 100;
 
@@ -145,33 +147,32 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
   const displaySchema = useStaleData ? localCache.current!.schema : schema;
   const displayData = useMemo(() => {
     let dataSlice;
+
     if (useStaleData) {
       dataSlice = localCache.current!.data.slice();
     } else {
       dataSlice = actualData.current.slice(expectedRowFrom, expectedRowTo);
     }
 
-    dataSlice.reverse();
-
     return dataSlice;
-  }, [actualData, useStaleData, expectedRowFrom, expectedRowTo]);
+  }, [expectedRowFrom, expectedRowTo, useStaleData, isFetchingData]);
 
-  console.group('The entire computed state');
-  console.log('cacheKey', cacheKey);
-  console.log('estimatedRowCount', estimatedRowCount);
-  console.log('realRowCount', realRowCount);
-  console.log('loadedRowCount', loadedRowCount);
-  console.log('expectedRowFrom', expectedRowFrom);
-  console.log('expectedRowTo', expectedRowTo);
-  console.log('displayedRowFrom', displayedRowFrom);
-  console.log('displayedRowTo', displayedRowTo);
-  console.log('useStaleData', useStaleData);
-  console.log('showTable', showTable);
-  console.log('isSinglePage', isSinglePage);
-  console.log('isPaginationDisabled', isPaginationDisabled);
-  console.log('displayData', displayData);
-  console.log('displaySchema', displaySchema);
-  console.groupEnd();
+  // console.group('The entire computed state');
+  // console.log('cacheKey', cacheKey);
+  // console.log('estimatedRowCount', estimatedRowCount);
+  // console.log('realRowCount', realRowCount);
+  // console.log('loadedRowCount', loadedRowCount);
+  // console.log('expectedRowFrom', expectedRowFrom);
+  // console.log('expectedRowTo', expectedRowTo);
+  // console.log('displayedRowFrom', displayedRowFrom);
+  // console.log('displayedRowTo', displayedRowTo);
+  // console.log('useStaleData', useStaleData);
+  // console.log('showTable', showTable);
+  // console.log('isSinglePage', isSinglePage);
+  // console.log('isPaginationDisabled', isPaginationDisabled);
+  // console.log('displayData', displayData);
+  // console.log('displaySchema', displaySchema);
+  // console.groupEnd();
 
   /**
    * Exvent handlers
@@ -366,26 +367,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
   });
 
   return (
-    <div className="flex flex-col h-full">
-      {import.meta.env.DEV && (
-        <div className="flex justify-between items-center px-3 py-2">
-          <Button
-            disabled={useStaleData}
-            onClick={() => {
-              updateDataViewCache({
-                key: cacheKey,
-                data: actualData.current.slice(displayedRowFrom, displayedRowTo),
-                schema,
-                rowFrom: displayedRowFrom,
-                rowTo: displayedRowTo,
-                dataPage: currentPage,
-              });
-            }}
-          >
-            Fill cache
-          </Button>
-        </div>
-      )}
+    <div className="flex h-full flex-col">
       <TableLoadingOverlay
         title="Opening your file, please wait..."
         onCancel={() => {
@@ -425,20 +407,38 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
         </Affix>
       )}
       {showTable && (
-        <div className={cn('overflow-auto px-3 custom-scroll-hidden pb-6 flex-1')}>
-          <Table
-            data={displayData}
-            columns={displaySchema}
-            sort={sortParams}
-            page={currentPage}
-            visible={!!visible}
-            onSelectedColsCopy={() => console.warn('Copy selected columns not implemented')}
-            onColumnSelectChange={() => console.warn('Column select change not implemented')}
-            onRowSelectChange={() => console.warn('Row select change not implemented')}
-            onCellSelectChange={() => console.warn('Cell select change not implemented')}
-            onSort={handleSortAndGetNewReader}
-          />
-        </div>
+        <>
+          <Group justify="space-between" className={cn('h-7 mt-4 mb-2 px-3')}>
+            <Group>
+              <Text c="text-secondary" className="text-sm font-medium">
+                {displaySchema.length} columns, {formatNumber(realOrEstimatedRowCount)}
+                {realRowCount === null ? '+' : ''} rows
+              </Text>
+            </Group>
+            <Group className="h-full px-4">
+              <ActionIcon
+                size={16}
+                onClick={() => console.log('TODO: Implement copy to clipboard')}
+              >
+                <IconCopy />
+              </ActionIcon>
+            </Group>
+          </Group>
+          <div className={cn('overflow-auto px-3 custom-scroll-hidden pb-6 flex-1')}>
+            <Table
+              data={displayData}
+              columns={displaySchema}
+              sort={sortParams}
+              page={currentPage}
+              visible={!!visible}
+              onSelectedColsCopy={() => console.warn('Copy selected columns not implemented')}
+              onColumnSelectChange={() => console.warn('Column select change not implemented')}
+              onRowSelectChange={() => console.warn('Row select change not implemented')}
+              onCellSelectChange={() => console.warn('Cell select change not implemented')}
+              onSort={handleSortAndGetNewReader}
+            />
+          </div>
+        </>
       )}
       {showTable && !dataSourceReadError && (
         <div

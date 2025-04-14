@@ -49,11 +49,12 @@ export const useTableColumns = ({ columns, onRowSelectionChange, page }: UseTabl
               size: 46,
               cell: (props) => {
                 const rowIndex = props.row.index;
-                const pageIndex = page - 1;
+                const pageIndex = page;
                 const index = pageIndex * 100 + rowIndex + 1;
                 const onRowClick = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
                   onRowSelectionChange(props, e);
                 };
+
                 return (
                   <div
                     onMouseDown={onRowClick}
@@ -113,7 +114,7 @@ export const useTableColumns = ({ columns, onRowSelectionChange, page }: UseTabl
             ),
           ]
         : fallbackData,
-    [columns, onRowSelectionChange],
+    [columns, onRowSelectionChange, page],
   );
 
   return tableColumns;
