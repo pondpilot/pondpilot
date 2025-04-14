@@ -8,10 +8,9 @@ import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { openQueryErrorModal } from '@features/error-modal/query-error-modal';
 import { useProtectedViews } from '@store/app-store';
-import { DBRunQueryProps, RunQueryResponse } from './models';
 import { executeQueries } from './utils';
 import { useAppInitialization } from './hooks/useInitApplication';
-import { dbApiProxi } from './db-worker';
+import { DBRunQueryProps, runQueryDeprecated, RunQueryResponse } from './db-worker';
 import { DevModal } from './components/dev-modal';
 
 interface AppContextType {
@@ -47,7 +46,7 @@ export const AppProvider = ({ children }: { children: React.ReactNode }) => {
         throw new Error('Connection is not established');
       }
 
-      const result = await dbApiProxi.runQuery({ conn, query });
+      const result = await runQueryDeprecated({ conn, query });
       return tableFromIPC(result.data);
     },
     [conn],

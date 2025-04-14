@@ -1,15 +1,5 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
-import { tableToIPC } from 'apache-arrow';
-
-import { Dataset } from '@models/common';
-import { createName } from '../../utils/helpers';
-import {
-  DBRunQueryProps,
-  DbAPIType,
-  DropFilesAndDBInstancesProps,
-  RunQueryResponse,
-} from './models';
-import { GET_DBS_SQL_QUERY, GET_VIEWS_SQL_QUERY } from './consts';
+import { Table } from 'apache-arrow';
 
 /**
  * Retrieves the total number of rows for pagination by executing a count query.
@@ -38,105 +28,23 @@ export const getPaginationRowsCount = async (
   return totalRowsCount[0] as number;
 };
 
-/**
- * Get app-defined instances
- */
-async function getDBUserInstances(conn: duckdb.AsyncDuckDBConnection, type: 'databases' | 'views') {
-  const viewsResult = await conn.query(
-    type === 'databases' ? GET_DBS_SQL_QUERY : GET_VIEWS_SQL_QUERY,
-  );
-
-  return tableToIPC(viewsResult);
+export interface DBRunQueryProps {
+  query: string;
+  limit?: number;
+  offset?: number;
+  hasLimit?: boolean;
+  isPagination?: boolean;
+  queryWithoutLimit?: string;
 }
-
-/**
- * Register file handle
- *
- * @param fileName - Name of the file
- * @param handle - File handle
- */
-async function registerFileHandleAndCreateDBInstance(
-  db: duckdb.AsyncDuckDB,
-  conn: duckdb.AsyncDuckDBConnection,
-  dataset: Dataset,
-) {
-  const fileName = dataset.handle.name;
-  const { handle } = dataset;
-  const formatSupported = ['.csv', '.parquet', '.duckdb', '.json', '.xlsx'].some((ext) =>
-    fileName.endsWith(ext),
-  );
-
-  if (!formatSupported) throw new Error('Unsupported file format');
-
-  const file = await handle.getFile();
-
-  /**
-   * Drop file if it already exists
-   */
-  await db.dropFile(fileName).catch(console.error);
-
-  /**
-   * Register file handle
-   */
-  await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
-
-  /**
-   * Create instance
-   */
-  if (fileName.endsWith('.duckdb')) {
-    await conn.query(`ATTACH '${fileName}' AS ${createName(fileName)} (READ_ONLY); `);
-  } else {
-    const viewName = createName(fileName);
-
-    await conn.query(`CREATE or REPLACE VIEW ${viewName} AS SELECT * FROM "${fileName}";`);
-    const id = JSON.stringify({ sourceId: dataset.id });
-    await conn.query(`COMMENT ON VIEW ${viewName} IS '${id}';`);
-  }
-}
-
-/**
- * Drop file and view
- */
-async function dropFilesAndDBInstances({
-  ids,
-  type,
-  conn,
-}: DropFilesAndDBInstancesProps & { conn: duckdb.AsyncDuckDBConnection }) {
-  if (type === 'databases') {
-    const databases = await conn.query('SELECT * FROM duckdb_databases');
-    const databasesToDelete = databases.toArray().filter((row) => {
-      const id = JSON.parse(row.comment || '{}').sourceId;
-      return ids.includes(id);
-    });
-    await Promise.all(
-      databasesToDelete.map(async (row) => {
-        await conn.query(`DETACH ${row.name};`);
-      }),
-    );
-  }
-
-  if (type === 'views') {
-    const views = await conn.query('SELECT * FROM duckdb_views');
-    const viewsToDelete = views
-      .toArray()
-      .filter((row) => {
-        const id = JSON.parse(row.comment || '{}').sourceId;
-        return ids.includes(id);
-      })
-      .map((row) => row.toJSON());
-
-    await Promise.all(
-      viewsToDelete.map(async (row) => {
-        await conn.query(`DROP VIEW ${row.view_name};`);
-      }),
-    );
-  }
+export interface RunQueryResponse {
+  data: Table;
+  pagination: number;
 }
 
 /**
  * Run paginated query
  */
-async function runQuery({
+export async function runQueryDeprecated({
   query,
   hasLimit,
   queryWithoutLimit,
@@ -171,10 +79,3 @@ async function runQuery({
     conn.cancelSent();
   }
 }
-
-export const dbApiProxi: DbAPIType = {
-  runQuery,
-  registerFileHandleAndCreateDBInstance,
-  dropFilesAndDBInstances,
-  getDBUserInstances,
-};

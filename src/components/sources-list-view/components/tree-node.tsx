@@ -323,6 +323,9 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
           disabled={isDisabled}
           position="bottom-start"
           arrowOffset={8}
+          withinPortal={false}
+          floatingStrategy="fixed"
+          closeDelay={0}
         >
           <Menu.Dropdown style={menuStyles}>
             {contextMenu.map((item, index) => {

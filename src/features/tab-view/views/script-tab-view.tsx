@@ -2,7 +2,7 @@ import { memo, useCallback, useState } from 'react';
 import { Allotment } from 'allotment';
 import { ScriptTab } from '@models/tab';
 import { QueryEditor } from '@features/query-editor';
-import { dbApiProxi } from '@features/app-context/db-worker';
+import { runQueryDeprecated } from '@features/app-context/db-worker';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@store/app-store';
 import { Table as ApacheTable } from 'apache-arrow';
@@ -20,7 +20,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
   const runScriptQuery = useCallback(
     async (query: string) => {
       setQueryRunning(true);
-      const { data } = await dbApiProxi.runQuery({ query, conn });
+      const { data } = await runQueryDeprecated({ query, conn });
       setFetchedData(data);
       setQueryRunning(false);
     },
