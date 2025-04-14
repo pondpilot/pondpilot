@@ -2,7 +2,7 @@ import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { DataAdapterApi } from '@models/data-adapter';
 import { AnyDataSource, AnyFlatFileDataSource, AttachedDB } from '@models/data-source';
 import { DataViewCacheKey } from '@models/data-view';
-import { LocalEntry } from '@models/file-system';
+import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, AttachedDBDataTab, FlatFileDataSourceTab } from '@models/tab';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
@@ -26,7 +26,7 @@ function getFlatFileDataAdapterApi(
   conn: AsyncDuckDBConnection,
   dataSource: AnyFlatFileDataSource,
   tab: FlatFileDataSourceTab,
-  sourceFile: LocalEntry,
+  sourceFile: LocalFile,
 ): DataAdapterApi {
   if (dataSource.type === 'csv') {
     return {
@@ -43,7 +43,7 @@ function getFlatFileDataAdapterApi(
       getCacheKey: () => tab.id as unknown as DataViewCacheKey,
       getRowCount: async () => {
         const result = await conn.query(
-          `SELECT num_rows FROM parquet_file_metadata('${sourceFile.uniqueAlias}')`,
+          `SELECT num_rows FROM parquet_file_metadata('${sourceFile.uniqueAlias}.${sourceFile.ext}')`,
         );
 
         const count = Number(result.getChildAt(0)?.get(0));
@@ -145,6 +145,16 @@ export function getFileDataAdapterApi(
         userErrors: [],
         internalErrors: [
           `Tried creating a flat file data adapter from a tab with different source type: ${tab.dataSourceType}`,
+        ],
+      };
+    }
+
+    if (sourceFile.kind !== 'file') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: [
+          `Tried creating a flat file data adapter from a directory: ${sourceFile.id}`,
         ],
       };
     }
