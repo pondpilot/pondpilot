@@ -2,10 +2,11 @@ import { memo, useCallback, useState } from 'react';
 import { Allotment } from 'allotment';
 import { ScriptTab } from '@models/tab';
 import { QueryEditor } from '@features/query-editor';
-import { runQueryDeprecated } from '@features/app-context/db-worker';
+import { DataView } from '@features/tab-view/components/data-view';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@store/app-store';
-import { Table as ApacheTable } from 'apache-arrow';
+import { DataAdapterApi } from '@models/data-adapter';
+import { DataViewCacheKey } from '@models/data-view';
 
 interface ScriptTabViewProps {
   tab: ScriptTab;
@@ -13,16 +14,28 @@ interface ScriptTabViewProps {
 }
 
 export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
-  const [isQueryRunning, setQueryRunning] = useState(false);
-  const [fetchedData, setFetchedData] = useState<ApacheTable<any> | null>(null);
+  const [dataAdapter, setDataAdapter] = useState<DataAdapterApi | null>(null);
   const { conn } = useInitializedDuckDBConnection();
 
   const runScriptQuery = useCallback(
     async (query: string) => {
-      setQueryRunning(true);
-      const { data } = await runQueryDeprecated({ query, conn });
-      setFetchedData(data);
-      setQueryRunning(false);
+      // setQueryRunning(true);
+      // const { data } = await runQueryDeprecated({ query, conn });
+      setDataAdapter({
+        getCacheKey: () => tab.id as unknown as DataViewCacheKey,
+        getReader: async (sort) => {
+          let fullQuery = query;
+
+          if (sort.length > 0) {
+            const orderBy = sort.map((s) => `${s.column} ${s.order || 'asc'}`).join(', ');
+            fullQuery = `
+              SELECT * FROM (${query}) ORDER BY ${orderBy}`;
+          }
+          const reader = await conn.send(fullQuery);
+          return reader;
+        },
+      });
+      // setQueryRunning(false);
     },
     [conn],
   );
@@ -55,7 +68,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
         </Allotment.Pane>
 
         <Allotment.Pane preferredSize={tab.dataViewLayout.dataViewPaneHeight} minSize={120}>
-          {/* <DataView  /> */}
+          {dataAdapter ? <DataView visible={active} dataAdapterApi={dataAdapter} /> : null}
           <div></div>
         </Allotment.Pane>
       </Allotment>

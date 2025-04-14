@@ -402,121 +402,24 @@ function arePropsEqual<NTypeToIdTypeMap extends Record<string, any>>(
   oldProps: BaseTreeNodeProps<NTypeToIdTypeMap>,
   newProps: BaseTreeNodeProps<NTypeToIdTypeMap>,
 ): boolean {
-  const comparisons = [
-    {
-      field: 'level',
-      equal: oldProps.level === newProps.level,
-      oldVal: oldProps.level,
-      newVal: newProps.level,
-    },
-    {
-      field: 'expanded',
-      equal: oldProps.expanded === newProps.expanded,
-      oldVal: oldProps.expanded,
-      newVal: newProps.expanded,
-    },
-    {
-      field: 'hasChildren',
-      equal: oldProps.hasChildren === newProps.hasChildren,
-      oldVal: oldProps.hasChildren,
-      newVal: newProps.hasChildren,
-    },
-    {
-      field: 'selected',
-      equal: oldProps.selected === newProps.selected,
-      oldVal: oldProps.selected,
-      newVal: newProps.selected,
-    },
-    {
-      field: 'node',
-      equal: Object.is(oldProps.node, newProps.node),
-      oldVal: oldProps.node,
-      newVal: newProps.node,
-    },
-    {
-      field: 'elementProps.className',
-      equal: oldProps.elementProps.className === newProps.elementProps.className,
-      oldVal: oldProps.elementProps.className,
-      newVal: newProps.elementProps.className,
-    },
-    {
-      field: 'elementProps.style',
-      equal: shallow(oldProps.elementProps.style, newProps.elementProps.style),
-      oldVal: oldProps.elementProps.style,
-      newVal: newProps.elementProps.style,
-    },
-    {
-      field: 'elementProps.data-selected',
-      equal: oldProps.elementProps['data-selected'] === newProps.elementProps['data-selected'],
-      oldVal: oldProps.elementProps['data-selected'],
-      newVal: newProps.elementProps['data-selected'],
-    },
-    {
-      field: 'elementProps.data-value',
-      equal: oldProps.elementProps['data-value'] === newProps.elementProps['data-value'],
-      oldVal: oldProps.elementProps['data-value'],
-      newVal: newProps.elementProps['data-value'],
-    },
-    {
-      field: 'elementProps.data-hovered',
-      equal: oldProps.elementProps['data-hovered'] === newProps.elementProps['data-hovered'],
-      oldVal: oldProps.elementProps['data-hovered'],
-      newVal: newProps.elementProps['data-hovered'],
-    },
-    {
-      field: 'isActive',
-      equal: oldProps.isActive === newProps.isActive,
-      oldVal: oldProps.isActive,
-      newVal: newProps.isActive,
-    },
-    {
-      field: 'isPrevActive',
-      equal: oldProps.isPrevActive === newProps.isPrevActive,
-      oldVal: oldProps.isPrevActive,
-      newVal: newProps.isPrevActive,
-    },
-    {
-      field: 'isNextActive',
-      equal: oldProps.isNextActive === newProps.isNextActive,
-      oldVal: oldProps.isNextActive,
-      newVal: newProps.isNextActive,
-    },
-    {
-      field: 'dataTestIdPrefix',
-      equal: oldProps.dataTestIdPrefix === newProps.dataTestIdPrefix,
-      oldVal: oldProps.dataTestIdPrefix,
-      newVal: newProps.dataTestIdPrefix,
-    },
-    {
-      field: 'overrideContextMenu',
-      equal: Object.is(oldProps.overrideContextMenu, newProps.overrideContextMenu),
-      oldVal: oldProps.overrideContextMenu,
-      newVal: newProps.overrideContextMenu,
-    },
-    {
-      field: 'flattenedNodeIds',
-      equal: Object.is(oldProps.flattenedNodeIds, newProps.flattenedNodeIds),
-      oldVal: oldProps.flattenedNodeIds,
-      newVal: newProps.flattenedNodeIds,
-    },
-  ];
-
-  const inequalFields = comparisons.filter((comp) => !comp.equal);
-
-  // Uncomment to debug unexpected re-renders
-  //   if (import.meta.env.DEV && inequalFields.length > 0) {
-  //     if (inequalFields.length > 0) {
-  //       console.group(`TreeNode props changed for node: ${oldProps.node.label}`);
-  //       inequalFields.forEach((field) => {
-  //         console.log(`Field: ${field.field}`);
-  //         console.log('Old value:', field.oldVal);
-  //         console.log('New value:', field.newVal);
-  //       });
-  //       console.groupEnd();
-  //     }
-  //   }
-
-  return inequalFields.length === 0;
+  return (
+    oldProps.level === newProps.level &&
+    oldProps.expanded === newProps.expanded &&
+    oldProps.hasChildren === newProps.hasChildren &&
+    oldProps.selected === newProps.selected &&
+    Object.is(oldProps.node, newProps.node) &&
+    oldProps.elementProps.className === newProps.elementProps.className &&
+    shallow(oldProps.elementProps.style, newProps.elementProps.style) &&
+    oldProps.elementProps['data-selected'] === newProps.elementProps['data-selected'] &&
+    oldProps.elementProps['data-value'] === newProps.elementProps['data-value'] &&
+    oldProps.elementProps['data-hovered'] === newProps.elementProps['data-hovered'] &&
+    oldProps.isActive === newProps.isActive &&
+    oldProps.isPrevActive === newProps.isPrevActive &&
+    oldProps.isNextActive === newProps.isNextActive &&
+    oldProps.dataTestIdPrefix === newProps.dataTestIdPrefix &&
+    Object.is(oldProps.overrideContextMenu, newProps.overrideContextMenu) &&
+    Object.is(oldProps.flattenedNodeIds, newProps.flattenedNodeIds)
+  );
 }
 
 export const MemoizedBaseTreeNode = memo(BaseTreeNode, arePropsEqual) as typeof BaseTreeNode;
