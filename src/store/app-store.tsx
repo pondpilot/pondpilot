@@ -337,19 +337,14 @@ export const addLocalFileOrFolders = async (
 }> => {
   const { _iDbConn: iDbConn, localEntries, dataSources, dataBaseMetadata } = useAppStore.getState();
 
-  const usedEntryNames = new Set(
-    localEntries
-      .values()
-      // For files we use uniqueAlias, but folders we use the file name without alias
-      .map((entry) => (entry.kind === 'file' ? entry.uniqueAlias : entry.name)),
-  );
+  const usedEntryNames = new Set(localEntries.values().map((entry) => entry.uniqueAlias));
 
   const errors: string[] = [];
   const newDatabaseNames: string[] = [];
   // Fetch currently attached databases, to avoid name collisions
   const reservedDbs = new Set((await getAttachedDBs(conn, false)) || ['memory']);
   // Same for views
-  const reservedViews = new Set((await getViews(conn, 'memory', 'main')) || ['memory']);
+  const reservedViews = new Set((await getViews(conn, 'memory', 'main')) || []);
 
   const skippedExistingEntries: LocalEntry[] = [];
   const skippedUnsupportedFiles: string[] = [];
@@ -387,7 +382,7 @@ export const addLocalFileOrFolders = async (
     }
 
     // New entry, remember it's unique alias and add it to the store
-    usedEntryNames.add(localEntry.kind === 'file' ? localEntry.uniqueAlias : localEntry.name);
+    usedEntryNames.add(localEntry.uniqueAlias);
     newEntries.push([localEntry.id, localEntry]);
 
     // Check if this is a data source file ad create a data source if so
@@ -1149,14 +1144,23 @@ const persistDeleteTab = async (
 const persistDeleteDataSource = async (
   iDb: IDBPDatabase<AppIdbSchema>,
   deletedDataSourceIds: PersistentDataSourceId[],
+  entryIdsToDelete: Iterable<LocalEntryId>,
 ) => {
-  const tx = iDb.transaction(DATA_SOURCE_TABLE_NAME, 'readwrite');
+  const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME, LOCAL_ENTRY_TABLE_NAME], 'readwrite');
 
   // Delete each data source
+  const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
   for (const id of deletedDataSourceIds) {
-    await tx.objectStore(DATA_SOURCE_TABLE_NAME).delete(id);
+    await dataSourceStore.delete(id);
   }
 
+  // Delete each local entry
+  const localEntryStore = tx.objectStore(LOCAL_ENTRY_TABLE_NAME);
+  for (const id of entryIdsToDelete) {
+    await localEntryStore.delete(id);
+  }
+
+  // Commit the transaction
   await tx.done;
 };
 
@@ -1320,20 +1324,31 @@ export const deleteDataSource = (
     _iDbConn: iDbConn,
   } = useAppStore.getState();
 
+  // Data source have many connected objects.
+  // First, some tabs may be displaying data from sources (1+ tab to 1 data source).
+  // Then, as of today, all data sources are coming from local files which also need to be deleted.
   const dataSourceIdsToDelete = new Set(dataSourceIds);
 
-  // Save objects to be deleted - we'll need them later to delete from db
+  // Save objects & entries (files) to be deleted - we'll need them later to delete from db
   const deletedDataSources = dataSourceIds
     .map((id) => dataSources.get(id))
     .filter((ds) => ds !== undefined);
 
+  const deletedLocalEntries = deletedDataSources
+    .map((ds) => localEntries.get(ds.fileSourceId))
+    // This is really just for type safety, as we know that the localEntries map
+    // will contain the entries for the data sources being deleted
+    .filter((le) => le !== undefined);
+
+  // Create the updated state for data sources
   const newDataSources = deleteDataSourceImpl(dataSourceIds, dataSources);
 
+  // Create the updated state for tabs
   const tabsToDelete: TabId[] = [];
 
   for (const [tabId, tab] of tabs.entries()) {
     if (tab.type === 'data-source') {
-      if (dataSourceIdsToDelete.has(tab.dataSourceId as PersistentDataSourceId)) {
+      if (dataSourceIdsToDelete.has(tab.dataSourceId)) {
         tabsToDelete.push(tabId);
       }
     }
@@ -1353,9 +1368,16 @@ export const deleteDataSource = (
     newPreviewTabId = result.newPreviewTabId;
   }
 
+  // Create the updated state for local entires
+  const entryIdsToDelete = new Set(deletedLocalEntries.map((le) => le.id));
+  const newLocalEntires = new Map(
+    Array.from(localEntries).filter(([id, _]) => !entryIdsToDelete.has(id)),
+  );
+
   useAppStore.setState(
     {
       dataSources: newDataSources,
+      localEntries: newLocalEntires,
       tabs: newTabs,
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,
@@ -1367,9 +1389,10 @@ export const deleteDataSource = (
 
   if (iDbConn) {
     // Delete data sources from IndexedDB
-    persistDeleteDataSource(iDbConn, dataSourceIds);
+    persistDeleteDataSource(iDbConn, dataSourceIds, entryIdsToDelete);
 
-    // Delete associated tabs from IndexedDB if any
+    // Delete associated tabs from IndexedDB if any. For simplicty we do not bother
+    // doing this in a single transaction, highly unlikely to be a problem
     if (tabsToDelete.length) {
       persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
     }
