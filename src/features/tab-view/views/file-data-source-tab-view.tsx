@@ -6,7 +6,7 @@ import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-
 import { DataAdapterApi } from '@models/data-adapter';
 import { LoadingOverlay } from '@components/loading-overlay';
 import { Loader, Stack, Text } from '@mantine/core';
-import { DataView } from './components/data-view';
+import { DataView } from '../components';
 
 interface FileDataSourceTabViewProps {
   tab: AnyFileSourceTab;
