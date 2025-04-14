@@ -1,7 +1,7 @@
 import { assertNeverType } from '@utils/typing';
+import { NewId } from './new-id';
 
-export type LocalEntryId = string & { readonly _: unique symbol };
-export type PersistentHandleId = string & { readonly _: unique symbol };
+export type LocalEntryId = NewId<'LocalEntryId'>;
 
 export type LocalFileType = 'data-source' | 'code-file';
 

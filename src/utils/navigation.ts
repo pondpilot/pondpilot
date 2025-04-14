@@ -61,7 +61,7 @@ export function getTabIcon(
   }
 
   // AttachedDBDataTab
-  return tab.dbType === 'table' ? 'db-table' : 'db-view';
+  return tab.objectType === 'table' ? 'db-table' : 'db-view';
 }
 
 export function getLocalEntryIcon(entry: LocalEntry): IconType {

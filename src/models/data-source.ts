@@ -1,4 +1,5 @@
 import { LocalEntryId } from './file-system';
+import { NewId } from './new-id';
 
 // We have two types of data view sources:
 // 1. Persistent - these are stored in app state to allow
@@ -15,7 +16,7 @@ import { LocalEntryId } from './file-system';
 //    will not have a type here, but will have controller that
 //    creates a DataAdapterApi for them.
 
-export type PersistentDataSourceId = string & { readonly _: unique symbol };
+export type PersistentDataSourceId = NewId<'PersistentDataSourceId'>;
 
 interface FlatFileDataSource {
   id: PersistentDataSourceId;
@@ -42,12 +43,7 @@ export interface ParquetView extends FlatFileDataSource {
   readonly type: 'parquet';
 }
 
-export interface XlsxSheetView extends FlatFileDataSource {
-  readonly type: 'xlsx-sheet';
-  sheetName: string;
-}
-
-export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView;
+export type AnyFlatFileDataSource = CSVView | ParquetView;
 
 export interface AttachedDB {
   readonly type: 'attached-db';

@@ -1,13 +1,15 @@
-import { v4 as uuidv4 } from 'uuid';
 import { findUniqueName } from '@utils/helpers';
 import { AnyFlatFileDataSource, AttachedDB, PersistentDataSourceId } from '@models/data-source';
 import { DataSourceLocalFile } from '@models/file-system';
+import { makeIdFactory } from './new-id';
+
+export const makePersistentDataSourceId = makeIdFactory<PersistentDataSourceId>();
 
 export function addFlatFileDataSource(
   localEntry: DataSourceLocalFile,
   reservedViews: Set<string>,
 ): AnyFlatFileDataSource {
-  const dataSourceId = uuidv4() as PersistentDataSourceId;
+  const dataSourceId = makePersistentDataSourceId();
 
   const viewName = findUniqueName(localEntry.uniqueAlias, (name: string) =>
     reservedViews.has(name),
@@ -37,7 +39,7 @@ export function addAttachedDB(
   localEntry: DataSourceLocalFile,
   reservedDbs: Set<string>,
 ): AttachedDB {
-  const dataSourceId = uuidv4() as PersistentDataSourceId;
+  const dataSourceId = makePersistentDataSourceId();
 
   const dbName = findUniqueName(localEntry.uniqueAlias, (name: string) => reservedDbs.has(name));
 

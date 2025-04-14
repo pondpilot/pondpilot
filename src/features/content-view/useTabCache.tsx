@@ -1,32 +1,36 @@
-import { useCallback, useEffect } from 'react';
-import { useSet } from '@mantine/hooks';
+import { useCallback } from 'react';
+import { useMap } from '@mantine/hooks';
+import { TabId } from '@models/tab';
 
 /**
- * Hook for caching tabs using Mantine's useSet
+ * Hook for implementing an LRU (Least Recently Used) tab cache
  * @param maxSize Maximum number of tabs to keep in cache
  * @returns Object with methods to work with the cache
  */
 export function useTabCache(maxSize = 10) {
-  // Use Mantine's useSet with proper typing
-  const cachedTabs = useSet<string>(['']);
+  // Using a Map to maintain insertion order (oldest first)
+  const cachedTabs = useMap<TabId, boolean>([]);
 
   /**
-   * Adds a tab to cache
-   * @param tabId ID of the tab to add
+   * Adds a tab to cache or moves it to the most recently used position
+   * @param tabId ID of the tab to add/update
    */
   const addToCache = useCallback(
-    (tabId: string) => {
-      // If we're at max capacity and adding a new tab
-      if (cachedTabs.size >= maxSize && !cachedTabs.has(tabId)) {
-        // Simple approach: if we need to remove one, just remove the first one
-        if (cachedTabs.size > 0) {
-          const firstItem = Array.from(cachedTabs)[0];
-          cachedTabs.delete(firstItem);
-        }
+    (tabId: TabId) => {
+      if (cachedTabs.has(tabId)) {
+        // If tab already exists, remove it first to update its position
+        cachedTabs.delete(tabId);
+      } else if (cachedTabs.size >= maxSize) {
+        // If we're at max capacity and adding a new tab
+        // Remove the oldest item (first key in the Map)
+        const oldestKey = cachedTabs.keys().next().value;
+
+        // Theoretically with maxSize 0, oldestKey will be undefined
+        if (oldestKey) cachedTabs.delete(oldestKey);
       }
 
-      // Add the new tab
-      cachedTabs.add(tabId);
+      // Add/re-add the tab at the end (most recently used position)
+      cachedTabs.set(tabId, true);
     },
     [cachedTabs, maxSize],
   );
@@ -36,14 +40,14 @@ export function useTabCache(maxSize = 10) {
    * @param tabId ID of the tab to check
    * @returns true if tab is cached
    */
-  const isTabCached = useCallback((tabId: string) => cachedTabs.has(tabId), [cachedTabs]);
+  const isTabCached = useCallback((tabId: TabId) => cachedTabs.has(tabId), [cachedTabs]);
 
   /**
    * Removes a tab from the cache
    * @param tabId ID of the tab to remove
    */
   const removeFromCache = useCallback(
-    (tabId: string) => {
+    (tabId: TabId) => {
       cachedTabs.delete(tabId);
     },
     [cachedTabs],
@@ -56,17 +60,19 @@ export function useTabCache(maxSize = 10) {
     cachedTabs.clear();
   }, [cachedTabs]);
 
-  // Initialize with empty string and then clear it to avoid type issues
-  useEffect(() => {
-    cachedTabs.delete('');
-  }, []);
+  /**
+   * Returns the current cache as an array
+   * Newest (most recently used) items will be at the end
+   */
+  const getCachedTabIds = useCallback(() => {
+    return Array.from(cachedTabs.keys());
+  }, [cachedTabs]);
 
   return {
     addToCache,
     isTabCached,
     removeFromCache,
     clearCache,
-    // Convert Set to array for easier consumption
-    cachedTabIds: Array.from(cachedTabs),
+    getCachedTabIds,
   };
 }

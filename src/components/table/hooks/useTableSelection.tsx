@@ -13,7 +13,6 @@ interface SelectedCell {
 
 interface UseTableSelectionProps {
   columns: ArrowColumn[];
-  canCopy: boolean;
   onRowSelectChange: () => void;
   onCellSelectChange: () => void;
   onColumnSelectChange: ({ columnName, dataType }: CalculateColumnSummaryProps) => void;
@@ -24,7 +23,6 @@ export const useTableSelection = ({
   onColumnSelectChange,
   onRowSelectChange,
   onCellSelectChange,
-  canCopy,
 }: UseTableSelectionProps) => {
   const { showSuccess } = useAppNotifications();
   const [lastSelectedRow, setLastSelectedRow] = useState<string>('0');

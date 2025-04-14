@@ -11,7 +11,7 @@ import { useAppNotifications } from '@components/app-notifications';
 import { setDataTestId } from '@utils/test-id';
 import { formatNumber } from '@utils/helpers';
 import { useTableExport } from '../hooks/useTableExport';
-import { PaginationControl, TableLoadingOverlay } from '.';
+import { RowCountAndPaginationControl, TableLoadingOverlay } from '.';
 import { useColumnSummary } from '../hooks';
 
 const PAGE_SIZE = 100;
@@ -229,9 +229,9 @@ export const DataView = memo(({ data, isLoading, isScriptTab = false, active }: 
           className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
           data-testid={setDataTestId('data-table-pagination-control')}
         >
-          <PaginationControl
+          <RowCountAndPaginationControl
             currentPage={currentPage}
-            limit={PAGE_SIZE}
+            maxItemsPerPage={PAGE_SIZE}
             rowCount={rowCount}
             onPrevPage={() => {
               // In a full implementation, this would update the page

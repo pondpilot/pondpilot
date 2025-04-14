@@ -5,15 +5,9 @@ interface LoadingContentProps {
   title: string;
   onCancel: () => void;
   visible: boolean;
-  queryView: boolean;
 }
 
-export const TableLoadingOverlay = ({
-  onCancel,
-  visible,
-  queryView,
-  title,
-}: LoadingContentProps) => (
+export const TableLoadingOverlay = ({ onCancel, visible, title }: LoadingContentProps) => (
   <LoadingOverlay visible={visible}>
     <Stack align="center" gap={4} bg="background-primary" className="p-8 pt-4 rounded-2xl">
       <Loader size={24} color="text-secondary" />

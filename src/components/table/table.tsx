@@ -56,7 +56,6 @@ export const Table = ({
     columns,
     onRowSelectChange,
     onCellSelectChange,
-    canCopy: visible,
   });
 
   const tableColumns = useTableColumns({ columns, onRowSelectionChange, page });

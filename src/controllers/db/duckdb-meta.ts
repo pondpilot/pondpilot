@@ -47,26 +47,29 @@ export async function getAttachedDBs(
  * Get all user defined views.
  *
  * @param conn - DuckDB connection
- * @param database_name - database name to filter by. Default is 'memory'.
- * @param schema_name - schema name to filter by. Default is 'main'.
+ * @param databaseName - database name to filter by. Default is 'memory'.
+ * @param schemaName - schema name to filter by. Default is 'main'.
  * @returns Array of view names or null in case of errors.
  */
 export async function getViews(
   conn: AsyncDuckDBConnection,
-  database_name: string = 'memory',
-  schema_name: string = 'main',
+  databaseName: string = 'memory',
+  schemaName: string = 'main',
 ): Promise<string[] | null> {
   const sql = `
     SELECT view_name 
     FROM duckdb_views
-    WHERE database_name == '${toDuckDBIdentifier(database_name)}'
-      AND schema_name == '${toDuckDBIdentifier(schema_name)}'
+    WHERE database_name == '${toDuckDBIdentifier(databaseName)}'
+      AND schema_name == '${toDuckDBIdentifier(schemaName)}'
   `;
 
   return queryOneColumn<arrow.Utf8>(conn, sql, 'view_name');
 }
 
-function buildColumnsQueryWithFilters(database_names?: string[], schema_names?: string[]): string {
+function buildColumnsQueryWithFilters(databaseNames?: string[], schemaName?: string[]): string {
+  const quotedDatabaseNames = databaseNames?.map((name) => `'${toDuckDBIdentifier(name)}'`);
+  const quotedSchemaNames = schemaName?.map((name) => `'${toDuckDBIdentifier(name)}'`);
+
   return `
     SELECT 
         dt.table_oid is not null as is_table,
@@ -80,9 +83,9 @@ function buildColumnsQueryWithFilters(database_names?: string[], schema_names?: 
     FROM duckdb_columns as dc
         LEFT JOIN duckdb_tables as dt             
             ON dc.table_oid = dt.table_oid
-    ${database_names || schema_names ? 'WHERE 1=1 ' : ''}
-    ${database_names ? `AND dc.database_name in ('${database_names.join("','")}') ` : ''}
-    ${schema_names ? `AND dc.schema_name in ('${schema_names.join("','")}') ` : ''}
+    ${quotedDatabaseNames || quotedSchemaNames ? 'WHERE 1=1 ' : ''}
+    ${quotedDatabaseNames ? `AND dc.database_name in ('${quotedDatabaseNames.join("','")}') ` : ''}
+    ${quotedSchemaNames ? `AND dc.schema_name in ('${quotedSchemaNames.join("','")}') ` : ''}
     ORDER BY dc.database_name, dc.schema_name, dc.table_name, dc.column_index;
   `;
 }
@@ -112,16 +115,16 @@ type ColumnsQueryReturnType = {
 /**
  * Get all user tables and views with their columns
  *
- * @param database_names - Optional database names to filter by
- * @param schema_names - Optional schema names to filter by
+ * @param databaseNames - Optional database names to filter by
+ * @param schemaNames - Optional schema names to filter by
  * @returns Table and column information in Arrow IPC format
  */
 async function getTablesAndColumns(
   conn: AsyncDuckDBConnection,
-  database_names?: string[],
-  schema_names?: string[],
+  databaseNames?: string[],
+  schemaNames?: string[],
 ): Promise<ColumnsQueryReturnType[] | null> {
-  const sql = buildColumnsQueryWithFilters(database_names, schema_names);
+  const sql = buildColumnsQueryWithFilters(databaseNames, schemaNames);
   const res = await conn.query<ColumnsQueryArrowType>(sql);
 
   const columns = {
@@ -177,16 +180,16 @@ async function getTablesAndColumns(
 /**
  * Get all user tables and views with their columns
  *
- * @param database_names - Optional database names to filter by
- * @param schema_names - Optional schema names to filter by
+ * @param databaseNames - Optional database names to filter by
+ * @param schemaNames - Optional schema names to filter by
  * @returns Table and column information in Arrow IPC format
  */
 export async function getDatabaseModel(
   conn: AsyncDuckDBConnection,
-  database_names?: string[],
-  schema_names?: string[],
+  databaseNames?: string[],
+  schemaNames?: string[],
 ): Promise<Map<string, DataBaseModel> | null> {
-  const duckdbColumns = await getTablesAndColumns(conn, database_names, schema_names);
+  const duckdbColumns = await getTablesAndColumns(conn, databaseNames, schemaNames);
   if (!duckdbColumns) {
     return null;
   }

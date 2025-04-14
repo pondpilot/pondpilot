@@ -24,16 +24,16 @@ import { Table as ApacheTable, AsyncRecordBatchStreamReader } from 'apache-arrow
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { setDataTestId } from '@utils/test-id';
-import { AnyTab, FileDataSourceTab } from '@models/tab';
+import { AnyTab, FlatFileDataSourceTab } from '@models/tab';
 import {
   updateScriptTabEditorPaneHeight,
   updateTabDataViewLayout,
   useAppStore,
 } from '@store/app-store';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
-import { getFlatFileDataAdapterApi } from '@controllers/db/data-view';
+import { getFileDataAdapterApi } from '@controllers/db/tab';
 import { dbApiProxi } from '@features/app-context/db-worker';
-import { PaginationControl, TableLoadingOverlay } from './components';
+import { RowCountAndPaginationControl, TableLoadingOverlay } from './components';
 import { useTableExport } from './hooks/useTableExport';
 import { useColumnSummary } from './hooks';
 
@@ -60,7 +60,7 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
   // all fetch/create dataViews differently
 
   const { conn } = useInitializedDuckDBConnection();
-  const persistentTab: FileDataSourceTab | null =
+  const persistentTab: FlatFileDataSourceTab | null =
     tab.type === 'data-source' && tab.dataSourceType === 'file' ? tab : null;
   const dataSource = useAppStore((state) => state.dataSources.get(tab.dataSourceId));
   const sourceFile = useAppStore((state) =>
@@ -70,7 +70,7 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
   const dataViewAdapter = useMemo(
     () =>
       dataSource && dataSource.type !== 'attached-db' && sourceFile
-        ? getFlatFileDataAdapterApi(dataSource, tab.id, sourceFile)
+        ? getFileDataAdapterApi(dataSource, tab.id, sourceFile)
         : null,
     [dataSource],
   );
@@ -389,9 +389,9 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
           className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
           data-testid={setDataTestId('data-table-pagination-control')}
         >
-          <PaginationControl
+          <RowCountAndPaginationControl
             currentPage={currentPage}
-            limit={limit}
+            maxItemsPerPage={limit}
             rowCount={rowCount}
             onPrevPage={() => {}}
             onNextPage={() => {}}

@@ -8,7 +8,9 @@ import {
   LocalFolder,
   supportedDataSourceFileExt,
 } from '@models/file-system';
-import { v4 as uuidv4 } from 'uuid';
+import { makeIdFactory } from './new-id';
+
+export const makeLocalEntryId = makeIdFactory<LocalEntryId>();
 
 export function isSupportedDataSourceFileExt(x: unknown): x is supportedDataSourceFileExt {
   return supportedDataSourceFileExts.includes(x as supportedDataSourceFileExt);
@@ -144,7 +146,7 @@ export function localEntryFromHandle(
     }
     const commonFile = {
       kind: 'file' as const,
-      id: uuidv4() as LocalEntryId,
+      id: makeLocalEntryId(),
       name,
       parentId,
       userAdded,
@@ -174,7 +176,7 @@ export function localEntryFromHandle(
 
   return {
     kind: 'directory' as const,
-    id: uuidv4() as LocalEntryId,
+    id: makeLocalEntryId(),
     name: handle.name,
     parentId,
     userAdded,
