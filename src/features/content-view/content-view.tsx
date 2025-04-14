@@ -39,7 +39,10 @@ export const ContentView = () => {
           }
 
           return (
-            <div style={{ display: isActive ? 'block' : 'none' }} className="h-full" key={tab.id}>
+            <div
+              style={{ display: isActive ? 'block' : 'none', height: 'calc(100% - 36px)' }}
+              key={tab.id}
+            >
               <TabFactory key={tab.id} tab={tab} active={isActive} />
             </div>
           );

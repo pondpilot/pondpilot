@@ -71,28 +71,28 @@ export const FileDataSourceTabView = memo(({ tab, visible }: FileDataSourceTabVi
   }, [conn, dataSource, tab, sourceFile]);
 
   return (
-    <div className="h-full relative" style={{ display: visible ? 'block' : 'none' }}>
-      <LoadingOverlay visible={isLoading}>
+    <div className="h-full relative">
+      <LoadingOverlay visible={isLoading || isError}>
         <Stack align="center" gap={4} bg="background-primary" className="p-8 pt-4 rounded-2xl">
           <Loader size={24} color="text-secondary" />
-          <Text c="text-primary" className="text-2xl font-medium">
-            Opening your file, please wait...
-          </Text>
+          {isError && (
+            <Text c="text-primary" className="text-2xl font-medium">
+              We are sorry, but we encountered an errors while opening your file:
+              {loadErrors.map((error, index) => (
+                <Text key={index} c="text-secondary" className="text-lg font-medium">
+                  - {error}
+                </Text>
+              ))}
+            </Text>
+          )}
+          {isLoading && (
+            <Text c="text-primary" className="text-2xl font-medium">
+              Opening your file, please wait...
+            </Text>
+          )}
         </Stack>
       </LoadingOverlay>
-      <LoadingOverlay visible={isError}>
-        <Stack align="center" gap={4} bg="background-primary" className="p-8 pt-4 rounded-2xl">
-          <Loader size={24} color="text-secondary" />
-          <Text c="text-primary" className="text-2xl font-medium">
-            We are sorry, but we encountered an errors while opening your file:
-            {loadErrors.map((error, index) => (
-              <Text key={index} c="text-secondary" className="text-lg font-medium">
-                - {error}
-              </Text>
-            ))}
-          </Text>
-        </Stack>
-      </LoadingOverlay>
+
       {!isLoading && !isError && dataAdapter && (
         <DataView visible={visible} dataAdapterApi={dataAdapter} />
       )}
