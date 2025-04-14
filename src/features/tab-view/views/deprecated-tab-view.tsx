@@ -33,9 +33,10 @@ import {
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { getFileDataAdapterApi } from '@controllers/db/tab';
 import { dbApiProxi } from '@features/app-context/db-worker';
-import { RowCountAndPaginationControl, TableLoadingOverlay } from './components';
-import { useTableExport } from './hooks/useTableExport';
-import { useColumnSummary } from './hooks';
+import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
+import { TableLoadingOverlay } from '../components';
+import { useColumnSummary } from '../hooks';
+import { useTableExport } from '../hooks/useTableExport';
 
 interface TabViewProps {
   tab: AnyTab;

@@ -1,13 +1,13 @@
 import { LoadingOverlay } from '@components/loading-overlay';
 import { Stack, Loader, Button, Text } from '@mantine/core';
 
-interface LoadingContentProps {
+interface DataLoadingOverlayProps {
   title: string;
   onCancel: () => void;
   visible: boolean;
 }
 
-export const TableLoadingOverlay = ({ onCancel, visible, title }: LoadingContentProps) => (
+export const DataLoadingOverlay = ({ onCancel, visible, title }: DataLoadingOverlayProps) => (
   <LoadingOverlay visible={visible}>
     <Stack align="center" gap={4} bg="background-primary" className="p-8 pt-4 rounded-2xl">
       <Loader size={24} color="text-secondary" />

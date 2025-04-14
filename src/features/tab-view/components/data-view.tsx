@@ -11,11 +11,11 @@ import { updateDataViewCache, useAppStore } from '@store/app-store';
 import { ActionIcon, Affix, Button, Group, Menu, Stack, Text, Tooltip } from '@mantine/core';
 import { DataViewCacheItem } from '@models/data-view';
 import { useDidUpdate } from '@mantine/hooks';
-import { RowCountAndPaginationControl } from './pagination-control';
 import { useSort } from '../useSort';
-import { TableLoadingOverlay } from './table-loading-overlay';
 import { IconCopy, IconChevronDown } from '@tabler/icons-react';
 import { formatNumber } from '@utils/helpers';
+import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
+import { DataLoadingOverlay } from '@components/data-loading-overlay';
 
 const MAX_PAGE_SIZE = 100;
 
@@ -51,6 +51,8 @@ const MAX_PAGE_SIZE = 100;
 
 interface DataViewProps {
   visible: boolean;
+  canExport?: boolean;
+
   dataAdapterApi: DataAdapterApi;
 }
 
@@ -368,7 +370,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
 
   return (
     <div className="flex h-full flex-col">
-      <TableLoadingOverlay
+      <DataLoadingOverlay
         title="Opening your file, please wait..."
         onCancel={() => {
           throw new Error('TODO: Implement cancel loading');
