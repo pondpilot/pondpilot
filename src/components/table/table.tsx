@@ -11,6 +11,7 @@ import { ColumnSortSpec } from '@models/db';
 import { useTableColumns, useTableSelection } from './hooks';
 import { MemoizedTableBody, TableBody } from './components/table-body';
 import { TableHeadCell } from './components/thead-cell';
+import { Text } from '@mantine/core';
 
 interface TableProps {
   data: Record<string, any>[];
@@ -41,6 +42,8 @@ export const Table = ({
 }: TableProps) => {
   const { showSuccess } = useAppNotifications();
   const clipboard = useClipboard();
+
+  const hasData = data.length > 0;
 
   const {
     handleCellSelect,
@@ -150,6 +153,11 @@ export const Table = ({
         </div>
       </div>
       {/* Body */}
+      {!hasData && (
+        <div className="py-3 px-4 flex justify-center items-center text-textSecondary-light dark:text-textSecondary-dark border-b border-x border-borderLight-light dark:border-borderLight-dark rounded-b-xl">
+          <Text c="text-tertiary">No results</Text>
+        </div>
+      )}
       {table.getState().columnSizingInfo.isResizingColumn ? (
         <MemoizedTableBody
           table={table}

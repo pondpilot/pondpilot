@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { ScriptTabView } from './views/script-tab-view';
 import { FileDataSourceTabView } from './views/file-data-source-tab-view';
 import { useTabCache } from './hooks/useTabCache';
+import { Stack } from '@mantine/core';
 
 const TAB_CACHE_SIZE = 10;
 
@@ -20,21 +21,15 @@ export const TabView = () => {
   }, [activeTabId, addToCache]);
 
   return (
-    <>
+    <Stack className="h-full gap-0">
       {Array.from(tabs.values()).map((tab) => {
         const isActive = tab.id === activeTabId;
-        // Render only tabs from cache or active tabs
         if (isTabCached(tab.id) || isActive) {
-          // If tab is active but not yet cached - add it
           if (isActive && !isTabCached(tab.id)) {
             addToCache(tab.id);
           }
-
           return (
-            <div
-              style={{ display: isActive ? 'block' : 'none', height: 'calc(100% - 36px)' }}
-              key={tab.id}
-            >
+            <div key={tab.id} className={`flex-1 min-h-0 ${isActive ? 'block' : 'hidden'}`}>
               {tab.type === 'script' && <ScriptTabView tab={tab} active={isActive} />}
               {tab.type === 'data-source' && <FileDataSourceTabView tab={tab} visible={isActive} />}
             </div>
@@ -42,6 +37,6 @@ export const TabView = () => {
         }
         return null;
       })}
-    </>
+    </Stack>
   );
 };

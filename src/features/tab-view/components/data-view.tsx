@@ -369,7 +369,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
   });
 
   return (
-    <div className="flex h-full flex-col">
+    <Stack className="gap-0 h-full overflow-hidden">
       <DataLoadingOverlay
         title="Opening your file, please wait..."
         onCancel={() => {
@@ -409,38 +409,20 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
         </Affix>
       )}
       {showTable && (
-        <>
-          <Group justify="space-between" className={cn('h-7 mt-4 mb-2 px-3')}>
-            <Group>
-              <Text c="text-secondary" className="text-sm font-medium">
-                {displaySchema.length} columns, {formatNumber(realOrEstimatedRowCount)}
-                {realRowCount === null ? '+' : ''} rows
-              </Text>
-            </Group>
-            <Group className="h-full px-4">
-              <ActionIcon
-                size={16}
-                onClick={() => console.log('TODO: Implement copy to clipboard')}
-              >
-                <IconCopy />
-              </ActionIcon>
-            </Group>
-          </Group>
-          <div className={cn('overflow-auto px-3 custom-scroll-hidden pb-6 flex-1')}>
-            <Table
-              data={displayData}
-              columns={displaySchema}
-              sort={sortParams}
-              page={currentPage}
-              visible={!!visible}
-              onSelectedColsCopy={() => console.warn('Copy selected columns not implemented')}
-              onColumnSelectChange={() => console.warn('Column select change not implemented')}
-              onRowSelectChange={() => console.warn('Row select change not implemented')}
-              onCellSelectChange={() => console.warn('Cell select change not implemented')}
-              onSort={handleSortAndGetNewReader}
-            />
-          </div>
-        </>
+        <div className="flex-1 min-h-0 overflow-auto px-3 custom-scroll-hidden pb-6">
+          <Table
+            data={displayData}
+            columns={displaySchema}
+            sort={sortParams}
+            page={currentPage}
+            visible={!!visible}
+            onSelectedColsCopy={() => console.warn('Copy selected columns not implemented')}
+            onColumnSelectChange={() => console.warn('Column select change not implemented')}
+            onRowSelectChange={() => console.warn('Row select change not implemented')}
+            onCellSelectChange={() => console.warn('Cell select change not implemented')}
+            onSort={handleSortAndGetNewReader}
+          />
+        </div>
       )}
       {showTable && !dataSourceReadError && (
         <div
@@ -459,6 +441,6 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
           />
         </div>
       )}
-    </div>
+    </Stack>
   );
 };
