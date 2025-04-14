@@ -1,4 +1,6 @@
-export type SQLScriptId = string & { readonly _: unique symbol };
+import { NewId } from './new-id';
+
+export type SQLScriptId = NewId<'SQLScriptId'>;
 
 export type SQLScript = {
   id: SQLScriptId;

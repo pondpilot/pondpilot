@@ -4,7 +4,7 @@ import { AnyTab, TabId } from '@models/tab';
 import { DBSchema } from 'idb';
 import { LocalEntryId, LocalEntryPersistence } from '@models/file-system';
 import { PersistentDataSourceId, AnyDataSource } from '@models/data-source';
-import { DataViewCacheItem, DataViewCacheKey } from '@models/data-adapter';
+import { DataViewCacheItem, DataViewCacheKey } from '@models/data-view';
 import {
   CONTENT_VIEW_TABLE_NAME,
   DATA_SOURCE_TABLE_NAME,

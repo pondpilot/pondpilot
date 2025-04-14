@@ -8,6 +8,10 @@ import {
   useAttachedDBDataSourceMap,
   useAppStore,
   useAttachedDBLocalEntriesMap,
+  findTabFromAttachedDBObject,
+  setActiveTabId,
+  getOrCreateTabFromAttachedDBObject,
+  setPreviewTabId,
 } from '@store/app-store';
 import { ExplorerTree } from '@components/sources-list-view/explorer-tree';
 import { TreeNodeData } from '@components/sources-list-view/model';
@@ -94,8 +98,6 @@ function buildObjectTreeNode({
   copy: (valueToCopy: any) => void;
   showSuccess: (data: NotificationData) => string;
 }): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
-  //`${dbName}.${schemaName}.${tableName/viewName}`
-  //`${dbName}.${schemaName}.${tableName/viewName}::${columnName}`
   const { name: objectName, columns } = object;
   const objectNodeId = `${dbId}.${schemaName}.${objectName}`;
 
@@ -117,25 +119,45 @@ function buildObjectTreeNode({
     iconType: object.type === 'table' ? 'db-table' : 'db-view',
     isDisabled: false,
     isSelectable: true,
+    onNodeClick: (): void => {
+      // Check if the tab is already open
+      const existingTab = findTabFromAttachedDBObject(dbId, schemaName, objectName);
+      if (existingTab) {
+        // If the tab is already open, just set as active and do not change preview
+        setActiveTabId(existingTab.id);
+        return;
+      }
+
+      // Net new. Create an active tab
+      const tab = getOrCreateTabFromAttachedDBObject(
+        dbId,
+        schemaName,
+        objectName,
+        object.type,
+        true,
+      );
+      // Then set as & preview
+      setPreviewTabId(tab.id);
+    },
     contextMenu: [
       {
         children: [
           {
-            label: 'Copy name',
+            label: 'Copy Name',
             onClick: () => {
               copy(toDuckDBIdentifier(objectName));
               showSuccess({ title: 'Copied', message: '', autoClose: 800 });
             },
           },
           {
-            label: 'Copy fully qualified name',
+            label: 'Copy Full Name',
             onClick: () => {
               copy(fqn);
               showSuccess({ title: 'Copied', message: '', autoClose: 800 });
             },
           },
           {
-            label: 'Create a query',
+            label: 'Create a Query',
             onClick: () => {
               const query = `SELECT * FROM ${fqn};`;
 
@@ -182,8 +204,6 @@ function buildSchemaTreeNode({
   copy: (valueToCopy: any) => void;
   showSuccess: (data: NotificationData) => string;
 }): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
-  //`${dbName}.${schemaName}.${tableName/viewName}`
-  //`${dbName}.${schemaName}.${tableName/viewName}::${columnName}`
   const { name: schemaName, objects } = schema;
   const schemaNodeId = `${dbId}.${schemaName}`;
 
@@ -218,7 +238,7 @@ function buildSchemaTreeNode({
             },
           },
           {
-            label: 'Copy fully qualified name',
+            label: 'Copy Full Name',
             onClick: () => {
               copy(`${toDuckDBIdentifier(dbName)}.${toDuckDBIdentifier(schemaName)}`);
               showSuccess({ title: 'Copied', message: '', autoClose: 800 });

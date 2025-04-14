@@ -10,7 +10,7 @@ module.exports = {
     'import/extensions': 'off',
     'consistent-return': 'off',
     'no-promise-executor-return': 'off',
-    'no-console': ['error', { allow: ['warn', 'error'] }],
+    'no-console': ['error', { allow: ['warn', 'error', 'group', 'groupEnd'] }],
     'no-continue': 'off',
     '@typescript-eslint/no-unused-vars': 'off',
     'unused-imports/no-unused-imports': 'error',

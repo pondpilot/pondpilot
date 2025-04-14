@@ -1,7 +1,8 @@
 import { PersistentDataSourceId } from './data-source';
+import { NewId } from './new-id';
 import { SQLScriptId } from './sql-script';
 
-export type TabId = string & { readonly _: unique symbol };
+export type TabId = NewId<'TabId'>;
 
 export type DataViewLayout = {
   tableColumnWidth: Record<string, number>;
@@ -22,7 +23,7 @@ export interface ScriptTab extends TabBase {
   editorPaneHeight: number;
 }
 
-export interface FileDataSourceTab extends TabBase {
+export interface FlatFileDataSourceTab extends TabBase {
   readonly type: 'data-source';
   readonly dataSourceType: 'file';
   dataSourceId: PersistentDataSourceId;
@@ -44,7 +45,7 @@ export interface AttachedDBDataTab extends TabBase {
   /**
    * The type of the object in the database.
    */
-  dbType: 'table' | 'view';
+  objectType: 'table' | 'view';
 
   /**
    * Name of the schema in the database.
@@ -57,4 +58,5 @@ export interface AttachedDBDataTab extends TabBase {
   objectName: string;
 }
 
-export type AnyTab = ScriptTab | FileDataSourceTab | AttachedDBDataTab;
+export type AnyFileSourceTab = FlatFileDataSourceTab | AttachedDBDataTab;
+export type AnyTab = ScriptTab | AnyFileSourceTab;

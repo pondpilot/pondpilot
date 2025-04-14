@@ -13,14 +13,9 @@ export const TabFactory = ({ tab, active }: TabFactoryProps) => {
     return <ScriptTabView tab={tab} active={active} />;
   }
 
-  if (tab.type === 'data-source' && tab.dataSourceType === 'file') {
-    return <FileDataSourceTabView tab={tab} active={active} />;
+  if (tab.type === 'data-source') {
+    return <FileDataSourceTabView tab={tab} visible={active} />;
   }
-
-  // TODO:
-  //   if (tab.type === 'data-source' && tab.dataSourceType === 'db') {
-  //     return <AttachedDBDataTabView tab={tab} active={active} />;
-  //   }
 
   return null;
 };

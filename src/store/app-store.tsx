@@ -2,13 +2,12 @@ import { create } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import { devtools } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
-import { v4 as uuidv4 } from 'uuid';
 import { findUniqueName } from '@utils/helpers';
 import {
   AnyTab,
   AttachedDBDataTab,
   DataViewLayout,
-  FileDataSourceTab,
+  FlatFileDataSourceTab,
   ScriptTab,
   TabId,
 } from '@models/tab';
@@ -36,7 +35,9 @@ import { IconType } from '@components/list-view-icon';
 import { addAttachedDB, addFlatFileDataSource } from '@utils/data-source';
 import { getAttachedDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
 import { DataBaseModel } from '@models/db';
-import { DataViewCacheItem, DataViewCacheKey } from '@models/data-adapter';
+import { makeTabId } from '@utils/tab';
+import { makeSQLScriptId } from '@utils/sql-script';
+import { DataViewCacheItem, DataViewCacheKey } from '@models/data-view';
 import {
   CONTENT_VIEW_TABLE_NAME,
   DATA_SOURCE_TABLE_NAME,
@@ -497,7 +498,7 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
     const nameWithoutExt = fileName.split('.').slice(0, -1).join('.');
     const fileContent = await handle.getFile().then((file) => file.text());
 
-    const sqlScriptId = uuidv4() as SQLScriptId;
+    const sqlScriptId = makeSQLScriptId();
     const sqlScript: SQLScript = {
       id: sqlScriptId,
       name: nameWithoutExt,
@@ -530,7 +531,7 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
   const allNames = new Set(sqlScripts.values().map((script) => script.name));
 
   const fileName = findUniqueName(name, (value) => allNames.has(value));
-  const sqlScriptId = uuidv4() as SQLScriptId;
+  const sqlScriptId = makeSQLScriptId();
   const sqlScript: SQLScript = {
     id: sqlScriptId,
     name: fileName,
@@ -762,7 +763,7 @@ function ensureFlatFileDataSource(
 const findTabFromFlatFileDataSourceImpl = (
   tabs: Map<TabId, AnyTab>,
   dataSource: AnyFlatFileDataSource,
-): FileDataSourceTab | undefined =>
+): FlatFileDataSourceTab | undefined =>
   Array.from(tabs.values())
     .filter((tab) => tab.type === 'data-source' && tab.dataSourceType === 'file')
     .find((tab) => tab.dataSourceId === dataSource.id);
@@ -845,7 +846,7 @@ export const getOrCreateTabFromScript = (
   }
 
   // Create a new tab
-  const tabId = uuidv4() as TabId;
+  const tabId = makeTabId();
   const tab: ScriptTab = {
     type: 'script',
     id: tabId,
@@ -909,7 +910,7 @@ export const findTabFromFlatFileDataSource = (
 export const getOrCreateTabFromFlatFileDataSource = (
   dataSourceOrId: AnyFlatFileDataSource | PersistentDataSourceId,
   setActive: boolean = false,
-): FileDataSourceTab => {
+): FlatFileDataSourceTab => {
   const state = useAppStore.getState();
 
   // Get the script object if not passed as an object
@@ -928,8 +929,8 @@ export const getOrCreateTabFromFlatFileDataSource = (
   }
 
   // Create a new tab
-  const tabId = uuidv4() as TabId;
-  const tab: FileDataSourceTab = {
+  const tabId = makeTabId();
+  const tab: FlatFileDataSourceTab = {
     type: 'data-source',
     dataSourceType: 'file',
     id: tabId,
@@ -965,30 +966,38 @@ export const getOrCreateTabFromFlatFileDataSource = (
   return tab;
 };
 
-/**
- * Gets existing or creates a new tab for a given table/view in an attached database.
- * If the source is already associated with a tab, it returns that tab without creating a new one.
- *
- * @param dataSource - The ID of an object to create a tab from.
- * @param schemaName - The name of the schema.
- * @param objectName - The name of the table or view.
- * @param objectType - The type of the object, either 'table' or 'view'.
- * @param setActive - Whether to set the new tab as active. This is a shortcut for
- *                  calling `setActiveTabId(tab.id)` on the returned tab.
- * @returns A new Tab object.
- * @throws An error if the SQL script with the given ID does not exist.
- */
-export const getOrCreateTabFromAttachedDBObject = (
+function ensureAttachedDBDataSource(
+  dataSourceOrId: AttachedDB | PersistentDataSourceId,
+  dataSources: Map<PersistentDataSourceId, AnyDataSource>,
+): AttachedDB {
+  let obj: AnyDataSource;
+
+  if (typeof dataSourceOrId === 'string') {
+    const fromState = dataSources.get(dataSourceOrId);
+
+    if (!fromState) {
+      throw new Error(`Data source with id ${dataSourceOrId} not found`);
+    }
+
+    obj = fromState;
+  } else {
+    obj = dataSourceOrId;
+  }
+
+  if (obj.type !== 'attached-db') {
+    throw new Error(`Data source with id ${obj.id} is not an attached DB data source`);
+  }
+
+  return obj;
+}
+
+const findTabFromAttachedDBDataSourceImpl = (
+  tabs: Map<TabId, AnyTab>,
   dataSource: AttachedDB,
   schemaName: string,
   objectName: string,
-  objectType: 'table' | 'view',
-  setActive: boolean = false,
-): AttachedDBDataTab => {
-  const state = useAppStore.getState();
-
-  // Check if the script already has an associated tab
-  const existingTab = Array.from(state.tabs.values())
+): AttachedDBDataTab | undefined =>
+  Array.from(tabs.values())
     .filter((tab) => tab.type === 'data-source' && tab.dataSourceType === 'db')
     .find(
       (tab) =>
@@ -996,6 +1005,60 @@ export const getOrCreateTabFromAttachedDBObject = (
         tab.schemaName === schemaName &&
         tab.objectName === objectName,
     );
+
+/**
+ * Finds a tab displaying an existing Attached DB object or undefined.
+ *
+ * @param dataSourceOrId - The ID or an Attached DB object to find the tab for.
+ * @returns A new Tab object if found.
+ * @throws An error if the Attached DB with the given ID does not exist.
+ */
+export const findTabFromAttachedDBObject = (
+  dataSourceOrId: AttachedDB | PersistentDataSourceId,
+  schemaName: string,
+  objectName: string,
+): AttachedDBDataTab | undefined => {
+  const state = useAppStore.getState();
+
+  // Get the attached db as an object
+  const dataSource = ensureAttachedDBDataSource(dataSourceOrId, state.dataSources);
+
+  // Check if the script already has an associated tab
+  return findTabFromAttachedDBDataSourceImpl(state.tabs, dataSource, schemaName, objectName);
+};
+
+/**
+ * Gets existing or creates a new tab for a given table/view in an attached database.
+ * If the source is already associated with a tab, it returns that tab without creating a new one.
+ *
+ * @param dataSourceOrId - The ID of an object to create a tab from.
+ * @param schemaName - The name of the schema.
+ * @param objectName - The name of the table or view.
+ * @param objectType - The type of the object, either 'table' or 'view'.
+ * @param setActive - Whether to set the new tab as active. This is a shortcut for
+ *                  calling `setActiveTabId(tab.id)` on the returned tab.
+ * @returns A new Tab object.
+ * @throws An error if the Attached DB with the given ID does not exist.
+ */
+export const getOrCreateTabFromAttachedDBObject = (
+  dataSourceOrId: AttachedDB | PersistentDataSourceId,
+  schemaName: string,
+  objectName: string,
+  objectType: 'table' | 'view',
+  setActive: boolean = false,
+): AttachedDBDataTab => {
+  const state = useAppStore.getState();
+
+  // Get the attached db as an object
+  const dataSource = ensureAttachedDBDataSource(dataSourceOrId, state.dataSources);
+
+  // Check if object already has an associated tab
+  const existingTab = findTabFromAttachedDBDataSourceImpl(
+    state.tabs,
+    dataSource,
+    schemaName,
+    objectName,
+  );
 
   // No need to create a new tab if one already exists
   if (existingTab) {
@@ -1007,7 +1070,7 @@ export const getOrCreateTabFromAttachedDBObject = (
   }
 
   // Create a new tab
-  const tabId = uuidv4() as TabId;
+  const tabId = makeTabId();
   const tab: AttachedDBDataTab = {
     type: 'data-source',
     dataSourceType: 'db',
@@ -1015,8 +1078,7 @@ export const getOrCreateTabFromAttachedDBObject = (
     dataSourceId: dataSource.id,
     schemaName,
     objectName,
-    dbType: objectType,
-
+    objectType,
     dataViewLayout: {
       tableColumnWidth: {},
       dataViewPaneHeight: 0,
@@ -1533,16 +1595,6 @@ export const resetAppState = async () => {
  */
 export const updateDataViewCache = (entry: DataViewCacheItem): void => {
   const { dataViewCache, _iDbConn: iDbConn } = useAppStore.getState();
-  console.log({
-    entry,
-  });
-
-  // We assume the item has a property that can be used as a key
-  // This is a critical assumption - the item must have some unique identifier
-  if (!entry.key) {
-    console.error('DataViewCacheItem missing ID property', entry);
-    return;
-  }
 
   // Create a new Map with all existing entries plus new/updated one
   const newDataViewCache = new Map(dataViewCache);
@@ -1561,20 +1613,34 @@ export const updateDataViewCache = (entry: DataViewCacheItem): void => {
   }
 };
 
+async function persistRemovedDataViewCacheEntires(
+  iDb: IDBPDatabase<AppIdbSchema>,
+  keysToRemoveSet: Set<DataViewCacheKey>,
+) {
+  const tx = iDb.transaction(DATA_VIEW_CACHE_TABLE_NAME, 'readwrite');
+  const dataViewCacheStore = tx.objectStore(DATA_VIEW_CACHE_TABLE_NAME);
+
+  // Delete each entry from IndexedDB
+  for (const key of keysToRemoveSet) {
+    await dataViewCacheStore.delete(key);
+  }
+
+  await tx.done;
+}
+
 /**
  * Removes entries from the data view cache.
  *
- * @param keys - A single key or an array of keys to remove from the cache
+ * @param keysToRemove - An array of keys to remove from the cache
  */
-export const removeDataViewCacheEntries = (keys: DataViewCacheKey | DataViewCacheKey[]): void => {
+export const removeDataViewCacheEntries = (keysToRemove: DataViewCacheKey[]): void => {
   const { dataViewCache, _iDbConn: iDbConn } = useAppStore.getState();
 
   // Handle both single key and array of keys
-  const keysToRemove = Array.isArray(keys) ? keys : [keys];
   const keysSet = new Set(keysToRemove);
 
   // Skip if there's nothing to remove
-  if (keysToRemove.length === 0) return;
+  if (keysSet.size === 0) return;
 
   // Create a new Map excluding the keys to be removed
   const newDataViewCache = new Map(Array.from(dataViewCache).filter(([key]) => !keysSet.has(key)));
@@ -1588,9 +1654,6 @@ export const removeDataViewCacheEntries = (keys: DataViewCacheKey | DataViewCach
 
   // If we have an IndexedDB connection, persist the deletion
   if (iDbConn) {
-    // Delete each entry from IndexedDB
-    for (const key of keysToRemove) {
-      iDbConn.delete(DATA_VIEW_CACHE_TABLE_NAME, key);
-    }
+    persistRemovedDataViewCacheEntires(iDbConn, keysSet);
   }
 };

@@ -4,29 +4,40 @@ import { setDataTestId } from '@utils/test-id';
 import { formatNumber } from '@utils/helpers';
 
 interface PaginationControlProps {
-  currentPage: number;
-  limit: number;
+  rowFrom: number;
+  rowTo: number;
+  /**
+   * If True, no pagination control buttons are shown
+   */
+  isSinglePage: boolean;
   rowCount: number;
-  hasMoreData: boolean;
+  /**
+   * If True, the row count is assumed as an estimate
+   * and a '+' is appended to the row count
+   */
+  isEstimatedRowCount: boolean;
+  /**
+   * Indicates if the pagination control buttons should show as disabled
+   */
+  isDisabled: boolean;
   onPrevPage: () => void;
   onNextPage: () => void;
 }
 
-export const PaginationControl = ({
-  onNextPage,
-  onPrevPage,
-  currentPage,
-  limit,
+export const RowCountAndPaginationControl = ({
+  rowFrom,
+  rowTo,
+  isSinglePage,
   rowCount,
-  hasMoreData,
+  isEstimatedRowCount,
+  isDisabled,
+  onPrevPage,
+  onNextPage,
 }: PaginationControlProps) => {
-  const isSinglePage = rowCount <= limit;
-  const startItem = rowCount > 0 ? (currentPage - 1) * limit + 1 : 0;
-  const endItem = Math.min(currentPage * limit, rowCount);
   const outOf =
     rowCount > 0
       ? !isSinglePage
-        ? `${formatNumber(startItem)}-${formatNumber(endItem)} out of ${formatNumber(rowCount)}${hasMoreData ? '+' : ''} rows`
+        ? `${formatNumber(rowFrom)}-${formatNumber(rowTo)} out of ${formatNumber(rowCount)}${isEstimatedRowCount ? '+' : ''} rows`
         : `${formatNumber(rowCount)} rows`
       : '0 rows';
   return (
@@ -39,14 +50,16 @@ export const PaginationControl = ({
       <Group className="text-sm" data-testid={setDataTestId('pagination-control-out-of')}>
         {outOf}
       </Group>
-      <Group gap={0}>
-        <ActionIcon onClick={onPrevPage}>
-          <IconChevronLeft />
-        </ActionIcon>
-        <ActionIcon onClick={onNextPage}>
-          <IconChevronRight />
-        </ActionIcon>
-      </Group>
+      {!isSinglePage && (
+        <Group gap={0}>
+          <ActionIcon onClick={onPrevPage} disabled={isDisabled}>
+            <IconChevronLeft />
+          </ActionIcon>
+          <ActionIcon onClick={onNextPage} disabled={isDisabled}>
+            <IconChevronRight />
+          </ActionIcon>
+        </Group>
+      )}
     </Group>
   );
 };
