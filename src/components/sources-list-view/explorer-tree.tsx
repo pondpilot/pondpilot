@@ -173,7 +173,13 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
               <Text c="text-secondary">No data to display</Text>
             </Group>
           ) : (
-            <Tree data={nodes} tree={tree} selectOnClick renderNode={handleRenderNode} />
+            <Tree
+              data={nodes}
+              tree={tree}
+              selectOnClick
+              clearSelectionOnOutsideClick
+              renderNode={handleRenderNode}
+            />
           )}
         </>
       </Stack>

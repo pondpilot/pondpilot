@@ -5,8 +5,7 @@ import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { splitSqlQuery } from '../../utils/editor/statement-parser';
-import { DBRunQueryProps, RunQueryResponse } from './models';
-import { dbApiProxi } from './db-worker';
+import { DBRunQueryProps, runQueryDeprecated, RunQueryResponse } from './db-worker';
 
 interface QueryStatement {
   text: string;
@@ -145,7 +144,7 @@ const executeStatement = async ({
   hasLimit: boolean;
 }): Promise<RunQueryResponse> =>
   Promise.race([
-    dbApiProxi.runQuery({
+    runQueryDeprecated({
       conn,
       query,
       hasLimit,

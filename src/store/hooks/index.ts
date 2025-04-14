@@ -1,1 +1,1 @@
-export * from './useImportSQLFiles';
+export * from './use-import-sql-files';

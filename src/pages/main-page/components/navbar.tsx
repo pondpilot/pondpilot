@@ -6,7 +6,7 @@ import { useLocalStorage } from '@mantine/hooks';
 import { IconBrandGithub, IconPlus, IconSettings } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
-import { memo, useState } from 'react';
+import { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
 import { APP_GITHUB_URL } from 'app-urls';
@@ -26,11 +26,21 @@ export const Navbar = memo(() => {
   const appLoadState = useAppStore.use.appLoadState();
 
   const { handleAddFile } = useLocalFilesOrFolders();
+  const isDatabaseObjectTabActive = useAppStore((state) => {
+    if (state.activeTabId === null) return false;
+    const curTab = state.tabs.get(state.activeTabId);
+    if (!curTab) return false;
+    return curTab.type === 'data-source' && curTab.dataSourceType === 'db';
+  });
+  const [filesDbToggle, setFilesDbToggle] = useLocalStorage<'files' | 'databases'>({
+    key: 'navbar-data-source-selected-tab',
+    defaultValue: isDatabaseObjectTabActive ? 'databases' : 'files',
+  });
 
   /**
    * Local state
    */
-  const [filesDbToggle, setFilesDbToggle] = useState<'files' | 'databases'>('files');
+
   const isFiles = filesDbToggle === 'files';
   const appReady = appLoadState === 'ready';
 

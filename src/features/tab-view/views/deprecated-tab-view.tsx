@@ -32,7 +32,7 @@ import {
 } from '@store/app-store';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { getFileDataAdapterApi } from '@controllers/db/tab';
-import { dbApiProxi } from '@features/app-context/db-worker';
+import { runQueryDeprecated } from '@features/app-context/db-worker';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { TableLoadingOverlay } from '../components';
 import { useColumnSummary } from '../hooks';
@@ -83,7 +83,7 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
   const runScriptQuery = useCallback(
     async (query: string) => {
       setQueryRunning(true);
-      const { data } = await dbApiProxi.runQuery({ query, conn });
+      const { data } = await runQueryDeprecated({ query, conn });
       setFetchedData(data);
       setQueryRunning(false);
     },
