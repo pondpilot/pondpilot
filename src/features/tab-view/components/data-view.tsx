@@ -8,14 +8,15 @@ import { ArrowColumn } from '@models/arrow';
 import { setDataTestId } from '@utils/test-id';
 import { useDidMount } from '@hooks/use-did-mount';
 import { updateDataViewCache, useAppStore } from '@store/app-store';
-import { ActionIcon, Affix, Button, Group, Menu, Stack, Text, Tooltip } from '@mantine/core';
+import { ActionIcon, Affix, Group, Stack, Text } from '@mantine/core';
 import { DataViewCacheItem } from '@models/data-view';
 import { useDidUpdate } from '@mantine/hooks';
-import { useSort } from '../useSort';
-import { IconCopy, IconChevronDown } from '@tabler/icons-react';
+import { IconCopy } from '@tabler/icons-react';
 import { formatNumber } from '@utils/helpers';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
+import { ColumnSortSpec } from '@models/db';
+import { useSort } from '../useSort';
 
 const MAX_PAGE_SIZE = 100;
 
@@ -159,22 +160,46 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
     return dataSlice;
   }, [expectedRowFrom, expectedRowTo, useStaleData, isFetchingData]);
 
-  // console.group('The entire computed state');
-  // console.log('cacheKey', cacheKey);
-  // console.log('estimatedRowCount', estimatedRowCount);
-  // console.log('realRowCount', realRowCount);
-  // console.log('loadedRowCount', loadedRowCount);
-  // console.log('expectedRowFrom', expectedRowFrom);
-  // console.log('expectedRowTo', expectedRowTo);
-  // console.log('displayedRowFrom', displayedRowFrom);
-  // console.log('displayedRowTo', displayedRowTo);
-  // console.log('useStaleData', useStaleData);
-  // console.log('showTable', showTable);
-  // console.log('isSinglePage', isSinglePage);
-  // console.log('isPaginationDisabled', isPaginationDisabled);
-  // console.log('displayData', displayData);
-  // console.log('displaySchema', displaySchema);
-  // console.groupEnd();
+  /**
+   * Shared closures
+   */
+
+  /**
+   * Inits/resets the data view by re-creating the reader with given sort params.
+   */
+  const reset = (newSortParams: ColumnSortSpec | null) => {
+    // Reset a bunch of things. This can be called from either a prop change,
+    // initial mount or a sort change.
+
+    // The real data is not needed anymore
+    actualData.current.length = 0;
+
+    // We avoid unnecessary re-renders on mount by only setting the new
+    // state if the value is different.
+
+    // Page is reset to 0, as we need to fetch data from the start
+    if (currentPage !== 0) setCurrentPage(0);
+    // As we will read from the start, we reset this flag
+    if (dataSourceExhausted) setDataSourceExhausted(false);
+    // And any error
+    if (dataSourceReadError) setDataSourceReadError(null);
+
+    // Fially we reset the reader and then asynchronously start a process
+    // similar to init, but with new sort params
+    if (reader) setReader(null);
+
+    const getNewReader = async () => {
+      // Now try creating the reader. This may throw an error, so catch it
+      try {
+        const newReader = await dataAdapterApi.getReader(newSortParams ? [newSortParams] : []);
+        setReader(newReader);
+      } catch (error) {
+        console.error('Failed to create reader:', error);
+        setDataSourceReadError('Failed to create reader');
+      }
+    };
+    getNewReader();
+  };
 
   /**
    * Exvent handlers
@@ -205,32 +230,8 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
     // Update the sort params
     const newSortParams = handleSort(sortField);
 
-    // Reset a bunch of things
-
-    // The real data is not needed anymore
-    actualData.current.length = 0;
-    // Page is reset to 0, as we need to fetch data from the start
-    setCurrentPage(0);
-    // As we will read from the start, we reset this flag
-    setDataSourceExhausted(false);
-    // And any error
-    setDataSourceReadError(null);
-
-    // Fially we reset the reader and then asynchronously start a process
-    // similar to init, but with new sort params
-    setReader(null);
-
-    const getNewReader = async () => {
-      // Now try creating the reader. This may throw an error, so catch it
-      try {
-        const newReader = await dataAdapterApi.getReader(newSortParams ? [newSortParams] : []);
-        setReader(newReader);
-      } catch (error) {
-        console.error('Failed to create reader:', error);
-        setDataSourceReadError('Failed to create reader');
-      }
-    };
-    getNewReader();
+    // Reset the data view with the new sort params
+    reset(newSortParams);
   };
 
   /**
@@ -328,6 +329,15 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
 
     fetchData();
   }, [reader, currentPage, expectedRowTo]);
+
+  /**
+   * Initialize data when prop change (new adapter). This is differnt from mount
+   * as we do not read the cache. For mount see below.
+   */
+  useDidUpdate(() => {
+    // Reset the data view with the new sort params
+    reset(null);
+  }, [dataAdapterApi]);
 
   /**
    * Initialize data when component mounts
