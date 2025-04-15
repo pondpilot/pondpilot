@@ -3,6 +3,7 @@ import { formatNumber } from '@utils/helpers';
 import { DBColumn } from '@models/db';
 import { isNumberType } from '@utils/db';
 import { DataAdapterApi } from '@models/data-adapter';
+import { useDidUpdate } from '@mantine/hooks';
 
 export const useColumnSummary = (dataAdapter: DataAdapterApi) => {
   const [columnTotal, setColumnTotal] = useState<string | null>(null);
@@ -53,6 +54,10 @@ export const useColumnSummary = (dataAdapter: DataAdapterApi) => {
   const clearCache = useCallback(() => {
     summaryCache.current.clear();
   }, []);
+
+  useDidUpdate(() => {
+    clearCache();
+  }, [dataAdapter]);
 
   return {
     columnTotal,

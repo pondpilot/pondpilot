@@ -1,4 +1,4 @@
-import { AsyncRecordBatchStreamReader, TypeMap } from 'apache-arrow';
+import { AsyncRecordBatchStreamReader, Table, TypeMap } from 'apache-arrow';
 import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema } from './db';
 import { DataViewCacheKey } from './data-view';
 
@@ -34,4 +34,9 @@ export interface DataAdapterApi<T extends TypeMap = any> {
    * Returns column summary for the given column.
    */
   getCalculatedColumnSummary?: (column: DBColumn) => Promise<number>;
+
+  /**
+   * Returns column data for the given columns.
+   */
+  getColumnsData?: (columns: DBColumn[]) => Promise<Table<T>>;
 }

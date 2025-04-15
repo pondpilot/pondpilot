@@ -7,6 +7,7 @@ import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, AttachedDBDataTab, FlatFileDataSourceTab } from '@models/tab';
 import { isNumberType } from '@utils/db';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { quote } from '@utils/helpers';
 
 function getFlatFileGetReaderApi(
   conn: AsyncDuckDBConnection,
@@ -38,6 +39,20 @@ function getFlatFileColumnCalculator(
     return Number(result.getChildAt(0)?.get(0));
   };
 }
+
+function getFlatFileColumnsData(
+  conn: AsyncDuckDBConnection,
+  dataSource: AnyFlatFileDataSource,
+): DataAdapterApi['getColumnsData'] {
+  return async (selectedColumns) => {
+    const columnsString = selectedColumns.map((col) => quote(col.name)).join(', ');
+    const sourceIdentifier = `main.${toDuckDBIdentifier(dataSource.viewName)}`;
+
+    const query = `SELECT ${columnsString} FROM ${sourceIdentifier}`;
+    return conn.query(query);
+  };
+}
+
 function getFlatFileDataAdapterApi(
   conn: AsyncDuckDBConnection,
   dataSource: AnyFlatFileDataSource,
@@ -45,22 +60,25 @@ function getFlatFileDataAdapterApi(
   tab: FlatFileDataSourceTab,
   sourceFile: LocalFile,
 ): DataAdapterApi {
+  const baseAttrs = {
+    getCacheKey: () => tab.id as unknown as DataViewCacheKey,
+    getSchema: () => schema,
+    getReader: getFlatFileGetReaderApi(conn, dataSource),
+    getCalculatedColumnSummary: getFlatFileColumnCalculator(conn, dataSource),
+    getColumnsData: getFlatFileColumnsData(conn, dataSource),
+  };
+
   if (dataSource.type === 'csv') {
     return {
-      getCacheKey: () => tab.id as unknown as DataViewCacheKey,
-      getSchema: () => schema,
-      getRowCount: undefined,
+      ...baseAttrs,
       // TODO: implement this
       getEstimatedRowCount: undefined,
-      getReader: getFlatFileGetReaderApi(conn, dataSource),
-      getCalculatedColumnSummary: getFlatFileColumnCalculator(conn, dataSource),
     };
   }
 
   if (dataSource.type === 'parquet') {
     return {
-      getCacheKey: () => tab.id as unknown as DataViewCacheKey,
-      getSchema: () => schema,
+      ...baseAttrs,
       getRowCount: async () => {
         const result = await conn.query(
           `SELECT num_rows FROM parquet_file_metadata('${sourceFile.uniqueAlias}.${sourceFile.ext}')`,
@@ -69,8 +87,6 @@ function getFlatFileDataAdapterApi(
         const count = Number(result.getChildAt(0)?.get(0));
         return count;
       },
-      getReader: getFlatFileGetReaderApi(conn, dataSource),
-      getCalculatedColumnSummary: getFlatFileColumnCalculator(conn, dataSource),
     };
   }
 
