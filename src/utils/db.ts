@@ -6,10 +6,10 @@ export function isNumberType(type: NormalizedSQLType): boolean {
     case 'bigint':
     case 'number':
     case 'integer':
+      return true;
     case 'date':
     case 'time':
     case 'timestamp':
-      return true;
     case 'boolean':
     case 'string':
     case 'bytes':

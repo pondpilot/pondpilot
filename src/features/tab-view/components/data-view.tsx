@@ -5,13 +5,14 @@ import { AsyncRecordBatchStreamReader } from 'apache-arrow';
 import { setDataTestId } from '@utils/test-id';
 import { useDidMount } from '@hooks/use-did-mount';
 import { updateDataViewCache, useAppStore } from '@store/app-store';
-import { Affix, Stack, Text } from '@mantine/core';
+import { Affix, Group, Loader, Stack, Text } from '@mantine/core';
 import { DataViewCacheItem } from '@models/data-view';
 import { useDidUpdate } from '@mantine/hooks';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
 import { ColumnSortSpec, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { useSort } from '../useSort';
+import { useColumnSummary } from '../hooks';
 
 const MAX_PAGE_SIZE = 100;
 
@@ -57,6 +58,13 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
    * Helpful hooks
    */
   const { sortParams, handleSort, resetSort } = useSort();
+  const {
+    calculateColumnSummary,
+    columnTotal,
+    isNumeric,
+    resetTotal: resetCalculatedValue,
+    isLoading: isColumnCalculating,
+  } = useColumnSummary(dataAdapterApi);
 
   /**
    * Local Reactive State
@@ -406,20 +414,35 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
         </Affix>
       )}
       {showTable && (
-        <div className="flex-1 min-h-0 overflow-auto px-3 custom-scroll-hidden pb-6">
-          <Table
-            data={displayData}
-            schema={displaySchema}
-            sort={sortParams}
-            page={currentPage}
-            visible={!!visible}
-            onSelectedColsCopy={() => console.warn('Copy selected columns not implemented')}
-            onColumnSelectChange={() => console.warn('Column select change not implemented')}
-            onRowSelectChange={() => console.warn('Row select change not implemented')}
-            onCellSelectChange={() => console.warn('Cell select change not implemented')}
-            onSort={handleSortAndGetNewReader}
-          />
-        </div>
+        <>
+          <div className="flex-1 min-h-0 overflow-auto px-3 custom-scroll-hidden pb-6">
+            <Table
+              data={displayData}
+              schema={displaySchema}
+              sort={sortParams}
+              page={currentPage}
+              visible={!!visible}
+              onColumnSelectChange={calculateColumnSummary}
+              onSort={handleSortAndGetNewReader}
+              onRowSelectChange={resetCalculatedValue}
+              onCellSelectChange={resetCalculatedValue}
+              // TODO:
+              onSelectedColsCopy={() => console.warn('Copy selected columns not implemented')}
+            />
+          </div>
+          <Group
+            align="center"
+            justify="end"
+            className="border-t px-2 pt border-borderPrimary-light dark:border-borderPrimary-dark h-[34px]"
+          >
+            {columnTotal !== null && (
+              <Text c="text-primary" className="text-sm">
+                {isNumeric ? 'SUM' : 'COUNT'}: {columnTotal}
+              </Text>
+            )}
+            {isColumnCalculating && <Loader size={12} color="text-accent" />}
+          </Group>
+        </>
       )}
       {showTable && !dataSourceReadError && (
         <div

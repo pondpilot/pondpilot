@@ -2,8 +2,7 @@ import { Cell, CellContext, Table } from '@tanstack/react-table';
 import { useCallback, useState } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { useDidUpdate } from '@mantine/hooks';
-import { CalculateColumnSummaryProps } from '@features/tab-view/hooks';
-import { DBTableOrViewSchema } from '@models/db';
+import { DBColumn, DBTableOrViewSchema } from '@models/db';
 import { stringifyTypedValue } from '../utils';
 import { ColumnMeta } from '../model';
 
@@ -16,7 +15,7 @@ interface UseTableSelectionProps {
   schema: DBTableOrViewSchema;
   onRowSelectChange: () => void;
   onCellSelectChange: () => void;
-  onColumnSelectChange: ({ columnName, dataType }: CalculateColumnSummaryProps) => void;
+  onColumnSelectChange: (column: DBColumn | null) => void;
 }
 
 export const useTableSelection = ({
@@ -41,7 +40,7 @@ export const useTableSelection = ({
     setSelectedCell({ cellId: null, value: null });
     setLastSelectedColumn(null);
     setLastSelectedRow('0');
-    onColumnSelectChange({ columnName: null, dataType: 'other' });
+    onColumnSelectChange(null);
   }, []);
 
   const handleCellSelect = useCallback((cell: Cell<any, any>) => {
@@ -192,12 +191,12 @@ export const useTableSelection = ({
     const selectedColsKeys = Object.keys(selectedCols);
     if (selectedColsKeys.length === 1) {
       const columnName = selectedColsKeys[0];
-      const dataType = schema.find((col) => col.name === columnName)?.sqlType;
-      if (dataType) {
-        onColumnSelectChange({ columnName, dataType });
+      const column = schema.find((col) => col.name === columnName);
+      if (column) {
+        onColumnSelectChange(column);
       }
     } else if (selectedColsKeys.length > 1) {
-      onColumnSelectChange({ columnName: null, dataType: 'other' });
+      onColumnSelectChange(null);
     }
   }, [selectedCols]);
 

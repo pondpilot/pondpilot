@@ -1,5 +1,5 @@
 import { AsyncRecordBatchStreamReader, TypeMap } from 'apache-arrow';
-import { ColumnSortSpecList, DBTableOrViewSchema } from './db';
+import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema } from './db';
 import { DataViewCacheKey } from './data-view';
 
 export interface DataAdapterApi<T extends TypeMap = any> {
@@ -30,4 +30,8 @@ export interface DataAdapterApi<T extends TypeMap = any> {
    * This should be used to read the data from the source.
    */
   getReader: (sort: ColumnSortSpecList) => Promise<AsyncRecordBatchStreamReader<T>>;
+  /**
+   * Returns column summary for the given column.
+   */
+  getCalculatedColumnSummary?: (column: DBColumn) => Promise<number>;
 }
