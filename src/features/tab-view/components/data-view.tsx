@@ -7,10 +7,12 @@ import { useDidMount } from '@hooks/use-did-mount';
 import { updateDataViewCache, useAppStore } from '@store/app-store';
 import { Affix, Group, Loader, Stack, Text } from '@mantine/core';
 import { DataViewCacheItem } from '@models/data-view';
-import { useDidUpdate } from '@mantine/hooks';
+import { useClipboard, useDidUpdate } from '@mantine/hooks';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
 import { ColumnSortSpec, DBColumn, DBTableOrViewSchema } from '@models/db';
+import { useAppNotifications } from '@components/app-notifications';
+import { notifications } from '@mantine/notifications';
 import { useSort } from '../useSort';
 import { useColumnSummary } from '../hooks';
 
@@ -57,6 +59,8 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
   /**
    * Helpful hooks
    */
+  const clipboard = useClipboard();
+  const { showSuccess } = useAppNotifications();
   const { sortParams, handleSort, resetSort } = useSort();
   const {
     calculateColumnSummary,
@@ -238,6 +242,55 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
 
     // Reset the data view with the new sort params
     reset(newSortParams);
+  };
+
+  /**
+   * Handle copy selected columns
+   */
+  const handleCopySelectedColumns = async (selectedCols: DBTableOrViewSchema) => {
+    // We do not want to call API if no columns are selected
+    if (!selectedCols.length) {
+      return;
+    }
+
+    const notificationId = showSuccess({
+      title: 'Copying selected columns to clipboard...',
+      message: '',
+      loading: true,
+      autoClose: false,
+      color: 'text-accent',
+    });
+    try {
+      const result = await dataAdapterApi.getColumnsData?.(selectedCols);
+      const data = result?.toArray().map((row) => row.toJSON());
+
+      if (Array.isArray(data) && Array.isArray(selectedCols)) {
+        const headers = selectedCols.map((col) => col.name).join('\t');
+        const rows = data.map((row) => selectedCols.map((col) => row[col.name] ?? '').join('\t'));
+        const tableText = [headers, ...rows].join('\n');
+        clipboard.copy(tableText);
+      }
+
+      notifications.update({
+        id: notificationId,
+        title: 'Selected columns copied to clipboard',
+        message: '',
+        loading: false,
+        autoClose: 800,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+
+      notifications.update({
+        id: notificationId,
+        title: 'Failed to copy selected columns to clipboard',
+        message,
+        loading: false,
+        autoClose: 5000,
+        color: 'red',
+      });
+      console.error('Error copying selected columns:', error);
+    }
   };
 
   /**
@@ -426,8 +479,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
               onSort={handleSortAndGetNewReader}
               onRowSelectChange={resetCalculatedValue}
               onCellSelectChange={resetCalculatedValue}
-              // TODO:
-              onSelectedColsCopy={() => console.warn('Copy selected columns not implemented')}
+              onSelectedColsCopy={handleCopySelectedColumns}
             />
           </div>
           <Group

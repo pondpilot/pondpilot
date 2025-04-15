@@ -18,7 +18,7 @@ interface TableProps {
   page: number;
   visible: boolean;
   onSort?: (columnId: string) => void;
-  onSelectedColsCopy: (cols: Record<string, boolean>) => void;
+  onSelectedColsCopy: (cols: DBTableOrViewSchema) => void;
   onRowSelectChange: () => void;
   onCellSelectChange: () => void;
   onColumnSelectChange: (column: DBColumn | null) => void;
@@ -105,7 +105,8 @@ export const Table = ({
           handleCopySelectedRows(table);
         }
         if (Object.keys(selectedCols).length) {
-          onSelectedColsCopy(selectedCols);
+          const columns = schema.filter((col) => selectedCols[col.name]);
+          onSelectedColsCopy(columns);
         }
       },
     ],

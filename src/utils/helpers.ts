@@ -97,3 +97,8 @@ export const createName = (fileName: string): string => {
 
   return Number.isNaN(Number(name[0])) ? name : `${ext}_${name}`;
 };
+
+export function quote(s: string): string {
+  // Replace each quote with two quotes and wrap result in quotes
+  return `"${s.replace(/"/g, '""')}"`;
+}
