@@ -261,6 +261,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
       color: 'text-accent',
     });
     try {
+      // TODO: Has to be a part of the API (It should be processed in chunks (using requestAnimationFrame or Promise) to prevent blocking the main thread.)
       const result = await dataAdapterApi.getColumnsData?.(selectedCols);
       const data = result?.toArray().map((row) => row.toJSON());
 
