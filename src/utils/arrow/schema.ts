@@ -1,20 +1,21 @@
-import { ArrowColumn, JavaScriptArrowType } from '@models/arrow';
-import type { DataType, Field, RecordBatch, Table } from 'apache-arrow';
+import { DBColumn, DBTableOrViewSchema, NormalizedSQLType } from '@models/db';
+import type { Field, RecordBatch, Table } from 'apache-arrow';
+import { DataType } from 'apache-arrow';
 
 /**
  * Returns the schema of an Apache Arrow table as an array of objects.
  */
-export function getArrowTableSchema(table: Table | RecordBatch): ArrowColumn[] {
+export function getArrowTableSchema(table: Table | RecordBatch): DBTableOrViewSchema {
   return table.schema.fields.map(getArrowFieldSchema);
 }
 
 /**
  * Returns the schema of an Apache Arrow field as an object.
  */
-function getArrowFieldSchema(field: Field): ArrowColumn {
+function getArrowFieldSchema(field: Field<DataType>): DBColumn {
   return {
     name: field.name,
-    type: getArrowType(field.type),
+    sqlType: getNormalizedSQLTypeFromArrowType(field.type),
     nullable: field.nullable,
     databaseType: String(field.type),
   };
@@ -25,33 +26,33 @@ function getArrowFieldSchema(field: Field): ArrowColumn {
 /**
  * Returns the type of an Apache Arrow field as a string.
  */
-export function getArrowType(type: DataType): JavaScriptArrowType {
-  switch (type.typeId) {
-    case 2: // Int
-      return 'integer';
-    case 3: // Float
-    case 7: // Decimal
-      return 'number';
-    case 4: // Binary
-    case 15: // FixedSizeBinary
-      return 'buffer';
-    case 5: // Utf8
-      return 'string';
-    case 6: // Bool
-      return 'boolean';
-    case 8: // Date
-    case 9: // Time
-    case 10: // Timestamp
-      return 'date';
-    case 12: // List
-    case 16: // FixedSizeList
-      return 'array';
-    case 13: // Struct
-    case 14: // Union
-      return 'object';
-    case 11: // Interval
-    case 17: // Map
-    default:
-      return 'other';
+export function getNormalizedSQLTypeFromArrowType(type: DataType): NormalizedSQLType {
+  if (DataType.isInt(type)) {
+    return 'integer';
   }
+  if (DataType.isFloat(type) || DataType.isDecimal(type)) {
+    return 'number';
+  }
+  if (DataType.isBinary(type) || DataType.isFixedSizeBinary(type)) {
+    return 'bytes';
+  }
+  if (DataType.isUtf8(type)) {
+    return 'string';
+  }
+  if (DataType.isBool(type)) {
+    return 'boolean';
+  }
+  if (DataType.isDate(type) || DataType.isTime(type) || DataType.isTimestamp(type)) {
+    return 'date';
+  }
+  if (DataType.isList(type) || DataType.isFixedSizeList(type)) {
+    return 'array';
+  }
+  if (DataType.isStruct(type) || DataType.isUnion(type)) {
+    return 'object'; // Changed from 'object' as it's not in JSValueType
+  }
+  if (DataType.isInterval(type) || DataType.isMap(type)) {
+    return 'other';
+  }
+  return 'other';
 }

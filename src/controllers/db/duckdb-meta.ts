@@ -1,6 +1,7 @@
 import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
-import { DataBaseModel } from '@models/db';
+import { DataBaseModel, DBColumn, DBTableOrView } from '@models/db';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import * as arrow from 'apache-arrow';
 
 async function queryOneColumn<VT extends arrow.DataType>(
@@ -66,9 +67,17 @@ export async function getViews(
   return queryOneColumn<arrow.Utf8>(conn, sql, 'view_name');
 }
 
-function buildColumnsQueryWithFilters(databaseNames?: string[], schemaName?: string[]): string {
+function buildColumnsQueryWithFilters(
+  databaseNames?: string[],
+  schemaNames?: string[],
+  objectNames?: string[],
+): string {
   const quotedDatabaseNames = databaseNames?.map((name) => `'${toDuckDBIdentifier(name)}'`);
-  const quotedSchemaNames = schemaName?.map((name) => `'${toDuckDBIdentifier(name)}'`);
+  const quotedSchemaNames = schemaNames?.map((name) => `'${toDuckDBIdentifier(name)}'`);
+  const quotedObjectNames = objectNames?.map((name) => `'${toDuckDBIdentifier(name)}'`);
+  const filterByDBName = quotedDatabaseNames && quotedDatabaseNames.length > 0;
+  const filterBySchemaName = quotedSchemaNames && quotedSchemaNames.length > 0;
+  const filterByObjectName = quotedObjectNames && quotedObjectNames.length > 0;
 
   return `
     SELECT 
@@ -83,9 +92,10 @@ function buildColumnsQueryWithFilters(databaseNames?: string[], schemaName?: str
     FROM duckdb_columns as dc
         LEFT JOIN duckdb_tables as dt             
             ON dc.table_oid = dt.table_oid
-    ${quotedDatabaseNames || quotedSchemaNames ? 'WHERE 1=1 ' : ''}
-    ${quotedDatabaseNames ? `AND dc.database_name in ('${quotedDatabaseNames.join("','")}') ` : ''}
-    ${quotedSchemaNames ? `AND dc.schema_name in ('${quotedSchemaNames.join("','")}') ` : ''}
+    ${filterByDBName || filterBySchemaName || filterByObjectName ? 'WHERE 1=1 ' : ''}
+    ${filterByDBName ? `AND dc.database_name in (${quotedDatabaseNames.join(',')}) ` : ''}
+    ${filterBySchemaName ? `AND dc.schema_name in (${quotedSchemaNames.join(',')}) ` : ''}
+    ${filterByObjectName ? `AND dc.table_name in (${quotedObjectNames.join(',')}) ` : ''}
     ORDER BY dc.database_name, dc.schema_name, dc.table_name, dc.column_index;
   `;
 }
@@ -117,14 +127,16 @@ type ColumnsQueryReturnType = {
  *
  * @param databaseNames - Optional database names to filter by
  * @param schemaNames - Optional schema names to filter by
- * @returns Table and column information in Arrow IPC format
+ * @param objectNames - Optional object names to filter by
+ * @returns Table and column metadata
  */
 async function getTablesAndColumns(
   conn: AsyncDuckDBConnection,
   databaseNames?: string[],
   schemaNames?: string[],
+  objectNames?: string[],
 ): Promise<ColumnsQueryReturnType[] | null> {
-  const sql = buildColumnsQueryWithFilters(databaseNames, schemaNames);
+  const sql = buildColumnsQueryWithFilters(databaseNames, schemaNames, objectNames);
   const res = await conn.query<ColumnsQueryArrowType>(sql);
 
   const columns = {
@@ -154,11 +166,13 @@ async function getTablesAndColumns(
       !database_name_value ||
       !schema_name_value ||
       !table_name ||
-      !is_table ||
+      is_table === undefined ||
+      is_table === null ||
       !column_name ||
       !column_index ||
       !data_type ||
-      !is_nullable
+      is_nullable === undefined ||
+      is_nullable === null
     ) {
       continue;
     }
@@ -180,9 +194,10 @@ async function getTablesAndColumns(
 /**
  * Get all user tables and views with their columns
  *
+ * @param conn - DuckDB connection
  * @param databaseNames - Optional database names to filter by
  * @param schemaNames - Optional schema names to filter by
- * @returns Table and column information in Arrow IPC format
+ * @returns Table and column metadata
  */
 export async function getDatabaseModel(
   conn: AsyncDuckDBConnection,
@@ -227,13 +242,61 @@ export async function getDatabaseModel(
       schema.objects.push(tableOrView);
     }
 
-    const column = {
+    const column: DBColumn = {
       name: item.column_name,
-      type: item.data_type,
+      databaseType: item.data_type,
       nullable: item.is_nullable,
+      sqlType: normalizeDuckDBColumnType(item.data_type),
     };
     tableOrView.columns.push(column);
   });
 
   return dbMap;
+}
+
+/**
+ * Get models for given object in one schema of one database.
+ *
+ * @param conn - DuckDB connection
+ * @param databaseName - Database name where to search
+ * @param schemaName - Schema name where to search
+ * @param objectNames - Object names to search for
+ * @returns Table and column metadata
+ */
+export async function getObjectModels(
+  conn: AsyncDuckDBConnection,
+  databaseName: string,
+  schemaName: string,
+  objectNames: string[],
+): Promise<DBTableOrView[]> {
+  if (objectNames.length === 0) return [];
+
+  const duckdbColumns = await getTablesAndColumns(conn, [databaseName], [schemaName], objectNames);
+
+  if (!duckdbColumns) return [];
+
+  const objectMap = new Map<string, DBTableOrView>();
+
+  duckdbColumns.forEach((item) => {
+    let tableOrView = objectMap.get(item.table_name);
+    if (!tableOrView) {
+      tableOrView = {
+        name: item.table_name,
+        label: item.table_name,
+        type: item.is_table ? 'table' : 'view',
+        columns: [],
+      };
+      objectMap.set(item.table_name, tableOrView);
+    }
+
+    const column: DBColumn = {
+      name: item.column_name,
+      databaseType: item.data_type,
+      nullable: item.is_nullable,
+      sqlType: normalizeDuckDBColumnType(item.data_type),
+    };
+    tableOrView.columns.push(column);
+  });
+
+  return Array.from(objectMap.values());
 }

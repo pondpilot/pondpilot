@@ -7,7 +7,7 @@
 import type { SQLNamespace } from '@codemirror/lang-sql';
 import type { Completion } from '@codemirror/autocomplete';
 import { DataBaseModel } from '@models/db';
-import { getSQLType } from '@utils/duckdb/sql-type';
+import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 
 /**
  * Creates a completion item for a database object
@@ -115,7 +115,12 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
           !tableOrView.name.startsWith('pragma_')
         ) {
           const columns = tableOrView.columns.map((col) =>
-            createCompletion(col.name, 'variable', `${col.name} (${getSQLType(col.type)})`, 99),
+            createCompletion(
+              col.name,
+              'variable',
+              `${col.name} (${normalizeDuckDBColumnType(col.databaseType)})`,
+              99,
+            ),
           );
 
           namespace[tableOrView.name] = {
@@ -147,7 +152,11 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
 
       schema.objects.forEach((table) => {
         const columns = table.columns.map((col) =>
-          createCompletion(col.name, 'column', `${col.name} (${getSQLType(col.type)})`),
+          createCompletion(
+            col.name,
+            'column',
+            `${col.name} (${normalizeDuckDBColumnType(col.databaseType)})`,
+          ),
         );
 
         schemaNamespace[table.name] = {

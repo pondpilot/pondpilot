@@ -17,6 +17,8 @@ import {
   IconCheck,
   Icon123,
   IconLetterCaseToggle,
+  IconNumber10,
+  IconBrackets,
 } from '@tabler/icons-react';
 
 export type IconType =
@@ -36,20 +38,26 @@ export type IconType =
   | 'parquet'
   | 'xlsx-sheet'
   // Column types
-  | 'column-text'
   | 'column-number'
+  | 'column-integer'
+  | 'column-bigint'
   | 'column-boolean'
   | 'column-date'
-  | 'column-datetime'
+  | 'column-timestamp'
+  | 'column-time'
+  | 'column-string'
+  | 'column-bytes'
+  | 'column-array'
+  | 'column-object'
   | 'column-other'
   // In case of errors have a fallback icon
   | 'error';
 
-interface ListViewIconProps extends IconProps {
+interface NamedIconProps extends IconProps {
   iconType: IconType;
 }
 
-export const ListViewIcon: React.FC<ListViewIconProps> = ({ iconType, ...iconProps }) => {
+export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) => {
   // Dynamically return an icon based on iconType
   switch (iconType) {
     case 'file':
@@ -66,16 +74,26 @@ export const ListViewIcon: React.FC<ListViewIconProps> = ({ iconType, ...iconPro
       return <IconTable {...iconProps} />;
     case 'db-view':
       return <IconTableAlias {...iconProps} />;
-    case 'column-text':
+    case 'column-string':
       return <IconLetterCaseToggle {...iconProps} />;
     case 'column-number':
+    case 'column-integer':
+    case 'column-bigint':
       return <Icon123 {...iconProps} />;
     case 'column-boolean':
       return <IconCheck {...iconProps} />;
     case 'column-date':
       return <IconCalendar {...iconProps} />;
-    case 'column-datetime':
+    case 'column-timestamp':
+      return <IconCalendar {...iconProps} />;
+    case 'column-time':
       return <IconClock {...iconProps} />;
+    case 'column-bytes':
+      return <IconNumber10 {...iconProps} />;
+    case 'column-array':
+      return <IconBrackets {...iconProps} />;
+    case 'column-object':
+      return <IconCode {...iconProps} />;
     case 'column-other':
       return <IconQuestionMark {...iconProps} />;
     case 'csv':
@@ -97,4 +115,4 @@ export const ListViewIcon: React.FC<ListViewIconProps> = ({ iconType, ...iconPro
   }
 };
 
-export default ListViewIcon;
+export default NamedIcon;

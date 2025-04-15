@@ -1,2 +1,2 @@
-export * from './useTableColumns';
-export * from './useTableSelection';
+export * from './use-table-columns';
+export * from './use-table-selection';

@@ -354,7 +354,7 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
             <div className={cn('overflow-auto px-3 custom-scroll-hidden pb-6 flex-1')}>
               <Table
                 data={convertedTable.data}
-                columns={convertedTable.columns}
+                schema={convertedTable.columns}
                 onSort={(colId: string) => {
                   // TODO: Pass sort function to set the sort state
                 }}

@@ -34,8 +34,16 @@ export const useSort = () => {
     [updateSortParams],
   );
 
+  /**
+   * Resets the sort parameters
+   */
+  const resetSort = useCallback(() => {
+    setSortParams(null);
+  }, []);
+
   return {
     sortParams,
     handleSort,
+    resetSort,
   };
 };

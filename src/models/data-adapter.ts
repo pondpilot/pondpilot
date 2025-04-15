@@ -1,5 +1,5 @@
 import { AsyncRecordBatchStreamReader, TypeMap } from 'apache-arrow';
-import { ColumnSortSpecList } from './db';
+import { ColumnSortSpecList, DBTableOrViewSchema } from './db';
 import { DataViewCacheKey } from './data-view';
 
 export interface DataAdapterApi<T extends TypeMap = any> {
@@ -8,6 +8,11 @@ export interface DataAdapterApi<T extends TypeMap = any> {
    * retrieve the data for the same underlying data source after app restart.
    */
   getCacheKey: () => DataViewCacheKey;
+
+  /**
+   * Returns the schema of the table that data source yields.
+   */
+  getSchema: (() => Promise<DBTableOrViewSchema>) | (() => DBTableOrViewSchema);
 
   /**
    * If data source supports quick precise row count retrieval, returns the count.

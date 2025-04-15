@@ -28,7 +28,7 @@ import {
   getOrCreateTabFromScript,
   useAppStore,
 } from '@store/app-store';
-import { ListViewIcon } from '@components/list-view-icon';
+import { NamedIcon } from '@components/named-icon';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 import {
   DATA_SOURCE_GROUP_DISPLAY_NAME,
@@ -152,7 +152,7 @@ export const SpotlightMenu = () => {
             id: `open-data-source-${dataSource.id}-${tableOrView.name}`,
             label: tableOrView.label,
             icon: (
-              <ListViewIcon
+              <NamedIcon
                 iconType={tableOrView.type === 'table' ? 'db-table' : 'db-view'}
                 size={20}
                 className={ICON_CLASSES}
@@ -180,7 +180,7 @@ export const SpotlightMenu = () => {
     dataSourceActions.push({
       id: `open-data-source-${dataSource.id}`,
       label: getFlatFileDataSourceName(dataSource, localEntries),
-      icon: <ListViewIcon iconType={dataSource.type} size={20} className={ICON_CLASSES} />,
+      icon: <NamedIcon iconType={dataSource.type} size={20} className={ICON_CLASSES} />,
       handler: () => {
         getOrCreateTabFromFlatFileDataSource(dataSource, true);
         Spotlight.close();
@@ -192,7 +192,7 @@ export const SpotlightMenu = () => {
   const scriptActions = Array.from(sqlScripts.values()).map((script) => ({
     id: `open-data-source-${script.id}`,
     label: `${script.name}.sql`,
-    icon: <ListViewIcon iconType="code-file" size={20} className={ICON_CLASSES} />,
+    icon: <NamedIcon iconType="code-file" size={20} className={ICON_CLASSES} />,
     handler: () => {
       getOrCreateTabFromScript(script.id, true);
       Spotlight.close();

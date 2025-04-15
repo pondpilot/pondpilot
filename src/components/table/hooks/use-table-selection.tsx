@@ -3,8 +3,9 @@ import { useCallback, useState } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
 import { useDidUpdate } from '@mantine/hooks';
 import { CalculateColumnSummaryProps } from '@features/tab-view/hooks';
-import { ArrowColumn } from '@models/arrow';
-import { dynamicTypeViewer } from '../utils';
+import { DBTableOrViewSchema } from '@models/db';
+import { stringifyTypedValue } from '../utils';
+import { ColumnMeta } from '../model';
 
 interface SelectedCell {
   cellId: string | null;
@@ -12,14 +13,14 @@ interface SelectedCell {
 }
 
 interface UseTableSelectionProps {
-  columns: ArrowColumn[];
+  schema: DBTableOrViewSchema;
   onRowSelectChange: () => void;
   onCellSelectChange: () => void;
   onColumnSelectChange: ({ columnName, dataType }: CalculateColumnSummaryProps) => void;
 }
 
 export const useTableSelection = ({
-  columns,
+  schema,
   onColumnSelectChange,
   onRowSelectChange,
   onCellSelectChange,
@@ -40,7 +41,7 @@ export const useTableSelection = ({
     setSelectedCell({ cellId: null, value: null });
     setLastSelectedColumn(null);
     setLastSelectedRow('0');
-    onColumnSelectChange({ columnName: null, dataType: '' });
+    onColumnSelectChange({ columnName: null, dataType: 'other' });
   }, []);
 
   const handleCellSelect = useCallback((cell: Cell<any, any>) => {
@@ -50,10 +51,9 @@ export const useTableSelection = ({
     clearSelection();
     onCellSelectChange();
 
-    const colMeta: any = cell.column.columnDef.meta;
-    const type = colMeta?.type;
-    const value = dynamicTypeViewer({
-      type: type || 'other',
+    const { type } = cell.column.columnDef.meta as ColumnMeta;
+    const value = stringifyTypedValue({
+      type,
       value: cell.getValue(),
     });
     setSelectedCell({ cellId: cell.id, value });
@@ -173,9 +173,9 @@ export const useTableSelection = ({
           return;
         }
 
-        const start = columns.findIndex((col) => col.name === lastSelectedColumn);
-        const end = columns.findIndex((col) => col.name === columnId);
-        const selectedCols2 = columns.slice(Math.min(start, end), Math.max(start, end) + 1).reduce(
+        const start = schema.findIndex((col) => col.name === lastSelectedColumn);
+        const end = schema.findIndex((col) => col.name === columnId);
+        const selectedCols2 = schema.slice(Math.min(start, end), Math.max(start, end) + 1).reduce(
           (acc, col) => {
             acc[col.name] = true;
             return acc;
@@ -185,19 +185,19 @@ export const useTableSelection = ({
         setSelectedCols(selectedCols2);
       }
     },
-    [lastSelectedColumn, columns, JSON.stringify(selectedCols)],
+    [lastSelectedColumn, schema, JSON.stringify(selectedCols)],
   );
 
   useDidUpdate(() => {
     const selectedColsKeys = Object.keys(selectedCols);
     if (selectedColsKeys.length === 1) {
       const columnName = selectedColsKeys[0];
-      const dataType = columns.find((col) => col.name === columnName)?.type;
+      const dataType = schema.find((col) => col.name === columnName)?.sqlType;
       if (dataType) {
         onColumnSelectChange({ columnName, dataType });
       }
     } else if (selectedColsKeys.length > 1) {
-      onColumnSelectChange({ columnName: null, dataType: '' });
+      onColumnSelectChange({ columnName: null, dataType: 'other' });
     }
   }, [selectedCols]);
 

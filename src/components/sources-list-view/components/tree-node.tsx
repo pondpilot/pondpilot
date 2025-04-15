@@ -1,4 +1,4 @@
-import { ListViewIcon } from '@components/list-view-icon';
+import { NamedIcon } from '@components/named-icon';
 import { TextInput, Popover, ActionIcon, Menu, Text, Divider, Group } from '@mantine/core';
 import { IconDotsVertical, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
@@ -369,7 +369,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
               </ActionIcon>
             ) : (
               <div className="text-iconDefault-light dark:text-iconDefault-dark p-[1px]">
-                <ListViewIcon iconType={iconType} size={16} />
+                <NamedIcon iconType={iconType} size={16} />
               </div>
             )}
 

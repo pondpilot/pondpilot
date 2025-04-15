@@ -1,3 +1,17 @@
+export type NormalizedSQLType =
+  | 'number'
+  | 'integer'
+  | 'bigint'
+  | 'boolean'
+  | 'date'
+  | 'timestamp'
+  | 'time'
+  | 'string'
+  | 'bytes'
+  | 'array'
+  | 'object'
+  | 'other';
+
 export type SortOrder = 'asc' | 'desc' | null;
 
 export type ColumnSortSpec = {
@@ -9,9 +23,12 @@ export type ColumnSortSpecList = ColumnSortSpec[];
 
 export interface DBColumn {
   name: string;
-  type: string;
+  databaseType: string;
   nullable: boolean;
+  sqlType: NormalizedSQLType;
 }
+
+export type DBTableOrViewSchema = DBColumn[];
 
 export interface DBTableOrView {
   name: string;
@@ -21,7 +38,7 @@ export interface DBTableOrView {
    */
   label: string;
   type: 'table' | 'view';
-  columns: DBColumn[];
+  columns: DBTableOrViewSchema;
 }
 
 export interface DBSchema {

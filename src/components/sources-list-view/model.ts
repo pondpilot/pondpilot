@@ -1,4 +1,4 @@
-import { IconType } from '@components/list-view-icon';
+import { IconType } from '@components/named-icon';
 import {
   RenderTreeNodePayload as MantineRenderTreeNodePayload,
   TreeNodeData as MantineTreeNodeData,

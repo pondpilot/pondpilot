@@ -1,4 +1,4 @@
-import { ArrowColumn } from './arrow';
+import { DBTableOrViewSchema } from './db';
 
 export type DataViewCacheKey = string & { readonly _: unique symbol };
 
@@ -7,6 +7,6 @@ export type DataViewCacheItem = {
   dataPage: number;
   rowFrom: number;
   rowTo: number;
-  schema: ArrowColumn[];
+  schema: DBTableOrViewSchema;
   data: Record<string, any>[];
 };
