@@ -7,6 +7,7 @@ import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-
 import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@store/app-store';
 import { DataAdapterApi } from '@models/data-adapter';
 import { DataViewCacheKey } from '@models/data-view';
+import { getArrowTableSchema } from '@utils/arrow/schema';
 
 interface ScriptTabViewProps {
   tab: ScriptTab;
@@ -23,6 +24,11 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
       // const { data } = await runQueryDeprecated({ query, conn });
       setDataAdapter({
         getCacheKey: () => tab.id as unknown as DataViewCacheKey,
+        getSchema: async () => {
+          // TODO: find more performant way to get schema
+          const result = await conn.query(`SELECT * FROM (${query}) LIMIT 0`);
+          return getArrowTableSchema(result);
+        },
         getReader: async (sort) => {
           let fullQuery = query;
 

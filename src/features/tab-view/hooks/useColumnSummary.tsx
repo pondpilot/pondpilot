@@ -2,27 +2,27 @@ import { useCallback, useState } from 'react';
 import { formatNumber } from '@utils/helpers';
 import { useAppContext } from '@features/app-context';
 import { AnyTab } from '@models/tab';
+import { NormalizedSQLType } from '@models/db';
+import { isNumberType } from '@utils/db';
+
+// TODO: remove. should become part of data adapter
 
 export interface CalculateColumnSummaryProps {
   columnName: string | null;
-  dataType: string;
+  dataType: NormalizedSQLType;
 }
 
 export const useColumnSummary = (tab: AnyTab | undefined) => {
   const { executeQuery } = useAppContext();
   const [columnTotal, setColumnTotal] = useState<string | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
-  const [columnDataType, setColumnDataType] = useState<string | null>(null);
+  const [columnDataType, setColumnDataType] = useState<NormalizedSQLType | null>(null);
 
-  const isNumericType =
-    columnDataType === 'bigint' || columnDataType === 'integer' || columnDataType === 'number';
+  const isNumericType = columnDataType ? isNumberType(columnDataType) : false;
 
   const calculateColumnSummary = async ({ columnName, dataType }: CalculateColumnSummaryProps) => {
-    if (!tab?.query.originalQuery) {
-      return;
-    }
     try {
-      const isNumeric = dataType === 'bigint' || dataType === 'integer' || dataType === 'number';
+      const isNumeric = dataType ? isNumberType(dataType) : false;
 
       setColumnDataType(dataType);
       setColumnTotal(null);

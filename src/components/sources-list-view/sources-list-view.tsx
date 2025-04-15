@@ -1,4 +1,4 @@
-import { IconType, ListViewIcon } from '@components/list-view-icon';
+import { IconType, NamedIcon } from '@components/named-icon';
 import {
   Stack,
   Group,
@@ -177,7 +177,7 @@ const ListItem = <ItemID extends string = string>({
         {level !== 1 && <Divider orientation="vertical" />}
         {!active && (
           <div className="text-iconDefault-light dark:text-iconDefault-dark p-[1px]">
-            <ListViewIcon iconType={iconType} size={16} />
+            <NamedIcon iconType={iconType} size={16} />
           </div>
         )}
         {active && (

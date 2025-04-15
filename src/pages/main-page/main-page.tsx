@@ -5,10 +5,10 @@ import { Spotlight } from '@mantine/spotlight';
 import { useImportSQLFiles } from '@store/hooks';
 import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
 import { createSQLScript, getOrCreateTabFromScript, useAppStore } from '@store/app-store';
-import { Navbar } from './components';
 import { TabsPane } from '@features/tabs-pane';
 import { TabView } from '@features/tab-view/tab-view';
 import { StartGuide } from '@components/start-guide';
+import { Navbar } from './components';
 
 export const MainPage = () => {
   /**

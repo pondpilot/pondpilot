@@ -31,10 +31,15 @@ import {
   registerFileSourceAndCreateView,
 } from '@controllers/db/data-source';
 import { getTabIcon, getTabName } from '@utils/navigation';
-import { IconType } from '@components/list-view-icon';
+import { IconType } from '@components/named-icon';
 import { addAttachedDB, addFlatFileDataSource } from '@utils/data-source';
-import { getAttachedDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
-import { DataBaseModel } from '@models/db';
+import {
+  getAttachedDBs,
+  getDatabaseModel,
+  getObjectModels,
+  getViews,
+} from '@controllers/db/duckdb-meta';
+import { DataBaseModel, DBTableOrViewSchema } from '@models/db';
 import { makeTabId } from '@utils/tab';
 import { makeSQLScriptId } from '@utils/sql-script';
 import { DataViewCacheItem, DataViewCacheKey } from '@models/data-view';
@@ -182,6 +187,39 @@ export function useIsAttachedDBElementOnActiveTab(
       tab.dataSourceId === id && tab.schemaName === schemaName && tab.objectName === objectName
     );
   });
+}
+
+export function useDataSourceObjectSchema(
+  dataSource: AnyDataSource,
+  schemaName?: string,
+  objectName?: string,
+): DBTableOrViewSchema {
+  return useAppStore(
+    useShallow((state) => {
+      let dbName: string;
+      if (dataSource.type === 'csv' || dataSource.type === 'parquet') {
+        dbName = 'memory';
+        schemaName = 'main';
+        objectName = dataSource.viewName;
+      } else {
+        dbName = dataSource.dbName;
+
+        if (!schemaName || !objectName) {
+          // Attached DB without schema and object name
+          console.error(
+            'Schema name and object name were missing when trying to read schema of attached db object',
+          );
+          return [];
+        }
+      }
+      return (
+        state.dataBaseMetadata
+          .get(dbName)
+          ?.schemas?.find((schema) => schema.name === schemaName)
+          ?.objects?.find((object) => object.name === objectName)?.columns || []
+      );
+    }),
+  );
 }
 
 export function useDataSourceIdForActiveTab(): PersistentDataSourceId | null {
@@ -341,6 +379,7 @@ export const addLocalFileOrFolders = async (
 
   const errors: string[] = [];
   const newDatabaseNames: string[] = [];
+  const newManagedViews: string[] = [];
   // Fetch currently attached databases, to avoid name collisions
   const reservedDbs = new Set((await getAttachedDBs(conn, false)) || ['memory']);
   // Same for views
@@ -418,6 +457,8 @@ export const addLocalFileOrFolders = async (
 
           // Add to reserved views
           reservedViews.add(dataSource.viewName);
+          // Add to new managed views for metadata updates later
+          newManagedViews.push(dataSource.viewName);
 
           // Then register the file source and create the view.
           // TODO: this may potentially fail - we should handle this case
@@ -449,14 +490,29 @@ export const addLocalFileOrFolders = async (
     newState.dataSources = new Map(Array.from(dataSources).concat(newDataSources));
   }
 
-  // Now read the metadata for the newly attached databases and
+  // Now read the metadata for the newly attached databases, views and
   // add it to state as well
   const newDataBaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
+  const newViewsMetadata = await getObjectModels(conn, 'memory', 'main', newManagedViews);
 
-  if (dataBaseMetadata) {
+  if (newDataBaseMetadata || newViewsMetadata.length > 0) {
     const mergedDataBaseMetadata = new Map(dataBaseMetadata);
 
     newDataBaseMetadata?.forEach((dbModel, dbName) => mergedDataBaseMetadata.set(dbName, dbModel));
+
+    const memoryDBModel = mergedDataBaseMetadata.get('memory') || { name: 'memory', schemas: [] };
+    const mainSchemaMeta = memoryDBModel.schemas.find((schema) => schema.name === 'main');
+
+    if (mainSchemaMeta) {
+      mainSchemaMeta.objects.concat(newViewsMetadata);
+    } else {
+      memoryDBModel.schemas.push({
+        name: 'main',
+        objects: newViewsMetadata,
+      });
+    }
+
+    mergedDataBaseMetadata.set('memory', memoryDBModel);
 
     newState.dataBaseMetadata = mergedDataBaseMetadata;
   } else {

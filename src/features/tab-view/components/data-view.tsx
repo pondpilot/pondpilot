@@ -1,21 +1,16 @@
 import { Table } from '@components/table/table';
-import { cn } from '@utils/ui/styles';
 import { DataAdapterApi } from '@models/data-adapter';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AsyncRecordBatchStreamReader } from 'apache-arrow';
-import { getArrowTableSchema } from '@utils/arrow/schema';
-import { ArrowColumn } from '@models/arrow';
 import { setDataTestId } from '@utils/test-id';
 import { useDidMount } from '@hooks/use-did-mount';
 import { updateDataViewCache, useAppStore } from '@store/app-store';
-import { ActionIcon, Affix, Group, Stack, Text } from '@mantine/core';
+import { Affix, Stack, Text } from '@mantine/core';
 import { DataViewCacheItem } from '@models/data-view';
 import { useDidUpdate } from '@mantine/hooks';
-import { IconCopy } from '@tabler/icons-react';
-import { formatNumber } from '@utils/helpers';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
-import { ColumnSortSpec } from '@models/db';
+import { ColumnSortSpec, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { useSort } from '../useSort';
 
 const MAX_PAGE_SIZE = 100;
@@ -61,7 +56,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
   /**
    * Helpful hooks
    */
-  const { sortParams, handleSort } = useSort();
+  const { sortParams, handleSort, resetSort } = useSort();
 
   /**
    * Local Reactive State
@@ -77,7 +72,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
   const localCache = useRef<DataViewCacheItem>(null);
   const actualData = useRef<Record<string, any>[]>([]);
 
-  const [schema, setSchema] = useState<ArrowColumn[]>([]);
+  const [schema, setSchema] = useState<DBTableOrViewSchema>([]);
 
   // Estimated row count may be available via the data adapter API for some data sources.
   const [estimatedRowCount, setEstimatedRowCount] = useState<number | null>(null);
@@ -164,6 +159,19 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
    * Shared closures
    */
 
+  const getNewReader = async (newSortParams: ColumnSortSpec | null | undefined) => {
+    // Now try creating the reader. This may throw an error, so catch it
+    try {
+      const newReader = await dataAdapterApi.getReader(newSortParams ? [newSortParams] : []);
+      const newSchema = await dataAdapterApi.getSchema();
+      setReader(newReader);
+      setSchema(newSchema);
+    } catch (error) {
+      console.error('Failed to create reader:', error);
+      setDataSourceReadError('Failed to create reader');
+    }
+  };
+
   /**
    * Inits/resets the data view by re-creating the reader with given sort params.
    */
@@ -188,17 +196,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
     // similar to init, but with new sort params
     if (reader) setReader(null);
 
-    const getNewReader = async () => {
-      // Now try creating the reader. This may throw an error, so catch it
-      try {
-        const newReader = await dataAdapterApi.getReader(newSortParams ? [newSortParams] : []);
-        setReader(newReader);
-      } catch (error) {
-        console.error('Failed to create reader:', error);
-        setDataSourceReadError('Failed to create reader');
-      }
-    };
-    getNewReader();
+    getNewReader(newSortParams);
   };
 
   /**
@@ -226,7 +224,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
   /**
    * Handle sorting - create a new reader with sort parameters
    */
-  const handleSortAndGetNewReader = (sortField: ArrowColumn['name']) => {
+  const handleSortAndGetNewReader = (sortField: DBColumn['name']) => {
     // Update the sort params
     const newSortParams = handleSort(sortField);
 
@@ -304,13 +302,6 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
           const newTableData = batchResult.toArray().map((row) => row.toJSON());
           actualData.current.push(...newTableData);
 
-          // Not super eficient to check every time, but for code simplicity...
-          // This will write the schema once on first batch of the first reader
-          if (schema.length === 0) {
-            const extractedColumns = getArrowTableSchema(batchResult);
-            setSchema(extractedColumns);
-          }
-
           if (actualData.current.length >= expectedRowTo) break;
         }
 
@@ -335,6 +326,8 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
    * as we do not read the cache. For mount see below.
    */
   useDidUpdate(() => {
+    // Rest the sort params
+    resetSort();
     // Reset the data view with the new sort params
     reset(null);
   }, [dataAdapterApi]);
@@ -361,14 +354,8 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
         setEstimatedRowCount(knownEstimatedRowCount);
       }
 
-      // Now try creating the reader. This may throw an error, so catch it
-      try {
-        const newReader = await dataAdapterApi.getReader(sortParams ? [sortParams] : []);
-        setReader(newReader);
-      } catch (error) {
-        console.error('Failed to create reader:', error);
-        setDataSourceReadError('Failed to create reader');
-      }
+      // Now try creating the reader. It will handle errors inside
+      await getNewReader(sortParams);
     };
     init();
 
@@ -422,7 +409,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
         <div className="flex-1 min-h-0 overflow-auto px-3 custom-scroll-hidden pb-6">
           <Table
             data={displayData}
-            columns={displaySchema}
+            schema={displaySchema}
             sort={sortParams}
             page={currentPage}
             visible={!!visible}

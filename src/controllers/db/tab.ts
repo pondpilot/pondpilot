@@ -2,6 +2,7 @@ import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { DataAdapterApi } from '@models/data-adapter';
 import { AnyDataSource, AnyFlatFileDataSource, AttachedDB } from '@models/data-source';
 import { DataViewCacheKey } from '@models/data-view';
+import { DBTableOrViewSchema } from '@models/db';
 import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, AttachedDBDataTab, FlatFileDataSourceTab } from '@models/tab';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
@@ -25,12 +26,14 @@ function getFlatFileGetReaderApi(
 function getFlatFileDataAdapterApi(
   conn: AsyncDuckDBConnection,
   dataSource: AnyFlatFileDataSource,
+  schema: DBTableOrViewSchema,
   tab: FlatFileDataSourceTab,
   sourceFile: LocalFile,
 ): DataAdapterApi {
   if (dataSource.type === 'csv') {
     return {
       getCacheKey: () => tab.id as unknown as DataViewCacheKey,
+      getSchema: () => schema,
       getRowCount: undefined,
       // TODO: implement this
       getEstimatedRowCount: undefined,
@@ -41,6 +44,7 @@ function getFlatFileDataAdapterApi(
   if (dataSource.type === 'parquet') {
     return {
       getCacheKey: () => tab.id as unknown as DataViewCacheKey,
+      getSchema: () => schema,
       getRowCount: async () => {
         const result = await conn.query(
           `SELECT num_rows FROM parquet_file_metadata('${sourceFile.uniqueAlias}.${sourceFile.ext}')`,
@@ -60,6 +64,7 @@ function getFlatFileDataAdapterApi(
 function getAttachedDBDataAdapterApi(
   conn: AsyncDuckDBConnection,
   dataSource: AttachedDB,
+  schema: DBTableOrViewSchema,
   tab: AttachedDBDataTab,
 ): { adapter: DataAdapterApi | null; userErrors: string[]; internalErrors: string[] } {
   const dbName = toDuckDBIdentifier(dataSource.dbName);
@@ -83,6 +88,7 @@ function getAttachedDBDataAdapterApi(
   return {
     adapter: {
       getCacheKey: () => tab.id as unknown as DataViewCacheKey,
+      getSchema: () => schema,
       getEstimatedRowCount:
         dataSource.dbType === 'duckdb'
           ? tab.objectType === 'table'
@@ -121,6 +127,7 @@ function getAttachedDBDataAdapterApi(
 export function getFileDataAdapterApi(
   conn: AsyncDuckDBConnection,
   dataSource: AnyDataSource,
+  schema: DBTableOrViewSchema,
   tab: AnyFileSourceTab,
   sourceFile: LocalEntry,
 ): { adapter: DataAdapterApi | null; userErrors: string[]; internalErrors: string[] } {
@@ -135,7 +142,7 @@ export function getFileDataAdapterApi(
       };
     }
 
-    return getAttachedDBDataAdapterApi(conn, dataSource, tab);
+    return getAttachedDBDataAdapterApi(conn, dataSource, schema, tab);
   }
 
   if (dataSource.type === 'csv' || dataSource.type === 'parquet') {
@@ -160,7 +167,7 @@ export function getFileDataAdapterApi(
     }
 
     return {
-      adapter: getFlatFileDataAdapterApi(conn, dataSource, tab, sourceFile),
+      adapter: getFlatFileDataAdapterApi(conn, dataSource, schema, tab, sourceFile),
       userErrors: [],
       internalErrors: [],
     };

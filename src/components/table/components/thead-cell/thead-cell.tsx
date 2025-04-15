@@ -6,9 +6,11 @@ import { cn } from '@utils/ui/styles';
 import { replaceSpecialChars } from '@utils/helpers';
 import { memo } from 'react';
 import { setDataTestId } from '@utils/test-id';
-
 import { ColumnSortSpec } from '@models/db';
-import { getIcon } from '@components/table/utils';
+import { ColumnMeta } from '@components/table/model';
+import { IconType, NamedIcon } from '@components/named-icon';
+import { getIconTypeForSQLType } from '@components/named-icon/utils';
+import { isNumberType } from '@utils/db';
 
 interface TableHeadCellProps {
   header: Header<Record<string, string | number>, unknown>;
@@ -31,7 +33,7 @@ interface THeadTitleProps
   > {
   isIndex: boolean;
   isNumber: boolean;
-  icon: any;
+  iconType: IconType;
 }
 
 const THeadTitle = ({
@@ -39,7 +41,7 @@ const THeadTitle = ({
   isIndex,
   isNumber,
   isSelected,
-  icon,
+  iconType,
   sort,
   onSort,
 }: THeadTitleProps) => (
@@ -52,7 +54,7 @@ const THeadTitle = ({
           isNumber && 'ml-auto',
         )}
       >
-        {icon}
+        <NamedIcon iconType={iconType} size={16} />
       </div>
     )}
     <Text truncate="end" fw={500}>
@@ -93,11 +95,12 @@ export const TableHeadCell = memo(
     onHeadCellClick,
     isSelected,
   }: TableHeadCellProps) => {
-    const colMeta: any = header.column.columnDef.meta;
-    const type = colMeta?.type;
     const isIndex = header.column.id === '#';
-    const icon = getIcon(type);
-    const isNumber = ['integer', 'number', 'date'].includes(type);
+    // This will be missing for index column
+    const columnMeta = header.column.columnDef.meta as ColumnMeta | undefined;
+    const type = columnMeta?.type || 'other';
+    const iconType = getIconTypeForSQLType(type);
+    const isNumber = isNumberType(type);
     const headStyles = {
       width: `calc(var(--header-${replaceSpecialChars(header.id)}-size) * 1px)`,
       overflow: 'visible',
@@ -131,7 +134,7 @@ export const TableHeadCell = memo(
           isIndex={isIndex}
           isNumber={isNumber}
           isSelected={isSelected}
-          icon={icon}
+          iconType={iconType}
           sort={sort}
           onSort={onSort}
         />

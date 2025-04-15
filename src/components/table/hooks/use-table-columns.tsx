@@ -1,18 +1,17 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions */
 /* eslint-disable jsx-a11y/click-events-have-key-events */
-import { CellContext, ColumnDef } from '@tanstack/react-table';
-import { getColumnType } from '@utils/duckdb';
+import { Cell, CellContext, Column, ColumnDef, Row, Table } from '@tanstack/react-table';
 import React, { useCallback, useMemo } from 'react';
 import { Tooltip } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
 import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
 import { setDataTestId } from '@utils/test-id';
-import { ArrowColumn } from '@models/arrow';
-import { dynamicTypeViewer } from '../utils';
+import { DBColumn } from '@models/db';
+import { stringifyTypedValue } from '../utils';
 
 interface UseTableColumnsProps {
-  columns: ArrowColumn[];
+  columns: DBColumn[];
   page: number;
   onRowSelectionChange: (
     cell: CellContext<Record<string, string | number>, any>,
@@ -70,17 +69,23 @@ export const useTableColumns = ({ columns, onRowSelectionChange, page }: UseTabl
               (col): ColumnDef<Record<string, string | number>, any> => ({
                 accessorKey: col.name,
                 header: col.name,
-                meta: { type: col.type },
+                meta: { type: col.sqlType },
                 minSize: col.name === '#' ? 80 : 100,
                 size: col.name === '#' ? 80 : 200,
                 id: col.name,
                 accessorFn: (row) => row[col.name],
-                cell: (info: any) => {
+                cell: (info: {
+                  table: Table<Record<string, string | number>>;
+                  row: Row<Record<string, string | number>>;
+                  column: Column<Record<string, string | number>>;
+                  cell: Cell<Record<string, string | number>, any>;
+                  getValue: () => any;
+                  renderValue: () => any;
+                }) => {
                   const value = info.getValue();
-                  const coercedType = getColumnType(col.type);
 
-                  const result = dynamicTypeViewer({
-                    type: coercedType,
+                  const result = stringifyTypedValue({
+                    type: col.sqlType,
                     value,
                   });
 
@@ -91,7 +96,7 @@ export const useTableColumns = ({ columns, onRowSelectionChange, page }: UseTabl
                       )}
                       className={cn(
                         'text-sm p-2',
-                        ['integer', 'date', 'number'].includes(col.type) &&
+                        ['integer', 'date', 'number', 'bigint'].includes(col.sqlType) &&
                           'justify-end font-mono flex w-full',
                       )}
                       onClick={(e) => e.shiftKey && handleCellClick(result)}

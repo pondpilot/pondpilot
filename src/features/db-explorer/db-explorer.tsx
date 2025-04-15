@@ -21,8 +21,8 @@ import { getAttachedDBDataSourceName } from '@utils/navigation';
 import { PersistentDataSourceId } from '@models/data-source';
 import { DBColumn, DBSchema, DBTableOrView } from '@models/db';
 import { NotificationData } from '@mantine/notifications';
-import { getSQLType } from '@utils/duckdb/sql-type';
-import { IconType } from '@components/list-view-icon';
+import { IconType } from '@components/named-icon';
+import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import { DbExplorerNode } from './db-explorer-node';
 import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
 
@@ -45,9 +45,9 @@ function buildColumnTreeNode({
   copy: (valueToCopy: any) => void;
   showSuccess: (data: NotificationData) => string;
 }): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
-  const { name: columnName, type } = column;
+  const { name: columnName, sqlType } = column;
   const columnNodeId = `${dbId}.${schemaName}.${objectName}::${columnName}`;
-  const iconType: IconType = `column-${getSQLType(type)}`;
+  const iconType: IconType = getIconTypeForSQLType(sqlType);
 
   nodeIdsToFQNMap.set(columnNodeId, {
     db: dbId,

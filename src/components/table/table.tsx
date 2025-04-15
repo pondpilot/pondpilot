@@ -6,16 +6,15 @@ import { useAppNotifications } from '@components/app-notifications';
 import { CalculateColumnSummaryProps } from '@features/tab-view/hooks';
 import { setDataTestId } from '@utils/test-id';
 
-import { ArrowColumn } from '@models/arrow';
-import { ColumnSortSpec } from '@models/db';
+import { ColumnSortSpec, DBTableOrViewSchema } from '@models/db';
+import { Text } from '@mantine/core';
 import { useTableColumns, useTableSelection } from './hooks';
 import { MemoizedTableBody, TableBody } from './components/table-body';
 import { TableHeadCell } from './components/thead-cell';
-import { Text } from '@mantine/core';
 
 interface TableProps {
   data: Record<string, any>[];
-  columns: ArrowColumn[];
+  schema: DBTableOrViewSchema;
   sort?: ColumnSortSpec | null;
   page: number;
   visible: boolean;
@@ -30,7 +29,7 @@ const fallbackData = [] as any[];
 
 export const Table = ({
   data,
-  columns,
+  schema,
   onSort,
   sort,
   onSelectedColsCopy,
@@ -56,12 +55,12 @@ export const Table = ({
     handleHeadCellClick,
   } = useTableSelection({
     onColumnSelectChange,
-    columns,
+    schema,
     onRowSelectChange,
     onCellSelectChange,
   });
 
-  const tableColumns = useTableColumns({ columns, onRowSelectionChange, page });
+  const tableColumns = useTableColumns({ columns: schema, onRowSelectionChange, page });
 
   const table = useReactTable({
     data: data || fallbackData,
@@ -88,7 +87,7 @@ export const Table = ({
 
   useDidUpdate(() => {
     clearSelection();
-  }, [JSON.stringify(columns)]);
+  }, [JSON.stringify(schema)]);
 
   useHotkeys([
     [

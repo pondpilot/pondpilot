@@ -1,15 +1,14 @@
 import { memo, useEffect, useState } from 'react';
 import { AnyFileSourceTab } from '@models/tab';
-import { useAppStore } from '@store/app-store';
+import { useAppStore, useDataSourceObjectSchema } from '@store/app-store';
 import { getFileDataAdapterApi } from '@controllers/db/tab';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { DataAdapterApi } from '@models/data-adapter';
 import { LoadingOverlay } from '@components/loading-overlay';
 import { ActionIcon, Group, Loader, Stack, Text } from '@mantine/core';
-import { DataView } from '../components';
 import { IconCopy } from '@tabler/icons-react';
-import { formatNumber } from '@utils/helpers';
 import { cn } from '@utils/ui/styles';
+import { DataView } from '../components';
 
 interface FileDataSourceTabViewProps {
   tab: AnyFileSourceTab;
@@ -38,6 +37,15 @@ export const FileDataSourceTabView = memo(({ tab, visible }: FileDataSourceTabVi
     );
   }
 
+  let schemaName: string | undefined;
+  let objectName: string | undefined;
+  if (tab.type === 'data-source' && tab.dataSourceType === 'db') {
+    schemaName = tab.schemaName;
+    objectName = tab.objectName;
+  }
+
+  const schema = useDataSourceObjectSchema(dataSource, schemaName, objectName);
+
   // Now determine in which state are we. We can be in one of the following states:
   // 1. Loading: we are creating a data adapter (which is usually instant, but can fail or take time)
   // 2. Loaded: we have a data adapter and it is ready to be used
@@ -49,6 +57,7 @@ export const FileDataSourceTabView = memo(({ tab, visible }: FileDataSourceTabVi
     const { adapter, userErrors, internalErrors } = getFileDataAdapterApi(
       conn,
       dataSource,
+      schema,
       tab,
       sourceFile,
     );
