@@ -4,15 +4,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AsyncRecordBatchStreamReader } from 'apache-arrow';
 import { setDataTestId } from '@utils/test-id';
 import { useDidMount } from '@hooks/use-did-mount';
-import { updateDataViewCache, useAppStore } from '@store/app-store';
 import { Affix, Group, Loader, Stack, Text } from '@mantine/core';
-import { DataViewCacheItem } from '@models/data-view';
 import { useClipboard, useDidUpdate } from '@mantine/hooks';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
 import { ColumnSortSpec, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
+import { DataViewCacheItem } from '@models/data-view';
+import { updateDataViewCache, useAppStore } from '@store/app-store';
 import { useSort } from '../useSort';
 import { useColumnSummary } from '../hooks';
 
@@ -132,20 +132,23 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
       : (currentPage + 1) * MAX_PAGE_SIZE;
 
   // Should we show a stale data instead of real data?
-  const useStaleData = localCache.current !== null && expectedRowTo > loadedRowCount;
+  const useStaleData =
+    localCache.current !== null && (isFetchingData || expectedRowTo > loadedRowCount);
 
   // The actual row range to show in the table. It may be different from the expected row range
-  const displayedRowFrom = useStaleData ? localCache.current!.rowFrom : expectedRowFrom;
-  const displayedRowTo = useStaleData ? localCache.current!.rowTo : expectedRowTo;
+
+  const displayedRowFrom =
+    useStaleData && localCache.current ? localCache.current.rowFrom : expectedRowFrom;
+
+  const displayedRowTo =
+    useStaleData && localCache.current ? localCache.current.rowTo : expectedRowTo;
 
   // Whether we should show the table at all. I.e. we have either actual or stale data.
   // Note, that empty data is also data (query can return 0 rows).
   // Since we always have actual data (potentially empty), this simplifies to just
   // checking if we have cache obkect. Again, empty data is also data.
   // One other requirement is that we have a schema, otherwise we can't show the table.
-  const showTable =
-    (!isFetchingData && schema.length > 0) ||
-    (localCache.current !== null && localCache.current.schema.length > 0);
+  const showTable = (!isFetchingData && schema.length > 0) || !!localCache.current?.schema.length;
 
   // Whether we should show a loading overlay
   const showLoadingOverlay = !showTable;
@@ -154,17 +157,12 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
   const isPaginationDisabled = useStaleData || isFetchingData || dataSourceReadError !== null;
 
   // Now get the data to be used by the table
-  const displaySchema = useStaleData ? localCache.current!.schema : schema;
+  const displaySchema = useStaleData && localCache.current ? localCache.current.schema : schema;
   const displayData = useMemo(() => {
-    let dataSlice;
-
-    if (useStaleData) {
-      dataSlice = localCache.current!.data.slice();
-    } else {
-      dataSlice = actualData.current.slice(expectedRowFrom, expectedRowTo);
+    if (useStaleData && localCache.current) {
+      return localCache.current.data;
     }
-
-    return dataSlice;
+    return actualData.current.slice(expectedRowFrom, expectedRowTo);
   }, [expectedRowFrom, expectedRowTo, useStaleData, isFetchingData]);
 
   /**
@@ -297,29 +295,31 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
   /**
    * Update the data view cache every time displayed data changes
    */
+  // Restore and update the cache effect near line 295
   useEffect(() => {
-    // We do not want infinite loops here
-    if (useStaleData) return;
+    // Only update cache when we're showing real data (not stale data)
+    if (useStaleData || !displaySchema.length || isFetchingData) return;
 
-    if (localCache.current) {
-      localCache.current.data = displayData;
-      // For simplicity we sasve the schema every time too, although
-      // it should never change after first real data load
-      localCache.current.schema = displaySchema;
-      localCache.current.rowFrom = displayedRowFrom;
-      localCache.current.rowTo = displayedRowTo;
-      localCache.current.dataPage = currentPage;
+    // Create or update the local cache
+    localCache.current = {
+      key: cacheKey,
+      data: displayData,
+      schema: displaySchema,
+      rowFrom: displayedRowFrom,
+      rowTo: displayedRowTo,
+      dataPage: currentPage,
+    };
 
-      updateDataViewCache({
-        key: cacheKey,
-        data: displayData,
-        schema: displaySchema,
-        rowFrom: displayedRowFrom,
-        rowTo: displayedRowTo,
-        dataPage: currentPage,
-      });
-    }
-  }, [displayData, displaySchema, displayedRowFrom, displayedRowTo, currentPage, useStaleData]);
+    // Update the global app store cache
+    updateDataViewCache({
+      key: cacheKey,
+      data: displayData,
+      schema: displaySchema,
+      rowFrom: displayedRowFrom,
+      rowTo: displayedRowTo,
+      dataPage: currentPage,
+    });
+  }, [displayData, displaySchema, displayedRowFrom, displayedRowTo, currentPage, sortParams]);
 
   /**
    * Fetch more data when necessary
@@ -399,11 +399,15 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
    */
   useDidMount(() => {
     const init = async () => {
-      // First try reading cache, as this will allow quickly showing data
-      // before reader is ready. We use non-hook version to access the store
+      // // First try reading cache, as this will allow quickly showing data
+      // // before reader is ready. We use non-hook version to access the store
       const cachedDataView = useAppStore.getState().dataViewCache.get(cacheKey);
+
       if (cachedDataView) {
         localCache.current = cachedDataView;
+        if (cachedDataView.dataPage !== undefined) {
+          setCurrentPage(cachedDataView.dataPage);
+        }
       }
 
       // Now let's start with increasingly long operations.
