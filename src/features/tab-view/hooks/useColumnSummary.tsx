@@ -1,49 +1,48 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { formatNumber } from '@utils/helpers';
-import { useAppContext } from '@features/app-context';
-import { AnyTab } from '@models/tab';
-import { NormalizedSQLType } from '@models/db';
+import { DBColumn } from '@models/db';
 import { isNumberType } from '@utils/db';
+import { DataAdapterApi } from '@models/data-adapter';
 
-// TODO: remove. should become part of data adapter
-
-export interface CalculateColumnSummaryProps {
-  columnName: string | null;
-  dataType: NormalizedSQLType;
-}
-
-export const useColumnSummary = (tab: AnyTab | undefined) => {
-  const { executeQuery } = useAppContext();
+export const useColumnSummary = (dataAdapter: DataAdapterApi) => {
   const [columnTotal, setColumnTotal] = useState<string | null>(null);
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [columnDataType, setColumnDataType] = useState<NormalizedSQLType | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isNumeric, setIsNumeric] = useState(false);
 
-  const isNumericType = columnDataType ? isNumberType(columnDataType) : false;
+  // Cache to store previously calculated column summaries
+  const summaryCache = useRef<Map<string, string>>(new Map());
 
-  const calculateColumnSummary = async ({ columnName, dataType }: CalculateColumnSummaryProps) => {
-    try {
-      const isNumeric = dataType ? isNumberType(dataType) : false;
-
-      setColumnDataType(dataType);
+  const calculateColumnSummary = async (column: DBColumn | null) => {
+    if (!dataAdapter.getCalculatedColumnSummary || !column) {
       setColumnTotal(null);
+      setIsLoading(false);
+      return;
+    }
 
-      if (columnName === null) {
-        setColumnTotal(null);
+    try {
+      setIsNumeric(isNumberType(column.sqlType));
+
+      const cacheKey = column.name;
+
+      if (summaryCache.current.has(cacheKey)) {
+        const cachedValue = summaryCache.current.get(cacheKey);
+        setColumnTotal(cachedValue || null);
         return;
       }
 
-      const summaryQuery = isNumeric
-        ? `SELECT sum("${columnName}") AS total FROM (${tab?.query.originalQuery});`
-        : `SELECT count("${columnName}") AS total FROM (${tab?.query.originalQuery});`;
+      setColumnTotal(null);
+      setIsLoading(true);
 
-      setIsCalculating(true);
-      const queryResult = await executeQuery(summaryQuery);
-      setIsCalculating(false);
+      const totalValue = await dataAdapter.getCalculatedColumnSummary(column);
 
-      const totalValue = queryResult.toArray()[0].toJSON().total;
-      setColumnTotal(formatNumber(totalValue as number));
+      setIsLoading(false);
+      const formattedValue = formatNumber(totalValue);
+      setColumnTotal(formattedValue);
+
+      // Cache the result
+      summaryCache.current.set(cacheKey, formattedValue);
     } catch (e) {
-      setIsCalculating(false);
+      setIsLoading(false);
     }
   };
 
@@ -51,11 +50,16 @@ export const useColumnSummary = (tab: AnyTab | undefined) => {
     setColumnTotal(null);
   }, []);
 
+  const clearCache = useCallback(() => {
+    summaryCache.current.clear();
+  }, []);
+
   return {
     columnTotal,
-    isCalculating,
-    isNumericType,
+    isLoading,
+    isNumeric,
     calculateColumnSummary,
     resetTotal,
+    clearCache,
   };
 };

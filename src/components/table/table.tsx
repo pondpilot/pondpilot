@@ -3,10 +3,9 @@ import { useMemo } from 'react';
 import { useClipboard, useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { replaceSpecialChars } from '@utils/helpers';
 import { useAppNotifications } from '@components/app-notifications';
-import { CalculateColumnSummaryProps } from '@features/tab-view/hooks';
 import { setDataTestId } from '@utils/test-id';
 
-import { ColumnSortSpec, DBTableOrViewSchema } from '@models/db';
+import { ColumnSortSpec, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { Text } from '@mantine/core';
 import { useTableColumns, useTableSelection } from './hooks';
 import { MemoizedTableBody, TableBody } from './components/table-body';
@@ -22,7 +21,7 @@ interface TableProps {
   onSelectedColsCopy: (cols: Record<string, boolean>) => void;
   onRowSelectChange: () => void;
   onCellSelectChange: () => void;
-  onColumnSelectChange: ({ columnName, dataType }: CalculateColumnSummaryProps) => void;
+  onColumnSelectChange: (column: DBColumn | null) => void;
 }
 
 const fallbackData = [] as any[];

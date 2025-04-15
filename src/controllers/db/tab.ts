@@ -5,6 +5,7 @@ import { DataViewCacheKey } from '@models/data-view';
 import { DBTableOrViewSchema } from '@models/db';
 import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, AttachedDBDataTab, FlatFileDataSourceTab } from '@models/tab';
+import { isNumberType } from '@utils/db';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 function getFlatFileGetReaderApi(
@@ -23,6 +24,20 @@ function getFlatFileGetReaderApi(
   };
 }
 
+function getFlatFileColumnCalculator(
+  conn: AsyncDuckDBConnection,
+  dataSource: AnyFlatFileDataSource,
+): DataAdapterApi['getCalculatedColumnSummary'] {
+  return async (column) => {
+    const isNumeric = isNumberType(column.sqlType);
+    const sourceIdentifier = `main.${toDuckDBIdentifier(dataSource.viewName)}`;
+
+    const summaryQuery = `SELECT ${isNumeric ? 'sum' : 'count'}("${column.name}") AS total FROM ${sourceIdentifier}`;
+
+    const result = await conn.query(summaryQuery);
+    return Number(result.getChildAt(0)?.get(0));
+  };
+}
 function getFlatFileDataAdapterApi(
   conn: AsyncDuckDBConnection,
   dataSource: AnyFlatFileDataSource,
@@ -38,6 +53,7 @@ function getFlatFileDataAdapterApi(
       // TODO: implement this
       getEstimatedRowCount: undefined,
       getReader: getFlatFileGetReaderApi(conn, dataSource),
+      getCalculatedColumnSummary: getFlatFileColumnCalculator(conn, dataSource),
     };
   }
 
@@ -54,6 +70,7 @@ function getFlatFileDataAdapterApi(
         return count;
       },
       getReader: getFlatFileGetReaderApi(conn, dataSource),
+      getCalculatedColumnSummary: getFlatFileColumnCalculator(conn, dataSource),
     };
   }
 
