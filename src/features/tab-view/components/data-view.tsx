@@ -133,8 +133,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
       : (currentPage + 1) * MAX_PAGE_SIZE;
 
   // Should we show a stale data instead of real data?
-  const useStaleData =
-    localCache.current !== null && (isFetchingData || expectedRowTo > loadedRowCount);
+  const useStaleData = localCache.current !== null && expectedRowTo > loadedRowCount;
 
   // The actual row range to show in the table. It may be different from the expected row range
 
@@ -505,7 +504,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
           </Group>
         </>
       )}
-      {!dataSourceReadError && (
+      {showTable && !dataSourceReadError && (
         <div
           className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
           data-testid={setDataTestId('data-table-pagination-control')}
