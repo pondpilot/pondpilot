@@ -1,15 +1,10 @@
-import { Table, TypeMap } from 'apache-arrow';
+import { Table } from 'apache-arrow';
 import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
-import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema } from './db';
-import { DataViewCacheKey } from './data-view';
+import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema, NormalizedSQLType } from './db';
 
-export interface DataAdapterApi<T extends TypeMap = any> {
-  /**
-   * A persistent cache key, that can be used to store and later
-   * retrieve the data for the same underlying data source after app restart.
-   */
-  getCacheKey: () => DataViewCacheKey;
+export type OurTable = Record<string, NormalizedSQLType | null>[];
 
+export interface DataAdapterApi {
   /**
    * Returns the schema of the table that data source yields.
    */
@@ -30,7 +25,7 @@ export interface DataAdapterApi<T extends TypeMap = any> {
    *
    * This should be used to read the data from the source.
    */
-  getReader: (sort: ColumnSortSpecList) => Promise<AsyncDuckDBPooledStreamReader<T>>;
+  getReader: (sort: ColumnSortSpecList) => Promise<AsyncDuckDBPooledStreamReader<any>>;
   /**
    * Returns column summary for the given column.
    */
@@ -39,7 +34,7 @@ export interface DataAdapterApi<T extends TypeMap = any> {
   /**
    * Returns column data for the given columns.
    */
-  getColumnsData?: (columns: DBColumn[]) => Promise<Table<T>>;
+  getColumnsData?: (columns: DBColumn[]) => Promise<Table<any>>;
 
-  getAllTableData?: () => Promise<Table<T>>;
+  getAllTableData?: () => Promise<Table<any>>;
 }

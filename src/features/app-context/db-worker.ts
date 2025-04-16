@@ -1,6 +1,8 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Table } from 'apache-arrow';
 
+// TODO: REMOVE WHEN query handling filly refactored
+
 /**
  * Retrieves the total number of rows for pagination by executing a count query.
  *

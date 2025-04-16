@@ -1,8 +1,8 @@
 import { useAppStore } from '@store/app-store';
 import { useEffect } from 'react';
 import { Stack } from '@mantine/core';
-import { ScriptTabView } from './views/script-tab-view';
-import { FileDataSourceTabView } from './views/file-data-source-tab-view';
+import { ScriptTabView } from './components/script-tab-view';
+import { FileDataSourceTabView } from './components/file-data-source-tab-view';
 import { useTabCache } from './hooks/use-tab-cache';
 
 const TAB_CACHE_SIZE = 10;

@@ -237,7 +237,6 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
 
   const defaultMenu: TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> = [];
 
-  //   if (renameCallbacks && !isDisabled) {
   defaultMenu.push({
     children: [
       {
@@ -247,9 +246,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
       },
     ],
   });
-  //   }
 
-  //   if (onDelete && !isDisabled) {
   defaultMenu.push({
     children: [
       {
@@ -259,7 +256,6 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
       },
     ],
   });
-  //   }
 
   const contextMenu = overrideContextMenu || mergeMenus([customContextMenu, defaultMenu]);
 

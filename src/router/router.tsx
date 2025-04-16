@@ -2,62 +2,67 @@ import { Layout } from '@components/layout';
 import { AppErrorFallback } from '@components/error-fallback';
 import { MainPage } from '@pages/main-page';
 import { SettingsPage } from '@pages/settings-page';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
-import { getBrowserSupportedFeatures } from '@utils/browser';
+import { createBrowserRouter, RouterProvider, Navigate, RouteObject } from 'react-router-dom';
 import { BrowserNotSupported } from '@components/browser-not-supported';
+import { useAppContext } from '@features/app-context';
 
-// Test component that throws an error
-const ErrorThrower = () => {
-  throw new Error('This is a test error for testing error boundary functionality');
-};
+let devOnlyRoutes: RouteObject[] = [];
 
-// Define dev-only routes
-const devOnlyRoutes = import.meta.env.DEV
-  ? [
-      {
-        path: 'error-test',
-        element: <ErrorThrower />,
-      },
-    ]
-  : [];
+// This will tree-shake in production
+if (import.meta.env.DEV) {
+  // Test component that throws an error
+  const ErrorThrower = () => {
+    throw new Error('This is a test error for testing error boundary functionality');
+  };
 
-const { isFileAccessApiSupported } = getBrowserSupportedFeatures();
-
-const appRoutes = isFileAccessApiSupported
-  ? [
-      {
-        index: true,
-        element: <MainPage />,
-      },
-      {
-        path: 'settings',
-        element: <SettingsPage />,
-      },
-    ]
-  : [
-      {
-        index: true,
-        element: <BrowserNotSupported />,
-      },
-    ];
-
-const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <Layout isFileAccessApiSupported={isFileAccessApiSupported} />,
-    errorElement: <AppErrorFallback />,
-    children: [
-      ...appRoutes,
-      // Add dev-only routes
-      ...devOnlyRoutes,
-      {
-        path: '*',
-        element: <Navigate to="/" replace />,
-      },
-    ],
-  },
-]);
+  // Define dev-only routes
+  devOnlyRoutes = [
+    {
+      path: 'error-test',
+      element: <ErrorThrower />,
+    },
+  ];
+}
 
 export function Router() {
+  const {
+    browserInfo: { isFileAccessApiSupported },
+  } = useAppContext();
+
+  const appRoutes = isFileAccessApiSupported
+    ? [
+        {
+          index: true,
+          element: <MainPage />,
+        },
+        {
+          path: 'settings',
+          element: <SettingsPage />,
+        },
+      ]
+    : [
+        {
+          index: true,
+          element: <BrowserNotSupported />,
+        },
+      ];
+
+  const router = createBrowserRouter([
+    {
+      path: '/',
+      element: <Layout isFileAccessApiSupported={isFileAccessApiSupported} />,
+      errorElement: <AppErrorFallback />,
+      children: [
+        ...appRoutes,
+        // Add dev-only routes
+        ...devOnlyRoutes,
+        {
+          path: '*',
+          element: <Navigate to="/" replace />,
+        },
+      ],
+    },
+  ]);
+
   return <RouterProvider router={router} />;
 }
