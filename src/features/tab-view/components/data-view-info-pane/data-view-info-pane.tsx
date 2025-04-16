@@ -15,7 +15,7 @@ interface DataViewInfoPaneProps {
 export const DataViewInfoPane = ({ tab, dataAdapterApi }: DataViewInfoPaneProps) => {
   const { copyTableToClipboard, exportTableToCSV } = useTableExport(dataAdapterApi);
 
-  const dataAdabterStare = {};
+  const dataAdapterState = {};
   // Common state
   const hasData = true;
   const useStaleData = true;
