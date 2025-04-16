@@ -6,7 +6,7 @@ import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-
 import { DataAdapterApi } from '@models/data-adapter';
 import { LoadingOverlay } from '@components/loading-overlay';
 import { Loader, Stack, Text } from '@mantine/core';
-import { DataView, DataViewInfoPane } from '../components';
+import { DataView, DataViewInfoPane } from '.';
 
 interface FileDataSourceTabViewProps {
   tab: AnyFileSourceTab;
@@ -106,7 +106,7 @@ export const FileDataSourceTabView = memo(({ tab, visible }: FileDataSourceTabVi
       {!isLoading && !isError && dataAdapter && (
         <>
           <DataViewInfoPane tab={tab} dataAdapterApi={dataAdapter} />
-          <DataView visible={visible} dataAdapterApi={dataAdapter} />
+          <DataView visible={visible} cacheKey={tab.id} dataAdapterApi={dataAdapter} />
         </>
       )}
     </Stack>

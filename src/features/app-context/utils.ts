@@ -7,6 +7,8 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { splitSqlQuery } from '../../utils/editor/statement-parser';
 import { DBRunQueryProps, runQueryDeprecated, RunQueryResponse } from './db-worker';
 
+// TODO: REMOVE OR MOVE WHEN query handling filly refactored
+
 interface QueryStatement {
   text: string;
   isSelect: boolean;

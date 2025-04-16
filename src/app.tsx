@@ -13,6 +13,7 @@ import { theme } from '@theme/theme';
 import { AppState } from '@features/app-state';
 import { DuckDBConnectionProvider } from '@features/duckdb-context/duckdb-context';
 import { ModifierProvider } from '@components/modifier-context/modifier-context';
+import { AppContextProvider } from '@features/app-context';
 import { Router } from './router/router';
 
 // TODO: Should be a user setting
@@ -24,9 +25,11 @@ export default function App() {
       <ModalsProvider>
         <ModifierProvider>
           <DuckDBConnectionProvider maxPoolSize={MAX_CONNECTION_POOL_SIZE}>
-            <Notifications />
-            <AppState />
-            <Router />
+            <AppContextProvider>
+              <Notifications />
+              <AppState />
+              <Router />
+            </AppContextProvider>
           </DuckDBConnectionProvider>
         </ModifierProvider>
       </ModalsProvider>

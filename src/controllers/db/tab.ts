@@ -60,7 +60,6 @@ function getFlatFileDataAdapterApi(
   sourceFile: LocalFile,
 ): DataAdapterApi {
   const baseAttrs: DataAdapterApi = {
-    getCacheKey: () => tab.id,
     getSchema: () => schema,
     getReader: getFlatFileGetReaderApi(conn, dataSource),
     getCalculatedColumnSummary: getFlatFileColumnCalculator(conn, dataSource),
@@ -124,7 +123,6 @@ function getAttachedDBDataAdapterApi(
 
   return {
     adapter: {
-      getCacheKey: () => tab.id,
       getSchema: () => schema,
       getEstimatedRowCount:
         dataSource.dbType === 'duckdb'

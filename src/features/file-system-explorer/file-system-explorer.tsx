@@ -23,6 +23,7 @@ import {
 import { deleteDataSources } from '@controllers/data-source';
 import { ExplorerTree, TreeNodeData } from '@components/explorer-tree';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { deleteLocalFileOrFolders } from '@controllers/file-system';
 import { FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';
 import { FileSystemExplorerNode } from './file-system-explorer-node';
 
@@ -61,7 +62,7 @@ export const FileSystemExplorer = memo(() => {
     ),
   );
 
-  const paretToChildrenEntiresMap = nonAttachedDBEntries.reduce((acc, entry) => {
+  const parentToChildrenEntriesMap = nonAttachedDBEntries.reduce((acc, entry) => {
     if (!acc.has(entry.parentId)) {
       acc.set(entry.parentId, [entry]);
       return acc;
@@ -70,6 +71,14 @@ export const FileSystemExplorer = memo(() => {
     acc.get(entry.parentId)!.push(entry);
     return acc;
   }, new Map<LocalEntryId | null, LocalEntry[]>());
+
+  // We have to store a mapping of all node IDs back to their types,
+  // that are later used to disambiguate the node type in `hadnleDeleteSelected`
+  // callback. It is built together with the tree.
+  const anyNodeIdToNodeTypeMap = new Map<
+    LocalEntryId | PersistentDataSourceId,
+    { nodeType: keyof FSExplorerNodeTypeToIdTypeMap; userAdded: boolean }
+  >();
 
   /**
    * Calculate views to display by doing a depth-first traversal of the entries tree
@@ -80,7 +89,7 @@ export const FileSystemExplorer = memo(() => {
     ): TreeNodeData<FSExplorerNodeTypeToIdTypeMap>[] => {
       const fileTreeChildren: TreeNodeData<FSExplorerNodeTypeToIdTypeMap>[] = [];
 
-      const children = paretToChildrenEntiresMap.get(parentId) || [];
+      const children = parentToChildrenEntriesMap.get(parentId) || [];
 
       // Sort (folders first, then alphabetically)
       children.sort((a, b) => {
@@ -93,6 +102,8 @@ export const FileSystemExplorer = memo(() => {
 
       children.forEach((entry) => {
         if (entry.kind === 'directory') {
+          anyNodeIdToNodeTypeMap.set(entry.id, { nodeType: 'folder', userAdded: entry.userAdded });
+
           fileTreeChildren.push({
             nodeType: 'folder',
             value: entry.id,
@@ -104,9 +115,7 @@ export const FileSystemExplorer = memo(() => {
             isDisabled: false,
             isSelectable: false,
             onDelete: entry.userAdded
-              ? (_: TreeNodeData<FSExplorerNodeTypeToIdTypeMap>): void => {
-                  throw new Error('TODO: implement delete for folders');
-                }
+              ? () => deleteLocalFileOrFolders(conn, [entry.id])
               : undefined,
             contextMenu: [
               {
@@ -147,18 +156,16 @@ export const FileSystemExplorer = memo(() => {
           isSelectable: true,
           renameCallbacks: {
             validateRename: () => {
-              throw new Error('TODO: implement renaming of database aliases');
+              throw new Error('TODO: implement renaming of views for flat files');
             },
             onRenameSubmit: () => {
-              throw new Error('TODO: implement renaming of database aliases');
+              throw new Error('TODO: implement renaming of views for flat files');
             },
           },
           onDelete: entry.userAdded
             ? // Only allow deleting explicitly user-added files
-              (node: TreeNodeData<FSExplorerNodeTypeToIdTypeMap>): void => {
-                if (node.nodeType === 'file') {
-                  deleteDataSources(conn, [node.value]);
-                }
+              () => {
+                deleteDataSources(conn, [value]);
               }
             : undefined,
           onNodeClick: (): void => {
@@ -209,6 +216,10 @@ export const FileSystemExplorer = memo(() => {
           ],
         };
 
+        anyNodeIdToNodeTypeMap.set(fileNode.value, {
+          nodeType: 'file',
+          userAdded: entry.userAdded,
+        });
         fileTreeChildren.push(fileNode);
       });
 
@@ -230,9 +241,49 @@ export const FileSystemExplorer = memo(() => {
   );
 
   const handleDeleteSelected = async (ids: Iterable<LocalEntryId | PersistentDataSourceId>) => {
-    // TODO: this is not a full implementation as we may have
-    // different nodes (folders, files and sheets)
-    deleteDataSources(conn, ids);
+    // Split the ids into files and folders (different id types, differet delete methods).
+    // We also doing a double check here to make sure we are not deleting
+    // non user-added elements. Theoretically, these should not end up here,
+    // but just in case.
+    const files: PersistentDataSourceId[] = [];
+    const folders: LocalEntryId[] = [];
+    for (const id of ids) {
+      const { nodeType, userAdded } = anyNodeIdToNodeTypeMap.get(id) || {
+        nodeType: undefined,
+        userAdded: false,
+      };
+
+      if (!nodeType) {
+        // This must be a bug
+        console.error(
+          `Node type for id "${id}" is missing from a node type mapping in \`handleDeleteSelected\``,
+        );
+        continue;
+      }
+
+      if (!userAdded) {
+        // This is not a user-added element, skip
+        continue;
+      }
+
+      if (nodeType === 'file') {
+        files.push(id as PersistentDataSourceId);
+      } else {
+        folders.push(id as LocalEntryId);
+      }
+    }
+
+    // Delete the files first, although as of today, files & folders can't
+    // overlap, as all files inside folders should be marked as not user-added
+    if (files.length > 0) {
+      // Delete the files
+      deleteDataSources(conn, files);
+    }
+
+    if (folders.length > 0) {
+      // Delete the folders
+      deleteLocalFileOrFolders(conn, folders);
+    }
   };
 
   return (

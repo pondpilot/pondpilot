@@ -10,11 +10,11 @@ import { DataLoadingOverlay } from '@components/data-loading-overlay';
 import { ColumnSortSpec, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
-import { DataViewCacheItem } from '@models/data-view';
+import { DataViewCacheItem, DataViewCacheKey } from '@models/data-view';
 import { useAppStore } from '@store/app-store';
 import { setOrUpdateDataViewCache } from '@controllers/data-view';
 import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
-import { useSort } from '../useSort';
+import { useSort } from '../hooks/use-sort';
 import { useColumnSummary } from '../hooks';
 
 const MAX_PAGE_SIZE = 100;
@@ -50,13 +50,21 @@ const MAX_PAGE_SIZE = 100;
 //    The final row count is set when the data source is exhausted.
 
 interface DataViewProps {
+  /**
+   * Invisible data views disable all hotkeys and UI interactions.
+   */
   visible: boolean;
-  canExport?: boolean;
+
+  /**
+   * A persistent cache key, that can be used to store and later
+   * retrieve the data for the same underlying data source after app restart.
+   */
+  cacheKey: DataViewCacheKey;
 
   dataAdapterApi: DataAdapterApi;
 }
 
-export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
+export const DataView = ({ visible, cacheKey, dataAdapterApi }: DataViewProps) => {
   /**
    * Helpful hooks
    */
@@ -106,8 +114,6 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
   /**
    * Computed State
    */
-  const cacheKey = dataAdapterApi.getCacheKey();
-
   const loadedRowCount = actualData.current.length;
   const realOrEstimatedRowCount =
     realRowCount && !dataSourceExhausted

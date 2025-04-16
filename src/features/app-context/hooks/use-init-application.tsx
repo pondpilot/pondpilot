@@ -3,22 +3,20 @@ import { useAppNotifications } from '@components/app-notifications';
 import { setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { useDuckDBConnection, useDuckDBInitializer } from '@features/duckdb-context/duckdb-context';
-import { useShowPermsAlert } from './useShowPermsAlert';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { useShowPermsAlert } from './use-show-perm-alert';
 
-export function useAppInitialization() {
+export function useAppInitialization(isFileAccessApiSupported: boolean) {
   const { showWarning } = useAppNotifications();
   const { showPermsAlert } = useShowPermsAlert();
 
   const conn = useDuckDBConnection();
   const connectDuckDb = useDuckDBInitializer();
 
-  const initAppData = async () => {
-    if (!conn) {
-      throw new Error('DuckDB connection is not ready');
-    }
+  const initAppData = async (resolvedConn: AsyncDuckDBConnectionPool) => {
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
-    const { discardedEntries, warnings } = await restoreAppDataFromIDB(conn, (_) =>
+    const { discardedEntries, warnings } = await restoreAppDataFromIDB(resolvedConn, (_) =>
       showPermsAlert(),
     );
 
@@ -72,9 +70,13 @@ export function useAppInitialization() {
   };
 
   useEffect(() => {
+    // As of today, if the File Access API is not supported,
+    // we are not initializing either in-memory DuckDB or the app data.
+    if (!isFileAccessApiSupported) return;
+
     // Start initialization of data when the database is ready
     if (conn) {
-      initAppData();
+      initAppData(conn);
     } else {
       connectDuckDb();
     }

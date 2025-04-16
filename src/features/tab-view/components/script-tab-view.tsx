@@ -22,7 +22,6 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
       // setQueryRunning(true);
       // const { data } = await runQueryDeprecated({ query, conn });
       setDataAdapter({
-        getCacheKey: () => tab.id,
         getSchema: async () => {
           // TODO: find more performant way to get schema
           const result = await conn.query(`SELECT * FROM (${query}) LIMIT 0`);
@@ -65,7 +64,9 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
         </Allotment.Pane>
 
         <Allotment.Pane preferredSize={tab.dataViewLayout.dataViewPaneHeight} minSize={120}>
-          {dataAdapter ? <DataView visible={active} dataAdapterApi={dataAdapter} /> : null}
+          {dataAdapter ? (
+            <DataView visible={active} cacheKey={tab.id} dataAdapterApi={dataAdapter} />
+          ) : null}
           <div></div>
         </Allotment.Pane>
       </Allotment>

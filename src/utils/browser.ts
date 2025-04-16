@@ -1,6 +1,4 @@
-type BrowserSupportedFeatures = {
-  isFileAccessApiSupported: boolean;
-};
+import { BrowserSupportedFeatures } from '@models/browser';
 
 export function getBrowserSupportedFeatures(): BrowserSupportedFeatures {
   return {

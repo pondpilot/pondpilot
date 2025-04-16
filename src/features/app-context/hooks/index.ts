@@ -1,2 +1,2 @@
-export * from './useInitApplication';
-export * from './useShowPermsAlert';
+export * from './use-init-application';
+export * from './use-show-perm-alert';

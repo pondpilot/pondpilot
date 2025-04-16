@@ -261,3 +261,7 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
  * -------------------------- Delete --------------------------
  * ------------------------------------------------------------
  */
+
+export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: LocalEntryId[]) => {
+  throw new Error('TODO: implement delete for folders');
+};
