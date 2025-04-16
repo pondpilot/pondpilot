@@ -34,11 +34,12 @@ export const RowCountAndPaginationControl = ({
   onPrevPage,
   onNextPage,
 }: PaginationControlProps) => {
+  const rowsWording = rowCount > 1 ? 'rows' : 'row';
   const outOf =
     rowCount > 0
       ? !isSinglePage
-        ? `${formatNumber(rowFrom)}-${formatNumber(rowTo)} out of ${formatNumber(rowCount)}${isEstimatedRowCount ? '+' : ''} rows`
-        : `${formatNumber(rowCount)} rows`
+        ? `${formatNumber(rowFrom)}-${formatNumber(rowTo)} out of ${formatNumber(rowCount)}${isEstimatedRowCount ? '+' : ''} ${rowsWording}`
+        : `${formatNumber(rowCount)} ${rowsWording}`
       : '0 rows';
   return (
     <Group
