@@ -43,6 +43,7 @@ interface SortableTabProps {
   loading: boolean;
   icon: React.ReactNode;
   activeTabRef: React.RefObject<HTMLDivElement | null>;
+  isLast: boolean;
   handleDeleteTab: () => void;
   onClick: () => void;
   onDoubleClick: () => void;
@@ -59,6 +60,7 @@ const SortableTab = ({
   handleDeleteTab,
   onClick,
   onDoubleClick,
+  isLast,
 }: SortableTabProps) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tabId });
   const [isDragging, setIsDragging] = useState(false);
@@ -97,12 +99,13 @@ const SortableTab = ({
           onDoubleClick();
         }}
         className={cn(
-          'px-2 h-9 flex items-center w-[175px] cursor-pointer border-l border-transparent004-light dark:border-transparent004-dark',
+          'px-2 h-9 flex items-center w-[175px] cursor-pointer border-l border-transparent008-light dark:border-transparent008-dark',
           !isDragging && 'hover:bg-transparent008-light dark:hover:bg-transparent008-dark',
           'text-textPrimary-light dark:text-textPrimary-dark',
-          'bg-backgroundTertiary-light dark:bg-transparent008-dark',
+          'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
           active &&
             'bg-backgroundPrimary-light hover:bg-white dark:bg-backgroundPrimary-dark z-50 dark:hover:bg-backgroundPrimary-dark',
+          isLast && 'border-r',
         )}
       >
         <Group gap={2} className="justify-between w-full">
@@ -231,13 +234,9 @@ export const TabsPane = memo(() => {
   }, [activeTabId]);
 
   return (
-    <Group className="w-full justify-between gap-0">
+    <Group className="w-full justify-between gap-0 bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark">
       <ScrollArea type="never" className="flex-1">
-        <div
-          className={cn(
-            'flex flex-row items-center bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
-          )}
-        >
+        <div className={cn('flex flex-row items-center ')}>
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -257,6 +256,7 @@ export const TabsPane = memo(() => {
                   orderedTabIds.map((tabId) => {
                     const tabName = tabNameMap.get(tabId)!;
                     const tabIcon = tabIconMap.get(tabId)!;
+                    const isLast = orderedTabIds[orderedTabIds.length - 1] === tabId;
 
                     return (
                       <SortableTab
@@ -273,6 +273,7 @@ export const TabsPane = memo(() => {
                         onDoubleClick={() => {
                           handleTabDoubleClick(tabId);
                         }}
+                        isLast={isLast}
                       />
                     );
                   })
