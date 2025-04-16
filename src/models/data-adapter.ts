@@ -39,4 +39,6 @@ export interface DataAdapterApi<T extends TypeMap = any> {
    * Returns column data for the given columns.
    */
   getColumnsData?: (columns: DBColumn[]) => Promise<Table<T>>;
+
+  getAllTableData?: () => Promise<Table<T>>;
 }

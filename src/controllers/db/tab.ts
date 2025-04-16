@@ -59,12 +59,17 @@ function getFlatFileDataAdapterApi(
   tab: FlatFileDataSourceTab,
   sourceFile: LocalFile,
 ): DataAdapterApi {
-  const baseAttrs = {
+  const baseAttrs: DataAdapterApi = {
     getCacheKey: () => tab.id,
     getSchema: () => schema,
     getReader: getFlatFileGetReaderApi(conn, dataSource),
     getCalculatedColumnSummary: getFlatFileColumnCalculator(conn, dataSource),
     getColumnsData: getFlatFileColumnsData(conn, dataSource),
+    getAllTableData: () => {
+      const sourceIdentifier = `main.${toDuckDBIdentifier(dataSource.viewName)}`;
+      const query = `SELECT * FROM ${sourceIdentifier}`;
+      return conn.query(query);
+    },
   };
 
   if (dataSource.type === 'csv' || dataSource.type === 'xlsx-sheet') {
