@@ -14,7 +14,7 @@ interface FileDataSourceTabViewProps {
 }
 
 export const FileDataSourceTabView = memo(({ tab, visible }: FileDataSourceTabViewProps) => {
-  const { conn } = useInitializedDuckDBConnection();
+  const conn = useInitializedDuckDBConnection();
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [dataAdapter, setDataAdapter] = useState<DataAdapterApi | null>(null);
 

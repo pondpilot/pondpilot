@@ -8,7 +8,6 @@ import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { localEntryFromHandle } from '@utils/file-system';
 
-import { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import {
   registerAndAttachDatabase,
   registerFileSourceAndCreateView,
@@ -24,6 +23,7 @@ import { DataBaseModel } from '@models/db';
 import { makeSQLScriptId } from '@utils/sql-script';
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { useAppStore } from '@store/app-store';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { persistAddLocalEntry } from './persist';
 
 /**
@@ -33,8 +33,7 @@ import { persistAddLocalEntry } from './persist';
  */
 
 export const addLocalFileOrFolders = async (
-  db: AsyncDuckDB,
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   handles: (FileSystemDirectoryHandle | FileSystemFileHandle)[],
 ): Promise<{
   skippedExistingEntries: LocalEntry[];
@@ -110,7 +109,6 @@ export const addLocalFileOrFolders = async (
 
           // TODO: currently we assume this works, add proper error handling
           await registerAndAttachDatabase(
-            db,
             conn,
             localEntry.handle,
             `${localEntry.uniqueAlias}.${localEntry.ext}`,
@@ -133,7 +131,6 @@ export const addLocalFileOrFolders = async (
           // Then register the file source and create the view.
           // TODO: this may potentially fail - we should handle this case
           await registerFileSourceAndCreateView(
-            db,
             conn,
             localEntry.handle,
             `${localEntry.uniqueAlias}.${localEntry.ext}`,

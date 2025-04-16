@@ -1,9 +1,9 @@
 import { EditorState } from '@uiw/react-codemirror';
 import { PostgreSQL, sql } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
-import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { splitSqlQuery } from '../../utils/editor/statement-parser';
 import { DBRunQueryProps, runQueryDeprecated, RunQueryResponse } from './db-worker';
 
@@ -16,7 +16,7 @@ interface QueryStatement {
 
 interface ExecuteQueriesProps {
   runQueryProps: DBRunQueryProps;
-  conn: AsyncDuckDBConnection;
+  conn: AsyncDuckDBConnectionPool;
   isCancelledPromise: Promise<never>;
   protectedViews: Set<string> | null;
 }
@@ -138,7 +138,7 @@ const executeStatement = async ({
   hasLimit,
 }: {
   query: string;
-  conn: AsyncDuckDBConnection;
+  conn: AsyncDuckDBConnectionPool;
   isCancelledPromise: Promise<never>;
   statement: QueryStatement;
   hasLimit: boolean;

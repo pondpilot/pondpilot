@@ -9,16 +9,16 @@ export function useAppInitialization() {
   const { showWarning } = useAppNotifications();
   const { showPermsAlert } = useShowPermsAlert();
 
-  const { db, conn } = useDuckDBConnection();
+  const conn = useDuckDBConnection();
   const connectDuckDb = useDuckDBInitializer();
 
   const initAppData = async () => {
-    if (!db || !conn) {
+    if (!conn) {
       throw new Error('DuckDB connection is not ready');
     }
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
-    const { discardedEntries, warnings } = await restoreAppDataFromIDB(db, conn, (_) =>
+    const { discardedEntries, warnings } = await restoreAppDataFromIDB(conn, (_) =>
       showPermsAlert(),
     );
 

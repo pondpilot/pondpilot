@@ -1,11 +1,11 @@
-import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { DataBaseModel, DBColumn, DBTableOrView } from '@models/db';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import * as arrow from 'apache-arrow';
 
 async function queryOneColumn<VT extends arrow.DataType>(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   sql: string,
   columnName: string,
 ): Promise<arrow.Vector<VT>['TValue'][] | null> {
@@ -32,7 +32,7 @@ async function queryOneColumn<VT extends arrow.DataType>(
  * @returns Array of database names or null in case of errors.
  */
 export async function getAttachedDBs(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   excludeMemory: boolean = true,
 ): Promise<string[] | null> {
   const sql = `
@@ -53,7 +53,7 @@ export async function getAttachedDBs(
  * @returns Array of view names or null in case of errors.
  */
 export async function getViews(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   databaseName: string = 'memory',
   schemaName: string = 'main',
 ): Promise<string[] | null> {
@@ -131,7 +131,7 @@ type ColumnsQueryReturnType = {
  * @returns Table and column metadata
  */
 async function getTablesAndColumns(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   databaseNames?: string[],
   schemaNames?: string[],
   objectNames?: string[],
@@ -200,7 +200,7 @@ async function getTablesAndColumns(
  * @returns Table and column metadata
  */
 export async function getDatabaseModel(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   databaseNames?: string[],
   schemaNames?: string[],
 ): Promise<Map<string, DataBaseModel> | null> {
@@ -264,7 +264,7 @@ export async function getDatabaseModel(
  * @returns Table and column metadata
  */
 export async function getObjectModels(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   databaseName: string,
   schemaName: string,
   objectNames: string[],

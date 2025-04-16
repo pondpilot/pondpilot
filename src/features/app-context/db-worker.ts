@@ -1,4 +1,4 @@
-import * as duckdb from '@duckdb/duckdb-wasm';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Table } from 'apache-arrow';
 
 /**
@@ -9,7 +9,7 @@ import { Table } from 'apache-arrow';
  * @returns {Promise<number>} The total number of rows.
  */
 export const getPaginationRowsCount = async (
-  conn: duckdb.AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   query: string,
 ): Promise<number> => {
   const pagination = await conn.query(`SELECT COUNT(*) FROM (${query});`);
@@ -49,7 +49,7 @@ export async function runQueryDeprecated({
   hasLimit,
   queryWithoutLimit,
   conn,
-}: DBRunQueryProps & { conn: duckdb.AsyncDuckDBConnection }): Promise<
+}: DBRunQueryProps & { conn: AsyncDuckDBConnectionPool }): Promise<
   Omit<RunQueryResponse, 'originalQuery'>
 > {
   try {
@@ -75,7 +75,5 @@ export async function runQueryDeprecated({
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     throw new Error(message);
-  } finally {
-    conn.cancelSent();
   }
 }

@@ -1,7 +1,6 @@
 import { Table } from '@components/table/table';
 import { DataAdapterApi } from '@models/data-adapter';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AsyncRecordBatchStreamReader } from 'apache-arrow';
 import { setDataTestId } from '@utils/test-id';
 import { useDidMount } from '@hooks/use-did-mount';
 import { Affix, Group, Loader, Stack, Text } from '@mantine/core';
@@ -14,6 +13,7 @@ import { notifications } from '@mantine/notifications';
 import { DataViewCacheItem } from '@models/data-view';
 import { useAppStore } from '@store/app-store';
 import { setOrUpdateDataViewCache } from '@controllers/data-view';
+import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
 import { useSort } from '../useSort';
 import { useColumnSummary } from '../hooks';
 
@@ -75,7 +75,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
    * Local Reactive State
    */
   // Holds the current connection to the database
-  const [reader, setReader] = useState<AsyncRecordBatchStreamReader | null>(null);
+  const [reader, setReader] = useState<AsyncDuckDBPooledStreamReader<any> | null>(null);
 
   // Two sets of data. One stale (from cache, including when created from a previous sort state)
   // and one actual (from the current reader)

@@ -15,12 +15,15 @@ import { DuckDBConnectionProvider } from '@features/duckdb-context/duckdb-contex
 import { ModifierProvider } from '@components/modifier-context/modifier-context';
 import { Router } from './router/router';
 
+// TODO: Should be a user setting
+const MAX_CONNECTION_POOL_SIZE = 10;
+
 export default function App() {
   return (
     <MantineProvider theme={theme}>
       <ModalsProvider>
         <ModifierProvider>
-          <DuckDBConnectionProvider>
+          <DuckDBConnectionProvider maxPoolSize={MAX_CONNECTION_POOL_SIZE}>
             <Notifications />
             <AppState />
             <Router />
