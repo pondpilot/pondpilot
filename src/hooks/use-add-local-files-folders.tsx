@@ -1,17 +1,12 @@
 import { useAppNotifications } from '@components/app-notifications';
+import { addLocalFileOrFolders } from '@controllers/file-system/file-system-controller';
 import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { supportedDataSourceFileExtArray, supportedDataSourceFileExts } from '@models/file-system';
-import { addLocalFileOrFolders } from '@store/app-store';
 import { pickFiles, pickFolder } from '@utils/file-system';
 
-export const useLocalFilesOrFolders = () => {
+export const useAddLocalFilesOrFolders = () => {
   const { showError, showWarning } = useAppNotifications();
 
-  // TODO: we should be able to use non-null hook with db-conn,
-  // but to do that, we need to extract the "plus" as a separate component
-  // that is only loaded after app is ready
-  // const { db, conn } = useInitializedDuckDBConnection();
-  // @mishamsk , We can handle it just using the appLoadState with disabled state.
   const { db, conn } = useDuckDBConnection();
 
   const handleAddFile = async (

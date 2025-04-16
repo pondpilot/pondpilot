@@ -3,8 +3,6 @@ import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { VitePWA } from 'vite-plugin-pwa';
 import svgr from 'vite-plugin-svgr';
-import { execSync } from 'child_process';
-import { resolve } from 'path';
 
 const getVersionInfo = () => {
   try {
@@ -47,6 +45,21 @@ export default defineConfig(({ mode }) => {
               handler: 'CacheFirst',
               options: {
                 cacheName: 'duckdb-extensions-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            // SheetJS CDN resources
+            {
+              urlPattern: /^https:\/\/cdn\.sheetjs\.com\/.*/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'sheetjs-cache',
                 expiration: {
                   maxEntries: 10,
                   maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days

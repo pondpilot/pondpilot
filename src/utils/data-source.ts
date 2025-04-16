@@ -1,9 +1,64 @@
 import { findUniqueName } from '@utils/helpers';
-import { AnyFlatFileDataSource, AttachedDB, PersistentDataSourceId } from '@models/data-source';
+import {
+  AnyDataSource,
+  AnyFlatFileDataSource,
+  AttachedDB,
+  PersistentDataSourceId,
+} from '@models/data-source';
 import { DataSourceLocalFile } from '@models/file-system';
 import { makeIdFactory } from './new-id';
 
 export const makePersistentDataSourceId = makeIdFactory<PersistentDataSourceId>();
+
+export function ensureFlatFileDataSource(
+  dataSourceOrId: AnyFlatFileDataSource | PersistentDataSourceId,
+  dataSources: Map<PersistentDataSourceId, AnyDataSource>,
+): AnyFlatFileDataSource {
+  let obj: AnyDataSource;
+
+  if (typeof dataSourceOrId === 'string') {
+    const fromState = dataSources.get(dataSourceOrId);
+
+    if (!fromState) {
+      throw new Error(`Data source with id ${dataSourceOrId} not found`);
+    }
+
+    obj = fromState;
+  } else {
+    obj = dataSourceOrId;
+  }
+
+  if (obj.type === 'attached-db') {
+    throw new Error(`Data source with id ${obj.id} is not a flat file data source`);
+  }
+
+  return obj;
+}
+
+export function ensureAttachedDBDataSource(
+  dataSourceOrId: AttachedDB | PersistentDataSourceId,
+  dataSources: Map<PersistentDataSourceId, AnyDataSource>,
+): AttachedDB {
+  let obj: AnyDataSource;
+
+  if (typeof dataSourceOrId === 'string') {
+    const fromState = dataSources.get(dataSourceOrId);
+
+    if (!fromState) {
+      throw new Error(`Data source with id ${dataSourceOrId} not found`);
+    }
+
+    obj = fromState;
+  } else {
+    obj = dataSourceOrId;
+  }
+
+  if (obj.type !== 'attached-db') {
+    throw new Error(`Data source with id ${obj.id} is not an attached DB data source`);
+  }
+
+  return obj;
+}
 
 export function addFlatFileDataSource(
   localEntry: DataSourceLocalFile,

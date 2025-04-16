@@ -10,8 +10,10 @@ import { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
 import { APP_GITHUB_URL } from 'app-urls';
-import { createSQLScript, getOrCreateTabFromScript, useAppStore } from '@store/app-store';
-import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
+import { useAppStore } from '@store/app-store';
+import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { createSQLScript } from '@controllers/sql-script';
+import { getOrCreateTabFromScript } from '@controllers/tab';
 
 /**
  * Displays the navigation bar
@@ -25,7 +27,7 @@ export const Navbar = memo(() => {
 
   const appLoadState = useAppStore.use.appLoadState();
 
-  const { handleAddFile } = useLocalFilesOrFolders();
+  const { handleAddFile } = useAddLocalFilesOrFolders();
   const isDatabaseObjectTabActive = useAppStore((state) => {
     if (state.activeTabId === null) return false;
     const curTab = state.tabs.get(state.activeTabId);

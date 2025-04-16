@@ -2,19 +2,18 @@ import { useAppNotifications } from '@components/app-notifications';
 import { useClipboard } from '@mantine/hooks';
 import { memo } from 'react';
 
-import {
-  getOrCreateTabFromScript,
-  useSqlScriptNameMap,
-  renameSQLScript,
-  deleteSqlScripts,
-  deleteTabByScriptId,
-  findTabFromScript,
-  setActiveTabId,
-  setPreviewTabId,
-} from '@store/app-store';
+import { useSqlScriptNameMap } from '@store/app-store';
 import { SQLScriptId } from '@models/sql-script';
 import { ExplorerTree } from '@components/sources-list-view/explorer-tree';
-import { TreeMenu, TreeNodeData } from '@components/sources-list-view/model';
+import { TreeNodeMenuType, TreeNodeData } from '@components/sources-list-view/model';
+import {
+  deleteTabByScriptId,
+  findTabFromScript,
+  getOrCreateTabFromScript,
+  setActiveTabId,
+  setPreviewTabId,
+} from '@controllers/tab';
+import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import { ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
 
@@ -84,7 +83,7 @@ export const ScriptExplorer = memo(() => {
   const scriptsArray = Array.from(sqlScripts).sort(([, leftName], [, rightName]) =>
     leftName.localeCompare(rightName),
   );
-  const contextMenu: TreeMenu<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> = [
+  const contextMenu: TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> = [
     {
       children: [
         {

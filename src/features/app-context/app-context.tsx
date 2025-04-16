@@ -1,7 +1,7 @@
 import { createContext, useContext, useCallback } from 'react';
 import { tableFromIPC } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
-import { useAbortController } from '@hooks/useAbortController';
+import { useAbortController } from '@hooks/use-abort-controller';
 import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';

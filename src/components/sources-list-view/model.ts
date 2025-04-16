@@ -71,12 +71,23 @@ export type TreeNodeData<NTypeToIdTypeMap extends Record<string, string>> =
           isSelectable: boolean;
 
           /**
+           * By default, clicking on any node with children will expand it.
+           *
+           * If set to true, clicking on this node will not expand it. This
+           * allows custom behavior in the `onNodeClick` callback.
+           */
+          doNotExpandOnClick?: boolean;
+
+          /**
            * Callback that should be called when the user clicks on the item,
            * and additional behavior is expected.
            *
            * @param node - passes back the node to allow non-closure callbacks
            */
-          onNodeClick?: (node: TreeNodeData<NTypeToIdTypeMap>) => void;
+          onNodeClick?: (
+            node: TreeNodeData<NTypeToIdTypeMap>,
+            tree: MantineRenderTreeNodePayload['tree'],
+          ) => void;
 
           /**
            * If present, this item will allow renaming.
@@ -113,7 +124,7 @@ export type TreeNodeData<NTypeToIdTypeMap extends Record<string, string>> =
            * See `renameCallbacks` and `deleteCallbacks` for more information about
            * item level default menu items.
            */
-          contextMenu: TreeMenu<TreeNodeData<NTypeToIdTypeMap>>;
+          contextMenu: TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>>;
 
           children?: TreeNodeData<NTypeToIdTypeMap>[];
         } & MantineTreeNodeData
@@ -161,7 +172,7 @@ export type BaseTreeNodeProps<NTypeToIdTypeMap extends Record<string, string>> =
            * This is used by the `ExplorerTree` component to modify context menu
            * on multi-select.
            */
-          overrideContextMenu: TreeMenu<TreeNodeData<NTypeToIdTypeMap>> | null;
+          overrideContextMenu: TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> | null;
 
           /**
            * The itemIds list in the order they are displayed in the tree,
@@ -172,17 +183,21 @@ export type BaseTreeNodeProps<NTypeToIdTypeMap extends Record<string, string>> =
       : never
     : never;
 
-type MenuItemChildren<NType> = {
+export type TreeNodeMenuItemType<NType> = {
   label: string;
   isDisabled?: boolean;
-  onClick: (node: NType) => void;
+  onClick: (node: NType, tree: MantineRenderTreeNodePayload['tree']) => void;
+  onAlt?: {
+    label: string;
+    onClick: (node: NType, tree: MantineRenderTreeNodePayload['tree']) => void;
+  };
 };
 
-export type TreeMenuSection<NType> = {
-  children: MenuItemChildren<NType>[];
+export type TreeNodeMenuSectionType<NType> = {
+  children: TreeNodeMenuItemType<NType>[];
 };
 
-export type TreeMenu<NType> = TreeMenuSection<NType>[];
+export type TreeNodeMenuType<NType> = TreeNodeMenuSectionType<NType>[];
 
 export type RenderTreeNodePayload<
   NTypeToIdTypeMap extends Record<string, string>,
@@ -206,7 +221,7 @@ export type RenderTreeNodePayload<
          * This is used by the `ExplorerTree` component to modify context menu
          * on multi-select.
          */
-        overrideContextMenu: TreeMenu<TreeNodeData<NTypeToIdTypeMap>> | null;
+        overrideContextMenu: TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> | null;
 
         /**
          * The itemIds list in the order they are displayed in the tree,

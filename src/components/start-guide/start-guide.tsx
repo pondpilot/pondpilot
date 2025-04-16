@@ -1,11 +1,11 @@
 import { Center, Stack, Text } from '@mantine/core';
 import { useOs } from '@mantine/hooks';
-import { useModifier } from '@hooks/useModifier';
+import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 
 export const StartGuide = () => {
   const os = useOs();
   const isMacOS = os === 'macos';
-  const mod = useModifier();
+  const mod = useOsModifierIcon();
 
   const shortcustList = [
     {

@@ -2,7 +2,7 @@ import { Stack, Button, Text, Anchor, List, ThemeIcon, Box } from '@mantine/core
 import { useState } from 'react';
 import { useRouteError } from 'react-router-dom';
 import { IconCircleCheck, IconRefresh, IconDownload, IconTrash } from '@tabler/icons-react';
-import { exportSQLScripts } from '@store/export-data';
+import { exportSQLScripts } from '@controllers/export-data';
 import { APP_SUPPORT_URL } from 'app-urls';
 import { setDataTestId } from '@utils/test-id';
 import { deleteApplicationData } from '../utils';

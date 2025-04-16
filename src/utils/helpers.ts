@@ -1,5 +1,3 @@
-import { Dataset } from '@models/common';
-
 export const formatNumber = (value: number): string => {
   if (Number.isNaN(value as number)) return '';
 
@@ -8,41 +6,6 @@ export const formatNumber = (value: number): string => {
   });
   return formatter.format(value);
 };
-
-export function getSupportedMimeType(
-  name: string,
-): Pick<Dataset, 'mimeType' | 'kind' | 'ext'> | null {
-  const lastDot = name.lastIndexOf('.'); // allow index.worker.ts
-  if (lastDot === -1) {
-    return null;
-  }
-  const ext = name.slice(lastDot + 1);
-  if (!ext) return null;
-
-  switch (ext) {
-    case 'parquet':
-      return {
-        mimeType: 'application/parquet',
-        kind: 'DATASET',
-        ext: 'parquet',
-      };
-    case 'csv':
-      return { mimeType: 'text/csv', kind: 'DATASET', ext: 'csv' };
-    case 'json':
-      return { mimeType: 'application/json', kind: 'DATASET', ext: 'json' };
-    case 'xlsx':
-      return {
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        kind: 'DATASET',
-        ext: 'xlsx',
-      };
-
-    case 'duckdb':
-      return { mimeType: 'application/duckdb', kind: 'DATASET', ext: 'duckdb' };
-    default:
-      return null;
-  }
-}
 
 /**
  * Helper to find a unique name. Takes a base name and appends a counter to it until a unique name is found.

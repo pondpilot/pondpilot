@@ -2,7 +2,7 @@ import { useOs } from '@mantine/hooks';
 import { IconAlt, IconCommand } from '@tabler/icons-react';
 import { MdKeyboardOptionKey } from 'react-icons/md';
 
-export const useModifier = () => {
+export const useOsModifierIcon = () => {
   const os = useOs();
   const isMacOS = os === 'macos';
   const command = isMacOS ? <IconCommand stroke={1.5} size={20} /> : 'Ctrl';

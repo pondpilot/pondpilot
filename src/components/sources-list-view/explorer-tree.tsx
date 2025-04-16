@@ -11,7 +11,7 @@ import { useHotkeys } from '@mantine/hooks';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { ReactNode, useCallback, useMemo, useRef } from 'react';
-import { RenderTreeNodePayload, TreeMenu, TreeNodeData } from './model';
+import { RenderTreeNodePayload, TreeNodeMenuType, TreeNodeData } from './model';
 import { getFlattenNodes } from './utils/tree-manipulation';
 
 type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>, ExtraT = undefined> = {
@@ -41,7 +41,7 @@ type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>, ExtraT =
   /**
    * Callback for multi-node deletion
    */
-  onDeleteSelected: (ids: NTypeToIdTypeMap[keyof NTypeToIdTypeMap][]) => void;
+  onDeleteSelected: (ids: Iterable<NTypeToIdTypeMap[keyof NTypeToIdTypeMap]>) => void;
 
   /**
    * Used to pass arbitrary extra data that is passed through to TreeNodeComponent
@@ -74,9 +74,14 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
     () => flattenedNodes.map((node) => node.value),
     [flattenedNodes],
   );
-  const flattenedDeletableNodeIds = useMemo(
-    () => new Set(flattenedNodes.filter((node) => !!node.onDelete).map((node) => node.value)),
-    [flattenedNodes],
+
+  const selectedDeleteableNodeIds = useMemo(
+    () =>
+      flattenedNodes
+        .filter((node) => !!node.onDelete)
+        .filter((node) => tree.selectedState.includes(node.value))
+        .map((node) => node.value),
+    [tree.selectedState, flattenedNodes],
   );
 
   const isFocused = treeRef.current && treeRef.current.contains(document.activeElement);
@@ -84,33 +89,31 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
   /**
    * Handlers
    */
-  const overrideContextMenu: TreeMenu<TreeNodeData<NTypeToIdTypeMap>> | null = useMemo(() => {
-    // if there are multiple selected nodes show the delete all menu instead of the default one
+  const overrideContextMenu: TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> | null =
+    useMemo(() => {
+      // if there are multiple selected nodes show the delete all menu instead of the default one
 
-    // 0, 1 = no multi-select
-    if (tree.selectedState.length < 2) {
-      return null;
-    }
+      // 0, 1 = no multi-select
+      if (tree.selectedState.length < 2) {
+        return null;
+      }
 
-    return [
-      {
-        children: [
-          {
-            label: 'Delete selected',
-            // Disable if at least one selected node is not deletable
-            isDisabled: tree.selectedState.some(
-              (id) =>
-                !flattenedDeletableNodeIds.has(id as NTypeToIdTypeMap[keyof NTypeToIdTypeMap]),
-            ),
-            onClick: (_) => {
-              onDeleteSelected(tree.selectedState as NTypeToIdTypeMap[keyof NTypeToIdTypeMap][]);
-              tree.clearSelected();
+      return [
+        {
+          children: [
+            {
+              label: 'Delete selected',
+              // Disable if none of the selected nodes are deletable
+              isDisabled: selectedDeleteableNodeIds.length === 0,
+              onClick: (_) => {
+                onDeleteSelected(selectedDeleteableNodeIds);
+                tree.clearSelected();
+              },
             },
-          },
-        ],
-      },
-    ];
-  }, [tree.selectedState, flattenedDeletableNodeIds]);
+          ],
+        },
+      ];
+    }, [tree.selectedState, selectedDeleteableNodeIds]);
 
   /**
    * Callbacks
@@ -145,15 +148,10 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
     [
       'mod+Backspace',
       () => {
-        if (
-          !tree.selectedState.length ||
-          tree.selectedState.some(
-            (id) => !flattenedDeletableNodeIds.has(id as NTypeToIdTypeMap[keyof NTypeToIdTypeMap]),
-          )
-        ) {
+        if (selectedDeleteableNodeIds.length === 0) {
           return;
         }
-        onDeleteSelected(tree.selectedState as NTypeToIdTypeMap[keyof NTypeToIdTypeMap][]);
+        onDeleteSelected(selectedDeleteableNodeIds);
         tree.clearSelected();
       },
     ],

@@ -12,17 +12,20 @@ import { Notifications } from '@mantine/notifications';
 import { theme } from '@theme/theme';
 import { AppState } from '@features/app-state';
 import { DuckDBConnectionProvider } from '@features/duckdb-context/duckdb-context';
+import { ModifierProvider } from '@components/modifier-context/modifier-context';
 import { Router } from './router/router';
 
 export default function App() {
   return (
     <MantineProvider theme={theme}>
       <ModalsProvider>
-        <DuckDBConnectionProvider>
-          <Notifications />
-          <AppState />
-          <Router />
-        </DuckDBConnectionProvider>
+        <ModifierProvider>
+          <DuckDBConnectionProvider>
+            <Notifications />
+            <AppState />
+            <Router />
+          </DuckDBConnectionProvider>
+        </ModifierProvider>
       </ModalsProvider>
     </MantineProvider>
   );

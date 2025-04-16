@@ -5,8 +5,9 @@ import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { Fragment, memo, useEffect, useRef, useState } from 'react';
 import { shallow } from 'zustand/shallow';
-import { TreeMenu, TreeNodeData, BaseTreeNodeProps } from '../model';
+import { TreeNodeMenuType, TreeNodeData, BaseTreeNodeProps } from '../model';
 import { mergeMenus } from '../utils/context-menu';
+import { TreeNodeMenuItem } from './tree-menu-item';
 
 const ITEM_CLASSES = {
   base: 'cursor-pointer h-[30px] rounded group bg-transparent !outline-none',
@@ -163,7 +164,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
           tree.select(itemId);
           setIsUserSelection(true);
         }
-        onNodeClick?.(node);
+        onNodeClick?.(node, tree);
         nodeRef.current?.focus();
       }
       return;
@@ -184,8 +185,8 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
       tree.select(itemId);
       setIsUserSelection(true);
     }
-    hasChildren && tree.toggleExpanded(itemId);
-    onNodeClick?.(node);
+    hasChildren && node.doNotExpandOnClick !== true && tree.toggleExpanded(itemId);
+    onNodeClick?.(node, tree);
   };
 
   useEffect(() => {
@@ -234,7 +235,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
         }
       : undefined;
 
-  const defaultMenu: TreeMenu<TreeNodeData<NTypeToIdTypeMap>> = [];
+  const defaultMenu: TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> = [];
 
   //   if (renameCallbacks && !isDisabled) {
   defaultMenu.push({
@@ -331,19 +332,15 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
             {contextMenu.map((item, index) => {
               const isLast = index === contextMenu.length - 1;
               return (
-                <Fragment key={item.children.map((child) => child.label).join('')}>
-                  {item.children.map((child) => (
-                    <Menu.Item
-                      key={child.label}
-                      disabled={child.isDisabled}
-                      onClick={(e) => {
-                        child.onClick(node);
-                        menuOnClose();
-                        e.stopPropagation();
-                      }}
-                    >
-                      {child.label}
-                    </Menu.Item>
+                <Fragment key={item.children.map((child) => child.label).join('|')}>
+                  {item.children.map((menuItem) => (
+                    <TreeNodeMenuItem
+                      key={menuItem.label}
+                      menuItem={menuItem}
+                      node={node}
+                      tree={tree}
+                      menuOnClose={menuOnClose}
+                    />
                   ))}
                   {!isLast && <Menu.Divider />}
                 </Fragment>

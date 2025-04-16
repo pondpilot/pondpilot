@@ -2,12 +2,14 @@ import { Stack, useMantineColorScheme } from '@mantine/core';
 import { Allotment } from 'allotment';
 import { useHotkeys, useLocalStorage } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
-import { useImportSQLFiles } from '@store/hooks';
-import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
-import { createSQLScript, getOrCreateTabFromScript, useAppStore } from '@store/app-store';
+import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useAppStore } from '@store/app-store';
 import { TabsPane } from '@features/tabs-pane';
 import { TabView } from '@features/tab-view/tab-view';
 import { StartGuide } from '@components/start-guide';
+import { useImportSQLFiles } from '@hooks/use-import-sql-files';
+import { createSQLScript } from '@controllers/sql-script';
+import { getOrCreateTabFromScript } from '@controllers/tab';
 import { Navbar } from './components';
 
 export const MainPage = () => {
@@ -15,12 +17,12 @@ export const MainPage = () => {
    * Common hooks
    */
   const { importSQLFiles } = useImportSQLFiles();
-  const { handleAddFile, handleAddFolder } = useLocalFilesOrFolders();
+  const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const { colorScheme } = useMantineColorScheme();
   const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({ key: 'layout-sizes' });
   const tabs = useAppStore.use.tabs();
 
-  const handleAddQuery = () => {
+  const handleAddScript = () => {
     const newEmptyScript = createSQLScript();
     getOrCreateTabFromScript(newEmptyScript, true);
   };
@@ -64,7 +66,7 @@ export const MainPage = () => {
     [
       'Alt+N',
       () => {
-        handleAddQuery();
+        handleAddScript();
         Spotlight.close();
       },
     ],

@@ -12,7 +12,8 @@ import { ColumnSortSpec, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { DataViewCacheItem } from '@models/data-view';
-import { updateDataViewCache, useAppStore } from '@store/app-store';
+import { useAppStore } from '@store/app-store';
+import { setOrUpdateDataViewCache } from '@controllers/data-view';
 import { useSort } from '../useSort';
 import { useColumnSummary } from '../hooks';
 
@@ -174,8 +175,8 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
     try {
       const newReader = await dataAdapterApi.getReader(newSortParams ? [newSortParams] : []);
       const newSchema = await dataAdapterApi.getSchema();
-      setReader(newReader);
       setSchema(newSchema);
+      setReader(newReader);
     } catch (error) {
       console.error('Failed to create reader:', error);
       setDataSourceReadError('Failed to create reader');
@@ -204,7 +205,10 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
 
     // Fially we reset the reader and then asynchronously start a process
     // similar to init, but with new sort params
-    if (reader) setReader(null);
+    if (reader) {
+      reader.cancel();
+      setReader(null);
+    }
 
     getNewReader(newSortParams);
   };
@@ -311,7 +315,7 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
     };
 
     // Update the global app store cache
-    updateDataViewCache({
+    setOrUpdateDataViewCache({
       key: cacheKey,
       data: displayData,
       schema: displaySchema,

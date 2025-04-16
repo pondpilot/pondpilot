@@ -11,7 +11,8 @@ import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { setDataTestId } from '@utils/test-id';
 
 import { SQLScriptId } from '@models/sql-script';
-import { updateSQLScriptContent, useAppStore } from '@store/app-store';
+import { useAppStore } from '@store/app-store';
+import { updateSQLScriptContent } from '@controllers/sql-script';
 import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 

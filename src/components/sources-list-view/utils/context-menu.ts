@@ -1,7 +1,7 @@
-import { TreeMenu } from '../model';
+import { TreeNodeMenuType } from '../model';
 
 export function mergeMenus<NTypeToIdTypeMap extends Record<string, any>>(
-  menus: TreeMenu<NTypeToIdTypeMap>[],
-): TreeMenu<NTypeToIdTypeMap> {
+  menus: TreeNodeMenuType<NTypeToIdTypeMap>[],
+): TreeNodeMenuType<NTypeToIdTypeMap> {
   return menus.flatMap((menu) => menu.map((section) => section));
 }
