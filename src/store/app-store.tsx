@@ -5,7 +5,12 @@ import { AnyTab, TabId } from '@models/tab';
 import { IDBPDatabase } from 'idb';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ContentViewState } from '@models/content-view';
-import { AnyDataSource, AttachedDB, PersistentDataSourceId } from '@models/data-source';
+import {
+  AnyDataSource,
+  AnyFlatFileDataSource,
+  AttachedDB,
+  PersistentDataSourceId,
+} from '@models/data-source';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 
 import { getTabIcon, getTabName } from '@utils/navigation';
@@ -151,6 +156,11 @@ export function useIsAttachedDBElementOnActiveTab(
   });
 }
 
+/**
+ * Returns the schema of the object in the database from
+ * state metadata. This is only available for attached
+ * databases and file data sources.
+ */
 export function useDataSourceObjectSchema(
   dataSource: AnyDataSource,
   schemaName?: string,
@@ -159,7 +169,12 @@ export function useDataSourceObjectSchema(
   return useAppStore(
     useShallow((state) => {
       let dbName: string;
-      if (dataSource.type === 'csv' || dataSource.type === 'parquet') {
+
+      if (
+        dataSource.type === 'csv' ||
+        dataSource.type === 'parquet' ||
+        dataSource.type === 'xlsx-sheet'
+      ) {
         dbName = 'memory';
         schemaName = 'main';
         objectName = dataSource.viewName;
@@ -217,6 +232,38 @@ export function useProtectedViews(): Set<string> {
   );
 }
 
+export function useFlatFileDataSourceEMap(): Map<PersistentDataSourceId, AnyFlatFileDataSource> {
+  return useAppStore(
+    useShallow(
+      (state) =>
+        new Map(
+          state.dataSources
+            .entries()
+            // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
+            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as IteratorObject<
+            [PersistentDataSourceId, AnyFlatFileDataSource]
+          >,
+        ),
+    ),
+  );
+}
+
+export function useFlatFileDataSourceMap(): Map<PersistentDataSourceId, AnyFlatFileDataSource> {
+  return useAppStore(
+    useShallow(
+      (state) =>
+        new Map(
+          state.dataSources
+            .entries()
+            // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
+            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as IteratorObject<
+            [PersistentDataSourceId, AnyFlatFileDataSource]
+          >,
+        ),
+    ),
+  );
+}
+
 export function useAttachedDBDataSourceMap(): Map<PersistentDataSourceId, AttachedDB> {
   return useAppStore(
     useShallow(
@@ -229,6 +276,15 @@ export function useAttachedDBDataSourceMap(): Map<PersistentDataSourceId, Attach
             [PersistentDataSourceId, AttachedDB]
           >,
         ),
+    ),
+  );
+}
+
+export function useAttachedDBMetadata(): Map<string, DataBaseModel> {
+  return useAppStore(
+    useShallow(
+      (state) =>
+        new Map(state.dataBaseMetadata.entries().filter(([dbName, _]) => dbName !== 'memory')),
     ),
   );
 }

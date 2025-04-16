@@ -1,19 +1,30 @@
-import { MenuItem, SourcesListView, TypedTreeNodeData } from '@components/sources-list-view';
 import { useClipboard } from '@mantine/hooks';
+import { useShallow } from 'zustand/react/shallow';
 import { memo, useMemo } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
-import { useDataSourceIdForActiveTab, useAppStore } from '@store/app-store';
-import { LocalEntryId } from '@models/file-system';
+import { useAppStore, useFlatFileDataSourceMap } from '@store/app-store';
+import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
-import { getDataSourceIcon, getFlatFileDataSourceName, getLocalEntryIcon } from '@utils/navigation';
+import {
+  getFlatFileDataSourceIcon,
+  getFlatFileDataSourceName,
+  getLocalEntryIcon,
+} from '@utils/navigation';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { createSQLScript } from '@controllers/sql-script';
 import {
   deleteTabByDataSourceId,
+  findTabFromFlatFileDataSource,
   getOrCreateTabFromFlatFileDataSource,
   getOrCreateTabFromScript,
+  setActiveTabId,
+  setPreviewTabId,
 } from '@controllers/tab';
 import { deleteDataSources } from '@controllers/data-source';
+import { ExplorerTree, TreeNodeData } from '@components/explorer-tree';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';
+import { FileSystemExplorerNode } from './file-system-explorer-node';
 
 /**
  * Displays a file system tree for all registered local entities (files & folders)
@@ -25,41 +36,91 @@ export const FileSystemExplorer = memo(() => {
    */
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
-  const activeDataSourceId = useDataSourceIdForActiveTab();
   const { db, conn } = useInitializedDuckDBConnection();
 
   /**
    * Store access
    */
-  const entries = useAppStore.use.localEntries();
-  const sources = useAppStore.use.dataSources();
-  const dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource> = useMemo(
-    () =>
-      new Map(
-        sources
-          .values()
-          .filter((source) => source.type !== 'attached-db')
-          .map((source) => [source.fileSourceId, source]),
-      ),
-    [sources],
+
+  // Read oly necessary sources
+  const flatFileSources = useFlatFileDataSourceMap();
+
+  // Create a map of all flat file sources by their related file ID
+  const dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource> = new Map(
+    flatFileSources.values().map((source) => [source.fileSourceId, source]),
   );
+
+  // Filter out what we do not need in this explorer
+  const nonAttachedDBEntries = useAppStore(
+    useShallow((state) =>
+      Array.from(
+        state.localEntries
+          .values()
+          .filter((entry) => entry.kind === 'directory' || dataSourceByFileId.has(entry.id)),
+      ),
+    ),
+  );
+
+  const paretToChildrenEntiresMap = nonAttachedDBEntries.reduce((acc, entry) => {
+    if (!acc.has(entry.parentId)) {
+      acc.set(entry.parentId, [entry]);
+      return acc;
+    }
+
+    acc.get(entry.parentId)!.push(entry);
+    return acc;
+  }, new Map<LocalEntryId | null, LocalEntry[]>());
 
   /**
    * Calculate views to display by doing a depth-first traversal of the entries tree
    */
-  const viewsToDisplay = useMemo(() => {
-    const buildTree = (parentId: LocalEntryId | null): TypedTreeNodeData[] => {
-      const children: TypedTreeNodeData[] = [];
+  const fileSystemTree = useMemo(() => {
+    const buildTree = (
+      parentId: LocalEntryId | null,
+    ): TreeNodeData<FSExplorerNodeTypeToIdTypeMap>[] => {
+      const fileTreeChildren: TreeNodeData<FSExplorerNodeTypeToIdTypeMap>[] = [];
 
-      // TODO: avoid forEach to decrease complexity
-      entries.forEach((entry) => {
-        if (entry.parentId !== parentId) return;
+      const children = paretToChildrenEntiresMap.get(parentId) || [];
 
+      // Sort (folders first, then alphabetically)
+      children.sort((a, b) => {
+        const aIsFolder = a.kind === 'directory';
+        const bIsFolder = b.kind === 'directory';
+        if (aIsFolder && !bIsFolder) return -1;
+        if (!aIsFolder && bIsFolder) return 1;
+        return a.uniqueAlias.localeCompare(b.uniqueAlias);
+      });
+
+      children.forEach((entry) => {
         if (entry.kind === 'directory') {
-          children.push({
+          fileTreeChildren.push({
+            nodeType: 'folder',
             value: entry.id,
-            label: entry.uniqueAlias,
+            label:
+              entry.name === entry.uniqueAlias
+                ? entry.name
+                : `${entry.name} (${entry.uniqueAlias})`,
             iconType: getLocalEntryIcon(entry),
+            isDisabled: false,
+            isSelectable: false,
+            onDelete: entry.userAdded
+              ? (_: TreeNodeData<FSExplorerNodeTypeToIdTypeMap>): void => {
+                  throw new Error('TODO: implement delete for folders');
+                }
+              : undefined,
+            contextMenu: [
+              {
+                children: [
+                  {
+                    label: 'Copy name',
+                    onClick: () => {
+                      copy(entry.uniqueAlias);
+                      showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+                    },
+                  },
+                ],
+              },
+            ],
             children: buildTree(entry.id),
           });
           return;
@@ -68,104 +129,121 @@ export const FileSystemExplorer = memo(() => {
         const relatedSource = dataSourceByFileId.get(entry.id);
 
         if (!relatedSource) {
+          // We skip attached DBs as they are filtered out
           return;
         }
-        const label = getFlatFileDataSourceName(relatedSource, entry);
-        const iconType = getDataSourceIcon(relatedSource);
-        const value = relatedSource.id;
 
-        const fileNode: TypedTreeNodeData = {
+        const label = getFlatFileDataSourceName(relatedSource, entry);
+        const iconType = getFlatFileDataSourceIcon(relatedSource);
+        const value = relatedSource.id;
+        const fqn = `main.${toDuckDBIdentifier(relatedSource.viewName)}`;
+
+        const fileNode: TreeNodeData<FSExplorerNodeTypeToIdTypeMap> = {
+          nodeType: 'file',
           value,
           label,
           iconType,
-          nodeProps: {
-            onClick: () => getOrCreateTabFromFlatFileDataSource(value, true),
-            onActiveClose: () => deleteTabByDataSourceId(value),
+          isDisabled: false,
+          isSelectable: true,
+          renameCallbacks: {
+            validateRename: () => {
+              throw new Error('TODO: implement renaming of database aliases');
+            },
+            onRenameSubmit: () => {
+              throw new Error('TODO: implement renaming of database aliases');
+            },
           },
+          onDelete: entry.userAdded
+            ? // Only allow deleting explicitly user-added files
+              (node: TreeNodeData<FSExplorerNodeTypeToIdTypeMap>): void => {
+                if (node.nodeType === 'file') {
+                  deleteDataSources(db, conn, [node.value]);
+                }
+              }
+            : undefined,
+          onNodeClick: (): void => {
+            // Check if the tab is already open
+            const existingTab = findTabFromFlatFileDataSource(relatedSource.id);
+            if (existingTab) {
+              // If the tab is already open, just set as active and do not change preview
+              setActiveTabId(existingTab.id);
+              return;
+            }
+
+            // Net new. Create an active tab
+            const tab = getOrCreateTabFromFlatFileDataSource(relatedSource.id, true);
+            // Then set as & preview
+            setPreviewTabId(tab.id);
+          },
+          onCloseItemClick: (): void => {
+            deleteTabByDataSourceId(relatedSource.id);
+          },
+          contextMenu: [
+            {
+              children: [
+                {
+                  label: 'Copy Full Name',
+                  onClick: () => {
+                    copy(fqn);
+                    showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+                  },
+                  onAlt: {
+                    label: 'Copy Name',
+                    onClick: () => {
+                      copy(toDuckDBIdentifier(relatedSource.viewName));
+                      showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+                    },
+                  },
+                },
+                {
+                  label: 'Create a Query',
+                  onClick: () => {
+                    const query = `SELECT * FROM ${fqn};`;
+
+                    const newScript = createSQLScript(`${relatedSource.viewName}_query`, query);
+                    getOrCreateTabFromScript(newScript, true);
+                  },
+                },
+              ],
+            },
+          ],
         };
 
-        // This would be needed for multi-view file sources
-        // if (relatedSource.length > 0) {
-        //   fileNode.children = relatedSource.map((src) => ({
-        //     value: src.id,
-        //     label: src.displayName,
-        //     // TODO: find out how to get the icon type from the file type
-        //     iconType: 'csv',
-        //   }));
-
-        //   // Sort sources alphabetically
-        //   fileNode.children.sort((a, b) => a.label.localeCompare(b.label));
-        // }
-
-        children.push(fileNode);
+        fileTreeChildren.push(fileNode);
       });
 
-      // Sort (folders first, then alphabetically)
-      children.sort((a, b) => {
-        const aIsFolder = a.iconType === 'folder';
-        const bIsFolder = b.iconType === 'folder';
-        if (aIsFolder && !bIsFolder) return -1;
-        if (!aIsFolder && bIsFolder) return 1;
-        return a.label.localeCompare(b.label);
-      });
-
-      return children;
+      return fileTreeChildren;
     };
 
     return buildTree(null);
-  }, [entries, dataSourceByFileId, activeDataSourceId]);
+  }, [nonAttachedDBEntries, dataSourceByFileId]);
 
   /**
    * Consts
    */
 
-  const handleDeleteSelected = async (items: string[]) => {
-    deleteDataSources(db, conn, items as PersistentDataSourceId[]);
+  // We currently do not have any extra data to pass to the tree,
+  // but highly likely we will need it in the future, hence this placeholder
+  const unusedExtraData = useMemo(
+    () => new Map<PersistentDataSourceId | LocalEntryId, FSExplorerNodeExtraType>(),
+    [],
+  );
+
+  const handleDeleteSelected = async (ids: Iterable<LocalEntryId | PersistentDataSourceId>) => {
+    // TODO: this is not a full implementation as we may have
+    // different nodes (folders, files and sheets)
+    deleteDataSources(db, conn, ids);
   };
 
-  const menuItems: MenuItem[] = [
-    {
-      children: [
-        {
-          label: 'Create a query',
-          onClick: (item) => {
-            const newScript = createSQLScript(
-              `${item.label}_query`,
-              `SELECT * FROM ${item.label};`,
-            );
-            getOrCreateTabFromScript(newScript, true);
-          },
-        },
-      ],
-    },
-    {
-      children: [
-        {
-          label: 'Copy name',
-          onClick: (item) => {
-            copy(item.label);
-            showSuccess({ title: 'Copied', message: '', autoClose: 800 });
-          },
-        },
-      ],
-    },
-    {
-      children: [
-        {
-          label: 'Delete',
-          onClick: (item) => deleteDataSources(db, conn, [item.value as PersistentDataSourceId]),
-        },
-      ],
-    },
-  ];
-
   return (
-    <SourcesListView
-      parentDataTestId="view-explorer"
-      list={viewsToDisplay}
+    <ExplorerTree<FSExplorerNodeTypeToIdTypeMap, FSExplorerNodeExtraType>
+      nodes={fileSystemTree}
+      // Expand nothing by default
+      initialExpandedState={{}}
+      extraData={unusedExtraData}
+      dataTestIdPrefix="file-system-explorer"
+      TreeNodeComponent={FileSystemExplorerNode}
       onDeleteSelected={handleDeleteSelected}
-      menuItems={menuItems}
-      activeItemKey={activeDataSourceId}
     />
   );
 });
