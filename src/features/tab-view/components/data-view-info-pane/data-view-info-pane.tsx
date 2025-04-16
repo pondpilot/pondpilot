@@ -4,12 +4,17 @@ import { AnyFileSourceTab } from '@models/tab';
 import { IconX, IconCopy } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { useMemo } from 'react';
+import { useTableExport } from '@features/tab-view/hooks';
+import { DataAdapterApi } from '@models/data-adapter';
 import { ColRowCount } from './components/col-row-count';
 
 interface DataViewInfoPaneProps {
   tab: AnyFileSourceTab;
+  dataAdapterApi: DataAdapterApi;
 }
-export const DataViewInfoPane = ({ tab }: DataViewInfoPaneProps) => {
+export const DataViewInfoPane = ({ tab, dataAdapterApi }: DataViewInfoPaneProps) => {
+  const { copyTableToClipboard, exportTableToCSV } = useTableExport(dataAdapterApi);
+
   const dataAdabterStare = {};
   // Common state
   const hasData = true;
@@ -99,10 +104,10 @@ export const DataViewInfoPane = ({ tab }: DataViewInfoPaneProps) => {
         )}
       </Group>
       <Group className="h-full px-4">
-        <ActionIcon size={16} onClick={() => console.warn('TODO: Implement copy to clipboard')}>
+        <ActionIcon size={16} onClick={copyTableToClipboard}>
           <IconCopy />
         </ActionIcon>
-        <Button onClick={() => {}} color="background-tertiary" c="text-primary">
+        <Button onClick={exportTableToCSV} color="background-tertiary" c="text-primary">
           <Group gap={2}>Export .csv</Group>
         </Button>
       </Group>
