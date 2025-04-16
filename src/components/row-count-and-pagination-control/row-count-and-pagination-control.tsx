@@ -43,7 +43,7 @@ export const RowCountAndPaginationControl = ({
   return (
     <Group
       bg="background-primary"
-      className="h-11 rounded-full min-w-40 px-4 py-2 shadow-xl shadow-transparentBrandBlue-008 dark:shadow-transparentBrandBlue-008 border border-borderLight-light dark:border-borderLight-dark"
+      className="h-11 rounded-full  px-4 py-2 shadow-xl shadow-transparentBrandBlue-008 dark:shadow-transparentBrandBlue-008 border border-borderLight-light dark:border-borderLight-dark"
       c="text-secondary"
       justify="space-between"
     >
