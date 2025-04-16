@@ -7,11 +7,22 @@ import { pickFiles, pickFolder } from '@utils/file-system';
 export const useAddLocalFilesOrFolders = () => {
   const { showError, showWarning } = useAppNotifications();
 
-  const { db, conn } = useDuckDBConnection();
+  const conn = useDuckDBConnection();
 
   const handleAddFile = async (
     exts: supportedDataSourceFileExtArray = supportedDataSourceFileExts,
   ) => {
+    // TODO: we should see if we ca avoid calling this hook in uninitialized
+    // state, and instead of this check, use `useInitializedDuckDBConnection`
+    // to get the non-null connection
+    if (!conn) {
+      showError({
+        title: 'App is not ready',
+        message: 'Please wait for app to load before adding files',
+      });
+      return;
+    }
+
     const { handles, error } = await pickFiles(
       exts.map((dotlessExt) => `.${dotlessExt}` as FileExtension),
       'Data Sources',
@@ -23,8 +34,7 @@ export const useAddLocalFilesOrFolders = () => {
     }
 
     const { skippedExistingEntries, skippedUnsupportedFiles, errors } = await addLocalFileOrFolders(
-      db!,
-      conn!,
+      conn,
       handles,
     );
 
@@ -51,6 +61,17 @@ export const useAddLocalFilesOrFolders = () => {
   };
 
   const handleAddFolder = async () => {
+    // TODO: we should see if we ca avoid calling this hook in uninitialized
+    // state, and instead of this check, use `useInitializedDuckDBConnection`
+    // to get the non-null connection
+    if (!conn) {
+      showError({
+        title: 'App is not ready',
+        message: 'Please wait for app to load before adding files',
+      });
+      return;
+    }
+
     const { handle, error } = await pickFolder();
 
     if (error) {
@@ -64,7 +85,7 @@ export const useAddLocalFilesOrFolders = () => {
     }
 
     // Folders are always supported, so no point in checking the second return value
-    const { skippedExistingEntries } = await addLocalFileOrFolders(db!, conn!, [handle]);
+    const { skippedExistingEntries } = await addLocalFileOrFolders(conn, [handle]);
 
     if (skippedExistingEntries.length) {
       showWarning({

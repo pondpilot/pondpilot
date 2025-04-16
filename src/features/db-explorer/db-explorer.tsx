@@ -286,7 +286,7 @@ export const DbExplorer = memo(() => {
    */
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
-  const { db, conn } = useInitializedDuckDBConnection();
+  const conn = useInitializedDuckDBConnection();
 
   /**
    * Store access
@@ -352,7 +352,7 @@ export const DbExplorer = memo(() => {
         },
         onDelete: (node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>): void => {
           if (node.nodeType === 'db') {
-            deleteDataSources(db, conn, [node.value]);
+            deleteDataSources(conn, [node.value]);
           }
         },
         contextMenu: [
@@ -391,7 +391,7 @@ export const DbExplorer = memo(() => {
       .filter((fqn) => fqn !== undefined)
       .map((fqn) => fqn.db);
 
-    deleteDataSources(db, conn, dbIds);
+    deleteDataSources(conn, dbIds);
   };
 
   return (

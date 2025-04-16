@@ -1,4 +1,5 @@
-import { AsyncRecordBatchStreamReader, Table, TypeMap } from 'apache-arrow';
+import { Table, TypeMap } from 'apache-arrow';
+import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
 import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema } from './db';
 import { DataViewCacheKey } from './data-view';
 
@@ -29,7 +30,7 @@ export interface DataAdapterApi<T extends TypeMap = any> {
    *
    * This should be used to read the data from the source.
    */
-  getReader: (sort: ColumnSortSpecList) => Promise<AsyncRecordBatchStreamReader<T>>;
+  getReader: (sort: ColumnSortSpecList) => Promise<AsyncDuckDBPooledStreamReader<T>>;
   /**
    * Returns column summary for the given column.
    */

@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { DataAdapterApi } from '@models/data-adapter';
 import { AnyDataSource, AnyFlatFileDataSource, AttachedDB } from '@models/data-source';
 import { DBTableOrViewSchema } from '@models/db';
@@ -9,7 +9,7 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 
 function getFlatFileGetReaderApi(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   dataSource: AnyFlatFileDataSource,
 ): DataAdapterApi['getReader'] {
   return async (sort) => {
@@ -25,7 +25,7 @@ function getFlatFileGetReaderApi(
 }
 
 function getFlatFileColumnCalculator(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   dataSource: AnyFlatFileDataSource,
 ): DataAdapterApi['getCalculatedColumnSummary'] {
   return async (column) => {
@@ -40,7 +40,7 @@ function getFlatFileColumnCalculator(
 }
 
 function getFlatFileColumnsData(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   dataSource: AnyFlatFileDataSource,
 ): DataAdapterApi['getColumnsData'] {
   return async (selectedColumns) => {
@@ -53,7 +53,7 @@ function getFlatFileColumnsData(
 }
 
 function getFlatFileDataAdapterApi(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   dataSource: AnyFlatFileDataSource,
   schema: DBTableOrViewSchema,
   tab: FlatFileDataSourceTab,
@@ -99,7 +99,7 @@ function getFlatFileDataAdapterApi(
 }
 
 function getAttachedDBDataAdapterApi(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   dataSource: AttachedDB,
   schema: DBTableOrViewSchema,
   tab: AttachedDBDataTab,
@@ -162,7 +162,7 @@ function getAttachedDBDataAdapterApi(
 }
 
 export function getFileDataAdapterApi(
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   dataSource: AnyDataSource,
   schema: DBTableOrViewSchema,
   tab: AnyFileSourceTab,

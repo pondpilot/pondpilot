@@ -36,7 +36,7 @@ export const FileSystemExplorer = memo(() => {
    */
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
-  const { db, conn } = useInitializedDuckDBConnection();
+  const conn = useInitializedDuckDBConnection();
 
   /**
    * Store access
@@ -157,7 +157,7 @@ export const FileSystemExplorer = memo(() => {
             ? // Only allow deleting explicitly user-added files
               (node: TreeNodeData<FSExplorerNodeTypeToIdTypeMap>): void => {
                 if (node.nodeType === 'file') {
-                  deleteDataSources(db, conn, [node.value]);
+                  deleteDataSources(conn, [node.value]);
                 }
               }
             : undefined,
@@ -232,7 +232,7 @@ export const FileSystemExplorer = memo(() => {
   const handleDeleteSelected = async (ids: Iterable<LocalEntryId | PersistentDataSourceId>) => {
     // TODO: this is not a full implementation as we may have
     // different nodes (folders, files and sheets)
-    deleteDataSources(db, conn, ids);
+    deleteDataSources(conn, ids);
   };
 
   return (

@@ -20,7 +20,6 @@ import {
   registerAndAttachDatabase,
   registerFileSourceAndCreateView,
 } from '@controllers/db/data-source';
-import { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { addAttachedDB, addFlatFileDataSource } from '@utils/data-source';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import {
@@ -35,6 +34,7 @@ import {
   TAB_TABLE_NAME,
   AppIdbSchema,
 } from '@models/persisted-store';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
@@ -330,8 +330,7 @@ async function restoreLocalEntries(
  * @returns {Promise<void>} A promise that resolves when the data is hydrated.
  */
 export const restoreAppDataFromIDB = async (
-  db: AsyncDuckDB,
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   onBeforeRequestFilePermission: (handles: FileSystemHandle[]) => Promise<boolean>,
 ): Promise<{ discardedEntries: DiscardedEntry[]; warnings: string[] }> => {
   const iDbConn = await getAppDataDBConnection();
@@ -440,7 +439,6 @@ export const restoreAppDataFromIDB = async (
           }
 
           await registerAndAttachDatabase(
-            db,
             conn,
             localEntry.handle,
             `${localEntry.uniqueAlias}.${localEntry.ext}`,
@@ -467,7 +465,6 @@ export const restoreAppDataFromIDB = async (
           // Then register the file source and create the view.
           // TODO: this may potentially fail - we should handle this case
           await registerFileSourceAndCreateView(
-            db,
             conn,
             localEntry.handle,
             `${localEntry.uniqueAlias}.${localEntry.ext}`,

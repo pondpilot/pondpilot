@@ -15,7 +15,7 @@ interface ScriptTabViewProps {
 
 export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
   const [dataAdapter, setDataAdapter] = useState<DataAdapterApi | null>(null);
-  const { conn } = useInitializedDuckDBConnection();
+  const conn = useInitializedDuckDBConnection();
 
   const runScriptQuery = useCallback(
     async (query: string) => {

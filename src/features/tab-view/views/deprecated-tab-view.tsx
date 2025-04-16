@@ -20,7 +20,7 @@ import { Table } from '@components/table/table';
 import { IconChevronDown, IconClipboardSmile, IconCopy } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { formatNumber } from '@utils/helpers';
-import { Table as ApacheTable, AsyncRecordBatchStreamReader } from 'apache-arrow';
+import { Table as ApacheTable } from 'apache-arrow';
 import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { setDataTestId } from '@utils/test-id';
@@ -34,6 +34,7 @@ import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-
 import { getFileDataAdapterApi } from '@controllers/db/tab';
 import { runQueryDeprecated } from '@features/app-context/db-worker';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
+import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
 import { TableLoadingOverlay } from '../components';
 import { useColumnSummary } from '../hooks';
 import { useTableExport } from '../hooks/use-table-export';
@@ -75,7 +76,7 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
         : null,
     [dataSource],
   );
-  const [dataViewReader, setReader] = useState<AsyncRecordBatchStreamReader<any> | null>(null);
+  const [dataViewReader, setReader] = useState<AsyncDuckDBPooledStreamReader<any> | null>(null);
   const [isQueryRunning, setQueryRunning] = useState<boolean>(false);
   const [fetchedData, setFetchedData] = useState<ApacheTable<any> | null>(null);
 

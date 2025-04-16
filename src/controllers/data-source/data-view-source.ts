@@ -2,12 +2,12 @@
 // By convetion the order should follow CRUD groups!
 
 import { useAppStore } from '@store/app-store';
-import { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { PersistentDataSourceId } from '@models/data-source';
 import { TabId } from '@models/tab';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { detachAndUnregisterDatabase, dropViewAndUnregisterFile } from '@controllers/db';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { persistDeleteDataSource } from './persist';
 
 /**
@@ -42,8 +42,7 @@ import { persistDeleteDataSource } from './persist';
  */
 
 export const deleteDataSources = (
-  db: AsyncDuckDB,
-  conn: AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   dataSourceIds: PersistentDataSourceId[],
 ) => {
   const {
@@ -148,7 +147,6 @@ export const deleteDataSources = (
   deletedDataSources.forEach((dataSource) => {
     if (dataSource.type === 'attached-db') {
       detachAndUnregisterDatabase(
-        db,
         conn,
         dataSource.dbName,
         localEntries.get(dataSource.fileSourceId)?.uniqueAlias,
@@ -157,7 +155,6 @@ export const deleteDataSources = (
       throw new Error('TODO: implement xlsx-sheet data source deletion');
     } else {
       dropViewAndUnregisterFile(
-        db,
         conn,
         dataSource.viewName,
         localEntries.get(dataSource.fileSourceId)?.uniqueAlias,

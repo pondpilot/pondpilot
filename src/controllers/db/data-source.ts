@@ -1,4 +1,5 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 /**
@@ -16,13 +17,13 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
  *                   This function will overwrite any existing view with the same name.
  */
 export async function registerFileSourceAndCreateView(
-  db: duckdb.AsyncDuckDB,
-  conn: duckdb.AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   handle: FileSystemFileHandle,
   fileName: string,
   viewName: string,
 ) {
   const file = await handle.getFile();
+  const db = conn.bindings;
 
   /**
    * Drop file if it already exists
@@ -53,8 +54,7 @@ export async function registerFileSourceAndCreateView(
  * @param fileName - The file name that was used to register the file, undefined if not available
  */
 export async function dropViewAndUnregisterFile(
-  db: duckdb.AsyncDuckDB,
-  conn: duckdb.AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   viewName: string,
   fileName: string | undefined,
 ) {
@@ -66,6 +66,8 @@ export async function dropViewAndUnregisterFile(
   if (!fileName) {
     return;
   }
+
+  const db = conn.bindings;
 
   /**
    * Unregister file handle
@@ -88,13 +90,13 @@ export async function dropViewAndUnregisterFile(
  *                   This function will overwrite any existing database with the same name.
  */
 export async function registerAndAttachDatabase(
-  db: duckdb.AsyncDuckDB,
-  conn: duckdb.AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   handle: FileSystemFileHandle,
   fileName: string,
   dbName: string,
 ) {
   const file = await handle.getFile();
+  const db = conn.bindings;
 
   /**
    * Drop file if it already exists
@@ -128,8 +130,7 @@ export async function registerAndAttachDatabase(
  * @param fileName - The file name that was used to register the database
  */
 export async function detachAndUnregisterDatabase(
-  db: duckdb.AsyncDuckDB,
-  conn: duckdb.AsyncDuckDBConnection,
+  conn: AsyncDuckDBConnectionPool,
   dbName: string,
   fileName: string | undefined,
 ) {
@@ -141,6 +142,8 @@ export async function detachAndUnregisterDatabase(
   if (!fileName) {
     return;
   }
+
+  const db = conn.bindings;
 
   /**
    * Unregister file handle

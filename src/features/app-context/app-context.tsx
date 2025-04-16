@@ -5,9 +5,9 @@ import { useAbortController } from '@hooks/use-abort-controller';
 import { notifications } from '@mantine/notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDuckDBConnection } from '@features/duckdb-context/duckdb-context';
-import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { openQueryErrorModal } from '@features/error-modal/query-error-modal';
 import { useProtectedViews } from '@store/app-store';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { executeQueries } from './utils';
 import { useAppInitialization } from './hooks/useInitApplication';
 import { DBRunQueryProps, runQueryDeprecated, RunQueryResponse } from './db-worker';
@@ -19,7 +19,7 @@ interface AppContextType {
   ) => Promise<(RunQueryResponse & { originalQuery: string }) | undefined>;
   onCancelQuery: (v?: string) => Promise<void>;
   executeQuery: (query: string) => Promise<any>;
-  conn: AsyncDuckDBConnection | null;
+  conn: AsyncDuckDBConnectionPool | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -27,7 +27,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider = ({ children }: { children: React.ReactNode }) => {
   const { showError } = useAppNotifications();
   const { abortSignal, getSignal } = useAbortController();
-  const { conn } = useDuckDBConnection();
+  const conn = useDuckDBConnection();
 
   useAppInitialization();
 
