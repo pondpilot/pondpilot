@@ -1,4 +1,4 @@
-import { APP_DB_NAME } from '@store/persist/const';
+import { APP_DB_NAME } from '@models/persisted-store';
 
 /* eslint-disable no-alert */
 export const deleteApplicationData = async () => {

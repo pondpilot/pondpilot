@@ -36,7 +36,7 @@ import { runQueryDeprecated } from '@features/app-context/db-worker';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { TableLoadingOverlay } from '../components';
 import { useColumnSummary } from '../hooks';
-import { useTableExport } from '../hooks/useTableExport';
+import { useTableExport } from '../hooks/use-table-export';
 
 interface TabViewProps {
   tab: AnyTab;

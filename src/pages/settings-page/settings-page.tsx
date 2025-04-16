@@ -1,7 +1,7 @@
 import { Box, Button, Divider, Group, Modal, Stack, Text, Title } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
 
-import { exportSQLScripts } from '@store/export-data';
+import { exportSQLScripts } from '@controllers/export-data';
 import { resetAppState } from '@store/app-store';
 import { useDisclosure } from '@mantine/hooks';
 import { ThemeSwitcher } from './components/theme-switcher';

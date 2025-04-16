@@ -33,8 +33,8 @@ import {
   LOCAL_ENTRY_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
   TAB_TABLE_NAME,
-} from './const';
-import { AppIdbSchema } from './model';
+  AppIdbSchema,
+} from '@models/persisted-store';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {

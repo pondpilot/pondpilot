@@ -2,29 +2,31 @@ import { memo } from 'react';
 import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
 import {
-  createSQLScript,
-  deleteDataSource,
-  getOrCreateTabFromScript,
   useAttachedDBDataSourceMap,
   useAppStore,
   useAttachedDBLocalEntriesMap,
-  findTabFromAttachedDBObject,
-  setActiveTabId,
-  getOrCreateTabFromAttachedDBObject,
-  setPreviewTabId,
 } from '@store/app-store';
 import { ExplorerTree } from '@components/sources-list-view/explorer-tree';
-import { TreeNodeData } from '@components/sources-list-view/model';
+import { TreeNodeData, TreeNodeMenuItemType } from '@components/sources-list-view/model';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { getAttachedDBDataSourceName } from '@utils/navigation';
 import { PersistentDataSourceId } from '@models/data-source';
-import { DBColumn, DBSchema, DBTableOrView } from '@models/db';
+import { DBColumn, DBSchema, DBTableOrView, DBTableOrViewSchema } from '@models/db';
 import { NotificationData } from '@mantine/notifications';
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
-import { DbExplorerNode } from './db-explorer-node';
+import {
+  findTabFromAttachedDBObject,
+  getOrCreateTabFromAttachedDBObject,
+  getOrCreateTabFromScript,
+  setActiveTabId,
+  setPreviewTabId,
+} from '@controllers/tab';
+import { createSQLScript } from '@controllers/sql-script';
+import { deleteDataSources } from '@controllers/data-source';
 import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
+import { DbExplorerNode } from './db-explorer-node';
 
 function buildColumnTreeNode({
   dbId,
@@ -110,7 +112,20 @@ function buildObjectTreeNode({
 
   const fqn = `${toDuckDBIdentifier(dbName)}.${toDuckDBIdentifier(schemaName)}.${toDuckDBIdentifier(objectName)}`;
 
-  const sortedColumns = columns.slice().sort((a, b) => a.name.localeCompare(b.name));
+  // We only allow expanding columns in dev builds as of today
+  let sortedColumns: DBTableOrViewSchema = [];
+  let devMenuItems: TreeNodeMenuItemType<TreeNodeData<DBExplorerNodeTypeToIdTypeMap>>[] = [];
+
+  if (import.meta.env.DEV) {
+    sortedColumns = columns.slice().sort((a, b) => a.name.localeCompare(b.name));
+    devMenuItems = [
+      {
+        label: 'Toggle columns',
+        onClick: (node, tree) => tree.toggleExpanded(node.value),
+        isDisabled: false,
+      },
+    ];
+  }
 
   return {
     nodeType: 'object',
@@ -119,6 +134,7 @@ function buildObjectTreeNode({
     iconType: object.type === 'table' ? 'db-table' : 'db-view',
     isDisabled: false,
     isSelectable: true,
+    doNotExpandOnClick: true,
     onNodeClick: (): void => {
       // Check if the tab is already open
       const existingTab = findTabFromAttachedDBObject(dbId, schemaName, objectName);
@@ -143,17 +159,17 @@ function buildObjectTreeNode({
       {
         children: [
           {
-            label: 'Copy Name',
-            onClick: () => {
-              copy(toDuckDBIdentifier(objectName));
-              showSuccess({ title: 'Copied', message: '', autoClose: 800 });
-            },
-          },
-          {
             label: 'Copy Full Name',
             onClick: () => {
               copy(fqn);
               showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+            },
+            onAlt: {
+              label: 'Copy Name',
+              onClick: () => {
+                copy(toDuckDBIdentifier(objectName));
+                showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+              },
             },
           },
           {
@@ -165,6 +181,7 @@ function buildObjectTreeNode({
               getOrCreateTabFromScript(newScript, true);
             },
           },
+          ...devMenuItems,
         ],
       },
     ],
@@ -336,7 +353,7 @@ export const DbExplorer = memo(() => {
         },
         onDelete: (node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>): void => {
           if (node.nodeType === 'db') {
-            deleteDataSource(db, conn, [node.value]);
+            deleteDataSources(db, conn, [node.value]);
           }
         },
         contextMenu: [
@@ -368,8 +385,14 @@ export const DbExplorer = memo(() => {
     },
   );
 
-  const handleDeleteSelected = async (items: string[]) => {
-    throw new Error('TODO: implement deletion of db objects');
+  const handleDeleteSelected = async (ids: Iterable<string | PersistentDataSourceId>) => {
+    // This should only be called for dbs, but we'll be safe
+    const dbIds = Array.from(ids)
+      .map((id) => nodeIdsToFQNMap.get(id))
+      .filter((fqn) => fqn !== undefined)
+      .map((fqn) => fqn.db);
+
+    deleteDataSources(db, conn, dbIds);
   };
 
   return (

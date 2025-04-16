@@ -4,10 +4,9 @@ import { ScriptTab } from '@models/tab';
 import { QueryEditor } from '@features/query-editor';
 import { DataView } from '@features/tab-view/components/data-view';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
-import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@store/app-store';
 import { DataAdapterApi } from '@models/data-adapter';
-import { DataViewCacheKey } from '@models/data-view';
 import { getArrowTableSchema } from '@utils/arrow/schema';
+import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@controllers/tab';
 
 interface ScriptTabViewProps {
   tab: ScriptTab;
@@ -23,7 +22,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
       // setQueryRunning(true);
       // const { data } = await runQueryDeprecated({ query, conn });
       setDataAdapter({
-        getCacheKey: () => tab.id as unknown as DataViewCacheKey,
+        getCacheKey: () => tab.id,
         getSchema: async () => {
           // TODO: find more performant way to get schema
           const result = await conn.query(`SELECT * FROM (${query}) LIMIT 0`);
@@ -37,7 +36,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
             fullQuery = `
               SELECT * FROM (${query}) ORDER BY ${orderBy}`;
           }
-          const reader = await conn.send(fullQuery);
+          const reader = await conn.send(fullQuery, true);
           return reader;
         },
       });

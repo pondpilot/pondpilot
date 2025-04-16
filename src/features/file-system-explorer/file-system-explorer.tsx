@@ -2,19 +2,18 @@ import { MenuItem, SourcesListView, TypedTreeNodeData } from '@components/source
 import { useClipboard } from '@mantine/hooks';
 import { memo, useMemo } from 'react';
 import { useAppNotifications } from '@components/app-notifications';
-import {
-  createSQLScript,
-  deleteDataSource,
-  deleteTabByDataSourceId,
-  getOrCreateTabFromFlatFileDataSource,
-  getOrCreateTabFromScript,
-  useDataSourceIdForActiveTab,
-  useAppStore,
-} from '@store/app-store';
+import { useDataSourceIdForActiveTab, useAppStore } from '@store/app-store';
 import { LocalEntryId } from '@models/file-system';
 import { AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { getDataSourceIcon, getFlatFileDataSourceName, getLocalEntryIcon } from '@utils/navigation';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
+import { createSQLScript } from '@controllers/sql-script';
+import {
+  deleteTabByDataSourceId,
+  getOrCreateTabFromFlatFileDataSource,
+  getOrCreateTabFromScript,
+} from '@controllers/tab';
+import { deleteDataSources } from '@controllers/data-source';
 
 /**
  * Displays a file system tree for all registered local entities (files & folders)
@@ -121,7 +120,7 @@ export const FileSystemExplorer = memo(() => {
    */
 
   const handleDeleteSelected = async (items: string[]) => {
-    deleteDataSource(db, conn, items as PersistentDataSourceId[]);
+    deleteDataSources(db, conn, items as PersistentDataSourceId[]);
   };
 
   const menuItems: MenuItem[] = [
@@ -154,7 +153,7 @@ export const FileSystemExplorer = memo(() => {
       children: [
         {
           label: 'Delete',
-          onClick: (item) => deleteDataSource(db, conn, [item.value as PersistentDataSourceId]),
+          onClick: (item) => deleteDataSources(db, conn, [item.value as PersistentDataSourceId]),
         },
       ],
     },

@@ -15,21 +15,21 @@ import {
   IconKeyboard,
 } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
-import { useModifier } from '@hooks/useModifier';
+import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
-import { useImportSQLFiles } from '@store/hooks';
 import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from 'app-urls';
-import { useLocalFilesOrFolders } from '@hooks/useLocalFilesOrFolders';
+import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useAppStore } from '@store/app-store';
+import { createSQLScript } from '@controllers/sql-script';
 import {
-  createSQLScript,
   getOrCreateTabFromAttachedDBObject,
   getOrCreateTabFromFlatFileDataSource,
   getOrCreateTabFromScript,
-  useAppStore,
-} from '@store/app-store';
+} from '@controllers/tab';
 import { NamedIcon } from '@components/named-icon';
 import { getFlatFileDataSourceName } from '@utils/navigation';
+import { useImportSQLFiles } from '@hooks/use-import-sql-files';
 import {
   DATA_SOURCE_GROUP_DISPLAY_NAME,
   ICON_CLASSES,
@@ -80,8 +80,8 @@ export const SpotlightMenu = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { importSQLFiles } = useImportSQLFiles();
-  const { handleAddFile, handleAddFolder } = useLocalFilesOrFolders();
-  const { command, option } = useModifier();
+  const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
+  const { command, option } = useOsModifierIcon();
 
   /**
    * Store access

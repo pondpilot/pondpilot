@@ -1,7 +1,6 @@
 import { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { DataAdapterApi } from '@models/data-adapter';
 import { AnyDataSource, AnyFlatFileDataSource, AttachedDB } from '@models/data-source';
-import { DataViewCacheKey } from '@models/data-view';
 import { DBTableOrViewSchema } from '@models/db';
 import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, AttachedDBDataTab, FlatFileDataSourceTab } from '@models/tab';
@@ -20,7 +19,7 @@ function getFlatFileGetReaderApi(
       const orderBy = sort.map((s) => `${s.column} ${s.order || 'asc'}`).join(', ');
       baseQuery += ` ORDER BY ${orderBy}`;
     }
-    const reader = await conn.send(baseQuery);
+    const reader = await conn.send(baseQuery, true);
     return reader;
   };
 }
@@ -61,7 +60,7 @@ function getFlatFileDataAdapterApi(
   sourceFile: LocalFile,
 ): DataAdapterApi {
   const baseAttrs = {
-    getCacheKey: () => tab.id as unknown as DataViewCacheKey,
+    getCacheKey: () => tab.id,
     getSchema: () => schema,
     getReader: getFlatFileGetReaderApi(conn, dataSource),
     getCalculatedColumnSummary: getFlatFileColumnCalculator(conn, dataSource),
@@ -120,7 +119,7 @@ function getAttachedDBDataAdapterApi(
 
   return {
     adapter: {
-      getCacheKey: () => tab.id as unknown as DataViewCacheKey,
+      getCacheKey: () => tab.id,
       getSchema: () => schema,
       getEstimatedRowCount:
         dataSource.dbType === 'duckdb'
@@ -148,7 +147,7 @@ function getAttachedDBDataAdapterApi(
           const orderBy = sort.map((s) => `${s.column} ${s.order || 'asc'}`).join(', ');
           baseQuery += ` ORDER BY ${orderBy}`;
         }
-        const reader = await conn.send(baseQuery);
+        const reader = await conn.send(baseQuery, true);
         return reader;
       },
     },

@@ -1,8 +1,8 @@
 import JSZip from 'jszip';
-import { useAppStore } from './app-store';
+import { useAppStore } from '../store/app-store';
 
 /**
- * Exports query files as a zip file.
+ * Exports script files as a zip file.
  * @returns {Promise<Blob | null>} A promise that resolves to a Blob containing the zip file or null if an error occurs.
  */
 export async function exportSQLScripts(): Promise<Blob | null> {

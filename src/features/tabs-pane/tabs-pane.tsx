@@ -23,19 +23,17 @@ import { CSS } from '@dnd-kit/utilities';
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
 import { IconPlus, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
+import { useAppStore, useTabNameMap, useTabIconMap } from '@store/app-store';
+import { NamedIcon } from '@components/named-icon';
+import { TabId } from '@models/tab';
 import {
-  createSQLScript,
-  getOrCreateTabFromScript,
   deleteTab,
+  getOrCreateTabFromScript,
   setActiveTabId,
   setPreviewTabId,
   setTabOrder,
-  useAppStore,
-  useTabNameMap,
-  useTabIconMap,
-} from '@store/app-store';
-import { NamedIcon } from '@components/named-icon';
-import { TabId } from '@models/tab';
+} from '@controllers/tab';
+import { createSQLScript } from '@controllers/sql-script';
 
 interface SortableTabProps {
   tabId: string;
