@@ -505,13 +505,13 @@ export const DataView = ({ visible, dataAdapterApi }: DataViewProps) => {
           </Group>
         </>
       )}
-      {showTable && !dataSourceReadError && (
+      {!dataSourceReadError && (
         <div
           className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
           data-testid={setDataTestId('data-table-pagination-control')}
         >
           <RowCountAndPaginationControl
-            rowFrom={displayedRowFrom}
+            rowFrom={displayedRowFrom + 1}
             rowTo={displayedRowTo}
             isSinglePage={isSinglePage}
             isDisabled={isPaginationDisabled}

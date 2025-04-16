@@ -6,7 +6,6 @@ import { SqlEditor } from '@features/editor';
 import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { Spotlight } from '@mantine/spotlight';
-import { formatNumber } from '@utils/helpers';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { setDataTestId } from '@utils/test-id';
 
@@ -17,20 +16,14 @@ import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
 interface QueryEditorProps {
-  columnsCount: number;
-  rowsCount: number;
   id: SQLScriptId;
+
   active?: boolean;
+
   runScriptQuery: (query: string) => Promise<void>;
 }
 
-export const QueryEditor = ({
-  columnsCount,
-  rowsCount,
-  id,
-  active,
-  runScriptQuery,
-}: QueryEditorProps) => {
+export const QueryEditor = ({ id, active, runScriptQuery }: QueryEditorProps) => {
   const sqlScript = useAppStore((state) => state.sqlScripts.get(id)!);
   /**
    * Common hooks
@@ -146,14 +139,9 @@ export const QueryEditor = ({
             </Text>
           )}
           {queryExecuted && !queryRunning && (
-            <>
-              <Text c="text-success" className="text-sm font-medium">
-                Query ran successfully.
-              </Text>
-              <Text c="text-secondary" className="text-sm font-medium">
-                {columnsCount} columns, {formatNumber(rowsCount)} rows
-              </Text>
-            </>
+            <Text c="text-success" className="text-sm font-medium">
+              Query ran successfully.
+            </Text>
           )}
         </Group>
         <RunQueryButton disabled={queryRunning} handleRunQuery={handleRunQuery} />

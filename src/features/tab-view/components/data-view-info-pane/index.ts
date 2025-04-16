@@ -1,2 +1,1 @@
-export * from './data-view';
 export * from './data-view-info-pane';

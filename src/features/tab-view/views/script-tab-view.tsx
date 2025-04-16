@@ -61,15 +61,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
         defaultSizes={[tab.editorPaneHeight, tab.dataViewLayout.dataViewPaneHeight]}
       >
         <Allotment.Pane preferredSize={tab.editorPaneHeight} minSize={200}>
-          <QueryEditor
-            id={tab.sqlScriptId}
-            active={active}
-            runScriptQuery={runScriptQuery}
-            // TODO: Get rowCount using data view adapter if available
-            columnsCount={0}
-            // TODO: Get rowCount using data view adapter if available
-            rowsCount={0}
-          />
+          <QueryEditor id={tab.sqlScriptId} active={active} runScriptQuery={runScriptQuery} />
         </Allotment.Pane>
 
         <Allotment.Pane preferredSize={tab.dataViewLayout.dataViewPaneHeight} minSize={120}>

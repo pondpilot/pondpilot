@@ -265,13 +265,7 @@ export const TabView = memo(({ tab, active }: TabViewProps) => {
       >
         {isSctiptTab && tab.sqlScriptId && (
           <Allotment.Pane preferredSize={editorPaneHeight} minSize={200}>
-            <QueryEditor
-              columnsCount={convertedTable.columns.length}
-              rowsCount={rowCount}
-              id={tab.sqlScriptId}
-              active={active}
-              runScriptQuery={runScriptQuery}
-            />
+            <QueryEditor id={tab.sqlScriptId} active={active} runScriptQuery={runScriptQuery} />
           </Allotment.Pane>
         )}
         <Allotment.Pane preferredSize={dataViewPaneHeight} minSize={120}>
