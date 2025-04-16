@@ -67,7 +67,7 @@ function getFlatFileDataAdapterApi(
     getColumnsData: getFlatFileColumnsData(conn, dataSource),
   };
 
-  if (dataSource.type === 'csv') {
+  if (dataSource.type === 'csv' || dataSource.type === 'xlsx-sheet') {
     return {
       ...baseAttrs,
       // TODO: implement this
@@ -177,7 +177,11 @@ export function getFileDataAdapterApi(
     return getAttachedDBDataAdapterApi(conn, dataSource, schema, tab);
   }
 
-  if (dataSource.type === 'csv' || dataSource.type === 'parquet') {
+  if (
+    dataSource.type === 'csv' ||
+    dataSource.type === 'xlsx-sheet' ||
+    dataSource.type === 'parquet'
+  ) {
     if (tab.dataSourceType !== 'file') {
       return {
         adapter: null,

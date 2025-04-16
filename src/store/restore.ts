@@ -448,6 +448,9 @@ export const restoreAppDataFromIDB = async (
           );
           break;
         }
+        case 'xlsx': {
+          throw new Error('TODO: implement xlsx-sheet data source restore');
+        }
         default: {
           // Get the existing data source for this entry
           let dataSource = dataSourceByLocalEntryId.get(localEntry.id);

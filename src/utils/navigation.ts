@@ -57,7 +57,7 @@ export function getTabIcon(
     if (!dataSource || dataSource.type === 'attached-db') {
       return 'error';
     }
-    return getDataSourceIcon(dataSource);
+    return getFlatFileDataSourceIcon(dataSource);
   }
 
   // AttachedDBDataTab
@@ -104,6 +104,12 @@ export function getFlatFileDataSourceName(
     localEntry = localEntriesOrEntry;
   }
 
+  if (dataSource.type === 'xlsx-sheet') {
+    return dataSource.sheetName === dataSource.viewName
+      ? dataSource.viewName
+      : `${dataSource.viewName} (${localEntry.uniqueAlias}::${dataSource.sheetName})`;
+  }
+
   return localEntry.uniqueAlias === dataSource.viewName
     ? dataSource.viewName
     : `${dataSource.viewName} (${localEntry.uniqueAlias})`;
@@ -113,6 +119,6 @@ export function getAttachedDBDataSourceName(dbName: string, localEntry: LocalEnt
   return localEntry.uniqueAlias === dbName ? dbName : `${dbName} (${localEntry.uniqueAlias})`;
 }
 
-export function getDataSourceIcon(dataSource: AnyFlatFileDataSource): IconType {
+export function getFlatFileDataSourceIcon(dataSource: AnyFlatFileDataSource): IconType {
   return dataSource.type;
 }

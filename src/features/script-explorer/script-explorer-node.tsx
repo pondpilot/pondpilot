@@ -1,6 +1,6 @@
-import { MemoizedBaseTreeNode } from '@components/sources-list-view/components/tree-node';
+import { MemoizedBaseTreeNode } from '@components/explorer-tree/components/tree-node';
 import { useIsSqlScriptIdOnActiveTab } from '@store/app-store';
-import { RenderTreeNodePayload } from '@components/sources-list-view/model';
+import { RenderTreeNodePayload } from '@components/explorer-tree/model';
 import { ScrtiptNodeTypeToIdTypeMap } from './model';
 
 export const ScriptExplorerNode = (props: RenderTreeNodePayload<ScrtiptNodeTypeToIdTypeMap>) => {

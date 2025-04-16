@@ -18,7 +18,11 @@ import { NewId } from './new-id';
 
 export type PersistentDataSourceId = NewId<'PersistentDataSourceId'>;
 
-interface FlatFileDataSource {
+/**
+ * Every single file data source must have a unique id & and a reference to
+ * the file providing the data.
+ */
+interface SingleFileDataSourceBase {
   id: PersistentDataSourceId;
 
   /**
@@ -26,7 +30,18 @@ interface FlatFileDataSource {
    * multiple data views (e.g. multiple sheets in a spreadsheet).
    */
   fileSourceId: LocalEntryId;
+}
 
+/**
+ * Flat file data source is a data source that is a 1-1 mapping
+ * from a single file to a single data view.
+ * It is a flat file, like CSV or Parquet.
+ *
+ * Note, that a folder of CSVs, or Parquets etc. can also be read
+ * as a single partitioned data source. These are not supported
+ * yet, but will be a different type of data source.
+ */
+interface FlatFileDataSource extends SingleFileDataSourceBase {
   /**
    * Unqualified unquoted view name.
    *
@@ -43,17 +58,25 @@ export interface ParquetView extends FlatFileDataSource {
   readonly type: 'parquet';
 }
 
-export type AnyFlatFileDataSource = CSVView | ParquetView;
-
-export interface AttachedDB {
-  readonly type: 'attached-db';
-
-  id: PersistentDataSourceId;
+/**
+ * Xlsx themselves are non-flat file data source as it may contain
+ * multiple sheets. But we create a persistent data source for each
+ * sheet for user convenience, creating managed views and reconciling
+ * sheet vs. views changes on init/external file change.
+ */
+export interface XlsxSheetView extends FlatFileDataSource {
+  readonly type: 'xlsx-sheet';
 
   /**
-   * Unique identifier for the file providing the data.
+   * Name of the sheet in the spreadsheet.
    */
-  fileSourceId: LocalEntryId;
+  sheetName: string;
+}
+
+export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView;
+
+export interface AttachedDB extends SingleFileDataSourceBase {
+  readonly type: 'attached-db';
 
   /**
    * Type of the database.

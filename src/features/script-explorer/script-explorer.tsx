@@ -4,8 +4,8 @@ import { memo } from 'react';
 
 import { useSqlScriptNameMap } from '@store/app-store';
 import { SQLScriptId } from '@models/sql-script';
-import { ExplorerTree } from '@components/sources-list-view/explorer-tree';
-import { TreeNodeMenuType, TreeNodeData } from '@components/sources-list-view/model';
+import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
+import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
 import {
   deleteTabByScriptId,
   findTabFromScript,

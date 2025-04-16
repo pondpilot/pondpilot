@@ -1,5 +1,5 @@
-import { MemoizedBaseTreeNode } from '@components/sources-list-view/components/tree-node';
-import { RenderTreeNodePayload } from '@components/sources-list-view/model';
+import { MemoizedBaseTreeNode } from '@components/explorer-tree/components/tree-node';
+import { RenderTreeNodePayload } from '@components/explorer-tree/model';
 import { useIsAttachedDBElementOnActiveTab } from '@store/app-store';
 import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
 

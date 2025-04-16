@@ -153,6 +153,8 @@ export const deleteDataSources = (
         dataSource.dbName,
         localEntries.get(dataSource.fileSourceId)?.uniqueAlias,
       );
+    } else if (dataSource.type === 'xlsx-sheet') {
+      throw new Error('TODO: implement xlsx-sheet data source deletion');
     } else {
       dropViewAndUnregisterFile(
         db,

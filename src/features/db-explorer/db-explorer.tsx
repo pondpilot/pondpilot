@@ -3,11 +3,10 @@ import { useClipboard } from '@mantine/hooks';
 import { useAppNotifications } from '@components/app-notifications';
 import {
   useAttachedDBDataSourceMap,
-  useAppStore,
   useAttachedDBLocalEntriesMap,
+  useAttachedDBMetadata,
 } from '@store/app-store';
-import { ExplorerTree } from '@components/sources-list-view/explorer-tree';
-import { TreeNodeData, TreeNodeMenuItemType } from '@components/sources-list-view/model';
+import { ExplorerTree, TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { getAttachedDBDataSourceName } from '@utils/navigation';
@@ -294,7 +293,7 @@ export const DbExplorer = memo(() => {
    */
   const attachedDBMap = useAttachedDBDataSourceMap();
   const attachedDBLocalEntriesMap = useAttachedDBLocalEntriesMap();
-  const dataBaseMetadata = useAppStore.use.dataBaseMetadata();
+  const dataBaseMetadata = useAttachedDBMetadata();
 
   /**
    * Local state
