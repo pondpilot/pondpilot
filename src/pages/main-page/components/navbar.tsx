@@ -3,7 +3,7 @@ import { ScriptExplorer } from '@features/script-explorer';
 import { FileSystemExplorer } from '@features/file-system-explorer';
 import { ActionIcon, Button, Divider, Group, Skeleton, Stack, Text } from '@mantine/core';
 import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
-import { IconBrandGithub, IconPlus, IconSettings } from '@tabler/icons-react';
+import { IconBrandGithub, IconFolderPlus, IconPlus, IconSettings } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
 import { memo, useState } from 'react';
@@ -31,7 +31,7 @@ export const Navbar = memo(() => {
 
   const appLoadState = useAppStore.use.appLoadState();
 
-  const { handleAddFile } = useAddLocalFilesOrFolders();
+  const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
 
   const activeTab = useAppStore((state) => {
     if (state.activeTabId === null) return null;
@@ -111,6 +111,14 @@ export const Navbar = memo(() => {
                   data-testid={setDataTestId('add-file-button')}
                 >
                   <IconPlus />
+                </ActionIcon>
+                <ActionIcon
+                  onClick={handleAddFolder}
+                  size={16}
+                  key="Upload file"
+                  data-testid={setDataTestId('add-file-button')}
+                >
+                  <IconFolderPlus />
                 </ActionIcon>
               </Group>
             </Group>
