@@ -49,6 +49,21 @@ export const dataSourceExtMap = {
   url: 'text/x-uri', // remote sources
 } as const;
 
+export const ignoredFolders = new Set([
+  '.GIT',
+  '.SVN',
+  '.HG',
+  'NODE_MODULES',
+  '.VENV',
+  '.ENV',
+  '.IDEA',
+  '.VSCODE',
+  '.SETTINGS',
+  '.PROJECT',
+  '.CACHE',
+  '__PYCACHE__',
+]);
+
 // Check extension to mime type mapping has no gaps
 assertNeverType<Exclude<(typeof dataSourceMimeTypes)[number], DataSourceMimeType>>();
 

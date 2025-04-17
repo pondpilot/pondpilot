@@ -5,7 +5,13 @@ import { findUniqueName } from '@utils/helpers';
 
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
-import { DataSourceLocalFile, LocalEntry, LocalEntryId, LocalFolder } from '@models/file-system';
+import {
+  DataSourceLocalFile,
+  ignoredFolders,
+  LocalEntry,
+  LocalEntryId,
+  LocalFolder,
+} from '@models/file-system';
 import { localEntryFromHandle } from '@utils/file-system';
 
 import {
@@ -38,6 +44,7 @@ export const addLocalFileOrFolders = async (
 ): Promise<{
   skippedExistingEntries: LocalEntry[];
   skippedUnsupportedFiles: string[];
+  skippedEmptyFolders: LocalFolder[];
   newEntries: [LocalEntryId, LocalEntry][];
   newDataSources: [PersistentDataSourceId, AnyDataSource][];
   errors: string[];
@@ -56,6 +63,7 @@ export const addLocalFileOrFolders = async (
 
   const skippedExistingEntries: LocalEntry[] = [];
   const skippedUnsupportedFiles: string[] = [];
+  const skippedEmptyFolders: LocalFolder[] = [];
   const newEntries: [LocalEntryId, LocalEntry][] = [];
   const newDataSources: [PersistentDataSourceId, AnyDataSource][] = [];
 
@@ -134,10 +142,8 @@ export const addLocalFileOrFolders = async (
     const isDir = localEntry.kind === 'directory';
     const isDataSourceFile = !isDir && localEntry.fileType === 'data-source';
 
-    // Before checking existing, filter out unexpected files
-    // Do not add DuckDB files from a folder
-    if (parentId !== null && isDataSourceFile && localEntry.ext === 'duckdb') {
-      // TODO: notify user about this
+    // Silently skip ignored folders
+    if (isDir && ignoredFolders.has(localEntry.name.toUpperCase())) {
       return;
     }
 
@@ -162,14 +168,20 @@ export const addLocalFileOrFolders = async (
 
     // New entry, remember it's unique alias and add it to the store
     usedEntryNames.add(localEntry.uniqueAlias);
-    newEntries.push([localEntry.id, localEntry]);
 
     if (isDir) {
       await addDirectory(localEntry);
+      // Skip empty folders
+      if (newEntries.some(([_, entry]) => entry.parentId === localEntry.id)) {
+        newEntries.push([localEntry.id, localEntry]);
+      } else {
+        skippedEmptyFolders.push(localEntry);
+      }
     }
 
     if (isDataSourceFile) {
       await addFile(localEntry);
+      newEntries.push([localEntry.id, localEntry]);
     }
   };
 
@@ -233,6 +245,7 @@ export const addLocalFileOrFolders = async (
   return {
     skippedExistingEntries,
     skippedUnsupportedFiles,
+    skippedEmptyFolders,
     newEntries,
     newDataSources,
     errors,
