@@ -215,6 +215,13 @@ export const pickFiles = async (
       error: null,
     };
   } catch (error: any) {
+    if (error.name === 'AbortError') {
+      return {
+        handles: [],
+        error: null,
+      };
+    }
+
     return {
       handles: [],
       error: error.message ?? 'Unknown error',
