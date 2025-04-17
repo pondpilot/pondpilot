@@ -8,6 +8,7 @@ import {
   requestFileHandlePersmissions,
 } from '@utils/file-system';
 import {
+  ignoredFolders,
   LocalEntry,
   LocalEntryId,
   LocalEntryPersistence,
@@ -102,6 +103,10 @@ async function processDirectory(
 
   // Get all entries in the directory
   for await (const [name, handle] of directoryHandle.entries()) {
+    if (handle.kind === 'directory' && ignoredFolders.has(name.toUpperCase())) {
+      continue;
+    }
+
     // Try to find if this entry exists in our persistent map
     const existingEntry = existingChildren.find((entry) => entry.name === name);
 
