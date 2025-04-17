@@ -1,7 +1,11 @@
 import { showError, showWarning } from '@components/app-notifications';
 import { addLocalFileOrFolders } from '@controllers/file-system/file-system-controller';
 import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { supportedDataSourceFileExtArray, supportedDataSourceFileExts } from '@models/file-system';
+import {
+  LocalEntry,
+  supportedDataSourceFileExtArray,
+  supportedDataSourceFileExts,
+} from '@models/file-system';
 import { pickFiles, pickFolder } from '@utils/file-system';
 
 export const useAddLocalFilesOrFolders = () => {
@@ -82,13 +86,38 @@ export const useAddLocalFilesOrFolders = () => {
       return;
     }
 
-    // Folders are always supported, so no point in checking the second return value
-    const { skippedExistingEntries } = await addLocalFileOrFolders(conn, [handle]);
+    const { skippedExistingEntries, skippedUnsupportedFiles } = await addLocalFileOrFolders(conn, [
+      handle,
+    ]);
 
-    if (skippedExistingEntries.length) {
+    const skippedExistingFolders: LocalEntry[] = [];
+    const skippedExistingFiles: LocalEntry[] = [];
+    for (const entry of skippedExistingEntries) {
+      if (entry.kind === 'directory') {
+        skippedExistingFolders.push(entry);
+      } else {
+        skippedExistingFiles.push(entry);
+      }
+    }
+
+    if (skippedExistingFolders.length) {
       showWarning({
         title: 'Warning',
-        message: `${skippedExistingEntries.length} folders were not added because they already exist.`,
+        message: `${skippedExistingFolders.length} folders were not added because they already exist.`,
+      });
+    }
+
+    if (skippedExistingFiles.length) {
+      showWarning({
+        title: 'Warning',
+        message: `${skippedExistingFiles.length} files were not added because they already exist.`,
+      });
+    }
+
+    if (skippedUnsupportedFiles.length) {
+      showWarning({
+        title: 'Warning',
+        message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
       });
     }
   };
