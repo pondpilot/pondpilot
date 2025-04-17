@@ -15,7 +15,8 @@ import {
   SQLStatement,
 } from '@utils/editor/sql';
 import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@controllers/tab';
-import { Text } from '@mantine/core';
+import { Center, Stack, Text } from '@mantine/core';
+import { IconClipboardSmile } from '@tabler/icons-react';
 import { CachedDataView } from './cached-data-view';
 
 interface ScriptTabViewProps {
@@ -185,11 +186,12 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
 
         <Allotment.Pane preferredSize={tab.dataViewLayout.dataViewPaneHeight} minSize={120}>
           {showRunQueryCTA && (
-            <div className="h-full w-full flex items-center justify-center">
-              <Text c="text-primary" className="text-2xl font-medium">
-                Run your query to see the results
-              </Text>
-            </div>
+            <Center className="h-full font-bold">
+              <Stack align="center" c="icon-default" gap={4}>
+                <IconClipboardSmile size={32} stroke={1} />
+                <Text c="text-secondary">Your query results will be displayed here.</Text>
+              </Stack>
+            </Center>
           )}
           {dataAdapter ? (
             <DataView visible={active} cacheKey={tab.id} dataAdapterApi={dataAdapter} />
