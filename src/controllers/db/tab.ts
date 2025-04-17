@@ -71,11 +71,25 @@ function getFlatFileDataAdapterApi(
     },
   };
 
-  if (dataSource.type === 'csv' || dataSource.type === 'xlsx-sheet') {
+  if (dataSource.type === 'xlsx-sheet') {
     return {
       ...baseAttrs,
       // TODO: implement this
       getEstimatedRowCount: undefined,
+    };
+  }
+
+  if (dataSource.type === 'csv') {
+    return {
+      ...baseAttrs,
+      getEstimatedRowCount: async () => {
+        const result = await conn.query(
+          `SELECT count(*) * 100 FROM ${toDuckDBIdentifier(dataSource.viewName)} USING SAMPLE 1% (bernoulli)`,
+        );
+
+        const count = Number(result.getChildAt(0)?.get(0));
+        return count;
+      },
     };
   }
 
