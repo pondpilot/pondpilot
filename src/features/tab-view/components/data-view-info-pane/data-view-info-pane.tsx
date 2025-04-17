@@ -103,7 +103,7 @@ export const DataViewInfoPane = ({ tab, dataAdapterApi }: DataViewInfoPaneProps)
           </ActionIcon>
         )}
       </Group>
-      <Group className="h-full px-4">
+      <Group className="h-full">
         <ActionIcon size={16} onClick={copyTableToClipboard}>
           <IconCopy />
         </ActionIcon>
