@@ -1,6 +1,7 @@
-import { showError, showWarning } from '@components/app-notifications';
+import { showAlert, showError, showWarning } from '@components/app-notifications';
 import { addLocalFileOrFolders } from '@controllers/file-system/file-system-controller';
 import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { notifications } from '@mantine/notifications';
 import {
   LocalEntry,
   supportedDataSourceFileExtArray,
@@ -86,9 +87,17 @@ export const useAddLocalFilesOrFolders = () => {
       return;
     }
 
+    const notificationId = showAlert({
+      title: 'Adding folder',
+      loading: true,
+      message: '',
+      autoClose: false,
+      color: 'text-accent',
+    });
     const { skippedExistingEntries, skippedUnsupportedFiles } = await addLocalFileOrFolders(conn, [
       handle,
     ]);
+    notifications.hide(notificationId);
 
     const skippedExistingFolders: LocalEntry[] = [];
     const skippedExistingFiles: LocalEntry[] = [];
