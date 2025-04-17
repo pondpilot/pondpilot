@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from 'react';
 import { AnyFileSourceTab } from '@models/tab';
 import { useAppStore, useDataSourceObjectSchema } from '@store/app-store';
 import { getFileDataAdapterApi } from '@controllers/db/tab';
-import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { DataAdapterApi } from '@models/data-adapter';
 import { LoadingOverlay } from '@components/loading-overlay';
 import { Loader, Stack, Text } from '@mantine/core';
@@ -14,7 +14,7 @@ interface FileDataSourceTabViewProps {
 }
 
 export const FileDataSourceTabView = memo(({ tab, visible }: FileDataSourceTabViewProps) => {
-  const conn = useInitializedDuckDBConnection();
+  const conn = useInitializedDuckDBConnectionPool();
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [dataAdapter, setDataAdapter] = useState<DataAdapterApi | null>(null);
 

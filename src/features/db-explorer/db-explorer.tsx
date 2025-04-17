@@ -7,7 +7,7 @@ import {
   useAttachedDBMetadata,
 } from '@store/app-store';
 import { ExplorerTree, TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
-import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { getAttachedDBDataSourceName } from '@utils/navigation';
 import { PersistentDataSourceId } from '@models/data-source';
@@ -286,7 +286,7 @@ export const DbExplorer = memo(() => {
    */
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
-  const conn = useInitializedDuckDBConnection();
+  const conn = useInitializedDuckDBConnectionPool();
 
   /**
    * Store access

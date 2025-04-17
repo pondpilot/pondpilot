@@ -10,7 +10,7 @@ import {
   getFlatFileDataSourceName,
   getLocalEntryIcon,
 } from '@utils/navigation';
-import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { createSQLScript } from '@controllers/sql-script';
 import {
   deleteTabByDataSourceId,
@@ -37,7 +37,7 @@ export const FileSystemExplorer = memo(() => {
    */
   const { copy } = useClipboard();
   const { showSuccess } = useAppNotifications();
-  const conn = useInitializedDuckDBConnection();
+  const conn = useInitializedDuckDBConnectionPool();
 
   /**
    * Store access

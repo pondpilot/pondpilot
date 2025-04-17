@@ -1,41 +1,43 @@
-import type { AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import type * as arrow from 'apache-arrow';
-import type { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
 
 type IteratorResult<T extends arrow.TypeMap = any> =
   | { done: false; value: arrow.RecordBatch<T> }
   | { done: true; value: null };
 
+/**
+ * A wrapper around the Arrow async batch streaming reader produced by our pool
+ * implementation. It has two enhancements over the original:
+ * 1. Provides a slightly better typed and more stable `next()` API. As soon as
+ *    there are no batches or batch is empty, it will return `done: true`
+ *    (no spurious empty batch at the ed)
+ * 2. It self-manages. When it is exhausted or canceled - it will release the
+ *    underlying connection back to the pool.
+ */
 export class AsyncDuckDBPooledStreamReader<T extends { [key: string]: arrow.DataType }> {
-  /** The id of the connection in the pool */
-  private readonly _id: number;
   /** The underlying arrow stream reader */
-  private readonly _reader: arrow.AsyncRecordBatchStreamReader<T>;
-  /** The underlying DuckDB connection */
-  private _conn: AsyncDuckDBConnection | null;
-  /** The owning pool */
-  private readonly _pool: AsyncDuckDBConnectionPool;
+  private _reader: arrow.AsyncRecordBatchStreamReader<T> | null;
+  /** A callabck that this reader will call when exhausted/closed/cancelled */
+  private _onClose: () => Promise<void>;
 
-  constructor(
-    id: number,
-    reader: arrow.AsyncRecordBatchStreamReader<T>,
-    conn: AsyncDuckDBConnection,
-    pool: AsyncDuckDBConnectionPool,
-  ) {
-    this._id = id;
+  constructor({
+    reader,
+    onClose,
+  }: {
+    reader: arrow.AsyncRecordBatchStreamReader<T>;
+    onClose: () => Promise<void>;
+  }) {
     this._reader = reader;
-    this._conn = conn;
-    this._pool = pool;
+    this._onClose = onClose;
   }
 
   /**
    * If `true`, the reader is closed and can't be used anymore.
    *
    * This doesn't mean it reached the end of the stream, as it
-   * can be closed before.
+   * can be canceled at any time.
    */
   public get closed(): boolean {
-    return this._conn === null;
+    return this._reader === null;
   }
 
   /**
@@ -43,7 +45,7 @@ export class AsyncDuckDBPooledStreamReader<T extends { [key: string]: arrow.Data
    */
   public async close() {
     // If we are closed, just return
-    if (this._conn === null) {
+    if (this._reader === null) {
       return;
     }
 
@@ -51,24 +53,14 @@ export class AsyncDuckDBPooledStreamReader<T extends { [key: string]: arrow.Data
     // AFAIK this does nothing as of time writing, but better safe than sorry
     await this._reader.cancel();
 
-    // Also cancelPending in the connection in case we haven't reached the end.
-    // Note that DuckDB will return `false` if the query is already done, but
-    // we do not check the result.
-    await this._conn.cancelSent();
+    // Call the onClose callback
+    await this._onClose();
 
-    // Release the connection back to the pool
-    this._pool.releaseConnection(this._id);
-
-    // Mark as closed by setting the connection to null
-    this._conn = null;
+    // Mark as closed by setting the reader to null
+    this._reader = null;
   }
 
-  // Re-expose some of the connection methods we want to expose
-
-  /** Access the database instance aka bindings */
-  public get bindings(): AsyncDuckDBConnection['bindings'] {
-    return this._pool.bindings;
-  }
+  // Re-expose smart versions of some the reader APIs
 
   /**
    * Cancel the reader. This is an alias for `close()`.
@@ -78,10 +70,13 @@ export class AsyncDuckDBPooledStreamReader<T extends { [key: string]: arrow.Data
   }
 
   /**
-   * Create a streaming Send a query
+   * Iterate over the batches in the stream.
+   *
+   * If `closed`, this will continue to return `done: true`.
    */
   public async next(): Promise<IteratorResult<T>> {
-    if (this.closed) {
+    if (this._reader === null) {
+      // If we are closed, just return
       return { done: true, value: null };
     }
 

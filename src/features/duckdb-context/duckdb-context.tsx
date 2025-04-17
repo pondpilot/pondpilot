@@ -22,7 +22,8 @@ export const DuckDBInitializerContext = createContext<DuckDBInitializerContextTy
 export const useDuckDBInitializer = (): DuckDBInitializerContextType =>
   useContext(DuckDBInitializerContext)!;
 
-export const duckDBConnContext = createContext<AsyncDuckDBConnectionPool | null>(null);
+// Create context that supplies the DuckDB connection pool
+export const DuckDBConnPoolContext = createContext<AsyncDuckDBConnectionPool | null>(null);
 
 /**
  * A hook to get the DuckDB connection and database instance after initialization.
@@ -32,22 +33,22 @@ export const duckDBConnContext = createContext<AsyncDuckDBConnectionPool | null>
  * @throws Error if the context is not available or if the connection and database are not initialized.
  * @returns DuckDB connection and database instance
  */
-export const useInitializedDuckDBConnection = (): AsyncDuckDBConnectionPool => {
-  const conn = useContext(duckDBConnContext);
+export const useInitializedDuckDBConnectionPool = (): AsyncDuckDBConnectionPool => {
+  const conn = useContext(DuckDBConnPoolContext);
 
   if (!conn) {
     throw new Error(
-      "useDuckDBConnection should not be used, unless app state is `ready`. Database initialization failed or haven't finished yet.",
+      "`useInitializedDuckDBConnectionPool` should not be used, unless app state is `ready`. Database initialization failed or haven't finished yet.",
     );
   }
 
   return conn;
 };
 
-export const useDuckDBConnection = (): AsyncDuckDBConnectionPool | null =>
-  useContext(duckDBConnContext)!;
+export const useDuckDBConnectionPool = (): AsyncDuckDBConnectionPool | null =>
+  useContext(DuckDBConnPoolContext)!;
 
-export const DuckDBConnectionProvider = ({
+export const DuckDBConnectionPoolProvider = ({
   maxPoolSize,
   children,
 }: {
@@ -195,7 +196,9 @@ export const DuckDBConnectionProvider = ({
   return (
     <DuckDBInitializerContext.Provider value={connectDuckDb}>
       <DuckDBInitializerStatusContext.Provider value={initStatus}>
-        <duckDBConnContext.Provider value={connectionPool}>{children}</duckDBConnContext.Provider>
+        <DuckDBConnPoolContext.Provider value={connectionPool}>
+          {children}
+        </DuckDBConnPoolContext.Provider>
       </DuckDBInitializerStatusContext.Provider>
     </DuckDBInitializerContext.Provider>
   );
