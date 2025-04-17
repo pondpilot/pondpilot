@@ -105,7 +105,7 @@ export const FileDataSourceTabView = memo(({ tab, visible }: FileDataSourceTabVi
 
       {!isLoading && !isError && dataAdapter && (
         <>
-          <DataViewInfoPane tab={tab} dataAdapterApi={dataAdapter} />
+          <DataViewInfoPane dataAdapterApi={dataAdapter} />
           <DataView visible={visible} cacheKey={tab.id} dataAdapterApi={dataAdapter} />
         </>
       )}

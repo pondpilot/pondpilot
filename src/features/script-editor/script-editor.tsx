@@ -1,4 +1,4 @@
-import { Group, Text, useMantineColorScheme } from '@mantine/core';
+import { Group, useMantineColorScheme } from '@mantine/core';
 import { useDebouncedCallback } from '@mantine/hooks';
 import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { useEffect, useRef, useState, useMemo } from 'react';
@@ -9,39 +9,37 @@ import { Spotlight } from '@mantine/spotlight';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { setDataTestId } from '@utils/test-id';
 
-import { SQLScriptId } from '@models/sql-script';
+import { ScriptExecutionState, SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
 import { updateSQLScriptContent } from '@controllers/sql-script';
-import { RunQueryButton } from './components/run-query-button';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
+import { ScriptEditorDataStatePane } from './components';
 
-interface QueryEditorProps {
+interface ScriptEditorProps {
   id: SQLScriptId;
+  scriptState: ScriptExecutionState;
 
   active?: boolean;
 
   runScriptQuery: (query: string) => Promise<void>;
 }
 
-export const QueryEditor = ({ id, active, runScriptQuery }: QueryEditorProps) => {
-  const sqlScript = useAppStore((state) => state.sqlScripts.get(id)!);
+export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: ScriptEditorProps) => {
   /**
    * Common hooks
    */
   const { colorScheme } = useMantineColorScheme();
 
+  const sqlScript = useAppStore((state) => state.sqlScripts.get(id)!);
   const dataBaseMetadata = useAppStore.use.dataBaseMetadata();
   const databaseModelsArray = Array.from(dataBaseMetadata.values());
-
-  // TODO: get query loading state from the store
-  // const queryRunning = tab?.query.state === 'fetching';
-  const queryRunning = false;
 
   /**
    * State
    */
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const [fontSize, setFontSize] = useState(0.875);
+  const [dirty, setDirty] = useState(false);
 
   const sqlNamespace = useMemo(
     () => convertToSQLNamespace(databaseModelsArray),
@@ -55,8 +53,6 @@ export const QueryEditor = ({ id, active, runScriptQuery }: QueryEditorProps) =>
     }),
     [duckdbNamespace, sqlNamespace],
   );
-
-  const [queryExecuted, setQueryExecuted] = useState(false);
 
   /**
    * Handlers
@@ -85,22 +81,8 @@ export const QueryEditor = ({ id, active, runScriptQuery }: QueryEditorProps) =>
     const selectedText = getSelectedText();
 
     const queryToRun = mode === 'selection' ? selectedText : fullQuery;
-
+    setDirty(false);
     runScriptQuery(queryToRun);
-    // setQueryExecuted(true);
-
-    // await updateTab({
-    //   id: tab.id,
-    //   dataView: {
-    //     data: result?.data,
-    //     rowCount: result?.pagination || 0,
-    //   },
-    //   query: {
-    //     ...tab.query,
-    //     state: 'success',
-    //     originalQuery: queryToRun,
-    //   },
-    // });
   };
 
   const handleQuerySave = async () => {
@@ -112,11 +94,10 @@ export const QueryEditor = ({ id, active, runScriptQuery }: QueryEditorProps) =>
   }, 300);
 
   const onSqlEditorChange = () => {
-    setQueryExecuted(false);
+    setDirty(true);
     handleEditorValueChange();
   };
 
-  // eslint-disable-next-line arrow-body-style
   useEffect(() => {
     return () => {
       if (editorRef.current?.view) {
@@ -131,21 +112,12 @@ export const QueryEditor = ({ id, active, runScriptQuery }: QueryEditorProps) =>
 
   return (
     <div className="h-full">
-      <Group className="px-3 h-10" justify="space-between">
-        <Group gap={2}>
-          {queryRunning && (
-            <Text c="text-secondary" className="text-sm font-medium">
-              Processing Query...
-            </Text>
-          )}
-          {queryExecuted && !queryRunning && (
-            <Text c="text-success" className="text-sm font-medium">
-              Query ran successfully.
-            </Text>
-          )}
-        </Group>
-        <RunQueryButton disabled={queryRunning} handleRunQuery={handleRunQuery} />
-      </Group>
+      <ScriptEditorDataStatePane
+        dirty={dirty}
+        handleRunQuery={handleRunQuery}
+        scriptState={scriptState}
+      />
+
       <Group
         className="h-[calc(100%-40px)]"
         data-testid={setDataTestId('query-editor')}

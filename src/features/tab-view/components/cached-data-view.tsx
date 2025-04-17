@@ -1,5 +1,5 @@
 import { Table } from '@components/table/table';
-import { Affix, Stack, Text } from '@mantine/core';
+import { Affix, Group, Stack, Text } from '@mantine/core';
 import { DataViewCacheItem } from '@models/data-view';
 
 // This is a degenerate version of Data View that is only showing cached data
@@ -33,6 +33,18 @@ export const CachedDataView = ({ cachedData }: { cachedData: DataViewCacheItem }
           onSelectedColsCopy={() => {}}
         />
       </div>
+      <Group
+        align="center"
+        justify="end"
+        className="border-t px-2 pt border-borderPrimary-light dark:border-borderPrimary-dark h-[34px]"
+      >
+        {/* {columnTotal !== null && (
+          <Text c="text-primary" className="text-sm">
+            {isNumeric ? 'SUM' : 'COUNT'}: {columnTotal}
+          </Text>
+        )}
+        {isColumnCalculating && <Loader size={12} color="text-accent" />} */}
+      </Group>
     </Stack>
   );
 };

@@ -12,3 +12,5 @@ export type SQLScript = {
   name: string;
   content: string;
 };
+
+export type ScriptExecutionState = 'idle' | 'running' | 'error' | 'success';

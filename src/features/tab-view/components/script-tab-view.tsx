@@ -1,7 +1,7 @@
 import { memo, useCallback, useState } from 'react';
 import { Allotment } from 'allotment';
 import { ScriptTab } from '@models/tab';
-import { QueryEditor } from '@features/query-editor';
+import { ScriptEditor } from '@features/script-editor';
 import { DataView } from '@features/tab-view/components/data-view';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { useAppStore, useProtectedViews } from '@store/app-store';
@@ -17,18 +17,18 @@ import {
 import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@controllers/tab';
 import { Center, Stack, Text } from '@mantine/core';
 import { IconClipboardSmile } from '@tabler/icons-react';
+import { ScriptExecutionState } from '@models/sql-script';
 import { CachedDataView } from './cached-data-view';
+import { DataViewInfoPane } from './data-view-info-pane';
 
 interface ScriptTabViewProps {
   tab: ScriptTab;
   active: boolean;
 }
 
-type ScriptExecutioState = 'idle' | 'running' | 'error' | 'success';
-
 export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
   const [dataAdapter, setDataAdapter] = useState<DataAdapterApi | null>(null);
-  const [scriptExecutionState, setScriptExecutionState] = useState<ScriptExecutioState>('idle');
+  const [scriptExecutionState, setScriptExecutionState] = useState<ScriptExecutionState>('idle');
 
   const pool = useInitializedDuckDBConnectionPool();
   const protectedViews = useProtectedViews();
@@ -37,7 +37,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
   // after application start and before the first query is executed
   const cachedData = useAppStore.getState().dataViewCache.get(tab.id);
   const showCachedDataView = !dataAdapter && cachedData;
-  const showRunQueryCTA = !dataAdapter && !cachedData && scriptExecutionState === 'idle';
+  const showRunQueryCTA = (!dataAdapter && !cachedData) || scriptExecutionState === 'idle';
 
   const runScriptQuery = useCallback(
     async (query: string) => {
@@ -55,8 +55,6 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
         console.error('Errors in SQL statements:', errors);
         setScriptExecutionState('error');
         throw new Error('TODO: Implement UI for this error(s)');
-        // Exit if any statement is invalid
-        return;
       }
 
       // Query to be used in data adapter
@@ -160,7 +158,6 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
           return reader;
         },
       });
-      // setQueryRunning(false);
     },
     [pool, protectedViews],
   );
@@ -181,7 +178,12 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
         defaultSizes={[tab.editorPaneHeight, tab.dataViewLayout.dataViewPaneHeight]}
       >
         <Allotment.Pane preferredSize={tab.editorPaneHeight} minSize={200}>
-          <QueryEditor id={tab.sqlScriptId} active={active} runScriptQuery={runScriptQuery} />
+          <ScriptEditor
+            id={tab.sqlScriptId}
+            active={active}
+            runScriptQuery={runScriptQuery}
+            scriptState={scriptExecutionState}
+          />
         </Allotment.Pane>
 
         <Allotment.Pane preferredSize={tab.dataViewLayout.dataViewPaneHeight} minSize={120}>
@@ -193,11 +195,16 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
               </Stack>
             </Center>
           )}
-          {dataAdapter ? (
-            <DataView visible={active} cacheKey={tab.id} dataAdapterApi={dataAdapter} />
-          ) : showCachedDataView ? (
-            <CachedDataView cachedData={cachedData} />
-          ) : null}
+          <>
+            {dataAdapter ? (
+              <>
+                <DataViewInfoPane dataAdapterApi={dataAdapter} />
+                <DataView visible={active} cacheKey={tab.id} dataAdapterApi={dataAdapter} />
+              </>
+            ) : showCachedDataView ? (
+              <CachedDataView cachedData={cachedData} />
+            ) : null}
+          </>
         </Allotment.Pane>
       </Allotment>
     </div>
