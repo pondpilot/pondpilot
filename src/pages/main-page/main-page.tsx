@@ -21,6 +21,7 @@ export const MainPage = () => {
   const { colorScheme } = useMantineColorScheme();
   const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({ key: 'layout-sizes' });
   const tabs = useAppStore.use.tabs();
+  const hasTabs = tabs.size > 0;
 
   const handleAddScript = () => {
     const newEmptyScript = createSQLScript();
@@ -81,15 +82,18 @@ export const MainPage = () => {
         <Navbar />
       </Allotment.Pane>
       <Allotment.Pane preferredSize={layoutSizes?.[1]}>
-        <Stack className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark gap-0">
-          <div className="flex-shrink-0">
-            <TabsPane />
-          </div>
-          <div className="flex-1 min-h-0">
-            <TabView />
-          </div>
-        </Stack>
-        {tabs.size > 0 && (
+        {hasTabs && (
+          <Stack className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark gap-0">
+            <div className="flex-shrink-0">
+              <TabsPane />
+            </div>
+            <div className="flex-1 min-h-0">
+              <TabView />
+            </div>
+          </Stack>
+        )}
+
+        {!hasTabs && (
           <div className="h-full">
             <StartGuide />
           </div>

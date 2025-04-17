@@ -6,6 +6,7 @@ export const StartGuide = () => {
   const os = useOs();
   const isMacOS = os === 'macos';
   const mod = useOsModifierIcon();
+  console.log('StartGuide');
 
   const shortcustList = [
     {
