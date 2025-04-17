@@ -82,7 +82,7 @@ export const MainPage = () => {
       className={colorScheme === 'dark' ? 'custom-allotment-dark' : 'custom-allotment'}
       onDragEnd={handleOuterLayoutResize}
     >
-      <Allotment.Pane preferredSize={layoutSizes?.[0]} maxSize={500} minSize={220}>
+      <Allotment.Pane preferredSize={layoutSizes?.[0]} maxSize={500} minSize={240}>
         <Navbar />
       </Allotment.Pane>
       <Allotment.Pane preferredSize={layoutSizes?.[1]}>
