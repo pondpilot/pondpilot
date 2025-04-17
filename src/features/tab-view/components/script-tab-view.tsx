@@ -103,6 +103,8 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
           SQLStatement.UNPIVOT,
           SQLStatement.FROM,
           SQLStatement.SUMMARIZE,
+          SQLStatement.CALL,
+          SQLStatement.EXPLAIN,
         ];
 
         const lastStatement = classifiedStatements[classifiedStatements.length - 1];
