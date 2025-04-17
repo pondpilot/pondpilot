@@ -95,8 +95,18 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
           }
         }
 
+        const selectableStatements: SQLStatement[] = [
+          SQLStatement.SELECT,
+          SQLStatement.DESCRIBE,
+          SQLStatement.SHOW,
+          SQLStatement.PIVOT,
+          SQLStatement.UNPIVOT,
+          SQLStatement.FROM,
+          SQLStatement.SUMMARIZE,
+        ];
+
         const lastStatement = classifiedStatements[classifiedStatements.length - 1];
-        if (lastStatement.type === SQLStatement.SELECT) {
+        if (selectableStatements.includes(lastStatement.type)) {
           // Validate last SELECT statement via prepare
           try {
             const preparedStatement = await conn.prepare(lastStatement.code);

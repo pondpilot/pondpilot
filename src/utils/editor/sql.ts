@@ -134,7 +134,6 @@ const TransactionalStatementMap: Record<SQLStatement, boolean> = {
 const AllowedStatements = [
   SQLStatement.ANALYZE,
   SQLStatement.ALTER,
-  SQLStatement.CALL,
   SQLStatement.CHECKPOINT, // Fails in transactions. Do not allow FORCE CHECKPOINT to avoid potentially unexpected aborting of any running transactions.
   SQLStatement.COMMENT_ON,
   SQLStatement.CREATE,
@@ -147,7 +146,6 @@ const AllowedStatements = [
   SQLStatement.PIVOT,
   SQLStatement.UNPIVOT,
   SQLStatement.FROM,
-  SQLStatement.EXPLAIN,
   SQLStatement.SELECT,
   SQLStatement.SET,
   SQLStatement.RESET,
