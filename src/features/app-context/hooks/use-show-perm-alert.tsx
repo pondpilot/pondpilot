@@ -1,10 +1,9 @@
-import { useAppNotifications } from '@components/app-notifications';
+import { showAlert } from '@components/app-notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useCallback } from 'react';
 
 export const useShowPermsAlert = () => {
-  const { showAlert } = useAppNotifications();
   const showPermsAlert = useCallback(
     (): Promise<boolean> =>
       new Promise((resolve) => {

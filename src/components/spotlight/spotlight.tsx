@@ -29,7 +29,7 @@ import {
 } from '@controllers/tab';
 import { NamedIcon } from '@components/named-icon';
 import { getFlatFileDataSourceName } from '@utils/navigation';
-import { useImportSQLFiles } from '@hooks/use-import-sql-files';
+import { importSQLFiles } from '@utils/import-script-file';
 import {
   DATA_SOURCE_GROUP_DISPLAY_NAME,
   ICON_CLASSES,
@@ -79,7 +79,7 @@ export const SpotlightMenu = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { importSQLFiles } = useImportSQLFiles();
+
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const { command, option } = useOsModifierIcon();
 

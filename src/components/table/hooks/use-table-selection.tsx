@@ -1,8 +1,8 @@
 import { Cell, CellContext, Table } from '@tanstack/react-table';
 import { useCallback, useState } from 'react';
-import { useAppNotifications } from '@components/app-notifications';
 import { useDidUpdate } from '@mantine/hooks';
 import { DBColumn, DBTableOrViewSchema } from '@models/db';
+import { showSuccess } from '@components/app-notifications';
 import { stringifyTypedValue } from '../utils';
 import { ColumnMeta } from '../model';
 
@@ -24,7 +24,6 @@ export const useTableSelection = ({
   onRowSelectChange,
   onCellSelectChange,
 }: UseTableSelectionProps) => {
-  const { showSuccess } = useAppNotifications();
   const [lastSelectedRow, setLastSelectedRow] = useState<string>('0');
   const [lastSelectedColumn, setLastSelectedColumn] = useState<string | null>('');
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});

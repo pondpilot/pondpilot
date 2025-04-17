@@ -1,12 +1,10 @@
-import { useAppNotifications } from '@components/app-notifications';
+import { showError, showWarning } from '@components/app-notifications';
 import { addLocalFileOrFolders } from '@controllers/file-system/file-system-controller';
 import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { supportedDataSourceFileExtArray, supportedDataSourceFileExts } from '@models/file-system';
 import { pickFiles, pickFolder } from '@utils/file-system';
 
 export const useAddLocalFilesOrFolders = () => {
-  const { showError, showWarning } = useAppNotifications();
-
   const conn = useDuckDBConnectionPool();
 
   const handleAddFile = async (

@@ -7,16 +7,16 @@ import { useAppStore } from '@store/app-store';
 import { TabsPane } from '@features/tabs-pane';
 import { TabView } from '@features/tab-view/tab-view';
 import { StartGuide } from '@components/start-guide';
-import { useImportSQLFiles } from '@hooks/use-import-sql-files';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
+import { importSQLFiles } from '@utils/import-script-file';
 import { Navbar } from './components';
 
 export const MainPage = () => {
   /**
    * Common hooks
    */
-  const { importSQLFiles } = useImportSQLFiles();
+
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const { colorScheme } = useMantineColorScheme();
   const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({ key: 'layout-sizes' });
