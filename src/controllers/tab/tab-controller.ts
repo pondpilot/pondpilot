@@ -361,19 +361,36 @@ export const updateTabDataViewLayout = (
   }
 };
 
-export const updateScriptTabEditorPaneHeight = (tab: ScriptTab, newPaneHeight: number): void => {
+export const updateScriptTabLayoutChange = (
+  tab: ScriptTab,
+  [editorPaneHeight, dataViewPaneHeight]: [number, number],
+): void => {
   const { tabs } = useAppStore.getState();
+  // We have to use a tab object from the store
+  const currentTab = ensureTab(tab, tabs);
+
+  // Type check
+  if (currentTab?.type !== 'script') {
+    return;
+  }
 
   // Check for changes
-  if (tab.editorPaneHeight === newPaneHeight) {
+  if (
+    currentTab.editorPaneHeight === editorPaneHeight &&
+    currentTab.dataViewLayout.dataViewPaneHeight === dataViewPaneHeight
+  ) {
     // No changes, nothing to do
     return;
   }
 
   // Create new tab object with updated layout
   const updatedTab: ScriptTab = {
-    ...tab,
-    editorPaneHeight: newPaneHeight,
+    ...currentTab,
+    editorPaneHeight,
+    dataViewLayout: {
+      ...currentTab.dataViewLayout,
+      dataViewPaneHeight,
+    },
   };
 
   // Update the store
@@ -386,7 +403,7 @@ export const updateScriptTabEditorPaneHeight = (tab: ScriptTab, newPaneHeight: n
       tabs: newTabs,
     },
     undefined,
-    'AppStore/updateScriptTabEditorPaneHeight',
+    'AppStore/updateScriptTabLayoutChange',
   );
 
   // Persist the changes to IndexedDB
@@ -395,7 +412,6 @@ export const updateScriptTabEditorPaneHeight = (tab: ScriptTab, newPaneHeight: n
     iDb.put(TAB_TABLE_NAME, updatedTab, tab.id);
   }
 };
-
 /**
  * Sets/resets the active tab id.
  *

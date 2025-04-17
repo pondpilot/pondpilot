@@ -14,7 +14,7 @@ import {
   validateStatements,
   SQLStatement,
 } from '@utils/editor/sql';
-import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@controllers/tab';
+import { updateScriptTabLayoutChange } from '@controllers/tab';
 import { Center, Stack, Text } from '@mantine/core';
 import { IconClipboardSmile } from '@tabler/icons-react';
 import { ScriptExecutionState } from '@models/sql-script';
@@ -175,11 +175,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
   );
 
   const setPanelSize = ([editor, table]: number[]) => {
-    updateTabDataViewLayout(tab, {
-      ...tab.dataViewLayout,
-      dataViewPaneHeight: table,
-    });
-    updateScriptTabEditorPaneHeight(tab, editor);
+    updateScriptTabLayoutChange(tab, [editor, table]);
   };
 
   return (
