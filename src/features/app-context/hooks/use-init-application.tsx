@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAppNotifications } from '@components/app-notifications';
+import { showWarning } from '@components/app-notifications';
 import { setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import {
@@ -10,7 +10,6 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { useShowPermsAlert } from './use-show-perm-alert';
 
 export function useAppInitialization(isFileAccessApiSupported: boolean) {
-  const { showWarning } = useAppNotifications();
   const { showPermsAlert } = useShowPermsAlert();
 
   const conn = useDuckDBConnectionPool();

@@ -1,5 +1,3 @@
-import { useAppNotifications } from '@components/app-notifications';
-import { useClipboard } from '@mantine/hooks';
 import { memo } from 'react';
 
 import { useSqlScriptNameMap } from '@store/app-store';
@@ -14,6 +12,7 @@ import {
   setPreviewTabId,
 } from '@controllers/tab';
 import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
+import { copyToClipboard } from '@utils/clipboard';
 import { ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
 
@@ -67,12 +66,6 @@ const prepareRenameValue = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): str
 
 export const ScriptExplorer = memo(() => {
   /**
-   * Common hooks
-   */
-  const { showSuccess } = useAppNotifications();
-  const { copy } = useClipboard();
-
-  /**
    * Global state
    */
   const sqlScripts = useSqlScriptNameMap();
@@ -89,8 +82,7 @@ export const ScriptExplorer = memo(() => {
         {
           label: 'Copy name',
           onClick: (sqlScript) => {
-            copy(sqlScript.label);
-            showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+            copyToClipboard(sqlScript.label, { showNotification: true });
           },
         },
       ],

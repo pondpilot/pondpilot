@@ -1,6 +1,4 @@
 import { memo } from 'react';
-import { useClipboard } from '@mantine/hooks';
-import { useAppNotifications } from '@components/app-notifications';
 import {
   useAttachedDBDataSourceMap,
   useAttachedDBLocalEntriesMap,
@@ -12,7 +10,6 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { getAttachedDBDataSourceName } from '@utils/navigation';
 import { PersistentDataSourceId } from '@models/data-source';
 import { DBColumn, DBSchema, DBTableOrView, DBTableOrViewSchema } from '@models/db';
-import { NotificationData } from '@mantine/notifications';
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import {
@@ -24,6 +21,7 @@ import {
 } from '@controllers/tab';
 import { createSQLScript } from '@controllers/sql-script';
 import { deleteDataSources } from '@controllers/data-source';
+import { copyToClipboard } from '@utils/clipboard';
 import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
 import { DbExplorerNode } from './db-explorer-node';
 
@@ -33,8 +31,6 @@ function buildColumnTreeNode({
   objectName,
   column,
   nodeIdsToFQNMap,
-  copy,
-  showSuccess,
 }: {
   dbId: PersistentDataSourceId;
   schemaName: string;
@@ -43,8 +39,6 @@ function buildColumnTreeNode({
   // Mutable args
   nodeIdsToFQNMap: DBExplorerNodeExtraType;
   // injected callbacks
-  copy: (valueToCopy: any) => void;
-  showSuccess: (data: NotificationData) => string;
 }): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
   const { name: columnName, sqlType } = column;
   const columnNodeId = `${dbId}.${schemaName}.${objectName}::${columnName}`;
@@ -70,8 +64,10 @@ function buildColumnTreeNode({
           {
             label: 'Copy name',
             onClick: () => {
-              copy(toDuckDBIdentifier(objectName));
-              showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+              copyToClipboard(toDuckDBIdentifier(objectName), {
+                showNotification: true,
+                notificationTitle: 'Copied',
+              });
             },
           },
         ],
@@ -86,8 +82,6 @@ function buildObjectTreeNode({
   schemaName,
   object,
   nodeIdsToFQNMap,
-  copy,
-  showSuccess,
 }: {
   dbId: PersistentDataSourceId;
   dbName: string;
@@ -95,9 +89,6 @@ function buildObjectTreeNode({
   object: DBTableOrView;
   // Mutable args
   nodeIdsToFQNMap: DBExplorerNodeExtraType;
-  // injected callbacks
-  copy: (valueToCopy: any) => void;
-  showSuccess: (data: NotificationData) => string;
 }): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
   const { name: objectName, columns } = object;
   const objectNodeId = `${dbId}.${schemaName}.${objectName}`;
@@ -160,14 +151,16 @@ function buildObjectTreeNode({
           {
             label: 'Copy Full Name',
             onClick: () => {
-              copy(fqn);
-              showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+              copyToClipboard(fqn, {
+                showNotification: true,
+              });
             },
             onAlt: {
               label: 'Copy Name',
               onClick: () => {
-                copy(toDuckDBIdentifier(objectName));
-                showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+                copyToClipboard(toDuckDBIdentifier(objectName), {
+                  showNotification: true,
+                });
               },
             },
           },
@@ -191,8 +184,6 @@ function buildObjectTreeNode({
         objectName,
         column,
         nodeIdsToFQNMap,
-        copy,
-        showSuccess,
       }),
     ),
   };
@@ -204,8 +195,6 @@ function buildSchemaTreeNode({
   schema,
   nodeIdsToFQNMap,
   initialExpandedState,
-  copy,
-  showSuccess,
 }: {
   dbId: PersistentDataSourceId;
   dbName: string;
@@ -216,9 +205,6 @@ function buildSchemaTreeNode({
     DBExplorerNodeTypeToIdTypeMap[keyof DBExplorerNodeTypeToIdTypeMap],
     boolean
   >;
-  // injected callbacks
-  copy: (valueToCopy: any) => void;
-  showSuccess: (data: NotificationData) => string;
 }): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
   const { name: schemaName, objects } = schema;
   const schemaNodeId = `${dbId}.${schemaName}`;
@@ -249,15 +235,18 @@ function buildSchemaTreeNode({
           {
             label: 'Copy name',
             onClick: () => {
-              copy(toDuckDBIdentifier(schemaName));
-              showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+              navigator.clipboard.writeText(toDuckDBIdentifier(schemaName));
+              copyToClipboard(toDuckDBIdentifier(schemaName), {
+                showNotification: true,
+              });
             },
           },
           {
             label: 'Copy Full Name',
             onClick: () => {
-              copy(`${toDuckDBIdentifier(dbName)}.${toDuckDBIdentifier(schemaName)}`);
-              showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+              copyToClipboard(`${toDuckDBIdentifier(dbName)}.${toDuckDBIdentifier(schemaName)}`, {
+                showNotification: true,
+              });
             },
           },
         ],
@@ -270,8 +259,6 @@ function buildSchemaTreeNode({
         schemaName,
         object,
         nodeIdsToFQNMap,
-        copy,
-        showSuccess,
       }),
     ),
   };
@@ -284,8 +271,6 @@ export const DbExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const { copy } = useClipboard();
-  const { showSuccess } = useAppNotifications();
   const conn = useInitializedDuckDBConnectionPool();
 
   /**
@@ -362,8 +347,9 @@ export const DbExplorer = memo(() => {
                 label: 'Copy name',
                 onClick: () => {
                   // we can't use label as it may not be "just" name
-                  copy(dbName);
-                  showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+                  copyToClipboard(dbName, {
+                    showNotification: true,
+                  });
                 },
               },
             ],
@@ -376,8 +362,6 @@ export const DbExplorer = memo(() => {
             schema,
             nodeIdsToFQNMap,
             initialExpandedState,
-            copy,
-            showSuccess,
           }),
         ),
       };

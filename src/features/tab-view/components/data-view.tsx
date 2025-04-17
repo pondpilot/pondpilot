@@ -4,16 +4,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { setDataTestId } from '@utils/test-id';
 import { useDidMount } from '@hooks/use-did-mount';
 import { Affix, Group, Loader, Stack, Text } from '@mantine/core';
-import { useClipboard, useDidUpdate } from '@mantine/hooks';
+import { useDidUpdate } from '@mantine/hooks';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
 import { ColumnSortSpec, DBColumn, DBTableOrViewSchema } from '@models/db';
-import { useAppNotifications } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { DataViewCacheItem, DataViewCacheKey } from '@models/data-view';
 import { useAppStore } from '@store/app-store';
 import { setOrUpdateDataViewCache } from '@controllers/data-view';
 import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
+import { showSuccess } from '@components/app-notifications';
+import { copyToClipboard } from '@utils/clipboard';
 import { useSort } from '../hooks/use-sort';
 import { useColumnSummary } from '../hooks';
 
@@ -68,8 +69,6 @@ export const DataView = ({ visible, cacheKey, dataAdapterApi }: DataViewProps) =
   /**
    * Helpful hooks
    */
-  const clipboard = useClipboard();
-  const { showSuccess } = useAppNotifications();
   const { sortParams, handleSort, resetSort } = useSort();
   const {
     calculateColumnSummary,
@@ -276,7 +275,7 @@ export const DataView = ({ visible, cacheKey, dataAdapterApi }: DataViewProps) =
         const headers = selectedCols.map((col) => col.name).join('\t');
         const rows = data.map((row) => selectedCols.map((col) => row[col.name] ?? '').join('\t'));
         const tableText = [headers, ...rows].join('\n');
-        clipboard.copy(tableText);
+        await copyToClipboard(tableText);
       }
 
       notifications.update({
@@ -288,7 +287,6 @@ export const DataView = ({ visible, cacheKey, dataAdapterApi }: DataViewProps) =
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-
       notifications.update({
         id: notificationId,
         title: 'Failed to copy selected columns to clipboard',
@@ -297,7 +295,6 @@ export const DataView = ({ visible, cacheKey, dataAdapterApi }: DataViewProps) =
         autoClose: 5000,
         color: 'red',
       });
-      console.error('Error copying selected columns:', error);
     }
   };
 

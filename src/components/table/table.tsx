@@ -1,13 +1,13 @@
 import { useReactTable, getCoreRowModel } from '@tanstack/react-table';
 import { useMemo } from 'react';
-import { useClipboard, useDidUpdate, useHotkeys } from '@mantine/hooks';
+import { useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { replaceSpecialChars } from '@utils/helpers';
-import { useAppNotifications } from '@components/app-notifications';
 import { setDataTestId } from '@utils/test-id';
 
 import { ColumnSortSpec, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { Text } from '@mantine/core';
-import { useTableColumns, useTableSelection } from './hooks';
+import { copyToClipboard } from '@utils/clipboard';
+import { getTableColumns, useTableSelection } from './hooks';
 import { MemoizedTableBody, TableBody } from './components/table-body';
 import { TableHeadCell } from './components/thead-cell';
 
@@ -38,9 +38,6 @@ export const Table = ({
   page,
   visible,
 }: TableProps) => {
-  const { showSuccess } = useAppNotifications();
-  const clipboard = useClipboard();
-
   const hasData = data.length > 0;
 
   const {
@@ -59,7 +56,9 @@ export const Table = ({
     onCellSelectChange,
   });
 
-  const tableColumns = useTableColumns({ columns: schema, onRowSelectionChange, page });
+  const tableColumns = useMemo(() => {
+    return getTableColumns({ schema, onRowSelectionChange, page });
+  }, [schema, page, onRowSelectionChange]);
 
   const table = useReactTable({
     data: data || fallbackData,
@@ -94,11 +93,9 @@ export const Table = ({
       () => {
         if (!visible) return;
         if (selectedCell.value) {
-          clipboard.copy(selectedCell.value);
-          showSuccess({
-            title: 'Selected cell copied to clipboard',
-            message: '',
-            autoClose: 800,
+          copyToClipboard(selectedCell.value, {
+            showNotification: true,
+            notificationTitle: 'Selected cell copied to clipboard',
           });
         }
         if (Object.keys(selectedRows).length) {

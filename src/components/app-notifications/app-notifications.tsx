@@ -36,9 +36,7 @@ const showAppAlert = (data: NotificationData, type: 'info' | 'success' | 'warnin
   });
 };
 
-export const useAppNotifications = () => ({
-  showAlert: (data: NotificationData) => showAppAlert(data, 'info'),
-  showSuccess: (data: NotificationData) => showAppAlert(data, 'success'),
-  showWarning: (data: NotificationData) => showAppAlert(data, 'warning'),
-  showError: (data: NotificationData) => showAppAlert(data, 'error'),
-});
+export const showAlert = (data: NotificationData) => showAppAlert(data, 'info');
+export const showSuccess = (data: NotificationData) => showAppAlert(data, 'success');
+export const showWarning = (data: NotificationData) => showAppAlert(data, 'warning');
+export const showError = (data: NotificationData) => showAppAlert(data, 'error');

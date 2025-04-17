@@ -1,7 +1,5 @@
-import { useClipboard } from '@mantine/hooks';
 import { useShallow } from 'zustand/react/shallow';
 import { memo, useMemo } from 'react';
-import { useAppNotifications } from '@components/app-notifications';
 import { useAppStore, useFlatFileDataSourceMap } from '@store/app-store';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
@@ -24,6 +22,7 @@ import { deleteDataSources } from '@controllers/data-source';
 import { ExplorerTree, TreeNodeData } from '@components/explorer-tree';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { deleteLocalFileOrFolders } from '@controllers/file-system';
+import { copyToClipboard } from '@utils/clipboard';
 import { FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';
 import { FileSystemExplorerNode } from './file-system-explorer-node';
 
@@ -35,8 +34,6 @@ export const FileSystemExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const { copy } = useClipboard();
-  const { showSuccess } = useAppNotifications();
   const conn = useInitializedDuckDBConnectionPool();
 
   /**
@@ -123,8 +120,7 @@ export const FileSystemExplorer = memo(() => {
                   {
                     label: 'Copy name',
                     onClick: () => {
-                      copy(entry.uniqueAlias);
-                      showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+                      copyToClipboard(entry.uniqueAlias, { showNotification: true });
                     },
                   },
                 ],
@@ -191,14 +187,14 @@ export const FileSystemExplorer = memo(() => {
                 {
                   label: 'Copy Full Name',
                   onClick: () => {
-                    copy(fqn);
-                    showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+                    copyToClipboard(fqn, { showNotification: true });
                   },
                   onAlt: {
                     label: 'Copy Name',
                     onClick: () => {
-                      copy(toDuckDBIdentifier(relatedSource.viewName));
-                      showSuccess({ title: 'Copied', message: '', autoClose: 800 });
+                      copyToClipboard(toDuckDBIdentifier(relatedSource.viewName), {
+                        showNotification: true,
+                      });
                     },
                   },
                 },

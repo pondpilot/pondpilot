@@ -1,10 +1,8 @@
 import { useCallback } from 'react';
-import { useAppNotifications } from '@components/app-notifications';
 import { DataAdapterApi } from '@models/data-adapter';
+import { showSuccess } from '@components/app-notifications';
 
 export const useTableExport = (dataAdapterApi: DataAdapterApi) => {
-  const { showSuccess } = useAppNotifications();
-
   const copyTableToClipboard = useCallback(async () => {
     const result = await dataAdapterApi.getAllTableData?.();
     const columns = await dataAdapterApi.getSchema();
