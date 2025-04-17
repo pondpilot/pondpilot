@@ -5,7 +5,7 @@ import { findUniqueName } from '@utils/helpers';
 
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
-import { LocalEntry, LocalEntryId } from '@models/file-system';
+import { DataSourceLocalFile, LocalEntry, LocalEntryId, LocalFolder } from '@models/file-system';
 import { localEntryFromHandle } from '@utils/file-system';
 
 import {
@@ -59,15 +59,86 @@ export const addLocalFileOrFolders = async (
   const newEntries: [LocalEntryId, LocalEntry][] = [];
   const newDataSources: [PersistentDataSourceId, AnyDataSource][] = [];
 
-  for (const handle of handles) {
-    const localEntry = localEntryFromHandle(handle, null, true, (fileName: string): string =>
-      findUniqueName(fileName, (name: string) => usedEntryNames.has(name)),
+  const addFile = async (file: DataSourceLocalFile) => {
+    switch (file.ext) {
+      case 'duckdb': {
+        const dbSource = addAttachedDB(file, reservedDbs);
+
+        // Assume it will be added, so reserve the name
+        reservedDbs.add(dbSource.dbName);
+
+        // And save to new dbs as we'll need it later to get new metadata
+        newDatabaseNames.push(dbSource.dbName);
+
+        // TODO: currently we assume this works, add proper error handling
+        await registerAndAttachDatabase(
+          conn,
+          file.handle,
+          `${file.uniqueAlias}.${file.ext}`,
+          dbSource.dbName,
+        );
+
+        newDataSources.push([dbSource.id, dbSource]);
+
+        break;
+      }
+      default: {
+        // First create a data view object
+        const dataSource = addFlatFileDataSource(file, reservedViews);
+
+        // Add to reserved views
+        reservedViews.add(dataSource.viewName);
+        // Add to new managed views for metadata updates later
+        newManagedViews.push(dataSource.viewName);
+
+        // Then register the file source and create the view.
+        // TODO: this may potentially fail - we should handle this case
+        await registerFileSourceAndCreateView(
+          conn,
+          file.handle,
+          `${file.uniqueAlias}.${file.ext}`,
+          dataSource.viewName,
+        );
+
+        newDataSources.push([dataSource.id, dataSource]);
+        break;
+      }
+    }
+  };
+
+  const addDirectory = async (folder: LocalFolder) => {
+    for await (const [_, handle] of folder.handle.entries()) {
+      await processHandle(handle, folder.id);
+    }
+  };
+
+  const processHandle = async (
+    handle: FileSystemDirectoryHandle | FileSystemFileHandle,
+    parentId: LocalEntryId | null,
+  ) => {
+    const userAdded = parentId === null;
+    const localEntry = localEntryFromHandle(
+      handle,
+      parentId,
+      userAdded,
+      (fileName: string): string =>
+        findUniqueName(fileName, (name: string) => usedEntryNames.has(name)),
     );
 
     if (!localEntry) {
       // Unsupported file type. Nothing to add to store.
       skippedUnsupportedFiles.push(handle.name);
-      continue;
+      return;
+    }
+
+    const isDir = localEntry.kind === 'directory';
+    const isDataSourceFile = !isDir && localEntry.fileType === 'data-source';
+
+    // Before checking existing, filter out unexpected files
+    // Do not add DuckDB files from a folder
+    if (parentId !== null && isDataSourceFile && localEntry.ext === 'duckdb') {
+      // TODO: notify user about this
+      return;
     }
 
     let alreadyExists = false;
@@ -86,62 +157,24 @@ export const addLocalFileOrFolders = async (
 
     // Entry already exists, skip adding it
     if (alreadyExists) {
-      continue;
+      return;
     }
 
     // New entry, remember it's unique alias and add it to the store
     usedEntryNames.add(localEntry.uniqueAlias);
     newEntries.push([localEntry.id, localEntry]);
 
-    // Check if this is a data source file ad create a data source if so
-    if (localEntry.kind === 'directory') {
-      throw new Error('TODO');
-    } else if (localEntry.fileType === 'data-source') {
-      switch (localEntry.ext) {
-        case 'duckdb': {
-          const dbSource = addAttachedDB(localEntry, reservedDbs);
-
-          // Assume it will be added, so reserve the name
-          reservedDbs.add(dbSource.dbName);
-
-          // And save to new dbs as we'll need it later to get new metadata
-          newDatabaseNames.push(dbSource.dbName);
-
-          // TODO: currently we assume this works, add proper error handling
-          await registerAndAttachDatabase(
-            conn,
-            localEntry.handle,
-            `${localEntry.uniqueAlias}.${localEntry.ext}`,
-            dbSource.dbName,
-          );
-
-          newDataSources.push([dbSource.id, dbSource]);
-
-          break;
-        }
-        default: {
-          // First create a data view object
-          const dataSource = addFlatFileDataSource(localEntry, reservedViews);
-
-          // Add to reserved views
-          reservedViews.add(dataSource.viewName);
-          // Add to new managed views for metadata updates later
-          newManagedViews.push(dataSource.viewName);
-
-          // Then register the file source and create the view.
-          // TODO: this may potentially fail - we should handle this case
-          await registerFileSourceAndCreateView(
-            conn,
-            localEntry.handle,
-            `${localEntry.uniqueAlias}.${localEntry.ext}`,
-            dataSource.viewName,
-          );
-
-          newDataSources.push([dataSource.id, dataSource]);
-          break;
-        }
-      }
+    if (isDir) {
+      await addDirectory(localEntry);
     }
+
+    if (isDataSourceFile) {
+      await addFile(localEntry);
+    }
+  };
+
+  for (const handle of handles) {
+    await processHandle(handle, null);
   }
 
   // Create an object to pass to store update
