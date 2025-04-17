@@ -4,7 +4,7 @@ import { showSuccess } from '@components/app-notifications';
 interface CopyToClipboardOptions {
   /**
    * Show a success notification after copying
-   * @default true
+   * @default false
    */
   showNotification?: boolean;
 
@@ -43,7 +43,7 @@ export async function copyToClipboard(
   options: CopyToClipboardOptions = {},
 ): Promise<boolean> {
   const {
-    showNotification = true,
+    showNotification = false,
     notificationTitle = 'Copied',
     notificationMessage = '',
     autoClose = 800,
