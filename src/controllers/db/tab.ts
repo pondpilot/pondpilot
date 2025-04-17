@@ -84,7 +84,7 @@ function getFlatFileDataAdapterApi(
       ...baseAttrs,
       getEstimatedRowCount: async () => {
         const result = await conn.query(
-          `SELECT count(*) * 100 FROM ${toDuckDBIdentifier(dataSource.viewName)} USING SAMPLE 1% (bernoulli)`,
+          `SELECT count(*) * 10 FROM ${toDuckDBIdentifier(dataSource.viewName)} USING SAMPLE 10% (system)`,
         );
 
         const count = Number(result.getChildAt(0)?.get(0));
