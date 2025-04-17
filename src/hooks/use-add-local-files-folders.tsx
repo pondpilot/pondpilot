@@ -36,6 +36,11 @@ export const useAddLocalFilesOrFolders = () => {
       return;
     }
 
+    if (!handles.length) {
+      showAlert({ title: 'Adding files', message: 'No files selected' });
+      return;
+    }
+
     const { skippedExistingEntries, skippedUnsupportedFiles, errors } = await addLocalFileOrFolders(
       conn,
       handles,
@@ -83,7 +88,7 @@ export const useAddLocalFilesOrFolders = () => {
     }
 
     if (!handle) {
-      showError({ title: 'Failed to add folder', message: 'Handle is null' });
+      showAlert({ title: 'Adding folder', message: 'No folder selected' });
       return;
     }
 
