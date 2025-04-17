@@ -40,7 +40,7 @@ test.describe('flaky test group with retries', () => {
     // Patch the file picker
     await filePicker.selectFiles(['test1.csv']);
     // Click the add file button
-    await page.getByTestId('add-file-button').click();
+    await page.getByTestId('navbar-add-file-button').click();
     // Verify explorer items
     await assertFileExplorerItems(['test1']);
     // Verify file viewer
@@ -58,7 +58,7 @@ test.describe('flaky test group with retries', () => {
     // Patch the file picker
     await filePicker.selectFiles(['select_two_files/test2.csv', 'select_two_files/test3.csv']);
     // Click the add file button
-    await page.getByTestId('add-file-button').click();
+    await page.getByTestId('navbar-add-file-button').click();
     // Verify explorer items
     await assertFileExplorerItems(['test1', 'test2', 'test3']);
     // Verify file viewer
