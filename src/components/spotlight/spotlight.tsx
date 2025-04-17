@@ -217,9 +217,9 @@ export const SpotlightMenu = () => {
       label: 'Add Folder',
       icon: <IconFolderPlus size={20} className={ICON_CLASSES} />,
       hotkey: [option, command, 'F'],
-      handler: () => {
-        handleAddFolder();
+      handler: async () => {
         resetSpotlight();
+        await handleAddFolder();
         ensureHome();
       },
     },
