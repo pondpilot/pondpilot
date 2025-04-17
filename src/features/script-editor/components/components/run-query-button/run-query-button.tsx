@@ -11,10 +11,10 @@ import { setDataTestId } from '@utils/test-id';
 
 interface RunQueryButtonProps {
   disabled?: boolean;
-  handleRunQuery: (mode: 'all' | 'selection') => void;
+  onRunClick: (mode: 'all' | 'selection') => void;
 }
 
-export const RunQueryButton = ({ disabled, handleRunQuery }: RunQueryButtonProps) => {
+export const RunQueryButton = ({ disabled, onRunClick }: RunQueryButtonProps) => {
   const [defaultOption, setDefaultOption] = useLocalStorage<'all' | 'selection'>({
     key: 'default-run-option',
     defaultValue: 'all',
@@ -28,7 +28,7 @@ export const RunQueryButton = ({ disabled, handleRunQuery }: RunQueryButtonProps
   return (
     <Button.Group>
       <Button
-        onClick={() => handleRunQuery(defaultOption)}
+        onClick={() => onRunClick(defaultOption)}
         className="px-3 min-w-20 font-normal"
         color="background-accent"
         data-testid={setDataTestId('run-query-button')}
@@ -59,7 +59,7 @@ export const RunQueryButton = ({ disabled, handleRunQuery }: RunQueryButtonProps
                 <IconArrowBack size={20} />
               </Group>
             }
-            onClick={() => handleRunQuery('all')}
+            onClick={() => onRunClick('all')}
           >
             Run
           </Menu.Item>
@@ -71,7 +71,7 @@ export const RunQueryButton = ({ disabled, handleRunQuery }: RunQueryButtonProps
                 <IconArrowBack size={20} />
               </Group>
             }
-            onClick={() => handleRunQuery('selection')}
+            onClick={() => onRunClick('selection')}
           >
             Run selection
           </Menu.Item>

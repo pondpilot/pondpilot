@@ -1,6 +1,5 @@
 import { DotAnimation } from '@components/dots-animation';
 import { TextProps, Group, ActionIcon, Button, Text } from '@mantine/core';
-import { AnyFileSourceTab } from '@models/tab';
 import { IconX, IconCopy } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { useMemo } from 'react';
@@ -9,10 +8,9 @@ import { DataAdapterApi } from '@models/data-adapter';
 import { ColRowCount } from './components/col-row-count';
 
 interface DataViewInfoPaneProps {
-  tab: AnyFileSourceTab;
   dataAdapterApi: DataAdapterApi;
 }
-export const DataViewInfoPane = ({ tab, dataAdapterApi }: DataViewInfoPaneProps) => {
+export const DataViewInfoPane = ({ dataAdapterApi }: DataViewInfoPaneProps) => {
   const { copyTableToClipboard, exportTableToCSV } = useTableExport(dataAdapterApi);
 
   const dataAdapterState = {};
