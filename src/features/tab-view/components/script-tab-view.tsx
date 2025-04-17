@@ -19,7 +19,6 @@ import { Center, Stack, Text } from '@mantine/core';
 import { IconClipboardSmile } from '@tabler/icons-react';
 import { ScriptExecutionState } from '@models/sql-script';
 import { showError } from '@components/app-notifications';
-import { CachedDataView } from './cached-data-view';
 import { DataViewInfoPane } from './data-view-info-pane';
 
 interface ScriptTabViewProps {
@@ -38,7 +37,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
   // after application start and before the first query is executed
   const cachedData = useAppStore.getState().dataViewCache.get(tab.id);
   const showCachedDataView = !dataAdapter && cachedData;
-  const showRunQueryCTA = (!dataAdapter && !cachedData) || scriptExecutionState === 'idle';
+  const showRunQueryCTA = !dataAdapter && !cachedData && scriptExecutionState === 'idle';
 
   const runScriptQuery = useCallback(
     async (query: string) => {
@@ -208,16 +207,24 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
               </Stack>
             </Center>
           )}
-          <>
-            {dataAdapter ? (
-              <>
-                <DataViewInfoPane dataAdapterApi={dataAdapter} />
-                <DataView visible={active} cacheKey={tab.id} dataAdapterApi={dataAdapter} />
-              </>
-            ) : showCachedDataView ? (
-              <CachedDataView cachedData={cachedData} />
-            ) : null}
-          </>
+          {dataAdapter && (
+            <>
+              <DataViewInfoPane dataAdapterApi={dataAdapter} />
+              <DataView visible={active} cacheKey={tab.id} dataAdapterApi={dataAdapter} />
+            </>
+          )}
+
+          {showCachedDataView && (
+            <div className="p-4">Mike, make DataView Cache Great Again 🦅 please!</div>
+          )}
+          {showRunQueryCTA && (
+            <Center className="h-full font-bold">
+              <Stack align="center" c="icon-default" gap={4}>
+                <IconClipboardSmile size={32} stroke={1} />
+                <Text c="text-secondary">Your query results will be displayed here.</Text>
+              </Stack>
+            </Center>
+          )}
         </Allotment.Pane>
       </Allotment>
     </div>

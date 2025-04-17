@@ -9,7 +9,7 @@ import { Spotlight } from '@mantine/spotlight';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { setDataTestId } from '@utils/test-id';
 
-import { ScriptExecutionState, SQLScriptId } from '@models/sql-script';
+import { RunScriptMode, ScriptExecutionState, SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
 import { updateSQLScriptContent } from '@controllers/sql-script';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
@@ -40,6 +40,7 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const [fontSize, setFontSize] = useState(0.875);
   const [dirty, setDirty] = useState(false);
+  const [lastExecutedContent, setLastExecutedContent] = useState('');
 
   const sqlNamespace = useMemo(
     () => convertToSQLNamespace(databaseModelsArray),
@@ -57,7 +58,7 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
   /**
    * Handlers
    */
-  const handleRunQuery = async (mode?: 'all' | 'selection') => {
+  const handleRunQuery = async (mode?: RunScriptMode) => {
     const editor = editorRef.current?.view;
     if (!editor?.state) return;
 
@@ -81,6 +82,8 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
     const selectedText = getSelectedText();
 
     const queryToRun = mode === 'selection' ? selectedText : fullQuery;
+
+    setLastExecutedContent(fullQuery);
     setDirty(false);
     runScriptQuery(queryToRun);
   };
@@ -94,7 +97,10 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
   }, 300);
 
   const onSqlEditorChange = () => {
-    setDirty(true);
+    const currentContent = editorRef.current?.view?.state?.doc.toString() || '';
+    if (lastExecutedContent) {
+      setDirty(currentContent !== lastExecutedContent);
+    }
     handleEditorValueChange();
   };
 

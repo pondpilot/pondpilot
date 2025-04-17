@@ -31,14 +31,12 @@ export const ScriptEditorDataStatePane = ({
       timerRef.current = null;
     }
 
-    // Start timer if query is running
     if (running) {
       setScriptExecutionTimeInSec(0);
       timerRef.current = setInterval(() => {
-        setScriptExecutionTimeInSec((prev) => prev + 1);
-      }, 1000);
+        setScriptExecutionTimeInSec((prev) => Number((prev + 0.1).toFixed(1)));
+      }, 100);
     }
-
     // The cleanup function will handle unmounting
     return () => {
       if (timerRef.current) {
@@ -55,7 +53,7 @@ export const ScriptEditorDataStatePane = ({
           <Group gap={4}>
             <IconFileSad size={18} className="text-textWarning-light dark:text-textWarning-dark" />
             <Text c="text-warning" className="text-sm font-medium">
-              Outdated query results.
+              Since the last run, the script has changed
             </Text>
           </Group>
         )}
@@ -74,9 +72,9 @@ export const ScriptEditorDataStatePane = ({
             </Text>
           </Group>
         )}
-        {executedSuccess && !running && (
+        {!dirty && executedSuccess && !running && (
           <Text c="text-success" className="text-sm font-medium">
-            Query ran successfully.
+            Query ran successfully
           </Text>
         )}
       </Group>
