@@ -2,11 +2,11 @@ import { DbExplorer } from '@features/db-explorer/db-explorer';
 import { ScriptExplorer } from '@features/script-explorer';
 import { FileSystemExplorer } from '@features/file-system-explorer';
 import { ActionIcon, Button, Divider, Group, Skeleton, Stack, Text } from '@mantine/core';
-import { useLocalStorage } from '@mantine/hooks';
+import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
 import { IconBrandGithub, IconPlus, IconSettings } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
 import { APP_GITHUB_URL } from 'app-urls';
@@ -14,6 +14,7 @@ import { useAppStore } from '@store/app-store';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
+import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 
 /**
  * Displays the navigation bar
@@ -22,27 +23,33 @@ export const Navbar = memo(() => {
   /**
    * Common hooks
    */
-  const [navbarSizes, setInnerLayoutSizes] = useLocalStorage<number[]>({ key: 'navbar-sizes' });
+  const [navbarSizes, setInnerLayoutSizes] = useLocalStorage<number[]>({
+    key: LOCAL_STORAGE_KEYS.NAVBAR_LAYOUT_DIMENSIONS,
+  });
+
   const navigate = useNavigate();
 
   const appLoadState = useAppStore.use.appLoadState();
 
   const { handleAddFile } = useAddLocalFilesOrFolders();
-  const isDatabaseObjectTabActive = useAppStore((state) => {
-    if (state.activeTabId === null) return false;
+
+  const activeTab = useAppStore((state) => {
+    if (state.activeTabId === null) return null;
     const curTab = state.tabs.get(state.activeTabId);
-    if (!curTab) return false;
-    return curTab.type === 'data-source' && curTab.dataSourceType === 'db';
+    if (!curTab) return null;
+    return curTab;
   });
-  const [filesDbToggle, setFilesDbToggle] = useLocalStorage<'files' | 'databases'>({
-    key: 'navbar-data-source-selected-tab',
-    defaultValue: isDatabaseObjectTabActive ? 'databases' : 'files',
-  });
+
+  const isDataViewTabActive =
+    activeTab?.type === 'data-source' && activeTab.dataSourceType === 'file';
+  const isDatabaseObjectTabActive =
+    activeTab?.type === 'data-source' && activeTab.dataSourceType === 'db';
+
+  const [filesDbToggle, setFilesDbToggle] = useState<'files' | 'databases'>('files');
 
   /**
    * Local state
    */
-
   const isFiles = filesDbToggle === 'files';
   const appReady = appLoadState === 'ready';
 
@@ -52,6 +59,14 @@ export const Navbar = memo(() => {
   const handleNavbarLayoutResize = (sizes: number[]) => {
     setInnerLayoutSizes(sizes);
   };
+
+  useDidUpdate(() => {
+    if (isDatabaseObjectTabActive) {
+      setFilesDbToggle('databases');
+    } else if (isDataViewTabActive) {
+      setFilesDbToggle('files');
+    }
+  }, [isDatabaseObjectTabActive, isDataViewTabActive]);
 
   return (
     <Allotment vertical onDragEnd={handleNavbarLayoutResize}>

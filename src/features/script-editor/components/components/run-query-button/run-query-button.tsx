@@ -1,5 +1,7 @@
+import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { Button, Group, Menu } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
+import { RunScriptMode } from '@models/sql-script';
 import {
   IconChevronDown,
   IconChevronRight,
@@ -11,12 +13,12 @@ import { setDataTestId } from '@utils/test-id';
 
 interface RunQueryButtonProps {
   disabled?: boolean;
-  onRunClick: (mode: 'all' | 'selection') => void;
+  onRunClick: (mode: RunScriptMode) => void;
 }
 
 export const RunQueryButton = ({ disabled, onRunClick }: RunQueryButtonProps) => {
-  const [defaultOption, setDefaultOption] = useLocalStorage<'all' | 'selection'>({
-    key: 'default-run-option',
+  const [defaultOption, setDefaultOption] = useLocalStorage<RunScriptMode>({
+    key: LOCAL_STORAGE_KEYS.RUN_QUERY_BUTTON_VALUE,
     defaultValue: 'all',
   });
 

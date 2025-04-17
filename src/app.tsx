@@ -14,17 +14,20 @@ import { AppState } from '@features/app-state';
 import { DuckDBConnectionPoolProvider } from '@features/duckdb-context/duckdb-context';
 import { ModifierProvider } from '@components/modifier-context/modifier-context';
 import { AppContextProvider } from '@features/app-context';
+import { useLocalStorage } from '@mantine/hooks';
+import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { Router } from './router/router';
 
-// TODO: Should be a user setting
-const MAX_CONNECTION_POOL_SIZE = 10;
-
 export default function App() {
+  const [connectionPoolSize] = useLocalStorage({
+    key: LOCAL_STORAGE_KEYS.MAX_CONNECTION_POOL_SIZE,
+    defaultValue: 10,
+  });
   return (
     <MantineProvider theme={theme}>
       <ModalsProvider>
         <ModifierProvider>
-          <DuckDBConnectionPoolProvider maxPoolSize={MAX_CONNECTION_POOL_SIZE}>
+          <DuckDBConnectionPoolProvider maxPoolSize={connectionPoolSize}>
             <AppContextProvider>
               <Notifications />
               <AppState />

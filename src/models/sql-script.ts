@@ -14,3 +14,5 @@ export type SQLScript = {
 };
 
 export type ScriptExecutionState = 'idle' | 'running' | 'error' | 'success';
+
+export type RunScriptMode = 'all' | 'selection';
