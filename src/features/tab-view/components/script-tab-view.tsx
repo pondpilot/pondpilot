@@ -18,6 +18,7 @@ import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@contr
 import { Center, Stack, Text } from '@mantine/core';
 import { IconClipboardSmile } from '@tabler/icons-react';
 import { ScriptExecutionState } from '@models/sql-script';
+import { showError } from '@components/app-notifications';
 import { CachedDataView } from './cached-data-view';
 import { DataViewInfoPane } from './data-view-info-pane';
 
@@ -42,7 +43,6 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
   const runScriptQuery = useCallback(
     async (query: string) => {
       setScriptExecutionState('running');
-
       // Parse query into statements
       const statements = splitSQLByStats(query);
 
@@ -54,7 +54,11 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
       if (errors.length > 0) {
         console.error('Errors in SQL statements:', errors);
         setScriptExecutionState('error');
-        throw new Error('TODO: Implement UI for this error(s)');
+        showError({
+          title: 'Error in SQL statements',
+          message: errors.join('\n'),
+        });
+        return;
       }
 
       // Query to be used in data adapter
@@ -78,13 +82,16 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
           try {
             await conn.query(statement.code);
           } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
             if (needsTransaction) {
               await conn.query('ROLLBACK');
             }
             console.error('Error executing statement:', statement.type, error);
             setScriptExecutionState('error');
-            throw new Error('TODO: Implement UI for this error');
-            // Exit if any statement fails
+            showError({
+              title: 'Error executing SQL statement',
+              message: `Error in ${statement.type} statement: ${message}`,
+            });
             return;
           }
         }
@@ -96,6 +103,8 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
             const preparedStatement = await conn.prepare(lastStatement.code);
             await preparedStatement.close();
           } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+
             if (needsTransaction) {
               await conn.query('ROLLBACK');
             }
@@ -104,8 +113,10 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
               error,
             );
             setScriptExecutionState('error');
-            throw new Error('TODO: Implement UI for this error');
-            // Exit if last SELECT statement fails
+            showError({
+              title: 'Error executing SQL statement',
+              message: `Error in ${lastStatement.type} statement: ${message}`,
+            });
             return;
           }
           dataAdapterQuery = lastStatement.code;
@@ -120,8 +131,10 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
             }
             console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
             setScriptExecutionState('error');
-            throw new Error('TODO: Implement UI for this error');
-            // Exit if last non-SELECT statement fails
+            showError({
+              title: 'Error executing SQL statement',
+              message: `Error in ${lastStatement.type} statement: ${error}`,
+            });
             return;
           }
           dataAdapterQuery = "SELECT 'All statements executed successfully' as Result";

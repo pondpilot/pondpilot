@@ -10,6 +10,7 @@ import { StartGuide } from '@components/start-guide';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { importSQLFiles } from '@utils/import-script-file';
+import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { Navbar } from './components';
 
 export const MainPage = () => {
@@ -19,7 +20,10 @@ export const MainPage = () => {
 
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const { colorScheme } = useMantineColorScheme();
-  const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({ key: 'layout-sizes' });
+  const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({
+    key: LOCAL_STORAGE_KEYS.MAIN_LAYOUT_DIMENSIONS,
+  });
+
   const tabs = useAppStore.use.tabs();
   const hasTabs = tabs.size > 0;
 
