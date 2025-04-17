@@ -11,7 +11,7 @@ import { Notifications } from '@mantine/notifications';
 
 import { theme } from '@theme/theme';
 import { AppState } from '@features/app-state';
-import { DuckDBConnectionProvider } from '@features/duckdb-context/duckdb-context';
+import { DuckDBConnectionPoolProvider } from '@features/duckdb-context/duckdb-context';
 import { ModifierProvider } from '@components/modifier-context/modifier-context';
 import { AppContextProvider } from '@features/app-context';
 import { Router } from './router/router';
@@ -24,13 +24,13 @@ export default function App() {
     <MantineProvider theme={theme}>
       <ModalsProvider>
         <ModifierProvider>
-          <DuckDBConnectionProvider maxPoolSize={MAX_CONNECTION_POOL_SIZE}>
+          <DuckDBConnectionPoolProvider maxPoolSize={MAX_CONNECTION_POOL_SIZE}>
             <AppContextProvider>
               <Notifications />
               <AppState />
               <Router />
             </AppContextProvider>
-          </DuckDBConnectionProvider>
+          </DuckDBConnectionPoolProvider>
         </ModifierProvider>
       </ModalsProvider>
     </MantineProvider>

@@ -3,45 +3,165 @@ import { Allotment } from 'allotment';
 import { ScriptTab } from '@models/tab';
 import { QueryEditor } from '@features/query-editor';
 import { DataView } from '@features/tab-view/components/data-view';
-import { useInitializedDuckDBConnection } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useAppStore, useProtectedViews } from '@store/app-store';
 import { DataAdapterApi } from '@models/data-adapter';
 import { getArrowTableSchema } from '@utils/arrow/schema';
+import {
+  trimQuery,
+  splitSQLByStats,
+  classifySQLStatements,
+  validateStatements,
+  SQLStatement,
+} from '@utils/editor/sql';
 import { updateScriptTabEditorPaneHeight, updateTabDataViewLayout } from '@controllers/tab';
+import { Text } from '@mantine/core';
+import { CachedDataView } from './cached-data-view';
 
 interface ScriptTabViewProps {
   tab: ScriptTab;
   active: boolean;
 }
 
+type ScriptExecutioState = 'idle' | 'running' | 'error' | 'success';
+
 export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
   const [dataAdapter, setDataAdapter] = useState<DataAdapterApi | null>(null);
-  const conn = useInitializedDuckDBConnection();
+  const [scriptExecutionState, setScriptExecutionState] = useState<ScriptExecutioState>('idle');
+
+  const pool = useInitializedDuckDBConnectionPool();
+  const protectedViews = useProtectedViews();
+
+  // NON-REACTIVE acccess, as this is only used once to show the cached data
+  // after application start and before the first query is executed
+  const cachedData = useAppStore.getState().dataViewCache.get(tab.id);
+  const showCachedDataView = !dataAdapter && cachedData;
+  const showRunQueryCTA = !dataAdapter && !cachedData && scriptExecutionState === 'idle';
 
   const runScriptQuery = useCallback(
     async (query: string) => {
-      // setQueryRunning(true);
-      // const { data } = await runQueryDeprecated({ query, conn });
+      setScriptExecutionState('running');
+
+      // Parse query into statements
+      const statements = splitSQLByStats(query);
+
+      // Classify statements
+      const classifiedStatements = classifySQLStatements(statements);
+
+      // Check if the statements are valid
+      const errors = validateStatements(classifiedStatements, protectedViews);
+      if (errors.length > 0) {
+        console.error('Errors in SQL statements:', errors);
+        setScriptExecutionState('error');
+        throw new Error('TODO: Implement UI for this error(s)');
+        // Exit if any statement is invalid
+        return;
+      }
+
+      // Query to be used in data adapter
+      let dataAdapterQuery: string | null = null;
+
+      // Create a pooled connection
+      const conn = await pool.getPooledConnection();
+
+      try {
+        // No need transaction if there is only one statement
+        const needsTransaction =
+          classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
+
+        if (needsTransaction) {
+          await conn.query('BEGIN TRANSACTION');
+        }
+
+        // Execute each statement except the last one
+        const statsExceptLast = classifiedStatements.slice(0, -1);
+        for (const statement of statsExceptLast) {
+          try {
+            await conn.query(statement.code);
+          } catch (error) {
+            if (needsTransaction) {
+              await conn.query('ROLLBACK');
+            }
+            console.error('Error executing statement:', statement.type, error);
+            setScriptExecutionState('error');
+            throw new Error('TODO: Implement UI for this error');
+            // Exit if any statement fails
+            return;
+          }
+        }
+
+        const lastStatement = classifiedStatements[classifiedStatements.length - 1];
+        if (lastStatement.type === SQLStatement.SELECT) {
+          // Validate last SELECT statement via prepare
+          try {
+            const preparedStatement = await conn.prepare(lastStatement.code);
+            await preparedStatement.close();
+          } catch (error) {
+            if (needsTransaction) {
+              await conn.query('ROLLBACK');
+            }
+            console.error(
+              'Creation of a prepared statement for the last SELECT statement failed:',
+              error,
+            );
+            setScriptExecutionState('error');
+            throw new Error('TODO: Implement UI for this error');
+            // Exit if last SELECT statement fails
+            return;
+          }
+          dataAdapterQuery = lastStatement.code;
+        } else {
+          // The last statement is not a SELECT statement
+          // Execute it immediately
+          try {
+            await conn.query(lastStatement.code);
+          } catch (error) {
+            if (needsTransaction) {
+              await conn.query('ROLLBACK');
+            }
+            console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
+            setScriptExecutionState('error');
+            throw new Error('TODO: Implement UI for this error');
+            // Exit if last non-SELECT statement fails
+            return;
+          }
+          dataAdapterQuery = "SELECT 'All statements executed successfully' as Result";
+        }
+
+        // All statements executed successfully
+        if (needsTransaction) {
+          await conn.query('COMMIT');
+          // TODO: Update metadata
+          console.log('TODO: Queue metadata update');
+        }
+      } finally {
+        // Release the pooled connection
+        await conn.close();
+      }
+
+      setScriptExecutionState('success');
+
       setDataAdapter({
         getSchema: async () => {
           // TODO: find more performant way to get schema
-          const result = await conn.query(`SELECT * FROM (${query}) LIMIT 0`);
+          const result = await pool.query(`SELECT * FROM (${trimQuery(dataAdapterQuery)}) LIMIT 0`);
           return getArrowTableSchema(result);
         },
         getReader: async (sort) => {
-          let fullQuery = query;
+          let fullQuery = dataAdapterQuery;
 
           if (sort.length > 0) {
-            const orderBy = sort.map((s) => `${s.column} ${s.order || 'asc'}`).join(', ');
+            const orderBy = sort.map((s) => `"${s.column}" ${s.order || 'asc'}`).join(', ');
             fullQuery = `
-              SELECT * FROM (${query}) ORDER BY ${orderBy}`;
+              SELECT * FROM (${trimQuery(dataAdapterQuery)}) ORDER BY ${orderBy}`;
           }
-          const reader = await conn.send(fullQuery, true);
+          const reader = await pool.send(fullQuery, true);
           return reader;
         },
       });
       // setQueryRunning(false);
     },
-    [conn],
+    [pool, protectedViews],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {
@@ -64,10 +184,18 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
         </Allotment.Pane>
 
         <Allotment.Pane preferredSize={tab.dataViewLayout.dataViewPaneHeight} minSize={120}>
+          {showRunQueryCTA && (
+            <div className="h-full w-full flex items-center justify-center">
+              <Text c="text-primary" className="text-2xl font-medium">
+                Run your query to see the results
+              </Text>
+            </div>
+          )}
           {dataAdapter ? (
             <DataView visible={active} cacheKey={tab.id} dataAdapterApi={dataAdapter} />
+          ) : showCachedDataView ? (
+            <CachedDataView cachedData={cachedData} />
           ) : null}
-          <div></div>
         </Allotment.Pane>
       </Allotment>
     </div>

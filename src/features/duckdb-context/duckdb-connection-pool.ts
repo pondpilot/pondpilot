@@ -2,6 +2,7 @@ import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import type * as arrow from 'apache-arrow';
 import { PoolTimeoutError } from './timeout-error';
 import { AsyncDuckDBPooledStreamReader } from './duckdb-pooled-streaming-reader';
+import { AsyncDuckDBPooledConnection } from './duckdb-pooled-conection';
 
 // Should this be a user setting?
 const GET_CONNECTION_TIMEOUT = 10000; // 10 seconds
@@ -18,7 +19,8 @@ type DuckDBConnectionConnAndIdex = { conn: AsyncDuckDBConnection; index: number 
  * "own" the connection for the duration of the query, and release it back
  * to the pool when done.
  *
- * For longer living actions, that require locking a connection (send, prepare)
+ * For longer living actions, that require locking a connection (send, prepare,
+ * or non-streaming but multi statement queries with transactions),
  * it returns a managed wrapper that ensure proper cleanup of the connection.
  *
  * NOTE: currently onlt `send` is implemented, but `prepare` can be added in the
@@ -115,14 +117,11 @@ export class AsyncDuckDBConnectionPool {
   /**
    * Release a connection back to the pool.
    *
-   * This is not a fully public API, and is for internal use
-   * only. It is used by the `AsyncDuckDBPooledStreamReader`
-   *
    * This method doesn't automatically close pending queries! Use
    * with care, either after "one-off" actions, or after cleaning
    * up the connection (cancelling pending queries/statments).
    */
-  public releaseConnection(index: number) {
+  _releaseConnection(index: number) {
     // Mark the connection as not in use
     this._inUse.delete(index);
   }
@@ -135,7 +134,28 @@ export class AsyncDuckDBConnectionPool {
     this._connections.length = 0;
   }
 
-  // DuckDB Async onnection methods re-wrapped, these should have the exact
+  /**
+   * Get a long-living pooled connection.
+   *
+   * @returns A promise that resolves to a pooled connection object.
+   * @throws {PoolTimeoutError} If the pool is full and no connection is available within the timeout.
+   * @throws {Error} Any underlying error from the DuckDB connection.
+   */
+  public async getPooledConnection(): Promise<AsyncDuckDBPooledConnection> {
+    // Try to get a connection from the pool
+    const { conn, index } = await this._getConnection();
+
+    // Return a pooled connection
+    return new AsyncDuckDBPooledConnection({
+      conn,
+      onClose: async () => {
+        // Release the connection back to the pool
+        this._releaseConnection(index);
+      },
+    });
+  }
+
+  // DuckDB Async connection methods re-wrapped, these should have the exact
   // same or compatible APIs
 
   /** Access the database instance aka bindings */
@@ -161,7 +181,7 @@ export class AsyncDuckDBConnectionPool {
     const res = await conn.getTableNames(...params);
 
     // Release the connection back to the pool
-    this.releaseConnection(index);
+    this._releaseConnection(index);
 
     // Return the result
     return res;
@@ -190,7 +210,7 @@ export class AsyncDuckDBConnectionPool {
     const res = await conn.query<T>(text);
 
     // Release the connection back to the pool
-    this.releaseConnection(index);
+    this._releaseConnection(index);
 
     return res;
   }
@@ -199,7 +219,7 @@ export class AsyncDuckDBConnectionPool {
    * Starts a streaming query using a pooled connection.
    *
    * @param text The SQL query to execute.
-   * @returns A promise that resolves to the result of the query.
+   * @returns A promise that resolves to a `AsyncDuckDBPooledStreamReader` instance.
    * @throws {PoolTimeoutError} If the pool is full and no connection is available within the timeout.
    * @throws {Error} Any underlying error from the DuckDB connection.
    */
@@ -215,6 +235,17 @@ export class AsyncDuckDBConnectionPool {
     const reader = await conn.send<T>(text, allowStreamResult);
 
     // Return a pooled reader
-    return new AsyncDuckDBPooledStreamReader<T>(index, reader, conn, this);
+    return new AsyncDuckDBPooledStreamReader<T>({
+      reader,
+      onClose: async () => {
+        // cancelPending in the connection in case reader haven't reached the end.
+        // Note that DuckDB will return `false` if the query is already done, but
+        // we do not check the result.
+        await conn.cancelSent();
+
+        // Release the connection back to the pool
+        this._releaseConnection(index);
+      },
+    });
   }
 }

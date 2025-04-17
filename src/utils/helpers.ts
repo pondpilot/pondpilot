@@ -34,32 +34,8 @@ export const findUniqueName = (name: string, checkIfExists: (name: string) => bo
   return uniqueName;
 };
 
-/**
- * Helper to get the session directory handle from `navigator.storage`.
- */
-export const getSessionDirectory = async (sessionDirId = 'main') => {
-  const root = await navigator.storage.getDirectory();
-  const dir = await root.getDirectoryHandle(sessionDirId, { create: true });
-  return dir;
-};
-
 export const replaceSpecialChars = (str: string): string =>
   str.trim().replace(/[^a-zA-Z0-9]/g, '_');
-
-/**
- * Creates item name by removing the file extension and replacing hyphens with underscores.
- *
- * @param {string} fileName - The name of the file with extension.
- * @returns {string} The generated view name.
- */
-export const createName = (fileName: string): string => {
-  const sanitize = (str: string): string => str.replace(/[- ()/]/g, '_');
-
-  const name = sanitize(fileName.split('.')[0]);
-  const ext = fileName.split('.').pop();
-
-  return Number.isNaN(Number(name[0])) ? name : `${ext}_${name}`;
-};
 
 export function quote(s: string): string {
   // Replace each quote with two quotes and wrap result in quotes

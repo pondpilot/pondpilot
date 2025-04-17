@@ -178,8 +178,8 @@ export const DataView = ({ visible, cacheKey, dataAdapterApi }: DataViewProps) =
   const getNewReader = async (newSortParams: ColumnSortSpec | null | undefined) => {
     // Now try creating the reader. This may throw an error, so catch it
     try {
-      const newReader = await dataAdapterApi.getReader(newSortParams ? [newSortParams] : []);
       const newSchema = await dataAdapterApi.getSchema();
+      const newReader = await dataAdapterApi.getReader(newSortParams ? [newSortParams] : []);
       setSchema(newSchema);
       setReader(newReader);
     } catch (error) {
