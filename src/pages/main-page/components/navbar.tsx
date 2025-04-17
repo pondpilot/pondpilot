@@ -108,15 +108,15 @@ export const Navbar = memo(() => {
                   onClick={() => handleAddFile()}
                   size={16}
                   key="Upload file"
-                  data-testid={setDataTestId('add-file-button')}
+                  data-testid={setDataTestId('navbar-add-file-button')}
                 >
                   <IconPlus />
                 </ActionIcon>
                 <ActionIcon
                   onClick={handleAddFolder}
                   size={16}
-                  key="Upload file"
-                  data-testid={setDataTestId('add-file-button')}
+                  key="Upload folder"
+                  data-testid={setDataTestId('navbar-add-folder-button')}
                 >
                   <IconFolderPlus />
                 </ActionIcon>
