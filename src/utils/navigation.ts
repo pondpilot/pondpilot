@@ -40,7 +40,7 @@ export function getTabName(
     return 'Unknown data source';
   }
 
-  return getFlatFileDataSourceName(dataSource, localEntries);
+  return getFlatFileDataSourceName(dataSource, localEntries, { nonAliased: true });
 }
 
 export function getTabIcon(
@@ -84,6 +84,7 @@ export function getLocalEntryIcon(entry: LocalEntry): IconType {
 export function getFlatFileDataSourceName(
   dataSource: AnyFlatFileDataSource,
   localEntries: Map<LocalEntryId, LocalEntry>,
+  options?: { nonAliased?: boolean },
 ): string;
 /**
  * Constructs a data source name based on state.
@@ -91,10 +92,12 @@ export function getFlatFileDataSourceName(
 export function getFlatFileDataSourceName(
   dataSource: AnyFlatFileDataSource,
   localEntry: LocalEntry,
+  options?: { nonAliased?: boolean },
 ): string;
 export function getFlatFileDataSourceName(
   dataSource: AnyFlatFileDataSource,
   localEntriesOrEntry: Map<LocalEntryId, LocalEntry> | LocalEntry,
+  options?: { nonAliased?: boolean },
 ): string {
   let localEntry: LocalEntry;
 
@@ -105,12 +108,12 @@ export function getFlatFileDataSourceName(
   }
 
   if (dataSource.type === 'xlsx-sheet') {
-    return dataSource.sheetName === dataSource.viewName
+    return dataSource.sheetName === dataSource.viewName || options?.nonAliased
       ? dataSource.viewName
       : `${dataSource.viewName} (${localEntry.uniqueAlias}::${dataSource.sheetName})`;
   }
 
-  return localEntry.uniqueAlias === dataSource.viewName
+  return localEntry.uniqueAlias === dataSource.viewName || options?.nonAliased
     ? dataSource.viewName
     : `${dataSource.viewName} (${localEntry.uniqueAlias})`;
 }
