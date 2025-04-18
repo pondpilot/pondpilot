@@ -5,10 +5,10 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
   useSensor,
   useSensors,
   DragEndEvent,
+  MouseSensor,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -42,12 +42,7 @@ export const TabsPane = memo(() => {
    * Common hooks
    */
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        delay: 0,
-        tolerance: 5,
-      },
-    }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 3 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
