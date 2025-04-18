@@ -2,7 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { memo, useMemo } from 'react';
 import { useAppStore, useFlatFileDataSourceMap } from '@store/app-store';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
-import { AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
+import { AnyFlatFileDataSource, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
 import {
   getFlatFileDataSourceIcon,
   getFlatFileDataSourceName,
@@ -97,6 +97,17 @@ export const FileSystemExplorer = memo(() => {
         return a.uniqueAlias.localeCompare(b.uniqueAlias);
       });
 
+      // Group XLSX sheets by parent file
+      const xlsxSheetsByFileId = new Map<LocalEntryId, XlsxSheetView[]>();
+      for (const source of flatFileSources.values()) {
+        if (source.type === 'xlsx-sheet') {
+          const fileId = source.fileSourceId; // This is the parent XLSX file's ID
+          const sheets = xlsxSheetsByFileId.get(fileId) || [];
+          sheets.push(source as XlsxSheetView);
+          xlsxSheetsByFileId.set(fileId, sheets);
+        }
+      }
+
       children.forEach((entry) => {
         if (entry.kind === 'directory') {
           anyNodeIdToNodeTypeMap.set(entry.id, { nodeType: 'folder', userAdded: entry.userAdded });
@@ -128,6 +139,110 @@ export const FileSystemExplorer = memo(() => {
             ],
             children: buildTree(entry.id),
           });
+          return;
+        }
+
+        if (entry.ext === 'xlsx' && xlsxSheetsByFileId.has(entry.id)) {
+          const sheets = xlsxSheetsByFileId.get(entry.id)!;
+
+          // Sort sheets alphabetically for consistent display
+          // TODO: Check if SheetJS is consistent and then switch back to "Natural" order(?)
+          sheets.sort((a, b) => a.sheetName.localeCompare(b.sheetName));
+
+          anyNodeIdToNodeTypeMap.set(entry.id, {
+            nodeType: 'file',
+            userAdded: entry.userAdded,
+          });
+
+          // Create a parent node for the XLSX file
+          const xlsxNode: TreeNodeData<FSExplorerNodeTypeToIdTypeMap> = {
+            nodeType: 'file',
+            value: entry.id,
+            label: entry.name,
+            iconType: 'xlsx',
+            isDisabled: false,
+            isSelectable: false,
+            defaultExpanded: true, // TODO: This doesn't work, somehow
+            onDelete: entry.userAdded
+              ? () => deleteLocalFileOrFolders(conn, [entry.id])
+              : undefined,
+            contextMenu: [
+              {
+                children: [
+                  {
+                    label: 'Copy name',
+                    onClick: () => {
+                      copyToClipboard(entry.uniqueAlias, { showNotification: true });
+                    },
+                  },
+                ],
+              },
+            ],
+            children: sheets.map((sheet) => {
+              const sheetLabel = sheet.sheetName;
+              const value = sheet.id;
+              const fqn = `main.${toDuckDBIdentifier(sheet.viewName)}`;
+
+              const sheetNode: TreeNodeData<FSExplorerNodeTypeToIdTypeMap> = {
+                nodeType: 'sheet',
+                value,
+                label: sheetLabel,
+                iconType: 'table',
+                isDisabled: false,
+                isSelectable: true,
+                onNodeClick: (): void => {
+                  const existingTab = findTabFromFlatFileDataSource(sheet.id);
+                  if (existingTab) {
+                    setActiveTabId(existingTab.id);
+                    return;
+                  }
+
+                  const tab = getOrCreateTabFromFlatFileDataSource(sheet.id, true);
+                  setPreviewTabId(tab.id);
+                },
+                onCloseItemClick: (): void => {
+                  deleteTabByDataSourceId(sheet.id);
+                },
+                contextMenu: [
+                  {
+                    children: [
+                      {
+                        label: 'Copy Full Name',
+                        onClick: () => {
+                          copyToClipboard(fqn, { showNotification: true });
+                        },
+                        onAlt: {
+                          label: 'Copy Name',
+                          onClick: () => {
+                            copyToClipboard(toDuckDBIdentifier(sheet.viewName), {
+                              showNotification: true,
+                            });
+                          },
+                        },
+                      },
+                      {
+                        label: 'Create a Query',
+                        onClick: () => {
+                          const query = `SELECT * FROM ${fqn};`;
+                          const newScript = createSQLScript(`${sheet.sheetName}_query`, query);
+                          getOrCreateTabFromScript(newScript, true);
+                        },
+                      },
+                    ],
+                  },
+                ],
+              };
+
+              anyNodeIdToNodeTypeMap.set(sheetNode.value, {
+                nodeType: 'sheet',
+                userAdded: entry.userAdded,
+              });
+
+              return sheetNode;
+            }),
+          };
+
+          fileTreeChildren.push(xlsxNode);
           return;
         }
 
@@ -237,12 +352,14 @@ export const FileSystemExplorer = memo(() => {
   );
 
   const handleDeleteSelected = async (ids: Iterable<LocalEntryId | PersistentDataSourceId>) => {
-    // Split the ids into files and folders (different id types, differet delete methods).
+    // Split the ids into files, sheets, and folders (different id types, different delete methods).
     // We also doing a double check here to make sure we are not deleting
     // non user-added elements. Theoretically, these should not end up here,
     // but just in case.
     const files: PersistentDataSourceId[] = [];
+    const sheets: PersistentDataSourceId[] = [];
     const folders: LocalEntryId[] = [];
+
     for (const id of ids) {
       const { nodeType, userAdded } = anyNodeIdToNodeTypeMap.get(id) || {
         nodeType: undefined,
@@ -264,16 +381,19 @@ export const FileSystemExplorer = memo(() => {
 
       if (nodeType === 'file') {
         files.push(id as PersistentDataSourceId);
+      } else if (nodeType === 'sheet') {
+        sheets.push(id as PersistentDataSourceId);
       } else {
         folders.push(id as LocalEntryId);
       }
     }
 
-    // Delete the files first, although as of today, files & folders can't
+    // Delete the files and sheets first, although as of today, files & folders can't
     // overlap, as all files inside folders should be marked as not user-added
-    if (files.length > 0) {
-      // Delete the files
-      deleteDataSources(conn, files);
+    if (files.length > 0 || sheets.length > 0) {
+      // Delete the files and sheets
+      const dataSourcesIds = [...files, ...sheets];
+      deleteDataSources(conn, dataSourcesIds);
     }
 
     if (folders.length > 0) {

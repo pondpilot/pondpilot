@@ -1,6 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { createXlsxSheetViewQuery } from '@utils/xlsx';
 
 /**
  * Register regular data source file (not a databse) and create a view
@@ -149,4 +150,53 @@ export async function detachAndUnregisterDatabase(
    * Unregister file handle
    */
   await db.dropFile(fileName).catch(console.error);
+}
+
+/**
+ * Register an XLSX file and create a view for a specific sheet
+ *
+ * @param conn - DuckDB connection pool
+ * @param handle - File handle pointing to an XLSX file
+ * @param fileName - A valid, unique file name to register
+ * @param sheetName - The name of the sheet to create a view for
+ * @param viewName - A valid, unique identifier of the view to create
+ */
+/**
+ * Register a file handle with DuckDB
+ * 
+ * @param conn - DuckDB connection pool
+ * @param handle - File handle to register
+ * @param fileName - A valid, unique name to register the file as
+ * @returns The registered file
+ */
+export async function registerFileHandle(
+  conn: AsyncDuckDBConnectionPool,
+  handle: FileSystemFileHandle,
+  fileName: string,
+): Promise<File> {
+  const file = await handle.getFile();
+  const db = conn.bindings;
+
+  // Drop file if it already exists
+  await db.dropFile(fileName).catch(console.error);
+  
+  // Register the file handle with DuckDB
+  await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+  
+  return file;
+}
+
+export async function registerXlsxSheetAndCreateView(
+  conn: AsyncDuckDBConnectionPool,
+  handle: FileSystemFileHandle,
+  fileName: string,
+  sheetName: string,
+  viewName: string,
+) {
+  // Register the file first
+  await registerFileHandle(conn, handle, fileName);
+
+  // Create view for the specific sheet
+  const query = createXlsxSheetViewQuery(fileName, sheetName, toDuckDBIdentifier(viewName));
+  await conn.query(query);
 }

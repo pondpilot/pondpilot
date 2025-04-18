@@ -73,7 +73,9 @@ export function getLocalEntryIcon(entry: LocalEntry): IconType {
         ? 'db'
         : entry.ext === 'parquet'
           ? 'db-table'
-          : entry.ext;
+          : entry.ext === 'xlsx'
+            ? 'xlsx'
+            : entry.ext;
 }
 
 /**
@@ -123,5 +125,8 @@ export function getAttachedDBDataSourceName(dbName: string, localEntry: LocalEnt
 }
 
 export function getFlatFileDataSourceIcon(dataSource: AnyFlatFileDataSource): IconType {
+  if (dataSource.type === 'xlsx-sheet') {
+    return 'table';
+  }
   return dataSource.type;
 }

@@ -175,6 +175,25 @@ export const DuckDBConnectionPoolProvider = ({
         return null;
       }
 
+      // Install and load Excel extension for XLSX support
+      // TODO: This relies on core_nightly, remove when in main.
+      try {
+        setInitStatus({
+          state: 'loading',
+          message: 'Installing Excel extension...',
+        });
+        const tempConn = await newDb.connect();
+        await tempConn.query('INSTALL excel FROM core_nightly;');
+        await tempConn.query('LOAD excel;');
+        await tempConn.close();
+      } catch (e: any) {
+        setInitStatus({
+          state: 'error',
+          message: `Error installing Excel extension: ${e.toString()}`,
+        });
+        return null;
+      }
+
       // Finally, get the connection
       try {
         const pool = new AsyncDuckDBConnectionPool(newDb, maxPoolSize);

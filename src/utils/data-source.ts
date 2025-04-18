@@ -92,9 +92,40 @@ export function addFlatFileDataSource(
         fileSourceId: localEntry.id,
         viewName,
       };
+    case 'xlsx':
+      // For XLSX files, we don't create a direct data source
+      // since they're handled specially as containers for sheets
+      throw new Error('XLSX files should be processed with addXlsxSheetDataSource');
     default:
       throw new Error('TODO: Supported data source file type');
   }
+}
+
+/**
+ * Create a data source for a specific sheet in an XLSX file
+ */
+export function addXlsxSheetDataSource(
+  localEntry: DataSourceLocalFile,
+  sheetName: string,
+  reservedViews: Set<string>,
+): AnyFlatFileDataSource {
+  if (localEntry.ext !== 'xlsx') {
+    throw new Error('Only XLSX files can be used to create sheet data sources');
+  }
+
+  const dataSourceId = makePersistentDataSourceId();
+
+  // Create a view name based on both file and sheet name
+  const baseViewName = `${localEntry.uniqueAlias}_${sheetName}`;
+  const viewName = findUniqueName(baseViewName, (name: string) => reservedViews.has(name));
+
+  return {
+    id: dataSourceId,
+    type: 'xlsx-sheet',
+    fileSourceId: localEntry.id,
+    viewName,
+    sheetName,
+  };
 }
 
 export function addAttachedDB(

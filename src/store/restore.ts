@@ -1,3 +1,4 @@
+import * as duckdb from '@duckdb/duckdb-wasm';
 import { IDBPDatabase, openDB } from 'idb';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
@@ -16,12 +17,16 @@ import {
   LocalFolder,
 } from '@models/file-system';
 import { findUniqueName } from '@utils/helpers';
-import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
+import { AnyDataSource, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { getXlsxSheetNames } from '@utils/xlsx';
 import {
   registerAndAttachDatabase,
+  registerFileHandle,
   registerFileSourceAndCreateView,
+  registerXlsxSheetAndCreateView,
 } from '@controllers/db/data-source';
-import { addAttachedDB, addFlatFileDataSource } from '@utils/data-source';
+import { addAttachedDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import {
   ALL_TABLE_NAMES,
@@ -425,11 +430,13 @@ export const restoreAppDataFromIDB = async (
   const missingDataSources: Map<PersistentDataSourceId, AnyDataSource> = new Map();
 
   // Re-create data views and attached db's in duckDB
-  await Promise.all(
-    localEntriesMap.values().map(async (localEntry) => {
-      if (localEntry.kind !== 'file' || localEntry.fileType !== 'data-source') {
-        return;
-      }
+  const registerPromises = Array.from(localEntriesMap.values()).map(async (localEntry) => {
+    if (localEntry.kind !== 'file' || localEntry.fileType !== 'data-source') {
+      return;
+    }
+
+    // Catch NotFoundError and other issues with file handles
+    try {
       switch (localEntry.ext) {
         case 'duckdb': {
           // Get the existing data source for this entry
@@ -452,7 +459,96 @@ export const restoreAppDataFromIDB = async (
           break;
         }
         case 'xlsx': {
-          throw new Error('TODO: implement xlsx-sheet data source restore');
+          // For XLSX files, we need to:
+          // 1. Get the current sheet names
+          // 2. Compare with stored data sources for this file
+          // 3. Keep valid sheets, register missing sheets, remove deleted sheets
+
+          // Register the file with DuckDB
+          const fileName = `${localEntry.uniqueAlias}.${localEntry.ext}`;
+
+          // Register file handle - this may throw NotFoundError if the file no longer exists
+          const xlsxFile = await registerFileHandle(conn, localEntry.handle, fileName);
+
+          // Get current sheet names
+          const currentSheetNames = await getXlsxSheetNames(xlsxFile);
+
+          if (currentSheetNames.length === 0) {
+            warnings.push(`XLSX file ${localEntry.name} has no sheets.`);
+            break;
+          }
+
+          // Find all data sources associated with this file
+          const associatedDataSources = Array.from(dataSources.values()).filter(
+            (ds) => ds.type === 'xlsx-sheet' && ds.fileSourceId === localEntry.id,
+          ) as XlsxSheetView[];
+
+          // Create a set of current sheet names for quick lookup
+          const currentSheetSet = new Set(currentSheetNames);
+
+          // Check for data sources that need to be removed (sheets no longer in the file)
+          const validDataSources = associatedDataSources.filter((ds) =>
+            currentSheetSet.has(ds.sheetName),
+          );
+
+          // Find sheets that need to be added (not in existing data sources)
+          const existingSheetNames = new Set(validDataSources.map((ds) => ds.sheetName));
+          const newSheets = currentSheetNames.filter((name) => !existingSheetNames.has(name));
+
+          // Create data sources for new sheets
+          for (const sheetName of newSheets) {
+            const sheetDataSource = addXlsxSheetDataSource(localEntry, sheetName, _reservedViews);
+            _reservedViews.add(sheetDataSource.viewName);
+            missingDataSources.set(sheetDataSource.id, sheetDataSource);
+
+            // Create views for new sheets
+            await registerXlsxSheetAndCreateView(
+              conn,
+              localEntry.handle,
+              fileName,
+              sheetName,
+              sheetDataSource.viewName,
+            );
+          }
+
+          // Register existing sheets
+          for (const dataSource of validDataSources) {
+            await registerXlsxSheetAndCreateView(
+              conn,
+              localEntry.handle,
+              fileName,
+              dataSource.sheetName,
+              dataSource.viewName,
+            );
+          }
+
+          // Remove data sources for deleted sheets
+          const sheetsToRemove = associatedDataSources.filter(
+            (ds) => !currentSheetSet.has(ds.sheetName),
+          );
+          if (sheetsToRemove.length > 0) {
+            // Drop views for deleted sheets
+            for (const dataSource of sheetsToRemove) {
+              await conn
+                .query(`DROP VIEW IF EXISTS ${toDuckDBIdentifier(dataSource.viewName)};`)
+                .catch(console.error);
+              dataSources.delete(dataSource.id);
+            }
+
+            // Delete from IndexedDB in bulk
+            const deleteTx = iDbConn.transaction(DATA_SOURCE_TABLE_NAME, 'readwrite');
+            const sheetIds = sheetsToRemove.map((ds) => ds.id);
+            for (const id of sheetIds) {
+              await deleteTx.store.delete(id);
+            }
+            await deleteTx.done;
+
+            warnings.push(
+              `Removed ${sheetsToRemove.length} sheet(s) from ${localEntry.name} that no longer exist.`,
+            );
+          }
+
+          break;
         }
         default: {
           // Get the existing data source for this entry
@@ -478,8 +574,39 @@ export const restoreAppDataFromIDB = async (
           break;
         }
       }
-    }),
-  );
+    } catch (error) {
+      // Handle errors with file handles (NotFoundError, etc.)
+      console.error(`Error processing file ${localEntry.name}:`, error);
+
+      // Add to discarded entries
+      discardedEntries.push({
+        type: 'error',
+        entry: localEntry,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+
+      // Remove from local entries map
+      localEntriesMap.delete(localEntry.id);
+
+      // Remove any associated data sources
+      const associatedDataSources = Array.from(dataSources.entries()).filter(
+        ([_, ds]) => ds.fileSourceId === localEntry.id,
+      );
+
+      for (const [id] of associatedDataSources) {
+        dataSources.delete(id);
+      }
+
+      // Add a warning
+      warnings.push(
+        `File ${localEntry.name} could not be accessed and was removed from the workspace.`,
+      );
+
+      // Skip this entry
+    }
+  });
+
+  await Promise.all(registerPromises);
 
   if (missingDataSources.size > 0) {
     // Ok, we need yet another transaction to add the missing data views
