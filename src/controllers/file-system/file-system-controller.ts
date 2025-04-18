@@ -31,7 +31,7 @@ import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { useAppStore } from '@store/app-store';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { deleteDataSources } from '@controllers/data-source';
-import { persistAddLocalEntry } from './persist';
+import { persistAddLocalEntry, persistDeleteLocalEntry } from './persist';
 
 /**
  * ------------------------------------------------------------
@@ -310,7 +310,7 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
  */
 
 export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: LocalEntryId[]) => {
-  const { dataSources, localEntries } = useAppStore.getState();
+  const { dataSources, localEntries, _iDbConn: iDbConn } = useAppStore.getState();
 
   const folderChildren = new Map<LocalEntryId, LocalEntry[]>();
   for (const [_, entry] of localEntries) {
@@ -357,6 +357,7 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
 
   deleteDataSources(conn, dataSourceIdsToDelete);
 
+  // Delete folder entries from State
   const { localEntries: freshLocalEntries } = useAppStore.getState();
   const newLocalEntires = new Map(
     Array.from(freshLocalEntries).filter(([id, _]) => !folderIdsToDelete.has(id)),
@@ -368,4 +369,9 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
     undefined,
     'AppStore/deleteFolder',
   );
+
+  // Delete folder entries from IDB
+  if (iDbConn) {
+    persistDeleteLocalEntry(iDbConn, folderIdsToDelete);
+  }
 };
