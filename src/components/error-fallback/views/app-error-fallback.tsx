@@ -5,11 +5,12 @@ import { IconCircleCheck, IconRefresh, IconDownload, IconTrash } from '@tabler/i
 import { exportSQLScripts } from '@controllers/export-data';
 import { APP_SUPPORT_URL } from 'app-urls';
 import { setDataTestId } from '@utils/test-id';
+import { ErrorStackView } from '@components/error-stack-view';
 import { deleteApplicationData } from '../utils';
 
 export const AppErrorFallback = () => {
   const [exportError, setExportError] = useState<boolean>(false);
-  const error = useRouteError() as { message: string; stack: string };
+  const error = useRouteError() as Error;
 
   // Handlers
   const exportArchive = async () => {
@@ -35,29 +36,7 @@ export const AppErrorFallback = () => {
           Something went wrong 🤷‍♂️
         </Text>
 
-        <Box bg="gray.0" p="md" style={{ borderRadius: '8px' }}>
-          <details>
-            <summary
-              style={{
-                cursor: 'pointer',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <Text size="sm" fw={500} component="span">
-                Error details:
-              </Text>
-              <Text size="sm" c="blue" component="span">
-                Show/hide details
-              </Text>
-            </summary>
-            <div className="mt-2">
-              <pre className="bg-zinc-200 p-2 text-sm mt-xs">{error.message}</pre>
-              <pre className="bg-zinc-200 p-2 text-sm overflow-auto max-h-32">{error.stack}</pre>
-            </div>
-          </details>
-        </Box>
+        <ErrorStackView error={error} />
 
         <Text size="xl" fw={700}>
           Follow these steps to recover:
