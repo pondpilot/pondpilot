@@ -54,6 +54,10 @@ export interface CSVView extends FlatFileDataSource {
   readonly type: 'csv';
 }
 
+export interface JSONView extends FlatFileDataSource {
+  readonly type: 'json';
+}
+
 export interface ParquetView extends FlatFileDataSource {
   readonly type: 'parquet';
 }
@@ -73,7 +77,7 @@ export interface XlsxSheetView extends FlatFileDataSource {
   sheetName: string;
 }
 
-export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView;
+export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView | JSONView;
 
 export interface AttachedDB extends SingleFileDataSourceBase {
   readonly type: 'attached-db';
