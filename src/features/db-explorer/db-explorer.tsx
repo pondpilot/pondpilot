@@ -375,7 +375,7 @@ export const DbExplorer = memo(() => {
       .filter((fqn) => fqn !== undefined)
       .map((fqn) => fqn.db);
 
-    deleteDataSources(conn, dbIds);
+    await deleteDataSources(conn, dbIds);
   };
 
   return (
