@@ -30,6 +30,7 @@ import { makeSQLScriptId } from '@utils/sql-script';
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { useAppStore } from '@store/app-store';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { deleteDataSources } from '@controllers/data-source';
 import { persistAddLocalEntry } from './persist';
 
 /**
@@ -309,5 +310,62 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
  */
 
 export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: LocalEntryId[]) => {
-  throw new Error('TODO: implement delete for folders');
+  const { dataSources, localEntries } = useAppStore.getState();
+
+  const folderChildren = new Map<LocalEntryId, LocalEntry[]>();
+  for (const [_, entry] of localEntries) {
+    if (entry.parentId === null) {
+      continue;
+    }
+    const children = folderChildren.get(entry.parentId) || [];
+    children.push(entry);
+    folderChildren.set(entry.parentId, children);
+  }
+
+  const fileIdToDataSourceId = new Map<LocalEntryId, PersistentDataSourceId>();
+  for (const [dataSourceId, dataSource] of dataSources) {
+    fileIdToDataSourceId.set(dataSource.fileSourceId, dataSourceId);
+  }
+
+  const dataSourceIdsToDelete: PersistentDataSourceId[] = [];
+  const folderIdsToDelete = new Set<LocalEntryId>();
+
+  const collectDataSourceIdsRecursively = (folder: LocalFolder) => {
+    folderIdsToDelete.add(folder.id);
+    const children = folderChildren.get(folder.id);
+    if (children) {
+      for (const child of children) {
+        if (child.kind === 'directory') {
+          collectDataSourceIdsRecursively(child);
+        } else {
+          const dataSourceId = fileIdToDataSourceId.get(child.id);
+          if (dataSourceId) {
+            dataSourceIdsToDelete.push(dataSourceId);
+          }
+        }
+      }
+    }
+  };
+
+  for (const folderId of ids) {
+    const localEntry = localEntries.get(folderId);
+    if (!localEntry || localEntry.kind !== 'directory') {
+      return;
+    }
+    collectDataSourceIdsRecursively(localEntry);
+  }
+
+  deleteDataSources(conn, dataSourceIdsToDelete);
+
+  const { localEntries: freshLocalEntries } = useAppStore.getState();
+  const newLocalEntires = new Map(
+    Array.from(freshLocalEntries).filter(([id, _]) => !folderIdsToDelete.has(id)),
+  );
+  useAppStore.setState(
+    {
+      localEntries: newLocalEntires,
+    },
+    undefined,
+    'AppStore/deleteFolder',
+  );
 };

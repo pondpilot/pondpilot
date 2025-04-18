@@ -99,7 +99,7 @@ export const useAddLocalFilesOrFolders = () => {
       autoClose: false,
       color: 'text-accent',
     });
-    const { skippedExistingEntries, skippedUnsupportedFiles, skippedEmptyFolders } =
+    const { skippedExistingEntries, skippedUnsupportedFiles, skippedEmptyFolders, errors } =
       await addLocalFileOrFolders(conn, [handle]);
     notifications.hide(notificationId);
 
@@ -140,6 +140,13 @@ export const useAddLocalFilesOrFolders = () => {
         message: `${skippedEmptyFolders.length} folders were not added because no supported files were found.`,
       });
     }
+
+    errors.forEach((errorMessage) => {
+      showError({
+        title: 'Error',
+        message: errorMessage,
+      });
+    });
   };
 
   return {
