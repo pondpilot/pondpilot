@@ -79,7 +79,7 @@ function getFlatFileDataAdapterApi(
     };
   }
 
-  if (dataSource.type === 'csv') {
+  if (dataSource.type === 'csv' || dataSource.type === 'json') {
     return {
       ...baseAttrs,
       getEstimatedRowCount: async () => {
@@ -194,11 +194,7 @@ export function getFileDataAdapterApi(
     return getAttachedDBDataAdapterApi(conn, dataSource, schema, tab);
   }
 
-  if (
-    dataSource.type === 'csv' ||
-    dataSource.type === 'xlsx-sheet' ||
-    dataSource.type === 'parquet'
-  ) {
+  if (['csv', 'xlsx-sheet', 'parquet', 'json'].includes(dataSource.type)) {
     if (tab.dataSourceType !== 'file') {
       return {
         adapter: null,

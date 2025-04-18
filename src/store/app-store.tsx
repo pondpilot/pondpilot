@@ -173,7 +173,8 @@ export function useDataSourceObjectSchema(
       if (
         dataSource.type === 'csv' ||
         dataSource.type === 'parquet' ||
-        dataSource.type === 'xlsx-sheet'
+        dataSource.type === 'xlsx-sheet' ||
+        dataSource.type === 'json'
       ) {
         dbName = 'memory';
         schemaName = 'main';

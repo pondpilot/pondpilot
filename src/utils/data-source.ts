@@ -78,6 +78,13 @@ export function addFlatFileDataSource(
         fileSourceId: localEntry.id,
         viewName,
       };
+    case 'json':
+      return {
+        id: dataSourceId,
+        type: localEntry.ext,
+        fileSourceId: localEntry.id,
+        viewName,
+      };
     case 'parquet':
       return {
         id: dataSourceId,
