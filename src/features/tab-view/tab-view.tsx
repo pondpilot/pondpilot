@@ -1,9 +1,11 @@
 import { useAppStore } from '@store/app-store';
 import { useEffect } from 'react';
 import { Stack } from '@mantine/core';
+import { ErrorBoundary } from 'react-error-boundary';
 import { ScriptTabView } from './components/script-tab-view';
 import { FileDataSourceTabView } from './components/file-data-source-tab-view';
 import { useTabCache } from './hooks/use-tab-cache';
+import { TabErrorFallback } from './components';
 
 const TAB_CACHE_SIZE = 10;
 
@@ -21,22 +23,26 @@ export const TabView = () => {
   }, [activeTabId, addToCache]);
 
   return (
-    <Stack className="h-full gap-0">
-      {Array.from(tabs.values()).map((tab) => {
-        const isActive = tab.id === activeTabId;
-        if (isTabCached(tab.id) || isActive) {
-          if (isActive && !isTabCached(tab.id)) {
-            addToCache(tab.id);
+    <ErrorBoundary FallbackComponent={() => <TabErrorFallback tabId={activeTabId} />}>
+      <Stack className="h-full gap-0">
+        {Array.from(tabs.values()).map((tab) => {
+          const isActive = tab.id === activeTabId;
+          if (isTabCached(tab.id) || isActive) {
+            if (isActive && !isTabCached(tab.id)) {
+              addToCache(tab.id);
+            }
+            return (
+              <div key={tab.id} className={`flex-1 min-h-0 ${isActive ? 'block' : 'hidden'}`}>
+                {tab.type === 'script' && <ScriptTabView tab={tab} active={isActive} />}
+                {tab.type === 'data-source' && (
+                  <FileDataSourceTabView tab={tab} visible={isActive} />
+                )}
+              </div>
+            );
           }
-          return (
-            <div key={tab.id} className={`flex-1 min-h-0 ${isActive ? 'block' : 'hidden'}`}>
-              {tab.type === 'script' && <ScriptTabView tab={tab} active={isActive} />}
-              {tab.type === 'data-source' && <FileDataSourceTabView tab={tab} visible={isActive} />}
-            </div>
-          );
-        }
-        return null;
-      })}
-    </Stack>
+          return null;
+        })}
+      </Stack>
+    </ErrorBoundary>
   );
 };

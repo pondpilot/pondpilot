@@ -79,7 +79,6 @@ export const FileDataSourceTabView = memo(({ tab, visible }: FileDataSourceTabVi
 
     setLoadErrors(userErrors);
   }, [conn, dataSource, tab, sourceFile]);
-
   return (
     <Stack className="gap-0 h-full relative">
       <LoadingOverlay visible={isLoading || isError}>
