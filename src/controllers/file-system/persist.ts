@@ -56,3 +56,19 @@ export const persistAddLocalEntry = async (
  * -------------------------- Delete --------------------------
  * ------------------------------------------------------------
  */
+
+export const persistDeleteLocalEntry = async (
+  iDb: IDBPDatabase<AppIdbSchema>,
+  entryIdsToDelete: Iterable<LocalEntryId>,
+) => {
+  const tx = iDb.transaction([LOCAL_ENTRY_TABLE_NAME], 'readwrite');
+
+  // Delete each local entry
+  const entryStore = tx.objectStore(LOCAL_ENTRY_TABLE_NAME);
+  for (const id of entryIdsToDelete) {
+    await entryStore.delete(id);
+  }
+
+  // Commit the transaction
+  await tx.done;
+};
