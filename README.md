@@ -1,24 +1,49 @@
 # PondPilot - Get your data 🦆 in a row
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Latest Release](https://img.shields.io/github/v/release/pondpilot/pondpilot)](https://github.com/pondpilot/pondpilot/releases/latest)
 
-PondPilot is a blazing-fast, lightweight, 100% client-side data exploration tool that helps you analyze local & remote data with no setup. Powered by DuckDB-Wasm, it runs entirely in your browser - no install, no servers, no cloud uploads, complete privacy.
+## 🚀 What is PondPilot?
+
+PondPilot is a blazing-fast, lightweight, 100% client-side data exploration tool that helps you analyze local & remote data with zero setup. Powered by DuckDB-Wasm, it runs entirely in your browser - no install, no servers, no cloud uploads, complete privacy. Whether you're a data analyst, scientist, or engineer, PondPilot helps you get your data ducks in a row without the overhead of traditional data tools.
+
+## 💡 Why PondPilot?
+
+**Traditional data tools have major drawbacks:**
+- They require complex setup and installation
+- They often send your data to remote servers
+- They're resource-intensive and can be slow for large datasets
+- Many require paid subscriptions or have usage limits
+
+**PondPilot solves these problems by:**
+- Running entirely in your browser with zero installation
+- Processing all data locally - your data never leaves your device
+- Using DuckDB's lightning-fast SQL engine optimized for analytical queries
+- Providing the ability to work directly with your files without making copies
+- Being completely free and open-source
 
 ## 🔍 Features
 
-- **100% Client-Side**: All processing happens in your browser - no data ever leaves your device
-- **PWA Support**: Install PondPilot as a Progressive Web App for offline use
-- **No data-copy**: Unlike similar tools, PondPilot doesn't copy files into browser cache, instead accessing them directly. Any changes outside of PondPilot are reflected in real-time
-- **Read-only**: PondPilot doesn't write to your files, so you can be sure your data is safe
-- **Cross-session persistence**: All data-handles and queries are automatically saved and restored between sessions
-- **Powered by DuckDB**: Leverage the powerful SQL engine for fast analysis of large datasets
-- **Multiple File Formats**: Support for CSV, Parquet, JSON, DuckDB database and more coming soon
-- **Interactive SQL Editor**: Write and execute SQL queries with syntax highlighting and auto-completion
-- **Data Visualization**: View, filter, and sort your query results in an interactive table
-- **Full-text Schema Explorer**: Easily navigate through tables and columns with auto-generated metadata [coming soon]
-- **Data Export**: Export your query results to various formats for further analysis
-- **Keyboard Shortcuts**: Navigate efficiently with intuitive keyboard shortcuts
-- **Dark/Light Mode**: Choose the interface that's easiest on your eyes
+### 🔒 Privacy & Security
+- **100% Client-Side**: All processing happens in your browser - your sensitive data never leaves your device
+- **PWA Support**: 📱 Install PondPilot as a Progressive Web App for offline use anywhere
+- **Read-only**: ✅ PondPilot doesn't write to your files, guaranteeing data safety and integrity
+
+### ⚡ Performance & Efficiency
+- **No data-copy**: 🔄 Unlike similar tools, PondPilot accesses files directly without copying to browser cache - changes outside PondPilot are reflected in real-time
+- **Powered by DuckDB**: 🚀 Leverage the lightning-fast SQL engine for analyzing millions of rows in seconds
+- **Cross-session persistence**: 💾 All data-handles and queries are automatically saved between sessions
+
+### 🧰 Powerful Analysis Tools
+- **Multiple File Formats**: 📊 Support for CSV, Parquet, JSON, XLSX, DuckDB database and more coming soon
+- **Interactive SQL Editor**: 💻 Write and execute SQL queries with syntax highlighting, auto-completion, and error detection
+- **Data Visualization**: 📈 View, filter, and sort your query results in a responsive interactive table
+- **Full-text Schema Explorer**: 🔍 Easily navigate through tables and columns with auto-generated metadata [coming soon]
+
+### 🎨 User Experience
+- **Data Export**: 📁 Export your query results to various formats for further analysis
+- **Keyboard Shortcuts**: ⌨️ Navigate efficiently with intuitive keyboard shortcuts
+- **Dark/Light Mode**: 🌓 Choose the interface that's easiest on your eyes
 
 ## 🖥️ Demo
 
@@ -86,7 +111,7 @@ The goal for PondPilot is to remain lightweight. We strive to quickly reach feat
 Here is what we are planning before reaching feature completeness:
 * LLM-based code suggestions
 * Basic statistics & metadata view without the need to run queries (think data distribution, column types, etc.)
-* Additional popular local & remote sources support: XLSX, SQLite, MotherDuck
+* Additional popular local & remote sources support: SQLite, MotherDuck
 
 ## 🏷️ Tagged Releases
 
@@ -116,9 +141,11 @@ We welcome contributions from the community! Here's how to get started:
 
 - `yarn dev` - Start development server
 - `yarn build` - Build production version
+- `yarn test` - Run Playwright tests
 - `yarn preview` - Locally preview production build
 - `yarn typecheck` - Check TypeScript types
 - `yarn lint` - Run ESLint and Stylelint
+- `yarn lint:fix` - Fix ESLint and Stylelint issues
 - `yarn prettier` - Check formatting
 - `yarn prettier:write` - Format code
 
