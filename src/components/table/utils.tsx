@@ -23,7 +23,7 @@ export const stringifyTypedValue = ({
         return value as string;
       }
       case 'bigint': {
-        return (value as bigint).toString();
+        return JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toString() : v));
       }
       case 'boolean': {
         return `${value}` as string;
