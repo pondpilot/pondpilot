@@ -229,7 +229,11 @@ export const addLocalFileOrFolders = async (
 
   // If we have an IndexedDB connection, persist the new local entry
   if (iDbConn) {
-    persistAddLocalEntry(iDbConn, newEntries, newDataSources);
+    persistAddLocalEntry(
+      iDbConn,
+      newEntries.filter(([_, entry]) => entry.userAdded), // Add only user added entries
+      newDataSources,
+    );
   }
 
   // Return the new local entry and data source

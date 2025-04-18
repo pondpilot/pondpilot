@@ -36,6 +36,7 @@ import {
   AppIdbSchema,
 } from '@models/persisted-store';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { persistDeleteDataSource } from '@controllers/data-source/persist';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
@@ -113,7 +114,6 @@ async function processDirectory(
     if (!existingEntry) {
       // If we don't have this entry in our persistent map, we need to create a new one
 
-      // TODO: recursively process this entry if it's a directory
       const localEntry = localEntryFromHandle(
         handle,
         directory.id,
@@ -123,7 +123,22 @@ async function processDirectory(
 
       if (localEntry) {
         // If we have a valid local entry, add it to the result map
-        resultMap.set(localEntry.id, localEntry);
+        if (localEntry.kind === 'directory') {
+          // Recursively process this subdirectory
+          await processDirectory(
+            localEntry,
+            persistentMap,
+            resultMap,
+            discardedEntries,
+            getUniqueAlias,
+          );
+          // Skip empty folders
+          if (resultMap.values().some((entry) => entry.parentId === localEntry.id)) {
+            resultMap.set(localEntry.id, localEntry);
+          }
+        } else {
+          resultMap.set(localEntry.id, localEntry);
+        }
       }
       continue;
     }
@@ -144,7 +159,6 @@ async function processDirectory(
         ...existingEntry,
         handle,
       };
-      resultMap.set(subDirectory.id, subDirectory);
 
       // Recursively process this subdirectory
       await processDirectory(
@@ -154,6 +168,10 @@ async function processDirectory(
         discardedEntries,
         getUniqueAlias,
       );
+      // Skip empty folders
+      if (resultMap.values().some((entry) => entry.parentId === subDirectory.id)) {
+        resultMap.set(subDirectory.id, subDirectory);
+      }
     } else {
       // If the handle kind has changed, we need to mark this entry as mismatched,
       // to discard the old one and then create a new one
@@ -173,7 +191,22 @@ async function processDirectory(
 
       if (newEntry) {
         // If we have a valid local entry, add it to the result map
-        resultMap.set(newEntry.id, newEntry);
+        if (newEntry.kind === 'directory') {
+          // Recursively process this subdirectory
+          await processDirectory(
+            newEntry,
+            persistentMap,
+            resultMap,
+            discardedEntries,
+            getUniqueAlias,
+          );
+          // Skip empty folders
+          if (resultMap.values().some((entry) => entry.parentId === newEntry.id)) {
+            resultMap.set(newEntry.id, newEntry);
+          }
+        } else {
+          resultMap.set(newEntry.id, newEntry);
+        }
       }
     }
   }
@@ -248,11 +281,14 @@ async function restoreLocalEntries(
 
   // Also build a map from parentId to children, we'll do a lot of lookups on this.
   const parentToChildEntriesMap: Map<LocalEntryId, LocalEntryPersistence[]> = new Map();
-  const addToMap = (parentId: LocalEntryId, entry: LocalEntryPersistence) => {
-    if (!parentToChildEntriesMap.has(parentId)) {
-      parentToChildEntriesMap.set(parentId, []);
+  const addToMap = (entry: LocalEntryPersistence) => {
+    if (!entry.parentId) {
+      return;
     }
-    parentToChildEntriesMap.get(parentId)?.push(entry);
+    if (!parentToChildEntriesMap.has(entry.parentId)) {
+      parentToChildEntriesMap.set(entry.parentId, []);
+    }
+    parentToChildEntriesMap.get(entry.parentId)?.push(entry);
   };
 
   // And a set of all used aliases
@@ -261,7 +297,7 @@ async function restoreLocalEntries(
   for (const entry of localEntriesArray) {
     if (entry.handle === null) {
       // Only add to the persistent map, but no need to check below
-      addToMap(entry.id, entry);
+      addToMap(entry);
       if (entry.kind === 'file') usedAliases.add(entry.uniqueAlias);
       continue;
     }
@@ -269,7 +305,7 @@ async function restoreLocalEntries(
     // Check if the handle is in the granted or denied lists
     if (availableHandles.includes(entry.handle)) {
       rootEntries.push(entry as LocalEntry);
-      addToMap(entry.id, entry);
+      addToMap(entry);
       if (entry.kind === 'file') usedAliases.add(entry.uniqueAlias);
     } else if (deniedHandles.includes(entry.handle)) {
       discardEntries.push({
@@ -311,8 +347,6 @@ async function restoreLocalEntries(
       resultMap.set(rootEntry.id, rootEntry);
     } else if (rootEntry.kind === 'directory') {
       // For directories, add them to the map and then process their contents
-      resultMap.set(rootEntry.id, rootEntry);
-
       // Recursively process this directory
       await processDirectory(
         rootEntry,
@@ -321,6 +355,16 @@ async function restoreLocalEntries(
         discardEntries,
         getUniqueAlias,
       );
+      // Skip empty folders
+      if (resultMap.values().some((entry) => entry.parentId === rootEntry.id)) {
+        resultMap.set(rootEntry.id, rootEntry);
+      } else {
+        discardEntries.push({
+          entry: rootEntry,
+          type: 'warning',
+          reason: 'Stored folder is empty',
+        });
+      }
     }
   }
 
@@ -423,6 +467,7 @@ export const restoreAppDataFromIDB = async (
   // from this specific inconsistency, as it is pretty easy to re-create them.
   // Except of course, none of the tabs may be using them as we generate new ids
   const missingDataSources: Map<PersistentDataSourceId, AnyDataSource> = new Map();
+  const validDataSources = new Set<PersistentDataSourceId>();
 
   // Re-create data views and attached db's in duckDB
   await Promise.all(
@@ -442,6 +487,8 @@ export const restoreAppDataFromIDB = async (
             // save to the map
             missingDataSources.set(dataSource.id, dataSource);
           }
+
+          validDataSources.add(dataSource.id);
 
           await registerAndAttachDatabase(
             conn,
@@ -465,7 +512,8 @@ export const restoreAppDataFromIDB = async (
             // save to the map
             missingDataSources.set(dataSource.id, dataSource);
           }
-          // First create a data view object
+
+          validDataSources.add(dataSource.id);
 
           // Then register the file source and create the view.
           // TODO: this may potentially fail - we should handle this case
@@ -493,6 +541,20 @@ export const restoreAppDataFromIDB = async (
     }
 
     await missingDataViewsTx.done;
+  }
+
+  // Delete outdated data sources
+  const outdatedDataSources = new Set<PersistentDataSourceId>();
+  for (const ds of Array.from(dataSources.values())) {
+    if (validDataSources.has(ds.id)) {
+      continue;
+    }
+    dataSources.delete(ds.id);
+    outdatedDataSources.add(ds.id);
+  }
+
+  if (outdatedDataSources.size > 0) {
+    await persistDeleteDataSource(iDbConn, outdatedDataSources, []);
   }
 
   // Read database meta data

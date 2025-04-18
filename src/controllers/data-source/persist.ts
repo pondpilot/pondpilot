@@ -38,7 +38,7 @@ import { PersistentDataSourceId } from '@models/data-source';
 
 export const persistDeleteDataSource = async (
   iDb: IDBPDatabase<AppIdbSchema>,
-  deletedDataSourceIds: PersistentDataSourceId[],
+  deletedDataSourceIds: Iterable<PersistentDataSourceId>,
   entryIdsToDelete: Iterable<LocalEntryId>,
 ) => {
   const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME, LOCAL_ENTRY_TABLE_NAME], 'readwrite');
