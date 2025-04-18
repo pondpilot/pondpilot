@@ -496,12 +496,7 @@ export const restoreAppDataFromIDB = async (
   }
 
   // Read database meta data
-  let dataBaseMetadata = await getDatabaseModel(conn);
-
-  if (!dataBaseMetadata) {
-    dataBaseMetadata = new Map();
-    warnings.push('Failed to read database metadata');
-  }
+  const dataBaseMetadata = await getDatabaseModel(conn);
 
   // Finally update the store with the hydrated data
   useAppStore.setState(

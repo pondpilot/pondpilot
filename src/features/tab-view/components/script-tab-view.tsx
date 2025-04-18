@@ -13,12 +13,14 @@ import {
   classifySQLStatements,
   validateStatements,
   SQLStatement,
+  SQLStatementType,
 } from '@utils/editor/sql';
 import { updateScriptTabLayoutChange } from '@controllers/tab';
 import { Center, Stack, Text } from '@mantine/core';
 import { IconClipboardSmile } from '@tabler/icons-react';
 import { ScriptExecutionState } from '@models/sql-script';
 import { showError } from '@components/app-notifications';
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { DataViewInfoPane } from './data-view-info-pane';
 
 interface ScriptTabViewProps {
@@ -154,8 +156,27 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
         // All statements executed successfully
         if (needsTransaction) {
           await conn.query('COMMIT');
-          // TODO: Update metadata
-          console.log('TODO: Queue metadata update');
+        }
+
+        const hasDDL = classifiedStatements.some((s) => s.sqlType === SQLStatementType.DDL);
+        if (hasDDL) {
+          // Read the metadata for the newly created views
+          const newViewsMetadata = await getDatabaseModel(pool, ['memory'], ['main']);
+          // Update views metadata state
+          const { dataBaseMetadata } = useAppStore.getState();
+          const newDataBaseMetadata =
+            newViewsMetadata.size > 0
+              ? new Map([...dataBaseMetadata, ...newViewsMetadata])
+              : new Map(Array.from(dataBaseMetadata).filter(([dbName, _]) => dbName !== 'memory'));
+
+          // Update the store with the new state
+          useAppStore.setState(
+            {
+              dataBaseMetadata: newDataBaseMetadata,
+            },
+            undefined,
+            'AppStore/runScript',
+          );
         }
       } finally {
         // Release the pooled connection

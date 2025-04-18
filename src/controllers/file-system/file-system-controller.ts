@@ -19,12 +19,7 @@ import {
   registerFileSourceAndCreateView,
 } from '@controllers/db/data-source';
 import { addAttachedDB, addFlatFileDataSource } from '@utils/data-source';
-import {
-  getAttachedDBs,
-  getDatabaseModel,
-  getObjectModels,
-  getViews,
-} from '@controllers/db/duckdb-meta';
+import { getAttachedDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
 import { DataBaseModel } from '@models/db';
 import { makeSQLScriptId } from '@utils/sql-script';
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
@@ -203,35 +198,30 @@ export const addLocalFileOrFolders = async (
     newState.dataSources = new Map(Array.from(dataSources).concat(newDataSources));
   }
 
-  // Now read the metadata for the newly attached databases, views and
-  // add it to state as well
-  const newDataBaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
-  const newViewsMetadata = await getObjectModels(conn, 'memory', 'main', newManagedViews);
-
-  if (newDataBaseMetadata || newViewsMetadata.length > 0) {
-    const mergedDataBaseMetadata = new Map(dataBaseMetadata);
-
-    newDataBaseMetadata?.forEach((dbModel, dbName) => mergedDataBaseMetadata.set(dbName, dbModel));
-
-    const memoryDBModel = mergedDataBaseMetadata.get('memory') || { name: 'memory', schemas: [] };
-    const mainSchemaMeta = memoryDBModel.schemas.find((schema) => schema.name === 'main');
-
-    if (mainSchemaMeta) {
-      mainSchemaMeta.objects.concat(newViewsMetadata);
-    } else {
-      memoryDBModel.schemas.push({
-        name: 'main',
-        objects: newViewsMetadata,
-      });
+  // Read the metadata for the newly attached databases
+  let newDataBaseMetadata: Map<string, DataBaseModel> | null = null;
+  if (newDatabaseNames.length > 0) {
+    newDataBaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
+    if (newDataBaseMetadata.size === 0) {
+      errors.push(
+        'Failed to read newly attached database metadata. Neither explorer not auto-complete will not show objects for them. You may try deleting and re-attaching the database(s).',
+      );
     }
+  }
 
-    mergedDataBaseMetadata.set('memory', memoryDBModel);
+  // Read the metadata for the newly created views
+  let newViewsMetadata: Map<string, DataBaseModel> | null = null;
+  if (newManagedViews.length > 0) {
+    newViewsMetadata = await getDatabaseModel(conn, ['memory'], ['main']);
+  }
 
-    newState.dataBaseMetadata = mergedDataBaseMetadata;
-  } else {
-    errors.push(
-      'Failed to read newly attached database metadata. Neither explorer not auto-complete will not show objects for them. You may try deleting and re-attaching the database(s).',
-    );
+  // Update the metadata state
+  if (newDataBaseMetadata || newViewsMetadata) {
+    newState.dataBaseMetadata = new Map([
+      ...dataBaseMetadata,
+      ...(newDataBaseMetadata || []),
+      ...(newViewsMetadata || []),
+    ]);
   }
 
   // Update the store
@@ -309,7 +299,10 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
  * ------------------------------------------------------------
  */
 
-export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: LocalEntryId[]) => {
+export const deleteLocalFileOrFolders = async (
+  conn: AsyncDuckDBConnectionPool,
+  ids: LocalEntryId[],
+) => {
   const { dataSources, localEntries, _iDbConn: iDbConn } = useAppStore.getState();
 
   const folderChildren = new Map<LocalEntryId, LocalEntry[]>();
@@ -355,7 +348,8 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
     collectDataSourceIdsRecursively(localEntry);
   }
 
-  deleteDataSources(conn, dataSourceIdsToDelete);
+  // This one will delete all collected data sources and related state
+  await deleteDataSources(conn, dataSourceIdsToDelete);
 
   // Delete folder entries from State
   const { localEntries: freshLocalEntries } = useAppStore.getState();

@@ -135,7 +135,7 @@ async function getTablesAndColumns(
   databaseNames?: string[],
   schemaNames?: string[],
   objectNames?: string[],
-): Promise<ColumnsQueryReturnType[] | null> {
+): Promise<ColumnsQueryReturnType[]> {
   const sql = buildColumnsQueryWithFilters(databaseNames, schemaNames, objectNames);
   const res = await conn.query<ColumnsQueryArrowType>(sql);
 
@@ -203,12 +203,8 @@ export async function getDatabaseModel(
   conn: AsyncDuckDBConnectionPool,
   databaseNames?: string[],
   schemaNames?: string[],
-): Promise<Map<string, DataBaseModel> | null> {
+): Promise<Map<string, DataBaseModel>> {
   const duckdbColumns = await getTablesAndColumns(conn, databaseNames, schemaNames);
-  if (!duckdbColumns) {
-    return null;
-  }
-
   const dbMap = new Map<string, DataBaseModel>();
 
   duckdbColumns.forEach((item) => {

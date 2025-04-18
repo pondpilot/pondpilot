@@ -273,12 +273,12 @@ export const FileSystemExplorer = memo(() => {
     // overlap, as all files inside folders should be marked as not user-added
     if (files.length > 0) {
       // Delete the files
-      deleteDataSources(conn, files);
+      await deleteDataSources(conn, files);
     }
 
     if (folders.length > 0) {
       // Delete the folders
-      deleteLocalFileOrFolders(conn, folders);
+      await deleteLocalFileOrFolders(conn, folders);
     }
   };
 

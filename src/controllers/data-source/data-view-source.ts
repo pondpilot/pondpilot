@@ -6,7 +6,11 @@ import { PersistentDataSourceId } from '@models/data-source';
 import { TabId } from '@models/tab';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { persistDeleteTab } from '@controllers/tab/persist';
-import { detachAndUnregisterDatabase, dropViewAndUnregisterFile } from '@controllers/db';
+import {
+  detachAndUnregisterDatabase,
+  dropViewAndUnregisterFile,
+  getDatabaseModel,
+} from '@controllers/db';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { persistDeleteDataSource } from './persist';
 
@@ -41,7 +45,7 @@ import { persistDeleteDataSource } from './persist';
  * @param dataSourceIds - array of IDs of data sources to delete
  */
 
-export const deleteDataSources = (
+export const deleteDataSources = async (
   conn: AsyncDuckDBConnectionPool,
   dataSourceIds: PersistentDataSourceId[],
 ) => {
@@ -53,6 +57,7 @@ export const deleteDataSources = (
     previewTabId,
     localEntries,
     dataViewCache,
+    dataBaseMetadata,
     _iDbConn: iDbConn,
   } = useAppStore.getState();
 
@@ -117,6 +122,55 @@ export const deleteDataSources = (
     Array.from(localEntries).filter(([id, _]) => !entryIdsToDelete.has(id)),
   );
 
+  if (iDbConn) {
+    // Delete data sources from IndexedDB
+    await persistDeleteDataSource(iDbConn, dataSourceIds, entryIdsToDelete);
+
+    // Delete associated tabs from IndexedDB if any. For simplicty we do not bother
+    // doing this in a single transaction, highly unlikely to be a problem.
+    // This also takes care of the data view cache entries associated with the tabs
+    if (tabsToDelete.length) {
+      await persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
+    }
+  }
+
+  // Delete the data sources from the database
+  for (const dataSource of deletedDataSources) {
+    if (dataSource.type === 'attached-db') {
+      await detachAndUnregisterDatabase(
+        conn,
+        dataSource.dbName,
+        localEntries.get(dataSource.fileSourceId)?.uniqueAlias,
+      );
+    } else if (dataSource.type === 'xlsx-sheet') {
+      throw new Error('TODO: implement xlsx-sheet data source deletion');
+    } else {
+      await dropViewAndUnregisterFile(
+        conn,
+        dataSource.viewName,
+        localEntries.get(dataSource.fileSourceId)?.uniqueAlias,
+      );
+    }
+  }
+
+  // Finally, after database is updated (views are dropped), create the updated state for database metadata
+  const deletedDataBases = new Set(
+    deletedDataSources.filter((ds) => ds.type === 'attached-db').map((ds) => ds.dbName),
+  );
+  let newDataBaseMetadata = new Map(
+    Array.from(dataBaseMetadata).filter(([dbName, _]) => !deletedDataBases.has(dbName)),
+  );
+  // Update medatata views
+  if (deletedDataSources.some((ds) => ds.type !== 'attached-db')) {
+    const newViewsMetadata = await getDatabaseModel(conn, ['memory'], ['main']);
+    if (newViewsMetadata.size === 0) {
+      newDataBaseMetadata.delete('memory');
+    } else {
+      newDataBaseMetadata = new Map([...newDataBaseMetadata, ...newViewsMetadata]);
+    }
+  }
+
+  // Update the store with the new state
   useAppStore.setState(
     {
       dataSources: newDataSources,
@@ -126,39 +180,9 @@ export const deleteDataSources = (
       activeTabId: newActiveTabId,
       previewTabId: newPreviewTabId,
       dataViewCache: newDataViewCache,
+      dataBaseMetadata: newDataBaseMetadata,
     },
     undefined,
     'AppStore/deleteDataSource',
   );
-
-  if (iDbConn) {
-    // Delete data sources from IndexedDB
-    persistDeleteDataSource(iDbConn, dataSourceIds, entryIdsToDelete);
-
-    // Delete associated tabs from IndexedDB if any. For simplicty we do not bother
-    // doing this in a single transaction, highly unlikely to be a problem.
-    // This also takes care of the data view cache entries associated with the tabs
-    if (tabsToDelete.length) {
-      persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
-    }
-  }
-
-  // Finally, delete the data sources from the database as well as stored metadata
-  deletedDataSources.forEach((dataSource) => {
-    if (dataSource.type === 'attached-db') {
-      detachAndUnregisterDatabase(
-        conn,
-        dataSource.dbName,
-        localEntries.get(dataSource.fileSourceId)?.uniqueAlias,
-      );
-    } else if (dataSource.type === 'xlsx-sheet') {
-      throw new Error('TODO: implement xlsx-sheet data source deletion');
-    } else {
-      dropViewAndUnregisterFile(
-        conn,
-        dataSource.viewName,
-        localEntries.get(dataSource.fileSourceId)?.uniqueAlias,
-      );
-    }
-  });
 };
