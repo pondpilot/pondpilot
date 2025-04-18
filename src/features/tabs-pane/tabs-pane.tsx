@@ -143,7 +143,7 @@ export const TabsPane = memo(() => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 250,
+        delay: 0,
         tolerance: 5,
       },
     }),
