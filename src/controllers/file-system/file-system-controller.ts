@@ -100,6 +100,7 @@ export const addLocalFileOrFolders = async (
         await registerFileSourceAndCreateView(
           conn,
           file.handle,
+          file.ext,
           `${file.uniqueAlias}.${file.ext}`,
           dataSource.viewName,
         );
