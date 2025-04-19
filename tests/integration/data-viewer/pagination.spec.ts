@@ -52,8 +52,8 @@ test.describe('Data Viewer Pagination', () => {
     // Generate a small dataset that fits on a single page (assuming 100 per page by default)
     await generateTestData(5);
 
-    // Check the pagination control is not visible
-    await expect(paginationControl).toHaveCount(0);
+    // Check the pagination control is visible and has the correct text
+    await expect(paginationControl).toHaveText('5 rows');
   });
 
   test('should show correct pagination control for larger data (multiple pages)', async ({
@@ -68,7 +68,7 @@ test.describe('Data Viewer Pagination', () => {
 
     // Verify that the pagination control shows the correct text for multi-page data
     await expect(paginationControl.getByTestId('pagination-control-out-of')).toHaveText(
-      '1-100 out of 101',
+      '1-100 out of 101+ rows',
     );
 
     // Verify that navigation buttons are shown for multi-page
@@ -80,7 +80,7 @@ test.describe('Data Viewer Pagination', () => {
 
     // Check that pagination text updated correctly for second page
     await expect(paginationControl.getByTestId('pagination-control-out-of')).toHaveText(
-      '101-101 out of 101',
+      '101-101 out of 101 rows',
     );
 
     // Click back to previous page
@@ -88,7 +88,7 @@ test.describe('Data Viewer Pagination', () => {
 
     // Check that pagination text returned to initial state
     await expect(paginationControl.getByTestId('pagination-control-out-of')).toHaveText(
-      '1-100 out of 101',
+      '1-100 out of 101 rows',
     );
   });
 
@@ -99,7 +99,7 @@ test.describe('Data Viewer Pagination', () => {
     // Generate an empty dataset
     await generateTestData(0);
 
-    // Check the pagination control is not visible
-    await expect(paginationControl).toHaveCount(0);
+    // Check the pagination control is visible and has the correct text
+    await expect(paginationControl).toHaveText('0 rows');
   });
 });

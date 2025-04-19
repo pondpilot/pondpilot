@@ -76,7 +76,7 @@ export const test = base.extend<ScriptEditorFixtures>({
       ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
       await runScriptButton.click();
-      await expect(page.getByText('Script ran successfully')).toBeVisible();
+      await expect(page.getByText('Query ran successfully')).toBeVisible();
     });
   },
 });
