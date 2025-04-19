@@ -32,8 +32,9 @@ export const DataViewInfoPane = ({ dataAdapter, tabType }: DataViewInfoPaneProps
   const [isFetching] = useDebouncedValue(dataAdapter.isFetchingData, 200);
   const [isSorting] = useDebouncedValue(dataAdapter.isSorting, 200);
 
-  const { totalRowCount, loadedRowCount, isEstimatedRowCount } = dataAdapter.rowCountInfo;
-  const rowCountToShow = totalRowCount || loadedRowCount;
+  const { realRowCount, estimatedRowCount, availableRowCount } = dataAdapter.rowCountInfo;
+  const isEstimatedRowCount = realRowCount === null;
+  const rowCountToShow = realRowCount || estimatedRowCount || availableRowCount;
   const columnCount = dataAdapter.currentSchema.length;
 
   const showCancelButton = isFetching && hasData;

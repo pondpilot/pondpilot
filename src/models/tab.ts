@@ -17,8 +17,8 @@ export type StaleData = {
   schema: DBTableOrViewSchema;
   data: DataTable;
   rowOffset: number;
-  totalRowCount: number | null;
-  isEstimatedRowCount: boolean;
+  realRowCount: number | null;
+  estimatedRowCount: number | null;
 };
 
 export type TabDataViewStateCache = {

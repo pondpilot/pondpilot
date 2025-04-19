@@ -1,5 +1,5 @@
 import { Table } from '@components/table/table';
-import { DataAdapterApi, GetTableDataReturnType } from '@models/data-adapter';
+import { DataAdapterApi, DataTableSlice } from '@models/data-adapter';
 import { useCallback, useEffect, useState } from 'react';
 import { setDataTestId } from '@utils/test-id';
 import { Center, Group, Loader, Stack, Text } from '@mantine/core';
@@ -45,16 +45,20 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   /**
    * Local Reactive State
    */
-  const [currentPage, setCurrentPage] = useState(
+
+  // This the page we ask the data adapter to fetch.
+  const [requestedPage, setRequestedPage] = useState(
     () => useAppStore.getState().tabs.get(tabId)?.dataViewStateCache?.dataViewPage || 0,
   );
-  const [tableData, setTableData] = useState<GetTableDataReturnType>(null);
+
+  // This is the actual data slice we have from the data adapter.
+  const [dataSlice, setDataSlice] = useState<DataTableSlice | null>(null);
 
   /**
    * Local Non-Reactive State
    */
 
-  // Load cached column width once if available
+  // Load cached column width once if available on mount
   const [initialColumnSizes] = useState<Record<string, number> | undefined>(
     () => useAppStore.getState().tabs.get(tabId)?.dataViewStateCache?.tableColumnSizes || undefined,
   );
@@ -62,6 +66,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   /**
    * Computed data source state
    */
+  console.log('DataView: dataAdapter', dataAdapter);
   const hasActualData = dataAdapter.currentSchema.length > 0 && !dataAdapter.isStale;
   const hasStaleData = dataAdapter.currentSchema.length > 0 && dataAdapter.isStale;
   const hasData = hasActualData || hasStaleData;
@@ -70,32 +75,32 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   const [isFetching] = useDebouncedValue(dataAdapter.isFetchingData, 200);
   const [isSorting] = useDebouncedValue(dataAdapter.isSorting, 200);
 
-  const { totalRowCount, loadedRowCount, isEstimatedRowCount } = dataAdapter.rowCountInfo;
-  const rowCountToShow = totalRowCount || loadedRowCount;
-
-  /**
-   * Computed State
-   */
+  const { realRowCount, estimatedRowCount, availableRowCount } = dataAdapter.rowCountInfo;
+  const isEstimatedRowCount = realRowCount === null;
+  const rowCountToShow = realRowCount || estimatedRowCount || availableRowCount;
 
   // The real requested row range. `expectedRowTo` also tells us how much data we need
   // to fetch to fill the current page.
-  const expectedRowFrom = Math.max(0, currentPage * MAX_DATA_VIEW_PAGE_SIZE);
-  const expectedRowTo = totalRowCount
+  const expectedRowFrom = Math.max(0, requestedPage * MAX_DATA_VIEW_PAGE_SIZE);
+  const expectedRowTo = realRowCount
     ? // if we know the real row count, we can calculate the expected rowTo precisely
-      Math.min(totalRowCount, (currentPage + 1) * MAX_DATA_VIEW_PAGE_SIZE)
-    : // if we don't know the real row count, we fall back to the loaded row count
-      // assuming the entire page will be filled.
-      // If we didn't make a mistake, `totalRowCount` should always exist if we've exhausted
+      Math.min(realRowCount, (requestedPage + 1) * MAX_DATA_VIEW_PAGE_SIZE)
+    : // if we don't know the real row count, we will continue trying to ask up
+      // to the end of the target page.
+      // If we didn't make a mistake, `realRowCount` should always exist if we've exhausted
       // the data source, so we should not request more than available more than once.
-      (currentPage + 1) * MAX_DATA_VIEW_PAGE_SIZE;
+      (requestedPage + 1) * MAX_DATA_VIEW_PAGE_SIZE;
 
-  const isSinglePage = rowCountToShow <= MAX_DATA_VIEW_PAGE_SIZE;
+  // If we do not know even the estimated row count, `rowCountToShow` will show how many
+  // is loaded, but we still want to show pagination since we allowing to
+  // try to fetch more data.
+  const isSinglePage = Math.max(expectedRowTo, rowCountToShow) <= MAX_DATA_VIEW_PAGE_SIZE;
 
   // Now get the data to be used by the table
   useEffect(
     () => {
       const newData = dataAdapter.getTableData(expectedRowFrom, expectedRowTo);
-      setTableData(newData);
+      setDataSlice(newData);
     },
     // There is no point in getting data again if the data version
     // has not changed. This is important for performance.
@@ -104,25 +109,26 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
 
   // Whether we should show a full loading overlay, i.e. we have nothing, even stale to show
   const [showLoadingOverlay] = useDebouncedValue(
-    (tableData === null || !hasData) && !isSorting && isFetching && !hasDataSourceError,
+    (dataSlice === null || !hasData) && !isSorting && isFetching && !hasDataSourceError,
     200,
   );
 
   // Whether to show error overlay (that's when even stale data is not available
   // and we have an error)
-  const showErrorOverlay = (tableData === null || !hasData) && hasDataSourceError;
+  const showErrorOverlay = (dataSlice === null || !hasData) && hasDataSourceError;
   const showMessageOverlay =
-    (tableData === null || !hasData) && !isSorting && !isFetching && !hasDataSourceError;
-
-  const displayData = tableData?.data;
-  // The actual row range to show in the table. It may be different from the expected row range
-  const displayedRowFrom = tableData?.rowFrom || expectedRowFrom;
-  const displayedRowTo = tableData?.rowTo || expectedRowTo;
+    (dataSlice === null || !hasData) && !isSorting && !isFetching && !hasDataSourceError;
 
   // Whether we should show the table, even if with no rows.
   // If we didn't make a mistke, if `hasData` is true then `tableData`
   // is not null. But we are using a stronger check to be sure.
-  const showTable = displayData !== undefined && hasData;
+  const showTableAndPagination = dataSlice !== null && hasData;
+
+  // The actual row range to show in pagination. It may be different from the expected row range.
+  // Note that the fallback is artificial for typing. In reality we will not
+  // show pagination if we don't have data, so pagination can't get null values really
+  const displayedRowFrom = dataSlice?.rowOffset || 0;
+  const displayedRowTo = dataSlice ? dataSlice.rowOffset + dataSlice.data.length : 0;
 
   // Should we allow pagination? We allow continuing paginating even
   // while data is loading (but not sorting), and we disable the buttons
@@ -133,25 +139,25 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
    * Exvent handlers
    */
   const setAndCacheDataPage = useCallback((newPage: number) => {
-    setCurrentPage(newPage);
+    setRequestedPage(newPage);
     updateTabDataViewDataPageCache(tabId, newPage);
   }, []);
 
   const handleNextPage = useCallback(() => {
-    const nextPage = currentPage + 1;
+    const nextPage = requestedPage + 1;
 
     // Check we are not accidentally switch past the end of the data,
     const newExpectedRowFrom = nextPage * MAX_DATA_VIEW_PAGE_SIZE;
-    if (newExpectedRowFrom >= rowCountToShow) {
+    if (realRowCount && newExpectedRowFrom >= realRowCount) {
       return;
     }
 
     setAndCacheDataPage(nextPage);
-  }, [currentPage, rowCountToShow]);
+  }, [requestedPage, realRowCount]);
 
   const handlePrevPage = useCallback(() => {
-    if (currentPage > 0) {
-      const prevPage = currentPage - 1;
+    if (requestedPage > 0) {
+      const prevPage = requestedPage - 1;
       setAndCacheDataPage(prevPage);
     }
   }, []);
@@ -227,6 +233,13 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     [dataAdapter.getAllTableData],
   );
 
+  const onColumnResizeChange = useCallback(
+    (columnSizes: Record<string, number>) => {
+      updateTabDataViewColumnSizesCache(tabId, columnSizes);
+    },
+    [tabId],
+  );
+
   return (
     <Stack className="gap-0 h-full overflow-hidden">
       {/* Loading overlay */}
@@ -258,21 +271,24 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
           <Center className="h-full font-bold">
             <Stack align="center" c="icon-default" gap={4}>
               <IconClipboardSmile size={32} stroke={1} />
-              <Text c="text-secondary">Your query results will be displayed here.</Text>
+              <Text c="text-secondary">
+                {tabType === 'data-source'
+                  ? 'Your data will be displayed here.'
+                  : 'Your query results will be displayed here.'}
+              </Text>
             </Stack>
           </Center>
         </>
       )}
-      {showTable && (
+      {showTableAndPagination && (
         <>
           <div className="flex-1 min-h-0 overflow-auto px-3 custom-scroll-hidden pb-6">
             <Table
-              data={displayData}
+              dataSlice={dataSlice}
               schema={dataAdapter.currentSchema}
               sort={dataAdapter.sort}
-              page={currentPage}
               visible={!!active}
-              initialCoulmnSizes={initialColumnSizes}
+              initialColumnSizes={initialColumnSizes}
               onColumnSelectChange={calculateColumnSummary}
               onSort={
                 hasDataSourceError || dataAdapter.disableSort
@@ -282,9 +298,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
               onRowSelectChange={resetColumnAggregate}
               onCellSelectChange={resetColumnAggregate}
               onSelectedColsCopy={hasDataSourceError ? undefined : handleCopySelectedColumns}
-              onColumnResizeChange={(columnSizes) =>
-                updateTabDataViewColumnSizesCache(tabId, columnSizes)
-              }
+              onColumnResizeChange={onColumnResizeChange}
             />
           </div>
           <Group
@@ -301,7 +315,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
           </Group>
         </>
       )}
-      {showTable && (
+      {showTableAndPagination && (
         <div
           className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
           data-testid={setDataTestId('data-table-pagination-control')}

@@ -74,10 +74,27 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
 
   // Holds stale data when available, either from persistent storage on load,
   // or from previous read when changing the driving source query or sort.
+  // We do not need the row counts for stale data in the local state,
+  // because we maintain only counts for the actual data. But we re-use
+  // persistence model, where we store last known row counts - hence the Omit.
   // Init from cache if available.
-  const [staleData, setStaleData] = useState<StaleData | null>(
-    () => useAppStore.getState().tabs.get(tab.id)?.dataViewStateCache?.staleData || null,
-  );
+  const [staleData, setStaleData] = useState<Omit<
+    StaleData,
+    'realRowCount' | 'estimatedRowCount'
+  > | null>(() => {
+    const cachedStaleData =
+      useAppStore.getState().tabs.get(tab.id)?.dataViewStateCache?.staleData || null;
+
+    if (!cachedStaleData) {
+      return null;
+    }
+
+    return {
+      schema: cachedStaleData.schema,
+      data: cachedStaleData.data,
+      rowOffset: cachedStaleData.rowOffset,
+    };
+  });
 
   // When it comes to row counts we have the following possibilities:
   // 1. Exact row count is immediately known from the metadata even before running anything
@@ -93,16 +110,16 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
 
     if (cached) {
       return {
-        totalRowCount: cached.totalRowCount,
-        loadedRowCount: cached.data.length + cached.rowOffset,
-        isEstimatedRowCount: cached.isEstimatedRowCount,
+        realRowCount: cached.realRowCount,
+        estimatedRowCount: cached.estimatedRowCount,
+        availableRowCount: cached.data.length + cached.rowOffset,
       };
     }
 
     return {
-      totalRowCount: null,
-      loadedRowCount: 0,
-      isEstimatedRowCount: false,
+      realRowCount: null,
+      estimatedRowCount: null,
+      availableRowCount: 0,
     };
   });
 
@@ -159,6 +176,101 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
   }, [queries]);
 
   const dataSourceError = dataSourceReadError || dataQueriesBuildError;
+
+  /**
+   * -------------------------------------------------------------
+   * Set wrappers for convinience
+   * -------------------------------------------------------------
+   */
+
+  /**
+   * Ensures we do not set unnecessary state updates and that we
+   * consistently go from no real row count to real row count, and not
+   * the other way around.
+   *
+   * Optimizes rendering by only updating when the value is different.
+   * Thus it is safe to call this without checking any preconditions.
+   */
+  const setRealRowCount = useCallback(
+    (realRowCount: number) => {
+      if (rowCountInfo.realRowCount === realRowCount) {
+        // no-op
+        return;
+      }
+
+      if (rowCountInfo.realRowCount !== null) {
+        // probably a bug, but not critical
+        console.warn(
+          'Unexpectedly setting real row count to a different value than the previous one.',
+        );
+      }
+
+      setRowCountInfo((prev) => {
+        return {
+          ...prev,
+          realRowCount,
+          estimatedRowCount: null,
+        };
+      });
+    },
+    [rowCountInfo.realRowCount],
+  );
+
+  /**
+   * Updates estimated row count.
+   *
+   * Ensures that we do not set estimated row count if we already have
+   * a real row count.
+   *
+   * Optimizes rendering by only updating when the value is different.
+   * Thus it is safe to call this without checking any preconditions.
+   */
+  const setEstimatedRowCount = useCallback(
+    (estimatedRowCount: number) => {
+      if (rowCountInfo.estimatedRowCount === estimatedRowCount) {
+        // no-op
+        return;
+      }
+
+      if (rowCountInfo.realRowCount !== null) {
+        // probably a bug, but not critical
+        console.warn('Tried setting estimated row count while real row count is already set.');
+        return;
+      }
+
+      setRowCountInfo((prev) => {
+        return {
+          ...prev,
+          estimatedRowCount,
+        };
+      });
+    },
+    [rowCountInfo.estimatedRowCount, rowCountInfo.realRowCount],
+  );
+
+  /**
+   * Updates loaded row count.
+   *
+   * Optimizes rendering by only updating when the value is different.
+   * Thus it is safe to call this without checking any preconditions.
+   */
+  const setAvailableRowCount = useCallback(
+    (availableRowCount: number) => {
+      if (rowCountInfo.availableRowCount === availableRowCount) {
+        // no-op
+        return;
+      }
+
+      setRowCountInfo((prev) => {
+        return {
+          ...prev,
+          availableRowCount,
+        };
+      });
+    },
+    [rowCountInfo.availableRowCount],
+  );
+
   /**
    * -------------------------------------------------------------
    * Effects & functions related to data fetching
@@ -218,6 +330,8 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
           if (!updatedSchemaFromInferred) {
             // Be clever and avoid changing the schema if it is the same
             if (!isSameSchema(schema, inferredSchema)) {
+              console.log('Schema update from:', schema);
+              console.log('Schema update to:', inferredSchema);
               setSchema(inferredSchema);
             }
 
@@ -226,6 +340,8 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
 
           // We have read at least something, reset the stale data
           setStaleData(null);
+          // Update loaded row count
+          setAvailableRowCount(actualData.current.length);
           // And ping downstream components that data has changed
           setDataVersion((prev) => prev + 1);
 
@@ -239,31 +355,13 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
           if (abortSignal.aborted) break;
         }
 
+        const availableRowCount = actualData.current.length;
+
         if (readAll) {
           // Now we know that we have read all the data
           setDataSourceExhausted(true);
-        }
-
-        // Update row counts if they do not match
-        const loadedRowCount = actualData.current.length;
-        const inferredTotalRowCount = readAll ? loadedRowCount : null;
-        if (
-          (curRowCountInfo.totalRowCount === null && inferredTotalRowCount !== null) ||
-          (inferredTotalRowCount && inferredTotalRowCount < loadedRowCount) ||
-          curRowCountInfo.loadedRowCount !== loadedRowCount ||
-          curRowCountInfo.isEstimatedRowCount
-        ) {
-          curRowCountInfo = {
-            totalRowCount: curRowCountInfo.totalRowCount || inferredTotalRowCount,
-            loadedRowCount: actualData.current.length,
-            isEstimatedRowCount: false,
-          };
-
-          setRowCountInfo({
-            totalRowCount: actualData.current.length,
-            loadedRowCount: actualData.current.length,
-            isEstimatedRowCount: false,
-          });
+          // Set the real row count
+          setRealRowCount(availableRowCount);
         }
 
         updateTabDataViewStaleDataCache(tab.id, {
@@ -271,8 +369,8 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
             schema: inferredSchema || schema,
             data: actualData.current.slice(-MAX_PERSISTED_STALE_DATA_ROWS),
             rowOffset: Math.max(0, actualData.current.length - MAX_PERSISTED_STALE_DATA_ROWS),
-            totalRowCount: curRowCountInfo.totalRowCount,
-            isEstimatedRowCount: !readAll,
+            realRowCount: readAll ? availableRowCount : curRowCountInfo.realRowCount,
+            estimatedRowCount: readAll ? null : curRowCountInfo.estimatedRowCount,
           },
           sort,
         });
@@ -372,22 +470,10 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
     // table from the first fetch. Do not overwrite better data
     if (queries.getRowCount) {
       const count = await queries.getRowCount();
-      setRowCountInfo((prev) => ({
-        ...prev,
-        totalRowCount: Math.max(count, prev.totalRowCount || 0),
-        isEstimatedRowCount: false,
-      }));
+      setRealRowCount(count);
     } else if (queries.getEstimatedRowCount) {
       const count = await queries.getEstimatedRowCount();
-      setRowCountInfo((prev) =>
-        !prev.isEstimatedRowCount
-          ? prev
-          : {
-              ...prev,
-              totalRowCount: Math.max(count, prev.totalRowCount || 0),
-              isEstimatedRowCount: true,
-            },
-      );
+      setEstimatedRowCount(count);
     }
   }, [queries.getRowCount, queries.getEstimatedRowCount]);
 
@@ -403,45 +489,7 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
     }
   }, [mainDataReader, abortDataFetch, abortBackgroundTasks]);
 
-  /**
-   * Inits/resets the state by re-creating the reader with given sort params.
-   */
-  const reset = async () => {
-    // Reset a bunch of things. This can be called from either a prop change,
-    // initial mount or a sort change.
-
-    // The real data is not needed anymore, but if we had some, we should replace
-    // stale data with it.
-    if (actualData.current.length > 0) {
-      setStaleData({
-        schema,
-        data: actualData.current,
-        rowOffset: 0,
-        totalRowCount: rowCountInfo.totalRowCount,
-        isEstimatedRowCount: rowCountInfo.isEstimatedRowCount,
-      });
-
-      actualData.current.length = 0;
-    }
-
-    // Cancel any pending fetches, and background tasks & readers
-    cancelAllDataOperations();
-
-    // As we will read from the start, we reset this flag
-    setDataSourceExhausted(false);
-    // And any error
-    setDataSourceReadError(null);
-
-    // Reset row count info
-    const newRowCountInfo = {
-      totalRowCount: null,
-      loadedRowCount: 0,
-      isEstimatedRowCount: false,
-    };
-
-    setRowCountInfo(newRowCountInfo);
-
-    // And create a new reader if we have a query for that
+  const getNewReader = async () => {
     if (queries.getReader || queries.getSortableReader) {
       queries.getSortableReader
         ? setMainDataReader(await queries.getSortableReader(sort))
@@ -455,17 +503,62 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
   };
 
   /**
-   * If queries change, we need to reset the reader
+   * Inits/resets the state by re-creating the reader with given sort params.
+   */
+  const reset = () => {
+    // Reset a bunch of things. This can be called from either a prop change,
+    // initial mount or a sort change.
+
+    // The real data is not needed anymore, but if we had some, we should replace
+    // stale data with it.
+    const lastAvailableRowCount = actualData.current.length;
+
+    if (lastAvailableRowCount > 0) {
+      setStaleData({
+        schema,
+        data: actualData.current,
+        rowOffset: 0,
+      });
+
+      actualData.current.length = 0;
+    }
+
+    // Cancel any pending fetches, and background tasks & readers
+    cancelAllDataOperations();
+
+    // As we will read from the start, we reset this flag
+    setDataSourceExhausted(false);
+    // And any error
+    setDataSourceReadError(null);
+
+    // Reset row count info. We keep the loaded count,
+    // because until new data is read, we still have the stale data
+    const newRowCountInfo: RowCountInfo = {
+      realRowCount: null,
+      estimatedRowCount: null,
+      availableRowCount: lastAvailableRowCount,
+    };
+
+    setRowCountInfo(newRowCountInfo);
+
+    // And let the new reader be created in the background
+    getNewReader();
+  };
+
+  /**
+   * If queries change, we need to reset everything
    */
   useDidUpdate(() => {
     reset();
   }, [queries]);
 
   /**
-   * Restore from cache if available
+   * On mount we may have cached data in our local state vars,
+   * so we do not wnat a full reset, but only to initiate reader
+   * creation in the background.
    */
   useDidMount(() => {
-    reset();
+    getNewReader();
 
     return () => {
       // Make sure we cancel everything
@@ -510,8 +603,7 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
       if (schema.length > 0) {
         return {
           data: returnData,
-          rowFrom: returnRowFrom,
-          rowTo: returnRowTo,
+          rowOffset: returnRowFrom,
         };
       }
 

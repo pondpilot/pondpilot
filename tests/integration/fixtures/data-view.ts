@@ -1,3 +1,4 @@
+import { MAX_DATA_VIEW_PAGE_SIZE } from '@models/tab';
 import { test as base, expect, Locator } from '@playwright/test';
 
 type ExpectedDataValue = number | string;
@@ -74,8 +75,16 @@ export const getDataCellContainer = (dataTable: Locator, columnName: string, row
  * @param rowIndex The row index.
  * @returns
  */
-export const getDataCellValue = (dataTable: Locator, columnName: string, rowIndex: number) =>
-  dataTable.getByTestId(`data-table-cell-value-${columnName}-${rowIndex}`);
+export const getDataCellValue = (
+  dataTable: Locator,
+  columnName: string,
+  rowIndex: number,
+  currentPage: number = 0,
+) => {
+  const relativeRowIndex = rowIndex - currentPage * MAX_DATA_VIEW_PAGE_SIZE;
+
+  return dataTable.getByTestId(`data-table-cell-value-${columnName}-${relativeRowIndex}`);
+};
 
 export const test = base.extend<DataViewFixtures>({
   dataTable: async ({ page }, use) => {
@@ -101,7 +110,7 @@ export const test = base.extend<DataViewFixtures>({
   },
 
   assertDataTableMatches: async ({ waitForDataTable }, use) => {
-    await use(async (expected: ExpectedData) => {
+    await use(async (expected: ExpectedData, currentPage: number = 0) => {
       // Wait for the data table to be visible
       const dataTable = await waitForDataTable();
 
@@ -120,7 +129,7 @@ export const test = base.extend<DataViewFixtures>({
       // Check row number data cells (assuming all columns have the same number of rows)
       const rowCount = expected[columns[0]].length;
       for (let i = 0; i < rowCount; i += 1) {
-        const rowNumberCell = getDataCellValue(dataTable, '#', i);
+        const rowNumberCell = getDataCellValue(dataTable, '#', i, currentPage);
         await expect(rowNumberCell).toBeVisible();
         await expect(rowNumberCell).toHaveText(String(i + 1));
       }

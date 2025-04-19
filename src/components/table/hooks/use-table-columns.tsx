@@ -1,18 +1,19 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions */
 /* eslint-disable jsx-a11y/click-events-have-key-events */
-import { Cell, CellContext, Column, ColumnDef, Row, Table } from '@tanstack/react-table';
+import { CellContext, ColumnDef } from '@tanstack/react-table';
 import React from 'react';
 import { Tooltip } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
 import { setDataTestId } from '@utils/test-id';
 import { DBColumn } from '@models/db';
 import { copyToClipboard } from '@utils/clipboard';
-import { stringifyTypedValue } from '@utils/db';
+import { isNumberType, stringifyTypedValue } from '@utils/db';
+import { replaceSpecialChars } from '@utils/helpers';
+import { TableMeta } from '../model';
 
 interface UseTableColumnsProps {
   schema: DBColumn[];
-  page: number;
-  initialCoulmnSizes?: Record<string, number>;
+  initialColumnSizes?: Record<string, number>;
   onRowSelectionChange: (
     cell: CellContext<Record<string, string | number>, any>,
     e: React.MouseEvent<Element, MouseEvent>,
@@ -20,32 +21,31 @@ interface UseTableColumnsProps {
 }
 
 const MIN_TOOLTIP_LENGTH = 30;
-const fallbackData = [] as any[];
+const emptyColumns = [] as any[];
 
 export const getTableColumns = ({
   schema,
+  initialColumnSizes,
   onRowSelectionChange,
-  page,
-  initialCoulmnSizes,
 }: UseTableColumnsProps) => {
-  const tableColumns: ColumnDef<Record<string, string | number>, any>[] = schema?.length
+  const tableColumns: ColumnDef<Record<string, string | number>, any>[] = schema.length
     ? [
         {
           header: '#',
           minSize: 46,
           size: 46,
           cell: (props) => {
-            const rowIndex = props.row.index;
-            const pageIndex = page;
-            const index = pageIndex * 100 + rowIndex + 1;
             const onRowClick = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
               onRowSelectionChange(props, e);
             };
 
+            const { rowOffset } = props.table.options.meta as TableMeta;
+            const index = rowOffset + props.row.index + 1;
+
             return (
               <div
                 onMouseDown={onRowClick}
-                data-testid={setDataTestId(`data-table-cell-value-#-${rowIndex}`)}
+                data-testid={setDataTestId(`data-table-cell-value-#-${props.row.index}`)}
                 className="p-2 text-sm font-mono flex w-full justify-end"
               >
                 {index}
@@ -59,17 +59,9 @@ export const getTableColumns = ({
             header: col.name,
             meta: { type: col.sqlType },
             minSize: col.name === '#' ? 80 : 100,
-            size: col.name === '#' ? 80 : initialCoulmnSizes?.[col.name] || 200,
-            id: col.name,
-            accessorFn: (row) => row[col.name],
-            cell: (info: {
-              table: Table<Record<string, string | number>>;
-              row: Row<Record<string, string | number>>;
-              column: Column<Record<string, string | number>>;
-              cell: Cell<Record<string, string | number>, any>;
-              getValue: () => any;
-              renderValue: () => any;
-            }) => {
+            size: col.name === '#' ? 80 : initialColumnSizes?.[col.name] || 200,
+            id: replaceSpecialChars(col.name),
+            cell: (info) => {
               const value = info.getValue();
 
               const result = stringifyTypedValue({
@@ -82,8 +74,7 @@ export const getTableColumns = ({
                   data-testid={setDataTestId(`data-table-cell-value-${col.name}-${info.row.index}`)}
                   className={cn(
                     'text-sm p-2',
-                    ['integer', 'date', 'number', 'bigint'].includes(col.sqlType) &&
-                      'justify-end font-mono flex w-full',
+                    isNumberType(col.sqlType) && 'justify-end font-mono flex w-full',
                   )}
                   onClick={(e) =>
                     e.shiftKey &&
@@ -110,7 +101,7 @@ export const getTableColumns = ({
           }),
         ),
       ]
-    : fallbackData;
+    : emptyColumns;
 
   return tableColumns;
 };

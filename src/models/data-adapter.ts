@@ -1,16 +1,28 @@
 import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';
 
-export type GetTableDataReturnType = {
+export type DataTableSlice = {
+  /**
+   * A subset of the full data table.
+   */
   data: DataTable;
-  rowFrom: number;
-  rowTo: number;
-} | null;
+  /**
+   * The starting, 0-based row index in the full data of
+   * this data slice.
+   */
+  rowOffset: number;
+};
+
+export type GetTableDataReturnType = DataTableSlice | null;
 
 export type RowCountInfo = {
-  totalRowCount: number | null;
-  loadedRowCount: number;
-  isEstimatedRowCount: boolean;
+  realRowCount: number | null;
+  estimatedRowCount: number | null;
+  /**
+   * The number of rows that are available to be shown (from actual or
+   * stale data).
+   */
+  availableRowCount: number;
 };
 
 export type ColumnAggregateType = 'count' | 'sum' | 'avg' | 'min' | 'max';
