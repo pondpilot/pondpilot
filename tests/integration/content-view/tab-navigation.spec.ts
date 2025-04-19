@@ -30,7 +30,7 @@ test('Switch between tabs using tabs pane', async ({
   await fillScript('select 1');
   await createScriptAndSwitchToItsTab();
   await expect(await getScriptEditorContent()).toContainText('');
-  await switchToTab('query.sql');
+  await switchToTab('query');
   await expect(await getScriptEditorContent()).toContainText('select 1');
 });
 
@@ -49,10 +49,10 @@ test('Create two queries with different content and switch between them', async 
   await fillScript('select 2 as second_query');
 
   // Switch back to first script and verify content
-  await switchToTab('query.sql');
+  await switchToTab('query');
   await expect(await getScriptEditorContent()).toContainText('select 1 as first_query');
 
   // Switch back to second script and verify content
-  await switchToTab('query_1.sql');
+  await switchToTab('query_1');
   await expect(await getScriptEditorContent()).toContainText('select 2 as second_query');
 });
