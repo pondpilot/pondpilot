@@ -1,496 +1,291 @@
 import { Table } from '@components/table/table';
-import { DataAdapterApi } from '@models/data-adapter';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { DataAdapterApi, GetTableDataReturnType } from '@models/data-adapter';
+import { useCallback, useEffect, useState } from 'react';
 import { setDataTestId } from '@utils/test-id';
-import { useDidMount } from '@hooks/use-did-mount';
-import { Affix, Group, Loader, Stack, Text } from '@mantine/core';
-import { useDidUpdate } from '@mantine/hooks';
+import { Center, Group, Loader, Stack, Text } from '@mantine/core';
+import { useDebouncedValue } from '@mantine/hooks';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
-import { ColumnSortSpec, DBColumn, DBTableOrViewSchema } from '@models/db';
+import { DBColumn } from '@models/db';
 import { notifications } from '@mantine/notifications';
-import { DataViewCacheItem, DataViewCacheKey } from '@models/data-view';
-import { useAppStore } from '@store/app-store';
-import { setOrUpdateDataViewCache } from '@controllers/data-view';
-import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
 import { showSuccess } from '@components/app-notifications';
 import { copyToClipboard } from '@utils/clipboard';
-import { useSort } from '../hooks/use-sort';
+import { MAX_DATA_VIEW_PAGE_SIZE, TabId, TabType } from '@models/tab';
+import { IconClipboardSmile } from '@tabler/icons-react';
+import { useAppStore } from '@store/app-store';
+import {
+  updateTabDataViewColumnSizesCache,
+  updateTabDataViewDataPageCache,
+} from '@controllers/tab';
 import { useColumnSummary } from '../hooks';
-
-const MAX_PAGE_SIZE = 100;
-
-// Data View is a logic layer between abstract batch streaming data provider (represented
-// via DataAdapterApi) and the UI layer (Table component).
-// It handles the data fetching, pagination, and caching logic.
-//
-// In terms of datat it may have the following states:
-// 1. Actual data is available up-to or beyond the current page
-// 2. Data source is not exhausted, but actual data is not yet loaded to the current page.
-//    Note that this is both the initial state, and intermediate state when
-//    the user selects a page "far enough" from the current page.
-// 2.1. Cached data is available
-// 2.2. No cached data is available
-// 3. Data source is exhausted, no more data is available.
-// 4. Data source reading error
-// 4.1. Cached data is available
-// 4.2. No cached data is available
-//
-// Initially as well as after sort changes, the reader from the data adapter is created.
-// As it is asynchronous, we have three possible states:
-// 1. Data adapter is not ready yet (being created)
-// 2. Data adapter is ready
-// 3. Data adapter failed to create (this also implies the data source error above)
-//
-// Another important thing is the total row count. We actually have three different row counts:
-// 1. Estimated row count
-//    May be available at the start via the data adapter API.
-// 2. Loaded row count - how many rows we have loaded so far.
-// 3. Total real row count
-//    May be available at the start via the data adapter API.
-//    The final row count is set when the data source is exhausted.
 
 interface DataViewProps {
   /**
-   * Invisible data views disable all hotkeys and UI interactions.
+   * Inactive data views disable all hotkeys and UI interactions.
    */
-  visible: boolean;
+  active: boolean;
 
-  /**
-   * A persistent cache key, that can be used to store and later
-   * retrieve the data for the same underlying data source after app restart.
-   */
-  cacheKey: DataViewCacheKey;
-
-  dataAdapterApi: DataAdapterApi;
+  dataAdapter: DataAdapterApi;
+  tabId: TabId;
+  tabType: TabType;
 }
 
-export const DataView = ({ visible, cacheKey, dataAdapterApi }: DataViewProps) => {
+export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps) => {
   /**
    * Helpful hooks
    */
-  const { sortParams, handleSort, resetSort } = useSort();
   const {
     calculateColumnSummary,
     columnTotal,
-    isNumeric,
-    resetTotal: resetCalculatedValue,
-    isLoading: isColumnCalculating,
-  } = useColumnSummary(dataAdapterApi);
+    columnAggType,
+    resetTotal: resetColumnAggregate,
+    isLoading: isColumnAggCalculating,
+  } = useColumnSummary(dataAdapter);
 
   /**
    * Local Reactive State
    */
-  // Holds the current connection to the database
-  const [reader, setReader] = useState<AsyncDuckDBPooledStreamReader<any> | null>(null);
+  const [currentPage, setCurrentPage] = useState(
+    () => useAppStore.getState().tabs.get(tabId)?.dataViewStateCache?.dataViewPage || 0,
+  );
+  const [tableData, setTableData] = useState<GetTableDataReturnType>(null);
 
-  // Two sets of data. One stale (from cache, including when created from a previous sort state)
-  // and one actual (from the current reader)
-  // We use ref, to allow mutating these, instead of re-creating on every append.
-  // The component is still reactive to new data loads because we toggle `isFetchingData` state
-  // when we load data
-  const localCache = useRef<DataViewCacheItem>(null);
-  const actualData = useRef<Record<string, any>[]>([]);
+  /**
+   * Local Non-Reactive State
+   */
 
-  const [schema, setSchema] = useState<DBTableOrViewSchema>([]);
+  // Load cached column width once if available
+  const [initialColumnSizes] = useState<Record<string, number> | undefined>(
+    () => useAppStore.getState().tabs.get(tabId)?.dataViewStateCache?.tableColumnSizes || undefined,
+  );
 
-  // Estimated row count may be available via the data adapter API for some data sources.
-  const [estimatedRowCount, setEstimatedRowCount] = useState<number | null>(null);
-  // Real row count is either known from the API from scratch, or set when the data source is exhausted.
-  const [realRowCount, setRealRowCount] = useState<number | null>(null);
+  /**
+   * Computed data source state
+   */
+  const hasActualData = dataAdapter.currentSchema.length > 0 && !dataAdapter.isStale;
+  const hasStaleData = dataAdapter.currentSchema.length > 0 && dataAdapter.isStale;
+  const hasData = hasActualData || hasStaleData;
 
-  const [currentPage, setCurrentPage] = useState(0);
+  const hasDataSourceError = dataAdapter.dataSourceError !== null;
+  const [isFetching] = useDebouncedValue(dataAdapter.isFetchingData, 200);
+  const [isSorting] = useDebouncedValue(dataAdapter.isSorting, 200);
 
-  const [dataSourceExhausted, setDataSourceExhausted] = useState(false);
-  const [dataSourceReadError, setDataSourceReadError] = useState<string | null>(null);
-  const [isFetchingData, setIsFetchingData] = useState(false);
-  // Yes, two `isFetchingData` vars. One for UI as state, and another as ref,
-  // to ensure that multiple async effects are not trying to fetch data at the same time.
-  // These effects use an async function created in a closure which may not have the
-  // latest value of the state => hence a separate ref.
-  const isFetchingRef = useRef(false);
+  const { totalRowCount, loadedRowCount, isEstimatedRowCount } = dataAdapter.rowCountInfo;
+  const rowCountToShow = totalRowCount || loadedRowCount;
 
   /**
    * Computed State
    */
-  const loadedRowCount = actualData.current.length;
-  const realOrEstimatedRowCount =
-    realRowCount && !dataSourceExhausted
-      ? realRowCount
-      : estimatedRowCount
-        ? Math.max(estimatedRowCount, loadedRowCount)
-        : loadedRowCount;
-
-  const isSinglePage = realOrEstimatedRowCount < MAX_PAGE_SIZE;
 
   // The real requested row range. `expectedRowTo` also tells us how much data we need
   // to fetch to fill the current page.
-  const expectedRowFrom = Math.max(0, currentPage * MAX_PAGE_SIZE);
-  const expectedRowTo = realRowCount
+  const expectedRowFrom = Math.max(0, currentPage * MAX_DATA_VIEW_PAGE_SIZE);
+  const expectedRowTo = totalRowCount
     ? // if we know the real row count, we can calculate the expected rowTo precisely
-      Math.min(realRowCount, (currentPage + 1) * MAX_PAGE_SIZE)
+      Math.min(totalRowCount, (currentPage + 1) * MAX_DATA_VIEW_PAGE_SIZE)
     : // if we don't know the real row count, we fall back to the loaded row count
-      // if we know the data source is exhausted, or assume the entire page will be filled.
-      // If we didn't make a mistake, realRowCount should always exist if we've exhausted
-      // the data source, but we are playing safe here.
-      dataSourceExhausted
-      ? loadedRowCount
-      : (currentPage + 1) * MAX_PAGE_SIZE;
+      // assuming the entire page will be filled.
+      // If we didn't make a mistake, `totalRowCount` should always exist if we've exhausted
+      // the data source, so we should not request more than available more than once.
+      (currentPage + 1) * MAX_DATA_VIEW_PAGE_SIZE;
 
-  // Should we show a stale data instead of real data?
-  const useStaleData = localCache.current !== null && expectedRowTo > loadedRowCount;
-
-  // The actual row range to show in the table. It may be different from the expected row range
-
-  const displayedRowFrom =
-    useStaleData && localCache.current ? localCache.current.rowFrom : expectedRowFrom;
-
-  const displayedRowTo =
-    useStaleData && localCache.current ? localCache.current.rowTo : expectedRowTo;
-
-  // Whether we should show the table at all. I.e. we have either actual or stale data.
-  // Note, that empty data is also data (query can return 0 rows).
-  // Since we always have actual data (potentially empty), this simplifies to just
-  // checking if we have cache obkect. Again, empty data is also data.
-  // One other requirement is that we have a schema, otherwise we can't show the table.
-  const showTable = (!isFetchingData && schema.length > 0) || !!localCache.current?.schema.length;
-
-  // Whether we should show a loading overlay
-  const showLoadingOverlay = !showTable;
-
-  // Should we allow pagination?
-  const isPaginationDisabled = useStaleData || isFetchingData || dataSourceReadError !== null;
+  const isSinglePage = rowCountToShow <= MAX_DATA_VIEW_PAGE_SIZE;
 
   // Now get the data to be used by the table
-  const displaySchema = useStaleData && localCache.current ? localCache.current.schema : schema;
-  const displayData = useMemo(() => {
-    if (useStaleData && localCache.current) {
-      return localCache.current.data;
-    }
-    return actualData.current.slice(expectedRowFrom, expectedRowTo);
-  }, [expectedRowFrom, expectedRowTo, useStaleData, isFetchingData]);
+  useEffect(
+    () => {
+      const newData = dataAdapter.getTableData(expectedRowFrom, expectedRowTo);
+      setTableData(newData);
+    },
+    // There is no point in getting data again if the data version
+    // has not changed. This is important for performance.
+    [dataAdapter.dataSourceVersion, dataAdapter.getTableData, expectedRowFrom, expectedRowTo],
+  );
 
-  /**
-   * Shared closures
-   */
+  // Whether we should show a full loading overlay, i.e. we have nothing, even stale to show
+  const [showLoadingOverlay] = useDebouncedValue(
+    (tableData === null || !hasData) && !isSorting && isFetching && !hasDataSourceError,
+    200,
+  );
 
-  const getNewReader = async (newSortParams: ColumnSortSpec | null | undefined) => {
-    // Now try creating the reader. This may throw an error, so catch it
-    try {
-      const newSchema = await dataAdapterApi.getSchema();
-      const newReader = await dataAdapterApi.getReader(newSortParams ? [newSortParams] : []);
-      setSchema(newSchema);
-      setReader(newReader);
-    } catch (error) {
-      console.error('Failed to create reader:', error);
-      setDataSourceReadError('Failed to create reader');
-    }
-  };
+  // Whether to show error overlay (that's when even stale data is not available
+  // and we have an error)
+  const showErrorOverlay = (tableData === null || !hasData) && hasDataSourceError;
+  const showMessageOverlay =
+    (tableData === null || !hasData) && !isSorting && !isFetching && !hasDataSourceError;
 
-  /**
-   * Inits/resets the data view by re-creating the reader with given sort params.
-   */
-  const reset = (newSortParams: ColumnSortSpec | null) => {
-    // Reset a bunch of things. This can be called from either a prop change,
-    // initial mount or a sort change.
+  const displayData = tableData?.data;
+  // The actual row range to show in the table. It may be different from the expected row range
+  const displayedRowFrom = tableData?.rowFrom || expectedRowFrom;
+  const displayedRowTo = tableData?.rowTo || expectedRowTo;
 
-    // The real data is not needed anymore
-    actualData.current.length = 0;
+  // Whether we should show the table, even if with no rows.
+  // If we didn't make a mistke, if `hasData` is true then `tableData`
+  // is not null. But we are using a stronger check to be sure.
+  const showTable = displayData !== undefined && hasData;
 
-    // We avoid unnecessary re-renders on mount by only setting the new
-    // state if the value is different.
-
-    // Page is reset to 0, as we need to fetch data from the start
-    if (currentPage !== 0) setCurrentPage(0);
-    // As we will read from the start, we reset this flag
-    if (dataSourceExhausted) setDataSourceExhausted(false);
-    // And any error
-    if (dataSourceReadError) setDataSourceReadError(null);
-
-    // Fially we reset the reader and then asynchronously start a process
-    // similar to init, but with new sort params
-    if (reader) {
-      reader.cancel();
-      setReader(null);
-    }
-
-    getNewReader(newSortParams);
-  };
+  // Should we allow pagination? We allow continuing paginating even
+  // while data is loading (but not sorting), and we disable the buttons
+  // if we are in error state
+  const isPaginationDisabled =
+    hasData && !isSorting && !hasDataSourceError && !dataAdapter.dataSourceExhausted;
 
   /**
    * Exvent handlers
    */
-  const handleNextPage = async () => {
+  const setAndCacheDataPage = useCallback((newPage: number) => {
+    setCurrentPage(newPage);
+    updateTabDataViewDataPageCache(tabId, newPage);
+  }, []);
+
+  const handleNextPage = useCallback(() => {
     const nextPage = currentPage + 1;
 
     // Check we are not accidentally switch past the end of the data,
-    const newExpectedRowFrom = nextPage * MAX_PAGE_SIZE;
-    if (newExpectedRowFrom >= realOrEstimatedRowCount) {
+    const newExpectedRowFrom = nextPage * MAX_DATA_VIEW_PAGE_SIZE;
+    if (newExpectedRowFrom >= rowCountToShow) {
       return;
     }
 
-    setCurrentPage(nextPage);
-  };
+    setAndCacheDataPage(nextPage);
+  }, [currentPage, rowCountToShow]);
 
-  const handlePrevPage = () => {
+  const handlePrevPage = useCallback(() => {
     if (currentPage > 0) {
       const prevPage = currentPage - 1;
-      setCurrentPage(prevPage);
+      setAndCacheDataPage(prevPage);
     }
-  };
+  }, []);
 
   /**
-   * Handle sorting - create a new reader with sort parameters
+   * Handle sorting
    */
-  const handleSortAndGetNewReader = (sortField: DBColumn['name']) => {
-    // Update the sort params
-    const newSortParams = handleSort(sortField);
-
-    // Reset the data view with the new sort params
-    reset(newSortParams);
-  };
+  const handleSortAndGetNewReader = useCallback(
+    (sortField: DBColumn['name']) => {
+      dataAdapter.toggleColumnSort(sortField);
+    },
+    [dataAdapter.toggleColumnSort],
+  );
 
   /**
    * Handle copy selected columns
    */
-  const handleCopySelectedColumns = async (selectedCols: DBTableOrViewSchema) => {
-    // We do not want to call API if no columns are selected
-    if (!selectedCols.length) {
-      return;
-    }
+  const handleCopySelectedColumns = useCallback(
+    async (selectedCols: DBColumn[]) => {
+      // We do not want to call API if no columns are selected
+      if (!selectedCols.length) {
+        return;
+      }
 
-    const notificationId = showSuccess({
-      title: 'Copying selected columns to clipboard...',
-      message: '',
-      loading: true,
-      autoClose: false,
-      color: 'text-accent',
-    });
-    try {
-      // TODO: Has to be a part of the API (It should be processed in chunks (using requestAnimationFrame or Promise) to prevent blocking the main thread.)
-      const result = await dataAdapterApi.getColumnsData?.(selectedCols);
-      const data = result?.toArray().map((row) => row.toJSON());
+      const notificationId = showSuccess({
+        title: 'Copying selected columns to clipboard...',
+        message: '',
+        loading: true,
+        autoClose: false,
+        color: 'text-accent',
+      });
+      try {
+        const data = await dataAdapter.getAllTableData(selectedCols);
 
-      if (Array.isArray(data) && Array.isArray(selectedCols)) {
         const headers = selectedCols.map((col) => col.name).join('\t');
         const rows = data.map((row) => selectedCols.map((col) => row[col.name] ?? '').join('\t'));
         const tableText = [headers, ...rows].join('\n');
         await copyToClipboard(tableText);
-      }
 
-      notifications.update({
-        id: notificationId,
-        title: 'Selected columns copied to clipboard',
-        message: '',
-        loading: false,
-        autoClose: 800,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      notifications.update({
-        id: notificationId,
-        title: 'Failed to copy selected columns to clipboard',
-        message,
-        loading: false,
-        autoClose: 5000,
-        color: 'red',
-      });
-    }
-  };
-
-  /**
-   * Update the data view cache every time displayed data changes
-   */
-  // Restore and update the cache effect near line 295
-  useEffect(() => {
-    // Only update cache when we're showing real data (not stale data)
-    if (useStaleData || !displaySchema.length || isFetchingData) return;
-
-    // Create or update the local cache
-    localCache.current = {
-      key: cacheKey,
-      data: displayData,
-      schema: displaySchema,
-      rowFrom: displayedRowFrom,
-      rowTo: displayedRowTo,
-      dataPage: currentPage,
-    };
-
-    // Update the global app store cache
-    setOrUpdateDataViewCache({
-      key: cacheKey,
-      data: displayData,
-      schema: displaySchema,
-      rowFrom: displayedRowFrom,
-      rowTo: displayedRowTo,
-      dataPage: currentPage,
-    });
-  }, [displayData, displaySchema, displayedRowFrom, displayedRowTo, currentPage, sortParams]);
-
-  /**
-   * Fetch more data when necessary
-   */
-
-  // Do not run on mount, useless. Reader will be empty until our
-  // onDidMount effect runs.
-  useDidUpdate(() => {
-    const fetchData = async () => {
-      if (
-        // Reader check is not necessary, we should never call this function
-        // if reader is not set. But let's be safe.
-        !reader ||
-        // Do not try to read from an exhausted data source - we do not check
-        // the state, as this is triggered in an effect and may have outdated
-        // closure values.
-        reader.closed ||
-        // Avoid multiple effects trying to fetch data at the same time,
-        // which can happend at least in dev mode because of the strict mode.
-        isFetchingRef.current ||
-        // Do not read if we already have enough data
-        actualData.current.length >= expectedRowTo
-      ) {
-        return;
-      }
-
-      try {
-        // Start fetching data (see why two separate at definition)
-        setIsFetchingData(true);
-        isFetchingRef.current = true;
-
-        let readAll = false;
-
-        while (!readAll || reader.closed) {
-          const { done, value: batchResult } = await reader.next();
-
-          if (done) {
-            readAll = true;
-            break;
-          }
-
-          const newTableData = batchResult.toArray().map((row) => row.toJSON());
-          actualData.current.push(...newTableData);
-
-          if (actualData.current.length >= expectedRowTo) break;
-        }
-
-        if (readAll) {
-          setDataSourceExhausted(true);
-          setRealRowCount(actualData.current.length);
-        }
+        notifications.update({
+          id: notificationId,
+          title: 'Selected columns copied to clipboard',
+          message: '',
+          loading: false,
+          autoClose: 800,
+        });
       } catch (error) {
-        console.error('Failed to load more data:', error);
-        setDataSourceReadError('Failed to load more data');
-      } finally {
-        setIsFetchingData(false);
-        isFetchingRef.current = false;
-      }
-    };
+        const autoCancelled = error instanceof DOMException ? error.name === 'Cancelled' : false;
+        const message = error instanceof Error ? error.message : 'Unknown error';
 
-    fetchData();
-  }, [reader, currentPage, expectedRowTo]);
-
-  /**
-   * Initialize data when prop change (new adapter). This is differnt from mount
-   * as we do not read the cache. For mount see below.
-   */
-  useDidUpdate(() => {
-    // Rest the sort params
-    resetSort();
-    // Reset the data view with the new sort params
-    reset(null);
-  }, [dataAdapterApi]);
-
-  /**
-   * Initialize data when component mounts
-   */
-  useDidMount(() => {
-    const init = async () => {
-      // // First try reading cache, as this will allow quickly showing data
-      // // before reader is ready. We use non-hook version to access the store
-      const cachedDataView = useAppStore.getState().dataViewCache.get(cacheKey);
-
-      if (cachedDataView) {
-        localCache.current = cachedDataView;
-        if (cachedDataView.dataPage !== undefined) {
-          setCurrentPage(cachedDataView.dataPage);
+        if (autoCancelled) {
+          notifications.update({
+            id: notificationId,
+            title: 'Cancelled',
+            message,
+            loading: false,
+            autoClose: 800,
+            color: 'text-warning',
+          });
+          return;
         }
+
+        notifications.update({
+          id: notificationId,
+          title: 'Failed to copy selected columns to clipboard',
+          message,
+          loading: false,
+          autoClose: 5000,
+          color: 'red',
+        });
       }
-
-      // Now let's start with increasingly long operations.
-      // First let's see if we can get any row counts from the data adapter.
-      if (dataAdapterApi.getRowCount) {
-        const knownRowCount = await dataAdapterApi.getRowCount();
-        setRealRowCount(knownRowCount);
-      } else if (dataAdapterApi.getEstimatedRowCount) {
-        const knownEstimatedRowCount = await dataAdapterApi.getEstimatedRowCount();
-        setEstimatedRowCount(knownEstimatedRowCount);
-      }
-
-      // Now try creating the reader. It will handle errors inside
-      await getNewReader(sortParams);
-    };
-    init();
-
-    // Make sure to cancel the reader when the component unmounts
-    return () => {
-      reader?.cancel();
-    };
-  });
+    },
+    [dataAdapter.getAllTableData],
+  );
 
   return (
     <Stack className="gap-0 h-full overflow-hidden">
+      {/* Loading overlay */}
       <DataLoadingOverlay
-        title="Opening your file, please wait..."
-        onCancel={() => {
-          throw new Error('TODO: Implement cancel loading');
-        }}
+        title={
+          tabType === 'data-source' ? 'Opening your file, please wait...' : 'Running your query...'
+        }
+        onCancel={dataAdapter.cancelDataRead}
         visible={showLoadingOverlay}
       />
-      {dataSourceReadError && (
-        <Affix
-          position={{ bottom: 16, left: '50%' }}
-          style={{ transform: 'translateX(-50%)' }}
-          zIndex={50}
-        >
-          <div className="w-full max-w-md">
-            <Stack
-              align="center"
-              gap={4}
-              bg="background-primary"
-              className="p-8 pt-4 rounded-2xl shadow-lg"
-            >
-              <Text c="text-primary" className="text-2xl font-medium">
-                {dataSourceReadError}
-              </Text>
-            </Stack>
-          </div>
-        </Affix>
+      {/* Error overlay */}
+      {showErrorOverlay && (
+        <>
+          <Stack align="center" gap={4} bg="background-primary" className="p-8 pt-4 rounded-2xl">
+            <Text c="text-primary" className="text-2xl font-medium">
+              We are sorry, but we encountered an errors while
+              {tabType === 'data-source' ? 'opening your file' : 'running your query'}:
+            </Text>
+            <Text c="text-secondary" className="text-lg font-medium">
+              {dataAdapter.dataSourceError ||
+                'Internal error creating data adapter. Please report this issue.'}
+            </Text>
+          </Stack>
+        </>
       )}
-      {useStaleData && (
-        <Affix
-          position={{ top: 16, left: '50%' }}
-          style={{ transform: 'translateX(-50%)' }}
-          zIndex={50}
-        >
-          <Text c="text-primary" className="text-2xl font-medium">
-            Showing cached data from page
-          </Text>
-        </Affix>
+      {/* Message overlay, for scripts */}
+      {showMessageOverlay && (
+        <>
+          <Center className="h-full font-bold">
+            <Stack align="center" c="icon-default" gap={4}>
+              <IconClipboardSmile size={32} stroke={1} />
+              <Text c="text-secondary">Your query results will be displayed here.</Text>
+            </Stack>
+          </Center>
+        </>
       )}
       {showTable && (
         <>
           <div className="flex-1 min-h-0 overflow-auto px-3 custom-scroll-hidden pb-6">
             <Table
               data={displayData}
-              schema={displaySchema}
-              sort={sortParams}
+              schema={dataAdapter.currentSchema}
+              sort={dataAdapter.sort}
               page={currentPage}
-              visible={!!visible}
+              visible={!!active}
+              initialCoulmnSizes={initialColumnSizes}
               onColumnSelectChange={calculateColumnSummary}
-              onSort={handleSortAndGetNewReader}
-              onRowSelectChange={resetCalculatedValue}
-              onCellSelectChange={resetCalculatedValue}
-              onSelectedColsCopy={handleCopySelectedColumns}
+              onSort={
+                hasDataSourceError || dataAdapter.disableSort
+                  ? undefined
+                  : handleSortAndGetNewReader
+              }
+              onRowSelectChange={resetColumnAggregate}
+              onCellSelectChange={resetColumnAggregate}
+              onSelectedColsCopy={hasDataSourceError ? undefined : handleCopySelectedColumns}
+              onColumnResizeChange={(columnSizes) =>
+                updateTabDataViewColumnSizesCache(tabId, columnSizes)
+              }
             />
           </div>
           <Group
@@ -500,14 +295,14 @@ export const DataView = ({ visible, cacheKey, dataAdapterApi }: DataViewProps) =
           >
             {columnTotal !== null && (
               <Text c="text-primary" className="text-sm">
-                {isNumeric ? 'SUM' : 'COUNT'}: {columnTotal}
+                {columnAggType.toUpperCase()}: {columnTotal}
               </Text>
             )}
-            {isColumnCalculating && <Loader size={12} color="text-accent" />}
+            {isColumnAggCalculating && <Loader size={12} color="text-accent" />}
           </Group>
         </>
       )}
-      {showTable && !dataSourceReadError && (
+      {showTable && (
         <div
           className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
           data-testid={setDataTestId('data-table-pagination-control')}
@@ -517,10 +312,10 @@ export const DataView = ({ visible, cacheKey, dataAdapterApi }: DataViewProps) =
             rowTo={displayedRowTo}
             isSinglePage={isSinglePage}
             isDisabled={isPaginationDisabled}
-            rowCount={realOrEstimatedRowCount}
+            rowCount={rowCountToShow}
             onPrevPage={handlePrevPage}
             onNextPage={handleNextPage}
-            isEstimatedRowCount={realRowCount === null}
+            isEstimatedRowCount={isEstimatedRowCount}
           />
         </div>
       )}

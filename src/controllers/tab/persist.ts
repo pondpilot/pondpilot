@@ -2,12 +2,7 @@
 // These are necessary when multi-table transactions are needed,
 // as we are not blocking controller operations on indexedDB updates.
 
-import {
-  AppIdbSchema,
-  CONTENT_VIEW_TABLE_NAME,
-  TAB_TABLE_NAME,
-  DATA_VIEW_CACHE_TABLE_NAME,
-} from '@models/persisted-store';
+import { AppIdbSchema, CONTENT_VIEW_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
 import { AnyTab, TabId } from '@models/tab';
 import { IDBPDatabase } from 'idb';
 
@@ -56,21 +51,12 @@ export const persistDeleteTab = async (
   newPreviewTabId: TabId | null,
   newTabOrder: TabId[],
 ) => {
-  const tx = iDb.transaction(
-    [TAB_TABLE_NAME, CONTENT_VIEW_TABLE_NAME, DATA_VIEW_CACHE_TABLE_NAME],
-    'readwrite',
-  );
+  const tx = iDb.transaction([TAB_TABLE_NAME, CONTENT_VIEW_TABLE_NAME], 'readwrite');
 
   // Delete each tab
   const tabStore = tx.objectStore(TAB_TABLE_NAME);
   for (const tabId of deletedTabIds) {
     await tabStore.delete(tabId);
-  }
-
-  // And data view cache entries
-  const dataViewCacheStore = tx.objectStore(DATA_VIEW_CACHE_TABLE_NAME);
-  for (const tabId of deletedTabIds) {
-    await dataViewCacheStore.delete(tabId);
   }
 
   const contentViewStore = tx.objectStore(CONTENT_VIEW_TABLE_NAME);

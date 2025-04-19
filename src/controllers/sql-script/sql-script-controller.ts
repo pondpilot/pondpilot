@@ -155,7 +155,6 @@ export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
     tabOrder,
     activeTabId,
     previewTabId,
-    dataViewCache,
     _iDbConn: iDbConn,
   } = useAppStore.getState();
 
@@ -177,7 +176,6 @@ export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
   let newTabOrder = tabOrder;
   let newActiveTabId = activeTabId;
   let newPreviewTabId = previewTabId;
-  let newDataViewCache = dataViewCache;
 
   if (tabsToDelete.length > 0) {
     const result = deleteTabImpl({
@@ -186,14 +184,12 @@ export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
       tabOrder,
       activeTabId,
       previewTabId,
-      dataViewCache,
     });
 
     newTabs = result.newTabs;
     newTabOrder = result.newTabOrder;
     newActiveTabId = result.newActiveTabId;
     newPreviewTabId = result.newPreviewTabId;
-    newDataViewCache = result.newDataViewCache;
   }
 
   useAppStore.setState(
@@ -203,7 +199,6 @@ export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,
       previewTabId: newPreviewTabId,
-      dataViewCache: newDataViewCache,
     },
     undefined,
     'AppStore/deleteSqlScript',

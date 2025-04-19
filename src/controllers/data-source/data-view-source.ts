@@ -56,7 +56,6 @@ export const deleteDataSources = async (
     activeTabId,
     previewTabId,
     localEntries,
-    dataViewCache,
     _iDbConn: iDbConn,
   } = useAppStore.getState();
 
@@ -96,7 +95,6 @@ export const deleteDataSources = async (
   let newTabOrder = tabOrder;
   let newActiveTabId = activeTabId;
   let newPreviewTabId = previewTabId;
-  let newDataViewCache = dataViewCache;
 
   if (tabsToDelete.length > 0) {
     const result = deleteTabImpl({
@@ -105,14 +103,12 @@ export const deleteDataSources = async (
       tabOrder,
       activeTabId,
       previewTabId,
-      dataViewCache,
     });
 
     newTabs = result.newTabs;
     newTabOrder = result.newTabOrder;
     newActiveTabId = result.newActiveTabId;
     newPreviewTabId = result.newPreviewTabId;
-    newDataViewCache = result.newDataViewCache;
   }
 
   // Create the updated state for local entires
@@ -130,7 +126,6 @@ export const deleteDataSources = async (
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,
       previewTabId: newPreviewTabId,
-      dataViewCache: newDataViewCache,
     },
     undefined,
     'AppStore/deleteDataSource',

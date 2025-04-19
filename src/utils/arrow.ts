@@ -1,6 +1,13 @@
-import { DBColumn, DBTableOrViewSchema, NormalizedSQLType } from '@models/db';
+import { DataTable, DBColumn, DBTableOrViewSchema, NormalizedSQLType } from '@models/db';
 import type { Field, RecordBatch, Table } from 'apache-arrow';
 import { DataType } from 'apache-arrow';
+
+/**
+ * Returns an Apache Arrow table as an array of row records.
+ */
+export function convertArrowTable(table: Table | RecordBatch): DataTable {
+  return table.toArray().map((row) => row.toJSON());
+}
 
 /**
  * Returns the schema of an Apache Arrow table as an array of objects.

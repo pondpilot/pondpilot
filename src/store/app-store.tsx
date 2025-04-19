@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
-import { AnyTab, TabId } from '@models/tab';
+import { AnyTab, TabId, TabReactiveState, TabType } from '@models/tab';
 import { IDBPDatabase } from 'idb';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ContentViewState } from '@models/content-view';
@@ -17,7 +17,6 @@ import { getTabIcon, getTabName } from '@utils/navigation';
 import { IconType } from '@components/named-icon';
 
 import { DataBaseModel, DBTableOrViewSchema } from '@models/db';
-import { DataViewCacheItem, DataViewCacheKey } from '@models/data-view';
 import { AppIdbSchema } from '@models/persisted-store';
 import { createSelectors } from './utils';
 import { resetAppData } from './restore';
@@ -56,11 +55,6 @@ type AppStore = {
   sqlScripts: Map<SQLScriptId, SQLScript>;
 
   /**
-   * A persitent cache of data for data views.
-   */
-  dataViewCache: Map<DataViewCacheKey, DataViewCacheItem>;
-
-  /**
    * A mapping of tab identifiers to their corresponding Tab objects.
    */
   tabs: Map<TabId, AnyTab>;
@@ -81,7 +75,6 @@ const initialState: AppStore = {
   dataSources: new Map(),
   localEntries: new Map(),
   sqlScripts: new Map(),
-  dataViewCache: new Map(),
   tabs: new Map(),
   dataBaseMetadata: new Map(),
   // From ContentViewState
@@ -323,6 +316,31 @@ export function useSqlScriptNameMap(): Map<SQLScriptId, string> {
   );
 }
 
+export function useTabReactiveState<T extends AnyTab>(
+  tabId: TabId,
+  tabType: T['type'],
+): TabReactiveState<T> {
+  return useAppStore(
+    useShallow((state) => {
+      const tab = state.tabs.get(tabId);
+
+      if (!tab) {
+        throw new Error(`Tried opening a tab with unknown id: ${tabId}. Please report this bug.`);
+      }
+
+      if (tab.type !== tabType) {
+        throw new Error(
+          `Tab type mismatch. Expected \`${tabType}\`, got: \`${tab.type}\`. Please report this bug.`,
+        );
+      }
+
+      const { dataViewStateCache: _, ...rest } = tab;
+
+      return rest as TabReactiveState<T>;
+    }),
+  );
+}
+
 export function useTabIconMap(): Map<TabId, IconType> {
   return useAppStore(
     useShallow(
@@ -347,6 +365,15 @@ export function useTabNameMap(): Map<TabId, string> {
             getTabName(tab, state.sqlScripts, state.dataSources, state.localEntries),
           ]),
         ),
+    ),
+  );
+}
+
+export function useTabTypeMap(): Map<TabId, TabType> {
+  return useAppStore(
+    useShallow(
+      (state) =>
+        new Map(Array.from(state.tabs).map(([id, tab]): [TabId, TabType] => [id, tab.type])),
     ),
   );
 }

@@ -28,7 +28,6 @@ import {
   APP_DB_NAME,
   CONTENT_VIEW_TABLE_NAME,
   DATA_SOURCE_TABLE_NAME,
-  DATA_VIEW_CACHE_TABLE_NAME,
   DB_VERSION,
   LOCAL_ENTRY_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
@@ -441,9 +440,6 @@ export const restoreAppDataFromIDB = async (
   const tabsArray = await tx.objectStore(TAB_TABLE_NAME).getAll();
   const tabs = new Map(tabsArray.map((tab) => [tab.id, tab]));
 
-  const dataViewCacheArray = await tx.objectStore(DATA_VIEW_CACHE_TABLE_NAME).getAll();
-  const dataViewCache = new Map(dataViewCacheArray.map((dv) => [dv.key, dv]));
-
   const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
   const dataSourcesArray = await dataSourceStore.getAll();
   let dataSources = new Map(dataSourcesArray.map((dv) => [dv.id, dv]));
@@ -567,7 +563,6 @@ export const restoreAppDataFromIDB = async (
       activeTabId,
       dataBaseMetadata,
       dataSources,
-      dataViewCache,
       localEntries: localEntriesMap,
       previewTabId,
       sqlScripts,

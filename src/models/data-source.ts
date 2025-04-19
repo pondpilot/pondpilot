@@ -7,14 +7,10 @@ import { NewId } from './new-id';
 //    non-databse files produce persistent data views.
 //    In some cases we have non-flat sources, like databases and
 //    may later have partioned parquet files, multi-file csv views etc.
-// 2. Transient - these are not stored in app state and
-//    are created on the fly in TabView local state. Besides
-//    scripts, that generate transient data view on each run,
-//    objects from non-flat persistent data sources, like
-//    tables and views of an attached readonly database also
-//    produce transient data sources for our data view. These
-//    will not have a type here, but will have controller that
-//    creates a DataAdapterApi for them.
+// 2. Transient - these are not stored as a separate object in app state and
+//    are created on the fly by the Tab. As of today this is only
+//    scripts, that needs to store last executed query, which is stored
+//    in the tab state directly.
 
 export type PersistentDataSourceId = NewId<'PersistentDataSourceId'>;
 
@@ -92,5 +88,4 @@ export interface AttachedDB extends SingleFileDataSourceBase {
    */
   dbName: string;
 }
-
 export type AnyDataSource = AnyFlatFileDataSource | AttachedDB;

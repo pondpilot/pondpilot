@@ -7,11 +7,12 @@ import { cn } from '@utils/ui/styles';
 import { setDataTestId } from '@utils/test-id';
 import { DBColumn } from '@models/db';
 import { copyToClipboard } from '@utils/clipboard';
-import { stringifyTypedValue } from '../utils';
+import { stringifyTypedValue } from '@utils/db';
 
 interface UseTableColumnsProps {
   schema: DBColumn[];
   page: number;
+  initialCoulmnSizes?: Record<string, number>;
   onRowSelectionChange: (
     cell: CellContext<Record<string, string | number>, any>,
     e: React.MouseEvent<Element, MouseEvent>,
@@ -21,7 +22,12 @@ interface UseTableColumnsProps {
 const MIN_TOOLTIP_LENGTH = 30;
 const fallbackData = [] as any[];
 
-export const getTableColumns = ({ schema, onRowSelectionChange, page }: UseTableColumnsProps) => {
+export const getTableColumns = ({
+  schema,
+  onRowSelectionChange,
+  page,
+  initialCoulmnSizes,
+}: UseTableColumnsProps) => {
   const tableColumns: ColumnDef<Record<string, string | number>, any>[] = schema?.length
     ? [
         {
@@ -53,7 +59,7 @@ export const getTableColumns = ({ schema, onRowSelectionChange, page }: UseTable
             header: col.name,
             meta: { type: col.sqlType },
             minSize: col.name === '#' ? 80 : 100,
-            size: col.name === '#' ? 80 : 200,
+            size: col.name === '#' ? 80 : initialCoulmnSizes?.[col.name] || 200,
             id: col.name,
             accessorFn: (row) => row[col.name],
             cell: (info: {

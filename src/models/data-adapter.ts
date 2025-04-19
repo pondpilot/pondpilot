@@ -1,15 +1,154 @@
-import { Table } from 'apache-arrow';
 import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
-import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema, NormalizedSQLType } from './db';
+import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';
 
-export type OurTable = Record<string, NormalizedSQLType | null>[];
+export type GetTableDataReturnType = {
+  data: DataTable;
+  rowFrom: number;
+  rowTo: number;
+} | null;
 
+export type RowCountInfo = {
+  totalRowCount: number | null;
+  loadedRowCount: number;
+  isEstimatedRowCount: boolean;
+};
+
+export type ColumnAggregateType = 'count' | 'sum' | 'avg' | 'min' | 'max';
+
+/**
+ * Interface defining the API for a data adapter component.
+ * This interface provides methods and properties for fetching, managing, and manipulating tabular data.
+ */
 export interface DataAdapterApi {
   /**
-   * Returns the schema of the table that data source yields.
+   * An ever increasing number that is incremented
+   * whenever the data source is changed. Use this in components
+   * that sould react when the data source is changed, but
+   * not to intermediate data changes.
+   *
+   * See `dataVersion` for the latter.
    */
-  getSchema: (() => Promise<DBTableOrViewSchema>) | (() => DBTableOrViewSchema);
+  dataSourceVersion: number;
 
+  /**
+   * An ever increasing number that is incremented
+   * whenever the data is changed. Use this in components
+   * that sould react to all data changes and conversely
+   * avoid including this in the dependency array/props of
+   * those that do not care about intermediate data changes.
+   */
+  dataVersion: number;
+
+  /**
+   * The current available data schema. If length is 0,
+   * read as `no data available` (unlike 0 row data,
+   * which may mean data is avaible, just empty).
+   */
+  currentSchema: DBTableOrViewSchema;
+
+  /**
+   * Whether current available data is stale or not.
+   *
+   * If no data available, this will be `false`.
+   */
+  isStale: boolean;
+
+  /**
+   * Information about possibly known total row count
+   */
+  rowCountInfo: RowCountInfo;
+
+  /**
+   * Either operation blocking sorting is being executed
+   * or the data source does not support sorting (like
+   * e.g. `explain ...` queries).
+   */
+  disableSort: boolean;
+
+  /**
+   * Current sort spec of the data.
+   */
+  sort: ColumnSortSpecList;
+
+  /**
+   * Whether data source is exhausted or not. Exhausted means
+   * no more data can be read from the source.
+   */
+  dataSourceExhausted: boolean;
+
+  /**
+   * A user friendly error message if there was an error during
+   * initial creation of a dara connection or data read
+   */
+  dataSourceError: string | null;
+
+  /**
+   * Whether the data is being fetched or not.
+   * This can be used to show loading indicators.
+   *
+   * NOTE: do not confuse with background task status. This is the main
+   * data read status.
+   */
+  isFetchingData: boolean;
+
+  /**
+   * This will be true when the first data read after chagnes
+   * to sort is in progress. `isFetchingData` will be true as well.
+   */
+  isSorting: boolean;
+
+  /**
+   * Function to retrieve available data & schema for the given range
+   *
+   * NOTE: this may return a different range of rows than requested
+   * if the necessary range is not yet available. It will attempt
+   * to return as "close" to the requested range as possible.
+   * Close means the widest possible range that is not larger than
+   * requested starting at the maximum available row index not
+   * greater than `rowFrom`.
+   *
+   * @param rowFrom The starting row index (inclusive)
+   * @param rowTo The ending row index (exclusive)
+   * @returns An object containing the schema, data, row range, and a flag indicating if the data is stale
+   */
+  getTableData: (rowFrom: number, rowTo: number) => GetTableDataReturnType;
+
+  /**
+   * Function to retrieve all data from the data source.
+   *
+   * @param columns The columns to include in the result. If null, all columns will be included.
+   * @returns A promise that resolves to a DataTable object containing all data
+   */
+  getAllTableData: (columns: DBColumn[] | null) => Promise<DataTable>;
+
+  /**
+   * Toggles the sort order of the data by iterating over the current
+   * sort of the given column name.
+   *
+   * NOTE: this will implicitly cancel any current reads and aggregation
+   * operations, reset the actual data (but will keep it as stale).
+   */
+  toggleColumnSort: (columnName: string) => void;
+
+  /**
+   * Calculates the aggregate of a column using the specified aggregation type.
+   *
+   * @returns A promise that resolves to the result of the aggregation.
+   *          undefined is returned if the operation was cancelled.
+   */
+  getColumnAggregate: (
+    columnName: string,
+    aggType: ColumnAggregateType,
+  ) => Promise<any | undefined>;
+
+  /**
+   * Cancels the current data read and prevents further reads
+   * until user asks for more data by paging/scrolling
+   */
+  cancelDataRead: () => void;
+}
+
+export interface DataAdapterQueries {
   /**
    * If data source supports quick precise row count retrieval, returns the count.
    */
@@ -21,20 +160,32 @@ export interface DataAdapterApi {
   getEstimatedRowCount?: () => Promise<number>;
 
   /**
-   * Returns a reader for the data source.
+   * Returns a streaming reader supporting user defined sort.
    *
-   * This should be used to read the data from the source.
+   * Only one of `getSortableReader` or `getReader` is necessary, with
+   * `getSortableReader` being preferred.
+   *
+   * If both are missing it essentially means no data source exists.
    */
-  getReader: (sort: ColumnSortSpecList) => Promise<AsyncDuckDBPooledStreamReader<any>>;
-  /**
-   * Returns column summary for the given column.
-   */
-  getCalculatedColumnSummary?: (column: DBColumn) => Promise<number>;
+  getSortableReader?: (sort: ColumnSortSpecList) => Promise<AsyncDuckDBPooledStreamReader<any>>;
 
   /**
-   * Returns column data for the given columns.
+   * Returns a streaming reader.
+   *
+   * Only one of `getSortableReader` or `getReader` is necessary, with
+   * `getSortableReader` being preferred.
+   *
+   * If both are missing it essentially means no data source exists.
    */
-  getColumnsData?: (columns: DBColumn[]) => Promise<Table<any>>;
+  getReader?: () => Promise<AsyncDuckDBPooledStreamReader<any>>;
 
-  getAllTableData?: () => Promise<Table<any>>;
+  /**
+   * Returns column aggregate for the given column.
+   */
+  getColumnAggregate?: (columnName: string, aggType: ColumnAggregateType) => Promise<any>;
+
+  /**
+   * Returns column data for a subset of given columns.
+   */
+  getColumnsData?: (columns: DBColumn[]) => Promise<DataTable>;
 }

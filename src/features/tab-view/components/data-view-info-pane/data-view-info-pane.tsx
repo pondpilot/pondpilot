@@ -5,108 +5,136 @@ import { cn } from '@utils/ui/styles';
 import { useMemo } from 'react';
 import { useTableExport } from '@features/tab-view/hooks';
 import { DataAdapterApi } from '@models/data-adapter';
+import { useDebouncedValue } from '@mantine/hooks';
+import { TabType } from '@models/tab';
+import { assertNeverValueType } from '@utils/typing';
 import { ColRowCount } from './components/col-row-count';
 
 interface DataViewInfoPaneProps {
-  dataAdapterApi: DataAdapterApi;
+  dataAdapter: DataAdapterApi;
+  tabType: TabType;
 }
-export const DataViewInfoPane = ({ dataAdapterApi }: DataViewInfoPaneProps) => {
-  const { copyTableToClipboard, exportTableToCSV } = useTableExport(dataAdapterApi);
 
-  const dataAdapterState = {};
-  // Common state
-  const hasData = true;
-  const useStaleData = true;
-  const isFetching = true;
-
-  // Content props
-  const isSorting = true;
-  const rowCount = 1;
-  const columnCount = 2;
-  const isEstimatedRowCount = true;
+export const DataViewInfoPane = ({ dataAdapter, tabType }: DataViewInfoPaneProps) => {
+  /**
+   * Hooks
+   */
+  const { copyTableToClipboard, exportTableToCSV } = useTableExport(dataAdapter);
 
   /**
-   * Consts
+   * Computed data source state
    */
-  const showLoader = isSorting || isFetching;
+  const hasActualData = dataAdapter.currentSchema.length > 0 && !dataAdapter.isStale;
+  const hasStaleData = dataAdapter.currentSchema.length > 0 && dataAdapter.isStale;
+  const hasData = hasActualData || hasStaleData;
 
-  // Case 1: No data, no stale data - DataAdapter returns isFetching: true => show global overlay but if not = we want to show loading state
-  // - Show text "Data is fetching" <loader>
-  // - Do NOT show row info
-  // - Do NOT show copy/export buttons
+  const hasDataSourceError = dataAdapter.dataSourceError !== null;
+  const [isFetching] = useDebouncedValue(dataAdapter.isFetchingData, 200);
+  const [isSorting] = useDebouncedValue(dataAdapter.isSorting, 200);
 
-  // Case 2: Data available, stale data present - DataAdapter returns isFetching: false
-  // - Do NOT show text status and loader
-  // - Show row info
-  // - Show copy/export buttons
+  const { totalRowCount, loadedRowCount, isEstimatedRowCount } = dataAdapter.rowCountInfo;
+  const rowCountToShow = totalRowCount || loadedRowCount;
+  const columnCount = dataAdapter.currentSchema.length;
 
-  // Case 3: Data available, stale data present, user triggered sorting => isSorting: true && isFetching: true
-  // - Show text "Stale data. Sorting" <loader>
-  // - Show row info
-  // - Show copy/export buttons
+  const showCancelButton = isFetching && hasData;
+  const disableCopyAndExport = !hasData || hasDataSourceError;
 
-  // Case 4: Data available, stale data present, user triggered pagination => isFetching: true
-  // - Show text "Fetching data" <loader>
-  // - Show row info
-  // - Show copy/export buttons
-
-  const statusText = useMemo(() => {
+  /**
+   * Memoized status message
+   */
+  const statusMessage = useMemo(() => {
     const textDefaultProps: TextProps = {
       className: 'text-sm font-medium',
       c: 'text-secondary',
     };
-    if (!hasData && isFetching) {
-      // Case 1: No data, no stale data - DataAdapter is fetching
 
-      return <Text {...textDefaultProps}>Data is fetching.</Text>;
+    if (hasDataSourceError) {
+      if (!hasActualData && !hasStaleData) return null;
+
+      switch (tabType) {
+        case 'data-source': {
+          return (
+            <Text {...textDefaultProps} c="text-error">
+              Data source read error
+            </Text>
+          );
+        }
+        case 'script': {
+          return (
+            <Text {...textDefaultProps} c="text-error">
+              Query error. Review and try again.
+            </Text>
+          );
+        }
+
+        default:
+          assertNeverValueType(tabType);
+          break;
+      }
     }
-    if (hasData && useStaleData && !isFetching) {
-      // Case 2: Has data, has stale data, not fetching
 
+    if (isSorting) {
+      return (
+        <Text {...textDefaultProps} c="text-warning">
+          Sorting
+          <DotAnimation />
+        </Text>
+      );
+    }
+
+    if (hasStaleData) {
+      return (
+        <Text {...textDefaultProps} c="text-warning">
+          Stale data
+          {isFetching && <DotAnimation />}
+        </Text>
+      );
+    }
+
+    if (!hasActualData) {
       return null;
     }
-    if (hasData && useStaleData && isSorting && isFetching) {
-      // Case 3: Has data, stale data, sorting
 
+    if (isFetching) {
       return (
         <Text {...textDefaultProps} c="text-warning">
-          Stale data. Sorting
+          Fetching data
           <DotAnimation />
         </Text>
       );
     }
-    if (hasData && useStaleData && isFetching) {
-      // Case 4: Has data, stale data, pagination/fetching
 
-      return (
-        <Text {...textDefaultProps} c="text-warning">
-          Stale data. Fetching
-          <DotAnimation />
-        </Text>
-      );
-    }
     return null;
-  }, [hasData, useStaleData, isFetching, isSorting]);
+  }, [hasActualData, hasStaleData, isFetching, isSorting, hasDataSourceError, tabType]);
 
   return (
     <Group justify="space-between" className={cn('h-7 my-2 px-3')}>
       <Group gap={4}>
-        {hasData && <ColRowCount rowCount={rowCount} columnCount={rowCount} isEstimatedRowCount />}
-        {statusText}
-
-        {/* {showLoader && <Loader size={14} color="text-secondary" />} */}
-        {showLoader && (
-          <ActionIcon size={16}>
+        {hasData && (
+          <ColRowCount
+            rowCount={rowCountToShow}
+            columnCount={columnCount}
+            isEstimatedRowCount={isEstimatedRowCount}
+          />
+        )}
+        {statusMessage}
+        {showCancelButton && (
+          <ActionIcon size={16} onClick={dataAdapter.cancelDataRead}>
             <IconX />
           </ActionIcon>
         )}
       </Group>
       <Group className="h-full">
-        <ActionIcon size={16} onClick={copyTableToClipboard}>
+        <ActionIcon size={16} onClick={copyTableToClipboard} disabled={disableCopyAndExport}>
           <IconCopy />
         </ActionIcon>
-        <Button onClick={exportTableToCSV} color="background-tertiary" c="text-primary">
-          <Group gap={2}>Export .csv</Group>
+        <Button
+          onClick={exportTableToCSV}
+          disabled={disableCopyAndExport}
+          color="background-tertiary"
+          c="text-primary"
+        >
+          <Group gap={2}>Export CSV</Group>
         </Button>
       </Group>
     </Group>

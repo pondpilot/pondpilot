@@ -50,3 +50,10 @@ export interface DataBaseModel {
   name: string;
   schemas: DBSchema[];
 }
+
+// Names here are chosen to avoid conflicts with arrow types.
+export type DataRow = Record<string, any>;
+export type DataTable = DataRow[];
+
+// This is the size of the batch that arro stream reader returns as of time of writing.
+export const ARROW_STREAMING_BATCH_SIZE = 2048;

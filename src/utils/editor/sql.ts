@@ -131,7 +131,7 @@ const TransactionalStatementMap: Record<SQLStatement, boolean> = {
   [SQLStatement.UNKNOWN]: false,
 };
 
-const AllowedStatements = [
+const StatementsAllowedInScripts = [
   SQLStatement.ANALYZE,
   SQLStatement.ALTER,
   SQLStatement.CALL,
@@ -155,6 +155,24 @@ const AllowedStatements = [
   SQLStatement.UPDATE,
   SQLStatement.WITH,
   SQLStatement.VACUUM,
+];
+
+const StatementsAllowedInSubquery = [SQLStatement.SELECT];
+
+/**
+ * The list of SQL statements that we allow to be used
+ * as the final script data source.
+ */
+export const SelectableStatements: SQLStatement[] = [
+  SQLStatement.SELECT,
+  SQLStatement.DESCRIBE,
+  SQLStatement.SHOW,
+  SQLStatement.PIVOT,
+  SQLStatement.UNPIVOT,
+  SQLStatement.FROM,
+  SQLStatement.SUMMARIZE,
+  SQLStatement.CALL,
+  SQLStatement.EXPLAIN,
 ];
 
 const StatementSearchMap: Record<SQLStatement, string> = {
@@ -223,27 +241,32 @@ export type ClassifiedSQLStatement = {
   type: SQLStatement;
   sqlType: SQLStatementType;
   needsTransaction: boolean;
-  isAllowed: boolean;
+  isAllowedInScript: boolean;
+  isAllowedInSubquery: boolean;
+  // TODO: add hasOrderClause and codeWithoutOrder
 };
 
-export function classifySQLStatements(stats: string[]): ClassifiedSQLStatement[] {
-  return stats.map((stat) => {
-    const statementType =
-      Object.values(SQLStatement).find((value) =>
-        stat
-          .trim()
-          .toUpperCase()
-          .startsWith(StatementSearchMap[value as SQLStatement]),
-      ) || SQLStatement.UNKNOWN;
+export function classifySQLStatement(stmt: string): ClassifiedSQLStatement {
+  const statementType =
+    Object.values(SQLStatement).find((value) =>
+      stmt
+        .trim()
+        .toUpperCase()
+        .startsWith(StatementSearchMap[value as SQLStatement]),
+    ) || SQLStatement.UNKNOWN;
 
-    return {
-      code: stat,
-      type: statementType,
-      sqlType: StatementTypeMap[statementType],
-      needsTransaction: TransactionalStatementMap[statementType],
-      isAllowed: AllowedStatements.includes(statementType),
-    };
-  });
+  return {
+    code: stmt,
+    type: statementType,
+    sqlType: StatementTypeMap[statementType],
+    needsTransaction: TransactionalStatementMap[statementType],
+    isAllowedInScript: StatementsAllowedInScripts.includes(statementType),
+    isAllowedInSubquery: StatementsAllowedInSubquery.includes(statementType),
+  };
+}
+
+export function classifySQLStatements(stmts: string[]): ClassifiedSQLStatement[] {
+  return stmts.map((stmt) => classifySQLStatement(stmt));
 }
 
 export const validateStatements = (
@@ -266,7 +289,7 @@ export const validateStatements = (
   for (const statement of statements) {
     needsTransaction = needsTransaction || statement.needsTransaction;
 
-    if (!statement.isAllowed) {
+    if (!statement.isAllowedInScript) {
       let statMsg: string = statement.type;
       if (statement.type === SQLStatement.UNKNOWN) {
         statMsg =
