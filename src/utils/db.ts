@@ -179,6 +179,10 @@ export function isSameSchema(
   current: DBTableOrViewSchema,
   newSchema: DBTableOrViewSchema,
 ): boolean {
+  if (current.length !== newSchema.length) {
+    return false;
+  }
+
   return current
     .map((oldColumn, index) => {
       const newColumn = newSchema[index];
