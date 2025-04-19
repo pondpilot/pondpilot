@@ -117,14 +117,18 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
   }, []);
 
   return (
-    <div className="h-full" data-testid={setDataTestId('query-editor')}>
+    <div
+      className="h-full"
+      data-testid={setDataTestId('query-editor')}
+      data-active-editor={!!active}
+    >
       <ScriptEditorDataStatePane
         dirty={dirty}
         handleRunQuery={handleRunQuery}
         scriptState={scriptState}
       />
 
-      <Group className="h-[calc(100%-40px)]" data-active-editor={!!active}>
+      <Group className="h-[calc(100%-40px)]">
         <SqlEditor
           onBlur={handleQuerySave}
           ref={editorRef}
