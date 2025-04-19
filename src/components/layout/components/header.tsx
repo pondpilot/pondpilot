@@ -4,7 +4,7 @@ import { spotlight } from '@mantine/spotlight';
 import { cn } from '@utils/ui/styles';
 import { IconSearch } from '@tabler/icons-react';
 import { HotkeyPill } from '@components/hotkey-pill';
-import { useModifier } from '@hooks/useModifier';
+import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { SpotlightMenu } from '@components/spotlight';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
@@ -12,7 +12,7 @@ import { setDataTestId } from '@utils/test-id';
 export const Header = memo(() => {
   const navigate = useNavigate();
   const location = useLocation();
-  const mod = useModifier();
+  const mod = useOsModifierIcon();
   const isSettingsPage = location.pathname.includes('settings');
 
   const logoPlaceholder = isSettingsPage ? (

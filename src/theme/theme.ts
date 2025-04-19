@@ -445,7 +445,7 @@ export const theme = createTheme({
         fz: '14px',
         lh: '18px',
         className:
-          'data-[selected=true]:bg-transparentBrandBlue-016 dark:data-[selected=true]:bg-transparentBrandBlue-016 hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark rounded-2xl text-textSecondary-light dark:text-textSecondary-dark h-[36px] pl-2 pr-1',
+          'data-[selected=true]:bg-transparentBrandBlue-016 dark:data-[selected=true]:bg-transparentBrandBlue-016 dark:hover:bg-transparent004-dark rounded-2xl text-textSecondary-light dark:text-textSecondary-dark h-[36px] pl-2 pr-1',
       },
     }),
     SpotlightActionsList: SpotlightActionsList.extend({

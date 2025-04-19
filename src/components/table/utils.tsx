@@ -1,30 +1,23 @@
-import { IconNumber123, IconCalendarStats, IconTextSize } from '@tabler/icons-react';
+import { NormalizedSQLType } from '@models/db';
 import { formatNumber } from '@utils/helpers';
-import { DynamicTypeViewerProps } from './models';
 
-export const getIcon = (colType: string) =>
-  ({
-    integer: <IconNumber123 size={16} />,
-    date: <IconCalendarStats size={16} />,
-    number: <IconNumber123 size={16} />,
-  })[colType] || <IconTextSize size={16} />;
-
-export const dynamicTypeViewer = (props: DynamicTypeViewerProps): string => {
-  const { type, value } = props;
-
+export const stringifyTypedValue = ({
+  type,
+  value,
+}: {
+  type: NormalizedSQLType;
+  value: unknown;
+}): string => {
   try {
     switch (type) {
+      case 'timestamp': {
+        return new Date(value as string).toLocaleString();
+      }
       case 'date': {
-        const date = new Date(value as string);
-        return date.toLocaleString('en-US', {
-          month: '2-digit',
-          day: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-        });
+        return new Date(value as string).toLocaleDateString();
+      }
+      case 'time': {
+        return new Date(value as string).toLocaleTimeString();
       }
       case 'string': {
         return value as string;
@@ -35,7 +28,10 @@ export const dynamicTypeViewer = (props: DynamicTypeViewerProps): string => {
       case 'boolean': {
         return `${value}` as string;
       }
-      case 'other': {
+      case 'bytes':
+      case 'other':
+      case 'array':
+      case 'object': {
         return JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toString() : v));
       }
       case 'integer':
@@ -43,10 +39,13 @@ export const dynamicTypeViewer = (props: DynamicTypeViewerProps): string => {
         return formatNumber(value as number);
       }
       default:
-        return '';
+        // eslint-disable-next-line no-case-declarations
+        const _: never = type;
+        console.error(`Unsupported value type in a table cell: ${type}`);
+        return 'N/A';
     }
   } catch (error) {
     console.error('Error in dynamicTypeViewer', error);
-    return 'N/A';
+    return "ERROR: Can't display value";
   }
 };
