@@ -3,7 +3,6 @@ import { IconTriangleInvertedFilled } from '@tabler/icons-react';
 import { Text } from '@mantine/core';
 import { Header, Table as TableType } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
-import { replaceSpecialChars } from '@utils/helpers';
 import { memo } from 'react';
 import { setDataTestId } from '@utils/test-id';
 import { ColumnSortSpec } from '@models/db';
@@ -44,43 +43,46 @@ const THeadTitle = ({
   iconType,
   sort,
   onSort,
-}: THeadTitleProps) => (
-  <>
-    {!isIndex && (
-      <div
-        className={cn(
-          'text-iconDefault-light dark:text-iconDefault-dark',
-          isSelected && 'text-iconDisabled',
-          isNumber && 'ml-auto',
-        )}
-      >
-        <NamedIcon iconType={iconType} size={16} />
-      </div>
-    )}
-    <Text truncate="end" fw={500}>
-      {header.isPlaceholder ? null : header.column.id}
-    </Text>
-    {!isIndex && (
-      <div>
-        <IconTriangleInvertedFilled
-          size={8}
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            onSort?.(header.column.id);
-          }}
+}: THeadTitleProps) => {
+  const { name: columnName } = header.column.columnDef.meta as ColumnMeta;
+  return (
+    <>
+      {!isIndex && (
+        <div
           className={cn(
-            'opacity-0 text-iconDefault-light dark:text-iconDefault-dark',
-            sort?.column === header.column.id && 'opacity-100',
-            'group-hover:opacity-100',
-            sort?.order === 'asc' && sort?.column === header.column.id && 'rotate-180',
-            !isNumber && 'ml-auto',
-            (isSelected || !onSort) && 'text-iconDisabled',
+            'text-iconDefault-light dark:text-iconDefault-dark',
+            isSelected && 'text-iconDisabled',
+            isNumber && 'ml-auto',
           )}
-        />
-      </div>
-    )}
-  </>
-);
+        >
+          <NamedIcon iconType={iconType} size={16} />
+        </div>
+      )}
+      <Text truncate="end" fw={500}>
+        {header.isPlaceholder ? null : columnName}
+      </Text>
+      {!isIndex && (
+        <div>
+          <IconTriangleInvertedFilled
+            size={8}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              onSort?.(header.column.id);
+            }}
+            className={cn(
+              'opacity-0 text-iconDefault-light dark:text-iconDefault-dark',
+              sort?.column === header.column.id && 'opacity-100',
+              'group-hover:opacity-100',
+              sort?.order === 'asc' && sort?.column === header.column.id && 'rotate-180',
+              !isNumber && 'ml-auto',
+              (isSelected || !onSort) && 'text-iconDisabled',
+            )}
+          />
+        </div>
+      )}
+    </>
+  );
+};
 
 export const TableHeadCell = memo(
   ({
@@ -95,19 +97,19 @@ export const TableHeadCell = memo(
     onHeadCellClick,
     isSelected,
   }: TableHeadCellProps) => {
-    const isIndex = header.column.id === '#';
+    const isIndexColumn = header.column.getIsFirstColumn();
     // This will be missing for index column
     const columnMeta = header.column.columnDef.meta as ColumnMeta | undefined;
     const type = columnMeta?.type || 'other';
     const iconType = getIconTypeForSQLType(type);
     const isNumber = isNumberType(type);
     const headStyles = {
-      width: `calc(var(--header-${replaceSpecialChars(header.id)}-size) * 1px)`,
+      width: `calc(var(--header-${header.column.id}-size) * 1px)`,
       overflow: 'visible',
     };
 
     const handleMouseEvent = (e: React.MouseEvent) => {
-      isIndex ? null : onHeadCellClick(header.column.id, e);
+      isIndexColumn ? null : onHeadCellClick(header.column.id, e);
     };
 
     return (
@@ -119,11 +121,11 @@ export const TableHeadCell = memo(
           index === 0 && 'rounded-tl-xl border-l-0',
           index === totalHeaders - 1 && 'rounded-tr-xl border-r-0',
           'overflow-hidden cursor-pointer',
-          (isNumber || isIndex) && 'justify-end',
+          (isNumber || isIndexColumn) && 'justify-end',
           isSelected &&
             'bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark border-borderAccent-light dark:border-borderAccent-dark',
           'group',
-          isIndex && 'pr-2',
+          isIndexColumn && 'pr-2',
         )}
         key={header.id}
         style={headStyles}
@@ -131,7 +133,7 @@ export const TableHeadCell = memo(
       >
         <THeadTitle
           header={header}
-          isIndex={isIndex}
+          isIndex={isIndexColumn}
           isNumber={isNumber}
           isSelected={isSelected}
           iconType={iconType}

@@ -2,7 +2,7 @@ import { Table as TableType, Cell } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
 import { memo } from 'react';
 
-import { TableCell } from './components';
+import { TableIndexCell, TableRegularCell } from './components';
 
 export const TableBody = ({
   table,
@@ -32,18 +32,30 @@ export const TableBody = ({
               'bg-transparentBrandBlue-012 dark:bg-darkModeTransparentBrandBlue-032   outline outline-borderAccent-light outline-offset-[-1px]',
           )}
         >
-          {row.getVisibleCells().map((cell, index) => (
-            <TableCell
-              key={cell.id}
-              cell={cell}
-              isFirstCell={index === 0}
-              isLastCell={index === row.getVisibleCells().length - 1}
-              isLastRow={lastRow}
-              isCellSelected={selectedCellId === cell.id}
-              isColumnSelected={selectedCols[cell.column.id]}
-              onSelect={onCellSelect}
-            />
-          ))}
+          {row
+            .getVisibleCells()
+            .map((cell, index) =>
+              index === 0 ? (
+                <TableIndexCell
+                  key={cell.id}
+                  cell={cell}
+                  isLastRow={lastRow}
+                  isCellSelected={selectedCellId === cell.id}
+                  isColumnSelected={selectedCols[cell.column.id]}
+                  onSelect={onCellSelect}
+                />
+              ) : (
+                <TableRegularCell
+                  key={cell.id}
+                  cell={cell}
+                  isLastCell={index === row.getVisibleCells().length - 1}
+                  isLastRow={lastRow}
+                  isCellSelected={selectedCellId === cell.id}
+                  isColumnSelected={selectedCols[cell.column.id]}
+                  onSelect={onCellSelect}
+                />
+              ),
+            )}
         </div>
       );
     })}

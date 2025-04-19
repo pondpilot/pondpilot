@@ -43,7 +43,7 @@ export const useTableSelection = ({
   }, []);
 
   const handleCellSelect = useCallback((cell: Cell<any, any>) => {
-    const isIndexColumn = cell.column.id === '#';
+    const isIndexColumn = cell.column.getIsFirstColumn();
 
     if (isIndexColumn) return;
     clearSelection();
@@ -64,7 +64,7 @@ export const useTableSelection = ({
 
       const headers = table
         .getAllColumns()
-        .filter((col) => col.id !== '#')
+        .filter((col) => !col.getIsFirstColumn())
         .map((col) => col.id)
         .join('\t');
 
@@ -74,7 +74,7 @@ export const useTableSelection = ({
 
           return table
             .getAllColumns()
-            .filter((col) => col.id !== '#')
+            .filter((col) => !col.getIsFirstColumn())
             .map((col) => {
               const value = row.getValue(col.id);
 
