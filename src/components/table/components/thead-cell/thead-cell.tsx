@@ -74,7 +74,7 @@ const THeadTitle = ({
             'group-hover:opacity-100',
             sort?.order === 'asc' && sort?.column === header.column.id && 'rotate-180',
             !isNumber && 'ml-auto',
-            isSelected && 'text-iconDisabled',
+            (isSelected || !onSort) && 'text-iconDisabled',
           )}
         />
       </div>

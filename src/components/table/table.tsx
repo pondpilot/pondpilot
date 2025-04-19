@@ -4,7 +4,7 @@ import { useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { replaceSpecialChars } from '@utils/helpers';
 import { setDataTestId } from '@utils/test-id';
 
-import { ColumnSortSpec, DBColumn, DBTableOrViewSchema } from '@models/db';
+import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { Text } from '@mantine/core';
 import { copyToClipboard } from '@utils/clipboard';
 import { getTableColumns, useTableSelection } from './hooks';
@@ -14,14 +14,18 @@ import { TableHeadCell } from './components/thead-cell';
 interface TableProps {
   data: Record<string, any>[];
   schema: DBTableOrViewSchema;
-  sort?: ColumnSortSpec | null;
+  sort: ColumnSortSpecList;
   page: number;
   visible: boolean;
+  initialCoulmnSizes?: Record<string, number>;
+  // Undefined means sorting is blocked
   onSort?: (columnId: string) => void;
-  onSelectedColsCopy: (cols: DBTableOrViewSchema) => void;
+  // Undefined means copying is blocked
+  onSelectedColsCopy?: (cols: DBTableOrViewSchema) => void;
   onRowSelectChange: () => void;
   onCellSelectChange: () => void;
   onColumnSelectChange: (column: DBColumn | null) => void;
+  onColumnResizeChange?: (columnSizes: Record<string, number>) => void;
 }
 
 const fallbackData = [] as any[];
@@ -29,14 +33,16 @@ const fallbackData = [] as any[];
 export const Table = ({
   data,
   schema,
-  onSort,
   sort,
+  page,
+  visible,
+  initialCoulmnSizes,
+  onSort,
   onSelectedColsCopy,
   onColumnSelectChange,
   onCellSelectChange,
   onRowSelectChange,
-  page,
-  visible,
+  onColumnResizeChange,
 }: TableProps) => {
   const hasData = data.length > 0;
 
@@ -58,7 +64,7 @@ export const Table = ({
 
   const tableColumns = useMemo(() => {
     return getTableColumns({ schema, onRowSelectionChange, page });
-  }, [schema, page, onRowSelectionChange]);
+  }, [schema, page, initialCoulmnSizes, onRowSelectionChange]);
 
   const table = useReactTable({
     data: data || fallbackData,
@@ -71,17 +77,26 @@ export const Table = ({
   const columnSizeVars = useMemo(() => {
     const headers = table.getFlatHeaders();
     const colSizes: { [key: string]: number } = {};
+    const colSizeVars: { [key: string]: number } = {};
     for (let i = 0; i < headers.length; i += 1) {
       const header = headers[i]!;
 
       const headerName = replaceSpecialChars(header.id);
       const colName = replaceSpecialChars(header.column.id);
 
-      colSizes[`--header-${headerName}-size`] = header.getSize();
-      colSizes[`--col-${colName}-size`] = header.column.getSize();
+      colSizeVars[`--header-${headerName}-size`] = header.getSize();
+      colSizeVars[`--col-${colName}-size`] = header.column.getSize();
+      colSizes[header.column.id] = header.getSize();
     }
-    return colSizes;
-  }, [table.getState().columnSizingInfo, table.getState().columnSizing, data]);
+
+    onColumnResizeChange?.(colSizes);
+    return colSizeVars;
+  }, [
+    schema,
+    onColumnResizeChange,
+    table.getState().columnSizingInfo,
+    table.getState().columnSizing,
+  ]);
 
   useDidUpdate(() => {
     clearSelection();
@@ -101,7 +116,7 @@ export const Table = ({
         if (Object.keys(selectedRows).length) {
           handleCopySelectedRows(table);
         }
-        if (Object.keys(selectedCols).length) {
+        if (Object.keys(selectedCols).length && onSelectedColsCopy) {
           const columns = schema.filter((col) => selectedCols[col.name]);
           onSelectedColsCopy(columns);
         }
@@ -134,7 +149,7 @@ export const Table = ({
                     header={header}
                     index={index}
                     totalHeaders={headerGroup.headers.length}
-                    sort={sort}
+                    sort={sort.find((s) => s.column === header.id)}
                     table={table}
                     onSort={onSort}
                     resizingColumnId={resizingColumnId}

@@ -1,70 +1,75 @@
 import { useCallback, useState, useRef } from 'react';
-import { formatNumber } from '@utils/helpers';
 import { DBColumn } from '@models/db';
-import { isNumberType } from '@utils/db';
-import { DataAdapterApi } from '@models/data-adapter';
+import { isNumberType, stringifyTypedValue } from '@utils/db';
+import { ColumnAggregateType, DataAdapterApi } from '@models/data-adapter';
 import { useDidUpdate } from '@mantine/hooks';
 
 export const useColumnSummary = (dataAdapter: DataAdapterApi) => {
   const [columnTotal, setColumnTotal] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isNumeric, setIsNumeric] = useState(false);
+  const [columnAggType, setColumnAggType] = useState<ColumnAggregateType>('count');
 
   // Cache to store previously calculated column summaries
   const summaryCache = useRef<Map<string, string>>(new Map());
 
-  const calculateColumnSummary = async (column: DBColumn | null) => {
-    if (!dataAdapter.getCalculatedColumnSummary || !column) {
-      setColumnTotal(null);
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      setIsNumeric(isNumberType(column.sqlType));
-
-      const cacheKey = column.name;
-
-      if (summaryCache.current.has(cacheKey)) {
-        const cachedValue = summaryCache.current.get(cacheKey);
-        setColumnTotal(cachedValue || null);
+  const calculateColumnSummary = useCallback(
+    async (column: DBColumn | null) => {
+      if (!column) {
+        setColumnTotal(null);
+        setIsLoading(false);
         return;
       }
 
-      setColumnTotal(null);
-      setIsLoading(true);
+      try {
+        const isNumeric = isNumberType(column.sqlType);
 
-      const totalValue = await dataAdapter.getCalculatedColumnSummary(column);
+        // for now we do not allow user to choose the aggregate type
+        const aggType = isNumeric ? 'sum' : 'count';
+        setColumnAggType(aggType);
 
-      setIsLoading(false);
-      const formattedValue = formatNumber(totalValue);
-      setColumnTotal(formattedValue);
+        const cacheKey = column.name;
 
-      // Cache the result
-      summaryCache.current.set(cacheKey, formattedValue);
-    } catch (e) {
-      setIsLoading(false);
-    }
-  };
+        if (summaryCache.current.has(cacheKey)) {
+          const cachedValue = summaryCache.current.get(cacheKey);
+          setColumnTotal(cachedValue || null);
+          return;
+        }
+
+        setColumnTotal(null);
+        setIsLoading(true);
+
+        const totalValue = await dataAdapter.getColumnAggregate(column.name, aggType);
+
+        setIsLoading(false);
+
+        if (totalValue !== undefined) {
+          const formattedValue = stringifyTypedValue({ type: column.sqlType, value: totalValue });
+          setColumnTotal(formattedValue);
+
+          // Cache the result
+          summaryCache.current.set(cacheKey, formattedValue);
+        }
+      } catch (e) {
+        setIsLoading(false);
+      }
+    },
+    [dataAdapter.getColumnAggregate],
+  );
 
   const resetTotal = useCallback(() => {
     setColumnTotal(null);
   }, []);
 
-  const clearCache = useCallback(() => {
-    summaryCache.current.clear();
-  }, []);
-
+  // Clear the cache when the data source changes
   useDidUpdate(() => {
-    clearCache();
-  }, [dataAdapter]);
+    summaryCache.current.clear();
+  }, [dataAdapter.dataSourceVersion]);
 
   return {
     columnTotal,
     isLoading,
-    isNumeric,
+    columnAggType,
     calculateColumnSummary,
     resetTotal,
-    clearCache,
   };
 };

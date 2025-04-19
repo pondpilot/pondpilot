@@ -3,7 +3,6 @@
 // By convetion the order should follow CRUD groups!
 
 import { AnyFlatFileDataSource, AttachedDB } from '@models/data-source';
-import { DataViewCacheItem, DataViewCacheKey } from '@models/data-view';
 import { SQLScriptId } from '@models/sql-script';
 import { AnyTab, AttachedDBDataTab, FlatFileDataSourceTab, ScriptTab, TabId } from '@models/tab';
 
@@ -75,7 +74,6 @@ export const findTabFromScriptImpl = (
  * @param tabOrder - Current tab order array
  * @param activeTabId - Current active tab ID
  * @param previewTabId - Current preview tab ID
- * @param dataViewCache - Current data view cache map
  */
 export const deleteTabImpl = ({
   deleteTabIds,
@@ -83,20 +81,17 @@ export const deleteTabImpl = ({
   tabOrder,
   activeTabId,
   previewTabId,
-  dataViewCache,
 }: {
   deleteTabIds: TabId[];
   tabs: Map<TabId, AnyTab>;
   tabOrder: TabId[];
   activeTabId: TabId | null;
   previewTabId: TabId | null;
-  dataViewCache: Map<DataViewCacheKey, DataViewCacheItem>;
 }): {
   newTabs: Map<TabId, AnyTab>;
   newTabOrder: TabId[];
   newActiveTabId: TabId | null;
   newPreviewTabId: TabId | null;
-  newDataViewCache: Map<DataViewCacheKey, DataViewCacheItem>;
 } => {
   const deleteSet = new Set(deleteTabIds);
 
@@ -127,16 +122,10 @@ export const deleteTabImpl = ({
   const newPreviewTabId =
     previewTabId !== null && deleteSet.has(previewTabId) ? null : previewTabId;
 
-  // Also remove data-view cache for the deleted tabs
-  const newDataViewCache = new Map(
-    Array.from(dataViewCache).filter(([key, _]) => !deleteSet.has(key)),
-  );
-
   return {
     newTabs,
     newTabOrder,
     newActiveTabId,
     newPreviewTabId,
-    newDataViewCache,
   };
 };

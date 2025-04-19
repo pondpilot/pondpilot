@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { useDidUpdate } from '@mantine/hooks';
 import { DBColumn, DBTableOrViewSchema } from '@models/db';
 import { showSuccess } from '@components/app-notifications';
-import { stringifyTypedValue } from '../utils';
+import { stringifyTypedValue } from '@utils/db';
 import { ColumnMeta } from '../model';
 
 interface SelectedCell {

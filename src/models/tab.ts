@@ -1,26 +1,49 @@
 import { PersistentDataSourceId } from './data-source';
+import {
+  ARROW_STREAMING_BATCH_SIZE,
+  ColumnSortSpecList,
+  DataTable,
+  DBTableOrViewSchema,
+} from './db';
 import { NewId } from './new-id';
 import { SQLScriptId } from './sql-script';
 
 export type TabId = NewId<'TabId'>;
 
-export type DataViewLayout = {
-  tableColumnWidth: Record<string, number>;
-  dataViewPaneHeight: number;
+export const MAX_PERSISTED_STALE_DATA_ROWS = ARROW_STREAMING_BATCH_SIZE;
+export const MAX_DATA_VIEW_PAGE_SIZE = 100;
+
+export type StaleData = {
+  schema: DBTableOrViewSchema;
+  data: DataTable;
+  rowOffset: number;
+  totalRowCount: number | null;
+  isEstimatedRowCount: boolean;
 };
 
+export type TabDataViewStateCache = {
+  dataViewPage: number | null;
+  tableColumnSizes: Record<string, number> | null;
+  sort: ColumnSortSpecList | null;
+  staleData: StaleData | null;
+};
+
+export type TabType = 'script' | 'data-source';
+
 export interface TabBase {
-  readonly type: 'script' | 'data-source';
+  readonly type: TabType;
   id: TabId;
-  // tab name & icon is derived from the source for some tab types,
-  // so it is not available in the base type
-  dataViewLayout: DataViewLayout;
+
+  // This is used to be able to restore the tab after restart
+  dataViewStateCache: TabDataViewStateCache | null;
 }
 
 export interface ScriptTab extends TabBase {
   readonly type: 'script';
   sqlScriptId: SQLScriptId;
+  dataViewPaneHeight: number;
   editorPaneHeight: number;
+  lastExecutedQuery: string | null;
 }
 
 export interface FlatFileDataSourceTab extends TabBase {
@@ -60,3 +83,8 @@ export interface AttachedDBDataTab extends TabBase {
 
 export type AnyFileSourceTab = FlatFileDataSourceTab | AttachedDBDataTab;
 export type AnyTab = ScriptTab | AnyFileSourceTab;
+export type TabReactiveState<T extends AnyTab> = T extends ScriptTab
+  ? Omit<ScriptTab, 'dataViewStateCache'>
+  : T extends FlatFileDataSourceTab
+    ? Omit<FlatFileDataSourceTab, 'dataViewStateCache'>
+    : Omit<AttachedDBDataTab, 'dataViewStateCache'>;

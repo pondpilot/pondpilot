@@ -2,20 +2,14 @@
 // By convetion the order should follow CRUD groups!
 import { AnyFlatFileDataSource, AttachedDB, PersistentDataSourceId } from '@models/data-source';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
-import {
-  AnyTab,
-  AttachedDBDataTab,
-  DataViewLayout,
-  FlatFileDataSourceTab,
-  ScriptTab,
-  TabId,
-} from '@models/tab';
+import { AttachedDBDataTab, FlatFileDataSourceTab, ScriptTab, StaleData, TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { CONTENT_VIEW_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
 import { ensureScript } from '@utils/sql-script';
 import { ensureTab, makeTabId } from '@utils/tab';
 import { ensureAttachedDBDataSource, ensureFlatFileDataSource } from '@utils/data-source';
 import { shallow } from 'zustand/shallow';
+import { ColumnSortSpecList } from '@models/db';
 import { persistCreateTab, persistDeleteTab } from './persist';
 import {
   deleteTabImpl,
@@ -82,10 +76,7 @@ export const getOrCreateTabFromAttachedDBObject = (
     schemaName,
     objectName,
     objectType,
-    dataViewLayout: {
-      tableColumnWidth: {},
-      dataViewPaneHeight: 0,
-    },
+    dataViewStateCache: null,
   };
 
   // Add the new tab to the store
@@ -150,11 +141,7 @@ export const getOrCreateTabFromFlatFileDataSource = (
     dataSourceType: 'file',
     id: tabId,
     dataSourceId: dataSource.id,
-
-    dataViewLayout: {
-      tableColumnWidth: {},
-      dataViewPaneHeight: 0,
-    },
+    dataViewStateCache: null,
   };
 
   // Add the new tab to the store
@@ -219,11 +206,10 @@ export const getOrCreateTabFromScript = (
     type: 'script',
     id: tabId,
     sqlScriptId: sqlScript.id,
-    dataViewLayout: {
-      tableColumnWidth: {},
-      dataViewPaneHeight: 0,
-    },
+    dataViewPaneHeight: 0,
     editorPaneHeight: 0,
+    lastExecutedQuery: null,
+    dataViewStateCache: null,
   };
 
   // Add the new tab to the store
@@ -317,33 +303,35 @@ export const findTabFromScript = (
  * ------------------------------------------------------------
  */
 
-export const updateTabDataViewLayout = (
-  tabOrId: AnyTab | TabId,
-  newLayout: DataViewLayout,
+export const updateTabDataViewStaleDataCache = (
+  tabId: TabId,
+  newCache: { sort: ColumnSortSpecList; staleData: StaleData },
 ): void => {
   const { tabs } = useAppStore.getState();
 
-  // Get the tab object if not passed as an object
-  const tab = ensureTab(tabOrId, tabs);
-
-  // Check for changes
-  if (
-    tab.dataViewLayout.dataViewPaneHeight === newLayout.dataViewPaneHeight &&
-    shallow(tab.dataViewLayout.tableColumnWidth, newLayout.tableColumnWidth)
-  ) {
-    // No changes, nothing to do
-    return;
-  }
+  // We have to use a tab object from the store
+  const currentTab = ensureTab(tabId, tabs);
 
   // Create new tab object with updated layout
-  const updatedTab: AnyTab = {
-    ...tab,
-    dataViewLayout: newLayout,
+  const updatedTab = {
+    ...currentTab,
+    dataViewStateCache: currentTab.dataViewStateCache
+      ? {
+          ...currentTab.dataViewStateCache,
+          sort: newCache.sort,
+          staleData: newCache.staleData,
+        }
+      : {
+          tableColumnSizes: null,
+          dataViewPage: null,
+          sort: newCache.sort,
+          staleData: newCache.staleData,
+        },
   };
 
   // Update the store
   const newTabs = new Map(tabs);
-  newTabs.set(tab.id, updatedTab);
+  newTabs.set(currentTab.id, updatedTab);
 
   // Update the store with changes
   useAppStore.setState(
@@ -351,23 +339,171 @@ export const updateTabDataViewLayout = (
       tabs: newTabs,
     },
     undefined,
-    'AppStore/updateTabDataViewLayout',
+    'AppStore/updateTabDataViewStaleDataCache',
   );
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, tab.id);
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
   }
 };
 
-export const updateScriptTabLayoutChange = (
-  tab: ScriptTab,
+export const updateTabDataViewColumnSizesCache = (
+  tabId: TabId,
+  newColumnSizes: Record<string, number>,
+): void => {
+  const { tabs } = useAppStore.getState();
+
+  // We have to use a tab object from the store
+  const currentTab = ensureTab(tabId, tabs);
+
+  // Check if they are different
+  if (!shallow(currentTab.dataViewStateCache?.tableColumnSizes, newColumnSizes)) {
+    // No changes, nothing to do
+    return;
+  }
+
+  // Create new tab object with updated layout
+  const updatedTab = {
+    ...currentTab,
+    dataViewStateCache: currentTab.dataViewStateCache
+      ? {
+          ...currentTab.dataViewStateCache,
+          tableColumnSizes: newColumnSizes,
+        }
+      : {
+          tableColumnSizes: newColumnSizes,
+          dataViewPage: null,
+          sort: null,
+          staleData: null,
+        },
+  };
+
+  // Update the store
+  const newTabs = new Map(tabs);
+  newTabs.set(currentTab.id, updatedTab);
+
+  // Update the store with changes
+  useAppStore.setState(
+    {
+      tabs: newTabs,
+    },
+    undefined,
+    'AppStore/updateTabDataViewColumnSizesCache',
+  );
+
+  // Persist the changes to IndexedDB
+  const iDb = useAppStore.getState()._iDbConn;
+  if (iDb) {
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+  }
+};
+
+export const updateTabDataViewDataPageCache = (tabId: TabId, newDataPage: number): void => {
+  const { tabs } = useAppStore.getState();
+
+  // We have to use a tab object from the store
+  const currentTab = ensureTab(tabId, tabs);
+
+  // Check if they are different
+  if (currentTab.dataViewStateCache?.dataViewPage === newDataPage) {
+    // No changes, nothing to do
+    return;
+  }
+
+  // Create new tab object with updated layout
+  const updatedTab = {
+    ...currentTab,
+    dataViewStateCache: currentTab.dataViewStateCache
+      ? {
+          ...currentTab.dataViewStateCache,
+          dataViewPage: newDataPage,
+        }
+      : {
+          dataViewPage: newDataPage,
+          tableColumnSizes: null,
+          sort: null,
+          staleData: null,
+        },
+  };
+
+  // Update the store
+  const newTabs = new Map(tabs);
+  newTabs.set(currentTab.id, updatedTab);
+
+  // Update the store with changes
+  useAppStore.setState(
+    {
+      tabs: newTabs,
+    },
+    undefined,
+    'AppStore/updateTabDataViewDataPageCache',
+  );
+
+  // Persist the changes to IndexedDB
+  const iDb = useAppStore.getState()._iDbConn;
+  if (iDb) {
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+  }
+};
+
+export const updateScriptTabLastExecutedQuery = (
+  tabId: TabId,
+  lastExecutedQuery: string | null,
+): void => {
+  const { tabs } = useAppStore.getState();
+
+  // We have to use a tab object from the store
+  const currentTab = ensureTab(tabId, tabs);
+
+  // Assert tab type
+  if (currentTab.type !== 'script') {
+    console.error(
+      `updateScriptTabLastExecutedQuery: Expected tab type 'script', but got '${currentTab.type}'`,
+    );
+    return;
+  }
+
+  // Check if they are different
+  if (currentTab.lastExecutedQuery === lastExecutedQuery) {
+    // No changes, nothing to do
+    return;
+  }
+
+  // Create new tab object with updated layout
+  const updatedTab = {
+    ...currentTab,
+    lastExecutedQuery,
+  };
+
+  // Update the store
+  const newTabs = new Map(tabs);
+  newTabs.set(currentTab.id, updatedTab);
+
+  // Update the store with changes
+  useAppStore.setState(
+    {
+      tabs: newTabs,
+    },
+    undefined,
+    'AppStore/updateScriptTabLastExecutedQuery',
+  );
+
+  // Persist the changes to IndexedDB
+  const iDb = useAppStore.getState()._iDbConn;
+  if (iDb) {
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+  }
+};
+
+export const updateScriptTabLayout = (
+  tabId: TabId,
   [editorPaneHeight, dataViewPaneHeight]: [number, number],
 ): void => {
   const { tabs } = useAppStore.getState();
   // We have to use a tab object from the store
-  const currentTab = ensureTab(tab, tabs);
+  const currentTab = ensureTab(tabId, tabs);
 
   // Type check
   if (currentTab?.type !== 'script') {
@@ -377,7 +513,7 @@ export const updateScriptTabLayoutChange = (
   // Check for changes
   if (
     currentTab.editorPaneHeight === editorPaneHeight &&
-    currentTab.dataViewLayout.dataViewPaneHeight === dataViewPaneHeight
+    currentTab.dataViewPaneHeight === dataViewPaneHeight
   ) {
     // No changes, nothing to do
     return;
@@ -387,15 +523,12 @@ export const updateScriptTabLayoutChange = (
   const updatedTab: ScriptTab = {
     ...currentTab,
     editorPaneHeight,
-    dataViewLayout: {
-      ...currentTab.dataViewLayout,
-      dataViewPaneHeight,
-    },
+    dataViewPaneHeight,
   };
 
   // Update the store
   const newTabs = new Map(tabs);
-  newTabs.set(tab.id, updatedTab);
+  newTabs.set(currentTab.id, updatedTab);
 
   // Update the store with changes
   useAppStore.setState(
@@ -403,15 +536,16 @@ export const updateScriptTabLayoutChange = (
       tabs: newTabs,
     },
     undefined,
-    'AppStore/updateScriptTabLayoutChange',
+    'AppStore/updateScriptTabLayout',
   );
 
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, tab.id);
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
   }
 };
+
 /**
  * Sets/resets the active tab id.
  *
@@ -448,14 +582,7 @@ export const setActiveTabId = (tabId: TabId | null) => {
  * @param tabId - The id of the tab to set as preview or null to reset.
  */
 export const setPreviewTabId = (tabId: TabId | null) => {
-  const {
-    tabs,
-    tabOrder,
-    activeTabId,
-    previewTabId,
-    _iDbConn: iDbConn,
-    dataViewCache,
-  } = useAppStore.getState();
+  const { tabs, tabOrder, activeTabId, previewTabId, _iDbConn: iDbConn } = useAppStore.getState();
 
   // Check we have stuff to do
   if (previewTabId === tabId) return;
@@ -464,13 +591,12 @@ export const setPreviewTabId = (tabId: TabId | null) => {
 
   // Cases 2 (with deletion)
   if (previewTabId && tabId) {
-    const { newTabs, newTabOrder, newActiveTabId, newDataViewCache } = deleteTabImpl({
+    const { newTabs, newTabOrder, newActiveTabId } = deleteTabImpl({
       deleteTabIds: [previewTabId],
       tabs,
       tabOrder,
       activeTabId,
       previewTabId,
-      dataViewCache,
     });
 
     // Update the store with the new state
@@ -480,7 +606,6 @@ export const setPreviewTabId = (tabId: TabId | null) => {
         tabOrder: newTabOrder,
         activeTabId: newActiveTabId,
         previewTabId: tabId,
-        dataViewCache: newDataViewCache,
       },
       undefined,
       'AppStore/setPreviewTabId',
@@ -517,25 +642,15 @@ export const setTabOrder = (tabOrder: TabId[]) => {
  */
 
 export const deleteTab = (tabIds: TabId[]) => {
-  const {
+  const { tabs, tabOrder, activeTabId, previewTabId, _iDbConn: iDbConn } = useAppStore.getState();
+
+  const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl({
+    deleteTabIds: tabIds,
     tabs,
     tabOrder,
     activeTabId,
     previewTabId,
-    _iDbConn: iDbConn,
-    dataViewCache,
-  } = useAppStore.getState();
-
-  const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId, newDataViewCache } = deleteTabImpl(
-    {
-      deleteTabIds: tabIds,
-      tabs,
-      tabOrder,
-      activeTabId,
-      previewTabId,
-      dataViewCache,
-    },
-  );
+  });
 
   // Update the store with the new state
   useAppStore.setState(
@@ -544,7 +659,6 @@ export const deleteTab = (tabIds: TabId[]) => {
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,
       previewTabId: newPreviewTabId,
-      dataViewCache: newDataViewCache,
     },
     undefined,
     'AppStore/deleteTab',

@@ -1,45 +1,44 @@
 import { memo, useCallback, useState } from 'react';
 import { Allotment } from 'allotment';
-import { ScriptTab } from '@models/tab';
+import { ScriptTab, TabId } from '@models/tab';
 import { ScriptEditor } from '@features/script-editor';
 import { DataView } from '@features/tab-view/components/data-view';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { useAppStore, useProtectedViews } from '@store/app-store';
-import { DataAdapterApi } from '@models/data-adapter';
-import { getArrowTableSchema } from '@utils/arrow/schema';
+import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
 import {
-  trimQuery,
   splitSQLByStats,
   classifySQLStatements,
   validateStatements,
-  SQLStatement,
   SQLStatementType,
+  SelectableStatements,
 } from '@utils/editor/sql';
-import { updateScriptTabLayoutChange } from '@controllers/tab';
-import { Center, Stack, Text } from '@mantine/core';
-import { IconClipboardSmile } from '@tabler/icons-react';
+import { updateScriptTabLastExecutedQuery, updateScriptTabLayout } from '@controllers/tab';
 import { ScriptExecutionState } from '@models/sql-script';
 import { showError } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { DataViewInfoPane } from './data-view-info-pane';
+import { useDataAdapter } from '../hooks/use-data-adapter';
 
 interface ScriptTabViewProps {
-  tab: ScriptTab;
+  tabId: TabId;
   active: boolean;
 }
 
-export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
-  const [dataAdapter, setDataAdapter] = useState<DataAdapterApi | null>(null);
+export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
+  // Get the reactive portion of tab state
+  const tab = useTabReactiveState<ScriptTab>(tabId, 'script');
+
+  // Get the data adapter
+  const dataAdapter = useDataAdapter({ tab });
+
+  // Neither of the following checks should be necessary as this is called
+  // from the tab view which gets the ids from the same map in the store
+  // and dispatches on the tab type. But we are being very robust here.
+
   const [scriptExecutionState, setScriptExecutionState] = useState<ScriptExecutionState>('idle');
 
   const pool = useInitializedDuckDBConnectionPool();
   const protectedViews = useProtectedViews();
-
-  // NON-REACTIVE acccess, as this is only used once to show the cached data
-  // after application start and before the first query is executed
-  const cachedData = useAppStore.getState().dataViewCache.get(tab.id);
-  const showCachedDataView = !dataAdapter && cachedData;
-  const showRunQueryCTA = !dataAdapter && !cachedData && scriptExecutionState === 'idle';
 
   const runScriptQuery = useCallback(
     async (query: string) => {
@@ -62,8 +61,8 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
         return;
       }
 
-      // Query to be used in data adapter
-      let dataAdapterQuery: string | null = null;
+      // Query to be used in data adapter and saved to the store
+      let lastExecutedQuery: string | null = null;
 
       // Create a pooled connection
       const conn = await pool.getPooledConnection();
@@ -97,20 +96,8 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
           }
         }
 
-        const selectableStatements: SQLStatement[] = [
-          SQLStatement.SELECT,
-          SQLStatement.DESCRIBE,
-          SQLStatement.SHOW,
-          SQLStatement.PIVOT,
-          SQLStatement.UNPIVOT,
-          SQLStatement.FROM,
-          SQLStatement.SUMMARIZE,
-          SQLStatement.CALL,
-          SQLStatement.EXPLAIN,
-        ];
-
         const lastStatement = classifiedStatements[classifiedStatements.length - 1];
-        if (selectableStatements.includes(lastStatement.type)) {
+        if (SelectableStatements.includes(lastStatement.type)) {
           // Validate last SELECT statement via prepare
           try {
             const preparedStatement = await conn.prepare(lastStatement.code);
@@ -132,7 +119,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
             });
             return;
           }
-          dataAdapterQuery = lastStatement.code;
+          lastExecutedQuery = lastStatement.code;
         } else {
           // The last statement is not a SELECT statement
           // Execute it immediately
@@ -150,7 +137,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
             });
             return;
           }
-          dataAdapterQuery = "SELECT 'All statements executed successfully' as Result";
+          lastExecutedQuery = "SELECT 'All statements executed successfully' as Result";
         }
 
         // All statements executed successfully
@@ -185,30 +172,13 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
 
       setScriptExecutionState('success');
 
-      setDataAdapter({
-        getSchema: async () => {
-          // TODO: find more performant way to get schema
-          const result = await pool.query(`SELECT * FROM (${trimQuery(dataAdapterQuery)}) LIMIT 0`);
-          return getArrowTableSchema(result);
-        },
-        getReader: async (sort) => {
-          let fullQuery = dataAdapterQuery;
-
-          if (sort.length > 0) {
-            const orderBy = sort.map((s) => `"${s.column}" ${s.order || 'asc'}`).join(', ');
-            fullQuery = `
-              SELECT * FROM (${trimQuery(dataAdapterQuery)}) ORDER BY ${orderBy}`;
-          }
-          const reader = await pool.send(fullQuery, true);
-          return reader;
-        },
-      });
+      updateScriptTabLastExecutedQuery(tabId, lastExecutedQuery);
     },
     [pool, protectedViews],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {
-    updateScriptTabLayoutChange(tab, [editor, table]);
+    updateScriptTabLayout(tab.id, [editor, table]);
   };
 
   return (
@@ -216,7 +186,7 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
       <Allotment
         vertical
         onDragEnd={setPanelSize}
-        defaultSizes={[tab.editorPaneHeight, tab.dataViewLayout.dataViewPaneHeight]}
+        defaultSizes={[tab.editorPaneHeight, tab.dataViewPaneHeight]}
       >
         <Allotment.Pane preferredSize={tab.editorPaneHeight} minSize={200}>
           <ScriptEditor
@@ -227,33 +197,9 @@ export const ScriptTabView = memo(({ tab, active }: ScriptTabViewProps) => {
           />
         </Allotment.Pane>
 
-        <Allotment.Pane preferredSize={tab.dataViewLayout.dataViewPaneHeight} minSize={120}>
-          {showRunQueryCTA && (
-            <Center className="h-full font-bold">
-              <Stack align="center" c="icon-default" gap={4}>
-                <IconClipboardSmile size={32} stroke={1} />
-                <Text c="text-secondary">Your query results will be displayed here.</Text>
-              </Stack>
-            </Center>
-          )}
-          {dataAdapter && (
-            <>
-              <DataViewInfoPane dataAdapterApi={dataAdapter} />
-              <DataView visible={active} cacheKey={tab.id} dataAdapterApi={dataAdapter} />
-            </>
-          )}
-
-          {showCachedDataView && (
-            <div className="p-4">Mike, make DataView Cache Great Again 🦅 please!</div>
-          )}
-          {showRunQueryCTA && (
-            <Center className="h-full font-bold">
-              <Stack align="center" c="icon-default" gap={4}>
-                <IconClipboardSmile size={32} stroke={1} />
-                <Text c="text-secondary">Your query results will be displayed here.</Text>
-              </Stack>
-            </Center>
-          )}
+        <Allotment.Pane preferredSize={tab.dataViewPaneHeight} minSize={120}>
+          <DataViewInfoPane dataAdapter={dataAdapter} tabType={tab.type} />
+          <DataView active={active} dataAdapter={dataAdapter} tabId={tab.id} tabType={tab.type} />
         </Allotment.Pane>
       </Allotment>
     </div>

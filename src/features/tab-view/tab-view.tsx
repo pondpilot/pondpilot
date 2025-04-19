@@ -1,4 +1,4 @@
-import { useAppStore } from '@store/app-store';
+import { useAppStore, useTabTypeMap } from '@store/app-store';
 import { useEffect } from 'react';
 import { Stack } from '@mantine/core';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -10,7 +10,7 @@ import { TabErrorFallback } from './components';
 const TAB_CACHE_SIZE = 10;
 
 export const TabView = () => {
-  const tabs = useAppStore.use.tabs();
+  const tabToTypeMap = useTabTypeMap();
   const activeTabId = useAppStore.use.activeTabId();
 
   // Use tab cache t avoid rendering all tabs at once
@@ -25,17 +25,17 @@ export const TabView = () => {
   return (
     <ErrorBoundary FallbackComponent={() => <TabErrorFallback tabId={activeTabId} />}>
       <Stack className="h-full gap-0">
-        {Array.from(tabs.values()).map((tab) => {
-          const isActive = tab.id === activeTabId;
-          if (isTabCached(tab.id) || isActive) {
-            if (isActive && !isTabCached(tab.id)) {
-              addToCache(tab.id);
+        {Array.from(tabToTypeMap.entries()).map(([tabId, tabType]) => {
+          const isActive = tabId === activeTabId;
+          if (isTabCached(tabId) || isActive) {
+            if (isActive && !isTabCached(tabId)) {
+              addToCache(tabId);
             }
             return (
-              <div key={tab.id} className={`flex-1 min-h-0 ${isActive ? 'block' : 'hidden'}`}>
-                {tab.type === 'script' && <ScriptTabView tab={tab} active={isActive} />}
-                {tab.type === 'data-source' && (
-                  <FileDataSourceTabView tab={tab} visible={isActive} />
+              <div key={tabId} className={`flex-1 min-h-0 ${isActive ? 'block' : 'hidden'}`}>
+                {tabType === 'script' && <ScriptTabView tabId={tabId} active={isActive} />}
+                {tabType === 'data-source' && (
+                  <FileDataSourceTabView tabId={tabId} active={isActive} />
                 )}
               </div>
             );
