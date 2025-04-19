@@ -19,8 +19,6 @@ const test = mergeTests(
 );
 
 test.describe('flaky test group with retries', () => {
-  test.describe.configure({ retries: 5 });
-
   test('should add csv files', async ({
     page,
     storage,
