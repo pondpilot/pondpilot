@@ -8,71 +8,71 @@ import {
   supportedDataSourceFileExts,
 } from '@models/file-system';
 import { pickFiles, pickFolder } from '@utils/file-system';
+import { useCallback } from 'react';
 
 export const useAddLocalFilesOrFolders = () => {
-  const conn = useDuckDBConnectionPool();
+  const pool = useDuckDBConnectionPool();
 
-  const handleAddFile = async (
-    exts: supportedDataSourceFileExtArray = supportedDataSourceFileExts,
-  ) => {
+  const handleAddFile = useCallback(
+    async (exts: supportedDataSourceFileExtArray = supportedDataSourceFileExts) => {
+      // TODO: we should see if we ca avoid calling this hook in uninitialized
+      // state, and instead of this check, use `useInitializedDuckDBConnection`
+      // to get the non-null connection
+      if (!pool) {
+        showError({
+          title: 'App is not ready',
+          message: 'Please wait for app to load before adding files',
+        });
+        return;
+      }
+
+      const { handles, error } = await pickFiles(
+        exts.map((dotlessExt) => `.${dotlessExt}` as FileExtension),
+        'Data Sources',
+      );
+
+      if (error) {
+        showError({ title: 'Failed to add files', message: error });
+        return;
+      }
+
+      if (!handles.length) {
+        showAlert({ title: 'Adding files', message: 'No files selected' });
+        return;
+      }
+
+      const { skippedExistingEntries, skippedUnsupportedFiles, errors } =
+        await addLocalFileOrFolders(pool, handles);
+
+      if (skippedExistingEntries.length) {
+        showWarning({
+          title: 'Warning',
+          message: `${skippedExistingEntries.length} files were not added because they already exist.`,
+        });
+      }
+
+      if (skippedUnsupportedFiles.length) {
+        showWarning({
+          title: 'Warning',
+          message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
+        });
+      }
+
+      errors.forEach((errorMessage) => {
+        showError({
+          title: 'Error',
+          message: errorMessage,
+        });
+      });
+    },
+    [pool],
+  );
+
+  const handleAddFolder = useCallback(async () => {
     // TODO: we should see if we ca avoid calling this hook in uninitialized
     // state, and instead of this check, use `useInitializedDuckDBConnection`
     // to get the non-null connection
-    if (!conn) {
-      showError({
-        title: 'App is not ready',
-        message: 'Please wait for app to load before adding files',
-      });
-      return;
-    }
-
-    const { handles, error } = await pickFiles(
-      exts.map((dotlessExt) => `.${dotlessExt}` as FileExtension),
-      'Data Sources',
-    );
-
-    if (error) {
-      showError({ title: 'Failed to add files', message: error });
-      return;
-    }
-
-    if (!handles.length) {
-      showAlert({ title: 'Adding files', message: 'No files selected' });
-      return;
-    }
-
-    const { skippedExistingEntries, skippedUnsupportedFiles, errors } = await addLocalFileOrFolders(
-      conn,
-      handles,
-    );
-
-    if (skippedExistingEntries.length) {
-      showWarning({
-        title: 'Warning',
-        message: `${skippedExistingEntries.length} files were not added because they already exist.`,
-      });
-    }
-
-    if (skippedUnsupportedFiles.length) {
-      showWarning({
-        title: 'Warning',
-        message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
-      });
-    }
-
-    errors.forEach((errorMessage) => {
-      showError({
-        title: 'Error',
-        message: errorMessage,
-      });
-    });
-  };
-
-  const handleAddFolder = async () => {
-    // TODO: we should see if we ca avoid calling this hook in uninitialized
-    // state, and instead of this check, use `useInitializedDuckDBConnection`
-    // to get the non-null connection
-    if (!conn) {
+    if (!pool) {
       showError({
         title: 'App is not ready',
         message: 'Please wait for app to load before adding files',
@@ -100,7 +100,7 @@ export const useAddLocalFilesOrFolders = () => {
       color: 'text-accent',
     });
     const { skippedExistingEntries, skippedUnsupportedFiles, skippedEmptyFolders, errors } =
-      await addLocalFileOrFolders(conn, [handle]);
+      await addLocalFileOrFolders(pool, [handle]);
     notifications.hide(notificationId);
 
     const skippedExistingFolders: LocalEntry[] = [];
@@ -147,7 +147,7 @@ export const useAddLocalFilesOrFolders = () => {
         message: errorMessage,
       });
     });
-  };
+  }, [pool]);
 
   return {
     handleAddFile,

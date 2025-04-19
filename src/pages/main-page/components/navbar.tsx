@@ -6,7 +6,7 @@ import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
 import { IconBrandGithub, IconFolderPlus, IconPlus, IconSettings } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
-import { memo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
 import { APP_GITHUB_URL } from 'app-urls';
@@ -19,7 +19,7 @@ import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 /**
  * Displays the navigation bar
  */
-export const Navbar = memo(() => {
+export const Navbar = () => {
   /**
    * Common hooks
    */
@@ -33,17 +33,15 @@ export const Navbar = memo(() => {
 
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
 
-  const activeTab = useAppStore((state) => {
+  const activeTabDataSourceType = useAppStore((state) => {
     if (state.activeTabId === null) return null;
     const curTab = state.tabs.get(state.activeTabId);
     if (!curTab) return null;
-    return curTab;
+    return curTab.type === 'data-source' ? curTab.dataSourceType : null;
   });
 
-  const isDataViewTabActive =
-    activeTab?.type === 'data-source' && activeTab.dataSourceType === 'file';
-  const isDatabaseObjectTabActive =
-    activeTab?.type === 'data-source' && activeTab.dataSourceType === 'db';
+  const isDataViewTabActive = activeTabDataSourceType === 'file';
+  const isDatabaseObjectTabActive = activeTabDataSourceType === 'db';
 
   const [filesDbToggle, setFilesDbToggle] = useState<'files' | 'databases'>('files');
 
@@ -61,9 +59,9 @@ export const Navbar = memo(() => {
   };
 
   useDidUpdate(() => {
-    if (isDatabaseObjectTabActive) {
+    if (isDatabaseObjectTabActive && filesDbToggle === 'files') {
       setFilesDbToggle('databases');
-    } else if (isDataViewTabActive) {
+    } else if (isDataViewTabActive && filesDbToggle === 'databases') {
       setFilesDbToggle('files');
     }
   }, [isDatabaseObjectTabActive, isDataViewTabActive]);
@@ -199,6 +197,6 @@ export const Navbar = memo(() => {
       </Allotment.Pane>
     </Allotment>
   );
-});
+};
 
 Navbar.displayName = 'Navbar';

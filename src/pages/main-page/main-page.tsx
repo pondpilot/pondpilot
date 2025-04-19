@@ -24,8 +24,8 @@ export const MainPage = () => {
     key: LOCAL_STORAGE_KEYS.MAIN_LAYOUT_DIMENSIONS,
   });
 
-  const tabs = useAppStore.use.tabs();
-  const hasTabs = tabs.size > 0;
+  const tabCount = useAppStore((state) => state.tabs.size);
+  const hasTabs = tabCount > 0;
 
   const handleAddScript = () => {
     const newEmptyScript = createSQLScript();
