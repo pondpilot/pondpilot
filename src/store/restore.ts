@@ -516,6 +516,7 @@ export const restoreAppDataFromIDB = async (
           await registerFileSourceAndCreateView(
             conn,
             localEntry.handle,
+            localEntry.ext,
             `${localEntry.uniqueAlias}.${localEntry.ext}`,
             dataSource.viewName,
           );

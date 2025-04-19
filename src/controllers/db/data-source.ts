@@ -1,5 +1,6 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 /**
@@ -19,6 +20,7 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 export async function registerFileSourceAndCreateView(
   conn: AsyncDuckDBConnectionPool,
   handle: FileSystemFileHandle,
+  fileExt: supportedFlatFileDataSourceFileExt,
   fileName: string,
   viewName: string,
 ) {
@@ -38,6 +40,14 @@ export async function registerFileSourceAndCreateView(
   /**
    * Create view
    */
+
+  if (fileExt === 'csv') {
+    await conn.query(
+      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv('${fileName}', strict_mode=false);`,
+    );
+    return;
+  }
+
   await conn.query(
     `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM '${fileName}';`,
   );
