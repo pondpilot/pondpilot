@@ -303,10 +303,7 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
  * ------------------------------------------------------------
  */
 
-export const deleteLocalFileOrFolders = async (
-  conn: AsyncDuckDBConnectionPool,
-  ids: LocalEntryId[],
-) => {
+export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: LocalEntryId[]) => {
   const { dataSources, localEntries, _iDbConn: iDbConn } = useAppStore.getState();
 
   const folderChildren = new Map<LocalEntryId, LocalEntry[]>();
@@ -352,9 +349,6 @@ export const deleteLocalFileOrFolders = async (
     collectDataSourceIdsRecursively(localEntry);
   }
 
-  // This one will delete all collected data sources and related state
-  await deleteDataSources(conn, dataSourceIdsToDelete);
-
   // Delete folder entries from State
   const { localEntries: freshLocalEntries } = useAppStore.getState();
   const newLocalEntires = new Map(
@@ -367,6 +361,9 @@ export const deleteLocalFileOrFolders = async (
     undefined,
     'AppStore/deleteFolder',
   );
+
+  // This one will delete all collected data sources and related state
+  deleteDataSources(conn, dataSourceIdsToDelete);
 
   // Delete folder entries from IDB
   if (iDbConn) {
