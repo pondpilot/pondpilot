@@ -50,10 +50,9 @@ export const SettingsPage = () => {
       <Group
         align="start"
         justify="center"
-        className="h-full p-4"
+        className="h-full p-4 overflow-auto"
         data-testid={setDataTestId('settings-page')}
       >
-        <Box w={300}></Box>
         <Stack w={700} className="gap-8">
           <Title c="text-primary" order={2}>
             Appearance

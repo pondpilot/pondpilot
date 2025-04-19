@@ -8,7 +8,6 @@ import {
   IconFilePlus,
   IconFolderPlus,
   IconDatabasePlus,
-  IconChevronUp,
   IconSettings,
   IconFileSad,
   IconBooks,
@@ -81,7 +80,7 @@ export const SpotlightMenu = () => {
   const location = useLocation();
 
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
-  const { command, option } = useOsModifierIcon();
+  const { command, option, control } = useOsModifierIcon();
 
   /**
    * Store access
@@ -205,7 +204,7 @@ export const SpotlightMenu = () => {
       id: 'add-file',
       label: 'Add File',
       icon: <IconFilePlus size={20} className={ICON_CLASSES} />,
-      hotkey: [<IconChevronUp size={20} />, 'F'],
+      hotkey: [control, 'F'],
       handler: () => {
         handleAddFile();
         resetSpotlight();
@@ -227,7 +226,7 @@ export const SpotlightMenu = () => {
       id: 'add-duckdb-db',
       label: 'Add DuckDB Database',
       icon: <IconDatabasePlus size={20} className={ICON_CLASSES} />,
-      hotkey: [<IconChevronUp size={20} />, 'D'],
+      hotkey: [control, 'D'],
       handler: () => {
         handleAddFile(['.duckdb']);
         resetSpotlight();
@@ -253,7 +252,7 @@ export const SpotlightMenu = () => {
       id: 'import-script',
       label: 'Import Queries',
       icon: <IconFileImport size={20} className={ICON_CLASSES} />,
-      hotkey: [<IconChevronUp size={20} />, 'I'],
+      hotkey: [control, 'I'],
       handler: async () => {
         importSQLFiles();
         resetSpotlight();

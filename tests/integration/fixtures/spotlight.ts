@@ -1,6 +1,7 @@
 import { test as base, expect, Locator } from '@playwright/test';
 
 type SpotlightFixtures = {
+  spotlight: Locator;
   openSpotlight: () => Promise<Locator>;
   createScriptViaSpotlight: () => Promise<void>;
   openSettingsViaSpotlight: () => Promise<void>;
@@ -8,20 +9,22 @@ type SpotlightFixtures = {
 };
 
 export const test = base.extend<SpotlightFixtures>({
-  openSpotlight: async ({ page }, use) => {
-    const spotlightRoot = page.getByTestId('spotlight-menu');
+  spotlight: async ({ page }, use) => {
+    await use(page.getByTestId('spotlight-menu'));
+  },
 
+  openSpotlight: async ({ page, spotlight }, use) => {
     await use(async () => {
       // Verify spotlight is not visible
-      await expect(spotlightRoot).toBeHidden();
+      await expect(spotlight).toBeHidden();
 
       // Open spotlight menu using trigger
       await page.getByTestId('spotlight-trigger-input').click();
 
       // Verify spotlight is visible
-      await expect(spotlightRoot).toBeVisible();
+      await expect(spotlight).toBeVisible();
 
-      return spotlightRoot;
+      return spotlight;
     });
   },
 
