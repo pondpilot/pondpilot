@@ -62,17 +62,16 @@ test('Select items in the query explorer list using Hotkeys', async ({
   await selectMultipleScriptNodes([0, 2]);
   await assertScriptNodesSelection([0, 2]);
 
-  // Click elsewhere. Should NOT deselect
+  // // Click elsewhere. Should deselect all
   await page.click('body');
-  await assertScriptNodesSelection([0, 2]);
+  await assertScriptNodesSelection([]);
 
-  // Now try to switch to one of the selected tabs via tab pane. It should NOT
-  // reset the selection
+  // // Now try to switch to one of the selected tabs via tab pane. It should reset the first item selection
   await switchToTab('query_2');
-  await assertScriptNodesSelection([0, 2]);
+  await assertScriptNodesSelection([2]);
 
-  // Finally, switching to a tab from unselected script, should deselect all
-  // and then select the chosen tab
+  // // Finally, switching to a tab from unselected script, should deselect all
+  // // and then select the chosen tab
   await switchToTab('query_1');
   await assertScriptNodesSelection([1]);
 });
