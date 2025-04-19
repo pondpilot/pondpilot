@@ -85,10 +85,10 @@ test('Create scripts using spotlight menu', async ({
   await fillScript('select 4 as spotlight_query_2');
 
   // Switch to first script and verify content
-  await switchToTab('query.sql');
+  await switchToTab('query');
   await expect(await getScriptEditorContent()).toContainText('select 3 as spotlight_query_1');
 
   // Switch to second script and verify content
-  await switchToTab('query_1.sql');
+  await switchToTab('query_1');
   await expect(await getScriptEditorContent()).toContainText('select 4 as spotlight_query_2');
 });
