@@ -127,8 +127,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   // Should we allow pagination? We allow continuing paginating even
   // while data is loading (but not sorting), and we disable the buttons
   // if we are in error state
-  const isPaginationDisabled =
-    hasData && !isSorting && !hasDataSourceError && !dataAdapter.dataSourceExhausted;
+  const isPaginationDisabled = !hasData || isSorting;
 
   /**
    * Exvent handlers
