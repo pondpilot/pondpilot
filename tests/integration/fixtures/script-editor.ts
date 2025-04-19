@@ -33,12 +33,12 @@ export const test = base.extend<ScriptEditorFixtures>({
     await use(page.getByTestId('query-editor'));
   },
 
-  scriptEditorContent: async ({ page }, use) => {
-    await use(page.locator('.cm-content'));
+  scriptEditorContent: async ({ activeScriptEditor }, use) => {
+    await use(activeScriptEditor.locator('.cm-content'));
   },
 
-  runScriptButton: async ({ page }, use) => {
-    await use(page.getByTestId('run-query-button'));
+  runScriptButton: async ({ activeScriptEditor }, use) => {
+    await use(activeScriptEditor.getByTestId('run-query-button'));
   },
 
   activeScriptEditor: async ({ page }, use) => {
@@ -54,11 +54,11 @@ export const test = base.extend<ScriptEditorFixtures>({
     });
   },
 
-  fillScript: async ({ scriptEditor, scriptEditorContent }, use) => {
+  fillScript: async ({ activeScriptEditor, scriptEditorContent }, use) => {
     await use(async (content: string) => {
       // Verify the script tab is active
       await expect(
-        scriptEditor,
+        activeScriptEditor,
         'Did you forget to open a script tab before calling this fixture? Use `createScriptAndSwitchToItsTab` or similar fixture first',
       ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
@@ -67,11 +67,11 @@ export const test = base.extend<ScriptEditorFixtures>({
     });
   },
 
-  runScript: async ({ page, scriptEditor, runScriptButton }, use) => {
+  runScript: async ({ page, activeScriptEditor, runScriptButton }, use) => {
     await use(async () => {
       // Verify the script tab is active
       await expect(
-        scriptEditor,
+        activeScriptEditor,
         'Did you forget to open a script tab before calling this fixture? Use `createScriptAndSwitchToItsTab` or similar fixture first',
       ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
