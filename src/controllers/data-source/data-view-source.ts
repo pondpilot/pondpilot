@@ -57,7 +57,6 @@ export const deleteDataSources = async (
     previewTabId,
     localEntries,
     dataViewCache,
-    dataBaseMetadata,
     _iDbConn: iDbConn,
   } = useAppStore.getState();
 
@@ -122,22 +121,37 @@ export const deleteDataSources = async (
     Array.from(localEntries).filter(([id, _]) => !entryIdsToDelete.has(id)),
   );
 
+  // Update the store with the new state
+  useAppStore.setState(
+    {
+      dataSources: newDataSources,
+      localEntries: newLocalEntires,
+      tabs: newTabs,
+      tabOrder: newTabOrder,
+      activeTabId: newActiveTabId,
+      previewTabId: newPreviewTabId,
+      dataViewCache: newDataViewCache,
+    },
+    undefined,
+    'AppStore/deleteDataSource',
+  );
+
   if (iDbConn) {
     // Delete data sources from IndexedDB
-    await persistDeleteDataSource(iDbConn, dataSourceIds, entryIdsToDelete);
+    persistDeleteDataSource(iDbConn, dataSourceIds, entryIdsToDelete);
 
     // Delete associated tabs from IndexedDB if any. For simplicty we do not bother
     // doing this in a single transaction, highly unlikely to be a problem.
     // This also takes care of the data view cache entries associated with the tabs
     if (tabsToDelete.length) {
-      await persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
+      persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
     }
   }
 
   // Delete the data sources from the database
   for (const dataSource of deletedDataSources) {
     if (dataSource.type === 'attached-db') {
-      await detachAndUnregisterDatabase(
+      detachAndUnregisterDatabase(
         conn,
         dataSource.dbName,
         localEntries.get(dataSource.fileSourceId)?.uniqueAlias,
@@ -145,6 +159,7 @@ export const deleteDataSources = async (
     } else if (dataSource.type === 'xlsx-sheet') {
       throw new Error('TODO: implement xlsx-sheet data source deletion');
     } else {
+      // Wait for the view to be dropped to get fresh views metadata after that
       await dropViewAndUnregisterFile(
         conn,
         dataSource.viewName,
@@ -153,10 +168,12 @@ export const deleteDataSources = async (
     }
   }
 
-  // Finally, after database is updated (views are dropped), create the updated state for database metadata
+  // After database is updated (views are dropped), create the updated state for database metadata
+  const { dataBaseMetadata } = useAppStore.getState();
   const deletedDataBases = new Set(
     deletedDataSources.filter((ds) => ds.type === 'attached-db').map((ds) => ds.dbName),
   );
+  // Filter out deleted databases from the metadata
   let newDataBaseMetadata = new Map(
     Array.from(dataBaseMetadata).filter(([dbName, _]) => !deletedDataBases.has(dbName)),
   );
@@ -169,17 +186,9 @@ export const deleteDataSources = async (
       newDataBaseMetadata = new Map([...newDataBaseMetadata, ...newViewsMetadata]);
     }
   }
-
-  // Update the store with the new state
+  // Set metadata state
   useAppStore.setState(
     {
-      dataSources: newDataSources,
-      localEntries: newLocalEntires,
-      tabs: newTabs,
-      tabOrder: newTabOrder,
-      activeTabId: newActiveTabId,
-      previewTabId: newPreviewTabId,
-      dataViewCache: newDataViewCache,
       dataBaseMetadata: newDataBaseMetadata,
     },
     undefined,
