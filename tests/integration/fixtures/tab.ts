@@ -9,7 +9,7 @@ export const test = base.extend<TabFixtures>({
   switchToTab: async ({ page }, use) => {
     await use(async (tabName: string) => {
       const tabsList = page.getByTestId('tabs-list');
-      const tab = tabsList.getByText(tabName);
+      const tab = tabsList.getByText(tabName, { exact: true });
       await tab.click();
     });
   },
