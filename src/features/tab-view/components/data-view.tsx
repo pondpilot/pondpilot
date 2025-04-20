@@ -69,7 +69,6 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   /**
    * Computed data source state
    */
-  console.log('DataView: dataAdapter', dataAdapter);
   const hasActualData = dataAdapter.currentSchema.length > 0 && !dataAdapter.isStale;
   const hasStaleData = dataAdapter.currentSchema.length > 0 && dataAdapter.isStale;
   const hasData = hasActualData || hasStaleData;
@@ -117,6 +116,24 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     () => {
       let newData: GetDataTableSliceReturnType = null;
 
+      if (dataAdapter.dataReadCancelled) {
+        // Set whatever is the closest fully visible page
+        // to the requested page and avoid reading data again this time
+        setRequestedPage(
+          Math.min(
+            requestedPage,
+            Math.floor(
+              (dataSlice
+                ? dataSlice.rowOffset + dataSlice.data.length
+                : dataAdapter.rowCountInfo.availableRowCount) / MAX_DATA_VIEW_PAGE_SIZE,
+            ),
+          ),
+        );
+
+        dataAdapter.ackDataReadCancelled();
+        return;
+      }
+
       if (lastDataSourceVersion.current !== dataAdapter.dataSourceVersion) {
         // Instead of requesting data on the next render, reset the page to 0.
         // This should work fine for initial cached page, since
@@ -137,6 +154,8 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
       dataAdapter.dataVersion,
       dataAdapter.dataSourceVersion,
       dataAdapter.getDataTableSlice,
+      dataAdapter.dataReadCancelled,
+      dataAdapter.ackDataReadCancelled,
       expectedRowFrom,
       expectedRowTo,
     ],

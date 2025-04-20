@@ -157,7 +157,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   // although in reality we only read from one request at a time.
   // This may happen if the user is scrolling quickly and requesting
   // ever increasing amounts of data, quicker than we can read it.
-  const pendingFetches = useRef(0);
+  const fetchTo = useRef<number | null>(0);
+  const dataReadCancelled = useRef(false);
 
   /**
    * Computed State
@@ -297,7 +298,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    * @param curRowCountInfo The current row count info (passed as param to avoid recreating callback)
    */
   const fetchDataSingleEntry = useCallback(
-    async (fetchTo: number | null, abortSignal: AbortSignal, curRowCountInfo: RowCountInfo) => {
+    async (abortSignal: AbortSignal, curRowCountInfo: RowCountInfo) => {
       if (mainDataReader === null) {
         throw new Error('Main data reader is null while fetching data');
       }
@@ -312,7 +313,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         let updatedSchemaFromInferred = false;
 
         // Stop fetching when the reader is done or fetch is cancelled
-        while (!readAll || !mainDataReader.closed) {
+        while (
+          !readAll &&
+          !mainDataReader.closed &&
+          // If we read enough data, we can stop
+          (fetchTo.current === null || actualData.current.length < fetchTo.current)
+        ) {
           const { done, value } = await mainDataReader.next();
 
           if (done) {
@@ -350,9 +356,6 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           // And ping downstream components that data has changed
           setDataVersion((prev) => prev + 1);
 
-          // If we read enough data, we can stop
-          if (fetchTo && actualData.current.length >= fetchTo) break;
-
           // Also break if the fetch was aborted. We exit here, not
           // at the start of the loop, to ensure that whether the result
           // is empty or not, after the loop we may be sure that actual
@@ -371,6 +374,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
         updateTabDataViewStaleDataCache(tab.id, {
           staleData: {
+            // we do not add schema to deps, because realistically we will have
+            // inferred schema even after abort
             schema: inferredSchema || schema,
             data: actualData.current.slice(-MAX_PERSISTED_STALE_DATA_ROWS),
             rowOffset: Math.max(0, actualData.current.length - MAX_PERSISTED_STALE_DATA_ROWS),
@@ -388,40 +393,24 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   );
 
   /**
-   * Abortable multi-entry function that fetches the data until `fetchTo` rows are read
+   * Abortable multi-entry function that fetches the data until `rowTo` rows are read
    * or the reader is done/closed.
    *
-   * @param fetchTo The number of rows to fetch at least. If `null`,
-   *                     fetch until the reader is exhausted.
+   * @param rowTo The number of rows to fetch at least. If `null`,
+   *              fetch until the reader is exhausted.
    * @param curSort The current sort spec (passed as param to avoid recreating callback)
    * @param curRowCountInfo The current row count info (passed as param to avoid recreating callback)
    */
   const fetchData = useCallback(
     async ({
-      fetchTo,
+      rowTo,
       curSort,
       curRowCountInfo,
     }: {
-      fetchTo: number | null;
+      rowTo: number | null;
       curSort: ColumnSortSpecList;
       curRowCountInfo: RowCountInfo;
     }): Promise<void> => {
-      // Start by incrementing the pending fetches
-      pendingFetches.current += 1;
-
-      // Never fetch twice in parallel.
-      // If we are fetching, wait until all the previous fetches are done
-      while (pendingFetches.current > 1) {
-        await new Promise<void>((resolve) => {
-          const interval = setInterval(() => {
-            if (pendingFetches.current === 1) {
-              clearInterval(interval);
-              resolve();
-            }
-          }, 100);
-        });
-      }
-
       if (
         // No reader - no fetching
         !mainDataReader ||
@@ -433,35 +422,53 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // do no use closed reader either.
         mainDataReader.closed
       ) {
-        // Decrement the pending fetches and return
-        pendingFetches.current -= 1;
         return;
       }
 
-      // Update the state to show that we are fetching data. Note,
-      // that is may already be set to true if we reach here after
-      // waiting for the previous fetch to finish.
-      setIsFetchingData(true);
+      // Now make sure our fetchTo is set to the requested value or beyond
+      if (rowTo === null) {
+        // To the ed
+        fetchTo.current = null;
+      } else if (fetchTo.current !== null) {
+        fetchTo.current = Math.max(rowTo, fetchTo.current);
+      }
 
-      const abortSignal = getDataFetchAbortSignal();
+      // Now exist early if already fetching or have enough
+      if (
+        isFetchingData ||
+        (fetchTo.current !== null && actualData.current.length >= fetchTo.current)
+      ) {
+        return;
+      }
 
-      // Wait for an actual fetch to finish
-      await fetchDataSingleEntry(fetchTo, abortSignal, curRowCountInfo);
+      // Deliberate request to start fetching data => drop this flag
+      dataReadCancelled.current = false;
 
-      // Decrement the pending fetches
-      pendingFetches.current -= 1;
+      try {
+        // Update the state to show that we are fetching data.
+        setIsFetchingData(true);
 
-      // Save last sort used. This will allow showing `isSorting` only for the
-      // first fetch after sort change.
-      setLastSort(curSort);
+        // Get the abort signal so all of this can be cancelled
+        const abortSignal = getDataFetchAbortSignal();
 
-      if (pendingFetches.current === 0) {
-        // Only set this to false if there are no pending fetches.
-        // This is an optimization to avoid flickers
+        // Wait for an actual fetch to finish
+        await fetchDataSingleEntry(abortSignal, curRowCountInfo);
+
+        // Save last sort used. This will allow showing `isSorting` only for the
+        // first fetch after sort change.
+        setLastSort(curSort);
+      } finally {
         setIsFetchingData(false);
       }
     },
-    [fetchDataSingleEntry, mainDataReader, dataSourceExhausted, dataSourceReadError, rowCountInfo],
+    [
+      fetchDataSingleEntry,
+      mainDataReader,
+      isFetchingData,
+      dataSourceExhausted,
+      dataSourceReadError,
+      rowCountInfo,
+    ],
   );
 
   /**
@@ -533,6 +540,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     setDataSourceExhausted(false);
     // And any error
     setDataSourceReadError(null);
+    // Fetch to target is reset to 0
+    fetchTo.current = 0;
+    dataReadCancelled.current = false;
 
     // Reset row count info. We keep the loaded count,
     // because until new data is read, we still have the stale data
@@ -576,9 +586,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     (rowFrom: number, rowTo: number): GetDataTableSliceReturnType => {
       // Check and initiate data fetch if needed
       if (rowTo > actualData.current.length) {
-        // This is ok to call multiple times, it handles multi-entry
+        // This is ok to call multiple times, it handles multi-entry,
+        // as well as futile calls when data source is exhausted
         fetchData({
-          fetchTo: rowTo,
+          rowTo,
           curSort: sort,
           curRowCountInfo: rowCountInfo,
         });
@@ -657,7 +668,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       if (!dataSourceExhausted) {
         // Fetch all
         await fetchData({
-          fetchTo: null,
+          rowTo: null,
           curSort: sort,
           curRowCountInfo: rowCountInfo,
         });
@@ -711,13 +722,15 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   );
 
   const cancelDataRead = useCallback(() => {
-    // Maybe we do not need this callback and can just pass
-    // abort function directly, as it is no-op when nothing is
-    // being fetched. Or maybe we need to do more here...
-    if (isFetchingData) {
-      abortDataFetch();
-    }
-  }, [isFetchingData, abortDataFetch]);
+    // this will ensure that fetching doesn't resume
+    fetchTo.current = actualData.current.length;
+    dataReadCancelled.current = true;
+    abortDataFetch();
+  }, [abortDataFetch]);
+
+  const ackDataReadCancelled = useCallback(() => {
+    dataReadCancelled.current = false;
+  }, []);
 
   if (import.meta.env.DEV) {
     // Perform state consistency checks. Any failuer here is a bug
@@ -759,10 +772,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     dataSourceError,
     isFetchingData,
     isSorting,
+    dataReadCancelled: dataReadCancelled.current,
     getDataTableSlice,
     getAllTableData,
     toggleColumnSort,
     getColumnAggregate,
     cancelDataRead,
+    ackDataReadCancelled,
   };
 };

@@ -110,6 +110,13 @@ export interface DataAdapterApi {
   isSorting: boolean;
 
   /**
+   * Whether the data read was cancelled.
+   * This is set to true when the user cancelled the read
+   * but will go back to false on any data read request.
+   */
+  dataReadCancelled: boolean;
+
+  /**
    * Function to retrieve available data & schema for the given range
    *
    * NOTE: this may return a different range of rows than requested
@@ -158,6 +165,13 @@ export interface DataAdapterApi {
    * until user asks for more data by paging/scrolling
    */
   cancelDataRead: () => void;
+
+  /**
+   * Resets the data read cancelled state. This is used to
+   * acknowledge that the downstream code also reacted to
+   * the cancellation and wants to be able to start a new read.
+   */
+  ackDataReadCancelled: () => void;
 }
 
 export interface DataAdapterQueries {
