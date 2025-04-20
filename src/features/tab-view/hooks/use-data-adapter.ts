@@ -6,7 +6,7 @@ import { useDidUpdate } from '@mantine/hooks';
 import {
   ColumnAggregateType,
   DataAdapterApi,
-  GetTableDataReturnType,
+  GetDataTableSliceReturnType,
   RowCountInfo,
 } from '@models/data-adapter';
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from '@models/db';
@@ -25,13 +25,19 @@ import { useDataAdapterQueries } from './use-data-adapter-queries';
 
 type UseDataAdapterProps = {
   tab: TabReactiveState<AnyTab>;
+  /**
+   * Whenever this changes, adapter will force update internal version,
+   * even if the data source appears the same. E.g. tail queries of scripts
+   * can match exactly, but should force a new data version.
+   */
+  sourceVersion: number;
 };
 
-export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => {
+export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): DataAdapterApi => {
   /**
    * Hooks
    */
-  const queries = useDataAdapterQueries(tab);
+  const queries = useDataAdapterQueries({ tab, sourceVersion });
 
   // We use a couple of abort controllers to cancel various queries that this
   // hook may run.
@@ -158,6 +164,7 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
    */
 
   const isStale = staleData !== null;
+  const currentSchema = isStale ? staleData.schema : schema;
   const disableSort = queries.getReader !== undefined && queries.getSortableReader === undefined;
 
   const dataQueriesBuildError = useMemo(() => {
@@ -330,8 +337,6 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
           if (!updatedSchemaFromInferred) {
             // Be clever and avoid changing the schema if it is the same
             if (!isSameSchema(schema, inferredSchema)) {
-              console.log('Schema update from:', schema);
-              console.log('Schema update to:', inferredSchema);
               setSchema(inferredSchema);
             }
 
@@ -509,19 +514,17 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
     // Reset a bunch of things. This can be called from either a prop change,
     // initial mount or a sort change.
 
-    // The real data is not needed anymore, but if we had some, we should replace
+    // The real data is not needed anymore, we should replace
     // stale data with it.
     const lastAvailableRowCount = actualData.current.length;
 
-    if (lastAvailableRowCount > 0) {
-      setStaleData({
-        schema,
-        data: actualData.current,
-        rowOffset: 0,
-      });
+    setStaleData({
+      schema,
+      data: actualData.current,
+      rowOffset: 0,
+    });
 
-      actualData.current.length = 0;
-    }
+    actualData.current = [];
 
     // Cancel any pending fetches, and background tasks & readers
     cancelAllDataOperations();
@@ -569,8 +572,8 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
   /**
    * Build the resulting API
    */
-  const getTableData = useCallback(
-    (rowFrom: number, rowTo: number): GetTableDataReturnType => {
+  const getDataTableSlice = useCallback(
+    (rowFrom: number, rowTo: number): GetDataTableSliceReturnType => {
       // Check and initiate data fetch if needed
       if (rowTo > actualData.current.length) {
         // This is ok to call multiple times, it handles multi-entry
@@ -585,11 +588,11 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
       let dataToUse: DataTable = [];
       let offset = 0;
 
-      if (schema.length > 0 && actualData.current.length > 0) {
-        dataToUse = actualData.current;
-      } else if (staleData) {
+      if (isStale) {
         dataToUse = staleData.data;
         offset = staleData.rowOffset;
+      } else {
+        dataToUse = actualData.current;
       }
 
       // Now try to get as close of a chunk of data to requested as possible
@@ -600,7 +603,7 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
 
       // If we have a non-empty schema, means we have (possibly empty) data
       // and we should return it
-      if (schema.length > 0) {
+      if (currentSchema.length > 0) {
         return {
           data: returnData,
           rowOffset: returnRowFrom,
@@ -611,7 +614,7 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
       // as we have no data to show
       return null;
     },
-    [schema, fetchData, sort, rowCountInfo],
+    [currentSchema, fetchData, sort, rowCountInfo, isStale, staleData],
   );
 
   const getAllTableData = useCallback(
@@ -747,7 +750,7 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
   return {
     dataSourceVersion,
     dataVersion,
-    currentSchema: schema,
+    currentSchema,
     isStale,
     rowCountInfo,
     disableSort,
@@ -756,7 +759,7 @@ export const useDataAdapter = ({ tab }: UseDataAdapterProps): DataAdapterApi => 
     dataSourceError,
     isFetchingData,
     isSorting,
-    getTableData,
+    getDataTableSlice,
     getAllTableData,
     toggleColumnSort,
     getColumnAggregate,

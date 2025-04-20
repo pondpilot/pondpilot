@@ -13,7 +13,7 @@ export type DataTableSlice = {
   rowOffset: number;
 };
 
-export type GetTableDataReturnType = DataTableSlice | null;
+export type GetDataTableSliceReturnType = DataTableSlice | null;
 
 export type RowCountInfo = {
   realRowCount: number | null;
@@ -123,7 +123,7 @@ export interface DataAdapterApi {
    * @param rowTo The ending row index (exclusive)
    * @returns An object containing the schema, data, row range, and a flag indicating if the data is stale
    */
-  getTableData: (rowFrom: number, rowTo: number) => GetTableDataReturnType;
+  getDataTableSlice: (rowFrom: number, rowTo: number) => GetDataTableSliceReturnType;
 
   /**
    * Function to retrieve all data from the data source.

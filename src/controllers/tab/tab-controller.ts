@@ -448,10 +448,22 @@ export const updateTabDataViewDataPageCache = (tabId: TabId, newDataPage: number
   }
 };
 
-export const updateScriptTabLastExecutedQuery = (
-  tabId: TabId,
-  lastExecutedQuery: string | null,
-): void => {
+/**
+ * Updates the last executed query for a script tab.
+ *
+ * @param tabId - The ID of the tab to update.
+ * @param lastExecutedQuery - The last executed query to set. If null, it will be removed.
+ * @param force - If true, the update will be applied even if the last executed query is the same.
+ */
+export const updateScriptTabLastExecutedQuery = ({
+  tabId,
+  lastExecutedQuery,
+  force,
+}: {
+  tabId: TabId;
+  lastExecutedQuery: string | null;
+  force: boolean;
+}): void => {
   const { tabs } = useAppStore.getState();
 
   // We have to use a tab object from the store
@@ -466,7 +478,7 @@ export const updateScriptTabLastExecutedQuery = (
   }
 
   // Check if they are different
-  if (currentTab.lastExecutedQuery === lastExecutedQuery) {
+  if (!force && currentTab.lastExecutedQuery === lastExecutedQuery) {
     // No changes, nothing to do
     return;
   }

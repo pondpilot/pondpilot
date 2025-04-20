@@ -1,9 +1,9 @@
 import { Table } from '@components/table/table';
-import { DataAdapterApi, DataTableSlice } from '@models/data-adapter';
-import { useCallback, useEffect, useState } from 'react';
+import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@models/data-adapter';
+import { useCallback, useRef, useState } from 'react';
 import { setDataTestId } from '@utils/test-id';
 import { Center, Group, Loader, Stack, Text } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
+import { useDebouncedValue, useDidUpdate, useForceUpdate } from '@mantine/hooks';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
 import { DBColumn } from '@models/db';
@@ -63,6 +63,9 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     () => useAppStore.getState().tabs.get(tabId)?.dataViewStateCache?.tableColumnSizes || undefined,
   );
 
+  // Used to reset requested page when data is changed without unmounting
+  const lastDataSourceVersion = useRef<number>(dataAdapter.dataVersion);
+
   /**
    * Computed data source state
    */
@@ -97,14 +100,33 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   const isSinglePage = Math.max(expectedRowTo, rowCountToShow) <= MAX_DATA_VIEW_PAGE_SIZE;
 
   // Now get the data to be used by the table
-  useEffect(
+  useDidUpdate(
     () => {
-      const newData = dataAdapter.getTableData(expectedRowFrom, expectedRowTo);
+      let newData: GetDataTableSliceReturnType = null;
+
+      if (lastDataSourceVersion.current !== dataAdapter.dataSourceVersion) {
+        // Instead of requesting data on the next render, reset the page to 0.
+        // This should work fine for initial cached page, since
+        // this is a useDidUpdate hook and should not fire on mount
+        lastDataSourceVersion.current = dataAdapter.dataSourceVersion;
+        setAndCacheDataPage(0);
+
+        // Request the first page of data
+        newData = dataAdapter.getDataTableSlice(0, MAX_DATA_VIEW_PAGE_SIZE);
+      } else {
+        newData = dataAdapter.getDataTableSlice(expectedRowFrom, expectedRowTo);
+      }
       setDataSlice(newData);
     },
     // There is no point in getting data again if the data version
     // has not changed. This is important for performance.
-    [dataAdapter.dataSourceVersion, dataAdapter.getTableData, expectedRowFrom, expectedRowTo],
+    [
+      dataAdapter.dataVersion,
+      dataAdapter.dataSourceVersion,
+      dataAdapter.getDataTableSlice,
+      expectedRowFrom,
+      expectedRowTo,
+    ],
   );
 
   // Whether we should show a full loading overlay, i.e. we have nothing, even stale to show
@@ -125,15 +147,22 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   const showTableAndPagination = dataSlice !== null && hasData;
 
   // The actual row range to show in pagination. It may be different from the expected row range.
-  // Note that the fallback is artificial for typing. In reality we will not
-  // show pagination if we don't have data, so pagination can't get null values really
-  const displayedRowFrom = dataSlice?.rowOffset || 0;
+  // If we have 0 rows, than return 0, but if we have rows, we show 1-indexed range.
+  const displayedRowFrom = dataSlice
+    ? dataSlice.data.length > 0
+      ? dataSlice.rowOffset + 1
+      : 0
+    : 0;
   const displayedRowTo = dataSlice ? dataSlice.rowOffset + dataSlice.data.length : 0;
 
   // Should we allow pagination? We allow continuing paginating even
   // while data is loading (but not sorting), and we disable the buttons
   // if we are in error state
   const isPaginationDisabled = !hasData || isSorting;
+
+  const hasPrevPage = requestedPage > 0;
+  const nextPage = requestedPage + 1;
+  const hasNextPage = realRowCount ? nextPage * MAX_DATA_VIEW_PAGE_SIZE < realRowCount : true;
 
   /**
    * Exvent handlers
@@ -144,23 +173,17 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   }, []);
 
   const handleNextPage = useCallback(() => {
-    const nextPage = requestedPage + 1;
-
-    // Check we are not accidentally switch past the end of the data,
-    const newExpectedRowFrom = nextPage * MAX_DATA_VIEW_PAGE_SIZE;
-    if (realRowCount && newExpectedRowFrom >= realRowCount) {
-      return;
+    if (hasNextPage) {
+      setAndCacheDataPage(nextPage);
     }
-
-    setAndCacheDataPage(nextPage);
-  }, [requestedPage, realRowCount]);
+  }, [hasNextPage, nextPage]);
 
   const handlePrevPage = useCallback(() => {
     if (requestedPage > 0) {
       const prevPage = requestedPage - 1;
       setAndCacheDataPage(prevPage);
     }
-  }, []);
+  }, [requestedPage]);
 
   /**
    * Handle sorting
@@ -321,10 +344,12 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
           data-testid={setDataTestId('data-table-pagination-control')}
         >
           <RowCountAndPaginationControl
-            rowFrom={displayedRowFrom + 1}
+            rowFrom={displayedRowFrom}
             rowTo={displayedRowTo}
             isSinglePage={isSinglePage}
             isDisabled={isPaginationDisabled}
+            hasPrevPage={hasPrevPage}
+            hasNextPage={hasNextPage}
             rowCount={rowCountToShow}
             onPrevPage={handlePrevPage}
             onNextPage={handleNextPage}

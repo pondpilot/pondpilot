@@ -10,7 +10,7 @@ export const ColRowCount = ({ columnCount, rowCount, isEstimatedRowCount }: ColR
   return (
     <Text c="text-secondary" className="text-sm font-medium">
       {columnCount} columns, {formatNumber(rowCount)}
-      {isEstimatedRowCount === null ? '+' : ''} {`row${rowCount > 1 ? 's' : ''}`}
+      {isEstimatedRowCount ? '+' : ''} {`row${rowCount > 1 ? 's' : ''}`}
     </Text>
   );
 };

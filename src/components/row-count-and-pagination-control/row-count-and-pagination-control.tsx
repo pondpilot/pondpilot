@@ -17,9 +17,17 @@ interface PaginationControlProps {
    */
   isEstimatedRowCount: boolean;
   /**
-   * Indicates if the pagination control buttons should show as disabled
+   * If True, the entire pagination control is disabled
    */
   isDisabled: boolean;
+  /**
+   * If True, the previous page button is enabled
+   */
+  hasPrevPage: boolean;
+  /**
+   * If True, the next page button is enabled
+   */
+  hasNextPage: boolean;
   onPrevPage: () => void;
   onNextPage: () => void;
 }
@@ -33,12 +41,18 @@ export const RowCountAndPaginationControl = ({
   isDisabled,
   onPrevPage,
   onNextPage,
+  hasPrevPage,
+  hasNextPage,
 }: PaginationControlProps) => {
   const rowsWording = rowCount > 1 ? 'rows' : 'row';
+  const rangeText =
+    rowFrom === rowTo
+      ? `${formatNumber(rowFrom)}`
+      : `${formatNumber(rowFrom)}-${formatNumber(rowTo)}`;
   const outOf =
     rowCount > 0
       ? !isSinglePage
-        ? `${formatNumber(rowFrom)}-${formatNumber(rowTo)} out of ${formatNumber(rowCount)}${isEstimatedRowCount ? '+' : ''} ${rowsWording}`
+        ? `${rangeText} out of ${formatNumber(rowCount)}${isEstimatedRowCount ? '+' : ''} ${rowsWording}`
         : `${formatNumber(rowCount)} ${rowsWording}`
       : '0 rows';
   return (
@@ -53,10 +67,10 @@ export const RowCountAndPaginationControl = ({
       </Group>
       {!isSinglePage && (
         <Group gap={0}>
-          <ActionIcon onClick={onPrevPage} disabled={isDisabled}>
+          <ActionIcon onClick={onPrevPage} disabled={!hasPrevPage || isDisabled}>
             <IconChevronLeft />
           </ActionIcon>
-          <ActionIcon onClick={onNextPage} disabled={isDisabled}>
+          <ActionIcon onClick={onNextPage} disabled={!hasNextPage || isDisabled}>
             <IconChevronRight />
           </ActionIcon>
         </Group>

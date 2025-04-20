@@ -28,8 +28,18 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
   // Get the reactive portion of tab state
   const tab = useTabReactiveState<ScriptTab>(tabId, 'script');
 
+  // We have to use an additional increasing counter, becuase we
+  // want to force re-rendering when a new script executed successfully
+  // even if with the exact same last executed query. But out tab state
+  // accessor is clever and will not trigger in this case, because
+  // it uses shallow object comparison.
+  const [scriptVersion, setScriptVersion] = useState<number>(0);
+  const incrementScriptVersion = useCallback(() => {
+    setScriptVersion((prev) => prev + 1);
+  }, []);
+
   // Get the data adapter
-  const dataAdapter = useDataAdapter({ tab });
+  const dataAdapter = useDataAdapter({ tab, sourceVersion: scriptVersion });
 
   // Neither of the following checks should be necessary as this is called
   // from the tab view which gets the ids from the same map in the store
@@ -171,8 +181,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       }
 
       setScriptExecutionState('success');
+      incrementScriptVersion();
 
-      updateScriptTabLastExecutedQuery(tabId, lastExecutedQuery);
+      // As of today, even if the same statement is executed, we will
+      // update the state and trigger re-render.
+      updateScriptTabLastExecutedQuery({ tabId, lastExecutedQuery, force: true });
     },
     [pool, protectedViews],
   );

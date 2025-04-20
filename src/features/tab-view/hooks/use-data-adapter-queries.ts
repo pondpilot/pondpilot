@@ -11,9 +11,20 @@ type UseDataAdapterQueriesRetType = DataAdapterQueries & {
   internalErrors: string[];
 };
 
-export const useDataAdapterQueries = (
-  tab: TabReactiveState<AnyTab>,
-): UseDataAdapterQueriesRetType => {
+type UseDataAdapterQueriesProps = {
+  tab: TabReactiveState<AnyTab>;
+  /**
+   * Whenever this changes, adapter will force update internal version,
+   * even if the data source appears the same. E.g. tail queries of scripts
+   * can match exactly, but should force a new data version.
+   */
+  sourceVersion: number;
+};
+
+export const useDataAdapterQueries = ({
+  tab,
+  sourceVersion,
+}: UseDataAdapterQueriesProps): UseDataAdapterQueriesRetType => {
   // Get pool
   const pool = useInitializedDuckDBConnectionPool();
 
@@ -66,7 +77,7 @@ export const useDataAdapterQueries = (
           internalErrors: [`Unknown tab type: ${tab.type}`],
         };
     }
-  }, [tab, pool, dataSource, sourceFile]);
+  }, [tab, pool, dataSource, sourceFile, sourceVersion]);
 
   return ret;
 };
