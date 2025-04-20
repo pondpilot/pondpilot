@@ -30,7 +30,7 @@ export const DataViewInfoPane = ({ dataAdapter, tabType }: DataViewInfoPaneProps
 
   const hasDataSourceError = dataAdapter.dataSourceError !== null;
   const [isFetching] = useDebouncedValue(dataAdapter.isFetchingData, 200);
-  const [isSorting] = useDebouncedValue(dataAdapter.isSorting, 200);
+  const { isSorting } = dataAdapter;
 
   const { realRowCount, estimatedRowCount, availableRowCount } = dataAdapter.rowCountInfo;
   const isEstimatedRowCount = realRowCount === null;

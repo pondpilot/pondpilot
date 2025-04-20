@@ -122,6 +122,7 @@ export function toggleMultiColumnSort(
     column: columnName,
     order: null,
   };
+
   const toggled = toggleColumnSort(columnSortSpec);
 
   if (toggled.order === null) {

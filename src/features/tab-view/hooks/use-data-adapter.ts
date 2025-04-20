@@ -136,7 +136,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
   // We want to let the users know whether we are fetcing from scratch becase
   // of the sort change or because of the data source change.
-  const [lastSort, setLastSort] = useState<ColumnSortSpecList>(sort);
+  const [lastSort, _setLastSort] = useState<ColumnSortSpecList>(sort);
+  const setLastSort = useCallback((newSort: ColumnSortSpecList) => {
+    _setLastSort((prev) => (isTheSameSortSpec(prev, newSort) ? prev : newSort));
+  }, []);
 
   const [dataSourceExhausted, setDataSourceExhausted] = useState(false);
   const [dataSourceReadError, setDataSourceReadError] = useState<string | null>(null);
@@ -292,8 +295,6 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    * Only one of this can be running at a time (or othersise we have a bug).
    * See `fetchData` for the multi-call compatibile interface.
    *
-   * @param fetchTo The number of rows to fetch at least. If `null`,
-   *                     fetch until the reader is exhausted.
    * @param abortSignal The abort signal to cancel the fetch
    * @param curRowCountInfo The current row count info (passed as param to avoid recreating callback)
    */
@@ -453,11 +454,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
         // Wait for an actual fetch to finish
         await fetchDataSingleEntry(abortSignal, curRowCountInfo);
-
+      } finally {
         // Save last sort used. This will allow showing `isSorting` only for the
         // first fetch after sort change.
         setLastSort(curSort);
-      } finally {
         setIsFetchingData(false);
       }
     },
@@ -501,10 +501,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     }
   }, [mainDataReader, abortDataFetch, abortBackgroundTasks]);
 
-  const getNewReader = async () => {
+  const getNewReader = async (newSortParams: ColumnSortSpecList) => {
     if (queries.getReader || queries.getSortableReader) {
       queries.getSortableReader
-        ? setMainDataReader(await queries.getSortableReader(sort))
+        ? setMainDataReader(await queries.getSortableReader(newSortParams))
         : setMainDataReader(await queries.getReader!());
 
       setDataSourceVersion((prev) => prev + 1);
@@ -517,7 +517,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   /**
    * Inits/resets the state by re-creating the reader with given sort params.
    */
-  const reset = () => {
+  const reset = (newSortParams: ColumnSortSpecList) => {
     // Reset a bunch of things. This can be called from either a prop change,
     // initial mount or a sort change.
 
@@ -555,14 +555,16 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     setRowCountInfo(newRowCountInfo);
 
     // And let the new reader be created in the background
-    getNewReader();
+    getNewReader(newSortParams);
   };
 
   /**
-   * If queries change, we need to reset everything
+   * If queries change (data source), we need to reset everything
    */
   useDidUpdate(() => {
-    reset();
+    setLastSort([]);
+    setSort([]);
+    reset([]);
   }, [queries]);
 
   /**
@@ -571,7 +573,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    * creation in the background.
    */
   useDidMount(() => {
-    getNewReader();
+    getNewReader(sort);
 
     return () => {
       // Make sure we cancel everything
@@ -684,17 +686,23 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     (columnName: string): void => {
       if (disableSort) return;
 
-      const newSortParams = toggleMultiColumnSort(sort, columnName);
       // Save last sort to be able to compare it with the new one
       setLastSort(sort);
 
-      // Set the new sort params
+      const newSortParams = toggleMultiColumnSort(sort, columnName);
+
+      // Save new sort params
       setSort(newSortParams);
+
+      // Reset the data
+      reset(newSortParams);
     },
-    [disableSort],
+    [disableSort, sort],
   );
 
-  const isSorting = useMemo(() => !isTheSameSortSpec(sort, lastSort), [sort, lastSort]);
+  const isSorting = useMemo(() => {
+    return !isTheSameSortSpec(sort, lastSort) && isFetchingData;
+  }, [sort, lastSort, isFetchingData]);
 
   const getColumnAggregate = useCallback(
     (columnName: string, aggType: ColumnAggregateType): Promise<any | undefined> => {

@@ -119,7 +119,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
       if (dataAdapter.dataReadCancelled) {
         // Set whatever is the closest fully visible page
         // to the requested page and avoid reading data again this time
-        setRequestedPage(
+        setAndCacheDataPage(
           Math.min(
             requestedPage,
             Math.floor(
