@@ -15,7 +15,7 @@ export const FileDataSourceTabView = memo(({ tabId, active }: FileDataSourceTabV
   const tab = useTabReactiveState<AnyFileSourceTab>(tabId, 'data-source');
 
   // Get the data adapter
-  const dataAdapter = useDataAdapter({ tab });
+  const dataAdapter = useDataAdapter({ tab, sourceVersion: 0 });
 
   return (
     <Stack className="gap-0 h-full relative">

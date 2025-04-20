@@ -3,7 +3,7 @@ import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@mo
 import { useCallback, useRef, useState } from 'react';
 import { setDataTestId } from '@utils/test-id';
 import { Center, Group, Loader, Stack, Text } from '@mantine/core';
-import { useDebouncedValue, useDidUpdate, useForceUpdate } from '@mantine/hooks';
+import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
 import { DBColumn } from '@models/db';
@@ -91,7 +91,13 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
 
   // The real requested row range. `expectedRowTo` also tells us how much data we need
   // to fetch to fill the current page.
-  const expectedRowFrom = Math.max(0, requestedPage * MAX_DATA_VIEW_PAGE_SIZE);
+  const expectedRowFrom = realRowCount
+    ? // It should be impossible to request a row starting at real row count index
+      Math.min(
+        realRowCount - MAX_DATA_VIEW_PAGE_SIZE,
+        Math.max(0, requestedPage * MAX_DATA_VIEW_PAGE_SIZE),
+      )
+    : Math.max(0, requestedPage * MAX_DATA_VIEW_PAGE_SIZE);
   const expectedRowTo = realRowCount
     ? // if we know the real row count, we can calculate the expected rowTo precisely
       Math.min(realRowCount, (requestedPage + 1) * MAX_DATA_VIEW_PAGE_SIZE)
@@ -270,6 +276,15 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     [tabId],
   );
 
+  // Show dev only jump to row in pagination
+  let handleOnJumpToRow;
+  if (import.meta.env.DEV) {
+    handleOnJumpToRow = useCallback(
+      (rowNumber: number) => setAndCacheDataPage(Math.floor(rowNumber / MAX_DATA_VIEW_PAGE_SIZE)),
+      [],
+    );
+  }
+
   return (
     <Stack className="gap-0 h-full overflow-hidden">
       {/* Loading overlay */}
@@ -361,6 +376,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
             onPrevPage={handlePrevPage}
             onNextPage={handleNextPage}
             isEstimatedRowCount={isEstimatedRowCount}
+            onJumpToRow={handleOnJumpToRow}
           />
         </div>
       )}
