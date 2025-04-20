@@ -75,8 +75,15 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   const hasData = hasActualData || hasStaleData;
 
   const hasDataSourceError = dataAdapter.dataSourceError !== null;
-  const [isFetching] = useDebouncedValue(dataAdapter.isFetchingData, 200);
-  const [isSorting] = useDebouncedValue(dataAdapter.isSorting, 200);
+
+  // Make a clever debounced value of `isFetching` that waits to
+  // turn ON, but immediately turns OFF based on dataAdapter.isFetchingData
+  const [isDebouncedFetching] = useDebouncedValue(dataAdapter.isFetchingData, 200);
+  const isFetching = isDebouncedFetching && dataAdapter.isFetchingData;
+
+  // Same as fetching, only debounce one way
+  const [isDebouncedSorting] = useDebouncedValue(dataAdapter.isSorting, 200);
+  const isSorting = isDebouncedSorting && dataAdapter.isSorting;
 
   const { realRowCount, estimatedRowCount, availableRowCount } = dataAdapter.rowCountInfo;
   const isEstimatedRowCount = realRowCount === null;
