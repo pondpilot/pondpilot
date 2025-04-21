@@ -122,7 +122,7 @@ export const test = base.extend<DataViewFixtures>({
       await expect(headerCells).toHaveCount(columns.length + 1);
 
       // Check row number header cell
-      const rowNumberHeaderCell = getHeaderCell(dataTable, '#');
+      const rowNumberHeaderCell = getHeaderCell(dataTable, '__index__');
       await expect(rowNumberHeaderCell).toBeVisible();
       await expect(rowNumberHeaderCell).toHaveText('#');
 
