@@ -266,13 +266,14 @@ async function restoreLocalEntries(
 
   // And one last check for the granted handles (files) - are they still available?
   const removedFileHandles: FileSystemHandle[] = [];
-  const availableHandles = grantedHandles.filter(async (handle) => {
-    if (!(await isAvailableFileHandle(handle))) {
+  const availableHandles: FileSystemHandle[] = [];
+  for (const handle of grantedHandles) {
+    if (await isAvailableFileHandle(handle)) {
+      availableHandles.push(handle);
+    } else {
       removedFileHandles.push(handle);
-      return false;
     }
-    return true;
-  });
+  }
 
   // Map back from handles to entries
   const discardEntries: DiscardedEntry[] = [];

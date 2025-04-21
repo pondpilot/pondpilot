@@ -99,7 +99,12 @@ export async function requestFileHandlePersmissions(handles: FileSystemHandle[])
 
 export async function isAvailableFileHandle(handle: FileSystemHandle): Promise<boolean> {
   if (handle.kind === 'directory') {
-    return true;
+    try {
+      await (handle as FileSystemDirectoryHandle).entries().next();
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   try {
