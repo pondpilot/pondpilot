@@ -1,4 +1,4 @@
-import { Button, Group, Image, Stack, Text, useMantineColorScheme } from '@mantine/core';
+import { Button, Group, Image, Stack, Text, Title, useMantineColorScheme } from '@mantine/core';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import duck from '@assets/duck.svg';
 import duckDark from '@assets/duck-dark.svg';
@@ -88,22 +88,19 @@ export const StartGuide = () => {
     <Group
       justify="center"
       bg="background-secondary"
-      p="md"
-      className="h-full overflow-auto"
+      className="h-full overflow-auto p-8"
       data-testid={setDataTestId('start-guide')}
     >
-      <Stack w={900}>
-        <Group>
-          <Image src={colorScheme === 'dark' ? duckDark : duck} />
-          <Text c="text-primary" fw={400} className="text-4xl">
-            PondPilot
-          </Text>
-        </Group>
-        <Text fw={500} c="text-primary" className="text-2xl">
-          Start data analysis with quick actions
-        </Text>
-        <Group align="start">
-          <Stack style={{ flex: 1 }} className="max-w-[400px]">
+      <Stack w={700} gap={16}>
+        <Stack className="px-2" gap={14}>
+          <Group>
+            <Image src={colorScheme === 'dark' ? duckDark : duck} />
+            <Title order={1}>PondPilot</Title>
+          </Group>
+          <Title order={3}>Start data analysis with quick actions</Title>
+        </Stack>
+        <Group justify="space-between" align="start">
+          <Stack flex={1} maw={340}>
             {shortcustList.map((item) => (
               <Button
                 key={item.key}
@@ -126,9 +123,7 @@ export const StartGuide = () => {
                 <Group w="100%" justify="space-between" wrap="nowrap">
                   <Group gap="sm" wrap="nowrap">
                     {item.icon}
-                    <Text fw={400} c="text-primary" className="text-base">
-                      {item.label}
-                    </Text>
+                    <Text c="text-primary">{item.label}</Text>
                   </Group>
 
                   <HotkeyPill variant="transparent" value={item.hotkey} />
@@ -136,7 +131,7 @@ export const StartGuide = () => {
               </Button>
             ))}
           </Stack>
-          <Group style={{ flex: 1 }} justify="center">
+          <Group>
             <Stack>
               {goToList.map((item) => (
                 <Button
@@ -151,12 +146,11 @@ export const StartGuide = () => {
                   px={10}
                   h="auto"
                   w="fit-content"
+                  c="text-secondary"
                   className="focus:outline-none focus:bg-transparentBrandBlue-016 dark:focus:bg-transparentBrandBlue-016 hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark"
                 >
                   <Group wrap="nowrap">
-                    <Text fw={400} c="text-secondary" className="text-base">
-                      {item.label}
-                    </Text>
+                    <Text>{item.label}</Text>
                     {item.icon}
                   </Group>
                 </Button>
