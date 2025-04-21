@@ -73,14 +73,16 @@ function getFlatFileDataAdapterApi(
   if (dataSource.type === 'csv' || dataSource.type === 'json') {
     return {
       ...baseAttrs,
-      getEstimatedRowCount: async () => {
-        const result = await pool.query(
-          `SELECT count(*) * 10 FROM ${toDuckDBIdentifier(dataSource.viewName)} USING SAMPLE 10% (system)`,
-        );
+      // TODO: we can enable sampling in multi-threaded mode. In single
+      // threaded, count enforces a full scan and blocks quick streaming reads
+      // getEstimatedRowCount: async () => {
+      //   const result = await pool.query(
+      //     `SELECT count(*) * 10 FROM ${toDuckDBIdentifier(dataSource.viewName)} USING SAMPLE 10% (system)`,
+      //   );
 
-        const count = Number(result.getChildAt(0)?.get(0));
-        return count;
-      },
+      //   const count = Number(result.getChildAt(0)?.get(0));
+      //   return count;
+      // },
     };
   }
 
