@@ -88,7 +88,7 @@ export const StartGuide = () => {
     <Group
       justify="center"
       bg="background-secondary"
-      className="h-full overflow-auto p-8"
+      className="h-full overflow-auto p-14"
       data-testid={setDataTestId('start-guide')}
     >
       <Stack w={700} gap={16}>
@@ -99,8 +99,8 @@ export const StartGuide = () => {
           </Group>
           <Title order={3}>Start data analysis with quick actions</Title>
         </Stack>
-        <Group justify="space-between" align="start">
-          <Stack flex={1} maw={340}>
+        <Group justify="space-between" align="start" mih={300}>
+          <Stack flex={1} maw={340} miw={340}>
             {shortcustList.map((item) => (
               <Button
                 key={item.key}

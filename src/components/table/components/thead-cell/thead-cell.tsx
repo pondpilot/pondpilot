@@ -45,6 +45,7 @@ const THeadTitle = ({
   onSort,
 }: THeadTitleProps) => {
   const { name: columnName } = header.column.columnDef.meta as ColumnMeta;
+
   return (
     <>
       {!isIndex && (
@@ -67,13 +68,13 @@ const THeadTitle = ({
             size={8}
             onMouseDown={(e) => {
               e.stopPropagation();
-              onSort?.(header.column.id);
+              onSort?.(columnName);
             }}
             className={cn(
               'opacity-0 text-iconDefault-light dark:text-iconDefault-dark',
-              sort?.column === header.column.id && 'opacity-100',
+              sort?.column === columnName && 'opacity-100',
               'group-hover:opacity-100',
-              sort?.order === 'asc' && sort?.column === header.column.id && 'rotate-180',
+              sort?.order === 'asc' && sort?.column === columnName && 'rotate-180',
               !isNumber && 'ml-auto',
               (isSelected || !onSort) && 'text-iconDisabled',
             )}

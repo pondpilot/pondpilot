@@ -7,6 +7,7 @@ import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { Text } from '@mantine/core';
 import { copyToClipboard } from '@utils/clipboard';
 import { DataTableSlice } from '@models/data-adapter';
+import { ColumnMeta } from '@components/table/model';
 import { useTableSelection } from './hooks';
 import { MemoizedTableBody, TableBody } from './components/table-body';
 import { TableHeadCell } from './components/thead-cell';
@@ -152,6 +153,7 @@ export const Table = memo(
                 {headerGroup.headers.map((header, index) => {
                   const { deltaOffset } = table.getState().columnSizingInfo;
                   const resizingColumnId = table.getState().columnSizingInfo.isResizingColumn;
+                  const { name: columnName } = header.column.columnDef.meta as ColumnMeta;
 
                   return (
                     <TableHeadCell
@@ -159,7 +161,7 @@ export const Table = memo(
                       header={header}
                       index={index}
                       totalHeaders={headerGroup.headers.length}
-                      sort={sort.find((s) => s.column === header.id)}
+                      sort={sort.find((s) => s.column === columnName)}
                       table={table}
                       onSort={onSort}
                       resizingColumnId={resizingColumnId}

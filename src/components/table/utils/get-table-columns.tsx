@@ -55,6 +55,7 @@ export const getTableColumns = ({
         },
         ...schema.map((col): ColumnDef<Record<string, string | number>, any> => {
           return {
+            // should use accessor function instead of accessorKey to avoid errors with getting value from columns that contain dots in the name
             accessorFn: (row) => row[col.name],
             header: col.name,
             meta: { type: col.sqlType, name: col.name },

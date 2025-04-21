@@ -3,6 +3,7 @@ import { DataAdapterApi } from '@models/data-adapter';
 import { showSuccess } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { copyToClipboard } from '@utils/clipboard';
+import { escapeCSVField } from '@utils/helpers';
 
 export const useTableExport = (dataAdapter: DataAdapterApi) => {
   const copyTableToClipboard = useCallback(async () => {
@@ -71,8 +72,14 @@ export const useTableExport = (dataAdapter: DataAdapterApi) => {
       const data = await dataAdapter.getAllTableData(null);
       const columns = dataAdapter.currentSchema;
 
-      const csv = data.map((row) => Object.values(row).join(',')).join('\n');
-      const headers = columns.map((f) => f.name).join(',');
+      const csv = data
+        .map((row) =>
+          Object.values(row)
+            .map((value) => (typeof value === 'string' ? escapeCSVField(value) : value))
+            .join(','),
+        )
+        .join('\n');
+      const headers = columns.map((f) => escapeCSVField(f.name)).join(',');
       const csvContent = `${headers}\n${csv}`;
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');

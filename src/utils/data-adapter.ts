@@ -7,6 +7,7 @@ import { AnyFileSourceTab, AttachedDBDataTab, ScriptTab, TabReactiveState } from
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { classifySQLStatement, trimQuery } from './editor/sql';
 import { convertArrowTable } from './arrow';
+import { quote } from './helpers';
 
 function getGetSortableReaderApiFromFQN(
   pool: AsyncDuckDBConnectionPool,
@@ -16,7 +17,7 @@ function getGetSortableReaderApiFromFQN(
     let baseQuery = `SELECT * FROM ${fqn}`;
 
     if (sort.length > 0) {
-      const orderBy = sort.map((s) => `${s.column} ${s.order || 'asc'}`).join(', ');
+      const orderBy = sort.map((s) => `${quote(s.column)} ${s.order || 'asc'}`).join(', ');
       baseQuery += ` ORDER BY ${orderBy}`;
     }
     const reader = await pool.send(baseQuery, true);
