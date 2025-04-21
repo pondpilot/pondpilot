@@ -7,7 +7,6 @@ import { AnyFileSourceTab, AttachedDBDataTab, ScriptTab, TabReactiveState } from
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { classifySQLStatement, trimQuery } from './editor/sql';
 import { convertArrowTable } from './arrow';
-import { quote } from './helpers';
 
 function getGetSortableReaderApiFromFQN(
   pool: AsyncDuckDBConnectionPool,
@@ -17,7 +16,9 @@ function getGetSortableReaderApiFromFQN(
     let baseQuery = `SELECT * FROM ${fqn}`;
 
     if (sort.length > 0) {
-      const orderBy = sort.map((s) => `${quote(s.column)} ${s.order || 'asc'}`).join(', ');
+      const orderBy = sort
+        .map((s) => `${toDuckDBIdentifier(s.column)} ${s.order || 'asc'}`)
+        .join(', ');
       baseQuery += ` ORDER BY ${orderBy}`;
     }
     const reader = await pool.send(baseQuery, true);
@@ -30,7 +31,7 @@ function getGetColumnAggregateFromFQN(
   fqn: string,
 ): DataAdapterQueries['getColumnAggregate'] {
   return async (columnName: string, aggType: ColumnAggregateType) => {
-    const queryToRun = `SELECT ${aggType}(${columnName}) FROM ${fqn}`;
+    const queryToRun = `SELECT ${aggType}(${toDuckDBIdentifier(columnName)}) FROM ${fqn}`;
     const result = await pool.query(queryToRun);
     return result.getChildAt(0)?.get(0);
   };

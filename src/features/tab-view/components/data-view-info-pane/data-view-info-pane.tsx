@@ -24,20 +24,22 @@ export const DataViewInfoPane = ({ dataAdapter, tabType }: DataViewInfoPaneProps
   /**
    * Computed data source state
    */
-  const hasActualData = dataAdapter.currentSchema.length > 0 && !dataAdapter.isStale;
-  const hasStaleData = dataAdapter.currentSchema.length > 0 && dataAdapter.isStale;
-  const hasData = hasActualData || hasStaleData;
+  const hasData = dataAdapter.currentSchema.length > 0;
+  const hasActualData = hasData && !dataAdapter.isStale;
+  const hasStaleData = hasData && dataAdapter.isStale;
 
   const hasDataSourceError = dataAdapter.dataSourceError !== null;
-  const [isFetching] = useDebouncedValue(dataAdapter.isFetchingData, 200);
-  const { isSorting } = dataAdapter;
+  const [isFetching] = useDebouncedValue(dataAdapter.isFetchingData, 100);
+  const [isSorting] = useDebouncedValue(dataAdapter.isSorting, 50);
 
   const { realRowCount, estimatedRowCount, availableRowCount } = dataAdapter.rowCountInfo;
   const isEstimatedRowCount = realRowCount === null;
   const rowCountToShow = realRowCount || estimatedRowCount || availableRowCount;
   const columnCount = dataAdapter.currentSchema.length;
 
-  const showCancelButton = isFetching && hasData;
+  // Cancel button is shown only when data is available because, when no
+  // data present, we show a big overlay with cancel button
+  const showCancelButton = (isFetching || isSorting) && hasData;
   const disableCopyAndExport = !hasData || hasDataSourceError;
 
   /**

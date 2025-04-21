@@ -320,7 +320,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
           <Stack align="center" gap={4} bg="background-primary" className="p-8 pt-4 rounded-2xl">
             <Text c="text-primary" className="text-2xl font-medium">
               We are sorry, but we encountered an errors while
-              {tabType === 'data-source' ? 'opening your file' : 'running your query'}:
+              {tabType === 'data-source' ? ' opening your file' : ' running your query'}:
             </Text>
             <Text c="text-secondary" className="text-lg font-medium">
               {dataAdapter.dataSourceError ||
@@ -354,11 +354,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
               visible={!!active}
               initialColumnSizes={initialColumnSizes}
               onColumnSelectChange={calculateColumnSummary}
-              onSort={
-                hasDataSourceError || dataAdapter.disableSort
-                  ? undefined
-                  : handleSortAndGetNewReader
-              }
+              onSort={dataAdapter.disableSort ? undefined : handleSortAndGetNewReader}
               onRowSelectChange={resetColumnAggregate}
               onCellSelectChange={resetColumnAggregate}
               onSelectedColsCopy={hasDataSourceError ? undefined : handleCopySelectedColumns}

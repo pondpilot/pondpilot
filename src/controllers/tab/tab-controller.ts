@@ -305,12 +305,23 @@ export const findTabFromScript = (
 
 export const updateTabDataViewStaleDataCache = (
   tabId: TabId,
-  newCache: { sort: ColumnSortSpecList; staleData: StaleData },
+  newCache: { sort: ColumnSortSpecList; staleData: Partial<StaleData> },
 ): void => {
   const { tabs } = useAppStore.getState();
 
   // We have to use a tab object from the store
   const currentTab = ensureTab(tabId, tabs);
+
+  // Create a full model of the incoming stale data if the current
+  // state does not have it as a fallback
+  const fullNewStaleData = {
+    schema: [],
+    data: [],
+    rowOffset: 0,
+    realRowCount: null,
+    estimatedRowCount: null,
+    ...newCache.staleData,
+  };
 
   // Create new tab object with updated layout
   const updatedTab = {
@@ -319,13 +330,18 @@ export const updateTabDataViewStaleDataCache = (
       ? {
           ...currentTab.dataViewStateCache,
           sort: newCache.sort,
-          staleData: newCache.staleData,
+          staleData: currentTab.dataViewStateCache.staleData
+            ? {
+                ...currentTab.dataViewStateCache.staleData,
+                ...newCache.staleData,
+              }
+            : fullNewStaleData,
         }
       : {
           tableColumnSizes: null,
           dataViewPage: null,
           sort: newCache.sort,
-          staleData: newCache.staleData,
+          staleData: fullNewStaleData,
         },
   };
 

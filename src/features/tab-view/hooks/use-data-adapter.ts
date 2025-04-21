@@ -13,9 +13,8 @@ import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from '@m
 import { AnyTab, MAX_PERSISTED_STALE_DATA_ROWS, StaleData, TabReactiveState } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { convertArrowTable, getArrowTableSchema } from '@utils/arrow';
-import { isSameSchema, isTheSameSortSpec, toggleMultiColumnSort } from '@utils/db';
+import { isTheSameSortSpec, toggleMultiColumnSort } from '@utils/db';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { makeAbortable } from '@utils/abort';
 import { useDataAdapterQueries } from './use-data-adapter-queries';
 
 // Data adapter is a logic layer between abstract batch streaming data source
@@ -73,10 +72,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     null,
   );
 
-  // Current data schema. Init from cache if available.
-  const [schema, setSchema] = useState<DBTableOrViewSchema>(
-    () => useAppStore.getState().tabs.get(tab.id)?.dataViewStateCache?.staleData?.schema || [],
-  );
+  // Actual data schema
+  const [actualDataSchema, setActualDataSchema] = useState<DBTableOrViewSchema>([]);
 
   // Holds stale data when available, either from persistent storage on load,
   // or from previous read when changing the driving source query or sort.
@@ -137,7 +134,11 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   // We want to let the users know whether we are fetcing from scratch becase
   // of the sort change or because of the data source change.
   const [lastSort, _setLastSort] = useState<ColumnSortSpecList>(sort);
-  const setLastSort = useCallback((newSort: ColumnSortSpecList) => {
+  /**
+   * This is a safe setter for last sort. It will only set the state
+   * if the new sort is different from the previous one.
+   */
+  const setLastSortSafe = useCallback((newSort: ColumnSortSpecList) => {
     _setLastSort((prev) => (isTheSameSortSpec(prev, newSort) ? prev : newSort));
   }, []);
 
@@ -168,8 +169,16 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    */
 
   const isStale = staleData !== null;
-  const currentSchema = isStale ? staleData.schema : schema;
-  const disableSort = queries.getReader !== undefined && queries.getSortableReader === undefined;
+  const currentSchema = isStale ? staleData.schema : actualDataSchema;
+
+  // Disable sorting if:
+  // - there is no sortable reader (data source is missing or doesn't support sorting)
+  // - there is no data available (schema is empty)
+  // - there was an error reading data
+  const disableSort =
+    queries.getSortableReader === undefined ||
+    currentSchema.length === 0 ||
+    dataSourceReadError !== null;
 
   const dataQueriesBuildError = useMemo(() => {
     const buildErrors = queries.userErrors.slice();
@@ -294,104 +303,118 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    *
    * Only one of this can be running at a time (or othersise we have a bug).
    * See `fetchData` for the multi-call compatibile interface.
-   *
-   * @param abortSignal The abort signal to cancel the fetch
-   * @param curRowCountInfo The current row count info (passed as param to avoid recreating callback)
    */
-  const fetchDataSingleEntry = useCallback(
-    async (abortSignal: AbortSignal, curRowCountInfo: RowCountInfo) => {
-      if (mainDataReader === null) {
-        throw new Error('Main data reader is null while fetching data');
-      }
+  const fetchDataSingleEntry = useCallback(async () => {
+    if (mainDataReader === null) {
+      throw new Error('Main data reader is null while fetching data');
+    }
 
-      if (mainDataReader.closed) {
-        throw new Error('Main data reader is closed while fetching data');
-      }
+    if (mainDataReader.closed) {
+      throw new Error('Main data reader is closed while fetching data');
+    }
 
-      try {
-        let readAll = false;
-        let inferredSchema: DBTableOrViewSchema | null = null;
-        let updatedSchemaFromInferred = false;
+    // Get the abort signal so all of this can be cancelled
+    const abortSignal = getDataFetchAbortSignal();
 
-        // Stop fetching when the reader is done or fetch is cancelled
-        while (
-          !readAll &&
-          !mainDataReader.closed &&
-          // If we read enough data, we can stop
-          (fetchTo.current === null || actualData.current.length < fetchTo.current)
-        ) {
-          const { done, value } = await mainDataReader.next();
+    let readAll = false;
+    let inferredSchema: DBTableOrViewSchema | null = null;
 
-          if (done) {
-            readAll = true;
-            break;
-          }
+    // Set actual data schema on first read
+    let updateSchemaFromInferred = actualData.current.length === 0;
 
-          const newTableData = convertArrowTable(value);
+    try {
+      // Stop fetching when the reader is done or fetch is cancelled
+      while (
+        !readAll &&
+        !mainDataReader.closed &&
+        !abortSignal.aborted &&
+        // If we read enough data, we can stop
+        (fetchTo.current === null || actualData.current.length < fetchTo.current)
+      ) {
+        // Run an abortable read
+        const { done, value } = await Promise.race([
+          mainDataReader.next(),
+          new Promise<never>((_, reject) => {
+            abortSignal.addEventListener('abort', () => {
+              reject(
+                new DOMException(
+                  'Operation cancelled as it was replaced by a newer copy/export request',
+                  'Cancelled',
+                ),
+              );
+            });
+          }),
+        ]);
 
-          actualData.current.push(...newTableData);
-
-          // Infer schema once on first non empty batch
-          if (!inferredSchema) {
-            inferredSchema = getArrowTableSchema(value);
-          }
-
-          // If schema is not matching current schema, update it.
-          // We do it here in the loop together with moving the data version
-          // and unsetting stale data instead of outside, to allow
-          // immediately showing the data to the user, even if we need
-          // to continue reading more data.
-          if (!updatedSchemaFromInferred) {
-            // Be clever and avoid changing the schema if it is the same
-            if (!isSameSchema(schema, inferredSchema)) {
-              setSchema(inferredSchema);
-            }
-
-            updatedSchemaFromInferred = false;
-          }
-
-          // We have read at least something, reset the stale data
-          setStaleData(null);
-          // Update loaded row count
-          setAvailableRowCount(actualData.current.length);
-          // And ping downstream components that data has changed
-          setDataVersion((prev) => prev + 1);
-
-          // Also break if the fetch was aborted. We exit here, not
-          // at the start of the loop, to ensure that whether the result
-          // is empty or not, after the loop we may be sure that actual
-          // data was at least partially read and we should reset stale data.
-          if (abortSignal.aborted) break;
+        if (done) {
+          readAll = true;
+          break;
         }
 
-        const availableRowCount = actualData.current.length;
+        const newTableData = convertArrowTable(value);
 
-        if (readAll) {
-          // Now we know that we have read all the data
-          setDataSourceExhausted(true);
-          // Set the real row count
-          setRealRowCount(availableRowCount);
+        actualData.current.push(...newTableData);
+
+        // Infer schema once on first non empty batch
+        if (!inferredSchema) {
+          inferredSchema = getArrowTableSchema(value);
         }
 
-        updateTabDataViewStaleDataCache(tab.id, {
-          staleData: {
-            // we do not add schema to deps, because realistically we will have
-            // inferred schema even after abort
-            schema: inferredSchema || schema,
-            data: actualData.current.slice(-MAX_PERSISTED_STALE_DATA_ROWS),
-            rowOffset: Math.max(0, actualData.current.length - MAX_PERSISTED_STALE_DATA_ROWS),
-            realRowCount: readAll ? availableRowCount : curRowCountInfo.realRowCount,
-            estimatedRowCount: readAll ? null : curRowCountInfo.estimatedRowCount,
-          },
-          sort,
-        });
-      } catch (error) {
+        // Seet schema it this is the first read
+        // We do it here in the loop together with moving the data version
+        // and unsetting stale data instead of outside, to allow
+        // immediately showing the data to the user, even if we need
+        // to continue reading more data.
+        if (updateSchemaFromInferred) {
+          setActualDataSchema(inferredSchema);
+
+          updateSchemaFromInferred = false;
+        }
+
+        // We have read at least something, reset the stale data
+        setStaleData(null);
+        // Update loaded row count
+        setAvailableRowCount(actualData.current.length);
+        // And ping downstream components that data has changed
+        setDataVersion((prev) => prev + 1);
+      }
+    } catch (error) {
+      if (!abortSignal.aborted) {
+        // Fetch was not cancelled we got an actual error
         console.error('Failed to load more data:', error);
-        setDataSourceReadError('Failed to load more data');
+        setDataSourceReadError('Failed to load more data. See console for technical details.');
       }
-    },
-    [mainDataReader],
-  );
+    }
+
+    // And do final updates after the end of the fetch loop or abort
+    const availableRowCount = actualData.current.length;
+
+    const newCachedStaleDataUpdate: Partial<StaleData> = {
+      data: actualData.current.slice(-MAX_PERSISTED_STALE_DATA_ROWS),
+      rowOffset: Math.max(0, actualData.current.length - MAX_PERSISTED_STALE_DATA_ROWS),
+    };
+
+    if (inferredSchema) {
+      // We have a schema, so we can set it in the cache
+      newCachedStaleDataUpdate.schema = inferredSchema;
+    }
+
+    if (readAll) {
+      // Now we know that we have read all the data
+      setDataSourceExhausted(true);
+      // Set the real row count
+      setRealRowCount(availableRowCount);
+
+      // Also add info to the cache update object
+      newCachedStaleDataUpdate.realRowCount = availableRowCount;
+      newCachedStaleDataUpdate.estimatedRowCount = null;
+    }
+
+    updateTabDataViewStaleDataCache(tab.id, {
+      staleData: newCachedStaleDataUpdate,
+      sort,
+    });
+  }, [mainDataReader, sort, getDataFetchAbortSignal]);
 
   /**
    * Abortable multi-entry function that fetches the data until `rowTo` rows are read
@@ -400,17 +423,14 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    * @param rowTo The number of rows to fetch at least. If `null`,
    *              fetch until the reader is exhausted.
    * @param curSort The current sort spec (passed as param to avoid recreating callback)
-   * @param curRowCountInfo The current row count info (passed as param to avoid recreating callback)
    */
   const fetchData = useCallback(
     async ({
       rowTo,
       curSort,
-      curRowCountInfo,
     }: {
       rowTo: number | null;
       curSort: ColumnSortSpecList;
-      curRowCountInfo: RowCountInfo;
     }): Promise<void> => {
       if (
         // No reader - no fetching
@@ -449,15 +469,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // Update the state to show that we are fetching data.
         setIsFetchingData(true);
 
-        // Get the abort signal so all of this can be cancelled
-        const abortSignal = getDataFetchAbortSignal();
-
         // Wait for an actual fetch to finish
-        await fetchDataSingleEntry(abortSignal, curRowCountInfo);
+        await fetchDataSingleEntry();
       } finally {
         // Save last sort used. This will allow showing `isSorting` only for the
         // first fetch after sort change.
-        setLastSort(curSort);
+        setLastSortSafe(curSort);
         setIsFetchingData(false);
       }
     },
@@ -509,24 +526,29 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       setDataSourceVersion((prev) => prev + 1);
 
-      // Send row count fetching to background
-      fetchRowCount();
+      // Send row count fetching to background if we do not have it already
+      if (!rowCountInfo.realRowCount) {
+        fetchRowCount();
+      }
     }
   };
 
   /**
-   * Inits/resets the state by re-creating the reader with given sort params.
+   * Resets the state by re-creating the reader with given sort params.
+   *
+   * This is called in two scenarios:
+   * 1. When the data source changes (e.g. new query) - `newSortParams` are null
+   * 2. When the sort changes - `newSortParams` are, well, the new sort params
    */
-  const reset = (newSortParams: ColumnSortSpecList) => {
-    // Reset a bunch of things. This can be called from either a prop change,
-    // initial mount or a sort change.
+  const reset = (newSortParams: ColumnSortSpecList | null) => {
+    // Reset a bunch of things.
 
     // The real data is not needed anymore, we should replace
     // stale data with it.
     const lastAvailableRowCount = actualData.current.length;
 
     setStaleData({
-      schema,
+      schema: actualDataSchema.slice(),
       data: actualData.current,
       rowOffset: 0,
     });
@@ -544,15 +566,30 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     fetchTo.current = 0;
     dataReadCancelled.current = false;
 
-    // Reset row count info. We keep the loaded count,
-    // because until new data is read, we still have the stale data
-    const newRowCountInfo: RowCountInfo = {
-      realRowCount: null,
-      estimatedRowCount: null,
-      availableRowCount: lastAvailableRowCount,
-    };
+    // See if this is a new data source or just re-sorting
+    if (newSortParams === null) {
+      // New data source. Reset actual data schema
+      setActualDataSchema([]);
 
-    setRowCountInfo(newRowCountInfo);
+      // Reset row count info. We keep the loaded count,
+      // because until new data is read, we still have the stale data
+      const newRowCountInfo: RowCountInfo = {
+        realRowCount: null,
+        estimatedRowCount: null,
+        availableRowCount: lastAvailableRowCount,
+      };
+
+      setRowCountInfo(newRowCountInfo);
+
+      // Set last sort to match new sort, so we won't get into "sorting" state
+      setLastSortSafe([]);
+      newSortParams = [];
+    } else {
+      setLastSortSafe(sort);
+    }
+
+    // Save new sort params
+    setSort(newSortParams);
 
     // And let the new reader be created in the background
     getNewReader(newSortParams);
@@ -562,9 +599,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    * If queries change (data source), we need to reset everything
    */
   useDidUpdate(() => {
-    setLastSort([]);
-    setSort([]);
-    reset([]);
+    reset(null);
   }, [queries]);
 
   /**
@@ -593,7 +628,6 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         fetchData({
           rowTo,
           curSort: sort,
-          curRowCountInfo: rowCountInfo,
         });
       }
 
@@ -642,7 +676,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         !dataSourceExhausted &&
         // Also, if this is an entire table request - we have to read all
         columns &&
-        columns.length < schema.length &&
+        columns.length < currentSchema.length &&
         // And the data source must support subsetting columns
         queries.getColumnsData
       ) {
@@ -652,8 +686,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // Get new abort signal
         const signal = getBackgroundTasksAbortSignal();
 
-        return makeAbortable(
-          queries.getColumnsData,
+        const result = await Promise.race([
+          queries.getColumnsData(columns),
           new Promise<never>((_, reject) => {
             signal.addEventListener('abort', () => {
               reject(
@@ -664,7 +698,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
               );
             });
           }),
-        )(columns);
+        ]);
+
+        return result;
       }
 
       if (!dataSourceExhausted) {
@@ -672,40 +708,42 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         await fetchData({
           rowTo: null,
           curSort: sort,
-          curRowCountInfo: rowCountInfo,
         });
       }
 
       // Return all data for simplicity, this will include all needed columns
       return actualData.current;
     },
-    [fetchData, schema, sort, rowCountInfo, queries.getColumnsData],
+    [
+      fetchData,
+      dataSourceExhausted,
+      currentSchema,
+      sort,
+      rowCountInfo,
+      queries.getColumnsData,
+      getBackgroundTasksAbortSignal,
+    ],
   );
 
   const toggleColumnSort = useCallback(
     (columnName: string): void => {
       if (disableSort) return;
 
-      // Save last sort to be able to compare it with the new one
-      setLastSort(sort);
-
       const newSortParams = toggleMultiColumnSort(sort, columnName);
-
-      // Save new sort params
-      setSort(newSortParams);
 
       // Reset the data
       reset(newSortParams);
     },
-    [disableSort, sort],
+    // we must include all transient deps from reset
+    [disableSort, sort, actualDataSchema, cancelAllDataOperations, fetchRowCount],
   );
 
   const isSorting = useMemo(() => {
-    return !isTheSameSortSpec(sort, lastSort) && isFetchingData;
-  }, [sort, lastSort, isFetchingData]);
+    return !isTheSameSortSpec(sort, lastSort);
+  }, [sort, lastSort]);
 
   const getColumnAggregate = useCallback(
-    (columnName: string, aggType: ColumnAggregateType): Promise<any | undefined> => {
+    async (columnName: string, aggType: ColumnAggregateType): Promise<any | undefined> => {
       if (!queries.getColumnAggregate) {
         // No column aggregate function available
         return Promise.resolve(undefined);
@@ -717,14 +755,16 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // Get new abort signal
       const signal = getBackgroundTasksAbortSignal();
 
-      return makeAbortable(
-        queries.getColumnAggregate,
+      const result = await Promise.race([
+        queries.getColumnAggregate(columnName, aggType),
         new Promise<undefined>((resolve, _) => {
           signal.addEventListener('abort', () => {
             resolve(undefined);
           });
         }),
-      )(columnName, aggType);
+      ]);
+
+      return result;
     },
     [queries.getColumnAggregate, abortBackgroundTasks, getBackgroundTasksAbortSignal],
   );
@@ -744,19 +784,15 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     // Perform state consistency checks. Any failuer here is a bug
     // so we do not include this in production, assuming this is
     // will fail in tests
-    const hasData = schema.length > 0;
+    const hasData = actualDataSchema.length > 0;
     const hasStaleData = staleData !== null;
 
     if (!isStale && hasStaleData) {
       throw new Error('Stale data should not be available when isStale is false');
     }
 
-    if (dataSourceReadError !== null && (isFetchingData || isSorting)) {
+    if (dataSourceReadError !== null && (isFetchingData || isSorting || !disableSort)) {
       throw new Error('After data source read error we should never be in fetching/sorting state');
-    }
-
-    if (isSorting && !isFetchingData) {
-      throw new Error('Sorting should always be in fetching state');
     }
 
     if (isSorting && disableSort) {
