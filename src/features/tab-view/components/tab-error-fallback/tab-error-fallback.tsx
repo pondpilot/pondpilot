@@ -1,14 +1,12 @@
 import { ErrorStackView } from '@components/error-stack-view';
-import { deleteTab } from '@controllers/tab';
 import { Button, List, Stack, Text, ThemeIcon } from '@mantine/core';
-import { TabId } from '@models/tab';
-import { IconRefresh, IconDownload } from '@tabler/icons-react';
+import { IconRefresh, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import React from 'react';
-import { useRouteError } from 'react-router-dom';
+import { FallbackProps } from 'react-error-boundary';
 
-export const TabErrorFallback = ({ tabId }: { tabId: TabId | null }) => {
-  const error = useRouteError() as Error;
+export const TabErrorFallback = (props: FallbackProps) => {
+  const { error, resetErrorBoundary } = props;
+
   return (
     <div role="alert" data-testid={setDataTestId('error-fallback')}>
       <Stack p="lg">
@@ -34,7 +32,7 @@ export const TabErrorFallback = ({ tabId }: { tabId: TabId | null }) => {
             <Text c="dimmed" size="sm" mt={4}>
               This may resolve temporary issues
             </Text>
-            <Button onClick={window.location.reload} mt="xs" variant="light">
+            <Button onClick={() => window.location.reload()} mt="xs" variant="light">
               Reload page
             </Button>
           </List.Item>
@@ -42,7 +40,7 @@ export const TabErrorFallback = ({ tabId }: { tabId: TabId | null }) => {
           <List.Item
             icon={
               <ThemeIcon color="blue" size={24} radius="xl">
-                <IconDownload size={16} />
+                <IconX size={16} />
               </ThemeIcon>
             }
           >
@@ -50,7 +48,7 @@ export const TabErrorFallback = ({ tabId }: { tabId: TabId | null }) => {
             <Text c="dimmed" size="sm" mt={4}>
               This will delete the the tab
             </Text>
-            <Button onClick={() => tabId && deleteTab([tabId])} mt="xs">
+            <Button onClick={resetErrorBoundary} mt="xs">
               Close the tab
             </Button>
           </List.Item>

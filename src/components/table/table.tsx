@@ -7,9 +7,10 @@ import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { Text } from '@mantine/core';
 import { copyToClipboard } from '@utils/clipboard';
 import { DataTableSlice } from '@models/data-adapter';
-import { getTableColumns, useTableSelection } from './hooks';
+import { useTableSelection } from './hooks';
 import { MemoizedTableBody, TableBody } from './components/table-body';
 import { TableHeadCell } from './components/thead-cell';
+import { getTableColumns } from './utils';
 
 interface TableProps {
   dataSlice: DataTableSlice;

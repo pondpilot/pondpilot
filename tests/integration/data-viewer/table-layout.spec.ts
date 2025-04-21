@@ -1,4 +1,5 @@
 import { expect, mergeTests } from '@playwright/test';
+import { replaceSpecialChars } from '@utils/helpers';
 import { test as baseTest } from '../fixtures/page';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
@@ -45,7 +46,8 @@ test('Header cell width matches data cell width for special character columns', 
 
   // For each column name, get corresponding header cell and data container in the first row
   // and check if its width matches the corresponding data cell
-  for (const columnName of COLUMN_NAMES_WITH_SPECIAL_CHARS) {
+  for (const column of COLUMN_NAMES_WITH_SPECIAL_CHARS) {
+    const columnName = replaceSpecialChars(column);
     // Get the current header cell
     const headerCell = getHeaderCell(dataTable, columnName);
 

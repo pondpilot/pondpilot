@@ -7,7 +7,7 @@ import { DBColumn } from '@models/db';
 import { findUniqueName, replaceSpecialChars } from '@utils/helpers';
 import { TableMeta } from '../model';
 
-interface UseTableColumnsProps {
+interface GetTableColumnsProps {
   schema: DBColumn[];
   initialColumnSizes?: Record<string, number>;
   onRowSelectionChange: (
@@ -22,7 +22,7 @@ export const getTableColumns = ({
   schema,
   initialColumnSizes,
   onRowSelectionChange,
-}: UseTableColumnsProps) => {
+}: GetTableColumnsProps) => {
   const indexColumnId = findUniqueName('__index__', (name) =>
     schema.some((col) => replaceSpecialChars(col.name) === name),
   );
@@ -53,16 +53,16 @@ export const getTableColumns = ({
             );
           },
         },
-        ...schema.map(
-          (col): ColumnDef<Record<string, string | number>, any> => ({
-            accessorKey: col.name,
+        ...schema.map((col): ColumnDef<Record<string, string | number>, any> => {
+          return {
+            accessorFn: (row) => row[col.name],
             header: col.name,
             meta: { type: col.sqlType, name: col.name },
             minSize: 100,
             size: initialColumnSizes?.[col.name] || 200,
             id: replaceSpecialChars(col.name),
-          }),
-        ),
+          };
+        }),
       ]
     : emptyColumns;
 

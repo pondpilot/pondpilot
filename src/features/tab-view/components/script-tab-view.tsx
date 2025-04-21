@@ -194,6 +194,8 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
     updateScriptTabLayout(tab.id, [editor, table]);
   };
 
+  throw new Error('ScriptTabView is not implemented yet');
+
   return (
     <div className="h-full relative">
       <Allotment

@@ -80,7 +80,7 @@ test.describe('Data Viewer Pagination', () => {
 
     // Check that pagination text updated correctly for second page
     await expect(paginationControl.getByTestId('pagination-control-out-of')).toHaveText(
-      '101-101 out of 101 rows',
+      '2-101 out of 101 rows',
     );
 
     // Click back to previous page

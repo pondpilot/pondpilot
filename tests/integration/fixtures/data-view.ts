@@ -1,5 +1,6 @@
 import { MAX_DATA_VIEW_PAGE_SIZE } from '@models/tab';
 import { test as base, expect, Locator } from '@playwright/test';
+import { replaceSpecialChars } from '@utils/helpers';
 
 type ExpectedDataValue = number | string;
 
@@ -136,12 +137,13 @@ export const test = base.extend<DataViewFixtures>({
 
       // Now check if the data table has the expected data
       for (const [column, values] of Object.entries(expected)) {
-        const headerCell = getHeaderCell(dataTable, column);
+        const columnId = replaceSpecialChars(column);
+        const headerCell = getHeaderCell(dataTable, columnId);
         await expect(headerCell).toBeVisible({ timeout: 0 });
         await expect(headerCell).toHaveText(column);
 
         for (let i = 0; i < values.length; i += 1) {
-          const cellValue = getDataCellValue(dataTable, column, i);
+          const cellValue = getDataCellValue(dataTable, columnId, i);
           await expect(cellValue).toBeVisible({ timeout: 0 });
           await expect(cellValue).toHaveText(String(values[i]));
         }
