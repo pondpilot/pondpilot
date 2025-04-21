@@ -8,7 +8,7 @@ import { Text } from '@mantine/core';
 import { copyToClipboard } from '@utils/clipboard';
 import { DataTableSlice } from '@models/data-adapter';
 import { ColumnMeta } from '@components/table/model';
-import { useTableSelection } from './hooks';
+import { useNoResultsPosition, useTableSelection } from './hooks';
 import { MemoizedTableBody, TableBody } from './components/table-body';
 import { TableHeadCell } from './components/thead-cell';
 import { getTableColumns } from './utils';
@@ -59,6 +59,11 @@ export const Table = memo(
       schema,
       onRowSelectChange,
       onCellSelectChange,
+    });
+
+    const { containerRef, position } = useNoResultsPosition({
+      hasRows,
+      schema,
     });
 
     // We want non-reactive column sizes, that we initialize from the prop
@@ -144,6 +149,7 @@ export const Table = memo(
         }}
         className="w-fit rounded-xl"
         data-testid={setDataTestId('data-table')}
+        ref={containerRef}
       >
         {/* Header */}
         <div className="sticky top-0 z-10 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark">
@@ -177,8 +183,14 @@ export const Table = memo(
         </div>
         {/* Body */}
         {!hasRows && (
-          <div className="w-full h-10 flex justify-start items-center text-textSecondary-light dark:text-textSecondary-dark border-b border-x border-borderLight-light dark:border-borderLight-dark rounded-b-xl">
-            <div className="left-[50%] absolute">
+          <div className="w-full h-10 flex justify-start items-center text-textSecondary-light dark:text-textSecondary-dark border-b border-x border-borderLight-light dark:border-borderLight-dark rounded-b-xl relative">
+            <div
+              style={{
+                position: 'absolute',
+                left: position.left,
+                transform: 'translateX(-50%)',
+              }}
+            >
               <Text c="text-secondary">No results</Text>
             </div>
           </div>
