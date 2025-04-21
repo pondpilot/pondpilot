@@ -54,7 +54,7 @@ export function quote(s: string, options = { single: false }): string {
  * @returns {string} The escaped string.
  */
 export function escapeCSVField(s: string): string {
-  if (!s.includes(',')) {
+  if (s.search(/"|,|\n/g) === -1) {
     return s;
   }
   return quote(s);
