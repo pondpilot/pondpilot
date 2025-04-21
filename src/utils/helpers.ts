@@ -37,8 +37,11 @@ export const findUniqueName = (name: string, checkIfExists: (name: string) => bo
 export const replaceSpecialChars = (str: string): string =>
   str.trim().replace(/[^a-zA-Z0-9]/g, '_');
 
-export function quote(s: string): string {
+export function quote(s: string, options = { single: false }): string {
   // Replace each quote with two quotes and wrap result in quotes
+  if (options.single) {
+    return `'${s.replace(/'/g, "''")}'`;
+  }
   return `"${s.replace(/"/g, '""')}"`;
 }
 

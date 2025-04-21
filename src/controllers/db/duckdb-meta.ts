@@ -1,7 +1,7 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { DataBaseModel, DBColumn, DBTableOrView } from '@models/db';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
+import { quote } from '@utils/helpers';
 import * as arrow from 'apache-arrow';
 
 async function queryOneColumn<VT extends arrow.DataType>(
@@ -60,8 +60,8 @@ export async function getViews(
   const sql = `
     SELECT view_name 
     FROM duckdb_views
-    WHERE database_name == '${toDuckDBIdentifier(databaseName)}'
-      AND schema_name == '${toDuckDBIdentifier(schemaName)}'
+    WHERE database_name == ${quote(databaseName, { single: true })}
+      AND schema_name == ${quote(schemaName, { single: true })}
   `;
 
   return queryOneColumn<arrow.Utf8>(conn, sql, 'view_name');
@@ -72,9 +72,9 @@ function buildColumnsQueryWithFilters(
   schemaNames?: string[],
   objectNames?: string[],
 ): string {
-  const quotedDatabaseNames = databaseNames?.map((name) => `'${toDuckDBIdentifier(name)}'`);
-  const quotedSchemaNames = schemaNames?.map((name) => `'${toDuckDBIdentifier(name)}'`);
-  const quotedObjectNames = objectNames?.map((name) => `'${toDuckDBIdentifier(name)}'`);
+  const quotedDatabaseNames = databaseNames?.map((name) => `${quote(name, { single: true })}`);
+  const quotedSchemaNames = schemaNames?.map((name) => `${quote(name, { single: true })}`);
+  const quotedObjectNames = objectNames?.map((name) => `${quote(name, { single: true })}`);
   const filterByDBName = quotedDatabaseNames && quotedDatabaseNames.length > 0;
   const filterBySchemaName = quotedSchemaNames && quotedSchemaNames.length > 0;
   const filterByObjectName = quotedObjectNames && quotedObjectNames.length > 0;

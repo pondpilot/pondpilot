@@ -7,6 +7,7 @@ import { AnyFileSourceTab, AttachedDBDataTab, ScriptTab, TabReactiveState } from
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { classifySQLStatement, trimQuery } from './editor/sql';
 import { convertArrowTable } from './arrow';
+import { quote } from './helpers';
 
 function getGetSortableReaderApiFromFQN(
   pool: AsyncDuckDBConnectionPool,
@@ -124,9 +125,9 @@ function getAttachedDBDataAdapterApi(
                   `SELECT estimated_size 
                 FROM duckdb_tables
                 WHERE
-                  database_name = '${dbName}'
-                  AND schema_name = '${schemaName}'
-                  AND table_name = '${tableName}';
+                  database_name = ${quote(dbName, { single: true })}
+                  AND schema_name = ${quote(schemaName, { single: true })}
+                  AND table_name = ${quote(tableName, { single: true })};
                 ;`,
                 );
 

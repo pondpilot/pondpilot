@@ -2,6 +2,7 @@ import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { quote } from '@utils/helpers';
 
 /**
  * Register regular data source file (not a databse) and create a view
@@ -43,13 +44,13 @@ export async function registerFileSourceAndCreateView(
 
   if (fileExt === 'csv') {
     await conn.query(
-      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv('${fileName}', strict_mode=false);`,
+      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false);`,
     );
     return;
   }
 
   await conn.query(
-    `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM '${fileName}';`,
+    `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
   );
 }
 
@@ -126,7 +127,9 @@ export async function registerAndAttachDatabase(
   /**
    * Attach the database
    */
-  await conn.query(`ATTACH '${fileName}' as ${toDuckDBIdentifier(dbName)} (READ_ONLY);`);
+  await conn.query(
+    `ATTACH ${quote(fileName, { single: true })} as ${toDuckDBIdentifier(dbName)} (READ_ONLY);`,
+  );
 }
 
 /**
