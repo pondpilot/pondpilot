@@ -1,28 +1,13 @@
-/*
- * This file contains code from Outerbase Studio (https://github.com/outerbase/studio)
- * Copyright (C) [2025] Outerbase
- * Licensed under GNU AGPL v3.0
- */
-
 import type { SQLNamespace } from '@codemirror/lang-sql';
-import type { Completion } from '@codemirror/autocomplete';
 import { DataBaseModel } from '@models/db';
-import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
-
-/**
- * Creates a completion item for a database object
- */
-const createCompletion = (
-  label: string,
-  type: string,
-  displayLabel?: string,
-  boost?: number,
-): Completion => ({
-  label: label.includes(' ') ? `"${label}"` : label,
-  displayLabel,
-  type,
-  boost: boost || 1,
-});
+import { SYSTEM_DUCKDB_SCHEMAS } from '@utils/duckdb/identifier';
+import {
+  createColumnCompletion,
+  createDatabaseCompletion,
+  createFunctionCompletion,
+  createSchemaCompletion,
+  createTableOrViewCompletion,
+} from '@utils/duckdb/auto-complete';
 
 const postgresDialectFunctions = new Set([
   'avg',
@@ -68,18 +53,6 @@ const postgresDialectFunctions = new Set([
   'rank',
 ]);
 
-export const SYSTEM_DUCKDB_SCHEMAS = [
-  'information_schema',
-  'pg_catalog',
-  'pg_toast',
-  'pg_temp_1',
-  'pg_toast_temp_1',
-  'pg_catalog',
-  'pg_toast',
-  'pg_temp_1',
-  'pg_toast_temp_1',
-];
-
 export const createDuckDBCompletions = (
   functionDocs: Record<string, { syntax: string; description: string }>,
 ): SQLNamespace =>
@@ -88,7 +61,7 @@ export const createDuckDBCompletions = (
       return acc;
     }
     acc[name] = {
-      self: createCompletion(name, 'function', name, 2),
+      self: createFunctionCompletion(name, 2),
       children: [],
     };
     return acc;
@@ -114,22 +87,10 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
           !tableOrView.name.startsWith('sqlite_') &&
           !tableOrView.name.startsWith('pragma_')
         ) {
-          const columns = tableOrView.columns.map((col) =>
-            createCompletion(
-              col.name,
-              'variable',
-              `${col.name} (${normalizeDuckDBColumnType(col.databaseType)})`,
-              99,
-            ),
-          );
+          const columns = tableOrView.columns.map((col) => createColumnCompletion(col, 99));
 
           namespace[tableOrView.name] = {
-            self: createCompletion(
-              tableOrView.name,
-              tableOrView.type || 'table',
-              tableOrView.label || tableOrView.name,
-              95,
-            ),
+            self: createTableOrViewCompletion(tableOrView, 95),
             children: columns,
           };
 
@@ -151,28 +112,22 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
       if (SYSTEM_DUCKDB_SCHEMAS.includes(schema.name)) return;
 
       schema.objects.forEach((table) => {
-        const columns = table.columns.map((col) =>
-          createCompletion(
-            col.name,
-            'column',
-            `${col.name} (${normalizeDuckDBColumnType(col.databaseType)})`,
-          ),
-        );
+        const columns = table.columns.map((col) => createColumnCompletion(col));
 
         schemaNamespace[table.name] = {
-          self: createCompletion(table.name, 'table', `${schema.name}.${table.name}`),
+          self: createTableOrViewCompletion(table),
           children: columns,
         };
       });
 
       dbNamespace[schema.name] = {
-        self: createCompletion(schema.name, 'schema', `${db.name}.${schema.name}`),
+        self: createSchemaCompletion(schema, db.name),
         children: schemaNamespace,
       };
     });
 
     namespace[db.name] = {
-      self: createCompletion(db.name, 'database', db.name, 99),
+      self: createDatabaseCompletion(db, 99),
       children: dbNamespace,
     };
   });
