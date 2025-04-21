@@ -141,7 +141,7 @@ export const Table = memo(
           ...columnSizeVars,
           width: table.getTotalSize(),
         }}
-        className="relative w-fit rounded-xl"
+        className="w-fit rounded-xl"
         data-testid={setDataTestId('data-table')}
       >
         {/* Header */}
@@ -175,8 +175,10 @@ export const Table = memo(
         </div>
         {/* Body */}
         {!hasRows && (
-          <div className="py-3 px-4 flex justify-center items-center text-textSecondary-light dark:text-textSecondary-dark border-b border-x border-borderLight-light dark:border-borderLight-dark rounded-b-xl">
-            <Text c="text-tertiary">No results</Text>
+          <div className="w-full h-10 flex justify-start items-center text-textSecondary-light dark:text-textSecondary-dark border-b border-x border-borderLight-light dark:border-borderLight-dark rounded-b-xl">
+            <div className="left-[50%] absolute">
+              <Text c="text-secondary">No results</Text>
+            </div>
           </div>
         )}
         {table.getState().columnSizingInfo.isResizingColumn ? (
