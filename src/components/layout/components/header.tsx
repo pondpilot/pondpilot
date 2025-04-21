@@ -35,47 +35,45 @@ export const Header = memo(() => {
     <>
       <SpotlightMenu />
       <Group justify="space-between" className="h-full">
-        <Group gap={40} w={150}>
+        <Group gap={40} flex={1}>
           {logoPlaceholder}
         </Group>
-        <Group>
-          <TextInput
-            data-testid={setDataTestId('spotlight-trigger-input')}
-            className="cursor-pointer"
-            classNames={{
-              input: cn(
-                'bg-backgroundSecondary-light  border-0 placeholder-textSecondary-light w-[460px] h-[38px] rounded-full ',
-                'dark:bg-backgroundSecondary-dark dark:placeholder-textSecondary-dark',
-              ),
-            }}
-            readOnly
-            leftSection={
-              <Group gap={4} onClick={spotlight.open}>
-                <IconSearch
-                  size={20}
-                  className="dark:text-iconDefault-dark text-iconDefault-light"
-                />{' '}
-                <Text c="text-secondary" className="text-sm">
-                  Search
-                </Text>
-              </Group>
-            }
-            leftSectionProps={{ onClick: spotlight.open }}
-            rightSectionProps={{
-              onClick: spotlight.open,
-              className: 'w-auto pr-1',
-            }}
-            rightSectionWidth={74}
-            leftSectionWidth={100}
-            rightSection={<HotkeyPill value={[mod.command, 'K']} />}
-            pointer
-            onClick={(e) => {
-              e.stopPropagation();
-              spotlight.open();
-            }}
-          />
-        </Group>
-        <Group w={150} justify="end" gap={8}>
+
+        <TextInput
+          flex={1}
+          data-testid={setDataTestId('spotlight-trigger-input')}
+          className="cursor-pointer max-w-[400px] min-w-[300px]"
+          classNames={{
+            input: cn(
+              'bg-backgroundSecondary-light  border-0 placeholder-textSecondary-light  h-[38px] rounded-full ',
+              'dark:bg-backgroundSecondary-dark dark:placeholder-textSecondary-dark',
+            ),
+          }}
+          readOnly
+          leftSection={
+            <Group gap={4} onClick={spotlight.open}>
+              <IconSearch size={20} className="dark:text-iconDefault-dark text-iconDefault-light" />{' '}
+              <Text c="text-secondary" className="text-sm">
+                Search
+              </Text>
+            </Group>
+          }
+          leftSectionProps={{ onClick: spotlight.open }}
+          rightSectionProps={{
+            onClick: spotlight.open,
+            className: 'w-auto pr-1',
+          }}
+          rightSectionWidth={74}
+          leftSectionWidth={100}
+          rightSection={<HotkeyPill value={[mod.command, 'K']} />}
+          pointer
+          onClick={(e) => {
+            e.stopPropagation();
+            spotlight.open();
+          }}
+        />
+
+        <Group flex={1} justify="end" gap={8}>
           {/* // TODO: Implement this */}
           {/* <ActionIcon size={20} disabled>
           <IconLayoutSidebarFilled />
