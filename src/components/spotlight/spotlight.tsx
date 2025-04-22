@@ -18,6 +18,8 @@ import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
 import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from '@models/app-urls';
+import { modals } from '@mantine/modals';
+import { ImportScriptModalContent } from '@features/script-explorer/import-script-modal-content';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useAppStore } from '@store/app-store';
 import { createSQLScript } from '@controllers/sql-script';
@@ -78,6 +80,13 @@ export const SpotlightMenu = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const openImportScriptModal = () => {
+    modals.open({
+      title: 'Import Shared Script',
+      centered: true,
+      children: <ImportScriptModalContent onClose={() => modals.closeAll()} />,
+    });
+  };
 
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const { command, option, control } = useOsModifierIcon();
@@ -257,6 +266,15 @@ export const SpotlightMenu = () => {
         importSQLFiles();
         resetSpotlight();
         ensureHome();
+      },
+    },
+    {
+      id: 'import-script-from-url',
+      label: 'Import From URL',
+      icon: <IconFileImport size={20} className={ICON_CLASSES} />,
+      handler: () => {
+        openImportScriptModal();
+        resetSpotlight();
       },
     },
   ];

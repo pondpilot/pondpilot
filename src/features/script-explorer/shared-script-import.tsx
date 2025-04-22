@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { decodeBase64ToScript, SharedScript } from '@utils/script-sharing';
-import { createSQLScript } from '@controllers/sql-script';
+import { SharedScript } from '@utils/script-sharing';
 import { showSuccess, showError } from '@components/app-notifications';
-import { getOrCreateTabFromScript } from '@controllers/tab';
 import { useAppStore } from '@store/app-store';
+import { importScript, validateEncodedScript } from '@utils/script-import-utils';
 
 /**
  * Component that handles importing a shared script from URL.
@@ -24,47 +23,18 @@ export function SharedScriptImport() {
       return;
     }
 
-    if (encodedScript.length < 10) {
+    const validationResult = validateEncodedScript(encodedScript);
+
+    if (!validationResult.isValid) {
       showError({
-        title: 'Invalid shared script',
-        message:
-          'The URL appears to be truncated or malformed. Make sure you copied the entire URL.',
+        title: validationResult.title || 'Invalid shared script',
+        message: validationResult.message || 'The shared script URL is invalid.',
       });
       navigate('/');
-      setValidationDone(true);
-      return;
+    } else if (validationResult.sharedScript) {
+      setPendingScript(validationResult.sharedScript);
     }
 
-    let decodedScript;
-    try {
-      decodedScript = decodeURIComponent(encodedScript);
-    } catch (error) {
-      console.error('Error decoding URL component:', error);
-      showError({
-        title: 'Invalid shared script',
-        message:
-          'The URL contains invalid characters. Make sure you copied the entire URL correctly.',
-      });
-      navigate('/');
-      setValidationDone(true);
-      return;
-    }
-
-    const sharedScript = decodeBase64ToScript(decodedScript);
-
-    if (!sharedScript) {
-      showError({
-        title: 'Invalid shared script',
-        message:
-          'Unable to decode the shared script. The URL may be corrupted or using an incompatible format.',
-      });
-      navigate('/');
-      setValidationDone(true);
-      return;
-    }
-
-    // Store the validated script for when the app is ready
-    setPendingScript(sharedScript);
     setValidationDone(true);
   }, [encodedScript, navigate, validationDone]);
 
@@ -72,28 +42,36 @@ export function SharedScriptImport() {
   useEffect(() => {
     if (!pendingScript || appLoadState !== 'ready') return;
 
-    try {
-      const newScript = createSQLScript(pendingScript.name, pendingScript.content);
+    const doImportScript = async () => {
+      try {
+        const result = await importScript(encodedScript || '', false);
 
-      getOrCreateTabFromScript(newScript.id, true);
+        if (result.success) {
+          showSuccess({
+            title: result.title,
+            message: result.message,
+          });
+        } else {
+          showError({
+            title: result.title,
+            message: result.message,
+          });
+        }
 
-      showSuccess({
-        title: 'Script imported',
-        message: `Successfully imported "${newScript.name}.sql"`,
-      });
+        setPendingScript(null);
+        navigate('/');
+      } catch (error) {
+        console.error('Error importing shared script:', error);
+        showError({
+          title: 'Import failed',
+          message: 'Failed to import the shared script. Please try again.',
+        });
+        navigate('/');
+      }
+    };
 
-      setPendingScript(null);
-
-      navigate('/');
-    } catch (error) {
-      console.error('Error importing shared script:', error);
-      showError({
-        title: 'Import failed',
-        message: 'Failed to import the shared script. Please try again.',
-      });
-      navigate('/');
-    }
-  }, [pendingScript, appLoadState, navigate]);
+    doImportScript();
+  }, [pendingScript, appLoadState, navigate, encodedScript]);
 
   return null;
 }
