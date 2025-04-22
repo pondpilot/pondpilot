@@ -12,12 +12,15 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       const inputElement = document.querySelector('[data-autofocus="true"]') as HTMLInputElement;
       if (inputElement) {
         inputElement.focus();
       }
     }, 100);
+    return () => {
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const handleCancel = () => {
