@@ -6,6 +6,7 @@ import {
   PersistentDataSourceId,
 } from '@models/data-source';
 import { DataSourceLocalFile } from '@models/file-system';
+import { isNameReservedOrInUse } from '@utils/duckdb/identifier';
 import { makeIdFactory } from './new-id';
 
 export const makePersistentDataSourceId = makeIdFactory<PersistentDataSourceId>();
@@ -127,7 +128,9 @@ export function addAttachedDB(
 ): AttachedDB {
   const dataSourceId = makePersistentDataSourceId();
 
-  const dbName = findUniqueName(localEntry.uniqueAlias, (name: string) => reservedDbs.has(name));
+  const dbName = findUniqueName(localEntry.uniqueAlias, (name) =>
+    isNameReservedOrInUse(name, reservedDbs),
+  );
 
   switch (localEntry.ext) {
     case 'duckdb':

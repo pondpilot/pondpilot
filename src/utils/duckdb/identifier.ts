@@ -57,3 +57,18 @@ export function toDuckDBIdentifier(str: string): string {
 export function isReservedDuckDBKeyword(str: string): boolean {
   return DUCKDB_RESERVED_KEYWORDS.has(str.toLowerCase());
 }
+
+/**
+ * Helper function to check if a database name is reserved or already in use.
+ * Used specifically to avoid errors when attaching databases with reserved names like "temp".
+ *
+ * @param name The database name to check
+ * @param existingNames Set of existing database names to check against
+ * @returns true if the name is reserved or already in use, false if it's usable
+ */
+export function isNameReservedOrInUse(name: string, existingNames: Set<string>): boolean {
+  if (existingNames.has(name)) {
+    return true;
+  }
+  return isReservedDuckDBKeyword(name);
+}
