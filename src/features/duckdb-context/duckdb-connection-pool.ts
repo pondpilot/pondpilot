@@ -1,5 +1,6 @@
 import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
-import type * as arrow from 'apache-arrow';
+import * as arrow from 'apache-arrow';
+import { toAbortablePromise } from '@utils/abort';
 import { PoolTimeoutError } from './timeout-error';
 import { AsyncDuckDBPooledStreamReader } from './duckdb-pooled-streaming-reader';
 import { AsyncDuckDBPooledConnection } from './duckdb-pooled-conection';
@@ -211,6 +212,64 @@ export class AsyncDuckDBConnectionPool {
 
     // Release the connection back to the pool
     this._releaseConnection(index);
+
+    return res;
+  }
+
+  /**
+   * Similar to `query` - query the database using a pooled connection. But
+   * with an abort signal that also "avborting" the query.
+   *
+   * NOTE: if the query has started, it will really be aborted, but we will
+   * the pool will gain one more free connection.
+   *
+   * @param text The SQL query to execute.
+   * @param signal The abort signal to use.
+   * @returns A promise that resolves to the result of the query.
+   * @throws {PoolTimeoutError} If the pool is full and no connection is available within the timeout.
+   * @throws {Error} Any underlying error from the DuckDB connection.
+   */
+  public async queryAbortable<
+    T extends {
+      [key: string]: arrow.DataType;
+    } = any,
+  >(
+    text: string,
+    signal: AbortSignal,
+  ): Promise<{ value: arrow.Table<T>; aborted: false } | { value: void; aborted: true }> {
+    // DuckDB-wasm doesn't allow aborting queries started via `query` midway,
+    // wso we are playing tricks here. We create a streaming reader internally
+    // which can be aborted, and just create an arrow table from batches at the end
+
+    const batches = [] as arrow.RecordBatch[];
+
+    // Try to get a connection from the pool
+    const { conn, index } = await this._getConnection();
+
+    const read = async () => {
+      for await (const batch of await conn.send<T>(text, true)) {
+        batches.push(batch);
+
+        // If aborted, immediatelly return an empty table, no point
+        // in holding on to batches as they'll be discarded.
+        if (signal.aborted) return new arrow.Table<T>([]);
+      }
+
+      return new arrow.Table<T>(batches);
+    };
+
+    // run the query with abort signal
+    const res = await toAbortablePromise({
+      promise: read(),
+      signal,
+      onAbort: async () => {
+        await conn.cancelSent();
+      },
+      onFinalize: () => {
+        // Release the connection back to the pool
+        this._releaseConnection(index);
+      },
+    });
 
     return res;
   }
