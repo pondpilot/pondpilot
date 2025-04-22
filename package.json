@@ -40,7 +40,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@duckdb/duckdb-wasm": "1.29.1-dev132.0",
+    "@duckdb/duckdb-wasm": "1.29.1-dev68.0",
     "@hello-pangea/dnd": "^17.0.0",
     "@mantine/core": "^7.17.0",
     "@mantine/hooks": "^7.17.0",

@@ -2,7 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { memo, useMemo } from 'react';
 import { useAppStore, useFlatFileDataSourceMap } from '@store/app-store';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
-import { AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
+import { AnyFlatFileDataSource, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
 import {
   getFlatFileDataSourceIcon,
   getFlatFileDataSourceName,
@@ -97,6 +97,17 @@ export const FileSystemExplorer = memo(() => {
         return a.uniqueAlias.localeCompare(b.uniqueAlias);
       });
 
+      // Group XLSX sheets by parent file
+      const xlsxSheetsByFileId = new Map<LocalEntryId, XlsxSheetView[]>();
+      for (const source of flatFileSources.values()) {
+        if (source.type === 'xlsx-sheet') {
+          const fileId = source.fileSourceId; // This is the parent XLSX file's ID
+          const sheets = xlsxSheetsByFileId.get(fileId) || [];
+          sheets.push(source as XlsxSheetView);
+          xlsxSheetsByFileId.set(fileId, sheets);
+        }
+      }
+
       children.forEach((entry) => {
         if (entry.kind === 'directory') {
           anyNodeIdToNodeTypeMap.set(entry.id, { nodeType: 'folder', userAdded: entry.userAdded });
@@ -128,6 +139,115 @@ export const FileSystemExplorer = memo(() => {
             ],
             children: buildTree(entry.id),
           });
+          return;
+        }
+
+        if (entry.ext === 'xlsx' && xlsxSheetsByFileId.has(entry.id)) {
+          const relatedSource = dataSourceByFileId.get(entry.id);
+
+          if (!relatedSource) {
+            return;
+          }
+
+          const sheets = xlsxSheetsByFileId.get(entry.id)!;
+
+          // Sort sheets alphabetically for consistent display
+          // TODO: Check if SheetJS is consistent and then switch back to "Natural" order(?)
+          sheets.sort((a, b) => a.sheetName.localeCompare(b.sheetName));
+
+          anyNodeIdToNodeTypeMap.set(entry.id, {
+            nodeType: 'file',
+            userAdded: entry.userAdded,
+          });
+
+          // Create a parent node for the XLSX file
+          const xlsxNode: TreeNodeData<FSExplorerNodeTypeToIdTypeMap> = {
+            nodeType: 'file',
+            value: relatedSource.id,
+            label: entry.name,
+            iconType: 'xlsx',
+            isDisabled: false,
+            isSelectable: false,
+            onDelete: entry.userAdded
+              ? () => deleteLocalFileOrFolders(conn, [entry.id])
+              : undefined,
+            contextMenu: [
+              {
+                children: [
+                  {
+                    label: 'Copy name',
+                    onClick: () => {
+                      copyToClipboard(entry.uniqueAlias, { showNotification: true });
+                    },
+                  },
+                ],
+              },
+            ],
+            children: sheets.map((sheet) => {
+              const sheetLabel = sheet.sheetName;
+              const value = sheet.id;
+              const fqn = `main.${toDuckDBIdentifier(sheet.viewName)}`;
+
+              const sheetNode: TreeNodeData<FSExplorerNodeTypeToIdTypeMap> = {
+                nodeType: 'sheet',
+                value,
+                label: sheetLabel,
+                iconType: 'xlsx-sheet',
+                isDisabled: false,
+                isSelectable: true,
+                onNodeClick: (): void => {
+                  const existingTab = findTabFromFlatFileDataSource(sheet.id);
+                  if (existingTab) {
+                    setActiveTabId(existingTab.id);
+                    return;
+                  }
+
+                  const tab = getOrCreateTabFromFlatFileDataSource(sheet.id, true);
+                  setPreviewTabId(tab.id);
+                },
+                onCloseItemClick: (): void => {
+                  deleteTabByDataSourceId(sheet.id);
+                },
+                contextMenu: [
+                  {
+                    children: [
+                      {
+                        label: 'Copy Full Name',
+                        onClick: () => {
+                          copyToClipboard(fqn, { showNotification: true });
+                        },
+                        onAlt: {
+                          label: 'Copy Name',
+                          onClick: () => {
+                            copyToClipboard(toDuckDBIdentifier(sheet.viewName), {
+                              showNotification: true,
+                            });
+                          },
+                        },
+                      },
+                      {
+                        label: 'Create a Query',
+                        onClick: () => {
+                          const query = `SELECT * FROM ${fqn};`;
+                          const newScript = createSQLScript(`${sheet.sheetName}_query`, query);
+                          getOrCreateTabFromScript(newScript, true);
+                        },
+                      },
+                    ],
+                  },
+                ],
+              };
+
+              anyNodeIdToNodeTypeMap.set(sheetNode.value, {
+                nodeType: 'sheet',
+                userAdded: entry.userAdded,
+              });
+
+              return sheetNode;
+            }),
+          };
+
+          fileTreeChildren.push(xlsxNode);
           return;
         }
 

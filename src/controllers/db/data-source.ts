@@ -3,6 +3,7 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
+import { createXlsxSheetViewQuery } from '@utils/xlsx';
 
 /**
  * Register regular data source file (not a databse) and create a view
@@ -162,4 +163,51 @@ export async function detachAndUnregisterDatabase(
    * Unregister file handle
    */
   await db.dropFile(fileName).catch(console.error);
+}
+
+/**
+ * Register a file handle with DuckDB
+ *
+ * @param conn - DuckDB connection pool
+ * @param handle - File handle to register
+ * @param fileName - A valid, unique name to register the file as
+ * @returns The registered file
+ */
+export async function registerFileHandle(
+  conn: AsyncDuckDBConnectionPool,
+  handle: FileSystemFileHandle,
+  fileName: string,
+): Promise<File> {
+  const file = await handle.getFile();
+  const db = conn.bindings;
+
+  // Drop file if it already exists
+  await db.dropFile(fileName).catch(console.error);
+
+  // Register the file handle with DuckDB
+  await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+
+  return file;
+}
+
+/**
+ * Create a view for a specific sheet
+ *
+ * @param conn - DuckDB connection pool
+ * @param fileName - A valid, unique name to register the file as
+ * @param sheetName - The name of the sheet to create a view for
+ * @param viewName - A valid, unique identifier of the view to create.
+ */
+export async function createXlsxSheetView(
+  conn: AsyncDuckDBConnectionPool,
+  fileName: string,
+  sheetName: string,
+  viewName: string,
+) {
+  // Load the Excel extension, it will be ignored if already loaded
+  await conn.query('LOAD excel');
+
+  // Create the view for the specified sheet
+  const query = createXlsxSheetViewQuery(fileName, sheetName, toDuckDBIdentifier(viewName));
+  await conn.query(query);
 }

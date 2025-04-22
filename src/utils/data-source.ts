@@ -97,6 +97,30 @@ export function addFlatFileDataSource(
   }
 }
 
+export function addXlsxSheetDataSource(
+  localEntry: DataSourceLocalFile,
+  sheetName: string,
+  reservedViews: Set<string>,
+): AnyFlatFileDataSource {
+  if (localEntry.ext !== 'xlsx') {
+    throw new Error('Only XLSX files can be used to create sheet data sources');
+  }
+
+  const dataSourceId = makePersistentDataSourceId();
+
+  // Create a view name based on both file and sheet name
+  const baseViewName = `${localEntry.uniqueAlias}_${sheetName}`;
+  const viewName = findUniqueName(baseViewName, (name: string) => reservedViews.has(name));
+
+  return {
+    id: dataSourceId,
+    type: 'xlsx-sheet',
+    fileSourceId: localEntry.id,
+    viewName,
+    sheetName,
+  };
+}
+
 export function addAttachedDB(
   localEntry: DataSourceLocalFile,
   reservedDbs: Set<string>,

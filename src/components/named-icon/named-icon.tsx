@@ -103,8 +103,9 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
     case 'parquet':
       return <IconTable {...iconProps} />;
     case 'xlsx':
-    case 'xlsx-sheet':
       return <IconFileTypeXls {...iconProps} />;
+    case 'xlsx-sheet':
+      return <IconTable {...iconProps} />;
 
     case 'error':
       return <IconQuestionMark {...iconProps} />;

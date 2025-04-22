@@ -145,21 +145,15 @@ export const deleteDataSources = async (
 
   // Delete the data sources from the database
   for (const dataSource of deletedDataSources) {
+    const file = localEntries.get(dataSource.fileSourceId);
+    if (!file || file.kind !== 'file' || file.fileType !== 'data-source') {
+      continue;
+    }
     if (dataSource.type === 'attached-db') {
-      detachAndUnregisterDatabase(
-        conn,
-        dataSource.dbName,
-        localEntries.get(dataSource.fileSourceId)?.uniqueAlias,
-      );
-    } else if (dataSource.type === 'xlsx-sheet') {
-      throw new Error('TODO: implement xlsx-sheet data source deletion');
+      detachAndUnregisterDatabase(conn, dataSource.dbName, `${file.uniqueAlias}.${file.ext}`);
     } else {
       // Wait for the view to be dropped to get fresh views metadata after that
-      await dropViewAndUnregisterFile(
-        conn,
-        dataSource.viewName,
-        localEntries.get(dataSource.fileSourceId)?.uniqueAlias,
-      );
+      await dropViewAndUnregisterFile(conn, dataSource.viewName, `${file.uniqueAlias}.${file.ext}`);
     }
   }
 

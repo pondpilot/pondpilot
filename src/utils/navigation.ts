@@ -73,7 +73,9 @@ export function getLocalEntryIcon(entry: LocalEntry): IconType {
         ? 'db'
         : entry.ext === 'parquet'
           ? 'db-table'
-          : entry.ext;
+          : entry.ext === 'xlsx'
+            ? 'xlsx'
+            : entry.ext;
 }
 
 /**

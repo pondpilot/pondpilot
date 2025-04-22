@@ -16,9 +16,11 @@ import { localEntryFromHandle } from '@utils/file-system';
 
 import {
   registerAndAttachDatabase,
+  registerFileHandle,
   registerFileSourceAndCreateView,
+  createXlsxSheetView,
 } from '@controllers/db/data-source';
-import { addAttachedDB, addFlatFileDataSource } from '@utils/data-source';
+import { addAttachedDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
 import { getAttachedDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
 import { DataBaseModel } from '@models/db';
 import { makeSQLScriptId } from '@utils/sql-script';
@@ -26,6 +28,7 @@ import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { useAppStore } from '@store/app-store';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { deleteDataSources } from '@controllers/data-source';
+import { getXlsxSheetNames } from '@utils/xlsx';
 import { persistAddLocalEntry, persistDeleteLocalEntry } from './persist';
 
 /**
@@ -83,6 +86,34 @@ export const addLocalFileOrFolders = async (
         );
 
         newDataSources.push([dbSource.id, dbSource]);
+
+        break;
+      }
+      case 'xlsx': {
+        // For XLSX files, we need to get all sheet names and create a view for each sheet
+        const xlsxFile = await file.handle.getFile();
+        const sheetNames = await getXlsxSheetNames(xlsxFile);
+
+        if (sheetNames.length === 0) {
+          errors.push(`XLSX file ${file.name} has no sheets.`);
+          return;
+        }
+
+        // Register the file once
+        const fileName = `${file.uniqueAlias}.${file.ext}`;
+        await registerFileHandle(conn, file.handle, fileName);
+
+        // For each sheet, create a data source and view
+        for (const sheetName of sheetNames) {
+          const sheetDataSource = addXlsxSheetDataSource(file, sheetName, reservedViews);
+
+          reservedViews.add(sheetDataSource.viewName);
+          newManagedViews.push(sheetDataSource.viewName);
+
+          await createXlsxSheetView(conn, fileName, sheetName, sheetDataSource.viewName);
+
+          newDataSources.push([sheetDataSource.id, sheetDataSource]);
+        }
 
         break;
       }
@@ -317,9 +348,13 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
     folderChildren.set(entry.parentId, children);
   }
 
-  const fileIdToDataSourceId = new Map<LocalEntryId, PersistentDataSourceId>();
+  // Map file IDs to data source IDs
+  const fileIdToDataSourceIds = new Map<LocalEntryId, PersistentDataSourceId[]>();
   for (const [dataSourceId, dataSource] of dataSources) {
-    fileIdToDataSourceId.set(dataSource.fileSourceId, dataSourceId);
+    const fileId = dataSource.fileSourceId;
+    const existing = fileIdToDataSourceIds.get(fileId) || [];
+    existing.push(dataSourceId);
+    fileIdToDataSourceIds.set(fileId, existing);
   }
 
   const dataSourceIdsToDelete: PersistentDataSourceId[] = [];
@@ -333,21 +368,32 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
         if (child.kind === 'directory') {
           collectDataSourceIdsRecursively(child);
         } else {
-          const dataSourceId = fileIdToDataSourceId.get(child.id);
-          if (dataSourceId) {
-            dataSourceIdsToDelete.push(dataSourceId);
+          // Do not delete file entries here, they are handled automatically in its data source delete
+          // Add all associated data sources
+          const dsIds = fileIdToDataSourceIds.get(child.id);
+          if (dsIds && dsIds.length > 0) {
+            dataSourceIdsToDelete.push(...dsIds);
           }
         }
       }
     }
   };
 
-  for (const folderId of ids) {
-    const localEntry = localEntries.get(folderId);
-    if (!localEntry || localEntry.kind !== 'directory') {
-      return;
+  for (const entryId of ids) {
+    const localEntry = localEntries.get(entryId);
+    if (!localEntry) {
+      continue;
     }
-    collectDataSourceIdsRecursively(localEntry);
+
+    if (localEntry.kind === 'directory') {
+      collectDataSourceIdsRecursively(localEntry);
+    } else {
+      // Do not delete file entries here, they are handled automatically in its data source delete
+      const dsIds = fileIdToDataSourceIds.get(localEntry.id);
+      if (dsIds && dsIds.length > 0) {
+        dataSourceIdsToDelete.push(...dsIds);
+      }
+    }
   }
 
   // Delete folder entries from State
@@ -360,11 +406,13 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
       localEntries: newLocalEntires,
     },
     undefined,
-    'AppStore/deleteFolder',
+    'AppStore/deleteLocalFileOrFolders',
   );
 
   // This one will delete all collected data sources and related state
-  deleteDataSources(conn, dataSourceIdsToDelete);
+  if (dataSourceIdsToDelete.length > 0) {
+    deleteDataSources(conn, dataSourceIdsToDelete);
+  }
 
   // Delete folder entries from IDB
   if (iDbConn) {
