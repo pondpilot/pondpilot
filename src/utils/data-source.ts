@@ -93,7 +93,7 @@ export function addFlatFileDataSource(
         viewName,
       };
     default:
-      throw new Error('TODO: Supported data source file type');
+      throw new Error('Unexpcted unsupported data source file type');
   }
 }
 
@@ -139,6 +139,6 @@ export function addAttachedDB(
         dbName,
       };
     default:
-      throw new Error('Unsupported database source file type');
+      throw new Error('Unexpcted unsupported database source file type');
   }
 }

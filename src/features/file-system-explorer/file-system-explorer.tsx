@@ -270,14 +270,15 @@ export const FileSystemExplorer = memo(() => {
           iconType,
           isDisabled: false,
           isSelectable: true,
-          renameCallbacks: {
-            validateRename: () => {
-              throw new Error('TODO: implement renaming of views for flat files');
-            },
-            onRenameSubmit: () => {
-              throw new Error('TODO: implement renaming of views for flat files');
-            },
-          },
+          // TODO: implement renaming of views for flat files
+          // renameCallbacks: {
+          //   validateRename: () => {
+          //     throw new Error('TODO: implement renaming of views for flat files');
+          //   },
+          //   onRenameSubmit: () => {
+          //     throw new Error('TODO: implement renaming of views for flat files');
+          //   },
+          // },
           onDelete: entry.userAdded
             ? // Only allow deleting explicitly user-added files
               () => {

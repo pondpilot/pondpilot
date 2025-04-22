@@ -327,14 +327,14 @@ export const DbExplorer = memo(() => {
         isDisabled: false,
         isSelectable: false,
         // TODO: implement renaming of database aliases
-        renameCallbacks: {
-          validateRename: () => {
-            throw new Error('TODO: implement renaming of database aliases');
-          },
-          onRenameSubmit: () => {
-            throw new Error('TODO: implement renaming of database aliases');
-          },
-        },
+        // renameCallbacks: {
+        //   validateRename: () => {
+        //     throw new Error('TODO: implement renaming of database aliases');
+        //   },
+        //   onRenameSubmit: () => {
+        //     throw new Error('TODO: implement renaming of database aliases');
+        //   },
+        // },
         onDelete: (node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>): void => {
           if (node.nodeType === 'db') {
             deleteDataSources(conn, [node.value]);
