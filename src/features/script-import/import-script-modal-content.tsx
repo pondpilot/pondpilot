@@ -65,6 +65,11 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
         onChange={(event) => setUrl(event.currentTarget.value)}
         data-autofocus="true"
         autoFocus
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && url.trim().includes('/shared-script/') && !isLoading) {
+            handleImport();
+          }
+        }}
       />
 
       <Group justify="flex-end" mt="md">
