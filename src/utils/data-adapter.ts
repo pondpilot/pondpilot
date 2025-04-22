@@ -71,15 +71,7 @@ function getFlatFileDataAdapterQueries(
     getColumnsData: getgetColumnsDataApiFromFQN(pool, fqn),
   };
 
-  if (dataSource.type === 'xlsx-sheet') {
-    return {
-      ...baseAttrs,
-      // TODO: implement this
-      getEstimatedRowCount: undefined,
-    };
-  }
-
-  if (dataSource.type === 'csv' || dataSource.type === 'json') {
+  if (dataSource.type === 'csv' || dataSource.type === 'json' || dataSource.type === 'xlsx-sheet') {
     return {
       ...baseAttrs,
       getRowCount: async (abortSignal: AbortSignal) => {
