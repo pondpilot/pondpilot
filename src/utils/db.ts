@@ -39,15 +39,13 @@ export const stringifyTypedValue = ({
 }): string => {
   try {
     switch (type) {
+      case 'time':
+      case 'date':
       case 'timestamp': {
-        return new Date(value as string).toLocaleString();
+        const timestamp = typeof value === 'bigint' ? Number(value) : (value as string);
+        return new Date(timestamp).toLocaleString();
       }
-      case 'date': {
-        return new Date(value as string).toLocaleDateString();
-      }
-      case 'time': {
-        return new Date(value as string).toLocaleTimeString();
-      }
+
       case 'string': {
         return value as string;
       }

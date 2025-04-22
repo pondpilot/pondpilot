@@ -3,9 +3,10 @@
  * @param {number | string | BigInt} v - The value to format
  * @returns {string} The formatted number string or an empty string if the input cannot be converted to a number
  */
-export const formatNumber = (v: number | string | BigInt): string => {
-  const value = typeof v === 'string' ? Number(v) : v;
-  if (Number.isNaN(value)) return '';
+export const formatNumber = (value: number | string | BigInt): string => {
+  if (typeof value === 'string') {
+    return value;
+  }
   return value.toLocaleString();
 };
 

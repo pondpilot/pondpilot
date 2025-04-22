@@ -1,6 +1,6 @@
 import { useCallback, useState, useRef } from 'react';
 import { DBColumn } from '@models/db';
-import { isNumberType } from '@utils/db';
+import { isNumberType, stringifyTypedValue } from '@utils/db';
 import { CancelledOperation, ColumnAggregateType, DataAdapterApi } from '@models/data-adapter';
 import { useDidUpdate } from '@mantine/hooks';
 
@@ -38,16 +38,18 @@ export const useColumnSummary = (dataAdapter: DataAdapterApi) => {
         setColumnTotal(null);
         setIsLoading(true);
 
-        const rawValue = await dataAdapter.getColumnAggregate(column.name, aggType);
+        const totalValue = await dataAdapter.getColumnAggregate(column.name, aggType);
 
         setIsLoading(false);
 
-        if (rawValue !== undefined) {
-          const totalValue = typeof rawValue === 'bigint' ? Number(rawValue) : rawValue;
-          setColumnTotal(totalValue);
+        if (totalValue !== undefined) {
+          // for now we do not allow user to choose the aggregate type so we can't use the type from the column like date, timestamp etc.
+          const formattedValue = stringifyTypedValue({ type: 'number', value: totalValue });
+
+          setColumnTotal(formattedValue);
 
           // Cache the result
-          summaryCache.current.set(cacheKey, totalValue);
+          summaryCache.current.set(cacheKey, formattedValue);
         }
       } catch (error) {
         const autoCancelled = error instanceof CancelledOperation ? error.isSystemCancelled : false;
