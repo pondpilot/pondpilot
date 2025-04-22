@@ -14,5 +14,5 @@ test('Onboarding modal is displayed on page load', async ({ page }) => {
 
   // Close the modal and verify it's gone
   await submitButton.click();
-  await expect(onboardingModal).not.toBeVisible();
+  await expect(onboardingModal).toBeHidden();
 });

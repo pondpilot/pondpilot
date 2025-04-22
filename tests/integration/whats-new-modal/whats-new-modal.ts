@@ -28,5 +28,5 @@ test('Whats new modal is displayed when version is newer', async ({ page }) => {
 
   // Close the modal and verify it's gone
   await submitButton.click();
-  await expect(whatsNewModal).not.toBeVisible();
+  await expect(whatsNewModal).toBeHidden();
 });
