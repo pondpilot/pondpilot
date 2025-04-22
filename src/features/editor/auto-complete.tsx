@@ -1,53 +1,13 @@
-/*
- * This file contains code from Outerbase Studio (https://github.com/outerbase/studio)
- * Copyright (C) [2025] Outerbase
- * Licensed under GNU AGPL v3.0
- */
-
-import { DataBaseModel } from '@models/common';
 import type { SQLNamespace } from '@codemirror/lang-sql';
-import type { Completion } from '@codemirror/autocomplete';
-
-/**
- * Converts a column type to a more generic SQL type for autocompletion
- */
-const getSQLType = (type: string): string => {
-  const typeLower = type.toLowerCase();
-  if (
-    typeLower.includes('int') ||
-    typeLower.includes('decimal') ||
-    typeLower.includes('numeric') ||
-    typeLower.includes('float') ||
-    typeLower.includes('double')
-  ) {
-    return 'number';
-  }
-  if (typeLower.includes('char') || typeLower.includes('text') || typeLower.includes('string')) {
-    return 'text';
-  }
-  if (typeLower.includes('date') || typeLower.includes('time')) {
-    return 'datetime';
-  }
-  if (typeLower.includes('bool')) {
-    return 'boolean';
-  }
-  return 'other';
-};
-
-/**
- * Creates a completion item for a database object
- */
-const createCompletion = (
-  label: string,
-  type: string,
-  displayLabel?: string,
-  boost?: number,
-): Completion => ({
-  label: label.includes(' ') ? `"${label}"` : label,
-  displayLabel,
-  type,
-  boost: boost || 1,
-});
+import { DataBaseModel } from '@models/db';
+import { SYSTEM_DUCKDB_SCHEMAS } from '@utils/duckdb/identifier';
+import {
+  createColumnCompletion,
+  createDatabaseCompletion,
+  createFunctionCompletion,
+  createSchemaCompletion,
+  createTableOrViewCompletion,
+} from '@utils/duckdb/auto-complete';
 
 const postgresDialectFunctions = new Set([
   'avg',
@@ -93,18 +53,6 @@ const postgresDialectFunctions = new Set([
   'rank',
 ]);
 
-export const SYSTEM_DUCKDB_SHEMAS = [
-  'information_schema',
-  'pg_catalog',
-  'pg_toast',
-  'pg_temp_1',
-  'pg_toast_temp_1',
-  'pg_catalog',
-  'pg_toast',
-  'pg_temp_1',
-  'pg_toast_temp_1',
-];
-
 export const createDuckDBCompletions = (
   functionDocs: Record<string, { syntax: string; description: string }>,
 ): SQLNamespace =>
@@ -113,7 +61,7 @@ export const createDuckDBCompletions = (
       return acc;
     }
     acc[name] = {
-      self: createCompletion(name, 'function', name, 2),
+      self: createFunctionCompletion(name, 2),
       children: [],
     };
     return acc;
@@ -132,23 +80,21 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
   if (memoryDb) {
     const mainSchema = memoryDb.schemas.find((schema) => schema.name === 'main');
     if (mainSchema) {
-      mainSchema.tables.forEach((table) => {
+      mainSchema.objects.forEach((tableOrView) => {
         // Skip system tables
         if (
-          !table.name.startsWith('duckdb_') &&
-          !table.name.startsWith('sqlite_') &&
-          !table.name.startsWith('pragma_')
+          !tableOrView.name.startsWith('duckdb_') &&
+          !tableOrView.name.startsWith('sqlite_') &&
+          !tableOrView.name.startsWith('pragma_')
         ) {
-          const columns = table.columns.map((col) =>
-            createCompletion(col.name, 'variable', `${col.name} (${getSQLType(col.type)})`, 99),
-          );
+          const columns = tableOrView.columns.map((col) => createColumnCompletion(col, 99));
 
-          namespace[table.name] = {
-            self: createCompletion(table.name, 'table', table.name, 95),
+          namespace[tableOrView.name] = {
+            self: createTableOrViewCompletion(tableOrView, 95),
             children: columns,
           };
 
-          topTableNames.push(table.name);
+          topTableNames.push(tableOrView.name);
         }
       });
     }
@@ -163,27 +109,25 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
     db.schemas.forEach((schema) => {
       const schemaNamespace: SQLNamespace = {};
 
-      if (SYSTEM_DUCKDB_SHEMAS.includes(schema.name)) return;
+      if (SYSTEM_DUCKDB_SCHEMAS.includes(schema.name)) return;
 
-      schema.tables.forEach((table) => {
-        const columns = table.columns.map((col) =>
-          createCompletion(col.name, 'column', `${col.name} (${getSQLType(col.type)})`),
-        );
+      schema.objects.forEach((table) => {
+        const columns = table.columns.map((col) => createColumnCompletion(col));
 
         schemaNamespace[table.name] = {
-          self: createCompletion(table.name, 'table', `${schema.name}.${table.name}`),
+          self: createTableOrViewCompletion(table),
           children: columns,
         };
       });
 
       dbNamespace[schema.name] = {
-        self: createCompletion(schema.name, 'schema', `${db.name}.${schema.name}`),
+        self: createSchemaCompletion(schema, db.name),
         children: schemaNamespace,
       };
     });
 
     namespace[db.name] = {
-      self: createCompletion(db.name, 'database', db.name, 99),
+      self: createDatabaseCompletion(db, 99),
       children: dbNamespace,
     };
   });

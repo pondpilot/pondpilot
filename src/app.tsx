@@ -6,39 +6,36 @@ import 'allotment/dist/style.css';
 import './index.css';
 
 import { MantineProvider } from '@mantine/core';
+import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
-import { AppProvider } from '@features/app-context';
 
 import { theme } from '@theme/theme';
-import { AppStatus } from '@features/app-status';
-import { BrowserNotSupported } from '@components/browser-not-supported';
-import { useAppStore } from '@store/app-store';
-import { useEffect } from 'react';
+import { AppState } from '@features/app-state';
+import { DuckDBConnectionPoolProvider } from '@features/duckdb-context/duckdb-context';
+import { ModifierProvider } from '@components/modifier-context/modifier-context';
+import { AppContextProvider } from '@features/app-context';
+import { useLocalStorage } from '@mantine/hooks';
+import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { Router } from './router/router';
 
-const isFileAccessApiSupported = 'showDirectoryPicker' in window && 'showOpenFilePicker' in window;
-
 export default function App() {
-  const setAppStatus = useAppStore((state) => state.setAppStatus);
-
-  useEffect(() => {
-    if (!isFileAccessApiSupported) {
-      setAppStatus('unsupported-browser');
-    }
-  }, []);
-
+  const [connectionPoolSize] = useLocalStorage({
+    key: LOCAL_STORAGE_KEYS.MAX_CONNECTION_POOL_SIZE,
+    defaultValue: 30,
+  });
   return (
     <MantineProvider theme={theme}>
-      <Notifications />
-      <AppStatus />
-
-      {isFileAccessApiSupported ? (
-        <AppProvider>
-          <Router />
-        </AppProvider>
-      ) : (
-        <BrowserNotSupported />
-      )}
+      <ModalsProvider>
+        <ModifierProvider>
+          <DuckDBConnectionPoolProvider maxPoolSize={connectionPoolSize}>
+            <AppContextProvider>
+              <Notifications />
+              <AppState />
+              <Router />
+            </AppContextProvider>
+          </DuckDBConnectionPoolProvider>
+        </ModifierProvider>
+      </ModalsProvider>
     </MantineProvider>
   );
 }

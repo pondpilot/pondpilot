@@ -1,23 +1,36 @@
 import { Stack, useMantineColorScheme } from '@mantine/core';
 import { Allotment } from 'allotment';
-import { useAppContext } from '@features/app-context';
 import { useHotkeys, useLocalStorage } from '@mantine/hooks';
-import { TabsPane } from '@features/tabs-pane';
 import { Spotlight } from '@mantine/spotlight';
-import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
-import { DataViewer } from '@features/data-viewer';
-import { ErrorBoundary } from 'react-error-boundary';
-import { DataViewErrorFallback } from '@components/error-fallback';
+import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useAppStore } from '@store/app-store';
+import { TabsPane } from '@features/tabs-pane';
+import { TabView } from '@features/tab-view/tab-view';
+import { StartGuide } from '@components/start-guide';
+import { createSQLScript } from '@controllers/sql-script';
+import { getOrCreateTabFromScript } from '@controllers/tab';
+import { importSQLFiles } from '@utils/import-script-file';
+import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { Navbar } from './components';
 
 export const MainPage = () => {
   /**
    * Common hooks
    */
-  const { importSQLFiles, onCreateQueryFile } = useAppContext();
-  const { handleAddSource } = useFileHandlers();
+
+  const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const { colorScheme } = useMantineColorScheme();
-  const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({ key: 'layout-sizes' });
+  const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({
+    key: LOCAL_STORAGE_KEYS.MAIN_LAYOUT_DIMENSIONS,
+  });
+
+  const tabCount = useAppStore((state) => state.tabs.size);
+  const hasTabs = tabCount > 0;
+
+  const handleAddScript = () => {
+    const newEmptyScript = createSQLScript();
+    getOrCreateTabFromScript(newEmptyScript, true);
+  };
 
   /**
    * Handlers
@@ -30,14 +43,14 @@ export const MainPage = () => {
     [
       'Ctrl+F',
       () => {
-        handleAddSource('file')();
+        handleAddFile();
         Spotlight.close();
       },
     ],
     [
       'Ctrl+D',
       () => {
-        handleAddSource('file', ['.duckdb'])();
+        handleAddFile(['.duckdb']);
         Spotlight.close();
       },
     ],
@@ -51,42 +64,45 @@ export const MainPage = () => {
     [
       'Alt+mod+F',
       () => {
-        handleAddSource('folder')();
+        handleAddFolder();
         Spotlight.close();
       },
     ],
     [
       'Alt+N',
       () => {
-        onCreateQueryFile({
-          entities: [{ name: 'query-name.sql' }],
-        });
+        handleAddScript();
         Spotlight.close();
       },
     ],
   ]);
 
   return (
-    <>
-      <Allotment
-        className={colorScheme === 'dark' ? 'custom-allotment-dark' : 'custom-allotment'}
-        onDragEnd={handleOuterLayoutResize}
-      >
-        <Allotment.Pane preferredSize={layoutSizes?.[0]} maxSize={500} minSize={220}>
-          <Navbar />
-        </Allotment.Pane>
-        <Allotment.Pane preferredSize={layoutSizes?.[1]}>
-          <Stack
-            gap={0}
-            className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
-          >
-            <TabsPane />
-            <ErrorBoundary FallbackComponent={DataViewErrorFallback}>
-              <DataViewer />
-            </ErrorBoundary>
+    <Allotment
+      className={colorScheme === 'dark' ? 'custom-allotment-dark' : 'custom-allotment'}
+      onDragEnd={handleOuterLayoutResize}
+    >
+      <Allotment.Pane preferredSize={layoutSizes?.[0]} maxSize={500} minSize={240}>
+        <Navbar />
+      </Allotment.Pane>
+      <Allotment.Pane preferredSize={layoutSizes?.[1]}>
+        {hasTabs && (
+          <Stack className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark gap-0">
+            <div className="flex-shrink-0">
+              <TabsPane />
+            </div>
+            <div className="flex-1 min-h-0">
+              <TabView />
+            </div>
           </Stack>
-        </Allotment.Pane>
-      </Allotment>
-    </>
+        )}
+
+        {!hasTabs && (
+          <div className="h-full">
+            <StartGuide />
+          </div>
+        )}
+      </Allotment.Pane>
+    </Allotment>
   );
 };

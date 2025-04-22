@@ -87,6 +87,11 @@ jobs:
       - name: Build
         run: yarn build
 
+      - name: Run unit tests
+        run: yarn test:unit
+        env:
+          CI: true
+
       - name: Upload Build
         uses: actions/upload-artifact@v4
         with:

@@ -1,120 +1,391 @@
-import { MenuItem, SourcesListView } from '@components/sources-list-view';
-import { useAppContext } from '@features/app-context';
-import { useAppStore } from '@store/app-store';
 import { memo } from 'react';
-import { useClipboard } from '@mantine/hooks';
-import { useAppNotifications } from '@components/app-notifications';
-import { SYSTEM_DUCKDB_SHEMAS } from '@features/editor/auto-complete';
-import { getDBIconByType } from './utils';
+import {
+  useAttachedDBDataSourceMap,
+  useAttachedDBLocalEntriesMap,
+  useAttachedDBMetadata,
+} from '@store/app-store';
+import { ExplorerTree, TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { getAttachedDBDataSourceName } from '@utils/navigation';
+import { PersistentDataSourceId } from '@models/data-source';
+import { DBColumn, DBSchema, DBTableOrView, DBTableOrViewSchema } from '@models/db';
+import { IconType } from '@components/named-icon';
+import { getIconTypeForSQLType } from '@components/named-icon/utils';
+import {
+  findTabFromAttachedDBObject,
+  getOrCreateTabFromAttachedDBObject,
+  getOrCreateTabFromScript,
+  setActiveTabId,
+  setPreviewTabId,
+} from '@controllers/tab';
+import { createSQLScript } from '@controllers/sql-script';
+import { deleteDataSources } from '@controllers/data-source';
+import { copyToClipboard } from '@utils/clipboard';
+import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
+import { DbExplorerNode } from './db-explorer-node';
+
+function buildColumnTreeNode({
+  dbId,
+  schemaName,
+  objectName,
+  column,
+  nodeIdsToFQNMap,
+}: {
+  dbId: PersistentDataSourceId;
+  schemaName: string;
+  objectName: string;
+  column: DBColumn;
+  // Mutable args
+  nodeIdsToFQNMap: DBExplorerNodeExtraType;
+  // injected callbacks
+}): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
+  const { name: columnName, sqlType } = column;
+  const columnNodeId = `${dbId}.${schemaName}.${objectName}::${columnName}`;
+  const iconType: IconType = getIconTypeForSQLType(sqlType);
+
+  nodeIdsToFQNMap.set(columnNodeId, {
+    db: dbId,
+    schemaName,
+    objectName,
+    columnName,
+  });
+
+  return {
+    nodeType: 'column',
+    value: columnNodeId,
+    label: columnName,
+    iconType,
+    isDisabled: false,
+    isSelectable: false,
+    contextMenu: [
+      {
+        children: [
+          {
+            label: 'Copy name',
+            onClick: () => {
+              copyToClipboard(toDuckDBIdentifier(objectName), {
+                showNotification: true,
+                notificationTitle: 'Copied',
+              });
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function buildObjectTreeNode({
+  dbId,
+  dbName,
+  schemaName,
+  object,
+  nodeIdsToFQNMap,
+}: {
+  dbId: PersistentDataSourceId;
+  dbName: string;
+  schemaName: string;
+  object: DBTableOrView;
+  // Mutable args
+  nodeIdsToFQNMap: DBExplorerNodeExtraType;
+}): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
+  const { name: objectName, columns } = object;
+  const objectNodeId = `${dbId}.${schemaName}.${objectName}`;
+
+  nodeIdsToFQNMap.set(objectNodeId, {
+    db: dbId,
+    schemaName,
+    objectName,
+    columnName: null,
+  });
+
+  const fqn = `${toDuckDBIdentifier(dbName)}.${toDuckDBIdentifier(schemaName)}.${toDuckDBIdentifier(objectName)}`;
+
+  // We only allow expanding columns in dev builds as of today
+  let sortedColumns: DBTableOrViewSchema = [];
+  let devMenuItems: TreeNodeMenuItemType<TreeNodeData<DBExplorerNodeTypeToIdTypeMap>>[] = [];
+
+  if (import.meta.env.DEV) {
+    sortedColumns = columns.slice().sort((a, b) => a.name.localeCompare(b.name));
+    devMenuItems = [
+      {
+        label: 'Toggle columns',
+        onClick: (node, tree) => tree.toggleExpanded(node.value),
+        isDisabled: false,
+      },
+    ];
+  }
+
+  return {
+    nodeType: 'object',
+    value: objectNodeId,
+    label: objectName,
+    iconType: object.type === 'table' ? 'db-table' : 'db-view',
+    isDisabled: false,
+    isSelectable: true,
+    doNotExpandOnClick: true,
+    onNodeClick: (): void => {
+      // Check if the tab is already open
+      const existingTab = findTabFromAttachedDBObject(dbId, schemaName, objectName);
+      if (existingTab) {
+        // If the tab is already open, just set as active and do not change preview
+        setActiveTabId(existingTab.id);
+        return;
+      }
+
+      // Net new. Create an active tab
+      const tab = getOrCreateTabFromAttachedDBObject(
+        dbId,
+        schemaName,
+        objectName,
+        object.type,
+        true,
+      );
+      // Then set as & preview
+      setPreviewTabId(tab.id);
+    },
+    contextMenu: [
+      {
+        children: [
+          {
+            label: 'Copy Full Name',
+            onClick: () => {
+              copyToClipboard(fqn, {
+                showNotification: true,
+              });
+            },
+            onAlt: {
+              label: 'Copy Name',
+              onClick: () => {
+                copyToClipboard(toDuckDBIdentifier(objectName), {
+                  showNotification: true,
+                });
+              },
+            },
+          },
+          {
+            label: 'Create a Query',
+            onClick: () => {
+              const query = `SELECT * FROM ${fqn};`;
+
+              const newScript = createSQLScript(`${objectName}_query`, query);
+              getOrCreateTabFromScript(newScript, true);
+            },
+          },
+          ...devMenuItems,
+        ],
+      },
+    ],
+    children: sortedColumns.map((column) =>
+      buildColumnTreeNode({
+        dbId,
+        schemaName,
+        objectName,
+        column,
+        nodeIdsToFQNMap,
+      }),
+    ),
+  };
+}
+
+function buildSchemaTreeNode({
+  dbId,
+  dbName,
+  schema,
+  nodeIdsToFQNMap,
+  initialExpandedState,
+}: {
+  dbId: PersistentDataSourceId;
+  dbName: string;
+  schema: DBSchema;
+  // Mutable args
+  nodeIdsToFQNMap: DBExplorerNodeExtraType;
+  initialExpandedState: Record<
+    DBExplorerNodeTypeToIdTypeMap[keyof DBExplorerNodeTypeToIdTypeMap],
+    boolean
+  >;
+}): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
+  const { name: schemaName, objects } = schema;
+  const schemaNodeId = `${dbId}.${schemaName}`;
+
+  nodeIdsToFQNMap.set(schemaNodeId, {
+    db: dbId,
+    schemaName,
+    objectName: null,
+    columnName: null,
+  });
+
+  // By default only expand databases & schemas, but not tables. This takes
+  // care of the schema
+  initialExpandedState[schemaNodeId] = true;
+
+  const sortedObjects = objects.slice().sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    nodeType: 'schema',
+    value: schemaNodeId,
+    label: schemaName,
+    iconType: 'db-schema',
+    isDisabled: false,
+    isSelectable: false,
+    contextMenu: [
+      {
+        children: [
+          {
+            label: 'Copy name',
+            onClick: () => {
+              navigator.clipboard.writeText(toDuckDBIdentifier(schemaName));
+              copyToClipboard(toDuckDBIdentifier(schemaName), {
+                showNotification: true,
+              });
+            },
+          },
+          {
+            label: 'Copy Full Name',
+            onClick: () => {
+              copyToClipboard(`${toDuckDBIdentifier(dbName)}.${toDuckDBIdentifier(schemaName)}`, {
+                showNotification: true,
+              });
+            },
+          },
+        ],
+      },
+    ],
+    children: sortedObjects.map((object) =>
+      buildObjectTreeNode({
+        dbId,
+        dbName,
+        schemaName,
+        object,
+        nodeIdsToFQNMap,
+      }),
+    ),
+  };
+}
 
 /**
- * Displays a list of views
+ * Displays attached databases and their schemas/tables/columns
  */
 export const DbExplorer = memo(() => {
   /**
    * Common hooks
    */
-  const { onDeleteDataSource, onCreateQueryFile } = useAppContext();
-  const clipboard = useClipboard();
-  const { showSuccess } = useAppNotifications();
+  const conn = useInitializedDuckDBConnectionPool();
 
   /**
    * Store access
    */
-  const databases = useAppStore((state) => state.databases);
-  const queryLoading = useAppStore((state) => state.queryRunning);
-  const currentView = useAppStore((state) => state.currentView);
-  const appStatus = useAppStore((state) => state.appStatus);
-  const sessionFiles = useAppStore((state) => state.sessionFiles);
+  const attachedDBMap = useAttachedDBDataSourceMap();
+  const attachedDBLocalEntriesMap = useAttachedDBLocalEntriesMap();
+  const dataBaseMetadata = useAttachedDBMetadata();
+
+  /**
+   * Local state
+   */
 
   /**
    * Consts
    */
-  const itemsToDisplay = databases
-    .filter((item) => sessionFiles?.sources.some((source) => source.name === item.name))
-    .map((item) => ({
-      value: item.name,
-      label: item.name,
-      nodeProps: {
-        id: 'db',
-        canSelect: true,
-      },
-      children: item.schemas
-        ?.filter((schema) => !SYSTEM_DUCKDB_SHEMAS.includes(schema.name))
-        .map((schema) => ({
-          value: `${item.name}/${schema.name}`,
-          nodeProps: {
-            id: 'schema',
-            canSelect: false,
-          },
-          label: schema.name,
-          children: schema.tables?.map((table) => ({
-            value: `${item.name}/${schema.name}/${table.name}`,
-            label: table.name,
-            nodeProps: {
-              id: 'table',
-              canSelect: false,
-            },
-          })),
-        })),
-    }));
+  // We create ids for internal node here in this component, thus
+  // we need a local map to get back from id to fully qualified names
+  // of various nodes (e.g. for schema we need both dbId and schema name)
+  const nodeIdsToFQNMap: DBExplorerNodeExtraType = new Map();
 
-  const handleDeleteSelected = async (items: string[]) => {
-    onDeleteDataSource({
-      paths: items,
-      type: 'database',
-    });
+  const initialExpandedState: Record<
+    DBExplorerNodeTypeToIdTypeMap[keyof DBExplorerNodeTypeToIdTypeMap],
+    boolean
+  > = {};
+
+  const sortedDBs = Array.from(attachedDBMap.values()).sort((a, b) =>
+    a.dbName.localeCompare(b.dbName),
+  );
+
+  const dbObjectsTree: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>[] = sortedDBs.map(
+    (attachedDBDataSource) => {
+      const { id: dbId, dbName, fileSourceId } = attachedDBDataSource;
+
+      // This should always exist unless state is broken, but we are playing safe here
+      const localFile = attachedDBLocalEntriesMap.get(fileSourceId);
+      const dbLabel = localFile ? getAttachedDBDataSourceName(dbName, localFile) : dbName;
+
+      nodeIdsToFQNMap.set(dbId, { db: dbId, schemaName: null, objectName: null, columnName: null });
+
+      // By default only expand databases & schemas, but not tables. This takes
+      // care of the database
+      initialExpandedState[dbId] = true;
+
+      const sortedSchemas = dataBaseMetadata
+        .get(dbName)
+        ?.schemas?.sort((a, b) => a.name.localeCompare(b.name));
+
+      return {
+        nodeType: 'db',
+        value: dbId,
+        label: dbLabel,
+        iconType: 'db',
+        isDisabled: false,
+        isSelectable: false,
+        // TODO: implement renaming of database aliases
+        // renameCallbacks: {
+        //   validateRename: () => {
+        //     throw new Error('TODO: implement renaming of database aliases');
+        //   },
+        //   onRenameSubmit: () => {
+        //     throw new Error('TODO: implement renaming of database aliases');
+        //   },
+        // },
+        onDelete: (node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>): void => {
+          if (node.nodeType === 'db') {
+            deleteDataSources(conn, [node.value]);
+          }
+        },
+        contextMenu: [
+          {
+            children: [
+              {
+                label: 'Copy name',
+                onClick: () => {
+                  // we can't use label as it may not be "just" name
+                  copyToClipboard(dbName, {
+                    showNotification: true,
+                  });
+                },
+              },
+            ],
+          },
+        ],
+        children: sortedSchemas?.map((schema) =>
+          buildSchemaTreeNode({
+            dbId,
+            dbName,
+            schema,
+            nodeIdsToFQNMap,
+            initialExpandedState,
+          }),
+        ),
+      };
+    },
+  );
+
+  const handleDeleteSelected = async (ids: Iterable<string | PersistentDataSourceId>) => {
+    // This should only be called for dbs, but we'll be safe
+    const dbIds = Array.from(ids)
+      .map((id) => nodeIdsToFQNMap.get(id))
+      .filter((fqn) => fqn !== undefined)
+      .map((fqn) => fqn.db);
+
+    deleteDataSources(conn, dbIds);
   };
 
-  const menuItems: MenuItem[] = [
-    {
-      children: [
-        {
-          label: 'Copy name',
-          onClick: (item) => {
-            clipboard.copy(item.label);
-            showSuccess({ message: 'Copied', autoClose: 800 });
-          },
-        },
-        {
-          label: 'Create a query',
-          onClick: (item) => {
-            const isDB = item.value.split('/').length === 1;
-            const query = isDB
-              ? `SELECT * FROM ${item.label}.data;`
-              : `SELECT * FROM ${item.value.replaceAll('/', '.')};`;
-
-            onCreateQueryFile({
-              entities: [
-                {
-                  name: `${item.label}_query`,
-                  content: query,
-                },
-              ],
-            });
-          },
-        },
-      ],
-    },
-    {
-      children: [
-        {
-          label: 'Delete',
-          onClick: (item) => onDeleteDataSource({ paths: [item.label], type: 'database' }),
-        },
-      ],
-    },
-  ];
   return (
-    <SourcesListView
-      parentDataTestId="db-explorer"
-      list={itemsToDisplay}
+    <ExplorerTree<DBExplorerNodeTypeToIdTypeMap, DBExplorerNodeExtraType>
+      nodes={dbObjectsTree}
+      initialExpandedState={initialExpandedState}
+      extraData={nodeIdsToFQNMap}
+      dataTestIdPrefix="db-explorer"
+      TreeNodeComponent={DbExplorerNode}
       onDeleteSelected={handleDeleteSelected}
-      menuItems={menuItems}
-      disabled={queryLoading}
-      activeItemKey={currentView}
-      loading={appStatus === 'initializing'}
-      renderIcon={(id) => getDBIconByType(id as any)}
     />
   );
 });

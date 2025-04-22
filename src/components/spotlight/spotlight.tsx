@@ -1,4 +1,3 @@
-import { useAppContext } from '@features/app-context';
 import { Group, Text } from '@mantine/core';
 import { Spotlight } from '@mantine/spotlight';
 import {
@@ -9,58 +8,87 @@ import {
   IconFilePlus,
   IconFolderPlus,
   IconDatabasePlus,
-  IconChevronUp,
   IconSettings,
   IconFileSad,
   IconBooks,
   IconKeyboard,
-  IconCsv,
-  IconJson,
-  IconTable,
 } from '@tabler/icons-react';
-import { useFileHandlers } from '@hooks/useUploadFilesHandlers';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAppStore } from '@store/app-store';
-import { HotkeyPill } from '@components/hotkey-pill';
-import { cn } from '@utils/ui/styles';
-import { useModifier } from '@hooks/useModifier';
+import { useEffect, useRef, useState } from 'react';
+import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useEditorStore } from '@store/editor-store';
 import { setDataTestId } from '@utils/test-id';
-import { SpotlightView } from './models';
-import { getSpotlightSearchPlaceholder, filterActions } from './utlis';
+import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from 'app-urls';
+import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useAppStore } from '@store/app-store';
+import { createSQLScript } from '@controllers/sql-script';
+import {
+  getOrCreateTabFromAttachedDBObject,
+  getOrCreateTabFromFlatFileDataSource,
+  getOrCreateTabFromScript,
+} from '@controllers/tab';
+import { NamedIcon } from '@components/named-icon';
+import { getFlatFileDataSourceName } from '@utils/navigation';
+import { importSQLFiles } from '@utils/import-script-file';
+import {
+  DATA_SOURCE_GROUP_DISPLAY_NAME,
+  ICON_CLASSES,
+  SCRIPT_DISPLAY_NAME,
+  SCRIPT_GROUP_DISPLAY_NAME,
+  SEARCH_PREFIXES,
+  SEARCH_SUFFIXES,
+} from './consts';
+import { getSpotlightSearchPlaceholder, filterActions, getSearchTermFromValue } from './utlis';
 import { SpotlightBreadcrumbs } from './components';
+import { Action, SpotlightView } from './model';
+import { renderActionsGroup } from './components/action';
 
-interface Action {
-  id: string;
-  label: string;
-  handler: () => void;
-  icon?: React.ReactNode;
-  hotkey?: Array<string | React.ReactNode>;
-  disabled?: boolean;
-}
+/**
+ * Filter list of script actions by search value and
+ * ensures that the list is never empty, by adding a
+ * fallback to create a new script action (with the serach term or default name)
+ */
+const getFilteredScriptActions = (
+  scriptActions: Action[],
+  searchValue: string,
+  fallbackForEmpty: boolean,
+) => {
+  const filteredActions = filterActions(scriptActions, searchValue);
+
+  // If we no results - add create new script action
+  if (filteredActions.length === 0 && fallbackForEmpty) {
+    const name = getSearchTermFromValue(searchValue);
+    scriptActions.push({
+      id: 'create-new',
+      label: `Create ${name ? `"${name}"` : 'new'} ${SCRIPT_DISPLAY_NAME.toLowerCase()}`,
+      icon: <IconPlus size={20} className={ICON_CLASSES} />,
+      handler: () => {
+        const newEmptyScript = createSQLScript(name);
+        getOrCreateTabFromScript(newEmptyScript, true);
+        Spotlight.close();
+      },
+    });
+  }
+  return scriptActions;
+};
 
 export const SpotlightMenu = () => {
   /**
    * Common hooks
    */
-  const { onCreateQueryFile, importSQLFiles, onOpenQuery, onTabSwitch, onOpenView, onSaveEditor } =
-    useAppContext();
-  const { handleAddSource } = useFileHandlers();
-  const { command, option } = useModifier();
+
   const navigate = useNavigate();
   const location = useLocation();
+
+  const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
+  const { command, option, control } = useOsModifierIcon();
 
   /**
    * Store access
    */
-  const queries = useAppStore((state) => state.queries);
-  const views = useAppStore((state) => state.views);
-  const sessionFiles = useAppStore((state) => state.sessionFiles);
-  const activeTab = useAppStore((state) => state.activeTab);
-
-  const editorValue = useEditorStore((state) => state.editorValue);
-  const setLastQueryDirty = useEditorStore((state) => state.setLastQueryDirty);
+  const sqlScripts = useAppStore.use.sqlScripts();
+  const dataSources = useAppStore.use.dataSources();
+  const dataBaseMetadata = useAppStore.use.dataBaseMetadata();
+  const localEntries = useAppStore.use.localEntries();
 
   /**
    * Local state
@@ -69,35 +97,10 @@ export const SpotlightMenu = () => {
   const [spotlightView, setSpotlightView] = useState<SpotlightView>('home');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const saveCurrentQuery = async () => {
-    if (activeTab?.mode === 'query') {
-      await onSaveEditor({ content: editorValue, path: activeTab.path });
-      setLastQueryDirty(false);
-    }
-  };
-
   const resetSpotlight = () => {
     setSpotlightView('home');
     Spotlight.close();
   };
-  const iconClasses = 'text-textSecondary-light dark:text-textSecondary-dark';
-
-  const getIcon = useCallback(
-    (id: string | undefined) => {
-      const iconProps = {
-        size: 20,
-        className: iconClasses,
-      };
-      const fileExt = sessionFiles?.sources.find((f) => f.name === id)?.ext as string;
-
-      const iconsMap = {
-        csv: <IconCsv {...iconProps} />,
-        json: <IconJson {...iconProps} />,
-      }[fileExt];
-      return iconsMap || <IconTable {...iconProps} />;
-    },
-    [sessionFiles],
-  );
 
   const ensureHome = () => {
     if (location.pathname !== '/') {
@@ -110,13 +113,13 @@ export const SpotlightMenu = () => {
       id: 'data-sources',
       label: 'Data Sources',
       handler: () => setSpotlightView('dataSources'),
-      icon: <IconDatabase size={20} className={iconClasses} />,
+      icon: <IconDatabase size={20} className={ICON_CLASSES} />,
     },
     {
-      id: 'queries',
-      label: 'Queries',
-      handler: () => setSpotlightView('queries'),
-      icon: <IconCode size={20} className={iconClasses} />,
+      id: 'scripts',
+      label: SCRIPT_GROUP_DISPLAY_NAME,
+      handler: () => setSpotlightView('scripts'),
+      icon: <IconCode size={20} className={ICON_CLASSES} />,
     },
     {
       id: 'settings',
@@ -127,49 +130,83 @@ export const SpotlightMenu = () => {
         }
         Spotlight.close();
       },
-      icon: <IconSettings size={20} className={iconClasses} />,
+      icon: <IconSettings size={20} className={ICON_CLASSES} />,
     },
   ];
 
-  const viewActions: Action[] = views.map((view) => ({
-    id: view,
-    label: view,
-    icon: getIcon(view),
-    handler: () => {
-      onOpenView(view);
-      onTabSwitch({
-        path: view,
-        mode: 'view',
-        stable: true,
-      });
-      Spotlight.close();
-    },
-  }));
+  const dataSourceActions: Action[] = [];
 
-  const mappedQueries = queries.map((query) => ({
-    id: query.path,
-    label: query.path || '',
-    icon: <IconCode size={20} className={iconClasses} />,
-    handler: () => {
-      onOpenQuery(query.path);
-      onTabSwitch({
-        path: query.handle.name,
-        mode: 'query',
-        stable: true,
+  for (const dataSource of dataSources.values()) {
+    if (dataSource.type === 'attached-db') {
+      // For databases we need to read all tables and views from metadata
+      const dbMetadata = dataBaseMetadata.get(dataSource.dbName);
+
+      if (!dbMetadata) {
+        continue;
+      }
+
+      dbMetadata.schemas.forEach((schema) => {
+        schema.objects.forEach((tableOrView) => {
+          dataSourceActions.push({
+            id: `open-data-source-${dataSource.id}-${tableOrView.name}`,
+            label: tableOrView.label,
+            icon: (
+              <NamedIcon
+                iconType={tableOrView.type === 'table' ? 'db-table' : 'db-view'}
+                size={20}
+                className={ICON_CLASSES}
+              />
+            ),
+            handler: () => {
+              getOrCreateTabFromAttachedDBObject(
+                dataSource,
+                schema.name,
+                tableOrView.name,
+                tableOrView.type,
+                true,
+              );
+              Spotlight.close();
+              ensureHome();
+            },
+          });
+        });
       });
+
+      continue;
+    }
+
+    // Flat file data sources
+    dataSourceActions.push({
+      id: `open-data-source-${dataSource.id}`,
+      label: getFlatFileDataSourceName(dataSource, localEntries),
+      icon: <NamedIcon iconType={dataSource.type} size={20} className={ICON_CLASSES} />,
+      handler: () => {
+        getOrCreateTabFromFlatFileDataSource(dataSource, true);
+        Spotlight.close();
+        ensureHome();
+      },
+    });
+  }
+
+  const scriptActions = Array.from(sqlScripts.values()).map((script) => ({
+    id: `open-data-source-${script.id}`,
+    label: `${script.name}.sql`,
+    icon: <NamedIcon iconType="code-file" size={20} className={ICON_CLASSES} />,
+    handler: () => {
+      getOrCreateTabFromScript(script.id, true);
       Spotlight.close();
       ensureHome();
     },
   }));
 
-  const dataSourcesActions: Action[] = [
+  const dataSourceGroupActions: Action[] = [
     {
       id: 'add-file',
       label: 'Add File',
-      icon: <IconFilePlus size={20} className={iconClasses} />,
-      hotkey: [<IconChevronUp size={20} />, 'F'],
+      icon: <IconFilePlus size={20} className={ICON_CLASSES} />,
+      hotkey: [control, 'F'],
       handler: () => {
-        handleAddSource('file')();
+        handleAddFile();
         resetSpotlight();
         ensureHome();
       },
@@ -177,47 +214,46 @@ export const SpotlightMenu = () => {
     {
       id: 'add-folder',
       label: 'Add Folder',
-      icon: <IconFolderPlus size={20} className={iconClasses} />,
+      icon: <IconFolderPlus size={20} className={ICON_CLASSES} />,
       hotkey: [option, command, 'F'],
-      handler: () => {
-        handleAddSource('folder')();
+      handler: async () => {
         resetSpotlight();
+        await handleAddFolder();
         ensureHome();
       },
     },
     {
       id: 'add-duckdb-db',
       label: 'Add DuckDB Database',
-      icon: <IconDatabasePlus size={20} className={iconClasses} />,
-      hotkey: [<IconChevronUp size={20} />, 'D'],
+      icon: <IconDatabasePlus size={20} className={ICON_CLASSES} />,
+      hotkey: [control, 'D'],
       handler: () => {
-        handleAddSource('file', ['.duckdb'])();
+        handleAddFile(['.duckdb']);
         resetSpotlight();
         ensureHome();
       },
     },
   ];
 
-  const queriesActions: Action[] = [
+  const scriptGroupActions: Action[] = [
     {
-      id: 'create-new-query',
-      label: 'New Query',
-      icon: <IconPlus size={20} className={iconClasses} />,
+      id: 'create-new-script',
+      label: `New ${SCRIPT_DISPLAY_NAME}`,
+      icon: <IconPlus size={20} className={ICON_CLASSES} />,
       hotkey: [option, 'N'],
       handler: async () => {
-        await saveCurrentQuery();
-        onCreateQueryFile({ entities: [{ name: 'query' }] });
+        const newEmptyScript = createSQLScript();
+        getOrCreateTabFromScript(newEmptyScript, true);
         resetSpotlight();
         ensureHome();
       },
     },
     {
-      id: 'import-query',
-      label: 'Import Query',
-      icon: <IconFileImport size={20} className={iconClasses} />,
-      hotkey: [<IconChevronUp size={20} />, 'I'],
+      id: 'import-script',
+      label: 'Import Queries',
+      icon: <IconFileImport size={20} className={ICON_CLASSES} />,
+      hotkey: [control, 'I'],
       handler: async () => {
-        await saveCurrentQuery();
         importSQLFiles();
         resetSpotlight();
         ensureHome();
@@ -225,166 +261,77 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const helpActions: Action[] = [
+  const helpGroupActions: Action[] = [
     {
       id: 'documentation',
       label: 'Documentation',
-      icon: <IconBooks size={20} className={iconClasses} />,
+      icon: <IconBooks size={20} className={ICON_CLASSES} />,
       handler: () => {
-        window.open(
-          'https://github.com/pondpilot/pondpilot/blob/main/README.md',
-          '_blank',
-          'noopener,noreferrer',
-        );
+        window.open(APP_DOCS_URL, '_blank', 'noopener,noreferrer');
       },
     },
     {
       id: 'report-issue',
       label: 'Report an Issue',
-      icon: <IconFileSad size={20} className={iconClasses} />,
+      icon: <IconFileSad size={20} className={ICON_CLASSES} />,
       handler: () => {
-        window.open(
-          'https://github.com/pondpilot/pondpilot/issues',
-          '_blank',
-          'noopener,noreferrer',
-        );
+        window.open(APP_OPEN_ISSUES_URL, '_blank', 'noopener,noreferrer');
       },
     },
     {
       id: 'keyboard-shortcuts',
       label: 'Keyboard Shortcuts',
-      icon: <IconKeyboard size={20} className={iconClasses} />,
+      icon: <IconKeyboard size={20} className={ICON_CLASSES} />,
       disabled: true,
 
       handler: () => {},
     },
   ];
 
-  const quickActions: Action[] = [...queriesActions, ...dataSourcesActions];
+  const quickActions: Action[] = [...scriptGroupActions, ...dataSourceGroupActions];
 
-  const getQueryActions = () => {
-    const name = searchValue.replace('&', '');
-
-    if (name && !mappedQueries.some((q) => q.label.toLowerCase().includes(name.toLowerCase()))) {
-      mappedQueries.push({
-        id: 'create-new',
-        label: `Create "${name}" query`,
-        icon: <IconPlus size={20} className={iconClasses} />,
-        handler: () => {
-          onCreateQueryFile({ entities: [{ name }] });
-          Spotlight.close();
-        },
-      });
-    }
-
-    return mappedQueries;
-  };
-
-  const modeActions: Action[] = [
+  const searchModeActions: Action[] = [
     {
-      id: 'search-queries',
-      label: 'Search for Queries',
-      hotkey: ['&'],
+      id: 'search-scripts',
+      label: `Search for ${SCRIPT_GROUP_DISPLAY_NAME}`,
+      hotkey: [SEARCH_PREFIXES.script],
       handler: () => {
-        setSearchValue('&');
+        setSearchValue(SEARCH_PREFIXES.script);
         searchInputRef.current?.focus();
       },
     },
     {
-      id: 'search-views',
-      label: 'Search for Views',
-      hotkey: ['/'],
+      id: 'search-data-sources',
+      label: `Search for ${DATA_SOURCE_GROUP_DISPLAY_NAME}`,
+      hotkey: [SEARCH_PREFIXES.dataSource],
       handler: () => {
-        setSearchValue('/');
+        setSearchValue(SEARCH_PREFIXES.dataSource);
         searchInputRef.current?.focus();
       },
     },
   ];
 
-  const renderActions = (actions: Action[]) =>
-    actions.map((action) => (
-      <Spotlight.Action
-        data-testid={setDataTestId(`spotlight-action-${action.id}`)}
-        disabled={action.disabled}
-        key={action.id}
-        onClick={action.handler}
-      >
-        <Group justify="space-between" className={cn('w-full', action.disabled && 'opacity-50')}>
-          <Group className="gap-2">
-            {action.icon ? <div>{action.icon}</div> : undefined}
-            <Text truncate="end" maw={250}>
-              {action.label}
-            </Text>
-          </Group>
-          <Group>
-            {action.hotkey ? <HotkeyPill variant="secondary" value={action.hotkey} /> : undefined}
-          </Group>
-        </Group>
-      </Spotlight.Action>
-    ));
-
-  const renderActionsGroup = (actions: Action[], label: string) => {
-    if (!actions.length) {
-      return <Spotlight.Empty>Nothing found...</Spotlight.Empty>;
-    }
-    return (
-      <Spotlight.ActionsGroup label={label} className="text-red-200">
-        {renderActions(actions)}
-      </Spotlight.ActionsGroup>
-    );
-  };
-
   const renderHomeView = () => {
     const filteredQuickActions = filterActions(quickActions, searchValue);
     const filteredNavigateActions = filterActions(navigateActions, searchValue);
-    const filteredHelpActions = filterActions(helpActions, searchValue);
-    const filteredQueries = searchValue
-      ? getQueryActions().filter((query) =>
-          query.label.toLowerCase().includes(searchValue.toLowerCase()),
-        )
-      : [];
-    const filteredViews = searchValue
-      ? viewActions.filter((view) => view.label.toLowerCase().includes(searchValue.toLowerCase()))
+    const filteredHelpActions = filterActions(helpGroupActions, searchValue);
+
+    // Only include script actions themselves if we have search, including fallback
+    const filteredScripts = searchValue
+      ? getFilteredScriptActions(scriptActions, searchValue, true)
       : [];
 
-    if (
-      !filteredQuickActions.length &&
-      !filteredNavigateActions.length &&
-      !filteredQueries.length &&
-      !filteredViews.length &&
-      !filteredHelpActions.length &&
-      !searchValue
-    ) {
-      return <Spotlight.Empty>Nothing found...</Spotlight.Empty>;
-    }
+    // Only show data sources if there is a search query
+    const filteredDataSources = searchValue ? filterActions(dataSourceActions, searchValue) : [];
 
     return (
       <>
         {searchValue && (
           <>
-            <Spotlight.ActionsGroup label="Queries">
-              {filteredQueries.length > 0 ? (
-                renderActions(filteredQueries)
-              ) : (
-                <Spotlight.Action
-                  onClick={() => {
-                    onCreateQueryFile({ entities: [{ name: searchValue }] });
-                    resetSpotlight();
-                  }}
-                >
-                  <Group className="gap-2">
-                    <IconPlus size={20} className={iconClasses} />
-                    Create &quot;{searchValue}&quot; query
-                  </Group>
-                </Spotlight.Action>
-              )}
-            </Spotlight.ActionsGroup>
-
-            {filteredViews.length > 0 && (
-              <Spotlight.ActionsGroup label="Views">
-                {renderActions(filteredViews)}
-              </Spotlight.ActionsGroup>
-            )}
+            {filteredScripts.length > 0 &&
+              renderActionsGroup(filteredScripts, SCRIPT_GROUP_DISPLAY_NAME)}
+            {filteredDataSources.length > 0 &&
+              renderActionsGroup(filteredDataSources, DATA_SOURCE_GROUP_DISPLAY_NAME)}
           </>
         )}
         {filteredQuickActions.length > 0 &&
@@ -396,42 +343,50 @@ export const SpotlightMenu = () => {
     );
   };
   const renderDataSourcesView = () => {
-    const filteredActions = filterActions([...dataSourcesActions, ...viewActions], searchValue);
+    const filteredActions = filterActions(
+      [...dataSourceGroupActions, ...dataSourceActions],
+      searchValue,
+    );
+    // Can't be empty but ok...
     return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Data Sources')}</>;
   };
 
-  const renderQueriesView = () => {
-    const filteredActions = filterActions([...queriesActions, ...mappedQueries], searchValue);
+  const renderScriptsView = () => {
+    const filteredActions = filterActions([...scriptGroupActions, ...scriptActions], searchValue);
 
-    return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Queries')}</>;
+    // Can't be empty but ok...
+    return (
+      <>
+        {filteredActions.length > 0 &&
+          renderActionsGroup(filteredActions, SCRIPT_GROUP_DISPLAY_NAME)}
+      </>
+    );
   };
 
   const getCurrentView = () => {
-    if (searchValue.endsWith('?')) {
-      return renderActionsGroup(modeActions, 'Modes');
+    // Help actions only
+    if (searchValue.endsWith(SEARCH_SUFFIXES.mode)) {
+      return renderActionsGroup(searchModeActions, 'Modes');
     }
 
-    const searchTerm = searchValue.slice(1).toLowerCase();
-
-    if (searchValue.startsWith('/')) {
-      const filteredViews = viewActions.filter((view) =>
-        view.label.toLowerCase().includes(searchTerm),
-      );
-      return renderActionsGroup(filteredViews, 'Views');
+    // Data source actions only (doesn't include group actions)
+    if (searchValue.startsWith(SEARCH_PREFIXES.dataSource)) {
+      const filteredDataSources = filterActions(dataSourceActions, searchValue);
+      return renderActionsGroup(filteredDataSources, DATA_SOURCE_GROUP_DISPLAY_NAME);
     }
 
-    if (searchValue.startsWith('&')) {
-      const filteredQueries = getQueryActions().filter((query) =>
-        query.label.toLowerCase().includes(searchTerm),
-      );
-      return renderActionsGroup(filteredQueries, 'Queries');
+    // Script actions only (doesn't include group actions)
+    if (searchValue.startsWith(SEARCH_PREFIXES.script)) {
+      const filteredScripts = getFilteredScriptActions(scriptActions, searchValue, true);
+      return renderActionsGroup(filteredScripts, SCRIPT_GROUP_DISPLAY_NAME);
     }
 
+    // Full blow "view" (subpage), similar to above but with group actions
     switch (spotlightView) {
       case 'dataSources':
         return renderDataSourcesView();
-      case 'queries':
-        return renderQueriesView();
+      case 'scripts':
+        return renderScriptsView();
       default:
         return renderHomeView();
     }
@@ -450,7 +405,7 @@ export const SpotlightMenu = () => {
       return resetSpotlight();
     }
 
-    if (['queries', 'dataSources'].includes(spotlightView)) {
+    if (['scripts', 'dataSources'].includes(spotlightView)) {
       return setSpotlightView('home');
     }
   };
@@ -481,7 +436,7 @@ export const SpotlightMenu = () => {
           }}
         />
         <Spotlight.ActionsList data-testid={setDataTestId('spotlight-menu')}>
-          {spotlightView === 'home' && !searchValue.endsWith('?') && (
+          {spotlightView === 'home' && !searchValue.endsWith(SEARCH_SUFFIXES.mode) && (
             <Group gap={4} c="text-secondary" className="px-4 text-sm mb-4">
               Type{' '}
               <Text bg="background-secondary" className="p-0.5 px-2 rounded-full">

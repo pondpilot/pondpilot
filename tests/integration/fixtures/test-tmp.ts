@@ -11,11 +11,11 @@ interface TestTmp {
   join: (...paths: string[]) => string;
 }
 
-const tmpRoot = path.join('tests', 'test-tmp');
+const root = path.join('tests', 'test-tmp', 'integration');
 
-const testTmp = {
-  join: (...paths: string[]) => path.join(tmpRoot, ...paths),
-};
+const getTestTmp = (testDir: string): TestTmp => ({
+  join: (...paths: string[]) => path.join(testDir, ...paths),
+});
 
 type TestTmpFixtures = {
   testTmp: TestTmp;
@@ -23,13 +23,24 @@ type TestTmpFixtures = {
 
 export const test = base.extend<TestTmpFixtures>({
   /* eslint-disable-next-line no-empty-pattern */
-  testTmp: async ({}, use) => {
-    // Clear tmpRoot before each test
-    if (existsSync(tmpRoot)) {
-      rmSync(tmpRoot, { recursive: true });
+  testTmp: async ({}, use, testInfo) => {
+    // Before each test, clean up its directory
+    const testDir = path.join(root, `test-${testInfo.testId}`);
+    if (existsSync(testDir)) {
+      rmSync(testDir, { recursive: true });
     }
-    mkdirSync(tmpRoot, { recursive: true });
-
-    await use(testTmp);
+    mkdirSync(testDir, { recursive: true });
+    await use(getTestTmp(testDir));
   },
+});
+
+/* eslint-disable-next-line no-empty-pattern */
+test.beforeAll(async ({}, testInfo) => {
+  // Before all tests, clean up the root directory
+  if (testInfo.retry === 0) {
+    // Do not remove on retries
+    if (existsSync(root)) {
+      rmSync(root, { recursive: true });
+    }
+  }
 });

@@ -1,7 +1,8 @@
 import { expect, mergeTests } from '@playwright/test';
 import { test as baseTest } from '../fixtures/page';
 import { test as tabTest } from '../fixtures/tab';
-import { test as queryEditorTest } from '../fixtures/query-editor';
+import { test as scriptEditorTest } from '../fixtures/script-editor';
+import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 import { test as dataViewTest } from '../fixtures/data-view';
 
 type DataViewerFixtures = {
@@ -14,22 +15,23 @@ type DataViewerFixtures = {
 const test = mergeTests(
   baseTest,
   tabTest,
-  queryEditorTest,
+  scriptEditorTest,
+  scriptExplorerTest,
   dataViewTest,
 ).extend<DataViewerFixtures>({
   generateTestData: async (
-    { createQueryAndSwitchToItsTab, fillQuery, runQuery, waitForDataTable },
+    { createScriptAndSwitchToItsTab, fillScript, runScript, waitForDataTable },
     use,
   ) => {
     await use(async (rowCount: number) => {
-      await createQueryAndSwitchToItsTab();
+      await createScriptAndSwitchToItsTab();
 
       const query =
         rowCount > 0
           ? `SELECT * FROM UNNEST(GENERATE_SERIES(1, ${rowCount})) AS numbers;`
           : 'SELECT 1 WHERE FALSE;';
-      await fillQuery(query);
-      await runQuery();
+      await fillScript(query);
+      await runScript();
 
       // FIXME: as of today we do not show the data viewer for empty results...
       if (rowCount === 0) {
@@ -50,8 +52,8 @@ test.describe('Data Viewer Pagination', () => {
     // Generate a small dataset that fits on a single page (assuming 100 per page by default)
     await generateTestData(5);
 
-    // Check the pagination control is not visible
-    await expect(paginationControl).toHaveCount(0);
+    // Check the pagination control is visible and has the correct text
+    await expect(paginationControl).toHaveText('5 rows');
   });
 
   test('should show correct pagination control for larger data (multiple pages)', async ({
@@ -66,7 +68,7 @@ test.describe('Data Viewer Pagination', () => {
 
     // Verify that the pagination control shows the correct text for multi-page data
     await expect(paginationControl.getByTestId('pagination-control-out-of')).toHaveText(
-      '1-100 out of 101',
+      '1-100 out of 101+ rows',
     );
 
     // Verify that navigation buttons are shown for multi-page
@@ -78,7 +80,7 @@ test.describe('Data Viewer Pagination', () => {
 
     // Check that pagination text updated correctly for second page
     await expect(paginationControl.getByTestId('pagination-control-out-of')).toHaveText(
-      '101-101 out of 101',
+      '2-101 out of 101 rows',
     );
 
     // Click back to previous page
@@ -86,7 +88,7 @@ test.describe('Data Viewer Pagination', () => {
 
     // Check that pagination text returned to initial state
     await expect(paginationControl.getByTestId('pagination-control-out-of')).toHaveText(
-      '1-100 out of 101',
+      '1-100 out of 101 rows',
     );
   });
 
@@ -97,7 +99,7 @@ test.describe('Data Viewer Pagination', () => {
     // Generate an empty dataset
     await generateTestData(0);
 
-    // Check the pagination control is not visible
-    await expect(paginationControl).toHaveCount(0);
+    // Check the pagination control is visible and has the correct text
+    await expect(paginationControl).toHaveText('0 rows');
   });
 });

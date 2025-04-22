@@ -1,0 +1,220 @@
+import { memo, useCallback, useState } from 'react';
+import { Allotment } from 'allotment';
+import { ScriptTab, TabId } from '@models/tab';
+import { ScriptEditor } from '@features/script-editor';
+import { DataView } from '@features/tab-view/components/data-view';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
+import {
+  splitSQLByStats,
+  classifySQLStatements,
+  validateStatements,
+  SQLStatementType,
+  SelectableStatements,
+} from '@utils/editor/sql';
+import { updateScriptTabLastExecutedQuery, updateScriptTabLayout } from '@controllers/tab';
+import { ScriptExecutionState } from '@models/sql-script';
+import { showError } from '@components/app-notifications';
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { DataViewInfoPane } from './data-view-info-pane';
+import { useDataAdapter } from '../hooks/use-data-adapter';
+
+interface ScriptTabViewProps {
+  tabId: TabId;
+  active: boolean;
+}
+
+export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
+  // Get the reactive portion of tab state
+  const tab = useTabReactiveState<ScriptTab>(tabId, 'script');
+
+  // We have to use an additional increasing counter, becuase we
+  // want to force re-rendering when a new script executed successfully
+  // even if with the exact same last executed query. But out tab state
+  // accessor is clever and will not trigger in this case, because
+  // it uses shallow object comparison.
+  const [scriptVersion, setScriptVersion] = useState<number>(0);
+  const incrementScriptVersion = useCallback(() => {
+    setScriptVersion((prev) => prev + 1);
+  }, []);
+
+  // Get the data adapter
+  const dataAdapter = useDataAdapter({ tab, sourceVersion: scriptVersion });
+
+  // Neither of the following checks should be necessary as this is called
+  // from the tab view which gets the ids from the same map in the store
+  // and dispatches on the tab type. But we are being very robust here.
+
+  const [scriptExecutionState, setScriptExecutionState] = useState<ScriptExecutionState>('idle');
+
+  const pool = useInitializedDuckDBConnectionPool();
+  const protectedViews = useProtectedViews();
+
+  const runScriptQuery = useCallback(
+    async (query: string) => {
+      setScriptExecutionState('running');
+      // Parse query into statements
+      const statements = splitSQLByStats(query);
+
+      // Classify statements
+      const classifiedStatements = classifySQLStatements(statements);
+
+      // Check if the statements are valid
+      const errors = validateStatements(classifiedStatements, protectedViews);
+      if (errors.length > 0) {
+        console.error('Errors in SQL statements:', errors);
+        setScriptExecutionState('error');
+        showError({
+          title: 'Error in SQL statements',
+          message: errors.join('\n'),
+        });
+        return;
+      }
+
+      // Query to be used in data adapter and saved to the store
+      let lastExecutedQuery: string | null = null;
+
+      // Create a pooled connection
+      const conn = await pool.getPooledConnection();
+
+      try {
+        // No need transaction if there is only one statement
+        const needsTransaction =
+          classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
+
+        if (needsTransaction) {
+          await conn.query('BEGIN TRANSACTION');
+        }
+
+        // Execute each statement except the last one
+        const statsExceptLast = classifiedStatements.slice(0, -1);
+        for (const statement of statsExceptLast) {
+          try {
+            await conn.query(statement.code);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (needsTransaction) {
+              await conn.query('ROLLBACK');
+            }
+            console.error('Error executing statement:', statement.type, error);
+            setScriptExecutionState('error');
+            showError({
+              title: 'Error executing SQL statement',
+              message: `Error in ${statement.type} statement: ${message}`,
+            });
+            return;
+          }
+        }
+
+        const lastStatement = classifiedStatements[classifiedStatements.length - 1];
+        if (SelectableStatements.includes(lastStatement.type)) {
+          // Validate last SELECT statement via prepare
+          try {
+            const preparedStatement = await conn.prepare(lastStatement.code);
+            await preparedStatement.close();
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+
+            if (needsTransaction) {
+              await conn.query('ROLLBACK');
+            }
+            console.error(
+              'Creation of a prepared statement for the last SELECT statement failed:',
+              error,
+            );
+            setScriptExecutionState('error');
+            showError({
+              title: 'Error executing SQL statement',
+              message: `Error in ${lastStatement.type} statement: ${message}`,
+            });
+            return;
+          }
+          lastExecutedQuery = lastStatement.code;
+        } else {
+          // The last statement is not a SELECT statement
+          // Execute it immediately
+          try {
+            await conn.query(lastStatement.code);
+          } catch (error) {
+            if (needsTransaction) {
+              await conn.query('ROLLBACK');
+            }
+            console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
+            setScriptExecutionState('error');
+            showError({
+              title: 'Error executing SQL statement',
+              message: `Error in ${lastStatement.type} statement: ${error}`,
+            });
+            return;
+          }
+          lastExecutedQuery = "SELECT 'All statements executed successfully' as Result";
+        }
+
+        // All statements executed successfully
+        if (needsTransaction) {
+          await conn.query('COMMIT');
+        }
+
+        const hasDDL = classifiedStatements.some((s) => s.sqlType === SQLStatementType.DDL);
+        if (hasDDL) {
+          // Read the metadata for the newly created views
+          const newViewsMetadata = await getDatabaseModel(pool, ['memory'], ['main']);
+          // Update views metadata state
+          const { dataBaseMetadata } = useAppStore.getState();
+          const newDataBaseMetadata =
+            newViewsMetadata.size > 0
+              ? new Map([...dataBaseMetadata, ...newViewsMetadata])
+              : new Map(Array.from(dataBaseMetadata).filter(([dbName, _]) => dbName !== 'memory'));
+
+          // Update the store with the new state
+          useAppStore.setState(
+            {
+              dataBaseMetadata: newDataBaseMetadata,
+            },
+            undefined,
+            'AppStore/runScript',
+          );
+        }
+      } finally {
+        // Release the pooled connection
+        await conn.close();
+      }
+
+      setScriptExecutionState('success');
+      incrementScriptVersion();
+
+      // As of today, even if the same statement is executed, we will
+      // update the state and trigger re-render.
+      updateScriptTabLastExecutedQuery({ tabId, lastExecutedQuery, force: true });
+    },
+    [pool, protectedViews],
+  );
+
+  const setPanelSize = ([editor, table]: number[]) => {
+    updateScriptTabLayout(tab.id, [editor, table]);
+  };
+
+  return (
+    <div className="h-full relative">
+      <Allotment
+        vertical
+        onDragEnd={setPanelSize}
+        defaultSizes={[tab.editorPaneHeight, tab.dataViewPaneHeight]}
+      >
+        <Allotment.Pane preferredSize={tab.editorPaneHeight} minSize={200}>
+          <ScriptEditor
+            id={tab.sqlScriptId}
+            active={active}
+            runScriptQuery={runScriptQuery}
+            scriptState={scriptExecutionState}
+          />
+        </Allotment.Pane>
+
+        <Allotment.Pane preferredSize={tab.dataViewPaneHeight} minSize={120}>
+          <DataViewInfoPane dataAdapter={dataAdapter} tabType={tab.type} />
+          <DataView active={active} dataAdapter={dataAdapter} tabId={tab.id} tabType={tab.type} />
+        </Allotment.Pane>
+      </Allotment>
+    </div>
+  );
+});

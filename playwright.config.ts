@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  testDir: './tests',
+  testDir: './tests/integration',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -22,11 +22,11 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    // browser-unsupported
+    // tests that use non-chromium browsers
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
-      testDir: './tests/integration/browser-unsupported',
+      testDir: './tests/integration/webkit',
     },
   ],
   /* Configure the web server for tests */
@@ -35,6 +35,10 @@ export default defineConfig({
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000, // 2 minutes
+  },
+  use: {
+    /* Base URL to use in actions like `await page.goto('/')`. */
+    baseURL: 'http://localhost:5173',
   },
   /* Set the timeout for each test */
   timeout: Number(process.env.PLAYWRIGHT_TIMEOUT ?? 30_000),

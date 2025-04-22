@@ -6,11 +6,14 @@
 import { EditorView, ViewPlugin, Decoration, DecorationSet, ViewUpdate } from '@codemirror/view';
 import { Range } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 const underlineMark = Decoration.mark({ class: 'cm-table-name' });
 
 export default function createSQLTableNameHighlightPlugin(tableNameList: string[]) {
-  const tableNameSet = new Set(tableNameList.map((table) => table.toLowerCase()));
+  const tableNameSet = new Set(
+    tableNameList.map((table) => toDuckDBIdentifier(table).toLowerCase()),
+  );
 
   function highlightTableName(view: EditorView) {
     const decorationList: Range<Decoration>[] = [];

@@ -1,1 +1,1 @@
-export * from './useAppNotifications';
+export * from './app-notifications';

@@ -1,93 +1,49 @@
-import { useReactTable, getCoreRowModel, Table as TableType, Cell } from '@tanstack/react-table';
-import { cn } from '@utils/ui/styles';
-import { memo, useMemo } from 'react';
-import { SortModel } from '@store/pagination-store';
-import { useClipboard, useDidUpdate, useHotkeys } from '@mantine/hooks';
-import { replaceSpecialChars } from '@utils/helpers';
-import { useAppNotifications } from '@components/app-notifications';
-import { CalculateColumnSummaryProps } from '@features/data-viewer/hooks';
-import { ResultColumn } from '@utils/arrow/helpers';
+import { useReactTable, getCoreRowModel } from '@tanstack/react-table';
+import { memo, useMemo, useRef } from 'react';
+import { useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { setDataTestId } from '@utils/test-id';
-import { TableCell, TableHeadCell } from './components';
-import { useTableColumns, useTableSelection } from './hooks';
+
+import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema } from '@models/db';
+import { Text } from '@mantine/core';
+import { copyToClipboard } from '@utils/clipboard';
+import { DataTableSlice } from '@models/data-adapter';
+import { ColumnMeta } from '@components/table/model';
+import { useNoResultsPosition, useTableSelection } from './hooks';
+import { MemoizedTableBody, TableBody } from './components/table-body';
+import { TableHeadCell } from './components/thead-cell';
+import { getTableColumns } from './utils';
 
 interface TableProps {
-  data: Record<string, any>[];
-  columns: ResultColumn[];
+  dataSlice: DataTableSlice;
+  schema: DBTableOrViewSchema;
+  sort: ColumnSortSpecList;
+  visible: boolean;
+  initialColumnSizes?: Record<string, number>;
+  // Undefined means sorting is blocked
   onSort?: (columnId: string) => void;
-  onSelectedColsCopy: (cols: Record<string, boolean>) => void;
+  // Undefined means copying is blocked
+  onSelectedColsCopy?: (cols: DBTableOrViewSchema) => void;
   onRowSelectChange: () => void;
   onCellSelectChange: () => void;
-  onColumnSelectChange: ({ columnName, dataType }: CalculateColumnSummaryProps) => void;
-  sort: SortModel;
+  onColumnSelectChange: (column: DBColumn | null) => void;
+  onColumnResizeChange?: (columnSizes: Record<string, number>) => void;
 }
-
-const fallbackData = [] as any[];
-
-const TableBody = ({
-  table,
-  selectedCellId,
-  onCellSelect,
-  selectedCols,
-}: {
-  table: TableType<any>;
-  selectedCellId: string | null;
-  onCellSelect: (cell: Cell<any, any>) => void;
-  selectedCols: Record<string, boolean>;
-}) => (
-  <div>
-    {table.getRowModel().rows.map((row, rowIndex) => {
-      const oddRow = rowIndex % 2 !== 0;
-      const isSelected = row.getIsSelected();
-
-      const lastRow = rowIndex === table.getRowModel().rows.length - 1;
-      return (
-        <div
-          key={row.id}
-          className={cn(
-            'flex border-borderLight-light dark:border-borderLight-dark  border-b',
-            oddRow && 'bg-transparent004-light dark:bg-transparent004-dark',
-            lastRow && 'rounded-bl-xl rounded-br-xl border-b',
-            isSelected &&
-              'bg-transparentBrandBlue-012 dark:bg-darkModeTransparentBrandBlue-032   outline outline-borderAccent-light outline-offset-[-1px]',
-          )}
-        >
-          {row.getVisibleCells().map((cell, index) => (
-            <TableCell
-              key={cell.id}
-              cell={cell}
-              isFirstCell={index === 0}
-              isLastCell={index === row.getVisibleCells().length - 1}
-              isLastRow={lastRow}
-              isCellSelected={selectedCellId === cell.id}
-              isColumnSelected={selectedCols[cell.column.id]}
-              onSelect={onCellSelect}
-            />
-          ))}
-        </div>
-      );
-    })}
-  </div>
-);
-
-const MemoizedTableBody = memo(
-  TableBody,
-  (prev, next) => prev.table.options.data === next.table.options.data,
-) as typeof TableBody;
 
 export const Table = memo(
   ({
-    data,
-    columns,
-    onSort,
+    dataSlice,
+    schema,
     sort,
+    visible,
+    initialColumnSizes,
+    onSort,
     onSelectedColsCopy,
     onColumnSelectChange,
     onCellSelectChange,
     onRowSelectChange,
+    onColumnResizeChange,
   }: TableProps) => {
-    const { showSuccess } = useAppNotifications();
-    const clipboard = useClipboard();
+    const hasRows = dataSlice.data.length > 0;
 
     const {
       handleCellSelect,
@@ -100,59 +56,85 @@ export const Table = memo(
       handleHeadCellClick,
     } = useTableSelection({
       onColumnSelectChange,
-      columns,
+      schema,
       onRowSelectChange,
       onCellSelectChange,
     });
 
-    const tableColumns = useTableColumns({ columns, onRowSelectionChange });
+    const { containerRef, position } = useNoResultsPosition({
+      hasRows,
+      schema,
+    });
+
+    // We want non-reactive column sizes, that we initialize from the prop
+    // and update as the table resizes (without tiggering re-renders).
+    // This allows us to set the default column sizes in `getTableColumns`
+    // whenever the schema is changed and otherwise keep column defs memoized.
+    const columnSizesRef = useRef<Record<string, number>>(initialColumnSizes);
+
+    const tableColumns = useMemo(() => {
+      return getTableColumns({
+        schema,
+        initialColumnSizes: columnSizesRef.current,
+        onRowSelectionChange,
+      });
+      // Note that `columnSizesRef.current` is not a dependency here intentionally!
+      // See the reasoning above.
+    }, [schema, onRowSelectionChange]);
 
     const table = useReactTable({
-      data: data || fallbackData,
+      data: dataSlice.data,
+      meta: { rowOffset: dataSlice.rowOffset },
       columns: tableColumns,
       columnResizeMode: 'onEnd',
       getCoreRowModel: getCoreRowModel(),
-      state: {
-        rowSelection: selectedRows,
-      },
+      state: { rowSelection: selectedRows },
     });
 
     const columnSizeVars = useMemo(() => {
       const headers = table.getFlatHeaders();
       const colSizes: { [key: string]: number } = {};
+      const colSizeVars: { [key: string]: number } = {};
       for (let i = 0; i < headers.length; i += 1) {
         const header = headers[i]!;
 
-        const headerName = replaceSpecialChars(header.id);
-        const colName = replaceSpecialChars(header.column.id);
-
-        colSizes[`--header-${headerName}-size`] = header.getSize();
-        colSizes[`--col-${colName}-size`] = header.column.getSize();
+        // column id's are sanitized column names. Header ids are raw column names
+        colSizeVars[`--header-${header.column.id}-size`] = header.getSize();
+        colSizeVars[`--col-${header.column.id}-size`] = header.column.getSize();
+        colSizes[header.id] = header.getSize();
       }
-      return colSizes;
-    }, [table.getState().columnSizingInfo, table.getState().columnSizing, data]);
+
+      onColumnResizeChange?.(colSizes);
+      columnSizesRef.current = colSizes;
+      return colSizeVars;
+    }, [
+      schema,
+      onColumnResizeChange,
+      table.getState().columnSizingInfo,
+      table.getState().columnSizing,
+    ]);
 
     useDidUpdate(() => {
       clearSelection();
-    }, [data]);
+    }, [JSON.stringify(schema)]);
 
     useHotkeys([
       [
         'mod+C',
         () => {
+          if (!visible) return;
           if (selectedCell.value) {
-            clipboard.copy(selectedCell.value);
-            showSuccess({
-              title: 'Copied to clipboard',
-              message: '',
-              autoClose: 800,
+            copyToClipboard(selectedCell.value, {
+              showNotification: true,
+              notificationTitle: 'Selected cell copied to clipboard',
             });
           }
           if (Object.keys(selectedRows).length) {
             handleCopySelectedRows(table);
           }
-          if (Object.keys(selectedCols).length) {
-            onSelectedColsCopy(selectedCols);
+          if (Object.keys(selectedCols).length && onSelectedColsCopy) {
+            const columns = schema.filter((col) => selectedCols[col.name]);
+            onSelectedColsCopy(columns);
           }
         },
       ],
@@ -165,8 +147,9 @@ export const Table = memo(
           ...columnSizeVars,
           width: table.getTotalSize(),
         }}
-        className="relative w-fit rounded-xl"
+        className="w-fit rounded-xl"
         data-testid={setDataTestId('data-table')}
+        ref={containerRef}
       >
         {/* Header */}
         <div className="sticky top-0 z-10 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark">
@@ -176,6 +159,7 @@ export const Table = memo(
                 {headerGroup.headers.map((header, index) => {
                   const { deltaOffset } = table.getState().columnSizingInfo;
                   const resizingColumnId = table.getState().columnSizingInfo.isResizingColumn;
+                  const { name: columnName } = header.column.columnDef.meta as ColumnMeta;
 
                   return (
                     <TableHeadCell
@@ -183,7 +167,7 @@ export const Table = memo(
                       header={header}
                       index={index}
                       totalHeaders={headerGroup.headers.length}
-                      sort={sort}
+                      sort={sort.find((s) => s.column === columnName)}
                       table={table}
                       onSort={onSort}
                       resizingColumnId={resizingColumnId}
@@ -198,6 +182,19 @@ export const Table = memo(
           </div>
         </div>
         {/* Body */}
+        {!hasRows && (
+          <div className="w-full h-10 flex justify-start items-center text-textSecondary-light dark:text-textSecondary-dark border-b border-x border-borderLight-light dark:border-borderLight-dark rounded-b-xl relative">
+            <div
+              style={{
+                position: 'absolute',
+                left: position.left,
+                transform: 'translateX(-50%)',
+              }}
+            >
+              <Text c="text-secondary">No results</Text>
+            </div>
+          </div>
+        )}
         {table.getState().columnSizingInfo.isResizingColumn ? (
           <MemoizedTableBody
             table={table}
