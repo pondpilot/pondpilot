@@ -48,7 +48,13 @@ export const addLocalFileOrFolders = async (
   newDataSources: [PersistentDataSourceId, AnyDataSource][];
   errors: string[];
 }> => {
-  const { _iDbConn: iDbConn, localEntries, dataSources, dataBaseMetadata } = useAppStore.getState();
+  const {
+    _iDbConn: iDbConn,
+    localEntries,
+    registeredFiles,
+    dataSources,
+    dataBaseMetadata,
+  } = useAppStore.getState();
 
   const usedEntryNames = new Set(localEntries.values().map((entry) => entry.uniqueAlias));
 
@@ -64,6 +70,7 @@ export const addLocalFileOrFolders = async (
   const skippedUnsupportedFiles: string[] = [];
   const skippedEmptyFolders: LocalFolder[] = [];
   const newEntries: [LocalEntryId, LocalEntry][] = [];
+  const newRegisteredFiles: [LocalEntryId, File][] = [];
   const newDataSources: [PersistentDataSourceId, AnyDataSource][] = [];
 
   const addFile = async (file: DataSourceLocalFile) => {
@@ -78,13 +85,14 @@ export const addLocalFileOrFolders = async (
         newDatabaseNames.push(dbSource.dbName);
 
         // TODO: currently we assume this works, add proper error handling
-        await registerAndAttachDatabase(
+        const regFile = await registerAndAttachDatabase(
           conn,
           file.handle,
           `${file.uniqueAlias}.${file.ext}`,
           dbSource.dbName,
         );
 
+        newRegisteredFiles.push([file.id, regFile]);
         newDataSources.push([dbSource.id, dbSource]);
 
         break;
@@ -101,7 +109,8 @@ export const addLocalFileOrFolders = async (
 
         // Register the file once
         const fileName = `${file.uniqueAlias}.${file.ext}`;
-        await registerFileHandle(conn, file.handle, fileName);
+        const regFile = await registerFileHandle(conn, file.handle, fileName);
+        newRegisteredFiles.push([file.id, regFile]);
 
         // For each sheet, create a data source and view
         for (const sheetName of sheetNames) {
@@ -128,7 +137,7 @@ export const addLocalFileOrFolders = async (
 
         // Then register the file source and create the view.
         // TODO: this may potentially fail - we should handle this case
-        await registerFileSourceAndCreateView(
+        const regFile = await registerFileSourceAndCreateView(
           conn,
           file.handle,
           file.ext,
@@ -136,6 +145,7 @@ export const addLocalFileOrFolders = async (
           dataSource.viewName,
         );
 
+        newRegisteredFiles.push([file.id, regFile]);
         newDataSources.push([dataSource.id, dataSource]);
         break;
       }
@@ -220,10 +230,12 @@ export const addLocalFileOrFolders = async (
   // Create an object to pass to store update
   const newState: {
     localEntries: Map<LocalEntryId, LocalEntry>;
+    registeredFiles: Map<LocalEntryId, File>;
     dataSources?: Map<PersistentDataSourceId, AnyDataSource>;
     dataBaseMetadata?: Map<string, DataBaseModel>;
   } = {
     localEntries: new Map(Array.from(localEntries).concat(newEntries)),
+    registeredFiles: new Map(Array.from(registeredFiles).concat(newRegisteredFiles)),
   };
 
   if (newDataSources.length > 0) {
@@ -417,5 +429,90 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
   // Delete folder entries from IDB
   if (iDbConn) {
     persistDeleteLocalEntry(iDbConn, folderIdsToDelete);
+  }
+};
+
+type FileReadabilityStatus = 'readable' | 'notFound' | 'notReadable';
+
+const checkFileReadability = async (
+  file: File | FileSystemFileHandle,
+): Promise<FileReadabilityStatus> => {
+  try {
+    const f = file instanceof File ? file : await file.getFile();
+    // Cheapest and shortest way to check if the file is readable is to slice the first byte
+    await f.slice(0, 1).arrayBuffer();
+    return 'readable';
+  } catch (error: any) {
+    if (error.name === 'NotFoundError') {
+      return 'notFound';
+    }
+    if (error.name === 'NotReadableError') {
+      return 'notReadable';
+    }
+  }
+  return 'notReadable';
+};
+
+export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
+  const { localEntries, registeredFiles } = useAppStore.getState();
+
+  const localFiles = Array.from(localEntries.values()).filter(
+    (entry) => entry.kind === 'file' && entry.fileType === 'data-source',
+  );
+  const newRegisteredFiles = new Map<LocalEntryId, File>();
+  const localFileToDelete: DataSourceLocalFile[] = [];
+
+  for await (const source of localFiles) {
+    const snapshotFile = registeredFiles.get(source.id);
+    const checkSnapshotFile = snapshotFile ? await checkFileReadability(snapshotFile) : undefined;
+
+    if (checkSnapshotFile === 'readable') return;
+    const checkCurrentFile = await checkFileReadability(source.handle);
+
+    if (checkCurrentFile === 'readable') {
+      // File content was changed
+      // Try to register it again
+      try {
+        const regFile = await registerFileHandle(
+          conn,
+          source.handle,
+          `${source.uniqueAlias}.${source.ext}`,
+        );
+        newRegisteredFiles.set(source.id, regFile);
+      } catch (e) {
+        console.error(`Failed to register file handle ${source.handle.name}:`, e);
+        localFileToDelete.push(source);
+      }
+    } else {
+      // File was deleted/moved or read permission was revoked
+      localFileToDelete.push(source);
+    }
+  }
+
+  // Update state
+  useAppStore.setState(
+    {
+      registeredFiles: new Map([...registeredFiles, ...newRegisteredFiles]),
+    },
+    undefined,
+    'AppStore/syncFiles',
+  );
+
+  // Delete data sources related to deleted local file entries
+  if (localFileToDelete.length > 0) {
+    // Get Data Sources to delete
+    const localFileIdsToDelete = new Set(localFileToDelete.map((file) => file.id));
+    const { dataSources } = useAppStore.getState();
+    const dataSourceIdsToDelete = new Set<PersistentDataSourceId>();
+    for (const [dataSourceId, dataSource] of dataSources) {
+      if (localFileIdsToDelete.has(dataSource.fileSourceId)) {
+        dataSourceIdsToDelete.add(dataSourceId);
+      }
+    }
+
+    // Delete data sources
+    if (dataSourceIdsToDelete.size > 0) {
+      deleteDataSources(conn, Array.from(dataSourceIdsToDelete));
+    }
   }
 };
