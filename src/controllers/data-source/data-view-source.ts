@@ -56,6 +56,7 @@ export const deleteDataSources = async (
     activeTabId,
     previewTabId,
     localEntries,
+    registeredFiles,
     _iDbConn: iDbConn,
   } = useAppStore.getState();
 
@@ -116,12 +117,16 @@ export const deleteDataSources = async (
   const newLocalEntires = new Map(
     Array.from(localEntries).filter(([id, _]) => !entryIdsToDelete.has(id)),
   );
+  const newRegisteredFiles = new Map(
+    Array.from(registeredFiles).filter(([id, _]) => !entryIdsToDelete.has(id)),
+  );
 
   // Update the store with the new state
   useAppStore.setState(
     {
       dataSources: newDataSources,
       localEntries: newLocalEntires,
+      registeredFiles: newRegisteredFiles,
       tabs: newTabs,
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,

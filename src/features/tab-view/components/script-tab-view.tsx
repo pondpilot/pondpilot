@@ -16,6 +16,8 @@ import { updateScriptTabLastExecutedQuery, updateScriptTabLayout } from '@contro
 import { ScriptExecutionState } from '@models/sql-script';
 import { showError } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { syncFiles } from '@controllers/file-system';
+import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { DataViewInfoPane } from './data-view-info-pane';
 import { useDataAdapter } from '../hooks/use-data-adapter';
 
@@ -77,6 +79,33 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // Create a pooled connection
       const conn = await pool.getPooledConnection();
 
+      const runQueryWithFileSyncAndRetry = async (code: string) => {
+        try {
+          await conn.query(code);
+        } catch (error: any) {
+          if (error.message?.includes('NotReadableError')) {
+            await syncFiles(pool);
+            await conn.query(code);
+          } else {
+            throw error;
+          }
+        }
+      };
+
+      const prepQueryWithFileSyncAndRetry = async (
+        code: string,
+      ): Promise<AsyncDuckDBPooledPreparedStatement<any>> => {
+        try {
+          return await conn.prepare(code);
+        } catch (error: any) {
+          if (error.message?.includes('NotReadableError')) {
+            await syncFiles(pool);
+            return conn.prepare(code);
+          }
+          throw error;
+        }
+      };
+
       try {
         // No need transaction if there is only one statement
         const needsTransaction =
@@ -90,7 +119,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         const statsExceptLast = classifiedStatements.slice(0, -1);
         for (const statement of statsExceptLast) {
           try {
-            await conn.query(statement.code);
+            await runQueryWithFileSyncAndRetry(statement.code);
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (needsTransaction) {
@@ -110,7 +139,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         if (SelectableStatements.includes(lastStatement.type)) {
           // Validate last SELECT statement via prepare
           try {
-            const preparedStatement = await conn.prepare(lastStatement.code);
+            const preparedStatement = await prepQueryWithFileSyncAndRetry(lastStatement.code);
             await preparedStatement.close();
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -134,7 +163,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           // The last statement is not a SELECT statement
           // Execute it immediately
           try {
-            await conn.query(lastStatement.code);
+            await runQueryWithFileSyncAndRetry(lastStatement.code);
           } catch (error) {
             if (needsTransaction) {
               await conn.query('ROLLBACK');

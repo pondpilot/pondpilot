@@ -25,7 +25,7 @@ export async function registerFileSourceAndCreateView(
   fileExt: supportedFlatFileDataSourceFileExt,
   fileName: string,
   viewName: string,
-) {
+): Promise<File> {
   const file = await handle.getFile();
   const db = conn.bindings;
 
@@ -47,12 +47,13 @@ export async function registerFileSourceAndCreateView(
     await conn.query(
       `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false);`,
     );
-    return;
+    return file;
   }
 
   await conn.query(
     `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
   );
+  return file;
 }
 
 /**
@@ -106,7 +107,7 @@ export async function registerAndAttachDatabase(
   handle: FileSystemFileHandle,
   fileName: string,
   dbName: string,
-) {
+): Promise<File> {
   const file = await handle.getFile();
   const db = conn.bindings;
 
@@ -131,6 +132,8 @@ export async function registerAndAttachDatabase(
   await conn.query(
     `ATTACH ${quote(fileName, { single: true })} as ${toDuckDBIdentifier(dbName)} (READ_ONLY);`,
   );
+
+  return file;
 }
 
 /**

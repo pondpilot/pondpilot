@@ -458,6 +458,9 @@ export const restoreAppDataFromIDB = async (
   const missingDataSources: Map<PersistentDataSourceId, AnyDataSource> = new Map();
   const validDataSources = new Set<PersistentDataSourceId>();
 
+  // For data source files collect all registered files
+  const registeredFiles = new Map<LocalEntryId, File>();
+
   // Re-create data views and attached db's in duckDB
   const registerPromises = Array.from(localEntriesMap.values()).map(async (localEntry) => {
     if (localEntry.kind !== 'file' || localEntry.fileType !== 'data-source') {
@@ -481,12 +484,13 @@ export const restoreAppDataFromIDB = async (
 
           validDataSources.add(dataSource.id);
 
-          await registerAndAttachDatabase(
+          const regFile = await registerAndAttachDatabase(
             conn,
             localEntry.handle,
             `${localEntry.uniqueAlias}.${localEntry.ext}`,
             dataSource.dbName,
           );
+          registeredFiles.set(localEntry.id, regFile);
           break;
         }
         case 'xlsx': {
@@ -508,7 +512,8 @@ export const restoreAppDataFromIDB = async (
           const fileName = `${localEntry.uniqueAlias}.${localEntry.ext}`;
 
           // Register file handle - this may throw NotFoundError if the file no longer exists
-          await registerFileHandle(conn, localEntry.handle, fileName);
+          const regFile = await registerFileHandle(conn, localEntry.handle, fileName);
+          registeredFiles.set(localEntry.id, regFile);
 
           // Find all data sources associated with this file
           const associatedDataSources = Array.from(dataSources.values()).filter(
@@ -563,13 +568,14 @@ export const restoreAppDataFromIDB = async (
 
           // Then register the file source and create the view.
           // TODO: this may potentially fail - we should handle this case
-          await registerFileSourceAndCreateView(
+          const regFile = await registerFileSourceAndCreateView(
             conn,
             localEntry.handle,
             localEntry.ext,
             `${localEntry.uniqueAlias}.${localEntry.ext}`,
             dataSource.viewName,
           );
+          registeredFiles.set(localEntry.id, regFile);
           break;
         }
       }
@@ -646,6 +652,7 @@ export const restoreAppDataFromIDB = async (
       dataBaseMetadata,
       dataSources,
       localEntries: localEntriesMap,
+      registeredFiles,
       previewTabId,
       sqlScripts,
       tabOrder,

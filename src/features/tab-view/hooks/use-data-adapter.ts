@@ -16,6 +16,8 @@ import { convertArrowTable, getArrowTableSchema } from '@utils/arrow';
 import { isTheSameSortSpec, toggleMultiColumnSort } from '@utils/db';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PoolTimeoutError } from '@features/duckdb-context/timeout-error';
+import { syncFiles } from '@controllers/file-system';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { useDataAdapterQueries } from './use-data-adapter-queries';
 
 // Data adapter is a logic layer between abstract batch streaming data source
@@ -34,6 +36,8 @@ type UseDataAdapterProps = {
 };
 
 export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): DataAdapterApi => {
+  const pool = useInitializedDuckDBConnectionPool();
+
   /**
    * Hooks
    */
@@ -328,120 +332,147 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    *
    * Only one of this can be running at a time (or othersise we have a bug).
    * See `fetchData` for the multi-call compatibile interface.
+   *
+   * @param options Options for the fetch. Used for internal retries, do not pass
+   *              anything from outer calls.
    */
-  const fetchDataSingleEntry = useCallback(async () => {
-    if (mainDataReaderRef.current === null) {
-      throw new Error('Main data reader is null while fetching data');
-    }
-
-    if (mainDataReaderRef.current.closed) {
-      throw new Error('Main data reader is closed while fetching data');
-    }
-
-    // Get the abort signal so all of this can be cancelled
-    const abortSignal = getDataFetchAbortSignal();
-
-    let readAll = false;
-    let inferredSchema: DBTableOrViewSchema | null = null;
-
-    // Set actual data schema on first read
-    let updateSchemaFromInferred = actualData.current.length === 0;
-
-    try {
-      // Stop fetching when the reader is done or fetch is cancelled
-      while (
-        !readAll &&
-        !mainDataReaderRef.current.closed &&
-        !abortSignal.aborted &&
-        // If we read enough data, we can stop
-        (fetchTo.current === null || actualData.current.length < fetchTo.current)
-      ) {
-        // Run an abortable read
-        const { done, value } = await Promise.race([
-          mainDataReaderRef.current.next(),
-          new Promise<never>((_, reject) => {
-            abortSignal.addEventListener('abort', () => {
-              reject(
-                new DOMException(
-                  'Operation cancelled as it was replaced by a newer copy/export request',
-                  'Cancelled',
-                ),
-              );
-            });
-          }),
-        ]);
-
-        if (done) {
-          readAll = true;
-          break;
-        }
-
-        const newTableData = convertArrowTable(value);
-
-        actualData.current.push(...newTableData);
-
-        // Infer schema once on first non empty batch
-        if (!inferredSchema) {
-          inferredSchema = getArrowTableSchema(value);
-        }
-
-        // Seet schema it this is the first read
-        // We do it here in the loop together with moving the data version
-        // and unsetting stale data instead of outside, to allow
-        // immediately showing the data to the user, even if we need
-        // to continue reading more data.
-        if (updateSchemaFromInferred) {
-          setActualDataSchema(inferredSchema);
-
-          updateSchemaFromInferred = false;
-        }
-
-        // We have read at least something, reset the stale data
-        setStaleData(null);
-        // Update loaded row count
-        setAvailableRowCount(actualData.current.length);
-        // And ping downstream components that data has changed
-        setDataVersion((prev) => prev + 1);
+  const fetchDataSingleEntry = useCallback(
+    async (options = { retry_with_file_sync: true }) => {
+      if (mainDataReaderRef.current === null) {
+        throw new Error('Main data reader is null while fetching data');
       }
-    } catch (error) {
-      if (!abortSignal.aborted) {
-        // Fetch was not cancelled we got an actual error
-        console.error('Failed to read data from the data source:', error);
-        setAppendDataSourceReadError(
-          'Failed to read data from the data source. See console for technical details.',
-        );
+
+      if (mainDataReaderRef.current.closed) {
+        throw new Error('Main data reader is closed while fetching data');
       }
-    }
 
-    // And do final updates after the end of the fetch loop or abort
-    const availableRowCount = actualData.current.length;
+      // Get the abort signal so all of this can be cancelled
+      const abortSignal = getDataFetchAbortSignal();
 
-    const newCachedStaleDataUpdate: Partial<StaleData> = {
-      data: actualData.current.slice(-MAX_PERSISTED_STALE_DATA_ROWS),
-      rowOffset: Math.max(0, actualData.current.length - MAX_PERSISTED_STALE_DATA_ROWS),
-    };
+      let readAll = false;
+      let inferredSchema: DBTableOrViewSchema | null = null;
+      let afterRetry = false;
 
-    if (inferredSchema) {
-      // We have a schema, so we can set it in the cache
-      newCachedStaleDataUpdate.schema = inferredSchema;
-    }
+      // Set actual data schema on first read
+      let updateSchemaFromInferred = actualData.current.length === 0;
 
-    if (readAll) {
-      // Now we know that we have read all the data
-      setDataSourceExhausted(true);
-      // Set the real row count
-      setRealRowCount(availableRowCount);
+      try {
+        // Stop fetching when the reader is done or fetch is cancelled
+        while (
+          !readAll &&
+          !mainDataReaderRef.current.closed &&
+          !abortSignal.aborted &&
+          // If we read enough data, we can stop
+          (fetchTo.current === null || actualData.current.length < fetchTo.current)
+        ) {
+          // Run an abortable read
+          const { done, value } = await Promise.race([
+            mainDataReaderRef.current.next(),
+            new Promise<never>((_, reject) => {
+              abortSignal.addEventListener('abort', () => {
+                reject(
+                  new DOMException(
+                    'Operation cancelled as it was replaced by a newer copy/export request',
+                    'Cancelled',
+                  ),
+                );
+              });
+            }),
+          ]);
 
-      // Also add info to the cache update object
-      newCachedStaleDataUpdate.realRowCount = availableRowCount;
-      newCachedStaleDataUpdate.estimatedRowCount = null;
-    }
+          if (done) {
+            readAll = true;
+            break;
+          }
 
-    updateTabDataViewStaleDataCache(tab.id, {
-      staleData: newCachedStaleDataUpdate,
-      sort,
-    });
-  }, [sort, getDataFetchAbortSignal]);
+          const newTableData = convertArrowTable(value);
+
+          actualData.current.push(...newTableData);
+
+          // Infer schema once on first non empty batch
+          if (!inferredSchema) {
+            inferredSchema = getArrowTableSchema(value);
+          }
+
+          // Seet schema it this is the first read
+          // We do it here in the loop together with moving the data version
+          // and unsetting stale data instead of outside, to allow
+          // immediately showing the data to the user, even if we need
+          // to continue reading more data.
+          if (updateSchemaFromInferred) {
+            setActualDataSchema(inferredSchema);
+
+            updateSchemaFromInferred = false;
+          }
+
+          // We have read at least something, reset the stale data
+          setStaleData(null);
+          // Update loaded row count
+          setAvailableRowCount(actualData.current.length);
+          // And ping downstream components that data has changed
+          setDataVersion((prev) => prev + 1);
+        }
+      } catch (error: any) {
+        if (error.message?.includes('NotReadableError')) {
+          if (options.retry_with_file_sync) {
+            await syncFiles(pool);
+            await fetchDataSingleEntry({ retry_with_file_sync: false });
+            afterRetry = true;
+          } else {
+            // We got an unrecoverable actual error
+            console.error('Data source have been moved or deleted:', error);
+            setAppendDataSourceReadError('Data source have been moved or deleted.');
+          }
+        }
+        if (!abortSignal.aborted) {
+          // Fetch was not cancelled we got an actual error
+          if (error.message?.includes('NotFoundError')) {
+            console.error('Data source have been moved or deleted:', error);
+            setAppendDataSourceReadError('Data source have been moved or deleted.');
+          } else {
+            console.error('Failed to read data from the data source:', error);
+            setAppendDataSourceReadError(
+              'Failed to read data from the data source. See console for technical details.',
+            );
+          }
+        }
+      }
+
+      // If we reach here after we did a nested invocation for retry,
+      // do not do post-actions as they should have been done in the inner invocation.
+      if (!afterRetry) {
+        // And do final updates after the end of the fetch loop or abort
+        const availableRowCount = actualData.current.length;
+
+        const newCachedStaleDataUpdate: Partial<StaleData> = {
+          data: actualData.current.slice(-MAX_PERSISTED_STALE_DATA_ROWS),
+          rowOffset: Math.max(0, actualData.current.length - MAX_PERSISTED_STALE_DATA_ROWS),
+        };
+
+        if (inferredSchema) {
+          // We have a schema, so we can set it in the cache
+          newCachedStaleDataUpdate.schema = inferredSchema;
+        }
+
+        if (readAll) {
+          // Now we know that we have read all the data
+          setDataSourceExhausted(true);
+          // Set the real row count
+          setRealRowCount(availableRowCount);
+
+          // Also add info to the cache update object
+          newCachedStaleDataUpdate.realRowCount = availableRowCount;
+          newCachedStaleDataUpdate.estimatedRowCount = null;
+        }
+
+        updateTabDataViewStaleDataCache(tab.id, {
+          staleData: newCachedStaleDataUpdate,
+          sort,
+        });
+      }
+    },
+    [sort, getDataFetchAbortSignal, pool],
+  );
 
   /**
    * Abortable multi-entry function that fetches the data until `rowTo` rows are read
@@ -549,7 +580,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     abortBackgroundTasks();
   };
 
-  const getNewReader = async (newSortParams: ColumnSortSpecList) => {
+  const getNewReader = async (
+    newSortParams: ColumnSortSpecList,
+    options = { retry_with_file_sync: true },
+  ) => {
     try {
       // Cancel the main data reader before creating a new one
       if (mainDataReaderRef.current) {
@@ -569,13 +603,23 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           fetchRowCount();
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof PoolTimeoutError) {
         setAppendDataSourceReadError(
           'Too many tabs open or operations running. Please wait and re-open this tab.',
         );
+      } else if (error.message?.includes('NotReadableError')) {
+        if (options.retry_with_file_sync) {
+          await syncFiles(pool);
+          await getNewReader(newSortParams, { retry_with_file_sync: false });
+        } else {
+          console.error('Data source have been moved or deleted:', error);
+          setAppendDataSourceReadError('Data source have been moved or deleted.');
+        }
+      } else if (error.message?.includes('NotFoundError')) {
+        console.error('Data source have been moved or deleted:', error);
+        setAppendDataSourceReadError('Data source have been moved or deleted.');
       } else {
-        // Fetch was not cancelled we got an actual error
         console.error('Failed to create a reader for the data source:', error);
         setAppendDataSourceReadError(
           'Failed to create a reader for the data source. See console for technical details.',
