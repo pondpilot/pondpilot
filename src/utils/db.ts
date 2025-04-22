@@ -40,13 +40,13 @@ export const stringifyTypedValue = ({
   try {
     switch (type) {
       case 'timestamp': {
-        return new Date(value as string).toLocaleString();
+        return new Date(Number(value)).toLocaleString();
       }
       case 'date': {
-        return new Date(value as string).toLocaleDateString();
+        return new Date(Number(value)).toLocaleDateString();
       }
       case 'time': {
-        return new Date(value as string).toLocaleTimeString();
+        return new Date(Number(value)).toLocaleTimeString();
       }
       case 'string': {
         return value as string;

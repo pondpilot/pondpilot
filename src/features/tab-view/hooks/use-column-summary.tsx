@@ -43,7 +43,9 @@ export const useColumnSummary = (dataAdapter: DataAdapterApi) => {
         setIsLoading(false);
 
         if (totalValue !== undefined) {
-          const formattedValue = stringifyTypedValue({ type: column.sqlType, value: totalValue });
+          // for now we do not allow user to choose the aggregate type so we can't use the type from the column like date, timestamp etc.
+          const formattedValue = stringifyTypedValue({ type: 'number', value: totalValue });
+
           setColumnTotal(formattedValue);
 
           // Cache the result

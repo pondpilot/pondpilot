@@ -1,10 +1,13 @@
-export const formatNumber = (value: number): string => {
-  if (Number.isNaN(value as number)) return '';
-
-  const formatter = new Intl.NumberFormat('en-UK', {
-    maximumFractionDigits: 2,
-  });
-  return formatter.format(value);
+/**
+ * Formats a numeric value with locale-specific thousands separators.
+ * @param {number | string | BigInt} v - The value to format
+ * @returns {string} The formatted number string or an empty string if the input cannot be converted to a number
+ */
+export const formatNumber = (value: number | string | BigInt): string => {
+  if (typeof value === 'string') {
+    return value;
+  }
+  return value.toLocaleString();
 };
 
 /**

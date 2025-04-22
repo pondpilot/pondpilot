@@ -18,6 +18,7 @@ import {
   updateTabDataViewDataPageCache,
 } from '@controllers/tab';
 import { formatStringsAsMDList } from '@utils/pretty';
+import { formatNumber } from '@utils/helpers';
 import { useColumnSummary } from '../hooks';
 
 interface DataViewProps {
@@ -368,7 +369,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
           >
             {columnTotal !== null && (
               <Text c="text-primary" className="text-sm">
-                {columnAggType.toUpperCase()}: {columnTotal}
+                {columnAggType.toUpperCase()}: {formatNumber(columnTotal)}
               </Text>
             )}
             {isColumnAggCalculating && <Loader size={12} color="text-accent" />}
