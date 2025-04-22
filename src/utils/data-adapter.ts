@@ -260,7 +260,9 @@ export function getScriptAdapterQueries({
             let queryToRun = trimmedQuery;
 
             if (sort.length > 0) {
-              const orderBy = sort.map((s) => `${s.column} ${s.order || 'asc'}`).join(', ');
+              const orderBy = sort
+                .map((s) => `${toDuckDBIdentifier(s.column)} ${s.order || 'asc'}`)
+                .join(', ');
               queryToRun = `SELECT * FROM (${trimmedQuery}) ORDER BY ${orderBy}`;
             }
             const reader = await pool.send(queryToRun, true);
