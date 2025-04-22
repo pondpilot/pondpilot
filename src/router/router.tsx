@@ -6,7 +6,7 @@ import { createBrowserRouter, RouterProvider, Navigate, RouteObject } from 'reac
 import { BrowserNotSupported } from '@components/browser-not-supported';
 import { useAppContext } from '@features/app-context';
 
-import { SharedScriptImport } from '@features/script-explorer/shared-script-import';
+import { SharedScriptImport } from '@features/script-import';
 
 let devOnlyRoutes: RouteObject[] = [];
 

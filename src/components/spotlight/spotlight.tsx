@@ -19,7 +19,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
 import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from '@models/app-urls';
 import { modals } from '@mantine/modals';
-import { ImportScriptModalContent } from '@features/script-explorer/import-script-modal-content';
+import { ImportScriptModalContent } from '@features/script-import';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useAppStore } from '@store/app-store';
 import { createSQLScript } from '@controllers/sql-script';
