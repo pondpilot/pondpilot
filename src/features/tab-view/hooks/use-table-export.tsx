@@ -95,6 +95,14 @@ export const useTableExport = (dataAdapter: DataAdapterApi) => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
+
+      notifications.update({
+        id: notificationId,
+        title: 'Table exported to CSV',
+        message: '',
+        loading: false,
+        autoClose: 800,
+      });
     } catch (error) {
       const autoCancelled = error instanceof CancelledOperation ? error.isSystemCancelled : false;
       const message = error instanceof Error ? error.message : 'Unknown error';
