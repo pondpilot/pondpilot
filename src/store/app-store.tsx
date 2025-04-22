@@ -308,18 +308,8 @@ export function useAttachedDBLocalEntriesMap(): Map<LocalEntryId, LocalFile> {
   );
 }
 
-export function useSqlScriptNameMap(): Map<SQLScriptId, string> {
-  return useAppStore(
-    useShallow(
-      (state) =>
-        new Map(
-          Array.from(state.sqlScripts).map(([id, script]): [SQLScriptId, string] => [
-            id,
-            script.name,
-          ]),
-        ),
-    ),
-  );
+export function useSqlScripts(): Map<SQLScriptId, SQLScript> {
+  return useAppStore(useShallow((state) => state.sqlScripts));
 }
 
 export function useTabReactiveState<T extends AnyTab>(

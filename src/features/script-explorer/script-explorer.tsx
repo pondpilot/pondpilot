@@ -1,7 +1,7 @@
 import { memo } from 'react';
 
-import { useSqlScriptNameMap } from '@store/app-store';
-import { SQLScriptId } from '@models/sql-script';
+import { useSqlScripts } from '@store/app-store';
+import { SQLScriptId, SQLScript } from '@models/sql-script';
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
 import {
@@ -13,6 +13,8 @@ import {
 } from '@controllers/tab';
 import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import { copyToClipboard } from '@utils/clipboard';
+import { createShareableScriptUrl } from '@utils/script-sharing';
+import { showSuccess } from '@components/app-notifications';
 import { ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
 
@@ -45,12 +47,12 @@ const onDelete = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): void => {
 const validateRename = (
   node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>,
   newName: string,
-  scriptsArray: [SQLScriptId, string][],
+  scriptsArray: [SQLScriptId, SQLScript][],
 ): string | null => {
   const textInputError = newName.length === 0 ? 'Name cannot be empty' : undefined;
   const notUniqueError = scriptsArray
     .filter(([id, _]) => id !== node.value)
-    .some(([_, name]) => name.toLowerCase() === newName.toLowerCase())
+    .some(([_, script]) => script.name.toLowerCase() === newName.toLowerCase())
     ? 'Name must be unique'
     : undefined;
   const invalidCharactersError = newName.match(/[^a-zA-Z0-9()_-]/)
@@ -68,13 +70,13 @@ export const ScriptExplorer = memo(() => {
   /**
    * Global state
    */
-  const sqlScripts = useSqlScriptNameMap();
+  const sqlScripts = useSqlScripts();
 
   /**
    * Consts
    */
-  const scriptsArray = Array.from(sqlScripts).sort(([, leftName], [, rightName]) =>
-    leftName.localeCompare(rightName),
+  const scriptsArray = Array.from(sqlScripts).sort(([, leftScript], [, rightScript]) =>
+    leftScript.name.localeCompare(rightScript.name),
   );
   const contextMenu: TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> = [
     {
@@ -85,15 +87,33 @@ export const ScriptExplorer = memo(() => {
             copyToClipboard(sqlScript.label, { showNotification: true });
           },
         },
+        {
+          label: 'Share script',
+          onClick: (sqlScript) => {
+            const scriptId = sqlScript.value;
+            const script = sqlScripts.get(scriptId);
+
+            if (!script) return;
+
+            const shareableUrl = createShareableScriptUrl(script);
+            copyToClipboard(shareableUrl, { showNotification: false });
+
+            showSuccess({
+              title: 'Script shared',
+              message: 'Shareable link copied to clipboard',
+              color: 'green',
+            });
+          },
+        },
       ],
     },
   ];
 
   const sqlScriptTree: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>[] = scriptsArray.map(
-    ([sqlScriptId, sqlScriptName]) => ({
+    ([sqlScriptId, sqlScript]) => ({
       nodeType: 'script',
       value: sqlScriptId,
-      label: `${sqlScriptName}.sql`,
+      label: `${sqlScript.name}.sql`,
       iconType: 'code-file',
       isDisabled: false,
       isSelectable: true,
