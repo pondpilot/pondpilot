@@ -50,6 +50,11 @@ type AppStore = {
   localEntries: Map<LocalEntryId, LocalEntry>;
 
   /**
+   * A mapping of data source local file identifiers to their registered File objects.
+   */
+  registeredFiles: Map<LocalEntryId, File>;
+
+  /**
    * A mapping of SQL script identifiers to their corresponding SQLScript objects.
    */
   sqlScripts: Map<SQLScriptId, SQLScript>;
@@ -74,6 +79,7 @@ const initialState: AppStore = {
   appLoadState: 'init',
   dataSources: new Map(),
   localEntries: new Map(),
+  registeredFiles: new Map(),
   sqlScripts: new Map(),
   tabs: new Map(),
   dataBaseMetadata: new Map(),
