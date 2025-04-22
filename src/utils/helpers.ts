@@ -1,25 +1,14 @@
 /**
- * Formats a numeric value into a string with localized separators
- * according to the British format (en-GB).
- *
- * @param {number | string} v - Number or string representing a number to format
- * @returns {string} Formatted number with maximum two decimal places or empty string if input is not a number
- *
- * @example
- * formatNumber(1000) // returns "1,000"
- * formatNumber("1234.5") // returns "1,234.5"
- * formatNumber("abc") // returns ""
+ * Formats a numeric value with locale-specific thousands separators.
+ * @param {number | string | BigInt} v - The value to format
+ * @returns {string} The formatted number string or an empty string if the input cannot be converted to a number
  */
-export const formatNumber = (v: number | string): string => {
-  const value = Number(v);
+export const formatNumber = (v: number | string | BigInt): string => {
+  const value = typeof v === 'string' ? Number(v) : v;
   if (Number.isNaN(value)) return '';
-
-  const formatter = new Intl.NumberFormat('en-GB', {
-    maximumFractionDigits: 2,
-  });
-
-  return formatter.format(value);
+  return value.toLocaleString();
 };
+
 /**
  * Helper to find a unique name. Takes a base name and appends a counter to it until a unique name is found.
  *
