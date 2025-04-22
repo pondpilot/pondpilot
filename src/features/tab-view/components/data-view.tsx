@@ -17,6 +17,7 @@ import {
   updateTabDataViewColumnSizesCache,
   updateTabDataViewDataPageCache,
 } from '@controllers/tab';
+import { formatStringsAsMDList } from '@utils/pretty';
 import { useColumnSummary } from '../hooks';
 
 interface DataViewProps {
@@ -73,7 +74,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   const hasStaleData = dataAdapter.currentSchema.length > 0 && dataAdapter.isStale;
   const hasData = hasActualData || hasStaleData;
 
-  const hasDataSourceError = dataAdapter.dataSourceError !== null;
+  const hasDataSourceError = dataAdapter.dataSourceError.length > 0;
 
   // Make a clever debounced value of `isFetching` that waits to
   // turn ON, but immediately turns OFF based on dataAdapter.isFetchingData
@@ -319,12 +320,11 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
         <>
           <Stack align="center" gap={4} bg="background-primary" className="p-8 pt-4 rounded-2xl">
             <Text c="text-primary" className="text-2xl font-medium">
-              We are sorry, but we encountered an errors while
+              We are sorry, but we encountered errors while
               {tabType === 'data-source' ? ' opening your file' : ' running your query'}:
             </Text>
             <Text c="text-secondary" className="text-lg font-medium">
-              {dataAdapter.dataSourceError ||
-                'Internal error creating data adapter. Please report this issue.'}
+              {formatStringsAsMDList(dataAdapter.dataSourceError)}
             </Text>
           </Stack>
         </>

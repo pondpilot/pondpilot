@@ -309,6 +309,10 @@ export const updateTabDataViewStaleDataCache = (
 ): void => {
   const { tabs } = useAppStore.getState();
 
+  // By the time this runs, a preview tab can already be deleted due to
+  // async reads, so we allow gracefully ignoring such tab
+  if (!tabs.has(tabId)) return;
+
   // We have to use a tab object from the store
   const currentTab = ensureTab(tabId, tabs);
 

@@ -1,7 +1,7 @@
 import { useCallback, useState, useRef } from 'react';
 import { DBColumn } from '@models/db';
 import { isNumberType, stringifyTypedValue } from '@utils/db';
-import { ColumnAggregateType, DataAdapterApi } from '@models/data-adapter';
+import { CancelledOperation, ColumnAggregateType, DataAdapterApi } from '@models/data-adapter';
 import { useDidUpdate } from '@mantine/hooks';
 
 export const useColumnSummary = (dataAdapter: DataAdapterApi) => {
@@ -49,7 +49,10 @@ export const useColumnSummary = (dataAdapter: DataAdapterApi) => {
           // Cache the result
           summaryCache.current.set(cacheKey, formattedValue);
         }
-      } catch (e) {
+      } catch (error) {
+        const autoCancelled = error instanceof CancelledOperation ? error.isSystemCancelled : false;
+
+        if (!autoCancelled) console.error('Error calculating column summary:', error);
         setIsLoading(false);
       }
     },

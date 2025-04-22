@@ -1,9 +1,10 @@
 import { useCallback } from 'react';
-import { DataAdapterApi } from '@models/data-adapter';
+import { CancelledOperation, DataAdapterApi } from '@models/data-adapter';
 import { showSuccess } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { copyToClipboard } from '@utils/clipboard';
 import { escapeCSVField } from '@utils/helpers';
+import { stringifyTypedValue } from '@utils/db';
 
 export const useTableExport = (dataAdapter: DataAdapterApi) => {
   const copyTableToClipboard = useCallback(async () => {
@@ -33,7 +34,7 @@ export const useTableExport = (dataAdapter: DataAdapterApi) => {
         autoClose: 800,
       });
     } catch (error) {
-      const autoCancelled = error instanceof DOMException ? error.name === 'Cancelled' : false;
+      const autoCancelled = error instanceof CancelledOperation ? error.isSystemCancelled : false;
       const message = error instanceof Error ? error.message : 'Unknown error';
 
       if (autoCancelled) {
@@ -75,7 +76,11 @@ export const useTableExport = (dataAdapter: DataAdapterApi) => {
       const csv = data
         .map((row) =>
           Object.values(row)
-            .map((value) => (typeof value === 'string' ? escapeCSVField(value) : value))
+            .map((value, index) =>
+              escapeCSVField(
+                stringifyTypedValue({ value, type: columns[index]?.sqlType || 'other' }),
+              ),
+            )
             .join(','),
         )
         .join('\n');
@@ -91,7 +96,7 @@ export const useTableExport = (dataAdapter: DataAdapterApi) => {
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
     } catch (error) {
-      const autoCancelled = error instanceof DOMException ? error.name === 'Cancelled' : false;
+      const autoCancelled = error instanceof CancelledOperation ? error.isSystemCancelled : false;
       const message = error instanceof Error ? error.message : 'Unknown error';
 
       if (autoCancelled) {

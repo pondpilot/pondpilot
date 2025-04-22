@@ -29,7 +29,7 @@ export const DataViewInfoPane = ({ dataAdapter, tabType }: DataViewInfoPaneProps
   const hasActualData = hasData && !dataAdapter.isStale;
   const hasStaleData = hasData && dataAdapter.isStale;
 
-  const hasDataSourceError = dataAdapter.dataSourceError !== null;
+  const hasDataSourceError = dataAdapter.dataSourceError.length > 0;
   const [isFetching] = useDebouncedValue(dataAdapter.isFetchingData, 100);
   const [isSorting] = useDebouncedValue(dataAdapter.isSorting, 50);
 

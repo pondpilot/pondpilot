@@ -31,10 +31,14 @@ function getGetColumnAggregateFromFQN(
   pool: AsyncDuckDBConnectionPool,
   fqn: string,
 ): DataAdapterQueries['getColumnAggregate'] {
-  return async (columnName: string, aggType: ColumnAggregateType) => {
+  return async (columnName: string, aggType: ColumnAggregateType, abortSignal: AbortSignal) => {
     const queryToRun = `SELECT ${aggType}(${toDuckDBIdentifier(columnName)}) FROM ${fqn}`;
-    const result = await pool.query(queryToRun);
-    return result.getChildAt(0)?.get(0);
+    const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+
+    if (aborted) {
+      return { value: undefined, aborted };
+    }
+    return { value: value.getChildAt(0)?.get(0), aborted };
   };
 }
 
@@ -42,15 +46,19 @@ function getgetColumnsDataApiFromFQN(
   pool: AsyncDuckDBConnectionPool,
   fqn: string,
 ): DataAdapterQueries['getColumnsData'] {
-  return async (columns: DBColumn[]) => {
+  return async (columns: DBColumn[], abortSignal: AbortSignal) => {
     const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
     const queryToRun = `SELECT ${columnNames} FROM ${fqn}`;
-    const result = convertArrowTable(await pool.query(queryToRun));
-    return result;
+    const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+
+    if (aborted) {
+      return { value: [], aborted };
+    }
+    return { value: convertArrowTable(value), aborted };
   };
 }
 
-function getFlatFileDataAdapterApi(
+function getFlatFileDataAdapterQueries(
   pool: AsyncDuckDBConnectionPool,
   dataSource: AnyFlatFileDataSource,
   sourceFile: LocalFile,
@@ -74,29 +82,35 @@ function getFlatFileDataAdapterApi(
   if (dataSource.type === 'csv' || dataSource.type === 'json') {
     return {
       ...baseAttrs,
-      // TODO: we can enable sampling in multi-threaded mode. In single
-      // threaded, count enforces a full scan and blocks quick streaming reads
-      // getEstimatedRowCount: async () => {
-      //   const result = await pool.query(
-      //     `SELECT count(*) * 10 FROM ${toDuckDBIdentifier(dataSource.viewName)} USING SAMPLE 10% (system)`,
-      //   );
+      getRowCount: async (abortSignal: AbortSignal) => {
+        const { value, aborted } = await pool.queryAbortable(
+          `SELECT count(*) FROM ${toDuckDBIdentifier(dataSource.viewName)}`,
+          abortSignal,
+        );
 
-      //   const count = Number(result.getChildAt(0)?.get(0));
-      //   return count;
-      // },
+        if (aborted) {
+          // Value is not used when aborted, so doesn't matter
+          return { value: 0, aborted };
+        }
+        return { value: Number(value.getChildAt(0)?.get(0)), aborted };
+      },
     };
   }
 
   if (dataSource.type === 'parquet') {
     return {
       ...baseAttrs,
-      getRowCount: async () => {
-        const result = await pool.query(
+      getRowCount: async (abortSignal: AbortSignal) => {
+        const { value, aborted } = await pool.queryAbortable(
           `SELECT num_rows FROM parquet_file_metadata('${sourceFile.uniqueAlias}.${sourceFile.ext}')`,
+          abortSignal,
         );
 
-        const count = Number(result.getChildAt(0)?.get(0));
-        return count;
+        if (aborted) {
+          // Value is not used when aborted, so doesn't matter
+          return { value: 0, aborted };
+        }
+        return { value: Number(value.getChildAt(0)?.get(0)), aborted };
       },
     };
   }
@@ -120,8 +134,8 @@ function getAttachedDBDataAdapterApi(
       getEstimatedRowCount:
         dataSource.dbType === 'duckdb'
           ? tab.objectType === 'table'
-            ? async () => {
-                const result = await pool.query(
+            ? async (abortSignal: AbortSignal) => {
+                const { value, aborted } = await pool.queryAbortable(
                   `SELECT estimated_size 
                 FROM duckdb_tables
                 WHERE
@@ -129,10 +143,14 @@ function getAttachedDBDataAdapterApi(
                   AND schema_name = ${quote(schemaName, { single: true })}
                   AND table_name = ${quote(tableName, { single: true })};
                 ;`,
+                  abortSignal,
                 );
 
-                const count = Number(result.getChildAt(0)?.get(0));
-                return count;
+                if (aborted) {
+                  // Value is not used when aborted, so doesn't matter
+                  return { value: 0, aborted };
+                }
+                return { value: Number(value.getChildAt(0)?.get(0)), aborted };
               }
             : undefined
           : undefined,
@@ -205,7 +223,7 @@ export function getFileDataAdapterQueries({
     }
 
     return {
-      adapter: getFlatFileDataAdapterApi(pool, dataSource, sourceFile),
+      adapter: getFlatFileDataAdapterQueries(pool, dataSource, sourceFile),
       userErrors: [],
       internalErrors: [],
     };
@@ -264,18 +282,26 @@ export function getScriptAdapterQueries({
           }
         : undefined,
       getColumnAggregate: classifiedStmt.isAllowedInSubquery
-        ? async (columnName: string, aggType: ColumnAggregateType) => {
+        ? async (columnName: string, aggType: ColumnAggregateType, abortSignal: AbortSignal) => {
             const queryToRun = `SELECT ${aggType}(${columnName}) FROM (${trimmedQuery})`;
-            const result = await pool.query(queryToRun);
-            return result.getChildAt(0)?.get(0);
+            const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+
+            if (aborted) {
+              return { value: undefined, aborted };
+            }
+            return { value: value.getChildAt(0)?.get(0), aborted };
           }
         : undefined,
       getColumnsData: classifiedStmt.isAllowedInSubquery
-        ? async (columns: DBColumn[]) => {
+        ? async (columns: DBColumn[], abortSignal: AbortSignal) => {
             const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
             const queryToRun = `SELECT ${columnNames} FROM (${trimmedQuery})`;
-            const result = convertArrowTable(await pool.query(queryToRun));
-            return result;
+            const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+
+            if (aborted) {
+              return { value: [], aborted };
+            }
+            return { value: convertArrowTable(value), aborted };
           }
         : undefined,
     },

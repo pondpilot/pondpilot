@@ -21,7 +21,7 @@ import { Router } from './router/router';
 export default function App() {
   const [connectionPoolSize] = useLocalStorage({
     key: LOCAL_STORAGE_KEYS.MAX_CONNECTION_POOL_SIZE,
-    defaultValue: 10,
+    defaultValue: 30,
   });
   return (
     <MantineProvider theme={theme}>

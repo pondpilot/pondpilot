@@ -55,7 +55,7 @@ export async function toAbortablePromise<R extends any = any, A extends () => an
       }),
     ]);
 
-    return { ret, aborted: false };
+    return { value: ret, aborted: false };
   } catch (error) {
     if (error instanceof AbortedError) {
       return { value: (await onAbort?.()) || undefined, aborted: true };

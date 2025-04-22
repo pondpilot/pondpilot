@@ -1,6 +1,45 @@
 import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';
 
+/**
+ * A custom error class that represents a cancelled data adapter operation.
+ */
+export class CancelledOperation extends Error {
+  private readonly isUser: boolean;
+  private readonly reason: string | null;
+
+  constructor({
+    isUser,
+    reason = null,
+  }: { isUser: true; reason: null } | { isUser: false; reason: string }) {
+    super(`Operation cancelled ${isUser ? 'by user.' : `by system: ${reason}`}`);
+    this.name = 'CancelledOperation';
+    this.isUser = isUser;
+    this.reason = reason;
+  }
+
+  /**
+   * Whether the operation was cancelled by the user.
+   */
+  public get isUserCancelled(): boolean {
+    return this.isUser;
+  }
+
+  /**
+   * Whether the operation was cancelled by the system.
+   */
+  public get isSystemCancelled(): boolean {
+    return !this.isUser;
+  }
+
+  /**
+   * User friendly message with the reason for the cancellation.
+   */
+  public get cancellationReason(): string {
+    return this.isUser ? 'User request' : this.reason || 'Internal error';
+  }
+}
+
 export type DataTableSlice = {
   /**
    * A subset of the full data table.
@@ -89,10 +128,10 @@ export interface DataAdapterApi {
   dataSourceExhausted: boolean;
 
   /**
-   * A user friendly error message if there was an error during
-   * initial creation of a dara connection or data read
+   * A user friendly list of error messages if there was an error during
+   * initial creation of a data connection or data read
    */
-  dataSourceError: string | null;
+  dataSourceError: string[];
 
   /**
    * Whether the data is being fetched or not.
@@ -136,6 +175,7 @@ export interface DataAdapterApi {
    * Function to retrieve all data from the data source.
    *
    * @param columns The columns to include in the result. If null, all columns will be included.
+   * @throws CancelledOperation if the operation was cancelled
    * @returns A promise that resolves to a DataTable object containing all data
    */
   getAllTableData: (columns: DBColumn[] | null) => Promise<DataTable>;
@@ -152,6 +192,7 @@ export interface DataAdapterApi {
   /**
    * Calculates the aggregate of a column using the specified aggregation type.
    *
+   * @throws CancelledOperation if the operation was cancelled
    * @returns A promise that resolves to the result of the aggregation.
    *          undefined is returned if the operation was cancelled.
    */
@@ -174,16 +215,19 @@ export interface DataAdapterApi {
   ackDataReadCancelled: () => void;
 }
 
+/**
+ * Type definitions for internal functions that perform various data related queries.
+ */
 export interface DataAdapterQueries {
   /**
    * If data source supports quick precise row count retrieval, returns the count.
    */
-  getRowCount?: () => Promise<number>;
+  getRowCount?: (abortSignal: AbortSignal) => Promise<{ value: number; aborted: boolean }>;
 
   /**
    * If data source supports quick estimated row count retrieval, returns the count.
    */
-  getEstimatedRowCount?: () => Promise<number>;
+  getEstimatedRowCount?: (abortSignal: AbortSignal) => Promise<{ value: number; aborted: boolean }>;
 
   /**
    * Returns a streaming reader supporting user defined sort.
@@ -208,10 +252,17 @@ export interface DataAdapterQueries {
   /**
    * Returns column aggregate for the given column.
    */
-  getColumnAggregate?: (columnName: string, aggType: ColumnAggregateType) => Promise<any>;
+  getColumnAggregate?: (
+    columnName: string,
+    aggType: ColumnAggregateType,
+    abortSignal: AbortSignal,
+  ) => Promise<{ value: any; aborted: boolean }>;
 
   /**
    * Returns column data for a subset of given columns.
    */
-  getColumnsData?: (columns: DBColumn[]) => Promise<DataTable>;
+  getColumnsData?: (
+    columns: DBColumn[],
+    abortSignal: AbortSignal,
+  ) => Promise<{ value: DataTable; aborted: boolean }>;
 }
