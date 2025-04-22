@@ -5,8 +5,13 @@ import { notifications } from '@mantine/notifications';
 import { copyToClipboard } from '@utils/clipboard';
 import { escapeCSVField } from '@utils/helpers';
 import { stringifyTypedValue } from '@utils/db';
+import { TabId } from '@models/tab';
+import { useTabNameMap } from '@store/app-store';
 
-export const useTableExport = (dataAdapter: DataAdapterApi) => {
+export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
+  const tabNameMap = useTabNameMap();
+  const tabName = tabNameMap.get(tabId);
+
   const copyTableToClipboard = useCallback(async () => {
     const notificationId = showSuccess({
       title: 'Copying table columns to clipboard...',
@@ -70,9 +75,9 @@ export const useTableExport = (dataAdapter: DataAdapterApi) => {
     });
 
     try {
+      const fileName = `${tabName}.csv`;
       const data = await dataAdapter.getAllTableData(null);
       const columns = dataAdapter.currentSchema;
-
       const csv = data
         .map((row) =>
           Object.values(row)
@@ -89,7 +94,7 @@ export const useTableExport = (dataAdapter: DataAdapterApi) => {
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = 'table.csv';
+      link.download = fileName;
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();

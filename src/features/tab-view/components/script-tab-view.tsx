@@ -240,7 +240,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         </Allotment.Pane>
 
         <Allotment.Pane preferredSize={tab.dataViewPaneHeight} minSize={120}>
-          <DataViewInfoPane dataAdapter={dataAdapter} tabType={tab.type} />
+          <DataViewInfoPane dataAdapter={dataAdapter} tabType={tab.type} tabId={tab.id} />
           <DataView active={active} dataAdapter={dataAdapter} tabId={tab.id} tabType={tab.type} />
         </Allotment.Pane>
       </Allotment>

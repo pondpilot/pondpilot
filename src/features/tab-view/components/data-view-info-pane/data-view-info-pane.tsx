@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { useTableExport } from '@features/tab-view/hooks';
 import { DataAdapterApi } from '@models/data-adapter';
 import { useDebouncedValue } from '@mantine/hooks';
-import { TabType } from '@models/tab';
+import { TabId, TabType } from '@models/tab';
 import { assertNeverValueType } from '@utils/typing';
 import { setDataTestId } from '@utils/test-id';
 import { ColRowCount } from './components/col-row-count';
@@ -14,13 +14,14 @@ import { ColRowCount } from './components/col-row-count';
 interface DataViewInfoPaneProps {
   dataAdapter: DataAdapterApi;
   tabType: TabType;
+  tabId: TabId;
 }
 
-export const DataViewInfoPane = ({ dataAdapter, tabType }: DataViewInfoPaneProps) => {
+export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPaneProps) => {
   /**
    * Hooks
    */
-  const { copyTableToClipboard, exportTableToCSV } = useTableExport(dataAdapter);
+  const { copyTableToClipboard, exportTableToCSV } = useTableExport(dataAdapter, tabId);
 
   /**
    * Computed data source state

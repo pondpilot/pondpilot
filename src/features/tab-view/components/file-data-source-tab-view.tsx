@@ -19,7 +19,7 @@ export const FileDataSourceTabView = memo(({ tabId, active }: FileDataSourceTabV
 
   return (
     <Stack className="gap-0 h-full relative">
-      <DataViewInfoPane dataAdapter={dataAdapter} tabType={tab.type} />
+      <DataViewInfoPane dataAdapter={dataAdapter} tabType={tab.type} tabId={tab.id} />
       <DataView active={active} dataAdapter={dataAdapter} tabId={tab.id} tabType={tab.type} />
     </Stack>
   );
