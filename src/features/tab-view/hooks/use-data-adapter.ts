@@ -332,6 +332,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    *
    * Only one of this can be running at a time (or othersise we have a bug).
    * See `fetchData` for the multi-call compatibile interface.
+   *
+   * @param options Options for the fetch. Used for internal retries, do not pass
+   *              anything from outer calls.
    */
   const fetchDataSingleEntry = useCallback(
     async (options = { retry_with_file_sync: true }) => {
@@ -348,6 +351,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       let readAll = false;
       let inferredSchema: DBTableOrViewSchema | null = null;
+      let afterRetry = false;
 
       // Set actual data schema on first read
       let updateSchemaFromInferred = actualData.current.length === 0;
@@ -409,47 +413,63 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           setDataVersion((prev) => prev + 1);
         }
       } catch (error: any) {
-        if (error.message?.includes('NotReadableError') && options.retry_with_file_sync) {
-          await syncFiles(pool);
-          await fetchDataSingleEntry({ retry_with_file_sync: false });
+        if (error.message?.includes('NotReadableError')) {
+          if (options.retry_with_file_sync) {
+            await syncFiles(pool);
+            await fetchDataSingleEntry({ retry_with_file_sync: false });
+            afterRetry = true;
+          } else {
+            // We got an unrecoverable actual error
+            console.error('Data source have been moved or deleted:', error);
+            setAppendDataSourceReadError('Data source have been moved or deleted.');
+          }
         }
         if (!abortSignal.aborted) {
           // Fetch was not cancelled we got an actual error
-          console.error('Failed to read data from the data source:', error);
-          setAppendDataSourceReadError(
-            'Failed to read data from the data source. See console for technical details.',
-          );
+          if (error.message?.includes('NotFoundError')) {
+            console.error('Data source have been moved or deleted:', error);
+            setAppendDataSourceReadError('Data source have been moved or deleted.');
+          } else {
+            console.error('Failed to read data from the data source:', error);
+            setAppendDataSourceReadError(
+              'Failed to read data from the data source. See console for technical details.',
+            );
+          }
         }
       }
 
-      // And do final updates after the end of the fetch loop or abort
-      const availableRowCount = actualData.current.length;
+      // If we reach here after we did a nested invocation for retry,
+      // do not do post-actions as they should have been done in the inner invocation.
+      if (!afterRetry) {
+        // And do final updates after the end of the fetch loop or abort
+        const availableRowCount = actualData.current.length;
 
-      const newCachedStaleDataUpdate: Partial<StaleData> = {
-        data: actualData.current.slice(-MAX_PERSISTED_STALE_DATA_ROWS),
-        rowOffset: Math.max(0, actualData.current.length - MAX_PERSISTED_STALE_DATA_ROWS),
-      };
+        const newCachedStaleDataUpdate: Partial<StaleData> = {
+          data: actualData.current.slice(-MAX_PERSISTED_STALE_DATA_ROWS),
+          rowOffset: Math.max(0, actualData.current.length - MAX_PERSISTED_STALE_DATA_ROWS),
+        };
 
-      if (inferredSchema) {
-        // We have a schema, so we can set it in the cache
-        newCachedStaleDataUpdate.schema = inferredSchema;
+        if (inferredSchema) {
+          // We have a schema, so we can set it in the cache
+          newCachedStaleDataUpdate.schema = inferredSchema;
+        }
+
+        if (readAll) {
+          // Now we know that we have read all the data
+          setDataSourceExhausted(true);
+          // Set the real row count
+          setRealRowCount(availableRowCount);
+
+          // Also add info to the cache update object
+          newCachedStaleDataUpdate.realRowCount = availableRowCount;
+          newCachedStaleDataUpdate.estimatedRowCount = null;
+        }
+
+        updateTabDataViewStaleDataCache(tab.id, {
+          staleData: newCachedStaleDataUpdate,
+          sort,
+        });
       }
-
-      if (readAll) {
-        // Now we know that we have read all the data
-        setDataSourceExhausted(true);
-        // Set the real row count
-        setRealRowCount(availableRowCount);
-
-        // Also add info to the cache update object
-        newCachedStaleDataUpdate.realRowCount = availableRowCount;
-        newCachedStaleDataUpdate.estimatedRowCount = null;
-      }
-
-      updateTabDataViewStaleDataCache(tab.id, {
-        staleData: newCachedStaleDataUpdate,
-        sort,
-      });
     },
     [sort, getDataFetchAbortSignal, pool],
   );
@@ -588,11 +608,18 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         setAppendDataSourceReadError(
           'Too many tabs open or operations running. Please wait and re-open this tab.',
         );
-      } else if (error.message?.includes('NotReadableError') && options.retry_with_file_sync) {
-        await syncFiles(pool);
-        await getNewReader(newSortParams, { retry_with_file_sync: false });
+      } else if (error.message?.includes('NotReadableError')) {
+        if (options.retry_with_file_sync) {
+          await syncFiles(pool);
+          await getNewReader(newSortParams, { retry_with_file_sync: false });
+        } else {
+          console.error('Data source have been moved or deleted:', error);
+          setAppendDataSourceReadError('Data source have been moved or deleted.');
+        }
+      } else if (error.message?.includes('NotFoundError')) {
+        console.error('Data source have been moved or deleted:', error);
+        setAppendDataSourceReadError('Data source have been moved or deleted.');
       } else {
-        // Fetch was not cancelled we got an actual error
         console.error('Failed to create a reader for the data source:', error);
         setAppendDataSourceReadError(
           'Failed to create a reader for the data source. See console for technical details.',
