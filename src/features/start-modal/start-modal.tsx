@@ -7,7 +7,7 @@ import { useAppStore } from '@store/app-store';
 import { isVersionGreater } from '@utils/compare-versions';
 
 export const StartModal = () => {
-  const appStatus = useAppStore((state) => state.appStatus);
+  const appLoadState = useAppStore.use.appLoadState();
 
   const [isOnboardingShown, setIsOnboardingShown] = useLocalStorage({
     key: LOCAL_STORAGE_KEYS.ONBOARDING_SHOWN,
@@ -19,7 +19,7 @@ export const StartModal = () => {
   });
 
   useDidUpdate(() => {
-    if (appStatus === 'ready') {
+    if (appLoadState === 'ready') {
       // If a user is using the app for the first time, show the Onboarding modal, not the Release Notes
       if (!isOnboardingShown) {
         setWhatsNewVersionShown(__VERSION__);
@@ -47,7 +47,7 @@ export const StartModal = () => {
       // Set the current version by dfault
       setWhatsNewVersionShown(__VERSION__);
     }
-  }, [appStatus]);
+  }, [appLoadState]);
 
   return null;
 };

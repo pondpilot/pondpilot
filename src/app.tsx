@@ -19,6 +19,7 @@ import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { Router } from './router/router';
 import { OnboardingModal } from '@components/onboarding-modal';
 import { WhatsNewModal } from '@components/whats-new-modal';
+import { StartModal } from '@features/start-modal';
 
 export default function App() {
   const [connectionPoolSize] = useLocalStorage({
@@ -38,6 +39,7 @@ export default function App() {
             <AppContextProvider>
               <Notifications />
               <AppState />
+              <StartModal />
               <Router />
             </AppContextProvider>
           </DuckDBConnectionPoolProvider>
