@@ -58,7 +58,7 @@ export const useTableExport = (dataAdapter: DataAdapterApi) => {
         color: 'red',
       });
     }
-  }, []);
+  }, [dataAdapter]);
 
   const exportTableToCSV = useCallback(async () => {
     const notificationId = showSuccess({
