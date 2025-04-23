@@ -1,7 +1,7 @@
 import { memo } from 'react';
 
 import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
-import { SQLScriptId, SQLScript } from '@models/sql-script';
+import { SQLScriptId } from '@models/sql-script';
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
 import {
@@ -14,7 +14,6 @@ import {
 import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import { copyToClipboard } from '@utils/clipboard';
 import { createShareableScriptUrl } from '@utils/script-sharing';
-import { showSuccess } from '@components/app-notifications';
 import { ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
 
@@ -97,12 +96,11 @@ export const ScriptExplorer = memo(() => {
             if (!script) return;
 
             const shareableUrl = createShareableScriptUrl(script);
-            copyToClipboard(shareableUrl, { showNotification: false });
 
-            showSuccess({
-              title: 'Script shared',
-              message: 'Shareable link copied to clipboard',
-              color: 'green',
+            copyToClipboard(shareableUrl, {
+              showNotification: true,
+              notificationTitle: 'Script shared',
+              notificationMessage: 'Shareable link copied to clipboard',
             });
           },
         },

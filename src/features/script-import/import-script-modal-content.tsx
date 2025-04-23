@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button, Group, TextInput, Text, Stack } from '@mantine/core';
+import { useInputState } from '@mantine/hooks';
 import { showSuccess, showError } from '@components/app-notifications';
 import { importScript } from '@utils/script-import-utils';
 
@@ -8,7 +9,7 @@ interface ImportScriptModalContentProps {
 }
 
 export function ImportScriptModalContent({ onClose }: ImportScriptModalContentProps) {
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useInputState('');
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -67,12 +68,12 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
         label="Shared Script URL"
         placeholder="https://app.pondpilot.io/shared-script/..."
         value={url}
-        onChange={(event) => setUrl(event.currentTarget.value)}
+        onChange={setUrl}
         data-autofocus="true"
         autoFocus
         classNames={{
           input: 'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md',
-          label: 'text-textSecondary-light dark:text-textSecondary-dark text-sm mb-1'
+          label: 'text-textSecondary-light dark:text-textSecondary-dark text-sm mb-1',
         }}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && url.trim().includes('/shared-script/') && !isLoading) {
