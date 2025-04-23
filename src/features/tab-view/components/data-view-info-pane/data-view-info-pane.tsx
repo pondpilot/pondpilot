@@ -40,7 +40,7 @@ export const DataViewInfoPane = ({ dataAdapter, tabType }: DataViewInfoPaneProps
 
   // Cancel button is shown only when data is available because, when no
   // data present, we show a big overlay with cancel button
-  const showCancelButton = (isFetching || isSorting) && hasData;
+  const showCancelButton = (isFetching || isSorting) && hasData && !hasDataSourceError;
   const disableCopyAndExport = !hasData || hasDataSourceError;
 
   /**
