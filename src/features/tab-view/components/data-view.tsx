@@ -300,6 +300,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   // Show dev only jump to row in pagination
   let handleOnJumpToRow;
   if (import.meta.env.DEV) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     handleOnJumpToRow = useCallback(
       (rowNumber: number) => setAndCacheDataPage(Math.floor(rowNumber / MAX_DATA_VIEW_PAGE_SIZE)),
       [],
