@@ -1,5 +1,5 @@
 module.exports = {
-  extends: ['mantine'],
+  extends: ['mantine', 'plugin:react-hooks/recommended'],
   parserOptions: {
     project: './tsconfig.json',
   },
