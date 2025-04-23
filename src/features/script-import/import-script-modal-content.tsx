@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button, Group, TextInput, Text, Stack } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { showSuccess, showError } from '@components/app-notifications';
@@ -11,14 +11,15 @@ interface ImportScriptModalContentProps {
 export function ImportScriptModalContent({ onClose }: ImportScriptModalContentProps) {
   const [url, setUrl] = useInputState('');
   const [isLoading, setIsLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      const inputElement = document.querySelector('[data-autofocus="true"]') as HTMLInputElement;
-      if (inputElement) {
-        inputElement.focus();
+      if (inputRef.current) {
+        inputRef.current.focus();
       }
     }, 100);
+    
     return () => {
       clearTimeout(timeoutId);
     };
@@ -65,11 +66,11 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
       </Text>
 
       <TextInput
+        ref={inputRef}
         label="Shared Script URL"
         placeholder="https://app.pondpilot.io/shared-script/..."
         value={url}
         onChange={setUrl}
-        data-autofocus="true"
         autoFocus
         classNames={{
           input: 'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md',
