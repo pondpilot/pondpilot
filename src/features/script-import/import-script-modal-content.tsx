@@ -19,7 +19,7 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
         inputRef.current.focus();
       }
     }, 100);
-    
+
     return () => {
       clearTimeout(timeoutId);
     };
