@@ -1,6 +1,6 @@
 import { memo } from 'react';
 
-import { useSqlScripts } from '@store/app-store';
+import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { SQLScriptId, SQLScript } from '@models/sql-script';
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
@@ -70,14 +70,15 @@ export const ScriptExplorer = memo(() => {
   /**
    * Global state
    */
-  const sqlScripts = useSqlScripts();
+  const sqlScripts = useSqlScriptNameMap();
 
   /**
    * Consts
    */
-  const scriptsArray = Array.from(sqlScripts).sort(([, leftScript], [, rightScript]) =>
-    leftScript.name.localeCompare(rightScript.name),
+  const scriptsArray = Array.from(sqlScripts).sort(([, leftName], [, rightName]) =>
+    leftName.localeCompare(rightName),
   );
+
   const contextMenu: TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> = [
     {
       children: [
@@ -91,7 +92,7 @@ export const ScriptExplorer = memo(() => {
           label: 'Share script',
           onClick: (sqlScript) => {
             const scriptId = sqlScript.value;
-            const script = sqlScripts.get(scriptId);
+            const script = useAppStore.getState().sqlScripts.get(scriptId);
 
             if (!script) return;
 
@@ -110,10 +111,10 @@ export const ScriptExplorer = memo(() => {
   ];
 
   const sqlScriptTree: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>[] = scriptsArray.map(
-    ([sqlScriptId, sqlScript]) => ({
+    ([sqlScriptId, sqlScriptName]) => ({
       nodeType: 'script',
       value: sqlScriptId,
-      label: `${sqlScript.name}.sql`,
+      label: `${sqlScriptName}.sql`,
       iconType: 'code-file',
       isDisabled: false,
       isSelectable: true,
