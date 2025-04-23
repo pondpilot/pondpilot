@@ -46,8 +46,8 @@ PondPilot is a blazing-fast, lightweight, 100% client-side data exploration tool
 - **Dark/Light Mode**: 🌓 Choose the interface that's easiest on your eyes
 
 ## 🖥️ Demo
-
-![](https://github.com/user-attachments/assets/a47547ba-3b25-440d-816a-05d47c7d60ec)
+[![Watch Demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?logo=youtube&style=for-the-badge)](https://www.youtube.com/watch?v=vn9Hx7SZ6-g)
+[![Watch the video](https://img.youtube.com/vi/vn9Hx7SZ6-g/maxresdefault.jpg)](https://www.youtube.com/watch?v=vn9Hx7SZ6-g)
 
 ## 🚀 Getting Started
 
