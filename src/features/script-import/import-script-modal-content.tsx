@@ -59,7 +59,9 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
 
   return (
     <Stack>
-      <Text size="sm">Paste the URL of a shared script to import it into your workspace.</Text>
+      <Text size="sm" c="text-primary">
+        Paste the URL of a shared script to import it into your workspace.
+      </Text>
 
       <TextInput
         label="Shared Script URL"
@@ -68,6 +70,10 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
         onChange={(event) => setUrl(event.currentTarget.value)}
         data-autofocus="true"
         autoFocus
+        classNames={{
+          input: 'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md',
+          label: 'text-textSecondary-light dark:text-textSecondary-dark text-sm mb-1'
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && url.trim().includes('/shared-script/') && !isLoading) {
             handleImport();
@@ -76,13 +82,19 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
       />
 
       <Group justify="flex-end" mt="md">
-        <Button variant="default" onClick={handleCancel}>
+        <Button
+          variant="default"
+          onClick={handleCancel}
+          className="rounded-full px-3"
+        >
           Cancel
         </Button>
         <Button
           onClick={handleImport}
           loading={isLoading}
           disabled={!url.trim().includes('/shared-script/')}
+          color="background-accent"
+          className="rounded-full px-3 min-w-20 font-normal"
         >
           Import
         </Button>
