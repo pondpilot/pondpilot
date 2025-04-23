@@ -466,7 +466,7 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
     const snapshotFile = registeredFiles.get(source.id);
     const checkSnapshotFile = snapshotFile ? await checkFileReadability(snapshotFile) : undefined;
 
-    if (checkSnapshotFile === 'readable') return;
+    if (checkSnapshotFile === 'readable') continue;
     const checkCurrentFile = await checkFileReadability(source.handle);
 
     if (checkCurrentFile === 'readable') {

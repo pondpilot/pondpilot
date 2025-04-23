@@ -415,8 +415,11 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       } catch (error: any) {
         if (error.message?.includes('NotReadableError')) {
           if (options.retry_with_file_sync) {
+            // First try to sync files, that may re-create a working handle
             await syncFiles(pool);
-            await fetchDataSingleEntry({ retry_with_file_sync: false });
+            // Do a full reset to the same sort. This will put the current batch
+            // of data to stale state, re-create the reader etc.
+            await reset(sort);
             afterRetry = true;
           } else {
             // We got an unrecoverable actual error
@@ -585,12 +588,6 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     options = { retry_with_file_sync: true },
   ) => {
     try {
-      // Cancel the main data reader before creating a new one
-      if (mainDataReaderRef.current) {
-        await mainDataReaderRef.current.cancel();
-        mainDataReaderRef.current = null;
-      }
-
       if (queries.getReader || queries.getSortableReader) {
         queries.getSortableReader
           ? (mainDataReaderRef.current = await queries.getSortableReader(newSortParams))
@@ -635,7 +632,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    * 1. When the data source changes (e.g. new query) - `newSortParams` are null
    * 2. When the sort changes - `newSortParams` are, well, the new sort params
    */
-  const reset = (newSortParams: ColumnSortSpecList | null) => {
+  const reset = async (newSortParams: ColumnSortSpecList | null) => {
     // Reset a bunch of things.
 
     // The real data is not needed anymore, we should replace
@@ -652,6 +649,15 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
     // Cancel any pending fetches, and background tasks & readers
     cancelAllDataOperations();
+
+    // Cancel the main data reader before creating a new one
+    const curReader = mainDataReaderRef.current;
+    if (curReader) {
+      // First drop the ref, so any async operation will not proceed
+      // while we are waiting for the cancel to finish next
+      mainDataReaderRef.current = null;
+      await curReader.cancel();
+    }
 
     // As we will read from the start, we reset this flag
     setDataSourceExhausted(false);
@@ -687,7 +693,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     setSort(newSortParams);
 
     // And let the new reader be created in the background
-    getNewReader(newSortParams);
+    await getNewReader(newSortParams);
   };
 
   // If queries change (data source), we need to reset everything
@@ -708,17 +714,29 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   // so we do not wnat a full reset, but only to initiate reader
   // creation in the background.
   useEffect(() => {
-    getNewReader(sort);
+    const newReaderPromise = getNewReader(sort);
 
     return () => {
-      // Make sure we cancel everything
-      cancelAllDataOperations();
+      const asyncDestructor = async () => {
+        // This will ensure that we first wait until new reader is created
+        // before kiiling it. Otherwise if the tab is closed quickly,
+        // we will leak the reader (connection). This is also happening
+        // in dev mode due to React.StrictMode firring this hook twice.
+        await newReaderPromise;
 
-      // Cancel the main data reader
-      if (mainDataReaderRef.current) {
-        mainDataReaderRef.current.cancel();
-        mainDataReaderRef.current = null;
-      }
+        // Make sure we cancel everything
+        cancelAllDataOperations();
+
+        // Cancel the main data reader
+        const curReader = mainDataReaderRef.current;
+        if (curReader) {
+          // First drop the ref, so any async operation will not proceed
+          // while we are waiting for the cancel to finish next
+          mainDataReaderRef.current = null;
+          await curReader.cancel();
+        }
+      };
+      asyncDestructor();
     };
   }, []);
 
@@ -892,12 +910,16 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       throw new Error('Stale data should not be available when isStale is false');
     }
 
-    if (dataSourceError.length > 0 && (isFetchingData || isSorting || !disableSort)) {
-      throw new Error('After data source read error we should never be in fetching/sorting state');
+    if (dataSourceError.length > 0 && (isFetchingData || !disableSort)) {
+      throw new Error(
+        'After data source read error we should never be in fetching state and sort should be disabled',
+      );
     }
 
-    if (isSorting && disableSort) {
-      throw new Error('Sorting should not be possible when sorting is disabled');
+    if (isSorting && isFetchingData && disableSort) {
+      throw new Error(
+        'Sorting should not be possible when actively sorting (started fetching) is disabled',
+      );
     }
 
     if (!hasData && !hasStaleData && isSorting) {
