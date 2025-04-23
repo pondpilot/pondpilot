@@ -82,8 +82,22 @@ export const SpotlightMenu = () => {
   const location = useLocation();
   const openImportScriptModal = () => {
     modals.open({
-      title: 'Import Shared Script',
+      withCloseButton: false,
       centered: true,
+      size: 460,
+      padding: 0,
+      radius: 'lg',
+      shadow: 'lg',
+      overlayProps: {
+        backgroundOpacity: 0.1,
+        blur: 0.2,
+        className: 'bg-transparent012-light dark:bg-transparent004-dark',
+      },
+      classNames: {
+        content: 'rounded-2xl bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark shadow-xl',
+        header: 'hidden',
+        body: 'py-4',
+      },
       children: <ImportScriptModalContent onClose={() => modals.closeAll()} />,
     });
   };
