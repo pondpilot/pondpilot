@@ -39,6 +39,8 @@ import {
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { persistDeleteDataSource } from '@controllers/data-source/persist';
 import { getXlsxSheetNames } from '@utils/xlsx';
+import { persistDeleteTab } from '@controllers/tab/persist';
+import { deleteTabImpl } from '@controllers/tab/pure';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
@@ -637,8 +639,42 @@ export const restoreAppDataFromIDB = async (
     outdatedDataSources.add(ds.id);
   }
 
+  // Create the updated state for tabs
+  const tabsToDelete: TabId[] = [];
+
+  for (const [tabId, tab] of tabs.entries()) {
+    if (tab.type === 'data-source') {
+      if (outdatedDataSources.has(tab.dataSourceId)) {
+        tabsToDelete.push(tabId);
+      }
+    }
+  }
+
+  let newTabs = tabs;
+  let newTabOrder = tabOrder;
+  let newActiveTabId = activeTabId;
+  let newPreviewTabId = previewTabId;
+
+  if (tabsToDelete.length > 0) {
+    const result = deleteTabImpl({
+      deleteTabIds: tabsToDelete,
+      tabs,
+      tabOrder,
+      activeTabId,
+      previewTabId,
+    });
+
+    newTabs = result.newTabs;
+    newTabOrder = result.newTabOrder;
+    newActiveTabId = result.newActiveTabId;
+    newPreviewTabId = result.newPreviewTabId;
+  }
+
   if (outdatedDataSources.size > 0) {
     await persistDeleteDataSource(iDbConn, outdatedDataSources, []);
+    if (tabsToDelete.length) {
+      await persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
+    }
   }
 
   // Read database meta data
@@ -648,15 +684,15 @@ export const restoreAppDataFromIDB = async (
   useAppStore.setState(
     {
       _iDbConn: iDbConn,
-      activeTabId,
       dataBaseMetadata,
       dataSources,
       localEntries: localEntriesMap,
       registeredFiles,
-      previewTabId,
       sqlScripts,
-      tabOrder,
-      tabs,
+      tabs: newTabs,
+      tabOrder: newTabOrder,
+      activeTabId: newActiveTabId,
+      previewTabId: newPreviewTabId,
     },
     undefined,
     'AppStore/restoreAppDataFromIDB',
