@@ -3,7 +3,7 @@ import { test as base, expect, Page } from '@playwright/test';
 const waitForAppReady = async (page: Page) => {
   // Wait for the app to be ready
   const appStatus = page.getByTestId('app-state');
-  await expect(appStatus).toHaveAttribute('data-app-load-state', 'ready', { timeout: 15_000 });
+  await expect(appStatus).toHaveAttribute('data-app-load-state', 'ready');
 };
 
 type PageFixtures = {
