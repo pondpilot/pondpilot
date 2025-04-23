@@ -47,12 +47,12 @@ const onDelete = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): void => {
 const validateRename = (
   node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>,
   newName: string,
-  scriptsArray: [SQLScriptId, SQLScript][],
+  scriptsArray: [SQLScriptId, string][],
 ): string | null => {
   const textInputError = newName.length === 0 ? 'Name cannot be empty' : undefined;
   const notUniqueError = scriptsArray
     .filter(([id, _]) => id !== node.value)
-    .some(([_, script]) => script.name.toLowerCase() === newName.toLowerCase())
+    .some(([_, script]) => script.toLowerCase() === newName.toLowerCase())
     ? 'Name must be unique'
     : undefined;
   const invalidCharactersError = newName.match(/[^a-zA-Z0-9()_-]/)
