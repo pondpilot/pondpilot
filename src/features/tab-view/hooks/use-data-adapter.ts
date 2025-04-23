@@ -708,17 +708,26 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   // so we do not wnat a full reset, but only to initiate reader
   // creation in the background.
   useEffect(() => {
-    getNewReader(sort);
+    const newReaderPromise = getNewReader(sort);
 
     return () => {
-      // Make sure we cancel everything
-      cancelAllDataOperations();
+      const asyncDestructor = async () => {
+        // This will ensure that we first wait until new reader is created
+        // before kiiling it. Otherwise if the tab is closed quickly,
+        // we will leak the reader (connection). This is also happening
+        // in dev mode due to React.StrictMode firring this hook twice.
+        await newReaderPromise;
 
-      // Cancel the main data reader
-      if (mainDataReaderRef.current) {
-        mainDataReaderRef.current.cancel();
-        mainDataReaderRef.current = null;
-      }
+        // Make sure we cancel everything
+        cancelAllDataOperations();
+
+        // Cancel the main data reader
+        if (mainDataReaderRef.current) {
+          mainDataReaderRef.current.cancel();
+          mainDataReaderRef.current = null;
+        }
+      };
+      asyncDestructor();
     };
   }, []);
 

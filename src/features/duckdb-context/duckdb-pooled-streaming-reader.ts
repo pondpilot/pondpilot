@@ -84,7 +84,7 @@ export class AsyncDuckDBPooledStreamReader<T extends { [key: string]: arrow.Data
 
     if (done || !value) {
       // If we are done, close the reader
-      this.close();
+      await this.close();
 
       return { done: true, value: null };
     }
