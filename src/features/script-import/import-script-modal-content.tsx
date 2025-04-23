@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Group, TextInput, Text, Stack, Box } from '@mantine/core';
+import { Button, Group, TextInput, Text, Box } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { IconFileImport } from '@tabler/icons-react';
 import { showSuccess, showError } from '@components/app-notifications';
