@@ -1,16 +1,15 @@
 import { useCallback } from 'react';
 import { CancelledOperation, DataAdapterApi } from '@models/data-adapter';
-import { showSuccess } from '@components/app-notifications';
+import { showError, showSuccess, showWarning } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { copyToClipboard } from '@utils/clipboard';
 import { escapeCSVField } from '@utils/helpers';
 import { stringifyTypedValue } from '@utils/db';
 import { TabId } from '@models/tab';
-import { useTabNameMap } from '@store/app-store';
+import { useAppStore } from '@store/app-store';
 
 export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
-  const tabNameMap = useTabNameMap();
-  const tabName = tabNameMap.get(tabId);
+  const tabName = useAppStore((state) => state.tabs.get(tabId) || 'unknown-tab-export.csv');
 
   const copyTableToClipboard = useCallback(async () => {
     const notificationId = showSuccess({
@@ -39,28 +38,19 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
         autoClose: 800,
       });
     } catch (error) {
+      notifications.hide(notificationId);
       const autoCancelled = error instanceof CancelledOperation ? error.isSystemCancelled : false;
       const message = error instanceof Error ? error.message : 'Unknown error';
 
       if (autoCancelled) {
-        notifications.update({
-          id: notificationId,
-          title: 'Cancelled',
-          message,
-          loading: false,
-          autoClose: 800,
-          color: 'text-warning',
-        });
+        showWarning({ title: 'Cancelled', message });
         return;
       }
 
-      notifications.update({
-        id: notificationId,
+      showError({
         title: 'Failed to copy table to clipboard',
         message,
-        loading: false,
         autoClose: 5000,
-        color: 'red',
       });
     }
   }, [dataAdapter]);
@@ -109,28 +99,19 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
         autoClose: 800,
       });
     } catch (error) {
+      notifications.hide(notificationId);
       const autoCancelled = error instanceof CancelledOperation ? error.isSystemCancelled : false;
       const message = error instanceof Error ? error.message : 'Unknown error';
 
       if (autoCancelled) {
-        notifications.update({
-          id: notificationId,
-          title: 'Cancelled',
-          message,
-          loading: false,
-          autoClose: 800,
-          color: 'text-warning',
-        });
+        showWarning({ title: 'Cancelled', message });
         return;
       }
 
-      notifications.update({
-        id: notificationId,
+      showError({
         title: 'Failed to export table to CSV',
         message,
-        loading: false,
         autoClose: 5000,
-        color: 'red',
       });
     }
   }, [dataAdapter]);
