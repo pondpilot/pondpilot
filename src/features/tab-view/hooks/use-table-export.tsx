@@ -7,10 +7,9 @@ import { escapeCSVField } from '@utils/helpers';
 import { stringifyTypedValue } from '@utils/db';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
+import { getTabName } from '@utils/navigation';
 
 export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
-  const tabName = useAppStore((state) => state.tabs.get(tabId) || 'unknown-tab-export.csv');
-
   const copyTableToClipboard = useCallback(async () => {
     const notificationId = showSuccess({
       title: 'Copying table columns to clipboard...',
@@ -56,6 +55,13 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
   }, [dataAdapter]);
 
   const exportTableToCSV = useCallback(async () => {
+    const state = useAppStore.getState();
+    const tab = state.tabs.get(tabId);
+
+    const tabName = tab
+      ? getTabName(tab, state.sqlScripts, state.dataSources, state.localEntries)
+      : 'unknown-tab-export';
+
     const notificationId = showSuccess({
       title: 'Exporting table to CSV...',
       message: '',
@@ -93,7 +99,7 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
 
       notifications.update({
         id: notificationId,
-        title: 'Table exported to CSV',
+        title: `${fileName} exported to CSV`,
         message: '',
         loading: false,
         autoClose: 800,
