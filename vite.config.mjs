@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
           // Cache duckdb CDN resources
           runtimeCaching: [
             {
-              urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@duckdb\/duckdb-wasm\/.*/,
+              urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@duckdb\/duckdb-wasm.*/,
               handler: 'CacheFirst',
               options: {
                 cacheName: 'duckdb-wasm-cache',
