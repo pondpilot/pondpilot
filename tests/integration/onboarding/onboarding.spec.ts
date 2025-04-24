@@ -8,7 +8,7 @@ test('Onboarding modal is displayed on page load', async ({
   onboardingModal,
 }) => {
   // Navigate to the application
-  await page.goto('http://localhost:5173/');
+  await page.goto('/');
 
   // Check if the onboarding modal is visible on initial load
   await expect(onboardingModal).toBeVisible();

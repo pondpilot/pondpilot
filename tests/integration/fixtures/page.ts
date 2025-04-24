@@ -1,10 +1,9 @@
-import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { test as base, expect, Page } from '@playwright/test';
 
-export const waitForAppReady = async (page: Page) => {
+const waitForAppReady = async (page: Page) => {
   // Wait for the app to be ready
   const appStatus = page.getByTestId('app-state');
-  await expect(appStatus).toHaveAttribute('data-app-load-state', 'ready');
+  await expect(appStatus).toHaveAttribute('data-app-load-state', 'ready', { timeout: 15_000 });
 };
 
 type PageFixtures = {
@@ -13,15 +12,8 @@ type PageFixtures = {
 
 export const test = base.extend<PageFixtures>({
   page: async ({ page }, use) => {
-    await page.goto('http://localhost:5173/');
-
-    await page.evaluate(
-      (key) => localStorage.setItem(key, 'true'),
-      LOCAL_STORAGE_KEYS.ONBOARDING_SHOWN,
-    );
-
-    await page.reload();
-
+    // ---------- BEFORE EACH TEST ----------
+    await page.goto('/');
     await waitForAppReady(page);
 
     await use(page);

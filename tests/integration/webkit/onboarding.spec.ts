@@ -8,7 +8,7 @@ test('Onboarding modal is not displayed if browser is unsupported', async ({
 }) => {
   // eslint-disable-next-line playwright/no-conditional-in-test
   if (browserName !== 'chromium') {
-    await page.goto('http://localhost:5173/');
+    await page.goto('/');
     // eslint-disable-next-line playwright/no-conditional-expect
     await expect(onboardingModal).toBeHidden();
   }
