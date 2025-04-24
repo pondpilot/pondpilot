@@ -4,7 +4,7 @@ import { CellContext, ColumnDef } from '@tanstack/react-table';
 import React from 'react';
 import { setDataTestId } from '@utils/test-id';
 import { DBColumn } from '@models/db';
-import { findUniqueName, replaceSpecialChars } from '@utils/helpers';
+import { findUniqueName } from '@utils/helpers';
 import { TableMeta } from '../model';
 
 interface GetTableColumnsProps {
@@ -24,8 +24,9 @@ export const getTableColumns = ({
   onRowSelectionChange,
 }: GetTableColumnsProps) => {
   const indexColumnId = findUniqueName('__index__', (name) =>
-    schema.some((col) => replaceSpecialChars(col.name) === name),
+    schema.some((col) => col.name === name),
   );
+
   const tableColumns: ColumnDef<Record<string, string | number>, any>[] = schema.length
     ? [
         {
@@ -61,7 +62,7 @@ export const getTableColumns = ({
             meta: { type: col.sqlType, name: col.name },
             minSize: 100,
             size: initialColumnSizes?.[col.name] || 200,
-            id: replaceSpecialChars(col.name),
+            id: col.id,
           };
         }),
       ]

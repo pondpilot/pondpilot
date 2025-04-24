@@ -76,8 +76,8 @@ export const useTableSelection = ({
             .getAllColumns()
             .filter((col) => !col.getIsFirstColumn())
             .map((col) => {
-              const value = row.getValue(col.id);
-
+              const { type } = col.columnDef.meta as ColumnMeta;
+              const value = stringifyTypedValue({ type, value: row.getValue(col.id) });
               return value ?? '';
             })
             .join('\t');
@@ -171,11 +171,11 @@ export const useTableSelection = ({
           return;
         }
 
-        const start = schema.findIndex((col) => col.name === lastSelectedColumn);
-        const end = schema.findIndex((col) => col.name === columnId);
+        const start = schema.findIndex((col) => col.id === lastSelectedColumn);
+        const end = schema.findIndex((col) => col.id === columnId);
         const selectedCols2 = schema.slice(Math.min(start, end), Math.max(start, end) + 1).reduce(
           (acc, col) => {
-            acc[col.name] = true;
+            acc[col.id] = true;
             return acc;
           },
           {} as Record<string, boolean>,
@@ -190,7 +190,7 @@ export const useTableSelection = ({
     const selectedColsKeys = Object.keys(selectedCols);
     if (selectedColsKeys.length === 1) {
       const columnName = selectedColsKeys[0];
-      const column = schema.find((col) => col.name === columnName);
+      const column = schema.find((col) => col.id === columnName);
       if (column) {
         onColumnSelectChange(column);
       }

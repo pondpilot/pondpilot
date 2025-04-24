@@ -1,5 +1,5 @@
 import { expect, mergeTests } from '@playwright/test';
-import { replaceSpecialChars } from '@utils/helpers';
+import { getTableColumnId } from '@utils/table';
 import { test as baseTest } from '../fixtures/page';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
@@ -46,13 +46,14 @@ test('Header cell width matches data cell width for special character columns', 
 
   // For each column name, get corresponding header cell and data container in the first row
   // and check if its width matches the corresponding data cell
-  for (const column of COLUMN_NAMES_WITH_SPECIAL_CHARS) {
-    const columnName = replaceSpecialChars(column);
+  for (let i = 0; i < COLUMN_NAMES_WITH_SPECIAL_CHARS.length; i += 1) {
+    const column = COLUMN_NAMES_WITH_SPECIAL_CHARS[i];
+    const columnId = getTableColumnId(column, i);
     // Get the current header cell
-    const headerCell = getHeaderCell(dataTable, columnName);
+    const headerCell = getHeaderCell(dataTable, columnId);
 
     // Get the corresponding data cell in the first row
-    const dataCell = getDataCellContainer(dataTable, columnName, 0);
+    const dataCell = getDataCellContainer(dataTable, columnId, 0);
     await expect(dataCell).toBeVisible();
 
     // Get bounding boxes for both cells

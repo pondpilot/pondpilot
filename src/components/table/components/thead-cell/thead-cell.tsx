@@ -105,7 +105,7 @@ export const TableHeadCell = memo(
     const iconType = getIconTypeForSQLType(type);
     const isNumber = isNumberType(type);
     const headStyles = {
-      width: `calc(var(--header-${header.column.id}-size) * 1px)`,
+      width: `calc(var(--header-${header.index}-size) * 1px)`,
       overflow: 'visible',
     };
 

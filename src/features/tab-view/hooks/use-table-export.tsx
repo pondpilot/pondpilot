@@ -24,7 +24,17 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
       const columns = dataAdapter.currentSchema;
 
       const headers = columns.map((col) => col.name).join('\t');
-      const rows = data.map((row) => columns.map((col) => row[col.name] ?? '').join('\t'));
+      const rows = data.map((row) =>
+        columns
+          .map((col) => {
+            const value = stringifyTypedValue({
+              value: row[col.name],
+              type: col.sqlType || 'other',
+            });
+            return value ?? '';
+          })
+          .join('\t'),
+      );
       const tableText = [headers, ...rows].join('\n');
 
       await copyToClipboard(tableText);

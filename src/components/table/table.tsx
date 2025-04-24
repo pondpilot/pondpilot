@@ -95,13 +95,13 @@ export const Table = memo(
       const headers = table.getFlatHeaders();
       const colSizes: { [key: string]: number } = {};
       const colSizeVars: { [key: string]: number } = {};
+
       for (let i = 0; i < headers.length; i += 1) {
         const header = headers[i]!;
 
-        // column id's are sanitized column names. Header ids are raw column names
-        colSizeVars[`--header-${header.column.id}-size`] = header.getSize();
-        colSizeVars[`--col-${header.column.id}-size`] = header.column.getSize();
-        colSizes[header.id] = header.getSize();
+        colSizeVars[`--header-${header.index}-size`] = header.getSize();
+        colSizeVars[`--col-${header.index}-size`] = header.column.getSize();
+        colSizes[header.index] = header.getSize();
       }
 
       onColumnResizeChange?.(colSizes);
@@ -133,7 +133,7 @@ export const Table = memo(
             handleCopySelectedRows(table);
           }
           if (Object.keys(selectedCols).length && onSelectedColsCopy) {
-            const columns = schema.filter((col) => selectedCols[col.name]);
+            const columns = schema.filter((col) => selectedCols[col.id]);
             onSelectedColsCopy(columns);
           }
         },

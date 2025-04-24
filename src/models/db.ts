@@ -26,6 +26,8 @@ export interface DBColumn {
   databaseType: string;
   nullable: boolean;
   sqlType: NormalizedSQLType;
+  id: string;
+  columnIndex: number;
 }
 
 export type DBTableOrViewSchema = DBColumn[];

@@ -38,24 +38,29 @@ export const stringifyTypedValue = ({
   value: unknown;
 }): string => {
   try {
+    // Early check for null or undefined values
+    if (value === null || value === undefined) {
+      return '';
+    }
+
     switch (type) {
       case 'timestamp': {
-        return new Date(Number(value)).toLocaleString();
+        return typeof value === 'number' ? new Date(value).toLocaleString() : '';
       }
       case 'date': {
-        return new Date(Number(value)).toLocaleDateString();
+        return typeof value === 'number' ? new Date(value).toLocaleDateString() : '';
       }
       case 'time': {
-        return new Date(Number(value)).toLocaleTimeString();
+        return typeof value === 'number' ? new Date(value).toLocaleTimeString() : '';
       }
       case 'string': {
-        return value as string;
+        return typeof value === 'string' ? value : String(value);
       }
       case 'bigint': {
         return (value as bigint).toString();
       }
       case 'boolean': {
-        return `${value}` as string;
+        return String(value);
       }
       case 'bytes':
       case 'other':
@@ -65,7 +70,10 @@ export const stringifyTypedValue = ({
       }
       case 'integer':
       case 'number': {
-        return formatNumber(value as number);
+        if (typeof value === 'number' || typeof value === 'bigint') {
+          return formatNumber(value);
+        }
+        return '';
       }
       default:
         // eslint-disable-next-line no-case-declarations
@@ -74,7 +82,7 @@ export const stringifyTypedValue = ({
         return 'N/A';
     }
   } catch (error) {
-    console.error('Error in dynamicTypeViewer', error);
+    console.error('Error in stringifyTypedValue', error);
     return "ERROR: Can't display value";
   }
 };

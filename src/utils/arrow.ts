@@ -1,6 +1,7 @@
 import { DataTable, DBColumn, DBTableOrViewSchema, NormalizedSQLType } from '@models/db';
 import type { Field, RecordBatch, Table } from 'apache-arrow';
 import { DataType } from 'apache-arrow';
+import { getTableColumnId } from './table';
 
 /**
  * Returns an Apache Arrow table as an array of row records.
@@ -13,19 +14,16 @@ export function convertArrowTable(table: Table | RecordBatch): DataTable {
  * Returns the schema of an Apache Arrow table as an array of objects.
  */
 export function getArrowTableSchema(table: Table | RecordBatch): DBTableOrViewSchema {
-  return table.schema.fields.map(getArrowFieldSchema);
-}
-
-/**
- * Returns the schema of an Apache Arrow field as an object.
- */
-function getArrowFieldSchema(field: Field<DataType>): DBColumn {
-  return {
-    name: field.name,
-    sqlType: getNormalizedSQLTypeFromArrowType(field.type),
-    nullable: field.nullable,
-    databaseType: String(field.type),
-  };
+  return table.schema.fields.map((field: Field<DataType>, columnIndex): DBColumn => {
+    return {
+      name: field.name,
+      sqlType: getNormalizedSQLTypeFromArrowType(field.type),
+      nullable: field.nullable,
+      databaseType: String(field.type),
+      id: getTableColumnId(field.name, columnIndex),
+      columnIndex,
+    };
+  });
 }
 
 // https://github.com/apache/arrow/blob/89f9a0948961f6e94f1ef5e4f310b707d22a3c11/js/src/enum.ts#L140-L141

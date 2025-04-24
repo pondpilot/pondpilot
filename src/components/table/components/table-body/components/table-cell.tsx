@@ -33,7 +33,7 @@ export const TableRegularCell = memo(
     const handleCellClick = () => {
       onSelect(cell);
     };
-
+    const colIndex = cell.column.getIndex();
     const columnMeta = cell.column.columnDef.meta as ColumnMeta | undefined;
     const columnValueSqlType = columnMeta?.type || 'other';
     const formattedValue = stringifyTypedValue({
@@ -61,7 +61,7 @@ export const TableRegularCell = memo(
         )}
         onClick={handleCellClick}
         style={{
-          width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
+          width: `calc(var(--col-${colIndex}-size) * 1px)`,
         }}
       >
         <div
@@ -110,6 +110,7 @@ export const TableIndexCell = memo(
     };
 
     const isHighlighted = isCellSelected || isColumnSelected;
+    const colIndex = cell.column.getIndex();
 
     return (
       <Box
@@ -124,7 +125,7 @@ export const TableIndexCell = memo(
         )}
         onClick={handleCellClick}
         style={{
-          width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
+          width: `calc(var(--col-${colIndex}-size) * 1px)`,
         }}
       >
         {flexRender(cell.column.columnDef.cell, cell.getContext())}

@@ -19,6 +19,7 @@ import {
 } from '@controllers/tab';
 import { formatStringsAsMDList } from '@utils/pretty';
 import { formatNumber } from '@utils/helpers';
+import { stringifyTypedValue } from '@utils/db';
 import { useColumnSummary } from '../hooks';
 
 interface DataViewProps {
@@ -250,7 +251,14 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
         const data = await dataAdapter.getAllTableData(selectedCols);
 
         const headers = selectedCols.map((col) => col.name).join('\t');
-        const rows = data.map((row) => selectedCols.map((col) => row[col.name] ?? '').join('\t'));
+        const rows = data.map((row) =>
+          selectedCols
+            .map((col) => {
+              const value = stringifyTypedValue({ value: row[col.name], type: col.sqlType });
+              return value ?? '';
+            })
+            .join('\t'),
+        );
         const tableText = [headers, ...rows].join('\n');
         await copyToClipboard(tableText);
 
