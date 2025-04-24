@@ -34,7 +34,7 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
         title: 'Table copied to clipboard',
         message: '',
         loading: false,
-        autoClose: 800,
+        autoClose: 1500,
       });
     } catch (error) {
       notifications.hide(notificationId);
@@ -102,7 +102,7 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
         title: `${fileName} exported to CSV`,
         message: '',
         loading: false,
-        autoClose: 800,
+        autoClose: 1500,
       });
     } catch (error) {
       notifications.hide(notificationId);
@@ -120,7 +120,7 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
         autoClose: 5000,
       });
     }
-  }, [dataAdapter]);
+  }, [dataAdapter, tabId]);
 
   return {
     copyTableToClipboard,
