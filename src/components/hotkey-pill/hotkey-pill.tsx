@@ -25,7 +25,7 @@ export const HotkeyPill = ({ value, children, variant }: HotkeyPillProps) => {
       {children || (
         <div className="flex items-center justify-center gap-1 mx-auto font-mono">
           {value?.map((item, index) => (
-            <Text key={index} className="text-sm">
+            <Text c="text-secondary" key={index} className="text-sm">
               {item}
             </Text>
           ))}

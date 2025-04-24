@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Group, TextInput, Text, Box } from '@mantine/core';
+import { Button, Group, TextInput, Text, Title, Stack, ActionIcon } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
-import { IconFileImport } from '@tabler/icons-react';
 import { showSuccess, showError } from '@components/app-notifications';
 import { importScript } from '@utils/script-import-utils';
+import { IconX } from '@tabler/icons-react';
 
 interface ImportScriptModalContentProps {
   onClose: () => void;
@@ -61,29 +61,25 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
   }, []);
 
   return (
-    <Box px="md">
-      <Group align="center" mb="sm" gap="xs">
-        <IconFileImport size={18} className="text-iconDefault-light dark:text-iconDefault-dark" />
-        <Text size="sm" fw={500} c="text-primary">
-          Import Shared Script
-        </Text>
+    <Stack gap={16}>
+      <Group justify="space-between">
+        <Title order={4}>Import Shared Script</Title>
+        <ActionIcon size={20} onClick={handleCancel}>
+          <IconX />
+        </ActionIcon>
       </Group>
 
-      <Text size="sm" c="text-secondary" mb="md">
-        Paste the URL of a shared script to import it into your workspace.
-      </Text>
+      <Text>Paste the URL of a shared script to add it to your workspace.</Text>
 
       <TextInput
         ref={inputRef}
         placeholder="https://app.pondpilot.io/shared-script/..."
         value={url}
         onChange={setUrl}
-        autoFocus
-        size="md"
+        size="sm"
         classNames={{
           input:
-            'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 placeholder-textTertiary-light dark:placeholder-textTertiary-dark',
-          wrapper: 'mb-6',
+            'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full text-sm leading-none px-4 py-2 placeholder-textTertiary-light dark:placeholder-textTertiary-dark focus:border-borderAccent-light dark:focus:border-borderAccent-dark',
         }}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && url.trim().includes('/shared-script/') && !isLoading) {
@@ -92,12 +88,12 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
         }}
       />
 
-      <Group justify="flex-end" mt="lg" mb="xs">
+      <Group justify="flex-end" gap={4}>
         <Button
-          variant="default"
+          variant="transparent"
           onClick={handleCancel}
-          className="rounded-full px-3 text-sm"
-          size="xs"
+          className="rounded-full px-3"
+          c="text-secondary"
         >
           Cancel
         </Button>
@@ -106,12 +102,11 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
           loading={isLoading}
           disabled={!url.trim().includes('/shared-script/')}
           color="background-accent"
-          className="rounded-full px-3 min-w-20 font-normal text-sm"
-          size="xs"
+          className="rounded-full px-3 disabled:bg-transparentBrandBlue-016 dark:disabled:bg-transparentBrandBlue-016 disabled:text-textTertiary-light dark:disabled:text-textTertiary-dark"
         >
           Import
         </Button>
       </Group>
-    </Box>
+    </Stack>
   );
 }
