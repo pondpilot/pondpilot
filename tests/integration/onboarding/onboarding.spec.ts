@@ -1,18 +1,26 @@
-import test, { expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from '../fixtures/onboarding';
 
-test('Onboarding modal is displayed on page load', async ({ page }) => {
+test('Onboarding modal is displayed on page load', async ({
+  page,
+  closeOnboardingModal,
+  openOnboardingModal,
+  onboardingModal,
+}) => {
   // Navigate to the application
   await page.goto('http://localhost:5173/');
 
-  // Check if the onboarding modal is visible
-  const onboardingModal = page.getByTestId('onboarding-modal');
+  // Check if the onboarding modal is visible on initial load
   await expect(onboardingModal).toBeVisible();
 
-  // Verify the submit button exists
-  const submitButton = page.getByTestId('onboarding-modal-submit-button');
-  await expect(submitButton).toBeVisible();
-
   // Close the modal and verify it's gone
-  await submitButton.click();
+  await closeOnboardingModal();
+
+  // Check if the onboarding modal is not visible after reloading
+  await page.reload();
   await expect(onboardingModal).toBeHidden();
+
+  // Check if the onboarding modal is visible on clicking the button
+  await openOnboardingModal();
+  await expect(onboardingModal).toBeVisible();
 });
