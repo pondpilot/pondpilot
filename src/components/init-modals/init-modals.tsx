@@ -1,10 +1,14 @@
 import { ONBOARDING_MODAL_OPTIONS, OnboardingModal } from '@components/onboarding-modal';
 import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
+import { useAppContext } from '@features/app-context';
 import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { useAppStore } from '@store/app-store';
 
-export const useInitModals = () => {
+export const InitModals = () => {
+  const {
+    browserInfo: { isFileAccessApiSupported },
+  } = useAppContext();
   const appLoadState = useAppStore.use.appLoadState();
 
   const [isOnboardingShown, setIsOnboardingShown] = useLocalStorage({
@@ -13,6 +17,9 @@ export const useInitModals = () => {
   });
 
   useDidUpdate(() => {
+    if (!isFileAccessApiSupported) {
+      return;
+    }
     if (appLoadState === 'ready') {
       // If a user is using the app for the first time, show the Onboarding modal
       if (!isOnboardingShown) {
@@ -24,4 +31,6 @@ export const useInitModals = () => {
       }
     }
   }, [appLoadState]);
+
+  return null;
 };
