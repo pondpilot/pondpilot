@@ -1,7 +1,8 @@
 export const isVersionGreater = (version1: string, version2: string) => {
   // Validate inputs
   if (typeof version1 !== 'string' || typeof version2 !== 'string') {
-    throw new Error('Version arguments must be strings');
+    console.error('Invalid version format');
+    return false;
   }
 
   // Version extraction regex pattern
@@ -12,7 +13,8 @@ export const isVersionGreater = (version1: string, version2: string) => {
   const v2Matches = version2.match(VERSION_PATTERN);
 
   if (!v1Matches || !v2Matches) {
-    throw new Error('Invalid version format');
+    console.error('Invalid version format');
+    return false;
   }
 
   // Convert matched groups to numbers, filtering out undefined values

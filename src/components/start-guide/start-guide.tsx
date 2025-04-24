@@ -18,6 +18,8 @@ import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { ICON_CLASSES, SCRIPT_DISPLAY_NAME } from '@components/spotlight/consts';
 import { importSQLFiles } from '@utils/import-script-file';
+import { modals } from '@mantine/modals';
+import { ONBOARDING_MODAL_OPTIONS, OnboardingModal } from '@components/onboarding-modal';
 
 export const StartGuide = () => {
   const mod = useOsModifierIcon();
@@ -77,9 +79,16 @@ export const StartGuide = () => {
     {
       key: 'go-to-menu',
       label: 'Go-To-Anything menu',
-      icon: <IconChevronRight size={24} className={ICON_CLASSES} />,
-      handler: () => {
-        spotlight.open();
+      onClick: spotlight.open,
+    },
+    {
+      key: 'onboarding',
+      label: 'Quack Up Onboading',
+      onClick: () => {
+        const modalId = modals.open({
+          ...ONBOARDING_MODAL_OPTIONS,
+          children: <OnboardingModal onClose={() => modals.close(modalId)} />,
+        });
       },
     },
   ];
@@ -137,7 +146,7 @@ export const StartGuide = () => {
                 <Button
                   key={item.key}
                   onClick={(e) => {
-                    item.handler();
+                    item.onClick();
                     // Remove focus after click
                     e.currentTarget.blur();
                   }}
@@ -151,7 +160,7 @@ export const StartGuide = () => {
                 >
                   <Group wrap="nowrap">
                     <Text>{item.label}</Text>
-                    {item.icon}
+                    <IconChevronRight className="text-textSecondary-light dark:text-textSecondary-dark" />
                   </Group>
                 </Button>
               ))}

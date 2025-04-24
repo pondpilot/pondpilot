@@ -1,12 +1,10 @@
-import { ONBOARDING_MODAL_OPTIONS } from '@components/onboarding-modal';
-import { WHATS_NEW_MODAL_OPTIONS } from '@components/whats-new-modal';
+import { ONBOARDING_MODAL_OPTIONS, OnboardingModal } from '@components/onboarding-modal';
 import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { useAppStore } from '@store/app-store';
-import { isVersionGreater } from '@utils/compare-versions';
 
-export const StartModal = () => {
+export const useInitModals = () => {
   const appLoadState = useAppStore.use.appLoadState();
 
   const [isOnboardingShown, setIsOnboardingShown] = useLocalStorage({
@@ -23,31 +21,25 @@ export const StartModal = () => {
       // If a user is using the app for the first time, show the Onboarding modal, not the Release Notes
       if (!isOnboardingShown) {
         setWhatsNewVersionShown(__VERSION__);
-        modals.openContextModal({
+
+        const modalId = modals.open({
           ...ONBOARDING_MODAL_OPTIONS,
-          innerProps: {
-            isOnboardingShown: String(isOnboardingShown),
-          },
-          onClose() {
-            setIsOnboardingShown(true);
-          },
+          onClose: () => setIsOnboardingShown(true),
+          children: <OnboardingModal onClose={() => modals.close(modalId)} />,
         });
         return;
       }
 
-      if (whatsNewVersionShown && isVersionGreater(__VERSION__, whatsNewVersionShown)) {
-        modals.openContextModal({
-          ...WHATS_NEW_MODAL_OPTIONS,
-          onClose() {
-            setWhatsNewVersionShown(__VERSION__);
-          },
-        });
-        return;
-      }
-      // Set the current version by dfault
+      // if (whatsNewVersionShown && isVersionGreater(__VERSION__, whatsNewVersionShown)) {
+      //   const modalId = modals.open({
+      //     ...WHATS_NEW_MODAL_OPTIONS,
+      //     onClose: () => setWhatsNewVersionShown(__VERSION__),
+      //     children: <WhatsNewModal onClose={() => modals.close(modalId)} />,
+      //   });
+      //   return;
+      // }
+      // Set the current version by default
       setWhatsNewVersionShown(__VERSION__);
     }
   }, [appLoadState]);
-
-  return null;
 };

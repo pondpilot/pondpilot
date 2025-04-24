@@ -3,3 +3,5 @@ export const API_GITHUB_URL = 'https://api.github.com/repos/pondpilot/pondpilot/
 export const APP_OPEN_ISSUES_URL = `${APP_GITHUB_URL}/issues`;
 export const APP_SUPPORT_URL = APP_OPEN_ISSUES_URL;
 export const APP_DOCS_URL = `${APP_GITHUB_URL}/blob/main/README.md`;
+
+export const YT_ONBOARDING_EMBED_URL = 'https://www.youtube.com/embed/vn9Hx7SZ6-g';

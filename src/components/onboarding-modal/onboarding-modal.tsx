@@ -1,32 +1,32 @@
 import { Button, Group, Stack, Text, Title } from '@mantine/core';
-import { ContextModalProps } from '@mantine/modals';
+import { ModalSettings } from '@mantine/modals/lib/context';
 import { setDataTestId } from '@utils/test-id';
-import PlugSVG from './plug.svg?react';
+import { YT_ONBOARDING_EMBED_URL } from 'app-urls';
 
-export const ONBOARDING_MODAL_OPTIONS = {
-  modal: 'onboarding',
-  centered: true,
+export const ONBOARDING_MODAL_OPTIONS: ModalSettings = {
   size: 675,
-  radius: 'md',
   withCloseButton: true,
-  closeOnClickOutside: false,
-  closeOnEscape: false,
-  innerProps: {},
 };
 
-export const OnboardingModal = ({ context, id }: ContextModalProps) => (
-  <Stack gap={16} data-testid={setDataTestId('onboarding-modal')}>
+export const OnboardingModal = ({ onClose }: { onClose: () => void }) => (
+  <Stack gap={32} data-testid={setDataTestId('onboarding-modal')}>
     <Stack justify="center" align="center" gap={4}>
-      <Title order={1}>👋 Welcome to PondPilod</Title>
+      <Title order={1}>👋 Welcome to PondPilot</Title>
       <Text c="text-secondary">Query and transform your data - effortlessly.</Text>
     </Stack>
     <Stack justify="center" align="center" gap={4}>
-      {/* // TODO: Render video here */}
-      <PlugSVG />
+      <iframe
+        width="560"
+        height="300"
+        src={YT_ONBOARDING_EMBED_URL}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+        title="PondPilot Onboarding"
+      />
     </Stack>
-    <Group justify="end" mt={60}>
+    <Group justify="end" mt={24}>
       <Button
-        onClick={() => context.closeModal(id)}
+        onClick={onClose}
         color="background-accent"
         data-testid={setDataTestId('onboarding-modal-submit-button')}
       >
