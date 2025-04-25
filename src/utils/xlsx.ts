@@ -81,8 +81,10 @@ function extractSheetNamesFromZip(buf: Uint8Array): string[] | null {
       filter: (path: any) => {
         // Convert UnzipFileInfo to string for processing
         const pathStr = String(path);
-        return workbookPaths.includes(pathStr) ||
-          (pathStr.toLowerCase().includes('workbook') && pathStr.toLowerCase().endsWith('.xml'));
+        return (
+          workbookPaths.includes(pathStr) ||
+          (pathStr.toLowerCase().includes('workbook') && pathStr.toLowerCase().endsWith('.xml'))
+        );
       },
     });
 
