@@ -45,6 +45,7 @@ type FileSystemExplorerFixtures = {
   selectMultipleFileNodes: (indices: number[]) => Promise<Locator[]>;
   assertFileNodesSelection: (expectedSelectedIndices: number[]) => Promise<void>;
   deselectAllFiles: () => Promise<void>;
+  clickFileMenuItemByName: (fileName: string, menuItemName: string) => Promise<void>;
   createScriptFromFileExplorer: (fileName: string) => Promise<void>;
 };
 
@@ -166,6 +167,17 @@ export const test = base.extend<FileSystemExplorerFixtures>({
 
       // Deselect all items using Escape
       await page.keyboard.press('Escape');
+    });
+  },
+
+  clickFileMenuItemByName: async ({ page }, use) => {
+    await use(async (dbName: string, menuItemName: string) => {
+      await clickExplorerTreeNodeMenuItemByName(
+        page,
+        FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX,
+        dbName,
+        menuItemName,
+      );
     });
   },
 
