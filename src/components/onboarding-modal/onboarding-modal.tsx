@@ -4,7 +4,7 @@ import { setDataTestId } from '@utils/test-id';
 import { YT_ONBOARDING_EMBED_URL } from 'app-urls';
 
 export const ONBOARDING_MODAL_OPTIONS: ModalSettings = {
-  size: 675,
+  size: 800,
   withCloseButton: true,
 };
 
@@ -16,8 +16,8 @@ export const OnboardingModal = ({ onClose }: { onClose: () => void }) => (
     </Stack>
     <Stack justify="center" align="center" gap={4}>
       <iframe
-        width="560"
-        height="300"
+        width="700"
+        height="400"
         src={YT_ONBOARDING_EMBED_URL}
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
