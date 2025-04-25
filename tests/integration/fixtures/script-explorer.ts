@@ -1,4 +1,17 @@
 import { test as base, expect, Locator, Page } from '@playwright/test';
+import {
+  assertExplorerItems,
+  assertScriptNodesSelection,
+  getAllExplorerTreeNodes,
+  getExplorerTreeNodeById,
+  getExplorerTreeNodeByIndex,
+  getExplorerTreeNodeByName,
+  getExplorerTreeNodeIdByName,
+  isExplorerTreeNodeSelected,
+  renameExplorerItem,
+  selectMultipleNodes,
+  clickNodeByIndex,
+} from './utils/explorer-tree';
 
 type ScriptExplorerFixtures = {
   scriptExplorer: Locator;
@@ -11,56 +24,23 @@ type ScriptExplorerFixtures = {
   getScriptIdByName: (scriptName: string) => Promise<string>;
   renameScriptInExplorer: (oldName: string, newName: string) => Promise<void>;
   assertScriptExplorerItems: (expected: string[]) => Promise<void>;
-  selectScriptByIndex: (index: number) => Promise<Locator>;
-  selectMultipleScriptNodes: (indices: number[]) => Promise<void>;
+  clickScriptByIndex: (index: number) => Promise<Locator>;
+  selectMultipleScriptNodes: (indices: number[]) => Promise<Locator[]>;
   assertScriptNodesSelection: (expectedSelectedIndices: number[]) => Promise<void>;
   deselectAllScripts: () => Promise<void>;
-  createQueryFromFileExplorer: (fileName: string) => Promise<void>;
 };
 
-export const isScriptNodeSelected = async (scriptNode: Locator): Promise<boolean> => {
-  // Check if the script node has the selected attribute
-  const isSelected = await scriptNode.getAttribute('data-selected');
-  return isSelected === 'true';
-};
-
-const getFileItemLocator = (page: Page, fileName: string) =>
-  page.getByTestId(`query-list-item-${fileName}`);
-
-const clickFileMenu = async (page: Page, fileName: string) => {
-  const fileMenu = getFileItemLocator(page, fileName).getByTestId(`menu-${fileName}`);
-  await expect(fileMenu).toBeVisible();
-  await fileMenu.click();
-};
-
-const fileMenuItemMap: Record<string, string> = {
-  'Create Query': '0',
-  'Copy Name': '1',
-  'Delete Item': '2',
-};
-
-const clickFileMenuItem = async (page: Page, fileName: string, itemName: string) => {
-  await clickFileMenu(page, fileName);
-  const menuItem = page.getByTestId(`menu-item-${fileName}-${fileMenuItemMap[itemName]}`);
-  await expect(menuItem).toBeVisible();
-  await menuItem.click();
-};
+const SCRIPT_EXPLORER_DATA_TESTID_PREFIX = 'script-explorer';
 
 export const test = base.extend<ScriptExplorerFixtures>({
   scriptExplorer: async ({ page }, use) => {
-    await use(page.getByTestId('script-explorer'));
+    await use(page.getByTestId(SCRIPT_EXPLORER_DATA_TESTID_PREFIX));
   },
 
   getAllScriptNodes: async ({ page }, use) => {
     await use(async (): Promise<Locator> => {
       // Find all script explorer nodes
-      return page.getByTestId(/^script-explorer-tree-item-.*-node$/);
-    });
-  },
-
-  createQueryFromFileExplorer: async ({ page }, use) => {
-    await use(async (fileName: string) => {
-      await clickFileMenuItem(page, fileName, 'Create Query');
+      return getAllExplorerTreeNodes(page, SCRIPT_EXPLORER_DATA_TESTID_PREFIX);
     });
   },
 
@@ -98,137 +78,72 @@ export const test = base.extend<ScriptExplorerFixtures>({
     });
   },
 
-  openScriptFromExplorer: async ({ scriptExplorer }, use) => {
+  openScriptFromExplorer: async ({ getScriptNodeByName }, use) => {
     await use(async (scriptName: string) => {
-      const scriptItem = scriptExplorer.locator('p', { hasText: scriptName });
+      const scriptItem = await getScriptNodeByName(scriptName);
       await scriptItem.click();
     });
   },
 
-  getScriptNodeByName: async ({ getAllScriptNodes }, use) => {
+  getScriptNodeByName: async ({ page }, use) => {
     await use(async (scriptName: string): Promise<Locator> => {
-      // Find all script explorer nodes
-      const scriptNodes = await getAllScriptNodes();
-
-      // Find the specific node that contains the script name
-      return scriptNodes.filter({ hasText: scriptName });
+      return getExplorerTreeNodeByName(page, SCRIPT_EXPLORER_DATA_TESTID_PREFIX, scriptName);
     });
   },
 
-  getScriptNodeByIndex: async ({ getAllScriptNodes }, use) => {
+  getScriptNodeByIndex: async ({ page }, use) => {
     await use(async (index: number): Promise<Locator> => {
-      // Find all script explorer nodes
-      const scriptNodes = await getAllScriptNodes();
-
-      // Find the specific node by index
-      return scriptNodes.nth(index);
+      return getExplorerTreeNodeByIndex(page, SCRIPT_EXPLORER_DATA_TESTID_PREFIX, index);
     });
   },
 
   getScriptNodeById: async ({ page }, use) => {
     await use(async (scriptId: string): Promise<Locator> => {
-      return page.getByTestId(`script-explorer-tree-item-${scriptId}-node`);
+      return getExplorerTreeNodeById(page, SCRIPT_EXPLORER_DATA_TESTID_PREFIX, scriptId);
     });
   },
 
-  getScriptIdByName: async ({ getScriptNodeByName }, use) => {
+  getScriptIdByName: async ({ page }, use) => {
     await use(async (scriptName: string): Promise<string> => {
-      // Find the specific node that contains the script name
-      const scriptNode = await getScriptNodeByName(scriptName);
-
-      // it may be off screen, but should be attached
-      await expect(scriptNode).toBeAttached();
-
-      // Get the data-value attribute which contains the ID
-      const scriptId = await scriptNode.getAttribute('data-value');
-
-      if (!scriptId) {
-        throw new Error(`Script with name "${scriptName}" not found or has no ID`);
-      }
-
-      return scriptId;
-    });
-  },
-
-  renameScriptInExplorer: async ({ page, getScriptIdByName, getScriptNodeByName }, use) => {
-    await use(async (oldName: string, newName: string) => {
-      // Find the script item in the explorer
-      const oldNode = await getScriptNodeByName(oldName);
-      const oldScriptId = await getScriptIdByName(oldName);
-
-      // Double-click to initiate rename
-      await oldNode.dblclick();
-
-      // Find and fill the rename input
-      const renameInput = page.getByTestId(`script-explorer-tree-item-${oldScriptId}-rename-input`);
-
-      await expect(renameInput).toBeVisible();
-
-      await renameInput.fill(newName);
-
-      // Press Enter to confirm
-      await page.keyboard.press('Enter');
-
-      // Wait for the renamed script to appear
-      const renameNode = await getScriptNodeByName(newName);
-      await expect(renameNode).toBeVisible();
-      await expect(oldNode).toBeHidden();
-    });
-  },
-
-  assertScriptExplorerItems: async ({ getAllScriptNodes }, use) => {
-    await use(async (expected: string[]) => {
-      const allScriptNodes = await getAllScriptNodes();
-
-      // Check if the number of items matches
-      await expect(allScriptNodes).toHaveCount(expected.length);
-
-      // Check if each item matches the expected names
-      for (let i = 0; i < expected.length; i += 1) {
-        const item = allScriptNodes.nth(i);
-        await expect(item).toHaveText(expected[i]);
-      }
-    });
-  },
-
-  selectScriptByIndex: async ({ getAllScriptNodes }, use) => {
-    await use(async (index: number) => {
-      const allScriptNodes = await getAllScriptNodes();
-      const scriptNode = allScriptNodes.nth(index);
-      await allScriptNodes.nth(index).click();
-      return scriptNode;
-    });
-  },
-
-  selectMultipleScriptNodes: async ({ page, getAllScriptNodes }, use) => {
-    await use(async (indices: number[]) => {
-      const allScriptNodes = await getAllScriptNodes();
-      await page.keyboard.down('ControlOrMeta');
-      for (const index of indices) {
-        await allScriptNodes.nth(index).click();
-      }
-      await page.keyboard.up('ControlOrMeta');
-    });
-  },
-
-  assertScriptNodesSelection: async ({ getAllScriptNodes }, use) => {
-    await use(async (expectedSelectedIndices: number[]) => {
-      const allScriptNodes = await getAllScriptNodes();
-
-      // Check that all items are deselected
-      const actualSelection = await Promise.all(
-        (await allScriptNodes.all()).map((node) => {
-          return isScriptNodeSelected(node);
-        }),
+      return await getExplorerTreeNodeIdByName(
+        page,
+        SCRIPT_EXPLORER_DATA_TESTID_PREFIX,
+        scriptName,
       );
+    });
+  },
 
-      const expectedSelection = actualSelection.every((isSelected, index) => {
-        return isSelected
-          ? expectedSelectedIndices.includes(index)
-          : !expectedSelectedIndices.includes(index);
-      });
+  renameScriptInExplorer: async ({ page }, use) => {
+    await use(async (oldName: string, newName: string) => {
+      await renameExplorerItem(page, SCRIPT_EXPLORER_DATA_TESTID_PREFIX, oldName, newName);
+    });
+  },
 
-      expect(expectedSelection).toBe(true);
+  assertScriptExplorerItems: async ({ page }, use) => {
+    await use(async (expected: string[]) => {
+      await assertExplorerItems(page, SCRIPT_EXPLORER_DATA_TESTID_PREFIX, expected);
+    });
+  },
+
+  clickScriptByIndex: async ({ page }, use) => {
+    await use(async (index: number): Promise<Locator> => {
+      return await clickNodeByIndex(page, SCRIPT_EXPLORER_DATA_TESTID_PREFIX, index);
+    });
+  },
+
+  selectMultipleScriptNodes: async ({ page }, use) => {
+    await use(async (indices: number[]): Promise<Locator[]> => {
+      return await selectMultipleNodes(page, SCRIPT_EXPLORER_DATA_TESTID_PREFIX, indices);
+    });
+  },
+
+  assertScriptNodesSelection: async ({ page }, use) => {
+    await use(async (expectedSelectedIndices: number[]) => {
+      await assertScriptNodesSelection(
+        page,
+        SCRIPT_EXPLORER_DATA_TESTID_PREFIX,
+        expectedSelectedIndices,
+      );
     });
   },
 
@@ -238,7 +153,9 @@ export const test = base.extend<ScriptExplorerFixtures>({
 
       // First check that there is a selection in the first place, to let the
       // dev know if the fixture is not used correctly
-      const selectedNode = (await allScriptNodes.all()).find((node) => isScriptNodeSelected(node));
+      const selectedNode = (await allScriptNodes.all()).find((node) =>
+        isExplorerTreeNodeSelected(node),
+      );
       if (!selectedNode) {
         throw new Error('No script nodes are selected');
       }

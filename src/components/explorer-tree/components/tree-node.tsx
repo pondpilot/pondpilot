@@ -6,8 +6,9 @@ import { cn } from '@utils/ui/styles';
 import { Fragment, memo, useEffect, useRef, useState } from 'react';
 import { shallow } from 'zustand/shallow';
 import { TreeNodeMenuType, TreeNodeData, BaseTreeNodeProps } from '../model';
-import { mergeMenus } from '../utils/context-menu';
+import { getMenuItemDataTestId, mergeMenus } from '../utils/context-menu';
 import { TreeNodeMenuItem } from './tree-menu-item';
+import { getNodeDataTestIdPrefix } from '../utils/node-test-id';
 
 const ITEM_CLASSES = {
   base: 'cursor-pointer h-[30px] rounded group bg-transparent !outline-none',
@@ -63,7 +64,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
       ? tree.selectedState.includes(flattenedNodeIds[curNodeIndex + 1])
       : false;
 
-  const dataTestId = `${dataTestIdPrefix}-tree-item-${itemId}`;
+  const treeNodeDataTestIdPrefix = getNodeDataTestIdPrefix(dataTestIdPrefix, itemId);
 
   /*
    * Renaming logic
@@ -278,7 +279,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
   return (
     <div
       {...elementProps}
-      data-testid={setDataTestId(`${dataTestId}-node`)}
+      data-testid={setDataTestId(`${treeNodeDataTestIdPrefix}-container`)}
       data-selected={selected}
       className={cn(
         elementProps.className,
@@ -295,7 +296,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
           <Popover opened={!!renameInputError}>
             <Popover.Target>
               <TextInput
-                data-testid={setDataTestId(`${dataTestId}-rename-input`)}
+                data-testid={setDataTestId(`${treeNodeDataTestIdPrefix}-rename-input`)}
                 value={pendingRenamedValue}
                 onChange={handleOnRenameChange}
                 onKeyDown={handleRenameKeyDown}
@@ -323,21 +324,26 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
           withinPortal={false}
           floatingStrategy="fixed"
           closeDelay={0}
-          data-testid={setDataTestId(`${dataTestId}-tree-node-context-menu`)}
+          data-testid={setDataTestId(`${treeNodeDataTestIdPrefix}-dots-menu-button`)}
         >
-          <Menu.Dropdown style={menuStyles}>
+          <Menu.Dropdown
+            style={menuStyles}
+            data-testid={setDataTestId(`${treeNodeDataTestIdPrefix}-context-menu`)}
+          >
             {contextMenu.map((item, index) => {
               const isLast = index === contextMenu.length - 1;
               return (
                 <Fragment key={item.children.map((child) => child.label).join('|')}>
-                  {item.children.map((menuItem) => (
+                  {item.children.map((menuItem, index) => (
                     <TreeNodeMenuItem
                       key={menuItem.label}
                       menuItem={menuItem}
                       node={node}
                       tree={tree}
                       menuOnClose={menuOnClose}
-                      dataTestId={setDataTestId(`${dataTestId}-tree-node-context-item`)}
+                      dataTestId={setDataTestId(
+                        getMenuItemDataTestId(treeNodeDataTestIdPrefix, menuItem.label, index),
+                      )}
                     />
                   ))}
                   {!isLast && <Menu.Divider />}
@@ -377,7 +383,6 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
                 className={cn('opacity-0 group-hover:opacity-100', menuOpened && 'opacity-100')}
                 ml="auto"
                 size={16}
-                data-testid={setDataTestId(`${dataTestId}-dots-menu-button`)}
               >
                 <IconDotsVertical size={16} />
               </ActionIcon>
