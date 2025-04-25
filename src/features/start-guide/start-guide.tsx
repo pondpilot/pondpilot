@@ -19,7 +19,10 @@ import { getOrCreateTabFromScript } from '@controllers/tab';
 import { ICON_CLASSES, SCRIPT_DISPLAY_NAME } from '@components/spotlight/consts';
 import { importSQLFiles } from '@utils/import-script-file';
 import { modals } from '@mantine/modals';
-import { ONBOARDING_MODAL_OPTIONS, OnboardingModal } from '@components/onboarding-modal';
+import {
+  ONBOARDING_MODAL_OPTIONS,
+  OnboardingModalContent,
+} from '@features/onboarding-modal-content';
 
 export const StartGuide = () => {
   const mod = useOsModifierIcon();
@@ -87,7 +90,7 @@ export const StartGuide = () => {
       onClick: () => {
         const modalId = modals.open({
           ...ONBOARDING_MODAL_OPTIONS,
-          children: <OnboardingModal onClose={() => modals.close(modalId)} />,
+          children: <OnboardingModalContent onClose={() => modals.close(modalId)} />,
         });
       },
     },

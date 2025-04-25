@@ -8,7 +8,7 @@ export const ONBOARDING_MODAL_OPTIONS: ModalSettings = {
   withCloseButton: true,
 };
 
-export const OnboardingModal = ({ onClose }: { onClose: () => void }) => (
+export const OnboardingModalContent = ({ onClose }: { onClose: () => void }) => (
   <Stack gap={32} data-testid={setDataTestId('onboarding-modal')}>
     <Stack justify="center" align="center" gap={4}>
       <Title order={1}>👋 Welcome to PondPilot</Title>

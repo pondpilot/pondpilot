@@ -1,6 +1,9 @@
-import { ONBOARDING_MODAL_OPTIONS, OnboardingModal } from '@components/onboarding-modal';
 import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
 import { useAppContext } from '@features/app-context';
+import {
+  ONBOARDING_MODAL_OPTIONS,
+  OnboardingModalContent,
+} from '@features/onboarding-modal-content';
 import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { useAppStore } from '@store/app-store';
@@ -26,7 +29,7 @@ export const InitModals = () => {
         const modalId = modals.open({
           ...ONBOARDING_MODAL_OPTIONS,
           onClose: () => setIsOnboardingShown(true),
-          children: <OnboardingModal onClose={() => modals.close(modalId)} />,
+          children: <OnboardingModalContent onClose={() => modals.close(modalId)} />,
         });
       }
     }
