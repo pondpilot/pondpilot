@@ -16,7 +16,7 @@ import { ModifierProvider } from '@components/modifier-context/modifier-context'
 import { AppContextProvider } from '@features/app-context';
 import { useLocalStorage } from '@mantine/hooks';
 import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
-import { InitModals } from '@components/init-modals';
+import { InitModals } from '@features/init-modals';
 import { Router } from './router/router';
 
 export default function App() {
