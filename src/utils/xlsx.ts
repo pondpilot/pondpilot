@@ -78,9 +78,12 @@ function extractSheetNamesFromZip(buf: Uint8Array): string[] | null {
 
     // Only extract workbook.xml file to save memory
     const files = fflate.unzipSync(buf, {
-      filter: (path) =>
-        workbookPaths.includes(path) ||
-        (path.toLowerCase().includes('workbook') && path.toLowerCase().endsWith('.xml')),
+      filter: (path: any) => {
+        // Convert UnzipFileInfo to string for processing
+        const pathStr = String(path);
+        return workbookPaths.includes(pathStr) ||
+          (pathStr.toLowerCase().includes('workbook') && pathStr.toLowerCase().endsWith('.xml'));
+      },
     });
 
     let workbookFile: Uint8Array | undefined;
@@ -112,11 +115,11 @@ function extractSheetNamesFromZip(buf: Uint8Array): string[] | null {
     const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
 
     // Try different ways to find sheet elements
-    let sheetEls = xmlDoc.getElementsByTagName('sheet');
+    let sheetEls: Element[] = Array.from(xmlDoc.getElementsByTagName('sheet'));
 
     if (sheetEls.length === 0) {
       // Try with namespace wildcard
-      sheetEls = xmlDoc.querySelectorAll('*|sheet') as NodeListOf<Element>;
+      sheetEls = Array.from(xmlDoc.querySelectorAll('*|sheet'));
     }
 
     if (sheetEls.length === 0) {
