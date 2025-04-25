@@ -1,3 +1,4 @@
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { test as base, expect, Page } from '@playwright/test';
 
 const waitForAppReady = async (page: Page) => {
@@ -14,6 +15,14 @@ export const test = base.extend<PageFixtures>({
   page: async ({ page }, use) => {
     // ---------- BEFORE EACH TEST ----------
     await page.goto('/');
+
+    await page.evaluate(
+      (key) => localStorage.setItem(key, 'true'),
+      LOCAL_STORAGE_KEYS.ONBOARDING_SHOWN,
+    );
+
+    await page.reload();
+
     await waitForAppReady(page);
 
     await use(page);

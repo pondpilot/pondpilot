@@ -15,7 +15,8 @@ import { DuckDBConnectionPoolProvider } from '@features/duckdb-context/duckdb-co
 import { ModifierProvider } from '@components/modifier-context/modifier-context';
 import { AppContextProvider } from '@features/app-context';
 import { useLocalStorage } from '@mantine/hooks';
-import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
+import { InitModals } from '@features/init-modals';
 import { Router } from './router/router';
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
               <Notifications />
               <AppState />
               <Router />
+              <InitModals />
             </AppContextProvider>
           </DuckDBConnectionPoolProvider>
         </ModifierProvider>

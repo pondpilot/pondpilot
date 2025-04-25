@@ -9,12 +9,12 @@ import { Allotment } from 'allotment';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
-import { APP_GITHUB_URL } from 'app-urls';
+import { APP_GITHUB_URL } from '@models/app-urls';
 import { useAppStore } from '@store/app-store';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
-import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 
 /**
  * Displays the navigation bar

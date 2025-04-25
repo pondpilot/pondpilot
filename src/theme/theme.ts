@@ -8,6 +8,7 @@ import {
   LoadingOverlay,
   MantineThemeOverride,
   Menu,
+  Modal,
   Pagination,
   Popover,
   Select,
@@ -462,6 +463,7 @@ export const theme = createTheme({
     }),
     SpotlightRoot: Spotlight.Root.extend({
       defaultProps: {
+        centered: false,
         transitionProps: {
           transition: 'fade-down',
           duration: 100,
@@ -574,6 +576,21 @@ export const theme = createTheme({
         classNames: {
           input:
             'dark:checked:bg-icon-accent-light checked:bg-icon-accent-dark bg-transparent border-borderPrimary-light dark:border-borderPrimary-dark checked:border-0',
+        },
+      },
+    }),
+    Modal: Modal.extend({
+      defaultProps: {
+        centered: true,
+        padding: 24,
+        shadow: 'lg',
+        overlayProps: {
+          blur: 0.2,
+          className: 'bg-transparent012-light dark:bg-transparent004-dark',
+        },
+        classNames: {
+          content: 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark rounded-2xl',
+          header: 'p-4',
         },
       },
     }),
