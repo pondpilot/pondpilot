@@ -104,6 +104,7 @@ jobs:
       - name: Install DuckDB
         run: |
           curl https://install.duckdb.org | sh
+          sudo ln -s /home/runner/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb
           duckdb --version
 
       - name: Run Playwright tests
