@@ -13,7 +13,7 @@ module.exports = {
     'no-console': ['error', { allow: ['warn', 'error', 'group', 'groupEnd'] }],
     'no-continue': 'off',
     '@typescript-eslint/no-unused-vars': 'off',
-    '@typescript-eslint/return-await': 'error-handling-correctness-only',
+    '@typescript-eslint/return-await': ['error', 'error-handling-correctness-only'],
     'unused-imports/no-unused-imports': 'error',
     'unused-imports/no-unused-vars': [
       'warn',

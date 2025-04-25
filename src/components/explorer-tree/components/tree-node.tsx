@@ -334,7 +334,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
               const isLast = index === contextMenu.length - 1;
               return (
                 <Fragment key={item.children.map((child) => child.label).join('|')}>
-                  {item.children.map((menuItem, index) => (
+                  {item.children.map((menuItem, menuItemIndex) => (
                     <TreeNodeMenuItem
                       key={menuItem.label}
                       menuItem={menuItem}
@@ -342,7 +342,12 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
                       tree={tree}
                       menuOnClose={menuOnClose}
                       dataTestId={setDataTestId(
-                        getMenuItemDataTestId(treeNodeDataTestIdPrefix, menuItem.label, index),
+                        getMenuItemDataTestId(
+                          treeNodeDataTestIdPrefix,
+                          menuItem.label,
+                          index,
+                          menuItemIndex,
+                        ),
                       )}
                     />
                   ))}

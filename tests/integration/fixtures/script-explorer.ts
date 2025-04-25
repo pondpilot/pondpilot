@@ -1,4 +1,4 @@
-import { test as base, expect, Locator, Page } from '@playwright/test';
+import { test as base, expect, Locator } from '@playwright/test';
 import {
   assertExplorerItems,
   assertScriptNodesSelection,

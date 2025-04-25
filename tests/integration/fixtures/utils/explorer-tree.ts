@@ -21,7 +21,9 @@ export const getExplorerTreeNodeByName = (
   const allNodes = getAllExplorerTreeNodes(page, dataTestIdPrefix);
 
   // Find the specific node that contains the item name
-  return allNodes.filter({ hasText: itemName });
+  return allNodes.filter({
+    has: page.locator('p').getByText(itemName, { exact: true }),
+  });
 };
 
 export const getExplorerTreeNodeByIndex = (
@@ -225,7 +227,9 @@ export const getAllExplorerTreeNodeMenuItems = async (
   const itemId = await getExplorerTreeNodeIdByName(page, dataTestIdPrefix, itemName);
 
   return menuLocator.getByTestId(
-    new RegExp(`^${getNodeDataTestIdPrefix(dataTestIdPrefix, itemId)}-context-menu-item-\\d+-.*$`),
+    new RegExp(
+      `^${getNodeDataTestIdPrefix(dataTestIdPrefix, itemId)}-context-menu-item-\\d+-\\d+-.*$`,
+    ),
   );
 };
 

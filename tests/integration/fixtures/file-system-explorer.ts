@@ -1,4 +1,4 @@
-import { test as base, expect, Locator, Page } from '@playwright/test';
+import { test as base, expect, Locator } from '@playwright/test';
 import {
   assertExplorerItems,
   assertScriptNodesSelection,
@@ -31,6 +31,7 @@ type FileSystemExplorerFixtures = {
    */
   addFolderButton: Locator;
 
+  openFileSystemExplorer: () => Promise<void>;
   openFileFromExplorer: (fileName: string) => Promise<void>;
   assertFileExplorerItems: (expected: string[]) => Promise<void>;
   getAllFileNodes: () => Promise<Locator>;
@@ -52,6 +53,13 @@ const FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX = 'file-system-explorer';
 export const test = base.extend<FileSystemExplorerFixtures>({
   fileSystemExplorer: async ({ page }, use) => {
     await use(page.getByTestId(FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX));
+  },
+
+  openFileSystemExplorer: async ({ page, fileSystemExplorer }, use) => {
+    await use(async () => {
+      await page.getByTestId('navbar-show-files-button').click();
+      await expect(fileSystemExplorer).toBeVisible();
+    });
   },
 
   addFileButton: async ({ page }, use) => {

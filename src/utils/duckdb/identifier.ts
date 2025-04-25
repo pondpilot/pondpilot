@@ -16,6 +16,10 @@ export const SYSTEM_DUCKDB_SCHEMAS = [
   'pg_toast_temp_1',
 ];
 
+// These are two special identifiers, that are not allowed even if they are quoted
+// in `ATTACH` statements
+export const DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES = ['temp', 'system'];
+
 /**
  * Checks if a string needs is a valid DuckDB identifier or would need to be quoted.
  *
@@ -56,19 +60,4 @@ export function toDuckDBIdentifier(str: string): string {
  */
 export function isReservedDuckDBKeyword(str: string): boolean {
   return DUCKDB_RESERVED_KEYWORDS.has(str.toLowerCase());
-}
-
-/**
- * Helper function to check if a database name is reserved or already in use.
- * Used specifically to avoid errors when attaching databases with reserved names like "temp".
- *
- * @param name The database name to check
- * @param existingNames Set of existing database names to check against
- * @returns true if the name is reserved or already in use, false if it's usable
- */
-export function isNameReservedOrInUse(name: string, existingNames: Set<string>): boolean {
-  if (existingNames.has(name)) {
-    return true;
-  }
-  return isReservedDuckDBKeyword(name);
 }

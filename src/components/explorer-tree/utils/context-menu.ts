@@ -9,6 +9,7 @@ export function mergeMenus<NTypeToIdTypeMap extends Record<string, any>>(
 export function getMenuItemDataTestId(
   dataTestIdPrefix: string,
   menuItemLabel: string,
+  menuSectionIndex: number,
   menuItemIndex: number,
 ): string {
   // Replace whitespace with dashes, remove special characters from the label and convert to lowercase
@@ -18,5 +19,5 @@ export function getMenuItemDataTestId(
     .replace(/^-+|-+$/g, '')
     .toLowerCase();
 
-  return `${dataTestIdPrefix}-context-menu-item-${menuItemIndex}-${sanitizedLabel}`;
+  return `${dataTestIdPrefix}-context-menu-item-${menuSectionIndex}-${menuItemIndex}-${sanitizedLabel}`;
 }
