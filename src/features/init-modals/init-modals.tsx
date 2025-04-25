@@ -1,4 +1,4 @@
-import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { useAppContext } from '@features/app-context';
 import {
   ONBOARDING_MODAL_OPTIONS,

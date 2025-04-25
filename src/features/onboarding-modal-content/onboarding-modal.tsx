@@ -1,7 +1,7 @@
 import { Button, Group, Stack, Text, Title } from '@mantine/core';
 import { ModalSettings } from '@mantine/modals/lib/context';
 import { setDataTestId } from '@utils/test-id';
-import { YT_ONBOARDING_EMBED_URL } from 'app-urls';
+import { YT_ONBOARDING_EMBED_URL } from '@models/app-urls';
 
 export const ONBOARDING_MODAL_OPTIONS: ModalSettings = {
   size: 800,

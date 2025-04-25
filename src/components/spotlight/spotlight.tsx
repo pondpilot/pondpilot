@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
-import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from 'app-urls';
+import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from '@models/app-urls';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useAppStore } from '@store/app-store';
 import { createSQLScript } from '@controllers/sql-script';

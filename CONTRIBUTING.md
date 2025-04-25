@@ -35,4 +35,24 @@ By participating, you agree to maintain a respectful and inclusive environment f
 - Update documentation if necessary
 - Keep PRs focused on a single change
 
+## Project Structure
+
+The PondPilot source code is organized as follows:
+
+### Top-level Source Folders
+
+- `src/assets/` - Static assets like images, icons, and SVGs
+- `src/components/` - Reusable, generic UI components used throughout the application. A rule of thumb: if a component could have come from npm, it should be in this folder. I.e. it should not be tied to PondPilot specifics.
+- `src/models/` - TypeScript interfaces, types, data models and application-wide constants and configuration values. No business logic should be here, instead, it should be in the `src/controllers/` or specific feature-compnent in `src/features/` folder.
+- `src/controllers/` - Business logic for handling operations (file system, SQL scripts, tabs). Think a typical MVC controller.
+- `src/features/` - PondPilot-specific components that implement major functionality, but not a top-level page.
+- `src/hooks/` - Custom React hooks (e.g., `use-add-local-files-folders.tsx`) - similar principle as `src/components/` - generic, reusable hooks that could have been used in any project.
+- `src/pages/` - Top-level page components (like `main-page.tsx`)
+- `src/router/` - Application routing configuration
+- `src/store/` - Global state management using Zustand, including memoized selectors (but not setters, these should be in the `src/controllers/` folder)
+- `src/theme/` - UI theming and styling configuration
+- `src/utils/` - Pure functions and helpers used throughout the application. Subfolder structure should follow the corresponding `src/controllers/` or `src/features/` subfolder structure.
+
+When adding new code, please follow the existing patterns and place files in appropriate directories based on their functionality.
+
 Thank you for contributing to make PondPilot better!

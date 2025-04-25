@@ -1,4 +1,4 @@
-import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { Button, Group, Menu } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
 import { RunScriptMode } from '@models/sql-script';

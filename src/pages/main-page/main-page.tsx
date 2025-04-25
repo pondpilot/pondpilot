@@ -10,7 +10,7 @@ import { StartGuide } from '@features/start-guide';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { importSQLFiles } from '@utils/import-script-file';
-import { LOCAL_STORAGE_KEYS } from '@consts/local-storage';
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { Navbar } from './components';
 
 export const MainPage = () => {
