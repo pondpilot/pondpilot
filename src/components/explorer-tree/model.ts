@@ -161,8 +161,8 @@ export type BaseTreeNodeProps<NTypeToIdTypeMap extends Record<string, string>> =
           /**
            * Used to construct the data-testid for the tree node. The resulting data-testid
            * of various component items will have the following prefix:
-           * `${dataTestIdPrefix}-tree-item-${itemId}`. The top level node will have
-           * `${dataTestIdPrefix}-tree-item-${itemId}-node`.
+           * `${dataTestIdPrefix}-tree-node-${itemId}`. The top level node will have
+           * `${dataTestIdPrefix}-tree-node-${itemId}-container`.
            */
           dataTestIdPrefix: string;
 
@@ -210,7 +210,7 @@ export type RenderTreeNodePayload<
         /**
          * Used to construct the data-testid for the tree node. The resulting data-testid
          * of various component items will have the following prefix:
-         * `${dataTestIdPrefix}-tree-item-${itemId}`. The top level node will have this
+         * `${dataTestIdPrefix}-tree-node-${itemId}`. The top level node will have this
          * data-testid exactly.
          */
         dataTestIdPrefix: string;

@@ -40,6 +40,18 @@ interface Storage {
   removeEntry: (remotePath: string) => Promise<void>;
 
   /**
+   * Verifies if a file exists in the storage.
+   * @param remotePath - The relative path to check.
+   */
+  verifyFileExists: (remotePath: string) => Promise<boolean>;
+
+  /**
+   * Verifies if a directory exists in the storage.
+   * @param remotePath - The relative path to check.
+   */
+  verifyDirExists: (remotePath: string) => Promise<boolean>;
+
+  /**
    TODO: wait for official API (https://github.com/whatwg/fs/pull/10), or just implement it as `copy and remove`.
    */
   moveFile: (remotePath: string, newRemotePath: string) => Promise<void>;
@@ -98,7 +110,14 @@ export const test = base.extend<StorageFixtures>({
             window._writeBuffer = undefined;
           });
         }
+
+        // Verify the file was actually created before proceeding
+        const exists = await storage.verifyFileExists(remotePath);
+        if (!exists) {
+          throw new Error(`File ${remotePath} was not successfully created in storage`);
+        }
       },
+
       createDir: async (remotePath: string) => {
         await page.evaluate(async (storagePath) => {
           let dirHandle = await navigator.storage.getDirectory();
@@ -106,7 +125,14 @@ export const test = base.extend<StorageFixtures>({
             dirHandle = await dirHandle.getDirectoryHandle(dir, { create: true });
           }
         }, parsePath(remotePath));
+
+        // Verify the directory was actually created
+        const exists = await storage.verifyDirExists(remotePath);
+        if (!exists) {
+          throw new Error(`Directory ${remotePath} was not successfully created in storage`);
+        }
       },
+
       uploadDir: async (localPath: string, remotePath: string) => {
         const entries = readdirSync(localPath, { withFileTypes: true, recursive: true });
         for (const entry of entries) {
@@ -119,7 +145,14 @@ export const test = base.extend<StorageFixtures>({
             await storage.uploadFile(entryLocalPath, entryRemotePath);
           }
         }
+
+        // Verify the directory was created before proceeding
+        const exists = await storage.verifyDirExists(remotePath);
+        if (!exists) {
+          throw new Error(`Directory ${remotePath} was not successfully created in storage`);
+        }
       },
+
       removeEntry: async (remotePath: string) => {
         await page.evaluate(async (filePath) => {
           let dirHandle = await navigator.storage.getDirectory();
@@ -129,6 +162,41 @@ export const test = base.extend<StorageFixtures>({
           await dirHandle.removeEntry(filePath.basename, { recursive: true });
         }, parsePath(remotePath));
       },
+
+      verifyFileExists: async (remotePath: string) => {
+        const res = await page.evaluate(async (filePath) => {
+          try {
+            let dirHandle = await navigator.storage.getDirectory();
+            for (const dir of filePath.dirs) {
+              dirHandle = await dirHandle.getDirectoryHandle(dir);
+            }
+            await dirHandle.getFileHandle(filePath.basename);
+            return true;
+          } catch (error) {
+            return false;
+          }
+        }, parsePath(remotePath));
+
+        return res;
+      },
+
+      verifyDirExists: async (remotePath: string) => {
+        const res = await page.evaluate(async (dirPath) => {
+          try {
+            let dirHandle = await navigator.storage.getDirectory();
+            const parts = dirPath.parts || [dirPath.basename];
+            for (const dir of parts) {
+              dirHandle = await dirHandle.getDirectoryHandle(dir);
+            }
+            return true;
+          } catch (error) {
+            return false;
+          }
+        }, parsePath(remotePath));
+
+        return res;
+      },
+
       moveFile: async (remotePath: string, newRemotePath: string) => {
         throw new Error(`Move file is not implemented: ${remotePath} -> ${newRemotePath}`);
       },

@@ -25,6 +25,9 @@ type FilePickerFixtures = {
   filePicker: FilePicker;
 };
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 500;
+
 export const test = base.extend<FilePickerFixtures>({
   filePicker: async ({ page }, use) => {
     // Use `Object.defineProperty()` instead of just `window.prop = ...` to ignore complex type signature with overloading.
@@ -32,37 +35,81 @@ export const test = base.extend<FilePickerFixtures>({
     const filePicker: FilePicker = {
       selectFiles: async (filePaths: string[]) => {
         await page.evaluate(
-          (storagePaths) => {
+          ({ storagePaths, retries, retryDelay }) => {
             Object.defineProperty(window, 'showOpenFilePicker', {
               value: async (): Promise<FileSystemFileHandle[]> => {
                 const ret: FileSystemFileHandle[] = [];
-                for (const filePath of storagePaths) {
-                  let dirHandle = await navigator.storage.getDirectory();
-                  for (const dir of filePath.dirs) {
-                    dirHandle = await dirHandle.getDirectoryHandle(dir);
+
+                const tryGetFiles = async (attempt = 0): Promise<FileSystemFileHandle[]> => {
+                  try {
+                    for (const filePath of storagePaths) {
+                      let dirHandle = await navigator.storage.getDirectory();
+                      for (const dir of filePath.dirs) {
+                        dirHandle = await dirHandle.getDirectoryHandle(dir);
+                      }
+                      const fileHandle = await dirHandle.getFileHandle(filePath.basename);
+                      ret.push(fileHandle);
+                    }
+                    return ret;
+                  } catch (error) {
+                    if (attempt < retries) {
+                      console.warn(
+                        `File picker retry ${attempt + 1}/${retries} after error: ${error}`,
+                      );
+                      // Wait before retrying
+                      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+                      return tryGetFiles(attempt + 1);
+                    }
+                    throw error;
                   }
-                  const fileHandle = await dirHandle.getFileHandle(filePath.basename);
-                  ret.push(fileHandle);
-                }
-                return ret;
+                };
+
+                return tryGetFiles();
               },
             });
           },
-          filePaths.map((path) => parsePath(path)),
+          {
+            storagePaths: filePaths.map((path) => parsePath(path)),
+            retries: MAX_RETRIES,
+            retryDelay: RETRY_DELAY_MS,
+          },
         );
       },
       selectDir: async (dirPath: string) => {
-        await page.evaluate((storagePath) => {
-          Object.defineProperty(window, 'showDirectoryPicker', {
-            value: async (): Promise<FileSystemDirectoryHandle> => {
-              let dirHandle = await navigator.storage.getDirectory();
-              for (const dir of storagePath.parts) {
-                dirHandle = await dirHandle.getDirectoryHandle(dir);
-              }
-              return dirHandle;
-            },
-          });
-        }, parsePath(dirPath));
+        await page.evaluate(
+          ({ storagePath, retries, retryDelay }) => {
+            Object.defineProperty(window, 'showDirectoryPicker', {
+              value: async (): Promise<FileSystemDirectoryHandle> => {
+                const tryGetDir = async (attempt = 0): Promise<FileSystemDirectoryHandle> => {
+                  try {
+                    let dirHandle = await navigator.storage.getDirectory();
+                    for (const dir of storagePath.parts) {
+                      dirHandle = await dirHandle.getDirectoryHandle(dir);
+                    }
+                    return dirHandle;
+                  } catch (error) {
+                    if (attempt < retries) {
+                      console.warn(
+                        `Directory picker retry ${attempt + 1}/${retries} after error: ${error}`,
+                      );
+                      // Wait before retrying
+                      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+                      return tryGetDir(attempt + 1);
+                    }
+                    throw error;
+                  }
+                };
+
+                return tryGetDir();
+              },
+            });
+          },
+          {
+            storagePath: parsePath(dirPath),
+            retries: MAX_RETRIES,
+            retryDelay: RETRY_DELAY_MS,
+          },
+        );
       },
     };
     await use(filePicker);

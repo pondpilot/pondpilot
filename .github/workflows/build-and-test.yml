@@ -101,6 +101,12 @@ jobs:
       - name: Install Playwright browsers
         run: yarn playwright install --with-deps chromium webkit
 
+      - name: Install DuckDB
+        run: |
+          curl https://install.duckdb.org | sh
+          sudo ln -s /home/runner/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb
+          duckdb --version
+
       - name: Run Playwright tests
         run: |
           yarn playwright test

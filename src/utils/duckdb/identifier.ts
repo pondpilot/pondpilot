@@ -16,6 +16,10 @@ export const SYSTEM_DUCKDB_SCHEMAS = [
   'pg_toast_temp_1',
 ];
 
+// These are two special identifiers, that are not allowed even if they are quoted
+// in `ATTACH` statements
+export const DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES = ['temp', 'system'];
+
 /**
  * Checks if a string needs is a valid DuckDB identifier or would need to be quoted.
  *

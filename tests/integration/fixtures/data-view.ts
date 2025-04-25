@@ -52,7 +52,7 @@ type DataViewFixtures = {
  * @returns All header cells locator.
  */
 export const getAllHeaderCells = (dataTable: Locator) =>
-  dataTable.locator('[data-testid^="data-table-header-cell-container-"]');
+  dataTable.getByTestId(/^data-table-header-cell-container-.*$/);
 
 /**
  * Returns the header cell for a given column name.

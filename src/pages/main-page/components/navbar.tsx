@@ -81,6 +81,7 @@ export const Navbar = () => {
                 !isFiles && 'text-textSecondary-light dark:text-textSecondary-dark',
               )}
               onClick={() => setFilesDbToggle('files')}
+              data-testid={setDataTestId('navbar-show-files-button')}
             >
               Files
             </Button>
@@ -94,6 +95,7 @@ export const Navbar = () => {
                 'text-textPrimary-light dark:text-textPrimary-dark',
                 isFiles && 'text-textSecondary-light dark:text-textSecondary-dark',
               )}
+              data-testid={setDataTestId('navbar-show-databases-button')}
             >
               Databases
             </Button>

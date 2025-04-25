@@ -24,7 +24,7 @@ test('Select items in the query explorer list using Hotkeys', async ({
   page,
   createScriptAndSwitchToItsTab,
   assertScriptExplorerItems,
-  selectScriptByIndex,
+  clickScriptByIndex,
   selectMultipleScriptNodes,
   deselectAllScripts,
   switchToTab,
@@ -42,7 +42,7 @@ test('Select items in the query explorer list using Hotkeys', async ({
   await assertScriptNodesSelection([2]);
 
   // Select second script
-  await selectScriptByIndex(1);
+  await clickScriptByIndex(1);
   await assertScriptNodesSelection([1]);
 
   // Select all items using ControlOrMeta + A
@@ -57,7 +57,7 @@ test('Select items in the query explorer list using Hotkeys', async ({
   await assertScriptNodesSelection([]);
 
   // Reselect the first item
-  await selectScriptByIndex(0);
+  await clickScriptByIndex(0);
   // Select specific items (first and third)
   await selectMultipleScriptNodes([0, 2]);
   await assertScriptNodesSelection([0, 2]);
