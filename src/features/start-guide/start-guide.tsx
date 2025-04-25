@@ -143,8 +143,8 @@ export const StartGuide = () => {
               </Button>
             ))}
           </Stack>
-          <Group>
-            <Stack>
+          <Group w={340} justify="end">
+            <Stack align="end">
               {goToList.map((item) => (
                 <Button
                   key={item.key}
