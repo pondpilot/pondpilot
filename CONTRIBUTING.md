@@ -41,6 +41,7 @@ The PondPilot source code is organized as follows:
 
 ### Top-level Source Folders
 
+- `public/` - Static assets directly served without bundling, including the favicon, and other files accessible via direct URL
 - `src/assets/` - Static assets like images, icons, and SVGs
 - `src/components/` - Reusable, generic UI components used throughout the application. A rule of thumb: if a component could have come from npm, it should be in this folder. I.e. it should not be tied to PondPilot specifics.
 - `src/models/` - TypeScript interfaces, types, data models and application-wide constants and configuration values. No business logic should be here, instead, it should be in the `src/controllers/` or specific feature-compnent in `src/features/` folder.
