@@ -1,15 +1,12 @@
 import { Table } from '@components/table/table';
 import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@models/data-adapter';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { setDataTestId } from '@utils/test-id';
 import { Center, Group, Loader, Stack, Text } from '@mantine/core';
 import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
 import { DBColumn } from '@models/db';
-import { notifications } from '@mantine/notifications';
-import { showSuccess } from '@components/app-notifications';
-import { copyToClipboard } from '@utils/clipboard';
 import { MAX_DATA_VIEW_PAGE_SIZE, TabId, TabType } from '@models/tab';
 import { IconClipboardSmile } from '@tabler/icons-react';
 import { useAppStore } from '@store/app-store';
@@ -19,8 +16,9 @@ import {
 } from '@controllers/tab';
 import { formatStringsAsMDList } from '@utils/pretty';
 import { formatNumber } from '@utils/helpers';
-import { stringifyTypedValue } from '@utils/db';
+import { showWarning } from '@components/app-notifications';
 import { useColumnSummary } from '../hooks';
+import { copySelectedColumns } from '../utils';
 
 interface DataViewProps {
   /**
@@ -56,6 +54,32 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
 
   // This is the actual data slice we have from the data adapter.
   const [dataSlice, setDataSlice] = useState<DataTableSlice | null>(null);
+
+  const deduplicatedSchema = useMemo(() => {
+    const seen = new Set<string>();
+    const duplicates = new Set<string>();
+
+    const filteredSchema = dataAdapter.currentSchema.filter((col) => {
+      if (seen.has(col.name)) {
+        duplicates.add(col.name);
+        return false;
+      }
+      seen.add(col.name);
+      return true;
+    });
+
+    if (duplicates.size > 0) {
+      showWarning({
+        title: 'Duplicate columns detected',
+        message: `The following columns are duplicated: ${Array.from(duplicates).join(', ')}`,
+        autoClose: false,
+      });
+    }
+
+    return filteredSchema;
+    // Recalculate it only when the schema changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(dataAdapter.currentSchema.map((col) => col.name))]);
 
   /**
    * Local Non-Reactive State
@@ -114,6 +138,98 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   // try to fetch more data.
   const isSinglePage = Math.max(expectedRowTo, rowCountToShow) <= MAX_DATA_VIEW_PAGE_SIZE;
 
+  // Whether we should show a full loading overlay, i.e. we have nothing, even stale to show
+  const [showLoadingOverlay] = useDebouncedValue(
+    (dataSlice === null || !hasData) && !isSorting && isFetching && !hasDataSourceError,
+    200,
+  );
+
+  // Whether to show error overlay (that's when even stale data is not available
+  // and we have an error)
+  const showErrorOverlay = (dataSlice === null || !hasData) && hasDataSourceError;
+  const showMessageOverlay =
+    (dataSlice === null || !hasData) && !isSorting && !isFetching && !hasDataSourceError;
+
+  // Whether we should show the table, even if with no rows.
+  // If we didn't make a mistke, if `hasData` is true then `tableData`
+  // is not null. But we are using a stronger check to be sure.
+  const showTableAndPagination = dataSlice !== null && hasData;
+
+  // The actual row range to show in pagination. It may be different from the expected row range.
+  // If we have 0 rows, than return 0, but if we have rows, we show 1-indexed range.
+  const displayedRowFrom = dataSlice
+    ? dataSlice.data.length > 0
+      ? dataSlice.rowOffset + 1
+      : 0
+    : 0;
+  const displayedRowTo = dataSlice ? dataSlice.rowOffset + dataSlice.data.length : 0;
+
+  // Should we allow pagination? We allow continuing paginating even
+  // while data is loading (but not sorting), and we disable the buttons
+  // if we are in error state
+  const isPaginationDisabled = !hasData || isSorting;
+
+  const hasPrevPage = requestedPage > 0;
+  const nextPage = requestedPage + 1;
+  const hasNextPage = realRowCount ? nextPage * MAX_DATA_VIEW_PAGE_SIZE < realRowCount : true;
+
+  /**
+   * Exvent handlers
+   */
+  const setAndCacheDataPage = useCallback(
+    (newPage: number) => {
+      setRequestedPage(newPage);
+      updateTabDataViewDataPageCache(tabId, newPage);
+    },
+    [tabId],
+  );
+
+  const handleNextPage = useCallback(() => {
+    if (hasNextPage) {
+      setAndCacheDataPage(nextPage);
+    }
+  }, [hasNextPage, nextPage, setAndCacheDataPage]);
+
+  const handlePrevPage = useCallback(() => {
+    if (requestedPage > 0) {
+      const prevPage = requestedPage - 1;
+      setAndCacheDataPage(prevPage);
+    }
+  }, [requestedPage, setAndCacheDataPage]);
+
+  /**
+   * Handle sorting
+   */
+  const handleSortAndGetNewReader = useCallback(
+    (sortField: DBColumn['name']) => {
+      dataAdapter.toggleColumnSort(sortField);
+    },
+    [dataAdapter.toggleColumnSort],
+  );
+
+  /**
+   * Handle copy selected columns
+   */
+  const handleCopySelectedColumns = useCallback(
+    (selectedCols: DBColumn[]) => {
+      return copySelectedColumns(selectedCols, dataAdapter);
+    },
+    [dataAdapter.getAllTableData],
+  );
+
+  const onColumnResizeChange = useCallback(
+    (columnSizes: Record<string, number>) => {
+      updateTabDataViewColumnSizesCache(tabId, columnSizes);
+    },
+    [tabId],
+  );
+
+  // Show dev only jump to row in pagination
+  const handleOnJumpToRow = useCallback(
+    (rowNumber: number) => setAndCacheDataPage(Math.floor(rowNumber / MAX_DATA_VIEW_PAGE_SIZE)),
+    [setAndCacheDataPage],
+  );
+
   // Now get the data to be used by the table
   useDidUpdate(
     () => {
@@ -164,157 +280,6 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     ],
   );
 
-  // Whether we should show a full loading overlay, i.e. we have nothing, even stale to show
-  const [showLoadingOverlay] = useDebouncedValue(
-    (dataSlice === null || !hasData) && !isSorting && isFetching && !hasDataSourceError,
-    200,
-  );
-
-  // Whether to show error overlay (that's when even stale data is not available
-  // and we have an error)
-  const showErrorOverlay = (dataSlice === null || !hasData) && hasDataSourceError;
-  const showMessageOverlay =
-    (dataSlice === null || !hasData) && !isSorting && !isFetching && !hasDataSourceError;
-
-  // Whether we should show the table, even if with no rows.
-  // If we didn't make a mistke, if `hasData` is true then `tableData`
-  // is not null. But we are using a stronger check to be sure.
-  const showTableAndPagination = dataSlice !== null && hasData;
-
-  // The actual row range to show in pagination. It may be different from the expected row range.
-  // If we have 0 rows, than return 0, but if we have rows, we show 1-indexed range.
-  const displayedRowFrom = dataSlice
-    ? dataSlice.data.length > 0
-      ? dataSlice.rowOffset + 1
-      : 0
-    : 0;
-  const displayedRowTo = dataSlice ? dataSlice.rowOffset + dataSlice.data.length : 0;
-
-  // Should we allow pagination? We allow continuing paginating even
-  // while data is loading (but not sorting), and we disable the buttons
-  // if we are in error state
-  const isPaginationDisabled = !hasData || isSorting;
-
-  const hasPrevPage = requestedPage > 0;
-  const nextPage = requestedPage + 1;
-  const hasNextPage = realRowCount ? nextPage * MAX_DATA_VIEW_PAGE_SIZE < realRowCount : true;
-
-  /**
-   * Exvent handlers
-   */
-  const setAndCacheDataPage = useCallback((newPage: number) => {
-    setRequestedPage(newPage);
-    updateTabDataViewDataPageCache(tabId, newPage);
-  }, []);
-
-  const handleNextPage = useCallback(() => {
-    if (hasNextPage) {
-      setAndCacheDataPage(nextPage);
-    }
-  }, [hasNextPage, nextPage]);
-
-  const handlePrevPage = useCallback(() => {
-    if (requestedPage > 0) {
-      const prevPage = requestedPage - 1;
-      setAndCacheDataPage(prevPage);
-    }
-  }, [requestedPage]);
-
-  /**
-   * Handle sorting
-   */
-  const handleSortAndGetNewReader = useCallback(
-    (sortField: DBColumn['name']) => {
-      dataAdapter.toggleColumnSort(sortField);
-    },
-    [dataAdapter.toggleColumnSort],
-  );
-
-  /**
-   * Handle copy selected columns
-   */
-  const handleCopySelectedColumns = useCallback(
-    async (selectedCols: DBColumn[]) => {
-      // We do not want to call API if no columns are selected
-      if (!selectedCols.length) {
-        return;
-      }
-
-      const notificationId = showSuccess({
-        title: 'Copying selected columns to clipboard...',
-        message: '',
-        loading: true,
-        autoClose: false,
-        color: 'text-accent',
-      });
-      try {
-        const data = await dataAdapter.getAllTableData(selectedCols);
-
-        const headers = selectedCols.map((col) => col.name).join('\t');
-        const rows = data.map((row) =>
-          selectedCols
-            .map((col) => {
-              const value = stringifyTypedValue({ value: row[col.name], type: col.sqlType });
-              return value ?? '';
-            })
-            .join('\t'),
-        );
-        const tableText = [headers, ...rows].join('\n');
-        await copyToClipboard(tableText);
-
-        notifications.update({
-          id: notificationId,
-          title: 'Selected columns copied to clipboard',
-          message: '',
-          loading: false,
-          autoClose: 800,
-        });
-      } catch (error) {
-        const autoCancelled = error instanceof DOMException ? error.name === 'Cancelled' : false;
-        const message = error instanceof Error ? error.message : 'Unknown error';
-
-        if (autoCancelled) {
-          notifications.update({
-            id: notificationId,
-            title: 'Cancelled',
-            message,
-            loading: false,
-            autoClose: 800,
-            color: 'text-warning',
-          });
-          return;
-        }
-
-        notifications.update({
-          id: notificationId,
-          title: 'Failed to copy selected columns to clipboard',
-          message,
-          loading: false,
-          autoClose: 5000,
-          color: 'red',
-        });
-      }
-    },
-    [dataAdapter.getAllTableData],
-  );
-
-  const onColumnResizeChange = useCallback(
-    (columnSizes: Record<string, number>) => {
-      updateTabDataViewColumnSizesCache(tabId, columnSizes);
-    },
-    [tabId],
-  );
-
-  // Show dev only jump to row in pagination
-  let handleOnJumpToRow;
-  if (import.meta.env.DEV) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    handleOnJumpToRow = useCallback(
-      (rowNumber: number) => setAndCacheDataPage(Math.floor(rowNumber / MAX_DATA_VIEW_PAGE_SIZE)),
-      [],
-    );
-  }
-
   return (
     <Stack className="gap-0 h-full overflow-hidden">
       {/* Loading overlay */}
@@ -359,7 +324,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
           <div className="flex-1 min-h-0 overflow-auto px-3 custom-scroll-hidden pb-6">
             <Table
               dataSlice={dataSlice}
-              schema={dataAdapter.currentSchema}
+              schema={deduplicatedSchema}
               sort={dataAdapter.sort}
               visible={!!active}
               initialColumnSizes={initialColumnSizes}
@@ -401,7 +366,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
             onPrevPage={handlePrevPage}
             onNextPage={handleNextPage}
             isEstimatedRowCount={isEstimatedRowCount}
-            onJumpToRow={handleOnJumpToRow}
+            onJumpToRow={import.meta.env.DEV ? handleOnJumpToRow : undefined}
           />
         </div>
       )}
