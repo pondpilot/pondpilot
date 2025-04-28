@@ -170,8 +170,121 @@ export const useAddLocalFilesOrFolders = () => {
     });
   }, [pool]);
 
+  const handleFileDrop = useCallback(
+    async (event: React.DragEvent<HTMLElement>) => {
+      event.preventDefault();
+
+      if (!pool) {
+        showError({
+          title: 'App is not ready',
+          message: 'Please wait for app to load before adding files',
+        });
+        return;
+      }
+
+      // Check if the DataTransfer API supports getAsFileSystemHandle
+      if (!event.dataTransfer.items[0]?.getAsFileSystemHandle) {
+        showError({
+          title: 'Browser not supported',
+          message: 'Your browser does not support file system access via drag and drop.',
+        });
+        return;
+      }
+
+      const notificationId = showAlert({
+        title: 'Processing dropped items',
+        loading: true,
+        message: 'Please wait while we process the dropped files/folders...',
+        autoClose: false,
+        color: 'text-accent',
+      });
+
+      const fileHandles = [];
+
+      for (const item of event.dataTransfer.items) {
+        if (item.kind === 'file') {
+          try {
+            const handle = await item.getAsFileSystemHandle();
+            if (handle.kind === 'file') {
+              fileHandles.push(handle);
+            }
+          } catch (error) {
+            console.error('Ошибка получения FileSystemFileHandle:', error);
+          }
+        }
+      }
+
+      console.log({
+        fileHandles,
+      });
+
+      try {
+        // Collect file/directory handles from dropped items
+        const handles: FileSystemFileHandle[] = [];
+
+        for (let i = 0; i < event.dataTransfer.items.length; i += 1) {
+          const item = event.dataTransfer.items[i];
+
+          // Skip non-file items
+          if (item.kind !== 'file') continue;
+          const handle = await item.getAsFileSystemHandle();
+          if (handle?.kind === 'file') {
+            handles.push(handle as FileSystemFileHandle);
+          }
+        }
+
+        if (handles.length === 0) {
+          notifications.hide(notificationId);
+          showAlert({
+            title: 'No valid items',
+            message: 'No supported files or folders were found in the dropped items.',
+          });
+        }
+
+        console.log({
+          handles,
+          DataTransfer: event.dataTransfer.files.length,
+          event,
+        });
+
+        const { skippedExistingEntries, skippedUnsupportedFiles, errors } =
+          await addLocalFileOrFolders(pool, handles);
+
+        notifications.hide(notificationId);
+        if (skippedExistingEntries.length) {
+          showWarning({
+            title: 'Warning',
+            message: `${skippedExistingEntries.length} files were not added because they already exist.`,
+          });
+        }
+        if (skippedUnsupportedFiles.length) {
+          showWarning({
+            title: 'Warning',
+            message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
+          });
+        }
+        if (errors.length) {
+          errors.forEach((errorMessage) => {
+            showError({
+              title: 'Error',
+              message: errorMessage,
+            });
+          });
+        }
+      } catch (error) {
+        notifications.hide(notificationId);
+        showError({
+          title: 'Error processing dropped items',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [pool],
+  );
+
   return {
     handleAddFile,
     handleAddFolder,
+    handleFileDrop,
   };
 };
