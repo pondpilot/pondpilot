@@ -4,6 +4,7 @@ import { useInputState } from '@mantine/hooks';
 import { showSuccess, showError } from '@components/app-notifications';
 import { importScript } from '@utils/script-import-utils';
 import { IconX } from '@tabler/icons-react';
+import { setDataTestId } from '@utils/test-id';
 
 interface ImportScriptModalContentProps {
   onClose: () => void;
@@ -76,6 +77,7 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
         placeholder="https://app.pondpilot.io/shared-script/..."
         value={url}
         onChange={setUrl}
+        data-testid={setDataTestId('import-script-url-input')}
         size="sm"
         classNames={{
           input:
@@ -101,6 +103,7 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
           onClick={handleImport}
           loading={isLoading}
           disabled={!url.trim().includes('/shared-script/')}
+          data-testid={setDataTestId('import-script-url-submit-button')}
           color="background-accent"
           className="rounded-full px-3 disabled:bg-transparentBrandBlue-016 dark:disabled:bg-transparentBrandBlue-016 disabled:text-textTertiary-light dark:disabled:text-textTertiary-dark"
         >

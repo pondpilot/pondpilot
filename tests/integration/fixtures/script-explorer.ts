@@ -11,6 +11,8 @@ import {
   renameExplorerItem,
   selectMultipleNodes,
   clickNodeByIndex,
+  clickExplorerTreeNodeMenuItemByName,
+  checkIfExplorerItemExists,
 } from './utils/explorer-tree';
 
 type ScriptExplorerFixtures = {
@@ -23,11 +25,13 @@ type ScriptExplorerFixtures = {
   getScriptNodeById: (scriptId: string) => Promise<Locator>;
   getScriptIdByName: (scriptName: string) => Promise<string>;
   renameScriptInExplorer: (oldName: string, newName: string) => Promise<void>;
+  checkIfScriptExists: (scriptName: string) => Promise<boolean>;
   assertScriptExplorerItems: (expected: string[]) => Promise<void>;
   clickScriptByIndex: (index: number) => Promise<Locator>;
   selectMultipleScriptNodes: (indices: number[]) => Promise<Locator[]>;
   assertScriptNodesSelection: (expectedSelectedIndices: number[]) => Promise<void>;
   deselectAllScripts: () => Promise<void>;
+  clickScriptNodeMenuItemByName: (scriptName: string, menuItemName: string) => Promise<void>;
 };
 
 const SCRIPT_EXPLORER_DATA_TESTID_PREFIX = 'script-explorer';
@@ -119,6 +123,12 @@ export const test = base.extend<ScriptExplorerFixtures>({
     });
   },
 
+  checkIfScriptExists: async ({ page }, use) => {
+    await use(async (scriptName: string): Promise<boolean> => {
+      return await checkIfExplorerItemExists(page, SCRIPT_EXPLORER_DATA_TESTID_PREFIX, scriptName);
+    });
+  },
+
   assertScriptExplorerItems: async ({ page }, use) => {
     await use(async (expected: string[]) => {
       await assertExplorerItems(page, SCRIPT_EXPLORER_DATA_TESTID_PREFIX, expected);
@@ -162,6 +172,17 @@ export const test = base.extend<ScriptExplorerFixtures>({
 
       // Deselect all items using Escape
       await page.keyboard.press('Escape');
+    });
+  },
+
+  clickScriptNodeMenuItemByName: async ({ page }, use) => {
+    await use(async (dbName: string, menuItemName: string) => {
+      await clickExplorerTreeNodeMenuItemByName(
+        page,
+        SCRIPT_EXPLORER_DATA_TESTID_PREFIX,
+        dbName,
+        menuItemName,
+      );
     });
   },
 });

@@ -457,7 +457,11 @@ export const SpotlightMenu = () => {
           {spotlightView === 'home' && !searchValue.endsWith(SEARCH_SUFFIXES.mode) && (
             <Group gap={4} c="text-secondary" className="px-4 text-sm mb-4">
               Type{' '}
-              <Text bg="background-secondary" className="p-0.5 px-2 rounded-full">
+              <Text
+                bg="background-secondary"
+                className="p-0.5 px-2 rounded-full"
+                c="text-secondary"
+              >
                 ?
               </Text>{' '}
               for help and tips
