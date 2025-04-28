@@ -274,10 +274,11 @@ export async function checkIfExplorerItemExists(
   explorerTestIdPrefix: string,
   name: string,
 ): Promise<boolean> {
-  const allItems = getAllExplorerTreeNodes(page, explorerTestIdPrefix);
-  const itemTexts = await allItems.evaluateAll((nodes) =>
-    nodes.map((node) => node.textContent?.trim() || ''),
-  );
+  const allNodeContainers = getAllExplorerTreeNodes(page, explorerTestIdPrefix);
 
-  return itemTexts.includes(name);
+  // Extract only the text content from the paragraph elements that contain the node names
+  const itemTexts = allNodeContainers.locator('p').getByText(name, { exact: true });
+
+  // Check if the item exists
+  return (await itemTexts.count()) > 0;
 }

@@ -81,10 +81,10 @@ export const SpotlightMenu = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const openImportScriptModal = () => {
-    modals.open({
+    const id = modals.open({
       size: 600,
       withCloseButton: false,
-      children: <ImportScriptModalContent onClose={() => modals.closeAll()} />,
+      children: <ImportScriptModalContent onClose={() => modals.close(id)} />,
     });
   };
 
