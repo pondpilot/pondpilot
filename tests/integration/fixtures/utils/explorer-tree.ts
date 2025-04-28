@@ -265,3 +265,20 @@ export const clickExplorerTreeNodeMenuItemByName = async (
   // Click the menu item
   await menuItemLocator.click();
 };
+
+/**
+ * Check if an explorer item with the given name exists
+ */
+export async function checkIfExplorerItemExists(
+  page: Page,
+  explorerTestIdPrefix: string,
+  name: string,
+): Promise<boolean> {
+  const allNodeContainers = getAllExplorerTreeNodes(page, explorerTestIdPrefix);
+
+  // Extract only the text content from the paragraph elements that contain the node names
+  const itemTexts = allNodeContainers.locator('p').getByText(name, { exact: true });
+
+  // Check if the item exists
+  return (await itemTexts.count()) > 0;
+}

@@ -6,6 +6,8 @@ import { createBrowserRouter, RouterProvider, Navigate, RouteObject } from 'reac
 import { BrowserNotSupported } from '@components/browser-not-supported';
 import { useAppContext } from '@features/app-context';
 
+import { SharedScriptImport } from '@features/script-import';
+
 let devOnlyRoutes: RouteObject[] = [];
 
 // This will tree-shake in production
@@ -38,6 +40,10 @@ export function Router() {
         {
           path: 'settings',
           element: <SettingsPage />,
+        },
+        {
+          path: 'shared-script/:encodedScript',
+          element: <SharedScriptImport />,
         },
       ]
     : [

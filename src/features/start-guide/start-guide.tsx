@@ -162,7 +162,7 @@ export const StartGuide = () => {
                   className="focus:outline-none focus:bg-transparentBrandBlue-016 dark:focus:bg-transparentBrandBlue-016 hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark"
                 >
                   <Group wrap="nowrap">
-                    <Text>{item.label}</Text>
+                    <Text c="text-secondary">{item.label}</Text>
                     <IconChevronRight className="text-textSecondary-light dark:text-textSecondary-dark" />
                   </Group>
                 </Button>
