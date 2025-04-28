@@ -1,12 +1,15 @@
-import { Box, Button, Divider, Group, Modal, Stack, Text, Title } from '@mantine/core';
+import { ActionIcon, Box, Button, Divider, Group, Modal, Stack, Text, Title } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
 
 import { exportSQLScripts } from '@controllers/export-data';
 import { resetAppState } from '@store/app-store';
 import { useDisclosure } from '@mantine/hooks';
+import { IconX } from '@tabler/icons-react';
+import { useNavigate } from 'react-router-dom';
 import { ThemeSwitcher } from './components/theme-switcher';
 
 export const SettingsPage = () => {
+  const navigate = useNavigate();
   const [confirmOpened, { open: openConfirm, close: onConfirmClose }] = useDisclosure(false);
 
   const handleClearData = async () => {
@@ -109,6 +112,14 @@ export const SettingsPage = () => {
               </Box>
             </Stack>
           </Stack>
+        </Stack>
+        <Stack>
+          <ActionIcon
+            data-testid={setDataTestId('settings-page-close-button')}
+            onClick={() => navigate('/')}
+          >
+            <IconX />
+          </ActionIcon>
         </Stack>
       </Group>
     </>

@@ -40,3 +40,18 @@ test('Open new script from settings page', async ({
   // Verify script editor is visible
   await expect(scriptEditor).toBeVisible();
 });
+
+test('Close settings page using close button', async ({ settingsPage, openSettings }) => {
+  // Open settings page
+  await openSettings();
+
+  // Verify the settings page is visible
+  await expect(settingsPage).toBeVisible();
+
+  // Close settings page using close button
+  const closeButton = settingsPage.getByTestId('settings-page-close-button');
+  await closeButton.click();
+
+  // Check settings page is not attached
+  await expect(settingsPage).not.toBeAttached();
+});
