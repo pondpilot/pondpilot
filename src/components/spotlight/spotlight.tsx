@@ -343,22 +343,28 @@ export const SpotlightMenu = () => {
     );
   };
   const renderDataSourcesView = () => {
-    const filteredActions = filterActions(
-      [...dataSourceGroupActions, ...dataSourceActions],
-      searchValue,
-    );
+    const filteredActions = filterActions(dataSourceGroupActions, searchValue);
+    const filteredDataSources = filterActions(dataSourceActions, searchValue);
     // Can't be empty but ok...
-    return <>{filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Data Sources')}</>;
+    return (
+      <>
+        {filteredActions.length > 0 && renderActionsGroup(filteredActions, 'Data Sources')}
+        {filteredDataSources.length > 0 &&
+          renderActionsGroup(filteredDataSources, 'Recent Data Sources')}
+      </>
+    );
   };
 
   const renderScriptsView = () => {
-    const filteredActions = filterActions([...scriptGroupActions, ...scriptActions], searchValue);
+    const filteredActions = filterActions(scriptGroupActions, searchValue);
+    const filteredScripts = filterActions(scriptActions, searchValue);
 
     // Can't be empty but ok...
     return (
       <>
         {filteredActions.length > 0 &&
           renderActionsGroup(filteredActions, SCRIPT_GROUP_DISPLAY_NAME)}
+        {filteredScripts.length > 0 && renderActionsGroup(filteredScripts, 'Recent Queries')}
       </>
     );
   };
