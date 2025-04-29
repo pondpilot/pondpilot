@@ -46,6 +46,7 @@ test('Select items in the query explorer list using Hotkeys', async ({
   await assertScriptNodesSelection([1]);
 
   // Select all items using ControlOrMeta + A
+  await clickScriptByIndex(1);
   await page.keyboard.press('ControlOrMeta+A');
   await assertScriptNodesSelection([0, 1, 2]);
 
