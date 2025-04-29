@@ -41,7 +41,7 @@ export const test = base.extend<PageFixtures>({
 test.beforeEach(async ({ context }) => {
   const isCI = !!process.env.CI;
 
-  // This will check if we have a local cached version of the file in dist/static
+  // This will check if we have a local cached version of the file in .module-cache
   // and use that instead when not in CI environment
   await context.route(
     /^https:\/\/cdn\.jsdelivr\.net\/npm\/@duckdb\/duckdb-wasm.*|^https:\/\/extensions\.duckdb\.org\/.*|https:\/\/cdn\.sheetjs\.com\/.*/,
@@ -53,8 +53,8 @@ test.beforeEach(async ({ context }) => {
         const urlPath = url.pathname;
         // Get the filename from the path
         const fileName = path.basename(urlPath);
-        // Check if the file exists in dist/static
-        const staticFilePath = path.resolve(process.cwd(), 'dist/static', fileName);
+        // Check if the file exists in .module-cache
+        const staticFilePath = path.resolve(process.cwd(), '.module-cache', fileName);
 
         if (fs.existsSync(staticFilePath)) {
           // If the file exists locally, serve it
