@@ -62,30 +62,18 @@ export const useTableSelection = ({
       const selectedRowsIds = Object.keys(selectedRows).filter((id) => selectedRows[id]);
       if (!selectedRowsIds.length) return;
 
-      const headers = table
-        .getAllColumns()
-        .filter((col) => !col.getIsFirstColumn())
-        .map((col) => col.id)
-        .join('\t');
+      const tableData = selectedRowsIds.map((rowId) => {
+        const row = table.getRow(rowId);
+        const [_, ...cells] = row.getAllCells();
+        return cells
+          .map((cell) => {
+            const { type } = cell.column.columnDef.meta as ColumnMeta;
+            return stringifyTypedValue({ type, value: cell.getValue() });
+          })
+          .join('\t');
+      });
 
-      const selectedRowsData = selectedRowsIds
-        .map((rowId) => {
-          const row = table.getRow(rowId);
-
-          return table
-            .getAllColumns()
-            .filter((col) => !col.getIsFirstColumn())
-            .map((col) => {
-              const { type } = col.columnDef.meta as ColumnMeta;
-              const value = stringifyTypedValue({ type, value: row.getValue(col.id) });
-              return value ?? '';
-            })
-            .join('\t');
-        })
-        .join('\n');
-
-      const csvContent = `${headers}\n${selectedRowsData}`;
-      navigator.clipboard.writeText(csvContent);
+      navigator.clipboard.writeText(tableData.join('\n'));
 
       showSuccess({
         title: 'Selected rows copied to clipboard',

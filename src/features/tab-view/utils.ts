@@ -1,21 +1,25 @@
-import { showSuccess } from '@components/app-notifications';
+import { showError, showSuccess, showWarning } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
-import { DataAdapterApi } from '@models/data-adapter';
+import { CancelledOperation, DataAdapterApi } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
 import { copyToClipboard } from '@utils/clipboard';
-import { stringifyTypedValue } from '@utils/db';
+import { formatTableDataAsCSV, formatTableDataAsTSV, getStringifyTypedRows } from '@utils/table';
+
+interface CopyTableColumnsProps {
+  columns: DBColumn[];
+  dataAdapter: DataAdapterApi;
+}
 
 /**
  * Handle copy selected columns
  */
-export const copySelectedColumns = async (
-  selectedCols: DBColumn[],
-  dataAdapter: DataAdapterApi,
-) => {
+export const copyTableColumns = async ({ columns, dataAdapter }: CopyTableColumnsProps) => {
   // We do not want to call API if no columns are selected
-  if (!selectedCols.length) {
+  if (!columns.length) {
     return;
   }
+
+  dataAdapter.currentSchema;
 
   const notificationId = showSuccess({
     title: 'Copying selected columns to clipboard...',
@@ -25,19 +29,13 @@ export const copySelectedColumns = async (
     color: 'text-accent',
   });
   try {
-    const data = await dataAdapter.getAllTableData(selectedCols);
+    const data = await dataAdapter.getAllTableData(columns);
 
-    const headers = selectedCols.map((col) => col.name).join('\t');
-    const rows = data.map((row) =>
-      selectedCols
-        .map((col) => {
-          const value = stringifyTypedValue({ value: row[col.name], type: col.sqlType });
-          return value ?? '';
-        })
-        .join('\t'),
-    );
-    const tableText = [headers, ...rows].join('\n');
-    await copyToClipboard(tableText);
+    const formattedRows = getStringifyTypedRows(data, columns);
+    const tsvRowsData = formatTableDataAsTSV(formattedRows);
+    const header = columns.map((col) => col.name).join('\t');
+    const tsvContent = `${header}\n${tsvRowsData}`;
+    await copyToClipboard(tsvContent);
 
     notifications.update({
       id: notificationId,
@@ -69,6 +67,69 @@ export const copySelectedColumns = async (
       loading: false,
       autoClose: 5000,
       color: 'red',
+    });
+  }
+};
+
+interface ExportTableColumnsToCSVProps {
+  dataAdapter: DataAdapterApi;
+  fileName: string;
+  columns: DBColumn[];
+}
+
+export const exportTableColumnsToCSV = async ({
+  dataAdapter,
+  fileName,
+  columns,
+}: ExportTableColumnsToCSVProps) => {
+  const notificationId = showSuccess({
+    title: 'Exporting selected columns to CSV...',
+    message: '',
+    loading: true,
+    autoClose: false,
+    color: 'text-accent',
+  });
+
+  try {
+    const data = await dataAdapter.getAllTableData(columns);
+
+    const formattedRows = getStringifyTypedRows(data, columns);
+    const csvRows = formatTableDataAsCSV(formattedRows);
+    const header = columns.map((col) => col.name).join(',');
+    const csvContent = `${header}\n${csvRows}`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+
+    notifications.update({
+      id: notificationId,
+      title: `${fileName} exported to CSV`,
+      message: '',
+      loading: false,
+      autoClose: 1500,
+    });
+  } catch (error) {
+    notifications.hide(notificationId);
+    notifications.hide(notificationId);
+    const autoCancelled = error instanceof CancelledOperation ? error.isSystemCancelled : false;
+    const message = error instanceof Error ? error.message : 'Unknown error';
+
+    if (autoCancelled) {
+      showWarning({ title: 'Cancelled', message });
+      return;
+    }
+
+    showError({
+      title: 'Failed to export table to CSV',
+      message,
+      autoClose: 5000,
     });
   }
 };

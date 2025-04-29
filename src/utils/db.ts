@@ -37,21 +37,22 @@ export const stringifyTypedValue = ({
   type: NormalizedSQLType;
   value: unknown;
 }): string => {
+  const timestampFallback: string = `ERROR: can't convert column value <${value}> to declared type <${type}>`;
   try {
     // Early check for null or undefined values
     if (value === null || value === undefined) {
-      return '';
+      return 'NULL';
     }
 
     switch (type) {
       case 'timestamp': {
-        return typeof value === 'number' ? new Date(value).toLocaleString() : '';
+        return typeof value === 'number' ? new Date(value).toLocaleString() : timestampFallback;
       }
       case 'date': {
-        return typeof value === 'number' ? new Date(value).toLocaleDateString() : '';
+        return typeof value === 'number' ? new Date(value).toLocaleDateString() : timestampFallback;
       }
       case 'time': {
-        return typeof value === 'number' ? new Date(value).toLocaleTimeString() : '';
+        return typeof value === 'number' ? new Date(value).toLocaleTimeString() : timestampFallback;
       }
       case 'string': {
         return typeof value === 'string' ? value : String(value);
@@ -209,3 +210,14 @@ export function isSameSchema(
     })
     .every((v) => v);
 }
+
+/**
+ * Generates a unique column ID based on the column name and index.
+ *
+ * @param {string} name - The base name of the column.
+ * @param {number} idx - The index of the column.
+ * @returns {string} A unique column ID.
+ */
+export const getTableColumnId = (name: string, idx: number): string => {
+  return `${name}_${idx}`;
+};

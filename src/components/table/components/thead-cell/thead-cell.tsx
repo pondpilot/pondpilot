@@ -59,7 +59,7 @@ const THeadTitle = ({
           <NamedIcon iconType={iconType} size={16} />
         </div>
       )}
-      <Text truncate="end" fw={500}>
+      <Text truncate="end" fw={500} c="text-contrast">
         {header.isPlaceholder ? null : columnName}
       </Text>
       {!isIndex && (

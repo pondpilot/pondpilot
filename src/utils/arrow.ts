@@ -1,7 +1,7 @@
 import { DataTable, DBColumn, DBTableOrViewSchema, NormalizedSQLType } from '@models/db';
 import type { Field, RecordBatch, Table } from 'apache-arrow';
 import { DataType } from 'apache-arrow';
-import { getTableColumnId } from './table';
+import { getTableColumnId } from './db';
 
 /**
  * Returns an Apache Arrow table as an array of row records.

@@ -18,7 +18,7 @@ import { formatStringsAsMDList } from '@utils/pretty';
 import { formatNumber } from '@utils/helpers';
 import { showWarning } from '@components/app-notifications';
 import { useColumnSummary } from '../hooks';
-import { copySelectedColumns } from '../utils';
+import { copyTableColumns } from '../utils';
 
 interface DataViewProps {
   /**
@@ -210,9 +210,9 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   /**
    * Handle copy selected columns
    */
-  const handleCopySelectedColumns = useCallback(
+  const handlecopyTableColumns = useCallback(
     (selectedCols: DBColumn[]) => {
-      return copySelectedColumns(selectedCols, dataAdapter);
+      return copyTableColumns({ columns: selectedCols, dataAdapter });
     },
     [dataAdapter.getAllTableData],
   );
@@ -332,7 +332,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
               onSort={dataAdapter.disableSort ? undefined : handleSortAndGetNewReader}
               onRowSelectChange={resetColumnAggregate}
               onCellSelectChange={resetColumnAggregate}
-              onSelectedColsCopy={hasDataSourceError ? undefined : handleCopySelectedColumns}
+              onSelectedColsCopy={hasDataSourceError ? undefined : handlecopyTableColumns}
               onColumnResizeChange={onColumnResizeChange}
             />
           </div>

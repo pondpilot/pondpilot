@@ -1,6 +1,6 @@
 import { MAX_DATA_VIEW_PAGE_SIZE } from '@models/tab';
 import { test as base, expect, Locator } from '@playwright/test';
-import { getTableColumnId } from '@utils/table';
+import { getTableColumnId } from '@utils/db';
 
 type ExpectedDataValue = number | string;
 

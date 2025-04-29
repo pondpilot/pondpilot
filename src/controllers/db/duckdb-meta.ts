@@ -2,7 +2,7 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { DataBaseModel, DBColumn, DBTableOrView } from '@models/db';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import { quote } from '@utils/helpers';
-import { getTableColumnId } from '@utils/table';
+import { getTableColumnId } from '@utils/db';
 import * as arrow from 'apache-arrow';
 
 async function queryOneColumn<VT extends arrow.DataType>(
