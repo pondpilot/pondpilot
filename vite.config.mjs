@@ -20,11 +20,45 @@ export default defineConfig(({ mode }) => {
       react(),
       tsconfigPaths(),
       VitePWA({
-        registerType: 'autoUpdate',
+        registerType: 'prompt',
+        // We manually modify the globPatterns bellow, so to make this
+        // explicit, we disable the implicit inclusion by plugin
+        includeManifestIcons: false,
         workbox: {
-          maximumFileSizeToCacheInBytes: 25000000,
-          // Cache duckdb CDN resources
+          // Override default workbox glob config to include all
+          // our assets in the cache
+          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
           runtimeCaching: [
+            // Google Fonts
+            {
+              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'google-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            {
+              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'gstatic-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            // Cache duckdb CDN resources
             {
               urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@duckdb\/duckdb-wasm.*/,
               handler: 'CacheFirst',
@@ -32,14 +66,14 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'duckdb-wasm-cache',
                 expiration: {
                   maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
                 },
                 cacheableResponse: {
                   statuses: [0, 200],
                 },
               },
             },
-            // New runtime caching for duckdb extensions
+            // And duckdb extensions
             {
               urlPattern: /^https:\/\/extensions\.duckdb\.org\/.*/,
               handler: 'CacheFirst',
@@ -47,7 +81,7 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'duckdb-extensions-cache',
                 expiration: {
                   maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
                 },
                 cacheableResponse: {
                   statuses: [0, 200],
@@ -62,7 +96,7 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'sheetjs-cache',
                 expiration: {
                   maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
                 },
                 cacheableResponse: {
                   statuses: [0, 200],
