@@ -32,10 +32,10 @@ test('should export data to CSV', async ({
     'comma quote, "val"' as 'comma quote,"col"'
 `);
   await runScript();
+
   await assertDataTableMatches({
-    normal_col: ['normal val'],
-    'comma,col': ['comma,val'],
-    'comma quote,"col"': ['comma quote, "val"'],
+    data: [['normal val', 'comma,val', 'comma quote, "val"']],
+    columnNames: ['normal_col', 'comma,col', 'comma quote,"col"'],
   });
 
   // Export the table to CSV

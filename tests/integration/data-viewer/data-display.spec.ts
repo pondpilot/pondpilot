@@ -1,4 +1,4 @@
-import { expect, mergeTests } from '@playwright/test';
+import { mergeTests } from '@playwright/test';
 import { test as baseTest } from '../fixtures/page';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
@@ -25,26 +25,28 @@ test('Decimals are displayed corretly', async ({
     )
   `);
   await runScript();
-  await assertDataTableMatches({ col1: [3], col2: [0.5], col3: [-123.12], col4: [1] });
+  await assertDataTableMatches({
+    data: [[3, 0.5, -123.12, 1]],
+    columnNames: ['col1', 'col2', 'col3', 'col4'],
+  });
 });
 
-test('Column duplicates are not displayed', async ({
+test('Display columns with duplicate names', async ({
   createScriptAndSwitchToItsTab,
   fillScript,
   runScript,
   assertDataTableMatches,
-  page,
 }) => {
   await createScriptAndSwitchToItsTab();
   await fillScript(`
    SELECT 
     'col 1' AS column_name, 
-    'col 2' AS column_name;
+    'col 2' AS column_name,
+    'col 3' AS column_name_1;
   `);
   await runScript();
-  await assertDataTableMatches({ column_name: ['col 2'] });
-  const duplicatedColumnsText = page
-    .getByText('The following columns are duplicated: column_name')
-    .first();
-  await expect(duplicatedColumnsText).toBeVisible();
+  await assertDataTableMatches({
+    data: [['col 1', 'col 2', 'col 3']],
+    columnNames: ['column_name', 'column_name', 'column_name_1'],
+  });
 });

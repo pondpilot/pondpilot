@@ -15,5 +15,8 @@ test('Create and run simple script', async ({
   await createScriptAndSwitchToItsTab();
   await fillScript('select 1');
   await runScript();
-  await assertDataTableMatches({ 1: [1] });
+  await assertDataTableMatches({
+    data: [[1]],
+    columnNames: ['1'],
+  });
 });

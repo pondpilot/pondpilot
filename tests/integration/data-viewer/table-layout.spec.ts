@@ -35,13 +35,8 @@ test('Header cell width matches data cell width for special character columns', 
 
   // Validate the data table
   await assertDataTableMatches({
-    ...COLUMN_NAMES_WITH_SPECIAL_CHARS.reduce(
-      (acc, columnName, index) => ({
-        ...acc,
-        [columnName]: [index],
-      }),
-      {},
-    ),
+    data: [COLUMN_NAMES_WITH_SPECIAL_CHARS.map((_, index) => index)],
+    columnNames: COLUMN_NAMES_WITH_SPECIAL_CHARS,
   });
 
   // For each column name, get corresponding header cell and data container in the first row

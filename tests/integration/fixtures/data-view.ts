@@ -1,15 +1,20 @@
+import { DataTable } from '@models/db';
 import { MAX_DATA_VIEW_PAGE_SIZE } from '@models/tab';
 import { test as base, expect, Locator } from '@playwright/test';
 import { getTableColumnId } from '@utils/db';
 
-type ExpectedDataValue = number | string;
+type ExpectedData = {
+  data: DataTable;
+  columnNames: string[];
+};
 
 /**
- * Expected data structure for the data table.
- *
- * Must have at least one column and all columns must have the same number of rows.
+ * Input format for assertDataTableMatches that supports raw DataTable
  */
-type ExpectedData = Record<string, ExpectedDataValue[]>;
+type DataTableMatchInput = {
+  data: DataTable;
+  columnNames: string[];
+};
 
 type DataViewFixtures = {
   /**
@@ -35,7 +40,7 @@ type DataViewFixtures = {
   /**
    * Asserts that the data table exactly matches the expected data.
    */
-  assertDataTableMatches: (expected: ExpectedData) => Promise<void>;
+  assertDataTableMatches: (expected: ExpectedData | DataTableMatchInput) => Promise<void>;
 
   /**
    * Exports the data table to CSV.
@@ -123,7 +128,7 @@ export const test = base.extend<DataViewFixtures>({
       const dataTable = await waitForDataTable();
 
       // Check if the data table has the expected column count first
-      const columns = Object.keys(expected);
+      const columns = expected.columnNames;
       const headerCells = getAllHeaderCells(dataTable);
 
       // We always have an extra column for the row number
@@ -135,7 +140,7 @@ export const test = base.extend<DataViewFixtures>({
       await expect(rowNumberHeaderCell).toHaveText('#');
 
       // Check row number data cells (assuming all columns have the same number of rows)
-      const rowCount = expected[columns[0]].length;
+      const rowCount = expected.data.length;
       for (let i = 0; i < rowCount; i += 1) {
         const rowNumberCell = getDataCellValue(dataTable, '#', i, currentPage);
         await expect(rowNumberCell).toBeVisible();
@@ -145,7 +150,7 @@ export const test = base.extend<DataViewFixtures>({
       // Now check if the data table has the expected data
       for (let colIndex = 0; colIndex < columns.length; colIndex += 1) {
         const column = columns[colIndex];
-        const values = expected[column];
+        const values = expected.data.map((row) => row[colIndex]);
         const columnId = getTableColumnId(column, colIndex);
 
         const headerCell = getHeaderCell(dataTable, columnId);
