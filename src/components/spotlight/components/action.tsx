@@ -18,7 +18,7 @@ export const renderActions = (actions: Action[]) =>
       <Group justify="space-between" className={cn('w-full', action.disabled && 'opacity-50')}>
         <Group className="gap-2">
           {action.icon ? <div>{action.icon}</div> : undefined}
-          <Text truncate="end" maw={250}>
+          <Text c="text-secondary" truncate="end" maw={250}>
             {action.label}
           </Text>
         </Group>

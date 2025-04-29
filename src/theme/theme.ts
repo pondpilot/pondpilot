@@ -514,6 +514,7 @@ export const theme = createTheme({
     Text: Text.extend({
       defaultProps: {
         size: 'sm',
+        c: 'text-primary',
       },
     }),
     Select: Select.extend({
@@ -544,18 +545,8 @@ export const theme = createTheme({
     LoadingOverlay: LoadingOverlay.extend({
       defaultProps: {
         zIndex: 1000,
-        // overlayProps: {
-        //   // blur: 200,
-        //   // bg: 'transparentGray-020',
-        // },
-        // loaderProps: {
-        //   type: 'dots',
-        // },
-        // className: 'bg-transparentWhite-020 dark:bg-transparentGray-020',
-
         overlayProps: {
           zIndex: 1000,
-          // className: 'bg-transparentWhite-020 dark:bg-transparentGray-020',
         },
       },
     }),

@@ -18,6 +18,8 @@ import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { setDataTestId } from '@utils/test-id';
 import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from '@models/app-urls';
+import { modals } from '@mantine/modals';
+import { ImportScriptModalContent } from '@features/script-import';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useAppStore } from '@store/app-store';
 import { createSQLScript } from '@controllers/sql-script';
@@ -78,6 +80,13 @@ export const SpotlightMenu = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const openImportScriptModal = () => {
+    const id = modals.open({
+      size: 600,
+      withCloseButton: false,
+      children: <ImportScriptModalContent onClose={() => modals.close(id)} />,
+    });
+  };
 
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const { command, option, control } = useOsModifierIcon();
@@ -257,6 +266,15 @@ export const SpotlightMenu = () => {
         importSQLFiles();
         resetSpotlight();
         ensureHome();
+      },
+    },
+    {
+      id: 'import-script-from-url',
+      label: 'Import From URL',
+      icon: <IconFileImport size={20} className={ICON_CLASSES} />,
+      handler: () => {
+        openImportScriptModal();
+        resetSpotlight();
       },
     },
   ];
@@ -445,7 +463,11 @@ export const SpotlightMenu = () => {
           {spotlightView === 'home' && !searchValue.endsWith(SEARCH_SUFFIXES.mode) && (
             <Group gap={4} c="text-secondary" className="px-4 text-sm mb-4">
               Type{' '}
-              <Text bg="background-secondary" className="p-0.5 px-2 rounded-full">
+              <Text
+                bg="background-secondary"
+                className="p-0.5 px-2 rounded-full"
+                c="text-secondary"
+              >
                 ?
               </Text>{' '}
               for help and tips

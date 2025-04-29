@@ -6,6 +6,7 @@ type SpotlightFixtures = {
   createScriptViaSpotlight: () => Promise<void>;
   openSettingsViaSpotlight: () => Promise<void>;
   addDirectoryViaSpotlight: () => Promise<void>;
+  openImportSharedScriptModalViaSpotlight: () => Promise<void>;
 };
 
 export const test = base.extend<SpotlightFixtures>({
@@ -60,6 +61,18 @@ export const test = base.extend<SpotlightFixtures>({
       await spotlightRoot.getByTestId('spotlight-action-add-folder').click();
 
       // Verify spotlight is closed after adding directory
+      await expect(spotlightRoot).toBeHidden();
+    });
+  },
+
+  openImportSharedScriptModalViaSpotlight: async ({ openSpotlight }, use) => {
+    await use(async () => {
+      const spotlightRoot = await openSpotlight();
+
+      // Share script through spotlight
+      await spotlightRoot.getByTestId('spotlight-action-import-script-from-url').click();
+
+      // Verify spotlight is closed after sharing script
       await expect(spotlightRoot).toBeHidden();
     });
   },

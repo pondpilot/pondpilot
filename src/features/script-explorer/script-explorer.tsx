@@ -1,6 +1,6 @@
 import { memo } from 'react';
 
-import { useSqlScriptNameMap } from '@store/app-store';
+import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { SQLScriptId } from '@models/sql-script';
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
@@ -13,6 +13,7 @@ import {
 } from '@controllers/tab';
 import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import { copyToClipboard } from '@utils/clipboard';
+import { createShareableScriptUrl } from '@utils/script-sharing';
 import { ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
 
@@ -50,7 +51,7 @@ const validateRename = (
   const textInputError = newName.length === 0 ? 'Name cannot be empty' : undefined;
   const notUniqueError = scriptsArray
     .filter(([id, _]) => id !== node.value)
-    .some(([_, name]) => name.toLowerCase() === newName.toLowerCase())
+    .some(([_, script]) => script.toLowerCase() === newName.toLowerCase())
     ? 'Name must be unique'
     : undefined;
   const invalidCharactersError = newName.match(/[^a-zA-Z0-9()_-]/)
@@ -76,6 +77,7 @@ export const ScriptExplorer = memo(() => {
   const scriptsArray = Array.from(sqlScripts).sort(([, leftName], [, rightName]) =>
     leftName.localeCompare(rightName),
   );
+
   const contextMenu: TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> = [
     {
       children: [
@@ -83,6 +85,23 @@ export const ScriptExplorer = memo(() => {
           label: 'Copy name',
           onClick: (sqlScript) => {
             copyToClipboard(sqlScript.label, { showNotification: true });
+          },
+        },
+        {
+          label: 'Share script',
+          onClick: (sqlScript) => {
+            const scriptId = sqlScript.value;
+            const script = useAppStore.getState().sqlScripts.get(scriptId);
+
+            if (!script) return;
+
+            const shareableUrl = createShareableScriptUrl(script);
+
+            copyToClipboard(shareableUrl, {
+              showNotification: true,
+              notificationTitle: 'Script shared',
+              notificationMessage: 'Shareable link copied to clipboard',
+            });
           },
         },
       ],
