@@ -7,7 +7,13 @@ import { getTableColumnId } from './db';
  * Returns an Apache Arrow table as an array of row records.
  */
 export function convertArrowTable(table: Table | RecordBatch): DataTable {
-  return table.toArray().map((row) => row.toJSON());
+  const columns = Array(table.numCols)
+    .fill(0)
+    .map((_, colIndex) => table.getChildAt(colIndex));
+
+  return Array(table.numRows)
+    .fill(0)
+    .map((_, rowIndex) => columns.map((column) => column?.get(rowIndex)));
 }
 
 /**

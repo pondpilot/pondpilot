@@ -1,6 +1,6 @@
 import { Table } from '@components/table/table';
 import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@models/data-adapter';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { setDataTestId } from '@utils/test-id';
 import { Center, Group, Loader, Stack, Text } from '@mantine/core';
 import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
@@ -16,7 +16,6 @@ import {
 } from '@controllers/tab';
 import { formatStringsAsMDList } from '@utils/pretty';
 import { formatNumber } from '@utils/helpers';
-import { showWarning } from '@components/app-notifications';
 import { useColumnSummary } from '../hooks';
 import { copyTableColumns } from '../utils';
 
@@ -54,32 +53,6 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
 
   // This is the actual data slice we have from the data adapter.
   const [dataSlice, setDataSlice] = useState<DataTableSlice | null>(null);
-
-  const deduplicatedSchema = useMemo(() => {
-    const seen = new Set<string>();
-    const duplicates = new Set<string>();
-
-    const filteredSchema = dataAdapter.currentSchema.filter((col) => {
-      if (seen.has(col.name)) {
-        duplicates.add(col.name);
-        return false;
-      }
-      seen.add(col.name);
-      return true;
-    });
-
-    if (duplicates.size > 0) {
-      showWarning({
-        title: 'Duplicate columns detected',
-        message: `The following columns are duplicated: ${Array.from(duplicates).join(', ')}`,
-        autoClose: false,
-      });
-    }
-
-    return filteredSchema;
-    // Recalculate it only when the schema changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(dataAdapter.currentSchema.map((col) => col.name))]);
 
   /**
    * Local Non-Reactive State
@@ -324,7 +297,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
           <div className="flex-1 min-h-0 overflow-auto px-3 custom-scroll-hidden pb-6">
             <Table
               dataSlice={dataSlice}
-              schema={deduplicatedSchema}
+              schema={dataAdapter.currentSchema}
               sort={dataAdapter.sort}
               visible={!!active}
               initialColumnSizes={initialColumnSizes}

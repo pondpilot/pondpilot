@@ -1,7 +1,7 @@
 import { Cell, CellContext, Table } from '@tanstack/react-table';
 import { useCallback, useState } from 'react';
 import { useDidUpdate } from '@mantine/hooks';
-import { DBColumn, DBTableOrViewSchema } from '@models/db';
+import { DataRow, DBColumn, DBTableOrViewSchema } from '@models/db';
 import { showSuccess } from '@components/app-notifications';
 import { stringifyTypedValue } from '@utils/db';
 import { ColumnMeta } from '../model';
@@ -85,10 +85,7 @@ export const useTableSelection = ({
   );
 
   const onRowSelectionChange = useCallback(
-    (
-      cell: CellContext<Record<string, string | number>, any>,
-      e: React.MouseEvent<Element, MouseEvent>,
-    ) => {
+    (cell: CellContext<DataRow, any>, e: React.MouseEvent<Element, MouseEvent>) => {
       onRowSelectChange();
       setSelectedCols({});
       setSelectedCell({ cellId: null, value: null });

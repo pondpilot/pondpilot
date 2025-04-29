@@ -5,15 +5,15 @@ import { Header, Table as TableType } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
 import { memo } from 'react';
 import { setDataTestId } from '@utils/test-id';
-import { ColumnSortSpec } from '@models/db';
+import { ColumnSortSpec, DataRow } from '@models/db';
 import { ColumnMeta } from '@components/table/model';
 import { IconType, NamedIcon } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import { isNumberType } from '@utils/db';
 
 interface TableHeadCellProps {
-  header: Header<Record<string, string | number>, unknown>;
-  table: TableType<Record<string, string | number>>;
+  header: Header<DataRow, unknown>;
+  table: TableType<DataRow>;
   index: number;
   totalHeaders: number;
   isSelected: boolean;

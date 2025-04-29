@@ -54,7 +54,8 @@ export interface DataBaseModel {
 }
 
 // Names here are chosen to avoid conflicts with arrow types.
-export type DataRow = Record<string, any>;
+export type DataCell = any;
+export type DataRow = DataCell[];
 export type DataTable = DataRow[];
 
 // This is the size of the batch that arro stream reader returns as of time of writing.

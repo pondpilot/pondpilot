@@ -3,7 +3,7 @@
 import { CellContext, ColumnDef } from '@tanstack/react-table';
 import React from 'react';
 import { setDataTestId } from '@utils/test-id';
-import { DBColumn } from '@models/db';
+import { DataRow, DBColumn } from '@models/db';
 import { findUniqueName } from '@utils/helpers';
 import { TableMeta } from '../model';
 
@@ -11,7 +11,7 @@ interface GetTableColumnsProps {
   schema: DBColumn[];
   initialColumnSizes?: Record<string, number>;
   onRowSelectionChange: (
-    cell: CellContext<Record<string, string | number>, any>,
+    cell: CellContext<DataRow, any>,
     e: React.MouseEvent<Element, MouseEvent>,
   ) => void;
 }
@@ -27,7 +27,7 @@ export const getTableColumns = ({
     schema.some((col) => col.name === name),
   );
 
-  const tableColumns: ColumnDef<Record<string, string | number>, any>[] = schema.length
+  const tableColumns: ColumnDef<DataRow, any>[] = schema.length
     ? [
         {
           header: '#',
@@ -54,10 +54,10 @@ export const getTableColumns = ({
             );
           },
         },
-        ...schema.map((col): ColumnDef<Record<string, string | number>, any> => {
+        ...schema.map((col): ColumnDef<DataRow, any> => {
           return {
             // should use accessor function instead of accessorKey to avoid errors with getting value from columns that contain dots in the name
-            accessorFn: (row) => row[col.name],
+            accessorFn: (row) => row[col.columnIndex],
             header: col.name,
             meta: { type: col.sqlType, name: col.name },
             minSize: 100,
