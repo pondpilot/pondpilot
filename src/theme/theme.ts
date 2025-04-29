@@ -581,7 +581,7 @@ export const theme = createTheme({
         },
         classNames: {
           content: 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark rounded-2xl',
-          header: 'p-4',
+          header: 'p-4 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
         },
       },
     }),

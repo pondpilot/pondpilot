@@ -1,5 +1,5 @@
 import { Group, useMantineColorScheme } from '@mantine/core';
-import { useDebouncedCallback } from '@mantine/hooks';
+import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
 import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { SqlEditor } from '@features/editor';
@@ -115,6 +115,12 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
       }
     };
   }, []);
+
+  useDidUpdate(() => {
+    if (active) {
+      editorRef.current?.view?.focus();
+    }
+  }, [active]);
 
   return (
     <div
