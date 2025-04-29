@@ -1,6 +1,6 @@
 import { IconType } from '@components/named-icon';
 import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
-import { LocalEntry, LocalEntryId } from '@models/file-system';
+import { LocalEntry, LocalEntryId, LocalFile, LocalFolder } from '@models/file-system';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab } from '@models/tab';
 
@@ -110,18 +110,26 @@ export function getFlatFileDataSourceName(
   }
 
   if (dataSource.type === 'xlsx-sheet') {
-    return dataSource.sheetName === dataSource.viewName || options?.nonAliased
+    return options?.nonAliased
       ? dataSource.viewName
-      : `${dataSource.viewName} (${localEntry.uniqueAlias}::${dataSource.sheetName})`;
+      : `${dataSource.viewName} (${localEntry.name}::${dataSource.sheetName})`;
   }
 
-  return localEntry.uniqueAlias === dataSource.viewName || options?.nonAliased
+  return localEntry.name === dataSource.viewName || options?.nonAliased
     ? dataSource.viewName
-    : `${dataSource.viewName} (${localEntry.uniqueAlias})`;
+    : `${dataSource.viewName} (${localEntry.name})`;
 }
 
-export function getAttachedDBDataSourceName(dbName: string, localEntry: LocalEntry): string {
-  return localEntry.uniqueAlias === dbName ? dbName : `${dbName} (${localEntry.uniqueAlias})`;
+export function getAttachedDBDataSourceName(dbName: string, entry: LocalEntry): string {
+  return entry.name === dbName ? dbName : `${dbName} (${entry.name})`;
+}
+
+export function getFolderName(entry: LocalFolder): string {
+  return entry.name === entry.uniqueAlias ? entry.name : `${entry.uniqueAlias} (${entry.name})`;
+}
+
+export function getXlsxFileName(entry: LocalFile): string {
+  return entry.name === entry.uniqueAlias ? entry.name : `${entry.uniqueAlias} (${entry.name})`;
 }
 
 export function getFlatFileDataSourceIcon(dataSource: AnyFlatFileDataSource): IconType {

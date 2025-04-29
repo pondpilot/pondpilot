@@ -19,7 +19,9 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import {
   getFlatFileDataSourceIcon,
   getFlatFileDataSourceName,
+  getFolderName,
   getLocalEntryIcon,
+  getXlsxFileName,
 } from '@utils/navigation';
 import { memo, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
@@ -120,10 +122,7 @@ export const FileSystemExplorer = memo(() => {
           fileTreeChildren.push({
             nodeType: 'folder',
             value: entry.id,
-            label:
-              entry.name === entry.uniqueAlias
-                ? entry.name
-                : `${entry.name} (${entry.uniqueAlias})`,
+            label: getFolderName(entry),
             iconType: getLocalEntryIcon(entry),
             isDisabled: false,
             isSelectable: false,
@@ -169,8 +168,8 @@ export const FileSystemExplorer = memo(() => {
           const xlsxNode: TreeNodeData<FSExplorerNodeTypeToIdTypeMap> = {
             nodeType: 'file',
             value: relatedSource.id,
-            label: entry.name,
-            iconType: 'xlsx',
+            label: getXlsxFileName(entry),
+            iconType: getLocalEntryIcon(entry),
             isDisabled: false,
             isSelectable: false,
             onDelete: entry.userAdded
