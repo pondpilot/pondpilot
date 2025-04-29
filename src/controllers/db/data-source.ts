@@ -10,14 +10,15 @@ import { createXlsxSheetViewQuery } from '@utils/xlsx';
  *
  * TODO: error handling - currently assumes this never fails
  *
- * @param db - DuckDB instance
  * @param conn - DuckDB connection
  * @param handle - File handle pointing to a supported source file
+ * @param fileExt - The file extension of the file
  * @param fileName - A valid, unique file name to register.
  *                   Does not need to match the real file name, but should
  *                      not conflict with any other registered file.
  * @param viewName - A valid, unique identifier of the view to create.
  *                   This function will overwrite any existing view with the same name.
+ * * @returns The registered file
  */
 export async function registerFileSourceAndCreateView(
   conn: AsyncDuckDBConnectionPool,
@@ -61,7 +62,6 @@ export async function registerFileSourceAndCreateView(
  *
  * TODO: error handling - currently assumes this never fails
  *
- * @param db - DuckDB instance
  * @param conn - DuckDB connection
  * @param viewName - The view name that was created
  * @param fileName - The file name that was used to register the file, undefined if not available
@@ -93,7 +93,6 @@ export async function dropViewAndUnregisterFile(
  *
  * TODO: error handling - currently assumes this never fails
  *
- * @param db - DuckDB instance
  * @param conn - DuckDB connection
  * @param handle - File handle pointing to a supported source file
  * @param fileName - A valid, unique file name to register.
@@ -101,6 +100,7 @@ export async function dropViewAndUnregisterFile(
  *                   not conflict with any other registered file.
  * @param dbName - A valid, unique identifier to attach the database as.
  *                   This function will overwrite any existing database with the same name.
+ * @returns The registered file
  */
 export async function registerAndAttachDatabase(
   conn: AsyncDuckDBConnectionPool,
@@ -141,7 +141,6 @@ export async function registerAndAttachDatabase(
  *
  * TODO: error handling - currently assumes this never fails
  *
- * @param db - DuckDB instance
  * @param conn - DuckDB connection
  * @param dbName - The database name that was used when attaching
  * @param fileName - The file name that was used to register the database
@@ -166,6 +165,47 @@ export async function detachAndUnregisterDatabase(
    * Unregister file handle
    */
   await db.dropFile(fileName).catch(console.error);
+}
+
+/**
+ * Detach old database and register a new one
+ *
+ * TODO: error handling - currently assumes this never fails
+ *
+ * @param conn - DuckDB connection
+ * @param fileName - A valid, unique file name to register.
+ *                   Does not need to match the real file name, but should
+ *                   not conflict with any other registered file.
+ * @param oldDbName - The name of the database to detach.
+ * @param newDbName - A valid, unique identifier to attach the database as.
+ *                    This function will overwrite any existing database with the same name.
+ */
+export async function reAttachDatabase(
+  conn: AsyncDuckDBConnectionPool,
+  fileName: string,
+  oldDbName: string,
+  newDbName: string,
+): Promise<void> {
+  /**
+   * Detach the old database
+   */
+  await conn
+    .query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(oldDbName)};`)
+    .catch(console.error);
+
+  /**
+   * Detach any existing database with the new name
+   */
+  await conn
+    .query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(newDbName)};`)
+    .catch(console.error);
+
+  /**
+   * Attach the database with the new name
+   */
+  await conn.query(
+    `ATTACH ${quote(fileName, { single: true })} as ${toDuckDBIdentifier(newDbName)} (READ_ONLY);`,
+  );
 }
 
 /**
