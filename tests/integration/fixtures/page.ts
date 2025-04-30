@@ -13,7 +13,7 @@ type PageFixtures = {
 };
 
 export const test = base.extend<PageFixtures>({
-  page: async ({ page }, use) => {
+  page: async ({ page, context }, use) => {
     // ---------- BEFORE EACH TEST ----------
 
     // Set local storage before navigating to the page
@@ -21,7 +21,7 @@ export const test = base.extend<PageFixtures>({
       window.localStorage.setItem(key, 'true');
     }, LOCAL_STORAGE_KEYS.ONBOARDING_SHOWN);
 
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
     // Navigate to page with localStorage already set
     await page.goto('/');
