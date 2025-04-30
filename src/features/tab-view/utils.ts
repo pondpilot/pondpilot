@@ -96,7 +96,6 @@ export const exportTableColumnsToCSV = async ({
     const csvRows = formatTableDataAsCSV(formattedRows);
     const header = columns.map((col) => escapeCSVField(col.name)).join(',');
     const csvContent = `${header}\n${csvRows}`;
-    console.log(header);
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
