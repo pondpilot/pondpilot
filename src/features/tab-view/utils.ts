@@ -3,8 +3,7 @@ import { notifications } from '@mantine/notifications';
 import { CancelledOperation, DataAdapterApi } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
 import { copyToClipboard } from '@utils/clipboard';
-import { escapeCSVField } from '@utils/helpers';
-import { formatTableDataAsCSV, formatTableDataAsTSV, getStringifyTypedRows } from '@utils/table';
+import { formatTableData, getStringifyTypedRows } from '@utils/table';
 
 interface CopyTableColumnsProps {
   columns: DBColumn[];
@@ -31,8 +30,8 @@ export const copyTableColumns = async ({ columns, dataAdapter }: CopyTableColumn
     const data = await dataAdapter.getAllTableData(columns);
 
     const formattedRows = getStringifyTypedRows(data, columns);
-    const tsvRowsData = formatTableDataAsTSV(formattedRows);
-    const header = columns.map((col) => col.name).join('\t');
+    const tsvRowsData = formatTableData(formattedRows, '\t');
+    const header = formatTableData([columns.map((c) => c.name)], '\t');
     const tsvContent = `${header}\n${tsvRowsData}`;
     await copyToClipboard(tsvContent);
 
@@ -93,9 +92,9 @@ export const exportTableColumnsToCSV = async ({
     const data = await dataAdapter.getAllTableData(columns);
 
     const formattedRows = getStringifyTypedRows(data, columns);
-    const csvRows = formatTableDataAsCSV(formattedRows);
-    const header = columns.map((col) => escapeCSVField(col.name)).join(',');
-    const csvContent = `${header}\n${csvRows}`;
+    const csvRows = formatTableData(formattedRows, ',');
+    const csvHeader = formatTableData([columns.map((c) => c.name)], ',');
+    const csvContent = `${csvHeader}\n${csvRows}`;
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');

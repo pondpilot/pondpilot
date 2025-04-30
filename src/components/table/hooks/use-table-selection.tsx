@@ -2,8 +2,9 @@ import { Cell, CellContext, Table } from '@tanstack/react-table';
 import { useCallback, useState } from 'react';
 import { useDidUpdate } from '@mantine/hooks';
 import { DataRow, DBColumn, DBTableOrViewSchema } from '@models/db';
-import { showSuccess } from '@components/app-notifications';
 import { stringifyTypedValue } from '@utils/db';
+import { formatTableData } from '@utils/table';
+import { copyToClipboard } from '@utils/clipboard';
 import { ColumnMeta } from '../model';
 
 interface SelectedCell {
@@ -65,20 +66,20 @@ export const useTableSelection = ({
       const tableData = selectedRowsIds.map((rowId) => {
         const row = table.getRow(rowId);
         const [_, ...cells] = row.getAllCells();
-        return cells
-          .map((cell) => {
-            const { type } = cell.column.columnDef.meta as ColumnMeta;
-            return stringifyTypedValue({ type, value: cell.getValue() });
-          })
-          .join('\t');
+        const rowData = cells.map((cell) => {
+          const { type } = cell.column.columnDef.meta as ColumnMeta;
+          const rawValue = cell.getValue();
+          return stringifyTypedValue({ type, value: rawValue });
+        });
+
+        return rowData;
       });
 
-      navigator.clipboard.writeText(tableData.join('\n'));
+      const formattedData = formatTableData(tableData, '\t');
 
-      showSuccess({
-        title: 'Selected rows copied to clipboard',
-        message: '',
-        autoClose: 800,
+      copyToClipboard(formattedData, {
+        showNotification: true,
+        notificationTitle: 'Selected rows copied to clipboard',
       });
     },
     [selectedRows],

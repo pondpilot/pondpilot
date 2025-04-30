@@ -1,6 +1,6 @@
 import { DataTable, DBColumn } from '@models/db';
 import { stringifyTypedValue } from './db';
-import { escapeCSVField } from './helpers';
+import { escapeField } from './helpers';
 
 type FormattedRow = string[];
 
@@ -22,21 +22,12 @@ export const getStringifyTypedRows = (data: DataTable, columns: DBColumn[]): For
   );
 
 /**
- * Converts table data to CSV format
+ * Formats the rows data into a string representation
  *
- * @param {FormattedRow[]} rowsData - Formatted row data
- * @returns {string} CSV formatted rows
+ * @param {FormattedRow[]} rowsData - Array of formatted rows
+ * @param {',' | '\t'} delimiter - Delimiter to use for separating values
+ * @returns {string} Formatted string representation of the rows data
  */
-export const formatTableDataAsCSV = (rowsData: FormattedRow[]): string => {
-  return rowsData.map((row) => row.map((cell) => escapeCSVField(cell)).join(',')).join('\n');
-};
-
-/**
- * Converts table data to TSV (Tab-Separated Values) format
- *
- * @param {FormattedRow[]} rowsData - Formatted row data
- * @returns {string} TSV formatted rows
- */
-export const formatTableDataAsTSV = (rowsData: FormattedRow[]): string => {
-  return rowsData.map((row) => row.map((cell) => cell).join('\t')).join('\n');
+export const formatTableData = (rowsData: FormattedRow[], delimiter: ',' | '\t'): string => {
+  return rowsData.map((row) => row.map((cell) => escapeField(cell)).join(delimiter)).join('\n');
 };
