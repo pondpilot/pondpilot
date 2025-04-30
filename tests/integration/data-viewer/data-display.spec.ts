@@ -51,6 +51,10 @@ test('Display columns with duplicate names', async ({
   });
 });
 
+const tzOffset = new Date('2023-01-15 14:30:00').getTimezoneOffset();
+const tzSign = tzOffset <= 0 ? '+' : '-';
+const tzHours = String(Math.floor(Math.abs(tzOffset) / 60)).padStart(2, '0');
+
 test('Display all major data types and nulls', async ({
   createScriptAndSwitchToItsTab,
   fillScript,
@@ -116,9 +120,30 @@ test('Display all major data types and nulls', async ({
         '14:30:00',
         '14:30:00', // timetz are not supported by arrow!
         '2023-01-15 14:30:00',
-        '2023-01-15 08:30:00-05',
+        `${new Date('2023-01-15T14:30:00+01:00')
+          .toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+          })
+          .replace(/(\d+)\/(\d+)\/(\d+), /, '$3-$1-$2 ')}${tzSign}${tzHours}`,
         '2023-01-15 14:30:00.123',
-        '2023-01-15 08:30:00.456-05',
+        `${new Date('2023-01-15T14:30:00.456+01:00')
+          .toLocaleString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+            fractionalSecondDigits: 3,
+          })
+          .replace(/(\d+)\/(\d+)\/(\d+), /, '$3-$1-$2 ')}${tzSign}${tzHours}`,
         'hello', // blob is shown as string if it is an UTF8 string
         '\\x01\\xAC', // blob is shown as hex if not an UTF8 string
         // bitstrings come as binary from arrow. Util we fetch types using metadata
