@@ -16,10 +16,21 @@ const getVersionInfo = () => {
 
 export default defineConfig(({ mode }) => {
   return {
+    mode: mode === 'int-test-build' ? 'production' : mode,
+    define:
+      mode === 'int-test-build'
+        ? {
+            __INTEGRATION_TEST__: true,
+            __VERSION__: JSON.stringify(getVersionInfo()),
+          }
+        : {
+            __VERSION__: JSON.stringify(getVersionInfo()),
+          },
     plugins: [
       react(),
       tsconfigPaths(),
       VitePWA({
+        disable: mode === 'int-test-build',
         registerType: 'autoUpdate',
         workbox: {
           maximumFileSizeToCacheInBytes: 25000000,
@@ -115,9 +126,6 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       exclude: ['@duckdb/duckdb-wasm'],
-    },
-    define: {
-      __VERSION__: JSON.stringify(getVersionInfo()),
     },
   };
 });

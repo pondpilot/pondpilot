@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from './fixtures/base';
 
 // This test directly navigates to the error-test route to verify error handling
 test('Error fallback displays correctly when an error is thrown', async ({ page }) => {

@@ -1,4 +1,5 @@
-import test, { expect } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { test } from '../fixtures/base';
 
 test('Onboarding modal is displayed on page load', async ({ page }) => {
   // Navigate to the application

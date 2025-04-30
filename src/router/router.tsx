@@ -11,7 +11,7 @@ import { SharedScriptImport } from '@features/script-import';
 let devOnlyRoutes: RouteObject[] = [];
 
 // This will tree-shake in production
-if (import.meta.env.DEV) {
+if (import.meta.env.DEV || __INTEGRATION_TEST__) {
   // Test component that throws an error
   const ErrorThrower = () => {
     throw new Error('This is a test error for testing error boundary functionality');

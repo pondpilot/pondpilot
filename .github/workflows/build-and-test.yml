@@ -84,19 +84,10 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Build
-        run: yarn build
-
       - name: Run unit tests
         run: yarn test:unit
         env:
           CI: true
-
-      - name: Upload Build
-        uses: actions/upload-artifact@v4
-        with:
-          name: build
-          path: dist
 
       - name: Install Playwright browsers
         run: yarn playwright install --with-deps chromium webkit
@@ -106,6 +97,9 @@ jobs:
           curl https://install.duckdb.org | sh
           sudo ln -s /home/runner/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb
           duckdb --version
+
+      - name: Build for integration tests
+        run: yarn build --mode int-test-build
 
       - name: Run Playwright tests
         run: |
@@ -119,3 +113,12 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 30
+
+      - name: Build for production
+        run: yarn build
+
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: dist
