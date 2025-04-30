@@ -37,7 +37,7 @@ export const stringifyTypedValue = ({
   type: NormalizedSQLType;
   value: unknown;
 }): string => {
-  const timestampFallback: string = `ERROR: can't convert column value <${value}> to declared type <${type}>`;
+  const fallback: string = `ERROR: can't convert column value <${value}> to declared type <${type}>`;
   try {
     // Early check for null or undefined values
     if (value === null || value === undefined) {
@@ -46,13 +46,13 @@ export const stringifyTypedValue = ({
 
     switch (type) {
       case 'timestamp': {
-        return typeof value === 'number' ? new Date(value).toLocaleString() : timestampFallback;
+        return typeof value === 'number' ? new Date(value).toLocaleString() : fallback;
       }
       case 'date': {
-        return typeof value === 'number' ? new Date(value).toLocaleDateString() : timestampFallback;
+        return typeof value === 'number' ? new Date(value).toLocaleDateString() : fallback;
       }
       case 'time': {
-        return typeof value === 'number' ? new Date(value).toLocaleTimeString() : timestampFallback;
+        return typeof value === 'number' ? new Date(value).toLocaleTimeString() : fallback;
       }
       case 'string': {
         return typeof value === 'string' ? value : String(value);
@@ -74,13 +74,12 @@ export const stringifyTypedValue = ({
         if (typeof value === 'number' || typeof value === 'bigint') {
           return formatNumber(value);
         }
-        return '';
+        return fallback;
       }
       default:
         // eslint-disable-next-line no-case-declarations
         const _: never = type;
-        console.error(`Unsupported value type in a table cell: ${type}`);
-        return 'N/A';
+        return fallback;
     }
   } catch (error) {
     console.error('Error in stringifyTypedValue', error);

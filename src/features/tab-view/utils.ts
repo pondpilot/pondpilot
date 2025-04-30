@@ -19,8 +19,6 @@ export const copyTableColumns = async ({ columns, dataAdapter }: CopyTableColumn
     return;
   }
 
-  dataAdapter.currentSchema;
-
   const notificationId = showSuccess({
     title: 'Copying selected columns to clipboard...',
     message: '',
