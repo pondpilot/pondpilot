@@ -12,7 +12,7 @@ export const renameDB = async (
   newName: string,
   conn: AsyncDuckDBConnectionPool,
 ): Promise<void> => {
-  const { _iDbConn: iDbConn, dataSources, localEntries, dataBaseMetadata } = useAppStore.getState();
+  const { _iDbConn: iDbConn, dataSources, localEntries } = useAppStore.getState();
 
   // Check if the data source exists
   const dataSource = dataSources.get(dbId);
@@ -66,6 +66,7 @@ export const renameDB = async (
   }
 
   // Update metadata
+  const { dataBaseMetadata } = useAppStore.getState();
   const metadata = dataBaseMetadata.get(oldDbName);
   if (metadata) {
     const newDataBaseMetadata = new Map(dataBaseMetadata);

@@ -122,7 +122,7 @@ async function processDirectory(
         handle,
         directory.id,
         false, // Not directly added by the user
-        getUniqueAlias,
+        handle.kind === 'file' ? getUniqueAlias : () => name,
       );
 
       if (localEntry) {
@@ -190,7 +190,7 @@ async function processDirectory(
         handle,
         directory.id,
         false, // Not directly added by the user
-        getUniqueAlias,
+        handle.kind === 'file' ? getUniqueAlias : () => name,
       );
 
       if (newEntry) {
@@ -561,6 +561,7 @@ export const restoreAppDataFromIDB = async (
           if (!dataSource || dataSource.type === 'attached-db') {
             // This is a data corruption, but we can recover from it
             dataSource = addFlatFileDataSource(localEntry, _reservedViews);
+            _reservedViews.add(dataSource.viewName);
 
             // save to the map
             missingDataSources.set(dataSource.id, dataSource);
