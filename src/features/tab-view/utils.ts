@@ -3,6 +3,7 @@ import { notifications } from '@mantine/notifications';
 import { CancelledOperation, DataAdapterApi } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
 import { copyToClipboard } from '@utils/clipboard';
+import { escapeCSVField } from '@utils/helpers';
 import { formatTableDataAsCSV, formatTableDataAsTSV, getStringifyTypedRows } from '@utils/table';
 
 interface CopyTableColumnsProps {
@@ -93,8 +94,9 @@ export const exportTableColumnsToCSV = async ({
 
     const formattedRows = getStringifyTypedRows(data, columns);
     const csvRows = formatTableDataAsCSV(formattedRows);
-    const header = columns.map((col) => col.name).join(',');
+    const header = columns.map((col) => escapeCSVField(col.name)).join(',');
     const csvContent = `${header}\n${csvRows}`;
+    console.log(header);
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
