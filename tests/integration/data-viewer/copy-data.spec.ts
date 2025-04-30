@@ -237,3 +237,39 @@ test('Should copy columns with selection modifiers', async ({
 
   expect(clipboardContent).toBe(expectedSelectiveColumnsContent);
 });
+
+test('Should copy entire table when using copy table button', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
+  waitForDataTable,
+  page,
+}) => {
+  // Create and run script with test data
+  await createScriptAndSwitchToItsTab();
+  await fillScript(TEST_DATA_SQL);
+  await runScript();
+
+  // Wait for the data table to load
+  await waitForDataTable();
+
+  // Find and click the copy table button
+  const copyTableButton = page.getByTestId('copy-table-button');
+  await copyTableButton.click();
+
+  // Get the clipboard content
+  const clipboardContent = await getClipboardContent(page);
+
+  // The clipboard should contain the entire table with headers and all data
+  const expectedTableContent = formatTableData(
+    [
+      ['col1', 'col2', 'col3'],
+      ['row1 val1', 'row1 val2', 'row1 val3'],
+      ['row2 val1', 'row2 val2', 'row2 val3'],
+      ['row3 val1', 'row3 val2', 'row3 val3'],
+    ],
+    '\t',
+  );
+
+  expect(clipboardContent).toBe(expectedTableContent);
+});

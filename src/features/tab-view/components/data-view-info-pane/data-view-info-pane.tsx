@@ -150,7 +150,12 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
         )}
       </Group>
       <Group className="h-full">
-        <ActionIcon size={16} onClick={handleTableCopyClick} disabled={disableCopyAndExport}>
+        <ActionIcon
+          data-testid={setDataTestId('copy-table-button')}
+          size={16}
+          onClick={handleTableCopyClick}
+          disabled={disableCopyAndExport}
+        >
           <IconCopy />
         </ActionIcon>
         <Button
