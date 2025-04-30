@@ -55,7 +55,12 @@ export const addLocalFileOrFolders = async (
     dataBaseMetadata,
   } = useAppStore.getState();
 
-  const usedEntryNames = new Set(localEntries.values().map((entry) => entry.uniqueAlias));
+  const usedEntryNames = new Set(
+    localEntries
+      .values()
+      .filter((entry) => entry.kind === 'file' && entry.fileType === 'data-source')
+      .map((entry) => entry.uniqueAlias),
+  );
 
   const errors: string[] = [];
   const newDatabaseNames: string[] = [];
@@ -167,7 +172,9 @@ export const addLocalFileOrFolders = async (
       parentId,
       userAdded,
       (fileName: string): string =>
-        findUniqueName(fileName, (name: string) => usedEntryNames.has(name)),
+        handle.kind === 'file'
+          ? findUniqueName(fileName, (name: string) => usedEntryNames.has(name))
+          : fileName,
     );
 
     if (!localEntry) {
@@ -203,9 +210,6 @@ export const addLocalFileOrFolders = async (
       return;
     }
 
-    // New entry, remember it's unique alias and add it to the store
-    usedEntryNames.add(localEntry.uniqueAlias);
-
     if (isDir) {
       await addDirectory(localEntry);
       // Skip empty folders
@@ -219,6 +223,8 @@ export const addLocalFileOrFolders = async (
     if (isDataSourceFile) {
       await addFile(localEntry);
       newEntries.push([localEntry.id, localEntry]);
+      // Remember it's unique alias
+      usedEntryNames.add(localEntry.uniqueAlias);
     }
   };
 

@@ -89,6 +89,47 @@ export async function dropViewAndUnregisterFile(
 }
 
 /**
+ * Recreate a view with a new name
+ *
+ * TODO: error handling - currently assumes this never fails
+ *
+ * @param conn - DuckDB connection
+ * @param fileExt - The file extension of the file
+ * @param fileName - A valid, unique file name to register.
+ *                   Does not need to match the real file name, but should
+ *                      not conflict with any other registered file.
+ * @param oldViewName - The name of the view to drop.
+ * @param newViewName - A valid, unique identifier of the view to create.
+ *                      This function will overwrite any existing view with the same name.
+ */
+export async function reCreateView(
+  conn: AsyncDuckDBConnectionPool,
+  fileExt: supportedFlatFileDataSourceFileExt,
+  fileName: string,
+  oldViewName: string,
+  newViewName: string,
+): Promise<void> {
+  /**
+   * Drop the old view
+   */
+  await conn.query(`DROP VIEW IF EXISTS ${toDuckDBIdentifier(oldViewName)};`).catch(console.error);
+
+  /**
+   * Create view with the new name
+   */
+
+  if (fileExt === 'csv') {
+    await conn.query(
+      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(newViewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false);`,
+    );
+  }
+
+  await conn.query(
+    `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(newViewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
+  );
+}
+
+/**
  * Register a database file and attach it to the DuckDB instance
  *
  * TODO: error handling - currently assumes this never fails
@@ -234,6 +275,19 @@ export async function registerFileHandle(
 }
 
 /**
+ * Drop a file
+ *
+ * @param conn - DuckDB connection pool
+ * @param fileName - The name of the file to drop
+ */
+export async function dropFile(conn: AsyncDuckDBConnectionPool, fileName: string): Promise<void> {
+  const db = conn.bindings;
+
+  // Drop file if it already exists
+  await db.dropFile(fileName).catch(console.error);
+}
+
+/**
  * Create a view for a specific sheet
  *
  * @param conn - DuckDB connection pool
@@ -251,6 +305,32 @@ export async function createXlsxSheetView(
   await conn.query('LOAD excel');
 
   // Create the view for the specified sheet
-  const query = createXlsxSheetViewQuery(fileName, sheetName, toDuckDBIdentifier(viewName));
+  const query = createXlsxSheetViewQuery(fileName, sheetName, viewName);
+  await conn.query(query);
+}
+
+/**
+ * Drop the old view and create a new one with a specified name
+ *
+ * @param conn - DuckDB connection pool
+ * @param fileName - A valid, unique name to register the file as
+ * @param sheetName - The name of the sheet to create a view for
+ * @param oldViewName - The name of the view to drop.
+ * @param newViewName - A valid, unique identifier of the view to create.
+ */
+export async function reCreateXlsxSheetView(
+  conn: AsyncDuckDBConnectionPool,
+  fileName: string,
+  sheetName: string,
+  oldViewName: string,
+  newViewName: string,
+) {
+  /**
+   * Drop the old view
+   */
+  await conn.query(`DROP VIEW IF EXISTS ${toDuckDBIdentifier(oldViewName)};`).catch(console.error);
+
+  // Create the view with the new name
+  const query = createXlsxSheetViewQuery(fileName, sheetName, newViewName);
   await conn.query(query);
 }

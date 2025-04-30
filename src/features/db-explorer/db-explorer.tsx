@@ -333,11 +333,15 @@ export const DbExplorer = memo(() => {
     newName: string,
   ): void => {
     newName = newName.trim();
-    const dbId = nodeIdsToFQNMap.get(node.value)?.db;
-    if (!dbId) {
-      throw new Error(`Explorer node with id ${node.value} not found`);
+    const db = attachedDBMap.get(node.value as PersistentDataSourceId);
+    if (!db) {
+      throw new Error(`Attached DB with id ${node.value} not found`);
     }
-    renameDB(dbId, newName, conn);
+    if (db.dbName === newName) {
+      // No need to rename if the name is the same
+      return;
+    }
+    renameDB(db.id, newName, conn);
   };
 
   const dbObjectsTree: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>[] = sortedDBs.map(
