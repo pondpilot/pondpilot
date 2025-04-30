@@ -137,3 +137,6 @@ dist
 
 # Test temporary files
 tests/test-tmp
+
+# Local module cahce
+.module-cache

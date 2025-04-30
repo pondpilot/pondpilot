@@ -23,11 +23,16 @@ check-and-fix:
     yarn lint:fix
     yarn prettier:write
 
-# Download duckdb wasm EH modules and sheetjs xlsx module to dist/static folder
-# Usage: just download-duckdb-modules [version]
+# Download duckdb wasm EH modules and sheetjs xlsx module to a cache directory.
+# This directory is gitignored and is used by test fixtures to bypass loading
+# big modules from internet when cache is available.
+# Usage: just cache-online-modules [version]
 # If version is not provided, it will be extracted from package.json
 cache-online-modules *args='':
     #!/usr/bin/env bash
+    # Define the cache directory
+    CACHE_DIR=".module-cache"
+
     if [ -z "{{args}}" ]; then
       # Extract version from package.json if not provided
       version=$(node -e "console.log(require('./package.json').dependencies['@duckdb/duckdb-wasm'])")
@@ -36,10 +41,10 @@ cache-online-modules *args='':
       version="{{args}}"
       echo "Using user-specified DuckDB version: $version"
     fi
-    
+
     # Create directories if they don't exist
-    mkdir -p dist/static
-    
+    mkdir -p "$CACHE_DIR"
+
     # Define DuckDB files to download with separate URL and destination variables
     declare -a urls=(
       "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@$version/dist/duckdb-eh.wasm"
@@ -47,16 +52,16 @@ cache-online-modules *args='':
       "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@$version/dist/duckdb-eh.wasm.js"
     )
     declare -a destinations=(
-      "dist/static/duckdb-eh.wasm"
-      "dist/static/duckdb-browser-eh.worker.js"
-      "dist/static/duckdb-eh.wasm.js"
+      "$CACHE_DIR/duckdb-eh.wasm"
+      "$CACHE_DIR/duckdb-browser-eh.worker.js"
+      "$CACHE_DIR/duckdb-eh.wasm.js"
     )
-    
+
     # Download DuckDB WASM modules if they don't exist
     for i in "${!urls[@]}"; do
       url="${urls[$i]}"
       dest="${destinations[$i]}"
-      
+
       if [ -f "$dest" ]; then
         echo "File $dest already exists, skipping download"
       else
@@ -64,11 +69,11 @@ cache-online-modules *args='':
         curl -L "$url" -o "$dest"
       fi
     done
-    
+
     # Extract SheetJS URL from package.json and download it if it doesn't exist
     xlsx_url=$(node -e "console.log(require('./package.json').dependencies.xlsx)")
-    xlsx_dest="dist/static/xlsx.full.min.js"
-    
+    xlsx_dest="$CACHE_DIR/xlsx.full.min.js"
+
     if [ -f "$xlsx_dest" ]; then
       echo "SheetJS xlsx module already exists at $xlsx_dest, skipping download"
     else
@@ -79,5 +84,5 @@ cache-online-modules *args='':
       cp "$temp_dir/package/dist/xlsx.full.min.js" "$xlsx_dest"
       rm -rf "$temp_dir"
     fi
-    
-    echo "All required modules are available in the dist/static folder."
+
+    echo "All required modules are available in the $CACHE_DIR folder."

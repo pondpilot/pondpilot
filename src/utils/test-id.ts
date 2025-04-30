@@ -4,4 +4,4 @@
  * @returns value if in development environment, otherwise undefined
  */
 export const setDataTestId = (value: string): string | undefined =>
-  import.meta.env.DEV ? value : undefined;
+  import.meta.env.DEV || __INTEGRATION_TEST__ ? value : undefined;

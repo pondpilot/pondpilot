@@ -899,8 +899,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     dataReadCancelled.current = false;
   }, []);
 
-  if (import.meta.env.DEV) {
-    // Perform state consistency checks. Any failuer here is a bug
+  if (import.meta.env.DEV || __INTEGRATION_TEST__) {
+    // Perform state consistency checks. Any failer here is a bug
     // so we do not include this in production, assuming this is
     // will fail in tests
     const hasData = actualDataSchema.length > 0;
