@@ -3,7 +3,18 @@ import { notifications } from '@mantine/notifications';
 import { CancelledOperation, DataAdapterApi } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
 import { copyToClipboard } from '@utils/clipboard';
+import { isSameSchema } from '@utils/db';
 import { formatTableData, getStringifyTypedRows } from '@utils/table';
+
+function prepCopyTargetText({
+  columns,
+  tableSchema,
+}: {
+  columns: DBColumn[];
+  tableSchema: DBColumn[];
+}) {
+  return isSameSchema(columns, tableSchema) ? 'table' : 'selected columns';
+}
 
 interface CopyTableColumnsProps {
   columns: DBColumn[];
@@ -19,8 +30,10 @@ export const copyTableColumns = async ({ columns, dataAdapter }: CopyTableColumn
     return;
   }
 
+  const copyTargetText = prepCopyTargetText({ columns, tableSchema: dataAdapter.currentSchema });
+
   const notificationId = showSuccess({
-    title: 'Copying selected columns to clipboard...',
+    title: `Copying ${copyTargetText} to clipboard...`,
     message: '',
     loading: true,
     autoClose: false,
@@ -37,7 +50,7 @@ export const copyTableColumns = async ({ columns, dataAdapter }: CopyTableColumn
 
     notifications.update({
       id: notificationId,
-      title: 'Selected columns copied to clipboard',
+      title: `${copyTargetText.charAt(0).toUpperCase()}${copyTargetText.slice(1)} copied to clipboard`,
       message: '',
       loading: false,
       autoClose: 800,
@@ -60,7 +73,7 @@ export const copyTableColumns = async ({ columns, dataAdapter }: CopyTableColumn
 
     notifications.update({
       id: notificationId,
-      title: 'Failed to copy selected columns to clipboard',
+      title: `Failed to copy ${copyTargetText} to clipboard`,
       message,
       loading: false,
       autoClose: 5000,
@@ -80,8 +93,11 @@ export const exportTableColumnsToCSV = async ({
   fileName,
   columns,
 }: ExportTableColumnsToCSVProps) => {
+  // Create a copy target text
+  const copyTargetText = prepCopyTargetText({ columns, tableSchema: dataAdapter.currentSchema });
+
   const notificationId = showSuccess({
-    title: 'Exporting selected columns to CSV...',
+    title: `Exporting ${copyTargetText} to CSV...`,
     message: '',
     loading: true,
     autoClose: false,
@@ -125,7 +141,7 @@ export const exportTableColumnsToCSV = async ({
     }
 
     showError({
-      title: 'Failed to export table to CSV',
+      title: `Failed to export ${copyTargetText} to CSV`,
       message,
       autoClose: 5000,
     });
