@@ -4,7 +4,7 @@ import { test as baseTest } from '../fixtures/page';
 import { test as tabTest } from '../fixtures/tab';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as scriptExplorer } from '../fixtures/script-explorer';
-import { test as dataViewTest, getDataCellContainer } from '../fixtures/data-view';
+import { test as dataViewTest, getDataCellContainer, getHeaderCell } from '../fixtures/data-view';
 import { test as testTmpTest } from '../fixtures/test-tmp';
 
 const test = mergeTests(
@@ -191,4 +191,87 @@ test('Should copy one or more rows to clipboard with multi-select', async ({
     'row1 val1\trow1 val2\trow1 val3\nrow3 val1\trow3 val2\trow3 val3';
 
   expect(clipboardContent).toBe(expectedSelectiveContent);
+});
+
+test('Should copy columns with selection modifiers', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
+  waitForDataTable,
+  page,
+  context,
+}) => {
+  // Grant clipboard permissions
+  context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+  // Create and run script with test data - 3 columns, 2 rows
+  await createScriptAndSwitchToItsTab();
+  await fillScript(`
+  select 'A1' as colA, 'B1' as colB, 'C1' as colC
+  union all
+  select 'A2' as colA, 'B2' as colB, 'C2' as colC
+  `);
+  await runScript();
+
+  // Get the data table
+  const dataTable = await waitForDataTable();
+
+  // PART 1: Copy single column
+  // Get the header cell for the second column (colB)
+  const colBHeaderCell = getHeaderCell(dataTable, getTableColumnId('colB', 1));
+  await colBHeaderCell.click();
+  await page.keyboard.press('Meta+c');
+
+  // Read and verify the clipboard content for the second column
+  let clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+
+  // For column copy, we should get the column header followed by values vertically
+  expect(clipboardContent).toBe('colB\nB1\nB2');
+
+  // PART 2: Test multi-select of columns with shift key
+  // Click the first column header
+  const colAHeaderCell = getHeaderCell(dataTable, getTableColumnId('colA', 0));
+  await colAHeaderCell.click();
+
+  // Hold shift and click the third column header to select columns A-C
+  const colCHeaderCell = getHeaderCell(dataTable, getTableColumnId('colC', 2));
+  await page.keyboard.down('Shift');
+  await colCHeaderCell.click();
+  await page.keyboard.up('Shift');
+
+  // Copy the selected columns
+  await page.keyboard.press('Meta+c');
+
+  // Read and verify the clipboard content for all columns
+  clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+
+  // The clipboard should contain all columns with their data
+  // Columns are typically copied with headers in the first row,
+  // followed by data rows, with values separated by tabs
+  const expectedContentAllColumns = 'colA\tcolB\tcolC\nA1\tB1\tC1\nA2\tB2\tC2';
+
+  expect(clipboardContent).toBe(expectedContentAllColumns);
+
+  // PART 3: Test selective multi-select of columns with Meta key
+  // First, clear the current selection by clicking elsewhere
+  await page.click('body');
+
+  // Click the first column header
+  await colAHeaderCell.click();
+
+  // Hold Meta key and click the third column header to select columns A and C (but not B)
+  await page.keyboard.down('Meta');
+  await colCHeaderCell.click();
+  await page.keyboard.up('Meta');
+
+  // Copy the selected columns
+  await page.keyboard.press('Meta+c');
+
+  // Read and verify the clipboard content for columns A and C (not B)
+  clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+
+  // The clipboard should contain columns A and C with their headers, but not B
+  const expectedSelectiveColumnsContent = 'colA\tcolC\nA1\tC1\nA2\tC2';
+
+  expect(clipboardContent).toBe(expectedSelectiveColumnsContent);
 });
