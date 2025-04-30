@@ -175,6 +175,8 @@ export interface DataAdapterApi {
    * Function to retrieve all data from the data source.
    *
    * @param columns The columns to include in the result. If null, all columns will be included.
+   *        NOTE: more columns may be returned than requested for optimization, always make sure
+   *        to subset the result to the requested columns.
    * @throws CancelledOperation if the operation was cancelled
    * @returns A promise that resolves to a DataTable object containing all data
    */

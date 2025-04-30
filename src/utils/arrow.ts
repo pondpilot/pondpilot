@@ -1,19 +1,35 @@
-import { DataTable, DBColumn, DBTableOrViewSchema, NormalizedSQLType } from '@models/db';
-import type { Field, RecordBatch, Table } from 'apache-arrow';
+import {
+  DataTable,
+  DBColumn,
+  DBColumnId,
+  DBTableOrViewSchema,
+  NormalizedSQLType,
+} from '@models/db';
+import type { Field, RecordBatch, Table, Vector } from 'apache-arrow';
 import { DataType } from 'apache-arrow';
 import { getTableColumnId } from './db';
 
 /**
  * Returns an Apache Arrow table as an array of row records.
  */
-export function convertArrowTable(table: Table | RecordBatch): DataTable {
-  const columns = Array(table.numCols)
+export function convertArrowTable(
+  table: Table | RecordBatch,
+  schema: DBTableOrViewSchema,
+): DataTable {
+  const columnVectorsAndIds = Array(table.numCols)
     .fill(null)
-    .map((_, colIndex) => table.getChildAt(colIndex));
+    .map((_, colIndex): [DBColumnId, Vector<any> | null] => [
+      schema[colIndex].id,
+      table.getChildAt(colIndex),
+    ]);
 
   return Array(table.numRows)
     .fill(null)
-    .map((_, rowIndex) => columns.map((column) => column?.get(rowIndex)));
+    .map((_, rowIndex) =>
+      Object.fromEntries(
+        columnVectorsAndIds.map(([colId, colVector]) => [colId, colVector?.get(rowIndex)]),
+      ),
+    );
 }
 
 /**

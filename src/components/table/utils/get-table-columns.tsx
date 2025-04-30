@@ -23,8 +23,8 @@ export const getTableColumns = ({
   initialColumnSizes,
   onRowSelectionChange,
 }: GetTableColumnsProps) => {
-  const indexColumnId = findUniqueName('__index__', (name) =>
-    schema.some((col) => col.name === name),
+  const indexColumnId = findUniqueName('__index__', (colId) =>
+    schema.some((col) => col.id === colId),
   );
 
   const tableColumns: ColumnDef<DataRow, any>[] = schema.length
@@ -57,7 +57,7 @@ export const getTableColumns = ({
         ...schema.map((col): ColumnDef<DataRow, any> => {
           return {
             // should use accessor function instead of accessorKey to avoid errors with getting value from columns that contain dots in the name
-            accessorFn: (row) => row[col.columnIndex],
+            accessorFn: (row) => row[col.id],
             header: col.name,
             meta: { type: col.sqlType, name: col.name },
             minSize: 100,

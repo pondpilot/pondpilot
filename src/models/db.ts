@@ -1,3 +1,5 @@
+import { NewId } from './new-id';
+
 export type NormalizedSQLType =
   // Any precision floating point type
   | 'float'
@@ -31,12 +33,14 @@ export type ColumnSortSpec = {
 
 export type ColumnSortSpecList = ColumnSortSpec[];
 
+export type DBColumnId = NewId<'DBColumnId'>;
+
 export interface DBColumn {
   name: string;
   databaseType: string;
   nullable: boolean;
   sqlType: NormalizedSQLType;
-  id: string;
+  id: DBColumnId;
   columnIndex: number;
 }
 
@@ -65,7 +69,7 @@ export interface DataBaseModel {
 
 // Names here are chosen to avoid conflicts with arrow types.
 export type DataCell = any;
-export type DataRow = DataCell[];
+export type DataRow = Record<DBColumnId, DataCell>;
 export type DataTable = DataRow[];
 
 // This is the size of the batch that arro stream reader returns as of time of writing.

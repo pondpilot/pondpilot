@@ -1,6 +1,7 @@
 import { mergeTests, expect } from '@playwright/test';
 import { getTableColumnId } from '@utils/db';
 import { formatTableData } from '@utils/table';
+import { MAX_PERSISTED_STALE_DATA_ROWS } from '@models/tab';
 import { test as baseTest } from '../fixtures/page';
 import { test as tabTest } from '../fixtures/tab';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
@@ -244,6 +245,61 @@ test('Should copy columns with selection modifiers', async ({
   );
 
   expect(clipboardContent).toBe(expectedSelectiveColumnsContent);
+});
+
+test('Should copy column selection from large table', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
+  waitForDataTable,
+  page,
+  context,
+  assertDataTableMatches,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+  // Create and run script with test data - 3 column > 2048 rows
+  await createScriptAndSwitchToItsTab();
+  await fillScript(`
+      select
+        'row' || i as col1,
+        'row' || i || ' val2' as col2,
+        'row' || i || ' val3' as col3
+      from (
+        select i
+        from range(0, ${MAX_PERSISTED_STALE_DATA_ROWS + 10}) as t(i)
+      )
+    `);
+  await runScript();
+
+  // Get the data table
+  const dataTable = await waitForDataTable();
+
+  // Check that only the first 100 rows are displayed
+  await assertDataTableMatches({
+    data: Array.from({ length: 100 }, (_, i) => [`row${i}`, `row${i} val2`, `row${i} val3`]),
+    columnNames: ['col1', 'col2', 'col3'],
+  });
+
+  // Copy middle column
+  // Get the header cell for the second column (col2)
+  const col2HeaderCell = getHeaderCell(dataTable, getTableColumnId('col2', 1));
+  await col2HeaderCell.click();
+  await page.keyboard.press('Meta+c');
+
+  // Read and verify the clipboard content for the second column
+  const clipboardContent = await getClipboardContent(page);
+
+  // The clipboard should contain all column data
+  const expectedContentAllColumns = formatTableData(
+    [
+      ['col2'],
+      ...Array.from({ length: MAX_PERSISTED_STALE_DATA_ROWS + 10 }, (_, i) => [`row${i} val2`]),
+    ],
+    '\t',
+  );
+
+  expect(clipboardContent).toBe(expectedContentAllColumns);
 });
 
 test('Should copy entire table when using copy table button', async ({

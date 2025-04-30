@@ -15,7 +15,7 @@ export const getStringifyTypedRows = (data: DataTable, columns: DBColumn[]): For
   data.map((row) =>
     columns.map((col) =>
       stringifyTypedValue({
-        value: row[col.columnIndex],
+        value: row[col.id],
         type: col.sqlType,
       }),
     ),

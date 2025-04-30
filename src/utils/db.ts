@@ -1,6 +1,7 @@
 import {
   ColumnSortSpec,
   ColumnSortSpecList,
+  DBColumnId,
   DBTableOrViewSchema,
   NormalizedSQLType,
   SortOrder,
@@ -367,6 +368,8 @@ export function isSameSchema(
       }
 
       return (
+        oldColumn.id === newColumn.id &&
+        oldColumn.columnIndex === newColumn.columnIndex &&
         oldColumn.name === newColumn.name &&
         oldColumn.databaseType === newColumn.databaseType &&
         oldColumn.nullable === newColumn.nullable &&
@@ -377,12 +380,49 @@ export function isSameSchema(
 }
 
 /**
+ * Checks if the `subset` schema is a strict subset of the given `base` schema.
+ * A strict subset means all columns in the subset exist in the `base`
+ * with matching properties, but the `base` may have additional columns.
+ *
+ * @param base The schema that should contain all columns from the subset
+ * @param subset The schema that should be a subset
+ * @return True if subset is a strict subset of base, false otherwise
+ */
+export function isStrictSchemaSubset(
+  base: DBTableOrViewSchema,
+  subset: DBTableOrViewSchema,
+): boolean {
+  if (subset.length > base.length) {
+    return false;
+  }
+
+  return subset
+    .map((subsetColumn, index) => {
+      const baseColumn = base[index];
+
+      if (!baseColumn) {
+        return false;
+      }
+
+      return (
+        subsetColumn.id === baseColumn.id &&
+        subsetColumn.columnIndex === baseColumn.columnIndex &&
+        subsetColumn.name === baseColumn.name &&
+        subsetColumn.databaseType === baseColumn.databaseType &&
+        subsetColumn.nullable === baseColumn.nullable &&
+        subsetColumn.sqlType === baseColumn.sqlType
+      );
+    })
+    .every((v) => v);
+}
+
+/**
  * Generates a unique column ID based on the column name and index.
  *
  * @param {string} name - The base name of the column.
- * @param {number} idx - The index of the column.
+ * @param {number} idx - The index of the column in the data source.
  * @returns {string} A unique column ID.
  */
-export const getTableColumnId = (name: string, idx: number): string => {
-  return `${name}_${idx}`;
+export const getTableColumnId = (name: string, idx: number): DBColumnId => {
+  return `${idx}_${name}` as DBColumnId;
 };

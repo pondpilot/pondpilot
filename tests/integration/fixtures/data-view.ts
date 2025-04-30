@@ -1,18 +1,13 @@
-import { DataTable } from '@models/db';
+import { DataCell } from '@models/db';
 import { MAX_DATA_VIEW_PAGE_SIZE } from '@models/tab';
 import { test as base, expect, Locator } from '@playwright/test';
 import { getTableColumnId } from '@utils/db';
 
-type ExpectedData = {
-  data: DataTable;
-  columnNames: string[];
-};
-
 /**
  * Input format for assertDataTableMatches that supports raw DataTable
  */
-type DataTableMatchInput = {
-  data: DataTable;
+type ExpectedData = {
+  data: DataCell[][];
   columnNames: string[];
 };
 
@@ -40,7 +35,7 @@ type DataViewFixtures = {
   /**
    * Asserts that the data table exactly matches the expected data.
    */
-  assertDataTableMatches: (expected: ExpectedData | DataTableMatchInput) => Promise<void>;
+  assertDataTableMatches: (expected: ExpectedData) => Promise<void>;
 
   /**
    * Exports the data table to CSV.
