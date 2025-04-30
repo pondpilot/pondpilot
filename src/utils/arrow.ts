@@ -12,7 +12,7 @@ export function convertArrowTable(table: Table | RecordBatch): DataTable {
     .map((_, colIndex) => table.getChildAt(colIndex));
 
   return Array(table.numRows)
-    .fill(0)
+    .fill(null)
     .map((_, rowIndex) => columns.map((column) => column?.get(rowIndex)));
 }
 
