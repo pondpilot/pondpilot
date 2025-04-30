@@ -13,7 +13,7 @@ export const useShowPermsAlert = () => {
           autoClose: false,
           message: (
             <Stack className="pt-3">
-              <Text>
+              <Text c="text-contrast">
                 Enable access to previously uploaded files to continue.
                 <br />
                 If the message persists after reloading, grant permanent access in your browser tab
