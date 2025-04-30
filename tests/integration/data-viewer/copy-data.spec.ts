@@ -33,7 +33,9 @@ test('Should copy cell value', async ({
   runScript,
   waitForDataTable,
   page,
+  context,
 }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   // Create and run script with test data
   await createScriptAndSwitchToItsTab();
   await fillScript(TEST_DATA_SQL);
@@ -75,7 +77,10 @@ test('Should copy rows with selection modifiers', async ({
   runScript,
   waitForDataTable,
   page,
+  context,
 }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
   // Create and run a single script with all test data
   await createScriptAndSwitchToItsTab();
   await fillScript(TEST_DATA_SQL);
@@ -154,7 +159,10 @@ test('Should copy columns with selection modifiers', async ({
   runScript,
   waitForDataTable,
   page,
+  context,
 }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
   // Create and run script with test data - 3 columns, 3 rows
   await createScriptAndSwitchToItsTab();
   await fillScript(TEST_DATA_SQL);
@@ -244,7 +252,10 @@ test('Should copy entire table when using copy table button', async ({
   runScript,
   waitForDataTable,
   page,
+  context,
 }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
   // Create and run script with test data
   await createScriptAndSwitchToItsTab();
   await fillScript(TEST_DATA_SQL);

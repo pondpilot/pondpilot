@@ -16,7 +16,9 @@ test('Script sharing', async ({
   openScriptFromExplorer,
   page,
   scriptEditorContent,
+  context,
 }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   // Create a new script and switch to its tab
   await createScriptAndSwitchToItsTab();
   await fillScript('SELECT * FROM test');
