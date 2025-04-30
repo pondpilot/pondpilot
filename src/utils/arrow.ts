@@ -8,7 +8,7 @@ import { getTableColumnId } from './db';
  */
 export function convertArrowTable(table: Table | RecordBatch): DataTable {
   const columns = Array(table.numCols)
-    .fill(0)
+    .fill(null)
     .map((_, colIndex) => table.getChildAt(colIndex));
 
   return Array(table.numRows)
