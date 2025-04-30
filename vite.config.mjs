@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tsconfigPaths(),
       VitePWA({
-        disable: mode === 'int-test-build',
+        disable: mode !== 'production',
         registerType: 'autoUpdate',
         workbox: {
           maximumFileSizeToCacheInBytes: 25000000,
