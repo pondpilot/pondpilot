@@ -6,20 +6,24 @@ import {
   SortOrder,
 } from '@models/db';
 import { assertNeverValueType } from './typing';
-import { formatNumber } from './helpers';
 
 export function isNumberType(type: NormalizedSQLType): boolean {
   switch (type) {
     case 'bigint':
-    case 'number':
+    case 'float':
+    case 'decimal':
     case 'integer':
       return true;
     case 'date':
     case 'time':
+    case 'timetz':
     case 'timestamp':
+    case 'timestamptz':
+    case 'interval':
     case 'boolean':
     case 'string':
     case 'bytes':
+    case 'bitstring':
     case 'array':
     case 'object':
     case 'other':
@@ -46,35 +50,197 @@ export const stringifyTypedValue = ({
 
     switch (type) {
       case 'timestamp': {
-        return typeof value === 'number' ? new Date(value).toLocaleString() : fallback;
+        if (typeof value === 'number' || value instanceof Date) {
+          const date = typeof value === 'number' ? new Date(value) : value;
+
+          // Get year, month, day in UTC
+          const year = date.getUTCFullYear();
+          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(date.getUTCDate()).padStart(2, '0');
+
+          // Get time components in UTC
+          const hours = String(date.getUTCHours()).padStart(2, '0');
+          const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+          const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+
+          // Format: 2023-01-15 14:30:00
+          let result = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+          // Add milliseconds only if they are not 0
+          if (date.getUTCMilliseconds() > 0) {
+            result += `.${String(date.getUTCMilliseconds()).padStart(3, '0')}`;
+          }
+
+          return result;
+        }
+        return fallback;
+      }
+      case 'timestamptz': {
+        if (typeof value === 'number' || value instanceof Date) {
+          const date = typeof value === 'number' ? new Date(value) : value;
+
+          // Get year, month, day
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+
+          // Get time components
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          const seconds = String(date.getSeconds()).padStart(2, '0');
+
+          // Get timezone offset in minutes and convert to hours:minutes format
+          const tzOffset = date.getTimezoneOffset();
+          const tzSign = tzOffset <= 0 ? '+' : '-';
+          const tzHours = String(Math.floor(Math.abs(tzOffset) / 60)).padStart(2, '0');
+
+          // Format date part
+          let result = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+          // Add milliseconds if present
+          if (date.getMilliseconds() > 0) {
+            result += `.${String(date.getMilliseconds()).padStart(3, '0')}`;
+          }
+
+          // Add timezone offset
+          result += `${tzSign}${tzHours}`;
+
+          return result;
+        }
+        return fallback;
       }
       case 'date': {
-        return typeof value === 'number' ? new Date(value).toLocaleDateString() : fallback;
+        if (typeof value === 'number' || value instanceof Date) {
+          const date = typeof value === 'number' ? new Date(value) : value;
+          return date.toISOString().split('T')[0];
+        }
+        return fallback;
       }
       case 'time': {
-        return typeof value === 'number' ? new Date(value).toLocaleTimeString() : fallback;
+        if (typeof value === 'number' || typeof value === 'bigint') {
+          // Handle PostgreSQL time format (microseconds since midnight)
+          const numValue = typeof value === 'bigint' ? Number(value) : value;
+          if (numValue > 0 && numValue < 86400000000) {
+            const totalSeconds = Math.floor(numValue / 1000000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+          }
+          // Handle JavaScript timestamp
+          const date = new Date(numValue);
+          return date.toISOString().split('T')[1].split('.')[0];
+        }
+        if (value instanceof Date) {
+          return value.toISOString().split('T')[1].split('.')[0];
+        }
+        if (typeof value === 'string' && /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(value)) {
+          return value;
+        }
+        return fallback;
+      }
+      case 'timetz': {
+        if (typeof value === 'number' || typeof value === 'bigint' || value instanceof Date) {
+          const date =
+            typeof value === 'number' || typeof value === 'bigint'
+              ? new Date(Number(value))
+              : value;
+          return `${date.toISOString().split('T')[1]} UTC`;
+        }
+        if (typeof value === 'string') {
+          return value;
+        }
+        return fallback;
+      }
+      case 'interval': {
+        return 'Interval not supported by duckdb-wasm yet';
       }
       case 'string': {
         return typeof value === 'string' ? value : String(value);
       }
       case 'bigint': {
-        return (value as bigint).toString();
-      }
-      case 'boolean': {
-        return String(value);
-      }
-      case 'bytes':
-      case 'other':
-      case 'array':
-      case 'object': {
-        return JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toString() : v));
-      }
-      case 'integer':
-      case 'number': {
-        if (typeof value === 'number' || typeof value === 'bigint') {
-          return formatNumber(value);
+        if (typeof value === 'bigint') {
+          return value.toLocaleString();
+        }
+        if (typeof value === 'number') {
+          return BigInt(Math.round(value)).toLocaleString();
+        }
+        if (typeof value === 'string' && /^-?\d+$/.test(value)) {
+          return value;
         }
         return fallback;
+      }
+      case 'boolean': {
+        return typeof value === 'boolean' ? String(value) : fallback;
+      }
+      case 'float':
+      case 'decimal': {
+        if (typeof value === 'number') {
+          return value.toLocaleString();
+        }
+        if (typeof value === 'string' && !Number.isNaN(parseFloat(value))) {
+          return value;
+        }
+        return fallback;
+      }
+      case 'integer': {
+        if (typeof value === 'number') {
+          return Math.round(value).toLocaleString();
+        }
+        if (typeof value === 'string' && /^-?\d+$/.test(value)) {
+          return value;
+        }
+        if (typeof value === 'bigint') {
+          return value.toLocaleString();
+        }
+        return fallback;
+      }
+      case 'bytes': {
+        if (value instanceof Uint8Array || Array.isArray(value)) {
+          const bytes = Array.from(value);
+          // If UTF-8 decoding fails, use hex representation
+          const hexRepr = `\\x${bytes.map((byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join('\\x')}`;
+
+          try {
+            // Try to decode as UTF-8 string
+            try {
+              // Use TextDecoder if available (modern browsers/Node.js)
+              if (typeof TextDecoder !== 'undefined') {
+                const bytesArray = value instanceof Uint8Array ? value : new Uint8Array(bytes);
+                const decoder = new TextDecoder('utf-8', { fatal: true });
+                return decoder.decode(bytesArray);
+              }
+
+              return hexRepr;
+            } catch (decodeError) {
+              return hexRepr;
+            }
+          } catch (e) {
+            return JSON.stringify(value);
+          }
+        }
+        return fallback;
+      }
+      case 'bitstring': {
+        // Display bits as a sequence of 0 and 1
+        if (typeof value === 'string') {
+          return value;
+        }
+        if (value instanceof Uint8Array || Array.isArray(value)) {
+          try {
+            return Array.from(value)
+              .map((byte) => byte.toString(2).padStart(8, '0'))
+              .join(' ');
+          } catch (e) {
+            return JSON.stringify(value);
+          }
+        }
+        return fallback;
+      }
+      case 'array':
+      case 'object':
+      case 'other': {
+        return JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toLocaleString() : v));
       }
       default:
         // eslint-disable-next-line no-case-declarations

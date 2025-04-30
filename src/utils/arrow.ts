@@ -39,11 +39,23 @@ export function getArrowTableSchema(table: Table | RecordBatch): DBTableOrViewSc
  */
 export function getNormalizedSQLTypeFromArrowType(type: DataType): NormalizedSQLType {
   if (DataType.isInt(type)) {
+    // Check for bigint (Int64)
+    if (type.bitWidth === 64) {
+      return 'bigint';
+    }
     return 'integer';
   }
-  if (DataType.isFloat(type) || DataType.isDecimal(type)) {
-    return 'number';
+  if (DataType.isFloat(type)) {
+    return 'float';
   }
+  if (DataType.isDecimal(type)) {
+    return 'decimal';
+  }
+
+  // Bit strings are not directly defined in Arrow types
+  // They will return as Binary, so any handling of bit strings
+  // should be done by the data view layer in instances where the
+  // precise type is known from metadata.
   if (DataType.isBinary(type) || DataType.isFixedSizeBinary(type)) {
     return 'bytes';
   }
@@ -53,17 +65,33 @@ export function getNormalizedSQLTypeFromArrowType(type: DataType): NormalizedSQL
   if (DataType.isBool(type)) {
     return 'boolean';
   }
-  if (DataType.isDate(type) || DataType.isTime(type) || DataType.isTimestamp(type)) {
+  if (DataType.isDate(type)) {
     return 'date';
+  }
+  if (DataType.isTime(type)) {
+    return 'time';
+  }
+  if (DataType.isTimestamp(type)) {
+    // Check if it's timestamptz by looking at the timezone property
+    const hasTimezone = type.timezone && type.timezone.length > 0;
+    return hasTimezone ? 'timestamptz' : 'timestamp';
+  }
+  if (DataType.isInterval(type)) {
+    return 'interval';
   }
   if (DataType.isList(type) || DataType.isFixedSizeList(type)) {
     return 'array';
   }
-  if (DataType.isStruct(type) || DataType.isUnion(type)) {
-    return 'object'; // Changed from 'object' as it's not in JSValueType
+  if (DataType.isStruct(type) || DataType.isMap(type)) {
+    return 'object';
   }
-  if (DataType.isInterval(type) || DataType.isMap(type)) {
+  if (DataType.isUnion(type)) {
     return 'other';
   }
+  if (DataType.isDictionary(type)) {
+    // For dictionary encoded data, we use the value type
+    return getNormalizedSQLTypeFromArrowType(type.valueType);
+  }
+
   return 'other';
 }

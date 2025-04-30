@@ -1,13 +1,23 @@
 export type NormalizedSQLType =
-  | 'number'
+  // Any precision floating point type
+  | 'float'
+  // Any fixed precision decimal type
+  | 'decimal'
+  // Any integer except for bigint (int 8)
   | 'integer'
   | 'bigint'
   | 'boolean'
   | 'date'
   | 'timestamp'
+  | 'timestamptz'
   | 'time'
+  | 'timetz'
+  // Any interval type (for simplicity)
+  | 'interval'
+  // Any fixed or variable length string/text type
   | 'string'
   | 'bytes'
+  | 'bitstring'
   | 'array'
   | 'object'
   | 'other';
