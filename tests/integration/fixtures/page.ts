@@ -21,6 +21,8 @@ export const test = base.extend<PageFixtures>({
       window.localStorage.setItem(key, 'true');
     }, LOCAL_STORAGE_KEYS.ONBOARDING_SHOWN);
 
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+
     // Navigate to page with localStorage already set
     await page.goto('/');
 

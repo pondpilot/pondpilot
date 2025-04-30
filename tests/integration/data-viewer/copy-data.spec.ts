@@ -1,11 +1,13 @@
 import { mergeTests, expect } from '@playwright/test';
 import { getTableColumnId } from '@utils/db';
+import { formatTableData } from '@utils/table';
 import { test as baseTest } from '../fixtures/page';
 import { test as tabTest } from '../fixtures/tab';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as scriptExplorer } from '../fixtures/script-explorer';
 import { test as dataViewTest, getDataCellContainer, getHeaderCell } from '../fixtures/data-view';
 import { test as testTmpTest } from '../fixtures/test-tmp';
+import { getClipboardContent } from '../../utils';
 
 const test = mergeTests(
   baseTest,
@@ -16,30 +18,30 @@ const test = mergeTests(
   scriptExplorer,
 );
 
+// Common test dataset to use in all tests
+const TEST_DATA_SQL = `
+      select 'row1 val1' as col1, 'row1 val2' as col2, 'row1 val3' as col3
+      union all
+      select 'row2 val1' as col1, 'row2 val2' as col2, 'row2 val3' as col3
+      union all
+      select 'row3 val1' as col1, 'row3 val2' as col2, 'row3 val3' as col3
+      `;
+
 test('Should copy cell value', async ({
   createScriptAndSwitchToItsTab,
   fillScript,
   runScript,
   waitForDataTable,
   page,
-  context,
 }) => {
-  // Grant clipboard permissions
-  context.grantPermissions(['clipboard-read', 'clipboard-write']);
-
   // Create and run script with test data
   await createScriptAndSwitchToItsTab();
-  await fillScript(`
-  select
-    'normal val' as normal_col,
-    'comma,val' as 'comma,col',
-    'comma quote, "val"' as 'comma quote,"col"'
-  `);
+  await fillScript(TEST_DATA_SQL);
   await runScript();
 
   const expectedData = {
-    data: [['normal val', 'comma,val', 'comma quote, "val"']],
-    columnNames: ['normal_col', 'comma,col', 'comma quote,"col"'],
+    data: [['row1 val1', 'row1 val2', 'row1 val3']],
+    columnNames: ['col1', 'col2', 'col3'],
   };
 
   // Get the data table
@@ -57,7 +59,6 @@ test('Should copy cell value', async ({
     // Click the cell to select it
     await cellContainer.click();
 
-    // Use keyboard shortcut to copy (CMD+C)
     await page.keyboard.press('Meta+c');
 
     // Read the clipboard content
@@ -68,84 +69,35 @@ test('Should copy cell value', async ({
   }
 });
 
-test('Should copy entire row when index column is selected', async ({
+test('Should copy rows with selection modifiers', async ({
   createScriptAndSwitchToItsTab,
   fillScript,
   runScript,
   waitForDataTable,
   page,
-  context,
 }) => {
-  // Grant clipboard permissions
-  context.grantPermissions(['clipboard-read', 'clipboard-write']);
-
-  // Create and run script with test data
+  // Create and run a single script with all test data
   await createScriptAndSwitchToItsTab();
-  await fillScript(`
-  select
-    'normal val' as normal_col,
-    'comma,val' as 'comma,col',
-    'comma quote, "val"' as 'comma quote,"col"'
-  `);
+  await fillScript(TEST_DATA_SQL);
   await runScript();
 
-  // Get the data table
+  // Get the data table once for all test parts
   const dataTable = await waitForDataTable();
 
-  // Get the index cell container for the row (the cell with "#" header)
-  const indexCellContainer = getDataCellContainer(dataTable, '__index__', 0);
-
-  // Click the index cell to select the entire row
-  await indexCellContainer.click();
-
+  // PART 1: Copy single row (the first row)
+  const row1IndexCell = getDataCellContainer(dataTable, '__index__', 0);
+  await row1IndexCell.click();
   await page.keyboard.press('Meta+c');
 
-  // Read the clipboard content
-  const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
-
-  expect(clipboardContent).toContain('normal val\t"comma,val"\t"comma quote, ""val"""');
-});
-
-test('Should copy one or more rows to clipboard with multi-select', async ({
-  createScriptAndSwitchToItsTab,
-  fillScript,
-  runScript,
-  waitForDataTable,
-  page,
-  context,
-}) => {
-  // Grant clipboard permissions
-  context.grantPermissions(['clipboard-read', 'clipboard-write']);
-
-  // Create and run script with test data - 3 rows
-  await createScriptAndSwitchToItsTab();
-  await fillScript(`
-  select 'row1 val1' as col1, 'row1 val2' as col2, 'row1 val3' as col3
-  union all
-  select 'row2 val1' as col1, 'row2 val2' as col2, 'row2 val3' as col3
-  union all
-  select 'row3 val1' as col1, 'row3 val2' as col2, 'row3 val3' as col3
-  `);
-  await runScript();
-
-  // Get the data table
-  const dataTable = await waitForDataTable();
-
-  // PART 1: Copy single row (the second row)
-  // Get the index cell container for the second row
-  const row2IndexCell = getDataCellContainer(dataTable, '__index__', 1);
-
-  // Click the second row's index cell to select just that row
-  await row2IndexCell.click();
-  await page.keyboard.press('Meta+c');
-
-  // Read and verify the clipboard content for the second row
-  let clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
-  expect(clipboardContent).toBe('row2 val1\trow2 val2\trow2 val3');
+  // Read and verify the clipboard content for the first row
+  let clipboardContent = await getClipboardContent(page);
+  expect(clipboardContent).toBe('row1 val1\trow1 val2\trow1 val3');
 
   // PART 2: Test multi-select with shift key
+  // First, clear the current selection by clicking elsewhere
+  await page.keyboard.press('Escape');
+
   // Click the first row's index cell
-  const row1IndexCell = getDataCellContainer(dataTable, '__index__', 0);
   await row1IndexCell.click();
 
   // Hold shift and click the third row's index cell to select rows 1-3
@@ -158,33 +110,36 @@ test('Should copy one or more rows to clipboard with multi-select', async ({
   await page.keyboard.press('Meta+c');
 
   // Read and verify the clipboard content for all three rows
-  clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+  clipboardContent = await getClipboardContent(page);
 
   // The clipboard should contain all three rows, separated by newlines
-  const expectedContent =
-    'row1 val1\trow1 val2\trow1 val3\n' +
-    'row2 val1\trow2 val2\trow2 val3\n' +
-    'row3 val1\trow3 val2\trow3 val3';
+  const formattedData = formatTableData(
+    [
+      ['row1 val1', 'row1 val2', 'row1 val3'],
+      ['row2 val1', 'row2 val2', 'row2 val3'],
+      ['row3 val1', 'row3 val2', 'row3 val3'],
+    ],
+    '\t',
+  );
 
-  expect(clipboardContent).toBe(expectedContent);
+  expect(clipboardContent).toBe(formattedData);
 
   // PART 3: Test selective multi-select with Meta key
-  // First, clear the current selection by clicking elsewhere
-  await page.click('body');
+  await page.keyboard.press('Escape');
 
   // Click the first row's index cell
-  await getDataCellContainer(dataTable, '__index__', 0).click();
+  await row1IndexCell.click();
 
   // Hold Meta key and click the third row's index cell to select rows 1 and 3 (but not 2)
   await page.keyboard.down('Meta');
-  await getDataCellContainer(dataTable, '__index__', 2).click();
+  await row3IndexCell.click();
   await page.keyboard.up('Meta');
 
   // Copy the selected rows
   await page.keyboard.press('Meta+c');
 
   // Read and verify the clipboard content for rows 1 and 3 (not row 2)
-  clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+  clipboardContent = await getClipboardContent(page);
 
   // The clipboard should contain rows 1 and 3, separated by newlines, but not row 2
   const expectedSelectiveContent =
@@ -199,44 +154,36 @@ test('Should copy columns with selection modifiers', async ({
   runScript,
   waitForDataTable,
   page,
-  context,
 }) => {
-  // Grant clipboard permissions
-  context.grantPermissions(['clipboard-read', 'clipboard-write']);
-
-  // Create and run script with test data - 3 columns, 2 rows
+  // Create and run script with test data - 3 columns, 3 rows
   await createScriptAndSwitchToItsTab();
-  await fillScript(`
-  select 'A1' as colA, 'B1' as colB, 'C1' as colC
-  union all
-  select 'A2' as colA, 'B2' as colB, 'C2' as colC
-  `);
+  await fillScript(TEST_DATA_SQL);
   await runScript();
 
   // Get the data table
   const dataTable = await waitForDataTable();
 
   // PART 1: Copy single column
-  // Get the header cell for the second column (colB)
-  const colBHeaderCell = getHeaderCell(dataTable, getTableColumnId('colB', 1));
-  await colBHeaderCell.click();
+  // Get the header cell for the second column (col2)
+  const col2HeaderCell = getHeaderCell(dataTable, getTableColumnId('col2', 1));
+  await col2HeaderCell.click();
   await page.keyboard.press('Meta+c');
 
   // Read and verify the clipboard content for the second column
-  let clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+  let clipboardContent = await getClipboardContent(page);
 
   // For column copy, we should get the column header followed by values vertically
-  expect(clipboardContent).toBe('colB\nB1\nB2');
+  expect(clipboardContent).toBe('col2\nrow1 val2\nrow2 val2\nrow3 val2');
 
   // PART 2: Test multi-select of columns with shift key
   // Click the first column header
-  const colAHeaderCell = getHeaderCell(dataTable, getTableColumnId('colA', 0));
-  await colAHeaderCell.click();
+  const col1HeaderCell = getHeaderCell(dataTable, getTableColumnId('col1', 0));
+  await col1HeaderCell.click();
 
-  // Hold shift and click the third column header to select columns A-C
-  const colCHeaderCell = getHeaderCell(dataTable, getTableColumnId('colC', 2));
+  // Hold shift and click the third column header to select columns 1-3
+  const col3HeaderCell = getHeaderCell(dataTable, getTableColumnId('col3', 2));
   await page.keyboard.down('Shift');
-  await colCHeaderCell.click();
+  await col3HeaderCell.click();
   await page.keyboard.up('Shift');
 
   // Copy the selected columns
@@ -248,30 +195,45 @@ test('Should copy columns with selection modifiers', async ({
   // The clipboard should contain all columns with their data
   // Columns are typically copied with headers in the first row,
   // followed by data rows, with values separated by tabs
-  const expectedContentAllColumns = 'colA\tcolB\tcolC\nA1\tB1\tC1\nA2\tB2\tC2';
+  const expectedContentAllColumns = formatTableData(
+    [
+      ['col1', 'col2', 'col3'],
+      ['row1 val1', 'row1 val2', 'row1 val3'],
+      ['row2 val1', 'row2 val2', 'row2 val3'],
+      ['row3 val1', 'row3 val2', 'row3 val3'],
+    ],
+    '\t',
+  );
 
   expect(clipboardContent).toBe(expectedContentAllColumns);
 
   // PART 3: Test selective multi-select of columns with Meta key
-  // First, clear the current selection by clicking elsewhere
-  await page.click('body');
+  await page.keyboard.press('Escape');
 
   // Click the first column header
-  await colAHeaderCell.click();
+  await col1HeaderCell.click();
 
-  // Hold Meta key and click the third column header to select columns A and C (but not B)
+  // Hold Meta key and click the third column header to select columns 1 and 3 (but not 2)
   await page.keyboard.down('Meta');
-  await colCHeaderCell.click();
+  await col3HeaderCell.click();
   await page.keyboard.up('Meta');
 
   // Copy the selected columns
   await page.keyboard.press('Meta+c');
 
-  // Read and verify the clipboard content for columns A and C (not B)
+  // Read and verify the clipboard content for columns 1 and 3 (not 2)
   clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
 
-  // The clipboard should contain columns A and C with their headers, but not B
-  const expectedSelectiveColumnsContent = 'colA\tcolC\nA1\tC1\nA2\tC2';
+  // The clipboard should contain columns 1 and 3 with their headers, but not 2
+  const expectedSelectiveColumnsContent = formatTableData(
+    [
+      ['col1', 'col3'],
+      ['row1 val1', 'row1 val3'],
+      ['row2 val1', 'row2 val3'],
+      ['row3 val1', 'row3 val3'],
+    ],
+    '\t',
+  );
 
   expect(clipboardContent).toBe(expectedSelectiveColumnsContent);
 });

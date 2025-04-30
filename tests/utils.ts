@@ -1,3 +1,4 @@
+import { Page } from '@playwright/test';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import path from 'path';
 
@@ -28,4 +29,8 @@ export function createFile(filePath: string, content: string): void {
     mkdirSync(dir, { recursive: true });
   }
   writeFileSync(filePath, content, { flush: true });
+}
+
+export function getClipboardContent(page: Page): Promise<string> {
+  return page.evaluate(() => navigator.clipboard.readText());
 }

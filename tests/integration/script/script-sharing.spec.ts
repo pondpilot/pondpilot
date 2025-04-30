@@ -10,7 +10,6 @@ test('Script sharing', async ({
   assertScriptExplorerItems,
   checkIfScriptExists,
   clickScriptNodeMenuItemByName,
-  context,
   createScriptAndSwitchToItsTab,
   fillScript,
   openImportSharedScriptModalViaSpotlight,
@@ -18,9 +17,6 @@ test('Script sharing', async ({
   page,
   scriptEditorContent,
 }) => {
-  // Add necessary permissions for clipboard access
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-
   // Create a new script and switch to its tab
   await createScriptAndSwitchToItsTab();
   await fillScript('SELECT * FROM test');
