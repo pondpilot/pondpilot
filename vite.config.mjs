@@ -17,15 +17,10 @@ const getVersionInfo = () => {
 export default defineConfig(({ mode }) => {
   return {
     mode: mode === 'int-test-build' ? 'production' : mode,
-    define:
-      mode === 'int-test-build'
-        ? {
-            __INTEGRATION_TEST__: true,
-            __VERSION__: JSON.stringify(getVersionInfo()),
-          }
-        : {
-            __VERSION__: JSON.stringify(getVersionInfo()),
-          },
+    define: {
+      __INTEGRATION_TEST__: mode === 'int-test-build',
+      __VERSION__: JSON.stringify(getVersionInfo()),
+    },
     plugins: [
       react(),
       tsconfigPaths(),
