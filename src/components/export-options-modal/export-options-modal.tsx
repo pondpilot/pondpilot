@@ -26,6 +26,7 @@ import {
   XmlExportOptions,
 } from '@models/export-options';
 import { IconX, IconAlertTriangle } from '@tabler/icons-react';
+import { sanitizeFileName } from '@utils/export-data';
 import { setDataTestId } from '@utils/test-id';
 import { useState, useRef, useEffect } from 'react';
 
@@ -58,21 +59,30 @@ export function ExportOptionsModal({
   dataAdapter,
 }: ExportOptionsModalProps) {
   const [format, setFormat] = useState<ExportFormat>('csv');
-  const [exporting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [includeHeader, setIncludeHeader] = useState(true);
 
   // Filename handling
-  const baseFileName = filename.split('.')[0] || 'export';
+  const sanitizedInput = sanitizeFileName(filename) || 'export';
   const defaultExtension = format === 'xlsx' ? 'xlsx' : format;
-  const [exportFilename, setExportFilename] = useState(`${baseFileName}.${defaultExtension}`);
+  const initialBaseName = (() => {
+    const idx = sanitizedInput.lastIndexOf('.');
+    if (idx > 0) {
+      const namePart = sanitizedInput.substring(0, idx);
+      return namePart || 'export';
+    }
+    return sanitizedInput;
+  })();
+  const [exportFilename, setExportFilename] = useState(`${initialBaseName}.${defaultExtension}`);
   const [filenameError, setFilenameError] = useState('');
 
   // Update filename when format changes but preserve user edits to the basename
   const updateFilenameOnFormatChange = (newFormat: ExportFormat) => {
-    const currentBaseName = exportFilename.split('.')[0];
-    setExportFilename(`${currentBaseName}.${newFormat === 'xlsx' ? 'xlsx' : newFormat}`);
+    const idx = exportFilename.lastIndexOf('.');
+    const currentBaseName = idx > 0 ? exportFilename.substring(0, idx) : exportFilename;
+    const newExt = newFormat === 'xlsx' ? 'xlsx' : newFormat;
+    setExportFilename(`${currentBaseName}.${newExt}`);
   };
 
   // CSV/TSV options
@@ -132,22 +142,19 @@ export function ExportOptionsModal({
 
     // Format-specific validations
     switch (format) {
-      case 'csv':
-      case 'tsv':
+      case 'csv': {
         if (!delimiter) {
           setDelimiterError('Delimiter is required');
           isValid = false;
         } else {
           setDelimiterError('');
         }
-
         if (!quoteChar) {
           setQuoteCharError('Quote character is required');
           isValid = false;
         } else {
           setQuoteCharError('');
         }
-
         if (!escapeChar) {
           setEscapeCharError('Escape character is required');
           isValid = false;
@@ -155,6 +162,24 @@ export function ExportOptionsModal({
           setEscapeCharError('');
         }
         break;
+      }
+      case 'tsv': {
+        // TSV uses fixed tab delimiter; clear any delimiter errors
+        setDelimiterError('');
+        if (!quoteChar) {
+          setQuoteCharError('Quote character is required');
+          isValid = false;
+        } else {
+          setQuoteCharError('');
+        }
+        if (!escapeChar) {
+          setEscapeCharError('Escape character is required');
+          isValid = false;
+        } else {
+          setEscapeCharError('');
+        }
+        break;
+      }
 
       case 'xlsx':
         if (!sheetName.trim()) {
@@ -359,9 +384,7 @@ export function ExportOptionsModal({
               input:
                 'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2 placeholder-textTertiary-light dark:placeholder-textTertiary-dark focus:border-borderAccent-light dark:focus:border-borderAccent-dark',
               dropdown:
-                'bg-white dark:bg-zinc-800 text-black dark:text-white border border-gray-300 dark:border-gray-600 shadow-lg',
-              option:
-                'text-black dark:text-white hover:bg-gray-100 dark:hover:bg-zinc-700 py-2 px-2 flex items-center',
+                'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border border-borderPrimary-light dark:border-borderPrimary-dark shadow-lg',
             }}
           />
 
@@ -530,9 +553,7 @@ export function ExportOptionsModal({
                       input:
                         'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2',
                       dropdown:
-                        'bg-white dark:bg-zinc-800 text-black dark:text-white border border-gray-300 dark:border-gray-600 shadow-lg',
-                      option:
-                        'text-black dark:text-white hover:bg-gray-100 dark:hover:bg-zinc-700 py-2 px-2 flex items-center',
+                        'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border border-borderPrimary-light dark:border-borderPrimary-dark shadow-lg',
                     }}
                   />
                   <Checkbox
@@ -569,7 +590,6 @@ export function ExportOptionsModal({
             </Button>
             <Button
               onClick={handleExport}
-              loading={exporting}
               data-testid={setDataTestId('export-confirm')}
               color="background-accent"
               className="rounded-full px-3"
