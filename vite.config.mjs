@@ -15,6 +15,9 @@ const getVersionInfo = () => {
 };
 
 export default defineConfig(({ mode }) => {
+  // Check for DOCKER_BUILD environment variable
+  const isDockerBuild = process.env.DOCKER_BUILD === 'true';
+
   return {
     mode: mode === 'int-test-build' ? 'production' : mode,
     define: {
@@ -25,7 +28,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tsconfigPaths(),
       VitePWA({
-        disable: mode !== 'production',
+        disable: mode !== 'production' || isDockerBuild, // Disable PWA for Docker builds
         registerType: 'autoUpdate',
         workbox: {
           maximumFileSizeToCacheInBytes: 25000000,
