@@ -1,8 +1,12 @@
 import { test as base, expect, Locator } from '@playwright/test';
 
+type OpenSpotlightProps = {
+  trigger: 'click' | 'hotkey';
+};
+
 type SpotlightFixtures = {
   spotlight: Locator;
-  openSpotlight: () => Promise<Locator>;
+  openSpotlight: (v: OpenSpotlightProps) => Promise<Locator>;
   createScriptViaSpotlight: () => Promise<void>;
   openSettingsViaSpotlight: () => Promise<void>;
   addDirectoryViaSpotlight: () => Promise<void>;
@@ -15,12 +19,16 @@ export const test = base.extend<SpotlightFixtures>({
   },
 
   openSpotlight: async ({ page, spotlight }, use) => {
-    await use(async () => {
+    await use(async (props) => {
       // Verify spotlight is not visible
       await expect(spotlight).toBeHidden();
 
       // Open spotlight menu using trigger
-      await page.getByTestId('spotlight-trigger-input').click();
+      if (props.trigger === 'hotkey') {
+        await page.keyboard.press('ControlOrMeta+k');
+      } else {
+        await page.getByTestId('spotlight-trigger-input').click();
+      }
 
       // Verify spotlight is visible
       await expect(spotlight).toBeVisible();
@@ -31,7 +39,7 @@ export const test = base.extend<SpotlightFixtures>({
 
   createScriptViaSpotlight: async ({ openSpotlight }, use) => {
     await use(async () => {
-      const spotlightRoot = await openSpotlight();
+      const spotlightRoot = await openSpotlight({ trigger: 'click' });
 
       // Create new query through spotlight
       await spotlightRoot.getByTestId('spotlight-action-create-new-script').click();
@@ -43,7 +51,7 @@ export const test = base.extend<SpotlightFixtures>({
 
   openSettingsViaSpotlight: async ({ openSpotlight }, use) => {
     await use(async () => {
-      const spotlightRoot = await openSpotlight();
+      const spotlightRoot = await openSpotlight({ trigger: 'click' });
 
       // Open settings through spotlight
       await spotlightRoot.getByTestId('spotlight-action-settings').click();
@@ -55,7 +63,7 @@ export const test = base.extend<SpotlightFixtures>({
 
   addDirectoryViaSpotlight: async ({ openSpotlight }, use) => {
     await use(async () => {
-      const spotlightRoot = await openSpotlight();
+      const spotlightRoot = await openSpotlight({ trigger: 'click' });
 
       // Add folder through spotlight
       await spotlightRoot.getByTestId('spotlight-action-add-folder').click();
@@ -67,7 +75,7 @@ export const test = base.extend<SpotlightFixtures>({
 
   openImportSharedScriptModalViaSpotlight: async ({ openSpotlight }, use) => {
     await use(async () => {
-      const spotlightRoot = await openSpotlight();
+      const spotlightRoot = await openSpotlight({ trigger: 'click' });
 
       // Share script through spotlight
       await spotlightRoot.getByTestId('spotlight-action-import-script-from-url').click();
