@@ -1,0 +1,79 @@
+import { NormalizedSQLType } from './db';
+
+/**
+ * Available data export formats
+ */
+export type ExportFormat = 'csv' | 'tsv' | 'xlsx' | 'xml' | 'sql' | 'md';
+
+/**
+ * Common export options for all formats
+ */
+export interface BaseExportOptions {
+  includeHeader: boolean;
+}
+
+/**
+ * Options specific to CSV/TSV export
+ */
+export interface DelimitedTextExportOptions extends BaseExportOptions {
+  delimiter: string;
+  quoteChar: string;
+  escapeChar: string;
+}
+
+/**
+ * Options specific to Excel/XLSX export
+ */
+export interface XlsxExportOptions extends BaseExportOptions {
+  sheetName: string;
+}
+
+/**
+ * Options specific to SQL export
+ */
+export interface SqlExportOptions extends BaseExportOptions {
+  tableName: string;
+  includeCreateTable: boolean;
+  includeDataTypes: boolean;
+}
+
+/**
+ * Options specific to Markdown export
+ */
+export interface MarkdownExportOptions extends BaseExportOptions {
+  format: 'github' | 'standard';
+  alignColumns: boolean;
+}
+
+/**
+ * Options specific to XML export
+ */
+export interface XmlExportOptions extends BaseExportOptions {
+  rootElement: string;
+  rowElement: string;
+}
+
+/**
+ * Union type for all export options
+ */
+export type ExportOptions =
+  | DelimitedTextExportOptions
+  | XlsxExportOptions
+  | SqlExportOptions
+  | MarkdownExportOptions
+  | XmlExportOptions;
+
+export const sqlTypeMap: Record<NormalizedSQLType, string> = {
+  number: 'DOUBLE',
+  integer: 'INTEGER',
+  bigint: 'BIGINT',
+  boolean: 'BOOLEAN',
+  date: 'DATE',
+  timestamp: 'TIMESTAMP',
+  time: 'TIME',
+  string: 'VARCHAR',
+  bytes: 'BLOB',
+  array: 'LIST',
+  object: 'JSON',
+  other: 'VARCHAR',
+};

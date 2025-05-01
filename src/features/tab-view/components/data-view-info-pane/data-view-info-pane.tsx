@@ -1,17 +1,16 @@
 import { DotAnimation } from '@components/dots-animation';
-import { copyTableColumns, exportTableColumnsToCSV } from '@features/tab-view/utils';
-import { TextProps, Group, ActionIcon, Button, Text } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
-import { DataAdapterApi } from '@models/data-adapter';
-import { TabId, TabType } from '@models/tab';
-import { useAppStore } from '@store/app-store';
-import { IconX, IconCopy } from '@tabler/icons-react';
-import { getTabName } from '@utils/navigation';
-import { setDataTestId } from '@utils/test-id';
-import { assertNeverValueType } from '@utils/typing';
+import { TextProps, Group, ActionIcon, Button, Text, Menu, Divider } from '@mantine/core';
+import { IconX, IconCopy, IconDownload, IconChevronDown } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { useMemo } from 'react';
-
+import { useTableExport } from '@features/tab-view/hooks';
+import { DataAdapterApi } from '@models/data-adapter';
+import { useDebouncedValue } from '@mantine/hooks';
+import { TabId, TabType } from '@models/tab';
+import { useAppStore } from '@store/app-store';
+import { assertNeverValueType } from '@utils/typing';
+import { setDataTestId } from '@utils/test-id';
+import { ExportOptionsModal } from '@components/export-options-modal';
 import { ColRowCount } from './components/col-row-count';
 
 interface DataViewInfoPaneProps {
@@ -21,6 +20,19 @@ interface DataViewInfoPaneProps {
 }
 
 export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPaneProps) => {
+  /**
+   * Hooks
+   */
+  const {
+    copyTableToClipboard,
+    exportTableToCSV,
+    openExportOptions,
+    closeExportOptions,
+    handleExport,
+    exportModalOpen,
+    tabName,
+  } = useTableExport(dataAdapter, tabId);
+
   /**
    * Computed data source state
    */
@@ -42,28 +54,6 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
   const showCancelButton = (isFetching || isSorting) && hasData && !hasDataSourceError;
   const disableCopyAndExport = !hasData || hasDataSourceError;
 
-  const handleTableExportClick = async () => {
-    const state = useAppStore.getState();
-    const tab = state.tabs.get(tabId);
-
-    const tabName = tab
-      ? getTabName(tab, state.sqlScripts, state.dataSources, state.localEntries)
-      : 'unknown-tab-export';
-    const fileName = `${tabName}.csv`;
-
-    await exportTableColumnsToCSV({
-      dataAdapter,
-      columns: dataAdapter.currentSchema,
-      fileName,
-    });
-  };
-
-  const handleTableCopyClick = async () => {
-    copyTableColumns({
-      columns: dataAdapter.currentSchema,
-      dataAdapter,
-    });
-  };
 
   /**
    * Memoized status message
@@ -154,21 +144,53 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
         <ActionIcon
           data-testid={setDataTestId('copy-table-button')}
           size={16}
-          onClick={handleTableCopyClick}
+          onClick={copyTableToClipboard}
           disabled={disableCopyAndExport}
         >
           <IconCopy />
         </ActionIcon>
-        <Button
-          onClick={handleTableExportClick}
-          disabled={disableCopyAndExport}
-          color="background-tertiary"
-          c="text-primary"
-          data-testid={setDataTestId('export-table-csv-button')}
-        >
-          <Group gap={2}>Export CSV</Group>
-        </Button>
+
+        <Menu shadow="md" position="bottom-end">
+          <Menu.Target>
+            <Button
+              disabled={disableCopyAndExport}
+              color="background-tertiary"
+              c="text-primary"
+              rightSection={<IconChevronDown size={14} />}
+              data-testid={setDataTestId('export-table-button')}
+            >
+              <Group gap={4}>
+                <IconDownload size={14} />
+                Export
+              </Group>
+            </Button>
+          </Menu.Target>
+
+          <Menu.Dropdown>
+            <Menu.Item
+              onClick={exportTableToCSV}
+              data-testid={setDataTestId('export-table-csv-menu-item')}
+            >
+              CSV
+            </Menu.Item>
+            <Divider />
+            <Menu.Item
+              onClick={openExportOptions}
+              data-testid={setDataTestId('export-table-advanced-menu-item')}
+            >
+              Advanced...
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
       </Group>
+
+      <ExportOptionsModal
+        opened={exportModalOpen}
+        onClose={closeExportOptions}
+        onExport={handleExport}
+        filename={tabName}
+        dataAdapter={dataAdapter}
+      />
     </Group>
   );
 };
