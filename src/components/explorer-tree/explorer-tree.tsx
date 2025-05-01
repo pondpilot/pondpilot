@@ -45,8 +45,7 @@ type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>, ExtraT =
   onDeleteSelected: (ids: Iterable<NTypeToIdTypeMap[keyof NTypeToIdTypeMap]>) => void;
 
   /**
-   * If set, will be used to pass arbitrary extra data that is passed through to TreeNodeComponent
-   * for rendering.
+   * If set to false, the selection state will be cleared.
    */
   hasActiveElement: boolean;
 
