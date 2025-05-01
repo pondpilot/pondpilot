@@ -1,12 +1,13 @@
+import { deleteTab } from '@controllers/tab';
+import { Stack } from '@mantine/core';
 import { useAppStore, useTabTypeMap } from '@store/app-store';
 import { useEffect } from 'react';
-import { Stack } from '@mantine/core';
 import { ErrorBoundary } from 'react-error-boundary';
-import { deleteTab } from '@controllers/tab';
-import { ScriptTabView } from './components/script-tab-view';
-import { FileDataSourceTabView } from './components/file-data-source-tab-view';
-import { useTabCache } from './hooks/use-tab-cache';
+
 import { TabErrorFallback } from './components';
+import { FileDataSourceTabView } from './components/file-data-source-tab-view';
+import { ScriptTabView } from './components/script-tab-view';
+import { useTabCache } from './hooks/use-tab-cache';
 
 const TAB_CACHE_SIZE = 10;
 

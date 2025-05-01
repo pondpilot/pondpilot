@@ -1,16 +1,17 @@
 // Public sql script controller API's
 // By convetion the order should follow CRUD groups!
 
+import { persistDeleteTab } from '@controllers/tab/persist';
+import { deleteTabImpl } from '@controllers/tab/pure';
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
+import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { findUniqueName } from '@utils/helpers';
 import { ensureScript, makeSQLScriptId } from '@utils/sql-script';
-import { persistDeleteTab } from '@controllers/tab/persist';
-import { deleteTabImpl } from '@controllers/tab/pure';
-import { TabId } from '@models/tab';
-import { deleteSqlScriptImpl } from './pure';
+
 import { persistDeleteSqlScript } from './persist';
+import { deleteSqlScriptImpl } from './pure';
 
 /**
  * ------------------------------------------------------------

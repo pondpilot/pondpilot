@@ -1,10 +1,11 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions */
 /* eslint-disable jsx-a11y/click-events-have-key-events */
-import { CellContext, ColumnDef } from '@tanstack/react-table';
-import React from 'react';
-import { setDataTestId } from '@utils/test-id';
 import { DataRow, DBColumn } from '@models/db';
+import { CellContext, ColumnDef } from '@tanstack/react-table';
 import { findUniqueName } from '@utils/helpers';
+import { setDataTestId } from '@utils/test-id';
+import React from 'react';
+
 import { TableMeta } from '../model';
 
 interface GetTableColumnsProps {

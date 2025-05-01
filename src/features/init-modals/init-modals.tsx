@@ -1,4 +1,3 @@
-import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { useAppContext } from '@features/app-context';
 import {
   ONBOARDING_MODAL_OPTIONS,
@@ -6,6 +5,7 @@ import {
 } from '@features/onboarding-modal-content';
 import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { useAppStore } from '@store/app-store';
 
 export const InitModals = () => {

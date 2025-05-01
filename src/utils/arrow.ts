@@ -7,6 +7,7 @@ import {
 } from '@models/db';
 import type { Field, RecordBatch, Table, Vector } from 'apache-arrow';
 import { DataType } from 'apache-arrow';
+
 import { getTableColumnId } from './db';
 
 /**

@@ -1,5 +1,6 @@
-import { importSQLFilesAndCreateScripts } from '@controllers/file-system';
 import { showError } from '@components/app-notifications';
+import { importSQLFilesAndCreateScripts } from '@controllers/file-system';
+
 import { pickFiles } from './file-system';
 
 export const importSQLFiles = async (): Promise<void> => {

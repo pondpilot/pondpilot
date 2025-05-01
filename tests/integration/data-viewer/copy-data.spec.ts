@@ -1,14 +1,15 @@
+import { MAX_PERSISTED_STALE_DATA_ROWS } from '@models/tab';
 import { mergeTests, expect } from '@playwright/test';
 import { getTableColumnId } from '@utils/db';
 import { formatTableData } from '@utils/table';
-import { MAX_PERSISTED_STALE_DATA_ROWS } from '@models/tab';
+
+import { getClipboardContent } from '../../utils';
+import { test as dataViewTest, getDataCellContainer, getHeaderCell } from '../fixtures/data-view';
 import { test as baseTest } from '../fixtures/page';
-import { test as tabTest } from '../fixtures/tab';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as scriptExplorer } from '../fixtures/script-explorer';
-import { test as dataViewTest, getDataCellContainer, getHeaderCell } from '../fixtures/data-view';
+import { test as tabTest } from '../fixtures/tab';
 import { test as testTmpTest } from '../fixtures/test-tmp';
-import { getClipboardContent } from '../../utils';
 
 const test = mergeTests(
   baseTest,

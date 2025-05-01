@@ -1,9 +1,10 @@
 import { expect, mergeTests } from '@playwright/test';
-import { test as baseTest } from '../fixtures/page';
-import { test as scriptExplorerTest } from '../fixtures/script-explorer';
-import { test as scriptEditorTest } from '../fixtures/script-editor';
-import { test as spotlightTest } from '../fixtures/spotlight';
+
 import { getClipboardContent } from '../../utils';
+import { test as baseTest } from '../fixtures/page';
+import { test as scriptEditorTest } from '../fixtures/script-editor';
+import { test as scriptExplorerTest } from '../fixtures/script-explorer';
+import { test as spotlightTest } from '../fixtures/spotlight';
 
 const test = mergeTests(baseTest, scriptExplorerTest, scriptEditorTest, spotlightTest);
 

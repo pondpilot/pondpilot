@@ -1,16 +1,17 @@
 import { DotAnimation } from '@components/dots-animation';
+import { copyTableColumns, exportTableColumnsToCSV } from '@features/tab-view/utils';
 import { TextProps, Group, ActionIcon, Button, Text } from '@mantine/core';
+import { useDebouncedValue } from '@mantine/hooks';
+import { DataAdapterApi } from '@models/data-adapter';
+import { TabId, TabType } from '@models/tab';
+import { useAppStore } from '@store/app-store';
 import { IconX, IconCopy } from '@tabler/icons-react';
+import { getTabName } from '@utils/navigation';
+import { setDataTestId } from '@utils/test-id';
+import { assertNeverValueType } from '@utils/typing';
 import { cn } from '@utils/ui/styles';
 import { useMemo } from 'react';
-import { DataAdapterApi } from '@models/data-adapter';
-import { useDebouncedValue } from '@mantine/hooks';
-import { TabId, TabType } from '@models/tab';
-import { assertNeverValueType } from '@utils/typing';
-import { setDataTestId } from '@utils/test-id';
-import { copyTableColumns, exportTableColumnsToCSV } from '@features/tab-view/utils';
-import { useAppStore } from '@store/app-store';
-import { getTabName } from '@utils/navigation';
+
 import { ColRowCount } from './components/col-row-count';
 
 interface DataViewInfoPaneProps {

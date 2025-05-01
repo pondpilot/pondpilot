@@ -1,6 +1,7 @@
 import { MemoizedBaseTreeNode } from '@components/explorer-tree/components/tree-node';
 import { RenderTreeNodePayload } from '@components/explorer-tree/model';
 import { useDataSourceIdForActiveTab } from '@store/app-store';
+
 import { FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';
 
 export const FileSystemExplorerNode = (

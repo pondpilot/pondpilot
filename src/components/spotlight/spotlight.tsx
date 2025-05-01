@@ -1,5 +1,18 @@
+import { NamedIcon } from '@components/named-icon';
+import { createSQLScript } from '@controllers/sql-script';
+import {
+  getOrCreateTabFromAttachedDBObject,
+  getOrCreateTabFromFlatFileDataSource,
+  getOrCreateTabFromScript,
+} from '@controllers/tab';
+import { ImportScriptModalContent } from '@features/script-import';
+import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { Group, Text } from '@mantine/core';
+import { modals } from '@mantine/modals';
 import { Spotlight } from '@mantine/spotlight';
+import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from '@models/app-urls';
+import { useAppStore } from '@store/app-store';
 import {
   IconDatabase,
   IconCode,
@@ -13,24 +26,14 @@ import {
   IconBooks,
   IconKeyboard,
 } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
-import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { setDataTestId } from '@utils/test-id';
-import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from '@models/app-urls';
-import { modals } from '@mantine/modals';
-import { ImportScriptModalContent } from '@features/script-import';
-import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
-import { useAppStore } from '@store/app-store';
-import { createSQLScript } from '@controllers/sql-script';
-import {
-  getOrCreateTabFromAttachedDBObject,
-  getOrCreateTabFromFlatFileDataSource,
-  getOrCreateTabFromScript,
-} from '@controllers/tab';
-import { NamedIcon } from '@components/named-icon';
-import { getFlatFileDataSourceName } from '@utils/navigation';
 import { importSQLFiles } from '@utils/import-script-file';
+import { getFlatFileDataSourceName } from '@utils/navigation';
+import { setDataTestId } from '@utils/test-id';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+import { SpotlightBreadcrumbs } from './components';
+import { renderActionsGroup } from './components/action';
 import {
   DATA_SOURCE_GROUP_DISPLAY_NAME,
   ICON_CLASSES,
@@ -39,10 +42,8 @@ import {
   SEARCH_PREFIXES,
   SEARCH_SUFFIXES,
 } from './consts';
-import { getSpotlightSearchPlaceholder, filterActions, getSearchTermFromValue } from './utlis';
-import { SpotlightBreadcrumbs } from './components';
 import { Action, SpotlightView } from './model';
-import { renderActionsGroup } from './components/action';
+import { getSpotlightSearchPlaceholder, filterActions, getSearchTermFromValue } from './utlis';
 
 /**
  * Filter list of script actions by search value and

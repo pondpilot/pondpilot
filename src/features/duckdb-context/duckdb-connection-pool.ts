@@ -1,9 +1,10 @@
 import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
-import * as arrow from 'apache-arrow';
 import { toAbortablePromise } from '@utils/abort';
-import { PoolTimeoutError } from './timeout-error';
-import { AsyncDuckDBPooledStreamReader } from './duckdb-pooled-streaming-reader';
+import * as arrow from 'apache-arrow';
+
 import { AsyncDuckDBPooledConnection } from './duckdb-pooled-conection';
+import { AsyncDuckDBPooledStreamReader } from './duckdb-pooled-streaming-reader';
+import { PoolTimeoutError } from './timeout-error';
 
 // Should this be a user setting?
 const GET_CONNECTION_TIMEOUT = 10000; // 10 seconds

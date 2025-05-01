@@ -5,8 +5,9 @@ import { DBColumn } from '@models/db';
 import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, AttachedDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
-import { classifySQLStatement, trimQuery } from './editor/sql';
+
 import { convertArrowTable } from './arrow';
+import { classifySQLStatement, trimQuery } from './editor/sql';
 import { quote } from './helpers';
 
 function getGetSortableReaderApiFromFQN(

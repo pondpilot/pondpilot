@@ -4,6 +4,7 @@
  * Licensed under GNU AGPL v3.0
  */
 import { Decoration, EditorState, EditorView, StateField, Range } from '@uiw/react-codemirror';
+
 import { resolveToNearestStatement } from './statement-parser';
 
 const statementLineHighlight = Decoration.line({

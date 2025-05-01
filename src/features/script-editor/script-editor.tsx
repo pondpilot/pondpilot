@@ -1,19 +1,19 @@
-import { Group, useMantineColorScheme } from '@mantine/core';
-import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
-import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { updateSQLScriptContent } from '@controllers/sql-script';
 import { SqlEditor } from '@features/editor';
 import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
-import { KEY_BINDING } from '@utils/hotkey/key-matcher';
+import { Group, useMantineColorScheme } from '@mantine/core';
+import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
-import { splitSqlQuery } from '@utils/editor/statement-parser';
-import { setDataTestId } from '@utils/test-id';
-
 import { RunScriptMode, ScriptExecutionState, SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
-import { updateSQLScriptContent } from '@controllers/sql-script';
-import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
+import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
+import { splitSqlQuery } from '@utils/editor/statement-parser';
+import { KEY_BINDING } from '@utils/hotkey/key-matcher';
+import { setDataTestId } from '@utils/test-id';
+import { useEffect, useRef, useState, useMemo } from 'react';
+
 import { ScriptEditorDataStatePane } from './components';
+import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
 interface ScriptEditorProps {
   id: SQLScriptId;

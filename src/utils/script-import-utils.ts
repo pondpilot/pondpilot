@@ -1,5 +1,6 @@
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
+
 import { decodeBase64ToScript, SharedScript } from './script-sharing';
 
 /**

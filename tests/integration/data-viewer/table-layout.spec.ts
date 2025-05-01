@@ -1,10 +1,11 @@
 import { expect, mergeTests } from '@playwright/test';
 import { getTableColumnId } from '@utils/db';
-import { test as baseTest } from '../fixtures/page';
-import { test as scriptExplorerTest } from '../fixtures/script-explorer';
-import { test as scriptEditorTest } from '../fixtures/script-editor';
-import { test as dataViewTest, getDataCellContainer, getHeaderCell } from '../fixtures/data-view';
+
 import { COLUMN_NAMES_WITH_SPECIAL_CHARS } from './consts';
+import { test as dataViewTest, getDataCellContainer, getHeaderCell } from '../fixtures/data-view';
+import { test as baseTest } from '../fixtures/page';
+import { test as scriptEditorTest } from '../fixtures/script-editor';
+import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 
 const test = mergeTests(baseTest, scriptExplorerTest, scriptEditorTest, dataViewTest);
 

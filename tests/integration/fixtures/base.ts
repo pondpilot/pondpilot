@@ -1,6 +1,7 @@
-import { test as base } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
+
+import { test as base } from '@playwright/test';
 
 export const test = base.extend<{ forEachTest: void }>({
   forEachTest: [

@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+
 import { test } from './fixtures/base';
 
 // This test directly navigates to the error-test route to verify error handling

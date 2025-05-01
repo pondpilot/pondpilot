@@ -1,11 +1,11 @@
-import { ActionIcon, Box, Button, Divider, Group, Modal, Stack, Text, Title } from '@mantine/core';
-import { setDataTestId } from '@utils/test-id';
-
 import { exportSQLScripts } from '@controllers/export-data';
-import { resetAppState } from '@store/app-store';
+import { ActionIcon, Box, Button, Divider, Group, Modal, Stack, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { resetAppState } from '@store/app-store';
 import { IconX } from '@tabler/icons-react';
+import { setDataTestId } from '@utils/test-id';
 import { useNavigate } from 'react-router-dom';
+
 import { ThemeSwitcher } from './components/theme-switcher';
 
 export const SettingsPage = () => {

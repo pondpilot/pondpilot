@@ -1,6 +1,12 @@
-import { ScrollArea, Group, Skeleton, ActionIcon } from '@mantine/core';
-import { cn } from '@utils/ui/styles';
-import { memo, useEffect, useRef, useState } from 'react';
+import { NamedIcon } from '@components/named-icon';
+import { createSQLScript } from '@controllers/sql-script';
+import {
+  deleteTab,
+  getOrCreateTabFromScript,
+  setActiveTabId,
+  setPreviewTabId,
+  setTabOrder,
+} from '@controllers/tab';
 import {
   DndContext,
   closestCenter,
@@ -10,26 +16,21 @@ import {
   DragEndEvent,
   MouseSensor,
 } from '@dnd-kit/core';
+import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
 import {
   arrayMove,
   horizontalListSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
-import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
+import { ScrollArea, Group, Skeleton, ActionIcon } from '@mantine/core';
+import { TabId } from '@models/tab';
+import { useAppStore, useTabNameMap, useTabIconMap } from '@store/app-store';
 import { IconPlus } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { useAppStore, useTabNameMap, useTabIconMap } from '@store/app-store';
-import { NamedIcon } from '@components/named-icon';
-import { TabId } from '@models/tab';
-import {
-  deleteTab,
-  getOrCreateTabFromScript,
-  setActiveTabId,
-  setPreviewTabId,
-  setTabOrder,
-} from '@controllers/tab';
-import { createSQLScript } from '@controllers/sql-script';
+import { cn } from '@utils/ui/styles';
+import { memo, useEffect, useRef, useState } from 'react';
+
 import { Tab } from './components';
 
 const tabIconProps = {

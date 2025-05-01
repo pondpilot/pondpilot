@@ -1,5 +1,5 @@
-import { NotificationData } from '@mantine/notifications';
 import { showSuccess } from '@components/app-notifications';
+import { NotificationData } from '@mantine/notifications';
 
 interface CopyToClipboardOptions {
   /**

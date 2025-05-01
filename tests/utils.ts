@@ -1,6 +1,7 @@
-import { Page } from '@playwright/test';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import path from 'path';
+
+import { Page } from '@playwright/test';
 
 export type PathInfo = {
   normalizedAsPosix: string;

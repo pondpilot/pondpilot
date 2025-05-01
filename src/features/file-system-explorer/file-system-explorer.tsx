@@ -1,14 +1,6 @@
-import { useShallow } from 'zustand/react/shallow';
-import { memo, useMemo } from 'react';
-import { useAppStore, useFlatFileDataSourceMap } from '@store/app-store';
-import { LocalEntry, LocalEntryId } from '@models/file-system';
-import { AnyFlatFileDataSource, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
-import {
-  getFlatFileDataSourceIcon,
-  getFlatFileDataSourceName,
-  getLocalEntryIcon,
-} from '@utils/navigation';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { ExplorerTree, TreeNodeData } from '@components/explorer-tree';
+import { deleteDataSources } from '@controllers/data-source';
+import { deleteLocalFileOrFolders } from '@controllers/file-system';
 import { createSQLScript } from '@controllers/sql-script';
 import {
   deleteTabByDataSourceId,
@@ -18,13 +10,22 @@ import {
   setActiveTabId,
   setPreviewTabId,
 } from '@controllers/tab';
-import { deleteDataSources } from '@controllers/data-source';
-import { ExplorerTree, TreeNodeData } from '@components/explorer-tree';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
-import { deleteLocalFileOrFolders } from '@controllers/file-system';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { AnyFlatFileDataSource, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
+import { LocalEntry, LocalEntryId } from '@models/file-system';
+import { useAppStore, useFlatFileDataSourceMap } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
-import { FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import {
+  getFlatFileDataSourceIcon,
+  getFlatFileDataSourceName,
+  getLocalEntryIcon,
+} from '@utils/navigation';
+import { memo, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+
 import { FileSystemExplorerNode } from './file-system-explorer-node';
+import { FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';
 
 /**
  * Displays a file system tree for all registered local entities (files & folders)

@@ -1,9 +1,6 @@
-import { memo } from 'react';
-
-import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
-import { SQLScriptId } from '@models/sql-script';
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
+import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import {
   deleteTabByScriptId,
   findTabFromScript,
@@ -11,9 +8,12 @@ import {
   setActiveTabId,
   setPreviewTabId,
 } from '@controllers/tab';
-import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
+import { SQLScriptId } from '@models/sql-script';
+import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
 import { createShareableScriptUrl } from '@utils/script-sharing';
+import { memo } from 'react';
+
 import { ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
 

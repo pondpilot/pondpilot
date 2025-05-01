@@ -1,9 +1,13 @@
-import { memo, useCallback, useState } from 'react';
-import { Allotment } from 'allotment';
-import { ScriptTab, TabId } from '@models/tab';
+import { showError } from '@components/app-notifications';
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { syncFiles } from '@controllers/file-system';
+import { updateScriptTabLastExecutedQuery, updateScriptTabLayout } from '@controllers/tab';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
 import { DataView } from '@features/tab-view/components/data-view';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { ScriptExecutionState } from '@models/sql-script';
+import { ScriptTab, TabId } from '@models/tab';
 import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
 import {
   splitSQLByStats,
@@ -12,12 +16,9 @@ import {
   SQLStatementType,
   SelectableStatements,
 } from '@utils/editor/sql';
-import { updateScriptTabLastExecutedQuery, updateScriptTabLayout } from '@controllers/tab';
-import { ScriptExecutionState } from '@models/sql-script';
-import { showError } from '@components/app-notifications';
-import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { syncFiles } from '@controllers/file-system';
-import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
+import { Allotment } from 'allotment';
+import { memo, useCallback, useState } from 'react';
+
 import { DataViewInfoPane } from './data-view-info-pane';
 import { useDataAdapter } from '../hooks/use-data-adapter';
 

@@ -1,4 +1,5 @@
 import { assertNeverType } from '@utils/typing';
+
 import { NewId } from './new-id';
 
 export type LocalEntryId = NewId<'LocalEntryId'>;

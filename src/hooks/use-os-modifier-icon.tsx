@@ -1,9 +1,9 @@
+import { AltIcon } from '@components/icons/alt-icon';
+import { CtrlArrowIcon } from '@components/icons/ctrl-arrow-icon';
+import { CtrlIcon } from '@components/icons/ctrl-icon';
 import { useOs } from '@mantine/hooks';
 import { IconCommand } from '@tabler/icons-react';
 import { MdKeyboardOptionKey } from 'react-icons/md';
-import { CtrlIcon } from '@components/icons/ctrl-icon';
-import { AltIcon } from '@components/icons/alt-icon';
-import { CtrlArrowIcon } from '@components/icons/ctrl-arrow-icon';
 
 export const useOsModifierIcon = () => {
   const os = useOs();

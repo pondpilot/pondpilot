@@ -5,18 +5,18 @@ import 'allotment/dist/style.css';
 
 import './index.css';
 
-import { MantineProvider } from '@mantine/core';
-import { ModalsProvider } from '@mantine/modals';
-import { Notifications } from '@mantine/notifications';
-
-import { theme } from '@theme/theme';
-import { AppState } from '@features/app-state';
-import { DuckDBConnectionPoolProvider } from '@features/duckdb-context/duckdb-context';
 import { ModifierProvider } from '@components/modifier-context/modifier-context';
 import { AppContextProvider } from '@features/app-context';
-import { useLocalStorage } from '@mantine/hooks';
-import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
+import { AppState } from '@features/app-state';
+import { DuckDBConnectionPoolProvider } from '@features/duckdb-context/duckdb-context';
 import { InitModals } from '@features/init-modals';
+import { MantineProvider } from '@mantine/core';
+import { useLocalStorage } from '@mantine/hooks';
+import { ModalsProvider } from '@mantine/modals';
+import { Notifications } from '@mantine/notifications';
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
+import { theme } from '@theme/theme';
+
 import { Router } from './router/router';
 
 export default function App() {

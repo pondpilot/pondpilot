@@ -1,6 +1,6 @@
-import { useCallback } from 'react';
 import { useMap } from '@mantine/hooks';
 import { TabId } from '@models/tab';
+import { useCallback } from 'react';
 
 /**
  * Hook for implementing an LRU (Least Recently Used) tab cache

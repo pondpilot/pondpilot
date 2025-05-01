@@ -1,20 +1,21 @@
-import { Table } from '@components/table/table';
-import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@models/data-adapter';
-import { useCallback, useRef, useState } from 'react';
-import { setDataTestId } from '@utils/test-id';
-import { Center, Group, Loader, Stack, Text } from '@mantine/core';
-import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
-import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
-import { DBColumn } from '@models/db';
-import { MAX_DATA_VIEW_PAGE_SIZE, TabId, TabType } from '@models/tab';
-import { IconClipboardSmile } from '@tabler/icons-react';
-import { useAppStore } from '@store/app-store';
+import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
+import { Table } from '@components/table/table';
 import {
   updateTabDataViewColumnSizesCache,
   updateTabDataViewDataPageCache,
 } from '@controllers/tab';
+import { Center, Group, Loader, Stack, Text } from '@mantine/core';
+import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
+import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@models/data-adapter';
+import { DBColumn } from '@models/db';
+import { MAX_DATA_VIEW_PAGE_SIZE, TabId, TabType } from '@models/tab';
+import { useAppStore } from '@store/app-store';
+import { IconClipboardSmile } from '@tabler/icons-react';
 import { formatStringsAsMDList } from '@utils/pretty';
+import { setDataTestId } from '@utils/test-id';
+import { useCallback, useRef, useState } from 'react';
+
 import { useColumnSummary } from '../hooks';
 import { copyTableColumns } from '../utils';
 

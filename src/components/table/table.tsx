@@ -1,16 +1,16 @@
-import { useReactTable, getCoreRowModel } from '@tanstack/react-table';
-import { memo, useMemo, useRef } from 'react';
-import { useDidUpdate, useHotkeys } from '@mantine/hooks';
-import { setDataTestId } from '@utils/test-id';
-
-import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema } from '@models/db';
-import { Text } from '@mantine/core';
-import { copyToClipboard } from '@utils/clipboard';
-import { DataTableSlice } from '@models/data-adapter';
 import { ColumnMeta } from '@components/table/model';
-import { useNoResultsPosition, useTableSelection } from './hooks';
+import { Text } from '@mantine/core';
+import { useDidUpdate, useHotkeys } from '@mantine/hooks';
+import { DataTableSlice } from '@models/data-adapter';
+import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema } from '@models/db';
+import { useReactTable, getCoreRowModel } from '@tanstack/react-table';
+import { copyToClipboard } from '@utils/clipboard';
+import { setDataTestId } from '@utils/test-id';
+import { memo, useMemo, useRef } from 'react';
+
 import { MemoizedTableBody, TableBody } from './components/table-body';
 import { TableHeadCell } from './components/thead-cell';
+import { useNoResultsPosition, useTableSelection } from './hooks';
 import { getTableColumns } from './utils';
 
 interface TableProps {

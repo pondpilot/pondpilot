@@ -1,9 +1,9 @@
 import { ContentViewPersistence } from '@models/content-view';
+import { PersistentDataSourceId, AnyDataSource } from '@models/data-source';
+import { LocalEntryId, LocalEntryPersistence } from '@models/file-system';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab, TabId } from '@models/tab';
 import { DBSchema } from 'idb';
-import { LocalEntryId, LocalEntryPersistence } from '@models/file-system';
-import { PersistentDataSourceId, AnyDataSource } from '@models/data-source';
 
 export const APP_DB_NAME = 'app-data';
 export const DB_VERSION = 1;
