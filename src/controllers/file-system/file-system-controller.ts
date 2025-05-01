@@ -56,7 +56,12 @@ export const addLocalFileOrFolders = async (
     dataBaseMetadata,
   } = useAppStore.getState();
 
-  const usedEntryNames = new Set(localEntries.values().map((entry) => entry.uniqueAlias));
+  const usedEntryNames = new Set(
+    localEntries
+      .values()
+      .filter((entry) => entry.kind === 'file' && entry.fileType === 'data-source')
+      .map((entry) => entry.uniqueAlias),
+  );
 
   const errors: string[] = [];
   const newDatabaseNames: string[] = [];
@@ -168,7 +173,9 @@ export const addLocalFileOrFolders = async (
       parentId,
       userAdded,
       (fileName: string): string =>
-        findUniqueName(fileName, (name: string) => usedEntryNames.has(name)),
+        handle.kind === 'file'
+          ? findUniqueName(fileName, (name: string) => usedEntryNames.has(name))
+          : fileName,
     );
 
     if (!localEntry) {
@@ -204,9 +211,6 @@ export const addLocalFileOrFolders = async (
       return;
     }
 
-    // New entry, remember it's unique alias and add it to the store
-    usedEntryNames.add(localEntry.uniqueAlias);
-
     if (isDir) {
       await addDirectory(localEntry);
       // Skip empty folders
@@ -220,6 +224,8 @@ export const addLocalFileOrFolders = async (
     if (isDataSourceFile) {
       await addFile(localEntry);
       newEntries.push([localEntry.id, localEntry]);
+      // Remember it's unique alias
+      usedEntryNames.add(localEntry.uniqueAlias);
     }
   };
 
@@ -273,11 +279,7 @@ export const addLocalFileOrFolders = async (
 
   // If we have an IndexedDB connection, persist the new local entry
   if (iDbConn) {
-    persistAddLocalEntry(
-      iDbConn,
-      newEntries.filter(([_, entry]) => entry.userAdded), // Add only user added entries
-      newDataSources,
-    );
+    persistAddLocalEntry(iDbConn, newEntries, newDataSources);
   }
 
   // Return the new local entry and data source
@@ -510,7 +512,7 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
       }
     }
 
-    // Delete data sources
+    // Delete data sources, this will also delete local file entries
     if (dataSourceIdsToDelete.size > 0) {
       deleteDataSources(conn, Array.from(dataSourceIdsToDelete));
     }

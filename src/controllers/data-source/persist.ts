@@ -10,13 +10,29 @@ import {
   LOCAL_ENTRY_TABLE_NAME,
 } from '@models/persisted-store';
 import { LocalEntryId } from '@models/file-system';
-import { PersistentDataSourceId } from '@models/data-source';
+import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 
 /**
  * ------------------------------------------------------------
  * -------------------------- Create --------------------------
  * ------------------------------------------------------------
  */
+
+export const persistPutDataSources = async (
+  iDb: IDBPDatabase<AppIdbSchema>,
+  dataSources: Iterable<AnyDataSource>,
+) => {
+  const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME], 'readwrite');
+
+  // Replace data sources
+  const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
+  for (const ds of dataSources) {
+    await dataSourceStore.put(ds, ds.id);
+  }
+
+  // Commit the transaction
+  await tx.done;
+};
 
 /**
  * ------------------------------------------------------------
