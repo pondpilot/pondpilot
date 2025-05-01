@@ -52,8 +52,8 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Build
-        run: yarn build
+      - name: Build (with PWA disabled for Docker)
+        run: DOCKER_BUILD=true yarn build
 
       # Build Docker image
       - name: Set up Docker Buildx

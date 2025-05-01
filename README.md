@@ -75,6 +75,8 @@ docker run -d -p 4173:80 --name pondpilot ghcr.io/pondpilot/pondpilot:latest
 
 Visit `http://localhost:4173` in your browser to access the app.
 
+> **Note:** PWA and offline mode is disabled for the Docker version to avoid conflicts with other apps serving on localhost.
+
 #### Using Yarn
 
 Alternatively, you can build & run PondPilot using Yarn:
