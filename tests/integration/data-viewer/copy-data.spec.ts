@@ -64,10 +64,10 @@ test('Should copy cell value', async ({
     // Click the cell to select it
     await cellContainer.click();
 
-    await page.keyboard.press('Meta+c');
+    await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
     // Read the clipboard content
-    const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+    const clipboardContent = await getClipboardContent(page);
 
     // Verify the clipboard content matches the expected value for this cell
     expect(clipboardContent).toBe(expectedValue);
@@ -84,10 +84,10 @@ test('Should copy cell value', async ({
     // Click the cell to select it
     await cellContainer.click();
 
-    await page.keyboard.press('Meta+c');
+    await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
     // Read the clipboard content
-    const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+    const clipboardContent = await getClipboardContent(page);
 
     // Verify null values are copied as NULL for single cell
     expect(clipboardContent).toBe('NULL');
@@ -115,7 +115,7 @@ test('Should copy rows with selection modifiers', async ({
   // PART 1: Copy single row (the first row)
   const row1IndexCell = getDataCellContainer(dataTable, '__index__', 0);
   await row1IndexCell.click();
-  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
   // Read and verify the clipboard content for the first row
   let clipboardContent = await getClipboardContent(page);
@@ -135,7 +135,7 @@ test('Should copy rows with selection modifiers', async ({
   await page.keyboard.up('Shift');
 
   // Copy the selected rows
-  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
   // Read and verify the clipboard content for all three rows
   clipboardContent = await getClipboardContent(page);
@@ -164,7 +164,7 @@ test('Should copy rows with selection modifiers', async ({
   await page.keyboard.up('Meta');
 
   // Copy the selected rows
-  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
   // Read and verify the clipboard content for rows 1 and 3 (not row 2)
   clipboardContent = await getClipboardContent(page);
@@ -183,7 +183,7 @@ test('Should copy rows with selection modifiers', async ({
   await nullRowIndexCell.click();
 
   // Copy the selected row
-  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
   // Read and verify the clipboard content for the null values row
   clipboardContent = await getClipboardContent(page);
@@ -214,7 +214,7 @@ test('Should copy columns with selection modifiers', async ({
   // Get the header cell for the second column (col2)
   const col2HeaderCell = getHeaderCell(dataTable, getTableColumnId('col2', 1));
   await col2HeaderCell.click();
-  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
   // Read and verify the clipboard content for the second column
   let clipboardContent = await getClipboardContent(page);
@@ -234,10 +234,10 @@ test('Should copy columns with selection modifiers', async ({
   await page.keyboard.up('Shift');
 
   // Copy the selected columns
-  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
   // Read and verify the clipboard content for all columns
-  clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+  clipboardContent = await getClipboardContent(page);
 
   // The clipboard should contain all columns with their data
   // Columns are typically copied with headers in the first row,
@@ -267,10 +267,10 @@ test('Should copy columns with selection modifiers', async ({
   await page.keyboard.up('Meta');
 
   // Copy the selected columns
-  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
   // Read and verify the clipboard content for columns 1 and 3 (not 2)
-  clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+  clipboardContent = await getClipboardContent(page);
 
   // The clipboard should contain columns 1 and 3 with their headers, but not 2
   const expectedSelectiveColumnsContent = formatTableData(
@@ -325,7 +325,7 @@ test('Should copy column selection from large table', async ({
   // Get the header cell for the second column (col2)
   const col2HeaderCell = getHeaderCell(dataTable, getTableColumnId('col2', 1));
   await col2HeaderCell.click();
-  await page.keyboard.press('Meta+c');
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
 
   // Read and verify the clipboard content for the second column
   const clipboardContent = await getClipboardContent(page);

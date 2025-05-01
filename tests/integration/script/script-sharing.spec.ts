@@ -3,6 +3,7 @@ import { test as baseTest } from '../fixtures/page';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as spotlightTest } from '../fixtures/spotlight';
+import { getClipboardContent } from '../../utils';
 
 const test = mergeTests(baseTest, scriptExplorerTest, scriptEditorTest, spotlightTest);
 
@@ -26,7 +27,7 @@ test('Script sharing', async ({
   // Trigger the script sharing process
   await clickScriptNodeMenuItemByName('query.sql', 'Share script');
 
-  const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+  const clipboardContent = await getClipboardContent(page);
 
   // Shallow check for the URL in the clipboard content, we do a full content check below
   expect(clipboardContent.includes('/shared-script/')).toBeTruthy();
