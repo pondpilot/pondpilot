@@ -171,8 +171,8 @@ export const useAddLocalFilesOrFolders = () => {
   }, [pool]);
 
   const handleFileDrop = useCallback(
-    async (event: React.DragEvent<HTMLElement>) => {
-      event.preventDefault();
+    async (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
 
       if (!pool) {
         showError({
@@ -182,13 +182,17 @@ export const useAddLocalFilesOrFolders = () => {
         return;
       }
 
-      // Check if the DataTransfer API supports getAsFileSystemHandle
-      if (!event.dataTransfer.items[0]?.getAsFileSystemHandle) {
-        showError({
-          title: 'Browser not supported',
-          message: 'Your browser does not support file system access via drag and drop.',
-        });
-        return;
+      const fileHandlesPromises = [...e.dataTransfer.items].map((item) =>
+        item.getAsFileSystemHandle(),
+      );
+
+      const handles = [];
+
+      for await (const handle of fileHandlesPromises) {
+        if (!handle) {
+          continue;
+        }
+        handles.push(handle as FileSystemFileHandle | FileSystemDirectoryHandle);
       }
 
       const notificationId = showAlert({
@@ -199,40 +203,7 @@ export const useAddLocalFilesOrFolders = () => {
         color: 'text-accent',
       });
 
-      const fileHandles = [];
-
-      for (const item of event.dataTransfer.items) {
-        if (item.kind === 'file') {
-          try {
-            const handle = await item.getAsFileSystemHandle();
-            if (handle.kind === 'file') {
-              fileHandles.push(handle);
-            }
-          } catch (error) {
-            console.error('Ошибка получения FileSystemFileHandle:', error);
-          }
-        }
-      }
-
-      console.log({
-        fileHandles,
-      });
-
       try {
-        // Collect file/directory handles from dropped items
-        const handles: FileSystemFileHandle[] = [];
-
-        for (let i = 0; i < event.dataTransfer.items.length; i += 1) {
-          const item = event.dataTransfer.items[i];
-
-          // Skip non-file items
-          if (item.kind !== 'file') continue;
-          const handle = await item.getAsFileSystemHandle();
-          if (handle?.kind === 'file') {
-            handles.push(handle as FileSystemFileHandle);
-          }
-        }
-
         if (handles.length === 0) {
           notifications.hide(notificationId);
           showAlert({
@@ -240,12 +211,6 @@ export const useAddLocalFilesOrFolders = () => {
             message: 'No supported files or folders were found in the dropped items.',
           });
         }
-
-        console.log({
-          handles,
-          DataTransfer: event.dataTransfer.files.length,
-          event,
-        });
 
         const { skippedExistingEntries, skippedUnsupportedFiles, errors } =
           await addLocalFileOrFolders(pool, handles);
