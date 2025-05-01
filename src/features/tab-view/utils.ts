@@ -42,7 +42,7 @@ export const copyTableColumns = async ({ columns, dataAdapter }: CopyTableColumn
   try {
     const data = await dataAdapter.getAllTableData(columns);
 
-    const formattedRows = getStringifyTypedRows(data, columns);
+    const formattedRows = getStringifyTypedRows(data, columns, '');
     const tsvRowsData = formatTableData(formattedRows, '\t');
     const header = formatTableData([columns.map((c) => c.name)], '\t');
     const tsvContent = `${header}\n${tsvRowsData}`;
@@ -107,7 +107,7 @@ export const exportTableColumnsToCSV = async ({
   try {
     const data = await dataAdapter.getAllTableData(columns);
 
-    const formattedRows = getStringifyTypedRows(data, columns);
+    const formattedRows = getStringifyTypedRows(data, columns, '');
     const csvRows = formatTableData(formattedRows, ',');
     const csvHeader = formatTableData([columns.map((c) => c.name)], ',');
     const csvContent = `${csvHeader}\n${csvRows}`;

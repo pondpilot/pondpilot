@@ -3,6 +3,7 @@ import {
   ColumnSortSpecList,
   DBColumnId,
   DBTableOrViewSchema,
+  FormattedValue,
   NormalizedSQLType,
   SortOrder,
 } from '@models/db';
@@ -35,18 +36,27 @@ export function isNumberType(type: NormalizedSQLType): boolean {
   }
 }
 
+const returnRegularFormattedValue = (formattedValue: string): FormattedValue => ({
+  type: 'regular',
+  formattedValue,
+});
+
 export const stringifyTypedValue = ({
   type,
   value,
 }: {
   type: NormalizedSQLType;
   value: unknown;
-}): string => {
-  const fallback: string = `ERROR: can't convert column value <${value}> to declared type <${type}>`;
+}): FormattedValue => {
+  const fallback: FormattedValue = {
+    type: 'error',
+    formattedValue: `ERROR: can't convert column value <${value}> to declared type <${type}>`,
+  };
+
   try {
     // Early check for null or undefined values
     if (value === null || value === undefined) {
-      return 'NULL';
+      return { type: 'null', formattedValue: 'NULL' };
     }
 
     switch (type) {
@@ -72,7 +82,7 @@ export const stringifyTypedValue = ({
             result += `.${String(date.getUTCMilliseconds()).padStart(3, '0')}`;
           }
 
-          return result;
+          return returnRegularFormattedValue(result);
         }
         return fallback;
       }
@@ -106,14 +116,14 @@ export const stringifyTypedValue = ({
           // Add timezone offset
           result += `${tzSign}${tzHours}`;
 
-          return result;
+          return returnRegularFormattedValue(result);
         }
         return fallback;
       }
       case 'date': {
         if (typeof value === 'number' || value instanceof Date) {
           const date = typeof value === 'number' ? new Date(value) : value;
-          return date.toISOString().split('T')[0];
+          return returnRegularFormattedValue(date.toISOString().split('T')[0]);
         }
         return fallback;
       }
@@ -126,17 +136,19 @@ export const stringifyTypedValue = ({
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             const seconds = totalSeconds % 60;
-            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            return returnRegularFormattedValue(
+              `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
+            );
           }
           // Handle JavaScript timestamp
           const date = new Date(numValue);
-          return date.toISOString().split('T')[1].split('.')[0];
+          return returnRegularFormattedValue(date.toISOString().split('T')[1].split('.')[0]);
         }
         if (value instanceof Date) {
-          return value.toISOString().split('T')[1].split('.')[0];
+          return returnRegularFormattedValue(value.toISOString().split('T')[1].split('.')[0]);
         }
         if (typeof value === 'string' && /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(value)) {
-          return value;
+          return returnRegularFormattedValue(value);
         }
         return fallback;
       }
@@ -146,53 +158,53 @@ export const stringifyTypedValue = ({
             typeof value === 'number' || typeof value === 'bigint'
               ? new Date(Number(value))
               : value;
-          return `${date.toISOString().split('T')[1]} UTC`;
+          return returnRegularFormattedValue(`${date.toISOString().split('T')[1]} UTC`);
         }
         if (typeof value === 'string') {
-          return value;
+          return returnRegularFormattedValue(value);
         }
         return fallback;
       }
       case 'interval': {
-        return 'Interval not supported by duckdb-wasm yet';
+        return { type: 'error', formattedValue: 'Interval display not supported yet' };
       }
       case 'string': {
-        return typeof value === 'string' ? value : String(value);
+        return returnRegularFormattedValue(typeof value === 'string' ? value : String(value));
       }
       case 'bigint': {
         if (typeof value === 'bigint') {
-          return value.toLocaleString();
+          return returnRegularFormattedValue(value.toLocaleString());
         }
         if (typeof value === 'number') {
-          return BigInt(Math.round(value)).toLocaleString();
+          return returnRegularFormattedValue(BigInt(Math.round(value)).toLocaleString());
         }
         if (typeof value === 'string' && /^-?\d+$/.test(value)) {
-          return value;
+          return returnRegularFormattedValue(value);
         }
         return fallback;
       }
       case 'boolean': {
-        return typeof value === 'boolean' ? String(value) : fallback;
+        return typeof value === 'boolean' ? returnRegularFormattedValue(String(value)) : fallback;
       }
       case 'float':
       case 'decimal': {
         if (typeof value === 'number') {
-          return value.toLocaleString();
+          return returnRegularFormattedValue(value.toLocaleString());
         }
         if (typeof value === 'string' && !Number.isNaN(parseFloat(value))) {
-          return value;
+          return returnRegularFormattedValue(value);
         }
         return fallback;
       }
       case 'integer': {
         if (typeof value === 'number') {
-          return Math.round(value).toLocaleString();
+          return returnRegularFormattedValue(Math.round(value).toLocaleString());
         }
         if (typeof value === 'string' && /^-?\d+$/.test(value)) {
-          return value;
+          return returnRegularFormattedValue(value);
         }
         if (typeof value === 'bigint') {
-          return value.toLocaleString();
+          return returnRegularFormattedValue(value.toLocaleString());
         }
         return fallback;
       }
@@ -209,15 +221,15 @@ export const stringifyTypedValue = ({
               if (typeof TextDecoder !== 'undefined') {
                 const bytesArray = value instanceof Uint8Array ? value : new Uint8Array(bytes);
                 const decoder = new TextDecoder('utf-8', { fatal: true });
-                return decoder.decode(bytesArray);
+                return returnRegularFormattedValue(decoder.decode(bytesArray));
               }
 
-              return hexRepr;
+              return returnRegularFormattedValue(hexRepr);
             } catch (decodeError) {
-              return hexRepr;
+              return returnRegularFormattedValue(hexRepr);
             }
           } catch (e) {
-            return JSON.stringify(value);
+            return returnRegularFormattedValue(JSON.stringify(value));
           }
         }
         return fallback;
@@ -225,15 +237,17 @@ export const stringifyTypedValue = ({
       case 'bitstring': {
         // Display bits as a sequence of 0 and 1
         if (typeof value === 'string') {
-          return value;
+          return returnRegularFormattedValue(value);
         }
         if (value instanceof Uint8Array || Array.isArray(value)) {
           try {
-            return Array.from(value)
-              .map((byte) => byte.toString(2).padStart(8, '0'))
-              .join(' ');
+            return returnRegularFormattedValue(
+              Array.from(value)
+                .map((byte) => byte.toString(2).padStart(8, '0'))
+                .join(' '),
+            );
           } catch (e) {
-            return JSON.stringify(value);
+            return returnRegularFormattedValue(JSON.stringify(value));
           }
         }
         return fallback;
@@ -241,7 +255,9 @@ export const stringifyTypedValue = ({
       case 'array':
       case 'object':
       case 'other': {
-        return JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toLocaleString() : v));
+        return returnRegularFormattedValue(
+          JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toLocaleString() : v)),
+        );
       }
       default:
         // eslint-disable-next-line no-case-declarations
@@ -250,7 +266,7 @@ export const stringifyTypedValue = ({
     }
   } catch (error) {
     console.error('Error in stringifyTypedValue', error);
-    return "ERROR: Can't display value";
+    return { type: 'error', formattedValue: "ERROR: Can't display value" };
   }
 };
 

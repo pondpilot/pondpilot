@@ -149,7 +149,7 @@ test('Display all major data types and nulls', async ({
         // bitstrings come as binary from arrow. Util we fetch types using metadata
         // query, we rely on arrow types, so this will show as hex
         '\\x04\\xF5',
-        'Interval not supported by duckdb-wasm yet',
+        'Interval display not supported yet',
         '123.456',
         '550e8400-e29b-41d4-a716-446655440000',
         '{"x":1,"y":2}',

@@ -24,6 +24,12 @@ export type NormalizedSQLType =
   | 'object'
   | 'other';
 
+export type FormattedValueType = 'regular' | 'null' | 'error';
+export type FormattedValue = {
+  type: FormattedValueType;
+  formattedValue: string;
+};
+
 export type SortOrder = 'asc' | 'desc' | null;
 
 export type ColumnSortSpec = {

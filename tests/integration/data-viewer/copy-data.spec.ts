@@ -26,6 +26,8 @@ const TEST_DATA_SQL = `
       select 'row2 val1' as col1, 'row2 val2' as col2, 'row2 val3' as col3
       union all
       select 'row3 val1' as col1, 'row3 val2' as col2, 'row3 val3' as col3
+      union all
+      select null as col1, null as col2, null as col3
       `;
 
 test('Should copy cell value', async ({
@@ -69,6 +71,26 @@ test('Should copy cell value', async ({
 
     // Verify the clipboard content matches the expected value for this cell
     expect(clipboardContent).toBe(expectedValue);
+  }
+
+  // Test copying null values (should be empty strings)
+  for (let colIndex = 0; colIndex < expectedData.columnNames.length; colIndex += 1) {
+    const columnName = expectedData.columnNames[colIndex];
+    const columnId = getTableColumnId(columnName, colIndex);
+
+    // Get the cell container for the null row (index 3)
+    const cellContainer = getDataCellContainer(dataTable, columnId, 3);
+
+    // Click the cell to select it
+    await cellContainer.click();
+
+    await page.keyboard.press('Meta+c');
+
+    // Read the clipboard content
+    const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+
+    // Verify null values are copied as NULL for single cell
+    expect(clipboardContent).toBe('NULL');
   }
 });
 
@@ -152,6 +174,22 @@ test('Should copy rows with selection modifiers', async ({
     'row1 val1\trow1 val2\trow1 val3\nrow3 val1\trow3 val2\trow3 val3';
 
   expect(clipboardContent).toBe(expectedSelectiveContent);
+
+  // PART 4: Test copying null values row
+  await page.keyboard.press('Escape');
+
+  // Click the null values row index cell
+  const nullRowIndexCell = getDataCellContainer(dataTable, '__index__', 3);
+  await nullRowIndexCell.click();
+
+  // Copy the selected row
+  await page.keyboard.press('Meta+c');
+
+  // Read and verify the clipboard content for the null values row
+  clipboardContent = await getClipboardContent(page);
+
+  // The clipboard should contain empty strings for null values
+  expect(clipboardContent).toBe('\t\t');
 });
 
 test('Should copy columns with selection modifiers', async ({
@@ -182,7 +220,7 @@ test('Should copy columns with selection modifiers', async ({
   let clipboardContent = await getClipboardContent(page);
 
   // For column copy, we should get the column header followed by values vertically
-  expect(clipboardContent).toBe('col2\nrow1 val2\nrow2 val2\nrow3 val2');
+  expect(clipboardContent).toBe('col2\nrow1 val2\nrow2 val2\nrow3 val2\n');
 
   // PART 2: Test multi-select of columns with shift key
   // Click the first column header
@@ -210,6 +248,7 @@ test('Should copy columns with selection modifiers', async ({
       ['row1 val1', 'row1 val2', 'row1 val3'],
       ['row2 val1', 'row2 val2', 'row2 val3'],
       ['row3 val1', 'row3 val2', 'row3 val3'],
+      ['', '', ''], // Null row values should be empty strings
     ],
     '\t',
   );
@@ -240,6 +279,7 @@ test('Should copy columns with selection modifiers', async ({
       ['row1 val1', 'row1 val3'],
       ['row2 val1', 'row2 val3'],
       ['row3 val1', 'row3 val3'],
+      ['', ''], // Null row values should be empty strings
     ],
     '\t',
   );
@@ -334,6 +374,7 @@ test('Should copy entire table when using copy table button', async ({
       ['row1 val1', 'row1 val2', 'row1 val3'],
       ['row2 val1', 'row2 val2', 'row2 val3'],
       ['row3 val1', 'row3 val2', 'row3 val3'],
+      ['', '', ''], // Null row values should be empty strings
     ],
     '\t',
   );

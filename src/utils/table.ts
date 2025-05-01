@@ -6,19 +6,25 @@ type FormattedRow = string[];
 
 /**
  * Formats row data based on column SQL types
- *
  * @param {Record<string, any>[]} data - Array of data objects with key-value pairs
  * @param {DBColumn[]} columns - Database column definitions
+ * @param {string} nullRepr - Representation for null values
  * @returns {string[][]} Array of formatted row values
  */
-export const getStringifyTypedRows = (data: DataTable, columns: DBColumn[]): FormattedRow[] =>
+export const getStringifyTypedRows = (
+  data: DataTable,
+  columns: DBColumn[],
+  nullRepr: string,
+): FormattedRow[] =>
   data.map((row) =>
-    columns.map((col) =>
-      stringifyTypedValue({
+    columns.map((col) => {
+      const { type, formattedValue } = stringifyTypedValue({
         value: row[col.id],
         type: col.sqlType,
-      }),
-    ),
+      });
+
+      return type === 'null' ? nullRepr : formattedValue;
+    }),
   );
 
 /**

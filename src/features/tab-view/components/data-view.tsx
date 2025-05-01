@@ -182,7 +182,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   /**
    * Handle copy selected columns
    */
-  const handlecopyTableColumns = useCallback(
+  const handleCopyTableColumns = useCallback(
     (selectedCols: DBColumn[]) => {
       return copyTableColumns({ columns: selectedCols, dataAdapter });
     },
@@ -304,7 +304,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
               onSort={dataAdapter.disableSort ? undefined : handleSortAndGetNewReader}
               onRowSelectChange={resetColumnAggregate}
               onCellSelectChange={resetColumnAggregate}
-              onSelectedColsCopy={hasDataSourceError ? undefined : handlecopyTableColumns}
+              onSelectedColsCopy={hasDataSourceError ? undefined : handleCopyTableColumns}
               onColumnResizeChange={onColumnResizeChange}
             />
           </div>

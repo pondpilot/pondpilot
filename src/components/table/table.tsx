@@ -123,8 +123,8 @@ export const Table = memo(
         'mod+C',
         () => {
           if (!visible) return;
-          if (selectedCell.value) {
-            copyToClipboard(selectedCell.value, {
+          if (selectedCell.formattedValue) {
+            copyToClipboard(selectedCell.formattedValue.formattedValue, {
               showNotification: true,
               notificationTitle: 'Selected cell copied to clipboard',
             });

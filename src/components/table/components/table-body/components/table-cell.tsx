@@ -36,7 +36,7 @@ export const TableRegularCell = memo(
     const colIndex = cell.column.getIndex();
     const columnMeta = cell.column.columnDef.meta as ColumnMeta | undefined;
     const columnValueSqlType = columnMeta?.type || 'other';
-    const formattedValue = stringifyTypedValue({
+    const { type: fValueType, formattedValue } = stringifyTypedValue({
       type: columnValueSqlType,
       value: cell.getValue(),
     });
@@ -70,6 +70,8 @@ export const TableRegularCell = memo(
           className={cn(
             'text-sm p-2 overflow-hidden text-ellipsis whitespace-nowrap',
             isNumberType(columnValueSqlType) && 'justify-end font-mono flex w-full',
+            fValueType !== 'regular' &&
+              'italic text-textSecondary-light dark:text-textSecondary-dark',
           )}
           onClick={(e) =>
             e.shiftKey &&

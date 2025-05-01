@@ -1,7 +1,7 @@
 import { Cell, CellContext, Table } from '@tanstack/react-table';
 import { useCallback, useState } from 'react';
 import { useDidUpdate } from '@mantine/hooks';
-import { DataRow, DBColumn, DBTableOrViewSchema } from '@models/db';
+import { DataRow, DBColumn, DBTableOrViewSchema, FormattedValue } from '@models/db';
 import { stringifyTypedValue } from '@utils/db';
 import { formatTableData } from '@utils/table';
 import { copyToClipboard } from '@utils/clipboard';
@@ -9,7 +9,8 @@ import { ColumnMeta } from '../model';
 
 interface SelectedCell {
   cellId: string | null;
-  value: any;
+  rawValue: any;
+  formattedValue: FormattedValue | null;
 }
 
 interface UseTableSelectionProps {
@@ -31,13 +32,14 @@ export const useTableSelection = ({
   const [selectedCols, setSelectedCols] = useState<Record<string, boolean>>({});
   const [selectedCell, setSelectedCell] = useState<SelectedCell>({
     cellId: null,
-    value: null,
+    rawValue: null,
+    formattedValue: null,
   });
 
   const clearSelection = useCallback(() => {
     setSelectedRows({});
     setSelectedCols({});
-    setSelectedCell({ cellId: null, value: null });
+    setSelectedCell({ cellId: null, rawValue: null, formattedValue: null });
     setLastSelectedColumn(null);
     setLastSelectedRow('0');
     onColumnSelectChange(null);
@@ -51,11 +53,12 @@ export const useTableSelection = ({
     onCellSelectChange();
 
     const { type } = cell.column.columnDef.meta as ColumnMeta;
-    const value = stringifyTypedValue({
+    const value = cell.getValue();
+    const formattedValue = stringifyTypedValue({
       type,
-      value: cell.getValue(),
+      value,
     });
-    setSelectedCell({ cellId: cell.id, value });
+    setSelectedCell({ cellId: cell.id, rawValue: value, formattedValue });
   }, []);
 
   const handleCopySelectedRows = useCallback(
@@ -69,7 +72,12 @@ export const useTableSelection = ({
         const rowData = cells.map((cell) => {
           const { type } = cell.column.columnDef.meta as ColumnMeta;
           const rawValue = cell.getValue();
-          return stringifyTypedValue({ type, value: rawValue });
+          const { type: fValueType, formattedValue } = stringifyTypedValue({
+            type,
+            value: rawValue,
+          });
+
+          return fValueType === 'null' ? '' : formattedValue;
         });
 
         return rowData;
@@ -89,7 +97,7 @@ export const useTableSelection = ({
     (cell: CellContext<DataRow, any>, e: React.MouseEvent<Element, MouseEvent>) => {
       onRowSelectChange();
       setSelectedCols({});
-      setSelectedCell({ cellId: null, value: null });
+      setSelectedCell({ cellId: null, rawValue: null, formattedValue: null });
       const rowId = cell.row.id;
       const isSelectRange = e.shiftKey;
       const multiple = e.ctrlKey || e.metaKey;
@@ -132,7 +140,7 @@ export const useTableSelection = ({
 
   const handleHeadCellClick = useCallback(
     (columnId: string, e: React.MouseEvent<Element, MouseEvent>) => {
-      setSelectedCell({ cellId: null, value: null });
+      setSelectedCell({ cellId: null, rawValue: null, formattedValue: null });
       setSelectedRows({});
 
       const isSelectRange = e.shiftKey;
