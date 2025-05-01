@@ -14,6 +14,7 @@ import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duc
 import { PersistentDataSourceId } from '@models/data-source';
 import { DBColumn, DBSchema, DBTableOrView, DBTableOrViewSchema } from '@models/db';
 import {
+  useAppStore,
   useAttachedDBDataSourceMap,
   useAttachedDBLocalEntriesMap,
   useAttachedDBMetadata,
@@ -21,7 +22,7 @@ import {
 import { copyToClipboard } from '@utils/clipboard';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { getAttachedDBDataSourceName } from '@utils/navigation';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 
 import { DbExplorerNode } from './db-explorer-node';
 import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
@@ -277,6 +278,8 @@ export const DbExplorer = memo(() => {
   /**
    * Store access
    */
+  const activeTabId = useAppStore.use.activeTabId();
+  const tabs = useAppStore.use.tabs();
   const attachedDBMap = useAttachedDBDataSourceMap();
   const attachedDBLocalEntriesMap = useAttachedDBLocalEntriesMap();
   const dataBaseMetadata = useAttachedDBMetadata();
@@ -379,6 +382,11 @@ export const DbExplorer = memo(() => {
     deleteDataSources(conn, dbIds);
   };
 
+  const hasActiveElement = useMemo(() => {
+    const activeTab = activeTabId && tabs.get(activeTabId);
+    return activeTab?.type === 'data-source' && activeTab?.dataSourceType === 'db';
+  }, [activeTabId, tabs]);
+
   return (
     <ExplorerTree<DBExplorerNodeTypeToIdTypeMap, DBExplorerNodeExtraType>
       nodes={dbObjectsTree}
@@ -387,6 +395,7 @@ export const DbExplorer = memo(() => {
       dataTestIdPrefix="db-explorer"
       TreeNodeComponent={DbExplorerNode}
       onDeleteSelected={handleDeleteSelected}
+      hasActiveElement={hasActiveElement}
     />
   );
 });

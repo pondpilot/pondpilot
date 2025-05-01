@@ -50,7 +50,7 @@ type FileSystemExplorerFixtures = {
   createScriptFromFileExplorer: (fileName: string) => Promise<void>;
 };
 
-const FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX = 'file-system-explorer';
+export const FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX = 'file-system-explorer';
 
 export const test = base.extend<FileSystemExplorerFixtures>({
   fileSystemExplorer: async ({ page }, use) => {
