@@ -1,7 +1,4 @@
-import * as XLSX from 'xlsx';
 import { DataAdapterApi } from '@models/data-adapter';
-import { escapeCSVField, quote } from '@utils/helpers';
-import { stringifyTypedValue } from '@utils/db';
 import {
   BaseExportOptions,
   DelimitedTextExportOptions,
@@ -12,6 +9,9 @@ import {
   XmlExportOptions,
   sqlTypeMap,
 } from '@models/export-options';
+import { quote } from '@utils/helpers';
+import { formatTableData, getStringifyTypedRows } from '@utils/table';
+import * as XLSX from 'xlsx';
 
 /**
  * Sanitizes a string to be safe for use in a filename
@@ -59,44 +59,23 @@ export async function exportAsDelimitedText(
   const data = await dataAdapter.getAllTableData(null);
   const columns = dataAdapter.currentSchema;
 
-  const rows = data.map((row) =>
-    Object.values(row)
-      .map((value, index) => {
-        let stringValue = stringifyTypedValue({
-          value,
-          type: columns[index]?.sqlType || 'other',
-        });
+  // Format data rows using the utility from table.ts
+  // Using empty string as nullRepr to convert NULL values to empty strings
+  const formattedRows = getStringifyTypedRows(data, columns, '');
 
-        // Sanitize value to prevent formula injection in Excel/CSV files
-        stringValue = sanitizeForExcel(stringValue);
+  // Sanitize values to prevent formula injection
+  const sanitizedRows = formattedRows.map((row) => row.map((value) => sanitizeForExcel(value)));
 
-        if (options.delimiter === ',' && options.quoteChar === '"') {
-          return escapeCSVField(stringValue);
-        }
-
-        if (
-          stringValue.includes(options.delimiter) ||
-          stringValue.includes(options.quoteChar) ||
-          stringValue.includes('\n')
-        ) {
-          const escaped = stringValue.replace(
-            new RegExp(options.quoteChar, 'g'),
-            options.escapeChar + options.quoteChar,
-          );
-          return options.quoteChar + escaped + options.quoteChar;
-        }
-
-        return stringValue;
-      })
-      .join(options.delimiter),
-  );
+  // Format the data rows with the appropriate delimiter
+  const dataContent = formatTableData(sanitizedRows, options.delimiter as ',' | '\t');
 
   let content = '';
 
   if (options.includeHeader) {
-    const headers = columns
+    const headerRow = columns
       .map((col) => {
         const headerText = col.name;
+        // Handle special characters in header
         if (
           headerText.includes(options.delimiter) ||
           headerText.includes(options.quoteChar) ||
@@ -112,9 +91,9 @@ export async function exportAsDelimitedText(
       })
       .join(options.delimiter);
 
-    content = `${headers}\n${rows.join('\n')}`;
+    content = `${headerRow}\n${dataContent}`;
   } else {
-    content = rows.join('\n');
+    content = dataContent;
   }
 
   downloadFile(content, fileName, 'text/plain;charset=utf-8');
@@ -135,7 +114,7 @@ export async function exportAsXlsx(
 
   data.forEach((row) => {
     const rowData = columns.map((col) => {
-      const value = row[col.name];
+      const value = row[col.id]; // Use col.id instead of col.name
       if (value === null || value === undefined) {
         return '';
       }
@@ -204,7 +183,7 @@ export async function exportAsSql(
 
     const valueRows = batch.map((row) => {
       const values = columns.map((col) => {
-        const value = row[col.name];
+        const value = row[col.id];
 
         if (value === null || value === undefined) {
           return 'NULL';
@@ -251,7 +230,7 @@ export async function exportAsXml(
     xmlContent += `  <${options.rowElement}>\n`;
 
     columns.forEach((col) => {
-      const value = row[col.name];
+      const value = row[col.id];
       if (value !== null && value !== undefined) {
         const columnName = col.name.replace(/[^a-zA-Z0-9_]/g, '_');
         const escapedValue = String(value)
@@ -287,62 +266,49 @@ export async function exportAsMarkdown(
   const data = await dataAdapter.getAllTableData(null);
   const columns = dataAdapter.currentSchema;
 
+  // Format data rows using the utility from table.ts
+  // Using empty string as nullRepr to convert NULL values to empty strings
+  const formattedRows = getStringifyTypedRows(data, columns, '');
+
   let mdContent = '';
 
   // Find the maximum width for each column if alignment is enabled
   const colWidths: number[] = [];
 
   if (options.alignColumns) {
+    // Calculate column widths
     columns.forEach((col, colIndex) => {
       let maxWidth = col.name.length;
 
-      data.forEach((row) => {
-        const value = stringifyTypedValue({
-          value: row[col.name],
-          type: col.sqlType,
-        });
-        maxWidth = Math.max(maxWidth, value.length);
+      formattedRows.forEach((row) => {
+        maxWidth = Math.max(maxWidth, row[colIndex].length);
       });
 
       colWidths[colIndex] = maxWidth;
     });
   }
 
+  // Add header row if needed
   if (options.includeHeader) {
     if (options.alignColumns) {
       mdContent += `| ${columns
         .map((col, i) => col.name.padEnd(colWidths[i], ' '))
         .join(' | ')} |\n`;
 
-      if (options.format === 'github') {
-        mdContent += `| ${columns.map((_, i) => '-'.repeat(colWidths[i])).join(' | ')} |\n`;
-      } else {
-        mdContent += `| ${columns.map((_, i) => '-'.repeat(colWidths[i])).join(' | ')} |\n`;
-      }
+      // Add separator row
+      mdContent += `| ${columns.map((_, i) => '-'.repeat(colWidths[i])).join(' | ')} |\n`;
     } else {
       mdContent += `| ${columns.map((col) => col.name).join(' | ')} |\n`;
       mdContent += `| ${columns.map(() => '---').join(' | ')} |\n`;
     }
   }
 
-  data.forEach((row) => {
+  // Add data rows
+  formattedRows.forEach((row) => {
     if (options.alignColumns) {
-      mdContent += `| ${columns
-        .map((col, i) => {
-          const value = stringifyTypedValue({
-            value: row[col.name],
-            type: col.sqlType,
-          });
-          return value.padEnd(colWidths[i], ' ');
-        })
-        .join(' | ')} |\n`;
+      mdContent += `| ${row.map((value, i) => value.padEnd(colWidths[i], ' ')).join(' | ')} |\n`;
     } else {
-      mdContent += `| ${columns
-        .map((col) => {
-          const value = row[col.name];
-          return value !== null && value !== undefined ? String(value) : '';
-        })
-        .join(' | ')} |\n`;
+      mdContent += `| ${row.join(' | ')} |\n`;
     }
   });
 
