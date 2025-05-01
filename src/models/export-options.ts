@@ -64,15 +64,20 @@ export type ExportOptions =
   | XmlExportOptions;
 
 export const sqlTypeMap: Record<NormalizedSQLType, string> = {
-  number: 'DOUBLE',
+  float: 'DOUBLE',
+  decimal: 'DECIMAL',
   integer: 'INTEGER',
   bigint: 'BIGINT',
   boolean: 'BOOLEAN',
   date: 'DATE',
   timestamp: 'TIMESTAMP',
+  timestamptz: 'TIMESTAMP WITH TIME ZONE',
   time: 'TIME',
+  timetz: 'TIME WITH TIME ZONE',
+  interval: 'INTERVAL',
   string: 'VARCHAR',
   bytes: 'BLOB',
+  bitstring: 'BIT',
   array: 'LIST',
   object: 'JSON',
   other: 'VARCHAR',

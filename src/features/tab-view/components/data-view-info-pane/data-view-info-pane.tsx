@@ -1,16 +1,16 @@
 import { DotAnimation } from '@components/dots-animation';
+import { ExportOptionsModal } from '@components/export-options-modal';
+import { useTableExport } from '@features/tab-view/hooks';
 import { TextProps, Group, ActionIcon, Button, Text, Menu, Divider } from '@mantine/core';
+import { useDebouncedValue } from '@mantine/hooks';
+import { DataAdapterApi } from '@models/data-adapter';
+import { TabId, TabType } from '@models/tab';
 import { IconX, IconCopy, IconDownload, IconChevronDown } from '@tabler/icons-react';
+import { setDataTestId } from '@utils/test-id';
+import { assertNeverValueType } from '@utils/typing';
 import { cn } from '@utils/ui/styles';
 import { useMemo } from 'react';
-import { useTableExport } from '@features/tab-view/hooks';
-import { DataAdapterApi } from '@models/data-adapter';
-import { useDebouncedValue } from '@mantine/hooks';
-import { TabId, TabType } from '@models/tab';
-import { useAppStore } from '@store/app-store';
-import { assertNeverValueType } from '@utils/typing';
-import { setDataTestId } from '@utils/test-id';
-import { ExportOptionsModal } from '@components/export-options-modal';
+
 import { ColRowCount } from './components/col-row-count';
 
 interface DataViewInfoPaneProps {
@@ -53,7 +53,6 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
   // data present, we show a big overlay with cancel button
   const showCancelButton = (isFetching || isSorting) && hasData && !hasDataSourceError;
   const disableCopyAndExport = !hasData || hasDataSourceError;
-
 
   /**
    * Memoized status message

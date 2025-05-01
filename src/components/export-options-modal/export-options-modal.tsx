@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { showError } from '@components/app-notifications';
+import { ExportResult } from '@features/tab-view/hooks/use-table-export';
 import {
   Modal,
   Button,
@@ -14,7 +15,7 @@ import {
   ActionIcon,
   Alert,
 } from '@mantine/core';
-import { IconX, IconAlertTriangle } from '@tabler/icons-react';
+import { DataAdapterApi } from '@models/data-adapter';
 import {
   BaseExportOptions,
   DelimitedTextExportOptions,
@@ -24,10 +25,9 @@ import {
   XlsxExportOptions,
   XmlExportOptions,
 } from '@models/export-options';
-import { showError } from '@components/app-notifications';
+import { IconX, IconAlertTriangle } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { DataAdapterApi } from '@models/data-adapter';
-import { ExportResult } from '@features/tab-view/hooks/use-table-export';
+import { useState, useRef, useEffect } from 'react';
 
 interface ExportOptionsModalProps {
   opened: boolean;

@@ -1,17 +1,17 @@
-import { useCallback, useState } from 'react';
-import { CancelledOperation, DataAdapterApi } from '@models/data-adapter';
 import { showError, showSuccess, showWarning } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
-import { copyToClipboard } from '@utils/clipboard';
-import { TabId } from '@models/tab';
-import { useAppStore } from '@store/app-store';
+import { CancelledOperation, DataAdapterApi } from '@models/data-adapter';
 import {
   BaseExportOptions,
   DelimitedTextExportOptions,
   ExportFormat,
 } from '@models/export-options';
+import { TabId } from '@models/tab';
+import { useAppStore } from '@store/app-store';
+import { copyToClipboard } from '@utils/clipboard';
 import { createExportFileName, exportData } from '@utils/export-data';
 import { getTabNameFromStore } from '@utils/tab-utils';
+import { useCallback, useState } from 'react';
 
 export type ExportError = {
   type: 'cancelled' | 'export_error';
@@ -45,7 +45,7 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
       const columns = dataAdapter.currentSchema;
 
       const headers = columns.map((col) => col.name).join('\t');
-      const rows = data.map((row) => columns.map((col) => row[col.name] ?? '').join('\t'));
+      const rows = data.map((row) => columns.map((col) => row[col.id] ?? '').join('\t'));
       const tableText = [headers, ...rows].join('\n');
 
       await copyToClipboard(tableText);
