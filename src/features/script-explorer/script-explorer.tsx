@@ -12,7 +12,7 @@ import { SQLScriptId } from '@models/sql-script';
 import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
 import { createShareableScriptUrl } from '@utils/script-sharing';
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 
 import { ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
@@ -70,8 +70,11 @@ export const ScriptExplorer = memo(() => {
    * Global state
    */
   const sqlScripts = useSqlScriptNameMap();
-  const activeTabId = useAppStore.use.activeTabId();
-  const tabs = useAppStore.use.tabs();
+
+  const hasActiveElement = useAppStore((state) => {
+    const activeTab = state.activeTabId && state.tabs.get(state.activeTabId);
+    return activeTab?.type === 'script';
+  });
 
   /**
    * Consts
@@ -132,11 +135,6 @@ export const ScriptExplorer = memo(() => {
       // no children
     }),
   );
-
-  const hasActiveElement = useMemo(() => {
-    const activeTab = activeTabId && tabs.get(activeTabId);
-    return activeTab?.type === 'script';
-  }, [activeTabId, tabs]);
 
   return (
     <ExplorerTree<ScrtiptNodeTypeToIdTypeMap>

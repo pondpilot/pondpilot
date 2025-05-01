@@ -43,8 +43,10 @@ export const FileSystemExplorer = memo(() => {
 
   // Read only necessary sources
   const flatFileSources = useFlatFileDataSourceMap();
-  const activeTabId = useAppStore.use.activeTabId();
-  const tabs = useAppStore.use.tabs();
+  const hasActiveElement = useAppStore((state) => {
+    const activeTab = state.activeTabId && state.tabs.get(state.activeTabId);
+    return activeTab?.type === 'data-source' && activeTab.dataSourceType === 'file';
+  });
 
   // Create a map of all flat file sources by their related file ID
   const dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource> = new Map(
@@ -405,11 +407,6 @@ export const FileSystemExplorer = memo(() => {
       deleteLocalFileOrFolders(conn, folders);
     }
   };
-
-  const hasActiveElement = useMemo(() => {
-    const activeTab = activeTabId && tabs.get(activeTabId);
-    return activeTab?.type === 'data-source' && activeTab.dataSourceType === 'file';
-  }, [activeTabId, tabs]);
 
   return (
     <ExplorerTree<FSExplorerNodeTypeToIdTypeMap, FSExplorerNodeExtraType>
