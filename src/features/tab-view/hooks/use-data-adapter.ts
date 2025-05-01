@@ -178,6 +178,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   );
 
   const [isFetchingData, setIsFetchingData] = useState(false);
+  const [isCreatingReader, setIsCreatingReader] = useState(false);
 
   /**
    * Local Non-reactive State
@@ -219,7 +220,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     }
 
     return buildErrors;
-  }, [queries]);
+  }, [queries, tab.id]);
 
   const dataSourceError = [...dataQueriesBuildError, ...dataSourceReadError];
 
@@ -234,7 +235,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
   /**
    * -------------------------------------------------------------
-   * Set wrappers for convinience
+   * Set wrappers for convenience
    * -------------------------------------------------------------
    */
 
@@ -328,7 +329,204 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
   /**
    * -------------------------------------------------------------
-   * Effects & functions related to data fetching
+   * Helper functions
+   * -------------------------------------------------------------
+   */
+
+  const cancelAllDataOperations = useCallback(() => {
+    // Cancel any pending fetches, and background tasks
+    abortDataFetch();
+    abortUserTasks();
+    abortBackgroundTasks();
+  }, [abortBackgroundTasks, abortDataFetch, abortUserTasks]);
+
+  /**
+   * -------------------------------------------------------------
+   * Effects & functions related to data source / prop changes
+   * -------------------------------------------------------------
+   */
+
+  /**
+   * Fetches the row count in the background.
+   */
+  const fetchRowCount = useCallback(async () => {
+    // Get new abort signal
+    const signal = getBackgroundTasksAbortSignal();
+
+    try {
+      if (queries.getRowCount) {
+        const { value, aborted } = await queries.getRowCount(signal);
+
+        // It is feasible that we have already got the real count for small
+        // table from the first fetch. Our `setRealRowCount` function handles that
+        if (!aborted) setRealRowCount(value);
+      } else if (queries.getEstimatedRowCount) {
+        const { value, aborted } = await queries.getEstimatedRowCount(signal);
+
+        if (!aborted) setEstimatedRowCount(value);
+      }
+    } catch (error) {
+      if (!(error instanceof PoolTimeoutError)) {
+        console.error('Failed to fetch row count:', error);
+        setAppendDataSourceReadError('Failed to fetch row counts');
+      }
+    }
+  }, [
+    queries,
+    setRealRowCount,
+    setEstimatedRowCount,
+    setAppendDataSourceReadError,
+    getBackgroundTasksAbortSignal,
+  ]);
+
+  const getNewReader = useCallback(
+    async (newSortParams: ColumnSortSpecList, options = { retry_with_file_sync: true }) => {
+      try {
+        if (queries.getReader || queries.getSortableReader) {
+          // Get the abort signal
+          const abortSignal = getDataFetchAbortSignal();
+
+          // set setIsCreatingReader to true
+          setIsCreatingReader(true);
+
+          const newReader = queries.getSortableReader
+            ? await queries.getSortableReader(newSortParams, abortSignal)
+            : await queries.getReader!(abortSignal);
+
+          // Reader will be null if load was aborted, so check it first
+          if (newReader !== null) {
+            mainDataReaderRef.current = newReader;
+            setDataSourceVersion((prev) => prev + 1);
+
+            // Send row count fetching to background if we do not have it already
+            if (!rowCountInfo.realRowCount) {
+              fetchRowCount();
+            }
+          }
+        }
+      } catch (error: any) {
+        if (error instanceof PoolTimeoutError) {
+          setAppendDataSourceReadError(
+            'Too many tabs open or operations running. Please wait and re-open this tab.',
+          );
+        } else if (error.message?.includes('NotReadableError')) {
+          if (options.retry_with_file_sync) {
+            await syncFiles(pool);
+            await getNewReader(newSortParams, { retry_with_file_sync: false });
+          } else {
+            console.error('Data source have been moved or deleted:', error);
+            setAppendDataSourceReadError('Data source have been moved or deleted.');
+          }
+        } else if (error.message?.includes('NotFoundError')) {
+          console.error('Data source have been moved or deleted:', error);
+          setAppendDataSourceReadError('Data source have been moved or deleted.');
+        } else {
+          console.error('Failed to create a reader for the data source:', error);
+          setAppendDataSourceReadError(
+            'Failed to create a reader for the data source. See console for technical details.',
+          );
+        }
+      } finally {
+        if (queries.getReader || queries.getSortableReader) {
+          // We are done fetching data (here at least), so we can set the flag to false
+          setIsCreatingReader(false);
+        }
+      }
+    },
+    [
+      fetchRowCount,
+      getDataFetchAbortSignal,
+      pool,
+      queries,
+      rowCountInfo.realRowCount,
+      setAppendDataSourceReadError,
+    ],
+  );
+
+  /**
+   * Resets the state by re-creating the reader with given sort params.
+   *
+   * This is called in two scenarios:
+   * 1. When the data source changes (e.g. new query) - `newSortParams` are null
+   * 2. When the sort changes - `newSortParams` are, well, the new sort params
+   */
+  const reset = useCallback(
+    async (newSortParams: ColumnSortSpecList | null) => {
+      // Reset a bunch of things.
+
+      let lastAvailableRowCount = 0;
+
+      if (staleData === null) {
+        // The real data is not needed anymore, we should replace
+        // stale data with it.
+        lastAvailableRowCount = actualData.current.length;
+
+        setStaleData({
+          schema: actualDataSchema.slice(),
+          data: actualData.current,
+          rowOffset: 0,
+        });
+
+        actualData.current = [];
+      } else {
+        // We are resetting in stale state, so just use the stale data info
+        lastAvailableRowCount = staleData.data.length + staleData.rowOffset;
+      }
+
+      // Cancel any pending fetches, and background tasks & readers
+      cancelAllDataOperations();
+
+      // Cancel the main data reader before creating a new one
+      const curReader = mainDataReaderRef.current;
+      if (curReader) {
+        // First drop the ref, so any async operation will not proceed
+        // while we are waiting for the cancel to finish next
+        mainDataReaderRef.current = null;
+        await curReader.cancel();
+      }
+
+      // As we will read from the start, we reset this flag
+      setDataSourceExhausted(false);
+      // And any error
+      setDataSourceReadError([]);
+      // Fetch to target is reset to 0
+      fetchTo.current = 0;
+      dataReadCancelled.current = false;
+
+      // See if this is a new data source or just re-sorting
+      if (newSortParams === null) {
+        // New data source. Reset actual data schema
+        setActualDataSchema([]);
+
+        // Reset row count info. We keep the loaded count,
+        // because until new data is read, we still have the stale data
+        const newRowCountInfo: RowCountInfo = {
+          realRowCount: null,
+          estimatedRowCount: null,
+          availableRowCount: lastAvailableRowCount,
+        };
+
+        setRowCountInfo(newRowCountInfo);
+
+        // Set last sort to match new sort, so we won't get into "sorting" state
+        setLastSortSafe([]);
+        newSortParams = [];
+      } else {
+        setLastSortSafe(sort);
+      }
+
+      // Save new sort params
+      setSort(newSortParams);
+
+      // And let the new reader be created in the background
+      await getNewReader(newSortParams);
+    },
+    [actualDataSchema, cancelAllDataOperations, getNewReader, staleData, setLastSortSafe, sort],
+  );
+
+  /**
+   * -------------------------------------------------------------
+   * Functions related to data fetching
    * -------------------------------------------------------------
    */
 
@@ -344,14 +542,6 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    */
   const fetchDataSingleEntry = useCallback(
     async (options = { retry_with_file_sync: true }) => {
-      if (mainDataReaderRef.current === null) {
-        throw new Error('Main data reader is null while fetching data');
-      }
-
-      if (mainDataReaderRef.current.closed) {
-        throw new Error('Main data reader is closed while fetching data');
-      }
-
       // Get the abort signal so all of this can be cancelled
       const abortSignal = getDataFetchAbortSignal();
 
@@ -366,6 +556,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // Stop fetching when the reader is done or fetch is cancelled
         while (
           !readAll &&
+          mainDataReaderRef.current !== null &&
           !mainDataReaderRef.current.closed &&
           !abortSignal.aborted &&
           // If we read enough data, we can stop
@@ -426,14 +617,19 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             // Do a full reset to the same sort. This will put the current batch
             // of data to stale state, re-create the reader etc.
             await reset(sort);
+
+            // Re-enter the fetch loop
+            await fetchDataSingleEntry({
+              retry_with_file_sync: false,
+            });
+
             afterRetry = true;
           } else {
             // We got an unrecoverable actual error
             console.error('Data source have been moved or deleted:', error);
             setAppendDataSourceReadError('Data source have been moved or deleted.');
           }
-        }
-        if (!abortSignal.aborted) {
+        } else if (!abortSignal.aborted) {
           // Fetch was not cancelled we got an actual error
           if (error.message?.includes('NotFoundError')) {
             console.error('Data source have been moved or deleted:', error);
@@ -480,7 +676,16 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         });
       }
     },
-    [sort, getDataFetchAbortSignal, pool],
+    [
+      getDataFetchAbortSignal,
+      setAvailableRowCount,
+      pool,
+      reset,
+      sort,
+      setAppendDataSourceReadError,
+      tab.id,
+      setRealRowCount,
+    ],
   );
 
   /**
@@ -515,13 +720,13 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       // Now make sure our fetchTo is set to the requested value or beyond
       if (rowTo === null) {
-        // To the ed
+        // To the end
         fetchTo.current = null;
       } else if (fetchTo.current !== null) {
         fetchTo.current = Math.max(rowTo, fetchTo.current);
       }
 
-      // Now exist early if already fetching or have enough
+      // Now exit early if already fetching or have enough
       if (
         isFetchingData ||
         (fetchTo.current !== null && actualData.current.length >= fetchTo.current)
@@ -545,164 +750,23 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         setIsFetchingData(false);
       }
     },
-    [fetchDataSingleEntry, isFetchingData, dataSourceExhausted, dataSourceError, rowCountInfo],
+    [
+      dataSourceExhausted,
+      dataSourceError.length,
+      isFetchingData,
+      fetchDataSingleEntry,
+      setLastSortSafe,
+    ],
   );
 
   /**
    * -------------------------------------------------------------
-   * Effects & functions related to data source / prop changes
+   * Effects
    * -------------------------------------------------------------
    */
 
-  /**
-   * Fetches the row count in the background.
-   */
-  const fetchRowCount = useCallback(async () => {
-    // It is feasible that we have already got the real count for small
-    // table from the first fetch. Do not overwrite better data
-
-    // Get new abort signal
-    const signal = getBackgroundTasksAbortSignal();
-
-    try {
-      if (queries.getRowCount) {
-        const { value, aborted } = await queries.getRowCount(signal);
-
-        if (!aborted) setRealRowCount(value);
-      } else if (queries.getEstimatedRowCount) {
-        const { value, aborted } = await queries.getEstimatedRowCount(signal);
-
-        if (!aborted) setEstimatedRowCount(value);
-      }
-    } catch (error) {
-      if (!(error instanceof PoolTimeoutError)) {
-        console.error('Failed to fetch row count:', error);
-        setAppendDataSourceReadError('Failed to fetch row counts');
-      }
-    }
-  }, [queries.getRowCount, queries.getEstimatedRowCount, getUserTasksAbortSignal]);
-
-  const cancelAllDataOperations = () => {
-    // Cancel any pending fetches, and background tasks
-    abortDataFetch();
-    abortUserTasks();
-    abortBackgroundTasks();
-  };
-
-  const getNewReader = async (
-    newSortParams: ColumnSortSpecList,
-    options = { retry_with_file_sync: true },
-  ) => {
-    try {
-      if (queries.getReader || queries.getSortableReader) {
-        queries.getSortableReader
-          ? (mainDataReaderRef.current = await queries.getSortableReader(newSortParams))
-          : (mainDataReaderRef.current = await queries.getReader!());
-
-        setDataSourceVersion((prev) => prev + 1);
-
-        // Send row count fetching to background if we do not have it already
-        if (!rowCountInfo.realRowCount) {
-          fetchRowCount();
-        }
-      }
-    } catch (error: any) {
-      if (error instanceof PoolTimeoutError) {
-        setAppendDataSourceReadError(
-          'Too many tabs open or operations running. Please wait and re-open this tab.',
-        );
-      } else if (error.message?.includes('NotReadableError')) {
-        if (options.retry_with_file_sync) {
-          await syncFiles(pool);
-          await getNewReader(newSortParams, { retry_with_file_sync: false });
-        } else {
-          console.error('Data source have been moved or deleted:', error);
-          setAppendDataSourceReadError('Data source have been moved or deleted.');
-        }
-      } else if (error.message?.includes('NotFoundError')) {
-        console.error('Data source have been moved or deleted:', error);
-        setAppendDataSourceReadError('Data source have been moved or deleted.');
-      } else {
-        console.error('Failed to create a reader for the data source:', error);
-        setAppendDataSourceReadError(
-          'Failed to create a reader for the data source. See console for technical details.',
-        );
-      }
-    }
-  };
-
-  /**
-   * Resets the state by re-creating the reader with given sort params.
-   *
-   * This is called in two scenarios:
-   * 1. When the data source changes (e.g. new query) - `newSortParams` are null
-   * 2. When the sort changes - `newSortParams` are, well, the new sort params
-   */
-  const reset = async (newSortParams: ColumnSortSpecList | null) => {
-    // Reset a bunch of things.
-
-    // The real data is not needed anymore, we should replace
-    // stale data with it.
-    const lastAvailableRowCount = actualData.current.length;
-
-    setStaleData({
-      schema: actualDataSchema.slice(),
-      data: actualData.current,
-      rowOffset: 0,
-    });
-
-    actualData.current = [];
-
-    // Cancel any pending fetches, and background tasks & readers
-    cancelAllDataOperations();
-
-    // Cancel the main data reader before creating a new one
-    const curReader = mainDataReaderRef.current;
-    if (curReader) {
-      // First drop the ref, so any async operation will not proceed
-      // while we are waiting for the cancel to finish next
-      mainDataReaderRef.current = null;
-      await curReader.cancel();
-    }
-
-    // As we will read from the start, we reset this flag
-    setDataSourceExhausted(false);
-    // And any error
-    setDataSourceReadError([]);
-    // Fetch to target is reset to 0
-    fetchTo.current = 0;
-    dataReadCancelled.current = false;
-
-    // See if this is a new data source or just re-sorting
-    if (newSortParams === null) {
-      // New data source. Reset actual data schema
-      setActualDataSchema([]);
-
-      // Reset row count info. We keep the loaded count,
-      // because until new data is read, we still have the stale data
-      const newRowCountInfo: RowCountInfo = {
-        realRowCount: null,
-        estimatedRowCount: null,
-        availableRowCount: lastAvailableRowCount,
-      };
-
-      setRowCountInfo(newRowCountInfo);
-
-      // Set last sort to match new sort, so we won't get into "sorting" state
-      setLastSortSafe([]);
-      newSortParams = [];
-    } else {
-      setLastSortSafe(sort);
-    }
-
-    // Save new sort params
-    setSort(newSortParams);
-
-    // And let the new reader be created in the background
-    await getNewReader(newSortParams);
-  };
-
-  // If queries change (data source), we need to reset everything
+  // If queries change (meaning data source has changed), after mount
+  // we need to reset everything, including sort
   useDidUpdate(() => {
     reset(null);
   }, [queries]);
@@ -717,21 +781,23 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   }, [activeTabId, abortUserTasks, abortBackgroundTasks, tab.id]);
 
   // On mount we may have cached data in our local state vars,
-  // so we do not wnat a full reset, but only to initiate reader
+  // so we do not want to call a full `reset`, but only to initiate reader
   // creation in the background.
   useEffect(() => {
     const newReaderPromise = getNewReader(sort);
 
     return () => {
       const asyncDestructor = async () => {
-        // This will ensure that we first wait until new reader is created
-        // before kiiling it. Otherwise if the tab is closed quickly,
-        // we will leak the reader (connection). This is also happening
-        // in dev mode due to React.StrictMode firring this hook twice.
-        await newReaderPromise;
-
         // Make sure we cancel everything
         cancelAllDataOperations();
+
+        // This will ensure that we first wait until new reader call
+        // has finished. Even though it should be cancelled by
+        // the previous call, we want to make sure state is fully
+        // updated. Otherwise if the tab is closed quickly,
+        // we may get into inconsistent state. This is also happening
+        // in dev mode due to React.StrictMode firring this hook twice.
+        await newReaderPromise;
 
         // Cancel the main data reader
         const curReader = mainDataReaderRef.current;
@@ -744,11 +810,18 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       };
       asyncDestructor();
     };
+    // We intentionally use this only on mount, as we want different
+    // behavior on all other changes - handled by the effect above
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
    * Build the resulting API
    */
+  const resetApi = useCallback(async () => {
+    reset(sort);
+  }, [reset, sort]);
+
   const getDataTableSlice = useCallback(
     (rowFrom: number, rowTo: number): GetDataTableSliceReturnType => {
       // Check and initiate data fetch if needed
@@ -791,7 +864,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // as we have no data to show
       return null;
     },
-    [currentSchema, fetchData, sort, rowCountInfo, isStale, staleData],
+    [currentSchema, fetchData, sort, isStale, staleData],
   );
 
   const getAllTableData = useCallback(
@@ -844,13 +917,13 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       return actualData.current;
     },
     [
-      fetchData,
       dataSourceExhausted,
       currentSchema,
-      sort,
-      rowCountInfo,
-      queries.getColumnsData,
+      queries,
+      abortUserTasks,
       getUserTasksAbortSignal,
+      fetchData,
+      sort,
     ],
   );
 
@@ -863,8 +936,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // Reset the data
       reset(newSortParams);
     },
-    // we must include all transient deps from reset
-    [disableSort, sort, actualDataSchema, fetchRowCount],
+    [disableSort, sort, reset],
   );
 
   const isSorting = useMemo(() => {
@@ -895,7 +967,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       return value;
     },
-    [queries.getColumnAggregate, abortUserTasks, getUserTasksAbortSignal],
+    [queries, abortUserTasks, getUserTasksAbortSignal],
   );
 
   const cancelDataRead = useCallback(() => {
@@ -903,7 +975,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     fetchTo.current = actualData.current.length;
     dataReadCancelled.current = true;
     abortDataFetch();
-  }, [abortDataFetch]);
+    setLastSortSafe(sort);
+  }, [abortDataFetch, setLastSortSafe, sort]);
 
   const ackDataReadCancelled = useCallback(() => {
     dataReadCancelled.current = false;
@@ -947,9 +1020,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     sort,
     dataSourceExhausted,
     dataSourceError,
-    isFetchingData,
+    isFetchingData: isFetchingData || isCreatingReader,
     isSorting,
     dataReadCancelled: dataReadCancelled.current,
+    reset: resetApi,
     getDataTableSlice,
     getAllTableData,
     toggleColumnSort,

@@ -5,7 +5,7 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { DataAdapterApi } from '@models/data-adapter';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { IconX, IconCopy } from '@tabler/icons-react';
+import { IconX, IconCopy, IconRefresh } from '@tabler/icons-react';
 import { getTabName } from '@utils/navigation';
 import { setDataTestId } from '@utils/test-id';
 import { assertNeverValueType } from '@utils/typing';
@@ -61,7 +61,8 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
   const handleTableCopyClick = async () => {
     copyTableColumns({
       columns: dataAdapter.currentSchema,
-      dataAdapter,
+      currentSchema: dataAdapter.currentSchema,
+      getAllTableData: dataAdapter.getAllTableData,
     });
   };
 
@@ -147,6 +148,11 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
         {showCancelButton && (
           <ActionIcon size={16} onClick={dataAdapter.cancelDataRead}>
             <IconX />
+          </ActionIcon>
+        )}
+        {hasDataSourceError && (
+          <ActionIcon size={16} onClick={dataAdapter.reset}>
+            <IconRefresh />
           </ActionIcon>
         )}
       </Group>

@@ -63,19 +63,23 @@ const THeadTitle = ({
         {header.isPlaceholder ? null : columnName}
       </Text>
       {!isIndex && (
-        <div>
+        <div
+          className={cn(
+            'p-2 -m-2', // Add padding and negative margin to increase click area without changing layout
+            !isNumber && 'ml-auto',
+          )}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            onSort?.(columnName);
+          }}
+        >
           <IconTriangleInvertedFilled
             size={8}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              onSort?.(columnName);
-            }}
             className={cn(
               'opacity-0 text-iconDefault-light dark:text-iconDefault-dark',
               sort?.column === columnName && 'opacity-100',
               'group-hover:opacity-100',
               sort?.order === 'asc' && sort?.column === columnName && 'rotate-180',
-              !isNumber && 'ml-auto',
               (isSelected || !onSort) && 'text-iconDisabled',
             )}
           />
