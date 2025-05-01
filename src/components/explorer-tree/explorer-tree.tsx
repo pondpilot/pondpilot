@@ -168,7 +168,8 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
     if (!hasActiveElement) {
       tree.clearSelected();
     }
-  }, [hasActiveElement, tree]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasActiveElement]);
 
   return (
     <Stack
