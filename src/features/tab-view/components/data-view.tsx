@@ -11,13 +11,14 @@ import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@mo
 import { DBColumn } from '@models/db';
 import { MAX_DATA_VIEW_PAGE_SIZE, TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { IconClipboardSmile } from '@tabler/icons-react';
+import { IconCancel, IconClipboardSmile } from '@tabler/icons-react';
 import { formatStringsAsMDList } from '@utils/pretty';
 import { setDataTestId } from '@utils/test-id';
 import { useCallback, useRef, useState } from 'react';
 
 import { useColumnSummary } from '../hooks';
 import { copyTableColumns } from '../utils';
+import { DataViewRestartReadButton } from './reset-button';
 
 interface DataViewProps {
   /**
@@ -66,6 +67,8 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   // Used to reset requested page when data is changed without unmounting
   const lastDataSourceVersion = useRef<number>(dataAdapter.dataVersion);
 
+  // Used to distinguish between cancellation before first data load and after
+  const dataViewHasData = useRef<boolean>(false);
   /**
    * Computed data source state
    */
@@ -111,17 +114,39 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   // try to fetch more data.
   const isSinglePage = Math.max(expectedRowTo, rowCountToShow) <= MAX_DATA_VIEW_PAGE_SIZE;
 
-  // Whether we should show a full loading overlay, i.e. we have nothing, even stale to show
-  const [showLoadingOverlay] = useDebouncedValue(
-    (dataSlice === null || !hasData) && !isSorting && isFetching && !hasDataSourceError,
-    200,
-  );
+  // Whether we should show a full loading overlay, i.e. we have nothing, even stale to show.
+  // We debounce it to avoid showing on quick loads, but immediately hide it
+  // when data is available.
+  const _showLoadingOverlay =
+    (dataSlice === null || !hasData) && !isSorting && isFetching && !hasDataSourceError;
+  const [showLoadingOverlayDebounced] = useDebouncedValue(_showLoadingOverlay, 200);
+  const showLoadingOverlay = showLoadingOverlayDebounced && _showLoadingOverlay;
 
   // Whether to show error overlay (that's when even stale data is not available
   // and we have an error)
   const showErrorOverlay = (dataSlice === null || !hasData) && hasDataSourceError;
+
+  // This is an overlay that is shown when no data exists and nothing is being loaded.
+  // As of today this would only make sense for scripts, as data sources go into
+  // loading state immmediately.
+  const _showMessageOverlay =
+    (dataSlice === null || !hasData) &&
+    !isSorting &&
+    !isFetching &&
+    !hasDataSourceError &&
+    !dataAdapter.dataReadCancelled;
+  const [showMessageOverlayDebounced] = useDebouncedValue(_showMessageOverlay, 300);
+
+  // Make sure that we do not show both, as they can overlap due to debouncing
   const showMessageOverlay =
-    (dataSlice === null || !hasData) && !isSorting && !isFetching && !hasDataSourceError;
+    showMessageOverlayDebounced && _showMessageOverlay && !showLoadingOverlay;
+
+  const showResetAfterCancelOverlay =
+    (dataSlice === null || !hasData) &&
+    !isSorting &&
+    !isFetching &&
+    !hasDataSourceError &&
+    dataAdapter.dataReadCancelled;
 
   // Whether we should show the table, even if with no rows.
   // If we didn't make a mistke, if `hasData` is true then `tableData`
@@ -177,6 +202,8 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     (sortField: DBColumn['name']) => {
       dataAdapter.toggleColumnSort(sortField);
     },
+    // Fails to detect that we only need `toggleColumnSort` from dataAdapter
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [dataAdapter.toggleColumnSort],
   );
 
@@ -185,10 +212,21 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
    */
   const handleCopyTableColumns = useCallback(
     (selectedCols: DBColumn[]) => {
-      return copyTableColumns({ columns: selectedCols, dataAdapter });
+      return copyTableColumns({
+        columns: selectedCols,
+        currentSchema: dataAdapter.currentSchema,
+        getAllTableData: dataAdapter.getAllTableData,
+      });
     },
-    [dataAdapter.getAllTableData],
+    [dataAdapter.currentSchema, dataAdapter.getAllTableData],
   );
+
+  const handleDataAdapterReset = async () => {
+    // Reset the requested page to 0
+    setAndCacheDataPage(0);
+
+    await dataAdapter.reset();
+  };
 
   const onColumnResizeChange = useCallback(
     (columnSizes: Record<string, number>) => {
@@ -209,6 +247,18 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
       let newData: GetDataTableSliceReturnType = null;
 
       if (dataAdapter.dataReadCancelled) {
+        // If this is a cancellation from loading overlay (before any data is loaded)
+        // we do NOT want to acknowledge the cancellation because we want
+        // to know that adapter in a cancelled state to show overlay with
+        // Refresh button.
+        if (!dataViewHasData.current) return;
+
+        // But if we had some data on the screen and operation was cancelled,
+        // we use a different flow. Here we acknowledge the cancellation to the
+        // data adapter, so it is not in a cancelled state anymore, but
+        // we set data view in such a state that it won't request new data
+        // again until the user does something, like page change or sort.
+
         // Set whatever is the closest fully visible page
         // to the requested page and avoid reading data again this time
         setAndCacheDataPage(
@@ -248,6 +298,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
       dataAdapter.getDataTableSlice,
       dataAdapter.dataReadCancelled,
       dataAdapter.ackDataReadCancelled,
+      dataViewHasData,
       expectedRowFrom,
       expectedRowTo,
     ],
@@ -263,6 +314,20 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
         onCancel={dataAdapter.cancelDataRead}
         visible={showLoadingOverlay}
       />
+      {/* Cancelled before first data load overlay */}
+      {showResetAfterCancelOverlay && (
+        <>
+          <Center className="h-full font-bold">
+            <Stack align="center" c="icon-default" gap={4}>
+              <IconCancel size={32} stroke={1} />
+              <Text c="text-secondary">
+                You&apos;ve cancelled the data read operation. Click the button below to restart.
+              </Text>
+              <DataViewRestartReadButton onClick={handleDataAdapterReset} />
+            </Stack>
+          </Center>
+        </>
+      )}
       {/* Error overlay */}
       {showErrorOverlay && (
         <>
@@ -274,6 +339,9 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
             <Text c="text-secondary" className="text-lg font-medium">
               {formatStringsAsMDList(dataAdapter.dataSourceError)}
             </Text>
+            <Group justify="center" mt="md">
+              <DataViewRestartReadButton onClick={handleDataAdapterReset} />
+            </Group>
           </Stack>
         </>
       )}

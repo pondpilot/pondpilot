@@ -14,7 +14,7 @@ function getGetSortableReaderApiFromFQN(
   pool: AsyncDuckDBConnectionPool,
   fqn: string,
 ): DataAdapterQueries['getSortableReader'] {
-  return async (sort) => {
+  return async (sort, abortSignal) => {
     let baseQuery = `SELECT * FROM ${fqn}`;
 
     if (sort.length > 0) {
@@ -23,7 +23,7 @@ function getGetSortableReaderApiFromFQN(
         .join(', ');
       baseQuery += ` ORDER BY ${orderBy}`;
     }
-    const reader = await pool.send(baseQuery, true);
+    const reader = await pool.sendAbortable(baseQuery, abortSignal, true);
     return reader;
   };
 }
@@ -257,7 +257,7 @@ export function getScriptAdapterQueries({
       // As of today we do not allow runnig even an estimated row count on
       // arbitrary queries, so we do no create these functions
       getSortableReader: classifiedStmt.isAllowedInSubquery
-        ? async (sort) => {
+        ? async (sort, abortSignal) => {
             let queryToRun = trimmedQuery;
 
             if (sort.length > 0) {
@@ -266,13 +266,13 @@ export function getScriptAdapterQueries({
                 .join(', ');
               queryToRun = `SELECT * FROM (${trimmedQuery}) ORDER BY ${orderBy}`;
             }
-            const reader = await pool.send(queryToRun, true);
+            const reader = await pool.sendAbortable(queryToRun, abortSignal, true);
             return reader;
           }
         : undefined,
       getReader: !classifiedStmt.isAllowedInSubquery
-        ? async () => {
-            const reader = await pool.send(trimmedQuery, true);
+        ? async (abortSignal) => {
+            const reader = await pool.sendAbortable(trimmedQuery, abortSignal, true);
             return reader;
           }
         : undefined,
