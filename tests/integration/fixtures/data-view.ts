@@ -170,7 +170,7 @@ export const test = base.extend<DataViewFixtures>({
       const exportDropdownButton = page.getByTestId('export-table-button');
       await expect(exportDropdownButton).toBeVisible();
       await exportDropdownButton.click();
-      
+
       // Then click the CSV menu item
       const exportCSVMenuItem = page.getByTestId('export-table-csv-menu-item');
       await expect(exportCSVMenuItem).toBeVisible();

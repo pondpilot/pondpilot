@@ -11,7 +11,6 @@ import {
 } from '@models/export-options';
 import { quote } from '@utils/helpers';
 import { formatTableData, getStringifyTypedRows } from '@utils/table';
-import * as XLSX from 'xlsx';
 
 /**
  * Sanitizes a string to be safe for use in a filename
@@ -59,8 +58,6 @@ export async function exportAsDelimitedText(
   const data = await dataAdapter.getAllTableData(null);
   const columns = dataAdapter.currentSchema;
 
-  // Format data rows using the utility from table.ts
-  // Using empty string as nullRepr to convert NULL values to empty strings
   const formattedRows = getStringifyTypedRows(data, columns, '');
 
   // Sanitize values to prevent formula injection
@@ -125,17 +122,26 @@ export async function exportAsXlsx(
     wsData.push(rowData);
   });
 
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, options.sheetName);
+  try {
+    const XLSX = await import('xlsx');
 
-  const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  downloadFile(
-    new Blob([xlsxData], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    }),
-    fileName,
-  );
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, options.sheetName);
+
+    const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    downloadFile(
+      new Blob([xlsxData], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }),
+      fileName,
+    );
+  } catch (error) {
+    console.error('Failed to load Excel export library:', error);
+    throw new Error(
+      'Could not load Excel export functionality. Please try again or use another format.',
+    );
+  }
 }
 
 /**
