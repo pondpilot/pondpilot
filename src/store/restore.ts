@@ -1,4 +1,4 @@
-import { persistDeleteDataSource } from '@controllers/data-source/persist';
+import { persistDeleteDataSource, persistPutDataSources } from '@controllers/data-source/persist';
 import {
   registerAndAttachDatabase,
   registerFileHandle,
@@ -6,6 +6,7 @@ import {
   createXlsxSheetView,
 } from '@controllers/db/data-source';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { persistAddLocalEntry } from '@controllers/file-system/persist';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
@@ -113,7 +114,11 @@ async function processDirectory(
     }
 
     // Try to find if this entry exists in our persistent map
-    const existingEntry = existingChildren.find((entry) => entry.name === name);
+    const existingEntry = existingChildren.find((entry) =>
+      entry.kind === 'file'
+        ? `${entry.name}.${entry.ext}`.toLowerCase() === name.toLowerCase()
+        : entry.name === name,
+    );
 
     if (!existingEntry) {
       // If we don't have this entry in our persistent map, we need to create a new one
@@ -309,7 +314,9 @@ async function restoreLocalEntries(
 
     // Check if the handle is in the granted or denied lists
     if (availableHandles.includes(entry.handle)) {
-      rootEntries.push(entry as LocalEntry);
+      if (entry.userAdded) {
+        rootEntries.push(entry as LocalEntry);
+      }
       addToMap(entry);
       if (entry.kind === 'file') usedAliases.add(entry.uniqueAlias);
     } else if (deniedHandles.includes(entry.handle)) {
@@ -605,29 +612,21 @@ export const restoreAppDataFromIDB = async (
 
   await Promise.all(registerPromises);
 
-  if (discardedEntries.length > 0) {
-    const deleteTx = iDbConn.transaction(LOCAL_ENTRY_TABLE_NAME, 'readwrite');
-
-    // Remove discarded entries from indexedDB
-    for (const entry of discardedEntries) {
-      await deleteTx.store.delete(entry.entry.id);
-    }
-
-    await deleteTx.done;
-  }
-
   if (missingDataSources.size > 0) {
     // Ok, we need yet another transaction to add the missing data views
-    const missingDataViewsTx = iDbConn.transaction(DATA_SOURCE_TABLE_NAME, 'readwrite');
+    await persistPutDataSources(iDbConn, missingDataSources.values());
 
     // Add missing data views to state and store
     dataSources = new Map([...dataSources, ...missingDataSources]);
+  }
 
-    for (const [id, dv] of missingDataSources) {
-      await missingDataViewsTx.store.add(dv, id);
-    }
-
-    await missingDataViewsTx.done;
+  // Add new local entries to persistent store
+  const existingLocalEntryIds = new Set(localEntriesArray.map((entry) => entry.id));
+  const newLocalEntries = Array.from(localEntriesMap.entries()).filter(
+    ([id, _]) => !existingLocalEntryIds.has(id),
+  );
+  if (newLocalEntries.length > 0) {
+    await persistAddLocalEntry(iDbConn, newLocalEntries, []);
   }
 
   // Delete outdated data sources
@@ -672,10 +671,14 @@ export const restoreAppDataFromIDB = async (
   }
 
   if (outdatedDataSources.size > 0) {
-    await persistDeleteDataSource(iDbConn, outdatedDataSources, []);
-    if (tabsToDelete.length) {
-      await persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
-    }
+    await persistDeleteDataSource(
+      iDbConn,
+      outdatedDataSources,
+      discardedEntries.map((entry) => entry.entry.id),
+    );
+  }
+  if (tabsToDelete.length) {
+    await persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
   }
 
   // Read database meta data

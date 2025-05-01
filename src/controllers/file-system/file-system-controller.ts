@@ -278,11 +278,7 @@ export const addLocalFileOrFolders = async (
 
   // If we have an IndexedDB connection, persist the new local entry
   if (iDbConn) {
-    persistAddLocalEntry(
-      iDbConn,
-      newEntries.filter(([_, entry]) => entry.userAdded), // Add only user added entries
-      newDataSources,
-    );
+    persistAddLocalEntry(iDbConn, newEntries, newDataSources);
   }
 
   // Return the new local entry and data source
@@ -515,7 +511,7 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
       }
     }
 
-    // Delete data sources
+    // Delete data sources, this will also delete local file entries
     if (dataSourceIdsToDelete.size > 0) {
       deleteDataSources(conn, Array.from(dataSourceIdsToDelete));
     }
