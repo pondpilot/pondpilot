@@ -1,17 +1,18 @@
 // Public data source controller API's
 // By convetion the order should follow CRUD groups!
 
-import { useAppStore } from '@store/app-store';
-import { PersistentDataSourceId } from '@models/data-source';
-import { TabId } from '@models/tab';
-import { deleteTabImpl } from '@controllers/tab/pure';
-import { persistDeleteTab } from '@controllers/tab/persist';
 import {
   detachAndUnregisterDatabase,
   dropViewAndUnregisterFile,
   getDatabaseModel,
 } from '@controllers/db';
+import { persistDeleteTab } from '@controllers/tab/persist';
+import { deleteTabImpl } from '@controllers/tab/pure';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { PersistentDataSourceId } from '@models/data-source';
+import { TabId } from '@models/tab';
+import { useAppStore } from '@store/app-store';
+
 import { persistDeleteDataSource } from './persist';
 
 /**

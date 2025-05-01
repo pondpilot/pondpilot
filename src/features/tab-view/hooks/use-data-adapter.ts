@@ -1,5 +1,8 @@
+import { syncFiles } from '@controllers/file-system';
 import { updateTabDataViewStaleDataCache } from '@controllers/tab';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
+import { PoolTimeoutError } from '@features/duckdb-context/timeout-error';
 import { useAbortController } from '@hooks/use-abort-controller';
 import { useDidUpdate } from '@mantine/hooks';
 import {
@@ -20,9 +23,7 @@ import {
   toggleMultiColumnSort,
 } from '@utils/db';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PoolTimeoutError } from '@features/duckdb-context/timeout-error';
-import { syncFiles } from '@controllers/file-system';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+
 import { useDataAdapterQueries } from './use-data-adapter-queries';
 
 // Data adapter is a logic layer between abstract batch streaming data source

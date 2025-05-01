@@ -3,9 +3,9 @@
  * Copyright (C) [2025] Outerbase
  * Licensed under GNU AGPL v3.0
  */
-import { Tooltip, showTooltip, EditorView } from '@codemirror/view';
-import { StateField, EditorState } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
+import { StateField, EditorState } from '@codemirror/state';
+import { Tooltip, showTooltip, EditorView } from '@codemirror/view';
 
 export type TooltipDirectionary = Record<string, { syntax: string; description: string }>;
 

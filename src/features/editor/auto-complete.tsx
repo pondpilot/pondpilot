@@ -1,6 +1,5 @@
 import type { SQLNamespace } from '@codemirror/lang-sql';
 import { DataBaseModel } from '@models/db';
-import { SYSTEM_DUCKDB_SCHEMAS } from '@utils/duckdb/identifier';
 import {
   createColumnCompletion,
   createDatabaseCompletion,
@@ -8,6 +7,7 @@ import {
   createSchemaCompletion,
   createTableOrViewCompletion,
 } from '@utils/duckdb/auto-complete';
+import { SYSTEM_DUCKDB_SCHEMAS } from '@utils/duckdb/identifier';
 
 const postgresDialectFunctions = new Set([
   'avg',

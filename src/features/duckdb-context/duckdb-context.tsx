@@ -1,5 +1,6 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+
 import { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
 
 // Context used to provide progress of duckdb initialization

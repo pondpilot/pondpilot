@@ -1,4 +1,5 @@
 import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
+
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';
 
 /**

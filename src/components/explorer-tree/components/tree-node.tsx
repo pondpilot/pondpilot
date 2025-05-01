@@ -5,9 +5,10 @@ import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { Fragment, memo, useEffect, useRef, useState } from 'react';
 import { shallow } from 'zustand/shallow';
+
 import { TreeNodeMenuType, TreeNodeData, BaseTreeNodeProps } from '../model';
-import { getMenuItemDataTestId, mergeMenus } from '../utils/context-menu';
 import { TreeNodeMenuItem } from './tree-menu-item';
+import { getMenuItemDataTestId, mergeMenus } from '../utils/context-menu';
 import { getNodeDataTestIdPrefix } from '../utils/node-test-id';
 
 const ITEM_CLASSES = {

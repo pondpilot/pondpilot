@@ -7,6 +7,7 @@ import {
   NormalizedSQLType,
   SortOrder,
 } from '@models/db';
+
 import { assertNeverValueType } from './typing';
 
 export function isNumberType(type: NormalizedSQLType): boolean {

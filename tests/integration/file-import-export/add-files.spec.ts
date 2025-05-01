@@ -1,18 +1,20 @@
-import { mergeTests, expect } from '@playwright/test';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
-import * as XLSX from 'xlsx';
+
+import { mergeTests, expect } from '@playwright/test';
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from '@utils/duckdb/identifier';
-import { test as baseTest } from '../fixtures/page';
-import { test as storageTest } from '../fixtures/storage';
-import { test as filePickerTest } from '../fixtures/file-picker';
-import { test as testTmpTest } from '../fixtures/test-tmp';
-import { test as fileSystemExplorerTest } from '../fixtures/file-system-explorer';
-import { test as dataViewTest } from '../fixtures/data-view';
-import { test as spotlightTest } from '../fixtures/spotlight';
-import { test as scriptEditor } from '../fixtures/script-editor';
-import { test as dbExplorerTest } from '../fixtures/db-explorer';
+import * as XLSX from 'xlsx';
+
 import { createFile } from '../../utils';
+import { test as dataViewTest } from '../fixtures/data-view';
+import { test as dbExplorerTest } from '../fixtures/db-explorer';
+import { test as filePickerTest } from '../fixtures/file-picker';
+import { test as fileSystemExplorerTest } from '../fixtures/file-system-explorer';
+import { test as baseTest } from '../fixtures/page';
+import { test as scriptEditor } from '../fixtures/script-editor';
+import { test as spotlightTest } from '../fixtures/spotlight';
+import { test as storageTest } from '../fixtures/storage';
+import { test as testTmpTest } from '../fixtures/test-tmp';
 
 const test = mergeTests(
   baseTest,

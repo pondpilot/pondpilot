@@ -1,4 +1,5 @@
 import { matchSorter } from 'match-sorter';
+
 import { SCRIPT_GROUP_DISPLAY_NAME, SEARCH_PREFIXES, SEARCH_SUFFIXES } from './consts';
 import { SpotlightView } from './model';
 

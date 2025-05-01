@@ -1,13 +1,15 @@
-import { expect, mergeTests } from '@playwright/test';
 import { readFileSync } from 'fs';
-import { test as baseTest } from '../fixtures/page';
-import { test as storageTest } from '../fixtures/storage';
-import { test as filePickerTest } from '../fixtures/file-picker';
-import { test as testTmpTest } from '../fixtures/test-tmp';
-import { test as fileSystemExplorerTest } from '../fixtures/file-system-explorer';
-import { test as dataViewTest } from '../fixtures/data-view';
-import { test as scriptEditor } from '../fixtures/script-editor';
+
+import { expect, mergeTests } from '@playwright/test';
+
 import { createFile } from '../../utils';
+import { test as dataViewTest } from '../fixtures/data-view';
+import { test as filePickerTest } from '../fixtures/file-picker';
+import { test as fileSystemExplorerTest } from '../fixtures/file-system-explorer';
+import { test as baseTest } from '../fixtures/page';
+import { test as scriptEditor } from '../fixtures/script-editor';
+import { test as storageTest } from '../fixtures/storage';
+import { test as testTmpTest } from '../fixtures/test-tmp';
 
 const test = mergeTests(
   baseTest,

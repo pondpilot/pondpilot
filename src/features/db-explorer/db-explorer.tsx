@@ -1,17 +1,8 @@
-import { memo } from 'react';
-import {
-  useAttachedDBDataSourceMap,
-  useAttachedDBLocalEntriesMap,
-  useAttachedDBMetadata,
-} from '@store/app-store';
 import { ExplorerTree, TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
-import { getAttachedDBDataSourceName } from '@utils/navigation';
-import { PersistentDataSourceId } from '@models/data-source';
-import { DBColumn, DBSchema, DBTableOrView, DBTableOrViewSchema } from '@models/db';
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
+import { deleteDataSources } from '@controllers/data-source';
+import { createSQLScript } from '@controllers/sql-script';
 import {
   findTabFromAttachedDBObject,
   getOrCreateTabFromAttachedDBObject,
@@ -19,11 +10,21 @@ import {
   setActiveTabId,
   setPreviewTabId,
 } from '@controllers/tab';
-import { createSQLScript } from '@controllers/sql-script';
-import { deleteDataSources } from '@controllers/data-source';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { PersistentDataSourceId } from '@models/data-source';
+import { DBColumn, DBSchema, DBTableOrView, DBTableOrViewSchema } from '@models/db';
+import {
+  useAttachedDBDataSourceMap,
+  useAttachedDBLocalEntriesMap,
+  useAttachedDBMetadata,
+} from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
-import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { getAttachedDBDataSourceName } from '@utils/navigation';
+import { memo } from 'react';
+
 import { DbExplorerNode } from './db-explorer-node';
+import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
 
 function buildColumnTreeNode({
   dbId,

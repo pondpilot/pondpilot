@@ -1,8 +1,9 @@
-import { createContext, useContext } from 'react';
 import { BrowserSupportedFeatures } from '@models/browser';
 import { getBrowserSupportedFeatures } from '@utils/browser';
-import { useAppInitialization } from './hooks/use-init-application';
+import { createContext, useContext } from 'react';
+
 import { DevModal } from './components/dev-modal';
+import { useAppInitialization } from './hooks/use-init-application';
 
 interface AppContextType {
   browserInfo: BrowserSupportedFeatures;

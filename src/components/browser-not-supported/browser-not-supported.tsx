@@ -1,11 +1,12 @@
 import { BackgroundImage, Box, Center, Image, Stack, Text, Title } from '@mantine/core';
-import { setDataTestId } from '@utils/test-id';
 import { setAppLoadState } from '@store/app-store';
+import { setDataTestId } from '@utils/test-id';
 import { useEffect } from 'react';
-import browserNotSupportedImgWat from './assets/wat.svg';
+
 import browserNotSupportedImgBsod from './assets/bsod.svg';
-import browserNotSupportedImgMatrix from './assets/matrix.svg';
 import CrackDuck from './assets/crack-duck.svg';
+import browserNotSupportedImgMatrix from './assets/matrix.svg';
+import browserNotSupportedImgWat from './assets/wat.svg';
 
 const backgroundImages = [
   browserNotSupportedImgWat,

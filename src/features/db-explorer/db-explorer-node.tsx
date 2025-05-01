@@ -1,6 +1,7 @@
 import { MemoizedBaseTreeNode } from '@components/explorer-tree/components/tree-node';
 import { RenderTreeNodePayload } from '@components/explorer-tree/model';
 import { useIsAttachedDBElementOnActiveTab } from '@store/app-store';
+
 import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
 
 export const DbExplorerNode = (

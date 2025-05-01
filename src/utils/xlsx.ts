@@ -1,5 +1,6 @@
-import * as XLSX from 'xlsx';
 import * as fflate from 'fflate';
+import * as XLSX from 'xlsx';
+
 import { quote } from './helpers';
 
 // File size thresholds

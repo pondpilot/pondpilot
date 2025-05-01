@@ -1,5 +1,6 @@
-import { Menu, RenderTreeNodePayload as MantineRenderTreeNodePayload } from '@mantine/core';
 import { useModifierContext } from '@components/modifier-context/modifier-context';
+import { Menu, RenderTreeNodePayload as MantineRenderTreeNodePayload } from '@mantine/core';
+
 import { TreeNodeMenuItemType, TreeNodeData } from '../model';
 
 export function TreeNodeMenuItem<NTypeToIdTypeMap extends Record<string, string>>({

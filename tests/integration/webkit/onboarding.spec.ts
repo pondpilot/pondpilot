@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+
 import { test } from '../fixtures/base';
 
 test('Onboarding modal is not displayed if browser is unsupported', async ({

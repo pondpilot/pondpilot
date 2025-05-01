@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+
 import { test } from '../fixtures/page';
 
 test('Browser unsupported', async ({ page, browserName }) => {

@@ -1,9 +1,4 @@
-import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
-import { useShallow } from 'zustand/react/shallow';
-import { AnyTab, TabId, TabReactiveState, TabType } from '@models/tab';
-import { IDBPDatabase } from 'idb';
-import { SQLScript, SQLScriptId } from '@models/sql-script';
+import { IconType } from '@components/named-icon';
 import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
@@ -11,15 +6,19 @@ import {
   AttachedDB,
   PersistentDataSourceId,
 } from '@models/data-source';
-import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
-
-import { getTabIcon, getTabName } from '@utils/navigation';
-import { IconType } from '@components/named-icon';
-
 import { DataBaseModel, DBTableOrViewSchema } from '@models/db';
+import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
-import { createSelectors } from './utils';
+import { SQLScript, SQLScriptId } from '@models/sql-script';
+import { AnyTab, TabId, TabReactiveState, TabType } from '@models/tab';
+import { getTabIcon, getTabName } from '@utils/navigation';
+import { IDBPDatabase } from 'idb';
+import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
+
 import { resetAppData } from './restore';
+import { createSelectors } from './utils';
 
 type AppLoadState = 'init' | 'ready' | 'error';
 

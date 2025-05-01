@@ -1,6 +1,7 @@
-import { test as base } from '@playwright/test';
-import path from 'path';
 import { existsSync, mkdirSync, rmSync } from 'fs';
+import path from 'path';
+
+import { test as base } from '@playwright/test';
 
 interface TestTmp {
   /**

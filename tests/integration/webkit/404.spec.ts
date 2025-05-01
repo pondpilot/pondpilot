@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+
 import { test } from '../fixtures/base';
 
 // This test does not use our base page fixture, since we want to immitate cold loading

@@ -1,13 +1,13 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions */
 /* eslint-disable jsx-a11y/click-events-have-key-events */
+import { ColumnMeta } from '@components/table/model';
+import { Box, Tooltip } from '@mantine/core';
 import { Cell, flexRender } from '@tanstack/react-table';
+import { copyToClipboard } from '@utils/clipboard';
+import { isNumberType, stringifyTypedValue } from '@utils/db';
+import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { memo, useRef } from 'react';
-import { setDataTestId } from '@utils/test-id';
-import { ColumnMeta } from '@components/table/model';
-import { isNumberType, stringifyTypedValue } from '@utils/db';
-import { copyToClipboard } from '@utils/clipboard';
-import { Box, Tooltip } from '@mantine/core';
 
 interface TableRegularCellProps {
   cell: Cell<any, unknown>;

@@ -1,7 +1,8 @@
-import { memo } from 'react';
+import { Stack } from '@mantine/core';
 import { AnyFileSourceTab, TabId } from '@models/tab';
 import { useTabReactiveState } from '@store/app-store';
-import { Stack } from '@mantine/core';
+import { memo } from 'react';
+
 import { DataView, DataViewInfoPane } from '.';
 import { useDataAdapter } from '../hooks/use-data-adapter';
 

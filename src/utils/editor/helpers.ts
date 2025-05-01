@@ -3,8 +3,8 @@
  * Copyright (C) [2025] Outerbase
  * Licensed under GNU AGPL v3.0
  */
-import { EditorState } from '@uiw/react-codemirror';
 import { SyntaxNode } from '@lezer/common';
+import { EditorState } from '@uiw/react-codemirror';
 
 export function toNodeString(state: EditorState, node: SyntaxNode) {
   return state.doc.sliceString(node.from, node.to);

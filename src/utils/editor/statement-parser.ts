@@ -3,11 +3,12 @@
  * Copyright (C) [2025] Outerbase
  * Licensed under GNU AGPL v3.0
  */
-import { EditorState } from '@uiw/react-codemirror';
 import { syntaxTree } from '@codemirror/language';
 import { SyntaxNode } from '@lezer/common';
-import { StatementSegment } from './models';
+import { EditorState } from '@uiw/react-codemirror';
+
 import { isEndStatement, isRequireEndStatement } from './helpers';
+import { StatementSegment } from './models';
 
 export function splitSqlQuery(
   state: EditorState,

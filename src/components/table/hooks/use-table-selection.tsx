@@ -1,10 +1,11 @@
-import { Cell, CellContext, Table } from '@tanstack/react-table';
-import { useCallback, useState } from 'react';
 import { useDidUpdate } from '@mantine/hooks';
 import { DataRow, DBColumn, DBTableOrViewSchema, FormattedValue } from '@models/db';
+import { Cell, CellContext, Table } from '@tanstack/react-table';
+import { copyToClipboard } from '@utils/clipboard';
 import { stringifyTypedValue } from '@utils/db';
 import { formatTableData } from '@utils/table';
-import { copyToClipboard } from '@utils/clipboard';
+import { useCallback, useState } from 'react';
+
 import { ColumnMeta } from '../model';
 
 interface SelectedCell {

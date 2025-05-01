@@ -1,8 +1,9 @@
 import { Group, Text } from '@mantine/core';
+import { useDidUpdate } from '@mantine/hooks';
+import { ScriptExecutionState } from '@models/sql-script';
 import { IconFileSad } from '@tabler/icons-react';
 import React, { useState, useRef } from 'react';
-import { ScriptExecutionState } from '@models/sql-script';
-import { useDidUpdate } from '@mantine/hooks';
+
 import { RunQueryButton } from './components';
 
 interface ScriptEditorDataStatePaneProps {

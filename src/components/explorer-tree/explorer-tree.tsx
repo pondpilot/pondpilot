@@ -11,6 +11,7 @@ import { useHotkeys } from '@mantine/hooks';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { ReactNode, useCallback, useMemo, useRef } from 'react';
+
 import { RenderTreeNodePayload, TreeNodeMenuType, TreeNodeData } from './model';
 import { getFlattenNodes } from './utils/tree-manipulation';
 

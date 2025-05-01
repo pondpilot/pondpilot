@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   IconCode,
   IconJson,
@@ -20,6 +19,7 @@ import {
   IconNumber10,
   IconBrackets,
 } from '@tabler/icons-react';
+import React from 'react';
 
 export type IconType =
   /// File system

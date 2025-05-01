@@ -1,4 +1,3 @@
-import { findUniqueName } from '@utils/helpers';
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
@@ -6,8 +5,10 @@ import {
   PersistentDataSourceId,
 } from '@models/data-source';
 import { DataSourceLocalFile } from '@models/file-system';
-import { makeIdFactory } from './new-id';
+import { findUniqueName } from '@utils/helpers';
+
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from './duckdb/identifier';
+import { makeIdFactory } from './new-id';
 
 export const makePersistentDataSourceId = makeIdFactory<PersistentDataSourceId>();
 

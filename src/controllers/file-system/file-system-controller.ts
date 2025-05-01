@@ -1,10 +1,17 @@
 // Public file system related controller API's
 // By convetion the order should follow CRUD groups!
 
-import { findUniqueName } from '@utils/helpers';
-
-import { SQLScript, SQLScriptId } from '@models/sql-script';
+import { deleteDataSources } from '@controllers/data-source';
+import {
+  registerAndAttachDatabase,
+  registerFileHandle,
+  registerFileSourceAndCreateView,
+  createXlsxSheetView,
+} from '@controllers/db/data-source';
+import { getAttachedDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
+import { DataBaseModel } from '@models/db';
 import {
   DataSourceLocalFile,
   ignoredFolders,
@@ -12,23 +19,15 @@ import {
   LocalEntryId,
   LocalFolder,
 } from '@models/file-system';
-import { localEntryFromHandle } from '@utils/file-system';
-
-import {
-  registerAndAttachDatabase,
-  registerFileHandle,
-  registerFileSourceAndCreateView,
-  createXlsxSheetView,
-} from '@controllers/db/data-source';
-import { addAttachedDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
-import { getAttachedDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
-import { DataBaseModel } from '@models/db';
-import { makeSQLScriptId } from '@utils/sql-script';
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
+import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { deleteDataSources } from '@controllers/data-source';
+import { addAttachedDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
+import { localEntryFromHandle } from '@utils/file-system';
+import { findUniqueName } from '@utils/helpers';
+import { makeSQLScriptId } from '@utils/sql-script';
 import { getXlsxSheetNames } from '@utils/xlsx';
+
 import { persistAddLocalEntry, persistDeleteLocalEntry } from './persist';
 
 /**

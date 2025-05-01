@@ -1,12 +1,15 @@
-import { IDBPDatabase, openDB } from 'idb';
-import { TabId } from '@models/tab';
-import { useAppStore } from '@store/app-store';
+import { persistDeleteDataSource } from '@controllers/data-source/persist';
 import {
-  collectFileHandlePersmissions,
-  isAvailableFileHandle,
-  localEntryFromHandle,
-  requestFileHandlePersmissions,
-} from '@utils/file-system';
+  registerAndAttachDatabase,
+  registerFileHandle,
+  registerFileSourceAndCreateView,
+  createXlsxSheetView,
+} from '@controllers/db/data-source';
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { persistDeleteTab } from '@controllers/tab/persist';
+import { deleteTabImpl } from '@controllers/tab/pure';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { AnyDataSource, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
 import {
   ignoredFolders,
   LocalEntry,
@@ -15,16 +18,6 @@ import {
   LocalFile,
   LocalFolder,
 } from '@models/file-system';
-import { findUniqueName } from '@utils/helpers';
-import { AnyDataSource, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
-import {
-  registerAndAttachDatabase,
-  registerFileHandle,
-  registerFileSourceAndCreateView,
-  createXlsxSheetView,
-} from '@controllers/db/data-source';
-import { addAttachedDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
-import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import {
   ALL_TABLE_NAMES,
   APP_DB_NAME,
@@ -36,11 +29,18 @@ import {
   TAB_TABLE_NAME,
   AppIdbSchema,
 } from '@models/persisted-store';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { persistDeleteDataSource } from '@controllers/data-source/persist';
+import { TabId } from '@models/tab';
+import { useAppStore } from '@store/app-store';
+import { addAttachedDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
+import {
+  collectFileHandlePersmissions,
+  isAvailableFileHandle,
+  localEntryFromHandle,
+  requestFileHandlePersmissions,
+} from '@utils/file-system';
+import { findUniqueName } from '@utils/helpers';
 import { getXlsxSheetNames } from '@utils/xlsx';
-import { persistDeleteTab } from '@controllers/tab/persist';
-import { deleteTabImpl } from '@controllers/tab/pure';
+import { IDBPDatabase, openDB } from 'idb';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {

@@ -1,7 +1,18 @@
-import { Button, Group, Image, Stack, Text, Title, useMantineColorScheme } from '@mantine/core';
-import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
-import duck from '@assets/duck.svg';
 import duckDark from '@assets/duck-dark.svg';
+import duck from '@assets/duck.svg';
+import { HotkeyPill } from '@components/hotkey-pill';
+import { ICON_CLASSES, SCRIPT_DISPLAY_NAME } from '@components/spotlight/consts';
+import { createSQLScript } from '@controllers/sql-script';
+import { getOrCreateTabFromScript } from '@controllers/tab';
+import {
+  ONBOARDING_MODAL_OPTIONS,
+  OnboardingModalContent,
+} from '@features/onboarding-modal-content';
+import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
+import { Button, Group, Image, Stack, Text, Title, useMantineColorScheme } from '@mantine/core';
+import { modals } from '@mantine/modals';
+import { spotlight } from '@mantine/spotlight';
 import {
   IconChevronRight,
   IconDatabasePlus,
@@ -10,19 +21,8 @@ import {
   IconFolderPlus,
   IconPlus,
 } from '@tabler/icons-react';
-import { HotkeyPill } from '@components/hotkey-pill';
-import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
-import { spotlight } from '@mantine/spotlight';
-import { setDataTestId } from '@utils/test-id';
-import { createSQLScript } from '@controllers/sql-script';
-import { getOrCreateTabFromScript } from '@controllers/tab';
-import { ICON_CLASSES, SCRIPT_DISPLAY_NAME } from '@components/spotlight/consts';
 import { importSQLFiles } from '@utils/import-script-file';
-import { modals } from '@mantine/modals';
-import {
-  ONBOARDING_MODAL_OPTIONS,
-  OnboardingModalContent,
-} from '@features/onboarding-modal-content';
+import { setDataTestId } from '@utils/test-id';
 
 export const StartGuide = () => {
   const mod = useOsModifierIcon();

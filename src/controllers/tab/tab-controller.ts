@@ -1,15 +1,16 @@
 // Public tab controller API's
 // By convetion the order should follow CRUD groups!
 import { AnyFlatFileDataSource, AttachedDB, PersistentDataSourceId } from '@models/data-source';
+import { ColumnSortSpecList } from '@models/db';
+import { CONTENT_VIEW_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AttachedDBDataTab, FlatFileDataSourceTab, ScriptTab, StaleData, TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { CONTENT_VIEW_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
+import { ensureAttachedDBDataSource, ensureFlatFileDataSource } from '@utils/data-source';
 import { ensureScript } from '@utils/sql-script';
 import { ensureTab, makeTabId } from '@utils/tab';
-import { ensureAttachedDBDataSource, ensureFlatFileDataSource } from '@utils/data-source';
 import { shallow } from 'zustand/shallow';
-import { ColumnSortSpecList } from '@models/db';
+
 import { persistCreateTab, persistDeleteTab } from './persist';
 import {
   deleteTabImpl,

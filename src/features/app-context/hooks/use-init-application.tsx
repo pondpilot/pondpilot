@@ -1,12 +1,13 @@
-import { useEffect } from 'react';
 import { showError, showWarning } from '@components/app-notifications';
-import { setAppLoadState } from '@store/app-store';
-import { restoreAppDataFromIDB } from '@store/restore';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
 } from '@features/duckdb-context/duckdb-context';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { setAppLoadState } from '@store/app-store';
+import { restoreAppDataFromIDB } from '@store/restore';
+import { useEffect } from 'react';
+
 import { useShowPermsAlert } from './use-show-perm-alert';
 
 export function useAppInitialization(isFileAccessApiSupported: boolean) {

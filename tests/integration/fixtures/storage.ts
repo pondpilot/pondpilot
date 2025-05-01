@@ -1,6 +1,8 @@
-import { test as base } from '@playwright/test';
 import { createReadStream, readdirSync, ReadStream } from 'fs';
 import path from 'path';
+
+import { test as base } from '@playwright/test';
+
 import { parsePath } from '../../utils';
 
 declare global {

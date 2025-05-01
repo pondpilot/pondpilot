@@ -1,20 +1,20 @@
+import { createSQLScript } from '@controllers/sql-script';
+import { getOrCreateTabFromScript } from '@controllers/tab';
 import { DbExplorer } from '@features/db-explorer/db-explorer';
-import { ScriptExplorer } from '@features/script-explorer';
 import { FileSystemExplorer } from '@features/file-system-explorer';
+import { ScriptExplorer } from '@features/script-explorer';
+import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { ActionIcon, Button, Divider, Group, Skeleton, Stack, Text } from '@mantine/core';
 import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
+import { APP_GITHUB_URL } from '@models/app-urls';
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
+import { useAppStore } from '@store/app-store';
 import { IconBrandGithub, IconFolderPlus, IconPlus, IconSettings } from '@tabler/icons-react';
+import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { setDataTestId } from '@utils/test-id';
-import { APP_GITHUB_URL } from '@models/app-urls';
-import { useAppStore } from '@store/app-store';
-import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
-import { createSQLScript } from '@controllers/sql-script';
-import { getOrCreateTabFromScript } from '@controllers/tab';
-import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 
 /**
  * Displays the navigation bar

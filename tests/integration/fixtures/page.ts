@@ -1,5 +1,6 @@
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { expect, Page } from '@playwright/test';
+
 import { test as base } from './base';
 
 const waitForAppReady = async (page: Page) => {

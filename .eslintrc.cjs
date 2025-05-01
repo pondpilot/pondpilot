@@ -15,6 +15,17 @@ module.exports = {
     '@typescript-eslint/no-unused-vars': 'off',
     '@typescript-eslint/return-await': ['error', 'error-handling-correctness-only'],
     'unused-imports/no-unused-imports': 'error',
+    'import/order': [
+      'error',
+      {
+        groups: ['builtin', 'external', 'internal', ['parent', 'sibling', 'index']],
+        'newlines-between': 'always',
+        alphabetize: {
+          order: 'asc',
+          caseInsensitive: true,
+        },
+      },
+    ],
     'unused-imports/no-unused-vars': [
       'warn',
       {
