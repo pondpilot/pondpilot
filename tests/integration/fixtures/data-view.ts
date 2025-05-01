@@ -166,10 +166,15 @@ export const test = base.extend<DataViewFixtures>({
       // Start waiting for download before clicking. Note no await.
       const downloadPromise = page.waitForEvent('download');
 
-      // Click the export button
-      const exportButton = page.getByTestId('export-table-csv-button');
-      await expect(exportButton).toBeVisible();
-      await exportButton.click();
+      // Click the export dropdown button first
+      const exportDropdownButton = page.getByTestId('export-table-button');
+      await expect(exportDropdownButton).toBeVisible();
+      await exportDropdownButton.click();
+      
+      // Then click the CSV menu item
+      const exportCSVMenuItem = page.getByTestId('export-table-csv-menu-item');
+      await expect(exportCSVMenuItem).toBeVisible();
+      await exportCSVMenuItem.click();
 
       // Get the special playwright download object
       const download = await downloadPromise;
