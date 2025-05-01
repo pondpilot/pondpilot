@@ -147,14 +147,20 @@ export class AsyncDuckDBConnectionPool {
     // Try to get a connection from the pool
     const { conn, index } = await this._getConnection();
 
-    // Return a pooled connection
-    return new AsyncDuckDBPooledConnection({
-      conn,
-      onClose: async () => {
-        // Release the connection back to the pool
-        this._releaseConnection(index);
-      },
-    });
+    try {
+      // Return a pooled connection
+      return new AsyncDuckDBPooledConnection({
+        conn,
+        onClose: async () => {
+          // Release the connection back to the pool
+          this._releaseConnection(index);
+        },
+      });
+    } catch (error) {
+      // Release the connection back to the pool
+      this._releaseConnection(index);
+      throw error;
+    }
   }
 
   // DuckDB Async connection methods re-wrapped, these should have the exact
@@ -179,14 +185,16 @@ export class AsyncDuckDBConnectionPool {
     // Try to get a connection from the pool
     const { conn, index } = await this._getConnection();
 
-    // run the query
-    const res = await conn.getTableNames(...params);
+    try {
+      // run the query
+      const res = await conn.getTableNames(...params);
 
-    // Release the connection back to the pool
-    this._releaseConnection(index);
-
-    // Return the result
-    return res;
+      // Return the result
+      return res;
+    } finally {
+      // Release the connection back to the pool
+      this._releaseConnection(index);
+    }
   }
 
   /**
@@ -208,13 +216,16 @@ export class AsyncDuckDBConnectionPool {
     // Try to get a connection from the pool
     const { conn, index } = await this._getConnection();
 
-    // run the query
-    const res = await conn.query<T>(text);
+    try {
+      // run the query
+      const res = await conn.query<T>(text);
 
-    // Release the connection back to the pool
-    this._releaseConnection(index);
-
-    return res;
+      // Return the result
+      return res;
+    } finally {
+      // Release the connection back to the pool
+      this._releaseConnection(index);
+    }
   }
 
   /**
@@ -239,7 +250,7 @@ export class AsyncDuckDBConnectionPool {
     signal: AbortSignal,
   ): Promise<{ value: arrow.Table<T>; aborted: false } | { value: void; aborted: true }> {
     // DuckDB-wasm doesn't allow aborting queries started via `query` midway,
-    // wso we are playing tricks here. We create a streaming reader internally
+    // so we are playing tricks here. We create a streaming reader internally
     // which can be aborted, and just create an arrow table from batches at the end
 
     const batches = [] as arrow.RecordBatch[];
@@ -291,21 +302,84 @@ export class AsyncDuckDBConnectionPool {
     // Try to get a connection from the pool
     const { conn, index } = await this._getConnection();
 
-    // Send the query. Always in streaming mode
-    const reader = await conn.send<T>(text, allowStreamResult);
+    try {
+      // Send the query.
+      const reader = await conn.send<T>(text, allowStreamResult);
 
-    // Return a pooled reader
-    return new AsyncDuckDBPooledStreamReader<T>({
-      reader,
-      onClose: async () => {
-        // cancelPending in the connection in case reader haven't reached the end.
-        // Note that DuckDB will return `false` if the query is already done, but
-        // we do not check the result.
-        await conn.cancelSent();
+      // Return a pooled reader
+      return new AsyncDuckDBPooledStreamReader<T>({
+        reader,
+        onClose: async () => {
+          // cancelPending in the connection in case reader haven't reached the end.
+          // Note that DuckDB will return `false` if the query is already done, but
+          // we do not check the result.
+          await conn.cancelSent();
 
-        // Release the connection back to the pool
+          // Release the connection back to the pool
+          this._releaseConnection(index);
+        },
+      });
+    } catch (error) {
+      // Release the connection back to the pool in case of error
+      this._releaseConnection(index);
+      throw error;
+    }
+  }
+
+  /**
+   * Starts a streaming query using a pooled connection with the ability to abort during
+   * initial query creation (which in reality executes the query up-to one data batch,
+   * and thus can be pretty slow).
+   *
+   * @param text The SQL query to execute.
+   * @param signal The abort signal to use.
+   * @param allowStreamResult Whether to allow streamed results.
+   * @returns A promise that resolves to a `AsyncDuckDBPooledStreamReader` instance or null if aborted.
+   * @throws {PoolTimeoutError} If the pool is full and no connection is available within the timeout.
+   * @throws {Error} Any underlying error from the DuckDB connection.
+   */
+  public async sendAbortable<
+    T extends {
+      [key: string]: arrow.DataType;
+    } = any,
+  >(
+    text: string,
+    signal: AbortSignal,
+    allowStreamResult?: boolean,
+  ): Promise<AsyncDuckDBPooledStreamReader<T> | null> {
+    // Try to get a connection from the pool
+    const { conn, index } = await this._getConnection();
+
+    try {
+      // Send the query with abort signal
+      const result = await toAbortablePromise({
+        promise: conn.send<T>(text, allowStreamResult),
+        signal,
+      });
+
+      if (result.aborted) {
+        // Release the connection back to the pool if aborted
         this._releaseConnection(index);
-      },
-    });
+        return null;
+      }
+
+      // Return a pooled reader
+      return new AsyncDuckDBPooledStreamReader<T>({
+        reader: result.value,
+        onClose: async () => {
+          // cancelPending in the connection in case reader haven't reached the end.
+          // Note that DuckDB will return `false` if the query is already done, but
+          // we do not check the result.
+          await conn.cancelSent();
+
+          // Release the connection back to the pool
+          this._releaseConnection(index);
+        },
+      });
+    } catch (error) {
+      // Release the connection back to the pool in case of error
+      this._releaseConnection(index);
+      throw error;
+    }
   }
 }
