@@ -42,7 +42,7 @@ function getGetColumnAggregateFromFQN(
   };
 }
 
-function getgetColumnsDataApiFromFQN(
+function getGetColumnsDataApiFromFQN(
   pool: AsyncDuckDBConnectionPool,
   fqn: string,
 ): DataAdapterQueries['getColumnsData'] {
@@ -54,7 +54,7 @@ function getgetColumnsDataApiFromFQN(
     if (aborted) {
       return { value: [], aborted };
     }
-    return { value: convertArrowTable(value), aborted };
+    return { value: convertArrowTable(value, columns), aborted };
   };
 }
 
@@ -68,7 +68,7 @@ function getFlatFileDataAdapterQueries(
   const baseAttrs: Partial<DataAdapterQueries> = {
     getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn),
     getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn),
-    getColumnsData: getgetColumnsDataApiFromFQN(pool, fqn),
+    getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
   };
 
   if (dataSource.type === 'csv' || dataSource.type === 'json' || dataSource.type === 'xlsx-sheet') {
@@ -148,7 +148,7 @@ function getAttachedDBDataAdapterApi(
           : undefined,
       getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn),
       getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn),
-      getColumnsData: getgetColumnsDataApiFromFQN(pool, fqn),
+      getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
     },
     userErrors: [],
     internalErrors: [],
@@ -295,7 +295,7 @@ export function getScriptAdapterQueries({
             if (aborted) {
               return { value: [], aborted };
             }
-            return { value: convertArrowTable(value), aborted };
+            return { value: convertArrowTable(value, columns), aborted };
           }
         : undefined,
     },

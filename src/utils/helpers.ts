@@ -37,9 +37,6 @@ export const findUniqueName = (name: string, checkIfExists: (name: string) => bo
   return uniqueName;
 };
 
-export const replaceSpecialChars = (str: string): string =>
-  str.trim().replace(/[^a-zA-Z0-9]/g, '_');
-
 export function quote(s: string, options = { single: false }): string {
   // Replace each quote with two quotes and wrap result in quotes
   if (options.single) {
@@ -49,14 +46,14 @@ export function quote(s: string, options = { single: false }): string {
 }
 
 /**
- * Escapes a string for CSV where commas are used as delimiters.
+ * Escapes a string for CSV/TSV where commas are used as delimiters.
  * If the string contains a comma, it will be wrapped in quotes.
  * If the string contains quotes, they will be escaped by doubling them.
  *
  * @param {string} s - The string to escape.
  * @returns {string} The escaped string.
  */
-export function escapeCSVField(s: string): string {
+export function escapeField(s: string): string {
   if (s.search(/"|,|\n/g) === -1) {
     return s;
   }

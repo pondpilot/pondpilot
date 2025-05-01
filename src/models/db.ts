@@ -1,16 +1,34 @@
+import { NewId } from './new-id';
+
 export type NormalizedSQLType =
-  | 'number'
+  // Any precision floating point type
+  | 'float'
+  // Any fixed precision decimal type
+  | 'decimal'
+  // Any integer except for bigint (int 8)
   | 'integer'
   | 'bigint'
   | 'boolean'
   | 'date'
   | 'timestamp'
+  | 'timestamptz'
   | 'time'
+  | 'timetz'
+  // Any interval type (for simplicity)
+  | 'interval'
+  // Any fixed or variable length string/text type
   | 'string'
   | 'bytes'
+  | 'bitstring'
   | 'array'
   | 'object'
   | 'other';
+
+export type FormattedValueType = 'regular' | 'null' | 'error';
+export type FormattedValue = {
+  type: FormattedValueType;
+  formattedValue: string;
+};
 
 export type SortOrder = 'asc' | 'desc' | null;
 
@@ -21,11 +39,15 @@ export type ColumnSortSpec = {
 
 export type ColumnSortSpecList = ColumnSortSpec[];
 
+export type DBColumnId = NewId<'DBColumnId'>;
+
 export interface DBColumn {
   name: string;
   databaseType: string;
   nullable: boolean;
   sqlType: NormalizedSQLType;
+  id: DBColumnId;
+  columnIndex: number;
 }
 
 export type DBTableOrViewSchema = DBColumn[];
@@ -52,7 +74,8 @@ export interface DataBaseModel {
 }
 
 // Names here are chosen to avoid conflicts with arrow types.
-export type DataRow = Record<string, any>;
+export type DataCell = any;
+export type DataRow = Record<DBColumnId, DataCell>;
 export type DataTable = DataRow[];
 
 // This is the size of the batch that arro stream reader returns as of time of writing.

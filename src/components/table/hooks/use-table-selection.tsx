@@ -1,14 +1,16 @@
 import { Cell, CellContext, Table } from '@tanstack/react-table';
 import { useCallback, useState } from 'react';
 import { useDidUpdate } from '@mantine/hooks';
-import { DBColumn, DBTableOrViewSchema } from '@models/db';
-import { showSuccess } from '@components/app-notifications';
+import { DataRow, DBColumn, DBTableOrViewSchema, FormattedValue } from '@models/db';
 import { stringifyTypedValue } from '@utils/db';
+import { formatTableData } from '@utils/table';
+import { copyToClipboard } from '@utils/clipboard';
 import { ColumnMeta } from '../model';
 
 interface SelectedCell {
   cellId: string | null;
-  value: any;
+  rawValue: any;
+  formattedValue: FormattedValue | null;
 }
 
 interface UseTableSelectionProps {
@@ -30,13 +32,14 @@ export const useTableSelection = ({
   const [selectedCols, setSelectedCols] = useState<Record<string, boolean>>({});
   const [selectedCell, setSelectedCell] = useState<SelectedCell>({
     cellId: null,
-    value: null,
+    rawValue: null,
+    formattedValue: null,
   });
 
   const clearSelection = useCallback(() => {
     setSelectedRows({});
     setSelectedCols({});
-    setSelectedCell({ cellId: null, value: null });
+    setSelectedCell({ cellId: null, rawValue: null, formattedValue: null });
     setLastSelectedColumn(null);
     setLastSelectedRow('0');
     onColumnSelectChange(null);
@@ -50,11 +53,12 @@ export const useTableSelection = ({
     onCellSelectChange();
 
     const { type } = cell.column.columnDef.meta as ColumnMeta;
-    const value = stringifyTypedValue({
+    const value = cell.getValue();
+    const formattedValue = stringifyTypedValue({
       type,
-      value: cell.getValue(),
+      value,
     });
-    setSelectedCell({ cellId: cell.id, value });
+    setSelectedCell({ cellId: cell.id, rawValue: value, formattedValue });
   }, []);
 
   const handleCopySelectedRows = useCallback(
@@ -62,48 +66,38 @@ export const useTableSelection = ({
       const selectedRowsIds = Object.keys(selectedRows).filter((id) => selectedRows[id]);
       if (!selectedRowsIds.length) return;
 
-      const headers = table
-        .getAllColumns()
-        .filter((col) => !col.getIsFirstColumn())
-        .map((col) => col.id)
-        .join('\t');
+      const tableData = selectedRowsIds.map((rowId) => {
+        const row = table.getRow(rowId);
+        const [_, ...cells] = row.getAllCells();
+        const rowData = cells.map((cell) => {
+          const { type } = cell.column.columnDef.meta as ColumnMeta;
+          const rawValue = cell.getValue();
+          const { type: fValueType, formattedValue } = stringifyTypedValue({
+            type,
+            value: rawValue,
+          });
 
-      const selectedRowsData = selectedRowsIds
-        .map((rowId) => {
-          const row = table.getRow(rowId);
+          return fValueType === 'null' ? '' : formattedValue;
+        });
 
-          return table
-            .getAllColumns()
-            .filter((col) => !col.getIsFirstColumn())
-            .map((col) => {
-              const value = row.getValue(col.id);
+        return rowData;
+      });
 
-              return value ?? '';
-            })
-            .join('\t');
-        })
-        .join('\n');
+      const formattedData = formatTableData(tableData, '\t');
 
-      const csvContent = `${headers}\n${selectedRowsData}`;
-      navigator.clipboard.writeText(csvContent);
-
-      showSuccess({
-        title: 'Selected rows copied to clipboard',
-        message: '',
-        autoClose: 800,
+      copyToClipboard(formattedData, {
+        showNotification: true,
+        notificationTitle: 'Selected rows copied to clipboard',
       });
     },
     [selectedRows],
   );
 
   const onRowSelectionChange = useCallback(
-    (
-      cell: CellContext<Record<string, string | number>, any>,
-      e: React.MouseEvent<Element, MouseEvent>,
-    ) => {
+    (cell: CellContext<DataRow, any>, e: React.MouseEvent<Element, MouseEvent>) => {
       onRowSelectChange();
       setSelectedCols({});
-      setSelectedCell({ cellId: null, value: null });
+      setSelectedCell({ cellId: null, rawValue: null, formattedValue: null });
       const rowId = cell.row.id;
       const isSelectRange = e.shiftKey;
       const multiple = e.ctrlKey || e.metaKey;
@@ -146,7 +140,7 @@ export const useTableSelection = ({
 
   const handleHeadCellClick = useCallback(
     (columnId: string, e: React.MouseEvent<Element, MouseEvent>) => {
-      setSelectedCell({ cellId: null, value: null });
+      setSelectedCell({ cellId: null, rawValue: null, formattedValue: null });
       setSelectedRows({});
 
       const isSelectRange = e.shiftKey;
@@ -171,11 +165,11 @@ export const useTableSelection = ({
           return;
         }
 
-        const start = schema.findIndex((col) => col.name === lastSelectedColumn);
-        const end = schema.findIndex((col) => col.name === columnId);
+        const start = schema.findIndex((col) => col.id === lastSelectedColumn);
+        const end = schema.findIndex((col) => col.id === columnId);
         const selectedCols2 = schema.slice(Math.min(start, end), Math.max(start, end) + 1).reduce(
           (acc, col) => {
-            acc[col.name] = true;
+            acc[col.id] = true;
             return acc;
           },
           {} as Record<string, boolean>,
@@ -190,7 +184,7 @@ export const useTableSelection = ({
     const selectedColsKeys = Object.keys(selectedCols);
     if (selectedColsKeys.length === 1) {
       const columnName = selectedColsKeys[0];
-      const column = schema.find((col) => col.name === columnName);
+      const column = schema.find((col) => col.id === columnName);
       if (column) {
         onColumnSelectChange(column);
       }

@@ -3,12 +3,14 @@ import { TextProps, Group, ActionIcon, Button, Text } from '@mantine/core';
 import { IconX, IconCopy } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { useMemo } from 'react';
-import { useTableExport } from '@features/tab-view/hooks';
 import { DataAdapterApi } from '@models/data-adapter';
 import { useDebouncedValue } from '@mantine/hooks';
 import { TabId, TabType } from '@models/tab';
 import { assertNeverValueType } from '@utils/typing';
 import { setDataTestId } from '@utils/test-id';
+import { copyTableColumns, exportTableColumnsToCSV } from '@features/tab-view/utils';
+import { useAppStore } from '@store/app-store';
+import { getTabName } from '@utils/navigation';
 import { ColRowCount } from './components/col-row-count';
 
 interface DataViewInfoPaneProps {
@@ -18,11 +20,6 @@ interface DataViewInfoPaneProps {
 }
 
 export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPaneProps) => {
-  /**
-   * Hooks
-   */
-  const { copyTableToClipboard, exportTableToCSV } = useTableExport(dataAdapter, tabId);
-
   /**
    * Computed data source state
    */
@@ -43,6 +40,29 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
   // data present, we show a big overlay with cancel button
   const showCancelButton = (isFetching || isSorting) && hasData && !hasDataSourceError;
   const disableCopyAndExport = !hasData || hasDataSourceError;
+
+  const handleTableExportClick = async () => {
+    const state = useAppStore.getState();
+    const tab = state.tabs.get(tabId);
+
+    const tabName = tab
+      ? getTabName(tab, state.sqlScripts, state.dataSources, state.localEntries)
+      : 'unknown-tab-export';
+    const fileName = `${tabName}.csv`;
+
+    await exportTableColumnsToCSV({
+      dataAdapter,
+      columns: dataAdapter.currentSchema,
+      fileName,
+    });
+  };
+
+  const handleTableCopyClick = async () => {
+    copyTableColumns({
+      columns: dataAdapter.currentSchema,
+      dataAdapter,
+    });
+  };
 
   /**
    * Memoized status message
@@ -130,11 +150,16 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
         )}
       </Group>
       <Group className="h-full">
-        <ActionIcon size={16} onClick={copyTableToClipboard} disabled={disableCopyAndExport}>
+        <ActionIcon
+          data-testid={setDataTestId('copy-table-button')}
+          size={16}
+          onClick={handleTableCopyClick}
+          disabled={disableCopyAndExport}
+        >
           <IconCopy />
         </ActionIcon>
         <Button
-          onClick={exportTableToCSV}
+          onClick={handleTableExportClick}
           disabled={disableCopyAndExport}
           color="background-tertiary"
           c="text-primary"

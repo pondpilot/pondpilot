@@ -1,15 +1,15 @@
+import { DataCell } from '@models/db';
 import { MAX_DATA_VIEW_PAGE_SIZE } from '@models/tab';
 import { test as base, expect, Locator } from '@playwright/test';
-import { replaceSpecialChars } from '@utils/helpers';
-
-type ExpectedDataValue = number | string;
+import { getTableColumnId } from '@utils/db';
 
 /**
- * Expected data structure for the data table.
- *
- * Must have at least one column and all columns must have the same number of rows.
+ * Input format for assertDataTableMatches that supports raw DataTable
  */
-type ExpectedData = Record<string, ExpectedDataValue[]>;
+type ExpectedData = {
+  data: DataCell[][];
+  columnNames: string[];
+};
 
 type DataViewFixtures = {
   /**
@@ -58,40 +58,40 @@ export const getAllHeaderCells = (dataTable: Locator) =>
  * Returns the header cell for a given column name.
  *
  * @param dataTable The data table locator.
- * @param columnName The column name.
+ * @param columnId The column name.
  * @returns
  */
-export const getHeaderCell = (dataTable: Locator, columnName: string) =>
-  dataTable.getByTestId(`data-table-header-cell-container-${columnName}`);
+export const getHeaderCell = (dataTable: Locator, columnId: string) =>
+  dataTable.getByTestId(`data-table-header-cell-container-${columnId}`);
 
 /**
  * Returns the data cell container for a given column name and row index.
  *
  * @param dataTable The data table locator.
- * @param columnName The column name.
+ * @param columnId The column name.
  * @param rowIndex The row index.
  * @returns
  */
-export const getDataCellContainer = (dataTable: Locator, columnName: string, rowIndex: number) =>
-  dataTable.getByTestId(`data-table-cell-container-${columnName}-${rowIndex}`);
+export const getDataCellContainer = (dataTable: Locator, columnId: string, rowIndex: number) =>
+  dataTable.getByTestId(`data-table-cell-container-${columnId}-${rowIndex}`);
 
 /**
  * Returns the data cell value for a given column name and row index.
  *
  * @param dataTable The data table locator.
- * @param columnName The column name.
+ * @param columnId The column name.
  * @param rowIndex The row index.
  * @returns
  */
 export const getDataCellValue = (
   dataTable: Locator,
-  columnName: string,
+  columnId: string,
   rowIndex: number,
   currentPage: number = 0,
 ) => {
   const relativeRowIndex = rowIndex - currentPage * MAX_DATA_VIEW_PAGE_SIZE;
 
-  return dataTable.getByTestId(`data-table-cell-value-${columnName}-${relativeRowIndex}`);
+  return dataTable.getByTestId(`data-table-cell-value-${columnId}-${relativeRowIndex}`);
 };
 
 export const test = base.extend<DataViewFixtures>({
@@ -123,7 +123,7 @@ export const test = base.extend<DataViewFixtures>({
       const dataTable = await waitForDataTable();
 
       // Check if the data table has the expected column count first
-      const columns = Object.keys(expected);
+      const columns = expected.columnNames;
       const headerCells = getAllHeaderCells(dataTable);
 
       // We always have an extra column for the row number
@@ -135,7 +135,7 @@ export const test = base.extend<DataViewFixtures>({
       await expect(rowNumberHeaderCell).toHaveText('#');
 
       // Check row number data cells (assuming all columns have the same number of rows)
-      const rowCount = expected[columns[0]].length;
+      const rowCount = expected.data.length;
       for (let i = 0; i < rowCount; i += 1) {
         const rowNumberCell = getDataCellValue(dataTable, '#', i, currentPage);
         await expect(rowNumberCell).toBeVisible();
@@ -143,8 +143,11 @@ export const test = base.extend<DataViewFixtures>({
       }
 
       // Now check if the data table has the expected data
-      for (const [column, values] of Object.entries(expected)) {
-        const columnId = replaceSpecialChars(column);
+      for (let colIndex = 0; colIndex < columns.length; colIndex += 1) {
+        const column = columns[colIndex];
+        const values = expected.data.map((row) => row[colIndex]);
+        const columnId = getTableColumnId(column, colIndex);
+
         const headerCell = getHeaderCell(dataTable, columnId);
         await expect(headerCell).toBeVisible({ timeout: 0 });
         await expect(headerCell).toHaveText(column);

@@ -50,7 +50,10 @@ test('roundtrip csv file with quotes and commas', async ({
   // TODO: Duckdb-Wasm that we currently use incorrectly parses the CSV, it doesn't
   // unqote the double double quotes. Update the test when we upgrade to reader that properly
   // handles this case.
-  await assertDataTableMatches({ 'col,""name': ['all in: comma, dobule"""",\nafter newline'] });
+  await assertDataTableMatches({
+    data: [['all in: comma, dobule"""",\nafter newline']],
+    columnNames: ['col,""name'],
+  });
   // Export the table to CSV
   const pathToSave = testTmp.join('exported_file.csv');
   await exportTableToCSV(pathToSave);

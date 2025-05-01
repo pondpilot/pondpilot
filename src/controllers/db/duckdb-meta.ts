@@ -2,6 +2,7 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { DataBaseModel, DBColumn, DBTableOrView } from '@models/db';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import { quote } from '@utils/helpers';
+import { getTableColumnId } from '@utils/db';
 import * as arrow from 'apache-arrow';
 
 async function queryOneColumn<VT extends arrow.DataType>(
@@ -243,6 +244,8 @@ export async function getDatabaseModel(
       databaseType: item.data_type,
       nullable: item.is_nullable,
       sqlType: normalizeDuckDBColumnType(item.data_type),
+      id: getTableColumnId(item.column_name, item.column_index),
+      columnIndex: item.column_index,
     };
     tableOrView.columns.push(column);
   });
@@ -290,6 +293,8 @@ export async function getObjectModels(
       databaseType: item.data_type,
       nullable: item.is_nullable,
       sqlType: normalizeDuckDBColumnType(item.data_type),
+      id: getTableColumnId(item.column_name, item.column_index),
+      columnIndex: item.column_index,
     };
     tableOrView.columns.push(column);
   });

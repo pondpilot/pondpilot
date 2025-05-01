@@ -1,25 +1,31 @@
 import {
   ColumnSortSpec,
   ColumnSortSpecList,
+  DBColumnId,
   DBTableOrViewSchema,
+  FormattedValue,
   NormalizedSQLType,
   SortOrder,
 } from '@models/db';
 import { assertNeverValueType } from './typing';
-import { formatNumber } from './helpers';
 
 export function isNumberType(type: NormalizedSQLType): boolean {
   switch (type) {
     case 'bigint':
-    case 'number':
+    case 'float':
+    case 'decimal':
     case 'integer':
       return true;
     case 'date':
     case 'time':
+    case 'timetz':
     case 'timestamp':
+    case 'timestamptz':
+    case 'interval':
     case 'boolean':
     case 'string':
     case 'bytes':
+    case 'bitstring':
     case 'array':
     case 'object':
     case 'other':
@@ -30,52 +36,237 @@ export function isNumberType(type: NormalizedSQLType): boolean {
   }
 }
 
+const returnRegularFormattedValue = (formattedValue: string): FormattedValue => ({
+  type: 'regular',
+  formattedValue,
+});
+
 export const stringifyTypedValue = ({
   type,
   value,
 }: {
   type: NormalizedSQLType;
   value: unknown;
-}): string => {
+}): FormattedValue => {
+  const fallback: FormattedValue = {
+    type: 'error',
+    formattedValue: `ERROR: can't convert column value <${value}> to declared type <${type}>`,
+  };
+
   try {
+    // Early check for null or undefined values
+    if (value === null || value === undefined) {
+      return { type: 'null', formattedValue: 'NULL' };
+    }
+
     switch (type) {
       case 'timestamp': {
-        return new Date(Number(value)).toLocaleString();
+        if (typeof value === 'number' || value instanceof Date) {
+          const date = typeof value === 'number' ? new Date(value) : value;
+
+          // Get year, month, day in UTC
+          const year = date.getUTCFullYear();
+          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(date.getUTCDate()).padStart(2, '0');
+
+          // Get time components in UTC
+          const hours = String(date.getUTCHours()).padStart(2, '0');
+          const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+          const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+
+          // Format: 2023-01-15 14:30:00
+          let result = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+          // Add milliseconds only if they are not 0
+          if (date.getUTCMilliseconds() > 0) {
+            result += `.${String(date.getUTCMilliseconds()).padStart(3, '0')}`;
+          }
+
+          return returnRegularFormattedValue(result);
+        }
+        return fallback;
+      }
+      case 'timestamptz': {
+        if (typeof value === 'number' || value instanceof Date) {
+          const date = typeof value === 'number' ? new Date(value) : value;
+
+          // Get year, month, day
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+
+          // Get time components
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          const seconds = String(date.getSeconds()).padStart(2, '0');
+
+          // Get timezone offset in minutes and convert to hours:minutes format
+          const tzOffset = date.getTimezoneOffset();
+          const tzSign = tzOffset <= 0 ? '+' : '-';
+          const tzHours = String(Math.floor(Math.abs(tzOffset) / 60)).padStart(2, '0');
+
+          // Format date part
+          let result = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+          // Add milliseconds if present
+          if (date.getMilliseconds() > 0) {
+            result += `.${String(date.getMilliseconds()).padStart(3, '0')}`;
+          }
+
+          // Add timezone offset
+          result += `${tzSign}${tzHours}`;
+
+          return returnRegularFormattedValue(result);
+        }
+        return fallback;
       }
       case 'date': {
-        return new Date(Number(value)).toLocaleDateString();
+        if (typeof value === 'number' || value instanceof Date) {
+          const date = typeof value === 'number' ? new Date(value) : value;
+          return returnRegularFormattedValue(date.toISOString().split('T')[0]);
+        }
+        return fallback;
       }
       case 'time': {
-        return new Date(Number(value)).toLocaleTimeString();
+        if (typeof value === 'number' || typeof value === 'bigint') {
+          // Handle PostgreSQL time format (microseconds since midnight)
+          const numValue = typeof value === 'bigint' ? Number(value) : value;
+          if (numValue > 0 && numValue < 86400000000) {
+            const totalSeconds = Math.floor(numValue / 1000000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return returnRegularFormattedValue(
+              `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
+            );
+          }
+          // Handle JavaScript timestamp
+          const date = new Date(numValue);
+          return returnRegularFormattedValue(date.toISOString().split('T')[1].split('.')[0]);
+        }
+        if (value instanceof Date) {
+          return returnRegularFormattedValue(value.toISOString().split('T')[1].split('.')[0]);
+        }
+        if (typeof value === 'string' && /^\d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(value)) {
+          return returnRegularFormattedValue(value);
+        }
+        return fallback;
+      }
+      case 'timetz': {
+        if (typeof value === 'number' || typeof value === 'bigint' || value instanceof Date) {
+          const date =
+            typeof value === 'number' || typeof value === 'bigint'
+              ? new Date(Number(value))
+              : value;
+          return returnRegularFormattedValue(`${date.toISOString().split('T')[1]} UTC`);
+        }
+        if (typeof value === 'string') {
+          return returnRegularFormattedValue(value);
+        }
+        return fallback;
+      }
+      case 'interval': {
+        return { type: 'error', formattedValue: 'Interval display not supported yet' };
       }
       case 'string': {
-        return value as string;
+        return returnRegularFormattedValue(typeof value === 'string' ? value : String(value));
       }
       case 'bigint': {
-        return (value as bigint).toString();
+        if (typeof value === 'bigint') {
+          return returnRegularFormattedValue(value.toLocaleString());
+        }
+        if (typeof value === 'number') {
+          return returnRegularFormattedValue(BigInt(Math.round(value)).toLocaleString());
+        }
+        if (typeof value === 'string' && /^-?\d+$/.test(value)) {
+          return returnRegularFormattedValue(value);
+        }
+        return fallback;
       }
       case 'boolean': {
-        return `${value}` as string;
+        return typeof value === 'boolean' ? returnRegularFormattedValue(String(value)) : fallback;
       }
-      case 'bytes':
-      case 'other':
+      case 'float':
+      case 'decimal': {
+        if (typeof value === 'number') {
+          return returnRegularFormattedValue(value.toLocaleString());
+        }
+        if (typeof value === 'string' && !Number.isNaN(parseFloat(value))) {
+          return returnRegularFormattedValue(value);
+        }
+        return fallback;
+      }
+      case 'integer': {
+        if (typeof value === 'number') {
+          return returnRegularFormattedValue(Math.round(value).toLocaleString());
+        }
+        if (typeof value === 'string' && /^-?\d+$/.test(value)) {
+          return returnRegularFormattedValue(value);
+        }
+        if (typeof value === 'bigint') {
+          return returnRegularFormattedValue(value.toLocaleString());
+        }
+        return fallback;
+      }
+      case 'bytes': {
+        if (value instanceof Uint8Array || Array.isArray(value)) {
+          const bytes = Array.from(value);
+          // If UTF-8 decoding fails, use hex representation
+          const hexRepr = `\\x${bytes.map((byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join('\\x')}`;
+
+          try {
+            // Try to decode as UTF-8 string
+            try {
+              // Use TextDecoder if available (modern browsers/Node.js)
+              if (typeof TextDecoder !== 'undefined') {
+                const bytesArray = value instanceof Uint8Array ? value : new Uint8Array(bytes);
+                const decoder = new TextDecoder('utf-8', { fatal: true });
+                return returnRegularFormattedValue(decoder.decode(bytesArray));
+              }
+
+              return returnRegularFormattedValue(hexRepr);
+            } catch (decodeError) {
+              return returnRegularFormattedValue(hexRepr);
+            }
+          } catch (e) {
+            return returnRegularFormattedValue(JSON.stringify(value));
+          }
+        }
+        return fallback;
+      }
+      case 'bitstring': {
+        // Display bits as a sequence of 0 and 1
+        if (typeof value === 'string') {
+          return returnRegularFormattedValue(value);
+        }
+        if (value instanceof Uint8Array || Array.isArray(value)) {
+          try {
+            return returnRegularFormattedValue(
+              Array.from(value)
+                .map((byte) => byte.toString(2).padStart(8, '0'))
+                .join(' '),
+            );
+          } catch (e) {
+            return returnRegularFormattedValue(JSON.stringify(value));
+          }
+        }
+        return fallback;
+      }
       case 'array':
-      case 'object': {
-        return JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toString() : v));
-      }
-      case 'integer':
-      case 'number': {
-        return formatNumber(value as number);
+      case 'object':
+      case 'other': {
+        return returnRegularFormattedValue(
+          JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toLocaleString() : v)),
+        );
       }
       default:
         // eslint-disable-next-line no-case-declarations
         const _: never = type;
-        console.error(`Unsupported value type in a table cell: ${type}`);
-        return 'N/A';
+        return fallback;
     }
   } catch (error) {
-    console.error('Error in dynamicTypeViewer', error);
-    return "ERROR: Can't display value";
+    console.error('Error in stringifyTypedValue', error);
+    return { type: 'error', formattedValue: "ERROR: Can't display value" };
   }
 };
 
@@ -193,6 +384,8 @@ export function isSameSchema(
       }
 
       return (
+        oldColumn.id === newColumn.id &&
+        oldColumn.columnIndex === newColumn.columnIndex &&
         oldColumn.name === newColumn.name &&
         oldColumn.databaseType === newColumn.databaseType &&
         oldColumn.nullable === newColumn.nullable &&
@@ -201,3 +394,51 @@ export function isSameSchema(
     })
     .every((v) => v);
 }
+
+/**
+ * Checks if the `subset` schema is a strict subset of the given `base` schema.
+ * A strict subset means all columns in the subset exist in the `base`
+ * with matching properties, but the `base` may have additional columns.
+ *
+ * @param base The schema that should contain all columns from the subset
+ * @param subset The schema that should be a subset
+ * @return True if subset is a strict subset of base, false otherwise
+ */
+export function isStrictSchemaSubset(
+  base: DBTableOrViewSchema,
+  subset: DBTableOrViewSchema,
+): boolean {
+  if (subset.length > base.length) {
+    return false;
+  }
+
+  return subset
+    .map((subsetColumn, index) => {
+      const baseColumn = base[index];
+
+      if (!baseColumn) {
+        return false;
+      }
+
+      return (
+        subsetColumn.id === baseColumn.id &&
+        subsetColumn.columnIndex === baseColumn.columnIndex &&
+        subsetColumn.name === baseColumn.name &&
+        subsetColumn.databaseType === baseColumn.databaseType &&
+        subsetColumn.nullable === baseColumn.nullable &&
+        subsetColumn.sqlType === baseColumn.sqlType
+      );
+    })
+    .every((v) => v);
+}
+
+/**
+ * Generates a unique column ID based on the column name and index.
+ *
+ * @param {string} name - The base name of the column.
+ * @param {number} idx - The index of the column in the data source.
+ * @returns {string} A unique column ID.
+ */
+export const getTableColumnId = (name: string, idx: number): DBColumnId => {
+  return `${idx}_${name}` as DBColumnId;
+};

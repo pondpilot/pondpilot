@@ -13,7 +13,12 @@ import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from '@m
 import { AnyTab, MAX_PERSISTED_STALE_DATA_ROWS, StaleData, TabReactiveState } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { convertArrowTable, getArrowTableSchema } from '@utils/arrow';
-import { isTheSameSortSpec, toggleMultiColumnSort } from '@utils/db';
+import {
+  isSameSchema,
+  isStrictSchemaSubset,
+  isTheSameSortSpec,
+  toggleMultiColumnSort,
+} from '@utils/db';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PoolTimeoutError } from '@features/duckdb-context/timeout-error';
 import { syncFiles } from '@controllers/file-system';
@@ -385,16 +390,16 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             break;
           }
 
-          const newTableData = convertArrowTable(value);
-
-          actualData.current.push(...newTableData);
-
           // Infer schema once on first non empty batch
           if (!inferredSchema) {
             inferredSchema = getArrowTableSchema(value);
           }
 
-          // Seet schema it this is the first read
+          const newTableData = convertArrowTable(value, inferredSchema);
+
+          actualData.current.push(...newTableData);
+
+          // Set schema it this is the first read
           // We do it here in the loop together with moving the data version
           // and unsetting stale data instead of outside, to allow
           // immediately showing the data to the user, even if we need
@@ -796,11 +801,13 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // We may have a better heuristic for this, but for now
       // keeping it simple.
       if (
-        // No point in querying if all data has been read
-        !dataSourceExhausted &&
-        // Also, if this is an entire table request - we have to read all
+        // If this is an entire table request - we have to read all
         columns &&
-        columns.length < currentSchema.length &&
+        // No point in querying if all data has been read UNLESS
+        // the requested columns are not a strict subset of the current schema
+        (!dataSourceExhausted || !isStrictSchemaSubset(currentSchema, columns)) &&
+        // No point in querying if the entire schema is requested
+        !isSameSchema(columns, currentSchema) &&
         // And the data source must support subsetting columns
         queries.getColumnsData
       ) {
@@ -831,6 +838,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       }
 
       // Return all data for simplicity, this will include all needed columns
+      // We've already checked that it is a strict subset above, so this
+      // should be safe
       return actualData.current;
     },
     [
