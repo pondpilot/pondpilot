@@ -9,7 +9,7 @@ const test = mergeTests(baseTest, spotlightTest, tabTest, scriptEditorTest);
 
 test('Long action names are truncated in spotlight results', async ({ page, openSpotlight }) => {
   // Open spotlight menu
-  await openSpotlight();
+  await openSpotlight({ trigger: 'click' });
 
   // Create a long text of exactly 75 characters
   const longActionName =

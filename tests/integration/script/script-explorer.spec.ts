@@ -1,11 +1,30 @@
 import { expect, mergeTests } from '@playwright/test';
 
+import { createFile } from '../../utils';
+import { test as filePickerTest } from '../fixtures/file-picker';
+import { test as fileSystemExplorerTest } from '../fixtures/file-system-explorer';
+import { test as globalHotkeyTest } from '../fixtures/global-hotkeys';
 import { test as baseTest } from '../fixtures/page';
-import { test as scriptEditorTest } from '../fixtures/script-editor';
+import { test as scriptEditor } from '../fixtures/script-editor';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
+import { test as spotlightTest } from '../fixtures/spotlight';
+import { test as storageTest } from '../fixtures/storage';
 import { test as tabTest } from '../fixtures/tab';
+import { test as testTmpTest } from '../fixtures/test-tmp';
+import { isExplorerTreeNodeSelected } from '../fixtures/utils/explorer-tree';
 
-const test = mergeTests(baseTest, scriptExplorerTest, tabTest, scriptEditorTest);
+const test = mergeTests(
+  baseTest,
+  filePickerTest,
+  fileSystemExplorerTest,
+  globalHotkeyTest,
+  scriptEditor,
+  scriptExplorerTest,
+  spotlightTest,
+  storageTest,
+  tabTest,
+  testTmpTest,
+);
 
 test('Switch between tabs using script explorer', async ({
   createScriptAndSwitchToItsTab,
@@ -21,7 +40,7 @@ test('Switch between tabs using script explorer', async ({
   await expect(await getScriptEditorContent()).toContainText('select 1');
 });
 
-test('Select items in the query explorer list using Hotkeys', async ({
+test('Select items in the script explorer list using Hotkeys', async ({
   page,
   createScriptAndSwitchToItsTab,
   assertScriptExplorerItems,
@@ -78,12 +97,12 @@ test('Select items in the query explorer list using Hotkeys', async ({
   await assertScriptNodesSelection([1]);
 });
 
-test('Create new script with Alt+N hotkey', async ({
+test('Create new script with hotkey', async ({
   createScriptAndSwitchToItsTab,
-  page,
   scriptEditorContent,
   assertScriptExplorerItems,
   getScriptEditorContent,
+  pressNewScriptHotkey,
 }) => {
   // Create initial script tab
   await createScriptAndSwitchToItsTab();
@@ -93,12 +112,62 @@ test('Create new script with Alt+N hotkey', async ({
   await editor.fill('select');
   await expect(editor).toContainText('select');
 
-  // Press Alt+N (Option+N on Mac) to create a new script
-  await page.keyboard.press('Alt+n');
+  // Press hotkey to create a new script
+  await pressNewScriptHotkey();
 
   // Verify that a new script named "query_1.sql" appears in the explorer
   await assertScriptExplorerItems(['query.sql', 'query_1.sql']);
 
   // Verify that the new script editor is empty
   await expect(await getScriptEditorContent()).toContainText('');
+});
+
+test('Script should be deselected when selecting a file', async ({
+  addFileButton,
+  storage,
+  filePicker,
+  testTmp,
+  assertFileExplorerItems,
+  clickFileByName,
+  getFileNodeByName,
+  createScriptAndSwitchToItsTab,
+  searchSpotlightAndRunNamedItem,
+}) => {
+  // Create and add a test file
+  const testFile = testTmp.join('test_selection.csv');
+  const testFileContent = 'col\ntest_value';
+  createFile(testFile, testFileContent);
+  await storage.uploadFile(testFile, 'test_selection.csv');
+  await filePicker.selectFiles(['test_selection.csv']);
+  await addFileButton.click();
+
+  // Verify the file was added
+  await assertFileExplorerItems(['test_selection']);
+
+  // Create a script and switch to its tab
+  const scriptNode = await createScriptAndSwitchToItsTab();
+
+  // Verify the script is selected
+  expect(await isExplorerTreeNodeSelected(scriptNode)).toBe(true);
+
+  // Click on the file to select it
+  await clickFileByName('test_selection');
+
+  // Check that the file is selected
+  const fileNode = await getFileNodeByName('test_selection');
+  expect(await isExplorerTreeNodeSelected(fileNode)).toBe(true);
+
+  // And script not selected
+  expect(await isExplorerTreeNodeSelected(scriptNode)).toBe(false);
+
+  // Select script again
+  await scriptNode.click();
+
+  // Now use spotlight keyboard only mode to select the file
+  await searchSpotlightAndRunNamedItem('test_selection', { trigger: 'keyboard' });
+
+  // Check that the file is selected
+  expect(await isExplorerTreeNodeSelected(fileNode)).toBe(true);
+  // And script not selected
+  expect(await isExplorerTreeNodeSelected(scriptNode)).toBe(false);
 });

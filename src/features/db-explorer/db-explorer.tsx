@@ -14,6 +14,7 @@ import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duc
 import { PersistentDataSourceId } from '@models/data-source';
 import { DBColumn, DBSchema, DBTableOrView, DBTableOrViewSchema } from '@models/db';
 import {
+  useAppStore,
   useAttachedDBDataSourceMap,
   useAttachedDBLocalEntriesMap,
   useAttachedDBMetadata,
@@ -277,6 +278,10 @@ export const DbExplorer = memo(() => {
   /**
    * Store access
    */
+  const hasActiveElement = useAppStore((state) => {
+    const activeTab = state.activeTabId && state.tabs.get(state.activeTabId);
+    return activeTab?.type === 'data-source' && activeTab?.dataSourceType === 'db';
+  });
   const attachedDBMap = useAttachedDBDataSourceMap();
   const attachedDBLocalEntriesMap = useAttachedDBLocalEntriesMap();
   const dataBaseMetadata = useAttachedDBMetadata();
@@ -387,6 +392,7 @@ export const DbExplorer = memo(() => {
       dataTestIdPrefix="db-explorer"
       TreeNodeComponent={DbExplorerNode}
       onDeleteSelected={handleDeleteSelected}
+      hasActiveElement={hasActiveElement}
     />
   );
 });

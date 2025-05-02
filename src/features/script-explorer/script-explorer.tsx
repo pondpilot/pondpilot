@@ -71,6 +71,11 @@ export const ScriptExplorer = memo(() => {
    */
   const sqlScripts = useSqlScriptNameMap();
 
+  const hasActiveElement = useAppStore((state) => {
+    const activeTab = state.activeTabId && state.tabs.get(state.activeTabId);
+    return activeTab?.type === 'script';
+  });
+
   /**
    * Consts
    */
@@ -137,6 +142,7 @@ export const ScriptExplorer = memo(() => {
       dataTestIdPrefix="script-explorer"
       TreeNodeComponent={ScriptExplorerNode}
       onDeleteSelected={deleteSqlScripts}
+      hasActiveElement={hasActiveElement}
       extraData={undefined}
     />
   );

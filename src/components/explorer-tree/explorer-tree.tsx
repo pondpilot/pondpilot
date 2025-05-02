@@ -10,7 +10,7 @@ import {
 import { useHotkeys } from '@mantine/hooks';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { ReactNode, useCallback, useMemo, useRef } from 'react';
+import { ReactNode, useCallback, useMemo, useRef, useEffect } from 'react';
 
 import { RenderTreeNodePayload, TreeNodeMenuType, TreeNodeData } from './model';
 import { getFlattenNodes } from './utils/tree-manipulation';
@@ -45,6 +45,11 @@ type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>, ExtraT =
   onDeleteSelected: (ids: Iterable<NTypeToIdTypeMap[keyof NTypeToIdTypeMap]>) => void;
 
   /**
+   * If set to false, the selection state will be cleared.
+   */
+  hasActiveElement: boolean;
+
+  /**
    * Used to pass arbitrary extra data that is passed through to TreeNodeComponent
    * for rendering.
    */
@@ -58,6 +63,7 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
   TreeNodeComponent,
   onDeleteSelected,
   extraData,
+  hasActiveElement,
 }: ExplorerTreeProps<NTypeToIdTypeMap, ExtraT>) => {
   /**
    * Common hooks
@@ -157,6 +163,13 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
       },
     ],
   ]);
+
+  useEffect(() => {
+    if (!hasActiveElement) {
+      tree.clearSelected();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasActiveElement]);
 
   return (
     <Stack

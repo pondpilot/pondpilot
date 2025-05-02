@@ -41,8 +41,12 @@ export const FileSystemExplorer = memo(() => {
    * Store access
    */
 
-  // Read oly necessary sources
+  // Read only necessary sources
   const flatFileSources = useFlatFileDataSourceMap();
+  const hasActiveElement = useAppStore((state) => {
+    const activeTab = state.activeTabId && state.tabs.get(state.activeTabId);
+    return activeTab?.type === 'data-source' && activeTab.dataSourceType === 'file';
+  });
 
   // Create a map of all flat file sources by their related file ID
   const dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource> = new Map(
@@ -413,6 +417,7 @@ export const FileSystemExplorer = memo(() => {
       dataTestIdPrefix="file-system-explorer"
       TreeNodeComponent={FileSystemExplorerNode}
       onDeleteSelected={handleDeleteSelected}
+      hasActiveElement={hasActiveElement}
     />
   );
 });
