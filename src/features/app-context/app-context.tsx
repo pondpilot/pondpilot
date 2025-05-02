@@ -2,7 +2,6 @@ import { BrowserSupportedFeatures } from '@models/browser';
 import { getBrowserSupportedFeatures } from '@utils/browser';
 import { createContext, useContext } from 'react';
 
-import { DevModal } from './components/dev-modal';
 import { useAppInitialization } from './hooks/use-init-application';
 
 interface AppContextType {
@@ -19,12 +18,7 @@ const AppContext = createContext<AppContextType>(appContextValue);
 export const AppContextProvider = ({ children }: { children: React.ReactNode }) => {
   useAppInitialization(appContextValue.browserInfo.isFileAccessApiSupported);
 
-  return (
-    <AppContext.Provider value={appContextValue}>
-      {import.meta.env.DEV && <DevModal />}
-      {children}
-    </AppContext.Provider>
-  );
+  return <AppContext.Provider value={appContextValue}>{children}</AppContext.Provider>;
 };
 
 export const useAppContext = () => useContext(AppContext);
