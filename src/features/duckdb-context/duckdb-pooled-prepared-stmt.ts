@@ -1,7 +1,7 @@
 import type { AsyncPreparedStatement } from '@duckdb/duckdb-wasm';
 import type * as arrow from 'apache-arrow';
 
-import type { AsyncDuckDBPooledConnection } from './duckdb-pooled-conection';
+import type { AsyncDuckDBPooledConnection } from './duckdb-pooled-connection';
 import { AsyncDuckDBPooledStreamReader } from './duckdb-pooled-streaming-reader';
 
 /**

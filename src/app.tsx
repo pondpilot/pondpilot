@@ -8,7 +8,7 @@ import './index.css';
 import { ModifierProvider } from '@components/modifier-context/modifier-context';
 import { AppContextProvider } from '@features/app-context';
 import { AppState } from '@features/app-state';
-import { DuckDBConnectionPoolProvider } from '@features/duckdb-context/duckdb-context';
+import { PersistenceConnector } from '@features/duckdb-persistence-context';
 import { InitModals } from '@features/init-modals';
 import { MantineProvider } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
@@ -28,14 +28,14 @@ export default function App() {
     <MantineProvider theme={theme}>
       <ModalsProvider>
         <ModifierProvider>
-          <DuckDBConnectionPoolProvider maxPoolSize={connectionPoolSize}>
+          <PersistenceConnector maxPoolSize={connectionPoolSize}>
             <AppContextProvider>
               <Notifications />
               <AppState />
               <Router />
               <InitModals />
             </AppContextProvider>
-          </DuckDBConnectionPoolProvider>
+          </PersistenceConnector>
         </ModifierProvider>
       </ModalsProvider>
     </MantineProvider>
