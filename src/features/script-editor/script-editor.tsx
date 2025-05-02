@@ -1,4 +1,5 @@
-import { updateSQLScriptContent } from '@controllers/sql-script';
+import { createSQLScript, updateSQLScriptContent } from '@controllers/sql-script';
+import { getOrCreateTabFromScript } from '@controllers/tab';
 import { SqlEditor } from '@features/editor';
 import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
 import { Group, useMantineColorScheme } from '@mantine/core';
@@ -104,6 +105,11 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
     handleEditorValueChange();
   };
 
+  const handleAddScript = () => {
+    const newEmptyScript = createSQLScript();
+    getOrCreateTabFromScript(newEmptyScript, true);
+  };
+
   useEffect(() => {
     return () => {
       if (editorRef.current?.view) {
@@ -158,6 +164,10 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
               e.stopPropagation();
             } else if (KEY_BINDING.kmenu.match(e)) {
               Spotlight.open();
+            } else if (KEY_BINDING.openNewScript.match(e)) {
+              e.preventDefault();
+              e.stopPropagation();
+              handleAddScript();
             }
           }}
         />

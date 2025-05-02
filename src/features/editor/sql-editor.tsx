@@ -100,6 +100,11 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
             },
           },
           {
+            key: 'Alt+n',
+            mac: 'Alt+n',
+            preventDefault: true,
+          },
+          {
             key: 'Ctrl--',
             mac: 'Cmd--',
             preventDefault: true,
@@ -116,6 +121,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
               return true;
             },
           },
+
           ...defaultKeymap,
         ]),
       [fontSize, onFontSizeChanged],
