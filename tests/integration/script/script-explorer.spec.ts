@@ -11,6 +11,7 @@ import { test as spotlightTest } from '../fixtures/spotlight';
 import { test as storageTest } from '../fixtures/storage';
 import { test as tabTest } from '../fixtures/tab';
 import { test as testTmpTest } from '../fixtures/test-tmp';
+import { isExplorerTreeNodeSelected } from '../fixtures/utils/explorer-tree';
 
 const test = mergeTests(
   baseTest,
@@ -39,7 +40,7 @@ test('Switch between tabs using script explorer', async ({
   await expect(await getScriptEditorContent()).toContainText('select 1');
 });
 
-test('Select items in the query explorer list using Hotkeys', async ({
+test('Select items in the script explorer list using Hotkeys', async ({
   page,
   createScriptAndSwitchToItsTab,
   assertScriptExplorerItems,
@@ -121,16 +122,16 @@ test('Create new script with hotkey', async ({
   await expect(await getScriptEditorContent()).toContainText('');
 });
 
-test('File should be deselected after creating script from it', async ({
+test('Script should be deselected when selecting a file', async ({
   addFileButton,
   storage,
   filePicker,
   testTmp,
-  createScriptFromFileExplorer,
   assertFileExplorerItems,
   clickFileByName,
   getFileNodeByName,
-  createScriptViaSpotlight,
+  createScriptAndSwitchToItsTab,
+  searchSpotlightAndRunNamedItem,
 }) => {
   // Create and add a test file
   const testFile = testTmp.join('test_selection.csv');
@@ -143,28 +144,30 @@ test('File should be deselected after creating script from it', async ({
   // Verify the file was added
   await assertFileExplorerItems(['test_selection']);
 
+  // Create a script and switch to its tab
+  const scriptNode = await createScriptAndSwitchToItsTab();
+
+  // Verify the script is selected
+  expect(await isExplorerTreeNodeSelected(scriptNode)).toBe(true);
+
   // Click on the file to select it
   await clickFileByName('test_selection');
 
-  // Check that the file is selected (has data-selected="true")
+  // Check that the file is selected
   const fileNode = await getFileNodeByName('test_selection');
-  // Select the file node
-  fileNode.click();
-  // Check that the file is selected (data-selected="true")
-  await expect(fileNode).toHaveAttribute('data-selected', 'true');
+  expect(await isExplorerTreeNodeSelected(fileNode)).toBe(true);
 
-  // Create a script from the file
-  await createScriptFromFileExplorer('test_selection');
-  // Check that the file is now deselected (data-selected changed to "false" or is absent)
-  await expect(fileNode).toHaveAttribute('data-selected', 'false');
+  // And script not selected
+  expect(await isExplorerTreeNodeSelected(scriptNode)).toBe(false);
 
-  // Select the file again
-  await clickFileByName('test_selection');
-  await expect(fileNode).toHaveAttribute('data-selected', 'true');
+  // Select script again
+  await scriptNode.click();
 
-  // Create a new script using spotlight and verify file gets deselected
-  await createScriptViaSpotlight();
+  // Now use spotlight keyboard only mode to select the file
+  await searchSpotlightAndRunNamedItem('test_selection', { trigger: 'keyboard' });
 
-  // Check that the file selection is cleared after creating script via spotlight
-  await expect(fileNode).toHaveAttribute('data-selected', 'false');
+  // Check that the file is selected
+  expect(await isExplorerTreeNodeSelected(fileNode)).toBe(true);
+  // And script not selected
+  expect(await isExplorerTreeNodeSelected(scriptNode)).toBe(false);
 });

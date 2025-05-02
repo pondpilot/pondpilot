@@ -18,7 +18,7 @@ import {
 
 type ScriptExplorerFixtures = {
   scriptExplorer: Locator;
-  createScriptAndSwitchToItsTab: () => Promise<void>;
+  createScriptAndSwitchToItsTab: () => Promise<Locator>;
   openScriptFromExplorer: (scriptName: string) => Promise<void>;
   getAllScriptNodes: () => Promise<Locator>;
   getScriptNodeByName: (scriptName: string) => Promise<Locator>;
@@ -50,7 +50,7 @@ export const test = base.extend<ScriptExplorerFixtures>({
   },
 
   createScriptAndSwitchToItsTab: async ({ page, getAllScriptNodes, getScriptNodeById }, use) => {
-    await use(async () => {
+    await use(async (): Promise<Locator> => {
       const scriptNodes = await getAllScriptNodes();
 
       // Save existing script node IDs
@@ -78,8 +78,10 @@ export const test = base.extend<ScriptExplorerFixtures>({
       const newScriptNode = await getScriptNodeById(newScriptNodeId);
 
       // Check that it has the selected data attribute. This assumes that
-      // tab is open and avoids dpending this test on tab fixtures.
-      await expect(newScriptNode).toHaveAttribute('data-selected', 'true');
+      // tab is open and avoids depending this test on tab fixtures.
+      expect(await isExplorerTreeNodeSelected(newScriptNode)).toBe(true);
+
+      return newScriptNode;
     });
   },
 

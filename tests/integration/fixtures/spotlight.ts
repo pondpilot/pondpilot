@@ -15,6 +15,7 @@ type SpotlightFixtures = {
   openSettingsViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
   addDirectoryViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
   openImportSharedScriptModalViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
+  searchSpotlightAndRunNamedItem: (name: string, options?: SpotlightActionProps) => Promise<void>;
 };
 
 async function selectSpotlightActionByKeyboard(
@@ -28,22 +29,23 @@ async function selectSpotlightActionByKeyboard(
   // Select the action using arrow keys
   let i = 0;
   while (i <= spotlightActionsCount) {
-    await page.keyboard.press('ArrowDown');
-
-    const isActionSelected = await spotlightAction.evaluate((action) => {
-      return action.getAttribute('data-selected') === 'true';
-    });
+    // Depending on action we may or may not be on the first action
+    // even before any key press, so start by checking first, key press later
+    const isActionSelected = (await spotlightAction.getAttribute('data-selected')) === 'true';
 
     if (isActionSelected) {
       return;
     }
+
+    await page.keyboard.press('ArrowDown');
+
     i += 1;
   }
 
   throw new Error('Spotlight action not found');
 }
 
-async function triggerSpotlightAction(
+async function openAndTriggerSpotlightActionById(
   page: Page,
   openSpotlight: (v?: OpenSpotlightProps) => Promise<Locator>,
   actionId: string,
@@ -94,25 +96,55 @@ export const test = base.extend<SpotlightFixtures>({
 
   createScriptViaSpotlight: async ({ page, openSpotlight }, use) => {
     await use(async (props) => {
-      await triggerSpotlightAction(page, openSpotlight, 'create-new-script', props);
+      await openAndTriggerSpotlightActionById(page, openSpotlight, 'create-new-script', props);
     });
   },
 
   openSettingsViaSpotlight: async ({ page, openSpotlight }, use) => {
     await use(async (props) => {
-      await triggerSpotlightAction(page, openSpotlight, 'settings', props);
+      await openAndTriggerSpotlightActionById(page, openSpotlight, 'settings', props);
     });
   },
 
   addDirectoryViaSpotlight: async ({ page, openSpotlight }, use) => {
     await use(async (props) => {
-      await triggerSpotlightAction(page, openSpotlight, 'add-folder', props);
+      await openAndTriggerSpotlightActionById(page, openSpotlight, 'add-folder', props);
     });
   },
 
   openImportSharedScriptModalViaSpotlight: async ({ page, openSpotlight }, use) => {
     await use(async (props) => {
-      await triggerSpotlightAction(page, openSpotlight, 'import-script-from-url', props);
+      await openAndTriggerSpotlightActionById(page, openSpotlight, 'import-script-from-url', props);
+    });
+  },
+
+  searchSpotlightAndRunNamedItem: async ({ page, openSpotlight }, use) => {
+    await use(async (name: string, options?: SpotlightActionProps) => {
+      const useKeyoardOnly = options?.trigger === 'keyboard';
+
+      const spotlightRoot = await openSpotlight({ trigger: useKeyoardOnly ? 'hotkey' : 'click' });
+
+      // Type the name of the item to search
+      await page.keyboard.type(name);
+
+      // Get all visible spotlight actions
+      const spotlightActions = spotlightRoot.getByTestId(/^spotlight-action-.*/);
+
+      // Get the first action that matches the name
+      const spotlightAction = spotlightActions.filter({
+        hasText: new RegExp(`^${name}$`),
+      });
+
+      // Perform action using mouse or keyboard
+      if (useKeyoardOnly) {
+        await selectSpotlightActionByKeyboard(page, spotlightRoot, spotlightAction);
+        await page.keyboard.press('Enter');
+      } else {
+        await spotlightAction.click();
+      }
+
+      // Verify spotlight is closed after performing action
+      await expect(spotlightRoot).toBeHidden();
     });
   },
 });
