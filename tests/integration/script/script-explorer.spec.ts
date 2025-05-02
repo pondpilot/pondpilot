@@ -77,3 +77,28 @@ test('Select items in the query explorer list using Hotkeys', async ({
   await switchToTab('query_1');
   await assertScriptNodesSelection([1]);
 });
+
+test('Create new script with Alt+N hotkey', async ({
+  createScriptAndSwitchToItsTab,
+  page,
+  scriptEditorContent,
+  assertScriptExplorerItems,
+  getScriptEditorContent,
+}) => {
+  // Create initial script tab
+  await createScriptAndSwitchToItsTab();
+
+  // Type 'select' in the editor
+  const editor = scriptEditorContent;
+  await editor.fill('select');
+  await expect(editor).toContainText('select');
+
+  // Press Alt+N (Option+N on Mac) to create a new script
+  await page.keyboard.press('Alt+n');
+
+  // Verify that a new script named "query_1.sql" appears in the explorer
+  await assertScriptExplorerItems(['query.sql', 'query_1.sql']);
+
+  // Verify that the new script editor is empty
+  await expect(await getScriptEditorContent()).toContainText('');
+});
