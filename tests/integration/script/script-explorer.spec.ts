@@ -3,6 +3,7 @@ import { expect, mergeTests } from '@playwright/test';
 import { createFile } from '../../utils';
 import { test as filePickerTest } from '../fixtures/file-picker';
 import { test as fileSystemExplorerTest } from '../fixtures/file-system-explorer';
+import { test as globalHotkeyTest } from '../fixtures/global-hotkeys';
 import { test as baseTest } from '../fixtures/page';
 import { test as scriptEditor } from '../fixtures/script-editor';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
@@ -13,14 +14,15 @@ import { test as testTmpTest } from '../fixtures/test-tmp';
 
 const test = mergeTests(
   baseTest,
-  scriptExplorerTest,
-  tabTest,
-  storageTest,
   filePickerTest,
-  testTmpTest,
   fileSystemExplorerTest,
+  globalHotkeyTest,
   scriptEditor,
+  scriptExplorerTest,
   spotlightTest,
+  storageTest,
+  tabTest,
+  testTmpTest,
 );
 
 test('Switch between tabs using script explorer', async ({
@@ -94,12 +96,12 @@ test('Select items in the query explorer list using Hotkeys', async ({
   await assertScriptNodesSelection([1]);
 });
 
-test('Create new script with Alt+N hotkey', async ({
+test('Create new script with hotkey', async ({
   createScriptAndSwitchToItsTab,
-  page,
   scriptEditorContent,
   assertScriptExplorerItems,
   getScriptEditorContent,
+  pressNewScriptHotkey,
 }) => {
   // Create initial script tab
   await createScriptAndSwitchToItsTab();
@@ -109,8 +111,8 @@ test('Create new script with Alt+N hotkey', async ({
   await editor.fill('select');
   await expect(editor).toContainText('select');
 
-  // Press Alt+N (Option+N on Mac) to create a new script
-  await page.keyboard.press('Alt+n');
+  // Press hotkey to create a new script
+  await pressNewScriptHotkey();
 
   // Verify that a new script named "query_1.sql" appears in the explorer
   await assertScriptExplorerItems(['query.sql', 'query_1.sql']);

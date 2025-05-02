@@ -24,6 +24,27 @@ type ScriptEditorFixtures = {
   getScriptEditorContent: (baseLocator?: Locator) => Promise<Locator>;
   fillScript: (content: string) => Promise<void>;
   runScript: () => Promise<void>;
+
+  /**
+   * Press the keyboard shortcut to copy (Ctrl+C)
+   */
+  pressCopyHotkey: () => Promise<void>;
+
+  /**
+   * Press the keyboard shortcut to paste (Ctrl+V)
+   */
+  pressPasteHotkey: () => Promise<void>;
+
+  /**
+   * Runs the script using the keyboard shortcut (Ctrl+Enter)
+   */
+  runScriptWithHotkey: () => Promise<void>;
+
+  /**
+   * Puts cursor on a given line and runs it using the keyboard shortcut (Ctrl+Shift+Enter)
+   * @param line - The line number to run
+   */
+  runSelectionWithHotkey: (line: number) => Promise<void>;
 };
 
 const QUERY_EDITOR_TIMEOUT = Number(process.env.PLAYWRIGHT_QUERY_EDITOR_TIMEOUT) || 100;
@@ -76,6 +97,60 @@ export const test = base.extend<ScriptEditorFixtures>({
       ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
       await runScriptButton.click();
+      await expect(page.getByText('Query ran successfully')).toBeVisible();
+    });
+  },
+
+  pressCopyHotkey: async ({ page }, use) => {
+    await use(async () => {
+      await page.keyboard.press('Control+KeyC');
+    });
+  },
+
+  pressPasteHotkey: async ({ page }, use) => {
+    await use(async () => {
+      await page.keyboard.press('Control+KeyV');
+    });
+  },
+
+  runScriptWithHotkey: async ({ page, activeScriptEditor }, use) => {
+    await use(async () => {
+      // Verify the script tab is active
+      await expect(
+        activeScriptEditor,
+        'Did you forget to open a script tab before calling this fixture? Use `createScriptAndSwitchToItsTab` or similar fixture first',
+      ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
+
+      // Focus the editor
+      await activeScriptEditor.click();
+
+      // Use Ctrl+Enter to run the script
+      await page.keyboard.press('Control+Enter');
+
+      await expect(page.getByText('Query ran successfully')).toBeVisible();
+    });
+  },
+
+  runSelectionWithHotkey: async ({ page, activeScriptEditor, scriptEditorContent }, use) => {
+    await use(async (line: number) => {
+      // Verify the script tab is active
+      await expect(
+        activeScriptEditor,
+        'Did you forget to open a script tab before calling this fixture? Use `createScriptAndSwitchToItsTab` or similar fixture first',
+      ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
+
+      // Focus the editor
+      await activeScriptEditor.click();
+
+      // Find n-th line and select it
+      const lineLocator = scriptEditorContent.locator(`.cm-line:nth-child(${line})`);
+      await lineLocator.click();
+      // Move to the end of the line
+      await page.keyboard.press('ControlOrMeta+ArrowRight');
+
+      // Use Ctrl+Shift+Enter to run the selection
+      await page.keyboard.press('Control+Shift+Enter');
+
       await expect(page.getByText('Query ran successfully')).toBeVisible();
     });
   },
