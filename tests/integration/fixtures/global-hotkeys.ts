@@ -41,7 +41,7 @@ export const test = base.extend<GlobalHotkeyFixtures>({
 
   pressNewScriptHotkey: async ({ page }, use) => {
     await use(async () => {
-      await page.keyboard.press('Alt+KeyN');
+      await page.keyboard.press('Control+KeyN');
     });
   },
 
