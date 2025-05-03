@@ -7,27 +7,24 @@ interface KeyMatcherProps {
   ctrl?: boolean;
   key?: string;
   shift?: boolean;
+  alt?: boolean;
 }
-
 export default class KeyMatcher {
   protected key: KeyMatcherProps;
-
   constructor(props: KeyMatcherProps) {
     this.key = props;
   }
-
   static capture(e: KeyboardEvent | React.KeyboardEvent) {
     const isCtrlKey = e.ctrlKey || e.metaKey;
-
     // eslint-disable-next-line prefer-destructuring
     let key: string | undefined = e.key;
-
     if (key === 'Shift') key = undefined;
     if (key === 'Control') key = undefined;
-
+    if (key === 'Alt') key = undefined;
     return new KeyMatcher({
       ctrl: isCtrlKey,
       shift: e.shiftKey,
+      alt: e.altKey,
       key,
     });
   }
@@ -40,14 +37,25 @@ export default class KeyMatcher {
       isMatched = false;
     }
 
-    if (this.key.key && e.key !== this.key.key) {
-      isMatched = false;
+    if (this.key.key) {
+      // Dead keys are not supported, so we need to check if the key is a dead key
+      // It is temp solution, but it works for now
+      if (this.key.key === 'n' && this.key.alt && this.key.ctrl && e.code === 'KeyN') {
+        // Only match if alt is actually pressed
+        return isMatched;
+      }
+      if (e.key !== this.key.key) {
+        isMatched = false;
+      }
     }
 
     if (this.key.shift && !e.shiftKey) {
       isMatched = false;
     }
 
+    if (this.key.alt && !e.altKey) {
+      isMatched = false;
+    }
     return isMatched;
   }
 
@@ -59,6 +67,7 @@ export default class KeyMatcher {
     const isMac = navigator.userAgent.toLowerCase().indexOf('mac') > -1;
     return [
       this.key.ctrl ? (isMac ? '⌘' : 'Ctrl') : undefined,
+      this.key.alt ? (isMac ? '⌥' : 'Alt') : undefined,
       this.key.shift ? 'Shift' : undefined,
       this.key?.key?.toUpperCase(),
     ]
@@ -70,6 +79,7 @@ export default class KeyMatcher {
     const isMac = navigator.userAgent.toLowerCase().indexOf('mac') > -1;
     return [
       this.key.ctrl ? (isMac ? 'Cmd' : 'Ctrl') : undefined,
+      this.key.alt ? 'Alt' : undefined,
       this.key.shift ? 'Shift' : undefined,
       this.key?.key,
     ]
@@ -86,5 +96,5 @@ export const KEY_BINDING = {
   format: new KeyMatcher({ ctrl: true, shift: true, key: 'i' }),
   kmenu: new KeyMatcher({ ctrl: true, key: 'k' }),
   runSelection: new KeyMatcher({ ctrl: true, shift: true, key: 'Enter' }),
-  openNewScript: new KeyMatcher({ ctrl: true, key: 'n' }),
+  openNewScript: new KeyMatcher({ ctrl: true, alt: true, key: 'n' }),
 };
