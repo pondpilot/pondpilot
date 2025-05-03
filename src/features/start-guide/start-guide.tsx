@@ -34,7 +34,7 @@ export const StartGuide = () => {
       key: 'create-new-script',
       label: `New ${SCRIPT_DISPLAY_NAME}`,
       icon: <IconPlus size={20} className={ICON_CLASSES} />,
-      hotkey: [mod.option, 'N'],
+      hotkey: ['Ctrl', 'Alt', 'N'],
       handler: () => {
         const newEmptyScript = createSQLScript();
         getOrCreateTabFromScript(newEmptyScript, true);

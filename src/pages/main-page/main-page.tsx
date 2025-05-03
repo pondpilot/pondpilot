@@ -69,7 +69,7 @@ export const MainPage = () => {
       },
     ],
     [
-      'Alt+N',
+      'Ctrl+Alt+N',
       () => {
         handleAddScript();
         Spotlight.close();
