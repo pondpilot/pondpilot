@@ -1,3 +1,4 @@
+import { showAlert } from '@components/app-notifications';
 import { createSQLScript, updateSQLScriptContent } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { SqlEditor } from '@features/editor';
@@ -160,6 +161,11 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
               e.preventDefault();
             } else if (KEY_BINDING.save.match(e)) {
               handleQuerySave();
+              showAlert({
+                title: 'Auto-save enabled',
+                message: 'Content is always automatically saved',
+                autoClose: 3000,
+              });
               e.preventDefault();
               e.stopPropagation();
             } else if (KEY_BINDING.kmenu.match(e)) {
