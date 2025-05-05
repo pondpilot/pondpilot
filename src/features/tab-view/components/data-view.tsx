@@ -325,7 +325,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
       )}
       {showTableAndPagination && (
         <div
-          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-50"
+          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20"
           data-testid={setDataTestId('data-table-pagination-control')}
         >
           <RowCountAndPaginationControl

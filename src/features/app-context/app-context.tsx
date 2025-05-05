@@ -21,7 +21,7 @@ export const AppContextProvider = ({ children }: { children: React.ReactNode }) 
 
   return (
     <AppContext.Provider value={appContextValue}>
-      {import.meta.env.DEV && <DevModal />}
+      {import.meta.env.DEV && appContextValue.browserInfo.isFileAccessApiSupported && <DevModal />}
       {children}
     </AppContext.Provider>
   );
