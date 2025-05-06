@@ -8,6 +8,7 @@ import {
   ONBOARDING_MODAL_OPTIONS,
   OnboardingModalContent,
 } from '@features/onboarding-modal-content';
+import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-modal';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { Button, Group, Image, Stack, Text, Title, useMantineColorScheme } from '@mantine/core';
@@ -94,6 +95,16 @@ export const StartGuide = () => {
         });
       },
     },
+    {
+      key: 'whats-new-modal',
+      label: 'Release Notes',
+      onClick: () => {
+        const modalId = modals.open({
+          ...WHATS_NEW_MODAL_OPTIONS,
+          children: <WhatsNewModal onClose={() => modals.close(modalId)} />,
+        });
+      },
+    },
   ];
 
   return (
@@ -111,7 +122,7 @@ export const StartGuide = () => {
           </Group>
           <Title order={3}>Start data analysis with quick actions</Title>
         </Stack>
-        <Group justify="space-between" align="start" mih={300}>
+        <Stack justify="space-between" align="start" mih={300} className="xl:flex-row" gap={32}>
           <Stack flex={1} maw={340} miw={340}>
             {shortcustList.map((item) => (
               <Button
@@ -143,8 +154,8 @@ export const StartGuide = () => {
               </Button>
             ))}
           </Stack>
-          <Group w={340} justify="end">
-            <Stack align="end">
+          <Group w={340} className="xl:justify-end">
+            <Stack align="start">
               {goToList.map((item) => (
                 <Button
                   key={item.key}
@@ -169,7 +180,7 @@ export const StartGuide = () => {
               ))}
             </Stack>
           </Group>
-        </Group>
+        </Stack>
       </Stack>
     </Group>
   );
