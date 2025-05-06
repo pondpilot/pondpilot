@@ -52,5 +52,9 @@ test('Shows auto-save notification when pressing Mod+S', async ({
 
   // Verify the notification content
   await expect(notification.getByText('Auto-save enabled')).toBeVisible();
-  await expect(notification.getByText('Content is always automatically saved')).toBeVisible();
+  await expect(
+    notification.getByText(
+      "Your changes are always saved automatically. You don't need to press 'Save' manually.",
+    ),
+  ).toBeVisible();
 });

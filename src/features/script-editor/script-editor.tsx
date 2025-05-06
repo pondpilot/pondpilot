@@ -163,7 +163,8 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
               handleQuerySave();
               showAlert({
                 title: 'Auto-save enabled',
-                message: 'Content is always automatically saved',
+                message:
+                  "Your changes are always saved automatically. You don't need to press 'Save' manually.",
                 autoClose: 3000,
               });
               e.preventDefault();
