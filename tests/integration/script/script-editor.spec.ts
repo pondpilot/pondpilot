@@ -31,3 +31,30 @@ test('Autocomplete converts keywords to uppercase', async ({
   // Verify that 'select' has been converted to uppercase 'SELECT'
   await expect(editor).toContainText('SELECT');
 });
+
+test('Shows auto-save notification when pressing Mod+S', async ({
+  createScriptAndSwitchToItsTab,
+  page,
+  scriptEditorContent,
+}) => {
+  await createScriptAndSwitchToItsTab();
+
+  // Focus the editor
+  await scriptEditorContent.click();
+
+  // Type something to make sure the editor is active
+  await scriptEditorContent.pressSequentially('select');
+
+  await page.keyboard.press('ControlOrMeta+KeyS');
+
+  // Verify that the notification appears
+  const notification = page.locator('.mantine-Notifications-notification');
+
+  // Verify the notification content
+  await expect(notification.getByText('Auto-save enabled')).toBeVisible();
+  await expect(
+    notification.getByText(
+      "Your changes are always saved automatically. You don't need to press 'Save' manually.",
+    ),
+  ).toBeVisible();
+});
