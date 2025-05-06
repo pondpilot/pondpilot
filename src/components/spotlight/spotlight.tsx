@@ -250,7 +250,7 @@ export const SpotlightMenu = () => {
       id: 'create-new-script',
       label: `New ${SCRIPT_DISPLAY_NAME}`,
       icon: <IconPlus size={20} className={ICON_CLASSES} />,
-      hotkey: [control, option, 'N'],
+      hotkey: [option, 'N'],
       handler: async () => {
         const newEmptyScript = createSQLScript();
         getOrCreateTabFromScript(newEmptyScript, true);
