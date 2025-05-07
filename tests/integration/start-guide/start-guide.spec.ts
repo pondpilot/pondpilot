@@ -5,8 +5,16 @@ import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as spotlightTest } from '../fixtures/spotlight';
 import { test as startGuideTest } from '../fixtures/start-guide';
 import { test as tabTest } from '../fixtures/tab';
+import { test as whatsNewModalTest } from '../fixtures/whats-new-modal';
 
-const test = mergeTests(baseTest, startGuideTest, scriptEditorTest, tabTest, spotlightTest);
+const test = mergeTests(
+  baseTest,
+  startGuideTest,
+  scriptEditorTest,
+  tabTest,
+  spotlightTest,
+  whatsNewModalTest,
+);
 
 test('Start guide is visible on first run', async ({
   startGuide,
@@ -56,4 +64,30 @@ test('Click go to menu action', async ({ startGuide, goToMenuAction, spotlight }
   await goToMenuAction.click();
   await expect(startGuide).toBeVisible();
   await expect(spotlight).toBeVisible();
+});
+
+test('Open release notes from Start Guide', async ({
+  page,
+  releaseNotesAction,
+  whatsNewModal,
+  whatsNewModalContent,
+  whatsNewModalSubmitButton,
+}) => {
+  // Navigate to the application
+  await page.goto('/');
+
+  // Click the "Release Notes" button in the Start Guide
+  await releaseNotesAction.click();
+
+  // Verify the "What's New" modal is visible
+  await expect(whatsNewModal).toBeVisible();
+
+  // Verify the modal content is loaded
+  await expect(whatsNewModalContent).toBeVisible();
+
+  // Close the modal
+  await whatsNewModalSubmitButton.click();
+
+  // Verify the modal is no longer visible
+  await expect(whatsNewModal).toBeHidden();
 });

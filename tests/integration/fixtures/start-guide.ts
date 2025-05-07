@@ -8,6 +8,8 @@ type StartGuideFixtures = {
   addFolderAction: Locator;
   addDuckDBAction: Locator;
   goToMenuAction: Locator;
+  releaseNotesAction: Locator;
+  onboardingAction: Locator;
 };
 
 export const test = base.extend<StartGuideFixtures>({
@@ -37,5 +39,13 @@ export const test = base.extend<StartGuideFixtures>({
 
   goToMenuAction: async ({ page }, use) => {
     await use(page.getByTestId('start-guide-action-go-to-menu'));
+  },
+
+  releaseNotesAction: async ({ page }, use) => {
+    await use(page.getByTestId('start-guide-action-whats-new-modal'));
+  },
+
+  onboardingAction: async ({ page }, use) => {
+    await use(page.getByTestId('start-guide-action-onboarding'));
   },
 });

@@ -19,7 +19,12 @@ const classNames = {
 
 const showAppAlert = (data: NotificationData, type: 'info' | 'success' | 'warning' | 'error') => {
   const iconMap = {
-    info: <IconInfoCircleFilled size={16} className="text-iconAccent-light" />,
+    info: (
+      <IconInfoCircleFilled
+        size={16}
+        className="text-brand-blue-400 dark:text-brand-blue-neon-700"
+      />
+    ),
     success: <IconCircleCheckFilled size={16} className="text-iconSuccess" />,
     warning: <IconAlertCircleFilled size={16} className="text-iconWarning" />,
     error: <IconCircleXFilled size={16} className="text-iconError" />,
