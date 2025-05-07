@@ -58,11 +58,11 @@ export const InitModals = () => {
           },
           message: (
             <Stack data-testid={setDataTestId('new-version-alert')}>
-              <Text c="text-contrast">
+              <Text c="text-tertiary">
                 We&apos;ve just rolled out some improvements and fresh features. Want to see
                 what&apos;s new?
               </Text>
-              <Group justify="end">
+              <Group justify="end" gap={0}>
                 <Button
                   variant="transparent"
                   c="text-tertiary"
