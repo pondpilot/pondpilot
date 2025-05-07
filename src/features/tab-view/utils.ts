@@ -18,19 +18,24 @@ function prepCopyTargetText({
 
 interface CopyTableColumnsProps {
   columns: DBColumn[];
-  dataAdapter: DataAdapterApi;
+  currentSchema: DataAdapterApi['currentSchema'];
+  getAllTableData: DataAdapterApi['getAllTableData'];
 }
 
 /**
  * Handle copy selected columns
  */
-export const copyTableColumns = async ({ columns, dataAdapter }: CopyTableColumnsProps) => {
+export const copyTableColumns = async ({
+  columns,
+  currentSchema,
+  getAllTableData,
+}: CopyTableColumnsProps) => {
   // We do not want to call API if no columns are selected
   if (!columns.length) {
     return;
   }
 
-  const copyTargetText = prepCopyTargetText({ columns, tableSchema: dataAdapter.currentSchema });
+  const copyTargetText = prepCopyTargetText({ columns, tableSchema: currentSchema });
 
   const notificationId = showSuccess({
     title: `Copying ${copyTargetText} to clipboard...`,
@@ -40,7 +45,7 @@ export const copyTableColumns = async ({ columns, dataAdapter }: CopyTableColumn
     color: 'text-accent',
   });
   try {
-    const data = await dataAdapter.getAllTableData(columns);
+    const data = await getAllTableData(columns);
 
     const formattedRows = getStringifyTypedRows(data, columns, '');
     const tsvRowsData = formatTableData(formattedRows, '\t');

@@ -23,7 +23,7 @@
     "test": "yarn build --mode int-test-build && playwright test",
     "test:unit": "jest",
     "test:all": "yarn test:unit && yarn test",
-    "preview": "tsc && vite build && vite preview",
+    "preview": "yarn build --mode int-test-build && vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "yarn lint:eslint && yarn lint:stylelint",
     "lint:fix": "yarn lint:eslint:fix && yarn lint:stylelint:fix",

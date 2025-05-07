@@ -77,6 +77,9 @@ export const useDataAdapterQueries = ({
           internalErrors: [`Unknown tab type: ${tab.type}`],
         };
     }
+    // we need sourceVersion to be a dependency, because it allows us to re-create the queries
+    // when the script is re-executed, even if the data source is "the same"
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, pool, dataSource, sourceFile, sourceVersion]);
 
   return ret;
