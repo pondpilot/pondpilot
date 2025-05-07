@@ -56,7 +56,7 @@ export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
         </Center>
       )}
 
-      {ghReleaseNotesData && (
+      {ghReleaseNotesData.body && (
         <div data-testid={setDataTestId('whats-new-modal-content')}>
           <ScrollArea h={600} scrollHideDelay={500} type="hover">
             <ReactMarkdown
