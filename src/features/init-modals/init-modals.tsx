@@ -1,14 +1,18 @@
+import { showAlert } from '@components/app-notifications';
 import { useAppContext } from '@features/app-context';
 import {
   ONBOARDING_MODAL_OPTIONS,
   OnboardingModalContent,
 } from '@features/onboarding-modal-content';
 import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-modal';
+import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
+import { notifications } from '@mantine/notifications';
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { useAppStore } from '@store/app-store';
 import { isVersionGreater } from '@utils/compare-versions';
+import { setDataTestId } from '@utils/test-id';
 
 export const InitModals = () => {
   const {
@@ -42,11 +46,51 @@ export const InitModals = () => {
       }
 
       if (whatsNewVersionShown && isVersionGreater(__VERSION__, whatsNewVersionShown)) {
-        const modalId = modals.open({
-          ...WHATS_NEW_MODAL_OPTIONS,
-          onClose: () => setWhatsNewVersionShown(__VERSION__),
-          children: <WhatsNewModal onClose={() => modals.close(modalId)} />,
+        const newVersionAlert = showAlert({
+          title: 'New version! New goodies!',
+          onClose: () => {
+            setWhatsNewVersionShown(__VERSION__);
+          },
+          closeButtonProps: {
+            'data-testid': setDataTestId('new-version-alert-close-button'),
+          },
+          message: (
+            <Stack data-testid={setDataTestId('new-version-alert')}>
+              <Text c="text-contrast">
+                We&apos;ve just rolled out some improvements and fresh features. Want to see
+                what&apos;s new?
+              </Text>
+              <Group justify="end">
+                <Button
+                  variant="transparent"
+                  c="text-tertiary"
+                  data-testid={setDataTestId('new-version-alert-cancel-button')}
+                  onClick={() => {
+                    notifications.hide(newVersionAlert);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  color="background-accent"
+                  data-testid={setDataTestId('new-version-alert-open-button')}
+                  onClick={async () => {
+                    notifications.hide(newVersionAlert);
+                    const modalId = modals.open({
+                      ...WHATS_NEW_MODAL_OPTIONS,
+                      onClose: () => setWhatsNewVersionShown(__VERSION__),
+                      children: <WhatsNewModal onClose={() => modals.close(modalId)} />,
+                    });
+                  }}
+                >
+                  Read Release Notes
+                </Button>
+              </Group>
+            </Stack>
+          ),
+          autoClose: false,
         });
+
         return;
       }
       // Set the current version by default
