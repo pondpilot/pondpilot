@@ -584,7 +584,9 @@ export const restoreAppDataFromIDB = async (
           }
           // Warn about any skipped empty sheets
           if (skippedSheets.length > 0) {
-            warnings.push(`Skipped empty sheets in ${localEntry.name}: ${skippedSheets.join(', ')}`);
+            warnings.push(
+              `Skipped empty sheets in ${localEntry.name}: ${skippedSheets.join(', ')}`,
+            );
           }
           break;
         }

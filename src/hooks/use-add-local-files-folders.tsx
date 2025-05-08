@@ -107,8 +107,13 @@ export const useAddLocalFilesOrFolders = () => {
       autoClose: false,
       color: 'text-accent',
     });
-    const { skippedExistingEntries, skippedUnsupportedFiles, skippedEmptyFolders, skippedEmptySheets, errors } =
-      await addLocalFileOrFolders(pool, [handle]);
+    const {
+      skippedExistingEntries,
+      skippedUnsupportedFiles,
+      skippedEmptyFolders,
+      skippedEmptySheets,
+      errors,
+    } = await addLocalFileOrFolders(pool, [handle]);
     notifications.hide(notificationId);
 
     const skippedExistingFolders: LocalEntry[] = [];

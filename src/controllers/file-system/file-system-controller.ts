@@ -237,7 +237,6 @@ export const addLocalFileOrFolders = async (
       if (added) {
         newEntries.push([localEntry.id, localEntry]);
       }
-      return;
     }
   };
 
