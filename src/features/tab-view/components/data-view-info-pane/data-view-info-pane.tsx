@@ -162,11 +162,11 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
         <Button
           onClick={handleTableExportClick}
           disabled={disableCopyAndExport}
-          color="background-tertiary"
+          className="bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark"
           c="text-primary"
           data-testid={setDataTestId('export-table-csv-button')}
         >
-          <Group gap={2}>Export CSV</Group>
+          Export CSV
         </Button>
       </Group>
     </Group>

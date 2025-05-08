@@ -10,7 +10,15 @@ import { useEffect } from 'react';
 
 import { useShowPermsAlert } from './use-show-perm-alert';
 
-export function useAppInitialization(isFileAccessApiSupported: boolean) {
+interface UseAppInitializationProps {
+  isFileAccessApiSupported: boolean;
+  isMobileDevice: boolean;
+}
+
+export function useAppInitialization({
+  isFileAccessApiSupported,
+  isMobileDevice,
+}: UseAppInitializationProps) {
   const { showPermsAlert } = useShowPermsAlert();
 
   const conn = useDuckDBConnectionPool();
@@ -84,7 +92,7 @@ export function useAppInitialization(isFileAccessApiSupported: boolean) {
   useEffect(() => {
     // As of today, if the File Access API is not supported,
     // we are not initializing either in-memory DuckDB or the app data.
-    if (!isFileAccessApiSupported) return;
+    if (!isFileAccessApiSupported || isMobileDevice) return;
 
     // Start initialization of data when the database is ready
     if (conn) {

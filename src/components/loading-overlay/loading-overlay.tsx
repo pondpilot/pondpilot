@@ -7,7 +7,7 @@ interface LoadingOverlayProps extends PropsWithChildren {
 export const LoadingOverlay = ({ children, visible }: LoadingOverlayProps) => {
   if (!visible) return null;
   return (
-    <div className="m-[1px] absolute inset-0 dark:bg-transparentGray-020 bg-transparentWhite-020 backdrop-blur-md flex items-center justify-center z-50">
+    <div className="m-[1px] absolute inset-0 dark:bg-transparentGray-020 bg-transparentWhite-020 backdrop-blur-md flex items-center justify-center z-20">
       {children}
     </div>
   );

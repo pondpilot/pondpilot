@@ -27,7 +27,7 @@ if (import.meta.env.DEV || __INTEGRATION_TEST__) {
 
 export function Router() {
   const {
-    browserInfo: { isFileAccessApiSupported },
+    browserInfo: { isFileAccessApiSupported, isMobileDevice },
   } = useAppContext();
 
   const appRoutes = isFileAccessApiSupported
@@ -55,7 +55,12 @@ export function Router() {
   const router = createBrowserRouter([
     {
       path: '/',
-      element: <Layout isFileAccessApiSupported={isFileAccessApiSupported} />,
+      element: (
+        <Layout
+          isFileAccessApiSupported={isFileAccessApiSupported}
+          isMobileDevice={isMobileDevice}
+        />
+      ),
       errorElement: <AppErrorFallback />,
       children: [
         ...appRoutes,
