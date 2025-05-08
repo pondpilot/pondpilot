@@ -12,12 +12,14 @@ interface AppContextType {
 // As of today this is static, so we do not even bother to create it
 // inside the context provider, although as we add more app context stuff
 // this may go into the provider
-const appContextValue = { browserInfo: getBrowserSupportedFeatures() };
+const appContextValue = {
+  browserInfo: getBrowserSupportedFeatures(),
+};
 
 const AppContext = createContext<AppContextType>(appContextValue);
 
 export const AppContextProvider = ({ children }: { children: React.ReactNode }) => {
-  useAppInitialization(appContextValue.browserInfo.isFileAccessApiSupported);
+  useAppInitialization(appContextValue.browserInfo);
 
   return (
     <AppContext.Provider value={appContextValue}>

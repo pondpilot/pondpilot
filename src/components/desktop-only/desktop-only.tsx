@@ -1,12 +1,11 @@
-import { Image, Box, MantineBreakpoint, Stack, Text, Title, Center } from '@mantine/core';
+import { Image, Box, Stack, Text, Title, Center } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
 
 import desktopOnly from './assets/desktop-only.svg';
 
-export const DesktopOnly = ({ hiddenFrom }: { hiddenFrom: MantineBreakpoint }) => {
+export const DesktopOnly = () => {
   return (
     <Box
-      hiddenFrom={hiddenFrom}
       data-testid={setDataTestId('desktop-only')}
       className="fixed inset-0 z-30"
       h="100vh"

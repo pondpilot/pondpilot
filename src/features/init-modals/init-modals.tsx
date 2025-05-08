@@ -16,7 +16,7 @@ import { setDataTestId } from '@utils/test-id';
 
 export const InitModals = () => {
   const {
-    browserInfo: { isFileAccessApiSupported },
+    browserInfo: { isFileAccessApiSupported, isMobileDevice },
   } = useAppContext();
   const appLoadState = useAppStore.use.appLoadState();
 
@@ -34,7 +34,7 @@ export const InitModals = () => {
   };
 
   useDidUpdate(() => {
-    if (!isFileAccessApiSupported) {
+    if (!isFileAccessApiSupported || isMobileDevice) {
       return;
     }
     if (appLoadState === 'ready') {
