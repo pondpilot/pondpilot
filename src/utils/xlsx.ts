@@ -1,8 +1,8 @@
 import * as fflate from 'fflate';
 import * as XLSX from 'xlsx';
 
-import { quote } from './helpers';
 import { toDuckDBIdentifier } from './duckdb/identifier';
+import { quote } from './helpers';
 
 // File size thresholds
 const MB = 1024 * 1024;
