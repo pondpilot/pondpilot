@@ -1,10 +1,13 @@
+/* eslint-disable playwright/no-conditional-in-test */
 import { execSync } from 'child_process';
 import * as fs from 'fs';
+import path from 'path';
 
 import { mergeTests, expect } from '@playwright/test';
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from '@utils/duckdb/identifier';
 import * as XLSX from 'xlsx';
 
+import { FileSystemNode, fileSystemTree } from './models';
 import { createFile } from '../../utils';
 import { test as dataViewTest } from '../fixtures/data-view';
 import { test as dbExplorerTest } from '../fixtures/db-explorer';
@@ -298,4 +301,118 @@ test('should handle duckdb files with reserved names correctly', async ({
     // Confirm the deletion
     await assertDBExplorerItems([]);
   }
+});
+
+test('should create file tree structure and verify persistence after reload', async ({
+  addFileButton,
+  storage,
+  filePicker,
+  testTmp,
+  clickFileByName,
+  assertFileExplorerItems,
+  page,
+  addDirectoryViaSpotlight,
+  reloadPage,
+}) => {
+  await page.goto('/');
+
+  expect(filePicker).toBeDefined();
+
+  // Convert the tree structure into flat lists
+  const directories: string[] = [];
+  const files: { path: string; content: string; localPath: string; name: string }[] = [];
+  const rootFiles: string[] = [];
+
+  // Function to traverse the tree and form flat lists
+  function traverseFileSystem(nodes: FileSystemNode[], currentPath: string = '') {
+    for (const node of nodes) {
+      if (node.type === 'dir') {
+        const dirPath = path.join(currentPath, node.name);
+        directories.push(dirPath);
+
+        if (node.children && node.children.length > 0) {
+          traverseFileSystem(node.children, dirPath);
+        }
+      } else if (node.type === 'file') {
+        const filePath = path.join(currentPath, `${node.name}.${node.ext}`);
+        const localPath = testTmp.join(`
+          ${node.name}_${currentPath.replace(/\//g, '_')}.${node.ext}`);
+
+        files.push({
+          path: filePath,
+          content: node.content,
+          localPath,
+          name: node.name,
+        });
+
+        // If the file is in the root, add its path for selection via filePicker
+        if (currentPath === '') {
+          rootFiles.push(filePath);
+        }
+      }
+    }
+  }
+
+  // Create flat lists
+  traverseFileSystem(fileSystemTree);
+
+  // 1. Create all directories
+  for (const dir of directories) {
+    await storage.createDir(dir);
+  }
+
+  // 2. Create and upload all files
+  for (const file of files) {
+    createFile(file.localPath, file.content);
+    await storage.uploadFile(file.localPath, file.path);
+  }
+
+  // 3. Add root files via UI
+  await filePicker.selectFiles(rootFiles);
+  await addFileButton.click();
+
+  // eslint-disable-next-line playwright/no-wait-for-timeout
+  page.waitForTimeout(1000);
+
+  // 4. Determine the root directory to add via UI
+  const rootDir = directories.find((dir) => !dir.includes('/'));
+  if (rootDir) {
+    await filePicker.selectDir(rootDir);
+    await addDirectoryViaSpotlight();
+  }
+
+  // 5. Check the file tree structure
+  // TODO: Create it automatically based on the file system tree
+  const rootStructure = ['dir-a', 'a', 'a_1 (a)'];
+  const firstLevelStructure = ['dir-a', 'dir-b', 'a_4 (a)', 'a_5 (a)', 'a', 'a_1 (a)'];
+  const secondLevelStructure = [
+    'dir-a',
+    'dir-b',
+    'a_2 (a)',
+    'a_3 (a)',
+    'a_4 (a)',
+    'a_5 (a)',
+    'a',
+    'a_1 (a)',
+  ];
+
+  const checkFileTreeStructure = async () => {
+    // First, check the root level
+    await assertFileExplorerItems(rootStructure);
+    // Click on the 'dir-a' folder to open its contents
+    await clickFileByName('dir-a');
+    // Check the contents of the 'dir-a' folder (including files and the 'dir-b' folder)
+    await assertFileExplorerItems(firstLevelStructure);
+    // Click on the 'dir-b' folder to open its contents
+    await clickFileByName('dir-b');
+    // Check the contents of the 'dir-b' folder
+    await assertFileExplorerItems(secondLevelStructure);
+  };
+  await checkFileTreeStructure();
+
+  // 6. Reload the page and re-check persistence
+  await reloadPage();
+
+  // Repeat checks after reload
+  await checkFileTreeStructure();
 });

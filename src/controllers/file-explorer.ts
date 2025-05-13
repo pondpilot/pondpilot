@@ -1,16 +1,17 @@
-import { PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
-import { useAppStore } from '@store/app-store';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { findUniqueName } from '@utils/helpers';
+import { PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
 import { LocalEntryId } from '@models/file-system';
-import { getDatabaseModel, getViews } from './db/duckdb-meta';
+import { useAppStore } from '@store/app-store';
+import { findUniqueName } from '@utils/helpers';
+
+import { persistPutDataSources } from './data-source/persist';
 import {
   dropFile,
   reCreateView,
   reCreateXlsxSheetView,
   registerFileHandle,
 } from './db/data-source';
-import { persistPutDataSources } from './data-source/persist';
+import { getDatabaseModel, getViews } from './db/duckdb-meta';
 import { persistAddLocalEntry } from './file-system/persist';
 
 export const renameFile = async (
