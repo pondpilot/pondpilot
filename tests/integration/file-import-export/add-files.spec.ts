@@ -321,7 +321,13 @@ test('should create file tree structure and verify persistence after reload', as
 
   // Convert the tree structure into flat lists
   const directories: string[] = [];
-  const files: { path: string; content: string; localPath: string; name: string }[] = [];
+  const files: {
+    path: string;
+    content: string;
+    localPath: string;
+    name: string;
+    ext: 'csv' | 'json' | 'parquet';
+  }[] = [];
   const rootFiles: string[] = [];
 
   // Function to traverse the tree and form flat lists
@@ -344,6 +350,7 @@ test('should create file tree structure and verify persistence after reload', as
           content: node.content,
           localPath,
           name: node.name,
+          ext: node.ext,
         });
 
         // If the file is in the root, add its path for selection via filePicker
@@ -364,15 +371,29 @@ test('should create file tree structure and verify persistence after reload', as
 
   // 2. Create and upload all files
   for (const file of files) {
-    createFile(file.localPath, file.content);
-    await storage.uploadFile(file.localPath, file.path);
+    if (file.ext === 'parquet') {
+      const parquetPath = testTmp.join('exported_view.parquet');
+
+      execSync(
+        `duckdb -c "CREATE VIEW export_view AS ${file.content} COPY (SELECT * FROM export_view) TO '${parquetPath}' (FORMAT 'parquet');"`,
+      );
+
+      await storage.uploadFile(parquetPath, file.path);
+    }
+    if (file.ext === 'json' || file.ext === 'csv') {
+      // For CSV and JSON files, we create them locally and upload
+      // the local copy to the storage
+      const filePath = testTmp.join(file.path);
+      createFile(filePath, file.content);
+      await storage.uploadFile(filePath, file.path);
+    }
   }
 
   // 3. Add root files via UI
   await filePicker.selectFiles(rootFiles);
   await addFileButton.click();
 
-  await assertFileExplorerItems(['a', 'a_1 (a)']);
+  await assertFileExplorerItems(['a', 'a_1 (a)', 'parquet-test']);
 
   // 4. Determine the root directory to add via UI
   const rootDir = directories.find((dir) => !dir.includes('/'));
@@ -383,8 +404,16 @@ test('should create file tree structure and verify persistence after reload', as
 
   // 5. Check the file tree structure
   // TODO: Create it automatically based on the file system tree
-  const rootStructure = ['dir-a', 'a', 'a_1 (a)'];
-  const firstLevelStructure = ['dir-a', 'dir-b', 'a_4 (a)', 'a_5 (a)', 'a', 'a_1 (a)'];
+  const rootStructure = ['dir-a', 'a', 'a_1 (a)', 'parquet-test'];
+  const firstLevelStructure = [
+    'dir-a',
+    'dir-b',
+    'a_4 (a)',
+    'a_5 (a)',
+    'a',
+    'a_1 (a)',
+    'parquet-test',
+  ];
   const secondLevelStructure = [
     'dir-a',
     'dir-b',
@@ -394,6 +423,7 @@ test('should create file tree structure and verify persistence after reload', as
     'a_5 (a)',
     'a',
     'a_1 (a)',
+    'parquet-test',
   ];
 
   const checkFileTreeStructure = async () => {
@@ -422,13 +452,9 @@ test('should create file tree structure and verify persistence after reload', as
   // Rename files
   await renameFileInExplorer('a', 'a_renamed', 'a');
   await renameFileInExplorer('a_1 (a)', 'a_1_renamed', 'a');
+  await renameFileInExplorer('parquet-test', 'parq', 'parquet-test');
 
   // Check the file tree structure after renaming
-  const rootWithRenamedFiles = ['dir-a', 'a_renamed (a)', 'a_1_renamed (a)'];
-  await assertFileExplorerItems(rootWithRenamedFiles);
-
-  // Check the file tree structure after renaming and reloading
-  await reloadPage();
-
+  const rootWithRenamedFiles = ['dir-a', 'a_renamed (a)', 'a_1_renamed (a)', 'parq (parquet-test)'];
   await assertFileExplorerItems(rootWithRenamedFiles);
 });

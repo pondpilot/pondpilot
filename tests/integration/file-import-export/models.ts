@@ -1,6 +1,6 @@
 type FileNode = {
   type: 'file';
-  ext: string;
+  ext: 'csv' | 'json' | 'parquet';
   content: string;
   name: string;
 };
@@ -26,6 +26,14 @@ export const fileSystemTree: FileSystemNode[] = [
     content: '{"col": "data2"}',
     name: 'a',
   },
+
+  {
+    type: 'file',
+    ext: 'parquet',
+    content: "SELECT 'data3' AS col;",
+    name: 'parquet-test',
+  },
+
   {
     type: 'dir',
     name: 'dir-a',
