@@ -371,8 +371,7 @@ test('should create file tree structure and verify persistence after reload', as
   await filePicker.selectFiles(rootFiles);
   await addFileButton.click();
 
-  // eslint-disable-next-line playwright/no-wait-for-timeout
-  await page.waitForTimeout(1000);
+  await assertFileExplorerItems(['a', 'a_1 (a)']);
 
   // 4. Determine the root directory to add via UI
   const rootDir = directories.find((dir) => !dir.includes('/'));
