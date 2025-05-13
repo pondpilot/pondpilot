@@ -303,7 +303,7 @@ test('should handle duckdb files with reserved names correctly', async ({
   }
 });
 
-test.only('should create file tree structure and verify persistence after reload', async ({
+test('should create file tree structure and verify persistence after reload', async ({
   addFileButton,
   storage,
   filePicker,
