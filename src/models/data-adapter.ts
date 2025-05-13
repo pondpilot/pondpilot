@@ -157,6 +157,12 @@ export interface DataAdapterApi {
   dataReadCancelled: boolean;
 
   /**
+   * Function to reset the data adapter, i.e. re-create data
+   * connection and drop any error, cancellation state.
+   */
+  reset: () => Promise<void>;
+
+  /**
    * Function to retrieve available data & schema for the given range
    *
    * NOTE: this may return a different range of rows than requested
@@ -240,7 +246,10 @@ export interface DataAdapterQueries {
    *
    * If both are missing it essentially means no data source exists.
    */
-  getSortableReader?: (sort: ColumnSortSpecList) => Promise<AsyncDuckDBPooledStreamReader<any>>;
+  getSortableReader?: (
+    sort: ColumnSortSpecList,
+    abortSignal: AbortSignal,
+  ) => Promise<AsyncDuckDBPooledStreamReader<any> | null>;
 
   /**
    * Returns a streaming reader.
@@ -250,7 +259,7 @@ export interface DataAdapterQueries {
    *
    * If both are missing it essentially means no data source exists.
    */
-  getReader?: () => Promise<AsyncDuckDBPooledStreamReader<any>>;
+  getReader?: (abortSignal: AbortSignal) => Promise<AsyncDuckDBPooledStreamReader<any> | null>;
 
   /**
    * Returns column aggregate for the given column.
