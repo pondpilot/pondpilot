@@ -19,8 +19,9 @@ export const DesktopOnly = () => {
               Desktop Only
             </Title>
             <Text ta="center">
-              Please switch to a desktop view
-              <br /> to access PondPilot.
+              PondPilot doesn&apos;t work on mobile.
+              <br />
+              Please switch to a desktop.
             </Text>
           </Stack>
           <Image src={desktopOnly} />
