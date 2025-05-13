@@ -313,6 +313,7 @@ test('should create file tree structure and verify persistence after reload', as
   page,
   addDirectoryViaSpotlight,
   reloadPage,
+  renameFileInExplorer,
 }) => {
   await page.goto('/');
 
@@ -414,4 +415,20 @@ test('should create file tree structure and verify persistence after reload', as
 
   // Repeat checks after reload
   await checkFileTreeStructure();
+
+  // 7. Rename files and check persistence
+  await reloadPage();
+
+  // Rename files
+  await renameFileInExplorer('a', 'a_renamed', 'a');
+  await renameFileInExplorer('a_1 (a)', 'a_1_renamed', 'a');
+
+  // Check the file tree structure after renaming
+  const rootWithRenamedFiles = ['dir-a', 'a_renamed (a)', 'a_1_renamed (a)'];
+  await assertFileExplorerItems(rootWithRenamedFiles);
+
+  // Check the file tree structure after renaming and reloading
+  await reloadPage();
+
+  await assertFileExplorerItems(rootWithRenamedFiles);
 });

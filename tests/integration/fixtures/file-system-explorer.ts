@@ -40,7 +40,7 @@ type FileSystemExplorerFixtures = {
   getFileNodeByIndex: (index: number) => Promise<Locator>;
   getFileNodeById: (fileId: string) => Promise<Locator>;
   getFileIdByName: (fileName: string) => Promise<string>;
-  renameFileInExplorer: (oldName: string, newName: string) => Promise<void>;
+  renameFileInExplorer: (oldName: string, newName: string, alias?: string) => Promise<void>;
   clickFileByIndex: (index: number) => Promise<Locator>;
   clickFileByName: (fileName: string) => Promise<Locator>;
   selectMultipleFileNodes: (indices: number[]) => Promise<Locator[]>;
@@ -115,8 +115,14 @@ export const test = base.extend<FileSystemExplorerFixtures>({
   },
 
   renameFileInExplorer: async ({ page }, use) => {
-    await use(async (oldName: string, newName: string) => {
-      await renameExplorerItem(page, FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX, oldName, newName);
+    await use(async (oldName: string, newName: string, alias?: string) => {
+      await renameExplorerItem(
+        page,
+        FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX,
+        oldName,
+        newName,
+        alias,
+      );
     });
   },
 
