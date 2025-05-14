@@ -1,7 +1,10 @@
+/* eslint-disable no-case-declarations */
 import { execSync } from 'child_process';
 import path from 'path';
 
+import { supportedDataSourceFileExt } from '@models/file-system';
 import { test as base, expect, Locator, mergeTests } from '@playwright/test';
+import { assertNeverValueType } from '@utils/typing';
 import * as XLSX from 'xlsx';
 
 import { test as filePickerTest } from './file-picker';
@@ -227,7 +230,7 @@ export const test = baseTest.extend<FileSystemExplorerFixtures>({
         content: string;
         localPath: string;
         name: string;
-        ext: 'csv' | 'json' | 'parquet' | 'duckdb' | 'xlsx';
+        ext: supportedDataSourceFileExt;
       }[] = [];
       const rootFiles: string[] = [];
       const rootDirs: string[] = [];
@@ -275,57 +278,63 @@ export const test = baseTest.extend<FileSystemExplorerFixtures>({
 
       // 2. Create and upload all files
       for (const file of files) {
-        if (file.ext === 'parquet') {
-          const parquetPath = testTmp.join('exported_view.parquet');
+        switch (file.ext) {
+          case 'parquet':
+            const parquetPath = testTmp.join('exported_view.parquet');
+            execSync(
+              `duckdb -c "CREATE VIEW export_view AS ${file.content} COPY (SELECT * FROM export_view) TO '${parquetPath}' (FORMAT 'parquet');"`,
+            );
+            await storage.uploadFile(parquetPath, file.path);
+            break;
 
-          execSync(
-            `duckdb -c "CREATE VIEW export_view AS ${file.content} COPY (SELECT * FROM export_view) TO '${parquetPath}' (FORMAT 'parquet');"`,
-          );
+          case 'duckdb':
+            const dbPath = testTmp.join(file.path);
+            execSync(`duckdb "${dbPath}" -c "${file.content}"`);
+            await storage.uploadFile(dbPath, file.path);
+            break;
 
-          await storage.uploadFile(parquetPath, file.path);
-          continue;
-        }
-        if (file.ext === 'duckdb') {
-          const dbPath = testTmp.join(file.path);
-          execSync(`duckdb "${dbPath}" -c "${file.content}"`);
-          await storage.uploadFile(dbPath, file.path);
-          continue;
-        }
-        if (file.ext === 'json' || file.ext === 'csv') {
-          // For CSV and JSON files, we create them locally and upload
-          // the local copy to the storage
-          const filePath = testTmp.join(file.path);
-          createFile(filePath, file.content);
-          await storage.uploadFile(filePath, file.path);
-          continue;
-        }
-        if (file.ext === 'xlsx') {
-          const filePath = testTmp.join(file.path);
-          let json;
-          try {
-            json = JSON.parse(file.content);
-          } catch (e) {
-            json = [{ col: file.content }];
-          }
-          const ws = XLSX.utils.json_to_sheet(json, { skipHeader: true });
-          const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-          XLSX.writeFile(wb, filePath);
-          await storage.uploadFile(filePath, file.path);
-          continue;
+          case 'json':
+          case 'csv':
+            // For CSV and JSON files, we create them locally and upload
+            // the local copy to the storage
+            const textFilePath = testTmp.join(file.path);
+            createFile(textFilePath, file.content);
+            await storage.uploadFile(textFilePath, file.path);
+            break;
+
+          case 'xlsx':
+            const xlsxFilePath = testTmp.join(file.path);
+            let json;
+            try {
+              json = JSON.parse(file.content);
+            } catch (e) {
+              json = [{ col: file.content }];
+            }
+            const ws = XLSX.utils.json_to_sheet(json, { skipHeader: true });
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+            XLSX.writeFile(wb, xlsxFilePath);
+            await storage.uploadFile(xlsxFilePath, file.path);
+            break;
+
+          default:
+            assertNeverValueType(file.ext);
         }
       }
 
       // 3. Add root files via UI
       await filePicker.selectFiles(rootFiles);
       await addFileButton.click();
-      await page.waitForTimeout(1500);
+      // Wait for the file picker to do its job
+      // eslint-disable-next-line playwright/no-wait-for-timeout
+      await page.waitForTimeout(1000);
 
       for (const rootDir of rootDirs) {
         await filePicker.selectDir(rootDir);
         await addFolderButton.click();
+        // Wait for the file picker to do its job
         // eslint-disable-next-line playwright/no-wait-for-timeout
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(1000);
       }
     });
   },
