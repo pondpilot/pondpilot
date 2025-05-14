@@ -1,5 +1,12 @@
-import { test as base, expect, Locator } from '@playwright/test';
+import { execSync } from 'child_process';
+import path from 'path';
 
+import { test as base, expect, Locator, mergeTests } from '@playwright/test';
+import * as XLSX from 'xlsx';
+
+import { test as filePickerTest } from './file-picker';
+import { test as storageTest } from './storage';
+import { test as testTmpTest } from './test-tmp';
 import {
   assertExplorerItems,
   assertScriptNodesSelection,
@@ -15,6 +22,8 @@ import {
   clickNodeByIndex,
   clickNodeByName,
 } from './utils/explorer-tree';
+import { createFile } from '../../utils';
+import { FileSystemNode } from '../file-import-export/models';
 
 type FileSystemExplorerFixtures = {
   /**
@@ -48,11 +57,14 @@ type FileSystemExplorerFixtures = {
   deselectAllFiles: () => Promise<void>;
   clickFileMenuItemByName: (fileName: string, menuItemName: string) => Promise<void>;
   createScriptFromFileExplorer: (fileName: string) => Promise<void>;
+  setupFileSystem: (fileTree: FileSystemNode[]) => Promise<void>;
 };
 
 export const FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX = 'file-system-explorer';
 
-export const test = base.extend<FileSystemExplorerFixtures>({
+const baseTest = mergeTests(storageTest, testTmpTest, base, filePickerTest);
+
+export const test = baseTest.extend<FileSystemExplorerFixtures>({
   fileSystemExplorer: async ({ page }, use) => {
     await use(page.getByTestId(FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX));
   },
@@ -196,6 +208,118 @@ export const test = base.extend<FileSystemExplorerFixtures>({
         fileName,
         'Create a Query',
       );
+    });
+  },
+
+  setupFileSystem: async (
+    { assertFileExplorerItems, addFileButton, storage, testTmp, filePicker, addFolderButton },
+    use,
+  ) => {
+    await use(async (fileTree: FileSystemNode[]) => {
+      // Convert the tree structure into flat lists
+      const directories: string[] = [];
+      const files: {
+        path: string;
+        content: string;
+        localPath: string;
+        name: string;
+        ext: 'csv' | 'json' | 'parquet' | 'duckdb' | 'xlsx';
+      }[] = [];
+      const rootFiles: string[] = [];
+
+      // Function to traverse the tree and form flat lists
+      function traverseFileSystem(nodes: FileSystemNode[], currentPath: string = '') {
+        for (const node of nodes) {
+          if (node.type === 'dir') {
+            const dirPath = path.join(currentPath, node.name);
+            directories.push(dirPath);
+
+            if (node.children && node.children.length > 0) {
+              traverseFileSystem(node.children, dirPath);
+            }
+          } else if (node.type === 'file') {
+            const filePath = path.join(currentPath, `${node.name}.${node.ext}`);
+            const localPath = testTmp.join(`
+              ${node.name}_${currentPath.replace(/\//g, '_')}.${node.ext}`);
+
+            files.push({
+              path: filePath,
+              content: node.content,
+              localPath,
+              name: node.name,
+              ext: node.ext,
+            });
+
+            // If the file is in the root, add its path for selection via filePicker
+            if (currentPath === '') {
+              rootFiles.push(filePath);
+            }
+          }
+        }
+      }
+
+      // Create flat lists
+      traverseFileSystem(fileTree);
+
+      // 1. Create all directories
+      for (const dir of directories) {
+        await storage.createDir(dir);
+      }
+
+      // 2. Create and upload all files
+      for (const file of files) {
+        if (file.ext === 'parquet') {
+          const parquetPath = testTmp.join('exported_view.parquet');
+
+          execSync(
+            `duckdb -c "CREATE VIEW export_view AS ${file.content} COPY (SELECT * FROM export_view) TO '${parquetPath}' (FORMAT 'parquet');"`,
+          );
+
+          await storage.uploadFile(parquetPath, file.path);
+          continue;
+        }
+        if (file.ext === 'duckdb') {
+          const dbPath = testTmp.join(file.path);
+          execSync(`duckdb "${dbPath}" -c "${file.content}"`);
+          await storage.uploadFile(dbPath, file.path);
+          continue;
+        }
+        if (file.ext === 'json' || file.ext === 'csv') {
+          // For CSV and JSON files, we create them locally and upload
+          // the local copy to the storage
+          const filePath = testTmp.join(file.path);
+          createFile(filePath, file.content);
+          await storage.uploadFile(filePath, file.path);
+          continue;
+        }
+        if (file.ext === 'xlsx') {
+          const filePath = testTmp.join(file.path);
+          let json;
+          try {
+            json = JSON.parse(file.content);
+          } catch (e) {
+            json = [{ col: file.content }];
+          }
+          const ws = XLSX.utils.json_to_sheet(json, { skipHeader: true });
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+          XLSX.writeFile(wb, filePath);
+          await storage.uploadFile(filePath, file.path);
+          continue;
+        }
+      }
+
+      // 3. Add root files via UI
+      await filePicker.selectFiles(rootFiles);
+      await addFileButton.click();
+
+      await assertFileExplorerItems(['a', 'a_1 (a)', 'parquet-test', 'xlsx-test']);
+
+      const rootDir = directories.find((dir) => !dir.includes('/'));
+      if (rootDir) {
+        await filePicker.selectDir(rootDir);
+        await addFolderButton.click();
+      }
     });
   },
 });

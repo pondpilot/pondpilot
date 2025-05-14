@@ -1,13 +1,12 @@
 /* eslint-disable playwright/no-conditional-in-test */
 import { execSync } from 'child_process';
 import * as fs from 'fs';
-import path from 'path';
 
 import { mergeTests, expect } from '@playwright/test';
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from '@utils/duckdb/identifier';
 import * as XLSX from 'xlsx';
 
-import { FileSystemNode, fileSystemTree } from './models';
+import { fileSystemTree } from './models';
 import { createFile } from '../../utils';
 import { test as dataViewTest } from '../fixtures/data-view';
 import { test as dbExplorerTest } from '../fixtures/db-explorer';
@@ -304,131 +303,26 @@ test('should handle duckdb files with reserved names correctly', async ({
 });
 
 test('should create file tree structure and verify persistence after reload', async ({
-  addFileButton,
-  storage,
   filePicker,
-  testTmp,
   clickFileByName,
   assertFileExplorerItems,
   page,
-  addDirectoryViaSpotlight,
   reloadPage,
   renameFileInExplorer,
   assertDBExplorerItems,
   renameDBInExplorer,
+  setupFileSystem,
 }) => {
   await page.goto('/');
 
   expect(filePicker).toBeDefined();
 
-  // Convert the tree structure into flat lists
-  const directories: string[] = [];
-  const files: {
-    path: string;
-    content: string;
-    localPath: string;
-    name: string;
-    ext: 'csv' | 'json' | 'parquet' | 'duckdb' | 'xlsx';
-  }[] = [];
-  const rootFiles: string[] = [];
-
-  // Function to traverse the tree and form flat lists
-  function traverseFileSystem(nodes: FileSystemNode[], currentPath: string = '') {
-    for (const node of nodes) {
-      if (node.type === 'dir') {
-        const dirPath = path.join(currentPath, node.name);
-        directories.push(dirPath);
-
-        if (node.children && node.children.length > 0) {
-          traverseFileSystem(node.children, dirPath);
-        }
-      } else if (node.type === 'file') {
-        const filePath = path.join(currentPath, `${node.name}.${node.ext}`);
-        const localPath = testTmp.join(`
-          ${node.name}_${currentPath.replace(/\//g, '_')}.${node.ext}`);
-
-        files.push({
-          path: filePath,
-          content: node.content,
-          localPath,
-          name: node.name,
-          ext: node.ext,
-        });
-
-        // If the file is in the root, add its path for selection via filePicker
-        if (currentPath === '') {
-          rootFiles.push(filePath);
-        }
-      }
-    }
-  }
-
-  // Create flat lists
-  traverseFileSystem(fileSystemTree);
-
-  // 1. Create all directories
-  for (const dir of directories) {
-    await storage.createDir(dir);
-  }
-
-  // 2. Create and upload all files
-  for (const file of files) {
-    if (file.ext === 'parquet') {
-      const parquetPath = testTmp.join('exported_view.parquet');
-
-      execSync(
-        `duckdb -c "CREATE VIEW export_view AS ${file.content} COPY (SELECT * FROM export_view) TO '${parquetPath}' (FORMAT 'parquet');"`,
-      );
-
-      await storage.uploadFile(parquetPath, file.path);
-      continue;
-    }
-    if (file.ext === 'duckdb') {
-      const dbPath = testTmp.join(file.path);
-      execSync(`duckdb "${dbPath}" -c "${file.content}"`);
-      await storage.uploadFile(dbPath, file.path);
-      continue;
-    }
-    if (file.ext === 'json' || file.ext === 'csv') {
-      // For CSV and JSON files, we create them locally and upload
-      // the local copy to the storage
-      const filePath = testTmp.join(file.path);
-      createFile(filePath, file.content);
-      await storage.uploadFile(filePath, file.path);
-      continue;
-    }
-    if (file.ext === 'xlsx') {
-      const filePath = testTmp.join(file.path);
-      let json;
-      try {
-        json = JSON.parse(file.content);
-      } catch (e) {
-        json = [{ col: file.content }];
-      }
-      const ws = XLSX.utils.json_to_sheet(json, { skipHeader: true });
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-      XLSX.writeFile(wb, filePath);
-      await storage.uploadFile(filePath, file.path);
-      continue;
-    }
-  }
-
-  // 3. Add root files via UI
-  await filePicker.selectFiles(rootFiles);
-  await addFileButton.click();
+  // Create files and directories
+  await setupFileSystem(fileSystemTree);
 
   await assertFileExplorerItems(['a', 'a_1 (a)', 'parquet-test', 'xlsx-test']);
 
-  // 4. Determine the root directory to add via UI
-  const rootDir = directories.find((dir) => !dir.includes('/'));
-  if (rootDir) {
-    await filePicker.selectDir(rootDir);
-    await addDirectoryViaSpotlight();
-  }
-
   // 5. Check the file tree structure
-  // TODO: Create it automatically based on the file system tree
   const rootStructure = ['dir-a', 'a', 'a_1 (a)', 'parquet-test', 'xlsx-test'];
   const firstLevelStructure = [
     'dir-a',
