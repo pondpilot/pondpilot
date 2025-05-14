@@ -1,13 +1,7 @@
 /* eslint-disable no-case-declarations */
-import { execSync } from 'child_process';
-import path from 'path';
 
-import { supportedDataSourceFileExt } from '@models/file-system';
 import { test as base, expect, Locator, mergeTests } from '@playwright/test';
-import { assertNeverValueType } from '@utils/typing';
-import * as XLSX from 'xlsx';
 
-import { test as filePickerTest } from './file-picker';
 import { test as storageTest } from './storage';
 import { test as testTmpTest } from './test-tmp';
 import {
@@ -25,8 +19,6 @@ import {
   clickNodeByIndex,
   clickNodeByName,
 } from './utils/explorer-tree';
-import { createFile } from '../../utils';
-import { FileSystemNode } from '../models';
 
 type FileSystemExplorerFixtures = {
   /**
@@ -64,12 +56,11 @@ type FileSystemExplorerFixtures = {
   deselectAllFiles: () => Promise<void>;
   clickFileMenuItemByName: (fileName: string, menuItemName: string) => Promise<void>;
   createScriptFromFileExplorer: (fileName: string) => Promise<void>;
-  setupFileSystem: (fileTree: FileSystemNode[]) => Promise<void>;
 };
 
 export const FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX = 'file-system-explorer';
 
-const baseTest = mergeTests(storageTest, testTmpTest, base, filePickerTest);
+const baseTest = mergeTests(storageTest, testTmpTest, base);
 
 export const test = baseTest.extend<FileSystemExplorerFixtures>({
   fileSystemExplorer: async ({ page }, use) => {
@@ -215,127 +206,6 @@ export const test = baseTest.extend<FileSystemExplorerFixtures>({
         fileName,
         'Create a Query',
       );
-    });
-  },
-
-  setupFileSystem: async (
-    { addFileButton, storage, testTmp, filePicker, addFolderButton, page },
-    use,
-  ) => {
-    await use(async (fileTree: FileSystemNode[]) => {
-      // Convert the tree structure into flat lists
-      const directories: string[] = [];
-      const files: {
-        path: string;
-        content: string;
-        localPath: string;
-        name: string;
-        ext: supportedDataSourceFileExt;
-      }[] = [];
-      const rootFiles: string[] = [];
-      const rootDirs: string[] = [];
-
-      // Function to traverse the tree and form flat lists
-      function traverseFileSystem(nodes: FileSystemNode[], currentPath: string = '') {
-        for (const node of nodes) {
-          if (node.type === 'dir') {
-            const dirPath = path.join(currentPath, node.name);
-            directories.push(dirPath);
-            if (currentPath === '') {
-              rootDirs.push(dirPath);
-            }
-            if (node.children && node.children.length > 0) {
-              traverseFileSystem(node.children, dirPath);
-            }
-          } else if (node.type === 'file') {
-            const filePath = path.join(currentPath, `${node.name}.${node.ext}`);
-            const localPath = testTmp.join(`
-              ${node.name}_${currentPath.replace(/\//g, '_')}.${node.ext}`);
-
-            files.push({
-              path: filePath,
-              content: node.content,
-              localPath,
-              name: node.name,
-              ext: node.ext,
-            });
-
-            // If the file is in the root, add its path for selection via filePicker
-            if (currentPath === '') {
-              rootFiles.push(filePath);
-            }
-          }
-        }
-      }
-
-      // Create flat lists
-      traverseFileSystem(fileTree);
-
-      // 1. Create all directories
-      for (const dir of directories) {
-        await storage.createDir(dir);
-      }
-
-      // 2. Create and upload all files
-      for (const file of files) {
-        switch (file.ext) {
-          case 'parquet':
-            const parquetPath = testTmp.join('exported_view.parquet');
-            execSync(
-              `duckdb -c "CREATE VIEW export_view AS ${file.content} COPY (SELECT * FROM export_view) TO '${parquetPath}' (FORMAT 'parquet');"`,
-            );
-            await storage.uploadFile(parquetPath, file.path);
-            break;
-
-          case 'duckdb':
-            const dbPath = testTmp.join(file.path);
-            execSync(`duckdb "${dbPath}" -c "${file.content}"`);
-            await storage.uploadFile(dbPath, file.path);
-            break;
-
-          case 'json':
-          case 'csv':
-            // For CSV and JSON files, we create them locally and upload
-            // the local copy to the storage
-            const textFilePath = testTmp.join(file.path);
-            createFile(textFilePath, file.content);
-            await storage.uploadFile(textFilePath, file.path);
-            break;
-
-          case 'xlsx':
-            const xlsxFilePath = testTmp.join(file.path);
-            let json;
-            try {
-              json = JSON.parse(file.content);
-            } catch (e) {
-              json = [{ col: file.content }];
-            }
-            const ws = XLSX.utils.json_to_sheet(json, { skipHeader: true });
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-            XLSX.writeFile(wb, xlsxFilePath);
-            await storage.uploadFile(xlsxFilePath, file.path);
-            break;
-
-          default:
-            assertNeverValueType(file.ext);
-        }
-      }
-
-      // 3. Add root files via UI
-      await filePicker.selectFiles(rootFiles);
-      await addFileButton.click();
-      // Wait for the file picker to do its job
-      // eslint-disable-next-line playwright/no-wait-for-timeout
-      await page.waitForTimeout(1000);
-
-      for (const rootDir of rootDirs) {
-        await filePicker.selectDir(rootDir);
-        await addFolderButton.click();
-        // Wait for the file picker to do its job
-        // eslint-disable-next-line playwright/no-wait-for-timeout
-        await page.waitForTimeout(1000);
-      }
     });
   },
 });

@@ -9,14 +9,13 @@ import * as XLSX from 'xlsx';
 import { createFile } from '../../utils';
 import { test as dataViewTest } from '../fixtures/data-view';
 import { test as dbExplorerTest } from '../fixtures/db-explorer';
-import { test as filePickerTest } from '../fixtures/file-picker';
+import { FILE_SYSTEM_TREE, test as filePickerTest } from '../fixtures/file-picker';
 import { test as fileSystemExplorerTest } from '../fixtures/file-system-explorer';
 import { test as baseTest } from '../fixtures/page';
 import { test as scriptEditor } from '../fixtures/script-editor';
 import { test as spotlightTest } from '../fixtures/spotlight';
 import { test as storageTest } from '../fixtures/storage';
 import { test as testTmpTest } from '../fixtures/test-tmp';
-import { fileSystemTree } from '../models';
 
 const test = mergeTests(
   baseTest,
@@ -318,7 +317,7 @@ test('should create file tree structure and verify persistence after reload', as
   expect(filePicker).toBeDefined();
 
   // Create files and directories
-  await setupFileSystem(fileSystemTree);
+  await setupFileSystem(FILE_SYSTEM_TREE);
 
   // 5. Check the file tree structure
   const rootStructure = ['dir-a', 'a', 'a_1 (a)', 'parquet-test', 'xlsx-test'];
