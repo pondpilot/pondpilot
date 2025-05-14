@@ -376,10 +376,26 @@ test('should create file tree structure and verify persistence after reload', as
   await reloadPage();
 
   // Rename files
-  await renameFileInExplorer('a', 'a_renamed', 'a_renamed (a)');
-  await renameFileInExplorer('a_1 (a)', 'a_1_renamed', 'a_1_renamed (a)');
-  await renameFileInExplorer('parquet-test', 'parquet_renamed', 'parquet_renamed (parquet-test)');
-  await renameFileInExplorer('xlsx-test', 'xlsx_renamed', 'xlsx_renamed (xlsx-test)');
+  await renameFileInExplorer({
+    oldName: 'a',
+    newName: 'a_renamed',
+    expectedNameInExplorer: 'a_renamed (a)',
+  });
+  await renameFileInExplorer({
+    oldName: 'a_1 (a)',
+    newName: 'a_1_renamed',
+    expectedNameInExplorer: 'a_1_renamed (a)',
+  });
+  await renameFileInExplorer({
+    oldName: 'parquet-test',
+    newName: 'parquet_renamed',
+    expectedNameInExplorer: 'parquet_renamed (parquet-test)',
+  });
+  await renameFileInExplorer({
+    oldName: 'xlsx-test',
+    newName: 'xlsx_renamed',
+    expectedNameInExplorer: 'xlsx_renamed (xlsx-test)',
+  });
 
   // Check the file tree structure after renaming
   const rootWithRenamedFiles = [
@@ -394,7 +410,11 @@ test('should create file tree structure and verify persistence after reload', as
   // 9. Switch to Databases tab and rename the DuckDB database
   await page.getByTestId('navbar-show-databases-button').click();
 
-  await renameDBInExplorer('testdb', 'testdb_renamed', 'testdb_renamed (testdb)');
+  await renameDBInExplorer({
+    oldName: 'testdb',
+    newName: 'testdb_renamed',
+    expectedNameInExplorer: 'testdb_renamed (testdb)',
+  });
 
   // Check that the renamed DB appears
   await assertDBExplorerItems(['testdb_renamed (testdb)', 'main', 'test_view']);
