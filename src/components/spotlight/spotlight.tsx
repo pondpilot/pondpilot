@@ -26,6 +26,7 @@ import {
   IconFileSad,
   IconBooks,
   IconKeyboard,
+  IconX,
 } from '@tabler/icons-react';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
