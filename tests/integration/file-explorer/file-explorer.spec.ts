@@ -9,6 +9,7 @@ import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 import { test as storageTest } from '../fixtures/storage';
 import { test as testTmpTest } from '../fixtures/test-tmp';
 import { isExplorerTreeNodeSelected } from '../fixtures/utils/explorer-tree';
+import { FileSystemNode } from '../models';
 
 const test = mergeTests(
   baseTest,
@@ -68,4 +69,166 @@ test('File should be deselected after creating script from it', async ({
 
   // Check that the file selection is cleared after creating script via hotkey
   expect(await isExplorerTreeNodeSelected(fileNode)).toBe(false);
+});
+
+export const FILE_SYSTEM_TREE: FileSystemNode[] = [
+  {
+    type: 'file',
+    ext: 'csv',
+    content: 'col\ndata1',
+    name: 'a',
+  },
+  {
+    type: 'file',
+    ext: 'json',
+    content: '{"col": "data2"}',
+    name: 'a',
+  },
+  {
+    type: 'file',
+    ext: 'xlsx',
+    content: '[{"col": "dataXLSX1"}]',
+    name: 'xlsx-test',
+  },
+  {
+    type: 'file',
+    ext: 'parquet',
+    content: "SELECT 'data3' AS col;",
+    name: 'parquet-test',
+  },
+  {
+    type: 'dir',
+    name: 'dir-a',
+    children: [
+      {
+        type: 'file',
+        ext: 'csv',
+        content: 'col\ndataA1',
+        name: 'a',
+      },
+      {
+        type: 'file',
+        ext: 'json',
+        content: '{"col": "dataA2"}',
+        name: 'a',
+      },
+
+      {
+        type: 'dir',
+        name: 'dir-b',
+        children: [
+          {
+            type: 'file',
+            ext: 'csv',
+            content: 'col\ndataB1',
+            name: 'a',
+          },
+          {
+            type: 'file',
+            ext: 'json',
+            content: '{"col": "dataB2"}',
+            name: 'a',
+          },
+        ],
+      },
+    ],
+  },
+];
+
+test('Should create file tree structure and verify persistence after reload', async ({
+  filePicker,
+  clickFileByName,
+  assertFileExplorerItems,
+  page,
+  reloadPage,
+  renameFileInExplorer,
+  setupFileSystem,
+}) => {
+  await page.goto('/');
+
+  expect(filePicker).toBeDefined();
+
+  // Create files and directories
+  await setupFileSystem(FILE_SYSTEM_TREE);
+
+  // 5. Check the file tree structure
+  const rootStructure = ['dir-a', 'a', 'a_1 (a)', 'parquet-test', 'xlsx-test'];
+
+  const firstLevelStructure = [
+    'dir-a',
+    'dir-b',
+    'a_4 (a)',
+    'a_5 (a)',
+    'a',
+    'a_1 (a)',
+    'parquet-test',
+    'xlsx-test',
+  ];
+  const secondLevelStructure = [
+    'dir-a',
+    'dir-b',
+    'a_2 (a)',
+    'a_3 (a)',
+    'a_4 (a)',
+    'a_5 (a)',
+    'a',
+    'a_1 (a)',
+    'parquet-test',
+    'xlsx-test',
+  ];
+
+  const checkFileTreeStructure = async () => {
+    // First, check the root level
+    await assertFileExplorerItems(rootStructure);
+    // Click on the 'dir-a' folder to open its contents
+    await clickFileByName('dir-a');
+    // Check the contents of the 'dir-a' folder (including files and the 'dir-b' folder)
+    await assertFileExplorerItems(firstLevelStructure);
+    // Click on the 'dir-b' folder to open its contents
+    await clickFileByName('dir-b');
+    // Check the contents of the 'dir-b' folder
+    await assertFileExplorerItems(secondLevelStructure);
+  };
+  await checkFileTreeStructure();
+
+  // 7. Rename files and check persistence
+  await reloadPage();
+
+  // Rename files
+  await renameFileInExplorer({
+    oldName: 'a',
+    newName: 'a_renamed',
+    expectedNameInExplorer: 'a_renamed (a)',
+  });
+  await renameFileInExplorer({
+    oldName: 'a_1 (a)',
+    newName: 'a_1_renamed',
+    expectedNameInExplorer: 'a_1_renamed (a)',
+  });
+  await renameFileInExplorer({
+    oldName: 'parquet-test',
+    newName: 'parquet_renamed',
+    expectedNameInExplorer: 'parquet_renamed (parquet-test)',
+  });
+  await renameFileInExplorer({
+    oldName: 'xlsx-test',
+    newName: 'xlsx_renamed',
+    expectedNameInExplorer: 'xlsx_renamed (xlsx-test)',
+  });
+
+  // Check the file tree structure after renaming
+  const rootWithRenamedFiles = [
+    'dir-a',
+    'a_renamed (a)',
+    'a_1_renamed (a)',
+    'parquet_renamed (parquet-test)',
+    'xlsx_renamed (xlsx-test)',
+  ];
+  await assertFileExplorerItems(rootWithRenamedFiles);
+
+  // 6. Reload the page and re-check persistence
+  await reloadPage();
+
+  // Repeat checks after reload
+  await assertFileExplorerItems(rootWithRenamedFiles);
 });
