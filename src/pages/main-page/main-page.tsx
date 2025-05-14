@@ -75,29 +75,6 @@ export const MainPage = () => {
         Spotlight.close();
       },
     ],
-    [
-      'mod+alt+shift+W',
-      () => {
-        const { tabOrder } = useAppStore.getState();
-        if (tabOrder.length > 0) {
-          deleteTab(tabOrder);
-        }
-        Spotlight.close();
-      },
-    ],
-    [
-      'mod+alt+W',
-      () => {
-        const { tabOrder, activeTabId } = useAppStore.getState();
-        if (tabOrder.length > 0 && activeTabId) {
-          const tabsToClose = tabOrder.filter((tabId) => tabId !== activeTabId);
-          if (tabsToClose.length > 0) {
-            deleteTab(tabsToClose);
-          }
-        }
-        Spotlight.close();
-      },
-    ],
   ]);
 
   return (
