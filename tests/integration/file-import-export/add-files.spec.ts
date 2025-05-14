@@ -6,7 +6,6 @@ import { mergeTests, expect } from '@playwright/test';
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from '@utils/duckdb/identifier';
 import * as XLSX from 'xlsx';
 
-import { fileSystemTree } from './models';
 import { createFile } from '../../utils';
 import { test as dataViewTest } from '../fixtures/data-view';
 import { test as dbExplorerTest } from '../fixtures/db-explorer';
@@ -17,6 +16,7 @@ import { test as scriptEditor } from '../fixtures/script-editor';
 import { test as spotlightTest } from '../fixtures/spotlight';
 import { test as storageTest } from '../fixtures/storage';
 import { test as testTmpTest } from '../fixtures/test-tmp';
+import { fileSystemTree } from '../models';
 
 const test = mergeTests(
   baseTest,

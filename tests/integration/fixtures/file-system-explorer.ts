@@ -26,7 +26,7 @@ import {
   clickNodeByName,
 } from './utils/explorer-tree';
 import { createFile } from '../../utils';
-import { FileSystemNode } from '../file-import-export/models';
+import { FileSystemNode } from '../models';
 
 type FileSystemExplorerFixtures = {
   /**
