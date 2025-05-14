@@ -26,7 +26,8 @@ import {
   IconFileSad,
   IconBooks,
   IconKeyboard,
-  IconX,
+  IconLayoutGridRemove,
+  IconLayoutNavbarCollapse,
 } from '@tabler/icons-react';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
@@ -313,7 +314,7 @@ export const SpotlightMenu = () => {
     {
       id: 'close-all-tabs',
       label: 'Close All Tabs',
-      icon: <IconX size={20} className={ICON_CLASSES} />,
+      icon: <IconLayoutGridRemove size={20} className={ICON_CLASSES} />,
       handler: () => {
         const { tabOrder } = useAppStore.getState();
         if (tabOrder.length > 0) {
@@ -325,7 +326,7 @@ export const SpotlightMenu = () => {
     {
       id: 'close-all-but-active-tab',
       label: 'Close All But Active Tab',
-      icon: <IconX size={20} className={ICON_CLASSES} />,
+      icon: <IconLayoutNavbarCollapse size={20} className={ICON_CLASSES} />,
       handler: () => {
         const { tabOrder, activeTabId } = useAppStore.getState();
         if (tabOrder.length > 0 && activeTabId) {

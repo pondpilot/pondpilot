@@ -1,5 +1,5 @@
 import { createSQLScript } from '@controllers/sql-script';
-import { deleteTab, getOrCreateTabFromScript } from '@controllers/tab';
+import { getOrCreateTabFromScript } from '@controllers/tab';
 import { StartGuide } from '@features/start-guide';
 import { TabView } from '@features/tab-view/tab-view';
 import { TabsPane } from '@features/tabs-pane';
