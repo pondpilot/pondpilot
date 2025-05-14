@@ -1,6 +1,6 @@
 type FileNode = {
   type: 'file';
-  ext: 'csv' | 'json' | 'parquet';
+  ext: 'csv' | 'json' | 'parquet' | 'duckdb' | 'xlsx';
   content: string;
   name: string;
 };
@@ -26,14 +26,24 @@ export const fileSystemTree: FileSystemNode[] = [
     content: '{"col": "data2"}',
     name: 'a',
   },
-
+  {
+    type: 'file',
+    ext: 'xlsx',
+    content: '[{"col": "dataXLSX1"}]',
+    name: 'xlsx-test',
+  },
   {
     type: 'file',
     ext: 'parquet',
     content: "SELECT 'data3' AS col;",
     name: 'parquet-test',
   },
-
+  {
+    type: 'file',
+    ext: 'duckdb',
+    content: 'CREATE VIEW test_view AS SELECT 123 AS value;',
+    name: 'testdb',
+  },
   {
     type: 'dir',
     name: 'dir-a',
@@ -50,6 +60,7 @@ export const fileSystemTree: FileSystemNode[] = [
         content: '{"col": "dataA2"}',
         name: 'a',
       },
+
       {
         type: 'dir',
         name: 'dir-b',

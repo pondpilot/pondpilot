@@ -314,6 +314,8 @@ test('should create file tree structure and verify persistence after reload', as
   addDirectoryViaSpotlight,
   reloadPage,
   renameFileInExplorer,
+  assertDBExplorerItems,
+  renameDBInExplorer,
 }) => {
   await page.goto('/');
 
@@ -326,7 +328,7 @@ test('should create file tree structure and verify persistence after reload', as
     content: string;
     localPath: string;
     name: string;
-    ext: 'csv' | 'json' | 'parquet';
+    ext: 'csv' | 'json' | 'parquet' | 'duckdb' | 'xlsx';
   }[] = [];
   const rootFiles: string[] = [];
 
@@ -379,6 +381,13 @@ test('should create file tree structure and verify persistence after reload', as
       );
 
       await storage.uploadFile(parquetPath, file.path);
+      continue;
+    }
+    if (file.ext === 'duckdb') {
+      const dbPath = testTmp.join(file.path);
+      execSync(`duckdb "${dbPath}" -c "${file.content}"`);
+      await storage.uploadFile(dbPath, file.path);
+      continue;
     }
     if (file.ext === 'json' || file.ext === 'csv') {
       // For CSV and JSON files, we create them locally and upload
@@ -386,6 +395,22 @@ test('should create file tree structure and verify persistence after reload', as
       const filePath = testTmp.join(file.path);
       createFile(filePath, file.content);
       await storage.uploadFile(filePath, file.path);
+      continue;
+    }
+    if (file.ext === 'xlsx') {
+      const filePath = testTmp.join(file.path);
+      let json;
+      try {
+        json = JSON.parse(file.content);
+      } catch (e) {
+        json = [{ col: file.content }];
+      }
+      const ws = XLSX.utils.json_to_sheet(json, { skipHeader: true });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+      XLSX.writeFile(wb, filePath);
+      await storage.uploadFile(filePath, file.path);
+      continue;
     }
   }
 
@@ -393,7 +418,7 @@ test('should create file tree structure and verify persistence after reload', as
   await filePicker.selectFiles(rootFiles);
   await addFileButton.click();
 
-  await assertFileExplorerItems(['a', 'a_1 (a)', 'parquet-test']);
+  await assertFileExplorerItems(['a', 'a_1 (a)', 'parquet-test', 'xlsx-test']);
 
   // 4. Determine the root directory to add via UI
   const rootDir = directories.find((dir) => !dir.includes('/'));
@@ -404,7 +429,7 @@ test('should create file tree structure and verify persistence after reload', as
 
   // 5. Check the file tree structure
   // TODO: Create it automatically based on the file system tree
-  const rootStructure = ['dir-a', 'a', 'a_1 (a)', 'parquet-test'];
+  const rootStructure = ['dir-a', 'a', 'a_1 (a)', 'parquet-test', 'xlsx-test'];
   const firstLevelStructure = [
     'dir-a',
     'dir-b',
@@ -413,6 +438,7 @@ test('should create file tree structure and verify persistence after reload', as
     'a',
     'a_1 (a)',
     'parquet-test',
+    'xlsx-test',
   ];
   const secondLevelStructure = [
     'dir-a',
@@ -424,6 +450,7 @@ test('should create file tree structure and verify persistence after reload', as
     'a',
     'a_1 (a)',
     'parquet-test',
+    'xlsx-test',
   ];
 
   const checkFileTreeStructure = async () => {
@@ -446,15 +473,39 @@ test('should create file tree structure and verify persistence after reload', as
   // Repeat checks after reload
   await checkFileTreeStructure();
 
-  // 7. Rename files and check persistence
+  // 7. Check the DB explorer
+  await page.getByTestId('navbar-show-databases-button').click();
+  await assertDBExplorerItems(['testdb', 'main', 'test_view']);
+
+  // 8. Rename files and check persistence
   await reloadPage();
 
   // Rename files
   await renameFileInExplorer('a', 'a_renamed', 'a');
   await renameFileInExplorer('a_1 (a)', 'a_1_renamed', 'a');
-  await renameFileInExplorer('parquet-test', 'parq', 'parquet-test');
+  await renameFileInExplorer('parquet-test', 'parq_renamed', 'parquet-test');
+  await renameFileInExplorer('xlsx-test', 'xlsx_renamed', 'xlsx-test');
 
   // Check the file tree structure after renaming
-  const rootWithRenamedFiles = ['dir-a', 'a_renamed (a)', 'a_1_renamed (a)', 'parq (parquet-test)'];
+  const rootWithRenamedFiles = [
+    'dir-a',
+    'a_renamed (a)',
+    'a_1_renamed (a)',
+    'parq_renamed (parquet-test)',
+    'xlsx_renamed (xlsx-test)',
+  ];
   await assertFileExplorerItems(rootWithRenamedFiles);
+
+  // 9. Switch to Databases tab and rename the DuckDB database
+  await page.getByTestId('navbar-show-databases-button').click();
+
+  await renameDBInExplorer('testdb', 'testdb_renamed', 'testdb');
+
+  // Check that the renamed DB appears
+  await assertDBExplorerItems(['testdb_renamed (testdb)', 'main', 'test_view']);
+
+  // 10. Reload the page and check persistence
+  await reloadPage();
+  await page.getByTestId('navbar-show-databases-button').click();
+  await assertDBExplorerItems(['testdb_renamed (testdb)', 'main', 'test_view']);
 });
