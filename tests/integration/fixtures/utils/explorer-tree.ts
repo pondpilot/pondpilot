@@ -155,7 +155,7 @@ export const renameExplorerItem = async (
   dataTestIdPrefix: string,
   oldName: string,
   newName: string,
-  alias?: string,
+  expectedNameInExplorer?: string,
 ): Promise<void> => {
   // Find the item in the explorer using existing functions
   const oldNode = getExplorerTreeNodeByName(page, dataTestIdPrefix, oldName);
@@ -180,7 +180,7 @@ export const renameExplorerItem = async (
   const renameNode = getExplorerTreeNodeByName(
     page,
     dataTestIdPrefix,
-    `${newName}${alias ? ` (${alias})` : ''}`,
+    expectedNameInExplorer ?? newName,
   );
   await expect(renameNode).toBeVisible();
   await expect(oldNode).toBeHidden();

@@ -49,7 +49,11 @@ type FileSystemExplorerFixtures = {
   getFileNodeByIndex: (index: number) => Promise<Locator>;
   getFileNodeById: (fileId: string) => Promise<Locator>;
   getFileIdByName: (fileName: string) => Promise<string>;
-  renameFileInExplorer: (oldName: string, newName: string, alias?: string) => Promise<void>;
+  renameFileInExplorer: (
+    oldName: string,
+    newName: string,
+    expectedNameInExplorer?: string,
+  ) => Promise<void>;
   clickFileByIndex: (index: number) => Promise<Locator>;
   clickFileByName: (fileName: string) => Promise<Locator>;
   selectMultipleFileNodes: (indices: number[]) => Promise<Locator[]>;
@@ -127,13 +131,13 @@ export const test = baseTest.extend<FileSystemExplorerFixtures>({
   },
 
   renameFileInExplorer: async ({ page }, use) => {
-    await use(async (oldName: string, newName: string, alias?: string) => {
+    await use(async (oldName: string, newName: string, expectedNameInExplorer?: string) => {
       await renameExplorerItem(
         page,
         FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX,
         oldName,
         newName,
-        alias,
+        expectedNameInExplorer,
       );
     });
   },
@@ -212,7 +216,7 @@ export const test = baseTest.extend<FileSystemExplorerFixtures>({
   },
 
   setupFileSystem: async (
-    { assertFileExplorerItems, addFileButton, storage, testTmp, filePicker, addFolderButton },
+    { addFileButton, storage, testTmp, filePicker, addFolderButton, page },
     use,
   ) => {
     await use(async (fileTree: FileSystemNode[]) => {
@@ -226,6 +230,7 @@ export const test = baseTest.extend<FileSystemExplorerFixtures>({
         ext: 'csv' | 'json' | 'parquet' | 'duckdb' | 'xlsx';
       }[] = [];
       const rootFiles: string[] = [];
+      const rootDirs: string[] = [];
 
       // Function to traverse the tree and form flat lists
       function traverseFileSystem(nodes: FileSystemNode[], currentPath: string = '') {
@@ -233,7 +238,9 @@ export const test = baseTest.extend<FileSystemExplorerFixtures>({
           if (node.type === 'dir') {
             const dirPath = path.join(currentPath, node.name);
             directories.push(dirPath);
-
+            if (currentPath === '') {
+              rootDirs.push(dirPath);
+            }
             if (node.children && node.children.length > 0) {
               traverseFileSystem(node.children, dirPath);
             }
@@ -312,13 +319,13 @@ export const test = baseTest.extend<FileSystemExplorerFixtures>({
       // 3. Add root files via UI
       await filePicker.selectFiles(rootFiles);
       await addFileButton.click();
+      await page.waitForTimeout(1500);
 
-      await assertFileExplorerItems(['a', 'a_1 (a)', 'parquet-test', 'xlsx-test']);
-
-      const rootDir = directories.find((dir) => !dir.includes('/'));
-      if (rootDir) {
+      for (const rootDir of rootDirs) {
         await filePicker.selectDir(rootDir);
         await addFolderButton.click();
+        // eslint-disable-next-line playwright/no-wait-for-timeout
+        await page.waitForTimeout(1500);
       }
     });
   },

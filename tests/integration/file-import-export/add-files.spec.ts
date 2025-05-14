@@ -320,10 +320,11 @@ test('should create file tree structure and verify persistence after reload', as
   // Create files and directories
   await setupFileSystem(fileSystemTree);
 
-  await assertFileExplorerItems(['a', 'a_1 (a)', 'parquet-test', 'xlsx-test']);
-
   // 5. Check the file tree structure
   const rootStructure = ['dir-a', 'a', 'a_1 (a)', 'parquet-test', 'xlsx-test'];
+
+  await assertFileExplorerItems(rootStructure);
+
   const firstLevelStructure = [
     'dir-a',
     'dir-b',
@@ -375,17 +376,17 @@ test('should create file tree structure and verify persistence after reload', as
   await reloadPage();
 
   // Rename files
-  await renameFileInExplorer('a', 'a_renamed', 'a');
-  await renameFileInExplorer('a_1 (a)', 'a_1_renamed', 'a');
-  await renameFileInExplorer('parquet-test', 'parq_renamed', 'parquet-test');
-  await renameFileInExplorer('xlsx-test', 'xlsx_renamed', 'xlsx-test');
+  await renameFileInExplorer('a', 'a_renamed', 'a_renamed (a)');
+  await renameFileInExplorer('a_1 (a)', 'a_1_renamed', 'a_1_renamed (a)');
+  await renameFileInExplorer('parquet-test', 'parquet_renamed', 'parquet_renamed (parquet-test)');
+  await renameFileInExplorer('xlsx-test', 'xlsx_renamed', 'xlsx_renamed (xlsx-test)');
 
   // Check the file tree structure after renaming
   const rootWithRenamedFiles = [
     'dir-a',
     'a_renamed (a)',
     'a_1_renamed (a)',
-    'parq_renamed (parquet-test)',
+    'parquet_renamed (parquet-test)',
     'xlsx_renamed (xlsx-test)',
   ];
   await assertFileExplorerItems(rootWithRenamedFiles);
@@ -393,7 +394,7 @@ test('should create file tree structure and verify persistence after reload', as
   // 9. Switch to Databases tab and rename the DuckDB database
   await page.getByTestId('navbar-show-databases-button').click();
 
-  await renameDBInExplorer('testdb', 'testdb_renamed', 'testdb');
+  await renameDBInExplorer('testdb', 'testdb_renamed', 'testdb_renamed (testdb)');
 
   // Check that the renamed DB appears
   await assertDBExplorerItems(['testdb_renamed (testdb)', 'main', 'test_view']);

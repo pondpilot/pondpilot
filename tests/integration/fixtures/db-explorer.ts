@@ -41,7 +41,11 @@ type DBExplorerFixtures = {
   assertDBNodesSelection: (expectedSelectedIndices: number[]) => Promise<void>;
   deselectAllDBs: () => Promise<void>;
   clickDBNodeMenuItemByName: (dbName: string, menuItemName: string) => Promise<void>;
-  renameDBInExplorer: (oldName: string, newName: string, alias?: string) => Promise<void>;
+  renameDBInExplorer: (
+    oldName: string,
+    newName: string,
+    expectedNameInExplorer?: string,
+  ) => Promise<void>;
 };
 
 const DB_EXPLORER_DATA_TESTID_PREFIX = 'db-explorer';
@@ -163,8 +167,14 @@ export const test = base.extend<DBExplorerFixtures>({
   },
 
   renameDBInExplorer: async ({ page }, use) => {
-    await use(async (oldName: string, newName: string, alias?: string) => {
-      await renameExplorerItem(page, DB_EXPLORER_DATA_TESTID_PREFIX, oldName, newName, alias);
+    await use(async (oldName: string, newName: string, expectedNameInExplorer?: string) => {
+      await renameExplorerItem(
+        page,
+        DB_EXPLORER_DATA_TESTID_PREFIX,
+        oldName,
+        newName,
+        expectedNameInExplorer,
+      );
     });
   },
 });
