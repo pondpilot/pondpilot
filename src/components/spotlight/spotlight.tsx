@@ -4,6 +4,7 @@ import {
   getOrCreateTabFromAttachedDBObject,
   getOrCreateTabFromFlatFileDataSource,
   getOrCreateTabFromScript,
+  deleteTab,
 } from '@controllers/tab';
 import { ImportScriptModalContent } from '@features/script-import';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
@@ -307,7 +308,39 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const quickActions: Action[] = [...scriptGroupActions, ...dataSourceGroupActions];
+  const tabActions: Action[] = [
+    {
+      id: 'close-all-tabs',
+      label: 'Close All Tabs',
+      icon: <IconX size={20} className={ICON_CLASSES} />,
+      hotkey: [option, 'W'],
+      handler: () => {
+        const { tabOrder } = useAppStore.getState();
+        if (tabOrder.length > 0) {
+          deleteTab(tabOrder);
+        }
+        Spotlight.close();
+      },
+    },
+    {
+      id: 'close-all-but-active-tab',
+      label: 'Close All But Active Tab',
+      icon: <IconX size={20} className={ICON_CLASSES} />,
+      hotkey: [option, control, 'W'],
+      handler: () => {
+        const { tabOrder, activeTabId } = useAppStore.getState();
+        if (tabOrder.length > 0 && activeTabId) {
+          const tabsToClose = tabOrder.filter(tabId => tabId !== activeTabId);
+          if (tabsToClose.length > 0) {
+            deleteTab(tabsToClose);
+          }
+        }
+        Spotlight.close();
+      },
+    },
+  ];
+
+  const quickActions: Action[] = [...scriptGroupActions, ...dataSourceGroupActions, ...tabActions];
 
   const searchModeActions: Action[] = [
     {
