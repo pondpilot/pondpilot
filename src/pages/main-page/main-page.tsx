@@ -1,5 +1,5 @@
 import { createSQLScript } from '@controllers/sql-script';
-import { getOrCreateTabFromScript } from '@controllers/tab';
+import { deleteTab, getOrCreateTabFromScript } from '@controllers/tab';
 import { StartGuide } from '@features/start-guide';
 import { TabView } from '@features/tab-view/tab-view';
 import { TabsPane } from '@features/tabs-pane';
@@ -72,6 +72,29 @@ export const MainPage = () => {
       'Ctrl+Alt+N',
       () => {
         handleAddScript();
+        Spotlight.close();
+      },
+    ],
+    [
+      'mod+alt+shift+W',
+      () => {
+        const { tabOrder } = useAppStore.getState();
+        if (tabOrder.length > 0) {
+          deleteTab(tabOrder);
+        }
+        Spotlight.close();
+      },
+    ],
+    [
+      'mod+alt+W',
+      () => {
+        const { tabOrder, activeTabId } = useAppStore.getState();
+        if (tabOrder.length > 0 && activeTabId) {
+          const tabsToClose = tabOrder.filter((tabId) => tabId !== activeTabId);
+          if (tabsToClose.length > 0) {
+            deleteTab(tabsToClose);
+          }
+        }
         Spotlight.close();
       },
     ],

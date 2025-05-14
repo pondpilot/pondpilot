@@ -314,7 +314,7 @@ export const SpotlightMenu = () => {
       id: 'close-all-tabs',
       label: 'Close All Tabs',
       icon: <IconX size={20} className={ICON_CLASSES} />,
-      hotkey: [option, 'W'],
+      hotkey: [command, option, 'Shift', 'W'],
       handler: () => {
         const { tabOrder } = useAppStore.getState();
         if (tabOrder.length > 0) {
@@ -327,11 +327,11 @@ export const SpotlightMenu = () => {
       id: 'close-all-but-active-tab',
       label: 'Close All But Active Tab',
       icon: <IconX size={20} className={ICON_CLASSES} />,
-      hotkey: [option, control, 'W'],
+      hotkey: [command, option, 'W'],
       handler: () => {
         const { tabOrder, activeTabId } = useAppStore.getState();
         if (tabOrder.length > 0 && activeTabId) {
-          const tabsToClose = tabOrder.filter(tabId => tabId !== activeTabId);
+          const tabsToClose = tabOrder.filter((tabId) => tabId !== activeTabId);
           if (tabsToClose.length > 0) {
             deleteTab(tabsToClose);
           }

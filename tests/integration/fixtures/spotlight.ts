@@ -16,6 +16,8 @@ type SpotlightFixtures = {
   addDirectoryViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
   openImportSharedScriptModalViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
   searchSpotlightAndRunNamedItem: (name: string, options?: SpotlightActionProps) => Promise<void>;
+  closeAllTabsViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
+  closeAllButActiveTabViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
 };
 
 async function selectSpotlightActionByKeyboard(
@@ -115,6 +117,23 @@ export const test = base.extend<SpotlightFixtures>({
   openImportSharedScriptModalViaSpotlight: async ({ page, openSpotlight }, use) => {
     await use(async (props) => {
       await openAndTriggerSpotlightActionById(page, openSpotlight, 'import-script-from-url', props);
+    });
+  },
+
+  closeAllTabsViaSpotlight: async ({ page, openSpotlight }, use) => {
+    await use(async (props) => {
+      await openAndTriggerSpotlightActionById(page, openSpotlight, 'close-all-tabs', props);
+    });
+  },
+
+  closeAllButActiveTabViaSpotlight: async ({ page, openSpotlight }, use) => {
+    await use(async (props) => {
+      await openAndTriggerSpotlightActionById(
+        page,
+        openSpotlight,
+        'close-all-but-active-tab',
+        props,
+      );
     });
   },
 
