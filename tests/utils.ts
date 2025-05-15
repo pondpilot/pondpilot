@@ -24,11 +24,15 @@ export function parsePath(s: string): PathInfo {
   };
 }
 
+export function createDir(dirPath: string): void {
+  if (!existsSync(dirPath)) {
+    mkdirSync(dirPath, { recursive: true });
+  }
+}
+
 export function createFile(filePath: string, content: string): void {
   const dir = path.dirname(filePath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
+  createDir(dir);
   writeFileSync(filePath, content, { flush: true });
 }
 

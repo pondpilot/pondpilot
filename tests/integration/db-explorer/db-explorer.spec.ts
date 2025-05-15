@@ -62,7 +62,7 @@ export const FILE_SYSTEM_TREE: FileSystemNode[] = [
   {
     type: 'file',
     ext: 'duckdb',
-    content: 'CREATE VIEW test_view AS SELECT 123 AS value;',
+    content: 'CREATE VIEW testview AS SELECT 1 AS value;',
     name: 'testdb',
   },
   {
@@ -72,8 +72,8 @@ export const FILE_SYSTEM_TREE: FileSystemNode[] = [
       {
         type: 'file',
         ext: 'duckdb',
-        content: 'CREATE VIEW test_view AS SELECT 123 AS value;',
-        name: 'testdb1',
+        content: 'CREATE VIEW testview AS SELECT 1 AS value;',
+        name: 'testdb',
       },
       {
         type: 'dir',
@@ -82,8 +82,8 @@ export const FILE_SYSTEM_TREE: FileSystemNode[] = [
           {
             type: 'file',
             ext: 'duckdb',
-            content: 'CREATE VIEW test_view AS SELECT 123 AS value;',
-            name: 'testdb2',
+            content: 'CREATE VIEW testview AS SELECT 1 AS value;',
+            name: 'testdb',
           },
         ],
       },
@@ -100,14 +100,13 @@ test('Databases: Should create file tree structure and verify persistence after 
   setupFileSystem,
 }) => {
   expect(filePicker).toBeDefined();
+  await page.getByTestId('navbar-show-databases-button').click();
 
   // 1. Create files and directories
   await setupFileSystem(FILE_SYSTEM_TREE);
 
-  await page.getByTestId('navbar-show-databases-button').click();
-
   // 2. Check the DB explorer
-  const rootStructure = ['testdb', 'main', 'test_view'];
+  const rootStructure = ['testdb', 'testdb_1 (testdb)', 'testdb_2 (testdb)'];
   await assertDBExplorerItems(rootStructure);
 
   // 3. Rename files and check persistence after reload
@@ -116,12 +115,36 @@ test('Databases: Should create file tree structure and verify persistence after 
     newName: 'testdb_renamed',
     expectedNameInExplorer: 'testdb_renamed (testdb)',
   });
+  await renameDBInExplorer({
+    oldName: 'testdb_1 (testdb)',
+    newName: 'testdb_1_renamed',
+    expectedNameInExplorer: 'testdb_1_renamed (testdb)',
+  });
+  await renameDBInExplorer({
+    oldName: 'testdb_2 (testdb)',
+    newName: 'testdb_2_renamed',
+    expectedNameInExplorer: 'testdb_2_renamed (testdb)',
+  });
 
   // Check that the renamed DB appears
-  await assertDBExplorerItems(['testdb_renamed (testdb)', 'main', 'test_view']);
+  await assertDBExplorerItems([
+    'testdb_1_renamed (testdb)',
+    'testdb_2_renamed (testdb)',
+    'testdb_renamed (testdb)',
+  ]);
 
-  // 4. Reload the page and check persistence
   await reloadPage();
+  // 4. Reload the page and check persistence
   await page.getByTestId('navbar-show-databases-button').click();
-  await assertDBExplorerItems(['testdb_renamed (testdb)', 'main', 'test_view']);
+  await assertDBExplorerItems([
+    'testdb_1_renamed (testdb)',
+    'main',
+    'testview',
+    'testdb_2_renamed (testdb)',
+    'main',
+    'testview',
+    'testdb_renamed (testdb)',
+    'main',
+    'testview',
+  ]);
 });

@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx';
 import { test as fileSystemExplorer } from './file-system-explorer';
 import { test as storageTest } from './storage';
 import { test as testTmpTest } from './test-tmp';
-import { createFile, parsePath } from '../../utils';
+import { createDir, createFile, parsePath } from '../../utils';
 import { FileSystemNode } from '../models';
 
 interface FilePicker {
@@ -144,8 +144,6 @@ export const test = baseTest.extend<FilePickerFixtures>({
       }[] = [];
       const rootFiles: string[] = [];
       const rootDirs: string[] = [];
-
-      // Function to traverse the tree and form flat lists
       function traverseFileSystem(nodes: FileSystemNode[], currentPath: string = '') {
         for (const node of nodes) {
           if (node.type === 'dir') {
@@ -183,6 +181,7 @@ export const test = baseTest.extend<FilePickerFixtures>({
 
       // 1. Create all directories
       for (const dir of directories) {
+        createDir(testTmp.join(dir));
         await storage.createDir(dir);
       }
 
