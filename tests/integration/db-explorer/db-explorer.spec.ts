@@ -21,6 +21,7 @@ test('DuckDB view should be deselected after creating script via spotlight', asy
   clickDBByName,
   pressNewScriptHotkey,
   getDBNodeByName,
+  clickDBNodeMenuItemByName,
 }) => {
   // Create a DuckDB database with a test view
   const dbPath = testTmp.join('test_selection.duckdb');
@@ -97,6 +98,7 @@ test('Databases: Should create file tree structure and verify persistence after 
   reloadPage,
   assertDBExplorerItems,
   renameDBInExplorer,
+  clickDBNodeMenuItemByName,
   setupFileSystem,
 }) => {
   expect(filePicker).toBeDefined();
@@ -144,6 +146,28 @@ test('Databases: Should create file tree structure and verify persistence after 
     'main',
     'testview',
     'testdb_renamed (testdb)',
+    'main',
+    'testview',
+  ]);
+
+  await clickDBNodeMenuItemByName('testdb_renamed (testdb)', 'Delete');
+  await assertDBExplorerItems([
+    'testdb_1_renamed (testdb)',
+    'main',
+    'testview',
+    'testdb_2_renamed (testdb)',
+    'main',
+    'testview',
+  ]);
+
+  await setupFileSystem(FILE_SYSTEM_TREE);
+
+  await assertDBExplorerItems([
+    'testdb',
+    'testdb_1_renamed (testdb)',
+    'main',
+    'testview',
+    'testdb_2_renamed (testdb)',
     'main',
     'testview',
   ]);
