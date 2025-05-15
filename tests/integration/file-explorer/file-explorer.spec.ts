@@ -71,7 +71,7 @@ test('File should be deselected after creating script from it', async ({
   expect(await isExplorerTreeNodeSelected(fileNode)).toBe(false);
 });
 
-export const FILE_SYSTEM_TREE: FileSystemNode[] = [
+const FILES: FileSystemNode[] = [
   {
     type: 'file',
     ext: 'csv',
@@ -88,48 +88,28 @@ export const FILE_SYSTEM_TREE: FileSystemNode[] = [
     type: 'file',
     ext: 'xlsx',
     content: '[{"col": "dataXLSX1"}]',
-    name: 'xlsx-test',
+    name: 'a',
   },
   {
     type: 'file',
     ext: 'parquet',
     content: "SELECT 'data3' AS col;",
-    name: 'parquet-test',
+    name: 'a',
   },
+];
+
+export const FILE_SYSTEM_TREE: FileSystemNode[] = [
+  ...FILES,
   {
     type: 'dir',
     name: 'dir-a',
     children: [
-      {
-        type: 'file',
-        ext: 'csv',
-        content: 'col\ndataA1',
-        name: 'a',
-      },
-      {
-        type: 'file',
-        ext: 'json',
-        content: '{"col": "dataA2"}',
-        name: 'a',
-      },
+      ...FILES,
 
       {
         type: 'dir',
         name: 'dir-b',
-        children: [
-          {
-            type: 'file',
-            ext: 'csv',
-            content: 'col\ndataB1',
-            name: 'a',
-          },
-          {
-            type: 'file',
-            ext: 'json',
-            content: '{"col": "dataB2"}',
-            name: 'a',
-          },
-        ],
+        children: FILES,
       },
     ],
   },
@@ -152,30 +132,13 @@ test('Should create file tree structure and verify persistence after reload', as
   await setupFileSystem(FILE_SYSTEM_TREE);
 
   // 5. Check the file tree structure
-  const rootStructure = ['dir-a', 'a', 'a_1 (a)', 'parquet-test', 'xlsx-test'];
+  const rootFiles = ['a', 'a_1 (a)', 'a_2 (a)', 'a_3 (a)'];
+  const rootStructure = ['dir-a', ...rootFiles];
+  const dirAStructure = ['a_10 (a)', 'a_11 (a)', 'a_8 (a)', 'a_9 (a)'];
+  const dirBStructure = ['a_4 (a)', 'a_5 (a)', 'a_6 (a)', 'a_7 (a)'];
 
-  const firstLevelStructure = [
-    'dir-a',
-    'dir-b',
-    'a_4 (a)',
-    'a_5 (a)',
-    'a',
-    'a_1 (a)',
-    'parquet-test',
-    'xlsx-test',
-  ];
-  const secondLevelStructure = [
-    'dir-a',
-    'dir-b',
-    'a_2 (a)',
-    'a_3 (a)',
-    'a_4 (a)',
-    'a_5 (a)',
-    'a',
-    'a_1 (a)',
-    'parquet-test',
-    'xlsx-test',
-  ];
+  const firstLevelStructure = ['dir-a', 'dir-b', ...dirAStructure, ...rootFiles];
+  const secondLevelStructure = ['dir-a', 'dir-b', ...dirBStructure, ...dirAStructure, ...rootFiles];
 
   const checkFileTreeStructure = async () => {
     // First, check the root level
@@ -195,6 +158,7 @@ test('Should create file tree structure and verify persistence after reload', as
   await reloadPage();
 
   // Rename files
+
   await renameFileInExplorer({
     oldName: 'a',
     newName: 'a_renamed',
@@ -206,14 +170,14 @@ test('Should create file tree structure and verify persistence after reload', as
     expectedNameInExplorer: 'a_1_renamed (a)',
   });
   await renameFileInExplorer({
-    oldName: 'parquet-test',
-    newName: 'parquet_renamed',
-    expectedNameInExplorer: 'parquet_renamed (parquet-test)',
+    oldName: 'a_2 (a)',
+    newName: 'a_2_renamed',
+    expectedNameInExplorer: 'a_2_renamed (a)',
   });
   await renameFileInExplorer({
-    oldName: 'xlsx-test',
-    newName: 'xlsx_renamed',
-    expectedNameInExplorer: 'xlsx_renamed (xlsx-test)',
+    oldName: 'a_3 (a)',
+    newName: 'a_3_renamed',
+    expectedNameInExplorer: 'a_3_renamed (a)',
   });
 
   // Check the file tree structure after renaming
@@ -221,8 +185,8 @@ test('Should create file tree structure and verify persistence after reload', as
     'dir-a',
     'a_renamed (a)',
     'a_1_renamed (a)',
-    'parquet_renamed (parquet-test)',
-    'xlsx_renamed (xlsx-test)',
+    'a_2_renamed (a)',
+    'a_3_renamed (a)',
   ];
   await assertFileExplorerItems(rootWithRenamedFiles);
 

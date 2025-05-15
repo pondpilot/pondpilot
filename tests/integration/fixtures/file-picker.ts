@@ -191,7 +191,7 @@ export const test = baseTest.extend<FilePickerFixtures>({
         switch (file.ext) {
           case 'parquet':
             // eslint-disable-next-line no-case-declarations
-            const parquetPath = testTmp.join('exported_view.parquet');
+            const parquetPath = testTmp.join(file.path);
             execSync(
               `duckdb -c "CREATE VIEW export_view AS ${file.content} COPY (SELECT * FROM export_view) TO '${parquetPath}' (FORMAT 'parquet');"`,
             );
