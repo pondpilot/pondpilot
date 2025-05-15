@@ -65,6 +65,30 @@ export const FILE_SYSTEM_TREE: FileSystemNode[] = [
     content: 'CREATE VIEW test_view AS SELECT 123 AS value;',
     name: 'testdb',
   },
+  {
+    type: 'dir',
+    name: 'dir-a',
+    children: [
+      {
+        type: 'file',
+        ext: 'duckdb',
+        content: 'CREATE VIEW test_view AS SELECT 123 AS value;',
+        name: 'testdb1',
+      },
+      {
+        type: 'dir',
+        name: 'dir-b',
+        children: [
+          {
+            type: 'file',
+            ext: 'duckdb',
+            content: 'CREATE VIEW test_view AS SELECT 123 AS value;',
+            name: 'testdb2',
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 test('Databases: Should create file tree structure and verify persistence after reload', async ({
@@ -75,12 +99,11 @@ test('Databases: Should create file tree structure and verify persistence after 
   renameDBInExplorer,
   setupFileSystem,
 }) => {
-  await page.goto('/');
-
   expect(filePicker).toBeDefined();
 
   // 1. Create files and directories
   await setupFileSystem(FILE_SYSTEM_TREE);
+
   await page.getByTestId('navbar-show-databases-button').click();
 
   // 2. Check the DB explorer

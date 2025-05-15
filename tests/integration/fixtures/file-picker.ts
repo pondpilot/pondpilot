@@ -241,6 +241,7 @@ export const test = baseTest.extend<FilePickerFixtures>({
 
       // 3. Add root files via UI
       await filePicker.selectFiles(rootFiles);
+
       await addFileButton.click();
       // Wait for the file picker to do its job
       // eslint-disable-next-line playwright/no-wait-for-timeout
