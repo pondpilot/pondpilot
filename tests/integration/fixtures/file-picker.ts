@@ -2,10 +2,11 @@ import { execSync } from 'child_process';
 import path from 'path';
 
 import { supportedDataSourceFileExt } from '@models/file-system';
-import { test as base, mergeTests } from '@playwright/test';
+import { test as base, expect, mergeTests } from '@playwright/test';
 import { assertNeverValueType } from '@utils/typing';
 import * as XLSX from 'xlsx';
 
+import { test as DbExplorer } from './db-explorer';
 import { test as fileSystemExplorer } from './file-system-explorer';
 import { test as storageTest } from './storage';
 import { test as testTmpTest } from './test-tmp';
@@ -40,7 +41,7 @@ type FilePickerFixtures = {
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 500;
 
-const baseTest = mergeTests(storageTest, testTmpTest, base, fileSystemExplorer);
+const baseTest = mergeTests(storageTest, testTmpTest, base, fileSystemExplorer, DbExplorer);
 
 export const test = baseTest.extend<FilePickerFixtures>({
   filePicker: async ({ page }, use) => {
@@ -129,7 +130,15 @@ export const test = baseTest.extend<FilePickerFixtures>({
     await use(filePicker);
   },
   setupFileSystem: async (
-    { addFileButton, storage, testTmp, filePicker, addFolderButton, page },
+    {
+      getAllDBNodes,
+      getAllFileNodes,
+      addFileButton,
+      addFolderButton,
+      storage,
+      testTmp,
+      filePicker,
+    },
     use,
   ) => {
     await use(async (fileTree: FileSystemNode[]) => {
@@ -181,7 +190,9 @@ export const test = baseTest.extend<FilePickerFixtures>({
 
       // 1. Create all directories
       for (const dir of directories) {
+        // Local folder
         createDir(testTmp.join(dir));
+        // OPFS folder
         await storage.createDir(dir);
       }
 
@@ -241,17 +252,33 @@ export const test = baseTest.extend<FilePickerFixtures>({
       // 3. Add root files via UI
       await filePicker.selectFiles(rootFiles);
 
+      // Before clicking the button, check the current count of nodes
+      const allFileNodes = await getAllFileNodes();
+      const initialFileNodeCount = await allFileNodes.count();
+      const allDbNodes = await getAllDBNodes();
+      const initialDbNodeCount = await allDbNodes.count();
+
+      const isAddingFiles = rootFiles.some((fileName) => !fileName.endsWith('duckdb'));
+      const isAddingDbFiles = rootFiles.some((fileName) => fileName.endsWith('duckdb'));
+
       await addFileButton.click();
-      // Wait for the file picker to do its job
-      // eslint-disable-next-line playwright/no-wait-for-timeout
-      await page.waitForTimeout(1000);
+
+      // Wait for at least one file to appear in the explorer
+      // This is more reliable than waiting for a specific count
+      await expect(async () => {
+        if (isAddingFiles) {
+          const currentFileNodeCount = await allFileNodes.count();
+          expect(currentFileNodeCount).toBeGreaterThan(initialFileNodeCount);
+        }
+        if (isAddingDbFiles) {
+          const currentDbNodeCount = await allDbNodes.count();
+          expect(currentDbNodeCount).toBeGreaterThan(initialDbNodeCount);
+        }
+      }).toPass({ timeout: 5000 });
 
       for (const rootDir of rootDirs) {
         await filePicker.selectDir(rootDir);
         await addFolderButton.click();
-        // Wait for the file picker to do its job
-        // eslint-disable-next-line playwright/no-wait-for-timeout
-        await page.waitForTimeout(1000);
       }
     });
   },

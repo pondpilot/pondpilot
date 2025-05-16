@@ -156,9 +156,10 @@ test('Should create file tree structure and verify persistence after reload', as
 
   // 7. Rename files and check persistence
   await reloadPage();
+  await checkFileTreeStructure();
 
-  // Rename files
-
+  // Now reload (to collapse everything) and rename files
+  await reloadPage();
   await renameFileInExplorer({
     oldName: 'a',
     newName: 'a_renamed',

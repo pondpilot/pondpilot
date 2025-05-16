@@ -63,7 +63,7 @@ export const FILE_SYSTEM_TREE: FileSystemNode[] = [
   {
     type: 'file',
     ext: 'duckdb',
-    content: 'CREATE VIEW testview AS SELECT 1 AS value;',
+    content: 'CREATE OR REPLACE VIEW testview AS SELECT 1 AS value;',
     name: 'testdb',
   },
   {
@@ -73,7 +73,7 @@ export const FILE_SYSTEM_TREE: FileSystemNode[] = [
       {
         type: 'file',
         ext: 'duckdb',
-        content: 'CREATE VIEW testview AS SELECT 1 AS value;',
+        content: 'CREATE OR REPLACE VIEW testview AS SELECT 1 AS value;',
         name: 'testdb',
       },
       {
@@ -83,7 +83,7 @@ export const FILE_SYSTEM_TREE: FileSystemNode[] = [
           {
             type: 'file',
             ext: 'duckdb',
-            content: 'CREATE VIEW testview AS SELECT 1 AS value;',
+            content: 'CREATE OR REPLACE VIEW testview AS SELECT 1 AS value;',
             name: 'testdb',
           },
         ],

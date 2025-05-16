@@ -1,6 +1,8 @@
+import { supportedDataSourceFileExt } from '@models/file-system';
+
 type FileNode = {
   type: 'file';
-  ext: 'csv' | 'json' | 'parquet' | 'duckdb' | 'xlsx';
+  ext: supportedDataSourceFileExt;
   content: string;
   name: string;
 };

@@ -1,9 +1,7 @@
 /* eslint-disable no-case-declarations */
 
-import { test as base, expect, Locator, mergeTests } from '@playwright/test';
+import { test as base, expect, Locator } from '@playwright/test';
 
-import { test as storageTest } from './storage';
-import { test as testTmpTest } from './test-tmp';
 import {
   assertExplorerItems,
   assertScriptNodesSelection,
@@ -60,9 +58,7 @@ type FileSystemExplorerFixtures = {
 
 export const FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX = 'file-system-explorer';
 
-const baseTest = mergeTests(storageTest, testTmpTest, base);
-
-export const test = baseTest.extend<FileSystemExplorerFixtures>({
+export const test = base.extend<FileSystemExplorerFixtures>({
   fileSystemExplorer: async ({ page }, use) => {
     await use(page.getByTestId(FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX));
   },
