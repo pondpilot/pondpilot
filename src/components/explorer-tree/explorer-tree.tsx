@@ -105,22 +105,52 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
         return null;
       }
 
-      return [
-        {
+      const menuItems: TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> = [];
+
+      // Check if all selected nodes are of the same type (e.g., all tables/views)
+      // This is specific to DB explorer but safe to add as a general feature
+      const selectedNodes = tree.selectedState
+        .map((nodeId) => flattenedNodes.find((node) => node.value === nodeId))
+        .filter(Boolean);
+
+      const areAllNodesOfSameType = selectedNodes.every(
+        (node) => node?.nodeType === selectedNodes[0]?.nodeType,
+      );
+
+      // If all nodes are tables/views, add "Show Schema" option
+      if (areAllNodesOfSameType && selectedNodes[0]?.nodeType === 'object') {
+        menuItems.push({
           children: [
             {
-              label: 'Delete selected',
-              // Disable if none of the selected nodes are deletable
-              isDisabled: selectedDeleteableNodeIds.length === 0,
+              label: 'Show Schema',
               onClick: (_) => {
-                onDeleteSelected(selectedDeleteableNodeIds);
-                tree.clearSelected();
+                // This will be handled by the specific tree implementation
+                // Pass the selected nodes to a callback if provided
+                if ((extraData as any)?.onShowSchemaForMultiple) {
+                  (extraData as any).onShowSchemaForMultiple(tree.selectedState);
+                }
               },
             },
           ],
-        },
-      ];
-    }, [tree.selectedState, selectedDeleteableNodeIds]);
+        });
+      }
+
+      menuItems.push({
+        children: [
+          {
+            label: 'Delete selected',
+            // Disable if none of the selected nodes are deletable
+            isDisabled: selectedDeleteableNodeIds.length === 0,
+            onClick: (_) => {
+              onDeleteSelected(selectedDeleteableNodeIds);
+              tree.clearSelected();
+            },
+          },
+        ],
+      });
+
+      return menuItems;
+    }, [tree.selectedState, selectedDeleteableNodeIds, flattenedNodes, extraData]);
 
   /**
    * Callbacks

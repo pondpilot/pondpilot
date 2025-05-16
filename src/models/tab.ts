@@ -5,6 +5,7 @@ import {
   DataTable,
   DBTableOrViewSchema,
 } from './db';
+import { LocalEntryId } from './file-system';
 import { NewId } from './new-id';
 import { SQLScriptId } from './sql-script';
 
@@ -28,7 +29,7 @@ export type TabDataViewStateCache = {
   staleData: StaleData | null;
 };
 
-export type TabType = 'script' | 'data-source';
+export type TabType = 'script' | 'data-source' | 'schema-browser';
 
 export interface TabBase {
   readonly type: TabType;
@@ -81,10 +82,26 @@ export interface AttachedDBDataTab extends TabBase {
   objectName: string;
 }
 
+export interface SchemaBrowserTab extends TabBase {
+  readonly type: 'schema-browser';
+  // Can be a folder ID, data source ID, or null for all data sources
+  sourceId: PersistentDataSourceId | LocalEntryId | null;
+  // Source type to differentiate between folder and data source
+  sourceType: 'folder' | 'file' | 'db' | 'all';
+  // Schema name for database-specific views
+  schemaName?: string;
+  // Object names (tables/views) for object-specific views
+  objectNames?: string[];
+  // For visualizing relationships and positions
+  layoutState?: Record<string, unknown>;
+}
+
 export type AnyFileSourceTab = FlatFileDataSourceTab | AttachedDBDataTab;
-export type AnyTab = ScriptTab | AnyFileSourceTab;
+export type AnyTab = ScriptTab | AnyFileSourceTab | SchemaBrowserTab;
 export type TabReactiveState<T extends AnyTab> = T extends ScriptTab
   ? Omit<ScriptTab, 'dataViewStateCache'>
   : T extends FlatFileDataSourceTab
     ? Omit<FlatFileDataSourceTab, 'dataViewStateCache'>
-    : Omit<AttachedDBDataTab, 'dataViewStateCache'>;
+    : T extends SchemaBrowserTab
+      ? Omit<SchemaBrowserTab, 'dataViewStateCache'>
+      : Omit<AttachedDBDataTab, 'dataViewStateCache'>;

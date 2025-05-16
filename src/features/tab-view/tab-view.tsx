@@ -4,7 +4,7 @@ import { useAppStore, useTabTypeMap } from '@store/app-store';
 import { useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
-import { TabErrorFallback } from './components';
+import { TabErrorFallback, SchemaTabView } from './components';
 import { FileDataSourceTabView } from './components/file-data-source-tab-view';
 import { ScriptTabView } from './components/script-tab-view';
 import { useTabCache } from './hooks/use-tab-cache';
@@ -45,6 +45,7 @@ export const TabView = () => {
                 {tabType === 'data-source' && (
                   <FileDataSourceTabView tabId={tabId} active={isActive} />
                 )}
+                {tabType === 'schema-browser' && <SchemaTabView tabId={tabId} active={isActive} />}
               </ErrorBoundary>
             </div>
           );

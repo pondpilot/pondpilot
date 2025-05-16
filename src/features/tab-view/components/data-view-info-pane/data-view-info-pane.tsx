@@ -94,6 +94,14 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
           );
         }
 
+        case 'schema-browser': {
+          return (
+            <Text {...textDefaultProps} c="text-error">
+              Schema browser error.
+            </Text>
+          );
+        }
+
         default:
           assertNeverValueType(tabType);
           break;
