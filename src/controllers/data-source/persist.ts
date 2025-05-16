@@ -2,7 +2,7 @@
 // These are necessary when multi-table transactions are needed,
 // as we are not blocking controller operations on indexedDB updates.
 
-import { PersistentDataSourceId } from '@models/data-source';
+import { PersistentDataSourceId, AnyDataSource } from '@models/data-source';
 import { LocalEntryId } from '@models/file-system';
 import {
   AppIdbSchema,
@@ -16,6 +16,22 @@ import { IDBPDatabase } from 'idb';
  * -------------------------- Create --------------------------
  * ------------------------------------------------------------
  */
+
+export const persistPutDataSources = async (
+  iDb: IDBPDatabase<AppIdbSchema>,
+  dataSources: Iterable<AnyDataSource>,
+) => {
+  const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME], 'readwrite');
+
+  // Replace data sources
+  const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
+  for (const ds of dataSources) {
+    await dataSourceStore.put(ds, ds.id);
+  }
+
+  // Commit the transaction
+  await tx.done;
+};
 
 /**
  * ------------------------------------------------------------

@@ -1,7 +1,7 @@
 import {
   CodeFileExt,
   codeFileExts,
-  supportedDataSourceFileExts,
+  SUPPORTED_DATA_SOURCE_FILE_EXTS,
   LocalEntry,
   LocalEntryId,
   LocalFile,
@@ -14,7 +14,7 @@ import { makeIdFactory } from './new-id';
 export const makeLocalEntryId = makeIdFactory<LocalEntryId>();
 
 export function isSupportedDataSourceFileExt(x: unknown): x is supportedDataSourceFileExt {
-  return supportedDataSourceFileExts.includes(x as supportedDataSourceFileExt);
+  return SUPPORTED_DATA_SOURCE_FILE_EXTS.includes(x as supportedDataSourceFileExt);
 }
 
 export function isCodeFileExt(x: unknown): x is CodeFileExt {

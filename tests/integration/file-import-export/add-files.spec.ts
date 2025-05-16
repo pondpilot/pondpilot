@@ -1,3 +1,4 @@
+/* eslint-disable playwright/no-conditional-in-test */
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 
@@ -9,24 +10,10 @@ import { createFile } from '../../utils';
 import { test as dataViewTest } from '../fixtures/data-view';
 import { test as dbExplorerTest } from '../fixtures/db-explorer';
 import { test as filePickerTest } from '../fixtures/file-picker';
-import { test as fileSystemExplorerTest } from '../fixtures/file-system-explorer';
 import { test as baseTest } from '../fixtures/page';
-import { test as scriptEditor } from '../fixtures/script-editor';
 import { test as spotlightTest } from '../fixtures/spotlight';
-import { test as storageTest } from '../fixtures/storage';
-import { test as testTmpTest } from '../fixtures/test-tmp';
 
-const test = mergeTests(
-  baseTest,
-  storageTest,
-  filePickerTest,
-  testTmpTest,
-  fileSystemExplorerTest,
-  dataViewTest,
-  spotlightTest,
-  scriptEditor,
-  dbExplorerTest,
-);
+const test = mergeTests(baseTest, filePickerTest, dataViewTest, spotlightTest, dbExplorerTest);
 
 test('should add csv files and folders', async ({
   addFileButton,

@@ -5,7 +5,7 @@ import { notifications } from '@mantine/notifications';
 import {
   LocalEntry,
   supportedDataSourceFileExtArray,
-  supportedDataSourceFileExts,
+  SUPPORTED_DATA_SOURCE_FILE_EXTS,
 } from '@models/file-system';
 import { pickFiles, pickFolder } from '@utils/file-system';
 import { useCallback } from 'react';
@@ -14,7 +14,7 @@ export const useAddLocalFilesOrFolders = () => {
   const pool = useDuckDBConnectionPool();
 
   const handleAddFile = useCallback(
-    async (exts: supportedDataSourceFileExtArray = supportedDataSourceFileExts) => {
+    async (exts: supportedDataSourceFileExtArray = SUPPORTED_DATA_SOURCE_FILE_EXTS) => {
       // TODO: we should see if we ca avoid calling this hook in uninitialized
       // state, and instead of this check, use `useInitializedDuckDBConnection`
       // to get the non-null connection

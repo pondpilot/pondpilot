@@ -1,6 +1,17 @@
-import { test as base } from '@playwright/test';
+import { execSync } from 'child_process';
+import path from 'path';
 
-import { parsePath } from '../../utils';
+import { supportedDataSourceFileExt } from '@models/file-system';
+import { test as base, expect, mergeTests } from '@playwright/test';
+import { assertNeverValueType } from '@utils/typing';
+import * as XLSX from 'xlsx';
+
+import { test as DbExplorer } from './db-explorer';
+import { test as fileSystemExplorer } from './file-system-explorer';
+import { test as storageTest } from './storage';
+import { test as testTmpTest } from './test-tmp';
+import { createDir, createFile, parsePath } from '../../utils';
+import { FileSystemNode } from '../models';
 
 interface FilePicker {
   // Playwright does not support it (https://github.com/microsoft/playwright/issues/8850).
@@ -24,12 +35,15 @@ interface FilePicker {
 
 type FilePickerFixtures = {
   filePicker: FilePicker;
+  setupFileSystem: (fileTree: FileSystemNode[]) => Promise<void>;
 };
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 500;
 
-export const test = base.extend<FilePickerFixtures>({
+const baseTest = mergeTests(storageTest, testTmpTest, base, fileSystemExplorer, DbExplorer);
+
+export const test = baseTest.extend<FilePickerFixtures>({
   filePicker: async ({ page }, use) => {
     // Use `Object.defineProperty()` instead of just `window.prop = ...` to ignore complex type signature with overloading.
     // Only expected return type is important here.
@@ -70,7 +84,7 @@ export const test = base.extend<FilePickerFixtures>({
             });
           },
           {
-            storagePaths: filePaths.map((path) => parsePath(path)),
+            storagePaths: filePaths.map((p) => parsePath(p)),
             retries: MAX_RETRIES,
             retryDelay: RETRY_DELAY_MS,
           },
@@ -114,5 +128,158 @@ export const test = base.extend<FilePickerFixtures>({
       },
     };
     await use(filePicker);
+  },
+  setupFileSystem: async (
+    {
+      getAllDBNodes,
+      getAllFileNodes,
+      addFileButton,
+      addFolderButton,
+      storage,
+      testTmp,
+      filePicker,
+    },
+    use,
+  ) => {
+    await use(async (fileTree: FileSystemNode[]) => {
+      // Convert the tree structure into flat lists
+      const directories: string[] = [];
+      const files: {
+        path: string;
+        content: string;
+        localPath: string;
+        name: string;
+        ext: supportedDataSourceFileExt;
+      }[] = [];
+      const rootFiles: string[] = [];
+      const rootDirs: string[] = [];
+      function traverseFileSystem(nodes: FileSystemNode[], currentPath: string = '') {
+        for (const node of nodes) {
+          if (node.type === 'dir') {
+            const dirPath = path.join(currentPath, node.name);
+            directories.push(dirPath);
+            if (currentPath === '') {
+              rootDirs.push(dirPath);
+            }
+            if (node.children && node.children.length > 0) {
+              traverseFileSystem(node.children, dirPath);
+            }
+          } else if (node.type === 'file') {
+            const filePath = path.join(currentPath, `${node.name}.${node.ext}`);
+            const localPath = testTmp.join(`
+                ${node.name}_${currentPath.replace(/\//g, '_')}.${node.ext}`);
+
+            files.push({
+              path: filePath,
+              content: node.content,
+              localPath,
+              name: node.name,
+              ext: node.ext,
+            });
+
+            // If the file is in the root, add its path for selection via filePicker
+            if (currentPath === '') {
+              rootFiles.push(filePath);
+            }
+          }
+        }
+      }
+
+      // Create flat lists
+      traverseFileSystem(fileTree);
+
+      // 1. Create all directories
+      for (const dir of directories) {
+        // Local folder
+        createDir(testTmp.join(dir));
+        // OPFS folder
+        await storage.createDir(dir);
+      }
+
+      // 2. Create and upload all files
+      for (const file of files) {
+        switch (file.ext) {
+          case 'parquet':
+            // eslint-disable-next-line no-case-declarations
+            const parquetPath = testTmp.join(file.path);
+            execSync(
+              `duckdb -c "CREATE VIEW export_view AS ${file.content} COPY (SELECT * FROM export_view) TO '${parquetPath}' (FORMAT 'parquet');"`,
+            );
+            await storage.uploadFile(parquetPath, file.path);
+            break;
+
+          case 'duckdb':
+            // eslint-disable-next-line no-case-declarations
+            const dbPath = testTmp.join(file.path);
+            execSync(`duckdb "${dbPath}" -c "${file.content}"`);
+            await storage.uploadFile(dbPath, file.path);
+            break;
+
+          case 'json':
+          case 'csv':
+            // For CSV and JSON files, we create them locally and upload
+            // the local copy to the storage
+            // eslint-disable-next-line no-case-declarations
+            const textFilePath = testTmp.join(file.path);
+            createFile(textFilePath, file.content);
+            await storage.uploadFile(textFilePath, file.path);
+            break;
+
+          case 'xlsx':
+            // eslint-disable-next-line no-case-declarations
+            const xlsxFilePath = testTmp.join(file.path);
+            // eslint-disable-next-line no-case-declarations
+            let json;
+            try {
+              json = JSON.parse(file.content);
+            } catch (e) {
+              json = [{ col: file.content }];
+            }
+            // eslint-disable-next-line no-case-declarations
+            const ws = XLSX.utils.json_to_sheet(json, { skipHeader: true });
+            // eslint-disable-next-line no-case-declarations
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+            XLSX.writeFile(wb, xlsxFilePath);
+            await storage.uploadFile(xlsxFilePath, file.path);
+            break;
+
+          default:
+            assertNeverValueType(file.ext);
+        }
+      }
+
+      // 3. Add root files via UI
+      await filePicker.selectFiles(rootFiles);
+
+      // Before clicking the button, check the current count of nodes
+      const allFileNodes = await getAllFileNodes();
+      const initialFileNodeCount = await allFileNodes.count();
+      const allDbNodes = await getAllDBNodes();
+      const initialDbNodeCount = await allDbNodes.count();
+
+      const isAddingFiles = rootFiles.some((fileName) => !fileName.endsWith('duckdb'));
+      const isAddingDbFiles = rootFiles.some((fileName) => fileName.endsWith('duckdb'));
+
+      await addFileButton.click();
+
+      // Wait for at least one file to appear in the explorer
+      // This is more reliable than waiting for a specific count
+      await expect(async () => {
+        if (isAddingFiles) {
+          const currentFileNodeCount = await allFileNodes.count();
+          expect(currentFileNodeCount).toBeGreaterThan(initialFileNodeCount);
+        }
+        if (isAddingDbFiles) {
+          const currentDbNodeCount = await allDbNodes.count();
+          expect(currentDbNodeCount).toBeGreaterThan(initialDbNodeCount);
+        }
+      }).toPass({ timeout: 5000 });
+
+      for (const rootDir of rootDirs) {
+        await filePicker.selectDir(rootDir);
+        await addFolderButton.click();
+      }
+    });
   },
 });

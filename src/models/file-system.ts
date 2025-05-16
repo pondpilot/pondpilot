@@ -6,8 +6,14 @@ export type LocalEntryId = NewId<'LocalEntryId'>;
 
 export type LocalFileType = 'data-source' | 'code-file';
 
-export const supportedDataSourceFileExts = ['csv', 'xlsx', 'duckdb', 'parquet', 'json'] as const;
-export type supportedDataSourceFileExt = (typeof supportedDataSourceFileExts)[number];
+export const SUPPORTED_DATA_SOURCE_FILE_EXTS = [
+  'csv',
+  'xlsx',
+  'duckdb',
+  'parquet',
+  'json',
+] as const;
+export type supportedDataSourceFileExt = (typeof SUPPORTED_DATA_SOURCE_FILE_EXTS)[number];
 export type supportedDataSourceFileExtArray = readonly supportedDataSourceFileExt[number][];
 export type supportedFlatFileDataSourceFileExt = Exclude<supportedDataSourceFileExt, 'duckdb'>;
 

@@ -1,3 +1,5 @@
+/* eslint-disable no-case-declarations */
+
 import { test as base, expect, Locator } from '@playwright/test';
 
 import {
@@ -40,7 +42,11 @@ type FileSystemExplorerFixtures = {
   getFileNodeByIndex: (index: number) => Promise<Locator>;
   getFileNodeById: (fileId: string) => Promise<Locator>;
   getFileIdByName: (fileName: string) => Promise<string>;
-  renameFileInExplorer: (oldName: string, newName: string) => Promise<void>;
+  renameFileInExplorer: (props: {
+    oldName: string;
+    newName: string;
+    expectedNameInExplorer?: string;
+  }) => Promise<void>;
   clickFileByIndex: (index: number) => Promise<Locator>;
   clickFileByName: (fileName: string) => Promise<Locator>;
   selectMultipleFileNodes: (indices: number[]) => Promise<Locator[]>;
@@ -115,8 +121,14 @@ export const test = base.extend<FileSystemExplorerFixtures>({
   },
 
   renameFileInExplorer: async ({ page }, use) => {
-    await use(async (oldName: string, newName: string) => {
-      await renameExplorerItem(page, FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX, oldName, newName);
+    await use(async ({ oldName, newName, expectedNameInExplorer }) => {
+      await renameExplorerItem(
+        page,
+        FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX,
+        oldName,
+        newName,
+        expectedNameInExplorer,
+      );
     });
   },
 

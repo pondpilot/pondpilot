@@ -13,6 +13,7 @@ import {
   selectMultipleNodes,
   clickNodeByIndex,
   clickNodeByName,
+  renameExplorerItem,
 } from './utils/explorer-tree';
 
 type DBExplorerFixtures = {
@@ -40,6 +41,11 @@ type DBExplorerFixtures = {
   assertDBNodesSelection: (expectedSelectedIndices: number[]) => Promise<void>;
   deselectAllDBs: () => Promise<void>;
   clickDBNodeMenuItemByName: (dbName: string, menuItemName: string) => Promise<void>;
+  renameDBInExplorer: (props: {
+    oldName: string;
+    newName: string;
+    expectedNameInExplorer?: string;
+  }) => Promise<void>;
 };
 
 const DB_EXPLORER_DATA_TESTID_PREFIX = 'db-explorer';
@@ -156,6 +162,18 @@ export const test = base.extend<DBExplorerFixtures>({
         DB_EXPLORER_DATA_TESTID_PREFIX,
         dbName,
         menuItemName,
+      );
+    });
+  },
+
+  renameDBInExplorer: async ({ page }, use) => {
+    await use(async ({ oldName, newName, expectedNameInExplorer }) => {
+      await renameExplorerItem(
+        page,
+        DB_EXPLORER_DATA_TESTID_PREFIX,
+        oldName,
+        newName,
+        expectedNameInExplorer,
       );
     });
   },

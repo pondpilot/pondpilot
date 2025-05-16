@@ -1,5 +1,6 @@
 import { ExplorerTree, TreeNodeData } from '@components/explorer-tree';
 import { deleteDataSources } from '@controllers/data-source';
+import { renameFile, renameXlsxFile } from '@controllers/file-explorer';
 import { deleteLocalFileOrFolders } from '@controllers/file-system';
 import { createSQLScript } from '@controllers/sql-script';
 import {
@@ -19,7 +20,9 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import {
   getFlatFileDataSourceIcon,
   getFlatFileDataSourceName,
+  getFolderName,
   getLocalEntryIcon,
+  getXlsxFileName,
 } from '@utils/navigation';
 import { memo, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
@@ -47,10 +50,26 @@ export const FileSystemExplorer = memo(() => {
     const activeTab = state.activeTabId && state.tabs.get(state.activeTabId);
     return activeTab?.type === 'data-source' && activeTab.dataSourceType === 'file';
   });
+  const flatFileSourcesValues = useMemo(
+    () => Array.from(flatFileSources.values()),
+    [flatFileSources],
+  );
 
   // Create a map of all flat file sources by their related file ID
-  const dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource> = new Map(
-    flatFileSources.values().map((source) => [source.fileSourceId, source]),
+  const dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource> = useMemo(
+    () => new Map(flatFileSourcesValues.map((source) => [source.fileSourceId, source])),
+    [flatFileSourcesValues],
+  );
+
+  // Only non DB file entries
+  const nonAttachedDBFileEntries = useAppStore(
+    useShallow((state) =>
+      Array.from(
+        state.localEntries
+          .values()
+          .filter((entry) => entry.kind === 'file' && entry.ext !== 'duckdb'),
+      ),
+    ),
   );
 
   // Filter out what we do not need in this explorer
@@ -104,7 +123,7 @@ export const FileSystemExplorer = memo(() => {
 
       // Group XLSX sheets by parent file
       const xlsxSheetsByFileId = new Map<LocalEntryId, XlsxSheetView[]>();
-      for (const source of flatFileSources.values()) {
+      for (const source of flatFileSourcesValues) {
         if (source.type === 'xlsx-sheet') {
           const fileId = source.fileSourceId; // This is the parent XLSX file's ID
           const sheets = xlsxSheetsByFileId.get(fileId) || [];
@@ -120,10 +139,7 @@ export const FileSystemExplorer = memo(() => {
           fileTreeChildren.push({
             nodeType: 'folder',
             value: entry.id,
-            label:
-              entry.name === entry.uniqueAlias
-                ? entry.name
-                : `${entry.name} (${entry.uniqueAlias})`,
+            label: getFolderName(entry),
             iconType: getLocalEntryIcon(entry),
             isDisabled: false,
             isSelectable: false,
@@ -154,10 +170,38 @@ export const FileSystemExplorer = memo(() => {
             return;
           }
 
+          const validateXlsxFileRename = (
+            newName: string,
+            fileEntries: Iterable<LocalEntry>,
+            thisEntry: LocalEntry,
+          ): string | null => {
+            newName = newName.trim();
+
+            if (newName.length === 0) {
+              return 'Name cannot be empty';
+            }
+
+            for (const f of fileEntries) {
+              if (f.id !== thisEntry.id && f.uniqueAlias.toLowerCase() === newName.toLowerCase()) {
+                return 'Name must be unique';
+              }
+            }
+
+            return null;
+          };
+
+          const onXlsxFileRenameSubmit = (newName: string, thisEntry: LocalEntry): void => {
+            newName = newName.trim();
+            if (thisEntry.uniqueAlias === newName) {
+              // No need to rename if the name has not been changed
+              return;
+            }
+            renameXlsxFile(thisEntry.id, newName, conn);
+          };
+
           const sheets = xlsxSheetsByFileId.get(entry.id)!;
 
           // Sort sheets alphabetically for consistent display
-          // TODO: Check if SheetJS is consistent and then switch back to "Natural" order(?)
           sheets.sort((a, b) => a.sheetName.localeCompare(b.sheetName));
 
           anyNodeIdToNodeTypeMap.set(entry.id, {
@@ -169,10 +213,16 @@ export const FileSystemExplorer = memo(() => {
           const xlsxNode: TreeNodeData<FSExplorerNodeTypeToIdTypeMap> = {
             nodeType: 'file',
             value: relatedSource.id,
-            label: entry.name,
-            iconType: 'xlsx',
+            label: getXlsxFileName(entry),
+            iconType: getLocalEntryIcon(entry),
             isDisabled: false,
             isSelectable: false,
+            renameCallbacks: {
+              prepareRenameValue: () => entry.uniqueAlias,
+              validateRename: (_, newName) =>
+                validateXlsxFileRename(newName, nonAttachedDBFileEntries, entry),
+              onRenameSubmit: (_, newName) => onXlsxFileRenameSubmit(newName, entry),
+            },
             onDelete: entry.userAdded
               ? () => deleteLocalFileOrFolders(conn, [entry.id])
               : undefined,
@@ -263,6 +313,35 @@ export const FileSystemExplorer = memo(() => {
           return;
         }
 
+        const validateFileRename = (
+          node: TreeNodeData<FSExplorerNodeTypeToIdTypeMap>,
+          newName: string,
+          fileSources: Iterable<AnyFlatFileDataSource>,
+        ): string | null => {
+          newName = newName.trim();
+
+          if (newName.length === 0) {
+            return 'Name cannot be empty';
+          }
+
+          for (const f of fileSources) {
+            if (f.id !== node.value && f.viewName.toLowerCase() === newName.toLowerCase()) {
+              return 'Name must be unique';
+            }
+          }
+
+          return null;
+        };
+
+        const onFileRenameSubmit = (newName: string, fileSource: AnyFlatFileDataSource): void => {
+          newName = newName.trim();
+          if (fileSource.viewName === newName) {
+            // No need to rename if the name has not been changed
+            return;
+          }
+          renameFile(fileSource.id, newName, conn);
+        };
+
         const label = getFlatFileDataSourceName(relatedSource, entry);
         const iconType = getFlatFileDataSourceIcon(relatedSource);
         const value = relatedSource.id;
@@ -275,15 +354,12 @@ export const FileSystemExplorer = memo(() => {
           iconType,
           isDisabled: false,
           isSelectable: true,
-          // TODO: implement renaming of views for flat files
-          // renameCallbacks: {
-          //   validateRename: () => {
-          //     throw new Error('TODO: implement renaming of views for flat files');
-          //   },
-          //   onRenameSubmit: () => {
-          //     throw new Error('TODO: implement renaming of views for flat files');
-          //   },
-          // },
+          renameCallbacks: {
+            prepareRenameValue: () => relatedSource.viewName,
+            validateRename: (node, newName) =>
+              validateFileRename(node, newName, flatFileSourcesValues),
+            onRenameSubmit: (_, newName) => onFileRenameSubmit(newName, relatedSource),
+          },
           onDelete: entry.userAdded
             ? // Only allow deleting explicitly user-added files
               () => {
@@ -349,7 +425,14 @@ export const FileSystemExplorer = memo(() => {
     };
 
     return buildTree(null);
-  }, [nonAttachedDBEntries, dataSourceByFileId]);
+  }, [
+    conn,
+    dataSourceByFileId,
+    nonAttachedDBFileEntries,
+    parentToChildrenEntriesMap,
+    flatFileSources,
+    flatFileSourcesValues,
+  ]);
 
   /**
    * Consts

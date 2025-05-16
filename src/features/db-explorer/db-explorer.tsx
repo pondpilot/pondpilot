@@ -2,6 +2,7 @@ import { ExplorerTree, TreeNodeData, TreeNodeMenuItemType } from '@components/ex
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import { deleteDataSources } from '@controllers/data-source';
+import { renameDB } from '@controllers/db-explorer';
 import { createSQLScript } from '@controllers/sql-script';
 import {
   findTabFromAttachedDBObject,
@@ -11,7 +12,7 @@ import {
   setPreviewTabId,
 } from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { PersistentDataSourceId } from '@models/data-source';
+import { PersistentDataSourceId, AttachedDB } from '@models/data-source';
 import { DBColumn, DBSchema, DBTableOrView, DBTableOrViewSchema } from '@models/db';
 import {
   useAppStore,
@@ -307,6 +308,42 @@ export const DbExplorer = memo(() => {
     a.dbName.localeCompare(b.dbName),
   );
 
+  const validateRename = (
+    node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>,
+    newName: string,
+    dbList: AttachedDB[],
+  ): string | null => {
+    newName = newName.trim();
+
+    if (newName.length === 0) {
+      return 'Name cannot be empty';
+    }
+
+    if (
+      dbList.some((db) => db.id !== node.value && db.dbName.toLowerCase() === newName.toLowerCase())
+    ) {
+      return 'Name must be unique';
+    }
+
+    return null;
+  };
+
+  const onRenameSubmit = (
+    node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>,
+    newName: string,
+  ): void => {
+    newName = newName.trim();
+    const db = attachedDBMap.get(node.value as PersistentDataSourceId);
+    if (!db) {
+      throw new Error(`Attached DB with id ${node.value} not found`);
+    }
+    if (db.dbName === newName) {
+      // No need to rename if the name is the same
+      return;
+    }
+    renameDB(db.id, newName, conn);
+  };
+
   const dbObjectsTree: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>[] = sortedDBs.map(
     (attachedDBDataSource) => {
       const { id: dbId, dbName, fileSourceId } = attachedDBDataSource;
@@ -332,20 +369,18 @@ export const DbExplorer = memo(() => {
         iconType: 'db',
         isDisabled: false,
         isSelectable: false,
-        // TODO: implement renaming of database aliases
-        // renameCallbacks: {
-        //   validateRename: () => {
-        //     throw new Error('TODO: implement renaming of database aliases');
-        //   },
-        //   onRenameSubmit: () => {
-        //     throw new Error('TODO: implement renaming of database aliases');
-        //   },
-        // },
-        onDelete: (node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>): void => {
-          if (node.nodeType === 'db') {
-            deleteDataSources(conn, [node.value]);
-          }
+        renameCallbacks: {
+          prepareRenameValue: () => dbName,
+          validateRename: (node, newName) => validateRename(node, newName, sortedDBs),
+          onRenameSubmit: (node, newName) => onRenameSubmit(node, newName),
         },
+        onDelete: localFile?.userAdded
+          ? (node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>): void => {
+              if (node.nodeType === 'db') {
+                deleteDataSources(conn, [node.value]);
+              }
+            }
+          : undefined,
         contextMenu: [
           {
             children: [
