@@ -9,7 +9,8 @@ import { defaultKeymap, insertTab, history } from '@codemirror/commands';
 import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
 import { keymap } from '@codemirror/view';
 import { showNotification } from '@mantine/notifications';
-import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
+import { Editor } from '@monaco-editor/react';
+import { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { forwardRef, KeyboardEventHandler, useMemo } from 'react';
@@ -148,29 +149,15 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
     }, [onCursorChange, keyExtensions, schema, tableNameHighlightPlugin]);
 
     return (
-      <CodeMirror
-        ref={ref}
-        autoFocus
-        readOnly={readOnly}
-        onKeyDown={onKeyDown}
-        basicSetup={{
-          defaultKeymap: false,
-          drawSelection: false,
+      <Editor
+        language="sql"
+        options={{
+          minimap: { enabled: false },
+          wordWrap: 'on',
+          folding: false,
         }}
-        theme={colorSchemeDark ? darkTheme : lightTheme}
-        onBlur={onBlur}
         value={value}
-        onChange={onChange}
-        height="100%"
-        width="100%"
-        style={{
-          fontSize: fontSize ? `${fontSize}rem` : '0.875rem',
-          height: '100%',
-          width: '100%',
-          flex: 1,
-        }}
-        className="w-full h-full"
-        extensions={extensions}
+        onChange={(v) => onChange?.(v || '')}
       />
     );
   },
