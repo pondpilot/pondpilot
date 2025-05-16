@@ -128,6 +128,7 @@ test('should add and read Excel files with multiple sheets', async ({
   assertFileExplorerItems,
   clickFileMenuItemByName,
   clickFileByName,
+  page,
 }) => {
   // Create Excel file with two sheets
 
@@ -152,6 +153,10 @@ test('should add and read Excel files with multiple sheets', async ({
             { product: 'Gadget', price: 24.99, stock: 27 },
             { product: 'Doohickey', price: 14.99, stock: 15 },
           ],
+        },
+        {
+          name: 'EmptySheet',
+          rows: [{}],
         },
       ],
     },
@@ -193,6 +198,11 @@ test('should add and read Excel files with multiple sheets', async ({
     ],
     columnNames: ['A1', 'B1', 'C1'],
   });
+
+  await page.reload();
+  await clickFileByName('test');
+
+  await assertFileExplorerItems(['test', 'Employees', 'Products']);
 
   // Delete the database from the DB explorer
   await clickFileMenuItemByName('test', 'Delete');
