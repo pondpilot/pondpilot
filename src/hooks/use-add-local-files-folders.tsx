@@ -41,7 +41,7 @@ export const useAddLocalFilesOrFolders = () => {
         return;
       }
 
-      const { skippedExistingEntries, skippedUnsupportedFiles, errors } =
+      const { skippedExistingEntries, skippedUnsupportedFiles, skippedEmptySheets, errors } =
         await addLocalFileOrFolders(pool, handles);
 
       if (skippedExistingEntries.length) {
@@ -58,6 +58,14 @@ export const useAddLocalFilesOrFolders = () => {
         });
       }
 
+      if (skippedEmptySheets.length) {
+        skippedEmptySheets.forEach(({ fileName, sheets }) => {
+          showWarning({
+            title: 'Warning',
+            message: `Skipped empty sheets in ${fileName}: ${sheets.join(', ')}`,
+          });
+        });
+      }
       errors.forEach((errorMessage) => {
         showError({
           title: 'Error',
@@ -99,8 +107,13 @@ export const useAddLocalFilesOrFolders = () => {
       autoClose: false,
       color: 'text-accent',
     });
-    const { skippedExistingEntries, skippedUnsupportedFiles, skippedEmptyFolders, errors } =
-      await addLocalFileOrFolders(pool, [handle]);
+    const {
+      skippedExistingEntries,
+      skippedUnsupportedFiles,
+      skippedEmptyFolders,
+      skippedEmptySheets,
+      errors,
+    } = await addLocalFileOrFolders(pool, [handle]);
     notifications.hide(notificationId);
 
     const skippedExistingFolders: LocalEntry[] = [];
@@ -138,6 +151,14 @@ export const useAddLocalFilesOrFolders = () => {
       showWarning({
         title: 'Warning',
         message: `${skippedEmptyFolders.length} folders were not added because no supported files were found.`,
+      });
+    }
+    if (skippedEmptySheets.length) {
+      skippedEmptySheets.forEach(({ fileName, sheets }) => {
+        showWarning({
+          title: 'Warning',
+          message: `Skipped empty sheets in ${fileName}: ${sheets.join(', ')}`,
+        });
       });
     }
 

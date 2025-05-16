@@ -513,7 +513,11 @@ export const restoreAppDataFromIDB = async (
           const currentSheetNames = await getXlsxSheetNames(xlsxFile);
 
           if (currentSheetNames.length === 0) {
+            // No sheets defined in workbook, skip and remove entry
             warnings.push(`XLSX file ${localEntry.name} has no sheets.`);
+            // Remove this entry from state and mark as discarded
+            localEntriesMap.delete(localEntry.id);
+            discardedEntries.push({ type: 'removed', entry: localEntry, reason: 'no-sheets' });
             break;
           }
 
@@ -541,23 +545,55 @@ export const restoreAppDataFromIDB = async (
           const existingSheetNames = new Set(existingDataSources.map((ds) => ds.sheetName));
           const newSheets = currentSheetNames.filter((name) => !existingSheetNames.has(name));
 
+          // Prepare to track sheet outcomes
+          const succeededSheets: string[] = [];
+          const skippedSheets: string[] = [];
           // Create data sources for new sheets
           for (const sheetName of newSheets) {
             const sheetDataSource = addXlsxSheetDataSource(localEntry, sheetName, _reservedViews);
             _reservedViews.add(sheetDataSource.viewName);
             missingDataSources.set(sheetDataSource.id, sheetDataSource);
-
-            // Create views for new sheets
-            await createXlsxSheetView(conn, fileName, sheetName, sheetDataSource.viewName);
-
-            validDataSources.add(sheetDataSource.id);
+            try {
+              await createXlsxSheetView(conn, fileName, sheetName, sheetDataSource.viewName);
+              validDataSources.add(sheetDataSource.id);
+              succeededSheets.push(sheetName);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              if (msg.includes('No rows found')) {
+                skippedSheets.push(sheetName);
+                continue;
+              }
+              throw err;
+            }
           }
 
           // Register existing sheets
           for (const dataSource of existingDataSources) {
-            await createXlsxSheetView(conn, fileName, dataSource.sheetName, dataSource.viewName);
-
-            validDataSources.add(dataSource.id);
+            try {
+              await createXlsxSheetView(conn, fileName, dataSource.sheetName, dataSource.viewName);
+              validDataSources.add(dataSource.id);
+              succeededSheets.push(dataSource.sheetName);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              if (msg.includes('No rows found')) {
+                skippedSheets.push(dataSource.sheetName);
+                continue;
+              }
+              throw err;
+            }
+          }
+          // If no sheets had data, remove the entry completely
+          if (succeededSheets.length === 0) {
+            warnings.push(`XLSX file ${localEntry.name} has no data and was removed.`);
+            localEntriesMap.delete(localEntry.id);
+            discardedEntries.push({ type: 'removed', entry: localEntry, reason: 'no-data' });
+            break;
+          }
+          // Warn about any skipped empty sheets
+          if (skippedSheets.length > 0) {
+            warnings.push(
+              `Skipped empty sheets in ${localEntry.name}: ${skippedSheets.join(', ')}`,
+            );
           }
           break;
         }
