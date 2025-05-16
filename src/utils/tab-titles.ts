@@ -117,10 +117,10 @@ export function getSchemaBrowserDisplayTitle(
               title: `${dbName}.${tab.schemaName}.${tab.objectNames[0]}`,
             };
           }
-            return {
-              prefix: 'Tables:',
-              title: `${dbName}.${tab.schemaName} (${tab.objectNames.length} selected)`,
-            };
+          return {
+            prefix: 'Tables:',
+            title: `${dbName}.${tab.schemaName} (${tab.objectNames.length} selected)`,
+          };
         }
         return { prefix: 'Schema:', title: `${dbName}.${tab.schemaName}` };
       }
