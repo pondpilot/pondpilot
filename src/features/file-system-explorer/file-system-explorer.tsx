@@ -8,6 +8,7 @@ import {
   findTabFromFlatFileDataSource,
   getOrCreateTabFromFlatFileDataSource,
   getOrCreateTabFromScript,
+  getOrCreateSchemaBrowserTab,
   setActiveTabId,
   setPreviewTabId,
 } from '@controllers/tab';
@@ -155,6 +156,16 @@ export const FileSystemExplorer = memo(() => {
                       copyToClipboard(entry.uniqueAlias, { showNotification: true });
                     },
                   },
+                  {
+                    label: 'Show Schema',
+                    onClick: () => {
+                      getOrCreateSchemaBrowserTab({
+                        sourceId: entry.id,
+                        sourceType: 'folder',
+                        setActive: true,
+                      });
+                    },
+                  },
                 ],
               },
             ],
@@ -233,6 +244,16 @@ export const FileSystemExplorer = memo(() => {
                     label: 'Copy name',
                     onClick: () => {
                       copyToClipboard(entry.uniqueAlias, { showNotification: true });
+                    },
+                  },
+                  {
+                    label: 'Show Schema',
+                    onClick: () => {
+                      getOrCreateSchemaBrowserTab({
+                        sourceId: relatedSource.id,
+                        sourceType: 'file',
+                        setActive: true,
+                      });
                     },
                   },
                 ],
@@ -407,6 +428,16 @@ export const FileSystemExplorer = memo(() => {
 
                     const newScript = createSQLScript(`${relatedSource.viewName}_query`, query);
                     getOrCreateTabFromScript(newScript, true);
+                  },
+                },
+                {
+                  label: 'Show Schema',
+                  onClick: () => {
+                    getOrCreateSchemaBrowserTab({
+                      sourceId: relatedSource.id,
+                      sourceType: 'file',
+                      setActive: true,
+                    });
                   },
                 },
               ],

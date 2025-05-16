@@ -1,3 +1,4 @@
+import { showWarning } from '@components/app-notifications';
 import { ExplorerTree, TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
@@ -8,6 +9,7 @@ import {
   findTabFromAttachedDBObject,
   getOrCreateTabFromAttachedDBObject,
   getOrCreateTabFromScript,
+  getOrCreateSchemaBrowserTab,
   setActiveTabId,
   setPreviewTabId,
 } from '@controllers/tab';
@@ -176,6 +178,18 @@ function buildObjectTreeNode({
               getOrCreateTabFromScript(newScript, true);
             },
           },
+          {
+            label: 'Show Schema',
+            onClick: () => {
+              getOrCreateSchemaBrowserTab({
+                sourceId: dbId,
+                sourceType: 'db',
+                schemaName,
+                objectNames: [objectName],
+                setActive: true,
+              });
+            },
+          },
           ...devMenuItems,
         ],
       },
@@ -249,6 +263,17 @@ function buildSchemaTreeNode({
             onClick: () => {
               copyToClipboard(`${toDuckDBIdentifier(dbName)}.${toDuckDBIdentifier(schemaName)}`, {
                 showNotification: true,
+              });
+            },
+          },
+          {
+            label: 'Show Schema',
+            onClick: () => {
+              getOrCreateSchemaBrowserTab({
+                sourceId: dbId,
+                sourceType: 'db',
+                schemaName,
+                setActive: true,
               });
             },
           },
@@ -393,6 +418,18 @@ export const DbExplorer = memo(() => {
                   });
                 },
               },
+              {
+                label: 'Show Schema',
+                onClick: () => {
+                  const firstSchema = sortedSchemas?.[0];
+                  getOrCreateSchemaBrowserTab({
+                    sourceId: dbId,
+                    sourceType: 'db',
+                    schemaName: firstSchema?.name,
+                    setActive: true,
+                  });
+                },
+              },
             ],
           },
         ],
@@ -419,11 +456,52 @@ export const DbExplorer = memo(() => {
     deleteDataSources(conn, dbIds);
   };
 
+  const handleMultiSelectShowSchema = (nodeIds: string[]) => {
+    // Get the FQN info for all selected nodes
+    const selectedNodesInfo = nodeIds
+      .map((id) => nodeIdsToFQNMap.get(id))
+      .filter((info) => info !== undefined);
+
+    if (selectedNodesInfo.length === 0) return;
+
+    // Ensure all nodes are from the same schema
+    const firstNode = selectedNodesInfo[0];
+    const sameSchemaNodes = selectedNodesInfo.every(
+      (node) => node.db === firstNode.db && node.schemaName === firstNode.schemaName,
+    );
+
+    if (!sameSchemaNodes) {
+      showWarning({
+        title: 'Schema Mismatch',
+        message: 'All selected items must belong to the same database schema',
+      });
+      return;
+    }
+
+    const objectNames = selectedNodesInfo
+      .filter((node) => node.objectName !== null)
+      .map((node) => node.objectName!);
+
+    if (objectNames.length > 0) {
+      getOrCreateSchemaBrowserTab({
+        sourceId: firstNode.db,
+        sourceType: 'db',
+        schemaName: firstNode.schemaName!,
+        objectNames,
+        setActive: true,
+      });
+    }
+  };
+
+  const enhancedExtraData = Object.assign(nodeIdsToFQNMap, {
+    onShowSchemaForMultiple: handleMultiSelectShowSchema,
+  });
+
   return (
     <ExplorerTree<DBExplorerNodeTypeToIdTypeMap, DBExplorerNodeExtraType>
       nodes={dbObjectsTree}
       initialExpandedState={initialExpandedState}
-      extraData={nodeIdsToFQNMap}
+      extraData={enhancedExtraData as any}
       dataTestIdPrefix="db-explorer"
       TreeNodeComponent={DbExplorerNode}
       onDeleteSelected={handleDeleteSelected}

@@ -69,6 +69,13 @@ export const useDataAdapterQueries = ({
           internalErrors,
         };
       }
+      case 'schema-browser': {
+        // Schema browser doesn't need a data adapter - return empty adapter
+        return {
+          userErrors: [],
+          internalErrors: [],
+        };
+      }
       default:
         assertNeverValueType(tab);
         return {
