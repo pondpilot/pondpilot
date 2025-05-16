@@ -240,6 +240,7 @@ export const addLocalFileOrFolders = async (
       const added = await addFile(localEntry);
       if (added) {
         newEntries.push([localEntry.id, localEntry]);
+        usedEntryNames.add(localEntry.uniqueAlias); // Ensure uniqueAlias is reserved for subsequent files
       }
     }
   };
