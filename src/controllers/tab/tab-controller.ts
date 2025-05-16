@@ -2,9 +2,17 @@
 // By convetion the order should follow CRUD groups!
 import { AnyFlatFileDataSource, AttachedDB, PersistentDataSourceId } from '@models/data-source';
 import { ColumnSortSpecList } from '@models/db';
+import { LocalEntryId } from '@models/file-system';
 import { CONTENT_VIEW_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
-import { AttachedDBDataTab, FlatFileDataSourceTab, ScriptTab, StaleData, TabId } from '@models/tab';
+import {
+  AttachedDBDataTab,
+  FlatFileDataSourceTab,
+  SchemaBrowserTab,
+  ScriptTab,
+  StaleData,
+  TabId,
+} from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { ensureAttachedDBDataSource, ensureFlatFileDataSource } from '@utils/data-source';
 import { ensureScript } from '@utils/sql-script';
@@ -24,6 +32,67 @@ import {
  * -------------------------- Create --------------------------
  * ------------------------------------------------------------
  */
+
+/**
+ * Creates a new schema browser tab or returns an existing one.
+ *
+ * @param options - Configuration options for the schema browser tab
+ * @param options.sourceId - ID of the source (data source or folder) to visualize schema for, null for all sources
+ * @param options.sourceType - Type of source ('file', 'db', 'folder', or 'all')
+ * @param options.setActive - Whether to set the tab as active
+ * @returns A schema browser tab
+ */
+export const getOrCreateSchemaBrowserTab = (options: {
+  sourceId: PersistentDataSourceId | LocalEntryId | null;
+  sourceType: 'file' | 'db' | 'folder' | 'all';
+  schemaName?: string;
+  objectNames?: string[];
+  setActive?: boolean;
+}): SchemaBrowserTab => {
+  const { sourceId, sourceType, schemaName, objectNames, setActive = false } = options;
+  const state = useAppStore.getState();
+
+  const existingTab = findSchemaBrowserTab(sourceId, sourceType, schemaName, objectNames);
+
+  if (existingTab) {
+    if (setActive) {
+      setActiveTabId(existingTab.id);
+    }
+    return existingTab;
+  }
+
+  const tabId = makeTabId();
+  const tab: SchemaBrowserTab = {
+    type: 'schema-browser',
+    id: tabId,
+    sourceId,
+    sourceType,
+    schemaName,
+    objectNames,
+    dataViewStateCache: null,
+  };
+
+  const newTabs = new Map(state.tabs).set(tabId, tab);
+  const newTabOrder = [...state.tabOrder, tabId];
+  const newActiveTabId = setActive ? tabId : state.activeTabId;
+
+  useAppStore.setState(
+    (_) => ({
+      activeTabId: newActiveTabId,
+      tabs: newTabs,
+      tabOrder: newTabOrder,
+    }),
+    undefined,
+    'AppStore/createSchemaBrowserTab',
+  );
+
+  const iDb = state._iDbConn;
+  if (iDb) {
+    persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
+  }
+
+  return tab;
+};
 
 /**
  * Gets existing or creates a new tab for a given table/view in an attached database.
@@ -242,6 +311,42 @@ export const getOrCreateTabFromScript = (
  * -------------------------- Read ---------------------------
  * ------------------------------------------------------------
  */
+
+/**
+ * Finds a schema browser tab for the given source.
+ *
+ * @param sourceId - ID of the source to visualize schema for, null for all sources
+ * @param sourceType - Type of source ('file', 'db', 'folder', or 'all')
+ * @param schemaName - Optional schema name for database-specific views
+ * @param objectNames - Optional object names for table/view-specific views
+ * @returns The schema browser tab if found, undefined otherwise
+ */
+export const findSchemaBrowserTab = (
+  sourceId: PersistentDataSourceId | LocalEntryId | null,
+  sourceType: 'file' | 'db' | 'folder' | 'all',
+  schemaName?: string,
+  objectNames?: string[],
+): SchemaBrowserTab | undefined => {
+  const { tabs } = useAppStore.getState();
+
+  for (const tab of tabs.values()) {
+    if (tab.type === 'schema-browser') {
+      const schemaBrowserTab = tab as SchemaBrowserTab;
+
+      if (
+        schemaBrowserTab.sourceType === sourceType &&
+        ((sourceId === null && schemaBrowserTab.sourceId === null) ||
+          (sourceId !== null && schemaBrowserTab.sourceId === sourceId)) &&
+        schemaBrowserTab.schemaName === schemaName &&
+        JSON.stringify(schemaBrowserTab.objectNames) === JSON.stringify(objectNames)
+      ) {
+        return schemaBrowserTab;
+      }
+    }
+  }
+
+  return undefined;
+};
 
 /**
  * Finds a tab displaying an existing Attached DB object or undefined.
