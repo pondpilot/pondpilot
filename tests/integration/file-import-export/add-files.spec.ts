@@ -4,7 +4,6 @@ import * as fs from 'fs';
 
 import { mergeTests, expect } from '@playwright/test';
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from '@utils/duckdb/identifier';
-import * as XLSX from 'xlsx';
 
 import { createFile } from '../../utils';
 import { test as dataViewTest } from '../fixtures/data-view';
@@ -12,6 +11,7 @@ import { test as dbExplorerTest } from '../fixtures/db-explorer';
 import { test as filePickerTest } from '../fixtures/file-picker';
 import { test as baseTest } from '../fixtures/page';
 import { test as spotlightTest } from '../fixtures/spotlight';
+import { FileSystemNode } from '../models';
 
 const test = mergeTests(baseTest, filePickerTest, dataViewTest, spotlightTest, dbExplorerTest);
 
@@ -122,10 +122,7 @@ test('should add csv files and folders', async ({
 });
 
 test('should add and read Excel files with multiple sheets', async ({
-  addFileButton,
-  storage,
-  filePicker,
-  testTmp,
+  setupFileSystem,
   openFileFromExplorer,
   assertDataTableMatches,
   assertFileExplorerItems,
@@ -133,40 +130,32 @@ test('should add and read Excel files with multiple sheets', async ({
   clickFileByName,
 }) => {
   // Create Excel file with two sheets
-  const excelPath = testTmp.join('test.xlsx');
 
-  // Create workbook with two sheets
-  const wb = XLSX.utils.book_new();
-
-  // Sheet 1 data
-  const sheet1Data = [
-    { id: 1, name: 'Alice', department: 'Engineering' },
-    { id: 2, name: 'Bob', department: 'Marketing' },
-    { id: 3, name: 'Charlie', department: 'Sales' },
-  ];
-  const sheet1 = XLSX.utils.json_to_sheet(sheet1Data, { skipHeader: true });
-  XLSX.utils.book_append_sheet(wb, sheet1, 'Employees');
-
-  // Sheet 2 data
-  const sheet2Data = [
-    { product: 'Widget', price: 19.99, stock: 42 },
-    { product: 'Gadget', price: 24.99, stock: 27 },
-    { product: 'Doohickey', price: 14.99, stock: 15 },
-  ];
-  const sheet2 = XLSX.utils.json_to_sheet(sheet2Data, { skipHeader: true });
-  XLSX.utils.book_append_sheet(wb, sheet2, 'Products');
-
-  // Write to file
-  XLSX.writeFile(wb, excelPath);
-
-  // Upload the Excel file
-  await storage.uploadFile(excelPath, 'test.xlsx');
-
-  // Patch the file picker
-  await filePicker.selectFiles(['test.xlsx']);
-
-  // Click the add file button
-  await addFileButton.click();
+  await setupFileSystem([
+    {
+      type: 'file',
+      ext: 'xlsx',
+      name: 'test',
+      content: [
+        {
+          name: 'Employees',
+          rows: [
+            { id: 1, name: 'Alice', department: 'Engineering' },
+            { id: 2, name: 'Bob', department: 'Marketing' },
+            { id: 3, name: 'Charlie', department: 'Sales' },
+          ],
+        },
+        {
+          name: 'Products',
+          rows: [
+            { product: 'Widget', price: 19.99, stock: 42 },
+            { product: 'Gadget', price: 24.99, stock: 27 },
+            { product: 'Doohickey', price: 14.99, stock: 15 },
+          ],
+        },
+      ],
+    },
+  ] as FileSystemNode[]);
 
   // Verify excel file itslef is visible
   await assertFileExplorerItems(['test']);

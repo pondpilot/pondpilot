@@ -11,7 +11,23 @@ import { test as fileSystemExplorer } from './file-system-explorer';
 import { test as storageTest } from './storage';
 import { test as testTmpTest } from './test-tmp';
 import { createDir, createFile, parsePath } from '../../utils';
-import { FileSystemNode } from '../models';
+import { FileSystemNode, XlsxContent } from '../models';
+
+interface BaseProcessedFile {
+  path: string;
+  localPath: string;
+  name: string;
+}
+
+type ProcessedFileEntry =
+  | (BaseProcessedFile & {
+      ext: 'xlsx';
+      content: XlsxContent;
+    })
+  | (BaseProcessedFile & {
+      ext: Exclude<supportedDataSourceFileExt, 'xlsx'>;
+      content: string;
+    });
 
 interface FilePicker {
   // Playwright does not support it (https://github.com/microsoft/playwright/issues/8850).
@@ -144,13 +160,7 @@ export const test = baseTest.extend<FilePickerFixtures>({
     await use(async (fileTree: FileSystemNode[]) => {
       // Convert the tree structure into flat lists
       const directories: string[] = [];
-      const files: {
-        path: string;
-        content: string;
-        localPath: string;
-        name: string;
-        ext: supportedDataSourceFileExt;
-      }[] = [];
+      const files: ProcessedFileEntry[] = [];
       const rootFiles: string[] = [];
       const rootDirs: string[] = [];
       function traverseFileSystem(nodes: FileSystemNode[], currentPath: string = '') {
@@ -175,7 +185,7 @@ export const test = baseTest.extend<FilePickerFixtures>({
               localPath,
               name: node.name,
               ext: node.ext,
-            });
+            } as ProcessedFileEntry);
 
             // If the file is in the root, add its path for selection via filePicker
             if (currentPath === '') {
@@ -229,23 +239,24 @@ export const test = baseTest.extend<FilePickerFixtures>({
             // eslint-disable-next-line no-case-declarations
             const xlsxFilePath = testTmp.join(file.path);
             // eslint-disable-next-line no-case-declarations
-            let json;
-            try {
-              json = JSON.parse(file.content);
-            } catch (e) {
-              json = [{ col: file.content }];
-            }
-            // eslint-disable-next-line no-case-declarations
-            const ws = XLSX.utils.json_to_sheet(json, { skipHeader: true });
-            // eslint-disable-next-line no-case-declarations
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+
+            file.content.forEach((sheet) => {
+              const sheetName = sheet.name || 'Sheet1';
+              const sheetData = sheet.rows || [];
+              XLSX.utils.book_append_sheet(
+                wb,
+                XLSX.utils.json_to_sheet(sheetData, { skipHeader: true }),
+                sheetName,
+              );
+            });
+
             XLSX.writeFile(wb, xlsxFilePath);
             await storage.uploadFile(xlsxFilePath, file.path);
             break;
 
           default:
-            assertNeverValueType(file.ext);
+            assertNeverValueType(file);
         }
       }
 
