@@ -87,7 +87,7 @@ const FILES: FileSystemNode[] = [
   {
     type: 'file',
     ext: 'xlsx',
-    content: '[{"col": "dataXLSX1"}]',
+    content: [{ name: 'testSheet', rows: [{ col: 'dataXLSX1' }] }],
     name: 'a',
   },
   {
