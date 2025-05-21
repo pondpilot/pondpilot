@@ -8,11 +8,9 @@ import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
 import { RunScriptMode, ScriptExecutionState, SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
-import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
-import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { setDataTestId } from '@utils/test-id';
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 
 import { ScriptEditorDataStatePane } from './components';
 import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
@@ -39,7 +37,7 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
   /**
    * State
    */
-  const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const editorRef = useRef<any>(null);
   const [fontSize, setFontSize] = useState(0.875);
   const [dirty, setDirty] = useState(false);
   const [lastExecutedContent, setLastExecutedContent] = useState('');
@@ -61,47 +59,40 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
    * Handlers
    */
   const handleRunQuery = async (mode?: RunScriptMode) => {
-    const editor = editorRef.current?.view;
-    if (!editor?.state) return;
+    const editorHandle = editorRef.current;
+    if (!editorHandle) return;
 
-    const getCurrentStatement = () => {
-      const cursor = editor.state.selection.main.head;
-      const statementSegments = splitSqlQuery(editor.state);
-      const currentStatement = statementSegments.find(
-        (segment) => cursor >= segment.from && cursor <= segment.to,
-      );
-      return currentStatement;
-    };
+    // Use the imperative handle method to get full query content
+    const fullQuery = editorHandle.getValues ? editorHandle.getValues() : '';
+    let queryToRun = fullQuery;
 
-    const getSelectedText = () => {
-      const { from } = editor.state.selection.ranges[0];
-      const { to } = editor.state.selection.ranges[0];
-      if (from === to) return getCurrentStatement()?.text || '';
-      return editor.state.doc.sliceString(from, to) || '';
-    };
+    if (mode === 'selection') {
+      // Use the imperative handle method to get selected text
+      const selectedText = editorHandle.getSelection ? editorHandle.getSelection() : '';
 
-    const fullQuery = editor.state.doc.toString();
-    const selectedText = getSelectedText();
-
-    const queryToRun = mode === 'selection' ? selectedText : fullQuery;
+      if (selectedText && selectedText.trim().length > 0) {
+        queryToRun = selectedText;
+      }
+    }
 
     setLastExecutedContent(fullQuery);
     setDirty(false);
     runScriptQuery(queryToRun);
   };
 
-  const handleQuerySave = async () => {
-    updateSQLScriptContent(sqlScript, editorRef.current?.view?.state?.doc.toString() || '');
-  };
+  const handleQuerySave = useCallback(async () => {
+    const editorHandle = editorRef.current;
+    const content = editorHandle?.getValues ? editorHandle.getValues() : '';
+    updateSQLScriptContent(sqlScript, content);
+  }, [sqlScript]);
 
   const handleEditorValueChange = useDebouncedCallback(async () => {
     handleQuerySave();
   }, 300);
 
-  const onSqlEditorChange = () => {
-    const currentContent = editorRef.current?.view?.state?.doc.toString() || '';
+  const onSqlEditorChange = (newValue: string) => {
     if (lastExecutedContent) {
-      setDirty(currentContent !== lastExecutedContent);
+      setDirty(newValue !== lastExecutedContent);
     }
     handleEditorValueChange();
   };
@@ -113,19 +104,25 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
 
   useEffect(() => {
     return () => {
-      if (editorRef.current?.view) {
-        const editor = editorRef.current.view;
-        const currentScript = editor.state.doc.toString();
+      const cleanupEditorRef = editorRef.current;
+      if (cleanupEditorRef && cleanupEditorRef.getValues) {
+        const currentScript = cleanupEditorRef.getValues();
         if (currentScript !== sqlScript?.content) {
           handleQuerySave();
         }
       }
     };
-  }, []);
+  }, [handleQuerySave, sqlScript?.content]);
 
   useDidUpdate(() => {
     if (active) {
-      editorRef.current?.view?.focus();
+      const editorHandle = editorRef.current;
+      if (editorHandle && editorHandle.getEditor) {
+        const editor = editorHandle.getEditor();
+        if (editor && editor.focus) {
+          editor.focus();
+        }
+      }
     }
   }, [active]);
 
@@ -149,8 +146,8 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
           value={sqlScript?.content || ''}
           onChange={onSqlEditorChange}
           schema={schema}
-          fontSize={fontSize}
-          onFontSizeChanged={setFontSize}
+          onRunSelection={() => handleRunQuery('selection')}
+          onRunFullQuery={handleRunQuery}
           onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
             if (KEY_BINDING.run.match(e)) {
               if (KEY_BINDING.runSelection.match(e)) {

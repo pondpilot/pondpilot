@@ -1,24 +1,14 @@
-/*
- * This file contains code from Outerbase Studio (https://github.com/outerbase/studio)
- * Copyright (C) [2025] Outerbase
- * Modified by Andrii Butko (C) [2025]
- * Licensed under GNU AGPL v3.0
- */
-import { acceptCompletion, completionStatus, startCompletion } from '@codemirror/autocomplete';
-import { defaultKeymap, insertTab, history } from '@codemirror/commands';
-import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
-import { keymap } from '@codemirror/view';
-import { showNotification } from '@mantine/notifications';
-import { Editor } from '@monaco-editor/react';
-import { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
-import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
-import { KEY_BINDING } from '@utils/hotkey/key-matcher';
-import { forwardRef, KeyboardEventHandler, useMemo } from 'react';
-
-import duckdbFunctionList from './duckdb-function-tooltip.json';
-import { functionTooltip } from './function-tooltips';
-import { useEditorTheme } from './hooks';
-import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
+import { SQLNamespace } from '@codemirror/lang-sql';
+import { Editor, OnMount } from '@monaco-editor/react';
+import { editor, IDisposable, KeyCode, KeyMod } from 'monaco-editor';
+import {
+  forwardRef,
+  KeyboardEventHandler,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 
 interface SqlEditorProps {
   colorSchemeDark: boolean;
@@ -27,126 +17,103 @@ interface SqlEditorProps {
   onChange?: (value: string) => void;
   schema?: SQLNamespace;
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
-  fontSize?: number;
-  onFontSizeChanged?: (fontSize: number) => void;
-  onCursorChange?: (pos: number, lineNumber: number, columnNumber: number) => void;
   onBlur: () => void;
+
+  onRunSelection: () => void;
+  onRunFullQuery: () => void;
 }
 
-export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
+export const SqlEditor = forwardRef<any, SqlEditorProps>(
   (
     {
       colorSchemeDark,
       value,
       onChange,
       schema,
-      onKeyDown,
-      onCursorChange,
       readOnly,
-      fontSize,
-      onFontSizeChanged,
+      onRunFullQuery,
+      onRunSelection,
       onBlur,
     }: SqlEditorProps,
     ref,
   ) => {
-    const { darkTheme, lightTheme } = useEditorTheme(colorSchemeDark);
-    const tableNameHighlightPlugin = useMemo(() => {
-      if (schema) {
-        return createSQLTableNameHighlightPlugin(Object.keys(schema));
+    const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+    const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
+    const [isReady, setIsReady] = useState(false);
+
+    const handleEditorDidMount: OnMount = (editorInstance, monacoInstance) => {
+      editorRef.current = editorInstance;
+      monacoRef.current = monacoInstance;
+      setIsReady(true);
+      // Add onBlur support using Monaco's event API
+      if (editorInstance) {
+        editorInstance.onDidBlurEditorWidget(() => {
+          onBlur();
+        });
       }
-      return createSQLTableNameHighlightPlugin([]);
-    }, [schema]);
+    };
 
-    const keyExtensions = useMemo(
-      () =>
-        keymap.of([
-          {
-            key: KEY_BINDING.run.toCodeMirrorKey(),
-            preventDefault: true,
-            run: () => true,
-          },
-          {
-            key: 'Tab',
-            preventDefault: true,
-            run: (target) => {
-              if (completionStatus(target.state) === 'active') {
-                acceptCompletion(target);
-              } else {
-                insertTab(target);
-              }
-              return true;
-            },
-          },
-          {
-            key: 'Ctrl-Space',
-            mac: 'Cmd-i',
-            preventDefault: true,
-            run: startCompletion,
-          },
-          {
-            key: 'Ctrl-=',
-            mac: 'Cmd-=',
-            preventDefault: true,
-            run: () => {
-              if (onFontSizeChanged) {
-                const newFontSize = Math.min(2, (fontSize ?? 1) + 0.2);
-                onFontSizeChanged(newFontSize);
-                showNotification({
-                  message: `Change code editor font size to ${Math.floor(newFontSize * 100)}%`,
-                  autoClose: 1000,
-                  id: 'font-size',
-                });
-              }
-              return true;
-            },
-          },
-          {
-            key: 'Ctrl--',
-            mac: 'Cmd--',
-            preventDefault: true,
-            run: () => {
-              if (onFontSizeChanged) {
-                const newFontSize = Math.max(0.4, (fontSize ?? 1) - 0.2);
-                onFontSizeChanged(newFontSize);
-                showNotification({
-                  message: `Change code editor font size to ${Math.floor(newFontSize * 100)}%`,
-                  autoClose: 1000,
-                  id: 'font-size',
-                });
-              }
-              return true;
-            },
-          },
+    useImperativeHandle(ref, () => {
+      return {
+        getEditor() {
+          return editorRef.current;
+        },
+        getSelection() {
+          const editorRefCurr = editorRef.current;
+          if (!editorRefCurr) return null;
 
-          ...defaultKeymap,
-        ]),
-      [fontSize, onFontSizeChanged],
-    );
+          const selection = editorRefCurr.getSelection();
+          if (selection) {
+            return editorRefCurr.getModel()?.getValueInRange(selection);
+          }
+        },
+        getValues() {
+          const editorRefCurr = editorRef.current;
+          if (!editorRefCurr) return null;
 
-    const extensions = useMemo(() => {
-      const sqlDialect = sql({
-        dialect: PostgreSQL,
-        upperCaseKeywords: true,
-        schema,
-      });
-      const tooltipExtension = functionTooltip(duckdbFunctionList);
+          return editorRefCurr.getModel()?.getValue();
+        },
+      };
+    }, []);
 
-      return [
-        history(),
-        keyExtensions,
-        sqlDialect,
-        tooltipExtension,
-        tableNameHighlightPlugin,
-        SqlStatementHighlightPlugin,
-        EditorView.updateListener.of((state: any) => {
-          const pos = state.state.selection.main.head;
-          const line = state.state.doc.lineAt(pos);
-          const lineNumber = line.number;
-          const columnNumber = pos - line.from;
-          if (onCursorChange) onCursorChange(pos, lineNumber, columnNumber);
+    useEffect(() => {
+      if (monacoRef.current) {
+        monacoRef.current.editor.setTheme(colorSchemeDark ? 'vs-dark' : 'vs-light');
+      }
+    }, [colorSchemeDark]);
+
+    useEffect(() => {
+      const disposables: IDisposable[] = [];
+
+      if (!editorRef.current) return;
+      if (!isReady) return;
+
+      disposables.push(
+        editorRef.current.addAction({
+          id: 'run-all',
+          label: 'Run All',
+          keybindings: [KeyMod.CtrlCmd | KeyCode.Enter],
+          contextMenuGroupId: 'navigation',
+          contextMenuOrder: 1.5,
+          run: onRunFullQuery,
         }),
-      ].filter(Boolean) as Extension[];
-    }, [onCursorChange, keyExtensions, schema, tableNameHighlightPlugin]);
+      );
+
+      disposables.push(
+        editorRef.current.addAction({
+          id: 'run-selection',
+          label: 'Run Selection',
+          keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
+          contextMenuGroupId: 'navigation',
+          contextMenuOrder: 1.6,
+          run: onRunSelection,
+        }),
+      );
+
+      return () => {
+        disposables.forEach((disposable) => disposable.dispose());
+      };
+    }, [isReady, onRunFullQuery, onRunSelection]);
 
     return (
       <Editor
@@ -155,9 +122,11 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
           minimap: { enabled: false },
           wordWrap: 'on',
           folding: false,
+          readOnly,
         }}
         value={value}
         onChange={(v) => onChange?.(v || '')}
+        onMount={handleEditorDidMount}
       />
     );
   },

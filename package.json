@@ -61,6 +61,7 @@
     "idb": "^8.0.0",
     "jszip": "^3.10.1",
     "match-sorter": "^8.0.0",
+    "monaco-editor": "^0.52.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-error-boundary": "^4.1.2",
