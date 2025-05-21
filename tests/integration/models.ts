@@ -1,11 +1,23 @@
 import { supportedDataSourceFileExt } from '@models/file-system';
 
-type FileNode = {
+type Row = Record<string, any>;
+
+type Sheet = {
+  name: string;
+  rows: Row[];
+};
+
+export type XlsxContent = Sheet[];
+
+export type FileNodeExtensionSpecifics =
+  | { ext: 'xlsx'; content: XlsxContent }
+  | { ext: Exclude<supportedDataSourceFileExt, 'xlsx'>; content: string };
+
+export type FileNode = {
   type: 'file';
   ext: supportedDataSourceFileExt;
-  content: string;
   name: string;
-};
+} & FileNodeExtensionSpecifics;
 
 type DirNode = {
   type: 'dir';

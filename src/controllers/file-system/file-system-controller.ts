@@ -43,6 +43,7 @@ export const addLocalFileOrFolders = async (
   skippedExistingEntries: LocalEntry[];
   skippedUnsupportedFiles: string[];
   skippedEmptyFolders: LocalFolder[];
+  skippedEmptySheets: { fileName: string; sheets: string[] }[];
   newEntries: [LocalEntryId, LocalEntry][];
   newDataSources: [PersistentDataSourceId, AnyDataSource][];
   errors: string[];
@@ -73,11 +74,12 @@ export const addLocalFileOrFolders = async (
   const skippedExistingEntries: LocalEntry[] = [];
   const skippedUnsupportedFiles: string[] = [];
   const skippedEmptyFolders: LocalFolder[] = [];
+  const skippedEmptySheets: { fileName: string; sheets: string[] }[] = [];
   const newEntries: [LocalEntryId, LocalEntry][] = [];
   const newRegisteredFiles: [LocalEntryId, File][] = [];
   const newDataSources: [PersistentDataSourceId, AnyDataSource][] = [];
 
-  const addFile = async (file: DataSourceLocalFile) => {
+  const addFile = async (file: DataSourceLocalFile): Promise<boolean> => {
     switch (file.ext) {
       case 'duckdb': {
         const dbSource = addAttachedDB(file, reservedDbs);
@@ -98,40 +100,53 @@ export const addLocalFileOrFolders = async (
 
         newRegisteredFiles.push([file.id, regFile]);
         newDataSources.push([dbSource.id, dbSource]);
-
-        break;
+        return true;
       }
       case 'xlsx': {
-        // For XLSX files, we need to get all sheet names and create a view for each sheet
+        // Excel file: only add if at least one sheet has data
         const xlsxFile = await file.handle.getFile();
         const sheetNames = await getXlsxSheetNames(xlsxFile);
 
         if (sheetNames.length === 0) {
           errors.push(`XLSX file ${file.name} has no sheets.`);
-          return;
+          return false;
         }
-
-        // Register the file once
         const fileName = `${file.uniqueAlias}.${file.ext}`;
-        const regFile = await registerFileHandle(conn, file.handle, fileName);
-        newRegisteredFiles.push([file.id, regFile]);
-
-        // For each sheet, create a data source and view
+        const succeededSheets: string[] = [];
+        const skippedSheets: string[] = [];
+        let regFile: File | null = null;
         for (const sheetName of sheetNames) {
-          const sheetDataSource = addXlsxSheetDataSource(file, sheetName, reservedViews);
-
-          reservedViews.add(sheetDataSource.viewName);
-          newManagedViews.push(sheetDataSource.viewName);
-
-          await createXlsxSheetView(conn, fileName, sheetName, sheetDataSource.viewName);
-
-          newDataSources.push([sheetDataSource.id, sheetDataSource]);
+          try {
+            if (!regFile) {
+              regFile = await registerFileHandle(conn, file.handle, fileName);
+              newRegisteredFiles.push([file.id, regFile]);
+            }
+            const sheetDataSource = addXlsxSheetDataSource(file, sheetName, reservedViews);
+            reservedViews.add(sheetDataSource.viewName);
+            newManagedViews.push(sheetDataSource.viewName);
+            await createXlsxSheetView(conn, fileName, sheetName, sheetDataSource.viewName);
+            newDataSources.push([sheetDataSource.id, sheetDataSource]);
+            succeededSheets.push(sheetName);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (msg.includes('No rows found')) {
+              skippedSheets.push(sheetName);
+              continue;
+            }
+            throw err;
+          }
         }
-
-        break;
+        if (succeededSheets.length === 0) {
+          errors.push(`XLSX file ${file.name} has no data in any sheet.`);
+          return false;
+        }
+        if (skippedSheets.length > 0) {
+          skippedEmptySheets.push({ fileName: file.name, sheets: skippedSheets });
+        }
+        return true;
       }
       default: {
-        // First create a data view object
+        // Other flat file (csv/json)
         const dataSource = addFlatFileDataSource(file, reservedViews);
 
         // Add to reserved views
@@ -151,7 +166,7 @@ export const addLocalFileOrFolders = async (
 
         newRegisteredFiles.push([file.id, regFile]);
         newDataSources.push([dataSource.id, dataSource]);
-        break;
+        return true;
       }
     }
   };
@@ -221,10 +236,12 @@ export const addLocalFileOrFolders = async (
     }
 
     if (isDataSourceFile) {
-      await addFile(localEntry);
-      newEntries.push([localEntry.id, localEntry]);
-      // Remember it's unique alias
-      usedEntryNames.add(localEntry.uniqueAlias);
+      // Add data source file only if at least one sheet/view was registered
+      const added = await addFile(localEntry);
+      if (added) {
+        newEntries.push([localEntry.id, localEntry]);
+        usedEntryNames.add(localEntry.uniqueAlias); // Ensure uniqueAlias is reserved for subsequent files
+      }
     }
   };
 
@@ -286,6 +303,7 @@ export const addLocalFileOrFolders = async (
     skippedExistingEntries,
     skippedUnsupportedFiles,
     skippedEmptyFolders,
+    skippedEmptySheets,
     newEntries,
     newDataSources,
     errors,
