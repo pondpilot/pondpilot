@@ -301,3 +301,62 @@ export async function getObjectModels(
 
   return Array.from(objectMap.values());
 }
+
+export async function getDuckDBFunctions(pool: AsyncDuckDBConnectionPool): Promise<
+  Array<{
+    function_name: string;
+    description: string;
+    parameters: string;
+    return_type: string;
+    function_type: string;
+    schema_name: string;
+  }>
+> {
+  const conn = await pool.getPooledConnection();
+  try {
+    const sql =
+      'SELECT DISTINCT ON(function_name) function_name, description, parameters, return_type, function_type, schema_name FROM duckdb_functions()';
+    const res = await conn.query<any>(sql);
+    const columns = {
+      function_name: res.getChild('function_name'),
+      description: res.getChild('description'),
+      parameters: res.getChild('parameters'),
+      return_type: res.getChild('return_type'),
+      function_type: res.getChild('function_type'),
+      schema_name: res.getChild('schema_name'),
+    };
+    const result: Array<{
+      function_name: string;
+      description: string;
+      parameters: string;
+      return_type: string;
+      function_type: string;
+      schema_name: string;
+    }> = [];
+    for (let i = 0; i < res.numRows; i += 1) {
+      const paramValue = columns.parameters?.get(i);
+      let parameters: string;
+      if (
+        paramValue &&
+        typeof paramValue === 'object' &&
+        typeof paramValue.toArray === 'function'
+      ) {
+        parameters = paramValue.toArray().join(', ');
+      } else {
+        parameters = paramValue ?? '';
+      }
+
+      result.push({
+        function_name: columns.function_name?.get(i) ?? '',
+        description: columns.description?.get(i) ?? '',
+        parameters,
+        return_type: columns.return_type?.get(i) ?? '',
+        function_type: columns.function_type?.get(i) ?? '',
+        schema_name: columns.schema_name?.get(i) ?? '',
+      });
+    }
+    return result;
+  } finally {
+    await conn.close();
+  }
+}

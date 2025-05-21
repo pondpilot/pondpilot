@@ -1,10 +1,11 @@
 import { showError, showWarning } from '@components/app-notifications';
+import { getDuckDBFunctions } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
 } from '@features/duckdb-context/duckdb-context';
-import { setAppLoadState } from '@store/app-store';
+import { setAppLoadState, setDuckdbFunctionList } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { useEffect } from 'react';
 
@@ -83,6 +84,13 @@ export function useAppInitialization({
         title: 'App Initialization Error',
         message: `Failed to restore app data. ${message}`,
       });
+    }
+
+    try {
+      const duckdbFunctions = await getDuckDBFunctions(resolvedConn);
+      setDuckdbFunctionList(duckdbFunctions);
+    } catch (e) {
+      console.error('Failed to fetch DuckDB functions:', e);
     }
 
     // Report we are ready

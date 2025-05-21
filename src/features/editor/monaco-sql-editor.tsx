@@ -17,6 +17,15 @@ interface SqlEditorProps {
   onChange?: (value: string) => void;
   schema?: SQLNamespace;
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
+  onCursorChange?: (pos: number, lineNumber: number, columnNumber: number) => void;
+  duckDBFunctions: Array<{
+    function_name: string;
+    description: string;
+    parameters: string;
+    return_type: string;
+    function_type: string;
+    schema_name: string;
+  }>;
   onBlur: () => void;
 
   onRunSelection: () => void;
@@ -34,6 +43,7 @@ export const SqlEditor = forwardRef<any, SqlEditorProps>(
       onRunFullQuery,
       onRunSelection,
       onBlur,
+      duckDBFunctions,
     }: SqlEditorProps,
     ref,
   ) => {
@@ -114,6 +124,56 @@ export const SqlEditor = forwardRef<any, SqlEditorProps>(
         disposables.forEach((disposable) => disposable.dispose());
       };
     }, [isReady, onRunFullQuery, onRunSelection]);
+
+    useEffect(() => {
+      if (!monacoRef.current || !isReady || !duckDBFunctions?.length) return;
+
+      const monaco = monacoRef.current;
+      // Register completion provider for SQL
+      const disposable = monaco.languages.registerCompletionItemProvider('sql', {
+        triggerCharacters: [' ', '(', ','],
+        provideCompletionItems: (model, position, _context, _token) => {
+          // Get the word at the current position
+          const wordInfo = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: wordInfo.startColumn,
+            endColumn: wordInfo.endColumn,
+          };
+          // Optionally, add context-aware filtering here
+          // For now, show all functions
+          const suggestions = duckDBFunctions.map((fn) => {
+            const label = fn.function_name;
+            const params = fn.parameters ? fn.parameters : '';
+            const insertText = `${label}(${
+              params
+                ? params
+                    .split(',')
+                    .map((p) => p.split('=')[0].trim())
+                    .join(', ')
+                : ''
+            })`;
+            return {
+              label,
+              kind: monaco.languages.CompletionItemKind.Function,
+              insertText,
+              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+              detail: fn.return_type
+                ? `${label}(${params}) → ${fn.return_type}`
+                : `${label}(${params})`,
+              documentation: fn.description || '',
+              range,
+            };
+          });
+          return { suggestions };
+        },
+      });
+
+      return () => {
+        disposable.dispose();
+      };
+    }, [isReady, duckDBFunctions]);
 
     return (
       <Editor

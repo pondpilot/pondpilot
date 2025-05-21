@@ -71,6 +71,11 @@ type AppStore = {
    * then kept in sync with the database.
    */
   dataBaseMetadata: Map<string, DataBaseModel>;
+
+  /**
+   * DB Functions list
+   */
+  duckdbFunctionList: any[];
 } & ContentViewState;
 
 const initialState: AppStore = {
@@ -86,6 +91,7 @@ const initialState: AppStore = {
   activeTabId: null,
   previewTabId: null,
   tabOrder: [],
+  duckdbFunctionList: [],
 };
 
 export const useAppStore =
@@ -390,6 +396,14 @@ export const setAppLoadState = (appState: AppLoadState) => {
 
 export const setIDbConn = (iDbConn: IDBPDatabase<AppIdbSchema>) => {
   useAppStore.setState({ _iDbConn: iDbConn }, undefined, 'AppStore/setIDbConn');
+};
+
+export const setDuckdbFunctionList = (functions: any[]) => {
+  useAppStore.setState(
+    { duckdbFunctionList: functions },
+    undefined,
+    'AppStore/setDuckdbFunctionList',
+  );
 };
 
 export const resetAppState = async () => {

@@ -1,7 +1,7 @@
 import { showAlert } from '@components/app-notifications';
 import { createSQLScript, updateSQLScriptContent } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
-import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
+import { convertToSQLNamespace } from '@features/editor/auto-complete';
 import { SqlEditor } from '@features/editor/monaco-sql-editor';
 import { Group, useMantineColorScheme } from '@mantine/core';
 import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
@@ -13,7 +13,6 @@ import { setDataTestId } from '@utils/test-id';
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 
 import { ScriptEditorDataStatePane } from './components';
-import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
 interface ScriptEditorProps {
   id: SQLScriptId;
@@ -33,6 +32,9 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
   const sqlScript = useAppStore((state) => state.sqlScripts.get(id)!);
   const dataBaseMetadata = useAppStore.use.dataBaseMetadata();
   const databaseModelsArray = Array.from(dataBaseMetadata.values());
+  const duckdbFunctionList = useAppStore.use.duckdbFunctionList();
+  // eslint-disable-next-line no-console
+  console.log('duckdbFunctionList from store:', duckdbFunctionList);
 
   /**
    * State
@@ -46,13 +48,11 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
     () => convertToSQLNamespace(databaseModelsArray),
     [databaseModelsArray],
   );
-  const duckdbNamespace = useMemo(() => createDuckDBCompletions(duckdbFunctionList), []);
   const schema = useMemo(
     () => ({
-      ...duckdbNamespace,
       ...sqlNamespace,
     }),
-    [duckdbNamespace, sqlNamespace],
+    [sqlNamespace],
   );
 
   /**
@@ -146,6 +146,7 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
           value={sqlScript?.content || ''}
           onChange={onSqlEditorChange}
           schema={schema}
+          duckDBFunctions={duckdbFunctionList}
           onRunSelection={() => handleRunQuery('selection')}
           onRunFullQuery={handleRunQuery}
           onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
