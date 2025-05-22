@@ -392,13 +392,6 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
               dataAdapter={dataAdapter}
               tabId={tabId}
             />
-
-            {/* Floating metadata stats button - only show when we have data */}
-            {dataAdapter && dataAdapter.currentSchema.length > 0 && !dataAdapter.isStale && (
-              <div className="absolute bottom-4 right-4 z-20">
-                <MetadataStatsButton onClick={toggleMetadataStats} isOpen={metadataStatsOpened} />
-              </div>
-            )}
           </div>
           <Group
             align="center"
@@ -413,13 +406,16 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
                 </Text>
               )}
               {isColumnAggCalculating && <Loader size={12} color="text-accent" />}
+              {dataAdapter && dataAdapter.currentSchema.length > 0 && !dataAdapter.isStale && (
+                <MetadataStatsButton onClick={toggleMetadataStats} isOpen={metadataStatsOpened} />
+              )}
             </Group>
           </Group>
         </>
       )}
       {showTableAndPagination && (
         <div
-          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20"
+          className="absolute bottom-12 left-1/2 transform -translate-x-1/2 z-20"
           data-testid={setDataTestId('data-table-pagination-control')}
         >
           <RowCountAndPaginationControl
