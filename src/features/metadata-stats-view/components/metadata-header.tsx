@@ -30,7 +30,7 @@ export function MetadataHeader({
   onToggleFullDataset,
 }: MetadataHeaderProps) {
   return (
-    <div className="flex justify-between items-center px-4 py-3 border-b border-borderLight-light dark:border-borderLight-dark bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark sticky top-0 z-10">
+    <div className="flex justify-between items-center px-4 py-3 border-b border-l border-borderLight-light dark:border-borderLight-dark bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark sticky top-0 z-10">
       <div>
         <Text fw={500} className="text-base" c="text-contrast">
           Metadata View
