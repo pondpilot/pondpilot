@@ -98,7 +98,7 @@ export function MetadataStatsView({ opened, onClose, dataAdapter, tabId }: Metad
     <div className="absolute inset-0">
       <div
         ref={containerRef}
-        className="absolute bottom-0 left-0 right-0 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border-t border-borderLight-light dark:border-borderLight-dark transition-all duration-300 ease-in-out"
+        className="absolute bottom-0 left-0 right-0 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border-t border-l border-borderLight-light dark:border-borderLight-dark transition-all duration-300 ease-in-out"
         style={{
           height: `${height}%`,
           boxShadow: '0px -2px 8px rgba(0, 0, 0, 0.1)',

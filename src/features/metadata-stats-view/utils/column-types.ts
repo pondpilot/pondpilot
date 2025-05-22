@@ -289,7 +289,8 @@ export function normalizeColumnType(columnType: string): NormalizedSQLType {
   if (NUMERIC_COLUMN_TYPES.some((t) => t.toLowerCase() === lowerType)) {
     if (lowerType.includes('bigint')) return 'bigint';
     if (lowerType.includes('decimal') || lowerType.includes('numeric')) return 'decimal';
-    if (lowerType.includes('float') || lowerType.includes('double') || lowerType.includes('real')) return 'float';
+    if (lowerType.includes('float') || lowerType.includes('double') || lowerType.includes('real'))
+      return 'float';
     return 'integer';
   }
 
@@ -307,11 +308,14 @@ export function normalizeColumnType(columnType: string): NormalizedSQLType {
     lowerType.includes('text') ||
     lowerType.includes('varchar') ||
     lowerType.includes('char')
-  ) return 'string';
-  if (lowerType.includes('bytes') || lowerType.includes('binary') || lowerType.includes('blob')) return 'bytes';
+  )
+    return 'string';
+  if (lowerType.includes('bytes') || lowerType.includes('binary') || lowerType.includes('blob'))
+    return 'bytes';
   if (lowerType.includes('bit')) return 'bitstring';
   if (lowerType.includes('array') || lowerType.includes('list')) return 'array';
-  if (lowerType.includes('object') || lowerType.includes('struct') || lowerType.includes('json')) return 'object';
+  if (lowerType.includes('object') || lowerType.includes('struct') || lowerType.includes('json'))
+    return 'object';
 
   return 'other';
 }
