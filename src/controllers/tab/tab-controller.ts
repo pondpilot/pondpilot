@@ -18,6 +18,7 @@ import {
   findTabFromFlatFileDataSourceImpl,
   findTabFromScriptImpl,
 } from './pure';
+import { clearCacheForDeletedTabs } from '../../features/metadata-stats-view/utils/cache-integration';
 
 /**
  * ------------------------------------------------------------
@@ -696,6 +697,9 @@ export const deleteTab = (tabIds: TabId[]) => {
     undefined,
     'AppStore/deleteTab',
   );
+
+  // Clear metadata cache for deleted tabs
+  clearCacheForDeletedTabs(tabIds);
 
   if (iDbConn) {
     // Now we can pass the entire array (or single ID) directly

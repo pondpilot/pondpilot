@@ -4,6 +4,11 @@ import { syncFiles } from '@controllers/file-system';
 import { updateScriptTabLastExecutedQuery, updateScriptTabLayout } from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
+import {
+  MetadataStatsView,
+  MetadataStatsButton,
+  useMetadataStatsState,
+} from '@features/metadata-stats-view';
 import { ScriptEditor } from '@features/script-editor';
 import { DataView } from '@features/tab-view/components/data-view';
 import { ScriptExecutionState } from '@models/sql-script';
@@ -40,6 +45,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
   const incrementScriptVersion = useCallback(() => {
     setScriptVersion((prev) => prev + 1);
   }, []);
+
+  // State for metadata stats view
+  const { metadataStatsOpened, toggleMetadataStats } = useMetadataStatsState();
 
   // Get the data adapter
   const dataAdapter = useDataAdapter({ tab, sourceVersion: scriptVersion });
@@ -242,7 +250,24 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
         <Allotment.Pane preferredSize={tab.dataViewPaneHeight} minSize={120}>
           <DataViewInfoPane dataAdapter={dataAdapter} tabType={tab.type} tabId={tab.id} />
-          <DataView active={active} dataAdapter={dataAdapter} tabId={tab.id} tabType={tab.type} />
+          <div className="h-full relative">
+            <DataView active={active} dataAdapter={dataAdapter} tabId={tab.id} tabType={tab.type} />
+            <MetadataStatsView
+              opened={metadataStatsOpened}
+              onClose={toggleMetadataStats}
+              dataAdapter={dataAdapter}
+              tabId={tab.id}
+            />
+            {/* Only show the button when we have data to display */}
+            {dataAdapter &&
+              dataAdapter.currentSchema.length > 0 &&
+              !dataAdapter.isStale &&
+              !dataAdapter.dataSourceError.length && (
+                <div className="absolute bottom-4 right-4 z-20">
+                  <MetadataStatsButton onClick={toggleMetadataStats} isOpen={metadataStatsOpened} />
+                </div>
+              )}
+          </div>
         </Allotment.Pane>
       </Allotment>
     </div>

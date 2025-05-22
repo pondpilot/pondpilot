@@ -5,6 +5,11 @@ import {
   updateTabDataViewColumnSizesCache,
   updateTabDataViewDataPageCache,
 } from '@controllers/tab';
+import {
+  MetadataStatsView,
+  MetadataStatsButton,
+  useMetadataStatsState,
+} from '@features/metadata-stats-view';
 import { Center, Group, Loader, Stack, Text } from '@mantine/core';
 import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
 import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@models/data-adapter';
@@ -42,6 +47,9 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     resetTotal: resetColumnAggregate,
     isLoading: isColumnAggCalculating,
   } = useColumnSummary(dataAdapter);
+
+  // State for metadata stats view
+  const { metadataStatsOpened, toggleMetadataStats, closeMetadataStats } = useMetadataStatsState();
 
   /**
    * Local Reactive State
@@ -362,32 +370,50 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
       )}
       {showTableAndPagination && (
         <>
-          <div className="flex-1 min-h-0 overflow-auto px-3 custom-scroll-hidden pb-6">
-            <Table
-              dataSlice={dataSlice}
-              schema={dataAdapter.currentSchema}
-              sort={dataAdapter.sort}
-              visible={!!active}
-              initialColumnSizes={initialColumnSizes}
-              onColumnSelectChange={calculateColumnSummary}
-              onSort={dataAdapter.disableSort ? undefined : handleSortAndGetNewReader}
-              onRowSelectChange={resetColumnAggregate}
-              onCellSelectChange={resetColumnAggregate}
-              onSelectedColsCopy={hasDataSourceError ? undefined : handleCopyTableColumns}
-              onColumnResizeChange={onColumnResizeChange}
+          <div className="flex-1 min-h-0 overflow-hidden relative">
+            <div className="h-full overflow-auto px-3 custom-scroll-hidden pb-6">
+              <Table
+                dataSlice={dataSlice}
+                schema={dataAdapter.currentSchema}
+                sort={dataAdapter.sort}
+                visible={!!active}
+                initialColumnSizes={initialColumnSizes}
+                onColumnSelectChange={calculateColumnSummary}
+                onSort={dataAdapter.disableSort ? undefined : handleSortAndGetNewReader}
+                onRowSelectChange={resetColumnAggregate}
+                onCellSelectChange={resetColumnAggregate}
+                onSelectedColsCopy={hasDataSourceError ? undefined : handleCopyTableColumns}
+                onColumnResizeChange={onColumnResizeChange}
+              />
+            </div>
+            <MetadataStatsView
+              opened={metadataStatsOpened}
+              onClose={closeMetadataStats}
+              dataAdapter={dataAdapter}
+              tabId={tabId}
             />
+
+            {/* Floating metadata stats button - only show when we have data */}
+            {dataAdapter && dataAdapter.currentSchema.length > 0 && !dataAdapter.isStale && (
+              <div className="absolute bottom-4 right-4 z-20">
+                <MetadataStatsButton onClick={toggleMetadataStats} isOpen={metadataStatsOpened} />
+              </div>
+            )}
           </div>
           <Group
             align="center"
-            justify="end"
+            justify="space-between"
             className="border-t px-2 pt border-borderPrimary-light dark:border-borderPrimary-dark h-[34px]"
           >
-            {columnTotal !== null && (
-              <Text c="text-primary" className="text-sm">
-                {columnAggType.toUpperCase()}: {columnTotal}
-              </Text>
-            )}
-            {isColumnAggCalculating && <Loader size={12} color="text-accent" />}
+            <div></div> {/* Empty placeholder to maintain spacing */}
+            <Group>
+              {columnTotal !== null && (
+                <Text c="text-primary" className="text-sm">
+                  {columnAggType.toUpperCase()}: {columnTotal}
+                </Text>
+              )}
+              {isColumnAggCalculating && <Loader size={12} color="text-accent" />}
+            </Group>
           </Group>
         </>
       )}
