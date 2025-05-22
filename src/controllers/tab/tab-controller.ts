@@ -49,6 +49,7 @@ import {
   updateDataViewStateCache,
 } from './pure';
 import { toSerializableRows } from './serialize';
+import { clearCacheForDeletedTabs } from '../../features/metadata-stats-view/utils/cache-integration';
 
 /**
  * In-memory cache for preserving dataViewStateCache across script tab deletion/recreation.
@@ -1131,6 +1132,9 @@ export const deleteTab = async (tabIds: TabId[]) => {
         }
       }
     }
+
+    // Clear metadata cache for deleted tabs
+    clearCacheForDeletedTabs(tabIds);
 
     let persistencePayload: {
       newActiveTabId: TabId | null;
