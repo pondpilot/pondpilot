@@ -88,4 +88,5 @@ export interface DBFunctionsMetadata {
   return_type: string;
   function_type: string;
   schema_name: string;
+  internal: boolean;
 }

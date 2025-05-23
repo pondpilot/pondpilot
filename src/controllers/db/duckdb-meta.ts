@@ -323,6 +323,7 @@ export async function getDuckDBFunctions(
       return_type: res.getChild('return_type'),
       function_type: res.getChild('function_type'),
       schema_name: res.getChild('schema_name'),
+      internal: res.getChild('internal'),
     };
     const result: DBFunctionsMetadata[] = [];
     for (let i = 0; i < res.numRows; i += 1) {
@@ -345,6 +346,7 @@ export async function getDuckDBFunctions(
         return_type: columns.return_type?.get(i) ?? '',
         function_type: columns.function_type?.get(i) ?? '',
         schema_name: columns.schema_name?.get(i) ?? '',
+        internal: columns.internal?.get(i) ?? false,
       });
     }
     return result;

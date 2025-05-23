@@ -32,20 +32,30 @@ export async function loadDuckDBFunctions(
  *
  * @param functions - The DuckDB function metadata
  * @returns An object mapping function names to their descriptions and syntax
+ *
  */
 export function convertFunctionsToTooltips(
   functions: DBFunctionsMetadata[],
 ): Record<string, { syntax: string; description: string }> {
-  return functions.reduce<Record<string, { syntax: string; description: string }>>((acc, func) => {
-    const description =
-      func.description || `${func.function_name}(${func.parameters}) -> ${func.return_type}`;
+  const cNameRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
-    const syntax = `${func.function_name}(${func.parameters})`;
+  return functions
+    .filter((func) => {
+      if (func.internal) {
+        return cNameRegex.test(func.function_name);
+      }
+      return true;
+    })
+    .reduce<Record<string, { syntax: string; description: string }>>((acc, func) => {
+      const description =
+        func.description || `${func.function_name}(${func.parameters}) -> ${func.return_type}`;
 
-    acc[func.function_name] = {
-      syntax,
-      description,
-    };
-    return acc;
-  }, {});
+      const syntax = `${func.function_name}(${func.parameters})`;
+
+      acc[func.function_name] = {
+        syntax,
+        description,
+      };
+      return acc;
+    }, {});
 }
