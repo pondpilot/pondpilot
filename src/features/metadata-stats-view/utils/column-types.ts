@@ -178,25 +178,25 @@ export function sanitizeDisplayValue(value: DataValue): string {
       });
       return sanitized;
     }
-      // Fallback for Node.js/test environments - strip HTML tags and escape remaining content
-      let processed = stringVal;
+    // Fallback for Node.js/test environments - strip HTML tags and escape remaining content
+    let processed = stringVal;
 
-      // Extract content from script tags before removing them (for testing purposes)
-      processed = processed.replace(/<script\b[^<]*>(.*?)<\/script>/gi, '$1');
+    // Extract content from script tags before removing them (for testing purposes)
+    processed = processed.replace(/<script\b[^<]*>(.*?)<\/script>/gi, '$1');
 
-      // Remove HTML tags (but only well-formed ones, not standalone < or >)
-      processed = processed.replace(/<[a-zA-Z][^>]*>/g, '');
-      processed = processed.replace(/<\/[a-zA-Z][^>]*>/g, '');
+    // Remove HTML tags (but only well-formed ones, not standalone < or >)
+    processed = processed.replace(/<[a-zA-Z][^>]*>/g, '');
+    processed = processed.replace(/<\/[a-zA-Z][^>]*>/g, '');
 
-      // Then escape special characters
-      processed = processed
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#x27;');
+    // Then escape special characters
+    processed = processed
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
 
-      return processed;
+    return processed;
   } catch (error) {
     console.warn('Error sanitizing display value:', error);
     return '';
@@ -310,7 +310,8 @@ export function normalizeColumnType(columnType: string): NormalizedSQLType {
   if (NUMERIC_COLUMN_TYPES.some((t) => t.toLowerCase() === lowerType)) {
     if (lowerType.includes('bigint')) return 'bigint';
     if (lowerType.includes('decimal') || lowerType.includes('numeric')) return 'decimal';
-    if (lowerType.includes('float') || lowerType.includes('double') || lowerType.includes('real')) return 'float';
+    if (lowerType.includes('float') || lowerType.includes('double') || lowerType.includes('real'))
+      return 'float';
     return 'integer';
   }
 
@@ -328,11 +329,14 @@ export function normalizeColumnType(columnType: string): NormalizedSQLType {
     lowerType.includes('text') ||
     lowerType.includes('varchar') ||
     lowerType.includes('char')
-  ) return 'string';
-  if (lowerType.includes('bytes') || lowerType.includes('binary') || lowerType.includes('blob')) return 'bytes';
+  )
+    return 'string';
+  if (lowerType.includes('bytes') || lowerType.includes('binary') || lowerType.includes('blob'))
+    return 'bytes';
   if (lowerType.includes('bit')) return 'bitstring';
   if (lowerType.includes('array') || lowerType.includes('list')) return 'array';
-  if (lowerType.includes('object') || lowerType.includes('struct') || lowerType.includes('json')) return 'object';
+  if (lowerType.includes('object') || lowerType.includes('struct') || lowerType.includes('json'))
+    return 'object';
 
   return 'other';
 }
