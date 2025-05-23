@@ -1,4 +1,5 @@
 import { showError, showWarning } from '@components/app-notifications';
+import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   useDuckDBConnectionPool,
@@ -31,6 +32,9 @@ export function useAppInitialization({
       const { discardedEntries, warnings } = await restoreAppDataFromIDB(resolvedConn, (_) =>
         showPermsAlert(),
       );
+
+      // Load DuckDB functions into the store
+      await loadDuckDBFunctions(resolvedConn);
 
       // TODO: more detailed/better message
       if (discardedEntries.length) {

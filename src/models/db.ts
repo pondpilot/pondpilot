@@ -80,3 +80,12 @@ export type DataTable = DataRow[];
 
 // This is the size of the batch that arro stream reader returns as of time of writing.
 export const ARROW_STREAMING_BATCH_SIZE = 2048;
+
+export interface DBFunctionsMetadata {
+  function_name: string;
+  description: string;
+  parameters: string;
+  return_type: string;
+  function_type: string;
+  schema_name: string;
+}

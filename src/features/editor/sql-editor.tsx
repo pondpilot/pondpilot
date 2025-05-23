@@ -14,10 +14,11 @@ import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { forwardRef, KeyboardEventHandler, useMemo } from 'react';
 
-import duckdbFunctionList from './duckdb-function-tooltip.json';
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
 import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
+
+type FunctionTooltip = Record<string, { syntax: string; description: string }>;
 
 interface SqlEditorProps {
   colorSchemeDark: boolean;
@@ -30,6 +31,7 @@ interface SqlEditorProps {
   onFontSizeChanged?: (fontSize: number) => void;
   onCursorChange?: (pos: number, lineNumber: number, columnNumber: number) => void;
   onBlur: () => void;
+  functionTooltips: FunctionTooltip;
 }
 
 export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
@@ -45,6 +47,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
       fontSize,
       onFontSizeChanged,
       onBlur,
+      functionTooltips,
     }: SqlEditorProps,
     ref,
   ) => {
@@ -128,7 +131,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         upperCaseKeywords: true,
         schema,
       });
-      const tooltipExtension = functionTooltip(duckdbFunctionList);
+      const tooltipExtension = functionTooltip(functionTooltips);
 
       return [
         history(),
@@ -145,7 +148,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
           if (onCursorChange) onCursorChange(pos, lineNumber, columnNumber);
         }),
       ].filter(Boolean) as Extension[];
-    }, [onCursorChange, keyExtensions, schema, tableNameHighlightPlugin]);
+    }, [onCursorChange, keyExtensions, schema, tableNameHighlightPlugin, functionTooltips]);
 
     return (
       <CodeMirror

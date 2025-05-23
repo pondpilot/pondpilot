@@ -6,7 +6,7 @@ import {
   AttachedDB,
   PersistentDataSourceId,
 } from '@models/data-source';
-import { DataBaseModel, DBTableOrViewSchema } from '@models/db';
+import { DataBaseModel, DBFunctionsMetadata, DBTableOrViewSchema } from '@models/db';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
@@ -71,6 +71,12 @@ type AppStore = {
    * then kept in sync with the database.
    */
   dataBaseMetadata: Map<string, DataBaseModel>;
+
+  /**
+   * A list of DuckDB function metadata.
+   * This is not persisted in IndexedDB and is recreated on app load.
+   */
+  duckDBFunctions: DBFunctionsMetadata[];
 } & ContentViewState;
 
 const initialState: AppStore = {
@@ -82,6 +88,7 @@ const initialState: AppStore = {
   sqlScripts: new Map(),
   tabs: new Map(),
   dataBaseMetadata: new Map(),
+  duckDBFunctions: [],
   // From ContentViewState
   activeTabId: null,
   previewTabId: null,
@@ -288,6 +295,10 @@ export function useAttachedDBMetadata(): Map<string, DataBaseModel> {
   );
 }
 
+export function useDuckDBFunctions(): DBFunctionsMetadata[] {
+  return useAppStore(useShallow((state) => state.duckDBFunctions));
+}
+
 export function useAttachedDBLocalEntriesMap(): Map<LocalEntryId, LocalFile> {
   return useAppStore(
     useShallow(
@@ -390,6 +401,10 @@ export const setAppLoadState = (appState: AppLoadState) => {
 
 export const setIDbConn = (iDbConn: IDBPDatabase<AppIdbSchema>) => {
   useAppStore.setState({ _iDbConn: iDbConn }, undefined, 'AppStore/setIDbConn');
+};
+
+export const setDuckDBFunctions = (functions: DBFunctionsMetadata[]) => {
+  useAppStore.setState({ duckDBFunctions: functions }, undefined, 'AppStore/setDuckDBFunctions');
 };
 
 export const resetAppState = async () => {
