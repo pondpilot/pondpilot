@@ -77,22 +77,80 @@ export function createStructuredResponseHandlers(view: EditorView): StructuredRe
     }, AI_ASSISTANT_TIMINGS.NEXT_TICK_DELAY);
   };
 
+  const insertAfterStatementAndClose = (code: string) => {
+    view.dispatch({
+      effects: hideStructuredResponseEffect.of(null),
+    });
+
+    setTimeout(() => {
+      if (view) {
+        // Find the nearest SQL statement or use selection
+        const nearestStatement = resolveToNearestStatement(view.state);
+        let insertPosition: number;
+        
+        if (nearestStatement) {
+          // Insert after the end of the statement
+          insertPosition = nearestStatement.to;
+        } else {
+          // Fallback: use selection end if no statement found
+          insertPosition = view.state.selection.main.to;
+        }
+
+        const insertText = `\n\n${code}`;
+        view.dispatch({
+          changes: { from: insertPosition, insert: insertText },
+          selection: { anchor: insertPosition + insertText.length },
+        });
+        view.focus();
+      }
+    }, AI_ASSISTANT_TIMINGS.NEXT_TICK_DELAY);
+  };
+
+  const insertBeforeStatementAndClose = (code: string) => {
+    view.dispatch({
+      effects: hideStructuredResponseEffect.of(null),
+    });
+
+    setTimeout(() => {
+      if (view) {
+        // Find the nearest SQL statement or use selection
+        const nearestStatement = resolveToNearestStatement(view.state);
+        let insertPosition: number;
+        
+        if (nearestStatement) {
+          // Insert before the start of the statement
+          insertPosition = nearestStatement.from;
+        } else {
+          // Fallback: use selection start if no statement found
+          insertPosition = view.state.selection.main.from;
+        }
+
+        const insertText = `${code}\n\n`;
+        view.dispatch({
+          changes: { from: insertPosition, insert: insertText },
+          selection: { anchor: insertPosition + insertText.length },
+        });
+        view.focus();
+      }
+    }, AI_ASSISTANT_TIMINGS.NEXT_TICK_DELAY);
+  };
+
   const applyAction = (action: SQLAction) => {
     switch (action.type) {
       case 'replace_statement':
         replaceStatementAndClose(action.code);
         break;
       case 'insert_after':
-        insertCodeAndClose(`\n\n${action.code}`);
+        insertAfterStatementAndClose(action.code);
         break;
       case 'insert_before':
-        insertCodeAndClose(`${action.code}\n\n`);
+        insertBeforeStatementAndClose(action.code);
         break;
       case 'insert_at_cursor':
         insertCodeAndClose(action.code);
         break;
       case 'add_comment':
-        insertCodeAndClose(`\n${action.code}`);
+        insertBeforeStatementAndClose(action.code);
         break;
     }
 
