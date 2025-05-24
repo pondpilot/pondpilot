@@ -87,7 +87,7 @@ export function createStructuredResponseHandlers(view: EditorView): StructuredRe
         // Find the nearest SQL statement or use selection
         const nearestStatement = resolveToNearestStatement(view.state);
         let insertPosition: number;
-        
+
         if (nearestStatement) {
           // Insert after the end of the statement
           insertPosition = nearestStatement.to;
@@ -116,7 +116,7 @@ export function createStructuredResponseHandlers(view: EditorView): StructuredRe
         // Find the nearest SQL statement or use selection
         const nearestStatement = resolveToNearestStatement(view.state);
         let insertPosition: number;
-        
+
         if (nearestStatement) {
           // Insert before the start of the statement
           insertPosition = nearestStatement.from;
