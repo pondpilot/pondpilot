@@ -1,0 +1,280 @@
+import { AIRequest, AIResponse, AIServiceConfig } from '../models/ai-service';
+import { SQL_ASSISTANT_FUNCTION, StructuredSQLResponse } from '../models/structured-ai-response';
+
+export type { AIServiceConfig } from '../models/ai-service';
+
+export class AIService {
+  private config: AIServiceConfig;
+
+  constructor(config: AIServiceConfig) {
+    this.config = config;
+  }
+
+  updateConfig(config: AIServiceConfig) {
+    this.config = config;
+  }
+
+  async generateSQLAssistance(request: AIRequest): Promise<AIResponse> {
+    if (!this.config.apiKey) {
+      return {
+        success: false,
+        error: 'API key not configured. Please set your API key in Settings.',
+      };
+    }
+
+    if (this.config.provider === 'openai') {
+      return this.callOpenAICompatible(request, {
+        baseUrl: 'https://api.openai.com/v1',
+        authHeader: `Bearer ${this.config.apiKey}`,
+        providerName: 'OpenAI',
+      });
+    }
+
+    if (this.config.provider === 'anthropic') {
+      return this.callOpenAICompatible(request, {
+        baseUrl: 'https://api.anthropic.com/v1',
+        authHeader: `x-api-key ${this.config.apiKey}`,
+        providerName: 'Anthropic',
+      });
+    }
+
+    return {
+      success: false,
+      error: 'Unsupported AI provider',
+    };
+  }
+
+  private async callOpenAICompatible(
+    request: AIRequest,
+    config: {
+      baseUrl: string;
+      authHeader: string;
+      providerName: string;
+    },
+  ): Promise<AIResponse> {
+    try {
+      const systemPrompt = request.useStructuredResponse
+        ? `You are a SQL expert assistant. Analyze the user's request and provide structured assistance using the provided function. Focus on DuckDB SQL syntax and provide actionable, specific help.
+
+Key principles:
+1. Always provide working SQL code
+2. Be specific about what changes you're making and why
+3. Consider performance implications
+4. Suggest alternatives when appropriate
+5. Include helpful explanations for learning`
+        : `You are a SQL expert assistant. Help users with their SQL queries, providing clear, accurate, and efficient solutions.
+
+Rules:
+1. Always provide working SQL code
+2. Explain your reasoning briefly
+3. If the user's SQL has issues, suggest improvements
+4. Focus on DuckDB SQL syntax when relevant
+5. Be concise but helpful`;
+
+      let userPrompt = request.prompt;
+
+      // Add SQL context if available
+      if (request.sqlContext) {
+        userPrompt = `Here's my current SQL context:
+\`\`\`sql
+${request.sqlContext}
+\`\`\`
+
+${request.prompt}`;
+      }
+
+      // Add schema context if available
+      if (request.schemaContext) {
+        const schemaSection = `\n\n${request.schemaContext}`;
+        userPrompt += schemaSection;
+      }
+
+      // Build request body based on whether we want structured responses
+      const requestBody: any = {
+        model: this.config.model,
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          {
+            role: 'user',
+            content: userPrompt,
+          },
+        ],
+        max_tokens: 1500,
+        temperature: 0.1,
+      };
+
+      // Add function calling for structured responses
+      if (request.useStructuredResponse) {
+        requestBody.tools = [
+          {
+            type: 'function',
+            function: SQL_ASSISTANT_FUNCTION,
+          },
+        ];
+        requestBody.tool_choice = {
+          type: 'function',
+          function: { name: 'provide_sql_assistance' },
+        };
+      }
+
+      // Build headers based on provider
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Handle different auth header formats
+      if (config.authHeader.startsWith('x-api-key ')) {
+        // Anthropic format: "x-api-key value"
+        const apiKey = config.authHeader.replace('x-api-key ', '');
+        headers['x-api-key'] = apiKey;
+        // Add special header to bypass CORS for Anthropic
+        headers['anthropic-dangerous-direct-browser-access'] = 'true';
+      } else {
+        // OpenAI format: "Bearer value"
+        headers.Authorization = config.authHeader;
+      }
+
+      // Add timeout to fetch request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+      try {
+        const response = await fetch(`${config.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        return await this.handleResponse(response, config, request);
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          return {
+            success: false,
+            error: `Request timeout: ${config.providerName} took too long to respond`,
+          };
+        }
+
+        throw fetchError;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
+  private async handleResponse(
+    response: Response,
+    config: { baseUrl: string; authHeader: string; providerName: string },
+    request: AIRequest,
+  ): Promise<AIResponse> {
+    try {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+
+        // Provide more specific error messages based on status code
+        let errorMessage = errorData.error?.message;
+
+        if (!errorMessage) {
+          switch (response.status) {
+            case 401:
+              errorMessage = 'Invalid API key or unauthorized access';
+              break;
+            case 403:
+              errorMessage = 'Access forbidden - check your API key permissions';
+              break;
+            case 429:
+              errorMessage = 'Rate limit exceeded - please wait before trying again';
+              break;
+            case 500:
+              errorMessage = `${config.providerName} server error - please try again later`;
+              break;
+            case 502:
+            case 503:
+            case 504:
+              errorMessage = `${config.providerName} service temporarily unavailable`;
+              break;
+            default:
+              errorMessage = `${config.providerName} API error: ${response.status}`;
+          }
+        }
+
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+
+      const data = await response.json();
+      const choice = data.choices?.[0];
+
+      if (!choice) {
+        return {
+          success: false,
+          error: `No response received from ${config.providerName}`,
+        };
+      }
+
+      // Handle structured response
+      if (request.useStructuredResponse && choice.message?.tool_calls) {
+        try {
+          const toolCall = choice.message.tool_calls[0];
+          if (toolCall.type === 'function' && toolCall.function.name === 'provide_sql_assistance') {
+            const functionArgs = JSON.parse(toolCall.function.arguments);
+            const structuredResponse: StructuredSQLResponse = functionArgs;
+
+            return {
+              success: true,
+              structuredResponse,
+            };
+          }
+        } catch (parseError) {
+          return {
+            success: false,
+            error: 'Failed to parse structured response from AI',
+          };
+        }
+      }
+
+      // Handle regular text response
+      const content = choice.message?.content;
+      if (!content) {
+        return {
+          success: false,
+          error: `No response content received from ${config.providerName}`,
+        };
+      }
+
+      return {
+        success: true,
+        content: content.trim(),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+}
+
+// Global AI service instance
+let aiServiceInstance: AIService | null = null;
+
+export function getAIService(config: AIServiceConfig): AIService {
+  if (!aiServiceInstance) {
+    aiServiceInstance = new AIService(config);
+  } else {
+    aiServiceInstance.updateConfig(config);
+  }
+  return aiServiceInstance;
+}

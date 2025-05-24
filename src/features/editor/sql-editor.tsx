@@ -12,12 +12,14 @@ import { showNotification } from '@mantine/notifications';
 import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
-import { forwardRef, KeyboardEventHandler, useMemo } from 'react';
+import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
+import { aiAssistantTooltip, showAIAssistant } from './ai-assistant-tooltip';
 import duckdbFunctionList from './duckdb-function-tooltip.json';
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
 import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
+import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
 
 interface SqlEditorProps {
   colorSchemeDark: boolean;
@@ -49,6 +51,9 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
     ref,
   ) => {
     const { darkTheme, lightTheme } = useEditorTheme(colorSchemeDark);
+    const connectionPool = useDuckDBConnectionPool();
+    const editorRef = useRef<ReactCodeMirrorRef>(null);
+
     const tableNameHighlightPlugin = useMemo(() => {
       if (schema) {
         return createSQLTableNameHighlightPlugin(Object.keys(schema));
@@ -81,6 +86,12 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
             mac: 'Cmd-i',
             preventDefault: true,
             run: startCompletion,
+          },
+          {
+            key: 'Ctrl-b',
+            mac: 'Cmd-b',
+            preventDefault: true,
+            run: showAIAssistant,
           },
           {
             key: 'Ctrl-=',
@@ -129,12 +140,14 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         schema,
       });
       const tooltipExtension = functionTooltip(duckdbFunctionList);
+      const aiAssistantExtension = aiAssistantTooltip(connectionPool);
 
       return [
         history(),
         keyExtensions,
         sqlDialect,
         tooltipExtension,
+        aiAssistantExtension,
         tableNameHighlightPlugin,
         SqlStatementHighlightPlugin,
         EditorView.updateListener.of((state: any) => {
@@ -145,11 +158,22 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
           if (onCursorChange) onCursorChange(pos, lineNumber, columnNumber);
         }),
       ].filter(Boolean) as Extension[];
-    }, [onCursorChange, keyExtensions, schema, tableNameHighlightPlugin]);
+    }, [onCursorChange, keyExtensions, schema, tableNameHighlightPlugin, connectionPool]);
 
     return (
       <CodeMirror
-        ref={ref}
+        ref={(instance) => {
+          if (ref) {
+            if (typeof ref === 'function') {
+              ref(instance);
+            } else {
+              ref.current = instance;
+            }
+          }
+          if (instance) {
+            (editorRef as any).current = instance;
+          }
+        }}
         autoFocus
         readOnly={readOnly}
         onKeyDown={onKeyDown}
