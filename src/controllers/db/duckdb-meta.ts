@@ -314,7 +314,7 @@ export async function getDuckDBFunctions(
   const conn = await pool.getPooledConnection();
   try {
     const sql =
-      'SELECT DISTINCT ON(function_name) function_name, description, parameters, examples, return_type, internal FROM duckdb_functions()';
+      'SELECT DISTINCT ON(function_name) function_name, description, parameters, examples, internal FROM duckdb_functions()';
     const res = await conn.query<any>(sql);
 
     const columns = {
@@ -322,7 +322,6 @@ export async function getDuckDBFunctions(
       description: res.getChild('description'),
       parameters: res.getChild('parameters'),
       examples: res.getChild('examples'),
-      return_type: res.getChild('return_type'),
       internal: res.getChild('internal'),
     };
 
@@ -355,7 +354,6 @@ export async function getDuckDBFunctions(
         description: columns.description?.get(i) || null,
         parameters,
         examples,
-        return_type: columns.return_type?.get(i) ?? '',
         internal: columns.internal?.get(i) ?? false,
       });
     }

@@ -86,6 +86,5 @@ export interface DBFunctionsMetadata {
   description: string | null;
   parameters: string[];
   examples: string[] | null;
-  return_type: string;
   internal: boolean;
 }
