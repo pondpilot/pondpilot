@@ -49,12 +49,15 @@ test.describe('Data Viewer Pagination', () => {
   test('should show correct pagination control for small data (single page)', async ({
     generateTestData,
     paginationControl,
+    page,
   }) => {
     // Generate a small dataset that fits on a single page (assuming 100 per page by default)
     await generateTestData(5);
 
     // Check the pagination control is visible and has the correct text
     await expect(paginationControl).toHaveText('5 rows');
+
+    await page.reload();
   });
 
   test('should show correct pagination control for larger data (multiple pages)', async ({
