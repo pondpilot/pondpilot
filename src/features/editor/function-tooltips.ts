@@ -7,7 +7,10 @@ import { syntaxTree } from '@codemirror/language';
 import { StateField, EditorState } from '@codemirror/state';
 import { Tooltip, showTooltip, EditorView } from '@codemirror/view';
 
-export type TooltipDirectionary = Record<string, { syntax: string; description: string }>;
+export type TooltipDirectionary = Record<
+  string,
+  { syntax: string; description: string; example?: string }
+>;
 
 function getCursorTooltips(state: EditorState, dict: TooltipDirectionary): readonly Tooltip[] {
   const tree = syntaxTree(state);
@@ -41,9 +44,10 @@ function getCursorTooltips(state: EditorState, dict: TooltipDirectionary): reado
           dom.innerHTML = `
             <div style="max-width:700px; padding:5px; font-size:14px;">
               <p style='font-size:16px; opacity: 0.6;'><strong>${dictItem.syntax}</strong></p>
-              <div class="code-tooltip">${dictItem.description}</div>
+              ${dictItem.description ? `<div class="code-tooltip">${dictItem.description}</div>` : ''}
+              ${dictItem.example ? `<div style="margin-top:8px;"><strong>Example:</strong><br><code style="padding:4px 0; border-radius:3px; font-family:monospace;">${dictItem.example}</code></div>` : ''}
             </div>
-            `;
+          `;
           return { dom };
         },
       },

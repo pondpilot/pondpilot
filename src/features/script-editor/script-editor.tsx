@@ -1,5 +1,4 @@
 import { showAlert } from '@components/app-notifications';
-import { convertFunctionsToTooltips } from '@controllers/db/duckdb-functions-controller';
 import { createSQLScript, updateSQLScriptContent } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { SqlEditor } from '@features/editor';
@@ -10,6 +9,7 @@ import { Spotlight } from '@mantine/spotlight';
 import { RunScriptMode, ScriptExecutionState, SQLScriptId } from '@models/sql-script';
 import { useAppStore, useDuckDBFunctions } from '@store/app-store';
 import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
+import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { setDataTestId } from '@utils/test-id';

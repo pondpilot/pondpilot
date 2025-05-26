@@ -83,10 +83,9 @@ export const ARROW_STREAMING_BATCH_SIZE = 2048;
 
 export interface DBFunctionsMetadata {
   function_name: string;
-  description: string;
-  parameters: string;
+  description: string | null;
+  parameters: string[];
+  examples: string[] | null;
   return_type: string;
-  function_type: string;
-  schema_name: string;
   internal: boolean;
 }

@@ -75,6 +75,12 @@ type AppStore = {
   /**
    * A list of DuckDB function metadata.
    * This is not persisted in IndexedDB and is recreated on app load.
+   *
+   * Stored in app state to support potential future use cases,
+   * such as dynamically updating tooltips after executing DDL SQL
+   * that creates custom functions. While this may appear to be
+   * over-engineering at the moment, it avoids future refactoring
+   * and improves maintainability by anticipating those needs.
    */
   duckDBFunctions: DBFunctionsMetadata[];
 } & ContentViewState;
@@ -295,6 +301,16 @@ export function useAttachedDBMetadata(): Map<string, DataBaseModel> {
   );
 }
 
+/**
+ * A React hook to access the list of DuckDB functions from app state.
+ *
+ * The function metadata is kept in global state to enable potential future
+ * updates—e.g., updating tooltips dynamically after executing DDL SQL that
+ * defines custom functions. Using a centralized hook ensures consistency
+ * and flexibility as the feature evolves.
+ *
+ * @returns The current list of DuckDB functions
+ */
 export function useDuckDBFunctions(): DBFunctionsMetadata[] {
   return useAppStore(useShallow((state) => state.duckDBFunctions));
 }
