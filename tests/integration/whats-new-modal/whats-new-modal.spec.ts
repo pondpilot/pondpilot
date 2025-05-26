@@ -24,14 +24,15 @@ test("Check if the 'What's New' alert is shown when the app is loaded for the fi
   await expect(newVersionAlert).toBeVisible();
 
   // Check if the alert is visible after reloading
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.goto('/');
   await expect(newVersionAlert).toBeVisible();
 
   // Close the alert
   await newVersionAlertCloseButton.click();
   await expect(newVersionAlert).toBeHidden();
   // Reload the page
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.goto('/');
+
   // Check if the alert is not visible after reloading
   await expect(newVersionAlert).toBeHidden();
 });
