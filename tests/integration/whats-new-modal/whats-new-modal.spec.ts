@@ -81,7 +81,7 @@ test('Cancel button hides the new version alert and does not reappear after relo
   await expect(newVersionAlert).toBeVisible();
 
   // Check if the alert is visible after reloading
-  await page.reload();
+  await page.goto('/');
   await expect(newVersionAlert).toBeVisible();
 
   // Click the cancel button
@@ -91,7 +91,7 @@ test('Cancel button hides the new version alert and does not reappear after relo
   await expect(newVersionAlert).toBeHidden();
 
   // Reload the page and wait for load
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.goto('/');
 
   // Verify the alert does not reappear after reload
   await expect(newVersionAlert).toBeHidden();
@@ -119,7 +119,7 @@ test('Close button hides the new version alert and does not reappear after reloa
   await expect(newVersionAlert).toBeHidden();
 
   // Reload the page and wait for load
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.goto('/');
 
   // Verify the alert does not reappear after reload
   await expect(newVersionAlert).toBeHidden();
