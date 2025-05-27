@@ -7,7 +7,7 @@ import { FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model'
 export const FileSystemExplorerNode = (
   props: RenderTreeNodePayload<FSExplorerNodeTypeToIdTypeMap, FSExplorerNodeExtraType>,
 ) => {
-  const { flattenedNodeIds, node } = props;
+  const { flattenedNodeIds, node, tree, extraData } = props;
   const { value: itemId } = node;
 
   // @ts-expect-error: type of the id is not assignable, but it is correct
@@ -22,12 +22,19 @@ export const FileSystemExplorerNode = (
   const isPrevActive = prevNodeId === activeDataSourceId;
   const isNextActive = nextNodeId === activeDataSourceId;
 
+  // Get override context menu from extraData if it exists
+  const overrideContextMenu =
+    tree.selectedState.length > 1
+      ? (extraData as any).getOverrideContextMenu?.(tree.selectedState)
+      : null;
+
   return (
     <MemoizedBaseTreeNode<FSExplorerNodeTypeToIdTypeMap>
       {...props}
       isActive={isActive}
       isPrevActive={isPrevActive}
       isNextActive={isNextActive}
+      overrideContextMenu={overrideContextMenu}
     />
   );
 };

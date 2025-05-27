@@ -1,5 +1,11 @@
 import { showWarning } from '@components/app-notifications';
-import { ExplorerTree, TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
+import {
+  ExplorerTree,
+  TreeNodeData,
+  TreeNodeMenuItemType,
+  TreeNodeMenuType,
+} from '@components/explorer-tree';
+import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import { deleteDataSources } from '@controllers/data-source';
@@ -14,6 +20,7 @@ import {
   setPreviewTabId,
 } from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useHotkeys } from '@mantine/hooks';
 import { PersistentDataSourceId, AttachedDB } from '@models/data-source';
 import { DBColumn, DBSchema, DBTableOrView, DBTableOrViewSchema } from '@models/db';
 import {
@@ -25,7 +32,7 @@ import {
 import { copyToClipboard } from '@utils/clipboard';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { getAttachedDBDataSourceName } from '@utils/navigation';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 
 import { DbExplorerNode } from './db-explorer-node';
 import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
@@ -446,6 +453,18 @@ export const DbExplorer = memo(() => {
     },
   );
 
+  // Flattened nodes for selection handling
+  const flattenedNodes = useMemo(() => getFlattenNodes(dbObjectsTree), [dbObjectsTree]);
+  const flattenedNodeIds = useMemo(
+    () => flattenedNodes.map((node) => node.value),
+    [flattenedNodes],
+  );
+
+  const selectedDeleteableNodeIds = useMemo(
+    () => flattenedNodes.filter((node) => !!node.onDelete).map((node) => node.value),
+    [flattenedNodes],
+  ) as string[];
+
   const handleDeleteSelected = async (ids: Iterable<string | PersistentDataSourceId>) => {
     // This should only be called for dbs, but we'll be safe
     const dbIds = Array.from(ids)
@@ -493,9 +512,78 @@ export const DbExplorer = memo(() => {
     }
   };
 
+  // Create a function to get override context menu
+  const getOverrideContextMenu = (selectedState: string[]) => {
+    // if there are multiple selected nodes show the delete all menu instead of the default one
+
+    // 0, 1 = no multi-select
+    if (selectedState.length < 2) {
+      return null;
+    }
+
+    const menuItems: TreeNodeMenuType<TreeNodeData<DBExplorerNodeTypeToIdTypeMap>> = [];
+
+    // Check if all selected nodes are of the same type (e.g., all tables/views)
+    const selectedNodes = selectedState
+      .map((nodeId) => flattenedNodes.find((node) => node.value === nodeId))
+      .filter(Boolean);
+
+    const areAllNodesOfSameType = selectedNodes.every(
+      (node) => node?.nodeType === selectedNodes[0]?.nodeType,
+    );
+
+    // If all nodes are tables/views, add "Show Schema" option
+    if (areAllNodesOfSameType && selectedNodes[0]?.nodeType === 'object') {
+      menuItems.push({
+        children: [
+          {
+            label: 'Show Schema',
+            onClick: (_) => {
+              handleMultiSelectShowSchema(selectedState);
+            },
+          },
+        ],
+      });
+    }
+
+    // Only show delete option if there are deleteable nodes selected
+    const selectedDeleteableNodes = selectedNodes.filter((node) => !!node?.onDelete);
+    if (selectedDeleteableNodes.length > 0) {
+      menuItems.push({
+        children: [
+          {
+            label: 'Delete selected',
+            isDisabled: false,
+            onClick: (_) => {
+              handleDeleteSelected(selectedDeleteableNodes.map((node) => node!.value));
+            },
+          },
+        ],
+      });
+    }
+
+    return menuItems.length > 0 ? menuItems : null;
+  };
+
   const enhancedExtraData = Object.assign(nodeIdsToFQNMap, {
     onShowSchemaForMultiple: handleMultiSelectShowSchema,
+    getOverrideContextMenu,
+    flattenedNodeIds,
+    selectedDeleteableNodeIds,
   });
+
+  // Hotkeys for deletion
+  useHotkeys([
+    [
+      'mod+Backspace',
+      () => {
+        if (selectedDeleteableNodeIds.length === 0) {
+          return;
+        }
+        handleDeleteSelected(selectedDeleteableNodeIds);
+      },
+    ],
+  ]);
 
   return (
     <ExplorerTree<DBExplorerNodeTypeToIdTypeMap, DBExplorerNodeExtraType>
@@ -504,7 +592,6 @@ export const DbExplorer = memo(() => {
       extraData={enhancedExtraData as any}
       dataTestIdPrefix="db-explorer"
       TreeNodeComponent={DbExplorerNode}
-      onDeleteSelected={handleDeleteSelected}
       hasActiveElement={hasActiveElement}
     />
   );

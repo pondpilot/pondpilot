@@ -1,4 +1,5 @@
-import { ExplorerTree, TreeNodeData } from '@components/explorer-tree';
+import { ExplorerTree, TreeNodeData, TreeNodeMenuType } from '@components/explorer-tree';
+import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
 import { deleteDataSources } from '@controllers/data-source';
 import { renameFile, renameXlsxFile } from '@controllers/file-explorer';
 import { deleteLocalFileOrFolders } from '@controllers/file-system';
@@ -13,6 +14,7 @@ import {
   setPreviewTabId,
 } from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useHotkeys } from '@mantine/hooks';
 import { AnyFlatFileDataSource, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { useAppStore, useFlatFileDataSourceMap } from '@store/app-store';
@@ -476,6 +478,18 @@ export const FileSystemExplorer = memo(() => {
     [],
   );
 
+  // Flattened nodes for selection handling
+  const flattenedNodes = useMemo(() => getFlattenNodes(fileSystemTree), [fileSystemTree]);
+  const flattenedNodeIds = useMemo(
+    () => flattenedNodes.map((node) => node.value),
+    [flattenedNodes],
+  );
+
+  const selectedDeleteableNodeIds = useMemo(
+    () => flattenedNodes.filter((node) => !!node.onDelete).map((node) => node.value),
+    [flattenedNodes],
+  ) as (LocalEntryId | PersistentDataSourceId)[];
+
   const handleDeleteSelected = async (ids: Iterable<LocalEntryId | PersistentDataSourceId>) => {
     // Split the ids into files and folders (different id types, differet delete methods).
     // We also doing a double check here to make sure we are not deleting
@@ -502,7 +516,7 @@ export const FileSystemExplorer = memo(() => {
         continue;
       }
 
-      if (nodeType === 'file') {
+      if (nodeType === 'file' || nodeType === 'sheet') {
         files.push(id as PersistentDataSourceId);
       } else {
         folders.push(id as LocalEntryId);
@@ -522,15 +536,100 @@ export const FileSystemExplorer = memo(() => {
     }
   };
 
+  // Create a function to get override context menu
+  const getOverrideContextMenu = (selectedState: string[]) => {
+    // if there are multiple selected nodes show the multi-select menu
+
+    // 0, 1 = no multi-select
+    if (selectedState.length < 2) {
+      return null;
+    }
+
+    const menuItems: TreeNodeMenuType<TreeNodeData<FSExplorerNodeTypeToIdTypeMap>> = [];
+
+    // Check if all selected nodes are files (not folders or sheets)
+    const selectedNodes = selectedState
+      .map((nodeId) => flattenedNodes.find((node) => node.value === nodeId))
+      .filter(Boolean);
+
+    const areAllFiles = selectedNodes.every((node) => node?.nodeType === 'file');
+
+    // If all nodes are files, add "Show Schema" option
+    if (areAllFiles && selectedNodes.length > 0) {
+      menuItems.push({
+        children: [
+          {
+            label: 'Show Schema',
+            onClick: (_) => {
+              // Get the source IDs for all selected files
+              // For file nodes, the node value is already the data source ID
+              const sourceIds = selectedNodes
+                .map(node => node.value)
+                .filter((id): id is PersistentDataSourceId =>
+                  flatFileSources.has(id as PersistentDataSourceId)
+                );
+
+              if (sourceIds.length > 0) {
+                // For multiple files, we'll use the objectNames field to store the source IDs
+                getOrCreateSchemaBrowserTab({
+                  sourceId: null,
+                  sourceType: 'file',
+                  objectNames: sourceIds,
+                  setActive: true,
+                });
+              }
+            },
+          },
+        ],
+      });
+    }
+
+    // Only show delete option if there are deleteable nodes selected
+    const selectedDeleteableNodes = selectedNodes.filter((node) => !!node?.onDelete);
+    if (selectedDeleteableNodes.length > 0) {
+      menuItems.push({
+        children: [
+          {
+            label: 'Delete selected',
+            isDisabled: false,
+            onClick: (_) => {
+              handleDeleteSelected(selectedDeleteableNodes.map((node) => node!.value));
+            },
+          },
+        ],
+      });
+    }
+
+    return menuItems.length > 0 ? menuItems : null;
+  };
+
+  const enhancedExtraData = Object.assign(unusedExtraData, {
+    getOverrideContextMenu,
+    flattenedNodeIds,
+    selectedDeleteableNodeIds,
+  });
+
+  // Hotkeys for deletion
+  useHotkeys([
+    [
+      'mod+Backspace',
+      () => {
+        if (selectedDeleteableNodeIds.length === 0) {
+          return;
+        }
+        handleDeleteSelected(selectedDeleteableNodeIds);
+      },
+    ],
+  ]);
+
   return (
     <ExplorerTree<FSExplorerNodeTypeToIdTypeMap, FSExplorerNodeExtraType>
       nodes={fileSystemTree}
       // Expand nothing by default
       initialExpandedState={{}}
-      extraData={unusedExtraData}
+      extraData={enhancedExtraData}
       dataTestIdPrefix="file-system-explorer"
       TreeNodeComponent={FileSystemExplorerNode}
-      onDeleteSelected={handleDeleteSelected}
       hasActiveElement={hasActiveElement}
     />
   );

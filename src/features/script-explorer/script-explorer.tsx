@@ -1,5 +1,6 @@
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
+import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
 import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import {
   deleteTabByScriptId,
@@ -8,11 +9,12 @@ import {
   setActiveTabId,
   setPreviewTabId,
 } from '@controllers/tab';
+import { useHotkeys } from '@mantine/hooks';
 import { SQLScriptId } from '@models/sql-script';
 import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
 import { createShareableScriptUrl } from '@utils/script-sharing';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 
 import { ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
@@ -136,14 +138,68 @@ export const ScriptExplorer = memo(() => {
     }),
   );
 
+  // Flattened nodes for selection handling
+  const flattenedNodes = useMemo(() => getFlattenNodes(sqlScriptTree), [sqlScriptTree]);
+  const flattenedNodeIds = useMemo(
+    () => flattenedNodes.map((node) => node.value),
+    [flattenedNodes],
+  );
+
+  const selectedDeleteableNodeIds = useMemo(
+    () => flattenedNodes.filter((node) => !!node.onDelete).map((node) => node.value),
+    [flattenedNodes],
+  ) as SQLScriptId[];
+
+  // Override context menu for multi-select
+  const overrideContextMenu: TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> | null =
+    useMemo(() => {
+      // if there are multiple selected nodes show the delete all menu instead of the default one
+
+      // 0, 1 = no multi-select
+      if (selectedDeleteableNodeIds.length < 2) {
+        return null;
+      }
+
+      const menuItems: TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> = [];
+
+      menuItems.push({
+        children: [
+          {
+            label: 'Delete selected',
+            // All selected nodes are deletable by construction
+            isDisabled: false,
+            onClick: (_) => {
+              deleteSqlScripts(selectedDeleteableNodeIds);
+            },
+          },
+        ],
+      });
+
+      return menuItems;
+    }, [selectedDeleteableNodeIds]);
+
+  const enhancedExtraData = { overrideContextMenu, flattenedNodeIds, selectedDeleteableNodeIds };
+
+  // Hotkeys for deletion
+  useHotkeys([
+    [
+      'mod+Backspace',
+      () => {
+        if (selectedDeleteableNodeIds.length === 0) {
+          return;
+        }
+        deleteSqlScripts(selectedDeleteableNodeIds);
+      },
+    ],
+  ]);
+
   return (
     <ExplorerTree<ScrtiptNodeTypeToIdTypeMap>
       nodes={sqlScriptTree}
       dataTestIdPrefix="script-explorer"
       TreeNodeComponent={ScriptExplorerNode}
-      onDeleteSelected={deleteSqlScripts}
       hasActiveElement={hasActiveElement}
-      extraData={undefined}
+      extraData={enhancedExtraData}
     />
   );
 });
