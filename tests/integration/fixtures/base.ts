@@ -5,7 +5,9 @@ import { test as base } from '@playwright/test';
 
 export const test = base.extend<{ forEachTest: void }>({
   forEachTest: [
-    async ({ page }, use) => {
+    async ({ page }, use, testInfo) => {
+      const isDebugMode = !!process.env.PWDEBUG;
+
       // Block Google Fonts requests - will prevent waiting for these resources and speed up tests
       await page.route(/^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)/, (route) =>
         route.abort('timedout'),
@@ -17,6 +19,10 @@ export const test = base.extend<{ forEachTest: void }>({
         /^https:\/\/cdn\.jsdelivr\.net\/npm\/@duckdb\/duckdb-wasm.*|^https:\/\/extensions\.duckdb\.org\/.*|https:\/\/cdn\.sheetjs\.com\/.*/,
         async (route) => {
           const url = new URL(route.request().url());
+          if (isDebugMode) {
+            // eslint-disable-next-line no-console
+            console.debug(`🌐 [${testInfo.title}] Intercepting request: ${url.pathname}`);
+          }
 
           // Extract the path from the URL
           const urlPath = url.pathname;
@@ -28,6 +34,10 @@ export const test = base.extend<{ forEachTest: void }>({
 
           if (fs.existsSync(staticFilePath)) {
             // If the file exists locally, serve it and cache it in memory
+            if (isDebugMode) {
+              // eslint-disable-next-line no-console
+              console.debug(`📁 [${testInfo.title}] Serving cached file: ${fileName} from cache`);
+            }
             const fileContent = await fs.promises.readFile(staticFilePath);
             // Determine content type based on file extension
             const contentType = getContentTypeFromFileName(fileName);
@@ -48,14 +58,22 @@ export const test = base.extend<{ forEachTest: void }>({
 
             // Also save to disk for future test runs if ok
             if (response.ok()) {
-              console.warn(`Automatically caching ${staticFilePath} in .module-cache`);
+              if (isDebugMode) {
+                // eslint-disable-next-line no-console
+                console.debug(
+                  `💾 [${testInfo.title}] Automatically caching ${fileName} in .module-cache`,
+                );
+              }
 
               const cachePath = path.resolve(process.cwd(), '.module-cache');
               if (!fs.existsSync(cachePath)) {
                 fs.mkdirSync(cachePath, { recursive: true });
               }
-
               await fs.promises.writeFile(path.join(cachePath, fileName), body);
+              if (isDebugMode) {
+                // eslint-disable-next-line no-console
+                console.debug(`✅ [${testInfo.title}] Successfully cached ${fileName}`);
+              }
             }
 
             // Return the original response
@@ -74,7 +92,15 @@ export const test = base.extend<{ forEachTest: void }>({
       await use();
 
       // Clean up
-      await page.unrouteAll({ behavior: 'ignoreErrors' });
+      if (isDebugMode) {
+        // eslint-disable-next-line no-console
+        console.debug(`🧹 [${testInfo.title}] Starting cleanup - unrouting all routes`);
+      }
+      await page.unrouteAll();
+      if (isDebugMode) {
+        // eslint-disable-next-line no-console
+        console.debug(`✅ [${testInfo.title}] Cleanup completed`);
+      }
     },
     { auto: true },
   ], // automatically starts for every test.

@@ -1,5 +1,5 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { DataBaseModel, DBColumn, DBTableOrView } from '@models/db';
+import { DataBaseModel, DBColumn, DBFunctionsMetadata, DBTableOrView } from '@models/db';
 import { getTableColumnId } from '@utils/db';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import { quote } from '@utils/helpers';
@@ -300,4 +300,65 @@ export async function getObjectModels(
   });
 
   return Array.from(objectMap.values());
+}
+
+/**
+ * Get all user defined functions.
+ *
+ * @param pool - DuckDB connection pool
+ * @returns Array of function metadata
+ */
+export async function getDuckDBFunctions(
+  pool: AsyncDuckDBConnectionPool,
+): Promise<DBFunctionsMetadata[]> {
+  const conn = await pool.getPooledConnection();
+  try {
+    const sql =
+      'SELECT DISTINCT ON(function_name) function_name, description, parameters, examples, internal FROM duckdb_functions()';
+    const res = await conn.query<any>(sql);
+
+    const columns = {
+      function_name: res.getChild('function_name'),
+      description: res.getChild('description'),
+      parameters: res.getChild('parameters'),
+      examples: res.getChild('examples'),
+      internal: res.getChild('internal'),
+    };
+
+    const result: DBFunctionsMetadata[] = [];
+    for (let i = 0; i < res.numRows; i += 1) {
+      const parametersValue = columns.parameters?.get(i);
+      let parameters: string[];
+      if (
+        parametersValue &&
+        typeof parametersValue === 'object' &&
+        typeof parametersValue.toArray === 'function'
+      ) {
+        parameters = parametersValue.toArray();
+      } else {
+        parameters = [];
+      }
+
+      const examplesValue = columns.examples?.get(i);
+      let examples: string[] | null = null;
+      if (
+        examplesValue &&
+        typeof examplesValue === 'object' &&
+        typeof examplesValue.toArray === 'function'
+      ) {
+        examples = examplesValue.toArray();
+      }
+
+      result.push({
+        function_name: columns.function_name?.get(i) ?? '',
+        description: columns.description?.get(i) || null,
+        parameters,
+        examples,
+        internal: columns.internal?.get(i) ?? false,
+      });
+    }
+    return result;
+  } finally {
+    await conn.close();
+  }
 }

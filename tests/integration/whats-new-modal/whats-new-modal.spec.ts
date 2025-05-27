@@ -24,14 +24,15 @@ test("Check if the 'What's New' alert is shown when the app is loaded for the fi
   await expect(newVersionAlert).toBeVisible();
 
   // Check if the alert is visible after reloading
-  await page.reload();
+  await page.goto('/');
   await expect(newVersionAlert).toBeVisible();
 
   // Close the alert
   await newVersionAlertCloseButton.click();
   await expect(newVersionAlert).toBeHidden();
   // Reload the page
-  await page.reload();
+  await page.goto('/');
+
   // Check if the alert is not visible after reloading
   await expect(newVersionAlert).toBeHidden();
 });
@@ -69,6 +70,37 @@ test('Cancel button hides the new version alert and does not reappear after relo
   page,
   newVersionAlert,
   newVersionAlertCancelButton,
+}) => {
+  await setOnboardingShown(page);
+  // Set local storage to simulate a previous version
+  await setVersionShown(page, '0.0.0');
+
+  // Navigate to the application
+  await page.goto('/');
+
+  // Check if the new version alert is visible
+  await expect(newVersionAlert).toBeVisible();
+
+  // Check if the alert is visible after reloading
+  await page.goto('/');
+  await expect(newVersionAlert).toBeVisible();
+
+  // Click the cancel button
+  await newVersionAlertCancelButton.click();
+
+  // Verify the alert is hidden
+  await expect(newVersionAlert).toBeHidden();
+
+  // Reload the page and wait for load
+  await page.goto('/');
+
+  // Verify the alert does not reappear after reload
+  await expect(newVersionAlert).toBeHidden();
+});
+
+test('Close button hides the new version alert and does not reappear after reload', async ({
+  page,
+  newVersionAlert,
   newVersionAlertCloseButton,
 }) => {
   await setOnboardingShown(page);
@@ -79,38 +111,16 @@ test('Cancel button hides the new version alert and does not reappear after relo
   await page.goto('/');
 
   // Check if the new version alert is visible
-
   await expect(newVersionAlert).toBeVisible();
 
-  // Check if the alert is visible after reloading
-  await page.reload();
-  await expect(newVersionAlert).toBeVisible();
-
-  // Click the cancel button
-  await newVersionAlertCancelButton.click();
-
-  // Verify the alert is hidden
-  await expect(newVersionAlert).toBeHidden();
-
-  // Reload the page
-  await page.reload();
-
-  // Verify the alert does not reappear after reload
-  await expect(newVersionAlert).toBeHidden();
-
-  // Set local storage to simulate a previous version
-  await setVersionShown(page, '0.0.0');
-
-  await page.reload();
-
-  // Check if the new version alert is visible
+  // Click the close button
   await newVersionAlertCloseButton.click();
 
   // Verify the alert is hidden
   await expect(newVersionAlert).toBeHidden();
 
-  // Reload the page
-  await page.reload();
+  // Reload the page and wait for load
+  await page.goto('/');
 
   // Verify the alert does not reappear after reload
   await expect(newVersionAlert).toBeHidden();
