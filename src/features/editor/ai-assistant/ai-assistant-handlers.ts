@@ -143,6 +143,17 @@ export function createAIAssistantHandlers(
     onSubmit: () => void,
     onClose: () => void,
   ) => {
+    // Allow copy/paste keyboard shortcuts to work normally
+    if ((event.metaKey || event.ctrlKey) &&
+        (event.key === 'c' || event.key === 'v' ||
+         event.key === 'x' || event.key === 'a' ||
+         event.key === 'C' || event.key === 'V' ||
+         event.key === 'X' || event.key === 'A')) {
+      // Just stop propagation to prevent editor from handling it
+      event.stopPropagation();
+      return;
+    }
+
     if (event.key === 'Enter') {
       if (event.shiftKey) {
         // Shift+Enter: Allow default behavior for new line
@@ -162,6 +173,17 @@ export function createAIAssistantHandlers(
   };
 
   const handleContainerKeyDown = (event: KeyboardEvent, onClose: () => void) => {
+    // Allow copy/paste keyboard shortcuts to work normally
+    if ((event.metaKey || event.ctrlKey) &&
+        (event.key === 'c' || event.key === 'v' ||
+         event.key === 'x' || event.key === 'a' ||
+         event.key === 'C' || event.key === 'V' ||
+         event.key === 'X' || event.key === 'A')) {
+      // Just stop propagation to prevent editor from handling it
+      event.stopPropagation();
+      return;
+    }
+
     // Capture all keyboard events to prevent editor from receiving them
     event.stopPropagation();
 

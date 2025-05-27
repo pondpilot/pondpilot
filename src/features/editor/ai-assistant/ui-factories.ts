@@ -158,10 +158,40 @@ export function createSpacer(className: string = 'ai-widget-spacer'): HTMLDivEle
  * Adds event propagation stopping to a container element
  */
 export function preventEventPropagation(element: HTMLElement): void {
-  const events = ['keydown', 'keyup', 'keypress', 'mousedown', 'click'];
+  const events = ['keydown', 'keyup', 'keypress', 'mousedown', 'click', 'copy', 'cut', 'paste', 'contextmenu'];
 
   events.forEach((eventType) => {
     element.addEventListener(eventType, (e) => {
+      // Allow copy/cut/paste events to work normally
+      if (eventType === 'copy' || eventType === 'cut' || eventType === 'paste') {
+        // Just stop propagation, don't prevent default
+        e.stopPropagation();
+        return;
+      }
+
+      // Allow context menu (right-click) to work normally
+      if (eventType === 'contextmenu') {
+        // Just stop propagation, don't prevent default
+        e.stopPropagation();
+        return;
+      }
+
+      // For keyboard events, allow copy/paste keyboard shortcuts
+      if (eventType === 'keydown' || eventType === 'keyup' || eventType === 'keypress') {
+        const keyEvent = e as KeyboardEvent;
+        // Allow Cmd/Ctrl + C/V/X/A
+        if ((keyEvent.metaKey || keyEvent.ctrlKey) &&
+            (keyEvent.key === 'c' || keyEvent.key === 'v' ||
+             keyEvent.key === 'x' || keyEvent.key === 'a' ||
+             keyEvent.key === 'C' || keyEvent.key === 'V' ||
+             keyEvent.key === 'X' || keyEvent.key === 'A')) {
+          // Just stop propagation to prevent editor from handling it
+          e.stopPropagation();
+          return;
+        }
+      }
+
+      // For other events, stop propagation
       e.stopPropagation();
     });
   });
