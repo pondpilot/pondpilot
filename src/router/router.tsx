@@ -1,7 +1,7 @@
 import { BrowserNotSupported } from '@components/browser-not-supported';
 import { AppErrorFallback } from '@components/error-fallback';
 import { Layout } from '@components/layout';
-import { useAppContext } from '@features/app-context';
+import { useFeatureContext } from '@features/feature-context';
 import { SharedScriptImport } from '@features/script-import';
 import { MainPage } from '@pages/main-page';
 import { SettingsPage } from '@pages/settings-page';
@@ -26,9 +26,7 @@ if (import.meta.env.DEV || __INTEGRATION_TEST__) {
 }
 
 export function Router() {
-  const {
-    browserInfo: { isFileAccessApiSupported, isMobileDevice },
-  } = useAppContext();
+  const { isFileAccessApiSupported, isMobileDevice } = useFeatureContext();
 
   const appRoutes = isFileAccessApiSupported
     ? [

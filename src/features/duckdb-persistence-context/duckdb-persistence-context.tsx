@@ -4,8 +4,8 @@ import {
   DuckDBConnectionPoolProvider,
   DuckDBInitializerStatusContext,
 } from '@features/duckdb-context/duckdb-context';
+import { useFeatureContext } from '@features/feature-context';
 import { DBPersistenceState } from '@models/db-persistence';
-import { isPersistenceSupported } from '@utils/duckdb-persistence';
 import { OPFSUtil } from '@utils/opfs';
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
@@ -140,6 +140,8 @@ export const DuckDBPersistenceProvider: React.FC<{
     message: string;
   }) => void;
 }> = ({ children, onStatusUpdate }) => {
+  const { isOPFSSupported } = useFeatureContext();
+
   // Memoize the onStatusUpdate function to prevent infinite loops
   const memoizedStatusUpdate = useCallback(
     (status: { state: 'none' | 'loading' | 'ready' | 'error'; message: string }) => {
@@ -156,8 +158,6 @@ export const DuckDBPersistenceProvider: React.FC<{
   });
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const isSupported = isPersistenceSupported();
-
   useEffect(() => {
     const init = async () => {
       memoizedStatusUpdate({
@@ -165,7 +165,7 @@ export const DuckDBPersistenceProvider: React.FC<{
         message: 'Preparing database storage...',
       });
 
-      if (!isSupported) {
+      if (!isOPFSSupported) {
         // OPFS not supported, cannot proceed
         memoizedStatusUpdate({
           state: 'error',
@@ -231,7 +231,7 @@ export const DuckDBPersistenceProvider: React.FC<{
     };
 
     init();
-  }, [isSupported, memoizedStatusUpdate]);
+  }, [isOPFSSupported, memoizedStatusUpdate]);
 
   const updatePersistenceState = async () => {
     if (!controller) return;
@@ -335,7 +335,7 @@ export const DuckDBPersistenceProvider: React.FC<{
       value={{
         persistenceController: controller,
         persistenceState,
-        isPersistenceSupported: isSupported,
+        isPersistenceSupported: isOPFSSupported,
         isInitialized,
         exportDatabase,
         clearDatabase,
