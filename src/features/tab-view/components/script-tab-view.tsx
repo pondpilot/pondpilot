@@ -1,4 +1,4 @@
-import { showError } from '@components/app-notifications';
+import { showError, showErrorWithAction } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
 import { updateScriptTabLastExecutedQuery, updateScriptTabLayout } from '@controllers/tab';
@@ -134,9 +134,19 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
               statementType: statement.type,
               timestamp: Date.now(),
             });
-            showError({
+            showErrorWithAction({
               title: 'Error executing SQL statement',
               message: `Error in ${statement.type} statement: ${message}`,
+              action: {
+                label: 'Fix with AI',
+                onClick: () => {
+                  // Dispatch custom event to trigger AI Assistant
+                  const event = new CustomEvent('trigger-ai-assistant', {
+                    detail: { tabId },
+                  });
+                  window.dispatchEvent(event);
+                },
+              },
             });
             return;
           }
@@ -164,9 +174,19 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
               statementType: lastStatement.type,
               timestamp: Date.now(),
             });
-            showError({
+            showErrorWithAction({
               title: 'Error executing SQL statement',
               message: `Error in ${lastStatement.type} statement: ${message}`,
+              action: {
+                label: 'Fix with AI',
+                onClick: () => {
+                  // Dispatch custom event to trigger AI Assistant
+                  const event = new CustomEvent('trigger-ai-assistant', {
+                    detail: { tabId },
+                  });
+                  window.dispatchEvent(event);
+                },
+              },
             });
             return;
           }
@@ -188,9 +208,19 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
               statementType: lastStatement.type,
               timestamp: Date.now(),
             });
-            showError({
+            showErrorWithAction({
               title: 'Error executing SQL statement',
               message: `Error in ${lastStatement.type} statement: ${message}`,
+              action: {
+                label: 'Fix with AI',
+                onClick: () => {
+                  // Dispatch custom event to trigger AI Assistant
+                  const event = new CustomEvent('trigger-ai-assistant', {
+                    detail: { tabId },
+                  });
+                  window.dispatchEvent(event);
+                },
+              },
             });
             return;
           }

@@ -51,17 +51,17 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
     padding: '4px 8px',
     border: 'none',
     borderRadius: '4px',
-    backgroundColor: '#3b82f6',
-    color: '#ffffff',
+    backgroundColor: '#4957C1', // backgroundAccent-light
+    color: '#FFFFFF', // textContrast-light
     fontSize: '12px',
     fontWeight: '500',
     cursor: 'pointer',
-    transition: 'all 0.2s ease',
+    transition: 'opacity 0.2s ease',
     minWidth: '70px',
     justifyContent: 'center',
 
     '&:hover': {
-      backgroundColor: '#2563eb',
+      opacity: '0.9',
     },
 
     '&:disabled': {
@@ -70,11 +70,11 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
     },
 
     '[data-mantine-color-scheme="dark"] &': {
-      backgroundColor: '#60a5fa',
-      color: '#1f2937',
+      backgroundColor: '#4C61FF', // backgroundAccent-dark
+      color: '#FDFDFD', // textContrast-dark
 
       '&:hover': {
-        backgroundColor: '#93bbfc',
+        opacity: '0.9',
       },
     },
   },

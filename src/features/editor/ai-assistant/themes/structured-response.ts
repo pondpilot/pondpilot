@@ -176,18 +176,23 @@ export const structuredResponseTheme = EditorView.baseTheme({
   },
 
   '.action-apply-btn': {
-    backgroundColor: '#3b82f6',
-    color: '#ffffff',
+    backgroundColor: '#4957C1', // backgroundAccent-light
+    color: '#FFFFFF', // textContrast-light
     border: 'none',
     borderRadius: '4px',
     padding: '6px 12px',
     fontSize: '12px',
     fontWeight: '500',
     cursor: 'pointer',
-    transition: 'background-color 0.2s',
+    transition: 'opacity 0.2s',
 
     '&:hover': {
-      backgroundColor: '#2563eb',
+      opacity: '0.9',
+    },
+
+    '[data-mantine-color-scheme="dark"] &': {
+      backgroundColor: '#4C61FF', // backgroundAccent-dark
+      color: '#FDFDFD', // textContrast-dark
     },
   },
 
@@ -305,18 +310,23 @@ export const structuredResponseTheme = EditorView.baseTheme({
   },
 
   '.alternative-use-btn': {
-    backgroundColor: '#10b981',
-    color: '#ffffff',
+    backgroundColor: '#4957C1', // backgroundAccent-light
+    color: '#FFFFFF', // textContrast-light
     border: 'none',
     borderRadius: '4px',
     padding: '6px 12px',
     fontSize: '12px',
     fontWeight: '500',
     cursor: 'pointer',
-    transition: 'background-color 0.2s',
+    transition: 'opacity 0.2s',
 
     '&:hover': {
-      backgroundColor: '#059669',
+      opacity: '0.9',
+    },
+
+    '[data-mantine-color-scheme="dark"] &': {
+      backgroundColor: '#4C61FF', // backgroundAccent-dark
+      color: '#FDFDFD', // textContrast-dark
     },
   },
 

@@ -33,7 +33,6 @@ export function createActionCard(
   action: SQLAction,
   onApply: (action: SQLAction) => void,
   onClose: () => void,
-  actionNumber?: number,
 ): HTMLElement {
   const card = createContainer(action.recommended ? 'action-card recommended' : 'action-card');
 

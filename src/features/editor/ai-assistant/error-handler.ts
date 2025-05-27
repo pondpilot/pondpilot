@@ -36,13 +36,7 @@ export interface ErrorDisplayOptions {
 }
 
 export function displayError(error: unknown, options: ErrorDisplayOptions): void {
-  const {
-    element,
-    originalValue = '',
-    duration = AI_ASSISTANT_TIMINGS.ERROR_DISPLAY_DURATION,
-    showToast = true,
-    onRetry,
-  } = options;
+  const { showToast = true, onRetry } = options;
 
   const categorizedError = categorizeError(error);
 
