@@ -5,8 +5,26 @@ export const aiWidgetBaseTheme = EditorView.baseTheme({
   '.cm-ai-assistant-widget': {
     display: 'block',
     width: '100%',
-    margin: '8px 0 12px 0', // More margin for better separation
-    padding: '0',
+    margin: '0',
+    padding: '12px 0',
+    position: 'relative',
+
+    // Create a backdrop effect for just the widget area
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      top: '0',
+      left: '-1000px', // Extend far left to cover gutter
+      right: '-1000px', // Extend far right
+      bottom: '0',
+      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+      pointerEvents: 'none',
+      zIndex: '-1',
+    },
+
+    '[data-mantine-color-scheme="dark"] &::before': {
+      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    },
   },
 
   '.ai-widget-container': {
