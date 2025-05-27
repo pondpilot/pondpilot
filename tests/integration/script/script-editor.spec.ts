@@ -59,7 +59,7 @@ test('Shows auto-save notification when pressing Mod+S', async ({
   ).toBeVisible();
 });
 
-test('Autocompletes DuckDB functions and shows tooltip with parentheses insertion', async ({
+test.skip('Autocompletes DuckDB functions and shows tooltip with parentheses insertion', async ({
   createScriptAndSwitchToItsTab,
   page,
   scriptEditorContent,

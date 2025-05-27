@@ -1,5 +1,4 @@
 import { showError, showWarning } from '@components/app-notifications';
-import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   useDuckDBConnectionPool,
@@ -34,7 +33,7 @@ export function useAppInitialization({
       );
 
       // Load DuckDB functions into the store
-      await loadDuckDBFunctions(resolvedConn);
+      // await loadDuckDBFunctions(resolvedConn);
 
       // TODO: more detailed/better message
       if (discardedEntries.length) {
