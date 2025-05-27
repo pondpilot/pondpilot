@@ -56,8 +56,6 @@ test.describe('Data Viewer Pagination', () => {
 
     // Check the pagination control is visible and has the correct text
     await expect(paginationControl).toHaveText('5 rows');
-
-    await page.reload();
   });
 
   test('should show correct pagination control for larger data (multiple pages)', async ({
