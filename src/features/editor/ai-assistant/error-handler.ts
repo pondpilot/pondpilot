@@ -46,11 +46,7 @@ export function displayError(error: unknown, options: ErrorDisplayOptions): void
 
   const categorizedError = categorizeError(error);
 
-  // Show error in the textarea with user-friendly message
-  element.value = `Error: ${categorizedError.userMessage}`;
-  element.style.color = '#dc2626';
-
-  // Show toast notification with action button if applicable
+  // Only show toast notification, don't update the textarea
   if (showToast) {
     const notificationData: ExtendedNotificationData = {
       title: 'AI Assistant Error',
@@ -83,12 +79,6 @@ export function displayError(error: unknown, options: ErrorDisplayOptions): void
 
     showError(notificationData);
   }
-
-  // Reset after duration
-  setTimeout(() => {
-    element.style.color = '';
-    element.value = originalValue;
-  }, duration);
 }
 
 export function logError(context: string, error: unknown): void {
