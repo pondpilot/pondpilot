@@ -165,7 +165,9 @@ export const aiAssistantStateField = StateField.define<{
   update(value, tr) {
     for (const effect of tr.effects) {
       if (effect.is(showAIAssistantEffect)) {
-        return { visible: true, widgetPos: tr.state.selection.main.head };
+        const cursorPos = tr.state.selection.main.head;
+        const line = tr.state.doc.lineAt(cursorPos);
+        return { visible: true, widgetPos: line.from };
       }
       if (effect.is(hideAIAssistantEffect)) {
         return { visible: false };
@@ -213,7 +215,7 @@ const aiAssistantWidgetPlugin = ViewPlugin.fromClass(
 
         const widget = Decoration.widget({
           widget: new AIAssistantWidget(view, sqlStatement),
-          side: 1,
+          side: 0,
         });
         decorations.push(widget.range(widgetPos));
       }
