@@ -1,6 +1,6 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConstraintResult } from '@utils/duckdb/types';
 
-import { ConstraintResult } from '../types';
 import { escapeStringLiteral } from './sql-escape';
 import { vectorToArray } from './vector-extraction';
 

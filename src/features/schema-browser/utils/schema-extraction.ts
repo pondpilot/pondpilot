@@ -1,12 +1,12 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyFlatFileDataSource } from '@models/data-source';
+import { DescribeResult } from '@utils/duckdb/types';
 import { Node } from 'reactflow';
 
 import { getTableConstraints } from './constraints';
 import { escapeIdentifier } from './sql-escape';
 import { QUERY_TIMEOUT_DESCRIBE } from '../constants';
 import { SchemaNodeData, SchemaColumnData } from '../model';
-import { DescribeResult } from '../types';
 
 /**
  * Extracts schema information for a flat file data source

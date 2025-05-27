@@ -1,5 +1,5 @@
 /**
- * Type definitions for DuckDB query results used in schema browser
+ * Type definitions for DuckDB query results
  */
 
 /**
