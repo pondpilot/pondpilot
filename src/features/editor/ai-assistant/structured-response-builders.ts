@@ -38,10 +38,7 @@ export function createActionCard(
   const card = createContainer(action.recommended ? 'action-card recommended' : 'action-card');
 
   const description = createContainer('action-description');
-  const descriptionText = actionNumber
-    ? `[${actionNumber}] ${action.description}`
-    : action.description;
-  description.textContent = descriptionText;
+  description.textContent = action.description;
 
   const codePreview = document.createElement('pre');
   codePreview.className = 'action-code-preview';
@@ -214,8 +211,7 @@ export function createResponseFooter(onClose: () => void): HTMLElement {
 
   const keyboardHints = document.createElement('span');
   keyboardHints.className = 'structured-response-hints';
-  keyboardHints.textContent =
-    'Enter/Space to apply • 1-9 for specific action • A apply • R replace • I insert • C copy • Esc close';
+  keyboardHints.textContent = 'Enter to apply • C to copy and close • Esc to close';
 
   const spacer = createSpacer('structured-response-spacer');
 

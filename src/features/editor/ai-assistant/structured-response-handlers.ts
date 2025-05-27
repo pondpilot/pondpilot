@@ -220,18 +220,9 @@ export function createStructuredResponseHandlers(view: EditorView): StructuredRe
       return;
     }
 
-    // Number keys (1-9) to apply specific actions
-    if (event.key >= '1' && event.key <= '9') {
-      const actionIndex = parseInt(event.key, 10) - 1;
-      if (actionIndex < actions.length) {
-        applyAction(actions[actionIndex]);
-      }
-      return;
-    }
-
-    // C to copy first action code
+    // C to copy first/recommended action code and close
     if (event.key === 'c' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
-      const firstAction = actions[0];
+      const firstAction = actions.find((action) => action.recommended) || actions[0];
       if (firstAction) {
         copyToClipboard(firstAction.code, {
           showNotification: true,
@@ -253,38 +244,6 @@ export function createStructuredResponseHandlers(view: EditorView): StructuredRe
       return;
     }
 
-    // A to apply first action (alternative to Enter)
-    if (event.key === 'a' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
-      const firstAction = actions.find((action) => action.recommended) || actions[0];
-      if (firstAction) {
-        applyAction(firstAction);
-      }
-      return;
-    }
-
-    // R to apply first replace action specifically
-    if (event.key === 'r' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
-      const replaceAction = actions.find((action) => action.type === 'replace_statement');
-      if (replaceAction) {
-        applyAction(replaceAction);
-      }
-      return;
-    }
-
-    // I to apply first insert action specifically
-    if (event.key === 'i' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
-      const insertAction = actions.find(
-        (action) =>
-          action.type === 'insert_at_cursor' ||
-          action.type === 'insert_after' ||
-          action.type === 'insert_before',
-      );
-      if (insertAction) {
-        applyAction(insertAction);
-      }
-      return;
-    }
-
     // Arrow keys for future navigation (currently just prevent default)
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
       // TODO: Implement action card navigation
@@ -294,15 +253,6 @@ export function createStructuredResponseHandlers(view: EditorView): StructuredRe
     // Tab for future navigation (currently just prevent default)
     if (event.key === 'Tab') {
       // TODO: Implement focus cycling through actions
-      return;
-    }
-
-    // Space as alternative to Enter
-    if (event.key === ' ') {
-      const firstAction = actions.find((action) => action.recommended) || actions[0];
-      if (firstAction) {
-        applyAction(firstAction);
-      }
     }
 
     // All other keys are captured but ignored to prevent editor interaction
