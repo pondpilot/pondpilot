@@ -1,7 +1,13 @@
 import { EditorView } from '@codemirror/view';
 
 export interface AIAction {
-  type: 'replace_statement' | 'insert_after' | 'insert_before' | 'insert_at_cursor' | 'add_comment';
+  type:
+    | 'replace_statement'
+    | 'insert_after'
+    | 'insert_before'
+    | 'insert_at_cursor'
+    | 'add_comment'
+    | 'fix_error';
   description: string;
   code: string;
   confidence?: number;
@@ -23,4 +29,9 @@ export interface StructuredAIResponse {
 export interface AIAssistantContext {
   view: EditorView;
   sqlStatement?: string;
+  queryError?: {
+    errorMessage: string;
+    statementType?: string;
+    currentScript: string;
+  };
 }

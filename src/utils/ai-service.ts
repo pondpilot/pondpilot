@@ -53,6 +53,7 @@ export class AIService {
     },
   ): Promise<AIResponse> {
     try {
+      const isErrorFixing = !!request.queryError;
       const systemPrompt = request.useStructuredResponse
         ? `You are a SQL expert assistant. Analyze the user's request and provide structured assistance using the provided function. Focus on DuckDB SQL syntax and provide actionable, specific help.
 
@@ -61,7 +62,7 @@ Key principles:
 2. Be specific about what changes you're making and why
 3. Consider performance implications
 4. Suggest alternatives when appropriate
-5. Include helpful explanations for learning`
+5. Include helpful explanations for learning${isErrorFixing ? '\n6. When fixing errors, provide the corrected ENTIRE script using the "fix_error" action type' : ''}`
         : `You are a SQL expert assistant. Help users with their SQL queries, providing clear, accurate, and efficient solutions.
 
 Rules:
@@ -69,12 +70,24 @@ Rules:
 2. Explain your reasoning briefly
 3. If the user's SQL has issues, suggest improvements
 4. Focus on DuckDB SQL syntax when relevant
-5. Be concise but helpful`;
+5. Be concise but helpful${isErrorFixing ? '\n6. When fixing errors, provide the complete corrected script' : ''}`;
 
       let userPrompt = request.prompt;
 
-      // Add SQL context if available
-      if (request.sqlContext) {
+      // Add error context if available
+      if (request.queryError) {
+        userPrompt = `The user encountered an SQL error:
+Error Message: ${request.queryError.errorMessage}
+${request.queryError.statementType ? `Statement Type: ${request.queryError.statementType}` : ''}
+
+Current Script:
+\`\`\`sql
+${request.queryError.currentScript}
+\`\`\`
+
+${request.prompt}`;
+      } else if (request.sqlContext) {
+        // Add SQL context if available (and no error context)
         userPrompt = `Here's my current SQL context:
 \`\`\`sql
 ${request.sqlContext}

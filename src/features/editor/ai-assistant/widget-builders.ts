@@ -14,6 +14,7 @@ import {
   createSection,
   createSelect,
 } from './ui-factories';
+import { TabExecutionError } from '../../../controllers/tab-execution-error';
 import { AI_PROVIDERS } from '../../../models/ai-service';
 import { getAIConfig } from '../../../utils/ai-config';
 import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
@@ -26,6 +27,7 @@ export function createCombinedContextSection(
   view: EditorView,
   connectionPool: AsyncDuckDBConnectionPool | null,
   modelSelect: HTMLSelectElement,
+  errorContext?: TabExecutionError,
 ): HTMLElement {
   const contextSection = createContainer('ai-widget-combined-context');
 
@@ -51,6 +53,31 @@ export function createCombinedContextSection(
   // Create collapsible content area
   const contentArea = createContainer('ai-widget-context-content');
   contentArea.style.display = 'none'; // Start collapsed
+
+  // Add error context if available
+  if (errorContext) {
+    const errorSection = createContainer('ai-widget-context-subsection');
+    errorSection.style.borderLeft = '3px solid #e74c3c';
+    errorSection.style.paddingLeft = '10px';
+
+    const errorLabel = document.createElement('div');
+    errorLabel.className = 'ai-widget-context-sublabel';
+    errorLabel.style.color = '#e74c3c';
+    errorLabel.textContent = '⚠️ SQL Error:';
+
+    const errorMessage = document.createElement('div');
+    errorMessage.className = 'ai-widget-context-code';
+    errorMessage.style.color = '#e74c3c';
+    errorMessage.textContent = errorContext.errorMessage;
+
+    errorSection.appendChild(errorLabel);
+    errorSection.appendChild(errorMessage);
+    contentArea.appendChild(errorSection);
+
+    // Auto-expand when there's an error
+    contentArea.style.display = 'block';
+    toggleIcon.textContent = '▼';
+  }
 
   // Add SQL context if available
   if (sqlStatement && sqlStatement.trim()) {
@@ -239,12 +266,17 @@ export function createInputSection(
   onClose: () => void,
   onSubmit: () => void,
   onTextareaKeyDown: (event: KeyboardEvent) => void,
+  errorContext?: TabExecutionError,
 ): { inputSection: HTMLElement; textarea: HTMLTextAreaElement; generateBtn: HTMLButtonElement } {
   const inputSection = createContainer('ai-widget-input-section');
   const textareaContainer = createContainer('ai-widget-textarea-container');
 
+  const placeholder = errorContext
+    ? 'Press Enter to fix the error, or describe what you want...'
+    : 'Ask AI to help with your SQL...';
+
   const textarea = createTextarea({
-    placeholder: 'Ask AI to help with your SQL...',
+    placeholder,
     rows: 1,
     ariaLabel: 'AI assistant input',
     onKeyDown: onTextareaKeyDown,
@@ -255,10 +287,11 @@ export function createInputSection(
     ariaLabel: 'Close AI Assistant',
   });
 
+  const buttonText = errorContext ? 'Fix Error' : 'Generate';
   const generateBtn = createButton({
-    textContent: 'Generate',
+    textContent: buttonText,
     className: 'ai-widget-generate',
-    ariaLabel: 'Generate AI assistance',
+    ariaLabel: errorContext ? 'Fix SQL error' : 'Generate AI assistance',
     onClick: onSubmit,
   });
 

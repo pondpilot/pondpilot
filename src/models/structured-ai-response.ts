@@ -13,7 +13,8 @@ export type SQLActionType =
   | 'insert_after' // Insert code after current statement
   | 'insert_before' // Insert code before current statement
   | 'insert_at_cursor' // Insert at exact cursor position
-  | 'add_comment'; // Add explanatory comments
+  | 'add_comment' // Add explanatory comments
+  | 'fix_error'; // Fix SQL errors by replacing entire script
 
 // Types of explanations provided
 export type ExplanationType =
@@ -96,6 +97,7 @@ export const SQL_ASSISTANT_FUNCTION = {
                 'insert_before',
                 'insert_at_cursor',
                 'add_comment',
+                'fix_error',
               ],
               description: 'How this action should be applied to the code',
             },

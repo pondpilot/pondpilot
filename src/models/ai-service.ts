@@ -24,6 +24,11 @@ export interface AIRequest {
   sqlContext?: string;
   schemaContext?: string;
   useStructuredResponse?: boolean;
+  queryError?: {
+    errorMessage: string;
+    statementType?: string;
+    currentScript: string;
+  };
 }
 
 export interface AIResponse {

@@ -135,6 +135,23 @@ export function createStructuredResponseHandlers(view: EditorView): StructuredRe
     }, AI_ASSISTANT_TIMINGS.NEXT_TICK_DELAY);
   };
 
+  const replaceEntireScriptAndClose = (code: string) => {
+    view.dispatch({
+      effects: hideStructuredResponseEffect.of(null),
+    });
+
+    setTimeout(() => {
+      if (view) {
+        const docLength = view.state.doc.length;
+        view.dispatch({
+          changes: { from: 0, to: docLength, insert: code },
+          selection: { anchor: code.length },
+        });
+        view.focus();
+      }
+    }, AI_ASSISTANT_TIMINGS.NEXT_TICK_DELAY);
+  };
+
   const applyAction = (action: SQLAction) => {
     switch (action.type) {
       case 'replace_statement':
@@ -152,12 +169,21 @@ export function createStructuredResponseHandlers(view: EditorView): StructuredRe
       case 'add_comment':
         insertBeforeStatementAndClose(action.code);
         break;
+      case 'fix_error':
+        replaceEntireScriptAndClose(action.code);
+        break;
     }
 
     // Show success notification
+    const notificationTitle = action.type === 'fix_error' ? 'Error Fixed' : 'Code Applied';
+    const notificationMessage =
+      action.type === 'fix_error'
+        ? 'The SQL error has been fixed'
+        : `${action.description} has been applied to your query`;
+
     showSuccess({
-      title: 'Code Applied',
-      message: `${action.description} has been applied to your query`,
+      title: notificationTitle,
+      message: notificationMessage,
       autoClose: AI_ASSISTANT_TIMINGS.SUCCESS_NOTIFICATION_DURATION,
     });
   };

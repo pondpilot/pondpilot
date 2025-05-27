@@ -13,6 +13,7 @@ import {
 import { handleAIServiceError, handleSchemaContextError } from './error-handler';
 import { AIAssistantServices } from './services-facet';
 import { preventEventPropagation } from './ui-factories';
+import { TabExecutionError } from '../../../controllers/tab-execution-error';
 
 export interface AIAssistantHandlers {
   hideWidget: () => void;
@@ -29,6 +30,7 @@ export function createAIAssistantHandlers(
   view: EditorView,
   sqlStatement: string | undefined,
   services: AIAssistantServices,
+  errorContext?: TabExecutionError,
 ): AIAssistantHandlers {
   const hideWidget = () => {
     if (view) {
@@ -41,7 +43,9 @@ export function createAIAssistantHandlers(
 
   const handleSubmit = async (textarea: HTMLTextAreaElement, generateBtn: HTMLButtonElement) => {
     const query = textarea.value.trim();
-    if (!query) return;
+
+    // If no query and no error context, don't proceed
+    if (!query && !errorContext) return;
 
     // Disable controls and show loading state
     generateBtn.disabled = true;
@@ -76,11 +80,30 @@ export function createAIAssistantHandlers(
         }
       }
 
+      // If there's an error context, include current script and enhance prompt
+      let enhancedPrompt = query;
+      let queryError;
+
+      if (errorContext) {
+        const currentScript = view.state.doc.toString();
+        queryError = {
+          errorMessage: errorContext.errorMessage,
+          statementType: errorContext.statementType,
+          currentScript,
+        };
+
+        // If user just triggers AI without typing, suggest fixing the error
+        if (!query || query === '') {
+          enhancedPrompt = 'Fix the SQL error in the current script';
+        }
+      }
+
       const aiRequest = {
-        prompt: query,
+        prompt: enhancedPrompt,
         sqlContext: sqlStatement,
         schemaContext,
         useStructuredResponse: true,
+        queryError,
       };
 
       const response = await services.aiService.generateSQLAssistance(aiRequest);

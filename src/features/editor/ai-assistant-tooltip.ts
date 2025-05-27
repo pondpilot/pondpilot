@@ -32,8 +32,10 @@ import {
   createModelSelectionSection,
   assembleAIAssistantWidget,
 } from './ai-assistant/widget-builders';
+import { getTabExecutionError, TabExecutionError } from '../../controllers/tab-execution-error';
 import { AI_PROVIDERS } from '../../models/ai-service';
 import { StructuredSQLResponse } from '../../models/structured-ai-response';
+import { useAppStore } from '../../store/app-store';
 import { saveAIConfig, getAIConfig } from '../../utils/ai-config';
 import { resolveAIContext } from '../../utils/editor/statement-parser';
 import { AsyncDuckDBConnectionPool } from '../duckdb-context/duckdb-connection-pool';
@@ -55,7 +57,20 @@ class AIAssistantWidget extends WidgetType {
 
   toDOM() {
     const services = getServicesFromState(this.view.state);
-    const handlers = createAIAssistantHandlers(this.view, this.sqlStatement, services);
+
+    // Get error context for current tab
+    const { activeTabId } = useAppStore.getState();
+    let errorContext: TabExecutionError | undefined;
+    if (activeTabId) {
+      errorContext = getTabExecutionError(activeTabId);
+    }
+
+    const handlers = createAIAssistantHandlers(
+      this.view,
+      this.sqlStatement,
+      services,
+      errorContext,
+    );
 
     // Create model selection section
     const handleModelChange = (selectedModel: string) => {
@@ -91,6 +106,7 @@ class AIAssistantWidget extends WidgetType {
       this.view,
       services.connectionPool,
       modelSelect,
+      errorContext,
     );
 
     const { inputSection, textarea, generateBtn } = createInputSection(
@@ -102,6 +118,7 @@ class AIAssistantWidget extends WidgetType {
           () => handlers.handleSubmit(textarea, generateBtn),
           handlers.hideWidget,
         ),
+      errorContext,
     );
 
     const footer = createWidgetFooter(generateBtn);
