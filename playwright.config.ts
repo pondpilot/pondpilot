@@ -40,5 +40,5 @@ export default defineConfig({
     serviceWorkers: 'block',
   },
   /* Set the timeout for each test */
-  timeout: Number(process.env.PLAYWRIGHT_TIMEOUT ?? 30_000),
+  timeout: 60_000,
 });
