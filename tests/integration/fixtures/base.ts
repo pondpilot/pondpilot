@@ -6,7 +6,13 @@ import { test as base } from '@playwright/test';
 export const test = base.extend<{ forEachTest: void }>({
   forEachTest: [
     async ({ page }, use, testInfo) => {
-      const isDebugMode = !!process.env.PWDEBUG;
+      const isDebugMode = true; // <--- Changed from !!process.env.PWDEBUG to true
+
+      if (isDebugMode) {
+        console.debug(`\n\n🚀 [${testInfo.title}] Starting test...`);
+        console.debug(`📄 File: ${testInfo.file}:${testInfo.line}:${testInfo.column}`);
+        console.debug(`🛠️ Project: ${testInfo.project.name}`);
+      }
 
       // Block Google Fonts requests - will prevent waiting for these resources and speed up tests
       await page.route(/^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)/, (route) =>
@@ -56,6 +62,12 @@ export const test = base.extend<{ forEachTest: void }>({
             const body = await response.body();
             const headers = response.headers();
 
+            if (isDebugMode) {
+              console.debug(
+                `📡 [${testInfo.title}] Fetched ${url.pathname} - Status: ${response.status()}`,
+              );
+            }
+
             // Also save to disk for future test runs if ok
             if (response.ok()) {
               if (isDebugMode) {
@@ -83,8 +95,12 @@ export const test = base.extend<{ forEachTest: void }>({
               body,
             });
           } catch (error) {
-            console.error('Error fetching the route:', error);
-            await route.abort();
+            console.error(`❌ [${testInfo.title}] Error fetching route ${url.pathname}:`, error);
+            // It's important to abort if fetch fails, otherwise the request might hang
+            if (!route.request().isNavigationRequest()) {
+              // Avoid aborting navigation requests that might be critical
+              await route.abort('failed');
+            }
           }
         },
       );
@@ -96,10 +112,14 @@ export const test = base.extend<{ forEachTest: void }>({
         // eslint-disable-next-line no-console
         console.debug(`🧹 [${testInfo.title}] Starting cleanup - unrouting all routes`);
       }
-      await page.unrouteAll();
+      const unrouteStartTime = Date.now();
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+      const unrouteEndTime = Date.now();
       if (isDebugMode) {
         // eslint-disable-next-line no-console
-        console.debug(`✅ [${testInfo.title}] Cleanup completed`);
+        console.debug(
+          `✅ [${testInfo.title}] Cleanup completed in ${unrouteEndTime - unrouteStartTime}ms`,
+        );
       }
     },
     { auto: true },
