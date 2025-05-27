@@ -14,6 +14,7 @@ import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
+import { aiAssistantButton } from './ai-assistant-button';
 import { aiAssistantTooltip, showAIAssistant } from './ai-assistant-tooltip';
 import duckdbFunctionList from './duckdb-function-tooltip.json';
 import { functionTooltip } from './function-tooltips';
@@ -141,6 +142,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
       });
       const tooltipExtension = functionTooltip(duckdbFunctionList);
       const aiAssistantExtension = aiAssistantTooltip(connectionPool);
+      const aiButtonExtension = aiAssistantButton();
 
       return [
         history(),
@@ -148,6 +150,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         sqlDialect,
         tooltipExtension,
         aiAssistantExtension,
+        aiButtonExtension,
         tableNameHighlightPlugin,
         SqlStatementHighlightPlugin,
         EditorView.updateListener.of((state: any) => {
