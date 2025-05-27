@@ -57,6 +57,8 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
     fontWeight: '500',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
+    minWidth: '70px',
+    justifyContent: 'center',
 
     '&:hover': {
       backgroundColor: '#2563eb',
@@ -66,6 +68,26 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
       opacity: '0.6',
       cursor: 'not-allowed',
     },
+
+    '[data-mantine-color-scheme="dark"] &': {
+      backgroundColor: '#60a5fa',
+      color: '#1f2937',
+
+      '&:hover': {
+        backgroundColor: '#93bbfc',
+      },
+    },
+  },
+
+  '.ai-widget-loading-dots': {
+    animation: 'ai-loading-dots 1.5s infinite',
+  },
+
+  '@keyframes ai-loading-dots': {
+    '0%': { opacity: '0.3' },
+    '33%': { opacity: '1' },
+    '66%': { opacity: '0.3' },
+    '100%': { opacity: '0.3' },
   },
 
   '.ai-widget-select': {

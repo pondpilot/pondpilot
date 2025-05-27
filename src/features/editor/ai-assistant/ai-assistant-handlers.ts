@@ -4,7 +4,6 @@
 
 import { EditorView } from '@codemirror/view';
 
-import { AI_ASSISTANT_TIMINGS } from './constants';
 import {
   hideAIAssistantEffect,
   showStructuredResponseEffect,
@@ -51,17 +50,15 @@ export function createAIAssistantHandlers(
     generateBtn.disabled = true;
     textarea.disabled = true;
 
-    // Start animated dots
-    let dotCount = 0;
-    const animateLoadingDots = () => {
-      dotCount = (dotCount + 1) % 4;
-      generateBtn.textContent = '.'.repeat(dotCount || 1);
-    };
-    animateLoadingDots(); // Initial call
-    const dotsInterval = setInterval(
-      animateLoadingDots,
-      AI_ASSISTANT_TIMINGS.LOADING_DOTS_INTERVAL,
-    );
+    generateBtn.classList.add('ai-widget-loading');
+    const originalText = generateBtn.textContent;
+    generateBtn.textContent = '';
+
+    // Create loading dots element
+    const loadingDots = document.createElement('span');
+    loadingDots.className = 'ai-widget-loading-dots';
+    loadingDots.textContent = '...';
+    generateBtn.appendChild(loadingDots);
 
     try {
       // Generate schema context if connection is available
@@ -132,10 +129,11 @@ export function createAIAssistantHandlers(
     } catch (error) {
       handleAIServiceError(error, textarea, query);
     } finally {
-      // Clear the animation and re-enable controls
-      clearInterval(dotsInterval);
+      // Remove loading state and restore original text
+      generateBtn.classList.remove('ai-widget-loading');
+      generateBtn.innerHTML = ''; // Clear loading dots
+      generateBtn.textContent = originalText || 'Generate';
       generateBtn.disabled = false;
-      generateBtn.textContent = 'Generate';
       textarea.disabled = false;
     }
   };
