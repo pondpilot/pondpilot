@@ -96,7 +96,7 @@ export const test = base.extend<{ forEachTest: void }>({
         // eslint-disable-next-line no-console
         console.debug(`🧹 [${testInfo.title}] Starting cleanup - unrouting all routes`);
       }
-      await page.unrouteAll({ behavior: 'wait' });
+      await page.unrouteAll();
       if (isDebugMode) {
         // eslint-disable-next-line no-console
         console.debug(`✅ [${testInfo.title}] Cleanup completed`);
