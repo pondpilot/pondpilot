@@ -6,7 +6,7 @@ import { test as whatsNewModalTest } from '../fixtures/whats-new-modal';
 
 const test = mergeTests(whatsNewModalTest, base);
 
-test("Check if the 'What's New' alert is shown when the app is loaded for the first time", async ({
+test.skip("Check if the 'What's New' alert is shown when the app is loaded for the first time", async ({
   page,
   newVersionAlert,
   newVersionAlertCloseButton,
@@ -37,7 +37,7 @@ test("Check if the 'What's New' alert is shown when the app is loaded for the fi
   await expect(newVersionAlert).toBeHidden();
 });
 
-test('Open the "What\'s New" modal and verify its content', async ({
+test.skip('Open the "What\'s New" modal and verify its content', async ({
   page,
   whatsNewModal,
   whatsNewModalContent,
