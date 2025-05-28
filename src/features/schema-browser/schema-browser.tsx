@@ -151,49 +151,51 @@ const SchemaBrowserComponent = ({ tab }: SchemaBrowserProps) => {
       ) : error ? (
         <SchemaErrorEnhanced error={error} onRetry={() => setForceRefresh((prev) => prev + 1)} />
       ) : (
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={handleEdgesChange}
-          onEdgeClick={onEdgeClick}
-          onPaneClick={onPaneClick}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-        >
-          {schemaStats && (schemaStats.warningMessage || schemaStats.limitMessage) && (
-            <Panel position="top-center">
-              <SchemaWarning
-                warningMessage={schemaStats.warningMessage}
-                limitMessage={schemaStats.limitMessage}
+        <div data-testid="schema-browser-canvas" className="w-full h-full">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={handleEdgesChange}
+            onEdgeClick={onEdgeClick}
+            onPaneClick={onPaneClick}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            fitView
+          >
+            {schemaStats && (schemaStats.warningMessage || schemaStats.limitMessage) && (
+              <Panel position="top-center">
+                <SchemaWarning
+                  warningMessage={schemaStats.warningMessage}
+                  limitMessage={schemaStats.limitMessage}
+                />
+              </Panel>
+            )}
+
+            <Panel position="top-right">
+              <div className="p-2 bg-white dark:bg-slate-800 rounded shadow">
+                <SchemaTitle tab={tab} nodeCount={nodes.length} />
+              </div>
+            </Panel>
+
+            <Panel position="top-left">
+              <SchemaControls
+                direction={direction}
+                isLoading={isLoading}
+                onDirectionChange={() => setDirection((prev) => (prev === 'TB' ? 'LR' : 'TB'))}
+                onRefresh={() => setForceRefresh((prev) => prev + 1)}
               />
             </Panel>
-          )}
-
-          <Panel position="top-right">
-            <div className="p-2 bg-white dark:bg-slate-800 rounded shadow">
-              <SchemaTitle tab={tab} nodeCount={nodes.length} />
-            </div>
-          </Panel>
-
-          <Panel position="top-left">
-            <SchemaControls
-              direction={direction}
-              isLoading={isLoading}
-              onDirectionChange={() => setDirection((prev) => (prev === 'TB' ? 'LR' : 'TB'))}
-              onRefresh={() => setForceRefresh((prev) => prev + 1)}
+            <Controls />
+            <MiniMap nodeStrokeWidth={3} zoomable pannable />
+            <Background
+              variant={BackgroundVariant.Dots}
+              gap={12}
+              size={1}
+              color={isDarkMode ? '#334155' : '#e2e8f0'}
             />
-          </Panel>
-          <Controls />
-          <MiniMap nodeStrokeWidth={3} zoomable pannable />
-          <Background
-            variant={BackgroundVariant.Dots}
-            gap={12}
-            size={1}
-            color={isDarkMode ? '#334155' : '#e2e8f0'}
-          />
-        </ReactFlow>
+          </ReactFlow>
+        </div>
       )}
     </div>
   );

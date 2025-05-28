@@ -16,6 +16,7 @@ const TableNodeComponent = ({ data }: NodeProps<SchemaNodeData>) => {
   return (
     <div
       className={`rounded-md border ${isHighlighted ? 'border-blue-500 border-2' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-800 shadow-md min-w-[240px] ${isHighlighted ? 'ring-4 ring-blue-300/50' : ''} transition-all duration-200`}
+      data-testid={`schema-table-node-${data.id}`}
     >
       {/* Header */}
       <div className="p-2 bg-slate-100 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600 flex items-center">

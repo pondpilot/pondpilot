@@ -19,11 +19,15 @@ export const SchemaControls = ({
   onRefresh,
 }: SchemaControlsProps) => {
   return (
-    <div className="p-2 bg-white dark:bg-slate-800 rounded shadow flex items-center gap-2">
+    <div
+      className="p-2 bg-white dark:bg-slate-800 rounded shadow flex items-center gap-2"
+      data-testid="schema-controls"
+    >
       <SegmentedControl
         size="xs"
         value={direction}
         onChange={() => onDirectionChange()}
+        data-testid="schema-direction-control"
         data={[
           {
             value: 'TB',
@@ -51,6 +55,7 @@ export const SchemaControls = ({
           onClick={onRefresh}
           loading={isLoading}
           className="hover:bg-slate-100 dark:hover:bg-slate-700"
+          data-testid="schema-refresh-button"
         >
           <IconRefresh size={16} />
         </ActionIcon>
