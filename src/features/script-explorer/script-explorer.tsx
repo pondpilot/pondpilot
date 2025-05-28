@@ -16,7 +16,7 @@ import { copyToClipboard } from '@utils/clipboard';
 import { createShareableScriptUrl } from '@utils/script-sharing';
 import { memo, useMemo } from 'react';
 
-import { ScrtiptNodeTypeToIdTypeMap } from './model';
+import { ScriptExplorerContext, ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
 
 // We could have used closure, but this is possibly slightly more performant
@@ -178,7 +178,11 @@ export const ScriptExplorer = memo(() => {
       return menuItems;
     }, [selectedDeleteableNodeIds]);
 
-  const enhancedExtraData = { overrideContextMenu, flattenedNodeIds, selectedDeleteableNodeIds };
+  const enhancedExtraData: ScriptExplorerContext = {
+    overrideContextMenu,
+    flattenedNodeIds,
+    selectedDeleteableNodeIds,
+  };
 
   // Hotkeys for deletion
   useHotkeys([
@@ -194,7 +198,7 @@ export const ScriptExplorer = memo(() => {
   ]);
 
   return (
-    <ExplorerTree<ScrtiptNodeTypeToIdTypeMap>
+    <ExplorerTree<ScrtiptNodeTypeToIdTypeMap, ScriptExplorerContext>
       nodes={sqlScriptTree}
       dataTestIdPrefix="script-explorer"
       TreeNodeComponent={ScriptExplorerNode}

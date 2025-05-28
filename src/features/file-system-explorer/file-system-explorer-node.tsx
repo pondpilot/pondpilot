@@ -2,10 +2,10 @@ import { MemoizedBaseTreeNode } from '@components/explorer-tree/components/tree-
 import { RenderTreeNodePayload } from '@components/explorer-tree/model';
 import { useDataSourceIdForActiveTab } from '@store/app-store';
 
-import { FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';
+import { FSExplorerContext, FSExplorerNodeTypeToIdTypeMap } from './model';
 
 export const FileSystemExplorerNode = (
-  props: RenderTreeNodePayload<FSExplorerNodeTypeToIdTypeMap, FSExplorerNodeExtraType>,
+  props: RenderTreeNodePayload<FSExplorerNodeTypeToIdTypeMap, FSExplorerContext>,
 ) => {
   const { flattenedNodeIds, node, tree, extraData } = props;
   const { value: itemId } = node;
@@ -24,9 +24,7 @@ export const FileSystemExplorerNode = (
 
   // Get override context menu from extraData if it exists
   const overrideContextMenu =
-    tree.selectedState.length > 1
-      ? (extraData as any).getOverrideContextMenu?.(tree.selectedState)
-      : null;
+    tree.selectedState.length > 1 ? extraData.getOverrideContextMenu(tree.selectedState) : null;
 
   return (
     <MemoizedBaseTreeNode<FSExplorerNodeTypeToIdTypeMap>

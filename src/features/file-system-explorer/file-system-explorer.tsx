@@ -31,7 +31,7 @@ import { memo, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { FileSystemExplorerNode } from './file-system-explorer-node';
-import { FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';
+import { FSExplorerContext, FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';
 
 /**
  * Displays a file system tree for all registered local entities (files & folders)
@@ -603,7 +603,7 @@ export const FileSystemExplorer = memo(() => {
     return menuItems.length > 0 ? menuItems : null;
   };
 
-  const enhancedExtraData = Object.assign(unusedExtraData, {
+  const enhancedExtraData: FSExplorerContext = Object.assign(unusedExtraData, {
     getOverrideContextMenu,
     flattenedNodeIds,
     selectedDeleteableNodeIds,
@@ -623,7 +623,7 @@ export const FileSystemExplorer = memo(() => {
   ]);
 
   return (
-    <ExplorerTree<FSExplorerNodeTypeToIdTypeMap, FSExplorerNodeExtraType>
+    <ExplorerTree<FSExplorerNodeTypeToIdTypeMap, FSExplorerContext>
       nodes={fileSystemTree}
       // Expand nothing by default
       initialExpandedState={{}}
