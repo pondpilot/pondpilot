@@ -1,6 +1,6 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyFlatFileDataSource } from '@models/data-source';
-import { DescribeResult } from '@utils/duckdb/types';
+import { DescribeResult } from '@utils/duckdb/models';
 import { Node } from 'reactflow';
 
 import { getTableConstraints } from './constraints';

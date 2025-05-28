@@ -1,4 +1,4 @@
-import { DuckDBVector } from '@utils/duckdb/types';
+import { DuckDBVector } from '@utils/duckdb/models';
 
 /**
  * Extracts an array from a DuckDBVector or standard array
