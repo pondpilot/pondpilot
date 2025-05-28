@@ -90,7 +90,7 @@ export interface SchemaBrowserTab extends TabBase {
   sourceType: 'folder' | 'file' | 'db' | 'all';
   // Schema name for database-specific views
   schemaName?: string;
-  // Object names (tables/views) for object-specific views
+  // Object names (tables/views) for object-specific views. Sorted lexicographically
   objectNames?: string[];
   // For visualizing relationships and positions
   layoutState?: Record<string, unknown>;
