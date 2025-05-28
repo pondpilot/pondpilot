@@ -7,7 +7,9 @@ export type ScrtiptNodeTypeToIdTypeMap = {
 
 // Context type for script explorer
 export type ScriptExplorerContext = {
-  overrideContextMenu: TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> | null;
+  getOverrideContextMenu: (
+    selectedState: string[],
+  ) => TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> | null;
   flattenedNodeIds: SQLScriptId[];
   selectedDeleteableNodeIds: SQLScriptId[];
 };

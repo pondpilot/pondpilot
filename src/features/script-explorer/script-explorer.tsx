@@ -1,5 +1,6 @@
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
+import { createMultiSelectContextMenu } from '@components/explorer-tree/utils/multi-select-menu';
 import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
 import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import {
@@ -20,7 +21,7 @@ import { ScriptExplorerContext, ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
 
 // We could have used closure, but this is possibly slightly more performant
-const onNodeClick = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>, tree: any): void => {
+const onNodeClick = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>, _tree: any): void => {
   const id = node.value;
 
   // Check if the tab is already open
@@ -152,36 +153,15 @@ export const ScriptExplorer = memo(() => {
     [flattenedNodes],
   );
 
-  // Override context menu for multi-select
-  const overrideContextMenu: TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> | null =
-    useMemo(() => {
-      // if there are multiple selected nodes show the delete all menu instead of the default one
-
-      // 0, 1 = no multi-select
-      if (selectedDeleteableNodeIds.length < 2) {
-        return null;
-      }
-
-      const menuItems: TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> = [];
-
-      menuItems.push({
-        children: [
-          {
-            label: 'Delete selected',
-            // All selected nodes are deletable by construction
-            isDisabled: false,
-            onClick: (_) => {
-              deleteSqlScripts(selectedDeleteableNodeIds as SQLScriptId[]);
-            },
-          },
-        ],
-      });
-
-      return menuItems;
-    }, [selectedDeleteableNodeIds]);
+  // Create a function to get override context menu
+  const getOverrideContextMenu = (selectedState: string[]) => {
+    return createMultiSelectContextMenu(selectedState, flattenedNodes, {
+      onDeleteSelected: (ids) => deleteSqlScripts(ids as SQLScriptId[]),
+    }) as TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> | null;
+  };
 
   const enhancedExtraData: ScriptExplorerContext = {
-    overrideContextMenu,
+    getOverrideContextMenu,
     flattenedNodeIds: flattenedNodeIds as SQLScriptId[],
     selectedDeleteableNodeIds: selectedDeleteableNodeIds as SQLScriptId[],
   };

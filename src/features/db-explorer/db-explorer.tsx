@@ -5,6 +5,7 @@ import {
   TreeNodeMenuItemType,
   TreeNodeMenuType,
 } from '@components/explorer-tree';
+import { createMultiSelectContextMenu } from '@components/explorer-tree/utils/multi-select-menu';
 import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
@@ -137,7 +138,7 @@ function buildObjectTreeNode({
     isDisabled: false,
     isSelectable: true,
     doNotExpandOnClick: true,
-    onNodeClick: (node: any, tree: any): void => {
+    onNodeClick: (_node: any, _tree: any): void => {
       // Check if the tab is already open
       const existingTab = findTabFromAttachedDBObject(dbId, schemaName, objectName);
       if (existingTab) {
@@ -503,16 +504,7 @@ export const DbExplorer = memo(() => {
 
   // Create a function to get override context menu
   const getOverrideContextMenu = (selectedState: string[]) => {
-    // if there are multiple selected nodes show the delete all menu instead of the default one
-
-    // 0, 1 = no multi-select
-    if (selectedState.length < 2) {
-      return null;
-    }
-
-    const menuItems: TreeNodeMenuType<TreeNodeData<DBNodeTypeMap>> = [];
-
-    // Check if all selected nodes are of the same type (e.g., all tables/views)
+    // Additional logic for DB explorer - only show schema if all nodes are tables/views
     const selectedNodes = selectedState
       .map((nodeId) => flattenedNodes.find((node) => node.value === nodeId))
       .filter(Boolean);
@@ -521,37 +513,15 @@ export const DbExplorer = memo(() => {
       (node) => node?.nodeType === selectedNodes[0]?.nodeType,
     );
 
-    // If all nodes are tables/views, add "Show Schema" option
-    if (areAllNodesOfSameType && selectedNodes[0]?.nodeType === 'object') {
-      menuItems.push({
-        children: [
-          {
-            label: 'Show Schema',
-            onClick: (_) => {
-              handleMultiSelectShowSchema(selectedState);
-            },
-          },
-        ],
-      });
-    }
+    const showSchemaHandler =
+      areAllNodesOfSameType && selectedNodes[0]?.nodeType === 'object'
+        ? (ids: string[]) => handleMultiSelectShowSchema(ids)
+        : undefined;
 
-    // Only show delete option if there are deleteable nodes selected
-    const selectedDeleteableNodes = selectedNodes.filter((node) => !!node?.onDelete);
-    if (selectedDeleteableNodes.length > 0) {
-      menuItems.push({
-        children: [
-          {
-            label: 'Delete selected',
-            isDisabled: false,
-            onClick: (_) => {
-              handleDeleteSelected(selectedDeleteableNodes.map((node) => node!.value));
-            },
-          },
-        ],
-      });
-    }
-
-    return menuItems.length > 0 ? menuItems : null;
+    return createMultiSelectContextMenu(selectedState, flattenedNodes, {
+      onDeleteSelected: handleDeleteSelected,
+      onShowSchemaSelected: showSchemaHandler,
+    }) as TreeNodeMenuType<TreeNodeData<DBNodeTypeMap>> | null;
   };
 
   const enhancedExtraData: DBExplorerContext = Object.assign(nodeIdsToFQNMap, {

@@ -56,7 +56,7 @@ const SchemaBrowserComponent = ({ tab }: SchemaBrowserProps) => {
   const { schemaData, isLoading, error } = useSchemaData(tab, conn, forceRefresh);
 
   // Use schema layout hook for managing nodes and edges
-  const { nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange } = useSchemaLayout(
+  const { nodes, edges, setNodes, onNodesChange, onEdgesChange } = useSchemaLayout(
     schemaData,
     isLoading,
     direction,

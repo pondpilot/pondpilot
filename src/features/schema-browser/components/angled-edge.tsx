@@ -1,6 +1,47 @@
 import { memo } from 'react';
 import { EdgeProps, getStraightPath } from 'reactflow';
 
+// Constants for edge styling and layout
+const EDGE_CONSTANTS = {
+  // Layout
+  GAP_BETWEEN_NODE_AND_BEND: 50,
+  SMALL_Y_THRESHOLD: 5,
+
+  // Styling
+  DEFAULT_EDGE_COLOR: '#94a3b8',
+  SELECTED_EDGE_COLOR: '#3b82f6',
+  DEFAULT_EDGE_WIDTH: 2,
+  SELECTED_EDGE_WIDTH: 3,
+  INTERACTION_STROKE_WIDTH: 20,
+  GLOW_WIDTH_OFFSET: 6,
+  GLOW_OPACITY: 0.3,
+  GLOW_BLUR: 4,
+
+  // Label
+  MIN_LABEL_WIDTH: 40,
+  MAX_LABEL_WIDTH: 120,
+  LABEL_CHAR_WIDTH: 7,
+  LABEL_HEIGHT: 20,
+  LABEL_PADDING: 12,
+  LABEL_BORDER_RADIUS: 10,
+  LABEL_STROKE_WIDTH: 1.5,
+  LABEL_STROKE_OPACITY: 0.8,
+  LABEL_FONT_SIZE: 12,
+  LABEL_FONT_WEIGHT_DEFAULT: 400,
+  LABEL_FONT_WEIGHT_SELECTED: 600,
+
+  // Animation
+  DASH_PATTERN: '5,5',
+  DASH_ANIMATION_DURATION: '1s',
+  DASH_OFFSET: -10,
+
+  // Arrow marker
+  ARROW_WIDTH: 10,
+  ARROW_HEIGHT: 10,
+  ARROW_REF_X: 9,
+  ARROW_REF_Y: 5,
+} as const;
+
 const AngledEdgeComponent = (props: EdgeProps) => {
   const {
     id,
@@ -18,11 +59,11 @@ const AngledEdgeComponent = (props: EdgeProps) => {
 
   // Create an angled path with improved routing
   let path = '';
-  const gap = 50; // Gap between node edge and connection bend
+  const gap = EDGE_CONSTANTS.GAP_BETWEEN_NODE_AND_BEND;
 
   if (sourcePosition === 'right' && targetPosition === 'left') {
     // Horizontal connection with vertical offset handling
-    if (Math.abs(sourceY - targetY) < 5) {
+    if (Math.abs(sourceY - targetY) < EDGE_CONSTANTS.SMALL_Y_THRESHOLD) {
       // Straight horizontal line when nodes are aligned
       const midX = sourceX + (targetX - sourceX) / 2;
       path = `M ${sourceX},${sourceY} L ${midX},${sourceY} L ${midX},${targetY} L ${targetX},${targetY}`;
@@ -65,8 +106,12 @@ const AngledEdgeComponent = (props: EdgeProps) => {
     path = straightPath;
   }
 
-  const edgeColor = selected ? '#3b82f6' : '#94a3b8';
-  const edgeWidth = selected ? 3 : 2;
+  const edgeColor = selected
+    ? EDGE_CONSTANTS.SELECTED_EDGE_COLOR
+    : EDGE_CONSTANTS.DEFAULT_EDGE_COLOR;
+  const edgeWidth = selected
+    ? EDGE_CONSTANTS.SELECTED_EDGE_WIDTH
+    : EDGE_CONSTANTS.DEFAULT_EDGE_WIDTH;
 
   // Calculate label position with better placement
   let labelX = 0;
@@ -108,13 +153,13 @@ const AngledEdgeComponent = (props: EdgeProps) => {
       {selected && (
         <path
           d={path}
-          strokeWidth={edgeWidth + 6}
+          strokeWidth={edgeWidth + EDGE_CONSTANTS.GLOW_WIDTH_OFFSET}
           stroke={edgeColor}
-          strokeOpacity={0.3}
+          strokeOpacity={EDGE_CONSTANTS.GLOW_OPACITY}
           fill="none"
           className="react-flow__edge-glow"
           style={{
-            filter: 'blur(4px)',
+            filter: `blur(${EDGE_CONSTANTS.GLOW_BLUR}px)`,
           }}
         />
       )}
@@ -127,7 +172,7 @@ const AngledEdgeComponent = (props: EdgeProps) => {
         stroke={edgeColor}
         style={{
           ...style,
-          strokeDasharray: selected ? undefined : '5,5',
+          strokeDasharray: selected ? undefined : EDGE_CONSTANTS.DASH_PATTERN,
           transition: 'stroke-width 0.2s, stroke 0.2s',
         }}
         markerEnd="url(#arrowhead)"
@@ -140,7 +185,7 @@ const AngledEdgeComponent = (props: EdgeProps) => {
         {`
         @keyframes dashAnimation {
           to {
-            stroke-dashoffset: -10;
+            stroke-dashoffset: ${EDGE_CONSTANTS.DASH_OFFSET};
           }
         }
       `}
@@ -151,9 +196,9 @@ const AngledEdgeComponent = (props: EdgeProps) => {
           fill="none"
           strokeWidth={edgeWidth}
           stroke={edgeColor}
-          strokeDasharray="5,5"
+          strokeDasharray={EDGE_CONSTANTS.DASH_PATTERN}
           style={{
-            animation: 'dashAnimation 1s linear infinite',
+            animation: `dashAnimation ${EDGE_CONSTANTS.DASH_ANIMATION_DURATION} linear infinite`,
             pointerEvents: 'none',
           }}
         />
@@ -162,7 +207,7 @@ const AngledEdgeComponent = (props: EdgeProps) => {
       <path
         d={path}
         fill="none"
-        strokeWidth={20}
+        strokeWidth={EDGE_CONSTANTS.INTERACTION_STROKE_WIDTH}
         stroke="transparent"
         className="react-flow__edge-interaction"
         style={{ cursor: 'pointer' }}
@@ -173,9 +218,15 @@ const AngledEdgeComponent = (props: EdgeProps) => {
           {(() => {
             const labelText = String(label);
             const labelLength = labelText.length;
-            const labelWidth = Math.max(40, Math.min(120, labelLength * 7));
-            const labelHeight = 20;
-            const padding = 12;
+            const labelWidth = Math.max(
+              EDGE_CONSTANTS.MIN_LABEL_WIDTH,
+              Math.min(
+                EDGE_CONSTANTS.MAX_LABEL_WIDTH,
+                labelLength * EDGE_CONSTANTS.LABEL_CHAR_WIDTH,
+              ),
+            );
+            const labelHeight = EDGE_CONSTANTS.LABEL_HEIGHT;
+            const padding = EDGE_CONSTANTS.LABEL_PADDING;
 
             return (
               <>
@@ -185,12 +236,12 @@ const AngledEdgeComponent = (props: EdgeProps) => {
                   y={labelY - labelHeight / 2}
                   width={labelWidth + padding}
                   height={labelHeight}
-                  rx={10}
-                  ry={10}
+                  rx={EDGE_CONSTANTS.LABEL_BORDER_RADIUS}
+                  ry={EDGE_CONSTANTS.LABEL_BORDER_RADIUS}
                   className="fill-white dark:fill-slate-800"
                   stroke={edgeColor}
-                  strokeWidth={1.5}
-                  strokeOpacity={0.8}
+                  strokeWidth={EDGE_CONSTANTS.LABEL_STROKE_WIDTH}
+                  strokeOpacity={EDGE_CONSTANTS.LABEL_STROKE_OPACITY}
                   filter="url(#labelShadow)"
                 />
                 {/* Label text */}
@@ -200,8 +251,12 @@ const AngledEdgeComponent = (props: EdgeProps) => {
                   textAnchor="middle"
                   dominantBaseline="middle"
                   className="fill-slate-700 dark:fill-slate-300"
-                  fontSize={12}
-                  fontWeight={selected ? 600 : 400}
+                  fontSize={EDGE_CONSTANTS.LABEL_FONT_SIZE}
+                  fontWeight={
+                    selected
+                      ? EDGE_CONSTANTS.LABEL_FONT_WEIGHT_SELECTED
+                      : EDGE_CONSTANTS.LABEL_FONT_WEIGHT_DEFAULT
+                  }
                 >
                   {label}
                 </text>
@@ -215,8 +270,19 @@ const AngledEdgeComponent = (props: EdgeProps) => {
         <filter id="labelShadow" x="-50%" y="-50%" width="200%" height="200%">
           <feDropShadow dx="0" dy="1" stdDeviation="2" floodOpacity="0.15" />
         </filter>
-        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
-          <polygon points="0 0, 10 5, 0 10" fill={edgeColor} stroke={edgeColor} />
+        <marker
+          id="arrowhead"
+          markerWidth={EDGE_CONSTANTS.ARROW_WIDTH}
+          markerHeight={EDGE_CONSTANTS.ARROW_HEIGHT}
+          refX={EDGE_CONSTANTS.ARROW_REF_X}
+          refY={EDGE_CONSTANTS.ARROW_REF_Y}
+          orient="auto"
+        >
+          <polygon
+            points={`0 0, ${EDGE_CONSTANTS.ARROW_WIDTH} ${EDGE_CONSTANTS.ARROW_REF_Y}, 0 ${EDGE_CONSTANTS.ARROW_HEIGHT}`}
+            fill={edgeColor}
+            stroke={edgeColor}
+          />
         </marker>
       </defs>
     </>

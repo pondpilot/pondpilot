@@ -19,7 +19,8 @@ export const ScriptExplorerNode = (
   const isNextActive = useIsSqlScriptIdOnActiveTab(nextNodeId);
 
   // Get override context menu from extraData if it exists
-  const overrideContextMenu = tree.selectedState.length > 1 ? extraData.overrideContextMenu : null;
+  const overrideContextMenu =
+    tree.selectedState.length > 1 ? extraData.getOverrideContextMenu(tree.selectedState) : null;
 
   return (
     <MemoizedBaseTreeNode<ScrtiptNodeTypeToIdTypeMap>

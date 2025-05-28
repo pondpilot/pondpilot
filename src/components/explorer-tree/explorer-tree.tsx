@@ -51,7 +51,7 @@ type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, any>, ExtraT = un
   readonly extraData: ExtraT;
 };
 
-export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, ExtraT = undefined>({
+export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, any>, ExtraT = undefined>({
   nodes,
   initialExpandedState,
   dataTestIdPrefix,

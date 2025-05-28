@@ -123,9 +123,21 @@ export const test = base.extend<SchemaBrowserFixtures>({
         { timeout: 10000 },
       );
 
-      // Wait for at least one node to be rendered
-      const nodeSelector = '.react-flow__node, [data-testid*="schema-table-node"]';
-      await page.waitForSelector(nodeSelector, { state: 'visible', timeout: 10000 });
+      // Check if this might be an empty schema
+      const nodeCount = await page.locator('.react-flow__node').count();
+      if (nodeCount === 0) {
+        // For empty schemas, just ensure the canvas and title are visible
+        await page.waitForSelector('[data-testid="schema-browser-canvas"]', {
+          state: 'visible',
+          timeout: 5000,
+        });
+        await page.waitForSelector('text=/\\d+ tables?/i', { state: 'visible', timeout: 5000 });
+      } else {
+        // Wait for at least one node to be rendered (or for warning/error message)
+        const nodeSelector =
+          '.react-flow__node, [data-testid*="schema-table-node"], .text-yellow-600, .text-yellow-500';
+        await page.waitForSelector(nodeSelector, { state: 'visible', timeout: 10000 });
+      }
 
       // Wait a bit more for layout calculations and animations
       await page.waitForTimeout(2000);

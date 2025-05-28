@@ -347,4 +347,87 @@ test.describe('Schema Browser', () => {
     // Assert view content
     await assertTableNodeContent('expensive_products', ['product_id', 'product_name', 'price']);
   });
+
+  // eslint-disable-next-line playwright/expect-expect
+  test('should handle empty database schema gracefully', async ({
+    addFileButton,
+    storage,
+    filePicker,
+    testTmp,
+    openDatabaseExplorer,
+    getDBNodeByName,
+    waitForSchemaLoaded,
+    page,
+  }) => {
+    // Create an empty database
+    const dbPath = testTmp.join('empty.duckdb');
+    execSync(`duckdb "${dbPath}" -c "SELECT 1;"`); // Just initialize the DB
+
+    // Upload and add the database file
+    await storage.uploadFile(dbPath, 'empty.duckdb');
+    await filePicker.selectFiles(['empty.duckdb']);
+    await addFileButton.click();
+
+    // Open database explorer first
+    await openDatabaseExplorer();
+
+    // Right-click on the database and select Show Schema
+    const dbNode = await getDBNodeByName('empty');
+    await dbNode.click({ button: 'right' });
+    await page.locator('text=Show Schema').click();
+    await waitForSchemaLoaded();
+
+    // Should show the schema browser canvas but with no nodes
+    await expect(page.locator('[data-testid="schema-browser-canvas"]')).toBeVisible();
+
+    // Check that there are no table nodes
+    const tableNodes = page.locator('.react-flow__node');
+    await expect(tableNodes).toHaveCount(0);
+
+    // The title should show 0 tables
+    await expect(page.locator('text=/0 tables?/i')).toBeVisible();
+  });
+
+  // eslint-disable-next-line playwright/expect-expect
+  test('should handle very large schemas with performance limits', async ({
+    addFileButton,
+    storage,
+    filePicker,
+    testTmp,
+    openDatabaseExplorer,
+    getDBNodeByName,
+    waitForSchemaLoaded,
+    page,
+  }) => {
+    // Create a database with many tables
+    const dbPath = testTmp.join('large_schema.duckdb');
+    let createTableStatements = '';
+    for (let i = 0; i < 60; i += 1) {
+      createTableStatements += `CREATE TABLE table_${i} (id INTEGER PRIMARY KEY, data VARCHAR(100));`;
+    }
+    execSync(`duckdb "${dbPath}" -c "${createTableStatements}"`);
+
+    // Upload and add the database file
+    await storage.uploadFile(dbPath, 'large_schema.duckdb');
+    await filePicker.selectFiles(['large_schema.duckdb']);
+    await addFileButton.click();
+
+    // Open database explorer first
+    await openDatabaseExplorer();
+
+    // Right-click on the database and select Show Schema
+    const dbNode = await getDBNodeByName('large_schema');
+    await dbNode.click({ button: 'right' });
+    await page.locator('text=Show Schema').click();
+    await waitForSchemaLoaded();
+
+    // Wait for warning panel to appear
+    await page.waitForTimeout(2000);
+
+    // Should show warning about performance - look for the warning component
+    await expect(page.locator('.bg-yellow-100, .dark\\:bg-yellow-900')).toBeVisible();
+
+    // The warning should mention large schema
+    await expect(page.locator('text=/Large schema detected.*60 tables/i')).toBeVisible();
+  });
 });
