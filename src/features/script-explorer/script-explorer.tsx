@@ -20,7 +20,7 @@ import { ScriptExplorerContext, ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
 
 // We could have used closure, but this is possibly slightly more performant
-const onNodeClick = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): void => {
+const onNodeClick = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>, tree: any): void => {
   const id = node.value;
 
   // Check if the tab is already open
@@ -116,30 +116,32 @@ export const ScriptExplorer = memo(() => {
   ];
 
   const sqlScriptTree: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>[] = scriptsArray.map(
-    ([sqlScriptId, sqlScriptName]) => ({
-      nodeType: 'script',
-      value: sqlScriptId,
-      label: `${sqlScriptName}.sql`,
-      iconType: 'code-file',
-      isDisabled: false,
-      isSelectable: true,
-      onNodeClick,
-      renameCallbacks: {
-        validateRename: (node, newName) => validateRename(node, newName, scriptsArray),
-        onRenameSubmit: (node, newName) => {
-          renameSQLScript(node.value, newName);
+    ([sqlScriptId, sqlScriptName]) =>
+      ({
+        nodeType: 'script',
+        value: sqlScriptId,
+        label: `${sqlScriptName}.sql`,
+        iconType: 'code-file',
+        isDisabled: false,
+        isSelectable: true,
+        onNodeClick,
+        renameCallbacks: {
+          validateRename: (node: any, newName: string) =>
+            validateRename(node, newName, scriptsArray),
+          onRenameSubmit: (node: any, newName: string) => {
+            renameSQLScript(node.value, newName);
+          },
+          prepareRenameValue,
         },
-        prepareRenameValue,
-      },
-      onDelete,
-      onCloseItemClick,
-      contextMenu,
-      // no children
-    }),
+        onDelete,
+        onCloseItemClick,
+        contextMenu,
+        // no children
+      }) as any,
   );
 
   // Flattened nodes for selection handling
-  const flattenedNodes = useMemo(() => getFlattenNodes(sqlScriptTree), [sqlScriptTree]);
+  const flattenedNodes = useMemo(() => getFlattenNodes(sqlScriptTree as any), [sqlScriptTree]);
   const flattenedNodeIds = useMemo(
     () => flattenedNodes.map((node) => node.value),
     [flattenedNodes],
@@ -148,7 +150,7 @@ export const ScriptExplorer = memo(() => {
   const selectedDeleteableNodeIds = useMemo(
     () => flattenedNodes.filter((node) => !!node.onDelete).map((node) => node.value),
     [flattenedNodes],
-  ) as SQLScriptId[];
+  );
 
   // Override context menu for multi-select
   const overrideContextMenu: TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> | null =
@@ -169,7 +171,7 @@ export const ScriptExplorer = memo(() => {
             // All selected nodes are deletable by construction
             isDisabled: false,
             onClick: (_) => {
-              deleteSqlScripts(selectedDeleteableNodeIds);
+              deleteSqlScripts(selectedDeleteableNodeIds as SQLScriptId[]);
             },
           },
         ],
@@ -180,8 +182,8 @@ export const ScriptExplorer = memo(() => {
 
   const enhancedExtraData: ScriptExplorerContext = {
     overrideContextMenu,
-    flattenedNodeIds,
-    selectedDeleteableNodeIds,
+    flattenedNodeIds: flattenedNodeIds as SQLScriptId[],
+    selectedDeleteableNodeIds: selectedDeleteableNodeIds as SQLScriptId[],
   };
 
   // Hotkeys for deletion
@@ -192,7 +194,7 @@ export const ScriptExplorer = memo(() => {
         if (selectedDeleteableNodeIds.length === 0) {
           return;
         }
-        deleteSqlScripts(selectedDeleteableNodeIds);
+        deleteSqlScripts(selectedDeleteableNodeIds as SQLScriptId[]);
       },
     ],
   ]);

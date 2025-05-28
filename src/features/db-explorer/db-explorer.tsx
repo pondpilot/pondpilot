@@ -137,7 +137,7 @@ function buildObjectTreeNode({
     isDisabled: false,
     isSelectable: true,
     doNotExpandOnClick: true,
-    onNodeClick: (): void => {
+    onNodeClick: (node: any, tree: any): void => {
       // Check if the tab is already open
       const existingTab = findTabFromAttachedDBObject(dbId, schemaName, objectName);
       if (existingTab) {
@@ -393,8 +393,8 @@ export const DbExplorer = memo(() => {
       isSelectable: false,
       renameCallbacks: {
         prepareRenameValue: () => dbName,
-        validateRename: (node, newName) => validateRename(node, newName, sortedDBs),
-        onRenameSubmit: (node, newName) => onRenameSubmit(node, newName),
+        validateRename: (node: any, newName: string) => validateRename(node, newName, sortedDBs),
+        onRenameSubmit: (node: any, newName: string) => onRenameSubmit(node, newName),
       },
       onDelete: localFile?.userAdded
         ? (node: TreeNodeData<DBNodeTypeMap>): void => {
@@ -439,11 +439,11 @@ export const DbExplorer = memo(() => {
           initialExpandedState,
         }),
       ),
-    };
+    } as any;
   });
 
   // Flattened nodes for selection handling
-  const flattenedNodes = useMemo(() => getFlattenNodes(dbObjectsTree), [dbObjectsTree]);
+  const flattenedNodes = useMemo(() => getFlattenNodes(dbObjectsTree as any), [dbObjectsTree]);
   const flattenedNodeIds = useMemo(
     () => flattenedNodes.map((node) => node.value),
     [flattenedNodes],
@@ -452,7 +452,7 @@ export const DbExplorer = memo(() => {
   const selectedDeleteableNodeIds = useMemo(
     () => flattenedNodes.filter((node) => !!node.onDelete).map((node) => node.value),
     [flattenedNodes],
-  ) as string[];
+  );
 
   const handleDeleteSelected = async (ids: Iterable<string | PersistentDataSourceId>) => {
     // This should only be called for dbs, but we'll be safe

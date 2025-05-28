@@ -273,7 +273,7 @@ export const FileSystemExplorer = memo(() => {
                 iconType: 'xlsx-sheet',
                 isDisabled: false,
                 isSelectable: true,
-                onNodeClick: (): void => {
+                onNodeClick: (node: any, tree: any): void => {
                   const existingTab = findTabFromFlatFileDataSource(sheet.id);
                   if (existingTab) {
                     setActiveTabId(existingTab.id);
@@ -389,7 +389,7 @@ export const FileSystemExplorer = memo(() => {
                 deleteDataSources(conn, [value]);
               }
             : undefined,
-          onNodeClick: (): void => {
+          onNodeClick: (node: any, tree: any): void => {
             // Check if the tab is already open
             const existingTab = findTabFromFlatFileDataSource(relatedSource.id);
             if (existingTab) {
@@ -479,7 +479,7 @@ export const FileSystemExplorer = memo(() => {
   );
 
   // Flattened nodes for selection handling
-  const flattenedNodes = useMemo(() => getFlattenNodes(fileSystemTree), [fileSystemTree]);
+  const flattenedNodes = useMemo(() => getFlattenNodes(fileSystemTree as any), [fileSystemTree]);
   const flattenedNodeIds = useMemo(
     () => flattenedNodes.map((node) => node.value),
     [flattenedNodes],
@@ -564,7 +564,7 @@ export const FileSystemExplorer = memo(() => {
               // Get the source IDs for all selected files
               // For file nodes, the node value is already the data source ID
               const sourceIds = selectedNodes
-                .map((node) => node.value)
+                .map((node) => node?.value)
                 .filter((id): id is PersistentDataSourceId =>
                   flatFileSources.has(id as PersistentDataSourceId),
                 );

@@ -15,7 +15,7 @@ import { ReactNode, useCallback, useMemo, useRef, useEffect } from 'react';
 import { RenderTreeNodePayload, TreeNodeData } from './model';
 import { getFlattenNodes } from './utils/tree-manipulation';
 
-type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>, ExtraT = undefined> = {
+type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, any>, ExtraT = undefined> = {
   /**
    * A sorted tree of nodes to be displayed
    */
