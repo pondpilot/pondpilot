@@ -564,9 +564,9 @@ export const FileSystemExplorer = memo(() => {
               // Get the source IDs for all selected files
               // For file nodes, the node value is already the data source ID
               const sourceIds = selectedNodes
-                .map(node => node.value)
+                .map((node) => node.value)
                 .filter((id): id is PersistentDataSourceId =>
-                  flatFileSources.has(id as PersistentDataSourceId)
+                  flatFileSources.has(id as PersistentDataSourceId),
                 );
 
               if (sourceIds.length > 0) {

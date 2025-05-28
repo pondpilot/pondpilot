@@ -49,7 +49,9 @@ export const getOrCreateSchemaBrowserTab = (options: {
   objectNames?: string[];
   setActive?: boolean;
 }): SchemaBrowserTab => {
-  const { sourceId, sourceType, schemaName, objectNames, setActive = false } = options;
+  const { sourceId, sourceType, schemaName, setActive = false } = options;
+  // Sort objectNames for consistent comparison and storage
+  const objectNames = options.objectNames ? [...options.objectNames].sort() : undefined;
   const state = useAppStore.getState();
 
   const existingTab = findSchemaBrowserTab(sourceId, sourceType, schemaName, objectNames);
@@ -338,7 +340,9 @@ export const findSchemaBrowserTab = (
         ((sourceId === null && schemaBrowserTab.sourceId === null) ||
           (sourceId !== null && schemaBrowserTab.sourceId === sourceId)) &&
         schemaBrowserTab.schemaName === schemaName &&
-        JSON.stringify(schemaBrowserTab.objectNames) === JSON.stringify(objectNames)
+        JSON.stringify(
+          schemaBrowserTab.objectNames ? [...schemaBrowserTab.objectNames].sort() : undefined,
+        ) === JSON.stringify(objectNames ? [...objectNames].sort() : undefined)
       ) {
         return schemaBrowserTab;
       }

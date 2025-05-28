@@ -35,7 +35,7 @@ import { getAttachedDBDataSourceName } from '@utils/navigation';
 import { memo, useMemo } from 'react';
 
 import { DbExplorerNode } from './db-explorer-node';
-import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
+import { DBNodeFQNMap, DBNodeTypeMap, DBExplorerContext } from './model';
 
 function buildColumnTreeNode({
   dbId,
@@ -49,9 +49,9 @@ function buildColumnTreeNode({
   objectName: string;
   column: DBColumn;
   // Mutable args
-  nodeIdsToFQNMap: DBExplorerNodeExtraType;
+  nodeIdsToFQNMap: DBNodeFQNMap;
   // injected callbacks
-}): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
+}): TreeNodeData<DBNodeTypeMap> {
   const { name: columnName, sqlType } = column;
   const columnNodeId = `${dbId}.${schemaName}.${objectName}::${columnName}`;
   const iconType: IconType = getIconTypeForSQLType(sqlType);
@@ -100,8 +100,8 @@ function buildObjectTreeNode({
   schemaName: string;
   object: DBTableOrView;
   // Mutable args
-  nodeIdsToFQNMap: DBExplorerNodeExtraType;
-}): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
+  nodeIdsToFQNMap: DBNodeFQNMap;
+}): TreeNodeData<DBNodeTypeMap> {
   const { name: objectName, columns } = object;
   const objectNodeId = `${dbId}.${schemaName}.${objectName}`;
 
@@ -116,7 +116,7 @@ function buildObjectTreeNode({
 
   // We only allow expanding columns in dev builds as of today
   let sortedColumns: DBTableOrViewSchema = [];
-  let devMenuItems: TreeNodeMenuItemType<TreeNodeData<DBExplorerNodeTypeToIdTypeMap>>[] = [];
+  let devMenuItems: TreeNodeMenuItemType<TreeNodeData<DBNodeTypeMap>>[] = [];
 
   if (import.meta.env.DEV) {
     sortedColumns = columns.slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -224,12 +224,9 @@ function buildSchemaTreeNode({
   dbName: string;
   schema: DBSchema;
   // Mutable args
-  nodeIdsToFQNMap: DBExplorerNodeExtraType;
-  initialExpandedState: Record<
-    DBExplorerNodeTypeToIdTypeMap[keyof DBExplorerNodeTypeToIdTypeMap],
-    boolean
-  >;
-}): TreeNodeData<DBExplorerNodeTypeToIdTypeMap> {
+  nodeIdsToFQNMap: DBNodeFQNMap;
+  initialExpandedState: Record<DBNodeTypeMap[keyof DBNodeTypeMap], boolean>;
+}): TreeNodeData<DBNodeTypeMap> {
   const { name: schemaName, objects } = schema;
   const schemaNodeId = `${dbId}.${schemaName}`;
 
@@ -329,19 +326,16 @@ export const DbExplorer = memo(() => {
   // We create ids for internal node here in this component, thus
   // we need a local map to get back from id to fully qualified names
   // of various nodes (e.g. for schema we need both dbId and schema name)
-  const nodeIdsToFQNMap: DBExplorerNodeExtraType = new Map();
+  const nodeIdsToFQNMap: DBNodeFQNMap = new Map();
 
-  const initialExpandedState: Record<
-    DBExplorerNodeTypeToIdTypeMap[keyof DBExplorerNodeTypeToIdTypeMap],
-    boolean
-  > = {};
+  const initialExpandedState: Record<DBNodeTypeMap[keyof DBNodeTypeMap], boolean> = {};
 
   const sortedDBs = Array.from(attachedDBMap.values()).sort((a, b) =>
     a.dbName.localeCompare(b.dbName),
   );
 
   const validateRename = (
-    node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>,
+    node: TreeNodeData<DBNodeTypeMap>,
     newName: string,
     dbList: AttachedDB[],
   ): string | null => {
@@ -360,10 +354,7 @@ export const DbExplorer = memo(() => {
     return null;
   };
 
-  const onRenameSubmit = (
-    node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>,
-    newName: string,
-  ): void => {
+  const onRenameSubmit = (node: TreeNodeData<DBNodeTypeMap>, newName: string): void => {
     newName = newName.trim();
     const db = attachedDBMap.get(node.value as PersistentDataSourceId);
     if (!db) {
@@ -376,82 +367,80 @@ export const DbExplorer = memo(() => {
     renameDB(db.id, newName, conn);
   };
 
-  const dbObjectsTree: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>[] = sortedDBs.map(
-    (attachedDBDataSource) => {
-      const { id: dbId, dbName, fileSourceId } = attachedDBDataSource;
+  const dbObjectsTree: TreeNodeData<DBNodeTypeMap>[] = sortedDBs.map((attachedDBDataSource) => {
+    const { id: dbId, dbName, fileSourceId } = attachedDBDataSource;
 
-      // This should always exist unless state is broken, but we are playing safe here
-      const localFile = attachedDBLocalEntriesMap.get(fileSourceId);
-      const dbLabel = localFile ? getAttachedDBDataSourceName(dbName, localFile) : dbName;
+    // This should always exist unless state is broken, but we are playing safe here
+    const localFile = attachedDBLocalEntriesMap.get(fileSourceId);
+    const dbLabel = localFile ? getAttachedDBDataSourceName(dbName, localFile) : dbName;
 
-      nodeIdsToFQNMap.set(dbId, { db: dbId, schemaName: null, objectName: null, columnName: null });
+    nodeIdsToFQNMap.set(dbId, { db: dbId, schemaName: null, objectName: null, columnName: null });
 
-      // By default only expand databases & schemas, but not tables. This takes
-      // care of the database
-      initialExpandedState[dbId] = true;
+    // By default only expand databases & schemas, but not tables. This takes
+    // care of the database
+    initialExpandedState[dbId] = true;
 
-      const sortedSchemas = dataBaseMetadata
-        .get(dbName)
-        ?.schemas?.sort((a, b) => a.name.localeCompare(b.name));
+    const sortedSchemas = dataBaseMetadata
+      .get(dbName)
+      ?.schemas?.sort((a, b) => a.name.localeCompare(b.name));
 
-      return {
-        nodeType: 'db',
-        value: dbId,
-        label: dbLabel,
-        iconType: 'db',
-        isDisabled: false,
-        isSelectable: false,
-        renameCallbacks: {
-          prepareRenameValue: () => dbName,
-          validateRename: (node, newName) => validateRename(node, newName, sortedDBs),
-          onRenameSubmit: (node, newName) => onRenameSubmit(node, newName),
-        },
-        onDelete: localFile?.userAdded
-          ? (node: TreeNodeData<DBExplorerNodeTypeToIdTypeMap>): void => {
-              if (node.nodeType === 'db') {
-                deleteDataSources(conn, [node.value]);
-              }
+    return {
+      nodeType: 'db',
+      value: dbId,
+      label: dbLabel,
+      iconType: 'db',
+      isDisabled: false,
+      isSelectable: false,
+      renameCallbacks: {
+        prepareRenameValue: () => dbName,
+        validateRename: (node, newName) => validateRename(node, newName, sortedDBs),
+        onRenameSubmit: (node, newName) => onRenameSubmit(node, newName),
+      },
+      onDelete: localFile?.userAdded
+        ? (node: TreeNodeData<DBNodeTypeMap>): void => {
+            if (node.nodeType === 'db') {
+              deleteDataSources(conn, [node.value]);
             }
-          : undefined,
-        contextMenu: [
-          {
-            children: [
-              {
-                label: 'Copy name',
-                onClick: () => {
-                  // we can't use label as it may not be "just" name
-                  copyToClipboard(dbName, {
-                    showNotification: true,
-                  });
-                },
+          }
+        : undefined,
+      contextMenu: [
+        {
+          children: [
+            {
+              label: 'Copy name',
+              onClick: () => {
+                // we can't use label as it may not be "just" name
+                copyToClipboard(dbName, {
+                  showNotification: true,
+                });
               },
-              {
-                label: 'Show Schema',
-                onClick: () => {
-                  const firstSchema = sortedSchemas?.[0];
-                  getOrCreateSchemaBrowserTab({
-                    sourceId: dbId,
-                    sourceType: 'db',
-                    schemaName: firstSchema?.name,
-                    setActive: true,
-                  });
-                },
+            },
+            {
+              label: 'Show Schema',
+              onClick: () => {
+                const firstSchema = sortedSchemas?.[0];
+                getOrCreateSchemaBrowserTab({
+                  sourceId: dbId,
+                  sourceType: 'db',
+                  schemaName: firstSchema?.name,
+                  setActive: true,
+                });
               },
-            ],
-          },
-        ],
-        children: sortedSchemas?.map((schema) =>
-          buildSchemaTreeNode({
-            dbId,
-            dbName,
-            schema,
-            nodeIdsToFQNMap,
-            initialExpandedState,
-          }),
-        ),
-      };
-    },
-  );
+            },
+          ],
+        },
+      ],
+      children: sortedSchemas?.map((schema) =>
+        buildSchemaTreeNode({
+          dbId,
+          dbName,
+          schema,
+          nodeIdsToFQNMap,
+          initialExpandedState,
+        }),
+      ),
+    };
+  });
 
   // Flattened nodes for selection handling
   const flattenedNodes = useMemo(() => getFlattenNodes(dbObjectsTree), [dbObjectsTree]);
@@ -521,7 +510,7 @@ export const DbExplorer = memo(() => {
       return null;
     }
 
-    const menuItems: TreeNodeMenuType<TreeNodeData<DBExplorerNodeTypeToIdTypeMap>> = [];
+    const menuItems: TreeNodeMenuType<TreeNodeData<DBNodeTypeMap>> = [];
 
     // Check if all selected nodes are of the same type (e.g., all tables/views)
     const selectedNodes = selectedState
@@ -565,7 +554,7 @@ export const DbExplorer = memo(() => {
     return menuItems.length > 0 ? menuItems : null;
   };
 
-  const enhancedExtraData = Object.assign(nodeIdsToFQNMap, {
+  const enhancedExtraData: DBExplorerContext = Object.assign(nodeIdsToFQNMap, {
     onShowSchemaForMultiple: handleMultiSelectShowSchema,
     getOverrideContextMenu,
     flattenedNodeIds,
@@ -586,10 +575,10 @@ export const DbExplorer = memo(() => {
   ]);
 
   return (
-    <ExplorerTree<DBExplorerNodeTypeToIdTypeMap, DBExplorerNodeExtraType>
+    <ExplorerTree<DBNodeTypeMap, DBExplorerContext>
       nodes={dbObjectsTree}
       initialExpandedState={initialExpandedState}
-      extraData={enhancedExtraData as any}
+      extraData={enhancedExtraData}
       dataTestIdPrefix="db-explorer"
       TreeNodeComponent={DbExplorerNode}
       hasActiveElement={hasActiveElement}
