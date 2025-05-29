@@ -87,8 +87,8 @@ export const test = base.extend<SchemaBrowserFixtures>({
 
   waitForSchemaLoaded: async ({ page }, use) => {
     const waitForSchemaLoaded = async () => {
-      // Wait for the schema browser tab to be visible and active
-      await page.waitForTimeout(2000); // Give time for tab creation
+      // Wait a moment for tab creation and navigation
+      await page.waitForLoadState('domcontentloaded');
 
       // Look for the React Flow container within the schema browser
       const reactFlowContainer = page.locator('.react-flow').first();
@@ -108,11 +108,10 @@ export const test = base.extend<SchemaBrowserFixtures>({
       }
 
       // Wait for any loading spinners to disappear
-      await page
-        .waitForSelector('.mantine-Loader-root', { state: 'detached', timeout: 10000 })
-        .catch(() => {
-          // Loading spinner might not appear if data loads quickly
-        });
+      const loadingSpinner = page.locator('.mantine-Loader-root');
+      await loadingSpinner.waitFor({ state: 'detached', timeout: 10000 }).catch(() => {
+        // Loading spinner might not appear if data loads quickly
+      });
 
       // Wait for React Flow to be fully initialized
       await page.waitForFunction(
@@ -127,19 +126,24 @@ export const test = base.extend<SchemaBrowserFixtures>({
       const nodeCount = await page.locator('.react-flow__node').count();
       if (nodeCount === 0) {
         // For empty schemas, just ensure the canvas and title are visible
-        await page.waitForSelector('[data-testid="schema-browser-canvas"]', {
-          state: 'visible',
-          timeout: 5000,
-        });
-        await page.waitForSelector('text=/\\d+ tables?/i', { state: 'visible', timeout: 5000 });
+        const canvas = page.locator('[data-testid="schema-browser-canvas"]');
+        await expect(canvas).toBeVisible({ timeout: 5000 });
+
+        const title = page.locator('text=/\\d+ tables?/i');
+        await expect(title).toBeVisible({ timeout: 5000 });
       } else {
         // Wait for at least one node to be rendered (or for warning/error message)
-        const nodeSelector =
-          '.react-flow__node, [data-testid*="schema-table-node"], .text-yellow-600, .text-yellow-500';
-        await page.waitForSelector(nodeSelector, { state: 'visible', timeout: 10000 });
+        const nodeSelector = page
+          .locator(
+            '.react-flow__node, [data-testid*="schema-table-node"], .text-yellow-600, .text-yellow-500',
+          )
+          .first();
+        await expect(nodeSelector).toBeVisible({ timeout: 10000 });
       }
 
-      // Wait a bit more for layout calculations and animations
+      // Wait for layout to stabilize
+      // Using a timeout here is pragmatic as React Flow animations and layout calculations
+      // can be complex and vary based on the number of nodes
       await page.waitForTimeout(2000);
     };
     await use(waitForSchemaLoaded);
@@ -173,8 +177,7 @@ export const test = base.extend<SchemaBrowserFixtures>({
       // Find the button/label that is not currently active
       // The SegmentedControl has labels inside the control elements
       const controls = schemaDirectionControl.locator('.mantine-SegmentedControl-control');
-      const activeControl = controls.filter({ has: page.locator('[data-active="true"]') }).first();
-      const activeIndex = await controls.evaluateAll((els, activeEl) => {
+      const activeIndex = await controls.evaluateAll((els) => {
         const activeElement = els.find((el) => el.querySelector('[data-active="true"]'));
         return els.indexOf(activeElement!);
       });
@@ -183,37 +186,64 @@ export const test = base.extend<SchemaBrowserFixtures>({
       const targetIndex = activeIndex === 0 ? 1 : 0;
       await controls.nth(targetIndex).click();
 
-      // Wait for layout to update
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Wait for layout direction change to complete
+      await page.waitForFunction(
+        (expectedIndex) => {
+          const controlElements = document.querySelectorAll('.mantine-SegmentedControl-control');
+          const activeControlIndex = Array.from(controlElements).findIndex((el) =>
+            el.querySelector('[data-active="true"]'),
+          );
+          return activeControlIndex === expectedIndex;
+        },
+        targetIndex,
+        { timeout: 5000 },
+      );
+
+      // Wait for React Flow to re-layout with new direction
+      await page.waitForTimeout(1000);
     };
     await use(toggleSchemaDirection);
   },
 
-  refreshSchema: async ({ schemaRefreshButton }, use) => {
+  refreshSchema: async ({ schemaRefreshButton, page }, use) => {
     const refreshSchema = async () => {
       await schemaRefreshButton.click();
 
-      // Wait for refresh to complete
-      await schemaRefreshButton.waitFor({ state: 'visible' });
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Wait for refresh to complete by checking for loading state
+      // First, wait for any loading spinner to appear (if it does)
+      const loadingSpinner = page.locator('.mantine-Loader-root');
+      const hasLoader = await loadingSpinner.isVisible().catch(() => false);
+
+      if (hasLoader) {
+        // Wait for loading spinner to disappear
+        await expect(loadingSpinner).not.toBeVisible({ timeout: 10000 });
+      }
+
+      // Ensure refresh button is enabled again (not in loading state)
+      await expect(schemaRefreshButton).toBeEnabled();
+
+      // Wait for React Flow to be stable
+      await page.waitForTimeout(500);
     };
     await use(refreshSchema);
   },
 
   assertTableNodeContent: async ({ page }, use) => {
     const assertTableNodeContent = async (tableName: string, expectedColumns: string[]) => {
-      // Wait a bit for the schema to fully render
-      await page.waitForTimeout(2000);
-
-      // First, check if any React Flow nodes exist
-      const anyNode = page.locator('.react-flow__node').first();
-      try {
-        await expect(anyNode).toBeVisible({ timeout: 5000 });
-      } catch {
-        // If no React Flow nodes, try the data-testid approach
-        const testIdNode = page.locator('[data-testid*="schema-table-node"]').first();
-        await expect(testIdNode).toBeVisible({ timeout: 5000 });
-      }
+      // Wait for React Flow nodes to be rendered and stable
+      await page.waitForFunction(
+        () => {
+          const nodes = document.querySelectorAll('.react-flow__node');
+          return (
+            nodes.length > 0 &&
+            Array.from(nodes).every((node) => {
+              const rect = node.getBoundingClientRect();
+              return rect.width > 0 && rect.height > 0;
+            })
+          );
+        },
+        { timeout: 10000 },
+      );
 
       // Find the table node by its label - look for exact matches in the header
       // Use a more specific selector to find the table by its header text

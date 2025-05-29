@@ -51,9 +51,6 @@ test.describe('Schema Browser', () => {
     await dbNode.click({ button: 'right' });
     await page.locator('text=Show Schema').click();
 
-    // Wait for the tab to be created and rendered
-    await page.waitForTimeout(1000);
-
     await waitForSchemaLoaded();
 
     // Assert schema browser loaded with one table
@@ -190,14 +187,12 @@ test.describe('Schema Browser', () => {
     await toggleSchemaDirection();
 
     // Verify the toggle worked by checking that nodes are still visible (layout changed)
-    await page.waitForTimeout(1000);
     await expect(page.locator('.react-flow__node').first()).toBeVisible();
 
     // Toggle back
     await toggleSchemaDirection();
 
     // Verify nodes are still visible after toggle back
-    await page.waitForTimeout(1000);
     await expect(page.locator('.react-flow__node').first()).toBeVisible();
   });
 
@@ -272,13 +267,11 @@ test.describe('Schema Browser', () => {
     await filePicker.selectFiles(['sample_data.csv']);
     await addFileButton.click();
 
-    // Wait for file to appear in file explorer
-    await page.waitForTimeout(2000);
+    // Wait for file to appear in file explorer by checking for its presence
+    const csvFileNode = page.getByText('sample_data', { exact: true });
+    await expect(csvFileNode).toBeVisible({ timeout: 10000 });
 
     // Right-click on the CSV file and select Show Schema
-    // Look for the file node by its text content
-    const csvFileNode = page.getByText('sample_data', { exact: true });
-    await csvFileNode.waitFor({ state: 'visible', timeout: 10000 });
     await csvFileNode.click({ button: 'right' });
     await page.locator('text=Show Schema').click();
     await waitForSchemaLoaded();
@@ -421,11 +414,9 @@ test.describe('Schema Browser', () => {
     await page.locator('text=Show Schema').click();
     await waitForSchemaLoaded();
 
-    // Wait for warning panel to appear
-    await page.waitForTimeout(2000);
-
-    // Should show warning about performance - look for the warning component
-    await expect(page.locator('.bg-yellow-100, .dark\\:bg-yellow-900')).toBeVisible();
+    // Should show warning about performance - wait for the warning component
+    const warningPanel = page.locator('.bg-yellow-100, .dark\\:bg-yellow-900');
+    await expect(warningPanel).toBeVisible({ timeout: 10000 });
 
     // The warning should mention large schema
     await expect(page.locator('text=/Large schema detected.*60 tables/i')).toBeVisible();
