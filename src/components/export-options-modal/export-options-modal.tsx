@@ -210,8 +210,13 @@ export function ExportOptionsModal({
         if (!rootElement.trim()) {
           setRootElementError('Root element name is required');
           isValid = false;
+        } else if (rootElement.toLowerCase().startsWith('xml')) {
+          setRootElementError('Element names cannot start with "xml" (reserved)');
+          isValid = false;
         } else if (!/^[a-zA-Z_][a-zA-Z0-9_\-.]*$/.test(rootElement)) {
-          setRootElementError('Invalid XML element name');
+          setRootElementError(
+            'Invalid XML element name. Must start with letter or underscore and contain only letters, numbers, hyphens, underscores, and periods',
+          );
           isValid = false;
         } else {
           setRootElementError('');
@@ -220,8 +225,13 @@ export function ExportOptionsModal({
         if (!rowElement.trim()) {
           setRowElementError('Row element name is required');
           isValid = false;
+        } else if (rowElement.toLowerCase().startsWith('xml')) {
+          setRowElementError('Element names cannot start with "xml" (reserved)');
+          isValid = false;
         } else if (!/^[a-zA-Z_][a-zA-Z0-9_\-.]*$/.test(rowElement)) {
-          setRowElementError('Invalid XML element name');
+          setRowElementError(
+            'Invalid XML element name. Must start with letter or underscore and contain only letters, numbers, hyphens, underscores, and periods',
+          );
           isValid = false;
         } else {
           setRowElementError('');
