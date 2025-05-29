@@ -7,13 +7,14 @@ import {
   TextInput,
   Checkbox,
   Group,
-  Select,
-  Tabs,
   Text,
   Box,
   Title,
   ActionIcon,
   Alert,
+  UnstyledButton,
+  Divider,
+  Radio,
 } from '@mantine/core';
 import { DataAdapterApi } from '@models/data-adapter';
 import {
@@ -25,9 +26,10 @@ import {
   XlsxExportOptions,
   XmlExportOptions,
 } from '@models/export-options';
-import { IconX, IconAlertTriangle } from '@tabler/icons-react';
+import { IconX, IconAlertTriangle, IconDownload } from '@tabler/icons-react';
 import { sanitizeFileName } from '@utils/export-data';
 import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
 import { useState, useRef, useEffect } from 'react';
 
 interface ExportOptionsModalProps {
@@ -275,7 +277,7 @@ export function ExportOptionsModal({
         case 'tsv': {
           const csvOptions: DelimitedTextExportOptions = {
             includeHeader,
-            delimiter: format === 'csv' ? ',' : '\t',
+            delimiter: format === 'csv' ? delimiter : '\t',
             quoteChar,
             escapeChar,
           };
@@ -338,265 +340,409 @@ export function ExportOptionsModal({
         onClose={onClose}
         withCloseButton={false}
         padding={0}
-        size="md"
-        radius="md"
+        size="lg"
+        radius="lg"
         data-testid={setDataTestId('export-options-modal')}
         classNames={{
           content: 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
         }}
       >
-        <Stack p="md" gap={20}>
-          <Group justify="space-between">
-            <Title order={4}>Export Data</Title>
-            <ActionIcon size={20} onClick={onClose}>
-              <IconX />
+        <Stack gap={0}>
+          <Group justify="space-between" p="xl" pb="md">
+            <Group gap="xs">
+              <IconDownload size={20} stroke={1.5} />
+              <Title order={3} size="h4">
+                Export Data
+              </Title>
+            </Group>
+            <ActionIcon size="md" onClick={onClose} variant="subtle" color="gray" radius="md">
+              <IconX size={18} />
             </ActionIcon>
           </Group>
 
-          <Text>Choose a format and configure options to export your data.</Text>
+          <Box px="xl" pb="xl">
+            <TextInput
+              ref={inputRef}
+              label="File Name"
+              value={exportFilename}
+              onChange={(e) => setExportFilename(e.currentTarget.value)}
+              data-testid={setDataTestId('export-filename')}
+              error={filenameError}
+              size="md"
+              mb="lg"
+              classNames={{
+                root: 'w-full',
+                label: 'mb-2 text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark',
+                input:
+                  'border-borderPrimary-light dark:border-borderPrimary-dark rounded-lg h-10 px-3 placeholder-textTertiary-light dark:placeholder-textTertiary-dark focus:border-borderAccent-light dark:focus:border-borderAccent-dark',
+              }}
+            />
 
-          <TextInput
-            ref={inputRef}
-            label="Filename"
-            value={exportFilename}
-            onChange={(e) => setExportFilename(e.currentTarget.value)}
-            data-testid={setDataTestId('export-filename')}
-            error={filenameError}
-            size="sm"
-            classNames={{
-              input:
-                'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2 placeholder-textTertiary-light dark:placeholder-textTertiary-dark focus:border-borderAccent-light dark:focus:border-borderAccent-dark',
-            }}
-          />
+            <Text size="sm" c="dimmed" mb="lg">
+              Choose a format and configure options to export your data.
+            </Text>
 
-          <Select
-            label="Export format"
-            data={formatOptions}
-            value={format}
-            onChange={(value) => {
-              const newFormat = value as ExportFormat;
-              setFormat(newFormat);
-              updateFilenameOnFormatChange(newFormat);
-            }}
-            data-testid={setDataTestId('export-format-selector')}
-            size="sm"
-            classNames={{
-              input:
-                'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2 placeholder-textTertiary-light dark:placeholder-textTertiary-dark focus:border-borderAccent-light dark:focus:border-borderAccent-dark',
-              dropdown:
-                'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border border-borderPrimary-light dark:border-borderPrimary-dark shadow-lg',
-            }}
-          />
+            <Group align="stretch" gap="lg" wrap="nowrap">
+              {/* Format selector - vertical on the left */}
+              <Stack gap={4} w={140}>
+                {formatOptions.map((option) => (
+                  <UnstyledButton
+                    key={option.value}
+                    onClick={() => {
+                      const newFormat = option.value as ExportFormat;
+                      setFormat(newFormat);
+                      updateFilenameOnFormatChange(newFormat);
+                    }}
+                    className={cn(
+                      'px-4 py-2.5 rounded-2xl transition-colors text-sm font-medium text-left',
+                      format === option.value
+                        ? 'bg-transparentBrandBlue-016 dark:bg-transparentBrandBlue-016 text-textPrimary-light dark:text-textPrimary-dark'
+                        : 'hover:bg-transparent004 hover:dark:bg-transparent004 text-textSecondary-light dark:text-textSecondary-dark',
+                    )}
+                    data-testid={setDataTestId(`export-format-${option.value}`)}
+                  >
+                    {option.label}
+                  </UnstyledButton>
+                ))}
+              </Stack>
 
-          <Checkbox
-            label="Include header row"
-            checked={includeHeader}
-            onChange={(e) => setIncludeHeader(e.currentTarget.checked)}
-            data-testid={setDataTestId('export-include-header')}
-          />
+              <Divider orientation="vertical" />
 
-          <Box style={{ height: 240, overflow: 'auto' }}>
-            <Tabs value={format} keepMounted={false}>
-              <Tabs.Panel value="csv">
-                <Stack gap="xs">
-                  <TextInput
-                    label="Delimiter"
-                    value={delimiter}
-                    onChange={(e) => setDelimiter(e.currentTarget.value)}
-                    data-testid={setDataTestId('export-csv-delimiter')}
-                    error={delimiterError}
-                    size="sm"
-                    classNames={{
-                      input:
-                        'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2',
-                    }}
-                  />
-                  <TextInput
-                    label="Quote Character"
-                    value={quoteChar}
-                    onChange={(e) => setQuoteChar(e.currentTarget.value)}
-                    error={quoteCharError}
-                    size="sm"
-                    classNames={{
-                      input:
-                        'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2',
-                    }}
-                  />
-                  <TextInput
-                    label="Escape Character"
-                    value={escapeChar}
-                    onChange={(e) => setEscapeChar(e.currentTarget.value)}
-                    error={escapeCharError}
-                    size="sm"
-                    classNames={{
-                      input:
-                        'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2',
-                    }}
-                  />
-                </Stack>
-              </Tabs.Panel>
+              {/* Format-specific settings on the right */}
+              <Box style={{ flex: 1, minHeight: '300px' }}>
+                {format === 'csv' && (
+                  <Stack gap="md">
+                    <Checkbox
+                      label="Include header row"
+                      checked={includeHeader}
+                      onChange={(e) => setIncludeHeader(e.currentTarget.checked)}
+                      data-testid={setDataTestId('export-include-header')}
+                      color="background-accent"
+                      classNames={{
+                        root: 'flex items-center',
+                        label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark',
+                      }}
+                    />
+                    <TextInput
+                      label="Delimiter"
+                      value={delimiter}
+                      onChange={(e) => setDelimiter(e.currentTarget.value)}
+                      data-testid={setDataTestId('export-csv-delimiter')}
+                      error={delimiterError}
+                      size="md"
+                      classNames={{
+                        root: 'w-full',
+                        label:
+                          'mb-2 text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark',
+                        input:
+                          'border-borderPrimary-light dark:border-borderPrimary-dark rounded-lg h-10 px-3',
+                      }}
+                    />
+                    <TextInput
+                      label="Quote Character"
+                      value={quoteChar}
+                      onChange={(e) => setQuoteChar(e.currentTarget.value)}
+                      error={quoteCharError}
+                      size="md"
+                      classNames={{
+                        root: 'w-full',
+                        label:
+                          'mb-2 text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark',
+                        input:
+                          'border-borderPrimary-light dark:border-borderPrimary-dark rounded-lg h-10 px-3',
+                      }}
+                    />
+                    <TextInput
+                      label="Escape Character"
+                      value={escapeChar}
+                      onChange={(e) => setEscapeChar(e.currentTarget.value)}
+                      error={escapeCharError}
+                      size="md"
+                      classNames={{
+                        root: 'w-full',
+                        label:
+                          'mb-2 text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark',
+                        input:
+                          'border-borderPrimary-light dark:border-borderPrimary-dark rounded-lg h-10 px-3',
+                      }}
+                    />
+                  </Stack>
+                )}
 
-              <Tabs.Panel value="tsv">
-                <Stack gap="xs">
-                  <TextInput
-                    label="Quote Character"
-                    value={quoteChar}
-                    onChange={(e) => setQuoteChar(e.currentTarget.value)}
-                    error={quoteCharError}
-                    size="sm"
-                    classNames={{
-                      input:
-                        'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2',
-                    }}
-                  />
-                  <TextInput
-                    label="Escape Character"
-                    value={escapeChar}
-                    onChange={(e) => setEscapeChar(e.currentTarget.value)}
-                    error={escapeCharError}
-                    size="sm"
-                    classNames={{
-                      input:
-                        'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2',
-                    }}
-                  />
-                </Stack>
-              </Tabs.Panel>
+                {format === 'tsv' && (
+                  <Stack gap="md">
+                    <Checkbox
+                      label="Include header row"
+                      checked={includeHeader}
+                      onChange={(e) => setIncludeHeader(e.currentTarget.checked)}
+                      data-testid={setDataTestId('export-include-header')}
+                      color="background-accent"
+                      classNames={{
+                        root: 'flex items-center',
+                        label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark',
+                      }}
+                    />
+                    <TextInput
+                      label="Quote Character"
+                      value={quoteChar}
+                      onChange={(e) => setQuoteChar(e.currentTarget.value)}
+                      error={quoteCharError}
+                      size="md"
+                      classNames={{
+                        root: 'w-full',
+                        label:
+                          'mb-2 text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark',
+                        input:
+                          'border-borderPrimary-light dark:border-borderPrimary-dark rounded-lg h-10 px-3',
+                      }}
+                    />
+                    <TextInput
+                      label="Escape Character"
+                      value={escapeChar}
+                      onChange={(e) => setEscapeChar(e.currentTarget.value)}
+                      error={escapeCharError}
+                      size="md"
+                      classNames={{
+                        root: 'w-full',
+                        label:
+                          'mb-2 text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark',
+                        input:
+                          'border-borderPrimary-light dark:border-borderPrimary-dark rounded-lg h-10 px-3',
+                      }}
+                    />
+                  </Stack>
+                )}
 
-              <Tabs.Panel value="xlsx">
-                <Stack gap="xs">
-                  <TextInput
-                    label="Sheet Name"
-                    value={sheetName}
-                    onChange={(e) => setSheetName(e.currentTarget.value)}
-                    data-testid={setDataTestId('export-xlsx-sheet-name')}
-                    error={sheetNameError}
-                    size="sm"
-                    classNames={{
-                      input:
-                        'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2',
-                    }}
-                  />
-                </Stack>
-              </Tabs.Panel>
+                {format === 'xlsx' && (
+                  <Stack gap="md">
+                    <Checkbox
+                      label="Include header row"
+                      checked={includeHeader}
+                      onChange={(e) => setIncludeHeader(e.currentTarget.checked)}
+                      data-testid={setDataTestId('export-include-header')}
+                      color="background-accent"
+                      classNames={{
+                        root: 'flex items-center',
+                        label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark',
+                      }}
+                    />
+                    <TextInput
+                      label="Sheet Name"
+                      value={sheetName}
+                      onChange={(e) => setSheetName(e.currentTarget.value)}
+                      data-testid={setDataTestId('export-xlsx-sheet-name')}
+                      error={sheetNameError}
+                      size="md"
+                      classNames={{
+                        root: 'w-full',
+                        label:
+                          'mb-2 text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark',
+                        input:
+                          'border-borderPrimary-light dark:border-borderPrimary-dark rounded-lg h-10 px-3',
+                      }}
+                    />
+                  </Stack>
+                )}
 
-              <Tabs.Panel value="sql">
-                <Stack gap="xs">
-                  <TextInput
-                    label="Table Name"
-                    value={tableName}
-                    onChange={(e) => setTableName(e.currentTarget.value)}
-                    data-testid={setDataTestId('export-sql-table-name')}
-                    error={tableNameError}
-                    size="sm"
-                    classNames={{
-                      input:
-                        'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2',
-                    }}
-                  />
-                  <Checkbox
-                    label="Include CREATE TABLE statement"
-                    checked={includeCreateTable}
-                    onChange={(e) => setIncludeCreateTable(e.currentTarget.checked)}
-                  />
-                  <Checkbox
-                    label="Include column data types"
-                    checked={includeDataTypes}
-                    onChange={(e) => setIncludeDataTypes(e.currentTarget.checked)}
-                    disabled={!includeCreateTable}
-                  />
-                </Stack>
-              </Tabs.Panel>
+                {format === 'sql' && (
+                  <Stack gap="md">
+                    <TextInput
+                      label="Table Name"
+                      value={tableName}
+                      onChange={(e) => setTableName(e.currentTarget.value)}
+                      data-testid={setDataTestId('export-sql-table-name')}
+                      error={tableNameError}
+                      size="md"
+                      classNames={{
+                        root: 'w-full',
+                        label:
+                          'mb-2 text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark',
+                        input:
+                          'border-borderPrimary-light dark:border-borderPrimary-dark rounded-lg h-10 px-3',
+                      }}
+                    />
+                    <Checkbox
+                      label="Include CREATE TABLE statement"
+                      checked={includeCreateTable}
+                      onChange={(e) => setIncludeCreateTable(e.currentTarget.checked)}
+                      color="background-accent"
+                      classNames={{
+                        root: 'flex items-center',
+                        label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark',
+                      }}
+                    />
+                    <Checkbox
+                      label="Include column data types"
+                      checked={includeDataTypes}
+                      onChange={(e) => setIncludeDataTypes(e.currentTarget.checked)}
+                      disabled={!includeCreateTable}
+                      color="background-accent"
+                      classNames={{
+                        root: 'flex items-center',
+                        label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark',
+                      }}
+                    />
+                  </Stack>
+                )}
 
-              <Tabs.Panel value="xml">
-                <Stack gap="xs">
-                  <TextInput
-                    label="Root Element Name"
-                    value={rootElement}
-                    onChange={(e) => setRootElement(e.currentTarget.value)}
-                    data-testid={setDataTestId('export-xml-root')}
-                    error={rootElementError}
-                    size="sm"
-                    classNames={{
-                      input:
-                        'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2',
-                    }}
-                  />
-                  <TextInput
-                    label="Row Element Name"
-                    value={rowElement}
-                    onChange={(e) => setRowElement(e.currentTarget.value)}
-                    data-testid={setDataTestId('export-xml-row')}
-                    error={rowElementError}
-                    size="sm"
-                    classNames={{
-                      input:
-                        'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2',
-                    }}
-                  />
-                </Stack>
-              </Tabs.Panel>
+                {format === 'xml' && (
+                  <Stack gap="md">
+                    <Checkbox
+                      label="Include header row"
+                      checked={includeHeader}
+                      onChange={(e) => setIncludeHeader(e.currentTarget.checked)}
+                      data-testid={setDataTestId('export-include-header')}
+                      color="background-accent"
+                      classNames={{
+                        root: 'flex items-center',
+                        label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark',
+                      }}
+                    />
+                    <TextInput
+                      label="Root Element Name"
+                      value={rootElement}
+                      onChange={(e) => setRootElement(e.currentTarget.value)}
+                      data-testid={setDataTestId('export-xml-root')}
+                      error={rootElementError}
+                      size="md"
+                      classNames={{
+                        root: 'w-full',
+                        label:
+                          'mb-2 text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark',
+                        input:
+                          'border-borderPrimary-light dark:border-borderPrimary-dark rounded-lg h-10 px-3',
+                      }}
+                    />
+                    <TextInput
+                      label="Row Element Name"
+                      value={rowElement}
+                      onChange={(e) => setRowElement(e.currentTarget.value)}
+                      data-testid={setDataTestId('export-xml-row')}
+                      error={rowElementError}
+                      size="md"
+                      classNames={{
+                        root: 'w-full',
+                        label:
+                          'mb-2 text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark',
+                        input:
+                          'border-borderPrimary-light dark:border-borderPrimary-dark rounded-lg h-10 px-3',
+                      }}
+                    />
+                  </Stack>
+                )}
 
-              <Tabs.Panel value="md">
-                <Stack gap="xs">
-                  <Select
-                    label="Markdown Format"
-                    data={[
-                      { label: 'GitHub Markdown', value: 'github' },
-                      { label: 'Standard Markdown', value: 'standard' },
-                    ]}
-                    value={mdFormat}
-                    onChange={(value) => setMdFormat(value as 'github' | 'standard')}
-                    data-testid={setDataTestId('export-md-format')}
-                    size="sm"
-                    classNames={{
-                      input:
-                        'border-borderPrimary-light dark:border-borderPrimary-dark rounded-md text-sm leading-none px-4 py-2',
-                      dropdown:
-                        'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border border-borderPrimary-light dark:border-borderPrimary-dark shadow-lg',
-                    }}
-                  />
-                  <Checkbox
-                    label="Align columns"
-                    checked={alignColumns}
-                    onChange={(e) => setAlignColumns(e.currentTarget.checked)}
-                  />
-                </Stack>
-              </Tabs.Panel>
-            </Tabs>
+                {format === 'md' && (
+                  <Stack gap="md">
+                    <Checkbox
+                      label="Include header row"
+                      checked={includeHeader}
+                      onChange={(e) => setIncludeHeader(e.currentTarget.checked)}
+                      data-testid={setDataTestId('export-include-header')}
+                      color="background-accent"
+                      classNames={{
+                        root: 'flex items-center',
+                        label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark',
+                      }}
+                    />
+                    <Box>
+                      <Text size="sm" fw={500} mb="xs">
+                        Markdown Format
+                      </Text>
+                      <Text size="xs" c="dimmed" mb="sm">
+                        Use GitHub for best compatibility with GitHub and similar platforms; choose
+                        Standard for widest compatibility.
+                      </Text>
+                      <Radio.Group
+                        value={mdFormat}
+                        onChange={(value) => setMdFormat(value as 'github' | 'standard')}
+                      >
+                        <Group gap="xl">
+                          <Radio
+                            value="github"
+                            label="GitHub"
+                            color="background-accent"
+                            classNames={{
+                              root: 'flex items-center',
+                              label:
+                                'text-sm text-textPrimary-light dark:text-textPrimary-dark ml-2',
+                            }}
+                          />
+                          <Radio
+                            value="standard"
+                            label="Standard"
+                            color="background-accent"
+                            classNames={{
+                              root: 'flex items-center',
+                              label:
+                                'text-sm text-textPrimary-light dark:text-textPrimary-dark ml-2',
+                            }}
+                          />
+                        </Group>
+                      </Radio.Group>
+                    </Box>
+                    <Checkbox
+                      label="Align columns"
+                      checked={alignColumns}
+                      onChange={(e) => setAlignColumns(e.currentTarget.checked)}
+                      color="background-accent"
+                      classNames={{
+                        root: 'flex items-center',
+                        label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark',
+                      }}
+                    />
+                  </Stack>
+                )}
+              </Box>
+            </Group>
+
+            {isLargeDataset && (
+              <Alert
+                icon={<IconAlertTriangle size={16} />}
+                color="yellow"
+                mt="lg"
+                classNames={{
+                  root: 'rounded-lg',
+                }}
+              >
+                Large dataset ({largeDatasetSize.toLocaleString()} rows). Export may be slow.
+              </Alert>
+            )}
           </Box>
 
-          {isLargeDataset && (
-            <Alert
-              icon={<IconAlertTriangle size={16} />}
-              color="yellow"
-              classNames={{
-                root: 'rounded-md',
-              }}
-            >
-              Large dataset ({largeDatasetSize.toLocaleString()} rows). Export may be slow.
-            </Alert>
-          )}
-
-          <Group justify="flex-end" gap={4} mt="md">
-            <Button
-              variant="transparent"
-              onClick={onClose}
-              className="rounded-full px-3"
-              c="text-secondary"
-              data-testid={setDataTestId('export-cancel')}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleExport}
-              data-testid={setDataTestId('export-confirm')}
-              color="background-accent"
-              className="rounded-full px-3"
-            >
-              {isLargeDataset ? 'Export Anyway' : 'Export'}
-            </Button>
-          </Group>
+          <Box
+            px="xl"
+            py="lg"
+            style={{ borderTop: '1px solid var(--mantine-color-borderPrimary-light)' }}
+          >
+            <Group justify="flex-end" gap="sm">
+              <Button
+                variant="subtle"
+                onClick={onClose}
+                size="md"
+                radius="lg"
+                color="gray"
+                data-testid={setDataTestId('export-cancel')}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleExport}
+                data-testid={setDataTestId('export-confirm')}
+                size="md"
+                radius="lg"
+                className="bg-backgroundAccent-light dark:bg-backgroundAccent-dark hover:bg-backgroundAccent-light hover:dark:bg-backgroundAccent-dark"
+                styles={{
+                  root: {
+                    '&:hover': {
+                      backgroundColor: 'var(--mantine-color-backgroundAccent)',
+                    },
+                  },
+                }}
+              >
+                {isLargeDataset ? 'Export Anyway' : 'Export'}
+              </Button>
+            </Group>
+          </Box>
         </Stack>
       </Modal>
     </>

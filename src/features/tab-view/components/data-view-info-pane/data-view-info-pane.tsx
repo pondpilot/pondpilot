@@ -5,7 +5,7 @@ import { TextProps, Group, ActionIcon, Button, Text, Menu, Divider } from '@mant
 import { useDebouncedValue } from '@mantine/hooks';
 import { DataAdapterApi } from '@models/data-adapter';
 import { TabId, TabType } from '@models/tab';
-import { IconX, IconCopy, IconRefresh, IconDownload, IconChevronDown } from '@tabler/icons-react';
+import { IconX, IconCopy, IconRefresh, IconChevronDown } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { assertNeverValueType } from '@utils/typing';
 import { cn } from '@utils/ui/styles';
@@ -171,10 +171,7 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
               rightSection={<IconChevronDown size={14} />}
               data-testid={setDataTestId('export-table-button')}
             >
-              <Group gap={4}>
-                <IconDownload size={14} />
-                Export
-              </Group>
+              <Group gap={4}>Export</Group>
             </Button>
           </Menu.Target>
 
