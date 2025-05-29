@@ -1,9 +1,9 @@
 /* eslint-disable no-playwright-page-methods */
 import { expect, mergeTests } from '@playwright/test';
 
-import { setOnboardingShown, setVersionShown } from './../utils';
 import { test as base } from '../fixtures/base';
 import { test as whatsNewModalTest } from '../fixtures/whats-new-modal';
+import { setOnboardingShown, setVersionShown } from '../utils';
 
 const test = mergeTests(whatsNewModalTest, base);
 
