@@ -5,6 +5,7 @@ import {
   TreeNodeMenuItemType,
   TreeNodeMenuType,
 } from '@components/explorer-tree';
+import { useDeleteHotkey } from '@components/explorer-tree/hooks';
 import { createMultiSelectContextMenu } from '@components/explorer-tree/utils/multi-select-menu';
 import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
 import { IconType } from '@components/named-icon';
@@ -21,7 +22,6 @@ import {
   setPreviewTabId,
 } from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { useHotkeys } from '@mantine/hooks';
 import { PersistentDataSourceId, AttachedDB } from '@models/data-source';
 import { DBColumn, DBSchema, DBTableOrView, DBTableOrViewSchema } from '@models/db';
 import {
@@ -532,17 +532,7 @@ export const DbExplorer = memo(() => {
   });
 
   // Hotkeys for deletion
-  useHotkeys([
-    [
-      'mod+Backspace',
-      () => {
-        if (selectedDeleteableNodeIds.length === 0) {
-          return;
-        }
-        handleDeleteSelected(selectedDeleteableNodeIds);
-      },
-    ],
-  ]);
+  useDeleteHotkey(selectedDeleteableNodeIds, handleDeleteSelected);
 
   return (
     <ExplorerTree<DBNodeTypeMap, DBExplorerContext>

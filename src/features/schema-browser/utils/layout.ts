@@ -1,12 +1,19 @@
 import dagre from 'dagre';
 import { Node, Edge } from 'reactflow';
 
+import {
+  NODE_WIDTH,
+  NODE_HEIGHT_BASE,
+  NODE_HEIGHT_PER_COLUMN,
+  DAGRE_NODESEP_LR,
+  DAGRE_NODESEP_TB,
+  DAGRE_RANKSEP_LR,
+  DAGRE_RANKSEP_TB,
+  DAGRE_EDGESEP,
+  DAGRE_MARGIN_X,
+  DAGRE_MARGIN_Y,
+} from '../constants';
 import { SchemaNodeData, SchemaEdgeData } from '../model';
-
-// Define node dimensions for layout calculation
-const NODE_WIDTH = 280;
-const NODE_HEIGHT = 200;
-const NODE_HEIGHT_PER_COLUMN = 30;
 
 /**
  * Arranges nodes in a directed graph layout using dagre algorithm
@@ -39,17 +46,17 @@ export function getLayoutedElements(
   // Set graph direction with more spacing
   dagreGraph.setGraph({
     rankdir: direction,
-    nodesep: direction === 'LR' ? 150 : 100, // Horizontal spacing between nodes
-    ranksep: direction === 'LR' ? 200 : 150, // Vertical spacing between ranks
-    edgesep: 50, // Spacing between edges
-    marginx: 40,
-    marginy: 40,
+    nodesep: direction === 'LR' ? DAGRE_NODESEP_LR : DAGRE_NODESEP_TB,
+    ranksep: direction === 'LR' ? DAGRE_RANKSEP_LR : DAGRE_RANKSEP_TB,
+    edgesep: DAGRE_EDGESEP,
+    marginx: DAGRE_MARGIN_X,
+    marginy: DAGRE_MARGIN_Y,
   });
 
   // Add nodes to dagre graph with dimensions
   nodes.forEach((node) => {
     // Adjust node height based on number of columns
-    const height = NODE_HEIGHT + (node.data?.columns?.length || 0) * NODE_HEIGHT_PER_COLUMN;
+    const height = NODE_HEIGHT_BASE + (node.data?.columns?.length || 0) * NODE_HEIGHT_PER_COLUMN;
     dagreGraph.setNode(node.id, { width: NODE_WIDTH, height });
   });
 
@@ -75,7 +82,7 @@ export function getLayoutedElements(
         x: nodeWithPosition.x - NODE_WIDTH / 2,
         y:
           nodeWithPosition.y -
-          (NODE_HEIGHT + (node.data?.columns?.length || 0) * NODE_HEIGHT_PER_COLUMN) / 2,
+          (NODE_HEIGHT_BASE + (node.data?.columns?.length || 0) * NODE_HEIGHT_PER_COLUMN) / 2,
       },
     };
   });

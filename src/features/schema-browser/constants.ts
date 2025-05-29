@@ -13,6 +13,15 @@ export const HORIZONTAL_GAP = 200;
 export const VERTICAL_GAP = 140;
 export const EDGE_PADDING = 10;
 
+// Dagre layout configuration
+export const DAGRE_NODESEP_LR = 150; // Horizontal spacing between nodes (left-right)
+export const DAGRE_NODESEP_TB = 100; // Horizontal spacing between nodes (top-bottom)
+export const DAGRE_RANKSEP_LR = 200; // Vertical spacing between ranks (left-right)
+export const DAGRE_RANKSEP_TB = 150; // Vertical spacing between ranks (top-bottom)
+export const DAGRE_EDGESEP = 50; // Spacing between edges
+export const DAGRE_MARGIN_X = 40; // Graph margin X
+export const DAGRE_MARGIN_Y = 40; // Graph margin Y
+
 // Performance limits
 export const MAX_VISIBLE_COLUMNS = 20;
 export const WARN_NODE_COUNT = 50;

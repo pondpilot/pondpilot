@@ -1,4 +1,5 @@
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
+import { useDeleteHotkey } from '@components/explorer-tree/hooks';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
 import { createMultiSelectContextMenu } from '@components/explorer-tree/utils/multi-select-menu';
 import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
@@ -10,7 +11,6 @@ import {
   setActiveTabId,
   setPreviewTabId,
 } from '@controllers/tab';
-import { useHotkeys } from '@mantine/hooks';
 import { SQLScriptId } from '@models/sql-script';
 import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
@@ -167,17 +167,7 @@ export const ScriptExplorer = memo(() => {
   };
 
   // Hotkeys for deletion
-  useHotkeys([
-    [
-      'mod+Backspace',
-      () => {
-        if (selectedDeleteableNodeIds.length === 0) {
-          return;
-        }
-        deleteSqlScripts(selectedDeleteableNodeIds as SQLScriptId[]);
-      },
-    ],
-  ]);
+  useDeleteHotkey(selectedDeleteableNodeIds as SQLScriptId[], deleteSqlScripts);
 
   return (
     <ExplorerTree<ScrtiptNodeTypeToIdTypeMap, ScriptExplorerContext>

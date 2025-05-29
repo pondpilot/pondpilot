@@ -1,4 +1,5 @@
 import { ExplorerTree, TreeNodeData, TreeNodeMenuType } from '@components/explorer-tree';
+import { useDeleteHotkey } from '@components/explorer-tree/hooks';
 import { createMultiSelectContextMenu } from '@components/explorer-tree/utils/multi-select-menu';
 import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
 import { deleteDataSources } from '@controllers/data-source';
@@ -15,7 +16,6 @@ import {
   setPreviewTabId,
 } from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { useHotkeys } from '@mantine/hooks';
 import { AnyFlatFileDataSource, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { useAppStore, useFlatFileDataSourceMap } from '@store/app-store';
@@ -274,7 +274,7 @@ export const FileSystemExplorer = memo(() => {
                 iconType: 'xlsx-sheet',
                 isDisabled: false,
                 isSelectable: true,
-                onNodeClick: (node: any, tree: any): void => {
+                onNodeClick: (_node: any, _tree: any): void => {
                   const existingTab = findTabFromFlatFileDataSource(sheet.id);
                   if (existingTab) {
                     setActiveTabId(existingTab.id);
@@ -390,7 +390,7 @@ export const FileSystemExplorer = memo(() => {
                 deleteDataSources(conn, [value]);
               }
             : undefined,
-          onNodeClick: (node: any, tree: any): void => {
+          onNodeClick: (_node: any, _tree: any): void => {
             // Check if the tab is already open
             const existingTab = findTabFromFlatFileDataSource(relatedSource.id);
             if (existingTab) {
@@ -579,17 +579,7 @@ export const FileSystemExplorer = memo(() => {
   });
 
   // Hotkeys for deletion
-  useHotkeys([
-    [
-      'mod+Backspace',
-      () => {
-        if (selectedDeleteableNodeIds.length === 0) {
-          return;
-        }
-        handleDeleteSelected(selectedDeleteableNodeIds);
-      },
-    ],
-  ]);
+  useDeleteHotkey(selectedDeleteableNodeIds, handleDeleteSelected);
 
   return (
     <ExplorerTree<FSExplorerNodeTypeToIdTypeMap, FSExplorerContext>
