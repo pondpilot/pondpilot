@@ -10,7 +10,11 @@ export const test = base.extend<{ forEachTest: void }>({
 
       // Block Google Fonts requests - will prevent waiting for these resources and speed up tests
       await page.route(/^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)/, (route) =>
-        route.abort('timedout'),
+        route.fulfill({
+          status: 200,
+          contentType: 'text/css',
+          body: '/* Fonts blocked for testing */',
+        }),
       );
 
       // Allow serving locally cached modules for offline testing.
