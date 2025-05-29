@@ -1,3 +1,4 @@
+/* eslint-disable no-playwright-page-methods */
 import { expect } from '@playwright/test';
 
 import { test } from './fixtures/base';

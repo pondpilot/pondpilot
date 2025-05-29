@@ -1,3 +1,4 @@
+/* eslint-disable no-playwright-page-methods */
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { expect, Page } from '@playwright/test';
 

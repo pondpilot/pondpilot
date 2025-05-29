@@ -74,7 +74,7 @@ test('Open release notes from Start Guide', async ({
   whatsNewModalSubmitButton,
 }) => {
   // Navigate to the application
-  await page.goto('/');
+  await page.reload();
 
   // Click the "Release Notes" button in the Start Guide
   await releaseNotesAction.click();

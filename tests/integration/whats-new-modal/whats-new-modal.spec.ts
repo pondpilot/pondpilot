@@ -1,3 +1,4 @@
+/* eslint-disable no-playwright-page-methods */
 import { expect, mergeTests } from '@playwright/test';
 
 import { setOnboardingShown, setVersionShown } from './utils';
