@@ -78,10 +78,16 @@ class AIAssistantWidget extends WidgetType {
 
       let selectedProvider = currentConfig.provider;
 
-      for (const provider of AI_PROVIDERS) {
-        if (provider.models.some((model) => model.id === selectedModel)) {
-          selectedProvider = provider.id;
-          break;
+      // Check if it's a custom model
+      if (currentConfig.customModels?.some((model) => model.id === selectedModel)) {
+        selectedProvider = 'custom';
+      } else {
+        // Otherwise, find the provider for this model
+        for (const provider of AI_PROVIDERS) {
+          if (provider.models.some((model) => model.id === selectedModel)) {
+            selectedProvider = provider.id;
+            break;
+          }
         }
       }
 

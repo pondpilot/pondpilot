@@ -164,8 +164,8 @@ export function createActionsSection(
     actionsTitle.className = 'structured-response-section-title';
     actionsSection.appendChild(actionsTitle);
 
-    actions.forEach((action, index) => {
-      const actionCard = createActionCard(action, onApply, onClose, index + 1);
+    actions.forEach((action) => {
+      const actionCard = createActionCard(action, onApply, onClose);
       actionsSection.appendChild(actionCard);
     });
   }

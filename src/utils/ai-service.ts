@@ -14,6 +14,41 @@ export class AIService {
     this.config = config;
   }
 
+  async testConnection(): Promise<{ success: boolean; message: string }> {
+    if (!this.config.apiKey) {
+      return {
+        success: false,
+        message: 'API key is required',
+      };
+    }
+
+    try {
+      // Send a minimal test request
+      const testRequest: AIRequest = {
+        prompt: 'Say "Connection successful"',
+        useStructuredResponse: false,
+      };
+
+      const response = await this.generateSQLAssistance(testRequest);
+
+      if (response.success) {
+        return {
+          success: true,
+          message: `Connected to ${this.config.provider === 'custom' ? 'custom endpoint' : this.config.provider} successfully`,
+        };
+      }
+      return {
+        success: false,
+        message: response.error || 'Connection failed',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  }
+
   async generateSQLAssistance(request: AIRequest): Promise<AIResponse> {
     if (!this.config.apiKey) {
       return {
@@ -35,6 +70,26 @@ export class AIService {
         baseUrl: 'https://api.anthropic.com/v1',
         authHeader: `x-api-key ${this.config.apiKey}`,
         providerName: 'Anthropic',
+      });
+    }
+
+    if (this.config.provider === 'custom') {
+      if (!this.config.customEndpoint) {
+        return {
+          success: false,
+          error: 'Custom endpoint URL not configured',
+        };
+      }
+
+      const authHeader =
+        this.config.customAuthType === 'x-api-key'
+          ? `x-api-key ${this.config.apiKey}`
+          : `Bearer ${this.config.apiKey}`;
+
+      return this.callOpenAICompatible(request, {
+        baseUrl: this.config.customEndpoint,
+        authHeader,
+        providerName: 'Custom Endpoint',
       });
     }
 

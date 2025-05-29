@@ -182,13 +182,23 @@ export function createModelSelectionSection(onModelChange: (model: string) => vo
         isGroup: true,
       });
 
-      // Add models for this provider
-      provider.models.forEach((model) => {
-        selectOptions.push({
-          value: model.id,
-          label: model.name,
+      // Handle custom provider with custom models
+      if (provider.id === 'custom' && config.customModels && config.customModels.length > 0) {
+        config.customModels.forEach((model) => {
+          selectOptions.push({
+            value: model.id,
+            label: model.name,
+          });
         });
-      });
+      } else {
+        // Add regular provider models
+        provider.models.forEach((model) => {
+          selectOptions.push({
+            value: model.id,
+            label: model.name,
+          });
+        });
+      }
     }
   });
 

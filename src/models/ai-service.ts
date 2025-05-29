@@ -17,6 +17,9 @@ export interface AIServiceConfig {
   model: string;
   apiKey: string;
   apiKeys?: Record<string, string>;
+  customEndpoint?: string;
+  customAuthType?: 'bearer' | 'x-api-key';
+  customModels?: AIModel[];
 }
 
 export interface AIRequest {
@@ -70,6 +73,11 @@ export const AI_PROVIDERS: AIProvider[] = [
         description: 'Fast and efficient model for quick SQL assistance. Best for most users.',
       },
     ],
+  },
+  {
+    id: 'custom',
+    name: 'Custom Endpoint',
+    models: [],
   },
 ];
 

@@ -27,6 +27,34 @@ function sanitizeConfig(config: Partial<AIServiceConfig>): Partial<AIServiceConf
     });
   }
 
+  if (typeof config.customEndpoint === 'string') {
+    // Validate and sanitize custom endpoint URL
+    const endpoint = config.customEndpoint.trim();
+    try {
+      const url = new URL(endpoint);
+      // Ensure it's HTTP(S)
+      if (url.protocol === 'http:' || url.protocol === 'https:') {
+        sanitized.customEndpoint = url.toString();
+      }
+    } catch {
+      // Invalid URL, ignore
+    }
+  }
+
+  if (config.customAuthType === 'bearer' || config.customAuthType === 'x-api-key') {
+    sanitized.customAuthType = config.customAuthType;
+  }
+
+  if (config.customModels && Array.isArray(config.customModels)) {
+    sanitized.customModels = config.customModels
+      .filter((model) => model && typeof model.id === 'string' && typeof model.name === 'string')
+      .map((model) => ({
+        id: model.id.trim(),
+        name: model.name.trim(),
+        description: model.description?.trim(),
+      }));
+  }
+
   return sanitized;
 }
 

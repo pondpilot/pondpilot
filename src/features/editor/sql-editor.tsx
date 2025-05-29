@@ -16,7 +16,6 @@ import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
 import { aiAssistantButton } from './ai-assistant-button';
 import { aiAssistantTooltip, showAIAssistant } from './ai-assistant-tooltip';
-
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
 import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';

@@ -144,11 +144,17 @@ export function createAIAssistantHandlers(
     onClose: () => void,
   ) => {
     // Allow copy/paste keyboard shortcuts to work normally
-    if ((event.metaKey || event.ctrlKey) &&
-        (event.key === 'c' || event.key === 'v' ||
-         event.key === 'x' || event.key === 'a' ||
-         event.key === 'C' || event.key === 'V' ||
-         event.key === 'X' || event.key === 'A')) {
+    if (
+      (event.metaKey || event.ctrlKey) &&
+      (event.key === 'c' ||
+        event.key === 'v' ||
+        event.key === 'x' ||
+        event.key === 'a' ||
+        event.key === 'C' ||
+        event.key === 'V' ||
+        event.key === 'X' ||
+        event.key === 'A')
+    ) {
       // Just stop propagation to prevent editor from handling it
       event.stopPropagation();
       return;
@@ -174,11 +180,17 @@ export function createAIAssistantHandlers(
 
   const handleContainerKeyDown = (event: KeyboardEvent, onClose: () => void) => {
     // Allow copy/paste keyboard shortcuts to work normally
-    if ((event.metaKey || event.ctrlKey) &&
-        (event.key === 'c' || event.key === 'v' ||
-         event.key === 'x' || event.key === 'a' ||
-         event.key === 'C' || event.key === 'V' ||
-         event.key === 'X' || event.key === 'A')) {
+    if (
+      (event.metaKey || event.ctrlKey) &&
+      (event.key === 'c' ||
+        event.key === 'v' ||
+        event.key === 'x' ||
+        event.key === 'a' ||
+        event.key === 'C' ||
+        event.key === 'V' ||
+        event.key === 'X' ||
+        event.key === 'A')
+    ) {
       // Just stop propagation to prevent editor from handling it
       event.stopPropagation();
       return;

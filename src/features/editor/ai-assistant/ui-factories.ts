@@ -158,7 +158,17 @@ export function createSpacer(className: string = 'ai-widget-spacer'): HTMLDivEle
  * Adds event propagation stopping to a container element
  */
 export function preventEventPropagation(element: HTMLElement): void {
-  const events = ['keydown', 'keyup', 'keypress', 'mousedown', 'click', 'copy', 'cut', 'paste', 'contextmenu'];
+  const events = [
+    'keydown',
+    'keyup',
+    'keypress',
+    'mousedown',
+    'click',
+    'copy',
+    'cut',
+    'paste',
+    'contextmenu',
+  ];
 
   events.forEach((eventType) => {
     element.addEventListener(eventType, (e) => {
@@ -180,11 +190,17 @@ export function preventEventPropagation(element: HTMLElement): void {
       if (eventType === 'keydown' || eventType === 'keyup' || eventType === 'keypress') {
         const keyEvent = e as KeyboardEvent;
         // Allow Cmd/Ctrl + C/V/X/A
-        if ((keyEvent.metaKey || keyEvent.ctrlKey) &&
-            (keyEvent.key === 'c' || keyEvent.key === 'v' ||
-             keyEvent.key === 'x' || keyEvent.key === 'a' ||
-             keyEvent.key === 'C' || keyEvent.key === 'V' ||
-             keyEvent.key === 'X' || keyEvent.key === 'A')) {
+        if (
+          (keyEvent.metaKey || keyEvent.ctrlKey) &&
+          (keyEvent.key === 'c' ||
+            keyEvent.key === 'v' ||
+            keyEvent.key === 'x' ||
+            keyEvent.key === 'a' ||
+            keyEvent.key === 'C' ||
+            keyEvent.key === 'V' ||
+            keyEvent.key === 'X' ||
+            keyEvent.key === 'A')
+        ) {
           // Just stop propagation to prevent editor from handling it
           e.stopPropagation();
           return;
