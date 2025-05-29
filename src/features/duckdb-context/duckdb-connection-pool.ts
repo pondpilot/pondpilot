@@ -209,7 +209,8 @@ export class AsyncDuckDBConnectionPool {
             }
 
             // Create a checkpoint to ensure data is saved to disk
-            await conn.query('CHECKPOINT;');
+            // Use FORCE CHECKPOINT to wait for other transactions
+            await conn.query('FORCE CHECKPOINT;');
 
             // Update persistence state
             await this._updateStateCallback();
@@ -275,7 +276,8 @@ export class AsyncDuckDBConnectionPool {
 
       try {
         // Create a checkpoint
-        await conn.query('CHECKPOINT;');
+        // Use FORCE CHECKPOINT to wait for other transactions
+        await conn.query('FORCE CHECKPOINT;');
 
         // Update persistence state
         await this._updateStateCallback();
