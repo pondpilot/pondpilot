@@ -12,6 +12,7 @@ import {
   TextInput,
   Radio,
   ActionIcon,
+  Checkbox,
 } from '@mantine/core';
 import {
   IconInfoCircle,
@@ -182,6 +183,11 @@ export const AISettings = () => {
     setConfig((prev) => ({ ...prev, customAuthType: value as 'bearer' | 'x-api-key' }));
     setHasChanges(true);
     setTestStatus({ testing: false, result: null });
+  }, []);
+
+  const handleCustomSupportsToolsChange = useCallback((checked: boolean) => {
+    setConfig((prev) => ({ ...prev, customSupportsTools: checked }));
+    setHasChanges(true);
   }, []);
 
   const handleAddCustomModel = useCallback(() => {
@@ -370,6 +376,13 @@ export const AISettings = () => {
                 value: model.id,
                 label: model.name,
               }))}
+            />
+
+            <Checkbox
+              label="Supports function calling (tool use)"
+              description="Uncheck if your endpoint doesn't support OpenAI-style function calling"
+              checked={config.customSupportsTools !== false}
+              onChange={(event) => handleCustomSupportsToolsChange(event.currentTarget.checked)}
             />
           </Stack>
         ) : currentProvider ? (

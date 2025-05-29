@@ -20,6 +20,7 @@ export interface AIServiceConfig {
   customEndpoint?: string;
   customAuthType?: 'bearer' | 'x-api-key';
   customModels?: AIModel[];
+  customSupportsTools?: boolean;
 }
 
 export interface AIRequest {

@@ -319,21 +319,68 @@ const aiTextInsertionField = StateField.define<string | null>({
 // ViewPlugin to handle text insertion
 const aiAssistantViewPlugin = ViewPlugin.fromClass(
   class {
+    private pendingInsertion: string | null = null;
+
     constructor(private view: EditorView) {}
 
-    update() {
-      const insertionText = this.view.state.field(aiTextInsertionField, false);
-      if (insertionText) {
-        const cursor = this.view.state.selection.main.head;
-        this.view.dispatch({
-          changes: { from: cursor, insert: insertionText },
-          selection: { anchor: cursor + insertionText.length },
-        });
+    update(update: ViewUpdate) {
+      // Check if we have pending text to insert
+      const insertionText = update.state.field(aiTextInsertionField, false);
+      if (insertionText && insertionText !== this.pendingInsertion) {
+        this.pendingInsertion = insertionText;
+        // Schedule the insertion after the current update completes
+        setTimeout(() => {
+          if (this.pendingInsertion) {
+            const { state } = this.view;
+            const cursor = state.selection.main.head;
+            const line = state.doc.lineAt(cursor);
 
-        // Clear the insertion text
-        this.view.dispatch({
-          effects: insertAIResponseEffect.of(''),
-        });
+            // Format the response as a multiline SQL comment
+            const lines = this.pendingInsertion.split('\n');
+
+            // Create comment with proper formatting
+            let formattedComment = '/*\n';
+            formattedComment += ' * AI Assistant Response:\n';
+            formattedComment += ` * ${'-'.repeat(50)}\n`;
+
+            // Process each line, preserving empty lines for readability
+            lines.forEach((textLine) => {
+              if (textLine.trim() === '') {
+                formattedComment += ' *\n';
+              } else {
+                // Wrap long lines at 80 characters
+                const maxLineLength = 77; // 80 - 3 for ' * '
+                if (textLine.length > maxLineLength) {
+                  const words = textLine.split(' ');
+                  let currentLine = '';
+                  words.forEach((word) => {
+                    if (currentLine.length + word.length + 1 > maxLineLength) {
+                      formattedComment += ` * ${currentLine.trim()}\n`;
+                      currentLine = `${word} `;
+                    } else {
+                      currentLine += `${word} `;
+                    }
+                  });
+                  if (currentLine.trim()) {
+                    formattedComment += ` * ${currentLine.trim()}\n`;
+                  }
+                } else {
+                  formattedComment += ` * ${textLine}\n`;
+                }
+              }
+            });
+
+            formattedComment += ' */\n';
+
+            // Insert at the beginning of the current line
+            this.view.dispatch({
+              changes: { from: line.from, insert: formattedComment },
+              selection: { anchor: line.from + formattedComment.length },
+              effects: insertAIResponseEffect.of(''), // Clear the field in the same transaction
+            });
+            this.pendingInsertion = null;
+          }
+        }, 0);
       }
     }
   },

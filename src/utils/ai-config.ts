@@ -55,6 +55,10 @@ function sanitizeConfig(config: Partial<AIServiceConfig>): Partial<AIServiceConf
       }));
   }
 
+  if (typeof config.customSupportsTools === 'boolean') {
+    sanitized.customSupportsTools = config.customSupportsTools;
+  }
+
   return sanitized;
 }
 

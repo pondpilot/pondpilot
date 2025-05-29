@@ -175,7 +175,13 @@ ${request.prompt}`;
       };
 
       // Add function calling for structured responses
-      if (request.useStructuredResponse) {
+      // Check if provider supports tools (custom endpoints may not)
+      const supportsTools =
+        config.providerName === 'Custom Endpoint'
+          ? this.config.customSupportsTools !== false
+          : true; // OpenAI and Anthropic always support tools
+
+      if (request.useStructuredResponse && supportsTools) {
         requestBody.tools = [
           {
             type: 'function',
