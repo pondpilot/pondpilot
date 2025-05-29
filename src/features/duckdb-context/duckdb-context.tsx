@@ -2,6 +2,7 @@ import * as duckdb from '@duckdb/duckdb-wasm';
 import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
 import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { v4 } from 'uuid';
 
 import { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
 
@@ -287,6 +288,28 @@ export const DuckDBConnectionPoolProvider = ({
               logCheckpoints: import.meta.env.DEV,
             },
           );
+          /**
+           * WORKAROUND: Addresses an issue with OPFS (Origin Private File System) and write mode
+           * after a page reload in DuckDB-WASM.
+           *
+           * @problem When using DuckDB-WASM with OPFS for persistence, a problem arises where,
+           * after a page reload, the OPFS database, even if opened in READ_WRITE mode,
+           * does not always correctly restore its write-enabled state. This leads to an
+           * "Error: TransactionContext Error: Failed to commit: File is not opened in write mode"
+           * when attempting write operations (e.g., CREATE TABLE, INSERT) after the reload.
+           *
+           * @workaround To forcibly activate the write mode for OPFS during each
+           * initialization (including those after a page reload), a harmless sequence of write
+           * operations is performed: a temporary table with a unique name is created and
+           * then immediately dropped. This ensures that the connection to OPFS is genuinely
+           * ready for write operations before the application attempts any actual data-modifying queries.
+           *
+           * This workaround is a temporary measure pending a fix at the duckdb-wasm library level
+           * (see related issue, PR https://github.com/duckdb/duckdb-wasm/pull/1962).
+           */
+          const name = v4();
+          await pool.query(`CREATE OR REPLACE TABLE "${name}" as select 1;`);
+          await pool.query(`DROP TABLE "${name}";`);
 
           setConnectionPool(pool);
           memoizedStatusUpdate({
