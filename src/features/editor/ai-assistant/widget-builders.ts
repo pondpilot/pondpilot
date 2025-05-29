@@ -14,7 +14,7 @@ import {
   createSection,
   createSelect,
 } from './ui-factories';
-import { TabExecutionError } from '../../../controllers/tab-execution-error';
+import { TabExecutionError } from '../../../controllers/tab/tab-controller';
 import { AI_PROVIDERS } from '../../../models/ai-service';
 import { getAIConfig } from '../../../utils/ai-config';
 import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';

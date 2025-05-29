@@ -12,7 +12,7 @@ import {
 import { handleAIServiceError, handleSchemaContextError } from './error-handler';
 import { AIAssistantServices } from './services-facet';
 import { preventEventPropagation } from './ui-factories';
-import { TabExecutionError } from '../../../controllers/tab-execution-error';
+import { TabExecutionError } from '../../../controllers/tab/tab-controller';
 
 export interface AIAssistantHandlers {
   hideWidget: () => void;

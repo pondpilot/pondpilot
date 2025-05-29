@@ -15,7 +15,7 @@ import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
 import { aiAssistantButton } from './ai-assistant-button';
-import { aiAssistantTooltip, showAIAssistant } from './ai-assistant-tooltip';
+import { aiAssistantTooltip } from './ai-assistant-tooltip';
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
 import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
@@ -90,12 +90,6 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
             mac: 'Cmd-i',
             preventDefault: true,
             run: startCompletion,
-          },
-          {
-            key: 'Ctrl-b',
-            mac: 'Cmd-b',
-            preventDefault: true,
-            run: showAIAssistant,
           },
           {
             key: 'Ctrl-=',

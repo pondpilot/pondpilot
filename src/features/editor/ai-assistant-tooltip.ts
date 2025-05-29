@@ -32,10 +32,9 @@ import {
   createModelSelectionSection,
   assembleAIAssistantWidget,
 } from './ai-assistant/widget-builders';
-import { getTabExecutionError, TabExecutionError } from '../../controllers/tab-execution-error';
+import { TabExecutionError } from '../../controllers/tab/tab-controller';
 import { AI_PROVIDERS } from '../../models/ai-service';
 import { StructuredSQLResponse } from '../../models/structured-ai-response';
-import { useAppStore } from '../../store/app-store';
 import { saveAIConfig, getAIConfig } from '../../utils/ai-config';
 import { resolveAIContext } from '../../utils/editor/statement-parser';
 import { AsyncDuckDBConnectionPool } from '../duckdb-context/duckdb-connection-pool';
@@ -47,29 +46,27 @@ class AIAssistantWidget extends WidgetType {
   constructor(
     private view: EditorView,
     private sqlStatement?: string,
+    private errorContext?: TabExecutionError,
   ) {
     super();
   }
 
   eq(other: AIAssistantWidget) {
-    return other instanceof AIAssistantWidget && other.sqlStatement === this.sqlStatement;
+    return (
+      other instanceof AIAssistantWidget &&
+      other.sqlStatement === this.sqlStatement &&
+      other.errorContext === this.errorContext
+    );
   }
 
   toDOM() {
     const services = getServicesFromState(this.view.state);
 
-    // Get error context for current tab
-    const { activeTabId } = useAppStore.getState();
-    let errorContext: TabExecutionError | undefined;
-    if (activeTabId) {
-      errorContext = getTabExecutionError(activeTabId);
-    }
-
     const handlers = createAIAssistantHandlers(
       this.view,
       this.sqlStatement,
       services,
-      errorContext,
+      this.errorContext,
     );
 
     // Create model selection section
@@ -112,7 +109,7 @@ class AIAssistantWidget extends WidgetType {
       this.view,
       services.connectionPool,
       modelSelect,
-      errorContext,
+      this.errorContext,
     );
 
     const { inputSection, textarea, generateBtn } = createInputSection(
@@ -124,7 +121,7 @@ class AIAssistantWidget extends WidgetType {
           () => handlers.handleSubmit(textarea, generateBtn),
           handlers.hideWidget,
         ),
-      errorContext,
+      this.errorContext,
     );
 
     const footer = createWidgetFooter(generateBtn);
@@ -166,6 +163,7 @@ class AIAssistantWidget extends WidgetType {
 export const aiAssistantStateField = StateField.define<{
   visible: boolean;
   widgetPos?: number;
+  errorContext?: TabExecutionError;
 }>({
   create: () => ({ visible: false }),
   update(value, tr) {
@@ -173,7 +171,11 @@ export const aiAssistantStateField = StateField.define<{
       if (effect.is(showAIAssistantEffect)) {
         const cursorPos = tr.state.selection.main.head;
         const line = tr.state.doc.lineAt(cursorPos);
-        return { visible: true, widgetPos: line.from };
+        return {
+          visible: true,
+          widgetPos: line.from,
+          errorContext: effect.value.errorContext,
+        };
       }
       if (effect.is(hideAIAssistantEffect)) {
         return { visible: false };
@@ -207,7 +209,7 @@ const aiAssistantWidgetPlugin = ViewPlugin.fromClass(
 
     buildDecorations(view: EditorView): DecorationSet {
       const state = view.state.field(aiAssistantStateField);
-      const { visible, widgetPos } = state;
+      const { visible, widgetPos, errorContext } = state;
 
       const decorations: Range<Decoration>[] = [];
 
@@ -220,7 +222,7 @@ const aiAssistantWidgetPlugin = ViewPlugin.fromClass(
         }
 
         const widget = Decoration.widget({
-          widget: new AIAssistantWidget(view, sqlStatement),
+          widget: new AIAssistantWidget(view, sqlStatement, errorContext),
           side: 0,
         });
         decorations.push(widget.range(widgetPos));
@@ -387,9 +389,9 @@ const aiAssistantViewPlugin = ViewPlugin.fromClass(
 );
 
 // Command to show AI assistant
-export function showAIAssistant(view: EditorView): boolean {
+export function showAIAssistant(view: EditorView, errorContext?: TabExecutionError): boolean {
   view.dispatch({
-    effects: showAIAssistantEffect.of(view),
+    effects: showAIAssistantEffect.of({ view, errorContext }),
   });
   return true;
 }

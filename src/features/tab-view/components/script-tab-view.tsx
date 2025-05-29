@@ -1,8 +1,12 @@
 import { showError, showErrorWithAction } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
-import { updateScriptTabLastExecutedQuery, updateScriptTabLayout } from '@controllers/tab';
-import { clearTabExecutionError, setTabExecutionError } from '@controllers/tab-execution-error';
+import {
+  updateScriptTabLastExecutedQuery,
+  updateScriptTabLayout,
+  clearTabExecutionError,
+  setTabExecutionError,
+} from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
