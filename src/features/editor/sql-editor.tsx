@@ -16,11 +16,13 @@ import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
 import { aiAssistantButton } from './ai-assistant-button';
 import { aiAssistantTooltip, showAIAssistant } from './ai-assistant-tooltip';
-import duckdbFunctionList from './duckdb-function-tooltip.json';
+
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
 import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
 import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
+
+type FunctionTooltip = Record<string, { syntax: string; description: string }>;
 
 interface SqlEditorProps {
   colorSchemeDark: boolean;
@@ -33,6 +35,7 @@ interface SqlEditorProps {
   onFontSizeChanged?: (fontSize: number) => void;
   onCursorChange?: (pos: number, lineNumber: number, columnNumber: number) => void;
   onBlur: () => void;
+  functionTooltips: FunctionTooltip;
 }
 
 export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
@@ -48,6 +51,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
       fontSize,
       onFontSizeChanged,
       onBlur,
+      functionTooltips,
     }: SqlEditorProps,
     ref,
   ) => {
@@ -140,9 +144,9 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         upperCaseKeywords: true,
         schema,
       });
-      const tooltipExtension = functionTooltip(duckdbFunctionList);
       const aiAssistantExtension = aiAssistantTooltip(connectionPool);
       const aiButtonExtension = aiAssistantButton();
+      const tooltipExtension = functionTooltip(functionTooltips);
 
       return [
         history(),
@@ -161,7 +165,14 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
           if (onCursorChange) onCursorChange(pos, lineNumber, columnNumber);
         }),
       ].filter(Boolean) as Extension[];
-    }, [onCursorChange, keyExtensions, schema, tableNameHighlightPlugin, connectionPool]);
+    }, [
+      onCursorChange,
+      keyExtensions,
+      schema,
+      tableNameHighlightPlugin,
+      functionTooltips,
+      connectionPool,
+    ]);
 
     return (
       <CodeMirror

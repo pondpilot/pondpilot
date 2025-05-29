@@ -8,15 +8,15 @@ import { Group, useMantineColorScheme } from '@mantine/core';
 import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
 import { RunScriptMode, ScriptExecutionState, SQLScriptId } from '@models/sql-script';
-import { useAppStore } from '@store/app-store';
+import { useAppStore, useDuckDBFunctions } from '@store/app-store';
 import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
+import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { setDataTestId } from '@utils/test-id';
 import { useEffect, useRef, useState, useMemo } from 'react';
 
 import { ScriptEditorDataStatePane } from './components';
-import duckdbFunctionList from '../editor/duckdb-function-tooltip.json';
 
 interface ScriptEditorProps {
   id: SQLScriptId;
@@ -50,6 +50,18 @@ export const ScriptEditor = ({
   const [dirty, setDirty] = useState(false);
   const [lastExecutedContent, setLastExecutedContent] = useState('');
 
+  // Get the DuckDB functions from the store
+  const duckDBFunctions = useDuckDBFunctions();
+
+  // Convert functions to tooltip format
+  const functionTooltips = useMemo(() => {
+    // Use store functions if available
+    if (duckDBFunctions.length > 0) {
+      return convertFunctionsToTooltips(duckDBFunctions);
+    }
+    return {};
+  }, [duckDBFunctions]);
+
   // Get the tab ID from the script
   const tabId = useAppStore((state) => {
     for (const [tId, tab] of state.tabs) {
@@ -64,7 +76,10 @@ export const ScriptEditor = ({
     () => convertToSQLNamespace(databaseModelsArray),
     [databaseModelsArray],
   );
-  const duckdbNamespace = useMemo(() => createDuckDBCompletions(duckdbFunctionList), []);
+  const duckdbNamespace = useMemo(
+    () => createDuckDBCompletions(functionTooltips),
+    [functionTooltips],
+  );
   const schema = useMemo(
     () => ({
       ...duckdbNamespace,
@@ -182,6 +197,7 @@ export const ScriptEditor = ({
           schema={schema}
           fontSize={fontSize}
           onFontSizeChanged={setFontSize}
+          functionTooltips={functionTooltips}
           onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
             if (KEY_BINDING.run.match(e)) {
               if (KEY_BINDING.runSelection.match(e)) {

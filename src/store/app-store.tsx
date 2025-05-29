@@ -6,7 +6,7 @@ import {
   AttachedDB,
   PersistentDataSourceId,
 } from '@models/data-source';
-import { DataBaseModel, DBTableOrViewSchema } from '@models/db';
+import { DataBaseModel, DBFunctionsMetadata, DBTableOrViewSchema } from '@models/db';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
@@ -71,6 +71,18 @@ type AppStore = {
    * then kept in sync with the database.
    */
   dataBaseMetadata: Map<string, DataBaseModel>;
+
+  /**
+   * A list of DuckDB function metadata.
+   * This is not persisted in IndexedDB and is recreated on app load.
+   *
+   * Stored in app state to support potential future use cases,
+   * such as dynamically updating tooltips after executing DDL SQL
+   * that creates custom functions. While this may appear to be
+   * over-engineering at the moment, it avoids future refactoring
+   * and improves maintainability by anticipating those needs.
+   */
+  duckDBFunctions: DBFunctionsMetadata[];
 } & ContentViewState;
 
 const initialState: AppStore = {
@@ -82,6 +94,7 @@ const initialState: AppStore = {
   sqlScripts: new Map(),
   tabs: new Map(),
   dataBaseMetadata: new Map(),
+  duckDBFunctions: [],
   // From ContentViewState
   activeTabId: null,
   previewTabId: null,
@@ -288,6 +301,20 @@ export function useAttachedDBMetadata(): Map<string, DataBaseModel> {
   );
 }
 
+/**
+ * A React hook to access the list of DuckDB functions from app state.
+ *
+ * The function metadata is kept in global state to enable potential future
+ * updates—e.g., updating tooltips dynamically after executing DDL SQL that
+ * defines custom functions. Using a centralized hook ensures consistency
+ * and flexibility as the feature evolves.
+ *
+ * @returns The current list of DuckDB functions
+ */
+export function useDuckDBFunctions(): DBFunctionsMetadata[] {
+  return useAppStore(useShallow((state) => state.duckDBFunctions));
+}
+
 export function useAttachedDBLocalEntriesMap(): Map<LocalEntryId, LocalFile> {
   return useAppStore(
     useShallow(
@@ -390,6 +417,10 @@ export const setAppLoadState = (appState: AppLoadState) => {
 
 export const setIDbConn = (iDbConn: IDBPDatabase<AppIdbSchema>) => {
   useAppStore.setState({ _iDbConn: iDbConn }, undefined, 'AppStore/setIDbConn');
+};
+
+export const setDuckDBFunctions = (functions: DBFunctionsMetadata[]) => {
+  useAppStore.setState({ duckDBFunctions: functions }, undefined, 'AppStore/setDuckDBFunctions');
 };
 
 export const resetAppState = async () => {

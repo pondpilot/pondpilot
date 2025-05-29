@@ -7,9 +7,9 @@ import { syntaxTree } from '@codemirror/language';
 import { StateField, EditorState } from '@codemirror/state';
 import { Tooltip, showTooltip, EditorView } from '@codemirror/view';
 
-export type TooltipDirectionary = Record<string, { syntax: string; description: string }>;
+export type TooltipDict = Record<string, { syntax: string; description: string; example?: string }>;
 
-function getCursorTooltips(state: EditorState, dict: TooltipDirectionary): readonly Tooltip[] {
+function getCursorTooltips(state: EditorState, dict: TooltipDict): readonly Tooltip[] {
   const tree = syntaxTree(state);
   const pos = state.selection.main.head;
   const node = tree.resolveInner(state.selection.main.head, -1);
@@ -41,9 +41,10 @@ function getCursorTooltips(state: EditorState, dict: TooltipDirectionary): reado
           dom.innerHTML = `
             <div style="max-width:700px; padding:5px; font-size:14px;">
               <p style='font-size:16px; opacity: 0.6;'><strong>${dictItem.syntax}</strong></p>
-              <div class="code-tooltip">${dictItem.description}</div>
+              ${dictItem.description ? `<div class="code-tooltip">${dictItem.description}</div>` : ''}
+              ${dictItem.example ? `<div style="margin-top:8px;"><strong>Example:</strong><br><code style="padding:4px 0; border-radius:3px; font-family:monospace;">${dictItem.example}</code></div>` : ''}
             </div>
-            `;
+          `;
           return { dom };
         },
       },
@@ -54,7 +55,7 @@ function getCursorTooltips(state: EditorState, dict: TooltipDirectionary): reado
 }
 
 // eslint-disable-next-line arrow-body-style
-const functionTooltipField = (dict: TooltipDirectionary) => {
+const functionTooltipField = (dict: TooltipDict) => {
   return StateField.define<readonly Tooltip[]>({
     create(state) {
       return getCursorTooltips(state, dict);
@@ -87,6 +88,6 @@ const functionTooltipBaseTheme = EditorView.baseTheme({
   },
 });
 
-export function functionTooltip(dict: TooltipDirectionary) {
+export function functionTooltip(dict: TooltipDict) {
   return [functionTooltipField(dict), functionTooltipBaseTheme];
 }
