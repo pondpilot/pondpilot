@@ -394,7 +394,7 @@ export function ExportOptionsModal({
                       updateFilenameOnFormatChange(newFormat);
                     }}
                     className={cn(
-                      'px-4 py-2.5 rounded-2xl transition-colors text-sm font-medium text-left',
+                      'px-4 py-2.5 rounded-full transition-colors text-sm font-medium text-left',
                       format === option.value
                         ? 'bg-transparentBrandBlue-016 dark:bg-transparentBrandBlue-016 text-textPrimary-light dark:text-textPrimary-dark'
                         : 'hover:bg-transparent004 hover:dark:bg-transparent004 text-textSecondary-light dark:text-textSecondary-dark',
