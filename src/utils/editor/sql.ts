@@ -166,6 +166,7 @@ const StatementsAllowedInSubquery = [SQLStatement.SELECT];
  */
 export const SelectableStatements: SQLStatement[] = [
   SQLStatement.SELECT,
+  SQLStatement.WITH,
   SQLStatement.DESCRIBE,
   SQLStatement.SHOW,
   SQLStatement.PIVOT,
