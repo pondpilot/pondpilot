@@ -145,6 +145,14 @@ export async function exportAsXlsx(
 }
 
 /**
+ * Quotes a SQL identifier (table or column name) using ANSI standard double quotes
+ * Escapes any double quotes within the identifier
+ */
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+/**
  * Exports data as SQL INSERT statements with optional CREATE TABLE
  */
 export async function exportAsSql(
@@ -158,15 +166,15 @@ export async function exportAsSql(
   let sqlContent = '';
 
   if (options.includeCreateTable) {
-    sqlContent += `DROP TABLE IF EXISTS ${options.tableName};\n`;
-    sqlContent += `CREATE TABLE ${options.tableName} (\n`;
+    sqlContent += `DROP TABLE IF EXISTS ${quoteIdentifier(options.tableName)};\n`;
+    sqlContent += `CREATE TABLE ${quoteIdentifier(options.tableName)} (\n`;
 
     const columnDefinitions = columns.map((col) => {
       if (options.includeDataTypes) {
         const sqlType = sqlTypeMap[col.sqlType];
-        return `  ${col.name} ${sqlType}${col.nullable ? '' : ' NOT NULL'}`;
+        return `  ${quoteIdentifier(col.name)} ${sqlType}${col.nullable ? '' : ' NOT NULL'}`;
       }
-      return `  ${col.name}`;
+      return `  ${quoteIdentifier(col.name)}`;
     });
 
     sqlContent += columnDefinitions.join(',\n');
@@ -174,18 +182,19 @@ export async function exportAsSql(
   }
 
   // Generate INSERT statements
-  const columnNames = columns.map((col) => col.name).join(', ');
+  const quotedColumnNames = columns.map((col) => quoteIdentifier(col.name)).join(', ');
+  const unquotedColumnNames = columns.map((col) => col.name).join(', ');
 
   if (options.includeHeader) {
     sqlContent += `-- Inserting data into ${options.tableName}\n`;
-    sqlContent += `-- Columns: ${columnNames}\n\n`;
+    sqlContent += `-- Columns: ${unquotedColumnNames}\n\n`;
   }
 
   const BATCH_SIZE = 100;
   for (let i = 0; i < data.length; i += BATCH_SIZE) {
     const batch = data.slice(i, i + BATCH_SIZE);
 
-    sqlContent += `INSERT INTO ${options.tableName} (${columnNames}) VALUES\n`;
+    sqlContent += `INSERT INTO ${quoteIdentifier(options.tableName)} (${quotedColumnNames}) VALUES\n`;
 
     const valueRows = batch.map((row) => {
       const values = columns.map((col) => {
@@ -219,6 +228,53 @@ export async function exportAsSql(
 }
 
 /**
+ * Validates if a string is a valid XML element name
+ * XML element names must:
+ * - Start with a letter or underscore
+ * - Contain only letters, digits, hyphens, underscores, and periods
+ * - Not start with "xml" (case-insensitive)
+ */
+export function isValidXmlElementName(name: string): boolean {
+  if (!name || name.length === 0) return false;
+
+  // Check if starts with "xml" (case-insensitive) - reserved
+  if (name.toLowerCase().startsWith('xml')) return false;
+
+  // Must start with letter or underscore
+  if (!/^[a-zA-Z_]/.test(name)) return false;
+
+  // Can only contain letters, digits, hyphens, underscores, and periods
+  if (!/^[a-zA-Z_][a-zA-Z0-9_\-.]*$/.test(name)) return false;
+
+  return true;
+}
+
+/**
+ * Sanitizes a string to be a valid XML element name
+ * - Replaces invalid characters with underscores
+ * - Ensures it starts with a valid character
+ * - Handles reserved names
+ */
+function sanitizeXmlElementName(name: string): string {
+  if (!name || name.length === 0) return 'element';
+
+  // If starts with "xml" (case-insensitive), prepend underscore
+  if (name.toLowerCase().startsWith('xml')) {
+    name = `_${name}`;
+  }
+
+  // Replace invalid characters with underscores
+  let sanitized = name.replace(/[^a-zA-Z0-9_\-.]/g, '_');
+
+  // If doesn't start with letter or underscore, prepend underscore
+  if (!/^[a-zA-Z_]/.test(sanitized)) {
+    sanitized = `_${sanitized}`;
+  }
+
+  return sanitized;
+}
+
+/**
  * Exports data as XML
  */
 export async function exportAsXml(
@@ -237,8 +293,9 @@ export async function exportAsXml(
 
     columns.forEach((col) => {
       const value = row[col.id];
+      const columnName = sanitizeXmlElementName(col.name);
+
       if (value !== null && value !== undefined) {
-        const columnName = col.name.replace(/[^a-zA-Z0-9_]/g, '_');
         const escapedValue = String(value)
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
@@ -248,7 +305,6 @@ export async function exportAsXml(
 
         xmlContent += `    <${columnName}>${escapedValue}</${columnName}>\n`;
       } else if (options.includeHeader) {
-        const columnName = col.name.replace(/[^a-zA-Z0-9_]/g, '_');
         xmlContent += `    <${columnName}/>\n`;
       }
     });
