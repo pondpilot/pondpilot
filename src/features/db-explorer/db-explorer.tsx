@@ -1,13 +1,6 @@
 import { showWarning } from '@components/app-notifications';
-import {
-  ExplorerTree,
-  TreeNodeData,
-  TreeNodeMenuItemType,
-  TreeNodeMenuType,
-} from '@components/explorer-tree';
-import { useDeleteHotkey } from '@components/explorer-tree/hooks';
-import { createMultiSelectContextMenu } from '@components/explorer-tree/utils/multi-select-menu';
-import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
+import { ExplorerTree, TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
+import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import { deleteDataSources } from '@controllers/data-source';
@@ -33,7 +26,7 @@ import {
 import { copyToClipboard } from '@utils/clipboard';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { getAttachedDBDataSourceName } from '@utils/navigation';
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 
 import { DbExplorerNode } from './db-explorer-node';
 import { DBNodeFQNMap, DBNodeTypeMap, DBExplorerContext } from './model';
@@ -443,18 +436,6 @@ export const DbExplorer = memo(() => {
     } as any;
   });
 
-  // Flattened nodes for selection handling
-  const flattenedNodes = useMemo(() => getFlattenNodes(dbObjectsTree as any), [dbObjectsTree]);
-  const flattenedNodeIds = useMemo(
-    () => flattenedNodes.map((node) => node.value),
-    [flattenedNodes],
-  );
-
-  const selectedDeleteableNodeIds = useMemo(
-    () => flattenedNodes.filter((node) => !!node.onDelete).map((node) => node.value),
-    [flattenedNodes],
-  );
-
   const handleDeleteSelected = async (ids: Iterable<string | PersistentDataSourceId>) => {
     // This should only be called for dbs, but we'll be safe
     const dbIds = Array.from(ids)
@@ -502,37 +483,26 @@ export const DbExplorer = memo(() => {
     }
   };
 
-  // Create a function to get override context menu
-  const getOverrideContextMenu = (selectedState: string[]) => {
-    // Additional logic for DB explorer - only show schema if all nodes are tables/views
-    const selectedNodes = selectedState
-      .map((nodeId) => flattenedNodes.find((node) => node.value === nodeId))
-      .filter(Boolean);
+  // Use the common explorer context hook
+  const contextResult = useExplorerContext<DBNodeTypeMap>({
+    nodes: dbObjectsTree,
+    handleDeleteSelected,
+    getShowSchemaHandler: (selectedNodes) => {
+      // Additional logic for DB explorer - only show schema if all nodes are tables/views
+      const areAllNodesOfSameType = selectedNodes.every(
+        (node) => node?.nodeType === selectedNodes[0]?.nodeType,
+      );
 
-    const areAllNodesOfSameType = selectedNodes.every(
-      (node) => node?.nodeType === selectedNodes[0]?.nodeType,
-    );
-
-    const showSchemaHandler =
-      areAllNodesOfSameType && selectedNodes[0]?.nodeType === 'object'
+      return areAllNodesOfSameType && selectedNodes[0]?.nodeType === 'object'
         ? (ids: string[]) => handleMultiSelectShowSchema(ids)
         : undefined;
-
-    return createMultiSelectContextMenu(selectedState, flattenedNodes, {
-      onDeleteSelected: handleDeleteSelected,
-      onShowSchemaSelected: showSchemaHandler,
-    }) as TreeNodeMenuType<TreeNodeData<DBNodeTypeMap>> | null;
-  };
-
-  const enhancedExtraData: DBExplorerContext = Object.assign(nodeIdsToFQNMap, {
-    onShowSchemaForMultiple: handleMultiSelectShowSchema,
-    getOverrideContextMenu,
-    flattenedNodeIds,
-    selectedDeleteableNodeIds,
+    },
   });
 
-  // Hotkeys for deletion
-  useDeleteHotkey(selectedDeleteableNodeIds, handleDeleteSelected);
+  // Create the enhanced extra data combining the map and the context result
+  const enhancedExtraData: DBExplorerContext = Object.assign(nodeIdsToFQNMap, contextResult, {
+    onShowSchemaForMultiple: handleMultiSelectShowSchema,
+  });
 
   return (
     <ExplorerTree<DBNodeTypeMap, DBExplorerContext>

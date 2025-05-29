@@ -1,7 +1,5 @@
-import { ExplorerTree, TreeNodeData, TreeNodeMenuType } from '@components/explorer-tree';
-import { useDeleteHotkey } from '@components/explorer-tree/hooks';
-import { createMultiSelectContextMenu } from '@components/explorer-tree/utils/multi-select-menu';
-import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
+import { ExplorerTree, TreeNodeData } from '@components/explorer-tree';
+import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { deleteDataSources } from '@controllers/data-source';
 import { renameFile, renameXlsxFile } from '@controllers/file-explorer';
 import { deleteLocalFileOrFolders } from '@controllers/file-system';
@@ -479,18 +477,6 @@ export const FileSystemExplorer = memo(() => {
     [],
   );
 
-  // Flattened nodes for selection handling
-  const flattenedNodes = useMemo(() => getFlattenNodes(fileSystemTree as any), [fileSystemTree]);
-  const flattenedNodeIds = useMemo(
-    () => flattenedNodes.map((node) => node.value),
-    [flattenedNodes],
-  );
-
-  const selectedDeleteableNodeIds = useMemo(
-    () => flattenedNodes.filter((node) => !!node.onDelete).map((node) => node.value),
-    [flattenedNodes],
-  ) as (LocalEntryId | PersistentDataSourceId)[];
-
   const handleDeleteSelected = async (ids: Iterable<LocalEntryId | PersistentDataSourceId>) => {
     // Split the ids into files and folders (different id types, differet delete methods).
     // We also doing a double check here to make sure we are not deleting
@@ -537,17 +523,15 @@ export const FileSystemExplorer = memo(() => {
     }
   };
 
-  // Create a function to get override context menu
-  const getOverrideContextMenu = (selectedState: string[]) => {
-    // Additional logic for file explorer - only show schema if all nodes are files
-    const selectedNodes = selectedState
-      .map((nodeId) => flattenedNodes.find((node) => node.value === nodeId))
-      .filter(Boolean);
+  // Use the common explorer context hook
+  const contextResult = useExplorerContext<FSExplorerNodeTypeToIdTypeMap>({
+    nodes: fileSystemTree,
+    handleDeleteSelected,
+    getShowSchemaHandler: (selectedNodes) => {
+      // Additional logic for file explorer - only show schema if all nodes are files
+      const areAllFiles = selectedNodes.every((node) => node?.nodeType === 'file');
 
-    const areAllFiles = selectedNodes.every((node) => node?.nodeType === 'file');
-
-    const showSchemaHandler =
-      areAllFiles && selectedNodes.length > 0
+      return areAllFiles && selectedNodes.length > 0
         ? (ids: (LocalEntryId | PersistentDataSourceId)[]) => {
             // Get the source IDs for all selected files
             const sourceIds = ids.filter((id): id is PersistentDataSourceId =>
@@ -565,21 +549,11 @@ export const FileSystemExplorer = memo(() => {
             }
           }
         : undefined;
-
-    return createMultiSelectContextMenu(selectedState, flattenedNodes, {
-      onDeleteSelected: handleDeleteSelected,
-      onShowSchemaSelected: showSchemaHandler,
-    }) as TreeNodeMenuType<TreeNodeData<FSExplorerNodeTypeToIdTypeMap>> | null;
-  };
-
-  const enhancedExtraData: FSExplorerContext = Object.assign(unusedExtraData, {
-    getOverrideContextMenu,
-    flattenedNodeIds,
-    selectedDeleteableNodeIds,
+    },
   });
 
-  // Hotkeys for deletion
-  useDeleteHotkey(selectedDeleteableNodeIds, handleDeleteSelected);
+  // Create the enhanced extra data combining the map and the context result
+  const enhancedExtraData: FSExplorerContext = Object.assign(unusedExtraData, contextResult);
 
   return (
     <ExplorerTree<FSExplorerNodeTypeToIdTypeMap, FSExplorerContext>

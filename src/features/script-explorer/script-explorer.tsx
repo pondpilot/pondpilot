@@ -1,8 +1,6 @@
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
-import { useDeleteHotkey } from '@components/explorer-tree/hooks';
+import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
-import { createMultiSelectContextMenu } from '@components/explorer-tree/utils/multi-select-menu';
-import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
 import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import {
   deleteTabByScriptId,
@@ -15,7 +13,7 @@ import { SQLScriptId } from '@models/sql-script';
 import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
 import { createShareableScriptUrl } from '@utils/script-sharing';
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 
 import { ScriptExplorerContext, ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
@@ -141,33 +139,11 @@ export const ScriptExplorer = memo(() => {
       }) as any,
   );
 
-  // Flattened nodes for selection handling
-  const flattenedNodes = useMemo(() => getFlattenNodes(sqlScriptTree as any), [sqlScriptTree]);
-  const flattenedNodeIds = useMemo(
-    () => flattenedNodes.map((node) => node.value),
-    [flattenedNodes],
-  );
-
-  const selectedDeleteableNodeIds = useMemo(
-    () => flattenedNodes.filter((node) => !!node.onDelete).map((node) => node.value),
-    [flattenedNodes],
-  );
-
-  // Create a function to get override context menu
-  const getOverrideContextMenu = (selectedState: string[]) => {
-    return createMultiSelectContextMenu(selectedState, flattenedNodes, {
-      onDeleteSelected: (ids) => deleteSqlScripts(ids as SQLScriptId[]),
-    }) as TreeNodeMenuType<TreeNodeData<ScrtiptNodeTypeToIdTypeMap>> | null;
-  };
-
-  const enhancedExtraData: ScriptExplorerContext = {
-    getOverrideContextMenu,
-    flattenedNodeIds: flattenedNodeIds as SQLScriptId[],
-    selectedDeleteableNodeIds: selectedDeleteableNodeIds as SQLScriptId[],
-  };
-
-  // Hotkeys for deletion
-  useDeleteHotkey(selectedDeleteableNodeIds as SQLScriptId[], deleteSqlScripts);
+  // Use the common explorer context hook
+  const enhancedExtraData = useExplorerContext<ScrtiptNodeTypeToIdTypeMap>({
+    nodes: sqlScriptTree,
+    handleDeleteSelected: (ids) => deleteSqlScripts(ids as SQLScriptId[]),
+  }) as ScriptExplorerContext;
 
   return (
     <ExplorerTree<ScrtiptNodeTypeToIdTypeMap, ScriptExplorerContext>
