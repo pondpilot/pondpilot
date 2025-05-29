@@ -1,5 +1,11 @@
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
-import { Page } from '@playwright/test';
+import { expect, Page } from '@playwright/test';
+
+export const waitForAppReady = async (page: Page) => {
+  // Wait for the app to be ready
+  const appStatus = page.getByTestId('app-state');
+  await expect(appStatus).toHaveAttribute('data-app-load-state', 'ready');
+};
 
 export const setOnboardingShown = async (page: Page) => {
   await page.context().addInitScript((key) => {

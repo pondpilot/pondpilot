@@ -8,12 +8,11 @@ export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 1 : '80%',
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [
-    ['html', { outputFolder: './playwright-report' }],
-    ['junit', { outputFile: './playwright-report/results.xml' }],
-  ],
+  reporter: process.env.CI
+    ? [['junit', { outputFile: './playwright-report/results.xml' }]]
+    : [['list', { printSteps: true }]],
   /* Configure projects for major browsers */
   projects: [
     {
@@ -40,5 +39,5 @@ export default defineConfig({
     serviceWorkers: 'block',
   },
   /* Set the timeout for each test */
-  timeout: 60_000,
+  timeout: Number(process.env.PLAYWRIGHT_TIMEOUT ?? 30_000),
 });

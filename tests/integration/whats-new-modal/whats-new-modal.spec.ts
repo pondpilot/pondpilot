@@ -1,7 +1,7 @@
 /* eslint-disable no-playwright-page-methods */
 import { expect, mergeTests } from '@playwright/test';
 
-import { setOnboardingShown, setVersionShown } from './utils';
+import { setOnboardingShown, setVersionShown } from './../utils';
 import { test as base } from '../fixtures/base';
 import { test as whatsNewModalTest } from '../fixtures/whats-new-modal';
 
@@ -11,10 +11,7 @@ test("Check if the 'What's New' alert is shown when the app is loaded for the fi
   page,
   newVersionAlert,
   newVersionAlertCloseButton,
-  context,
 }) => {
-  await context.grantPermissions(['storage-access']);
-
   await setOnboardingShown(page);
 
   await setVersionShown(page, '0.0.0');

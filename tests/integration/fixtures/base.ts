@@ -5,11 +5,51 @@ import { test as base } from '@playwright/test';
 
 export const test = base.extend<{ forEachTest: void }>({
   forEachTest: [
-    async ({ page }, use, testInfo) => {
-      const isDebugMode = !!process.env.PWDEBUG;
+    async ({ context }, use, testInfo) => {
+      const isDebugMode = !!process.env.PLAYWRIGHT_DEBUG_TESTS;
+
+      // Catch-all route to mock any other external requests
+      await context.route(/^https?:\/\/(?!localhost|127\.0\.0\.1).*/, async (route) => {
+        const url = route.request().url();
+        if (isDebugMode) {
+          // eslint-disable-next-line no-console
+          console.debug(`🚫 [${testInfo.title}] Blocking external request: ${url}`);
+        }
+
+        // Mock GitHub API responses
+        if (url.includes('api.github.com')) {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              body: '# Test Release\n\n## Features\n- Mock feature 1\n- Mock feature 2\n\n## Bug Fixes\n- Fixed mock issue',
+              tag_name: 'v1.0.0',
+              name: 'Test Release',
+            }),
+          });
+          return;
+        }
+
+        // Mock YouTube embeds
+        if (url.includes('youtube.com') || url.includes('youtu.be')) {
+          await route.fulfill({
+            status: 200,
+            contentType: 'text/html',
+            body: '<html><body><div>Mock YouTube Video</div></body></html>',
+          });
+          return;
+        }
+
+        // For all other external requests, return a generic response
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ message: 'Mocked response for testing' }),
+        });
+      });
 
       // Block Google Fonts requests - will prevent waiting for these resources and speed up tests
-      await page.route(/^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)/, (route) =>
+      await context.route(/^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)/, (route) =>
         route.fulfill({
           status: 200,
           contentType: 'text/css',
@@ -19,7 +59,7 @@ export const test = base.extend<{ forEachTest: void }>({
 
       // Allow serving locally cached modules for offline testing.
       // This will check if we have a pre-cached duckdb & other big modules, or cache them on the fly
-      await page.route(
+      await context.route(
         /^https:\/\/cdn\.jsdelivr\.net\/npm\/@duckdb\/duckdb-wasm.*|^https:\/\/extensions\.duckdb\.org\/.*|https:\/\/cdn\.sheetjs\.com\/.*/,
         async (route) => {
           const url = new URL(route.request().url());
@@ -100,7 +140,7 @@ export const test = base.extend<{ forEachTest: void }>({
         // eslint-disable-next-line no-console
         console.debug(`🧹 [${testInfo.title}] Starting cleanup - unrouting all routes`);
       }
-      await page.unrouteAll();
+      await context.unrouteAll();
       if (isDebugMode) {
         // eslint-disable-next-line no-console
         console.debug(`✅ [${testInfo.title}] Cleanup completed`);
