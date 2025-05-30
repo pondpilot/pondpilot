@@ -1,4 +1,3 @@
-import { DatabaseManagementSettings } from '@components/database-management';
 import { exportSQLScripts } from '@controllers/export-data';
 import { ActionIcon, Box, Button, Divider, Group, Modal, Stack, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
@@ -94,14 +93,6 @@ export const SettingsPage = () => {
                     Export All
                   </Button>
                 </Stack>
-              </Box>
-            </Stack>
-            <Stack>
-              <Box>
-                <Title c="text-primary" order={3}>
-                  Database Storage
-                </Title>
-                <DatabaseManagementSettings />
               </Box>
             </Stack>
             <Stack>
