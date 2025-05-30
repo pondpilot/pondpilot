@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 
 import { test } from '../fixtures/base';
+import { waitForAppReady } from '../utils';
 
 test('Onboarding modal is not displayed if browser is unsupported', async ({
   page,
@@ -8,7 +9,9 @@ test('Onboarding modal is not displayed if browser is unsupported', async ({
 }) => {
   // eslint-disable-next-line playwright/no-conditional-in-test
   if (browserName !== 'chromium') {
+    // eslint-disable-next-line no-playwright-page-methods
     await page.goto('/');
+    await waitForAppReady(page);
 
     const onboardingModal = page.getByTestId('onboarding-modal');
 

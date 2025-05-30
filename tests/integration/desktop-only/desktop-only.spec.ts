@@ -1,6 +1,8 @@
+/* eslint-disable no-playwright-page-methods */
 import { expect, mergeTests, devices } from '@playwright/test';
 
 import { test as baseTest } from '../fixtures/base';
+import { waitForAppReady } from '../utils';
 
 const test = mergeTests(baseTest);
 
@@ -25,6 +27,8 @@ mobileDevices.forEach(({ name }) => {
 
 test('Desktop device', async ({ page }) => {
   await page.goto('/');
+  await waitForAppReady(page);
+
   // Check desktop only is not attached
   await expect(page.getByTestId('desktop-only')).not.toBeAttached();
 

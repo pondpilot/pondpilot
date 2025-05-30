@@ -128,7 +128,7 @@ test('should add and read Excel files with multiple sheets', async ({
   assertFileExplorerItems,
   clickFileMenuItemByName,
   clickFileByName,
-  page,
+  reloadPage,
 }) => {
   // Create Excel file with two sheets
 
@@ -199,7 +199,7 @@ test('should add and read Excel files with multiple sheets', async ({
     columnNames: ['A1', 'B1', 'C1'],
   });
 
-  await page.reload();
+  await reloadPage();
   await clickFileByName('test');
 
   await assertFileExplorerItems(['test', 'Employees', 'Products']);
