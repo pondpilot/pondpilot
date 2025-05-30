@@ -64,22 +64,22 @@ type SchemaBrowserFixtures = {
 
 export const test = base.extend<SchemaBrowserFixtures>({
   schemaBrowserCanvas: async ({ page }, use) => {
-    const locator = page.locator('[data-testid="schema-browser-canvas"]');
+    const locator = page.getByTestId('schema-browser-canvas');
     await use(locator);
   },
 
   schemaControls: async ({ page }, use) => {
-    const locator = page.locator('[data-testid="schema-controls"]');
+    const locator = page.getByTestId('schema-controls');
     await use(locator);
   },
 
   schemaDirectionControl: async ({ page }, use) => {
-    const locator = page.locator('[data-testid="schema-direction-control"]');
+    const locator = page.getByTestId('schema-direction-control');
     await use(locator);
   },
 
   schemaRefreshButton: async ({ page }, use) => {
-    const locator = page.locator('[data-testid="schema-refresh-button"]');
+    const locator = page.getByTestId('schema-refresh-button');
     await use(locator);
   },
 
@@ -100,7 +100,7 @@ export const test = base.extend<SchemaBrowserFixtures>({
         });
       } catch {
         // If react-flow not found, try the schema browser canvas directly
-        const canvas = page.locator('[data-testid="schema-browser-canvas"]');
+        const canvas = page.getByTestId('schema-browser-canvas');
         await canvas.waitFor({
           state: 'visible',
           timeout: 15000,
@@ -126,7 +126,7 @@ export const test = base.extend<SchemaBrowserFixtures>({
       const nodeCount = await page.locator('.react-flow__node').count();
       if (nodeCount === 0) {
         // For empty schemas, just ensure the canvas and title are visible
-        const canvas = page.locator('[data-testid="schema-browser-canvas"]');
+        const canvas = page.getByTestId('schema-browser-canvas');
         await expect(canvas).toBeVisible({ timeout: 5000 });
 
         const title = page.locator('text=/\\d+ tables?/i');
@@ -134,9 +134,8 @@ export const test = base.extend<SchemaBrowserFixtures>({
       } else {
         // Wait for at least one node to be rendered (or for warning/error message)
         const nodeSelector = page
-          .locator(
-            '.react-flow__node, [data-testid*="schema-table-node"], .text-yellow-600, .text-yellow-500',
-          )
+          .locator('.react-flow__node, .text-yellow-600, .text-yellow-500')
+          .or(page.getByTestId(/^schema-table-node-.*$/))
           .first();
         await expect(nodeSelector).toBeVisible({ timeout: 10000 });
       }
@@ -266,7 +265,7 @@ export const test = base.extend<SchemaBrowserFixtures>({
 
       if (!(await tableNode.isVisible().catch(() => false))) {
         // Try with data-testid as last resort
-        tableNode = page.locator(`[data-testid*="${tableName}"]`).first();
+        tableNode = page.getByTestId(new RegExp(`.*${tableName}.*`)).first();
       }
 
       // Wait for the table node to be visible
