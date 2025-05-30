@@ -4,14 +4,12 @@ import {
   DBColumnId,
   DBTableOrViewSchema,
   FormattedValue,
+  MAX_CELL_DISPLAY_LENGTH,
   NormalizedSQLType,
   SortOrder,
 } from '@models/db';
 
 import { assertNeverValueType } from './typing';
-
-// Maximum characters to display in a table cell for performance
-const MAX_CELL_DISPLAY_LENGTH = 1000;
 
 export function isNumberType(type: NormalizedSQLType): boolean {
   switch (type) {
