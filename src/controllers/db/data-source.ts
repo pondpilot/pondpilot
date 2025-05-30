@@ -1,12 +1,26 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
 
-// Maximum line size for CSV files (20MB)
-const CSV_MAX_LINE_SIZE = 20485760;
+/**
+ * Helper function to create a view for CSV files with proper configuration
+ * @param conn - DuckDB connection
+ * @param viewName - Name of the view to create
+ * @param fileName - Name of the CSV file
+ */
+async function createCSVView(
+  conn: AsyncDuckDBConnectionPool,
+  viewName: string,
+  fileName: string,
+): Promise<void> {
+  await conn.query(
+    `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`,
+  );
+}
 
 /**
  * Register regular data source file (not a databse) and create a view
@@ -48,9 +62,7 @@ export async function registerFileSourceAndCreateView(
    */
 
   if (fileExt === 'csv') {
-    await conn.query(
-      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`,
-    );
+    await createCSVView(conn, viewName, fileName);
     return file;
   }
 
@@ -122,9 +134,8 @@ export async function reCreateView(
    */
 
   if (fileExt === 'csv') {
-    await conn.query(
-      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(newViewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`,
-    );
+    await createCSVView(conn, newViewName, fileName);
+    return;
   }
 
   await conn.query(
