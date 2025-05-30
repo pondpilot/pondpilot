@@ -1,4 +1,5 @@
 import { ExplorerTree, TreeNodeData } from '@components/explorer-tree';
+import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { deleteDataSources } from '@controllers/data-source';
 import { renameFile, renameXlsxFile } from '@controllers/file-explorer';
 import { deleteLocalFileOrFolders } from '@controllers/file-system';
@@ -8,6 +9,7 @@ import {
   findTabFromFlatFileDataSource,
   getOrCreateTabFromFlatFileDataSource,
   getOrCreateTabFromScript,
+  getOrCreateSchemaBrowserTab,
   setActiveTabId,
   setPreviewTabId,
 } from '@controllers/tab';
@@ -28,7 +30,7 @@ import { memo, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { FileSystemExplorerNode } from './file-system-explorer-node';
-import { FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';
+import { FSExplorerContext, FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';
 
 /**
  * Displays a file system tree for all registered local entities (files & folders)
@@ -155,6 +157,16 @@ export const FileSystemExplorer = memo(() => {
                       copyToClipboard(entry.uniqueAlias, { showNotification: true });
                     },
                   },
+                  {
+                    label: 'Show Schema',
+                    onClick: () => {
+                      getOrCreateSchemaBrowserTab({
+                        sourceId: entry.id,
+                        sourceType: 'folder',
+                        setActive: true,
+                      });
+                    },
+                  },
                 ],
               },
             ],
@@ -235,6 +247,16 @@ export const FileSystemExplorer = memo(() => {
                       copyToClipboard(entry.uniqueAlias, { showNotification: true });
                     },
                   },
+                  {
+                    label: 'Show Schema',
+                    onClick: () => {
+                      getOrCreateSchemaBrowserTab({
+                        sourceId: relatedSource.id,
+                        sourceType: 'file',
+                        setActive: true,
+                      });
+                    },
+                  },
                 ],
               },
             ],
@@ -250,7 +272,7 @@ export const FileSystemExplorer = memo(() => {
                 iconType: 'xlsx-sheet',
                 isDisabled: false,
                 isSelectable: true,
-                onNodeClick: (): void => {
+                onNodeClick: (_node: any, _tree: any): void => {
                   const existingTab = findTabFromFlatFileDataSource(sheet.id);
                   if (existingTab) {
                     setActiveTabId(existingTab.id);
@@ -366,7 +388,7 @@ export const FileSystemExplorer = memo(() => {
                 deleteDataSources(conn, [value]);
               }
             : undefined,
-          onNodeClick: (): void => {
+          onNodeClick: (_node: any, _tree: any): void => {
             // Check if the tab is already open
             const existingTab = findTabFromFlatFileDataSource(relatedSource.id);
             if (existingTab) {
@@ -407,6 +429,16 @@ export const FileSystemExplorer = memo(() => {
 
                     const newScript = createSQLScript(`${relatedSource.viewName}_query`, query);
                     getOrCreateTabFromScript(newScript, true);
+                  },
+                },
+                {
+                  label: 'Show Schema',
+                  onClick: () => {
+                    getOrCreateSchemaBrowserTab({
+                      sourceId: relatedSource.id,
+                      sourceType: 'file',
+                      setActive: true,
+                    });
                   },
                 },
               ],
@@ -471,7 +503,7 @@ export const FileSystemExplorer = memo(() => {
         continue;
       }
 
-      if (nodeType === 'file') {
+      if (nodeType === 'file' || nodeType === 'sheet') {
         files.push(id as PersistentDataSourceId);
       } else {
         folders.push(id as LocalEntryId);
@@ -491,15 +523,46 @@ export const FileSystemExplorer = memo(() => {
     }
   };
 
+  // Use the common explorer context hook
+  const contextResult = useExplorerContext<FSExplorerNodeTypeToIdTypeMap>({
+    nodes: fileSystemTree,
+    handleDeleteSelected,
+    getShowSchemaHandler: (selectedNodes) => {
+      // Additional logic for file explorer - only show schema if all nodes are files
+      const areAllFiles = selectedNodes.every((node) => node?.nodeType === 'file');
+
+      return areAllFiles && selectedNodes.length > 0
+        ? (ids: (LocalEntryId | PersistentDataSourceId)[]) => {
+            // Get the source IDs for all selected files
+            const sourceIds = ids.filter((id): id is PersistentDataSourceId =>
+              flatFileSources.has(id as PersistentDataSourceId),
+            );
+
+            if (sourceIds.length > 0) {
+              // For multiple files, we'll use the objectNames field to store the source IDs
+              getOrCreateSchemaBrowserTab({
+                sourceId: null,
+                sourceType: 'file',
+                objectNames: sourceIds,
+                setActive: true,
+              });
+            }
+          }
+        : undefined;
+    },
+  });
+
+  // Create the enhanced extra data combining the map and the context result
+  const enhancedExtraData: FSExplorerContext = Object.assign(unusedExtraData, contextResult);
+
   return (
-    <ExplorerTree<FSExplorerNodeTypeToIdTypeMap, FSExplorerNodeExtraType>
+    <ExplorerTree<FSExplorerNodeTypeToIdTypeMap, FSExplorerContext>
       nodes={fileSystemTree}
       // Expand nothing by default
       initialExpandedState={{}}
-      extraData={unusedExtraData}
+      extraData={enhancedExtraData}
       dataTestIdPrefix="file-system-explorer"
       TreeNodeComponent={FileSystemExplorerNode}
-      onDeleteSelected={handleDeleteSelected}
       hasActiveElement={hasActiveElement}
     />
   );

@@ -4,6 +4,8 @@ import { LocalEntry, LocalEntryId, LocalFile, LocalFolder } from '@models/file-s
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab } from '@models/tab';
 
+import { getSchemaBrowserTabTitle } from './tab-titles';
+
 /**
  * Constructs a tab name based on the tab type and its properties.
  *
@@ -20,6 +22,12 @@ export function getTabName(
     return sqlScripts.get(tab.sqlScriptId)?.name || 'Unknown script';
   }
 
+  // Schema Browser tab
+  if (tab.type === 'schema-browser') {
+    return getSchemaBrowserTabTitle(tab, dataSources, localEntries);
+  }
+
+  // Data source tabs
   const dataSource = dataSources.get(tab.dataSourceId);
 
   if (!dataSource) {
@@ -51,7 +59,11 @@ export function getTabIcon(
     return 'code-file';
   }
 
-  if (tab.dataSourceType === 'file') {
+  if (tab.type === 'schema-browser') {
+    return 'db-schema';
+  }
+
+  if (tab.type === 'data-source' && tab.dataSourceType === 'file') {
     const dataSource = dataSources.get(tab.dataSourceId);
 
     if (!dataSource || dataSource.type === 'attached-db') {
@@ -61,7 +73,11 @@ export function getTabIcon(
   }
 
   // AttachedDBDataTab
-  return tab.objectType === 'table' ? 'db-table' : 'db-view';
+  if (tab.type === 'data-source' && tab.dataSourceType === 'db') {
+    return tab.objectType === 'table' ? 'db-table' : 'db-view';
+  }
+
+  return 'error';
 }
 
 export function getLocalEntryIcon(entry: LocalEntry): IconType {

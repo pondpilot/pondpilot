@@ -1,4 +1,5 @@
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
+import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
 import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import {
@@ -14,11 +15,11 @@ import { copyToClipboard } from '@utils/clipboard';
 import { createShareableScriptUrl } from '@utils/script-sharing';
 import { memo } from 'react';
 
-import { ScrtiptNodeTypeToIdTypeMap } from './model';
+import { ScriptExplorerContext, ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
 
 // We could have used closure, but this is possibly slightly more performant
-const onNodeClick = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): void => {
+const onNodeClick = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>, _tree: any): void => {
   const id = node.value;
 
   // Check if the tab is already open
@@ -114,36 +115,43 @@ export const ScriptExplorer = memo(() => {
   ];
 
   const sqlScriptTree: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>[] = scriptsArray.map(
-    ([sqlScriptId, sqlScriptName]) => ({
-      nodeType: 'script',
-      value: sqlScriptId,
-      label: `${sqlScriptName}.sql`,
-      iconType: 'code-file',
-      isDisabled: false,
-      isSelectable: true,
-      onNodeClick,
-      renameCallbacks: {
-        validateRename: (node, newName) => validateRename(node, newName, scriptsArray),
-        onRenameSubmit: (node, newName) => {
-          renameSQLScript(node.value, newName);
+    ([sqlScriptId, sqlScriptName]) =>
+      ({
+        nodeType: 'script',
+        value: sqlScriptId,
+        label: `${sqlScriptName}.sql`,
+        iconType: 'code-file',
+        isDisabled: false,
+        isSelectable: true,
+        onNodeClick,
+        renameCallbacks: {
+          validateRename: (node: any, newName: string) =>
+            validateRename(node, newName, scriptsArray),
+          onRenameSubmit: (node: any, newName: string) => {
+            renameSQLScript(node.value, newName);
+          },
+          prepareRenameValue,
         },
-        prepareRenameValue,
-      },
-      onDelete,
-      onCloseItemClick,
-      contextMenu,
-      // no children
-    }),
+        onDelete,
+        onCloseItemClick,
+        contextMenu,
+        // no children
+      }) as any,
   );
 
+  // Use the common explorer context hook
+  const enhancedExtraData = useExplorerContext<ScrtiptNodeTypeToIdTypeMap>({
+    nodes: sqlScriptTree,
+    handleDeleteSelected: (ids) => deleteSqlScripts(ids as SQLScriptId[]),
+  }) as ScriptExplorerContext;
+
   return (
-    <ExplorerTree<ScrtiptNodeTypeToIdTypeMap>
+    <ExplorerTree<ScrtiptNodeTypeToIdTypeMap, ScriptExplorerContext>
       nodes={sqlScriptTree}
       dataTestIdPrefix="script-explorer"
       TreeNodeComponent={ScriptExplorerNode}
-      onDeleteSelected={deleteSqlScripts}
       hasActiveElement={hasActiveElement}
-      extraData={undefined}
+      extraData={enhancedExtraData}
     />
   );
 });

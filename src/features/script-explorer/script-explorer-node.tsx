@@ -2,10 +2,12 @@ import { MemoizedBaseTreeNode } from '@components/explorer-tree/components/tree-
 import { RenderTreeNodePayload } from '@components/explorer-tree/model';
 import { useIsSqlScriptIdOnActiveTab } from '@store/app-store';
 
-import { ScrtiptNodeTypeToIdTypeMap } from './model';
+import { ScriptExplorerContext, ScrtiptNodeTypeToIdTypeMap } from './model';
 
-export const ScriptExplorerNode = (props: RenderTreeNodePayload<ScrtiptNodeTypeToIdTypeMap>) => {
-  const { flattenedNodeIds, node } = props;
+export const ScriptExplorerNode = (
+  props: RenderTreeNodePayload<ScrtiptNodeTypeToIdTypeMap, ScriptExplorerContext>,
+) => {
+  const { flattenedNodeIds, node, tree, extraData } = props;
   const { value: itemId } = node;
   const curNodeIndex = props.flattenedNodeIds.indexOf(itemId);
   const prevNodeId = curNodeIndex > 0 ? flattenedNodeIds[curNodeIndex - 1] : null;
@@ -16,12 +18,17 @@ export const ScriptExplorerNode = (props: RenderTreeNodePayload<ScrtiptNodeTypeT
   const isPrevActive = useIsSqlScriptIdOnActiveTab(prevNodeId);
   const isNextActive = useIsSqlScriptIdOnActiveTab(nextNodeId);
 
+  // Get override context menu from extraData if it exists
+  const overrideContextMenu =
+    tree.selectedState.length > 1 ? extraData.getOverrideContextMenu(tree.selectedState) : null;
+
   return (
     <MemoizedBaseTreeNode<ScrtiptNodeTypeToIdTypeMap>
       {...props}
       isActive={isActive}
       isPrevActive={isPrevActive}
       isNextActive={isNextActive}
+      overrideContextMenu={overrideContextMenu}
     />
   );
 };
