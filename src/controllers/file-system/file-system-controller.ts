@@ -155,18 +155,55 @@ export const addLocalFileOrFolders = async (
         newManagedViews.push(dataSource.viewName);
 
         // Then register the file source and create the view.
-        // TODO: this may potentially fail - we should handle this case
-        const regFile = await registerFileSourceAndCreateView(
-          conn,
-          file.handle,
-          file.ext,
-          `${file.uniqueAlias}.${file.ext}`,
-          dataSource.viewName,
-        );
+        try {
+          const regFile = await registerFileSourceAndCreateView(
+            conn,
+            file.handle,
+            file.ext,
+            `${file.uniqueAlias}.${file.ext}`,
+            dataSource.viewName,
+          );
 
-        newRegisteredFiles.push([file.id, regFile]);
-        newDataSources.push([dataSource.id, dataSource]);
-        return true;
+          newRegisteredFiles.push([file.id, regFile]);
+          newDataSources.push([dataSource.id, dataSource]);
+          return true;
+        } catch (err) {
+          // Remove from reserved views since it failed
+          reservedViews.delete(dataSource.viewName);
+          const idx = newManagedViews.indexOf(dataSource.viewName);
+          if (idx > -1) {
+            newManagedViews.splice(idx, 1);
+          }
+
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes('Maximum line size exceeded')) {
+            errors.push(
+              `CSV file ${file.name} has lines that exceed the maximum size limit (10MB). Please split the file into smaller chunks or contact support.`,
+            );
+          } else if (msg.includes('Out of Memory')) {
+            errors.push(
+              `CSV file ${file.name} is too large to process. Try splitting it into smaller files.`,
+            );
+          } else if (
+            msg.includes('Invalid Input Error') &&
+            msg.includes('Error when sniffing file')
+          ) {
+            // This typically happens when CSV has very large lines that prevent proper parsing
+            errors.push(
+              `CSV file ${file.name} could not be parsed. This often happens with files containing very large data fields. Try splitting the file into smaller chunks or ensure the CSV format is valid.`,
+            );
+          } else if (msg.includes('Possible fixes:')) {
+            // DuckDB verbose error - extract just the main error message
+            const mainError = msg.split('\n')[0] || msg;
+            errors.push(`Failed to import ${file.name}: ${mainError}`);
+          } else {
+            // For any other errors, truncate if too long
+            const maxLength = 200;
+            const errorMsg = msg.length > maxLength ? `${msg.substring(0, maxLength)}...` : msg;
+            errors.push(`Failed to import ${file.name}: ${errorMsg}`);
+          }
+          return false;
+        }
       }
     }
   };
