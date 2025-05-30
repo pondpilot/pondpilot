@@ -5,8 +5,8 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
 
-// Maximum line size for CSV files (10MB)
-const CSV_MAX_LINE_SIZE = 10485760;
+// Maximum line size for CSV files (20MB)
+const CSV_MAX_LINE_SIZE = 20485760;
 
 /**
  * Register regular data source file (not a databse) and create a view

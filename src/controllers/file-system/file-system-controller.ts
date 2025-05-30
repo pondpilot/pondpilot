@@ -178,7 +178,7 @@ export const addLocalFileOrFolders = async (
           const msg = err instanceof Error ? err.message : String(err);
           if (msg.includes('Maximum line size exceeded')) {
             errors.push(
-              `CSV file ${file.name} has lines that exceed the maximum size limit (10MB). Please split the file into smaller chunks or contact support.`,
+              `CSV file ${file.name} has lines that exceed the maximum size limit (20MB). Please split the file into smaller chunks or contact support.`,
             );
           } else if (msg.includes('Out of Memory')) {
             errors.push(

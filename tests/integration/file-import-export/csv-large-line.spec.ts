@@ -48,10 +48,11 @@ test('should handle CSV files with very large lines', async ({
   await openFileFromExplorer('large_line');
 
   // Check if we can see the data or if there's an error
-  // With the fix, we should see the data
+  // With the fix, we should see the data (truncated for display)
+  const truncatedLargeData = `${'x'.repeat(1000)}...`;
   await assertDataTableMatches({
     data: [
-      ['1', largeData],
+      ['1', truncatedLargeData],
       ['2', 'small data'],
     ],
     columnNames: ['id', 'data'],
@@ -103,12 +104,15 @@ test('should handle CSV files with multiple large lines', async ({
   // Open the file
   await openFileFromExplorer('multiple_large_lines');
 
-  // Verify we can see all the data
+  // Verify we can see all the data (truncated for display)
+  const truncatedData1 = `${'a'.repeat(1000)}...`;
+  const truncatedData2 = `${'b'.repeat(1000)}...`;
+  const truncatedData3 = `${'c'.repeat(1000)}...`;
   await assertDataTableMatches({
     data: [
-      ['1', 'First large row', largeData1],
-      ['2', 'Second large row', largeData2],
-      ['3', 'Third large row', largeData3],
+      ['1', 'First large row', truncatedData1],
+      ['2', 'Second large row', truncatedData2],
+      ['3', 'Third large row', truncatedData3],
     ],
     columnNames: ['id', 'description', 'data'],
   });

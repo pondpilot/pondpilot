@@ -10,6 +10,9 @@ import {
 
 import { assertNeverValueType } from './typing';
 
+// Maximum characters to display in a table cell for performance
+const MAX_CELL_DISPLAY_LENGTH = 1000;
+
 export function isNumberType(type: NormalizedSQLType): boolean {
   switch (type) {
     case 'bigint':
@@ -41,6 +44,14 @@ const returnRegularFormattedValue = (formattedValue: string): FormattedValue => 
   type: 'regular',
   formattedValue,
 });
+
+const truncateForDisplay = (value: string): string => {
+  if (value.length <= MAX_CELL_DISPLAY_LENGTH) {
+    return value;
+  }
+  // Truncate and add ellipsis to indicate truncation
+  return `${value.substring(0, MAX_CELL_DISPLAY_LENGTH)}...`;
+};
 
 export const stringifyTypedValue = ({
   type,
@@ -170,7 +181,8 @@ export const stringifyTypedValue = ({
         return { type: 'error', formattedValue: 'Interval display not supported yet' };
       }
       case 'string': {
-        return returnRegularFormattedValue(typeof value === 'string' ? value : String(value));
+        const stringValue = typeof value === 'string' ? value : String(value);
+        return returnRegularFormattedValue(truncateForDisplay(stringValue));
       }
       case 'bigint': {
         if (typeof value === 'bigint') {
@@ -222,15 +234,15 @@ export const stringifyTypedValue = ({
               if (typeof TextDecoder !== 'undefined') {
                 const bytesArray = value instanceof Uint8Array ? value : new Uint8Array(bytes);
                 const decoder = new TextDecoder('utf-8', { fatal: true });
-                return returnRegularFormattedValue(decoder.decode(bytesArray));
+                return returnRegularFormattedValue(truncateForDisplay(decoder.decode(bytesArray)));
               }
 
-              return returnRegularFormattedValue(hexRepr);
+              return returnRegularFormattedValue(truncateForDisplay(hexRepr));
             } catch (decodeError) {
-              return returnRegularFormattedValue(hexRepr);
+              return returnRegularFormattedValue(truncateForDisplay(hexRepr));
             }
           } catch (e) {
-            return returnRegularFormattedValue(JSON.stringify(value));
+            return returnRegularFormattedValue(truncateForDisplay(JSON.stringify(value)));
           }
         }
         return fallback;
@@ -238,17 +250,16 @@ export const stringifyTypedValue = ({
       case 'bitstring': {
         // Display bits as a sequence of 0 and 1
         if (typeof value === 'string') {
-          return returnRegularFormattedValue(value);
+          return returnRegularFormattedValue(truncateForDisplay(value));
         }
         if (value instanceof Uint8Array || Array.isArray(value)) {
           try {
-            return returnRegularFormattedValue(
-              Array.from(value)
-                .map((byte) => byte.toString(2).padStart(8, '0'))
-                .join(' '),
-            );
+            const bitString = Array.from(value)
+              .map((byte) => byte.toString(2).padStart(8, '0'))
+              .join(' ');
+            return returnRegularFormattedValue(truncateForDisplay(bitString));
           } catch (e) {
-            return returnRegularFormattedValue(JSON.stringify(value));
+            return returnRegularFormattedValue(truncateForDisplay(JSON.stringify(value)));
           }
         }
         return fallback;
@@ -256,9 +267,10 @@ export const stringifyTypedValue = ({
       case 'array':
       case 'object':
       case 'other': {
-        return returnRegularFormattedValue(
-          JSON.stringify(value, (_, v) => (typeof v === 'bigint' ? v.toLocaleString() : v)),
+        const jsonString = JSON.stringify(value, (_, v) =>
+          typeof v === 'bigint' ? v.toLocaleString() : v,
         );
+        return returnRegularFormattedValue(truncateForDisplay(jsonString));
       }
       default:
         // eslint-disable-next-line no-case-declarations
