@@ -1,5 +1,5 @@
 import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
-import { Button, Group, Text, Stack, Badge, Card, rem, Progress, FileButton } from '@mantine/core';
+import { Button, Group, Text, Stack, Card, rem, Progress, FileButton } from '@mantine/core';
 import { IconDatabase, IconDownload, IconTrash, IconUpload } from '@tabler/icons-react';
 import { formatFileSize, getPersistenceStateText } from '@utils/duckdb-persistence';
 import React, { useCallback, useRef, useState } from 'react';
@@ -89,7 +89,6 @@ export const DatabaseManagementSettings = () => {
     );
   }
 
-  const storageMode = 'persistent';
   const storageText = getPersistenceStateText(persistenceState);
   const dbSize = formatFileSize(persistenceState.dbSize);
 
@@ -97,29 +96,21 @@ export const DatabaseManagementSettings = () => {
   const sizePercentage = Math.min((persistenceState.dbSize / (1024 * 1024 * 1024)) * 100, 100);
 
   return (
-    <Card withBorder p="md">
+    <Stack>
+      <Text c="dimmed">{storageText}</Text>
+
       <Stack>
+        <Text size="sm">Database Size: {dbSize}</Text>
+        <Progress value={sizePercentage} size="sm" />
+      </Stack>
+
+      <Group justify="space-between" align="center">
         <Group>
-          <IconDatabase size={24} />
-          <Text size="xl" fw={500}>
-            Database Storage
-          </Text>
-          <Badge color="green" variant="light">
-            {storageMode}
-          </Badge>
-        </Group>
-
-        <Text c="dimmed">{storageText}</Text>
-
-        <Stack>
-          <Text size="sm">Database Size: {dbSize}</Text>
-          <Progress value={sizePercentage} size="sm" />
-        </Stack>
-
-        <Group mt={rem(10)}>
           <Button
             onClick={handleExport}
             loading={isExporting}
+            color="background-accent"
+            variant="outline"
             disabled={isClearing || isImporting || persistenceState.dbSize === 0}
             leftSection={<IconDownload size={16} />}
           >
@@ -130,6 +121,8 @@ export const DatabaseManagementSettings = () => {
             {(props) => (
               <Button
                 {...props}
+                variant="outline"
+                color="background-accent"
                 leftSection={<IconUpload size={16} />}
                 loading={isImporting}
                 disabled={isExporting || isClearing}
@@ -138,25 +131,24 @@ export const DatabaseManagementSettings = () => {
               </Button>
             )}
           </FileButton>
-
-          <Button
-            leftSection={<IconTrash size={16} />}
-            color="red"
-            variant="light"
-            onClick={handleClear}
-            loading={isClearing}
-            disabled={isExporting || isImporting || persistenceState.dbSize === 0}
-          >
-            Clear Database
-          </Button>
         </Group>
+        <Button
+          leftSection={<IconTrash size={16} />}
+          color="red"
+          variant="outline"
+          onClick={handleClear}
+          loading={isClearing}
+          disabled={isExporting || isImporting || persistenceState.dbSize === 0}
+        >
+          Clear Database
+        </Button>
+      </Group>
 
-        {importError && (
-          <Text color="red" size="sm" mt={rem(5)}>
-            {importError}
-          </Text>
-        )}
-      </Stack>
-    </Card>
+      {importError && (
+        <Text color="red" size="sm" mt={rem(5)}>
+          {importError}
+        </Text>
+      )}
+    </Stack>
   );
 };

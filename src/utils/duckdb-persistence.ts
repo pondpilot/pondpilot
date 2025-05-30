@@ -60,11 +60,11 @@ export function isPersistenceSupported(): boolean {
  */
 export function getPersistenceStateText(state: DBPersistenceState): string {
   if (!state.lastSync) {
-    return 'Persistent (not yet saved)';
+    return 'Not yet saved';
   }
 
   const timeAgo = getTimeAgo(state.lastSync);
-  return `Persistent (last saved ${timeAgo})`;
+  return `Last saved ${timeAgo}`;
 }
 
 /**
