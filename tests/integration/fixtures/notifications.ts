@@ -84,11 +84,7 @@ export const test = base.extend<NotificationFixtures>({
         const notification = await waitForNotification(title, options);
 
         // Check that the notification contains the expected text
-        if (typeof expectedText === 'string') {
-          await expect(notification.getByText(expectedText)).toBeVisible();
-        } else {
-          await expect(notification.getByText(expectedText)).toBeVisible();
-        }
+        await expect(notification.getByText(expectedText)).toBeVisible();
       },
     );
   },
