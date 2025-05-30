@@ -132,6 +132,7 @@ const TransactionalStatementMap: Record<SQLStatement, boolean> = {
 };
 
 const StatementsAllowedInScripts = [
+  SQLStatement.ATTACH,
   SQLStatement.ANALYZE,
   SQLStatement.ALTER,
   SQLStatement.CALL,
@@ -165,6 +166,7 @@ const StatementsAllowedInSubquery = [SQLStatement.SELECT];
  */
 export const SelectableStatements: SQLStatement[] = [
   SQLStatement.SELECT,
+  SQLStatement.WITH,
   SQLStatement.DESCRIBE,
   SQLStatement.SHOW,
   SQLStatement.PIVOT,

@@ -2,12 +2,35 @@ import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { toAbortablePromise } from '@utils/abort';
 import * as arrow from 'apache-arrow';
 
-import { AsyncDuckDBPooledConnection } from './duckdb-pooled-conection';
+import { AsyncDuckDBPooledConnection } from './duckdb-pooled-connection';
 import { AsyncDuckDBPooledStreamReader } from './duckdb-pooled-streaming-reader';
 import { PoolTimeoutError } from './timeout-error';
 
-// Should this be a user setting?
+// Optional callback to update persistence state after operations
+type UpdateStateFn = () => Promise<void>;
+
+// Default timeout for getting a connection from the pool (ms)
 const GET_CONNECTION_TIMEOUT = 10000; // 10 seconds
+
+// Checkpoint configuration interface
+export interface CheckpointConfig {
+  // Time in ms to throttle checkpoint operations
+  throttleMs: number;
+  // Maximum number of changes before forcing a checkpoint even if throttle timer hasn't elapsed
+  maxChangesBeforeForce: number;
+  // Whether to always run a checkpoint when closing the connection pool
+  checkpointOnClose: boolean;
+  // Whether to log checkpoint operations (in development mode)
+  logCheckpoints: boolean;
+}
+
+// Default checkpoint configuration
+const DEFAULT_CHECKPOINT_CONFIG: CheckpointConfig = {
+  throttleMs: 5000, // 5 seconds
+  maxChangesBeforeForce: 100,
+  checkpointOnClose: true, // Always checkpoint on close by default
+  logCheckpoints: true, // Log checkpoints in development mode
+};
 
 type DuckDBConnectionConnAndIdex = { conn: AsyncDuckDBConnection; index: number };
 
@@ -41,12 +64,40 @@ export class AsyncDuckDBConnectionPool {
   protected readonly _connections: AsyncDuckDBConnection[];
   /** The set of connections in use (indexes) */
   protected readonly _inUse: Set<number>;
+  /** Optional callback to update persistence state after operations */
+  protected readonly _updateStateCallback?: UpdateStateFn;
+  protected readonly _checkpointConfig: CheckpointConfig;
 
-  constructor(bindings: AsyncDuckDB, maxSize: number) {
+  // State for checkpoint throttling
+  private _lastCheckpointTime: number = 0;
+  private _changesSinceLastCheckpoint: number = 0;
+  private _checkpointInProgress: boolean = false;
+
+  /**
+   * Creates a new DuckDB connection pool
+   *
+   * @param bindings The DuckDB bindings to use
+   * @param maxSize The maximum number of connections in the pool
+   * @param updateStateCallback Optional callback to update persistence state after operations
+   * @param checkpointConfig Optional configuration for checkpoint behavior
+   */
+  constructor(
+    bindings: AsyncDuckDB,
+    maxSize: number,
+    updateStateCallback?: UpdateStateFn,
+    checkpointConfig?: Partial<CheckpointConfig>,
+  ) {
     this._bindings = bindings;
     this._maxSize = maxSize;
     this._connections = [];
     this._inUse = new Set();
+    this._updateStateCallback = updateStateCallback;
+
+    // Merge provided config with defaults
+    this._checkpointConfig = {
+      ...DEFAULT_CHECKPOINT_CONFIG,
+      ...checkpointConfig,
+    };
   }
 
   /**
@@ -123,15 +174,164 @@ export class AsyncDuckDBConnectionPool {
    * with care, either after "one-off" actions, or after cleaning
    * up the connection (cancelling pending queries/statments).
    */
-  _releaseConnection(index: number) {
-    // Mark the connection as not in use
-    this._inUse.delete(index);
+  async _releaseConnection(index: number) {
+    try {
+      const conn = this._connections[index];
+
+      // If we're in persistent mode, handle potential checkpointing
+      if (this._updateStateCallback) {
+        // Increment the changes counter
+        this._changesSinceLastCheckpoint += 1;
+
+        // Check if we should run a checkpoint based on time or change count
+        const now = Date.now();
+        const timeSinceLastCheckpoint = now - this._lastCheckpointTime;
+        const shouldCheckpoint =
+          // Either enough time has passed since last checkpoint
+          (timeSinceLastCheckpoint >= this._checkpointConfig.throttleMs &&
+            this._changesSinceLastCheckpoint > 0) ||
+          // Or we've accumulated enough changes to force a checkpoint
+          this._changesSinceLastCheckpoint >= this._checkpointConfig.maxChangesBeforeForce;
+
+        // Only checkpoint if not already in progress and criteria are met
+        if (shouldCheckpoint && !this._checkpointInProgress) {
+          try {
+            // Mark checkpoint as in progress to prevent concurrent checkpoints
+            this._checkpointInProgress = true;
+
+            // Log the checkpoint if enabled and in dev mode
+            if (this._checkpointConfig.logCheckpoints && import.meta.env.DEV) {
+              // eslint-disable-next-line no-console
+              console.debug(
+                `Running checkpoint after ${this._changesSinceLastCheckpoint} changes`,
+                `and ${timeSinceLastCheckpoint}ms since last checkpoint`,
+              );
+            }
+
+            // Create a checkpoint to ensure data is saved to disk
+            // Use FORCE CHECKPOINT to wait for other transactions
+            await conn.query('FORCE CHECKPOINT;');
+
+            // Update persistence state
+            await this._updateStateCallback();
+
+            // Reset checkpoint tracking state
+            this._lastCheckpointTime = now;
+            this._changesSinceLastCheckpoint = 0;
+          } catch (error) {
+            console.error('Error during checkpoint or persistence state update:', error);
+
+            // We don't rethrow the error to ensure the connection is always released,
+            // but at least the error is logged for debugging purposes
+          } finally {
+            // Always mark checkpoint as no longer in progress
+            this._checkpointInProgress = false;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Unexpected error in _releaseConnection:', error);
+    } finally {
+      // Always mark the connection as not in use, even if there was an error
+      this._inUse.delete(index);
+    }
+  }
+
+  /**
+   * Force a checkpoint to ensure all data is persisted
+   * This is useful to explicitly call before important operations
+   * or when the user explicitly requests a save
+   *
+   * @returns Promise<boolean> True if checkpoint succeeded, false otherwise
+   */
+  public async forceCheckpoint(): Promise<boolean> {
+    // If there's no update callback or no connections, we can't checkpoint
+    if (!this._updateStateCallback || this._connections.length === 0) {
+      return false; // Nothing to checkpoint
+    }
+
+    // If a checkpoint is already in progress, wait a bit and return
+    if (this._checkpointInProgress) {
+      if (this._checkpointConfig.logCheckpoints && import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.debug('Checkpoint already in progress, skipping forced checkpoint');
+      }
+
+      // Still return true since a checkpoint is happening
+      return true;
+    }
+
+    try {
+      // Set checkpoint in progress flag to prevent concurrent checkpoints
+      this._checkpointInProgress = true;
+
+      // Log the forced checkpoint if enabled
+      if (this._checkpointConfig.logCheckpoints && import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.debug('Running forced checkpoint');
+      }
+
+      // Get any available connection or wait for one
+      const { conn, index } = await this._getConnection();
+
+      try {
+        // Create a checkpoint
+        // Use FORCE CHECKPOINT to wait for other transactions
+        await conn.query('FORCE CHECKPOINT;');
+
+        // Update persistence state
+        await this._updateStateCallback();
+
+        // Reset checkpoint tracking state
+        this._lastCheckpointTime = Date.now();
+        this._changesSinceLastCheckpoint = 0;
+
+        return true;
+      } catch (error) {
+        // Provide more specific error context
+        console.error('Error during forced checkpoint operation:', error);
+        return false;
+      } finally {
+        // Always release the connection
+        await this._releaseConnection(index);
+      }
+    } catch (error) {
+      console.error('Error acquiring connection for forced checkpoint:', error);
+      return false;
+    } finally {
+      // Always clear the checkpoint in progress flag
+      this._checkpointInProgress = false;
+    }
   }
 
   /**
    * Gracefully close the pool and all connections.
+   * Performs a final checkpoint if configured to do so and there are pending changes.
    */
   public async close() {
+    // Try to do a final checkpoint before closing
+    try {
+      // Only checkpoint if it's enabled in the configuration AND we have changes to save
+      if (
+        this._checkpointConfig.checkpointOnClose &&
+        this._updateStateCallback &&
+        this._connections.length > 0 &&
+        this._changesSinceLastCheckpoint > 0
+      ) {
+        if (this._checkpointConfig.logCheckpoints && import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.debug(
+            `Running final checkpoint before close with ${this._changesSinceLastCheckpoint} pending changes`,
+          );
+        }
+        await this.forceCheckpoint();
+      }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error during final checkpoint:', error);
+    }
+
+    // Close all connections
     await Promise.all(this._connections.map((conn) => conn.close()));
     this._connections.length = 0;
   }
@@ -277,9 +477,9 @@ export class AsyncDuckDBConnectionPool {
       onAbort: async () => {
         await conn.cancelSent();
       },
-      onFinalize: () => {
+      onFinalize: async () => {
         // Release the connection back to the pool
-        this._releaseConnection(index);
+        await this._releaseConnection(index);
       },
     });
 
