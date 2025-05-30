@@ -35,6 +35,7 @@ export const DndOverlay = ({ children, handleFileDrop }: DndOverlayProps) => {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn('relative h-full w-full z-50')}
+      data-testid={setDataTestId('dnd-overlay')}
     >
       {isDragging && (
         <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
@@ -49,7 +50,7 @@ export const DndOverlay = ({ children, handleFileDrop }: DndOverlayProps) => {
               </Title>
             </Group>
             <Title order={4} c="text-secondary" size="sm" className="text-center">
-              Accepted file types: csv, xlsx, json, parquet, txt, tsv
+              Accepted file types: csv, xlsx, json, parquet, tsv
             </Title>
           </Stack>
         </div>
