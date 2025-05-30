@@ -411,28 +411,10 @@ export async function exportData(
 ): Promise<void> {
   switch (format) {
     case 'csv':
-      await exportAsDelimitedText(
-        dataAdapter,
-        {
-          ...options,
-          delimiter: ',',
-          quoteChar: '"',
-          escapeChar: '"',
-        } as DelimitedTextExportOptions,
-        fileName,
-      );
+      await exportAsDelimitedText(dataAdapter, options as DelimitedTextExportOptions, fileName);
       break;
     case 'tsv':
-      await exportAsDelimitedText(
-        dataAdapter,
-        {
-          ...options,
-          delimiter: '\t',
-          quoteChar: '"',
-          escapeChar: '"',
-        } as DelimitedTextExportOptions,
-        fileName,
-      );
+      await exportAsDelimitedText(dataAdapter, options as DelimitedTextExportOptions, fileName);
       break;
     case 'xlsx':
       await exportAsXlsx(dataAdapter, options as XlsxExportOptions, fileName);
