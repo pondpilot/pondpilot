@@ -170,8 +170,86 @@ export const useAddLocalFilesOrFolders = () => {
     });
   }, [pool]);
 
+  const handleFileDrop = useCallback(
+    async (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+
+      if (!pool) {
+        showError({
+          title: 'App is not ready',
+          message: 'Please wait for app to load before adding files',
+        });
+        return;
+      }
+
+      const fileHandlesPromises = [...e.dataTransfer.items].map((item) =>
+        item.getAsFileSystemHandle(),
+      );
+
+      const handles = [];
+
+      for await (const handle of fileHandlesPromises) {
+        if (!handle) {
+          continue;
+        }
+        handles.push(handle as FileSystemFileHandle | FileSystemDirectoryHandle);
+      }
+
+      const notificationId = showAlert({
+        title: 'Processing dropped items',
+        loading: true,
+        message: 'Please wait while we process the dropped files/folders...',
+        autoClose: false,
+        color: 'text-accent',
+      });
+
+      try {
+        if (handles.length === 0) {
+          notifications.hide(notificationId);
+          showAlert({
+            title: 'No valid items',
+            message: 'No supported files or folders were found in the dropped items.',
+          });
+        }
+
+        const { skippedExistingEntries, skippedUnsupportedFiles, errors } =
+          await addLocalFileOrFolders(pool, handles);
+
+        notifications.hide(notificationId);
+        if (skippedExistingEntries.length) {
+          showWarning({
+            title: 'Warning',
+            message: `${skippedExistingEntries.length} files were not added because they already exist.`,
+          });
+        }
+        if (skippedUnsupportedFiles.length) {
+          showWarning({
+            title: 'Warning',
+            message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
+          });
+        }
+        if (errors.length) {
+          errors.forEach((errorMessage) => {
+            showError({
+              title: 'Error',
+              message: errorMessage,
+            });
+          });
+        }
+      } catch (error) {
+        notifications.hide(notificationId);
+        showError({
+          title: 'Error processing dropped items',
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [pool],
+  );
+
   return {
     handleAddFile,
     handleAddFolder,
+    handleFileDrop,
   };
 };
