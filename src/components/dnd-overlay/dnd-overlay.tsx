@@ -35,7 +35,6 @@ export const DndOverlay = ({ children, handleFileDrop }: DndOverlayProps) => {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn('relative h-full w-full z-50')}
-      data-testid={setDataTestId('start-guide')}
     >
       {isDragging && (
         <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
