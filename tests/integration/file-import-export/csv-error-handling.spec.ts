@@ -1,12 +1,13 @@
 import * as fs from 'fs';
 
-import { mergeTests, expect } from '@playwright/test';
+import { mergeTests } from '@playwright/test';
 
 import { test as dataViewTest } from '../fixtures/data-view';
 import { test as filePickerTest } from '../fixtures/file-picker';
+import { test as notificationTest } from '../fixtures/notifications';
 import { test as baseTest } from '../fixtures/page';
 
-const test = mergeTests(baseTest, filePickerTest, dataViewTest);
+const test = mergeTests(baseTest, filePickerTest, dataViewTest, notificationTest);
 
 test('should show generic error for invalid CSV files', async ({
   addFileButton,
@@ -14,7 +15,7 @@ test('should show generic error for invalid CSV files', async ({
   filePicker,
   testTmp,
   assertFileExplorerItems,
-  page,
+  expectErrorNotification,
 }) => {
   // Create a completely invalid file that's not a CSV
   const csvPath = testTmp.join('invalid.csv');
@@ -35,15 +36,9 @@ test('should show generic error for invalid CSV files', async ({
   // Click the add file button
   await addFileButton.click();
 
-  // Wait for the notification to appear (error should show quickly)
-  await page.waitForSelector('.mantine-Notifications-notification', { timeout: 10000 });
-
   // Verify the file was not added to the explorer
   await assertFileExplorerItems([]);
 
-  // Wait for error notification to appear with generic error message
-  const notification = page.locator('.mantine-Notifications-notification');
-  await expect(notification).toBeVisible();
-  await expect(notification.getByText('Error', { exact: true })).toBeVisible();
-  await expect(notification.getByText(/Failed to import invalid/)).toBeVisible();
+  // Wait for error notification with the expected message
+  await expectErrorNotification(/Failed to import invalid/);
 });
