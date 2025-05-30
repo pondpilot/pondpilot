@@ -12,11 +12,14 @@ import { showNotification } from '@mantine/notifications';
 import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
-import { forwardRef, KeyboardEventHandler, useMemo } from 'react';
+import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
+import { aiAssistantButton } from './ai-assistant-button';
+import { aiAssistantTooltip } from './ai-assistant-tooltip';
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
 import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
+import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
 
 type FunctionTooltip = Record<string, { syntax: string; description: string }>;
 
@@ -52,6 +55,9 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
     ref,
   ) => {
     const { darkTheme, lightTheme } = useEditorTheme(colorSchemeDark);
+    const connectionPool = useDuckDBConnectionPool();
+    const editorRef = useRef<ReactCodeMirrorRef>(null);
+
     const tableNameHighlightPlugin = useMemo(() => {
       if (schema) {
         return createSQLTableNameHighlightPlugin(Object.keys(schema));
@@ -131,6 +137,8 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         upperCaseKeywords: true,
         schema,
       });
+      const aiAssistantExtension = aiAssistantTooltip(connectionPool);
+      const aiButtonExtension = aiAssistantButton();
       const tooltipExtension = functionTooltip(functionTooltips);
 
       return [
@@ -138,6 +146,8 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         keyExtensions,
         sqlDialect,
         tooltipExtension,
+        aiAssistantExtension,
+        aiButtonExtension,
         tableNameHighlightPlugin,
         SqlStatementHighlightPlugin,
         EditorView.updateListener.of((state: any) => {
@@ -148,11 +158,29 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
           if (onCursorChange) onCursorChange(pos, lineNumber, columnNumber);
         }),
       ].filter(Boolean) as Extension[];
-    }, [onCursorChange, keyExtensions, schema, tableNameHighlightPlugin, functionTooltips]);
+    }, [
+      onCursorChange,
+      keyExtensions,
+      schema,
+      tableNameHighlightPlugin,
+      functionTooltips,
+      connectionPool,
+    ]);
 
     return (
       <CodeMirror
-        ref={ref}
+        ref={(instance) => {
+          if (ref) {
+            if (typeof ref === 'function') {
+              ref(instance);
+            } else {
+              ref.current = instance;
+            }
+          }
+          if (instance) {
+            (editorRef as any).current = instance;
+          }
+        }}
         autoFocus
         readOnly={readOnly}
         onKeyDown={onKeyDown}

@@ -67,3 +67,32 @@ export function resolveToNearestStatement(state: EditorState) {
   }
   return statements[statements.length - 1];
 }
+
+/**
+ * Resolves SQL context for AI Assistant, prioritizing selected text over cursor-based statement detection
+ * If text is selected, returns the selection; otherwise falls back to nearest statement
+ */
+export function resolveAIContext(
+  state: EditorState,
+): { from: number; to: number; text?: string } | null {
+  const selection = state.selection.main;
+
+  // If text is selected, use the selection as context
+  if (!selection.empty) {
+    return {
+      from: selection.from,
+      to: selection.to,
+      text: state.doc.sliceString(selection.from, selection.to),
+    };
+  }
+
+  // Otherwise, fall back to nearest statement
+  const nearestStatement = resolveToNearestStatement(state);
+  if (!nearestStatement) return null;
+
+  return {
+    from: nearestStatement.from,
+    to: nearestStatement.to,
+    text: state.doc.sliceString(nearestStatement.from, nearestStatement.to),
+  };
+}

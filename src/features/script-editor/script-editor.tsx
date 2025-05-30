@@ -2,6 +2,7 @@ import { showAlert } from '@components/app-notifications';
 import { createSQLScript, updateSQLScriptContent } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { SqlEditor } from '@features/editor';
+import { showAIAssistant } from '@features/editor/ai-assistant-tooltip';
 import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
 import { Group, useMantineColorScheme } from '@mantine/core';
 import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
@@ -26,13 +27,18 @@ interface ScriptEditorProps {
   runScriptQuery: (query: string) => Promise<void>;
 }
 
-export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: ScriptEditorProps) => {
+export const ScriptEditor = ({
+  id: scriptId,
+  active,
+  runScriptQuery,
+  scriptState,
+}: ScriptEditorProps) => {
   /**
    * Common hooks
    */
   const { colorScheme } = useMantineColorScheme();
 
-  const sqlScript = useAppStore((state) => state.sqlScripts.get(id)!);
+  const sqlScript = useAppStore((state) => state.sqlScripts.get(scriptId)!);
   const dataBaseMetadata = useAppStore.use.dataBaseMetadata();
   const databaseModelsArray = Array.from(dataBaseMetadata.values());
 
@@ -55,6 +61,16 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
     }
     return {};
   }, [duckDBFunctions]);
+
+  // Get the tab ID from the script
+  const tabId = useAppStore((state) => {
+    for (const [tId, tab] of state.tabs) {
+      if (tab.type === 'script' && tab.sqlScriptId === scriptId) {
+        return tId;
+      }
+    }
+    return null;
+  });
 
   const sqlNamespace = useMemo(
     () => convertToSQLNamespace(databaseModelsArray),
@@ -138,6 +154,23 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
     };
   }, []);
 
+  // Listen for AI Assistant trigger event
+  useEffect(() => {
+    const handleTriggerAIAssistant = (event: CustomEvent) => {
+      if (event.detail.tabId === tabId && editorRef.current?.view && tabId) {
+        const { tabExecutionErrors } = useAppStore.getState();
+        const errorContext = tabExecutionErrors.get(tabId);
+        showAIAssistant(editorRef.current.view, errorContext);
+      }
+    };
+
+    window.addEventListener('trigger-ai-assistant', handleTriggerAIAssistant as EventListener);
+
+    return () => {
+      window.removeEventListener('trigger-ai-assistant', handleTriggerAIAssistant as EventListener);
+    };
+  }, [tabId]);
+
   useDidUpdate(() => {
     if (active) {
       editorRef.current?.view?.focus();
@@ -168,7 +201,15 @@ export const ScriptEditor = ({ id, active, runScriptQuery, scriptState }: Script
           onFontSizeChanged={setFontSize}
           functionTooltips={functionTooltips}
           onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-            if (KEY_BINDING.run.match(e)) {
+            if (KEY_BINDING.aiAssistant.match(e)) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (editorRef.current?.view && tabId) {
+                const { tabExecutionErrors } = useAppStore.getState();
+                const errorContext = tabExecutionErrors.get(tabId);
+                showAIAssistant(editorRef.current.view, errorContext);
+              }
+            } else if (KEY_BINDING.run.match(e)) {
               if (KEY_BINDING.runSelection.match(e)) {
                 handleRunQuery('selection');
               } else {

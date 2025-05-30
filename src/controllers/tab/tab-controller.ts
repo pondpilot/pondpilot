@@ -27,6 +27,13 @@ import {
   findTabFromScriptImpl,
 } from './pure';
 
+// Tab execution error types
+export interface TabExecutionError {
+  errorMessage: string;
+  statementType?: string;
+  timestamp: number;
+}
+
 /**
  * ------------------------------------------------------------
  * -------------------------- Create --------------------------
@@ -784,7 +791,14 @@ export const setTabOrder = (tabOrder: TabId[]) => {
  */
 
 export const deleteTab = (tabIds: TabId[]) => {
-  const { tabs, tabOrder, activeTabId, previewTabId, _iDbConn: iDbConn } = useAppStore.getState();
+  const {
+    tabs,
+    tabOrder,
+    activeTabId,
+    previewTabId,
+    tabExecutionErrors,
+    _iDbConn: iDbConn,
+  } = useAppStore.getState();
 
   const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl({
     deleteTabIds: tabIds,
@@ -794,6 +808,10 @@ export const deleteTab = (tabIds: TabId[]) => {
     previewTabId,
   });
 
+  // Clear execution errors for deleted tabs
+  const newTabExecutionErrors = new Map(tabExecutionErrors);
+  tabIds.forEach((tabId) => newTabExecutionErrors.delete(tabId));
+
   // Update the store with the new state
   useAppStore.setState(
     {
@@ -801,6 +819,7 @@ export const deleteTab = (tabIds: TabId[]) => {
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,
       previewTabId: newPreviewTabId,
+      tabExecutionErrors: newTabExecutionErrors,
     },
     undefined,
     'AppStore/deleteTab',
@@ -855,4 +874,62 @@ export const deleteTabByDataSourceId = (dataSourceId: PersistentDataSourceId): b
   }
 
   return false;
+};
+
+/**
+ * ------------------------------------------------------------
+ * -------------------- Execution Errors ----------------------
+ * ------------------------------------------------------------
+ */
+
+/**
+ * Sets an execution error for a specific tab.
+ *
+ * @param tabId - The ID of the tab
+ * @param error - The execution error details
+ */
+export const setTabExecutionError = (tabId: TabId, error: TabExecutionError): void => {
+  const { tabExecutionErrors } = useAppStore.getState();
+
+  const newErrors = new Map(tabExecutionErrors);
+  newErrors.set(tabId, error);
+
+  useAppStore.setState(
+    { tabExecutionErrors: newErrors },
+    undefined,
+    'TabController/setExecutionError',
+  );
+};
+
+/**
+ * Clears the execution error for a specific tab.
+ *
+ * @param tabId - The ID of the tab
+ */
+export const clearTabExecutionError = (tabId: TabId): void => {
+  const { tabExecutionErrors } = useAppStore.getState();
+
+  if (!tabExecutionErrors.has(tabId)) {
+    return; // No error to clear
+  }
+
+  const newErrors = new Map(tabExecutionErrors);
+  newErrors.delete(tabId);
+
+  useAppStore.setState(
+    { tabExecutionErrors: newErrors },
+    undefined,
+    'TabController/clearExecutionError',
+  );
+};
+
+/**
+ * Clears all tab execution errors.
+ */
+export const clearAllTabExecutionErrors = (): void => {
+  useAppStore.setState(
+    { tabExecutionErrors: new Map() },
+    undefined,
+    'TabController/clearAllExecutionErrors',
+  );
 };
