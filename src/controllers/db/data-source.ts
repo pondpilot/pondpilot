@@ -5,6 +5,9 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
 
+// Maximum line size for CSV files (10MB)
+const CSV_MAX_LINE_SIZE = 10485760;
+
 /**
  * Register regular data source file (not a databse) and create a view
  *
@@ -46,7 +49,7 @@ export async function registerFileSourceAndCreateView(
 
   if (fileExt === 'csv') {
     await conn.query(
-      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false);`,
+      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`,
     );
     return file;
   }
@@ -120,7 +123,7 @@ export async function reCreateView(
 
   if (fileExt === 'csv') {
     await conn.query(
-      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(newViewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false);`,
+      `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(newViewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`,
     );
   }
 
