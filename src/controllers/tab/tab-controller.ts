@@ -1058,13 +1058,14 @@ export const setTabOrder = (tabOrder: TabId[]) => {
  * ------------------------------------------------------------
  */
 
-export const deleteTab = (tabIds: TabId[]) => {
+export const deleteTab = async (tabIds: TabId[]) => {
   const {
     tabs,
     tabOrder,
     activeTabId,
     previewTabId,
     tabExecutionErrors,
+    sqlScripts,
     _iDbConn: iDbConn,
   } = useAppStore.getState();
 
@@ -1074,6 +1075,46 @@ export const deleteTab = (tabIds: TabId[]) => {
     const tab = tabs.get(tabId);
     if (tab?.type === 'script') {
       saveScriptDataViewStateCache(tab.sqlScriptId, tab.dataViewStateCache);
+    }
+  }
+
+  // Save versions for script tabs before deleting
+  if (iDbConn) {
+    for (const tabId of tabIds) {
+      const tab = tabs.get(tabId);
+      if (!tab) continue;
+
+      // If it's a script tab, save a version before closing
+      if (tab.type === 'script') {
+        try {
+          const script = sqlScripts.get(tab.sqlScriptId);
+          if (script && script.content) {
+            // Get version controller and check latest version
+            const versionController = await import('@controllers/script-version').then((m) =>
+              m.createScriptVersionController(iDbConn),
+            );
+            const versions = await versionController.getVersionsByScriptId(tab.sqlScriptId);
+            const hasVersions = versions.length > 0;
+            const latestVersion = versions[0]; // Already sorted by timestamp desc
+
+            // Create a version if:
+            // 1. No versions exist yet (first save)
+            // 2. Content has changed from latest version
+            if (!hasVersions || (latestVersion && latestVersion.content !== script.content)) {
+              await versionController.createVersion({
+                scriptId: tab.sqlScriptId,
+                content: script.content,
+                type: 'auto',
+                metadata: await import('@utils/script-version').then((m) =>
+                  m.getScriptMetadata(script.content),
+                ),
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to save version before closing tab:', error);
+        }
+      }
     }
   }
 
@@ -1114,7 +1155,7 @@ export const deleteTab = (tabIds: TabId[]) => {
  * @param sqlScriptId - The ID of the SQL script whose tab should be deleted
  * @returns true if a tab was found and deleted, false otherwise
  */
-export const deleteTabByScriptId = (sqlScriptId: SQLScriptId): boolean => {
+export const deleteTabByScriptId = async (sqlScriptId: SQLScriptId): Promise<boolean> => {
   const { tabs } = useAppStore.getState();
 
   // Find the tab associated with this script
@@ -1122,7 +1163,7 @@ export const deleteTabByScriptId = (sqlScriptId: SQLScriptId): boolean => {
 
   if (tab) {
     // Delete the found tab
-    deleteTab([tab.id]);
+    await deleteTab([tab.id]);
     return true;
   }
 
@@ -1136,7 +1177,9 @@ export const deleteTabByScriptId = (sqlScriptId: SQLScriptId): boolean => {
  * @param dataSourceId - The ID of the data source whose tab(s) should be deleted
  * @returns true if at least one tab was found and deleted, false otherwise
  */
-export const deleteTabByDataSourceId = (dataSourceId: PersistentDataSourceId): boolean => {
+export const deleteTabByDataSourceId = async (
+  dataSourceId: PersistentDataSourceId,
+): Promise<boolean> => {
   const { tabs } = useAppStore.getState();
 
   // Find all tabs associated with this data source ID
@@ -1146,7 +1189,7 @@ export const deleteTabByDataSourceId = (dataSourceId: PersistentDataSourceId): b
 
   if (tabsToDelete.length > 0) {
     // Delete all found tabs
-    deleteTab(tabsToDelete);
+    await deleteTab(tabsToDelete);
     return true;
   }
 

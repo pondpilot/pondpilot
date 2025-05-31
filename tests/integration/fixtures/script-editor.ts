@@ -45,6 +45,11 @@ type ScriptEditorFixtures = {
    * @param line - The line number to run
    */
   runSelectionWithHotkey: (line: number) => Promise<void>;
+
+  /**
+   * Opens the version history modal if the button is visible
+   */
+  openVersionHistory: () => Promise<void>;
 };
 
 const QUERY_EDITOR_TIMEOUT = Number(process.env.PLAYWRIGHT_QUERY_EDITOR_TIMEOUT) || 5000;
@@ -176,6 +181,25 @@ export const test = base.extend<ScriptEditorFixtures>({
       await page.keyboard.press('Control+Shift+Enter');
 
       await expect(page.getByText('Query ran successfully')).toBeVisible();
+    });
+  },
+
+  openVersionHistory: async ({ page, activeScriptEditor }, use) => {
+    await use(async () => {
+      // Verify the script tab is active
+      await expect(
+        activeScriptEditor,
+        'Did you forget to open a script tab before calling this fixture?',
+      ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
+
+      const versionHistoryButton = activeScriptEditor.getByTestId('version-history-button');
+      const isVisible = await versionHistoryButton.isVisible();
+
+      if (isVisible) {
+        await versionHistoryButton.click();
+        // Wait for modal to appear
+        await page.waitForSelector('[data-testid="version-history-modal"]', { state: 'visible' });
+      }
     });
   },
 });

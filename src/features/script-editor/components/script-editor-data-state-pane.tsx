@@ -1,7 +1,8 @@
-import { Group, Text, Tooltip, ActionIcon } from '@mantine/core';
+import { ActionIcon, Group, Text, Tooltip } from '@mantine/core';
 import { useDidUpdate, useOs } from '@mantine/hooks';
 import { ScriptExecutionState } from '@models/sql-script';
-import { IconFileSad, IconSparkles } from '@tabler/icons-react';
+import { IconFileSad, IconHistory, IconSparkles } from '@tabler/icons-react';
+import { setDataTestId } from '@utils/test-id';
 import React, { useState, useRef } from 'react';
 
 import { RunQueryButton } from './components';
@@ -12,6 +13,7 @@ interface ScriptEditorDataStatePaneProps {
 
   handleRunQuery: (mode?: 'all' | 'selection') => Promise<void>;
   onAIAssistantClick: () => void;
+  onOpenVersionHistory?: () => void;
 }
 
 export const ScriptEditorDataStatePane = ({
@@ -19,6 +21,7 @@ export const ScriptEditorDataStatePane = ({
   dirty,
   handleRunQuery,
   onAIAssistantClick,
+  onOpenVersionHistory,
 }: ScriptEditorDataStatePaneProps) => {
   const os = useOs();
   const isMacOS = os === 'macos';
@@ -84,6 +87,17 @@ export const ScriptEditorDataStatePane = ({
         )}
       </Group>
       <Group gap={8}>
+        {onOpenVersionHistory && (
+          <Tooltip label="Version History">
+            <ActionIcon
+              variant="subtle"
+              onClick={onOpenVersionHistory}
+              data-testid={setDataTestId('version-history-button')}
+            >
+              <IconHistory size={18} />
+            </ActionIcon>
+          </Tooltip>
+        )}
         <Tooltip label={`AI Assistant (${isMacOS ? '⌘' : 'Ctrl'}+I)`} position="bottom">
           <ActionIcon c="background-accent" onClick={onAIAssistantClick}>
             <IconSparkles size={24} stroke={1.8} />

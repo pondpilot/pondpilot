@@ -1,6 +1,8 @@
 // Public sql script controller API's
 // By convetion the order should follow CRUD groups!
 
+import { showAlert } from '@components/app-notifications';
+import { createScriptVersionController } from '@controllers/script-version';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
@@ -158,7 +160,7 @@ export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName:
  *
  * @param sqlScriptIds - iterable of IDs of SQL scripts to delete
  */
-export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
+export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
   const {
     sqlScripts,
     scriptAccessTimes,
@@ -227,6 +229,30 @@ export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
     // Delete associated tabs from IndexedDB if any
     if (tabsToDelete.length) {
       persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
+    }
+
+    // Delete all versions for the deleted scripts
+    const versionController = createScriptVersionController(iDbConn);
+    const versionDeletionErrors: string[] = [];
+
+    await Promise.all(
+      Array.from(sqlScriptIds).map(async (scriptId) => {
+        try {
+          await versionController.deleteVersionsForScript(scriptId);
+        } catch (error) {
+          console.error(`Failed to delete versions for script ${scriptId}:`, error);
+          versionDeletionErrors.push(scriptId);
+        }
+      }),
+    );
+
+    // Show aggregated error if any version deletions failed
+    if (versionDeletionErrors.length > 0) {
+      showAlert({
+        title: 'Warning',
+        message: `Failed to delete version history for ${versionDeletionErrors.length} script${versionDeletionErrors.length > 1 ? 's' : ''}. The scripts have been deleted but some version history may remain.`,
+        color: 'yellow',
+      });
     }
   }
 };

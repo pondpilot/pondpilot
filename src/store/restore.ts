@@ -42,6 +42,7 @@ import {
   LOCAL_ENTRY_TABLE_NAME,
   SCRIPT_ACCESS_TIME_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
+  SCRIPT_VERSION_TABLE_NAME,
   TAB_TABLE_NAME,
   TABLE_ACCESS_TIME_TABLE_NAME,
   AppIdbSchema,
@@ -65,12 +66,19 @@ import { IDBPDatabase, openDB } from 'idb';
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
     upgrade: async (newDb, oldVersion, _newVersion, transaction) => {
+      // Create all tables that don't exist yet
       for (const storeName of ALL_TABLE_NAMES) {
         if (!newDb.objectStoreNames.contains(storeName)) {
-          newDb.createObjectStore(storeName);
+          if (storeName === SCRIPT_VERSION_TABLE_NAME) {
+            const store = newDb.createObjectStore(storeName, { keyPath: 'id' });
+            store.createIndex('by-script', 'scriptId', { unique: false });
+          } else {
+            newDb.createObjectStore(storeName);
+          }
         }
       }
 
+      // Migration to version 3: add access time tracking
       if (oldVersion < 3) {
         const now = Date.now();
         const dataSourceStore = transaction.objectStore(DATA_SOURCE_TABLE_NAME);
@@ -94,6 +102,9 @@ async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
           scriptAccessStore.put(lastUsed, script.id);
         });
       }
+
+      // Migration to version 4: add script version table with index
+      // (handled in table creation loop above, index creation is automatic)
     },
   });
 }

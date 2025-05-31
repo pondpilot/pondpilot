@@ -85,14 +85,14 @@ const onNodeClick = (
   }
 };
 
-const onCloseItemClick = (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>): void => {
+const onCloseItemClick = async (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>): Promise<void> => {
   if (isComparisonNode(node)) {
     const tab = findTabFromComparison(node.value);
     if (tab) {
-      deleteTab([tab.id]);
+      await deleteTab([tab.id]);
     }
   } else if (isScriptNode(node)) {
-    deleteTabByScriptId(node.value);
+    await deleteTabByScriptId(node.value);
   }
 };
 
