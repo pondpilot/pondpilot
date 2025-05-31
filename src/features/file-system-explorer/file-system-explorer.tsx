@@ -282,8 +282,8 @@ export const FileSystemExplorer = memo(() => {
                   const tab = getOrCreateTabFromFlatFileDataSource(sheet.id, true);
                   setPreviewTabId(tab.id);
                 },
-                onCloseItemClick: (): void => {
-                  deleteTabByDataSourceId(sheet.id);
+                onCloseItemClick: async (): Promise<void> => {
+                  await deleteTabByDataSourceId(sheet.id);
                 },
                 contextMenu: [
                   {
@@ -402,8 +402,8 @@ export const FileSystemExplorer = memo(() => {
             // Then set as & preview
             setPreviewTabId(tab.id);
           },
-          onCloseItemClick: (): void => {
-            deleteTabByDataSourceId(relatedSource.id);
+          onCloseItemClick: async (): Promise<void> => {
+            await deleteTabByDataSourceId(relatedSource.id);
           },
           contextMenu: [
             {

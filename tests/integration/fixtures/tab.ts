@@ -3,6 +3,7 @@ import { test as base } from '@playwright/test';
 type TabFixtures = {
   switchToTab: (tabName: string) => Promise<void>;
   closeActiveTab: () => Promise<void>;
+  getActiveTabName: () => Promise<string>;
 };
 
 export const test = base.extend<TabFixtures>({
@@ -18,6 +19,14 @@ export const test = base.extend<TabFixtures>({
     await use(async () => {
       const activeTab = page.locator('[data-tab-handle-active="true"]');
       await activeTab.getByTestId('close-tab-button').click();
+    });
+  },
+
+  getActiveTabName: async ({ page }, use) => {
+    await use(async () => {
+      const activeTab = page.locator('[data-tab-handle-active="true"]');
+      const text = await activeTab.textContent();
+      return text?.replace('.sql', '') || '';
     });
   },
 });

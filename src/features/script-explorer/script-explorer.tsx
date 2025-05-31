@@ -36,12 +36,12 @@ const onNodeClick = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>, _tree: any)
   setPreviewTabId(tab.id);
 };
 
-const onCloseItemClick = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): void => {
-  deleteTabByScriptId(node.value);
+const onCloseItemClick = async (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): Promise<void> => {
+  await deleteTabByScriptId(node.value);
 };
 
-const onDelete = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): void => {
-  deleteSqlScripts([node.value]);
+const onDelete = async (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): Promise<void> => {
+  await deleteSqlScripts([node.value]);
 };
 
 const validateRename = (
