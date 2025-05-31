@@ -8,20 +8,23 @@ import { Handle, Position, NodeProps } from 'reactflow';
 import { SchemaNodeData } from '../model';
 
 const TableNodeComponent = ({ data }: NodeProps<SchemaNodeData>) => {
-  const { label, columns, type, isHighlighted, highlightedColumns = [] } = data;
+  const { label, columns, type, isHighlighted, highlightedColumns = [], isSelected } = data;
 
   // Determine icon based on node type
   const nodeIcon: IconType = type === 'table' ? 'db-table' : type === 'view' ? 'db-view' : 'db';
 
   return (
     <div
-      className={`rounded-md border ${isHighlighted ? 'border-blue-500 border-2' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-800 shadow-md min-w-[240px] ${isHighlighted ? 'ring-4 ring-blue-300/50' : ''} transition-all duration-200`}
+      className={`rounded-md border ${isSelected || isHighlighted ? 'border-blue-500 border-2' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-800 shadow-md min-w-[240px] ${isSelected || isHighlighted ? 'ring-4 ring-blue-300/50' : ''} transition-all duration-200`}
       data-testid={`schema-table-node-${data.id}`}
     >
       {/* Header */}
-      <div className="p-2 bg-slate-100 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600 flex items-center">
+      <div
+        className="p-2 bg-slate-100 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600 flex items-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+        data-table-header
+      >
         <NamedIcon iconType={nodeIcon} className="mr-2" />
-        <div className="text-sm font-semibold truncate">{label}</div>
+        <div className="text-sm font-semibold truncate select-text cursor-text">{label}</div>
       </div>
 
       {/* Columns */}
@@ -43,11 +46,17 @@ const TableNodeComponent = ({ data }: NodeProps<SchemaNodeData>) => {
               </div>
 
               {/* Column name */}
-              <div className="flex-1 truncate font-medium">{column.name}</div>
+              <div className="flex-1 truncate font-medium select-text cursor-text">
+                {column.name}
+              </div>
 
               {/* Column type */}
               <div className="ml-2 text-slate-500 dark:text-slate-400 flex items-center">
-                <span className={column.isNotNull ? 'font-semibold' : ''}>{column.sqlType}</span>
+                <span
+                  className={`${column.isNotNull ? 'font-semibold' : ''} select-text cursor-text`}
+                >
+                  {column.sqlType}
+                </span>
                 <NamedIcon
                   iconType={getIconTypeForSQLType(normalizeDuckDBColumnType(column.sqlType))}
                   className={`w-3 h-3 ml-1 ${column.isNotNull ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}
