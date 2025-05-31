@@ -1,7 +1,7 @@
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { useMantineColorScheme } from '@mantine/core';
 import { SchemaBrowserTab } from '@models/tab';
-import { memo, useState, useCallback, useEffect } from 'react';
+import { memo, useState, useCallback } from 'react';
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -13,7 +13,6 @@ import ReactFlow, {
   EdgeMouseHandler,
   EdgeChange,
   NodeMouseHandler,
-  Edge,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -26,7 +25,8 @@ import {
   SchemaControls,
   SchemaWarning,
 } from './components';
-import { useSchemaData, useSchemaLayout } from './hooks';
+import { DATA_ATTRIBUTES } from './constants';
+import { useSchemaData, useSchemaLayout, useSelectionHighlighting } from './hooks';
 import { getSchemaStats } from './utils';
 
 // Define node and edge types outside the component to prevent recreation
@@ -87,7 +87,7 @@ const SchemaBrowserComponent = ({ tab }: SchemaBrowserProps) => {
   const onNodeClick = useCallback<NodeMouseHandler>((event, node) => {
     // Check if the click is on the header (we'll use a data attribute for this)
     const target = event.target as HTMLElement;
-    if (target.closest('[data-table-header]')) {
+    if (target.closest(`[${DATA_ATTRIBUTES.TABLE_HEADER}]`)) {
       setSelectedTable((prevTable) => (prevTable === node.id ? null : node.id));
       setSelectedEdge(null);
     }
@@ -107,121 +107,16 @@ const SchemaBrowserComponent = ({ tab }: SchemaBrowserProps) => {
     [onEdgesChange],
   );
 
-  // Update node highlighting when selection changes
-  useEffect(() => {
-    if (!isLoading && nodes.length > 0) {
-      const selectedEdgeData = selectedEdge ? edges.find((e) => e.id === selectedEdge) : null;
-
-      // Find all connected tables if a table is selected
-      const connectedTableIds = new Set<string>();
-      if (selectedTable) {
-        connectedTableIds.add(selectedTable);
-        edges.forEach((edge) => {
-          if (edge.source === selectedTable || edge.target === selectedTable) {
-            connectedTableIds.add(edge.source);
-            connectedTableIds.add(edge.target);
-          }
-        });
-      }
-
-      setNodes((prevNodes) => {
-        return prevNodes.map((node) => {
-          let isHighlighted = false;
-          const highlightedColumns: string[] = [];
-
-          // Handle edge selection highlighting
-          if (selectedEdgeData && !selectedTable) {
-            if (selectedEdgeData.source === node.id) {
-              isHighlighted = true;
-              const columnName = selectedEdgeData.sourceHandle?.split('-').pop();
-              if (columnName) {
-                highlightedColumns.push(columnName);
-              }
-            } else if (selectedEdgeData.target === node.id) {
-              isHighlighted = true;
-              const { targetHandle } = selectedEdgeData;
-              const columnName = targetHandle?.replace('-target', '').split('-').pop();
-              if (columnName) {
-                highlightedColumns.push(columnName);
-              }
-            }
-          }
-
-          // Handle table selection highlighting
-          if (selectedTable && connectedTableIds.has(node.id)) {
-            isHighlighted = true;
-          }
-
-          // Pass the selection handler for the table
-          const isSelected = node.id === selectedTable;
-
-          // Only update if highlighting state actually changed
-          const currentHighlighted = node.data.isHighlighted || false;
-          const currentColumns = node.data.highlightedColumns || [];
-          const currentSelected = node.data.isSelected || false;
-
-          if (
-            currentHighlighted === isHighlighted &&
-            currentColumns.length === highlightedColumns.length &&
-            currentColumns.every((col: string, i: number) => col === highlightedColumns[i]) &&
-            currentSelected === isSelected
-          ) {
-            return node;
-          }
-
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              isHighlighted,
-              highlightedColumns,
-              isSelected,
-            },
-          };
-        });
-      });
-    }
-  }, [selectedEdge, selectedTable, edges, isLoading, setNodes, nodes.length]);
-
-  // Update edge highlighting when selection changes
-  useEffect(() => {
-    if (!isLoading) {
-      setEdges((prevEdges: Edge[]) => {
-        // Find all connected edges if a table is selected
-        const connectedEdgeIds = new Set<string>();
-        if (selectedTable) {
-          prevEdges.forEach((edge) => {
-            if (edge.source === selectedTable || edge.target === selectedTable) {
-              connectedEdgeIds.add(edge.id);
-            }
-          });
-        }
-
-        return prevEdges.map((edge: Edge) => {
-          const isHighlighted = selectedEdge === edge.id || connectedEdgeIds.has(edge.id);
-          const currentHighlighted = edge.data?.isHighlighted || false;
-
-          if (currentHighlighted === isHighlighted) {
-            return edge;
-          }
-
-          return {
-            ...edge,
-            animated: isHighlighted,
-            style: {
-              ...edge.style,
-              stroke: isHighlighted ? '#3B82F6' : '#94A3B8',
-              strokeWidth: isHighlighted ? 3 : 2,
-            },
-            data: {
-              ...edge.data,
-              isHighlighted,
-            },
-          };
-        });
-      });
-    }
-  }, [selectedEdge, selectedTable, isLoading, setEdges]);
+  // Use the custom hook for selection highlighting
+  useSelectionHighlighting(
+    nodes,
+    edges,
+    selectedEdge,
+    selectedTable,
+    isLoading,
+    setNodes,
+    setEdges,
+  );
 
   return (
     <div className="w-full h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark">
