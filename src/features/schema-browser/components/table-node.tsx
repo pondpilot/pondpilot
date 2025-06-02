@@ -21,7 +21,7 @@ const TableNodeComponent = ({ data }: NodeProps<SchemaNodeData>) => {
     >
       {/* Header */}
       <div
-        className={`p-2 bg-slate-100 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600 flex items-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600 ${ANIMATION_DURATIONS.TRANSITION_COLORS}`}
+        className={`p-2 bg-slate-100 dark:bg-slate-700 border-b border-slate-300 dark:border-slate-600 flex items-center cursor-grab active:cursor-grabbing hover:bg-slate-200 dark:hover:bg-slate-600 ${ANIMATION_DURATIONS.TRANSITION_COLORS}`}
         {...{ [DATA_ATTRIBUTES.TABLE_HEADER]: true }}
       >
         <NamedIcon iconType={nodeIcon} className="mr-2" />
@@ -37,7 +37,7 @@ const TableNodeComponent = ({ data }: NodeProps<SchemaNodeData>) => {
               className={`relative px-3 py-1.5 flex items-center text-xs ${isHighlighted && highlightedColumns.includes(column.name) ? SCHEMA_COLORS.HIGHLIGHTED_BACKGROUND : ''}`}
             >
               {/* Column property indicators */}
-              <div className="flex items-center mr-2 min-w-[30px]">
+              <div className="flex items-center mr-2 min-w-[30px] select-none">
                 {column.isPrimaryKey && (
                   <IconKey
                     size={16}
@@ -56,15 +56,13 @@ const TableNodeComponent = ({ data }: NodeProps<SchemaNodeData>) => {
               </div>
 
               {/* Column name */}
-              <div className="flex-1 truncate font-medium select-text cursor-text">
+              <div className="flex-1 truncate font-medium select-text cursor-text nodrag">
                 {column.name}
               </div>
 
               {/* Column type */}
-              <div className="ml-2 text-slate-500 dark:text-slate-400 flex items-center">
-                <span
-                  className={`${column.isNotNull ? 'font-semibold' : ''} select-text cursor-text`}
-                >
+              <div className="ml-2 text-slate-500 dark:text-slate-400 flex items-center select-none">
+                <span className={`${column.isNotNull ? 'font-semibold' : ''}`}>
                   {column.sqlType}
                 </span>
                 <NamedIcon
