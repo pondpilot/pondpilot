@@ -31,16 +31,11 @@ export function Router() {
     useFeatureContext();
   const canUseApp = isFileAccessApiSupported && isOPFSSupported;
 
-  const getAppRoutes = () => {
-    if (isTabBlocked) {
-      return [
-        {
-          index: true,
-          element: <MultipleTabsBlocked />,
-        },
-      ];
-    }
+  if (isTabBlocked) {
+    return <MultipleTabsBlocked />;
+  }
 
+  const getAppRoutes = () => {
     if (!canUseApp) {
       return [
         {
