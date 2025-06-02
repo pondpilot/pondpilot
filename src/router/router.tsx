@@ -1,6 +1,7 @@
 import { BrowserNotSupported } from '@components/browser-not-supported';
 import { AppErrorFallback } from '@components/error-fallback';
 import { Layout } from '@components/layout';
+import { MultipleTabsBlocked } from '@components/multiple-tabs-blocked';
 import { useFeatureContext } from '@features/feature-context';
 import { SharedScriptImport } from '@features/script-import';
 import { MainPage } from '@pages/main-page';
@@ -26,32 +27,44 @@ if (import.meta.env.DEV || __INTEGRATION_TEST__) {
 }
 
 export function Router() {
-  const { isFileAccessApiSupported, isMobileDevice, isOPFSSupported } = useFeatureContext();
-
-  // Block app if either File Access API or OPFS is not supported
+  const { isFileAccessApiSupported, isMobileDevice, isOPFSSupported, isTabBlocked } =
+    useFeatureContext();
   const canUseApp = isFileAccessApiSupported && isOPFSSupported;
 
-  const appRoutes = canUseApp
-    ? [
+  const getAppRoutes = () => {
+    if (isTabBlocked) {
+      return [
         {
           index: true,
-          element: <MainPage />,
+          element: <MultipleTabsBlocked />,
         },
-        {
-          path: 'settings',
-          element: <SettingsPage />,
-        },
-        {
-          path: 'shared-script/:encodedScript',
-          element: <SharedScriptImport />,
-        },
-      ]
-    : [
+      ];
+    }
+
+    if (!canUseApp) {
+      return [
         {
           index: true,
           element: <BrowserNotSupported />,
         },
       ];
+    }
+
+    return [
+      {
+        index: true,
+        element: <MainPage />,
+      },
+      {
+        path: 'settings',
+        element: <SettingsPage />,
+      },
+      {
+        path: 'shared-script/:encodedScript',
+        element: <SharedScriptImport />,
+      },
+    ];
+  };
 
   const router = createBrowserRouter([
     {
@@ -59,7 +72,7 @@ export function Router() {
       element: <Layout isFileAccessApiSupported={canUseApp} isMobileDevice={isMobileDevice} />,
       errorElement: <AppErrorFallback />,
       children: [
-        ...appRoutes,
+        ...getAppRoutes(),
         // Add dev-only routes
         ...devOnlyRoutes,
         {
