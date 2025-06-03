@@ -177,6 +177,14 @@ export const ScriptEditor = ({
     }
   }, [active]);
 
+  const handleAIAssistantClick = () => {
+    if (editorRef.current?.view && tabId) {
+      const { tabExecutionErrors } = useAppStore.getState();
+      const errorContext = tabExecutionErrors.get(tabId);
+      showAIAssistant(editorRef.current.view, errorContext);
+    }
+  };
+
   return (
     <div
       className="h-full"
@@ -187,6 +195,7 @@ export const ScriptEditor = ({
         dirty={dirty}
         handleRunQuery={handleRunQuery}
         scriptState={scriptState}
+        onAIAssistantClick={handleAIAssistantClick}
       />
 
       <Group className="h-[calc(100%-40px)]">

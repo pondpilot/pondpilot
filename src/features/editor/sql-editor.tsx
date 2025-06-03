@@ -14,7 +14,6 @@ import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
-import { aiAssistantButton } from './ai-assistant-button';
 import { aiAssistantTooltip } from './ai-assistant-tooltip';
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
@@ -144,7 +143,6 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         schema,
       });
       const aiAssistantExtension = aiAssistantTooltip(connectionPool);
-      const aiButtonExtension = aiAssistantButton();
       const tooltipExtension = functionTooltip(functionTooltips);
 
       return [
@@ -153,7 +151,6 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         tooltipExtension,
         aiAssistantExtension, // AI assistant keymap comes before default keymaps
         keyExtensions,
-        aiButtonExtension,
         tableNameHighlightPlugin,
         SqlStatementHighlightPlugin,
         EditorView.updateListener.of((state: any) => {
