@@ -10,3 +10,4 @@ export * from './schema-extraction';
 export * from './schema-processors';
 export * from './node-positioning';
 export * from './error-handling';
+export * from './selection-helpers';

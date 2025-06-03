@@ -36,10 +36,10 @@ const EDGE_CONSTANTS = {
   DASH_OFFSET: -10,
 
   // Arrow marker
-  ARROW_WIDTH: 10,
-  ARROW_HEIGHT: 10,
-  ARROW_REF_X: 9,
-  ARROW_REF_Y: 5,
+  ARROW_WIDTH: 7,
+  ARROW_HEIGHT: 7,
+  ARROW_REF_X: 6.5,
+  ARROW_REF_Y: 3.5,
 } as const;
 
 const AngledEdgeComponent = (props: EdgeProps) => {

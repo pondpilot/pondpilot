@@ -53,3 +53,30 @@ export const EDGE_GLOW_OPACITY = 0.15;
 export const CACHE_TTL = 15 * 60 * 1000; // 15 minutes in milliseconds
 export const QUERY_TIMEOUT_DESCRIBE = 10000; // 10 seconds
 export const QUERY_TIMEOUT_CONSTRAINTS = 5000; // 5 seconds
+
+// Visual constants for selection and highlighting
+export const SCHEMA_COLORS = {
+  // Selection and highlighting
+  SELECTED_BORDER: 'border-blue-500',
+  SELECTED_BORDER_WIDTH: 'border-2',
+  SELECTED_RING: 'ring-4 ring-blue-300/50',
+  HIGHLIGHTED_BACKGROUND: 'bg-blue-50 dark:bg-blue-900/20',
+
+  // Default states
+  DEFAULT_BORDER: 'border-slate-300 dark:border-slate-600',
+
+  // Icon colors
+  PRIMARY_KEY_COLOR: '#F3A462',
+  FOREIGN_KEY_COLOR: '#4A57C1',
+} as const;
+
+// Animation and transition durations
+export const ANIMATION_DURATIONS = {
+  TRANSITION_ALL: 'transition-all duration-200',
+  TRANSITION_COLORS: 'transition-colors',
+} as const;
+
+// Data attributes for event handling
+export const DATA_ATTRIBUTES = {
+  TABLE_HEADER: 'data-table-header',
+} as const;

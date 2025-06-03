@@ -20,6 +20,7 @@ export interface SchemaNodeData {
   // Visual state
   isHighlighted?: boolean;
   highlightedColumns?: string[];
+  isSelected?: boolean;
 }
 
 // Column information for schema nodes
