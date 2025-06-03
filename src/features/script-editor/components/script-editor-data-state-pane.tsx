@@ -1,7 +1,8 @@
-import { Group, Text } from '@mantine/core';
+import { ActionIcon, Group, Text, Tooltip } from '@mantine/core';
 import { useDidUpdate } from '@mantine/hooks';
 import { ScriptExecutionState } from '@models/sql-script';
-import { IconFileSad } from '@tabler/icons-react';
+import { IconFileSad, IconHistory } from '@tabler/icons-react';
+import { setDataTestId } from '@utils/test-id';
 import React, { useState, useRef } from 'react';
 
 import { RunQueryButton } from './components';
@@ -11,12 +12,14 @@ interface ScriptEditorDataStatePaneProps {
   dirty: boolean;
 
   handleRunQuery: (mode?: 'all' | 'selection') => Promise<void>;
+  onOpenVersionHistory?: () => void;
 }
 
 export const ScriptEditorDataStatePane = ({
   scriptState,
   dirty,
   handleRunQuery,
+  onOpenVersionHistory,
 }: ScriptEditorDataStatePaneProps) => {
   const running = scriptState === 'running';
   const error = scriptState === 'error';
@@ -79,7 +82,20 @@ export const ScriptEditorDataStatePane = ({
           </Text>
         )}
       </Group>
-      <RunQueryButton disabled={running} onRunClick={handleRunQuery} />
+      <Group gap="xs">
+        {onOpenVersionHistory && (
+          <Tooltip label="Version History">
+            <ActionIcon
+              variant="subtle"
+              onClick={onOpenVersionHistory}
+              data-testid={setDataTestId('version-history-button')}
+            >
+              <IconHistory size={18} />
+            </ActionIcon>
+          </Tooltip>
+        )}
+        <RunQueryButton disabled={running} onRunClick={handleRunQuery} />
+      </Group>
     </Group>
   );
 };

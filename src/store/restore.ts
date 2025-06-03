@@ -27,6 +27,7 @@ import {
   DB_VERSION,
   LOCAL_ENTRY_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
+  SCRIPT_VERSION_TABLE_NAME,
   TAB_TABLE_NAME,
   AppIdbSchema,
 } from '@models/persisted-store';
@@ -45,9 +46,22 @@ import { IDBPDatabase, openDB } from 'idb';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
-    upgrade(newDb) {
-      for (const storeName of ALL_TABLE_NAMES) {
-        newDb.createObjectStore(storeName);
+    upgrade(newDb, oldVersion) {
+      // Handle migration from version 1 to 2
+      if (oldVersion < 1) {
+        // First time setup - create all tables
+        for (const storeName of ALL_TABLE_NAMES) {
+          if (storeName === SCRIPT_VERSION_TABLE_NAME) {
+            const store = newDb.createObjectStore(storeName, { keyPath: 'id' });
+            store.createIndex('by-script', 'scriptId', { unique: false });
+          } else {
+            newDb.createObjectStore(storeName);
+          }
+        }
+      } else if (oldVersion === 1) {
+        // Migration from version 1 to 2 - add script version table
+        const store = newDb.createObjectStore(SCRIPT_VERSION_TABLE_NAME, { keyPath: 'id' });
+        store.createIndex('by-script', 'scriptId', { unique: false });
       }
     },
   });

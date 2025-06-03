@@ -1,12 +1,13 @@
 import { ContentViewPersistence } from '@models/content-view';
 import { PersistentDataSourceId, AnyDataSource } from '@models/data-source';
 import { LocalEntryId, LocalEntryPersistence } from '@models/file-system';
+import { ScriptVersion, ScriptVersionId, SCRIPT_VERSION_TABLE_NAME } from '@models/script-version';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab, TabId } from '@models/tab';
 import { DBSchema } from 'idb';
 
 export const APP_DB_NAME = 'app-data';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 // Stores
 export const TAB_TABLE_NAME = 'tab';
@@ -15,11 +16,15 @@ export const CONTENT_VIEW_TABLE_NAME = 'content-view';
 export const LOCAL_ENTRY_TABLE_NAME = 'local-entry';
 export const DATA_SOURCE_TABLE_NAME = 'data-source';
 
+// Re-export from script-version model
+export { SCRIPT_VERSION_TABLE_NAME } from '@models/script-version';
+
 export const ALL_TABLE_NAMES = [
   CONTENT_VIEW_TABLE_NAME,
   DATA_SOURCE_TABLE_NAME,
   LOCAL_ENTRY_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
+  SCRIPT_VERSION_TABLE_NAME,
   TAB_TABLE_NAME,
 ] as const;
 
@@ -43,5 +48,10 @@ export type AppIdbSchema = DBSchema & {
   [DATA_SOURCE_TABLE_NAME]: {
     key: PersistentDataSourceId;
     value: AnyDataSource;
+  };
+  [SCRIPT_VERSION_TABLE_NAME]: {
+    key: ScriptVersionId;
+    value: ScriptVersion;
+    indexes: { 'by-script': SQLScriptId };
   };
 };
