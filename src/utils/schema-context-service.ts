@@ -309,8 +309,8 @@ export class SchemaContextService {
         includedTables.push(`${dbName}.${schemaObj.name}.${table.name}`);
         return true;
       }
-        excludedTables.push(`${dbName}.${schemaObj.name}.${table.name}`);
-        return false;
+      excludedTables.push(`${dbName}.${schemaObj.name}.${table.name}`);
+      return false;
     };
 
     // Section 1: Referenced tables (highest priority - include ALL columns)

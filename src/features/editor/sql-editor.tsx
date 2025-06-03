@@ -7,7 +7,7 @@
 import { acceptCompletion, completionStatus, startCompletion } from '@codemirror/autocomplete';
 import { defaultKeymap, insertTab, history } from '@codemirror/commands';
 import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
-import { keymap } from '@codemirror/view';
+import { keymap, placeholder } from '@codemirror/view';
 import { showNotification } from '@mantine/notifications';
 import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
@@ -21,6 +21,14 @@ import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
 import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
 
 type FunctionTooltip = Record<string, { syntax: string; description: string }>;
+
+// Custom theme for placeholder styling
+const placeholderTheme = EditorView.theme({
+  '.cm-placeholder': {
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+  },
+});
 
 interface SqlEditorProps {
   colorSchemeDark: boolean;
@@ -153,6 +161,8 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         keyExtensions,
         tableNameHighlightPlugin,
         SqlStatementHighlightPlugin,
+        placeholder('Press Cmd+I to open the AI Assistant'),
+        placeholderTheme,
         EditorView.updateListener.of((state: any) => {
           const pos = state.state.selection.main.head;
           const line = state.state.doc.lineAt(pos);
