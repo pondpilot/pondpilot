@@ -81,6 +81,13 @@ export type DataTable = DataRow[];
 // This is the size of the batch that arro stream reader returns as of time of writing.
 export const ARROW_STREAMING_BATCH_SIZE = 2048;
 
+// CSV file processing limits for DuckDB
+export const CSV_MAX_LINE_SIZE = 20 * 1024 * 1024; // 20MB - Maximum size for a single line in CSV files
+export const CSV_MAX_LINE_SIZE_MB = CSV_MAX_LINE_SIZE / (1024 * 1024); // Convenience constant for display (20)
+
+// Display limits for UI performance
+export const MAX_CELL_DISPLAY_LENGTH = 1000; // Maximum characters to display in a table cell
+
 export interface DBFunctionsMetadata {
   function_name: string;
   description: string | null;

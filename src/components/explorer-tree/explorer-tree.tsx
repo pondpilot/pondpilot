@@ -12,10 +12,10 @@ import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { ReactNode, useCallback, useMemo, useRef, useEffect } from 'react';
 
-import { RenderTreeNodePayload, TreeNodeMenuType, TreeNodeData } from './model';
+import { RenderTreeNodePayload, TreeNodeData } from './model';
 import { getFlattenNodes } from './utils/tree-manipulation';
 
-type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>, ExtraT = undefined> = {
+type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, any>, ExtraT = undefined> = {
   /**
    * A sorted tree of nodes to be displayed
    */
@@ -40,11 +40,6 @@ type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>, ExtraT =
   TreeNodeComponent: React.ComponentType<RenderTreeNodePayload<NTypeToIdTypeMap, ExtraT>>;
 
   /**
-   * Callback for multi-node deletion
-   */
-  onDeleteSelected: (ids: Iterable<NTypeToIdTypeMap[keyof NTypeToIdTypeMap]>) => void;
-
-  /**
    * If set to false, the selection state will be cleared.
    */
   hasActiveElement: boolean;
@@ -56,12 +51,11 @@ type ExplorerTreeProps<NTypeToIdTypeMap extends Record<string, string>, ExtraT =
   readonly extraData: ExtraT;
 };
 
-export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, ExtraT = undefined>({
+export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, any>, ExtraT = undefined>({
   nodes,
   initialExpandedState,
   dataTestIdPrefix,
   TreeNodeComponent,
-  onDeleteSelected,
   extraData,
   hasActiveElement,
 }: ExplorerTreeProps<NTypeToIdTypeMap, ExtraT>) => {
@@ -82,45 +76,11 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
     [flattenedNodes],
   );
 
-  const selectedDeleteableNodeIds = useMemo(
-    () =>
-      flattenedNodes
-        .filter((node) => !!node.onDelete)
-        .filter((node) => tree.selectedState.includes(node.value))
-        .map((node) => node.value),
-    [tree.selectedState, flattenedNodes],
-  );
-
   const isFocused = treeRef.current && treeRef.current.contains(document.activeElement);
 
   /**
    * Handlers
    */
-  const overrideContextMenu: TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> | null =
-    useMemo(() => {
-      // if there are multiple selected nodes show the delete all menu instead of the default one
-
-      // 0, 1 = no multi-select
-      if (tree.selectedState.length < 2) {
-        return null;
-      }
-
-      return [
-        {
-          children: [
-            {
-              label: 'Delete selected',
-              // Disable if none of the selected nodes are deletable
-              isDisabled: selectedDeleteableNodeIds.length === 0,
-              onClick: (_) => {
-                onDeleteSelected(selectedDeleteableNodeIds);
-                tree.clearSelected();
-              },
-            },
-          ],
-        },
-      ];
-    }, [tree.selectedState, selectedDeleteableNodeIds]);
 
   /**
    * Callbacks
@@ -131,12 +91,11 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
       <TreeNodeComponent
         {...payload}
         dataTestIdPrefix={dataTestIdPrefix}
-        overrideContextMenu={overrideContextMenu}
         flattenedNodeIds={flattenedNodeIds}
         extraData={extraData}
       />
     ),
-    [flattenedNodeIds, dataTestIdPrefix, overrideContextMenu],
+    [flattenedNodeIds, dataTestIdPrefix, extraData],
   );
 
   /**
@@ -150,16 +109,6 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, string>, Ex
         if (isFocused) {
           tree.setSelectedState(flattenedNodeIds);
         }
-      },
-    ],
-    [
-      'mod+Backspace',
-      () => {
-        if (selectedDeleteableNodeIds.length === 0) {
-          return;
-        }
-        onDeleteSelected(selectedDeleteableNodeIds);
-        tree.clearSelected();
       },
     ],
   ]);

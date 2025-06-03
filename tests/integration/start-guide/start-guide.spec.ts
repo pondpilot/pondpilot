@@ -67,15 +67,11 @@ test('Click go to menu action', async ({ startGuide, goToMenuAction, spotlight }
 });
 
 test('Open release notes from Start Guide', async ({
-  page,
   releaseNotesAction,
   whatsNewModal,
   whatsNewModalContent,
   whatsNewModalSubmitButton,
 }) => {
-  // Navigate to the application
-  await page.goto('/');
-
   // Click the "Release Notes" button in the Start Guide
   await releaseNotesAction.click();
 

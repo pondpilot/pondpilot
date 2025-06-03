@@ -50,9 +50,19 @@ module.exports = {
               'assertDataTableMatches',
               'assertScriptExplorerItems',
               'assertScriptNodesSelected',
+              'expectNotificationWithText',
+              'expectErrorNotification',
+              'expectSuccessNotification',
             ],
           },
         ],
+      },
+    },
+    {
+      // Apply custom rules only to integration test files
+      files: ['tests/integration/**/*.ts'],
+      rules: {
+        'no-playwright-page-methods': 'error',
       },
     },
   ],

@@ -368,7 +368,13 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     } catch (error) {
       if (!(error instanceof PoolTimeoutError)) {
         console.error('Failed to fetch row count:', error);
-        setAppendDataSourceReadError('Failed to fetch row counts');
+        if (error instanceof Error && error.message?.includes('Out of Memory Error')) {
+          setAppendDataSourceReadError(
+            'Data source is too large to count rows. Try using a SQL query with specific columns.',
+          );
+        } else {
+          setAppendDataSourceReadError('Failed to fetch row counts');
+        }
       }
     }
   }, [
@@ -420,6 +426,11 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         } else if (error.message?.includes('NotFoundError')) {
           console.error('Data source have been moved or deleted:', error);
           setAppendDataSourceReadError('Data source have been moved or deleted.');
+        } else if (error.message?.includes('Out of Memory Error')) {
+          console.error('Out of memory while reading data source:', error);
+          setAppendDataSourceReadError(
+            'The data source is too large to process in memory. Try using a SQL query to select specific columns or limit rows.',
+          );
         } else {
           console.error('Failed to create a reader for the data source:', error);
           setAppendDataSourceReadError(

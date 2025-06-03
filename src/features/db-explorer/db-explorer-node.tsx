@@ -2,12 +2,10 @@ import { MemoizedBaseTreeNode } from '@components/explorer-tree/components/tree-
 import { RenderTreeNodePayload } from '@components/explorer-tree/model';
 import { useIsAttachedDBElementOnActiveTab } from '@store/app-store';
 
-import { DBExplorerNodeExtraType, DBExplorerNodeTypeToIdTypeMap } from './model';
+import { DBNodeTypeMap, DBExplorerContext } from './model';
 
-export const DbExplorerNode = (
-  props: RenderTreeNodePayload<DBExplorerNodeTypeToIdTypeMap, DBExplorerNodeExtraType>,
-) => {
-  const { flattenedNodeIds, node, extraData } = props;
+export const DbExplorerNode = (props: RenderTreeNodePayload<DBNodeTypeMap, DBExplorerContext>) => {
+  const { flattenedNodeIds, node, extraData, tree } = props;
   const { value: itemId } = node;
 
   const { db, schemaName, objectName, columnName } = extraData.get(itemId) ?? {};
@@ -45,12 +43,17 @@ export const DbExplorerNode = (
     nextColumn,
   );
 
+  // Get override context menu from extraData if it exists
+  const overrideContextMenu =
+    tree.selectedState.length > 1 ? extraData.getOverrideContextMenu(tree.selectedState) : null;
+
   return (
-    <MemoizedBaseTreeNode<DBExplorerNodeTypeToIdTypeMap>
+    <MemoizedBaseTreeNode<DBNodeTypeMap>
       {...props}
       isActive={isActive}
       isPrevActive={isPrevActive}
       isNextActive={isNextActive}
+      overrideContextMenu={overrideContextMenu}
     />
   );
 };

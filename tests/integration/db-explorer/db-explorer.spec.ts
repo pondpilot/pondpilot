@@ -21,7 +21,6 @@ test('DuckDB view should be deselected after creating script via spotlight', asy
   clickDBByName,
   pressNewScriptHotkey,
   getDBNodeByName,
-  clickDBNodeMenuItemByName,
 }) => {
   // Create a DuckDB database with a test view
   const dbPath = testTmp.join('test_selection.duckdb');

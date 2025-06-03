@@ -1,6 +1,6 @@
 import { TreeNodeData } from '../model';
 
-export const getFlattenNodes = <NTypeToIdTypeMap extends Record<string, string>>(
+export const getFlattenNodes = <NTypeToIdTypeMap extends Record<string, any>>(
   tree: TreeNodeData<NTypeToIdTypeMap>[],
 ): TreeNodeData<NTypeToIdTypeMap>[] =>
   tree.reduce((acc: TreeNodeData<NTypeToIdTypeMap>[], item) => {

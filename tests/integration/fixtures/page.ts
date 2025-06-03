@@ -1,13 +1,6 @@
-import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
-import { expect, Page } from '@playwright/test';
-
+/* eslint-disable no-playwright-page-methods */
+import { setOnboardingShown, waitForAppReady } from '../utils';
 import { test as base } from './base';
-
-const waitForAppReady = async (page: Page) => {
-  // Wait for the app to be ready
-  const appStatus = page.getByTestId('app-state');
-  await expect(appStatus).toHaveAttribute('data-app-load-state', 'ready');
-};
 
 type PageFixtures = {
   reloadPage: () => Promise<void>;
@@ -18,9 +11,7 @@ export const test = base.extend<PageFixtures>({
     // ---------- BEFORE EACH TEST ----------
 
     // Set local storage before navigating to the page
-    await page.context().addInitScript((key) => {
-      window.localStorage.setItem(key, 'true');
-    }, LOCAL_STORAGE_KEYS.ONBOARDING_SHOWN);
+    await setOnboardingShown(page);
 
     // Navigate to page with localStorage already set
     await page.goto('/');

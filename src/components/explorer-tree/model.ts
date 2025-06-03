@@ -32,7 +32,7 @@ type TreeNodeRenameCallbacks<NType> = {
   prepareRenameValue?: (node: NType) => string;
 };
 
-export type TreeNodeData<NTypeToIdTypeMap extends Record<string, string>> =
+export type TreeNodeData<NTypeToIdTypeMap extends Record<string, any>> =
   keyof NTypeToIdTypeMap extends infer NType
     ? NType extends keyof NTypeToIdTypeMap
       ? {
@@ -141,7 +141,7 @@ export type TreeNodeData<NTypeToIdTypeMap extends Record<string, string>> =
  * This is used in lieu of passing hook functions to get ativeItemId into the BaseTreeNode
  * directly, which is apparently ot a react best practice.
  */
-export type BaseTreeNodeProps<NTypeToIdTypeMap extends Record<string, string>> =
+export type BaseTreeNodeProps<NTypeToIdTypeMap extends Record<string, any>> =
   keyof NTypeToIdTypeMap extends infer NType
     ? NType extends keyof NTypeToIdTypeMap
       ? {
@@ -200,7 +200,7 @@ export type TreeNodeMenuSectionType<NType> = {
 export type TreeNodeMenuType<NType> = TreeNodeMenuSectionType<NType>[];
 
 export type RenderTreeNodePayload<
-  NTypeToIdTypeMap extends Record<string, string>,
+  NTypeToIdTypeMap extends Record<string, any>,
   ExtraT = undefined,
 > = keyof NTypeToIdTypeMap extends infer NType
   ? NType extends keyof NTypeToIdTypeMap

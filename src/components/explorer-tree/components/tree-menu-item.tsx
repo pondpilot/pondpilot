@@ -3,7 +3,7 @@ import { Menu, RenderTreeNodePayload as MantineRenderTreeNodePayload } from '@ma
 
 import { TreeNodeMenuItemType, TreeNodeData } from '../model';
 
-export function TreeNodeMenuItem<NTypeToIdTypeMap extends Record<string, string>>({
+export function TreeNodeMenuItem<NTypeToIdTypeMap extends Record<string, any>>({
   menuItem,
   node,
   tree,

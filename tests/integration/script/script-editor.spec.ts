@@ -1,10 +1,11 @@
 import { expect, mergeTests } from '@playwright/test';
 
+import { test as notificationTest } from '../fixtures/notifications';
 import { test as baseTest } from '../fixtures/page';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
 import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 
-const test = mergeTests(baseTest, scriptExplorerTest, scriptEditorTest);
+const test = mergeTests(baseTest, scriptExplorerTest, scriptEditorTest, notificationTest);
 
 test('Autocomplete converts keywords to uppercase', async ({
   createScriptAndSwitchToItsTab,
@@ -36,6 +37,7 @@ test('Shows auto-save notification when pressing Mod+S', async ({
   createScriptAndSwitchToItsTab,
   page,
   scriptEditorContent,
+  expectNotificationWithText,
 }) => {
   await createScriptAndSwitchToItsTab();
 
@@ -47,16 +49,11 @@ test('Shows auto-save notification when pressing Mod+S', async ({
 
   await page.keyboard.press('ControlOrMeta+KeyS');
 
-  // Verify that the notification appears
-  const notification = page.locator('.mantine-Notifications-notification');
-
-  // Verify the notification content
-  await expect(notification.getByText('Auto-save enabled')).toBeVisible();
-  await expect(
-    notification.getByText(
-      "Your changes are always saved automatically. You don't need to press 'Save' manually.",
-    ),
-  ).toBeVisible();
+  // Verify that the notification appears with the expected content
+  await expectNotificationWithText(
+    'Auto-save enabled',
+    "Your changes are always saved automatically. You don't need to press 'Save' manually.",
+  );
 });
 
 test('Autocompletes DuckDB functions and shows tooltip with parentheses insertion', async ({

@@ -49,7 +49,6 @@ test.describe('Data Viewer Pagination', () => {
   test('should show correct pagination control for small data (single page)', async ({
     generateTestData,
     paginationControl,
-    page,
   }) => {
     // Generate a small dataset that fits on a single page (assuming 100 per page by default)
     await generateTestData(5);

@@ -119,13 +119,10 @@ test('Should create file tree structure and verify persistence after reload', as
   filePicker,
   clickFileByName,
   assertFileExplorerItems,
-  page,
   reloadPage,
   renameFileInExplorer,
   setupFileSystem,
 }) => {
-  await page.goto('/');
-
   expect(filePicker).toBeDefined();
 
   // Create files and directories
