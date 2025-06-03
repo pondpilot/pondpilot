@@ -1,7 +1,7 @@
-import { Group, Text } from '@mantine/core';
+import { Group, Text, Button, Tooltip, useMantineTheme } from '@mantine/core';
 import { useDidUpdate } from '@mantine/hooks';
 import { ScriptExecutionState } from '@models/sql-script';
-import { IconFileSad } from '@tabler/icons-react';
+import { IconFileSad, IconSparkles } from '@tabler/icons-react';
 import React, { useState, useRef } from 'react';
 
 import { RunQueryButton } from './components';
@@ -11,13 +11,16 @@ interface ScriptEditorDataStatePaneProps {
   dirty: boolean;
 
   handleRunQuery: (mode?: 'all' | 'selection') => Promise<void>;
+  onAIAssistantClick: () => void;
 }
 
 export const ScriptEditorDataStatePane = ({
   scriptState,
   dirty,
   handleRunQuery,
+  onAIAssistantClick,
 }: ScriptEditorDataStatePaneProps) => {
+  const theme = useMantineTheme();
   const running = scriptState === 'running';
   const error = scriptState === 'error';
   const executedSuccess = scriptState === 'success';
@@ -79,7 +82,23 @@ export const ScriptEditorDataStatePane = ({
           </Text>
         )}
       </Group>
-      <RunQueryButton disabled={running} onRunClick={handleRunQuery} />
+      <Group gap={8}>
+        <Tooltip
+          label={`AI Assistant (${/Mac|iPhone|iPod|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'}+I)`}
+          position="bottom"
+        >
+          <Button
+            size="compact-md"
+            variant="subtle"
+            color="indigo"
+            onClick={onAIAssistantClick}
+            className="px-2"
+          >
+            <IconSparkles size={18} style={{ color: theme.colors.indigo[6] }} />
+          </Button>
+        </Tooltip>
+        <RunQueryButton disabled={running} onRunClick={handleRunQuery} />
+      </Group>
     </Group>
   );
 };

@@ -6,6 +6,7 @@ import {
   IconInfoCircleFilled,
 } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
+import { ReactNode } from 'react';
 
 const classNames = {
   root: 'w-[424px] right-[-20px] bg-backgroundInverse-light dark:bg-backgroundInverse-dark rounded-2xl',
@@ -45,3 +46,47 @@ export const showAlert = (data: NotificationData) => showAppAlert(data, 'info');
 export const showSuccess = (data: NotificationData) => showAppAlert(data, 'success');
 export const showWarning = (data: NotificationData) => showAppAlert(data, 'warning');
 export const showError = (data: NotificationData) => showAppAlert(data, 'error');
+
+interface ErrorWithActionData extends NotificationData {
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+}
+
+export const showErrorWithAction = (data: ErrorWithActionData) => {
+  const { action, ...notificationData } = data;
+
+  // Generate an ID for the notification if not provided
+  const notificationId = notificationData.id || `error-${Date.now()}`;
+
+  // Create custom message with action button if provided
+  const messageContent = action ? (
+    <div className="flex flex-col gap-2">
+      {data.message && <div>{data.message}</div>}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => {
+            notifications.hide(notificationId);
+            action.onClick();
+          }}
+          className="px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
+        >
+          {action.label}
+        </button>
+      </div>
+    </div>
+  ) : (
+    data.message
+  );
+
+  return showAppAlert(
+    {
+      ...notificationData,
+      id: notificationId,
+      message: messageContent as ReactNode,
+    },
+    'error',
+  );
+};
