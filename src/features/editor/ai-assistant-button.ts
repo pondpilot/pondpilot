@@ -34,7 +34,7 @@ const aiButtonPlugin = ViewPlugin.fromClass(
       button.className = 'ai-button';
 
       const platformKey = /Mac|iPhone|iPod|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
-      button.title = `Open AI Assistant (${platformKey}+B)`;
+      button.title = `Open AI Assistant (${platformKey}+I)`;
 
       // Create the sparkles icon using SVG
       button.innerHTML = `
@@ -45,7 +45,7 @@ const aiButtonPlugin = ViewPlugin.fromClass(
           <path d="M4 17v2"/>
           <path d="M5 18H3"/>
         </svg>
-        <span class="ai-button-tooltip">AI Assistant (${platformKey}+B)</span>
+        <span class="ai-button-tooltip">AI Assistant (${platformKey}+I)</span>
       `;
 
       // Add click handler directly

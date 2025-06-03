@@ -407,8 +407,8 @@ export function hideAIAssistant(view: EditorView): boolean {
 // Keymap to prevent editor from handling events when AI assistant is active
 const aiAssistantKeymap = keymap.of([
   {
-    key: 'Cmd-b',
-    mac: 'Cmd-b',
+    key: 'Cmd-i',
+    mac: 'Cmd-i',
     preventDefault: true,
     run: (view) => {
       const aiState = view.state.field(aiAssistantStateField, false);

@@ -87,7 +87,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
           },
           {
             key: 'Ctrl-Space',
-            mac: 'Cmd-i',
+            mac: 'Cmd-Space',
             preventDefault: true,
             run: startCompletion,
           },
@@ -126,7 +126,13 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
             },
           },
 
-          ...defaultKeymap,
+          // Filter out Cmd-i from defaultKeymap to avoid conflicts with AI assistant
+          ...defaultKeymap.filter((binding) => {
+            // Remove any binding that uses Cmd-i or Ctrl-i
+            const key = binding.key || '';
+            const mac = binding.mac || '';
+            return !key.includes('Mod-i') && !key.includes('Ctrl-i') && !mac.includes('Cmd-i');
+          }),
         ]),
       [fontSize, onFontSizeChanged],
     );
@@ -143,10 +149,10 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
 
       return [
         history(),
-        keyExtensions,
         sqlDialect,
         tooltipExtension,
-        aiAssistantExtension,
+        aiAssistantExtension, // AI assistant keymap comes before default keymaps
+        keyExtensions,
         aiButtonExtension,
         tableNameHighlightPlugin,
         SqlStatementHighlightPlugin,
