@@ -5,7 +5,7 @@
 
 ## 🚀 What is PondPilot?
 
-PondPilot is a blazing-fast, lightweight, 100% client-side data exploration tool that helps you analyze local & remote data with zero setup. Powered by DuckDB-Wasm, it runs entirely in your browser - no install, no servers, no cloud uploads, complete privacy. Whether you're a data analyst, scientist, or engineer, PondPilot helps you get your data ducks in a row without the overhead of traditional data tools.
+PondPilot is a blazing-fast, lightweight, 100% client-side AI-enabled data exploration tool that helps you analyze local & remote data with zero setup. Powered by DuckDB-Wasm and integrated AI assistance, it runs entirely in your browser - no install, no servers, no cloud uploads, complete privacy. Whether you're a data analyst, scientist, or engineer, PondPilot helps you get your data ducks in a row without the overhead of traditional data tools.
 
 ## 💡 Why PondPilot?
 
@@ -33,6 +33,13 @@ PondPilot is a blazing-fast, lightweight, 100% client-side data exploration tool
 - **No data-copy**: 🔄 Unlike similar tools, PondPilot accesses files directly without copying to browser cache - changes outside PondPilot are reflected in real-time
 - **Powered by DuckDB**: 🚀 Leverage the lightning-fast SQL engine for analyzing millions of rows in seconds
 - **Cross-session persistence**: 💾 All data-handles and queries are automatically saved between sessions
+
+### 🤖 AI-Powered SQL Assistant
+- **Natural Language to SQL**: 💬 Generate complex SQL queries from simple English descriptions
+- **Intelligent Error Fixing**: 🔧 Automatic suggestions to fix SQL on errors
+- **Multiple AI Providers**: 🔌 Support for OpenAI, Anthropic Claude, and custom OpenAI-compatible endpoints
+- **Privacy-First**: 🔐 Uses your own API keys - your queries and data never leave your control
+- **Context-Aware**: 🧠 Understands your database schema and provides relevant suggestions
 
 ### 🧰 Powerful Analysis Tools
 - **Multiple File Formats**: 📊 Support for CSV, Parquet, JSON, XLSX, DuckDB database and more coming soon
@@ -99,19 +106,19 @@ Visit `http://localhost:5173` in your browser to access the app.
 ## ⌨️ Keyboard Shortcuts
 
 - `Ctrl/⌘ + K`: Open spotlight menu to navigate, add files, create new queries and explore shortcuts
-- In editor:
-  - `Ctrl/⌘ + Enter`: Run the entire script
-  - `Ctrl/⌘ + Shift + Enter`: Run the query under the cursor
 - `Ctrl + F`: Add file to analyze
 - `Ctrl + D`: Add DuckDB file
 - `Ctrl + I`: Import SQL files
+- In editor:
+  - `Ctrl/⌘ + Enter`: Run the entire script
+  - `Ctrl/⌘ + Shift + Enter`: Run the query under the cursor
+  - `Ctrl/⌘ + I`: Open AI assistant for SQL generation and error fixes
 
 ## 🚀 Roadmap
 
 The goal for PondPilot is to remain lightweight. We strive to quickly reach feature completeness and then accept only security fixes or updates to keep up with DuckDB.
 
 Here is what we are planning before reaching feature completeness:
-* LLM-based code suggestions
 * Basic statistics & metadata view without the need to run queries (think data distribution, column types, etc.)
 * Additional popular local & remote sources support: SQLite, MotherDuck
 
