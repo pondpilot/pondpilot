@@ -63,7 +63,9 @@ export function resolveToNearestStatement(state: EditorState) {
       const bottomLine = state.doc.lineAt(statements[i].from).number;
       return cursorLine - topLine >= bottomLine - cursorLine ? statements[i] : statements[i - 1];
     }
-    if (cursor >= statement.from && cursor <= statement.to) return statement;
+    if (cursor >= statement.from && cursor <= statement.to) {
+      return statement;
+    }
   }
   return statements[statements.length - 1];
 }
@@ -79,20 +81,38 @@ export function resolveAIContext(
 
   // If text is selected, use the selection as context
   if (!selection.empty) {
+    const selectedText = state.doc.sliceString(selection.from, selection.to);
     return {
       from: selection.from,
       to: selection.to,
-      text: state.doc.sliceString(selection.from, selection.to),
+      text: selectedText,
     };
   }
 
-  // Otherwise, fall back to nearest statement
+  // Get the current line as a fallback
+  const cursorLine = state.doc.lineAt(selection.from);
+  const currentLineText = cursorLine.text.trim();
+
+  // Try to get the nearest statement
   const nearestStatement = resolveToNearestStatement(state);
-  if (!nearestStatement) return null;
+
+  if (!nearestStatement) {
+    // If no statement found, use the current line
+    if (currentLineText) {
+      return {
+        from: cursorLine.from,
+        to: cursorLine.to,
+        text: currentLineText,
+      };
+    }
+    return null;
+  }
+
+  const statementText = state.doc.sliceString(nearestStatement.from, nearestStatement.to);
 
   return {
     from: nearestStatement.from,
     to: nearestStatement.to,
-    text: state.doc.sliceString(nearestStatement.from, nearestStatement.to),
+    text: statementText,
   };
 }

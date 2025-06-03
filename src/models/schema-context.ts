@@ -38,9 +38,9 @@ export interface SchemaContext {
 }
 
 export const DEFAULT_SCHEMA_CONTEXT_CONFIG: SchemaContextConfig = {
-  maxTotalSize: 2000, // Keep schema context under 2KB
-  maxTablesPerSchema: 20,
-  maxColumnsPerTable: 30,
+  maxTotalSize: 20000, // Keep schema context under 20KB (LLMs are cheaper now)
+  maxTablesPerSchema: 50,
+  maxColumnsPerTable: 50,
   prioritizeReferencedTables: true,
   includeColumnTypes: true,
   includeNullability: true,

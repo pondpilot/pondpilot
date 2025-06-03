@@ -18,13 +18,42 @@ export class SchemaContextService {
   }
 
   /**
-   * Extract table/view names referenced in SQL statement
+   * Extract table/view names referenced in SQL statement using DuckDB's parser
    */
-  private extractReferencedTables(sqlStatement?: string): string[] {
+  private async extractReferencedTables(
+    conn: AsyncDuckDBConnectionPool,
+    sqlStatement?: string,
+  ): Promise<string[]> {
     if (!sqlStatement) return [];
 
-    // Simple regex-based extraction - matches common table reference patterns
-    // TODO: switch to a proper parser later
+    try {
+      // Use DuckDB's getTableNames API to get accurate table references
+      const pooledConn = await conn.getPooledConnection();
+      try {
+        const tableNames = await pooledConn.getTableNames(sqlStatement);
+        
+        // If getTableNames returns empty, fall back to regex
+        if (tableNames.length === 0) {
+          const regexResult = this.extractReferencedTablesRegex(sqlStatement);
+          return regexResult;
+        }
+        
+        const normalized = tableNames.map((name: string) => name.toLowerCase());
+        return normalized;
+      } finally {
+        await pooledConn.close();
+      }
+    } catch (error) {
+      // Fallback to regex-based extraction if getTableNames fails
+      const regexResult = this.extractReferencedTablesRegex(sqlStatement);
+      return regexResult;
+    }
+  }
+
+  /**
+   * Fallback regex-based table extraction
+   */
+  private extractReferencedTablesRegex(sqlStatement: string): string[] {
     const patterns = [
       /\bFROM\s+([`"']?)(\w+)\1(?:\s+(?:AS\s+)?([`"']?)(\w+)\3)?/gi,
       /\bJOIN\s+([`"']?)(\w+)\1(?:\s+(?:AS\s+)?([`"']?)(\w+)\3)?/gi,
@@ -55,6 +84,75 @@ export class SchemaContextService {
   }
 
   /**
+   * Find tables that are directly related to the given tables through foreign keys
+   */
+  private findRelatedTables(
+    referencedTables: string[],
+    databaseModel: Map<string, any>,
+  ): string[] {
+    const relatedTables = new Set<string>();
+    
+    // For each referenced table, find tables that reference it or are referenced by it
+    for (const [dbName, database] of databaseModel.entries()) {
+      for (const schema of database.schemas) {
+        for (const table of schema.objects) {
+          const tableLower = table.name.toLowerCase();
+          const isReferenced = referencedTables.some(ref => 
+            ref === tableLower || ref.endsWith(`.${tableLower}`)
+          );
+          
+          if (isReferenced) {
+            // Look for foreign key relationships in column names
+            for (const column of table.columns) {
+              const colName = column.name.toLowerCase();
+              // Common FK patterns: table_id, fk_table, table_fk, etc.
+              const fkPatterns = [/_id$/, /^fk_/, /_fk$/, /^id_/];
+              
+              if (fkPatterns.some(pattern => pattern.test(colName))) {
+                // Extract potential table name from FK column
+                const potentialTable = colName
+                  .replace(/^fk_/, '')
+                  .replace(/_fk$/, '')
+                  .replace(/_id$/, '')
+                  .replace(/^id_/, '');
+                  
+                if (potentialTable && potentialTable !== tableLower) {
+                  relatedTables.add(potentialTable);
+                }
+              }
+            }
+          }
+          
+          // Also check if this table references any of our referenced tables
+          for (const column of table.columns) {
+            const colName = column.name.toLowerCase();
+            
+            for (const refTable of referencedTables) {
+              const refTableName = refTable.split('.').pop() || refTable;
+              if (
+                colName === `${refTableName}_id` ||
+                colName === `fk_${refTableName}` ||
+                colName === `${refTableName}_fk` ||
+                colName === `id_${refTableName}`
+              ) {
+                relatedTables.add(tableLower);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Remove any tables that are already in the referenced list
+    referencedTables.forEach(ref => {
+      relatedTables.delete(ref.toLowerCase());
+      relatedTables.delete(ref.split('.').pop()?.toLowerCase() || '');
+    });
+    
+    return Array.from(relatedTables);
+  }
+
+  /**
    * Calculate priority score for a table based on context
    */
   private calculateTablePriority(
@@ -64,9 +162,17 @@ export class SchemaContextService {
   ): number {
     let priority = 0;
 
-    // Higher priority for referenced tables
-    if (referencedTables.includes(table.name.toLowerCase())) {
-      priority += 100;
+    // Much higher priority for referenced tables (these are the most relevant)
+    const tableLower = table.name.toLowerCase();
+    const schemaQualifiedName = `${schemaName}.${tableLower}`;
+    
+    const isReferenced = 
+      referencedTables.includes(tableLower) ||
+      referencedTables.includes(schemaQualifiedName) ||
+      referencedTables.some((ref) => ref.endsWith(`.${tableLower}`));
+    
+    if (isReferenced) {
+      priority += 1000;
     }
 
     // Slightly higher priority for tables vs views
@@ -128,64 +234,108 @@ export class SchemaContextService {
   }
 
   /**
-   * Generate schema context from database model
+   * Generate schema context from database model with 3 sections:
+   * 1. Full info for tables used in SQL statement
+   * 2. Tables directly related to section 1
+   * 3. Other tables using priority logic
    */
   async generateSchemaContext(
     conn: AsyncDuckDBConnectionPool,
     sqlStatement?: string,
   ): Promise<SchemaContext> {
-    const referencedTables = this.extractReferencedTables(sqlStatement);
+    const referencedTables = await this.extractReferencedTables(conn, sqlStatement);
     const databaseModel = await getDatabaseModel(conn);
+    const relatedTables = this.findRelatedTables(referencedTables, databaseModel);
 
     const schemas: SchemaContextSchema[] = [];
     let totalSize = 0;
     const includedTables: string[] = [];
     const excludedTables: string[] = [];
 
-    // Process each database schema
+    // Collect all tables and categorize them
+    const section1Tables: Array<{dbName: string; schema: any; table: DBTableOrView}> = [];
+    const section2Tables: Array<{dbName: string; schema: any; table: DBTableOrView}> = [];
+    const section3Tables: Array<{dbName: string; schema: any; table: DBTableOrView}> = [];
+    
     for (const [dbName, database] of databaseModel.entries()) {
       for (const schema of database.schemas) {
-        const schemaContextTables: SchemaContextTable[] = [];
-
-        // Convert and prioritize tables
-        const prioritizedTables = schema.objects
-          .map((table) => {
-            const priority = this.calculateTablePriority(table, referencedTables, schema.name);
-            return this.convertToSchemaContextTable(table, priority);
-          })
-          .sort((a, b) => b.priority - a.priority); // Sort by priority descending
-
-        // Select tables within limits
-        let schemaSize = 0;
-        let tableCount = 0;
-
-        for (const table of prioritizedTables) {
-          // Check if adding this table would exceed limits
-          if (
-            tableCount >= this.config.maxTablesPerSchema ||
-            totalSize + schemaSize + table.estimatedSize > this.config.maxTotalSize
-          ) {
-            excludedTables.push(`${dbName}.${schema.name}.${table.name}`);
-            continue;
+        for (const table of schema.objects) {
+          const tableLower = table.name.toLowerCase();
+          
+          if (referencedTables.some(ref => ref === tableLower || ref.endsWith(`.${tableLower}`))) {
+            section1Tables.push({ dbName, schema, table });
+          } else if (relatedTables.includes(tableLower)) {
+            section2Tables.push({ dbName, schema, table });
+          } else {
+            section3Tables.push({ dbName, schema, table });
           }
-
-          schemaContextTables.push(table);
-          schemaSize += table.estimatedSize;
-          tableCount += 1;
-          includedTables.push(`${dbName}.${schema.name}.${table.name}`);
-        }
-
-        if (schemaContextTables.length > 0) {
-          schemas.push({
-            name:
-              schema.name === 'main' && dbName === 'memory' ? 'main' : `${dbName}.${schema.name}`,
-            tables: schemaContextTables,
-            estimatedSize: schemaSize,
-          });
-          totalSize += schemaSize;
         }
       }
     }
+    
+    // Tables are now categorized into 3 sections
+    
+    // Process tables in 3 sections
+    const processedSchemas = new Map<string, SchemaContextSchema>();
+    
+    // Helper function to add table to schema
+    const addTableToSchema = (dbName: string, schemaObj: any, table: DBTableOrView, priority: number) => {
+      const schemaKey = `${dbName}.${schemaObj.name}`;
+      const schemaName = schemaObj.name === 'main' && dbName === 'memory' ? 'main' : schemaKey;
+      
+      if (!processedSchemas.has(schemaKey)) {
+        processedSchemas.set(schemaKey, {
+          name: schemaName,
+          tables: [],
+          estimatedSize: 0,
+        });
+      }
+      
+      const schemaContext = processedSchemas.get(schemaKey)!;
+      const contextTable = this.convertToSchemaContextTable(table, priority);
+      
+      // Check size limits
+      if (totalSize + contextTable.estimatedSize <= this.config.maxTotalSize &&
+          schemaContext.tables.length < this.config.maxTablesPerSchema) {
+        schemaContext.tables.push(contextTable);
+        schemaContext.estimatedSize += contextTable.estimatedSize;
+        totalSize += contextTable.estimatedSize;
+        includedTables.push(`${dbName}.${schemaObj.name}.${table.name}`);
+        return true;
+      } else {
+        excludedTables.push(`${dbName}.${schemaObj.name}.${table.name}`);
+        return false;
+      }
+    };
+    
+    // Section 1: Referenced tables (highest priority - include ALL columns)
+    for (const { dbName, schema, table } of section1Tables) {
+      addTableToSchema(dbName, schema, table, 10000);
+    }
+    
+    // Section 2: Related tables (high priority)
+    for (const { dbName, schema, table } of section2Tables) {
+      addTableToSchema(dbName, schema, table, 5000);
+    }
+    
+    // Section 3: Other tables (use normal priority calculation)
+    // Sort by priority first
+    const sortedSection3 = section3Tables
+      .map(({ dbName, schema, table }) => ({
+        dbName,
+        schema,
+        table,
+        priority: this.calculateTablePriority(table, referencedTables, schema.name)
+      }))
+      .sort((a, b) => b.priority - a.priority);
+    
+    for (const { dbName, schema, table, priority } of sortedSection3) {
+      if (totalSize >= this.config.maxTotalSize * 0.8) break; // Leave some buffer
+      addTableToSchema(dbName, schema, table, priority);
+    }
+    
+    // Convert map to array
+    schemas.push(...processedSchemas.values());
 
     return {
       schemas,
@@ -197,7 +347,7 @@ export class SchemaContextService {
   }
 
   /**
-   * Format schema context as text for AI consumption
+   * Format schema context as text for AI consumption with 3 sections
    */
   formatSchemaContextForAI(schemaContext: SchemaContext): string {
     if (schemaContext.schemas.length === 0) {
@@ -205,14 +355,31 @@ export class SchemaContextService {
     }
 
     let formatted = 'Database Schema:\n';
-
+    
+    // Group tables by priority to identify sections
+    const allTables: Array<{schema: string; table: SchemaContextTable}> = [];
     schemaContext.schemas.forEach((schema) => {
-      formatted += `\n## Schema: ${schema.name}\n`;
-
       schema.tables.forEach((table) => {
-        formatted += `\n### ${table.type.toUpperCase()}: ${table.name}\n`;
+        allTables.push({ schema: schema.name, table });
+      });
+    });
+    
+    // Sort by priority to group into sections
+    allTables.sort((a, b) => b.table.priority - a.table.priority);
+    
+    // Identify section boundaries based on priority ranges
+    const section1Tables = allTables.filter(t => t.table.priority >= 10000);
+    const section2Tables = allTables.filter(t => t.table.priority >= 5000 && t.table.priority < 10000);
+    const section3Tables = allTables.filter(t => t.table.priority < 5000);
+    
+    // Format Section 1: Tables referenced in SQL
+    if (section1Tables.length > 0) {
+      formatted += '\n## Section 1: Tables Referenced in Query\n';
+      formatted += '*These tables are directly used in your SQL statement*\n';
+      
+      section1Tables.forEach(({ schema, table }) => {
+        formatted += `\n### ${table.type.toUpperCase()}: ${schema}.${table.name}\n`;
         formatted += 'Columns:\n';
-
         table.columns.forEach((column) => {
           let columnLine = `- ${column.name}`;
           if (column.type) {
@@ -224,7 +391,56 @@ export class SchemaContextService {
           formatted += `${columnLine}\n`;
         });
       });
-    });
+    }
+    
+    // Format Section 2: Related tables
+    if (section2Tables.length > 0) {
+      formatted += '\n## Section 2: Related Tables\n';
+      formatted += '*Tables that have foreign key relationships with referenced tables*\n';
+      
+      section2Tables.forEach(({ schema, table }) => {
+        formatted += `\n### ${table.type.toUpperCase()}: ${schema}.${table.name}\n`;
+        formatted += 'Columns:\n';
+        table.columns.forEach((column) => {
+          let columnLine = `- ${column.name}`;
+          if (column.type) {
+            columnLine += `: ${column.type}`;
+          }
+          if (column.nullable !== undefined) {
+            columnLine += column.nullable ? ' (nullable)' : ' (not null)';
+          }
+          formatted += `${columnLine}\n`;
+        });
+      });
+    }
+    
+    // Format Section 3: Other tables
+    if (section3Tables.length > 0) {
+      formatted += '\n## Section 3: Other Available Tables\n';
+      formatted += '*Additional tables in the database*\n';
+      
+      // Group by schema for section 3
+      const bySchema = new Map<string, typeof section3Tables>();
+      section3Tables.forEach(item => {
+        if (!bySchema.has(item.schema)) {
+          bySchema.set(item.schema, []);
+        }
+        bySchema.get(item.schema)!.push(item);
+      });
+      
+      bySchema.forEach((tables, schemaName) => {
+        formatted += `\n### Schema: ${schemaName}\n`;
+        tables.forEach(({ table }) => {
+          formatted += `- ${table.type.toUpperCase()}: ${table.name}`;
+          if (table.columns.length <= 5) {
+            formatted += ` (${table.columns.map(c => c.name).join(', ')})`;
+          } else {
+            formatted += ` (${table.columns.length} columns)`;
+          }
+          formatted += '\n';
+        });
+      });
+    }
 
     if (schemaContext.truncated) {
       formatted += '\n*Note: Schema has been truncated due to size limits. ';
