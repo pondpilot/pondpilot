@@ -97,5 +97,4 @@ export const KEY_BINDING = {
   kmenu: new KeyMatcher({ ctrl: true, key: 'k' }),
   runSelection: new KeyMatcher({ ctrl: true, shift: true, key: 'Enter' }),
   openNewScript: new KeyMatcher({ ctrl: true, alt: true, key: 'n' }),
-  aiAssistant: new KeyMatcher({ ctrl: true, key: 'b' }),
 };

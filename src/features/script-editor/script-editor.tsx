@@ -210,15 +210,7 @@ export const ScriptEditor = ({
           onFontSizeChanged={setFontSize}
           functionTooltips={functionTooltips}
           onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-            if (KEY_BINDING.aiAssistant.match(e)) {
-              e.preventDefault();
-              e.stopPropagation();
-              if (editorRef.current?.view && tabId) {
-                const { tabExecutionErrors } = useAppStore.getState();
-                const errorContext = tabExecutionErrors.get(tabId);
-                showAIAssistant(editorRef.current.view, errorContext);
-              }
-            } else if (KEY_BINDING.run.match(e)) {
+            if (KEY_BINDING.run.match(e)) {
               if (KEY_BINDING.runSelection.match(e)) {
                 handleRunQuery('selection');
               } else {
