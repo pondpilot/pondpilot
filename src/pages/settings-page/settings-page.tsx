@@ -1,5 +1,17 @@
+import { DatabaseManagementSettings } from '@components/database-management';
 import { exportSQLScripts } from '@controllers/export-data';
-import { ActionIcon, Box, Button, Divider, Group, Modal, Stack, Text, Title } from '@mantine/core';
+import {
+  ActionIcon,
+  Badge,
+  Box,
+  Button,
+  Divider,
+  Group,
+  Modal,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { resetAppState } from '@store/app-store';
 import { IconX } from '@tabler/icons-react';
@@ -98,6 +110,21 @@ export const SettingsPage = () => {
                 </Stack>
               </Box>
             </Stack>
+            <Stack>
+              <Box>
+                <Group>
+                  <Title c="text-primary" order={3}>
+                    Database Storage
+                  </Title>
+                  <Badge color="green" variant="light">
+                    Persistent
+                  </Badge>
+                </Group>
+
+                <DatabaseManagementSettings />
+              </Box>
+            </Stack>
+
             <Stack>
               <Box>
                 <Title c="text-primary" order={3}>

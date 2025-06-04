@@ -194,3 +194,34 @@ test('Should create file tree structure and verify persistence after reload', as
   // Repeat checks after reload
   await assertFileExplorerItems(rootWithRenamedFiles);
 });
+
+test('Should persist file after reload and setupFileSystem', async ({
+  reloadPage,
+  setupFileSystem,
+  assertFileExplorerItems,
+  filePicker,
+}) => {
+  expect(filePicker).toBeDefined();
+  // 1. Reload page at the beginning
+  await reloadPage();
+
+  // 2. Setup file system with a single file
+  const singleFileTree: FileSystemNode[] = [
+    {
+      type: 'file',
+      ext: 'csv', // Changed to a valid extension
+      content: 'test content',
+      name: 'test-file-for-reload',
+    },
+  ];
+  await setupFileSystem(singleFileTree);
+
+  // 3. Assert file is present
+  await assertFileExplorerItems(['test-file-for-reload']);
+
+  // 4. Reload page again
+  await reloadPage();
+
+  // 5. Assert file is still present
+  await assertFileExplorerItems(['test-file-for-reload']);
+});

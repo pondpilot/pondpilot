@@ -1,7 +1,8 @@
 import { BrowserNotSupported } from '@components/browser-not-supported';
 import { AppErrorFallback } from '@components/error-fallback';
 import { Layout } from '@components/layout';
-import { useAppContext } from '@features/app-context';
+import { MultipleTabsBlocked } from '@components/multiple-tabs-blocked';
+import { useFeatureContext } from '@features/feature-context';
 import { SharedScriptImport } from '@features/script-import';
 import { MainPage } from '@pages/main-page';
 import { SettingsPage } from '@pages/settings-page';
@@ -26,44 +27,47 @@ if (import.meta.env.DEV || __INTEGRATION_TEST__) {
 }
 
 export function Router() {
-  const {
-    browserInfo: { isFileAccessApiSupported, isMobileDevice },
-  } = useAppContext();
+  const { isFileAccessApiSupported, isMobileDevice, isOPFSSupported, isTabBlocked } =
+    useFeatureContext();
+  const canUseApp = isFileAccessApiSupported && isOPFSSupported;
 
-  const appRoutes = isFileAccessApiSupported
-    ? [
-        {
-          index: true,
-          element: <MainPage />,
-        },
-        {
-          path: 'settings',
-          element: <SettingsPage />,
-        },
-        {
-          path: 'shared-script/:encodedScript',
-          element: <SharedScriptImport />,
-        },
-      ]
-    : [
+  if (isTabBlocked) {
+    return <MultipleTabsBlocked />;
+  }
+
+  const getAppRoutes = () => {
+    if (!canUseApp) {
+      return [
         {
           index: true,
           element: <BrowserNotSupported />,
         },
       ];
+    }
+
+    return [
+      {
+        index: true,
+        element: <MainPage />,
+      },
+      {
+        path: 'settings',
+        element: <SettingsPage />,
+      },
+      {
+        path: 'shared-script/:encodedScript',
+        element: <SharedScriptImport />,
+      },
+    ];
+  };
 
   const router = createBrowserRouter([
     {
       path: '/',
-      element: (
-        <Layout
-          isFileAccessApiSupported={isFileAccessApiSupported}
-          isMobileDevice={isMobileDevice}
-        />
-      ),
+      element: <Layout isFileAccessApiSupported={canUseApp} isMobileDevice={isMobileDevice} />,
       errorElement: <AppErrorFallback />,
       children: [
-        ...appRoutes,
+        ...getAppRoutes(),
         // Add dev-only routes
         ...devOnlyRoutes,
         {

@@ -1,5 +1,5 @@
 import { showAlert } from '@components/app-notifications';
-import { useAppContext } from '@features/app-context';
+import { useFeatureContext } from '@features/feature-context';
 import {
   ONBOARDING_MODAL_OPTIONS,
   OnboardingModalContent,
@@ -15,9 +15,7 @@ import { isVersionGreater } from '@utils/compare-versions';
 import { setDataTestId } from '@utils/test-id';
 
 export const InitModals = () => {
-  const {
-    browserInfo: { isFileAccessApiSupported, isMobileDevice },
-  } = useAppContext();
+  const { isFileAccessApiSupported, isMobileDevice } = useFeatureContext();
   const appLoadState = useAppStore.use.appLoadState();
 
   const [isOnboardingShown, setIsOnboardingShown] = useLocalStorage({
