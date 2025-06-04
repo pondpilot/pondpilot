@@ -19,6 +19,7 @@ import { useShallow } from 'zustand/react/shallow';
 
 import { resetAppData } from './restore';
 import { createSelectors } from './utils';
+import { TabExecutionError } from '../controllers/tab/tab-controller';
 
 type AppLoadState = 'init' | 'ready' | 'error';
 
@@ -83,6 +84,13 @@ type AppStore = {
    * and improves maintainability by anticipating those needs.
    */
   duckDBFunctions: DBFunctionsMetadata[];
+
+  /**
+   * A mapping of tab identifiers to their execution errors.
+   * This is not persisted in IndexedDB as errors are temporary
+   * and should be cleared on app reload.
+   */
+  tabExecutionErrors: Map<TabId, TabExecutionError>;
 } & ContentViewState;
 
 const initialState: AppStore = {
@@ -95,6 +103,7 @@ const initialState: AppStore = {
   tabs: new Map(),
   dataBaseMetadata: new Map(),
   duckDBFunctions: [],
+  tabExecutionErrors: new Map(),
   // From ContentViewState
   activeTabId: null,
   previewTabId: null,
@@ -408,6 +417,26 @@ export function useTabTypeMap(): Map<TabId, TabType> {
         new Map(Array.from(state.tabs).map(([id, tab]): [TabId, TabType] => [id, tab.type])),
     ),
   );
+}
+
+// Tab execution error selectors
+export function useTabExecutionError(tabId: TabId): TabExecutionError | undefined {
+  return useAppStore((state) => state.tabExecutionErrors.get(tabId));
+}
+
+export function useActiveTabExecutionError(): TabExecutionError | undefined {
+  return useAppStore((state) => {
+    if (!state.activeTabId) return undefined;
+    return state.tabExecutionErrors.get(state.activeTabId);
+  });
+}
+
+export function useTabHasError(tabId: TabId): boolean {
+  return useAppStore((state) => state.tabExecutionErrors.has(tabId));
+}
+
+export function useTabExecutionErrorsMap(): Map<TabId, TabExecutionError> {
+  return useAppStore(useShallow((state) => new Map(state.tabExecutionErrors)));
 }
 
 // Simple actions / setters that are not "big" enough to go to controllers

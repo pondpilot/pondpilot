@@ -18,6 +18,7 @@ import { IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { useNavigate } from 'react-router-dom';
 
+import { AISettings } from './components/ai-settings';
 import { ThemeSwitcher } from './components/theme-switcher';
 
 export const SettingsPage = () => {
@@ -84,6 +85,8 @@ export const SettingsPage = () => {
 
             <ThemeSwitcher />
           </Stack>
+          <Divider />
+          <AISettings />
           <Divider />
           <Stack className="gap-8">
             <Title c="text-primary" order={2}>

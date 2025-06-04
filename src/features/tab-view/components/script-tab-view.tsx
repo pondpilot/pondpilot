@@ -1,7 +1,12 @@
-import { showError } from '@components/app-notifications';
+import { showError, showErrorWithAction } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
-import { updateScriptTabLastExecutedQuery, updateScriptTabLayout } from '@controllers/tab';
+import {
+  updateScriptTabLastExecutedQuery,
+  updateScriptTabLayout,
+  clearTabExecutionError,
+  setTabExecutionError,
+} from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
@@ -128,9 +133,24 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             }
             console.error('Error executing statement:', statement.type, error);
             setScriptExecutionState('error');
-            showError({
+            setTabExecutionError(tabId, {
+              errorMessage: message,
+              statementType: statement.type,
+              timestamp: Date.now(),
+            });
+            showErrorWithAction({
               title: 'Error executing SQL statement',
               message: `Error in ${statement.type} statement: ${message}`,
+              action: {
+                label: 'Fix with AI',
+                onClick: () => {
+                  // Dispatch custom event to trigger AI Assistant
+                  const event = new CustomEvent('trigger-ai-assistant', {
+                    detail: { tabId },
+                  });
+                  window.dispatchEvent(event);
+                },
+              },
             });
             return;
           }
@@ -153,9 +173,24 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
               error,
             );
             setScriptExecutionState('error');
-            showError({
+            setTabExecutionError(tabId, {
+              errorMessage: message,
+              statementType: lastStatement.type,
+              timestamp: Date.now(),
+            });
+            showErrorWithAction({
               title: 'Error executing SQL statement',
               message: `Error in ${lastStatement.type} statement: ${message}`,
+              action: {
+                label: 'Fix with AI',
+                onClick: () => {
+                  // Dispatch custom event to trigger AI Assistant
+                  const event = new CustomEvent('trigger-ai-assistant', {
+                    detail: { tabId },
+                  });
+                  window.dispatchEvent(event);
+                },
+              },
             });
             return;
           }
@@ -166,14 +201,30 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           try {
             await runQueryWithFileSyncAndRetry(lastStatement.code);
           } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
             if (needsTransaction) {
               await conn.query('ROLLBACK');
             }
             console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
             setScriptExecutionState('error');
-            showError({
+            setTabExecutionError(tabId, {
+              errorMessage: message,
+              statementType: lastStatement.type,
+              timestamp: Date.now(),
+            });
+            showErrorWithAction({
               title: 'Error executing SQL statement',
-              message: `Error in ${lastStatement.type} statement: ${error}`,
+              message: `Error in ${lastStatement.type} statement: ${message}`,
+              action: {
+                label: 'Fix with AI',
+                onClick: () => {
+                  // Dispatch custom event to trigger AI Assistant
+                  const event = new CustomEvent('trigger-ai-assistant', {
+                    detail: { tabId },
+                  });
+                  window.dispatchEvent(event);
+                },
+              },
             });
             return;
           }
@@ -211,6 +262,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       }
 
       setScriptExecutionState('success');
+      clearTabExecutionError(tabId);
       incrementScriptVersion();
 
       // As of today, even if the same statement is executed, we will

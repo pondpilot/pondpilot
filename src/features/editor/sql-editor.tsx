@@ -7,18 +7,28 @@
 import { acceptCompletion, completionStatus, startCompletion } from '@codemirror/autocomplete';
 import { defaultKeymap, insertTab, history } from '@codemirror/commands';
 import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
-import { keymap } from '@codemirror/view';
+import { keymap, placeholder } from '@codemirror/view';
 import { showNotification } from '@mantine/notifications';
 import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
-import { forwardRef, KeyboardEventHandler, useMemo } from 'react';
+import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
+import { aiAssistantTooltip } from './ai-assistant-tooltip';
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
 import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
+import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
 
 type FunctionTooltip = Record<string, { syntax: string; description: string }>;
+
+// Custom theme for placeholder styling
+const placeholderTheme = EditorView.theme({
+  '.cm-placeholder': {
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+  },
+});
 
 interface SqlEditorProps {
   colorSchemeDark: boolean;
@@ -52,6 +62,9 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
     ref,
   ) => {
     const { darkTheme, lightTheme } = useEditorTheme(colorSchemeDark);
+    const connectionPool = useDuckDBConnectionPool();
+    const editorRef = useRef<ReactCodeMirrorRef>(null);
+
     const tableNameHighlightPlugin = useMemo(() => {
       if (schema) {
         return createSQLTableNameHighlightPlugin(Object.keys(schema));
@@ -81,7 +94,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
           },
           {
             key: 'Ctrl-Space',
-            mac: 'Cmd-i',
+            mac: 'Cmd-Space',
             preventDefault: true,
             run: startCompletion,
           },
@@ -120,7 +133,13 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
             },
           },
 
-          ...defaultKeymap,
+          // Filter out Cmd-i from defaultKeymap to avoid conflicts with AI assistant
+          ...defaultKeymap.filter((binding) => {
+            // Remove any binding that uses Cmd-i or Ctrl-i
+            const key = binding.key || '';
+            const mac = binding.mac || '';
+            return !key.includes('Mod-i') && !key.includes('Ctrl-i') && !mac.includes('Cmd-i');
+          }),
         ]),
       [fontSize, onFontSizeChanged],
     );
@@ -131,15 +150,19 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         upperCaseKeywords: true,
         schema,
       });
+      const aiAssistantExtension = aiAssistantTooltip(connectionPool);
       const tooltipExtension = functionTooltip(functionTooltips);
 
       return [
         history(),
-        keyExtensions,
         sqlDialect,
         tooltipExtension,
+        aiAssistantExtension, // AI assistant keymap comes before default keymaps
+        keyExtensions,
         tableNameHighlightPlugin,
         SqlStatementHighlightPlugin,
+        placeholder('Press Cmd+I to open the AI Assistant'),
+        placeholderTheme,
         EditorView.updateListener.of((state: any) => {
           const pos = state.state.selection.main.head;
           const line = state.state.doc.lineAt(pos);
@@ -148,11 +171,29 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
           if (onCursorChange) onCursorChange(pos, lineNumber, columnNumber);
         }),
       ].filter(Boolean) as Extension[];
-    }, [onCursorChange, keyExtensions, schema, tableNameHighlightPlugin, functionTooltips]);
+    }, [
+      onCursorChange,
+      keyExtensions,
+      schema,
+      tableNameHighlightPlugin,
+      functionTooltips,
+      connectionPool,
+    ]);
 
     return (
       <CodeMirror
-        ref={ref}
+        ref={(instance) => {
+          if (ref) {
+            if (typeof ref === 'function') {
+              ref(instance);
+            } else {
+              ref.current = instance;
+            }
+          }
+          if (instance) {
+            (editorRef as any).current = instance;
+          }
+        }}
         autoFocus
         readOnly={readOnly}
         onKeyDown={onKeyDown}
