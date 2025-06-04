@@ -1,6 +1,6 @@
 import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
-import { Button, Group, Text, Stack, Card, rem, Progress, FileButton } from '@mantine/core';
-import { IconDatabase, IconDownload, IconTrash, IconUpload } from '@tabler/icons-react';
+import { Button, Group, Text, Stack, Card, rem, Progress } from '@mantine/core';
+import { IconDatabase, IconTrash } from '@tabler/icons-react';
 import { formatFileSize, getPersistenceStateText } from '@utils/duckdb-persistence';
 import React, { useCallback, useRef, useState } from 'react';
 
@@ -20,6 +20,7 @@ export const DatabaseManagementSettings = () => {
 
   const resetRef = useRef<() => void>(null);
 
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const handleExport = useCallback(async () => {
     setIsExporting(true);
     try {
@@ -42,6 +43,7 @@ export const DatabaseManagementSettings = () => {
     }
   }, [clearDatabase]);
 
+  // eslint-disable-next-line unused-imports/no-unused-vars
   const handleImport = useCallback(
     async (file: File | null) => {
       if (!file) return;
@@ -105,7 +107,8 @@ export const DatabaseManagementSettings = () => {
       </Stack>
 
       <Group justify="space-between" align="center">
-        <Group>
+        {/* TODO: possibly there are errors in importing/exporting, need to check */}
+        {/* <Group>
           <Button
             onClick={handleExport}
             loading={isExporting}
@@ -131,7 +134,7 @@ export const DatabaseManagementSettings = () => {
               </Button>
             )}
           </FileButton>
-        </Group>
+        </Group> */}
         <Button
           leftSection={<IconTrash size={16} />}
           color="red"
