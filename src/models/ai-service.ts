@@ -10,6 +10,7 @@ export interface AIModel {
   id: string;
   name: string;
   description?: string;
+  reasoning?: boolean;
 }
 
 export interface AIServiceConfig {
@@ -21,6 +22,7 @@ export interface AIServiceConfig {
   customAuthType?: 'bearer' | 'x-api-key';
   customModels?: AIModel[];
   customSupportsTools?: boolean;
+  reasoning?: boolean;
 }
 
 export interface AIRequest {
@@ -56,6 +58,7 @@ export const AI_PROVIDERS: AIProvider[] = [
         id: 'o4-mini',
         name: 'o4-mini',
         description: 'Fast, cost-efficient reasoning model for SQL analysis and optimization',
+        reasoning: true,
       },
       {
         id: 'gpt-4.1-mini',
@@ -63,14 +66,10 @@ export const AI_PROVIDERS: AIProvider[] = [
         description: 'Affordable model balancing speed and intelligence for SQL queries',
       },
       {
-        id: 'gpt-4.1-nano',
-        name: 'GPT-4.1 Nano',
-        description: 'Fastest, most cost-effective model for simple SQL tasks',
-      },
-      {
-        id: 'o3',
-        name: 'o3',
-        description: 'Most powerful reasoning model for complex, multi-step SQL problems',
+        id: 'o3-mini',
+        name: 'o3-mini',
+        description: 'Previous generation, cost-effecient reasoning model for SQL tasks',
+        reasoning: true,
       },
     ],
   },
@@ -102,4 +101,5 @@ export const DEFAULT_AI_CONFIG: AIServiceConfig = {
   model: 'claude-sonnet-4-20250514',
   apiKey: '',
   apiKeys: {},
+  reasoning: false,
 };

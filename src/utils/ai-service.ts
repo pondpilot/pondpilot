@@ -157,7 +157,8 @@ ${request.prompt}`;
         userPrompt += schemaSection;
       }
 
-      // Build request body based on whether we want structured responses
+      // Build request body based on whether we want structured responses.
+      // First build parts common to all model types
       const requestBody: any = {
         model: this.config.model,
         messages: [
@@ -170,9 +171,15 @@ ${request.prompt}`;
             content: userPrompt,
           },
         ],
-        max_tokens: 1500,
-        temperature: 0.1,
       };
+
+      // Use correct token parameter based on model type
+      if (this.config.reasoning) {
+        requestBody.max_completion_tokens = 1500;
+      } else {
+        requestBody.max_tokens = 1500;
+        requestBody.temperature = 0.1;
+      }
 
       // Add function calling for structured responses
       // Check if provider supports tools (custom endpoints may not)
