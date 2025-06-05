@@ -48,34 +48,29 @@ export const AI_PROVIDERS: AIProvider[] = [
     name: 'OpenAI',
     models: [
       {
-        id: 'gpt-4o',
-        name: 'GPT-4o',
-        description: 'Most capable model, best for complex SQL tasks',
-      },
-      {
-        id: 'gpt-4o-mini',
-        name: 'GPT-4o Mini',
-        description: 'Faster and more cost-effective option',
-      },
-      {
-        id: 'o3-mini',
-        name: 'O3 Mini',
-        description: 'OpenAI O3 Mini model',
-      },
-      {
-        id: '04-mini',
-        name: '04 Mini',
-        description: 'OpenAI 04 Mini model',
-      },
-      {
         id: 'gpt-4.1',
         name: 'GPT-4.1',
-        description: 'OpenAI GPT-4.1 model',
+        description: 'Smartest model for complex SQL tasks and database optimization',
+      },
+      {
+        id: 'o4-mini',
+        name: 'o4-mini',
+        description: 'Fast, cost-efficient reasoning model for SQL analysis and optimization',
       },
       {
         id: 'gpt-4.1-mini',
         name: 'GPT-4.1 Mini',
-        description: 'OpenAI GPT-4.1 Mini model',
+        description: 'Affordable model balancing speed and intelligence for SQL queries',
+      },
+      {
+        id: 'gpt-4.1-nano',
+        name: 'GPT-4.1 Nano',
+        description: 'Fastest, most cost-effective model for simple SQL tasks',
+      },
+      {
+        id: 'o3',
+        name: 'o3',
+        description: 'Most powerful reasoning model for complex, multi-step SQL problems',
       },
     ],
   },
@@ -103,8 +98,8 @@ export const AI_PROVIDERS: AIProvider[] = [
 ];
 
 export const DEFAULT_AI_CONFIG: AIServiceConfig = {
-  provider: 'openai',
-  model: 'gpt-4o-mini',
+  provider: 'anthropic',
+  model: 'claude-sonnet-4-20250514',
   apiKey: '',
   apiKeys: {},
 };
