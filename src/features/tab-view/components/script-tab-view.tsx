@@ -11,6 +11,7 @@ import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duc
 import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
 import { DataView } from '@features/tab-view/components/data-view';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
 import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
@@ -239,13 +240,17 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         const hasDDL = classifiedStatements.some((s) => s.sqlType === SQLStatementType.DDL);
         if (hasDDL) {
           // Read the metadata for the newly created views
-          const newViewsMetadata = await getDatabaseModel(pool, ['memory'], ['main']);
+          const newViewsMetadata = await getDatabaseModel(pool, [PERSISTENT_DB_NAME], ['main']);
           // Update views metadata state
           const { dataBaseMetadata } = useAppStore.getState();
           const newDataBaseMetadata =
             newViewsMetadata.size > 0
               ? new Map([...dataBaseMetadata, ...newViewsMetadata])
-              : new Map(Array.from(dataBaseMetadata).filter(([dbName, _]) => dbName !== 'memory'));
+              : new Map(
+                  Array.from(dataBaseMetadata).filter(
+                    ([dbName, _]) => dbName !== PERSISTENT_DB_NAME,
+                  ),
+                );
 
           // Update the store with the new state
           useAppStore.setState(

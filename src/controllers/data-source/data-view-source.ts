@@ -10,6 +10,7 @@ import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PersistentDataSourceId } from '@models/data-source';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 
@@ -174,9 +175,9 @@ export const deleteDataSources = async (
   );
   // Update medatata views
   if (deletedDataSources.some((ds) => ds.type !== 'attached-db')) {
-    const newViewsMetadata = await getDatabaseModel(conn, ['memory'], ['main']);
+    const newViewsMetadata = await getDatabaseModel(conn, [PERSISTENT_DB_NAME], ['main']);
     if (newViewsMetadata.size === 0) {
-      newDataBaseMetadata.delete('memory');
+      newDataBaseMetadata.delete(PERSISTENT_DB_NAME);
     } else {
       newDataBaseMetadata = new Map([...newDataBaseMetadata, ...newViewsMetadata]);
     }

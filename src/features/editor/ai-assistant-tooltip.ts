@@ -74,6 +74,7 @@ class AIAssistantWidget extends WidgetType {
       const currentConfig = getAIConfig();
 
       let selectedProvider = currentConfig.provider;
+      let isReasoningModel = false;
 
       // Check if it's a custom model
       if (currentConfig.customModels?.some((model) => model.id === selectedModel)) {
@@ -81,8 +82,10 @@ class AIAssistantWidget extends WidgetType {
       } else {
         // Otherwise, find the provider for this model
         for (const provider of AI_PROVIDERS) {
-          if (provider.models.some((model) => model.id === selectedModel)) {
+          const model = provider.models.find((m) => m.id === selectedModel);
+          if (model) {
             selectedProvider = provider.id;
+            isReasoningModel = model.reasoning || false;
             break;
           }
         }
@@ -94,6 +97,7 @@ class AIAssistantWidget extends WidgetType {
         provider: selectedProvider,
         model: selectedModel,
         apiKey: currentConfig.apiKeys?.[selectedProvider] || currentConfig.apiKey,
+        reasoning: isReasoningModel,
       };
 
       saveAIConfig(updatedConfig);

@@ -1,5 +1,6 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AttachedDB, PersistentDataSourceId } from '@models/data-source';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { useAppStore } from '@store/app-store';
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from '@utils/duckdb/identifier';
 import { findUniqueName } from '@utils/helpers';
@@ -32,7 +33,7 @@ export const renameDB = async (
   const oldDbName = dataSource.dbName;
 
   // Fetch currently attached databases, to avoid name collisions
-  const reservedDbs = new Set((await getAttachedDBs(conn, false)) || ['memory']);
+  const reservedDbs = new Set((await getAttachedDBs(conn, false)) || [PERSISTENT_DB_NAME]);
 
   // Make sure the name is unique
   const newDbName = findUniqueName(

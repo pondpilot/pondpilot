@@ -1,3 +1,5 @@
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+
 import { getDatabaseModel } from '../controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '../features/duckdb-context/duckdb-connection-pool';
 import { DBTableOrView } from '../models/db';
@@ -285,7 +287,8 @@ export class SchemaContextService {
       priority: number,
     ) => {
       const schemaKey = `${dbName}.${schemaObj.name}`;
-      const schemaName = schemaObj.name === 'main' && dbName === 'memory' ? 'main' : schemaKey;
+      const schemaName =
+        schemaObj.name === 'main' && dbName === PERSISTENT_DB_NAME ? 'main' : schemaKey;
 
       if (!processedSchemas.has(schemaKey)) {
         processedSchemas.set(schemaKey, {

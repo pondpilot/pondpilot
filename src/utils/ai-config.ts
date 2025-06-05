@@ -1,5 +1,5 @@
 import { getJSONCookie, setJSONCookie } from './cookies';
-import { AIServiceConfig, DEFAULT_AI_CONFIG } from '../models/ai-service';
+import { AIServiceConfig, DEFAULT_AI_CONFIG, AI_PROVIDERS } from '../models/ai-service';
 import { LOCAL_STORAGE_KEYS } from '../models/local-storage';
 
 function sanitizeConfig(config: Partial<AIServiceConfig>): Partial<AIServiceConfig> {
@@ -59,6 +59,10 @@ function sanitizeConfig(config: Partial<AIServiceConfig>): Partial<AIServiceConf
     sanitized.customSupportsTools = config.customSupportsTools;
   }
 
+  if (typeof config.reasoning === 'boolean') {
+    sanitized.reasoning = config.reasoning;
+  }
+
   return sanitized;
 }
 
@@ -95,6 +99,13 @@ function normalizeConfig(config: AIServiceConfig): AIServiceConfig {
   // Set current apiKey based on current provider
   const providerKey = normalized.apiKeys[normalized.provider];
   normalized.apiKey = providerKey || '';
+
+  // Set reasoning flag based on model if not already set
+  if (normalized.reasoning === undefined) {
+    const provider = AI_PROVIDERS.find((p) => p.id === normalized.provider);
+    const model = provider?.models.find((m) => m.id === normalized.model);
+    normalized.reasoning = model?.reasoning || false;
+  }
 
   return normalized;
 }

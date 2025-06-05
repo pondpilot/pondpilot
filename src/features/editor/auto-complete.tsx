@@ -1,5 +1,6 @@
 import type { SQLNamespace } from '@codemirror/lang-sql';
 import { DataBaseModel } from '@models/db';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import {
   createColumnCompletion,
   createDatabaseCompletion,
@@ -73,8 +74,8 @@ export const createDuckDBCompletions = (
 export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace => {
   const namespace: SQLNamespace = {};
 
-  // First add non-system tables from memory.main to top level
-  const memoryDb = databases.find((db) => db.name === 'memory');
+  // First add non-system tables from pondpilot.main to top level
+  const memoryDb = databases.find((db) => db.name === PERSISTENT_DB_NAME);
   const topTableNames: string[] = [];
 
   if (memoryDb) {
@@ -102,7 +103,7 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
 
   // Add all databases except memory
   databases.forEach((db) => {
-    if (['memory', 'system', 'temp'].includes(db.name)) return;
+    if ([PERSISTENT_DB_NAME, 'system', 'temp'].includes(db.name)) return;
 
     const dbNamespace: SQLNamespace = {};
 

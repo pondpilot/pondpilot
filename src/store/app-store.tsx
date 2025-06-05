@@ -7,6 +7,7 @@ import {
   PersistentDataSourceId,
 } from '@models/data-source';
 import { DataBaseModel, DBFunctionsMetadata, DBTableOrViewSchema } from '@models/db';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
@@ -196,7 +197,7 @@ export function useDataSourceObjectSchema(
         dataSource.type === 'xlsx-sheet' ||
         dataSource.type === 'json'
       ) {
-        dbName = 'memory';
+        dbName = PERSISTENT_DB_NAME;
         schemaName = 'main';
         objectName = dataSource.viewName;
       } else {
@@ -305,7 +306,9 @@ export function useAttachedDBMetadata(): Map<string, DataBaseModel> {
   return useAppStore(
     useShallow(
       (state) =>
-        new Map(state.dataBaseMetadata.entries().filter(([dbName, _]) => dbName !== 'memory')),
+        new Map(
+          state.dataBaseMetadata.entries().filter(([dbName, _]) => dbName !== PERSISTENT_DB_NAME),
+        ),
     ),
   );
 }
