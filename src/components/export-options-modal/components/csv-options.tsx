@@ -54,6 +54,7 @@ export function CsvOptions({
         value={quoteChar}
         onChange={(e) => setQuoteChar(e.currentTarget.value)}
         error={quoteCharError}
+        data-testid={setDataTestId('export-csv-quote-char')}
         size="md"
         classNames={commonTextInputClassNames}
       />
@@ -61,6 +62,7 @@ export function CsvOptions({
         label="Escape Character"
         value={escapeChar}
         onChange={(e) => setEscapeChar(e.currentTarget.value)}
+        data-testid={setDataTestId('export-csv-escape-char')}
         error={escapeCharError}
         size="md"
         classNames={commonTextInputClassNames}

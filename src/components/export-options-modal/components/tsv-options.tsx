@@ -38,6 +38,7 @@ export function TsvOptions({
         label="Quote Character"
         value={quoteChar}
         onChange={(e) => setQuoteChar(e.currentTarget.value)}
+        data-testid={setDataTestId('export-tsv-quote-char')}
         error={quoteCharError}
         size="md"
         classNames={commonTextInputClassNames}
@@ -46,6 +47,7 @@ export function TsvOptions({
         label="Escape Character"
         value={escapeChar}
         onChange={(e) => setEscapeChar(e.currentTarget.value)}
+        data-testid={setDataTestId('export-tsv-escape-char')}
         error={escapeCharError}
         size="md"
         classNames={commonTextInputClassNames}

@@ -3,7 +3,6 @@ import { ExportResult } from '@features/tab-view/hooks/use-table-export';
 import {
   Modal,
   Button,
-  Stack,
   TextInput,
   Group,
   Text,
@@ -12,6 +11,7 @@ import {
   ActionIcon,
   Alert,
   Divider,
+  Stack,
 } from '@mantine/core';
 import { DataAdapterApi } from '@models/data-adapter';
 import {
@@ -113,15 +113,6 @@ export function ExportOptionsModal({
   // Markdown options
   const [mdFormat, setMdFormat] = useState<'github' | 'standard'>('github');
   const [alignColumns, setAlignColumns] = useState(true);
-
-  // Focus filename input when modal opens
-  useEffect(() => {
-    if (opened && inputRef.current) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
-    }
-  }, [opened]);
 
   // Data size warning state
   const [largeDatasetSize, setLargeDatasetSize] = useState(0);
@@ -244,39 +235,6 @@ export function ExportOptionsModal({
     return isValid;
   };
 
-  // Check dataset size when modal opens
-  useEffect(() => {
-    if (opened) {
-      try {
-        const estimatedRowCount =
-          dataAdapter?.rowCountInfo?.estimatedRowCount ||
-          dataAdapter?.rowCountInfo?.realRowCount ||
-          dataAdapter?.rowCountInfo?.availableRowCount ||
-          0;
-
-        if (estimatedRowCount > LARGE_DATASET_THRESHOLD) {
-          setLargeDatasetSize(estimatedRowCount);
-          setIsLargeDataset(true);
-        } else {
-          setIsLargeDataset(false);
-        }
-      } catch (error) {
-        setIsLargeDataset(false);
-        console.warn('Could not determine dataset size');
-      }
-    }
-  }, [opened, dataAdapter]);
-
-  const handleExport = async () => {
-    if (!validateInputs()) {
-      return;
-    }
-
-    // Dismiss modal immediately as export progress will be shown in notifications
-    onClose();
-    performExport();
-  };
-
   const performExport = async () => {
     try {
       const baseOptions: BaseExportOptions = { includeHeader };
@@ -343,6 +301,48 @@ export function ExportOptionsModal({
     }
   };
 
+  const handleExport = async () => {
+    if (!validateInputs()) {
+      return;
+    }
+
+    // Dismiss modal immediately as export progress will be shown in notifications
+    onClose();
+    performExport();
+  };
+
+  // Focus filename input when modal opens
+  useEffect(() => {
+    if (opened && inputRef.current) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [opened]);
+
+  // Check dataset size when modal opens
+  useEffect(() => {
+    if (opened) {
+      try {
+        const estimatedRowCount =
+          dataAdapter?.rowCountInfo?.estimatedRowCount ||
+          dataAdapter?.rowCountInfo?.realRowCount ||
+          dataAdapter?.rowCountInfo?.availableRowCount ||
+          0;
+
+        if (estimatedRowCount > LARGE_DATASET_THRESHOLD) {
+          setLargeDatasetSize(estimatedRowCount);
+          setIsLargeDataset(true);
+        } else {
+          setIsLargeDataset(false);
+        }
+      } catch (error) {
+        setIsLargeDataset(false);
+        console.warn('Could not determine dataset size');
+      }
+    }
+  }, [opened, dataAdapter]);
+
   return (
     <>
       <Modal
@@ -352,13 +352,12 @@ export function ExportOptionsModal({
         padding={0}
         size="lg"
         radius="lg"
-        data-testid={setDataTestId('export-options-modal')}
         classNames={{
           content: 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
         }}
       >
-        <Stack gap={0}>
-          <Group justify="space-between" p="xl" pb="md">
+        <Stack data-testid={setDataTestId('export-options-modal')} className="p-4 pt-8 gap-6">
+          <Group justify="space-between" className="px-2">
             <Group gap="xs">
               <IconDownload size={20} stroke={1.5} />
               <Title order={3} size="h4">
@@ -369,78 +368,66 @@ export function ExportOptionsModal({
               <IconX size={18} />
             </ActionIcon>
           </Group>
+          <Stack className="gap-16 px-6">
+            <Box>
+              <TextInput
+                ref={inputRef}
+                label="File Name"
+                value={exportFilename}
+                onChange={(e) => setExportFilename(e.currentTarget.value)}
+                data-testid={setDataTestId('export-filename')}
+                error={filenameError}
+                size="md"
+                mb="lg"
+                classNames={commonTextInputClassNames}
+              />
 
-          <Box px="xl" pb="xl">
-            <TextInput
-              ref={inputRef}
-              label="File Name"
-              value={exportFilename}
-              onChange={(e) => setExportFilename(e.currentTarget.value)}
-              data-testid={setDataTestId('export-filename')}
-              error={filenameError}
-              size="md"
-              mb="lg"
-              classNames={commonTextInputClassNames}
-            />
+              <Text size="sm" c="dimmed" mb="lg">
+                Choose a format and configure options to export your data.
+              </Text>
 
-            <Text size="sm" c="dimmed" mb="lg">
-              Choose a format and configure options to export your data.
-            </Text>
+              <Group align="stretch" gap="lg" wrap="nowrap">
+                <FormatSelector format={format} onFormatChange={handleFormatChange} />
+                <Divider orientation="vertical" />
+                <Box mih={300} flex={1}>
+                  {renderFormatOptions()}
+                </Box>
+              </Group>
 
-            <Group align="stretch" gap="lg" wrap="nowrap">
-              <FormatSelector format={format} onFormatChange={handleFormatChange} />
-              <Divider orientation="vertical" />
-              <Box style={{ flex: 1, minHeight: '300px' }}>{renderFormatOptions()}</Box>
-            </Group>
+              {isLargeDataset && (
+                <Alert
+                  icon={<IconAlertTriangle size={16} />}
+                  color="yellow"
+                  mt="lg"
+                  classNames={{
+                    root: 'rounded-lg',
+                  }}
+                >
+                  Large dataset ({largeDatasetSize.toLocaleString()} rows). Export may be slow.
+                </Alert>
+              )}
+            </Box>
 
-            {isLargeDataset && (
-              <Alert
-                icon={<IconAlertTriangle size={16} />}
-                color="yellow"
-                mt="lg"
-                classNames={{
-                  root: 'rounded-lg',
-                }}
-              >
-                Large dataset ({largeDatasetSize.toLocaleString()} rows). Export may be slow.
-              </Alert>
-            )}
-          </Box>
-
-          <Box
-            px="xl"
-            py="lg"
-            style={{ borderTop: '1px solid var(--mantine-color-borderPrimary-light)' }}
-          >
             <Group justify="flex-end" gap="sm">
               <Button
                 variant="subtle"
                 onClick={onClose}
-                size="md"
-                radius="lg"
-                color="gray"
+                color="text-secondary"
                 data-testid={setDataTestId('export-cancel')}
+                px={24}
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleExport}
                 data-testid={setDataTestId('export-confirm')}
-                size="md"
-                radius="lg"
-                className="bg-backgroundAccent-light dark:bg-backgroundAccent-dark hover:bg-backgroundAccent-light hover:dark:bg-backgroundAccent-dark"
-                styles={{
-                  root: {
-                    '&:hover': {
-                      backgroundColor: 'var(--mantine-color-backgroundAccent)',
-                    },
-                  },
-                }}
+                color="background-accent"
+                px={24}
               >
                 {isLargeDataset ? 'Export Anyway' : 'Export'}
               </Button>
             </Group>
-          </Box>
+          </Stack>
         </Stack>
       </Modal>
     </>

@@ -1,4 +1,4 @@
-import { Stack, UnstyledButton } from '@mantine/core';
+import { Stack, Text, UnstyledButton } from '@mantine/core';
 import { ExportFormat } from '@models/export-options';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
@@ -25,7 +25,7 @@ export function FormatSelector({ format, onFormatChange }: FormatSelectorProps) 
           )}
           data-testid={setDataTestId(`export-format-${option.value}`)}
         >
-          {option.label}
+          <Text c="text-secondary">{option.label}</Text>
         </UnstyledButton>
       ))}
     </Stack>
