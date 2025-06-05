@@ -1,6 +1,6 @@
 import type { SQLNamespace } from '@codemirror/lang-sql';
-import { PERSISTENT_DB_NAME } from '@controllers/db-persistence';
 import { DataBaseModel } from '@models/db';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import {
   createColumnCompletion,
   createDatabaseCompletion,

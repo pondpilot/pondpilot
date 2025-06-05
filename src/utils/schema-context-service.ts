@@ -1,4 +1,4 @@
-import { PERSISTENT_DB_NAME } from '@controllers/db-persistence';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 
 import { getDatabaseModel } from '../controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '../features/duckdb-context/duckdb-connection-pool';

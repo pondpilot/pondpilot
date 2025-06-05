@@ -1,6 +1,6 @@
-import { PERSISTENT_DB_NAME } from '@controllers/db-persistence';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { DataBaseModel, DBColumn, DBFunctionsMetadata, DBTableOrView } from '@models/db';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { getTableColumnId } from '@utils/db';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import { quote } from '@utils/helpers';

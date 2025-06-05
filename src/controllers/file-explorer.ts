@@ -1,5 +1,6 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntryId } from '@models/file-system';
 import { useAppStore } from '@store/app-store';
 import { findUniqueName } from '@utils/helpers';
@@ -12,7 +13,6 @@ import {
   registerFileHandle,
 } from './db/data-source';
 import { getDatabaseModel, getViews } from './db/duckdb-meta';
-import { PERSISTENT_DB_NAME } from './db-persistence';
 import { persistAddLocalEntry } from './file-system/persist';
 
 export const renameFile = async (

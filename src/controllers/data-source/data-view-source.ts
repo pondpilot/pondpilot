@@ -6,11 +6,11 @@ import {
   dropViewAndUnregisterFile,
   getDatabaseModel,
 } from '@controllers/db';
-import { PERSISTENT_DB_NAME } from '@controllers/db-persistence';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PersistentDataSourceId } from '@models/data-source';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 

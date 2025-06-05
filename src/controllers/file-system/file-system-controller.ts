@@ -9,10 +9,10 @@ import {
   createXlsxSheetView,
 } from '@controllers/db/data-source';
 import { getAttachedDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
-import { PERSISTENT_DB_NAME } from '@controllers/db-persistence';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel, CSV_MAX_LINE_SIZE_MB } from '@models/db';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import {
   DataSourceLocalFile,
   ignoredFolders,

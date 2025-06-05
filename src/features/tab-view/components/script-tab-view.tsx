@@ -1,6 +1,5 @@
 import { showError, showErrorWithAction } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { PERSISTENT_DB_NAME } from '@controllers/db-persistence';
 import { syncFiles } from '@controllers/file-system';
 import {
   updateScriptTabLastExecutedQuery,
@@ -12,6 +11,7 @@ import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duc
 import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
 import { DataView } from '@features/tab-view/components/data-view';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
 import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';

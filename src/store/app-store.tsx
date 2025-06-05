@@ -1,5 +1,4 @@
 import { IconType } from '@components/named-icon';
-import { PERSISTENT_DB_NAME } from '@controllers/db-persistence';
 import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
@@ -8,6 +7,7 @@ import {
   PersistentDataSourceId,
 } from '@models/data-source';
 import { DataBaseModel, DBFunctionsMetadata, DBTableOrViewSchema } from '@models/db';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';

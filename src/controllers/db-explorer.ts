@@ -1,5 +1,6 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AttachedDB, PersistentDataSourceId } from '@models/data-source';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { useAppStore } from '@store/app-store';
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from '@utils/duckdb/identifier';
 import { findUniqueName } from '@utils/helpers';
@@ -7,7 +8,6 @@ import { findUniqueName } from '@utils/helpers';
 import { persistPutDataSources } from './data-source/persist';
 import { reAttachDatabase } from './db/data-source';
 import { getAttachedDBs } from './db/duckdb-meta';
-import { PERSISTENT_DB_NAME } from './db-persistence';
 
 export const renameDB = async (
   dbId: PersistentDataSourceId,
