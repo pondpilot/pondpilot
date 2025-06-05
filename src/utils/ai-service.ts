@@ -175,9 +175,9 @@ ${request.prompt}`;
 
       // Use correct token parameter based on model type
       if (this.config.reasoning) {
-        requestBody.max_completion_tokens = 1500;
+        requestBody.max_completion_tokens = 5000;
       } else {
-        requestBody.max_tokens = 1500;
+        requestBody.max_tokens = 5000;
         requestBody.temperature = 0.1;
       }
 
