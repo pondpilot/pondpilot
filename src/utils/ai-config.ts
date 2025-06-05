@@ -102,8 +102,8 @@ function normalizeConfig(config: AIServiceConfig): AIServiceConfig {
 
   // Set reasoning flag based on model if not already set
   if (normalized.reasoning === undefined) {
-    const provider = AI_PROVIDERS.find(p => p.id === normalized.provider);
-    const model = provider?.models.find(m => m.id === normalized.model);
+    const provider = AI_PROVIDERS.find((p) => p.id === normalized.provider);
+    const model = provider?.models.find((m) => m.id === normalized.model);
     normalized.reasoning = model?.reasoning || false;
   }
 

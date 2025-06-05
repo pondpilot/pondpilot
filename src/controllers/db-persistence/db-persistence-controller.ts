@@ -1,4 +1,9 @@
-import { DBPersistenceState, DB_FILE_PATH, DB_FULL_PATH, DEFAULT_STATE } from '@models/db-persistence';
+import {
+  DBPersistenceState,
+  DB_FILE_PATH,
+  DB_FULL_PATH,
+  DEFAULT_STATE,
+} from '@models/db-persistence';
 import { OPFSUtil } from '@utils/opfs';
 
 export class DBPersistenceController {
