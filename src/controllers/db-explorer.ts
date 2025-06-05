@@ -7,6 +7,7 @@ import { findUniqueName } from '@utils/helpers';
 import { persistPutDataSources } from './data-source/persist';
 import { reAttachDatabase } from './db/data-source';
 import { getAttachedDBs } from './db/duckdb-meta';
+import { PERSISTENT_DB_NAME } from './db-persistence';
 
 export const renameDB = async (
   dbId: PersistentDataSourceId,
@@ -32,7 +33,7 @@ export const renameDB = async (
   const oldDbName = dataSource.dbName;
 
   // Fetch currently attached databases, to avoid name collisions
-  const reservedDbs = new Set((await getAttachedDBs(conn, false)) || ['memory']);
+  const reservedDbs = new Set((await getAttachedDBs(conn, false)) || [PERSISTENT_DB_NAME]);
 
   // Make sure the name is unique
   const newDbName = findUniqueName(

@@ -1,3 +1,4 @@
+import { PERSISTENT_DB_NAME } from '@controllers/db-persistence';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { DataBaseModel, DBColumn, DBFunctionsMetadata, DBTableOrView } from '@models/db';
 import { getTableColumnId } from '@utils/db';
@@ -39,7 +40,7 @@ export async function getAttachedDBs(
   const sql = `
     SELECT database_name 
     FROM duckdb_databases
-    ${excludeMemory ? "WHERE database_name != 'memory'" : ''}
+    ${excludeMemory ? `WHERE database_name != '${PERSISTENT_DB_NAME}'` : ''}
   `;
 
   return queryOneColumn<arrow.Utf8>(conn, sql, 'database_name');
@@ -49,13 +50,13 @@ export async function getAttachedDBs(
  * Get all user defined views.
  *
  * @param conn - DuckDB connection
- * @param databaseName - database name to filter by. Default is 'memory'.
+ * @param databaseName - database name to filter by. Default is 'PERSISTENT_DB_NAME'.
  * @param schemaName - schema name to filter by. Default is 'main'.
  * @returns Array of view names or null in case of errors.
  */
 export async function getViews(
   conn: AsyncDuckDBConnectionPool,
-  databaseName: string = 'memory',
+  databaseName: string = PERSISTENT_DB_NAME,
   schemaName: string = 'main',
 ): Promise<string[] | null> {
   const sql = `

@@ -1,5 +1,6 @@
 import { showError, showErrorWithAction } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { PERSISTENT_DB_NAME } from '@controllers/db-persistence';
 import { syncFiles } from '@controllers/file-system';
 import {
   updateScriptTabLastExecutedQuery,
@@ -239,13 +240,17 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         const hasDDL = classifiedStatements.some((s) => s.sqlType === SQLStatementType.DDL);
         if (hasDDL) {
           // Read the metadata for the newly created views
-          const newViewsMetadata = await getDatabaseModel(pool, ['memory'], ['main']);
+          const newViewsMetadata = await getDatabaseModel(pool, [PERSISTENT_DB_NAME], ['main']);
           // Update views metadata state
           const { dataBaseMetadata } = useAppStore.getState();
           const newDataBaseMetadata =
             newViewsMetadata.size > 0
               ? new Map([...dataBaseMetadata, ...newViewsMetadata])
-              : new Map(Array.from(dataBaseMetadata).filter(([dbName, _]) => dbName !== 'memory'));
+              : new Map(
+                  Array.from(dataBaseMetadata).filter(
+                    ([dbName, _]) => dbName !== PERSISTENT_DB_NAME,
+                  ),
+                );
 
           // Update the store with the new state
           useAppStore.setState(

@@ -2,7 +2,8 @@ import { DBPersistenceState } from '@models/db-persistence';
 import { OPFSUtil } from '@utils/opfs';
 
 // DuckDB requires "opfs://" prefix for OPFS paths
-const DB_FILE_PATH = 'pondpilot.db';
+export const PERSISTENT_DB_NAME = 'pondpilot';
+const DB_FILE_PATH = `${PERSISTENT_DB_NAME}.db`;
 const DB_FULL_PATH = `opfs://${DB_FILE_PATH}`;
 
 const DEFAULT_STATE: DBPersistenceState = {

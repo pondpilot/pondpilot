@@ -9,6 +9,7 @@ import {
   createXlsxSheetView,
 } from '@controllers/db/data-source';
 import { getAttachedDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
+import { PERSISTENT_DB_NAME } from '@controllers/db-persistence';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel, CSV_MAX_LINE_SIZE_MB } from '@models/db';
@@ -67,9 +68,9 @@ export const addLocalFileOrFolders = async (
   const newDatabaseNames: string[] = [];
   const newManagedViews: string[] = [];
   // Fetch currently attached databases, to avoid name collisions
-  const reservedDbs = new Set((await getAttachedDBs(conn, false)) || ['memory']);
+  const reservedDbs = new Set((await getAttachedDBs(conn, false)) || [PERSISTENT_DB_NAME]);
   // Same for views
-  const reservedViews = new Set((await getViews(conn, 'memory', 'main')) || []);
+  const reservedViews = new Set((await getViews(conn, PERSISTENT_DB_NAME, 'main')) || []);
 
   const skippedExistingEntries: LocalEntry[] = [];
   const skippedUnsupportedFiles: string[] = [];
@@ -315,7 +316,7 @@ export const addLocalFileOrFolders = async (
   // Read the metadata for the newly created views
   let newViewsMetadata: Map<string, DataBaseModel> | null = null;
   if (newManagedViews.length > 0) {
-    newViewsMetadata = await getDatabaseModel(conn, ['memory'], ['main']);
+    newViewsMetadata = await getDatabaseModel(conn, [PERSISTENT_DB_NAME], ['main']);
   }
 
   // Update the metadata state

@@ -12,6 +12,7 @@ import {
   registerFileHandle,
 } from './db/data-source';
 import { getDatabaseModel, getViews } from './db/duckdb-meta';
+import { PERSISTENT_DB_NAME } from './db-persistence';
 import { persistAddLocalEntry } from './file-system/persist';
 
 export const renameFile = async (
@@ -43,7 +44,7 @@ export const renameFile = async (
   const oldViewName = dataSource.viewName;
 
   // Fetch views, to avoid name collisions
-  const reservedViews = new Set((await getViews(conn, 'memory', 'main')) || []);
+  const reservedViews = new Set((await getViews(conn, PERSISTENT_DB_NAME, 'main')) || []);
 
   // Make sure the name is unique
   const newViewName = findUniqueName(newName, (name: string) => reservedViews.has(name));
@@ -81,7 +82,7 @@ export const renameFile = async (
   }
 
   // Update views metadata
-  const newViewsMetadata = await getDatabaseModel(conn, ['memory'], ['main']);
+  const newViewsMetadata = await getDatabaseModel(conn, [PERSISTENT_DB_NAME], ['main']);
   const newDataBaseMetadata = new Map([
     ...useAppStore.getState().dataBaseMetadata,
     ...newViewsMetadata,
@@ -103,7 +104,7 @@ export const renameXlsxFile = async (
   const { _iDbConn: iDbConn, dataSources, localEntries } = useAppStore.getState();
 
   // Fetch views, to avoid name collisions
-  const reservedViews = new Set((await getViews(conn, 'memory', 'main')) || []);
+  const reservedViews = new Set((await getViews(conn, PERSISTENT_DB_NAME, 'main')) || []);
 
   const updatedDataSources: XlsxSheetView[] = [];
 
@@ -201,7 +202,7 @@ export const renameXlsxFile = async (
   }
 
   // Update views metadata
-  const newViewsMetadata = await getDatabaseModel(conn, ['memory'], ['main']);
+  const newViewsMetadata = await getDatabaseModel(conn, [PERSISTENT_DB_NAME], ['main']);
   const newDataBaseMetadata = new Map([
     ...useAppStore.getState().dataBaseMetadata,
     ...newViewsMetadata,

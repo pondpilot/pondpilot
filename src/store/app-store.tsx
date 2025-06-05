@@ -1,4 +1,5 @@
 import { IconType } from '@components/named-icon';
+import { PERSISTENT_DB_NAME } from '@controllers/db-persistence';
 import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
@@ -196,7 +197,7 @@ export function useDataSourceObjectSchema(
         dataSource.type === 'xlsx-sheet' ||
         dataSource.type === 'json'
       ) {
-        dbName = 'memory';
+        dbName = PERSISTENT_DB_NAME;
         schemaName = 'main';
         objectName = dataSource.viewName;
       } else {
@@ -305,7 +306,9 @@ export function useAttachedDBMetadata(): Map<string, DataBaseModel> {
   return useAppStore(
     useShallow(
       (state) =>
-        new Map(state.dataBaseMetadata.entries().filter(([dbName, _]) => dbName !== 'memory')),
+        new Map(
+          state.dataBaseMetadata.entries().filter(([dbName, _]) => dbName !== PERSISTENT_DB_NAME),
+        ),
     ),
   );
 }
