@@ -57,6 +57,26 @@ export const AI_PROVIDERS: AIProvider[] = [
         name: 'GPT-4o Mini',
         description: 'Faster and more cost-effective option',
       },
+      {
+        id: 'o3-mini',
+        name: 'O3 Mini',
+        description: 'OpenAI O3 Mini model',
+      },
+      {
+        id: '04-mini',
+        name: '04 Mini',
+        description: 'OpenAI 04 Mini model',
+      },
+      {
+        id: 'gpt-4.1',
+        name: 'GPT-4.1',
+        description: 'OpenAI GPT-4.1 model',
+      },
+      {
+        id: 'gpt-4.1-mini',
+        name: 'GPT-4.1 Mini',
+        description: 'OpenAI GPT-4.1 Mini model',
+      },
     ],
   },
   {
