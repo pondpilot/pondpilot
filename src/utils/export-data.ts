@@ -1,4 +1,5 @@
 import { DataAdapterApi } from '@models/data-adapter';
+import { DataTable, DBTableOrViewSchema } from '@models/db';
 import {
   BaseExportOptions,
   DelimitedTextExportOptions,
@@ -48,31 +49,43 @@ export function createExportFileName(tabName: string, format: ExportFormat): str
 }
 
 /**
- * Exports data as CSV or TSV
+ * Converts columns and data to CSV string
  */
-export async function exportAsDelimitedText(
-  dataAdapter: DataAdapterApi,
+export function toCsvString(
+  columns: DBTableOrViewSchema,
+  data: DataTable,
   options: DelimitedTextExportOptions,
-  fileName: string,
-): Promise<void> {
-  const data = await dataAdapter.getAllTableData(null);
-  const columns = dataAdapter.currentSchema;
+): string {
+  return toDelimitedString(columns, data, { ...options, delimiter: ',' });
+}
 
+/**
+ * Converts columns and data to TSV string
+ */
+export function toTsvString(
+  columns: DBTableOrViewSchema,
+  data: DataTable,
+  options: DelimitedTextExportOptions,
+): string {
+  return toDelimitedString(columns, data, { ...options, delimiter: '\t' });
+}
+
+/**
+ * General function for delimited text (CSV/TSV)
+ */
+function toDelimitedString(
+  columns: DBTableOrViewSchema,
+  data: DataTable,
+  options: DelimitedTextExportOptions,
+): string {
   const formattedRows = getStringifyTypedRows(data, columns, '');
-
-  // Sanitize values to prevent formula injection
   const sanitizedRows = formattedRows.map((row) => row.map((value) => sanitizeForExcel(value)));
-
-  // Format the data rows with the appropriate delimiter
   const dataContent = formatTableData(sanitizedRows, options.delimiter as ',' | '\t');
-
   let content = '';
-
   if (options.includeHeader) {
     const headerRow = columns
       .map((col) => {
         const headerText = col.name;
-        // Handle special characters in header
         if (
           headerText.includes(options.delimiter) ||
           headerText.includes(options.quoteChar) ||
@@ -87,12 +100,31 @@ export async function exportAsDelimitedText(
         return headerText;
       })
       .join(options.delimiter);
-
     content = `${headerRow}\n${dataContent}`;
   } else {
     content = dataContent;
   }
+  return content;
+}
 
+/**
+ * Exports data as CSV or TSV
+ */
+export async function exportAsDelimitedText(
+  dataAdapter: DataAdapterApi,
+  options: DelimitedTextExportOptions,
+  fileName: string,
+): Promise<void> {
+  const data = await dataAdapter.getAllTableData(null);
+  const columns = dataAdapter.currentSchema;
+  let content = '';
+  if (options.delimiter === ',') {
+    content = toCsvString(columns, data, options);
+  } else if (options.delimiter === '\t') {
+    content = toTsvString(columns, data, options);
+  } else {
+    content = toDelimitedString(columns, data, options);
+  }
   downloadFile(content, fileName, 'text/plain;charset=utf-8');
 }
 
@@ -153,22 +185,18 @@ function quoteIdentifier(identifier: string): string {
 }
 
 /**
- * Exports data as SQL INSERT statements with optional CREATE TABLE
+ * Converts columns and data to SQL string (CREATE TABLE + INSERTs)
  */
-export async function exportAsSql(
-  dataAdapter: DataAdapterApi,
+export function toSqlString(
+  columns: DBTableOrViewSchema,
+  data: DataTable,
   options: SqlExportOptions,
-  fileName: string,
-): Promise<void> {
-  const data = await dataAdapter.getAllTableData(null);
-  const columns = dataAdapter.currentSchema;
-
+): string {
   let sqlContent = '';
 
   if (options.includeCreateTable) {
     sqlContent += `DROP TABLE IF EXISTS ${quoteIdentifier(options.tableName)};\n`;
     sqlContent += `CREATE TABLE ${quoteIdentifier(options.tableName)} (\n`;
-
     const columnDefinitions = columns.map((col) => {
       if (options.includeDataTypes) {
         const sqlType = sqlTypeMap[col.sqlType];
@@ -224,6 +252,22 @@ export async function exportAsSql(
     sqlContent += ';\n\n';
   }
 
+  return sqlContent;
+}
+
+/**
+ * Exports data as SQL INSERT statements with optional CREATE TABLE
+ */
+export async function exportAsSql(
+  dataAdapter: DataAdapterApi,
+  options: SqlExportOptions,
+  fileName: string,
+): Promise<void> {
+  const data = await dataAdapter.getAllTableData(null);
+  const columns = dataAdapter.currentSchema;
+
+  const sqlContent = toSqlString(columns, data, options);
+
   downloadFile(sqlContent, fileName, 'text/plain;charset=utf-8');
 }
 
@@ -275,16 +319,13 @@ function sanitizeXmlElementName(name: string): string {
 }
 
 /**
- * Exports data as XML
+ * Converts columns and data to XML string
  */
-export async function exportAsXml(
-  dataAdapter: DataAdapterApi,
+export function toXmlString(
+  columns: DBTableOrViewSchema,
+  data: DataTable,
   options: XmlExportOptions,
-  fileName: string,
-): Promise<void> {
-  const data = await dataAdapter.getAllTableData(null);
-  const columns = dataAdapter.currentSchema;
-
+): string {
   let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n';
   xmlContent += `<${options.rootElement}>\n`;
 
@@ -313,39 +354,46 @@ export async function exportAsXml(
   });
 
   xmlContent += `</${options.rootElement}>`;
-
-  downloadFile(xmlContent, fileName, 'application/xml;charset=utf-8');
+  return xmlContent;
 }
 
 /**
- * Exports data as Markdown table
+ * Exports data as XML
  */
-export async function exportAsMarkdown(
+export async function exportAsXml(
   dataAdapter: DataAdapterApi,
-  options: MarkdownExportOptions,
+  options: XmlExportOptions,
   fileName: string,
 ): Promise<void> {
   const data = await dataAdapter.getAllTableData(null);
   const columns = dataAdapter.currentSchema;
 
+  const xmlContent = toXmlString(columns, data, options);
+  downloadFile(xmlContent, fileName, 'application/xml;charset=utf-8');
+}
+
+/**
+ * Converts columns and data to Markdown table string
+ */
+export function toMarkdownString(
+  columns: DBTableOrViewSchema,
+  data: DataTable,
+  options: MarkdownExportOptions,
+): string {
   // Format data rows using the utility from table.ts
   // Using empty string as nullRepr to convert NULL values to empty strings
   const formattedRows = getStringifyTypedRows(data, columns, '');
 
   let mdContent = '';
-
-  // Find the maximum width for each column if alignment is enabled
   const colWidths: number[] = [];
 
   if (options.alignColumns) {
     // Calculate column widths
     columns.forEach((col, colIndex) => {
       let maxWidth = col.name.length;
-
       formattedRows.forEach((row) => {
         maxWidth = Math.max(maxWidth, row[colIndex].length);
       });
-
       colWidths[colIndex] = maxWidth;
     });
   }
@@ -356,7 +404,6 @@ export async function exportAsMarkdown(
       mdContent += `| ${columns
         .map((col, i) => col.name.padEnd(colWidths[i], ' '))
         .join(' | ')} |\n`;
-
       // Add separator row
       mdContent += `| ${columns.map((_, i) => '-'.repeat(colWidths[i])).join(' | ')} |\n`;
     } else {
@@ -374,6 +421,21 @@ export async function exportAsMarkdown(
     }
   });
 
+  return mdContent;
+}
+
+/**
+ * Exports data as Markdown table
+ */
+export async function exportAsMarkdown(
+  dataAdapter: DataAdapterApi,
+  options: MarkdownExportOptions,
+  fileName: string,
+): Promise<void> {
+  const data = await dataAdapter.getAllTableData(null);
+  const columns = dataAdapter.currentSchema;
+
+  const mdContent = toMarkdownString(columns, data, options);
   downloadFile(mdContent, fileName, 'text/markdown;charset=utf-8');
 }
 
