@@ -2,8 +2,10 @@ import duckLogoDark from '@assets/duck-dark.svg';
 import duckLogo from '@assets/duck.svg';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { SpotlightMenu } from '@components/spotlight';
+import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-modal';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
-import { Group, Text, TextInput } from '@mantine/core';
+import { Group, Text, TextInput, Tooltip } from '@mantine/core';
+import { modals } from '@mantine/modals';
 import { spotlight } from '@mantine/spotlight';
 import { IconSearch } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
@@ -30,15 +32,32 @@ export const Header = memo(() => {
       className="gap-3 cursor-pointer hover:opacity-80 transition-opacity"
       onClick={() => navigate('/')}
     >
-      <img src={duckLogo} alt="PondPilot" className="w-8 h-8 dark:hidden" />
-      <img src={duckLogoDark} alt="PondPilot" className="w-8 h-8 hidden dark:block" />
+      <Tooltip label="Hi, I'm Polly!" position="bottom">
+        <div>
+          <img src={duckLogo} alt="PondPilot" className="w-8 h-8 dark:hidden" />
+          <img src={duckLogoDark} alt="PondPilot" className="w-8 h-8 hidden dark:block" />
+        </div>
+      </Tooltip>
       <Group gap={4} align="baseline">
         <Text size="lg" fw={600} className="text-textPrimary-light dark:text-textPrimary-dark">
           PondPilot
         </Text>
-        <Text size="xs" c="text-secondary" className="font-mono">
-          {__VERSION__}
-        </Text>
+        <Tooltip label="Release Notes" position="bottom">
+          <Text
+            size="xs"
+            c="text-secondary"
+            className="font-mono cursor-pointer hover:underline"
+            onClick={(e) => {
+              e.stopPropagation();
+              const modalId = modals.open({
+                ...WHATS_NEW_MODAL_OPTIONS,
+                children: <WhatsNewModal onClose={() => modals.close(modalId)} />,
+              });
+            }}
+          >
+            {__VERSION__}
+          </Text>
+        </Tooltip>
       </Group>
     </Group>
   );
