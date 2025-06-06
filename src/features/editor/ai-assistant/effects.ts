@@ -16,3 +16,4 @@ export const showStructuredResponseEffect = StateEffect.define<{
   view: EditorView;
 }>();
 export const hideStructuredResponseEffect = StateEffect.define<null>();
+export const clearErrorContextEffect = StateEffect.define<null>();

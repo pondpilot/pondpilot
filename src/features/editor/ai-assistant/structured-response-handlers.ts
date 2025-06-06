@@ -6,8 +6,10 @@ import { EditorView } from '@codemirror/view';
 import { showError, showSuccess } from '@components/app-notifications/app-notifications';
 
 import { AI_ASSISTANT_TIMINGS } from './constants';
-import { hideStructuredResponseEffect } from './effects';
+import { hideStructuredResponseEffect, clearErrorContextEffect } from './effects';
+import { clearTabExecutionError } from '../../../controllers/tab/tab-controller';
 import { SQLAction, SQLAlternative } from '../../../models/structured-ai-response';
+import { useAppStore } from '../../../store/app-store';
 import { copyToClipboard } from '../../../utils/clipboard';
 import { resolveToNearestStatement } from '../../../utils/editor/statement-parser';
 
@@ -153,6 +155,17 @@ export function createStructuredResponseHandlers(view: EditorView): StructuredRe
   };
 
   const applyAction = (action: SQLAction) => {
+    // Clear error context when applying any action (especially fix_error)
+    view.dispatch({
+      effects: clearErrorContextEffect.of(null),
+    });
+
+    // Also clear the error from the store for the active tab
+    const store = useAppStore.getState();
+    if (store.activeTabId) {
+      clearTabExecutionError(store.activeTabId);
+    }
+
     switch (action.type) {
       case 'replace_statement':
         replaceStatementAndClose(action.code);

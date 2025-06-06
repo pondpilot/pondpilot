@@ -34,7 +34,9 @@ function sanitizeConfig(config: Partial<AIServiceConfig>): Partial<AIServiceConf
       const url = new URL(endpoint);
       // Ensure it's HTTP(S)
       if (url.protocol === 'http:' || url.protocol === 'https:') {
-        sanitized.customEndpoint = url.toString();
+        // Use the original endpoint to preserve whether it had a trailing slash or not
+        // We've validated it's a valid URL, so just use the trimmed original
+        sanitized.customEndpoint = endpoint;
       }
     } catch {
       // Invalid URL, ignore
