@@ -52,7 +52,7 @@ export const DataExplorer = memo(() => {
   // Build file system tree
   const fileSystemNodes = useFileSystemTreeBuilder({
     conn,
-    allLocalEntries: nonLocalDBFileEntries,
+    allLocalEntries: Array.from(localEntriesValues.values()),
     flatFileSourcesValues,
     nodeMap,
     anyNodeIdToNodeTypeMap,

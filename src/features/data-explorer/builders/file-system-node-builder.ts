@@ -369,3 +369,53 @@ export function buildFileNode(
     ],
   };
 }
+
+/**
+ * Builds a database file node that appears in the file explorer but cannot be expanded
+ *
+ * Features:
+ * - Shows database files (.duckdb) in the file explorer when part of a folder
+ * - Non-expandable with grayed out and italic styling
+ * - Tooltip indicates database is available in Local Databases section
+ * - Deletion support for user-added database files
+ *
+ * @param entry - LocalEntry representing the database file
+ * @param context - Builder context with connection and data maps
+ * @returns TreeNodeData configured as a non-expandable database file
+ */
+export function buildDatabaseFileNode(
+  entry: LocalEntry,
+  context: FileSystemBuilderContext,
+): TreeNodeData<DataExplorerNodeTypeMap> {
+  const { nodeMap, anyNodeIdToNodeTypeMap, conn } = context;
+
+  // Type guard to ensure entry is a file
+  if (entry.kind !== 'file') {
+    throw new Error('Entry must be a file');
+  }
+
+  nodeMap.set(entry.id, { entryId: entry.id, isSheet: false, sheetName: null });
+  anyNodeIdToNodeTypeMap.set(entry.id, 'file');
+
+  return {
+    nodeType: 'file',
+    value: entry.id,
+    label: `[DB] ${entry.uniqueAlias}`, // Special prefix to identify database files
+    iconType: 'db',
+    isDisabled: false, // Not disabled so context menu works
+    isSelectable: false,
+    doNotExpandOnClick: true,
+    onDelete: undefined, // No delete option for database files
+    contextMenu: [
+      {
+        children: [
+          {
+            label: 'Find in the Local Databases section',
+            isDisabled: true,
+            onClick: () => {}, // No-op since it's just informational
+          },
+        ],
+      },
+    ],
+  };
+}
