@@ -5,7 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!-- next-header --> 
+<!-- next-header -->
+## [0.3.0] - 2025-06-05
+
+### ✨ Highlights
+
+Today's release brings a lot of big & shiny new features, including two of the most requested ones:
+
+* **AI Assistant**: You can now ask PondPilot to write and fix SQL queries for you! Just add your API key in the settings, and you'll be able to use OpenAI, Anthropic, or any other LLM provider that supports the OpenAI API.
+* **Persistent Database**: Now you can create temporary tables, views, and other DuckDB objects that will persist across reloads.
+
+But that's not all! We've also added support for more export formats, added schema browser, enabled file drag and drop, and upgraded DuckDB which unlocked the ability to attach remote DuckDB databases!
+
+We hope you'll enjoy these new features! As always, we are looking forward to your feedback and suggestions.
+
+### 🎯 What's Next
+
+We are already working on the next version, including:
+* Improved, unified data source explorer
+* AI Assistant improvements
+* New data source types
+
+and more!
+
+### 📋 Changelog
+
+#### 🚀 New
+
+- Make app database persistent [#131](https://github.com/pondpilot/pondpilot/pull/131)
+- Add httpfs support [#131](https://github.com/pondpilot/pondpilot/pull/131)
+- AI Assistant [#151](https://github.com/pondpilot/pondpilot/pull/151)
+- Add Schema Browser [#147](https://github.com/pondpilot/pondpilot/pull/147)
+- Add TSV, MD, SQL, Excel \& XML export formats [#126](https://github.com/pondpilot/pondpilot/pull/126)
+- Enhance Schema Browser with Table Selection and Improved Highlighting [#160](https://github.com/pondpilot/pondpilot/pull/160)
+- Add support for CSVs with large data fields and improve error handling [#156](https://github.com/pondpilot/pondpilot/pull/156)
+- Enabled file drag and drop [#121](https://github.com/pondpilot/pondpilot/pull/121)
+- Use DuckDB built-ins as function tooltips \& auto-complete source [#150](https://github.com/pondpilot/pondpilot/pull/150)
+- Add batch close tabs action to spotlight [#145](https://github.com/pondpilot/pondpilot/pull/145)
+
+#### 🐛 Fixed
+
+- Allow ATTACH in scripts and fix CTE display [#131](https://github.com/pondpilot/pondpilot/pull/131)
+- Add proper handling of empty XLSX sheets [#140](https://github.com/pondpilot/pondpilot/pull/140)
+- Add rename support to all data sources and make sure we restore tabs from non-top-level sources [#128](https://github.com/pondpilot/pondpilot/pull/128)
+
+**Full Changelog**: https://github.com/pondpilot/pondpilot/compare/v0.2.0...v0.3.0
+
 ## [0.2.0] - 2025-05-13
 
 A quick reminder: PondPilot is continuously updated at [app.pondpilot.io](https://app.pondpilot.io), but we occasionally mark major milestones so you can easily discover new features and improvements.
@@ -32,7 +77,7 @@ We are working on a new version. Here are some features you can expect:
 
 ### 📋 Changelog
 
-### 🚀 New
+#### 🚀 New
 
 - [UX]: Add DesktopOnly component for desktop view restriction [#134](https://github.com/pondpilot/pondpilot/pull/134)
 - [UX]: Add Release Notes modal and new version pop-up notification [#137](https://github.com/pondpilot/pondpilot/pull/137)
@@ -46,14 +91,14 @@ We are working on a new version. Here are some features you can expect:
 - [UX]: Truncate long text in Spotlight [#68](https://github.com/pondpilot/pondpilot/pull/68)
 - [UX]: Update issue link in SpotlightMenu component [#67](https://github.com/pondpilot/pondpilot/pull/67)
 
-### 🐛 Fixed
+#### 🐛 Fixed
 
 - [UX]: Improved how and when loading state is shown and query cancellation behavior [#132](https://github.com/pondpilot/pondpilot/pull/132)
 - [Bug]: Handle strictly reserved `temp` and `system` in `ATTACH` statement [#109](https://github.com/pondpilot/pondpilot/pull/109)
 - [UX]: Improved unsupported browser layout and settings pages [#90](https://github.com/pondpilot/pondpilot/pull/90)
 - [UX]: Truncate long text in Spotlight [#68](https://github.com/pondpilot/pondpilot/pull/68)
 
-### 📚 Documentation
+#### 📚 Documentation
 
 - [Feature]: Show onboarding video for first-time users [#99](https://github.com/pondpilot/pondpilot/pull/99)
 
