@@ -3,7 +3,8 @@ import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
-  AttachedDB,
+  LocalDB,
+  RemoteDB,
   PersistentDataSourceId,
 } from '@models/data-source';
 import { DataBaseModel, DBFunctionsMetadata, DBTableOrViewSchema } from '@models/db';
@@ -66,13 +67,13 @@ type AppStore = {
   tabs: Map<TabId, AnyTab>;
 
   /**
-   * A mapping of attached database names (including memory) to their corresponding
+   * A mapping of database names to their corresponding
    * DataBaseModel objects with metadata.
    *
    * This is not persisted in the IndexedDB and instead recreated on app load and
    * then kept in sync with the database.
    */
-  dataBaseMetadata: Map<string, DataBaseModel>;
+  databaseMetadata: Map<string, DataBaseModel>;
 
   /**
    * A list of DuckDB function metadata.
@@ -102,7 +103,7 @@ const initialState: AppStore = {
   registeredFiles: new Map(),
   sqlScripts: new Map(),
   tabs: new Map(),
-  dataBaseMetadata: new Map(),
+  databaseMetadata: new Map(),
   duckDBFunctions: [],
   tabExecutionErrors: new Map(),
   // From ContentViewState
@@ -152,7 +153,7 @@ export function useIsSqlScriptIdOnActiveTab(id: SQLScriptId | null): boolean {
   });
 }
 
-export function useIsAttachedDBElementOnActiveTab(
+export function useIsLocalDBElementOnActiveTab(
   id: PersistentDataSourceId | null | undefined,
   schemaName: string | null | undefined,
   objectName: string | null | undefined,
@@ -204,15 +205,15 @@ export function useDataSourceObjectSchema(
         dbName = dataSource.dbName;
 
         if (!schemaName || !objectName) {
-          // Attached DB without schema and object name
+          // Local DB without schema and object name
           console.error(
-            'Schema name and object name were missing when trying to read schema of attached db object',
+            'Schema name and object name were missing when trying to read schema of local db object',
           );
           return [];
         }
       }
       return (
-        state.dataBaseMetadata
+        state.databaseMetadata
           .get(dbName)
           ?.schemas?.find((schema) => schema.name === schemaName)
           ?.objects?.find((object) => object.name === objectName)?.columns || []
@@ -247,8 +248,10 @@ export function useProtectedViews(): Set<string> {
         new Set(
           state.dataSources
             .values()
-            .filter((dataSource) => dataSource.type !== 'attached-db')
-            .map((dataSource): string => dataSource.viewName),
+            .filter(
+              (dataSource) => dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db',
+            )
+            .map((dataSource): string => (dataSource as AnyFlatFileDataSource).viewName),
         ),
     ),
   );
@@ -286,7 +289,7 @@ export function useFlatFileDataSourceMap(): Map<PersistentDataSourceId, AnyFlatF
   );
 }
 
-export function useAttachedDBDataSourceMap(): Map<PersistentDataSourceId, AttachedDB> {
+export function useLocalDBDataSourceMap(): Map<PersistentDataSourceId, LocalDB> {
   return useAppStore(
     useShallow(
       (state) =>
@@ -295,22 +298,32 @@ export function useAttachedDBDataSourceMap(): Map<PersistentDataSourceId, Attach
             .entries()
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
             .filter(([, dataSource]) => dataSource.type === 'attached-db') as IteratorObject<
-            [PersistentDataSourceId, AttachedDB]
+            [PersistentDataSourceId, LocalDB]
           >,
         ),
     ),
   );
 }
 
-export function useAttachedDBMetadata(): Map<string, DataBaseModel> {
+export function useDatabaseDataSourceMap(): Map<PersistentDataSourceId, LocalDB | RemoteDB> {
   return useAppStore(
     useShallow(
       (state) =>
         new Map(
-          state.dataBaseMetadata.entries().filter(([dbName, _]) => dbName !== PERSISTENT_DB_NAME),
+          state.dataSources
+            .entries()
+            // Include both local and remote databases
+            .filter(
+              ([, dataSource]) =>
+                dataSource.type === 'attached-db' || dataSource.type === 'remote-db',
+            ) as IteratorObject<[PersistentDataSourceId, LocalDB | RemoteDB]>,
         ),
     ),
   );
+}
+
+export function useLocalDBMetadata(): Map<string, DataBaseModel> {
+  return useAppStore(useShallow((state) => state.databaseMetadata));
 }
 
 /**
@@ -327,7 +340,7 @@ export function useDuckDBFunctions(): DBFunctionsMetadata[] {
   return useAppStore(useShallow((state) => state.duckDBFunctions));
 }
 
-export function useAttachedDBLocalEntriesMap(): Map<LocalEntryId, LocalFile> {
+export function useLocalDBLocalEntriesMap(): Map<LocalEntryId, LocalFile> {
   return useAppStore(
     useShallow(
       (state) =>
@@ -336,7 +349,7 @@ export function useAttachedDBLocalEntriesMap(): Map<LocalEntryId, LocalFile> {
             .values()
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
             .filter((dataSource) => dataSource.type === 'attached-db')
-            .map((attachedDB) => state.localEntries.get(attachedDB.fileSourceId))
+            .map((localDB) => state.localEntries.get(localDB.fileSourceId))
             // This filter should be unnecessary as this should always be true,
             // unless our state is inconsistent state. But for safety we check it.
             .filter((entry): entry is LocalFile => !!entry && entry.kind === 'file')

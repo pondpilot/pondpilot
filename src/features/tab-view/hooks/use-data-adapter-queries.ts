@@ -38,7 +38,9 @@ export const useDataAdapterQueries = ({
   );
 
   const sourceFile = useAppStore((state) =>
-    dataSource ? state.localEntries.get(dataSource.fileSourceId) : undefined,
+    dataSource && 'fileSourceId' in dataSource
+      ? state.localEntries.get(dataSource.fileSourceId)
+      : undefined,
   );
 
   const ret = useMemo((): UseDataAdapterQueriesRetType => {

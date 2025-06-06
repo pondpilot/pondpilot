@@ -17,6 +17,7 @@ import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { theme } from '@theme/theme';
+import React from 'react';
 
 import { Router } from './router/router';
 
@@ -25,6 +26,7 @@ export default function App() {
     key: LOCAL_STORAGE_KEYS.MAX_CONNECTION_POOL_SIZE,
     defaultValue: 30,
   });
+
   return (
     <MantineProvider theme={theme}>
       <ModalsProvider>

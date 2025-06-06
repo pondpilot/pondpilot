@@ -8,7 +8,7 @@ import {
   registerFileSourceAndCreateView,
   createXlsxSheetView,
 } from '@controllers/db/data-source';
-import { getAttachedDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
+import { getLocalDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel, CSV_MAX_LINE_SIZE_MB } from '@models/db';
@@ -23,7 +23,7 @@ import {
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
-import { addAttachedDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
+import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
 import { localEntryFromHandle } from '@utils/file-system';
 import { findUniqueName } from '@utils/helpers';
 import { makeSQLScriptId } from '@utils/sql-script';
@@ -54,7 +54,7 @@ export const addLocalFileOrFolders = async (
     localEntries,
     registeredFiles,
     dataSources,
-    dataBaseMetadata,
+    databaseMetadata,
   } = useAppStore.getState();
 
   const usedEntryNames = new Set(
@@ -68,7 +68,7 @@ export const addLocalFileOrFolders = async (
   const newDatabaseNames: string[] = [];
   const newManagedViews: string[] = [];
   // Fetch currently attached databases, to avoid name collisions
-  const reservedDbs = new Set((await getAttachedDBs(conn, false)) || [PERSISTENT_DB_NAME]);
+  const reservedDbs = new Set((await getLocalDBs(conn, false)) || []);
   // Same for views
   const reservedViews = new Set((await getViews(conn, PERSISTENT_DB_NAME, 'main')) || []);
 
@@ -83,7 +83,7 @@ export const addLocalFileOrFolders = async (
   const addFile = async (file: DataSourceLocalFile): Promise<boolean> => {
     switch (file.ext) {
       case 'duckdb': {
-        const dbSource = addAttachedDB(file, reservedDbs);
+        const dbSource = addLocalDB(file, reservedDbs);
 
         // Assume it will be added, so reserve the name
         reservedDbs.add(dbSource.dbName);
@@ -292,7 +292,7 @@ export const addLocalFileOrFolders = async (
     localEntries: Map<LocalEntryId, LocalEntry>;
     registeredFiles: Map<LocalEntryId, File>;
     dataSources?: Map<PersistentDataSourceId, AnyDataSource>;
-    dataBaseMetadata?: Map<string, DataBaseModel>;
+    databaseMetadata?: Map<string, DataBaseModel>;
   } = {
     localEntries: new Map(Array.from(localEntries).concat(newEntries)),
     registeredFiles: new Map(Array.from(registeredFiles).concat(newRegisteredFiles)),
@@ -303,10 +303,10 @@ export const addLocalFileOrFolders = async (
   }
 
   // Read the metadata for the newly attached databases
-  let newDataBaseMetadata: Map<string, DataBaseModel> | null = null;
+  let newDatabaseMetadata: Map<string, DataBaseModel> | null = null;
   if (newDatabaseNames.length > 0) {
-    newDataBaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
-    if (newDataBaseMetadata.size === 0) {
+    newDatabaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
+    if (newDatabaseMetadata.size === 0) {
       errors.push(
         'Failed to read newly attached database metadata. Neither explorer not auto-complete will not show objects for them. You may try deleting and re-attaching the database(s).',
       );
@@ -316,16 +316,33 @@ export const addLocalFileOrFolders = async (
   // Read the metadata for the newly created views
   let newViewsMetadata: Map<string, DataBaseModel> | null = null;
   if (newManagedViews.length > 0) {
+    // Get metadata for pondpilot database to include file views
     newViewsMetadata = await getDatabaseModel(conn, [PERSISTENT_DB_NAME], ['main']);
   }
 
   // Update the metadata state
-  if (newDataBaseMetadata || newViewsMetadata) {
-    newState.dataBaseMetadata = new Map([
-      ...dataBaseMetadata,
-      ...(newDataBaseMetadata || []),
+  if (newDatabaseMetadata || newViewsMetadata) {
+    // Merge the metadata, ensuring pondpilot database always has at least an empty schema
+    const mergedMetadata = new Map([
+      ...databaseMetadata,
+      ...(newDatabaseMetadata || []),
       ...(newViewsMetadata || []),
     ]);
+
+    // Ensure pondpilot database has metadata even if empty
+    if (!mergedMetadata.has(PERSISTENT_DB_NAME)) {
+      mergedMetadata.set(PERSISTENT_DB_NAME, {
+        name: PERSISTENT_DB_NAME,
+        schemas: [
+          {
+            name: 'main',
+            objects: [],
+          },
+        ],
+      });
+    }
+
+    newState.databaseMetadata = mergedMetadata;
   }
 
   // Update the store
@@ -420,6 +437,9 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
   // Map file IDs to data source IDs
   const fileIdToDataSourceIds = new Map<LocalEntryId, PersistentDataSourceId[]>();
   for (const [dataSourceId, dataSource] of dataSources) {
+    if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+      continue;
+    }
     const fileId = dataSource.fileSourceId;
     const existing = fileIdToDataSourceIds.get(fileId) || [];
     existing.push(dataSourceId);
@@ -562,7 +582,11 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
     const { dataSources } = useAppStore.getState();
     const dataSourceIdsToDelete = new Set<PersistentDataSourceId>();
     for (const [dataSourceId, dataSource] of dataSources) {
-      if (localFileIdsToDelete.has(dataSource.fileSourceId)) {
+      if (
+        dataSource.type !== 'attached-db' &&
+        dataSource.type !== 'remote-db' &&
+        localFileIdsToDelete.has(dataSource.fileSourceId)
+      ) {
         dataSourceIdsToDelete.add(dataSourceId);
       }
     }

@@ -10,7 +10,17 @@ import { persistAddLocalEntry } from '@controllers/file-system/persist';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { AnyDataSource, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
+import {
+  AnyDataSource,
+  AnyFlatFileDataSource,
+  PersistentDataSourceId,
+  XlsxSheetView,
+  RemoteDB,
+  LocalDB,
+  SYSTEM_DATABASE_ID,
+  SYSTEM_DATABASE_NAME,
+  SYSTEM_DATABASE_FILE_SOURCE_ID,
+} from '@models/data-source';
 import {
   ignoredFolders,
   LocalEntry,
@@ -32,7 +42,7 @@ import {
 } from '@models/persisted-store';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { addAttachedDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
+import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
 import {
   collectFileHandlePersmissions,
   isAvailableFileHandle,
@@ -446,7 +456,9 @@ export const restoreAppDataFromIDB = async (
   const dataSourcesArray = await dataSourceStore.getAll();
   let dataSources = new Map(dataSourcesArray.map((dv) => [dv.id, dv]));
   const dataSourceByLocalEntryId = new Map<LocalEntryId, AnyDataSource>(
-    dataSourcesArray.map((dv) => [dv.fileSourceId, dv]),
+    dataSourcesArray
+      .filter((dv) => 'fileSourceId' in dv)
+      .map((dv) => [(dv as any).fileSourceId, dv]),
   );
 
   await tx.done;
@@ -470,7 +482,7 @@ export const restoreAppDataFromIDB = async (
   // For data source files collect all registered files
   const registeredFiles = new Map<LocalEntryId, File>();
 
-  // Re-create data views and attached db's in duckDB
+  // Re-create data views and local db's in duckDB
   const registerPromises = Array.from(localEntriesMap.values()).map(async (localEntry) => {
     if (localEntry.kind !== 'file' || localEntry.fileType !== 'data-source') {
       return;
@@ -485,7 +497,7 @@ export const restoreAppDataFromIDB = async (
 
           if (!dataSource || dataSource.type !== 'attached-db') {
             // This is a data corruption, but we can recover from it
-            dataSource = addAttachedDB(localEntry, _reservedDbs);
+            dataSource = addLocalDB(localEntry, _reservedDbs);
 
             // save to the map
             missingDataSources.set(dataSource.id, dataSource);
@@ -601,7 +613,7 @@ export const restoreAppDataFromIDB = async (
           // Get the existing data source for this entry
           let dataSource = dataSourceByLocalEntryId.get(localEntry.id);
 
-          if (!dataSource || dataSource.type === 'attached-db') {
+          if (!dataSource || dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
             // This is a data corruption, but we can recover from it
             dataSource = addFlatFileDataSource(localEntry, _reservedViews);
             _reservedViews.add(dataSource.viewName);
@@ -619,7 +631,7 @@ export const restoreAppDataFromIDB = async (
             localEntry.handle,
             localEntry.ext,
             `${localEntry.uniqueAlias}.${localEntry.ext}`,
-            dataSource.viewName,
+            (dataSource as AnyFlatFileDataSource).viewName,
           );
           registeredFiles.set(localEntry.id, regFile);
           break;
@@ -647,6 +659,19 @@ export const restoreAppDataFromIDB = async (
   });
 
   await Promise.all(registerPromises);
+
+  // Handle remote databases - they need to be re-attached
+  const remoteDatabases = Array.from(dataSources.values()).filter(
+    (ds) => ds.type === 'remote-db',
+  ) as RemoteDB[];
+
+  // We don't re-attach remote databases here because:
+  // 1. They will be re-attached in reconnectRemoteDatabases() after app init
+  // 2. We want to handle connection errors properly
+  // Just mark them as valid so they don't get deleted
+  for (const remoteDb of remoteDatabases) {
+    validDataSources.add(remoteDb.id);
+  }
 
   if (missingDataSources.size > 0) {
     // Ok, we need yet another transaction to add the missing data views
@@ -718,13 +743,39 @@ export const restoreAppDataFromIDB = async (
   }
 
   // Read database meta data
-  const dataBaseMetadata = await getDatabaseModel(conn);
+  const databaseMetadata = await getDatabaseModel(conn);
+
+  // Always add the PondPilot system database to dataSources
+  // This ensures it's visible even when empty on fresh start
+  if (!dataSources.has(SYSTEM_DATABASE_ID)) {
+    const systemDb: LocalDB = {
+      type: 'attached-db',
+      id: SYSTEM_DATABASE_ID,
+      dbName: SYSTEM_DATABASE_NAME,
+      dbType: 'duckdb',
+      fileSourceId: SYSTEM_DATABASE_FILE_SOURCE_ID,
+    };
+    dataSources.set(SYSTEM_DATABASE_ID, systemDb);
+  }
+
+  // Always ensure system database has metadata, even if empty
+  if (!databaseMetadata.has(SYSTEM_DATABASE_NAME)) {
+    databaseMetadata.set(SYSTEM_DATABASE_NAME, {
+      name: SYSTEM_DATABASE_NAME,
+      schemas: [
+        {
+          name: 'main',
+          objects: [],
+        },
+      ],
+    });
+  }
 
   // Finally update the store with the hydrated data
   useAppStore.setState(
     {
       _iDbConn: iDbConn,
-      dataBaseMetadata,
+      databaseMetadata,
       dataSources,
       localEntries: localEntriesMap,
       registeredFiles,

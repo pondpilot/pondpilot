@@ -380,7 +380,12 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
               </div>
             )}
 
-            <Text c="text-primary" className="text-sm px-1" lh="18px" truncate>
+            <Text
+              c={label === 'File Views' ? 'dimmed' : 'text-primary'}
+              className={cn('text-sm px-1', label === 'File Views' && 'italic')}
+              lh="18px"
+              truncate
+            >
               {label}
             </Text>
             <Menu.Target>

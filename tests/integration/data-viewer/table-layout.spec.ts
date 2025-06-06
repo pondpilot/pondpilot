@@ -18,14 +18,11 @@ test('Header cell width matches data cell width for special character columns', 
 }) => {
   // Create a new script
   await createScriptAndSwitchToItsTab();
-  // Fill the script with the special character columns query.
-  // We have to create a table, because of some duckdb-wasm bug that causes `;` to
-  // to disappear from column name when running plain select query.
-  const queryText = `CREATE OR REPLACE TABLE test_table AS
-    SELECT ${COLUMN_NAMES_WITH_SPECIAL_CHARS.map(
-      (columnName, index) => `${index} as "${columnName.replace(/"/g, '""')}"`,
-    ).join(', ')};
-    SELECT * FROM test_table;`;
+
+  // Create query with all 42 special character columns
+  const queryText = `SELECT ${COLUMN_NAMES_WITH_SPECIAL_CHARS.map(
+    (columnName, index) => `${index} as "${columnName.replace(/"/g, '""')}"`,
+  ).join(', ')};`;
 
   await fillScript(queryText);
   // Run the script
@@ -36,7 +33,7 @@ test('Header cell width matches data cell width for special character columns', 
 
   // Validate the data table
   await assertDataTableMatches({
-    data: [COLUMN_NAMES_WITH_SPECIAL_CHARS.map((_, index) => index)],
+    data: [COLUMN_NAMES_WITH_SPECIAL_CHARS.map((_, index) => index.toString())],
     columnNames: COLUMN_NAMES_WITH_SPECIAL_CHARS,
   });
 

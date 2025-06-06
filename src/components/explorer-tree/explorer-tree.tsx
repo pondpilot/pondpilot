@@ -86,16 +86,20 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, any>, Extra
    * Callbacks
    */
   const handleRenderNode = useCallback(
-    (payload: MantineRenderTreeNodePayload): ReactNode => (
-      // @ts-ignore
-      <TreeNodeComponent
-        {...payload}
-        dataTestIdPrefix={dataTestIdPrefix}
-        flattenedNodeIds={flattenedNodeIds}
-        extraData={extraData}
-      />
-    ),
-    [flattenedNodeIds, dataTestIdPrefix, extraData],
+    (payload: MantineRenderTreeNodePayload): ReactNode => {
+      // Build the enhanced payload with the required properties
+      const enhancedPayload = {
+        ...payload,
+        node: payload.node as TreeNodeData<NTypeToIdTypeMap>,
+        dataTestIdPrefix,
+        overrideContextMenu: null, // This will be set by the TreeNodeComponent if needed
+        flattenedNodeIds,
+        ...(extraData !== undefined ? { extraData } : {}),
+      };
+
+      return <TreeNodeComponent {...(enhancedPayload as any)} />;
+    },
+    [flattenedNodeIds, dataTestIdPrefix, extraData, TreeNodeComponent],
   );
 
   /**
@@ -119,6 +123,48 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, any>, Extra
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasActiveElement]);
+
+  // Track nodes that were expanded by search
+  const searchExpandedNodesRef = useRef<Set<string>>(new Set());
+
+  // Update expanded state when it changes (e.g., for search)
+  useEffect(() => {
+    if (initialExpandedState) {
+      // The expandedState is an object where keys are node IDs and values are booleans
+      const currentExpandedObj = tree.expandedState as Record<string, boolean>;
+      const hasSearchExpansions = Object.values(initialExpandedState).some((v) => v);
+
+      if (hasSearchExpansions) {
+        // We're in search mode - expand nodes that should be expanded
+        const nodesToExpand: string[] = [];
+        Object.entries(initialExpandedState).forEach(([nodeId, shouldExpand]) => {
+          const isCurrentlyExpanded = currentExpandedObj[nodeId] === true;
+
+          if (shouldExpand && !isCurrentlyExpanded) {
+            nodesToExpand.push(nodeId);
+            searchExpandedNodesRef.current.add(nodeId);
+          }
+        });
+        // Batch expand operations
+        if (nodesToExpand.length > 0) {
+          nodesToExpand.forEach((nodeId) => tree.expand(nodeId));
+        }
+      } else if (searchExpandedNodesRef.current.size > 0) {
+        // Search cleared - collapse nodes that were expanded by search
+        const nodesToCollapse: string[] = [];
+        searchExpandedNodesRef.current.forEach((nodeId) => {
+          if (currentExpandedObj[nodeId] === true) {
+            nodesToCollapse.push(nodeId);
+          }
+        });
+        // Batch collapse operations
+        if (nodesToCollapse.length > 0) {
+          nodesToCollapse.forEach((nodeId) => tree.collapse(nodeId));
+        }
+        searchExpandedNodesRef.current.clear();
+      }
+    }
+  }, [initialExpandedState, tree]);
 
   return (
     <Stack

@@ -1,3 +1,5 @@
+import duckLogoDark from '@assets/duck-dark.svg';
+import duckLogo from '@assets/duck.svg';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { SpotlightMenu } from '@components/spotlight';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
@@ -15,7 +17,7 @@ export const Header = memo(() => {
   const mod = useOsModifierIcon();
   const isSettingsPage = location.pathname.includes('settings');
 
-  const logoPlaceholder = isSettingsPage ? (
+  const logoSection = isSettingsPage ? (
     <Group className="gap-2">
       <Text component="button" onClick={() => navigate('/')} size="xs" c="text-secondary">
         HOME
@@ -24,11 +26,21 @@ export const Header = memo(() => {
       <Text size="xs">SETTINGS</Text>
     </Group>
   ) : (
-    <></>
-    // TODO: Implement this
-    // <ActionIcon size={20} disabled>
-    //   <IconLayoutSidebar />
-    // </ActionIcon>
+    <Group
+      className="gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+      onClick={() => navigate('/')}
+    >
+      <img src={duckLogo} alt="PondPilot" className="w-8 h-8 dark:hidden" />
+      <img src={duckLogoDark} alt="PondPilot" className="w-8 h-8 hidden dark:block" />
+      <Group gap={4} align="baseline">
+        <Text size="lg" fw={600} className="text-textPrimary-light dark:text-textPrimary-dark">
+          PondPilot
+        </Text>
+        <Text size="xs" c="text-secondary" className="font-mono">
+          {__VERSION__}
+        </Text>
+      </Group>
+    </Group>
   );
 
   return (
@@ -36,7 +48,7 @@ export const Header = memo(() => {
       <SpotlightMenu />
       <Group justify="space-between" className="h-full">
         <Group gap={40} flex={1}>
-          {logoPlaceholder}
+          {logoSection}
         </Group>
 
         <TextInput
