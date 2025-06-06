@@ -6,7 +6,7 @@ import { test } from '../fixtures/base';
 // from the browser
 test('Direct landing from unknown path redirects to main page', async ({ page, baseURL }) => {
   // Navigate to a non-existent route
-  // eslint-disable-next-line no-playwright-page-methods
+  // eslint-disable-next-line local-rules/no-playwright-page-methods
   await page.goto('/non-existent-route');
 
   // Wait for redirection to complete
