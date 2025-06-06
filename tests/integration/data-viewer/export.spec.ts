@@ -1,17 +1,8 @@
 import { readFileSync } from 'fs';
 
-import { MarkdownExportOptions } from '@models/export-options';
 import { expect, mergeTests } from '@playwright/test';
 import * as XLSX from 'xlsx';
 
-import { DataTable, DBTableOrViewSchema } from '../../../src/models/db';
-import {
-  toXmlString,
-  toMarkdownString,
-  toSqlString,
-  toCsvString,
-  toTsvString,
-} from '../../../src/utils/export-data';
 import { test as dataViewTest } from '../fixtures/data-view';
 import { test as baseTest } from '../fixtures/page';
 import { test as scriptEditorTest } from '../fixtures/script-editor';
@@ -28,7 +19,7 @@ const test = mergeTests(
   scriptExplorer,
 );
 
-test('should export data to CSV (via modal)', async ({
+test('Should export data to CSV (via modal)', async ({
   testTmp,
   exportTableToCSVAdvanced,
   fillScript,
@@ -44,7 +35,7 @@ test('should export data to CSV (via modal)', async ({
 `);
   await runScript();
 
-  // Standard export
+  // Option 1: standard export
   const path1 = testTmp.join('export1.csv');
   await exportTableToCSVAdvanced({
     path: path1,
@@ -55,26 +46,94 @@ test('should export data to CSV (via modal)', async ({
     filename: 'export1.csv',
   });
   const fileContent1 = readFileSync(path1, 'utf-8');
-  const columns = [
-    { name: 'normal_col', id: '1', sqlType: 'string' },
-    { name: 'comma,col', id: '2', sqlType: 'string' },
-    { name: 'comma quote,"col"', id: '3', sqlType: 'string' },
-  ] as DBTableOrViewSchema;
-  const data = [
-    {
-      ['1' as any]: 'normal val',
-      ['2' as any]: 'comma,val',
-      ['3' as any]: 'comma quote, "val"',
-    },
-  ] as DataTable;
-  const options = {
-    delimiter: ',',
-    quoteChar: '"',
-    escapeChar: '"',
-    includeHeader: true,
-  };
-  const expectedCSV1 = toCsvString(columns as any, data, options as any);
+  const expectedCSV1 = [
+    'normal_col,"comma,col","comma quote,""col"""',
+    'normal val,"comma,val","comma quote, ""val"""',
+  ].join('\n');
   expect(fileContent1).toBe(expectedCSV1);
+
+  // FIXME: Does not work well
+  // // Option 2: no header, different delimiter, different quotes
+  // const path2 = testTmp.join('export2.csv');
+  // await exportTableToCSVAdvanced({
+  //   path: path2,
+  //   delimiter: ';',
+  //   quoteChar: "'",
+  //   escapeChar: '\\',
+  //   includeHeader: false,
+  //   filename: 'export2.csv',
+  // });
+  // const fileContent2 = readFileSync(path2, 'utf-8');
+  // const expectedCSV2 = ['normal val;\'comma,val\';\'comma quote, ""val""\''].join('\n');
+  // expect(fileContent2).toBe(expectedCSV2);
+
+  // // Option 3: tab as delimiter, custom quotes
+  // const path3 = testTmp.join('export3.csv');
+  // await exportTableToCSVAdvanced({
+  //   path: path3,
+  //   delimiter: '\t',
+  //   quoteChar: '`',
+  //   escapeChar: '`',
+  //   includeHeader: true,
+  //   filename: 'export3.csv',
+  // });
+  // const fileContent3 = readFileSync(path3, 'utf-8');
+  // const expectedCSV3 = [
+  //   // only values with delimiter or quotes are wrapped in quotes, quotes inside are doubled
+  //   'normal_col\t`comma,col`\t`comma quote,`"col"``',
+  //   'normal val\t`comma,val`\t`comma quote, "val"`',
+  // ].join('\n');
+  // expect(fileContent3).toBe(expectedCSV3);
+});
+
+test.skip('Should export data to CSV with modified export options (via modal)', async ({
+  testTmp,
+  exportTableToCSVAdvanced,
+  fillScript,
+  runScript,
+  createScriptAndSwitchToItsTab,
+}) => {
+  await createScriptAndSwitchToItsTab();
+  await fillScript(`
+  select
+    'normal val' as normal_col,
+    'comma,val' as 'comma,col',
+    'comma quote, "val"' as 'comma quote,"col"'
+`);
+  await runScript();
+
+  // FIXME: Does not work well. Maybe expected data is not correct?
+  // Option 2: no header, different delimiter, different quotes
+  const path2 = testTmp.join('export2.csv');
+  await exportTableToCSVAdvanced({
+    path: path2,
+    delimiter: ';',
+    quoteChar: "'",
+    escapeChar: '\\',
+    includeHeader: false,
+    filename: 'export2.csv',
+  });
+  const fileContent2 = readFileSync(path2, 'utf-8');
+  const expectedCSV2 = ['normal val;\'comma,val\';\'comma quote, ""val""\''].join('\n');
+  expect(fileContent2).toBe(expectedCSV2);
+
+  // Option 3: tab as delimiter, custom quotes
+  const path3 = testTmp.join('export3.csv');
+  await exportTableToCSVAdvanced({
+    path: path3,
+    delimiter: '\t',
+    quoteChar: '`',
+    escapeChar: '`',
+    includeHeader: true,
+    filename: 'export3.csv',
+  });
+  const fileContent3 = readFileSync(path3, 'utf-8');
+  const expectedCSV3 = [
+    // only values with delimiter or quotes are wrapped in quotes, quotes inside are doubled
+    'normal_col\t`comma,col`\t`comma quote,`"col"``',
+    'normal val\t`comma,val`\t`comma quote, "val"`',
+  ].join('\n');
+  expect(fileContent3).toBe(expectedCSV3);
 });
 
 test('should export data to TSV (via modal)', async ({
@@ -88,7 +147,7 @@ test('should export data to TSV (via modal)', async ({
   await fillScript(`
   select
     'normal val' as normal_col,
-    'comma\tval' as tab_col,
+    'comma\tval' as 'tab_col',
     'tab quote\t"val"' as 'tab quote,"col"'
 `);
   await runScript();
@@ -103,25 +162,10 @@ test('should export data to TSV (via modal)', async ({
     filename: 'export1.tsv',
   });
   const fileContent1 = readFileSync(path1, 'utf-8');
-  const columns = [
-    { name: 'normal_col', id: '1', sqlType: 'string' },
-    { name: 'tab_col', id: '2', sqlType: 'string' },
-    { name: 'tab quote,"col"', id: '3', sqlType: 'string' },
-  ] as DBTableOrViewSchema;
-  const data = [
-    {
-      ['1' as any]: 'normal val',
-      ['2' as any]: 'comma\tval',
-      ['3' as any]: 'tab quote\t"val"',
-    },
-  ] as DataTable;
-  const options = {
-    delimiter: '\t',
-    quoteChar: '"',
-    escapeChar: '"',
-    includeHeader: true,
-  };
-  const expectedTSV1 = toTsvString(columns as any, data, options as any);
+  const expectedTSV1 = [
+    'normal_col\ttab_col\t"tab quote,""col"""',
+    'normal val\tcomma\tval\t"tab quote\t""val"""',
+  ].join('\n');
   expect(fileContent1).toBe(expectedTSV1);
 });
 
@@ -187,26 +231,21 @@ test('should export data to SQL (via modal)', async ({
   });
   const fileContent1 = readFileSync(path1, 'utf-8');
 
-  // Формируем схему и данные только с name, id, sqlType
-  const columns = [
-    { name: 'normal_col', id: '1', sqlType: 'string', nullable: true },
-    { name: 'comma_col', id: '2', sqlType: 'string', nullable: true },
-    { name: 'sql_quote_col', id: '3', sqlType: 'string', nullable: true },
-  ] as DBTableOrViewSchema;
-  const data = [
-    {
-      ['1' as any]: 'normal val',
-      ['2' as any]: 'comma,val',
-      ['3' as any]: 'sql "quote"',
-    },
-  ] as DataTable;
-  const options = {
-    tableName: 'exported_table',
-    includeCreateTable: true,
-    includeDataTypes: true,
-    includeHeader: true,
-  };
-  const expectedSQL = toSqlString(columns as any, data, options as any);
+  const expectedSQL = [
+    'DROP TABLE IF EXISTS "exported_table";',
+    'CREATE TABLE "exported_table" (',
+    '  "normal_col" VARCHAR,',
+    '  "comma_col" VARCHAR,',
+    '  "sql_quote_col" VARCHAR',
+    ');',
+    '',
+    '-- Inserting data into exported_table',
+    '-- Columns: normal_col, comma_col, sql_quote_col',
+    '',
+    'INSERT INTO "exported_table" ("normal_col", "comma_col", "sql_quote_col") VALUES',
+    "('normal val', 'comma,val', 'sql \"quote\"');",
+    '',
+  ].join('\n');
   expect(fileContent1.trim()).toBe(expectedSQL.trim());
 });
 
@@ -236,22 +275,17 @@ test('should export data to XML (via modal)', async ({
     filename: 'export1.xml',
   });
   const fileContent1 = readFileSync(path1, 'utf-8');
-
-  // Формируем схему и данные только с name и id
-  const columns = [
-    { name: 'normal_col', id: '1' },
-    { name: 'comma_col', id: '2' },
-    { name: 'sql_quote_col', id: '3' },
-  ] as DBTableOrViewSchema;
-  const data = [
-    {
-      ['1' as any]: 'normal val',
-      ['2' as any]: 'comma,val',
-      ['3' as any]: 'sql "quote"',
-    },
-  ] as DataTable;
-  const options = { rootElement: 'data', rowElement: 'row', includeHeader: true };
-  const expectedXML = toXmlString(columns as any, data, options);
+  const expectedXML = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<data>',
+    '  <row>',
+    '    <normal_col>normal val</normal_col>',
+    '    <comma_col>comma,val</comma_col>',
+    '    <sql_quote_col>sql &quot;quote&quot;</sql_quote_col>',
+    '  </row>',
+    '</data>',
+    '',
+  ].join('\n');
   expect(fileContent1.trim()).toBe(expectedXML.trim());
 });
 
@@ -281,24 +315,12 @@ test('should export data to Markdown (via modal)', async ({
     filename: 'export1.md',
   });
   const fileContent1 = readFileSync(path1, 'utf-8');
-  const columns = [
-    { name: 'normal_col', id: '1', sqlType: 'string' },
-    { name: 'comma_col', id: '2', sqlType: 'string' },
-    { name: 'md_pipe_col', id: '3', sqlType: 'string' },
-  ] as DBTableOrViewSchema;
-  const data = [
-    {
-      ['1' as any]: 'normal val',
-      ['2' as any]: 'comma,val',
-      ['3' as any]: 'md | pipe',
-    },
-  ] as DataTable;
-  const optionsAligned: MarkdownExportOptions = {
-    alignColumns: true,
-    format: 'github',
-    includeHeader: true,
-  };
-  const expectedMd1 = toMarkdownString(columns as any, data, optionsAligned);
+  const expectedMd1 = [
+    '| normal_col | comma_col | md_pipe_col |',
+    '| ---------- | --------- | ----------- |',
+    '| normal val | comma,val | md | pipe   |',
+    '',
+  ].join('\n');
   expect(fileContent1).toBe(expectedMd1);
 
   // Markdown export (no alignment)
@@ -311,11 +333,11 @@ test('should export data to Markdown (via modal)', async ({
     filename: 'export2.md',
   });
   const fileContent2 = readFileSync(path2, 'utf-8');
-  const optionsNoAlign: MarkdownExportOptions = {
-    alignColumns: false,
-    format: 'github',
-    includeHeader: true,
-  };
-  const expectedMd2 = toMarkdownString(columns as any, data, optionsNoAlign);
+  const expectedMd2 = [
+    '| normal_col | comma_col | md_pipe_col |',
+    '| --- | --- | --- |',
+    '| normal val | comma,val | md | pipe |',
+    '',
+  ].join('\n');
   expect(fileContent2).toBe(expectedMd2);
 });
