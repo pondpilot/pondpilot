@@ -4,7 +4,12 @@ import { AnyFlatFileDataSource, XlsxSheetView } from '@models/data-source';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { useMemo } from 'react';
 
-import { buildFileNode, buildFolderNode, buildXlsxFileNode } from '../builders';
+import {
+  buildFileNode,
+  buildFolderNode,
+  buildXlsxFileNode,
+  buildDatabaseFileNode,
+} from '../builders';
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
 
 interface FileSystemTreeBuilderProps {
@@ -114,7 +119,21 @@ export function useFileSystemTreeBuilder({
       // Handle regular files
       const relatedSource = dataSourceByFileId.get(entry.id);
       if (!relatedSource) {
-        // Skip attached DBs as they are filtered out
+        // Check if this is a database file that's part of a folder (not directly added)
+        if (entry.kind === 'file' && entry.ext === 'duckdb' && entry.parentId !== null) {
+          const dbNode = buildDatabaseFileNode(entry, {
+            nodeMap,
+            anyNodeIdToNodeTypeMap,
+            conn,
+            dataSourceByFileId,
+            flatFileSourcesValues,
+            nonLocalDBFileEntries: allLocalEntries,
+            xlsxSheetsByFileId,
+          });
+          fileTreeChildren.push(dbNode);
+          return;
+        }
+        // Skip other files without data sources or directly added databases
         return;
       }
 
