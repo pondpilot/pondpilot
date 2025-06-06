@@ -1,4 +1,4 @@
-/* eslint-disable no-playwright-page-methods */
+/* eslint-disable local-rules/no-playwright-page-methods */
 import { expect, mergeTests, devices } from '@playwright/test';
 
 import { test as baseTest } from '../fixtures/base';

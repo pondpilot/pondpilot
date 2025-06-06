@@ -1,4 +1,4 @@
-/* eslint-disable no-playwright-page-methods */
+/* eslint-disable local-rules/no-playwright-page-methods */
 import { setOnboardingShown, waitForAppReady } from '../utils';
 import { test as base } from './base';
 

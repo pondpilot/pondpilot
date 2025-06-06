@@ -9,7 +9,7 @@ test('Onboarding modal is not displayed if browser is unsupported', async ({
 }) => {
   // eslint-disable-next-line playwright/no-conditional-in-test
   if (browserName !== 'chromium') {
-    // eslint-disable-next-line no-playwright-page-methods
+    // eslint-disable-next-line local-rules/no-playwright-page-methods
     await page.goto('/');
     await waitForAppReady(page);
 

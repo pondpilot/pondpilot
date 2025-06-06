@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
   await setVersionShown(page, 'v0.0.0', { setOnce: true });
 
   // Navigate to the application
-  // eslint-disable-next-line no-playwright-page-methods
+  // eslint-disable-next-line local-rules/no-playwright-page-methods
   await page.goto('/');
   await waitForAppReady(page);
 });
@@ -25,7 +25,7 @@ test("Check if the 'What's New' alert is shown when the app is loaded for the fi
   await expect(newVersionAlert).toBeVisible();
 
   // Check if the alert is visible after reloading
-  // eslint-disable-next-line no-playwright-page-methods
+  // eslint-disable-next-line local-rules/no-playwright-page-methods
   await page.reload();
   await waitForAppReady(page);
 
@@ -36,7 +36,7 @@ test("Check if the 'What's New' alert is shown when the app is loaded for the fi
   await expect(newVersionAlert).toBeHidden();
 
   // Reload the page
-  // eslint-disable-next-line no-playwright-page-methods
+  // eslint-disable-next-line local-rules/no-playwright-page-methods
   await page.reload();
   await waitForAppReady(page);
 
@@ -75,7 +75,7 @@ test('Cancel button hides the new version alert and does not reappear after relo
   await expect(newVersionAlert).toBeVisible();
 
   // Check if the alert is visible after reloading
-  // eslint-disable-next-line no-playwright-page-methods
+  // eslint-disable-next-line local-rules/no-playwright-page-methods
   await page.reload();
   await waitForAppReady(page);
 
@@ -88,7 +88,7 @@ test('Cancel button hides the new version alert and does not reappear after relo
   await expect(newVersionAlert).toBeHidden();
 
   // Reload the page and wait for load
-  // eslint-disable-next-line no-playwright-page-methods
+  // eslint-disable-next-line local-rules/no-playwright-page-methods
   await page.reload();
   await waitForAppReady(page);
 
@@ -111,7 +111,7 @@ test('Close button hides the new version alert and does not reappear after reloa
   await expect(newVersionAlert).toBeHidden();
 
   // Reload the page and wait for load
-  // eslint-disable-next-line no-playwright-page-methods
+  // eslint-disable-next-line local-rules/no-playwright-page-methods
   await page.reload();
   await waitForAppReady(page);
 

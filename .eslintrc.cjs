@@ -3,7 +3,7 @@ module.exports = {
   parserOptions: {
     project: './tsconfig.json',
   },
-  plugins: ['unused-imports', 'playwright'],
+  plugins: ['unused-imports', 'playwright', 'local-rules'],
   rules: {
     'arrow-body-style': 'off',
     'react/react-in-jsx-scope': 'off',
@@ -62,7 +62,7 @@ module.exports = {
       // Apply custom rules only to integration test files
       files: ['tests/integration/**/*.ts'],
       rules: {
-        'no-playwright-page-methods': 'error',
+        'local-rules/no-playwright-page-methods': 'error',
       },
     },
   ],

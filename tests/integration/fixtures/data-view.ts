@@ -43,6 +43,93 @@ type DataViewFixtures = {
    * @param pathToSave The path to save the downloaded CSV file.
    */
   exportTableToCSV: (pathToSave: string) => Promise<void>;
+
+  /**
+   * Exports the data table to CSV with advanced options.
+   *
+   * @param options The export options.
+   */
+  exportTableToCSVAdvanced: (options: {
+    path: string;
+    delimiter?: string;
+    quoteChar?: string;
+    escapeChar?: string;
+    includeHeader?: boolean;
+    filename?: string;
+  }) => Promise<void>;
+
+  /**
+   * Opens the export modal and selects the desired format.
+   *
+   * @param format The export format.
+   */
+  openExportModalAndSelectFormat: (
+    format: 'csv' | 'tsv' | 'xlsx' | 'sql' | 'xml' | 'md',
+  ) => Promise<void>;
+
+  /**
+   * Exports the data table to TSV with advanced options.
+   *
+   * @param options The export options.
+   */
+  exportTableToTSVAdvanced: (options: {
+    path: string;
+    quoteChar?: string;
+    escapeChar?: string;
+    includeHeader?: boolean;
+    filename?: string;
+  }) => Promise<void>;
+
+  /**
+   * Exports the data table to XLSX with advanced options.
+   *
+   * @param options The export options.
+   */
+  exportTableToXLSXAdvanced: (options: {
+    path: string;
+    includeHeader?: boolean;
+    sheetName?: string;
+    filename?: string;
+  }) => Promise<void>;
+
+  /**
+   * Exports the data table to SQL with advanced options.
+   *
+   * @param options The export options.
+   */
+  exportTableToSQLAdvanced: (options: {
+    path: string;
+    tableName?: string;
+    includeCreateTable?: boolean;
+    includeDataTypes?: boolean;
+    filename?: string;
+  }) => Promise<void>;
+
+  /**
+   * Exports the data table to XML with advanced options.
+   *
+   * @param options The export options.
+   */
+  exportTableToXMLAdvanced: (options: {
+    path: string;
+    includeHeader?: boolean;
+    rootElement?: string;
+    rowElement?: string;
+    filename?: string;
+  }) => Promise<void>;
+
+  /**
+   * Exports the data table to Markdown with advanced options.
+   *
+   * @param options The export options.
+   */
+  exportTableToMarkdownAdvanced: (options: {
+    path: string;
+    includeHeader?: boolean;
+    mdFormat?: 'github' | 'standard';
+    alignColumns?: boolean;
+    filename?: string;
+  }) => Promise<void>;
 };
 
 /**
@@ -166,10 +253,15 @@ export const test = base.extend<DataViewFixtures>({
       // Start waiting for download before clicking. Note no await.
       const downloadPromise = page.waitForEvent('download');
 
-      // Click the export button
-      const exportButton = page.getByTestId('export-table-csv-button');
-      await expect(exportButton).toBeVisible();
-      await exportButton.click();
+      // Click the export dropdown button first
+      const exportDropdownButton = page.getByTestId('export-table-button');
+      await expect(exportDropdownButton).toBeVisible();
+      await exportDropdownButton.click();
+
+      // Then click the CSV menu item
+      const exportCSVMenuItem = page.getByTestId('export-table-csv-menu-item');
+      await expect(exportCSVMenuItem).toBeVisible();
+      await exportCSVMenuItem.click();
 
       // Get the special playwright download object
       const download = await downloadPromise;
@@ -177,5 +269,296 @@ export const test = base.extend<DataViewFixtures>({
       // Save the downloaded file
       await download.saveAs(pathToSave);
     });
+  },
+
+  openExportModalAndSelectFormat: async ({ page }, use) => {
+    await use(async (format) => {
+      // Open the export menu
+      const exportDropdownButton = page.getByTestId('export-table-button');
+      await exportDropdownButton.click();
+
+      // Click Advanced...
+      const advancedMenuItem = page.getByTestId('export-table-advanced-menu-item');
+      await advancedMenuItem.click();
+
+      // Wait for the modal to open
+      const modal = page.getByTestId('export-options-modal');
+      await expect(modal).toBeVisible();
+
+      // Select the desired format
+      const formatSelector = page.getByTestId(`export-format-${format}`);
+      await formatSelector.click();
+    });
+  },
+
+  exportTableToCSVAdvanced: async ({ page, openExportModalAndSelectFormat }, use) => {
+    await use(
+      async ({
+        path,
+        delimiter = ',',
+        quoteChar = '"',
+        escapeChar = '"',
+        includeHeader = true,
+        filename = 'export.csv',
+      }) => {
+        // Open the modal and select CSV format
+        await openExportModalAndSelectFormat('csv');
+
+        // Set CSV options
+        if (delimiter !== undefined) {
+          const delimiterInput = page.getByTestId('export-csv-delimiter');
+          await delimiterInput.fill(delimiter);
+        }
+        if (quoteChar !== undefined) {
+          const quoteCharInput = page.getByTestId('export-csv-quote-char');
+          await quoteCharInput.fill(quoteChar);
+        }
+        if (escapeChar !== undefined) {
+          const escapeCharInput = page.getByTestId('export-csv-escape-char');
+          await escapeCharInput.fill(escapeChar);
+        }
+        if (includeHeader !== undefined) {
+          const headerCheckbox = page.getByTestId('export-include-header');
+          const checked = await headerCheckbox.isChecked();
+          if (checked !== includeHeader) {
+            await headerCheckbox.click();
+          }
+        }
+
+        // Enter file name
+        const filenameInput = page.getByTestId('export-filename');
+        await filenameInput.fill(filename);
+
+        // Confirm export
+        const exportButton = page.getByTestId('export-confirm');
+        const downloadPromise = page.waitForEvent('download');
+        await exportButton.click();
+
+        // Wait for download and save file
+        const download = await downloadPromise;
+        await download.saveAs(path);
+      },
+    );
+  },
+
+  exportTableToTSVAdvanced: async ({ page, openExportModalAndSelectFormat }, use) => {
+    await use(
+      async ({
+        path,
+        quoteChar = '"',
+        escapeChar = '"',
+        includeHeader = true,
+        filename = 'export.tsv',
+      }) => {
+        // Open the export modal and select TSV format
+        await openExportModalAndSelectFormat('tsv');
+
+        // Set TSV options (no delimiter field for TSV)
+        if (quoteChar !== undefined) {
+          const quoteCharInput = page.getByTestId('export-tsv-quote-char');
+          await quoteCharInput.fill(quoteChar);
+        }
+        if (escapeChar !== undefined) {
+          const escapeCharInput = page.getByTestId('export-tsv-escape-char');
+          await escapeCharInput.fill(escapeChar);
+        }
+        if (includeHeader !== undefined) {
+          const headerCheckbox = page.getByTestId('export-include-header');
+          const checked = await headerCheckbox.isChecked();
+          if (checked !== includeHeader) {
+            await headerCheckbox.click();
+          }
+        }
+
+        // Enter file name
+        const filenameInput = page.getByTestId('export-filename');
+        await filenameInput.fill(filename);
+
+        // Confirm export
+        const exportButton = page.getByTestId('export-confirm');
+        const downloadPromise = page.waitForEvent('download');
+        await exportButton.click();
+
+        // Wait for download and save file
+        const download = await downloadPromise;
+        await download.saveAs(path);
+      },
+    );
+  },
+
+  exportTableToXLSXAdvanced: async ({ page, openExportModalAndSelectFormat }, use) => {
+    await use(
+      async ({ path, includeHeader = true, sheetName = 'Sheet1', filename = 'export.xlsx' }) => {
+        // Open the export modal and select XLSX format
+        await openExportModalAndSelectFormat('xlsx');
+
+        // Set XLSX options
+        if (includeHeader !== undefined) {
+          const headerCheckbox = page.getByTestId('export-include-header');
+          const checked = await headerCheckbox.isChecked();
+          if (checked !== includeHeader) {
+            await headerCheckbox.click();
+          }
+        }
+        if (sheetName !== undefined) {
+          const sheetNameInput = page.getByTestId('export-xlsx-sheet-name');
+          await sheetNameInput.fill(sheetName);
+        }
+
+        // Enter file name
+        const filenameInput = page.getByTestId('export-filename');
+        await filenameInput.fill(filename);
+
+        // Confirm export
+        const exportButton = page.getByTestId('export-confirm');
+        const downloadPromise = page.waitForEvent('download');
+        await exportButton.click();
+
+        // Wait for download and save file
+        const download = await downloadPromise;
+        await download.saveAs(path);
+      },
+    );
+  },
+
+  exportTableToSQLAdvanced: async ({ page, openExportModalAndSelectFormat }, use) => {
+    await use(
+      async ({
+        path,
+        tableName = 'exported_table',
+        includeCreateTable = true,
+        includeDataTypes = true,
+        filename = 'export.sql',
+      }) => {
+        // Open the export modal and select SQL format
+        await openExportModalAndSelectFormat('sql');
+
+        // Set SQL options
+        if (tableName !== undefined) {
+          const tableNameInput = page.getByTestId('export-sql-table-name');
+          await tableNameInput.fill(tableName);
+        }
+        if (includeCreateTable !== undefined) {
+          const createTableCheckbox = page.getByLabel('Include CREATE TABLE statement');
+          const checked = await createTableCheckbox.isChecked();
+          if (checked !== includeCreateTable) {
+            await createTableCheckbox.click();
+          }
+        }
+        if (includeDataTypes !== undefined) {
+          const dataTypesCheckbox = page.getByLabel('Include column data types');
+          const checked = await dataTypesCheckbox.isChecked();
+          if (checked !== includeDataTypes) {
+            await dataTypesCheckbox.click();
+          }
+        }
+
+        // Enter file name
+        const filenameInput = page.getByTestId('export-filename');
+        await filenameInput.fill(filename);
+
+        // Confirm export
+        const exportButton = page.getByTestId('export-confirm');
+        const downloadPromise = page.waitForEvent('download');
+        await exportButton.click();
+
+        // Wait for download and save file
+        const download = await downloadPromise;
+        await download.saveAs(path);
+      },
+    );
+  },
+
+  exportTableToXMLAdvanced: async ({ page, openExportModalAndSelectFormat }, use) => {
+    await use(
+      async ({
+        path,
+        includeHeader = true,
+        rootElement = 'data',
+        rowElement = 'row',
+        filename = 'export.xml',
+      }) => {
+        // Open the export modal and select XML format
+        await openExportModalAndSelectFormat('xml');
+
+        // Set XML options
+        if (includeHeader !== undefined) {
+          const headerCheckbox = page.getByTestId('export-include-header');
+          const checked = await headerCheckbox.isChecked();
+          if (checked !== includeHeader) {
+            await headerCheckbox.click();
+          }
+        }
+        if (rootElement !== undefined) {
+          const rootInput = page.getByTestId('export-xml-root');
+          await rootInput.fill(rootElement);
+        }
+        if (rowElement !== undefined) {
+          const rowInput = page.getByTestId('export-xml-row');
+          await rowInput.fill(rowElement);
+        }
+
+        // Enter file name
+        const filenameInput = page.getByTestId('export-filename');
+        await filenameInput.fill(filename);
+
+        // Confirm export
+        const exportButton = page.getByTestId('export-confirm');
+        const downloadPromise = page.waitForEvent('download');
+        await exportButton.click();
+
+        // Wait for download and save file
+        const download = await downloadPromise;
+        await download.saveAs(path);
+      },
+    );
+  },
+
+  exportTableToMarkdownAdvanced: async ({ page, openExportModalAndSelectFormat }, use) => {
+    await use(
+      async ({
+        path,
+        includeHeader = true,
+        mdFormat = 'github',
+        alignColumns = true,
+        filename = 'export.md',
+      }) => {
+        // Open the export modal and select Markdown format
+        await openExportModalAndSelectFormat('md');
+
+        // Set Markdown options
+        if (includeHeader !== undefined) {
+          const headerCheckbox = page.getByTestId('export-include-header');
+          const checked = await headerCheckbox.isChecked();
+          if (checked !== includeHeader) {
+            await headerCheckbox.click();
+          }
+        }
+        if (mdFormat !== undefined) {
+          const mdFormatRadio = page.getByLabel(mdFormat === 'github' ? 'GitHub' : 'Standard');
+          await mdFormatRadio.check();
+        }
+        if (alignColumns !== undefined) {
+          const alignCheckbox = page.getByLabel('Align columns');
+          const checked = await alignCheckbox.isChecked();
+          if (checked !== alignColumns) {
+            await alignCheckbox.click();
+          }
+        }
+
+        // Enter file name
+        const filenameInput = page.getByTestId('export-filename');
+        await filenameInput.fill(filename);
+
+        // Confirm export
+        const exportButton = page.getByTestId('export-confirm');
+        const downloadPromise = page.waitForEvent('download');
+        await exportButton.click();
+
+        // Wait for download and save file
+        const download = await downloadPromise;
+        await download.saveAs(path);
+      },
+    );
   },
 });
