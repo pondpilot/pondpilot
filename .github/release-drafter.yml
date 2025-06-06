@@ -7,17 +7,22 @@ template: |
 
   <!-- Add release highlights here manually -->
 
+  ## 🎯 What's Next
+
+  <!-- Add what's next section here manually -->
+
   ## 📋 Changelog
 
   $CHANGES
 
-  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$NEXT_MINOR_VERSION
 
 # Use compatible markdown, so we could also pull the resulting
 # text into a unified CHANGELOG.md
 change-template: "- $TITLE [#$NUMBER]($URL)"
 change-title-escapes: '\<*_&#@`' # You can add # and @ here if needed
 
+category-template: "### $TITLE"
 categories:
   - title: "💥 Breaking"
     label: "breaking"
