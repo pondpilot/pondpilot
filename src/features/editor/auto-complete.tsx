@@ -75,11 +75,11 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
   const namespace: SQLNamespace = {};
 
   // First add non-system tables from pondpilot.main to top level
-  const memoryDb = databases.find((db) => db.name === PERSISTENT_DB_NAME);
+  const pondpilotDb = databases.find((db) => db.name === PERSISTENT_DB_NAME);
   const topTableNames: string[] = [];
 
-  if (memoryDb) {
-    const mainSchema = memoryDb.schemas.find((schema) => schema.name === 'main');
+  if (pondpilotDb) {
+    const mainSchema = pondpilotDb.schemas.find((schema) => schema.name === 'main');
     if (mainSchema) {
       mainSchema.objects.forEach((tableOrView) => {
         // Skip system tables
@@ -101,7 +101,7 @@ export const convertToSQLNamespace = (databases: DataBaseModel[]): SQLNamespace 
     }
   }
 
-  // Add all databases except memory
+  // Add all databases except system databases
   databases.forEach((db) => {
     if ([PERSISTENT_DB_NAME, 'system', 'temp'].includes(db.name)) return;
 

@@ -80,6 +80,14 @@ test('Drop CSV file via drag and drop', async ({
     }),
   });
 
+  // Wait for the file to be processed and appear in the explorer
+  await page.waitForSelector(
+    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
+    {
+      timeout: 5000,
+    },
+  );
+
   await assertFileExplorerItems(['test-data']);
 });
 
@@ -137,6 +145,14 @@ test('Drop folder with files via drag and drop', async ({
       return dt;
     }, folderName),
   });
+
+  // Wait for the folder to be processed and appear in the explorer
+  await page.waitForSelector(
+    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
+    {
+      timeout: 5000,
+    },
+  );
 
   // Wait for folder and files to appear in file explorer
   await assertFileExplorerItems(['test-folder']);

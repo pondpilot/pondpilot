@@ -24,6 +24,7 @@ const test = mergeTests(
 // TODO: Use IDs instead of names
 
 test('roundtrip csv file with quotes and commas', async ({
+  page,
   addFileButton,
   storage,
   filePicker,
@@ -44,6 +45,15 @@ test('roundtrip csv file with quotes and commas', async ({
   await filePicker.selectFiles(['test_file.csv']);
   // Click the add file button
   await addFileButton.click();
+
+  // Wait for the file to appear in the explorer
+  await page.waitForSelector(
+    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
+    {
+      timeout: 5000,
+    },
+  );
+
   // Verify explorer items
   await assertFileExplorerItems(['test_file']);
   // Verify file viewer

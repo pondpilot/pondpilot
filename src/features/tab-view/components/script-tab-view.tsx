@@ -1,4 +1,5 @@
 import { showError, showErrorWithAction } from '@components/app-notifications';
+import { persistPutDataSources, persistDeleteDataSource } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
 import {
@@ -11,16 +12,18 @@ import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duc
 import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
 import { DataView } from '@features/tab-view/components/data-view';
-import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { RemoteDB } from '@models/data-source';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
 import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
+import { makePersistentDataSourceId } from '@utils/data-source';
 import {
   splitSQLByStats,
   classifySQLStatements,
   validateStatements,
-  SQLStatementType,
   SelectableStatements,
+  SQLStatement,
+  SQLStatementType,
 } from '@utils/editor/sql';
 import { Allotment } from 'allotment';
 import { memo, useCallback, useState } from 'react';
@@ -88,11 +91,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
       const runQueryWithFileSyncAndRetry = async (code: string) => {
         try {
-          await conn.query(code);
+          await pool.query(code);
         } catch (error: any) {
           if (error.message?.includes('NotReadableError')) {
             await syncFiles(pool);
-            await conn.query(code);
+            await pool.query(code);
           } else {
             throw error;
           }
@@ -119,7 +122,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
 
         if (needsTransaction) {
-          await conn.query('BEGIN TRANSACTION');
+          await pool.query('BEGIN TRANSACTION');
         }
 
         // Execute each statement except the last one
@@ -130,7 +133,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await pool.query('ROLLBACK');
             }
             console.error('Error executing statement:', statement.type, error);
             setScriptExecutionState('error');
@@ -167,7 +170,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             const message = error instanceof Error ? error.message : String(error);
 
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await pool.query('ROLLBACK');
             }
             console.error(
               'Creation of a prepared statement for the last SELECT statement failed:',
@@ -204,7 +207,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await pool.query('ROLLBACK');
             }
             console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
             setScriptExecutionState('error');
@@ -234,31 +237,120 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
         // All statements executed successfully
         if (needsTransaction) {
-          await conn.query('COMMIT');
+          await pool.query('COMMIT');
         }
 
+        // Check if any DDL or database operations were executed and refresh metadata
         const hasDDL = classifiedStatements.some((s) => s.sqlType === SQLStatementType.DDL);
-        if (hasDDL) {
-          // Read the metadata for the newly created views
-          const newViewsMetadata = await getDatabaseModel(pool, [PERSISTENT_DB_NAME], ['main']);
-          // Update views metadata state
-          const { dataBaseMetadata } = useAppStore.getState();
-          const newDataBaseMetadata =
-            newViewsMetadata.size > 0
-              ? new Map([...dataBaseMetadata, ...newViewsMetadata])
-              : new Map(
-                  Array.from(dataBaseMetadata).filter(
-                    ([dbName, _]) => dbName !== PERSISTENT_DB_NAME,
-                  ),
-                );
+        const hasAttachDetach = classifiedStatements.some(
+          (s) => s.type === SQLStatement.ATTACH || s.type === SQLStatement.DETACH,
+        );
 
-          // Update the store with the new state
+        if (hasDDL || hasAttachDetach) {
+          // Get all currently attached databases
+          const attachedDatabasesResult = await pool.query(
+            'SELECT DISTINCT database_name FROM duckdb_databases() WHERE NOT internal',
+          );
+          const attachedDatabases = attachedDatabasesResult.toArray();
+          const dbNames = attachedDatabases.map((row: any) => row.database_name);
+
+          // Refresh metadata for all attached databases
+          const newMetadata = await getDatabaseModel(pool, dbNames);
+
+          // Update metadata in store
+          const { databaseMetadata, dataSources } = useAppStore.getState();
+          const updatedMetadata = new Map(databaseMetadata);
+          const updatedDataSources = new Map(dataSources);
+
+          // Update or remove database metadata based on results
+          for (const [dbName, dbModel] of newMetadata) {
+            updatedMetadata.set(dbName, dbModel);
+          }
+
+          // Handle newly attached remote databases and detached databases
+          if (hasAttachDetach) {
+            // Check for remote databases that were attached or detached
+            for (const statement of classifiedStatements) {
+              if (statement.type === SQLStatement.ATTACH) {
+                // Parse ATTACH statement to extract URL and database name
+                const attachMatch = statement.code.match(/ATTACH\s+'([^']+)'\s+AS\s+(\w+)/i);
+                if (attachMatch) {
+                  const [, url, dbName] = attachMatch;
+
+                  // Check if this is a remote database (not a local file)
+                  if (
+                    url.startsWith('https://') ||
+                    url.startsWith('s3://') ||
+                    url.startsWith('gcs://') ||
+                    url.startsWith('azure://')
+                  ) {
+                    // Check if this database is already registered
+                    const existingDb = Array.from(dataSources.values()).find(
+                      (ds) =>
+                        (ds.type === 'remote-db' && ds.dbName === dbName) ||
+                        (ds.type === 'attached-db' && ds.dbName === dbName),
+                    );
+
+                    if (!existingDb) {
+                      // Create RemoteDB entry
+                      const remoteDb: RemoteDB = {
+                        type: 'remote-db',
+                        id: makePersistentDataSourceId(),
+                        url,
+                        dbName,
+                        dbType: 'duckdb',
+                        connectionState: 'connected',
+                        attachedAt: Date.now(),
+                      };
+
+                      updatedDataSources.set(remoteDb.id, remoteDb);
+
+                      // Persist to IndexedDB
+                      const { _iDbConn } = useAppStore.getState();
+                      if (_iDbConn) {
+                        await persistPutDataSources(_iDbConn, [remoteDb]);
+                      }
+                    }
+                  }
+                }
+              } else if (statement.type === SQLStatement.DETACH) {
+                // Parse DETACH statement to extract database name
+                const detachMatch = statement.code.match(/DETACH\s+(?:DATABASE\s+)?(\w+)/i);
+                if (detachMatch) {
+                  const [, dbName] = detachMatch;
+
+                  // Find and remove the database from dataSources
+                  const dbToRemove = Array.from(updatedDataSources.entries()).find(
+                    ([, ds]) =>
+                      (ds.type === 'remote-db' && ds.dbName === dbName) ||
+                      (ds.type === 'attached-db' && ds.dbName === dbName),
+                  );
+
+                  if (dbToRemove) {
+                    const [dbId] = dbToRemove;
+                    updatedDataSources.delete(dbId);
+
+                    // Remove from metadata
+                    updatedMetadata.delete(dbName);
+
+                    // Remove from IndexedDB
+                    const { _iDbConn } = useAppStore.getState();
+                    if (_iDbConn) {
+                      await persistDeleteDataSource(_iDbConn, [dbId], []);
+                    }
+                  }
+                }
+              }
+            }
+          }
+
           useAppStore.setState(
             {
-              dataBaseMetadata: newDataBaseMetadata,
+              databaseMetadata: updatedMetadata,
+              dataSources: updatedDataSources,
             },
             undefined,
-            'AppStore/runScript',
+            'AppStore/runScript/refreshMetadata',
           );
         }
       } finally {
@@ -274,7 +366,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // update the state and trigger re-render.
       updateScriptTabLastExecutedQuery({ tabId, lastExecutedQuery, force: true });
     },
-    [pool, protectedViews],
+    [pool, protectedViews, tabId, incrementScriptVersion],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {

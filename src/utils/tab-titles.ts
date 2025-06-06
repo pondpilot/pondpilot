@@ -1,4 +1,4 @@
-import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
+import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { SchemaBrowserTab } from '@models/tab';
 
@@ -28,8 +28,8 @@ export function getSchemaBrowserTabTitle(
 
   if (sourceType === 'file') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
-    if (dataSource && dataSource.type !== 'attached-db') {
-      return `File: ${dataSource.viewName}`;
+    if (dataSource && dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db') {
+      return `File: ${(dataSource as AnyFlatFileDataSource).viewName}`;
     }
     return 'File';
   }
@@ -95,10 +95,10 @@ export function getSchemaBrowserDisplayTitle(
 
   if (sourceType === 'file') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
-    if (dataSource && dataSource.type !== 'attached-db') {
+    if (dataSource && dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db') {
       return {
         prefix: 'File:',
-        title: dataSource.viewName,
+        title: (dataSource as AnyFlatFileDataSource).viewName,
       };
     }
     return { prefix: 'File:', title: 'Unknown' };
