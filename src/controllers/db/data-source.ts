@@ -4,6 +4,7 @@ import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
+import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
 
 /**
@@ -89,7 +90,8 @@ export async function dropViewAndUnregisterFile(
   /**
    * Drop the view
    */
-  await conn.query(`DROP VIEW IF EXISTS ${toDuckDBIdentifier(viewName)};`).catch(console.error);
+  const dropQuery = buildDropViewQuery(viewName, true);
+  await conn.query(dropQuery).catch(console.error);
 
   if (!fileName) {
     return;
@@ -127,7 +129,8 @@ export async function reCreateView(
   /**
    * Drop the old view
    */
-  await conn.query(`DROP VIEW IF EXISTS ${toDuckDBIdentifier(oldViewName)};`).catch(console.error);
+  const dropQuery = buildDropViewQuery(oldViewName, true);
+  await conn.query(dropQuery).catch(console.error);
 
   /**
    * Create view with the new name
@@ -179,14 +182,14 @@ export async function registerAndAttachDatabase(
   /**
    * Detach any existing database with the same name
    */
-  await conn.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(dbName)};`).catch(console.error);
+  const detachQuery = buildDetachQuery(dbName, true);
+  await conn.query(detachQuery).catch(console.error);
 
   /**
    * Attach the database
    */
-  await conn.query(
-    `ATTACH ${quote(fileName, { single: true })} as ${toDuckDBIdentifier(dbName)} (READ_ONLY);`,
-  );
+  const attachQuery = buildAttachQuery(fileName, dbName, { readOnly: true });
+  await conn.query(attachQuery);
 
   return file;
 }
@@ -208,7 +211,8 @@ export async function detachAndUnregisterDatabase(
   /**
    * Detach the database
    */
-  await conn.query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(dbName)};`).catch(console.error);
+  const detachQuery = buildDetachQuery(dbName, true);
+  await conn.query(detachQuery).catch(console.error);
 
   if (!fileName) {
     return;
@@ -244,23 +248,20 @@ export async function reAttachDatabase(
   /**
    * Detach the old database
    */
-  await conn
-    .query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(oldDbName)};`)
-    .catch(console.error);
+  const detachOldQuery = buildDetachQuery(oldDbName, true);
+  await conn.query(detachOldQuery).catch(console.error);
 
   /**
    * Detach any existing database with the new name
    */
-  await conn
-    .query(`DETACH DATABASE IF EXISTS ${toDuckDBIdentifier(newDbName)};`)
-    .catch(console.error);
+  const detachNewQuery = buildDetachQuery(newDbName, true);
+  await conn.query(detachNewQuery).catch(console.error);
 
   /**
    * Attach the database with the new name
    */
-  await conn.query(
-    `ATTACH ${quote(fileName, { single: true })} as ${toDuckDBIdentifier(newDbName)} (READ_ONLY);`,
-  );
+  const attachQuery = buildAttachQuery(fileName, newDbName, { readOnly: true });
+  await conn.query(attachQuery);
 }
 
 /**
@@ -342,7 +343,8 @@ export async function reCreateXlsxSheetView(
   /**
    * Drop the old view
    */
-  await conn.query(`DROP VIEW IF EXISTS ${toDuckDBIdentifier(oldViewName)};`).catch(console.error);
+  const dropQuery = buildDropViewQuery(oldViewName, true);
+  await conn.query(dropQuery).catch(console.error);
 
   // Create the view with the new name
   const query = createXlsxSheetViewQuery(fileName, sheetName, newViewName);

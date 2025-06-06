@@ -133,6 +133,7 @@ const TransactionalStatementMap: Record<SQLStatement, boolean> = {
 
 const StatementsAllowedInScripts = [
   SQLStatement.ATTACH,
+  SQLStatement.DETACH,
   SQLStatement.ANALYZE,
   SQLStatement.ALTER,
   SQLStatement.CALL,

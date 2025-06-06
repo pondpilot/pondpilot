@@ -1,25 +1,32 @@
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
-import { DbExplorer } from '@features/db-explorer/db-explorer';
-import { FileSystemExplorer } from '@features/file-system-explorer';
+import { DataExplorer } from '@features/data-explorer';
 import { ScriptExplorer } from '@features/script-explorer';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
-import { ActionIcon, Button, Divider, Group, Skeleton, Stack, Text } from '@mantine/core';
-import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
+import { ActionIcon, Group, Skeleton, Stack, Text, Tooltip } from '@mantine/core';
+import { useLocalStorage } from '@mantine/hooks';
 import { APP_GITHUB_URL } from '@models/app-urls';
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { useAppStore } from '@store/app-store';
-import { IconBrandGithub, IconFolderPlus, IconPlus, IconSettings } from '@tabler/icons-react';
+import {
+  IconBrandGithub,
+  IconFolderPlus,
+  IconPlus,
+  IconSettings,
+  IconLayoutSidebarLeftCollapse,
+} from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { cn } from '@utils/ui/styles';
 import { Allotment } from 'allotment';
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+interface NavbarProps {
+  onCollapse?: () => void;
+}
 
 /**
  * Displays the navigation bar
  */
-export const Navbar = () => {
+export const Navbar = ({ onCollapse }: NavbarProps) => {
   /**
    * Common hooks
    */
@@ -33,22 +40,9 @@ export const Navbar = () => {
 
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
 
-  const activeTabDataSourceType = useAppStore((state) => {
-    if (state.activeTabId === null) return null;
-    const curTab = state.tabs.get(state.activeTabId);
-    if (!curTab) return null;
-    return curTab.type === 'data-source' ? curTab.dataSourceType : null;
-  });
-
-  const isDataViewTabActive = activeTabDataSourceType === 'file';
-  const isDatabaseObjectTabActive = activeTabDataSourceType === 'db';
-
-  const [filesDbToggle, setFilesDbToggle] = useState<'files' | 'databases'>('files');
-
   /**
    * Local state
    */
-  const isFiles = filesDbToggle === 'files';
   const appReady = appLoadState === 'ready';
 
   /**
@@ -58,86 +52,48 @@ export const Navbar = () => {
     setInnerLayoutSizes(sizes);
   };
 
-  useDidUpdate(() => {
-    if (isDatabaseObjectTabActive && filesDbToggle === 'files') {
-      setFilesDbToggle('databases');
-    } else if (isDataViewTabActive && filesDbToggle === 'databases') {
-      setFilesDbToggle('files');
-    }
-  }, [isDatabaseObjectTabActive, isDataViewTabActive]);
-
   return (
     <Allotment vertical onDragEnd={handleNavbarLayoutResize}>
       <Allotment.Pane preferredSize={navbarSizes?.[0]} minSize={52}>
-        <Group className="justify-between px-2 pt-4 pb-2" gap={0}>
-          <Group gap={0}>
-            <Button
-              variant="transparent"
-              color="text-primary"
-              bg={isFiles ? 'background-secondary' : undefined}
-              fw={500}
-              className={cn(
-                'text-textPrimary-light dark:text-textPrimary-dark ',
-                !isFiles && 'text-textSecondary-light dark:text-textSecondary-dark',
-              )}
-              onClick={() => setFilesDbToggle('files')}
-              data-testid={setDataTestId('navbar-show-files-button')}
-            >
-              Files
-            </Button>
-            <Button
-              variant="transparent"
-              color="text-primary"
-              onClick={() => setFilesDbToggle('databases')}
-              bg={!isFiles ? 'background-secondary' : undefined}
-              fw={500}
-              className={cn(
-                'text-textPrimary-light dark:text-textPrimary-dark',
-                isFiles && 'text-textSecondary-light dark:text-textSecondary-dark',
-              )}
-              data-testid={setDataTestId('navbar-show-databases-button')}
-            >
-              Databases
-            </Button>
-          </Group>
-          {appReady && (
-            <Group justify="space-between">
-              <Group className="gap-2">
-                <Divider orientation="vertical" />
-                <ActionIcon
-                  onClick={() => handleAddFile()}
-                  size={16}
-                  key="Upload file"
-                  data-testid={setDataTestId('navbar-add-file-button')}
-                >
-                  <IconPlus />
-                </ActionIcon>
-                <ActionIcon
-                  onClick={handleAddFolder}
-                  size={16}
-                  key="Upload folder"
-                  data-testid={setDataTestId('navbar-add-folder-button')}
-                >
-                  <IconFolderPlus />
-                </ActionIcon>
+        <div className="h-full flex flex-col">
+          <Group className="justify-between px-2 pt-4 pb-2" gap={0}>
+            <Text size="sm" fw={500} c="text-primary">
+              Data Explorer
+            </Text>
+            {appReady && (
+              <Group justify="space-between">
+                <Group className="gap-2">
+                  <ActionIcon
+                    onClick={handleAddFolder}
+                    size={16}
+                    key="Upload folder"
+                    data-testid={setDataTestId('navbar-add-folder-button')}
+                  >
+                    <IconFolderPlus />
+                  </ActionIcon>
+                  <ActionIcon
+                    onClick={() => handleAddFile()}
+                    size={16}
+                    key="Upload file"
+                    data-testid={setDataTestId('navbar-add-file-button')}
+                  >
+                    <IconPlus />
+                  </ActionIcon>
+                </Group>
               </Group>
-            </Group>
-          )}
-        </Group>
+            )}
+          </Group>
 
-        {appReady ? (
-          isFiles ? (
-            <FileSystemExplorer />
+          {appReady ? (
+            <DataExplorer />
           ) : (
-            <DbExplorer />
-          )
-        ) : (
-          <Stack gap={6} className="px-3 py-1.5">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
-            ))}
-          </Stack>
-        )}
+            <Stack gap={6} className="px-3 py-1.5">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
+              ))}
+            </Stack>
+          )}
+        </div>
       </Allotment.Pane>
 
       <Allotment.Pane preferredSize={navbarSizes?.[1]} minSize={52}>
@@ -146,7 +102,6 @@ export const Navbar = () => {
             Queries
           </Text>
           <Group className="gap-2">
-            <Divider orientation="vertical" />
             {appReady && (
               <ActionIcon
                 data-testid={setDataTestId('script-explorer-add-script-button')}
@@ -173,8 +128,8 @@ export const Navbar = () => {
         )}
       </Allotment.Pane>
       <Allotment.Pane maxSize={34} minSize={34}>
-        <Group className="h-full px-3 justify-between">
-          <Group>
+        <div className="h-full px-3 flex items-center justify-between">
+          <Group gap="xs">
             <ActionIcon
               size={20}
               data-testid={setDataTestId('settings-button')}
@@ -192,10 +147,19 @@ export const Navbar = () => {
               <IconBrandGithub />
             </ActionIcon>
           </Group>
-          <Text c="text-secondary" maw={100} truncate="end">
-            {__VERSION__}
-          </Text>
-        </Group>
+          {onCollapse && (
+            <Tooltip label="Collapse sidebar" position="top" withArrow>
+              <ActionIcon
+                size={20}
+                data-testid={setDataTestId('collapse-sidebar-button')}
+                onClick={onCollapse}
+                variant="subtle"
+              >
+                <IconLayoutSidebarLeftCollapse />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </div>
       </Allotment.Pane>
     </Allotment>
   );

@@ -30,17 +30,17 @@ async function queryOneColumn<VT extends arrow.DataType>(
  * Get all user defined databases.
  *
  * @param conn - DuckDB connection
- * @param excludeMemory - Exclude memory database from the result. Default is true.
+ * @param excludeSystem - Exclude system databases from the result. Default is true.
  * @returns Array of database names or null in case of errors.
  */
-export async function getAttachedDBs(
+export async function getLocalDBs(
   conn: AsyncDuckDBConnectionPool,
-  excludeMemory: boolean = true,
+  excludeSystem: boolean = true,
 ): Promise<string[] | null> {
   const sql = `
     SELECT database_name 
     FROM duckdb_databases
-    ${excludeMemory ? `WHERE database_name != '${PERSISTENT_DB_NAME}'` : ''}
+    ${excludeSystem ? 'WHERE NOT internal' : ''}
   `;
 
   return queryOneColumn<arrow.Utf8>(conn, sql, 'database_name');

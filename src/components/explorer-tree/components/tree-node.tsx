@@ -239,25 +239,31 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
 
   const defaultMenu: TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> = [];
 
-  defaultMenu.push({
-    children: [
-      {
-        label: 'Rename',
-        onClick: () => handleStartRename(),
-        isDisabled: isDisabled || !renameCallbacks,
-      },
-    ],
-  });
+  // Only add rename section if rename is possible
+  if (renameCallbacks && !isDisabled) {
+    defaultMenu.push({
+      children: [
+        {
+          label: 'Rename',
+          onClick: () => handleStartRename(),
+          isDisabled: false,
+        },
+      ],
+    });
+  }
 
-  defaultMenu.push({
-    children: [
-      {
-        label: 'Delete',
-        onClick: () => onDelete?.(node),
-        isDisabled: isDisabled || !onDelete,
-      },
-    ],
-  });
+  // Only add delete section if delete is possible
+  if (onDelete && !isDisabled) {
+    defaultMenu.push({
+      children: [
+        {
+          label: 'Delete',
+          onClick: () => onDelete(node),
+          isDisabled: false,
+        },
+      ],
+    });
+  }
 
   const contextMenu = overrideContextMenu || mergeMenus([customContextMenu, defaultMenu]);
 
@@ -380,8 +386,16 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
               </div>
             )}
 
-            <Text c="text-primary" className="text-sm px-1" lh="18px" truncate>
-              {label}
+            <Text
+              c={label === 'File Views' || label.startsWith('[DB] ') ? 'dimmed' : 'text-primary'}
+              className={cn(
+                'text-sm px-1',
+                (label === 'File Views' || label.startsWith('[DB] ')) && 'italic',
+              )}
+              lh="18px"
+              truncate
+            >
+              {label.startsWith('[DB] ') ? label.substring(5) : label}
             </Text>
             <Menu.Target>
               <ActionIcon

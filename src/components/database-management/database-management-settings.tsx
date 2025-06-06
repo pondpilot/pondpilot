@@ -84,7 +84,8 @@ export const DatabaseManagementSettings = () => {
             </Text>
           </Group>
           <Text c="dimmed">
-            Your browser does not support persistent storage. DuckDB is running in memory mode.
+            Your browser does not support persistent storage. PondPilot requires persistent storage
+            to function.
           </Text>
         </Stack>
       </Card>
