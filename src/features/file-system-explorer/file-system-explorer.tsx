@@ -1,3 +1,6 @@
+import { memo, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+
 import { ExplorerTree, TreeNodeData } from '@components/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { deleteDataSources } from '@controllers/data-source';
@@ -26,8 +29,6 @@ import {
   getLocalEntryIcon,
   getXlsxFileName,
 } from '@utils/navigation';
-import { memo, useMemo } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 
 import { FileSystemExplorerNode } from './file-system-explorer-node';
 import { FSExplorerContext, FSExplorerNodeExtraType, FSExplorerNodeTypeToIdTypeMap } from './model';

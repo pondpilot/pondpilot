@@ -1,8 +1,9 @@
-import { IconType } from '@components/named-icon';
 import {
   RenderTreeNodePayload as MantineRenderTreeNodePayload,
   TreeNodeData as MantineTreeNodeData,
 } from '@mantine/core';
+
+import { IconType } from '@components/named-icon';
 
 type TreeNodeRenameCallbacks<NType> = {
   /**

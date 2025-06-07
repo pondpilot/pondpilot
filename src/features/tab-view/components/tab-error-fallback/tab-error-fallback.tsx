@@ -1,8 +1,9 @@
-import { ErrorStackView } from '@components/error-stack-view';
 import { Button, List, Stack, Text, ThemeIcon } from '@mantine/core';
 import { IconRefresh, IconX } from '@tabler/icons-react';
-import { setDataTestId } from '@utils/test-id';
 import { FallbackProps } from 'react-error-boundary';
+
+import { ErrorStackView } from '@components/error-stack-view';
+import { setDataTestId } from '@utils/test-id';
 
 export const TabErrorFallback = (props: FallbackProps) => {
   const { error, resetErrorBoundary } = props;

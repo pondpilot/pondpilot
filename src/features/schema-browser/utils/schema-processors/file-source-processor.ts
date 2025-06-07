@@ -1,9 +1,9 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { SchemaGraph } from '@features/schema-browser/model';
 import { PersistentDataSourceId, AnyFlatFileDataSource } from '@models/data-source';
 import { SchemaBrowserTab } from '@models/tab';
 
 import { processSingleFileSource, processMultipleFileSources } from './common';
-import { SchemaGraph } from '../../model';
 
 /**
  * Process schema for individual file source or multiple file sources

@@ -10,15 +10,16 @@ import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
 import { keymap, placeholder } from '@codemirror/view';
 import { showNotification } from '@mantine/notifications';
 import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
+import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
+
+import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
-import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
 import { aiAssistantTooltip } from './ai-assistant-tooltip';
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
 import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
-import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
 
 type FunctionTooltip = Record<string, { syntax: string; description: string }>;
 

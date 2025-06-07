@@ -1,12 +1,16 @@
-import { IconType, NamedIcon } from '@components/named-icon';
-import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import { IconKey, IconLink } from '@tabler/icons-react';
-import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 
-import { SCHEMA_COLORS, ANIMATION_DURATIONS, DATA_ATTRIBUTES } from '../constants';
-import { SchemaNodeData } from '../model';
+import { IconType, NamedIcon } from '@components/named-icon';
+import { getIconTypeForSQLType } from '@components/named-icon/utils';
+import {
+  SCHEMA_COLORS,
+  ANIMATION_DURATIONS,
+  DATA_ATTRIBUTES,
+} from '@features/schema-browser/constants';
+import { SchemaNodeData } from '@features/schema-browser/model';
+import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 
 const TableNodeComponent = ({ data }: NodeProps<SchemaNodeData>) => {
   const { label, columns, type, isHighlighted, highlightedColumns = [], isSelected } = data;

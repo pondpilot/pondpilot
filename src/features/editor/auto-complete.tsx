@@ -1,4 +1,5 @@
 import type { SQLNamespace } from '@codemirror/lang-sql';
+
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import {

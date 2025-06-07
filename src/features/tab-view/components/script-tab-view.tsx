@@ -1,3 +1,6 @@
+import { Allotment } from 'allotment';
+import { memo, useCallback, useState } from 'react';
+
 import { showError, showErrorWithAction } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
@@ -11,6 +14,7 @@ import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duc
 import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
 import { DataView } from '@features/tab-view/components/data-view';
+import { useDataAdapter } from '@features/tab-view/hooks/use-data-adapter';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
@@ -22,11 +26,8 @@ import {
   SQLStatementType,
   SelectableStatements,
 } from '@utils/editor/sql';
-import { Allotment } from 'allotment';
-import { memo, useCallback, useState } from 'react';
 
 import { DataViewInfoPane } from './data-view-info-pane';
-import { useDataAdapter } from '../hooks/use-data-adapter';
 
 interface ScriptTabViewProps {
   tabId: TabId;

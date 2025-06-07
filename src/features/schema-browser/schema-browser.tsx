@@ -1,6 +1,4 @@
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { useMantineColorScheme } from '@mantine/core';
-import { SchemaBrowserTab } from '@models/tab';
 import { memo, useState, useCallback } from 'react';
 import ReactFlow, {
   MiniMap,
@@ -14,6 +12,9 @@ import ReactFlow, {
   EdgeChange,
   NodeMouseHandler,
 } from 'reactflow';
+
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { SchemaBrowserTab } from '@models/tab';
 import 'reactflow/dist/style.css';
 
 import {

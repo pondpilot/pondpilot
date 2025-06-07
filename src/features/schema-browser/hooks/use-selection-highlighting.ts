@@ -6,9 +6,9 @@ import {
   EDGE_DEFAULT_COLOR,
   EDGE_SELECTED_STROKE_WIDTH,
   EDGE_STROKE_WIDTH,
-} from '../constants';
-import { SchemaNodeData } from '../model';
-import { getConnectedTableIds, getConnectedEdgeIds } from '../utils';
+} from '@features/schema-browser/constants';
+import { SchemaNodeData } from '@features/schema-browser/model';
+import { getConnectedTableIds, getConnectedEdgeIds } from '@features/schema-browser/utils';
 
 /**
  * Custom hook to manage selection and highlighting of nodes and edges

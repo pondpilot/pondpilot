@@ -1,7 +1,6 @@
+import { CACHE_TTL } from '@features/schema-browser/constants';
+import { SchemaGraph } from '@features/schema-browser/model';
 import { SchemaBrowserTab } from '@models/tab';
-
-import { CACHE_TTL } from '../constants';
-import { SchemaGraph } from '../model';
 
 // Cache for schema data with TTL
 const schemaDataCache = new Map<string, { data: SchemaGraph; timestamp: number }>();

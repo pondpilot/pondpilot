@@ -1,19 +1,6 @@
-import { NamedIcon } from '@components/named-icon';
-import { createSQLScript } from '@controllers/sql-script';
-import {
-  getOrCreateTabFromAttachedDBObject,
-  getOrCreateTabFromFlatFileDataSource,
-  getOrCreateTabFromScript,
-  deleteTab,
-} from '@controllers/tab';
-import { ImportScriptModalContent } from '@features/script-import';
-import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
-import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { Group, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { Spotlight } from '@mantine/spotlight';
-import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from '@models/app-urls';
-import { useAppStore } from '@store/app-store';
 import {
   IconDatabase,
   IconCode,
@@ -29,11 +16,25 @@ import {
   IconLayoutGridRemove,
   IconLayoutNavbarCollapse,
 } from '@tabler/icons-react';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+import { NamedIcon } from '@components/named-icon';
+import { createSQLScript } from '@controllers/sql-script';
+import {
+  getOrCreateTabFromAttachedDBObject,
+  getOrCreateTabFromFlatFileDataSource,
+  getOrCreateTabFromScript,
+  deleteTab,
+} from '@controllers/tab';
+import { ImportScriptModalContent } from '@features/script-import';
+import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
+import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from '@models/app-urls';
+import { useAppStore } from '@store/app-store';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 import { setDataTestId } from '@utils/test-id';
-import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 
 import { SpotlightBreadcrumbs } from './components';
 import { renderActionsGroup } from './components/action';

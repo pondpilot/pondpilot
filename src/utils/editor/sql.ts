@@ -1,6 +1,7 @@
 import { PostgreSQL, sql } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
 import { EditorState } from '@uiw/react-codemirror';
+
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 export enum SQLStatement {

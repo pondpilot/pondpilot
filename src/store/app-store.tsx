@@ -1,4 +1,11 @@
+import { IDBPDatabase } from 'idb';
+import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
+
 import { IconType } from '@components/named-icon';
+// eslint-disable-next-line import/no-cycle
+import { TabExecutionError } from '@controllers/tab/tab-controller';
 import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
@@ -13,14 +20,10 @@ import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab, TabId, TabReactiveState, TabType } from '@models/tab';
 import { getTabIcon, getTabName } from '@utils/navigation';
-import { IDBPDatabase } from 'idb';
-import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
-import { useShallow } from 'zustand/react/shallow';
 
+// eslint-disable-next-line import/no-cycle
 import { resetAppData } from './restore';
 import { createSelectors } from './utils';
-import { TabExecutionError } from '../controllers/tab/tab-controller';
 
 type AppLoadState = 'init' | 'ready' | 'error';
 

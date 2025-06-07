@@ -1,8 +1,9 @@
 import { Group, Text, Button, Tooltip, useMantineTheme } from '@mantine/core';
 import { useDidUpdate } from '@mantine/hooks';
-import { ScriptExecutionState } from '@models/sql-script';
 import { IconFileSad, IconSparkles } from '@tabler/icons-react';
 import React, { useState, useRef } from 'react';
+
+import { ScriptExecutionState } from '@models/sql-script';
 
 import { RunQueryButton } from './components';
 

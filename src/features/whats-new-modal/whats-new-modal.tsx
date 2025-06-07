@@ -1,12 +1,13 @@
 /* eslint-disable unused-imports/no-unused-vars */
-import { showError } from '@components/app-notifications';
-import { DotAnimation } from '@components/dots-animation';
 import { Text, Stack, Title, List, Button, Group, ScrollArea, Center } from '@mantine/core';
 import { ModalSettings } from '@mantine/modals/lib/context';
-import { APP_RELEASE_TAGS_GITHUB_API_URL } from '@models/app-urls';
-import { setDataTestId } from '@utils/test-id';
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+
+import { showError } from '@components/app-notifications';
+import { DotAnimation } from '@components/dots-animation';
+import { APP_RELEASE_TAGS_GITHUB_API_URL } from '@models/app-urls';
+import { setDataTestId } from '@utils/test-id';
 
 export const WHATS_NEW_MODAL_OPTIONS: ModalSettings = {
   size: 675,

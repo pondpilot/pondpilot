@@ -1,8 +1,9 @@
-import { deleteTab } from '@controllers/tab';
 import { Stack } from '@mantine/core';
-import { useAppStore, useTabTypeMap } from '@store/app-store';
 import { useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
+
+import { deleteTab } from '@controllers/tab';
+import { useAppStore, useTabTypeMap } from '@store/app-store';
 
 import { TabErrorFallback, SchemaTabView } from './components';
 import { FileDataSourceTabView } from './components/file-data-source-tab-view';

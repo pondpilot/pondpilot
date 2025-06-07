@@ -24,9 +24,9 @@ import {
 } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 
-import { AI_PROVIDERS, AIServiceConfig, AIModel } from '../../../../models/ai-service';
-import { getAIConfig, saveAIConfig } from '../../../../utils/ai-config';
-import { getAIService } from '../../../../utils/ai-service';
+import { AI_PROVIDERS, AIServiceConfig, AIModel } from '@models/ai-service';
+import { getAIConfig, saveAIConfig } from '@utils/ai-config';
+import { getAIService } from '@utils/ai-service';
 
 export const AISettings = () => {
   const [config, setConfig] = useState<AIServiceConfig>(() => getAIConfig());

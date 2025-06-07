@@ -1,5 +1,3 @@
-import { showError } from '@components/app-notifications';
-import { ExportResult } from '@features/tab-view/hooks/use-table-export';
 import {
   Modal,
   Button,
@@ -13,6 +11,11 @@ import {
   Divider,
   Stack,
 } from '@mantine/core';
+import { IconX, IconAlertTriangle, IconDownload } from '@tabler/icons-react';
+import { useState, useRef, useEffect } from 'react';
+
+import { showError } from '@components/app-notifications';
+import { ExportResult } from '@features/tab-view/hooks/use-table-export';
 import { DataAdapterApi } from '@models/data-adapter';
 import {
   BaseExportOptions,
@@ -23,10 +26,8 @@ import {
   XlsxExportOptions,
   XmlExportOptions,
 } from '@models/export-options';
-import { IconX, IconAlertTriangle, IconDownload } from '@tabler/icons-react';
 import { sanitizeFileName } from '@utils/export-data';
 import { setDataTestId } from '@utils/test-id';
-import { useState, useRef, useEffect } from 'react';
 
 import {
   CsvOptions,

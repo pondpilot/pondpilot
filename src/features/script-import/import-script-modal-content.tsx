@@ -1,10 +1,11 @@
-import { showSuccess, showError } from '@components/app-notifications';
 import { Button, Group, TextInput, Text, Title, Stack, ActionIcon } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { IconX } from '@tabler/icons-react';
+import { useState, useEffect, useRef } from 'react';
+
+import { showSuccess, showError } from '@components/app-notifications';
 import { importScript } from '@utils/script-import-utils';
 import { setDataTestId } from '@utils/test-id';
-import { useState, useEffect, useRef } from 'react';
 
 interface ImportScriptModalContentProps {
   onClose: () => void;

@@ -1,5 +1,6 @@
 import { Button, Group, Stack, Text, Title } from '@mantine/core';
 import { ModalSettings } from '@mantine/modals/lib/context';
+
 import { YT_ONBOARDING_EMBED_URL } from '@models/app-urls';
 import { setDataTestId } from '@utils/test-id';
 

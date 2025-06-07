@@ -1,8 +1,7 @@
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { DBTableOrView } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
-
-import { getDatabaseModel } from '../controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '../features/duckdb-context/duckdb-connection-pool';
-import { DBTableOrView } from '../models/db';
 import {
   SchemaContext,
   SchemaContextConfig,
@@ -10,7 +9,7 @@ import {
   SchemaContextSchema,
   SchemaContextColumn,
   DEFAULT_SCHEMA_CONTEXT_CONFIG,
-} from '../models/schema-context';
+} from '@models/schema-context';
 
 export class SchemaContextService {
   private config: SchemaContextConfig;

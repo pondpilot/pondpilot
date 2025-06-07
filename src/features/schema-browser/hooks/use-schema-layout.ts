@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Node, Edge, useNodesState, useEdgesState } from 'reactflow';
 
-import { SchemaNodeData, SchemaEdgeData } from '../model';
-import { applyAutoLayout, filterForPerformance } from '../utils';
+import { SchemaNodeData, SchemaEdgeData } from '@features/schema-browser/model';
+import { applyAutoLayout, filterForPerformance } from '@features/schema-browser/utils';
 
 export function useSchemaLayout(
   schemaData: { nodes: Node<SchemaNodeData>[]; edges: Edge<SchemaEdgeData>[] } | null,

@@ -1,5 +1,7 @@
 import { EditorView, WidgetType } from '@codemirror/view';
 
+import { StructuredSQLResponse } from '@models/structured-ai-response';
+
 import {
   createResponseHeader,
   createActionsSection,
@@ -8,7 +10,6 @@ import {
   assembleStructuredResponseWidget,
 } from './structured-response-builders';
 import { createStructuredResponseHandlers } from './structured-response-handlers';
-import { StructuredSQLResponse } from '../../../models/structured-ai-response';
 
 export class StructuredResponseWidget extends WidgetType {
   private cleanup?: () => void;

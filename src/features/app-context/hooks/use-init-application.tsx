@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+
 import { showError, showWarning } from '@components/app-notifications';
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
@@ -7,7 +9,6 @@ import {
 } from '@features/duckdb-context/duckdb-context';
 import { setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
-import { useEffect } from 'react';
 
 import { useShowPermsAlert } from './use-show-perm-alert';
 

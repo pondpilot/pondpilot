@@ -1,6 +1,7 @@
 import { Table as TableType, Cell } from '@tanstack/react-table';
-import { cn } from '@utils/ui/styles';
 import { memo } from 'react';
+
+import { cn } from '@utils/ui/styles';
 
 import { TableIndexCell, TableRegularCell } from './components';
 

@@ -2,6 +2,8 @@
 // These are necessary when multi-table transactions are needed,
 // as we are not blocking controller operations on indexedDB updates.
 
+import { IDBPDatabase } from 'idb';
+
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
 import {
@@ -9,7 +11,6 @@ import {
   DATA_SOURCE_TABLE_NAME,
   LOCAL_ENTRY_TABLE_NAME,
 } from '@models/persisted-store';
-import { IDBPDatabase } from 'idb';
 
 /**
  * ------------------------------------------------------------

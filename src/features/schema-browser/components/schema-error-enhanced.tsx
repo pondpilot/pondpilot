@@ -1,7 +1,7 @@
 import { IconAlertTriangle, IconRefresh, IconInfoCircle } from '@tabler/icons-react';
 import React from 'react';
 
-import { SchemaError, formatErrorForDisplay } from '../utils/error-handling';
+import { SchemaError, formatErrorForDisplay } from '@features/schema-browser/utils/error-handling';
 
 interface SchemaErrorEnhancedProps {
   error: SchemaError;

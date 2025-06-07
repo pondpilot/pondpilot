@@ -1,5 +1,7 @@
-import { showError, showSuccess, showWarning } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
+import { useCallback, useState } from 'react';
+
+import { showError, showSuccess, showWarning } from '@components/app-notifications';
 import { CancelledOperation, DataAdapterApi } from '@models/data-adapter';
 import {
   BaseExportOptions,
@@ -11,7 +13,6 @@ import { useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
 import { createExportFileName, exportData } from '@utils/export-data';
 import { getTabNameFromStore } from '@utils/tab-utils';
-import { useCallback, useState } from 'react';
 
 export type ExportError = {
   type: 'cancelled' | 'export_error';

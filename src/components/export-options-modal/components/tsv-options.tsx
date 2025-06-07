@@ -1,7 +1,10 @@
 import { Stack, TextInput, Checkbox } from '@mantine/core';
-import { setDataTestId } from '@utils/test-id';
 
-import { commonTextInputClassNames, commonCheckboxClassNames } from '../constants';
+import {
+  commonTextInputClassNames,
+  commonCheckboxClassNames,
+} from '@components/export-options-modal/constants';
+import { setDataTestId } from '@utils/test-id';
 
 interface TsvOptionsProps {
   includeHeader: boolean;

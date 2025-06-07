@@ -1,8 +1,18 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
-import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
-import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { v4 } from 'uuid';
+
+// eslint-disable-next-line import/no-cycle
+import { useDuckDBPersistence } from '@features/duckdb-persistence-context/duckdb-persistence-context';
+import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
 
 import { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
 
@@ -80,9 +90,13 @@ export const DuckDBConnectionPoolProvider = ({
   // Use static cdn hosted bundles
   const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
 
-  // create a logger
-  const logger = new duckdb.ConsoleLogger(
-    import.meta.env.DEV ? duckdb.LogLevel.INFO : duckdb.LogLevel.WARNING,
+  // create a logger - memoized to avoid recreating on each render
+  const logger = useMemo(
+    () =>
+      new duckdb.ConsoleLogger(
+        import.meta.env.DEV ? duckdb.LogLevel.INFO : duckdb.LogLevel.WARNING,
+      ),
+    [],
   );
 
   // duckdb worker and blob URL references
@@ -353,7 +367,14 @@ export const DuckDBConnectionPoolProvider = ({
     });
 
     return connectionPromise;
-  }, [persistenceState.dbPath, updatePersistenceState, normalizedPoolSize, memoizedStatusUpdate]);
+  }, [
+    persistenceState,
+    updatePersistenceState,
+    normalizedPoolSize,
+    memoizedStatusUpdate,
+    JSDELIVR_BUNDLES,
+    logger,
+  ]);
 
   // If we're being managed by a parent component (like PersistenceConnector),
   // we'll just forward status updates but not show our own UI

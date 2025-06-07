@@ -1,4 +1,8 @@
-import { WARN_NODE_COUNT, MAX_NODE_COUNT, MAX_EDGE_COUNT } from '../constants';
+import {
+  WARN_NODE_COUNT,
+  MAX_NODE_COUNT,
+  MAX_EDGE_COUNT,
+} from '@features/schema-browser/constants';
 
 /**
  * Get display statistics for schema data

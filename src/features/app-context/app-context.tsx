@@ -1,5 +1,6 @@
-import { useFeatureContext } from '@features/feature-context';
 import { createContext, useContext } from 'react';
+
+import { useFeatureContext } from '@features/feature-context';
 
 import { DevModal } from './components/dev-modal';
 import { useAppInitialization } from './hooks/use-init-application';

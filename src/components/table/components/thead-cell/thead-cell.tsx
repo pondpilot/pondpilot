@@ -1,15 +1,16 @@
 /* eslint-disable jsx-a11y/no-static-element-interactions */
+import { Text } from '@mantine/core';
+import { IconTriangleInvertedFilled } from '@tabler/icons-react';
+import { Header, Table as TableType } from '@tanstack/react-table';
+import { memo } from 'react';
+
 import { IconType, NamedIcon } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import { ColumnMeta } from '@components/table/model';
-import { Text } from '@mantine/core';
 import { ColumnSortSpec, DataRow } from '@models/db';
-import { IconTriangleInvertedFilled } from '@tabler/icons-react';
-import { Header, Table as TableType } from '@tanstack/react-table';
 import { isNumberType } from '@utils/db';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { memo } from 'react';
 
 interface TableHeadCellProps {
   header: Header<DataRow, unknown>;

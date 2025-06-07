@@ -1,9 +1,10 @@
 import { useMemo, useCallback } from 'react';
 
-import { TreeNodeData, TreeNodeMenuType } from '../model';
+import { TreeNodeData, TreeNodeMenuType } from '@components/explorer-tree/model';
+import { createMultiSelectContextMenu } from '@components/explorer-tree/utils/multi-select-menu';
+import { getFlattenNodes } from '@components/explorer-tree/utils/tree-manipulation';
+
 import { useDeleteHotkey } from './use-delete-hotkey';
-import { createMultiSelectContextMenu } from '../utils/multi-select-menu';
-import { getFlattenNodes } from '../utils/tree-manipulation';
 
 interface UseExplorerContextOptions<
   NTypeToIdTypeMap extends Record<string, any>,

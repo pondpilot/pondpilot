@@ -1,7 +1,7 @@
-import { AIRequest, AIResponse, AIServiceConfig } from '../models/ai-service';
-import { SQL_ASSISTANT_FUNCTION, StructuredSQLResponse } from '../models/structured-ai-response';
+import { AIRequest, AIResponse, AIServiceConfig } from '@models/ai-service';
+import { SQL_ASSISTANT_FUNCTION, StructuredSQLResponse } from '@models/structured-ai-response';
 
-export type { AIServiceConfig } from '../models/ai-service';
+export type { AIServiceConfig } from '@models/ai-service';
 
 export class AIService {
   private config: AIServiceConfig;

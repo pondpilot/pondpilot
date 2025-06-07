@@ -1,6 +1,7 @@
 import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
-import { toAbortablePromise } from '@utils/abort';
 import * as arrow from 'apache-arrow';
+
+import { toAbortablePromise } from '@utils/abort';
 
 import { AsyncDuckDBPooledConnection } from './duckdb-pooled-connection';
 import { AsyncDuckDBPooledStreamReader } from './duckdb-pooled-streaming-reader';

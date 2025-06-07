@@ -1,8 +1,8 @@
 import { StateEffect } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 
-import { TabExecutionError } from '../../../controllers/tab/tab-controller';
-import { StructuredSQLResponse } from '../../../models/structured-ai-response';
+import { TabExecutionError } from '@controllers/tab/tab-controller';
+import { StructuredSQLResponse } from '@models/structured-ai-response';
 
 // Effects for showing and hiding AI assistant
 export const showAIAssistantEffect = StateEffect.define<{

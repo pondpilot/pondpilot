@@ -1,5 +1,9 @@
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+
 import { DBPersistenceController } from '@controllers/db-persistence';
+// eslint-disable-next-line import/no-cycle
 import { DevModal } from '@features/app-context/components/dev-modal';
+// eslint-disable-next-line import/no-cycle
 import {
   DuckDBConnectionPoolProvider,
   DuckDBInitializerStatusContext,
@@ -7,7 +11,6 @@ import {
 import { useFeatureContext } from '@features/feature-context';
 import { DBPersistenceState } from '@models/db-persistence';
 import { OPFSUtil } from '@utils/opfs';
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
 // Context for managing persistence UI state
 interface UIStateContextType {
@@ -233,7 +236,7 @@ export const DuckDBPersistenceProvider: React.FC<{
     init();
   }, [isOPFSSupported, memoizedStatusUpdate]);
 
-  const updatePersistenceState = async () => {
+  const updatePersistenceState = useCallback(async () => {
     if (!controller) return;
 
     try {
@@ -242,7 +245,7 @@ export const DuckDBPersistenceProvider: React.FC<{
     } catch (error) {
       console.error('Failed to update persistence state:', error);
     }
-  };
+  }, [controller]);
 
   // Periodically update the database size
   useEffect(() => {
@@ -259,7 +262,7 @@ export const DuckDBPersistenceProvider: React.FC<{
     return () => {
       clearInterval(interval);
     };
-  }, [controller]);
+  }, [controller, updatePersistenceState]);
 
   const exportDatabase = async (): Promise<void> => {
     if (!controller) return;

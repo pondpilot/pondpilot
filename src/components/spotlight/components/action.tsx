@@ -1,10 +1,10 @@
-import { HotkeyPill } from '@components/hotkey-pill';
 import { Group, Text } from '@mantine/core';
 import { Spotlight } from '@mantine/spotlight';
+
+import { HotkeyPill } from '@components/hotkey-pill';
+import { Action } from '@components/spotlight/model';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-
-import { Action } from '../model';
 
 export const renderActions = (actions: Action[]) =>
   actions.map((action) => (

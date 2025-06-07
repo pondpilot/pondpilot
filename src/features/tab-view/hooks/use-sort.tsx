@@ -1,5 +1,6 @@
-import { ColumnSortSpec } from '@models/db';
 import { useState, useCallback } from 'react';
+
+import { ColumnSortSpec } from '@models/db';
 
 export const useSort = () => {
   const [sortParams, setSortParams] = useState<ColumnSortSpec | null>();

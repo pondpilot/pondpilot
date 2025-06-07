@@ -1,8 +1,9 @@
+import { Stack } from '@mantine/core';
+import { Outlet } from 'react-router-dom';
+
 import { DesktopOnly } from '@components/desktop-only';
 import { DndOverlay } from '@components/dnd-overlay';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
-import { Stack } from '@mantine/core';
-import { Outlet } from 'react-router-dom';
 
 import { Header } from './components/header';
 

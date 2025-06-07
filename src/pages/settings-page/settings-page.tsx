@@ -1,5 +1,3 @@
-import { DatabaseManagementSettings } from '@components/database-management';
-import { exportSQLScripts } from '@controllers/export-data';
 import {
   ActionIcon,
   Badge,
@@ -13,10 +11,13 @@ import {
   Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { resetAppState } from '@store/app-store';
 import { IconX } from '@tabler/icons-react';
-import { setDataTestId } from '@utils/test-id';
 import { useNavigate } from 'react-router-dom';
+
+import { DatabaseManagementSettings } from '@components/database-management';
+import { exportSQLScripts } from '@controllers/export-data';
+import { resetAppState } from '@store/app-store';
+import { setDataTestId } from '@utils/test-id';
 
 import { AISettings } from './components/ai-settings';
 import { ThemeSwitcher } from './components/theme-switcher';

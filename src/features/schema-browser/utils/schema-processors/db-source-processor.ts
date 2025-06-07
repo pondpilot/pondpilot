@@ -1,13 +1,17 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import {
+  dbColumnToSchemaColumn,
+  SchemaGraph,
+  SchemaNodeData,
+  SchemaColumnData,
+} from '@features/schema-browser/model';
+import { getBatchTableConstraints } from '@features/schema-browser/utils/batch-constraints';
+import { createForeignKeyEdges } from '@features/schema-browser/utils/edges';
+import { generateNodePosition } from '@features/schema-browser/utils/node-positioning';
+import { createSchemaNode } from '@features/schema-browser/utils/schema-extraction';
 import { AttachedDB, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { SchemaBrowserTab } from '@models/tab';
-
-import { dbColumnToSchemaColumn, SchemaGraph, SchemaNodeData, SchemaColumnData } from '../../model';
-import { getBatchTableConstraints } from '../batch-constraints';
-import { createForeignKeyEdges } from '../edges';
-import { generateNodePosition } from '../node-positioning';
-import { createSchemaNode } from '../schema-extraction';
 
 /**
  * Process schema for database source

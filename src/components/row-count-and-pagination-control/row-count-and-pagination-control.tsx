@@ -1,9 +1,10 @@
 import { Group, ActionIcon, TextInput, Tooltip } from '@mantine/core';
-import { MAX_DATA_VIEW_PAGE_SIZE } from '@models/tab';
 import { IconChevronLeft, IconChevronRight, IconArrowBarRight } from '@tabler/icons-react';
+import { useState } from 'react';
+
+import { MAX_DATA_VIEW_PAGE_SIZE } from '@models/tab';
 import { formatNumber } from '@utils/helpers';
 import { setDataTestId } from '@utils/test-id';
-import { useState } from 'react';
 
 interface PaginationControlProps {
   rowFrom: number;

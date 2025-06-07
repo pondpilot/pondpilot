@@ -5,8 +5,9 @@ import {
   IconCircleXFilled,
   IconInfoCircleFilled,
 } from '@tabler/icons-react';
-import { cn } from '@utils/ui/styles';
 import { ReactNode } from 'react';
+
+import { cn } from '@utils/ui/styles';
 
 const classNames = {
   root: 'w-[424px] right-[-20px] bg-backgroundInverse-light dark:bg-backgroundInverse-dark rounded-2xl',

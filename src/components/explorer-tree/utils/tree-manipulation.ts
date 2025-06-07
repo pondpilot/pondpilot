@@ -1,4 +1,4 @@
-import { TreeNodeData } from '../model';
+import { TreeNodeData } from '@components/explorer-tree/model';
 
 export const getFlattenNodes = <NTypeToIdTypeMap extends Record<string, any>>(
   tree: TreeNodeData<NTypeToIdTypeMap>[],

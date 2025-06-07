@@ -1,12 +1,3 @@
-import { NamedIcon } from '@components/named-icon';
-import { createSQLScript } from '@controllers/sql-script';
-import {
-  deleteTab,
-  getOrCreateTabFromScript,
-  setActiveTabId,
-  setPreviewTabId,
-  setTabOrder,
-} from '@controllers/tab';
 import {
   DndContext,
   closestCenter,
@@ -24,12 +15,22 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { ScrollArea, Group, Skeleton, ActionIcon } from '@mantine/core';
+import { IconPlus } from '@tabler/icons-react';
+import { memo, useEffect, useRef, useState } from 'react';
+
+import { NamedIcon } from '@components/named-icon';
+import { createSQLScript } from '@controllers/sql-script';
+import {
+  deleteTab,
+  getOrCreateTabFromScript,
+  setActiveTabId,
+  setPreviewTabId,
+  setTabOrder,
+} from '@controllers/tab';
 import { TabId } from '@models/tab';
 import { useAppStore, useTabNameMap, useTabIconMap } from '@store/app-store';
-import { IconPlus } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { memo, useEffect, useRef, useState } from 'react';
 
 import { Tab } from './components';
 

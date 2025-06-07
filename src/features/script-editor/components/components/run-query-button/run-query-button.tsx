@@ -1,7 +1,5 @@
 import { Button, Group, Menu } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
-import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
-import { RunScriptMode } from '@models/sql-script';
 import {
   IconChevronDown,
   IconChevronRight,
@@ -9,6 +7,9 @@ import {
   IconArrowBigUp,
   IconArrowBack,
 } from '@tabler/icons-react';
+
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
+import { RunScriptMode } from '@models/sql-script';
 import { setDataTestId } from '@utils/test-id';
 
 interface RunQueryButtonProps {

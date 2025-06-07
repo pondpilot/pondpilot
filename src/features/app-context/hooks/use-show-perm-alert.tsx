@@ -1,7 +1,8 @@
-import { showAlert } from '@components/app-notifications';
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useCallback } from 'react';
+
+import { showAlert } from '@components/app-notifications';
 
 export const useShowPermsAlert = () => {
   const showPermsAlert = useCallback(

@@ -1,8 +1,9 @@
 import { Stack, Group, Title } from '@mantine/core';
 import { IconUpload } from '@tabler/icons-react';
+import { PropsWithChildren, useState, useCallback } from 'react';
+
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { PropsWithChildren, useState, useCallback } from 'react';
 
 interface DndOverlayProps extends PropsWithChildren {
   handleFileDrop: (e: React.DragEvent<HTMLDivElement>) => void;

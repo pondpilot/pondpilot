@@ -12,8 +12,8 @@ import {
   DAGRE_EDGESEP,
   DAGRE_MARGIN_X,
   DAGRE_MARGIN_Y,
-} from '../constants';
-import { SchemaNodeData, SchemaEdgeData } from '../model';
+} from '@features/schema-browser/constants';
+import { SchemaNodeData, SchemaEdgeData } from '@features/schema-browser/model';
 
 /**
  * Arranges nodes in a directed graph layout using dagre algorithm
