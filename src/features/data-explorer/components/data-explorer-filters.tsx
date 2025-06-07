@@ -2,7 +2,6 @@ import { ActionIcon, Group, Tooltip, Menu, Checkbox, TextInput, Box } from '@man
 import { supportedDataSourceFileExt } from '@models/file-system';
 import {
   IconList,
-  IconFolder,
   IconDatabase,
   IconFile,
   IconCloud,
@@ -16,7 +15,7 @@ import { memo, useState, useRef, useEffect } from 'react';
 
 import './data-explorer-filters.css';
 
-export type DataExplorerFilterType = 'all' | 'folders' | 'databases' | 'files' | 'remote';
+export type DataExplorerFilterType = 'all' | 'databases' | 'files' | 'remote';
 
 export type FileTypeFilter = {
   csv: boolean;
@@ -33,10 +32,9 @@ interface FilterButton {
 
 const filterButtons: FilterButton[] = [
   { type: 'all', Icon: IconList, tooltip: 'Show all' },
-  { type: 'folders', Icon: IconFolder, tooltip: 'Show folders only' },
   { type: 'databases', Icon: IconDatabase, tooltip: 'Show local databases only' },
-  { type: 'files', Icon: IconFile, tooltip: 'Show files only' },
   { type: 'remote', Icon: IconCloud, tooltip: 'Show remote databases only' },
+  { type: 'files', Icon: IconFile, tooltip: 'Show files only' },
 ];
 
 const fileTypeLabels: Partial<Record<supportedDataSourceFileExt, string>> = {

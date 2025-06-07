@@ -42,8 +42,7 @@ export const useFilterNodes = ({
   // Filter nodes and compute expanded state based on search
   const { filteredSections, searchExpandedState } = useMemo(() => {
     const showSystemDb = activeFilter === 'all' || activeFilter === 'databases';
-    const showFileSystem =
-      activeFilter === 'all' || activeFilter === 'folders' || activeFilter === 'files';
+    const showFileSystem = activeFilter === 'all' || activeFilter === 'files';
     const showLocalDbs = activeFilter === 'all' || activeFilter === 'databases';
     const showRemoteDbs = activeFilter === 'all' || activeFilter === 'remote';
 

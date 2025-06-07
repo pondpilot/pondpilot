@@ -9,7 +9,7 @@ import { fuzzyMatch } from './fuzzy-search';
  * Preserves folder structure when filtering files
  *
  * @param nodes - Tree nodes to filter
- * @param filterType - Active filter type (all, folders, files, etc.)
+ * @param filterType - Active filter type (all, databases, files, remote)
  * @param fileTypeFilter - Optional file type filter settings
  * @param getFileExtension - Optional function to get file extension from node label
  * @param searchQuery - Optional search query for fuzzy matching
@@ -63,16 +63,6 @@ export function filterTreeNodes(
 
   return nodes
     .map((node) => {
-      // For folders filter - show folders and their full contents
-      if (filterType === 'folders') {
-        if (node.nodeType === 'folder') {
-          // Include folder with all its children (don't filter children)
-          return node;
-        }
-        // Skip non-folder nodes at root level
-        return null;
-      }
-
       // For files filter
       if (filterType === 'files') {
         if (node.nodeType === 'file' || node.nodeType === 'sheet') {
