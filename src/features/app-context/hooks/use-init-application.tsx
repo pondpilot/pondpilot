@@ -19,6 +19,7 @@ import { useShowPermsAlert } from './use-show-perm-alert';
 // Reconnect to remote databases after app initialization
 async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promise<void> {
   const { dataSources } = useAppStore.getState();
+  const connectedDatabases: string[] = [];
 
   for (const [id, dataSource] of dataSources) {
     if (isRemoteDatabase(dataSource)) {
@@ -41,12 +42,14 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
 
           // Re-attached remote database
           updateRemoteDbConnectionState(id, 'connected');
+          connectedDatabases.push(dataSource.dbName);
         } catch (attachError: any) {
           // If it's already attached, that's fine
           if (attachError.message?.includes('already in use')) {
             // Verify the existing connection
             await conn.query('SELECT 1');
             updateRemoteDbConnectionState(id, 'connected');
+            connectedDatabases.push(dataSource.dbName);
           } else {
             throw attachError;
           }
@@ -65,6 +68,26 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
         console.warn(`Failed to reconnect to remote database ${dataSource.dbName}:`, errorMessage);
         updateRemoteDbConnectionState(id, 'error', errorMessage);
       }
+    }
+  }
+
+  // Load metadata for successfully connected remote databases
+  if (connectedDatabases.length > 0) {
+    try {
+      const { getDatabaseModel } = await import('@controllers/db/duckdb-meta');
+      const remoteMetadata = await getDatabaseModel(conn, connectedDatabases);
+      
+      // Merge with existing metadata
+      const currentMetadata = useAppStore.getState().databaseMetadata;
+      const newMetadata = new Map(currentMetadata);
+      
+      for (const [dbName, dbModel] of remoteMetadata) {
+        newMetadata.set(dbName, dbModel);
+      }
+      
+      useAppStore.setState({ databaseMetadata: newMetadata }, false, 'RemoteDB/loadMetadata');
+    } catch (error) {
+      console.error('Failed to load metadata for remote databases:', error);
     }
   }
 }

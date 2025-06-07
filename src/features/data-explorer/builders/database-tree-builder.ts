@@ -85,6 +85,16 @@ export function buildDatabaseNode(
     dbLabel = getLocalDBDataSourceName(dbName, localFile);
   }
 
+  // For remote databases, append connection state indicator
+  if (isRemoteDb) {
+    const remoteDb = dataSource as RemoteDB;
+    const stateIcon = remoteDb.connectionState === 'connected' ? '✓' 
+      : remoteDb.connectionState === 'connecting' ? '⟳' 
+      : remoteDb.connectionState === 'error' ? '⚠' 
+      : '✕';
+    dbLabel = `${dbLabel} ${stateIcon}`;
+  }
+
   nodeMap.set(dbId, { db: dbId, schemaName: null, objectName: null, columnName: null });
   anyNodeIdToNodeTypeMap.set(dbId, 'db');
 

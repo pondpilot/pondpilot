@@ -12,7 +12,7 @@ import { useAppStore } from '@store/app-store';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { executeWithRetry } from '@utils/connection-manager';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
-import { buildDetachQuery } from '@utils/sql-builder';
+import { buildAttachQuery, buildDetachQuery } from '@utils/sql-builder';
 
 /**
  * Updates the connection state of a remote database
@@ -47,19 +47,76 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
   try {
     updateRemoteDbConnectionState(remoteDb.id, 'connecting');
 
-    // Test the connection by querying the database (using proper SQL escaping)
-    const escapedDbName = toDuckDBIdentifier(remoteDb.dbName);
-    const testQuery = `SELECT 1 FROM ${escapedDbName}.information_schema.tables LIMIT 1`;
+    // First, re-attach the database with READ_ONLY flag
+    const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly: true });
+    
+    try {
+      await executeWithRetry(pool, attachQuery, {
+        maxRetries: 3,
+        timeout: 30000, // 30 seconds
+        retryDelay: 2000, // 2 seconds
+        exponentialBackoff: true,
+      });
+    } catch (attachError: any) {
+      // Check for various "already attached" error messages
+      const errorMsg = attachError.message || '';
+      const isAlreadyAttached = 
+        errorMsg.includes('already in use') ||
+        errorMsg.includes('already attached') ||
+        errorMsg.includes('Unique file handle conflict');
+        
+      if (!isAlreadyAttached) {
+        throw attachError;
+      }
+    }
 
-    // Use connection manager with retries and timeout
-    await executeWithRetry(pool, testQuery, {
-      maxRetries: 3,
-      timeout: 30000, // 30 seconds
-      retryDelay: 2000, // 2 seconds
-      exponentialBackoff: true,
-    });
+    // Wait for the database to be fully loaded
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Verify the database is attached by checking the catalog
+    const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${remoteDb.dbName}'`;
+    
+    let dbFound = false;
+    let attempts = 0;
+    const maxAttempts = 5;
+    
+    while (!dbFound && attempts < maxAttempts) {
+      try {
+        const result = await pool.query(checkQuery);
+        if (result && result.numRows > 0) {
+          dbFound = true;
+        } else {
+          throw new Error('Database not found in catalog');
+        }
+      } catch (error) {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          throw new Error(`Database ${remoteDb.dbName} could not be verified after ${maxAttempts} attempts`);
+        }
+        console.warn(`Attempt ${attempts}: Database not ready yet, waiting...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
 
     updateRemoteDbConnectionState(remoteDb.id, 'connected');
+
+    // Load metadata for the reconnected database
+    try {
+      const { getDatabaseModel } = await import('@controllers/db/duckdb-meta');
+      const remoteMetadata = await getDatabaseModel(pool, [remoteDb.dbName]);
+      
+      // Merge with existing metadata
+      const currentMetadata = useAppStore.getState().databaseMetadata;
+      const newMetadata = new Map(currentMetadata);
+      
+      for (const [dbName, dbModel] of remoteMetadata) {
+        newMetadata.set(dbName, dbModel);
+      }
+      
+      useAppStore.setState({ databaseMetadata: newMetadata }, false, 'RemoteDB/reconnectMetadata');
+    } catch (metadataError) {
+      console.error('Failed to load metadata after reconnection:', metadataError);
+    }
 
     showSuccess({
       title: 'Reconnected',
