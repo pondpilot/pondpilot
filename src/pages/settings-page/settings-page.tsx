@@ -19,6 +19,7 @@ import { setDataTestId } from '@utils/test-id';
 import { useNavigate } from 'react-router-dom';
 
 import { AISettings } from './components/ai-settings';
+import { LayoutSwitcher } from './components/layout-switcher';
 import { ThemeSwitcher } from './components/theme-switcher';
 
 export const SettingsPage = () => {
@@ -85,6 +86,20 @@ export const SettingsPage = () => {
 
             <ThemeSwitcher />
           </Stack>
+
+          <Stack>
+            <Box>
+              <Title c="text-primary" order={3}>
+                Layout
+              </Title>
+              <Text c="text-secondary">
+                Choose between classic resizable panels or collapsible accordion sections.
+              </Text>
+            </Box>
+
+            <LayoutSwitcher />
+          </Stack>
+
           <Divider />
           <AISettings />
           <Divider />
