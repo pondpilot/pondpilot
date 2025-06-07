@@ -88,9 +88,6 @@ export function buildDatabaseNode(
   nodeMap.set(dbId, { db: dbId, schemaName: null, objectName: null, columnName: null });
   anyNodeIdToNodeTypeMap.set(dbId, 'db');
 
-  // By default only expand databases, but not schemas or tables
-  initialExpandedState[dbId] = true;
-
   const sortedSchemas = databaseMetadata
     .get(dbName)
     ?.schemas?.sort((a: any, b: any) => a.name.localeCompare(b.name));
@@ -187,7 +184,7 @@ export function buildDatabaseNode(
     label: dbLabel,
     iconType: isSystemDb || dbName === PERSISTENT_DB_NAME ? 'duck' : 'db',
     isDisabled: false,
-    isSelectable: false,
+    isSelectable: true,
     renameCallbacks:
       !isSystemDb && !isRemoteDb && localFile?.userAdded
         ? {
