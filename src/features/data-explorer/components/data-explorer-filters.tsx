@@ -122,8 +122,9 @@ export const DataExplorerFilters = memo(
                 <Group key={button.type} gap={0}>
                   <Tooltip label={button.tooltip} position="bottom">
                     <ActionIcon
-                      variant="filled"
+                      variant="light"
                       size="sm"
+                      color="background-accent"
                       onClick={() => onFilterChange(button.type)}
                       aria-label={button.tooltip}
                       className="rounded-r-none"
@@ -140,8 +141,9 @@ export const DataExplorerFilters = memo(
                   >
                     <Menu.Target>
                       <ActionIcon
-                        variant="filled"
+                        variant="light"
                         size="sm"
+                        color="background-accent"
                         className="rounded-l-none border-l border-gray-400 dark:border-gray-600"
                         aria-label="Filter file types"
                       >
@@ -199,8 +201,9 @@ export const DataExplorerFilters = memo(
             return (
               <Tooltip key={button.type} label={button.tooltip} position="bottom">
                 <ActionIcon
-                  variant={activeFilter === button.type ? 'filled' : 'subtle'}
+                  variant={activeFilter === button.type ? 'light' : 'subtle'}
                   size="sm"
+                  color={activeFilter === button.type ? 'background-accent' : undefined}
                   onClick={() => onFilterChange(button.type)}
                   aria-label={button.tooltip}
                 >
@@ -258,8 +261,9 @@ export const DataExplorerFilters = memo(
           position="bottom"
         >
           <ActionIcon
-            variant={searchQuery ? 'filled' : 'subtle'}
+            variant={searchQuery ? 'light' : 'subtle'}
             size="sm"
+            color={searchQuery ? 'background-accent' : undefined}
             onClick={handleSearchToggle}
             aria-label="Toggle search"
             className="search-toggle-button"
