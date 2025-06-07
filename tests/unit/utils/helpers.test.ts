@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
+
 import { escapeField } from '@utils/helpers';
 
 describe('escape CSV values', () => {

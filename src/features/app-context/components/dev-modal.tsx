@@ -1,5 +1,7 @@
-import { useDuckDBInitializerStatus } from '@features/duckdb-context/duckdb-context';
 import { Modal, Stack, Text } from '@mantine/core';
+
+// eslint-disable-next-line import/no-cycle
+import { useDuckDBInitializerStatus } from '@features/duckdb-context/duckdb-context';
 
 export const DevModal = () => {
   const { state: dbInitState, message } = useDuckDBInitializerStatus();

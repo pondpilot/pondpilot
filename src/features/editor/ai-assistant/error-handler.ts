@@ -1,5 +1,6 @@
-import { showError, showWarning } from '@components/app-notifications/app-notifications';
 import type { NotificationData } from '@mantine/notifications';
+
+import { showError, showWarning } from '@components/app-notifications/app-notifications';
 
 import { AI_ASSISTANT_TIMINGS } from './constants';
 

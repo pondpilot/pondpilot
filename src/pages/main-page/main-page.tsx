@@ -1,16 +1,17 @@
+import { Stack, useMantineColorScheme } from '@mantine/core';
+import { useHotkeys, useLocalStorage } from '@mantine/hooks';
+import { Spotlight } from '@mantine/spotlight';
+import { Allotment } from 'allotment';
+
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { StartGuide } from '@features/start-guide';
 import { TabView } from '@features/tab-view/tab-view';
 import { TabsPane } from '@features/tabs-pane';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
-import { Stack, useMantineColorScheme } from '@mantine/core';
-import { useHotkeys, useLocalStorage } from '@mantine/hooks';
-import { Spotlight } from '@mantine/spotlight';
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { useAppStore } from '@store/app-store';
 import { importSQLFiles } from '@utils/import-script-file';
-import { Allotment } from 'allotment';
 
 import { Navbar } from './components';
 

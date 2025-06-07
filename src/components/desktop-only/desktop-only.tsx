@@ -1,4 +1,5 @@
 import { Image, Box, Stack, Text, Title, Center } from '@mantine/core';
+
 import { setDataTestId } from '@utils/test-id';
 
 import desktopOnly from './assets/desktop-only.svg';

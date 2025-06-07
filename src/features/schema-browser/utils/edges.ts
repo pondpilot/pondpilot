@@ -1,6 +1,6 @@
 import { Edge } from 'reactflow';
 
-import { SchemaNodeData, SchemaEdgeData } from '../model';
+import { SchemaNodeData, SchemaEdgeData } from '@features/schema-browser/model';
 
 /**
  * Create an edge between two tables based on a foreign key relationship

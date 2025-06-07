@@ -1,4 +1,5 @@
 import { expect, mergeTests } from '@playwright/test';
+
 import { getTableColumnId } from '@utils/db';
 
 import { COLUMN_NAMES_WITH_SPECIAL_CHARS } from './consts';

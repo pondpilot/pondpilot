@@ -1,7 +1,8 @@
+import React, { createContext, useContext, useMemo } from 'react';
+
 import { useTabCoordination } from '@hooks/use-tab-coordination';
 import { getBrowserSupportedFeatures } from '@utils/browser';
 import { isPersistenceSupported } from '@utils/duckdb-persistence';
-import React, { createContext, useContext, useMemo } from 'react';
 
 interface FeatureContextType {
   isFileAccessApiSupported: boolean;

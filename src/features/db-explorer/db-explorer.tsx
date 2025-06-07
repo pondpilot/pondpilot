@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 import { showWarning } from '@components/app-notifications';
 import { ExplorerTree, TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
@@ -26,7 +28,6 @@ import {
 import { copyToClipboard } from '@utils/clipboard';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { getAttachedDBDataSourceName } from '@utils/navigation';
-import { memo } from 'react';
 
 import { DbExplorerNode } from './db-explorer-node';
 import { DBNodeFQNMap, DBNodeTypeMap, DBExplorerContext } from './model';

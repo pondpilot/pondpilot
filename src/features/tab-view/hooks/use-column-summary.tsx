@@ -1,8 +1,9 @@
 import { useDidUpdate } from '@mantine/hooks';
+import { useCallback, useState, useRef } from 'react';
+
 import { CancelledOperation, ColumnAggregateType, DataAdapterApi } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
 import { isNumberType, stringifyTypedValue } from '@utils/db';
-import { useCallback, useState, useRef } from 'react';
 
 export const useColumnSummary = (dataAdapter: DataAdapterApi) => {
   const [columnTotal, setColumnTotal] = useState<string | null>(null);

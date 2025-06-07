@@ -1,10 +1,11 @@
 import { execSync } from 'child_process';
 import path from 'path';
 
-import { supportedDataSourceFileExt } from '@models/file-system';
 import { test as base, expect, mergeTests } from '@playwright/test';
-import { assertNeverValueType } from '@utils/typing';
 import * as XLSX from 'xlsx';
+
+import { supportedDataSourceFileExt } from '@models/file-system';
+import { assertNeverValueType } from '@utils/typing';
 
 import { test as DbExplorer } from './db-explorer';
 import { test as fileSystemExplorer } from './file-system-explorer';

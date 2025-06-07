@@ -1,7 +1,7 @@
 import { Stack, Checkbox, Box, Text, Radio, Group } from '@mantine/core';
-import { setDataTestId } from '@utils/test-id';
 
-import { commonCheckboxClassNames } from '../constants';
+import { commonCheckboxClassNames } from '@components/export-options-modal/constants';
+import { setDataTestId } from '@utils/test-id';
 
 interface MarkdownOptionsProps {
   includeHeader: boolean;

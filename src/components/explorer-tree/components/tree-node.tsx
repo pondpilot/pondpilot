@@ -1,15 +1,16 @@
-import { NamedIcon } from '@components/named-icon';
 import { TextInput, Popover, ActionIcon, Menu, Text, Divider, Group } from '@mantine/core';
 import { IconDotsVertical, IconX } from '@tabler/icons-react';
-import { setDataTestId } from '@utils/test-id';
-import { cn } from '@utils/ui/styles';
 import { Fragment, memo, useEffect, useRef, useState } from 'react';
 import { shallow } from 'zustand/shallow';
 
-import { TreeNodeMenuType, TreeNodeData, BaseTreeNodeProps } from '../model';
+import { TreeNodeMenuType, TreeNodeData, BaseTreeNodeProps } from '@components/explorer-tree/model';
+import { getMenuItemDataTestId, mergeMenus } from '@components/explorer-tree/utils/context-menu';
+import { getNodeDataTestIdPrefix } from '@components/explorer-tree/utils/node-test-id';
+import { NamedIcon } from '@components/named-icon';
+import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
+
 import { TreeNodeMenuItem } from './tree-menu-item';
-import { getMenuItemDataTestId, mergeMenus } from '../utils/context-menu';
-import { getNodeDataTestIdPrefix } from '../utils/node-test-id';
 
 const ITEM_CLASSES = {
   base: 'cursor-pointer h-[30px] rounded group bg-transparent !outline-none',

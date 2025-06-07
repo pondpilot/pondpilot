@@ -1,13 +1,14 @@
-import { HotkeyPill } from '@components/hotkey-pill';
-import { SpotlightMenu } from '@components/spotlight';
-import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { Group, Text, TextInput } from '@mantine/core';
 import { spotlight } from '@mantine/spotlight';
 import { IconSearch } from '@tabler/icons-react';
-import { setDataTestId } from '@utils/test-id';
-import { cn } from '@utils/ui/styles';
 import { memo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+
+import { HotkeyPill } from '@components/hotkey-pill';
+import { SpotlightMenu } from '@components/spotlight';
+import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
+import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
 
 export const Header = memo(() => {
   const navigate = useNavigate();

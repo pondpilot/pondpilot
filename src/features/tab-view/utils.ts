@@ -1,5 +1,6 @@
-import { showError, showSuccess, showWarning } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
+
+import { showError, showSuccess, showWarning } from '@components/app-notifications';
 import { CancelledOperation, DataAdapterApi } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
 import { copyToClipboard } from '@utils/clipboard';

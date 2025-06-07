@@ -1,6 +1,7 @@
+import { AIServiceConfig, DEFAULT_AI_CONFIG, AI_PROVIDERS } from '@models/ai-service';
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
+
 import { getJSONCookie, setJSONCookie } from './cookies';
-import { AIServiceConfig, DEFAULT_AI_CONFIG, AI_PROVIDERS } from '../models/ai-service';
-import { LOCAL_STORAGE_KEYS } from '../models/local-storage';
 
 function sanitizeConfig(config: Partial<AIServiceConfig>): Partial<AIServiceConfig> {
   const sanitized: Partial<AIServiceConfig> = {};

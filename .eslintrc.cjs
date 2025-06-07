@@ -5,6 +5,7 @@ module.exports = {
   },
   plugins: ['unused-imports', 'playwright', 'local-rules'],
   rules: {
+    'local-rules/prefer-absolute-imports': 'error',
     'arrow-body-style': 'off',
     'react/react-in-jsx-scope': 'off',
     'import/extensions': 'off',
@@ -42,6 +43,7 @@ module.exports = {
       files: ['tests/**/*.ts'],
       extends: ['plugin:playwright/recommended'],
       rules: {
+        'local-rules/prefer-absolute-imports': 'off',
         'playwright/no-standalone-expect': 'off',
         'playwright/expect-expect': [
           'error',
@@ -67,6 +69,11 @@ module.exports = {
     },
   ],
   settings: {
+    'import/resolver': {
+      typescript: {
+        project: './tsconfig.json',
+      },
+    },
     playwright: {
       globalAliases: {
         test: ['baseTest'],

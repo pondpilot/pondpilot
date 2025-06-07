@@ -1,3 +1,15 @@
+import { Button, Group, Image, Stack, Text, Title, useMantineColorScheme } from '@mantine/core';
+import { modals } from '@mantine/modals';
+import { spotlight } from '@mantine/spotlight';
+import {
+  IconChevronRight,
+  IconDatabasePlus,
+  IconFileImport,
+  IconFilePlus,
+  IconFolderPlus,
+  IconPlus,
+} from '@tabler/icons-react';
+
 import duckDark from '@assets/duck-dark.svg';
 import duck from '@assets/duck.svg';
 import { HotkeyPill } from '@components/hotkey-pill';
@@ -11,17 +23,6 @@ import {
 import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-modal';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
-import { Button, Group, Image, Stack, Text, Title, useMantineColorScheme } from '@mantine/core';
-import { modals } from '@mantine/modals';
-import { spotlight } from '@mantine/spotlight';
-import {
-  IconChevronRight,
-  IconDatabasePlus,
-  IconFileImport,
-  IconFilePlus,
-  IconFolderPlus,
-  IconPlus,
-} from '@tabler/icons-react';
 import { importSQLFiles } from '@utils/import-script-file';
 import { setDataTestId } from '@utils/test-id';
 

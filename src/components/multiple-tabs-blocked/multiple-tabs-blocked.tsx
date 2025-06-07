@@ -1,10 +1,10 @@
 import { BackgroundImage, Box, Button, Center, Image, Stack, Text, Title } from '@mantine/core';
-import { setDataTestId } from '@utils/test-id';
 
-import browserNotSupportedImgBsod from '../browser-not-supported/assets/bsod.svg';
-import CrackDuck from '../browser-not-supported/assets/crack-duck.svg';
-import browserNotSupportedImgMatrix from '../browser-not-supported/assets/matrix.svg';
-import browserNotSupportedImgWat from '../browser-not-supported/assets/wat.svg';
+import browserNotSupportedImgBsod from '@components/browser-not-supported/assets/bsod.svg';
+import CrackDuck from '@components/browser-not-supported/assets/crack-duck.svg';
+import browserNotSupportedImgMatrix from '@components/browser-not-supported/assets/matrix.svg';
+import browserNotSupportedImgWat from '@components/browser-not-supported/assets/wat.svg';
+import { setDataTestId } from '@utils/test-id';
 
 const backgroundImages = [
   browserNotSupportedImgWat,

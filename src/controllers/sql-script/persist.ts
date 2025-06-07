@@ -2,9 +2,10 @@
 // These are necessary when multi-table transactions are needed,
 // as we are not blocking controller operations on indexedDB updates.
 
+import { IDBPDatabase } from 'idb';
+
 import { AppIdbSchema, SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScriptId } from '@models/sql-script';
-import { IDBPDatabase } from 'idb';
 
 /**
  * ------------------------------------------------------------

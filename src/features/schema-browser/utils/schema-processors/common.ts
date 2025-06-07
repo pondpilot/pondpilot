@@ -1,11 +1,13 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { DEFAULT_NODE_POSITION } from '@features/schema-browser/constants';
+import { SchemaGraph, SchemaNodeData } from '@features/schema-browser/model';
+import { createForeignKeyEdges } from '@features/schema-browser/utils/edges';
+import { generateNodePosition } from '@features/schema-browser/utils/node-positioning';
+import {
+  extractFlatFileSchema,
+  createSchemaNode,
+} from '@features/schema-browser/utils/schema-extraction';
 import { PersistentDataSourceId, AnyFlatFileDataSource } from '@models/data-source';
-
-import { DEFAULT_NODE_POSITION } from '../../constants';
-import { SchemaGraph, SchemaNodeData } from '../../model';
-import { createForeignKeyEdges } from '../edges';
-import { generateNodePosition } from '../node-positioning';
-import { extractFlatFileSchema, createSchemaNode } from '../schema-extraction';
 
 /**
  * Process a single file source and add it to the schema graph

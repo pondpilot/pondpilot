@@ -3,9 +3,10 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Group, Text, ActionIcon, Box, Loader } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
+import { useState } from 'react';
+
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { useState } from 'react';
 
 interface TabProps {
   tabId: string;

@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 
-import { useAppStore } from '../store/app-store';
+import { useAppStore } from '@store/app-store';
 
 /**
  * Exports script files as a zip file.

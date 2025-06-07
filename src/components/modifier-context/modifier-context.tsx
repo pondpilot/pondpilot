@@ -1,7 +1,8 @@
 // A global context providing which modifier keys are currently pressed.
 import { useOs } from '@mantine/hooks';
-import { KeyboardModifiers } from '@models/keyboard';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+
+import { KeyboardModifiers } from '@models/keyboard';
 
 const NO_MODIFIERS: KeyboardModifiers = {
   alt: false,

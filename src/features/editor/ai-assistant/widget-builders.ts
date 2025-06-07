@@ -4,6 +4,11 @@
 
 import { EditorView } from '@codemirror/view';
 
+import { TabExecutionError } from '@controllers/tab/tab-controller';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { AI_PROVIDERS } from '@models/ai-service';
+import { getAIConfig } from '@utils/ai-config';
+
 import {
   createContainer,
   createTextarea,
@@ -14,10 +19,6 @@ import {
   createSection,
   createSelect,
 } from './ui-factories';
-import { TabExecutionError } from '../../../controllers/tab/tab-controller';
-import { AI_PROVIDERS } from '../../../models/ai-service';
-import { getAIConfig } from '../../../utils/ai-config';
-import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
 
 /**
  * Creates a collapsible context section that combines SQL and Schema contexts

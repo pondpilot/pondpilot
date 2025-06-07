@@ -1,7 +1,8 @@
 import { BackgroundImage, Box, Center, Image, Stack, Text, Title } from '@mantine/core';
+import { useEffect } from 'react';
+
 import { setAppLoadState } from '@store/app-store';
 import { setDataTestId } from '@utils/test-id';
-import { useEffect } from 'react';
 
 import browserNotSupportedImgBsod from './assets/bsod.svg';
 import CrackDuck from './assets/crack-duck.svg';

@@ -1,13 +1,13 @@
-import { ErrorStackView } from '@components/error-stack-view';
-import { exportSQLScripts } from '@controllers/export-data';
 import { Stack, Button, Text, Anchor, List, ThemeIcon, Box } from '@mantine/core';
-import { APP_SUPPORT_URL } from '@models/app-urls';
 import { IconCircleCheck, IconRefresh, IconDownload, IconTrash } from '@tabler/icons-react';
-import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 import { useRouteError } from 'react-router-dom';
 
-import { deleteApplicationData } from '../utils';
+import { deleteApplicationData } from '@components/error-fallback/utils';
+import { ErrorStackView } from '@components/error-stack-view';
+import { exportSQLScripts } from '@controllers/export-data';
+import { APP_SUPPORT_URL } from '@models/app-urls';
+import { setDataTestId } from '@utils/test-id';
 
 export const AppErrorFallback = () => {
   const [exportError, setExportError] = useState<boolean>(false);

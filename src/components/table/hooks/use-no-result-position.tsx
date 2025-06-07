@@ -1,5 +1,6 @@
-import { DBTableOrViewSchema } from '@models/db';
 import { useEffect, useRef, useState } from 'react';
+
+import { DBTableOrViewSchema } from '@models/db';
 
 interface UseNoResultsPositionProps {
   hasRows: boolean;

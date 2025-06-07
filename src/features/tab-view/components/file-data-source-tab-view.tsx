@@ -1,10 +1,11 @@
 import { Stack } from '@mantine/core';
-import { AnyFileSourceTab, TabId } from '@models/tab';
-import { useTabReactiveState } from '@store/app-store';
 import { memo } from 'react';
 
+import { useDataAdapter } from '@features/tab-view/hooks/use-data-adapter';
+import { AnyFileSourceTab, TabId } from '@models/tab';
+import { useTabReactiveState } from '@store/app-store';
+
 import { DataView, DataViewInfoPane } from '.';
-import { useDataAdapter } from '../hooks/use-data-adapter';
 
 interface FileDataSourceTabViewProps {
   tabId: TabId;

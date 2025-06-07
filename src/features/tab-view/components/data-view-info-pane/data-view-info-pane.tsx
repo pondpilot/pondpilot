@@ -1,15 +1,16 @@
+import { TextProps, Group, ActionIcon, Button, Text, Menu, Divider } from '@mantine/core';
+import { useDebouncedValue } from '@mantine/hooks';
+import { IconX, IconCopy, IconRefresh, IconChevronDown } from '@tabler/icons-react';
+import { useMemo } from 'react';
+
 import { DotAnimation } from '@components/dots-animation';
 import { ExportOptionsModal } from '@components/export-options-modal';
 import { useTableExport } from '@features/tab-view/hooks';
-import { TextProps, Group, ActionIcon, Button, Text, Menu, Divider } from '@mantine/core';
-import { useDebouncedValue } from '@mantine/hooks';
 import { DataAdapterApi } from '@models/data-adapter';
 import { TabId, TabType } from '@models/tab';
-import { IconX, IconCopy, IconRefresh, IconChevronDown } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { assertNeverValueType } from '@utils/typing';
 import { cn } from '@utils/ui/styles';
-import { useMemo } from 'react';
 
 import { ColRowCount } from './components/col-row-count';
 

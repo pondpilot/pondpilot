@@ -9,8 +9,8 @@ import {
   GRID_START_Y,
   GRID_SPACING_X,
   GRID_SPACING_Y,
-} from '../constants';
-import { SchemaNodeData } from '../model';
+} from '@features/schema-browser/constants';
+import { SchemaNodeData } from '@features/schema-browser/model';
 
 /**
  * Node position generation strategies

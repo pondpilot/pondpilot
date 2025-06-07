@@ -1,8 +1,9 @@
-import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
 import { Button, Group, Text, Stack, Card, rem, Progress } from '@mantine/core';
 import { IconDatabase, IconTrash } from '@tabler/icons-react';
-import { formatFileSize, getPersistenceStateText } from '@utils/duckdb-persistence';
 import React, { useCallback, useRef, useState } from 'react';
+
+import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
+import { formatFileSize, getPersistenceStateText } from '@utils/duckdb-persistence';
 
 export const DatabaseManagementSettings = () => {
   const {

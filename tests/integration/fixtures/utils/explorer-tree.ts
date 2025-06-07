@@ -1,5 +1,6 @@
-import { getNodeDataTestIdPrefix } from '@components/explorer-tree/utils/node-test-id';
 import { expect, Locator, Page } from '@playwright/test';
+
+import { getNodeDataTestIdPrefix } from '@components/explorer-tree/utils/node-test-id';
 
 export const isExplorerTreeNodeSelected = async (treeNode: Locator): Promise<boolean> => {
   const isSelected = await treeNode.getAttribute('data-selected');

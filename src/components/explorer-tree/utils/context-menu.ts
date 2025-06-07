@@ -1,4 +1,4 @@
-import { TreeNodeMenuType } from '../model';
+import { TreeNodeMenuType } from '@components/explorer-tree/model';
 
 export function mergeMenus<NTypeToIdTypeMap extends Record<string, any>>(
   menus: TreeNodeMenuType<NTypeToIdTypeMap>[],

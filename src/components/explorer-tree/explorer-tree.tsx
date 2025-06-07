@@ -8,9 +8,10 @@ import {
   RenderTreeNodePayload as MantineRenderTreeNodePayload,
 } from '@mantine/core';
 import { useHotkeys } from '@mantine/hooks';
+import { ReactNode, useCallback, useMemo, useRef, useEffect } from 'react';
+
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { ReactNode, useCallback, useMemo, useRef, useEffect } from 'react';
 
 import { RenderTreeNodePayload, TreeNodeData } from './model';
 import { getFlattenNodes } from './utils/tree-manipulation';

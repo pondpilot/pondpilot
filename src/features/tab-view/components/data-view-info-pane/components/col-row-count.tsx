@@ -1,4 +1,5 @@
 import { Text } from '@mantine/core';
+
 import { formatNumber } from '@utils/helpers';
 
 interface ColRowCountProps {

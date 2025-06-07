@@ -1,5 +1,7 @@
 // Public tab controller API's
 // By convetion the order should follow CRUD groups!
+import { shallow } from 'zustand/shallow';
+
 import { AnyFlatFileDataSource, AttachedDB, PersistentDataSourceId } from '@models/data-source';
 import { ColumnSortSpecList } from '@models/db';
 import { LocalEntryId } from '@models/file-system';
@@ -13,11 +15,11 @@ import {
   StaleData,
   TabId,
 } from '@models/tab';
+// eslint-disable-next-line import/no-cycle
 import { useAppStore } from '@store/app-store';
 import { ensureAttachedDBDataSource, ensureFlatFileDataSource } from '@utils/data-source';
 import { ensureScript } from '@utils/sql-script';
 import { ensureTab, makeTabId } from '@utils/tab';
-import { shallow } from 'zustand/shallow';
 
 import { persistCreateTab, persistDeleteTab } from './persist';
 import {

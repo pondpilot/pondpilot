@@ -10,6 +10,13 @@ import {
   keymap,
 } from '@codemirror/view';
 
+import { TabExecutionError } from '@controllers/tab/tab-controller';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { AI_PROVIDERS } from '@models/ai-service';
+import { StructuredSQLResponse } from '@models/structured-ai-response';
+import { saveAIConfig, getAIConfig } from '@utils/ai-config';
+import { resolveAIContext } from '@utils/editor/statement-parser';
+
 import { createAIAssistantHandlers } from './ai-assistant/ai-assistant-handlers';
 import {
   showAIAssistantEffect,
@@ -32,12 +39,6 @@ import {
   createModelSelectionSection,
   assembleAIAssistantWidget,
 } from './ai-assistant/widget-builders';
-import { TabExecutionError } from '../../controllers/tab/tab-controller';
-import { AI_PROVIDERS } from '../../models/ai-service';
-import { StructuredSQLResponse } from '../../models/structured-ai-response';
-import { saveAIConfig, getAIConfig } from '../../utils/ai-config';
-import { resolveAIContext } from '../../utils/editor/statement-parser';
-import { AsyncDuckDBConnectionPool } from '../duckdb-context/duckdb-connection-pool';
 
 class AIAssistantWidget extends WidgetType {
   private cleanup?: () => void;

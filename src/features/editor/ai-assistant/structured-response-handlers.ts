@@ -3,13 +3,14 @@
  */
 
 import { EditorView } from '@codemirror/view';
+
 import { showError, showSuccess } from '@components/app-notifications/app-notifications';
+import { SQLAction, SQLAlternative } from '@models/structured-ai-response';
+import { copyToClipboard } from '@utils/clipboard';
+import { resolveToNearestStatement } from '@utils/editor/statement-parser';
 
 import { AI_ASSISTANT_TIMINGS } from './constants';
 import { hideStructuredResponseEffect } from './effects';
-import { SQLAction, SQLAlternative } from '../../../models/structured-ai-response';
-import { copyToClipboard } from '../../../utils/clipboard';
-import { resolveToNearestStatement } from '../../../utils/editor/statement-parser';
 
 export interface StructuredResponseHandlers {
   hideWidget: () => void;

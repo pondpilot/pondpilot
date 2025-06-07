@@ -1,3 +1,8 @@
+import { Button, Group, Stack, Text } from '@mantine/core';
+import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
+import { modals } from '@mantine/modals';
+import { notifications } from '@mantine/notifications';
+
 import { showAlert } from '@components/app-notifications';
 import { useFeatureContext } from '@features/feature-context';
 import {
@@ -5,10 +10,6 @@ import {
   OnboardingModalContent,
 } from '@features/onboarding-modal-content';
 import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-modal';
-import { Button, Group, Stack, Text } from '@mantine/core';
-import { useDidUpdate, useLocalStorage } from '@mantine/hooks';
-import { modals } from '@mantine/modals';
-import { notifications } from '@mantine/notifications';
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { useAppStore } from '@store/app-store';
 import { isVersionGreater } from '@utils/compare-versions';

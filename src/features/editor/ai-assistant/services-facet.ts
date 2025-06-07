@@ -5,13 +5,10 @@
 
 import { Facet, EditorState } from '@codemirror/state';
 
-import { getAIConfig } from '../../../utils/ai-config';
-import { AIService, getAIService, AIServiceConfig } from '../../../utils/ai-service';
-import {
-  SchemaContextService,
-  getSchemaContextService,
-} from '../../../utils/schema-context-service';
-import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { getAIConfig } from '@utils/ai-config';
+import { AIService, getAIService, AIServiceConfig } from '@utils/ai-service';
+import { SchemaContextService, getSchemaContextService } from '@utils/schema-context-service';
 
 export interface AIAssistantServices {
   aiService: AIService;

@@ -2,9 +2,10 @@
 // These are necessary when multi-table transactions are needed,
 // as we are not blocking controller operations on indexedDB updates.
 
+import { IDBPDatabase } from 'idb';
+
 import { AppIdbSchema, CONTENT_VIEW_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
 import { AnyTab, TabId } from '@models/tab';
-import { IDBPDatabase } from 'idb';
 
 /**
  * ------------------------------------------------------------

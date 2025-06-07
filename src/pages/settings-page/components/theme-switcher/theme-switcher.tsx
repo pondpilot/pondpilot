@@ -1,6 +1,7 @@
 import { Box, Divider, Group, Stack, Title, useMantineColorScheme } from '@mantine/core';
-import { cn } from '@utils/ui/styles';
 import React from 'react';
+
+import { cn } from '@utils/ui/styles';
 
 interface ThemeItemProps {
   theme: string;

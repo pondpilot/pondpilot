@@ -1,5 +1,6 @@
-import { MAX_PERSISTED_STALE_DATA_ROWS } from '@models/tab';
 import { mergeTests, expect } from '@playwright/test';
+
+import { MAX_PERSISTED_STALE_DATA_ROWS } from '@models/tab';
 import { getTableColumnId } from '@utils/db';
 import { formatTableData } from '@utils/table';
 

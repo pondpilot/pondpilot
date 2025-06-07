@@ -1,3 +1,5 @@
+import { createBrowserRouter, RouterProvider, Navigate, RouteObject } from 'react-router-dom';
+
 import { BrowserNotSupported } from '@components/browser-not-supported';
 import { AppErrorFallback } from '@components/error-fallback';
 import { Layout } from '@components/layout';
@@ -6,7 +8,6 @@ import { useFeatureContext } from '@features/feature-context';
 import { SharedScriptImport } from '@features/script-import';
 import { MainPage } from '@pages/main-page';
 import { SettingsPage } from '@pages/settings-page';
-import { createBrowserRouter, RouterProvider, Navigate, RouteObject } from 'react-router-dom';
 
 let devOnlyRoutes: RouteObject[] = [];
 

@@ -1,7 +1,8 @@
+import { Node, Edge } from 'reactflow';
+
 import { PersistentDataSourceId } from '@models/data-source';
 import { DBColumn } from '@models/db';
 import { LocalEntryId } from '@models/file-system';
-import { Node, Edge } from 'reactflow';
 
 // Node data structure for schema visualization
 export interface SchemaNodeData {

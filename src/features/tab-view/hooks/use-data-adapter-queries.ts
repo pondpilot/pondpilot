@@ -1,10 +1,11 @@
+import { useMemo } from 'react';
+
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { DataAdapterQueries } from '@models/data-adapter';
 import { AnyTab, TabReactiveState } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { getFileDataAdapterQueries, getScriptAdapterQueries } from '@utils/data-adapter';
 import { assertNeverValueType } from '@utils/typing';
-import { useMemo } from 'react';
 
 type UseDataAdapterQueriesRetType = DataAdapterQueries & {
   userErrors: string[];

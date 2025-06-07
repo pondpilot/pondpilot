@@ -1,7 +1,8 @@
 import { pickedCompletion, type Completion } from '@codemirror/autocomplete';
+import { EditorView } from 'codemirror';
+
 import { DataBaseModel, DBColumn, DBSchema, DBTableOrView } from '@models/db';
 import { checkValidDuckDBIdentifer } from '@utils/duckdb/identifier';
-import { EditorView } from 'codemirror';
 
 const applyCompletionWithQuotes =
   (name: string) => (view: EditorView, completion: Completion, from: number, to: number) => {

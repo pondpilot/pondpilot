@@ -1,4 +1,4 @@
-import { TreeNodeData, TreeNodeMenuType } from '../model';
+import { TreeNodeData, TreeNodeMenuType } from '@components/explorer-tree/model';
 
 export type MultiSelectHandlers<NTypeToIdTypeMap extends Record<string, any>> = {
   /**

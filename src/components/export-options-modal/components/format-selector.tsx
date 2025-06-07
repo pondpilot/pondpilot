@@ -1,9 +1,9 @@
 import { Stack, Text, UnstyledButton } from '@mantine/core';
+
+import { formatOptions } from '@components/export-options-modal/constants';
 import { ExportFormat } from '@models/export-options';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-
-import { formatOptions } from '../constants';
 
 interface FormatSelectorProps {
   format: ExportFormat;

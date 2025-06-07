@@ -1,3 +1,5 @@
+import { IDBPDatabase, openDB } from 'idb';
+
 import { persistDeleteDataSource, persistPutDataSources } from '@controllers/data-source/persist';
 import {
   registerAndAttachDatabase,
@@ -31,6 +33,7 @@ import {
   AppIdbSchema,
 } from '@models/persisted-store';
 import { TabId } from '@models/tab';
+// eslint-disable-next-line import/no-cycle
 import { useAppStore } from '@store/app-store';
 import { addAttachedDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
 import {
@@ -41,7 +44,6 @@ import {
 } from '@utils/file-system';
 import { findUniqueName } from '@utils/helpers';
 import { getXlsxSheetNames } from '@utils/xlsx';
-import { IDBPDatabase, openDB } from 'idb';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {

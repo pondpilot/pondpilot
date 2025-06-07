@@ -6,6 +6,7 @@
 import { syntaxTree } from '@codemirror/language';
 import { Range } from '@codemirror/state';
 import { EditorView, ViewPlugin, Decoration, DecorationSet, ViewUpdate } from '@codemirror/view';
+
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 const underlineMark = Decoration.mark({ class: 'cm-table-name' });

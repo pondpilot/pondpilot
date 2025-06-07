@@ -1,6 +1,7 @@
+import { test as base, expect, Locator } from '@playwright/test';
+
 import { DataCell } from '@models/db';
 import { MAX_DATA_VIEW_PAGE_SIZE } from '@models/tab';
-import { test as base, expect, Locator } from '@playwright/test';
 import { getTableColumnId } from '@utils/db';
 
 /**

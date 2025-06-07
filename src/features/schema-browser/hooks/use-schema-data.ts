@@ -1,14 +1,7 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { SchemaBrowserTab } from '@models/tab';
-import {
-  useAppStore,
-  useFlatFileDataSourceMap,
-  useAttachedDBDataSourceMap,
-  useAttachedDBMetadata,
-} from '@store/app-store';
 import { useState, useEffect } from 'react';
 
-import { SchemaGraph } from '../model';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { SchemaGraph } from '@features/schema-browser/model';
 import {
   clearExpiredCache,
   createCacheKey,
@@ -19,7 +12,14 @@ import {
   processFolderSource,
   categorizeError,
   SchemaError,
-} from '../utils';
+} from '@features/schema-browser/utils';
+import { SchemaBrowserTab } from '@models/tab';
+import {
+  useAppStore,
+  useFlatFileDataSourceMap,
+  useAttachedDBDataSourceMap,
+  useAttachedDBMetadata,
+} from '@store/app-store';
 
 /**
  * Hook to fetch and manage schema data for visualization

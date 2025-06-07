@@ -4,6 +4,8 @@
 
 import { EditorView } from '@codemirror/view';
 
+import { TabExecutionError } from '@controllers/tab/tab-controller';
+
 import {
   hideAIAssistantEffect,
   showStructuredResponseEffect,
@@ -12,7 +14,6 @@ import {
 import { handleAIServiceError, handleSchemaContextError } from './error-handler';
 import { AIAssistantServices } from './services-facet';
 import { preventEventPropagation } from './ui-factories';
-import { TabExecutionError } from '../../../controllers/tab/tab-controller';
 
 export interface AIAssistantHandlers {
   hideWidget: () => void;

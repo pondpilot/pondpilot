@@ -2,9 +2,10 @@
  * UI builders for Structured Response Widget components
  */
 
+import { SQLAction, SQLAlternative } from '@models/structured-ai-response';
+import { copyToClipboard } from '@utils/clipboard';
+
 import { createContainer, createButton, createFooter, createSpacer } from './ui-factories';
-import { SQLAction, SQLAlternative } from '../../../models/structured-ai-response';
-import { copyToClipboard } from '../../../utils/clipboard';
 
 /**
  * Creates the header section with title and summary
