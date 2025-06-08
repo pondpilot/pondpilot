@@ -27,6 +27,11 @@ export function getTabName(
     return getSchemaBrowserTabTitle(tab, dataSources, localEntries);
   }
 
+  // AI Chat tab
+  if (tab.type === 'ai-chat') {
+    return 'Chat with Data';
+  }
+
   // Data source tabs
   const dataSource = dataSources.get(tab.dataSourceId);
 
@@ -63,6 +68,10 @@ export function getTabIcon(
 
   if (tab.type === 'schema-browser') {
     return 'db-schema';
+  }
+
+  if (tab.type === 'ai-chat') {
+    return 'ai-message';
   }
 
   if (tab.type === 'data-source' && tab.dataSourceType === 'file') {
