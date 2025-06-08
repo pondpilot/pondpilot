@@ -18,6 +18,8 @@ import {
   showStructuredResponseEffect,
   hideStructuredResponseEffect,
 } from './ai-assistant/effects';
+import { HistoryNavigationManager } from './ai-assistant/managers/history-manager';
+import { MentionManager } from './ai-assistant/managers/mention-manager';
 import {
   getServicesFromState,
   aiAssistantServicesExtension,
@@ -34,6 +36,7 @@ import {
 } from './ai-assistant/widget-builders';
 import { TabExecutionError } from '../../controllers/tab/tab-controller';
 import { AI_PROVIDERS } from '../../models/ai-service';
+import { SQLScript } from '../../models/sql-script';
 import { StructuredSQLResponse } from '../../models/structured-ai-response';
 import { saveAIConfig, getAIConfig } from '../../utils/ai-config';
 import { resolveAIContext } from '../../utils/editor/statement-parser';
@@ -101,7 +104,6 @@ class AIAssistantWidget extends WidgetType {
       };
 
       saveAIConfig(updatedConfig);
-
       services.aiService.updateConfig(updatedConfig);
     };
 
@@ -116,17 +118,64 @@ class AIAssistantWidget extends WidgetType {
       this.errorContext,
     );
 
+    // Create input section first to get textarea and generateBtn references
+    let submitWrapper: () => void;
+
     const { inputSection, textarea, generateBtn } = createInputSection(
       handlers.hideWidget,
-      () => handlers.handleSubmit(textarea, generateBtn),
-      (event) =>
-        handlers.handleTextareaKeyDown(
-          event,
-          () => handlers.handleSubmit(textarea, generateBtn),
-          handlers.hideWidget,
-        ),
+      () => submitWrapper(),
+      () => {}, // Placeholder for keyboard handler, will be updated
       this.errorContext,
     );
+
+    // Now set up managers with the textarea and button references
+    const mentionManager = new MentionManager(textarea, generateBtn, services);
+    const historyManager = new HistoryNavigationManager(textarea);
+
+    // Update the submit wrapper now that we have mention and history
+    submitWrapper = () => {
+      // Don't submit if mention dropdown is active
+      if (!mentionManager.state.isActive) {
+        historyManager.resetHistory();
+        handlers.handleSubmit(textarea, generateBtn);
+      }
+    };
+
+    // Consolidated keyboard handler
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Priority 1: Mention navigation (if active)
+      if (mentionManager.state.isActive) {
+        if (mentionManager.handleNavigation(event)) {
+          return; // Mention handled the key
+        }
+      }
+
+      // Priority 2: History navigation (if not mention active and relevant keys)
+      if (
+        !mentionManager.state.isActive &&
+        (event.key === 'ArrowUp' || event.key === 'ArrowDown')
+      ) {
+        if (historyManager.handleNavigation(event)) {
+          return; // History handled the key
+        }
+      }
+
+      // Priority 3: Default actions (submit, hide widget)
+      if (!mentionManager.state.isActive || (event.key !== 'Enter' && event.key !== 'Tab')) {
+        handlers.handleTextareaKeyDown(event, submitWrapper, handlers.hideWidget);
+      }
+    };
+
+    // Replace the placeholder keyboard handler
+    textarea.removeEventListener('keydown', textarea.onkeydown as any);
+    textarea.addEventListener('keydown', handleKeyDown);
+
+    // Add input event listener for @ mentions and manual typing
+    const handleInput = async () => {
+      await mentionManager.handleInput(() => historyManager.handleManualInput());
+    };
+
+    textarea.addEventListener('input', handleInput);
 
     const footer = createWidgetFooter(generateBtn);
 
@@ -136,7 +185,14 @@ class AIAssistantWidget extends WidgetType {
       footer,
     });
 
-    this.cleanup = handlers.setupEventHandlers(container, handlers.hideWidget);
+    // Enhanced cleanup
+    const originalCleanup = handlers.setupEventHandlers(container, handlers.hideWidget);
+    this.cleanup = () => {
+      mentionManager.cleanup();
+      textarea.removeEventListener('input', handleInput);
+      textarea.removeEventListener('keydown', handleKeyDown);
+      originalCleanup();
+    };
 
     this.focusTimeoutId = window.setTimeout(() => {
       textarea.focus();
@@ -444,9 +500,10 @@ const aiAssistantKeymap = keymap.of([
 export function aiAssistantTooltip(
   connectionPool?: AsyncDuckDBConnectionPool | null,
   services?: AIAssistantServices,
+  sqlScripts?: Map<string, SQLScript>,
 ) {
   return [
-    aiAssistantServicesExtension(connectionPool, services),
+    aiAssistantServicesExtension(connectionPool, services, sqlScripts),
     aiAssistantStateField,
     aiAssistantWidgetPlugin,
     structuredResponseField,

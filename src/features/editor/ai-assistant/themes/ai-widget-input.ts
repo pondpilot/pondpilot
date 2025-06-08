@@ -59,6 +59,8 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
     transition: 'opacity 0.2s ease',
     minWidth: '70px',
     justifyContent: 'center',
+    flexShrink: '0',
+    whiteSpace: 'nowrap',
 
     '&:hover': {
       opacity: '0.9',

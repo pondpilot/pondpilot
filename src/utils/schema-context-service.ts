@@ -92,7 +92,7 @@ export class SchemaContextService {
     const relatedTables = new Set<string>();
 
     // For each referenced table, find tables that reference it or are referenced by it
-    for (const [dbName, database] of databaseModel.entries()) {
+    for (const [, database] of databaseModel.entries()) {
       for (const schema of database.schemas) {
         for (const table of schema.objects) {
           const tableLower = table.name.toLowerCase();
@@ -241,8 +241,20 @@ export class SchemaContextService {
   async generateSchemaContext(
     conn: AsyncDuckDBConnectionPool,
     sqlStatement?: string,
+    mentionedTables?: string[],
   ): Promise<SchemaContext> {
+    // Combine referenced tables from SQL and explicitly mentioned tables
     const referencedTables = await this.extractReferencedTables(conn, sqlStatement);
+    if (mentionedTables && mentionedTables.length > 0) {
+      // Add mentioned tables to referenced tables (deduplicate)
+      const allTables = new Set([
+        ...referencedTables,
+        ...mentionedTables.map((t) => t.toLowerCase()),
+      ]);
+      referencedTables.length = 0;
+      referencedTables.push(...Array.from(allTables));
+    }
+
     const databaseModel = await getDatabaseModel(conn);
     const relatedTables = this.findRelatedTables(referencedTables, databaseModel);
 
