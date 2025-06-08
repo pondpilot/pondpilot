@@ -1,3 +1,4 @@
+import { CreatableSelect } from '@components/creatable-select';
 import {
   Alert,
   Box,
@@ -14,14 +15,7 @@ import {
   ActionIcon,
   Checkbox,
 } from '@mantine/core';
-import {
-  IconInfoCircle,
-  IconShieldCheck,
-  IconCheck,
-  IconX,
-  IconTrash,
-  IconPlus,
-} from '@tabler/icons-react';
+import { IconInfoCircle, IconShieldCheck, IconCheck, IconX, IconTrash } from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { AI_PROVIDERS, AIServiceConfig, AIModel } from '../../../../models/ai-service';
@@ -63,16 +57,15 @@ export const AISettings = () => {
 
           // Handle custom provider
           if (value === 'custom') {
-            const customModels = prev.customModels || [
-              { id: 'custom-model-1', name: 'Model 1', description: '' },
-            ];
+            const customModels = prev.customModels || [];
             return {
               ...prev,
               provider: value,
-              model: customModels[0].id,
+              model: customModels.length > 0 ? customModels[0].id : '',
               apiKey: newProviderApiKey,
               apiKeys,
               customAuthType: prev.customAuthType || 'bearer',
+              customModels: customModels.length === 0 ? [] : customModels,
             };
           }
 
@@ -190,47 +183,30 @@ export const AISettings = () => {
     setHasChanges(true);
   }, []);
 
-  const handleAddCustomModel = useCallback(() => {
+  const handleAddCustomModel = useCallback((modelId: string) => {
     setConfig((prev) => {
       const customModels = prev.customModels || [];
+
+      // Check if model already exists
+      if (customModels.some((m) => m.id === modelId)) {
+        return prev;
+      }
+
       const newModel: AIModel = {
-        id: `custom-model-${Date.now()}`,
-        name: `Model ${customModels.length + 1}`,
+        id: modelId,
+        name: modelId, // Use the same value for name initially
         description: '',
       };
+
       return {
         ...prev,
         customModels: [...customModels, newModel],
-        model: prev.model || newModel.id,
+        model: modelId, // Select the newly created model
       };
     });
     setHasChanges(true);
+    setTestStatus({ testing: false, result: null });
   }, []);
-
-  const handleRemoveCustomModel = useCallback((modelId: string) => {
-    setConfig((prev) => {
-      const customModels = (prev.customModels || []).filter((m) => m.id !== modelId);
-      return {
-        ...prev,
-        customModels,
-        model: prev.model === modelId && customModels.length > 0 ? customModels[0].id : prev.model,
-      };
-    });
-    setHasChanges(true);
-  }, []);
-
-  const handleCustomModelChange = useCallback(
-    (modelId: string, field: keyof AIModel, value: string) => {
-      setConfig((prev) => {
-        const customModels = (prev.customModels || []).map((m) =>
-          m.id === modelId ? { ...m, [field]: value } : m,
-        );
-        return { ...prev, customModels };
-      });
-      setHasChanges(true);
-    },
-    [],
-  );
 
   // Helper to render API key status badges
   const renderApiKeyStatus = () => {
@@ -319,64 +295,64 @@ export const AISettings = () => {
               </Group>
             </Radio.Group>
 
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Text size="sm" fw={500}>
-                  Custom Models
-                </Text>
-                <Button
-                  size="xs"
-                  variant="subtle"
-                  leftSection={<IconPlus size={14} />}
-                  onClick={handleAddCustomModel}
-                >
-                  Add Model
-                </Button>
-              </Group>
-              <Stack gap="xs">
-                {(config.customModels || []).map((model) => (
-                  <Group key={model.id} gap="xs" align="flex-start">
-                    <TextInput
-                      placeholder="Model ID"
-                      value={model.id}
-                      onChange={(e) =>
-                        handleCustomModelChange(model.id, 'id', e.currentTarget.value)
-                      }
-                      className="flex-1"
-                      size="sm"
-                    />
-                    <TextInput
-                      placeholder="Model Name"
-                      value={model.name}
-                      onChange={(e) =>
-                        handleCustomModelChange(model.id, 'name', e.currentTarget.value)
-                      }
-                      className="flex-1"
-                      size="sm"
-                    />
-                    <ActionIcon
-                      color="red"
-                      variant="subtle"
-                      onClick={() => handleRemoveCustomModel(model.id)}
-                      disabled={(config.customModels || []).length === 1}
-                    >
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  </Group>
-                ))}
-              </Stack>
-            </Box>
-
-            <Select
+            <CreatableSelect
               label="Model"
-              description="Select which model to use"
+              description="Select an existing model or type to create a new one"
+              placeholder="Select or create a model..."
               value={config.model}
               onChange={handleModelChange}
+              onCreate={handleAddCustomModel}
               data={(config.customModels || []).map((model) => ({
                 value: model.id,
-                label: model.name,
+                label: model.name || model.id,
               }))}
+              searchable
+              creatable
+              createLabel={(query) => `Create model "${query}"`}
+              nothingFoundMessage="No models found. Type to create a new one."
             />
+
+            {config.customModels && config.customModels.length > 0 && (
+              <Box>
+                <Text size="sm" fw={500} mb="xs">
+                  Manage Models
+                </Text>
+                <Stack gap="xs">
+                  {config.customModels.map((model) => (
+                    <Group key={model.id} gap="xs" align="center">
+                      <Text size="sm" className="flex-1">
+                        {model.id}
+                      </Text>
+                      <ActionIcon
+                        color="red"
+                        variant="subtle"
+                        size="sm"
+                        onClick={() => {
+                          setConfig((prev) => {
+                            const customModels = (prev.customModels || []).filter(
+                              (m) => m.id !== model.id,
+                            );
+                            return {
+                              ...prev,
+                              customModels,
+                              model:
+                                prev.model === model.id && customModels.length > 0
+                                  ? customModels[0].id
+                                  : prev.model === model.id
+                                    ? ''
+                                    : prev.model,
+                            };
+                          });
+                          setHasChanges(true);
+                        }}
+                      >
+                        <IconTrash size={14} />
+                      </ActionIcon>
+                    </Group>
+                  ))}
+                </Stack>
+              </Box>
+            )}
 
             <Checkbox
               label="Supports function calling (tool use)"
