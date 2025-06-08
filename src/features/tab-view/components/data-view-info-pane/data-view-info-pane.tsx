@@ -207,6 +207,14 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
           );
         }
 
+        case 'ai-chat': {
+          return (
+            <Text {...textDefaultProps} c="text-error">
+              AI chat error.
+            </Text>
+          );
+        }
+
         default:
           assertNeverValueType(tabType);
           break;

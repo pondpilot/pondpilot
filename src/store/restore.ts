@@ -1,3 +1,4 @@
+import { loadAIChatConversations } from '@controllers/ai-chat/persist';
 import { persistDeleteDataSource, persistPutDataSources } from '@controllers/data-source/persist';
 import {
   registerAndAttachDatabase,

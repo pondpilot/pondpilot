@@ -78,8 +78,9 @@ export const useDataAdapterQueries = ({
           internalErrors: [],
         };
       }
-      case 'comparison': {
-        // Comparison tab doesn't need a data adapter in this context
+      case 'comparison':
+      case 'ai-chat': {
+        // Comparison and AI chat tabs don't need a data adapter in this context
         return {
           userErrors: [],
           internalErrors: [],
@@ -89,8 +90,7 @@ export const useDataAdapterQueries = ({
         assertNeverValueType(tab);
         return {
           userErrors: [],
-          // @ts-expect-error
-          internalErrors: [`Unknown tab type: ${tab.type}`],
+          internalErrors: [`Unknown tab type: ${(tab as any).type}`],
         };
     }
     // we need sourceVersion to be a dependency, because it allows us to re-create the queries

@@ -5,7 +5,7 @@ import { useAppStore, useTabTypeMap } from '@store/app-store';
 import { useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
-import { TabErrorFallback } from './components';
+import { TabErrorFallback, AIChatTabView } from './components';
 import { useTabCache } from './hooks/use-tab-cache';
 import { FileDataSourceTabView, SchemaTabView, ScriptTabView } from './views';
 
@@ -47,6 +47,7 @@ export const TabView = () => {
                 )}
                 {tabType === 'schema-browser' && <SchemaTabView tabId={tabId} active={isActive} />}
                 {tabType === 'comparison' && <ComparisonTabView tabId={tabId} active={isActive} />}
+                {tabType === 'ai-chat' && <AIChatTabView tabId={tabId} active={isActive} />}
               </ErrorBoundary>
             </div>
           );

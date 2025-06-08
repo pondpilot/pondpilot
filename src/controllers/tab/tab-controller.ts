@@ -1,5 +1,7 @@
 // Public tab controller API's
 // By convetion the order should follow CRUD groups!
+import { aiChatController } from '@controllers/ai-chat';
+import { ChatConversationId } from '@models/ai-chat';
 import {
   AnyFlatFileDataSource,
   LocalDB,
@@ -11,6 +13,7 @@ import { LocalEntryId } from '@models/file-system';
 import { CONTENT_VIEW_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import {
+  AIChatTab,
   LocalDBDataTab,
   FlatFileDataSourceTab,
   SchemaBrowserTab,
@@ -316,6 +319,126 @@ export const getOrCreateTabFromScript = (
 };
 
 /**
+ * Gets existing or creates a new AI chat tab.
+ * If a chat tab already exists, it returns that tab without creating a new one.
+ *
+ * @param setActive - Whether to set the new tab as active. This is a shortcut for
+ *                  calling `setActiveTabId(tab.id)` on the returned tab.
+ * @param title - Optional title for the new conversation
+ * @returns An AI Chat tab object.
+ */
+export const getOrCreateAIChatTab = (
+  setActive: boolean = false,
+  title?: string,
+): AIChatTab => {
+  const state = useAppStore.getState();
+
+  // Check if an AI chat tab already exists
+  const existingTab = Array.from(state.tabs.values()).find(
+    (tab): tab is AIChatTab => tab.type === 'ai-chat',
+  );
+
+  if (existingTab) {
+    if (setActive) {
+      setActiveTabId(existingTab.id);
+    }
+    return existingTab;
+  }
+
+  // Create a new conversation
+  const conversation = aiChatController.createConversation(title);
+
+  // Create a new tab
+  const tabId = makeTabId();
+  const tab: AIChatTab = {
+    type: 'ai-chat',
+    id: tabId,
+    conversationId: conversation.id,
+    dataViewStateCache: null,
+  };
+
+  // Add the new tab to the store
+  const newTabs = new Map(state.tabs).set(tabId, tab);
+  const newTabOrder = [...state.tabOrder, tabId];
+  const newActiveTabId = setActive ? tabId : state.activeTabId;
+
+  useAppStore.setState(
+    (_) => ({
+      activeTabId: newActiveTabId,
+      tabs: newTabs,
+      tabOrder: newTabOrder,
+    }),
+    undefined,
+    'AppStore/createAIChatTab',
+  );
+
+  // Persist the new tab to IndexedDB
+  const iDb = state._iDbConn;
+  if (iDb) {
+    persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
+  }
+
+  return tab;
+};
+
+/**
+ * Gets existing or creates a new tab from an existing AI chat conversation.
+ * If the conversation is already associated with a tab, it returns that tab without creating a new one.
+ *
+ * @param conversationId - The ID of the conversation to create a tab from.
+ * @param setActive - Whether to set the new tab as active.
+ * @returns An AI chat tab object.
+ */
+export const getOrCreateTabFromConversation = (
+  conversationId: ChatConversationId,
+  setActive: boolean = false,
+): AIChatTab => {
+  const state = useAppStore.getState();
+
+  // Check if the conversation already has an associated tab
+  const existingTab = findTabFromConversation(conversationId);
+
+  if (existingTab) {
+    if (setActive) {
+      setActiveTabId(existingTab.id);
+    }
+    return existingTab;
+  }
+
+  // Create a new tab for the existing conversation
+  const tabId = makeTabId();
+  const tab: AIChatTab = {
+    type: 'ai-chat',
+    id: tabId,
+    conversationId,
+    dataViewStateCache: null,
+  };
+
+  // Add the new tab to the store
+  const newTabs = new Map(state.tabs).set(tabId, tab);
+  const newTabOrder = [...state.tabOrder, tabId];
+  const newActiveTabId = setActive ? tabId : state.activeTabId;
+
+  useAppStore.setState(
+    (_) => ({
+      activeTabId: newActiveTabId,
+      tabs: newTabs,
+      tabOrder: newTabOrder,
+    }),
+    undefined,
+    'AppStore/createAIChatTabFromConversation',
+  );
+
+  // Persist the new tab to IndexedDB
+  const iDb = state._iDbConn;
+  if (iDb) {
+    persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
+  }
+
+  return tab;
+};
+
+/**
  * ------------------------------------------------------------
  * -------------------------- Read ---------------------------
  * ------------------------------------------------------------
@@ -412,6 +535,22 @@ export const findTabFromScript = (
 
   // Check if the script already has an associated tab
   return findTabFromScriptImpl(state.tabs, sqlScript.id);
+};
+
+/**
+ * Finds a tab displaying an AI chat conversation or undefined.
+ *
+ * @param conversationId - The ID of the conversation to find the tab for.
+ * @returns The AI chat tab if found.
+ */
+export const findTabFromConversation = (
+  conversationId: ChatConversationId,
+): AIChatTab | undefined => {
+  const state = useAppStore.getState();
+  const tabs = Array.from(state.tabs.values());
+  return tabs.find(
+    (tab): tab is AIChatTab => tab.type === 'ai-chat' && tab.conversationId === conversationId,
+  );
 };
 
 /**
@@ -864,6 +1003,29 @@ export const deleteTabByScriptId = (sqlScriptId: SQLScriptId): boolean => {
 
   // Find the tab associated with this script
   const tab = findTabFromScriptImpl(tabs, sqlScriptId);
+
+  if (tab) {
+    // Delete the found tab
+    deleteTab([tab.id]);
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Deletes a tab associated with the specified conversation ID.
+ *
+ * @param conversationId - The ID of the conversation whose tab should be deleted
+ * @returns true if a tab was found and deleted, false otherwise
+ */
+export const deleteTabByConversationId = (conversationId: ChatConversationId): boolean => {
+  const { tabs } = useAppStore.getState();
+
+  // Find the tab associated with this conversation
+  const tab = Array.from(tabs.values()).find(
+    (t): t is AIChatTab => t.type === 'ai-chat' && t.conversationId === conversationId,
+  );
 
   if (tab) {
     // Delete the found tab

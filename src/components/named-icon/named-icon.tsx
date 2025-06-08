@@ -20,6 +20,7 @@ import {
   IconNumber10,
   IconBrackets,
   IconScale,
+  IconMessage,
 } from '@tabler/icons-react';
 import React from 'react';
 
@@ -60,6 +61,8 @@ export type IconType =
   | 'column-array'
   | 'column-object'
   | 'column-other'
+  // AI Chat
+  | 'ai-message'
   // In case of errors have a fallback icon
   | 'error';
 
@@ -134,6 +137,8 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
       return <IconTable {...iconProps} />;
     case 'comparison':
       return <IconScale {...iconProps} />;
+    case 'ai-message':
+      return <IconMessage {...iconProps} />;
 
     case 'error':
       return <IconQuestionMark {...iconProps} />;

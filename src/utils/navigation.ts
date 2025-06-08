@@ -34,6 +34,11 @@ export function getTabName(
     return comparisons.get(tab.comparisonId)?.name || 'Unknown comparison';
   }
 
+  // AI Chat tab
+  if (tab.type === 'ai-chat') {
+    return 'Chat with Data';
+  }
+
   // Data source tabs
   const dataSource = dataSources.get(tab.dataSourceId);
 
@@ -74,6 +79,10 @@ export function getTabIcon(
 
   if (tab.type === 'comparison') {
     return 'comparison';
+  }
+
+  if (tab.type === 'ai-chat') {
+    return 'ai-message';
   }
 
   if (tab.type === 'data-source' && tab.dataSourceType === 'file') {

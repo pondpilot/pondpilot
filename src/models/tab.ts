@@ -4,6 +4,7 @@ import {
   ComparisonSource,
   SchemaComparisonResult,
 } from './comparison';
+import { ChatConversationId } from './ai-chat';
 import { PersistentDataSourceId } from './data-source';
 import {
   ARROW_STREAMING_BATCH_SIZE,
@@ -38,7 +39,7 @@ export type TabDataViewStateCache = {
   staleData: StaleData | null;
 };
 
-export type TabType = 'script' | 'data-source' | 'schema-browser' | 'comparison';
+export type TabType = 'script' | 'data-source' | 'schema-browser' | 'comparison' | 'ai-chat';
 
 export interface TabBase {
   readonly type: TabType;
@@ -119,8 +120,13 @@ export interface ComparisonTab extends TabBase {
   comparisonResultsTable: string | null;
 }
 
+export interface AIChatTab extends TabBase {
+  readonly type: 'ai-chat';
+  conversationId: ChatConversationId;
+}
+
 export type AnyFileSourceTab = FlatFileDataSourceTab | LocalDBDataTab;
-export type AnyTab = ScriptTab | AnyFileSourceTab | SchemaBrowserTab | ComparisonTab;
+export type AnyTab = ScriptTab | AnyFileSourceTab | SchemaBrowserTab | ComparisonTab | AIChatTab;
 export type TabReactiveState<T extends AnyTab> = T extends ScriptTab
   ? Omit<ScriptTab, 'dataViewStateCache'>
   : T extends FlatFileDataSourceTab
@@ -129,4 +135,6 @@ export type TabReactiveState<T extends AnyTab> = T extends ScriptTab
       ? Omit<SchemaBrowserTab, 'dataViewStateCache'>
       : T extends ComparisonTab
         ? Omit<ComparisonTab, 'dataViewStateCache'>
+        : T extends AIChatTab
+          ? Omit<AIChatTab, 'dataViewStateCache'>
         : Omit<LocalDBDataTab, 'dataViewStateCache'>;
