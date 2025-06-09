@@ -10,6 +10,7 @@ import { classifySQLStatements, SQLStatementType } from '@utils/editor/sql';
 import { cn } from '@utils/ui/styles';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
+import { ChatErrorBoundary } from './components/chat-error-boundary';
 import { ChatInput } from './components/chat-input';
 import { ChatMessageList } from './components/chat-message-list';
 import { useAIChatSubscription } from './hooks/use-ai-chat-subscription';
@@ -242,15 +243,17 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
       >
         <Box className="min-h-full flex flex-col">
           <div className="flex-1 px-4 py-3">
-            <ChatMessageList
-              messages={messages}
-              isLoading={isLoading}
-              error={error}
-              onRerunQuery={handleRerunQuery}
-              onUpdateMessage={handleUpdateMessage}
-              onDeleteMessage={handleDeleteMessage}
-              onRerunConversation={handleRerunConversation}
-            />
+            <ChatErrorBoundary>
+              <ChatMessageList
+                messages={messages}
+                isLoading={isLoading}
+                error={error}
+                onRerunQuery={handleRerunQuery}
+                onUpdateMessage={handleUpdateMessage}
+                onDeleteMessage={handleDeleteMessage}
+                onRerunConversation={handleRerunConversation}
+              />
+            </ChatErrorBoundary>
           </div>
         </Box>
       </ScrollArea>
@@ -263,11 +266,13 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
           'px-4 py-3'
         )}
       >
-        <ChatInput
-          onSendMessage={handleSendMessage}
-          isLoading={isLoading}
-          placeholder="Ask a question about your data..."
-        />
+        <ChatErrorBoundary>
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            isLoading={isLoading}
+            placeholder="Ask a question about your data..."
+          />
+        </ChatErrorBoundary>
       </Box>
     </Stack>
   );

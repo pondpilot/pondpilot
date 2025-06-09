@@ -30,7 +30,13 @@ export class AIChatController {
   updateConversation(id: ChatConversationId, updates: Partial<ChatConversation>): void {
     const conversation = this.conversations.get(id);
     if (conversation) {
-      Object.assign(conversation, updates, { updatedAt: new Date() });
+      const updatedConversation: ChatConversation = {
+        ...conversation,
+        ...updates,
+        updatedAt: new Date()
+      };
+      
+      this.conversations.set(id, updatedConversation);
       this.notify();
     }
   }
@@ -49,8 +55,14 @@ export class AIChatController {
       id: makeMessageId(),
     };
 
-    conversation.messages.push(newMessage);
-    conversation.updatedAt = new Date();
+    // Create new conversation with added message
+    const updatedConversation: ChatConversation = {
+      ...conversation,
+      messages: [...conversation.messages, newMessage],
+      updatedAt: new Date()
+    };
+    
+    this.conversations.set(conversationId, updatedConversation);
     this.notify();
 
     return newMessage;
@@ -66,8 +78,21 @@ export class AIChatController {
 
     const messageIndex = conversation.messages.findIndex((m) => m.id === messageId);
     if (messageIndex !== -1) {
-      Object.assign(conversation.messages[messageIndex], updates);
-      conversation.updatedAt = new Date();
+      // Create new message array with updated message
+      const updatedMessages = [...conversation.messages];
+      updatedMessages[messageIndex] = {
+        ...conversation.messages[messageIndex],
+        ...updates
+      };
+      
+      // Create new conversation object
+      const updatedConversation: ChatConversation = {
+        ...conversation,
+        messages: updatedMessages,
+        updatedAt: new Date()
+      };
+      
+      this.conversations.set(conversationId, updatedConversation);
       this.notify();
     }
   }
@@ -76,8 +101,14 @@ export class AIChatController {
     const conversation = this.conversations.get(conversationId);
     if (!conversation) return;
 
-    conversation.messages = conversation.messages.filter((m) => m.id !== messageId);
-    conversation.updatedAt = new Date();
+    // Create new conversation with filtered messages
+    const updatedConversation: ChatConversation = {
+      ...conversation,
+      messages: conversation.messages.filter((m) => m.id !== messageId),
+      updatedAt: new Date()
+    };
+    
+    this.conversations.set(conversationId, updatedConversation);
     this.notify();
   }
 
@@ -88,8 +119,13 @@ export class AIChatController {
   clearConversation(conversationId: ChatConversationId): void {
     const conversation = this.conversations.get(conversationId);
     if (conversation) {
-      conversation.messages = [];
-      conversation.updatedAt = new Date();
+      const updatedConversation: ChatConversation = {
+        ...conversation,
+        messages: [],
+        updatedAt: new Date()
+      };
+      
+      this.conversations.set(conversationId, updatedConversation);
       this.notify();
     }
   }
