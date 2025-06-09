@@ -1,6 +1,8 @@
 import { DotAnimation } from '@components/dots-animation';
-import { Stack } from '@mantine/core';
+import { Stack, Paper, Text } from '@mantine/core';
 import { ChatMessage as ChatMessageType } from '@models/ai-chat';
+import { IconAlertCircle } from '@tabler/icons-react';
+import { cn } from '@utils/ui/styles';
 
 import { ChatMessage } from './chat-message';
 
@@ -8,25 +10,63 @@ interface ChatMessageListProps {
   messages: ChatMessageType[];
   isLoading: boolean;
   error?: string;
+  onRerunQuery?: (messageId: string, sql: string) => void;
 }
 
-export const ChatMessageList = ({ messages, isLoading, error }: ChatMessageListProps) => {
+export const ChatMessageList = ({ 
+  messages, 
+  isLoading, 
+  error, 
+  onRerunQuery 
+}: ChatMessageListProps) => {
   return (
-    <Stack className="gap-4">
+    <Stack className="gap-3">
       {messages.map((message) => (
-        <ChatMessage key={message.id} message={message} />
+        <ChatMessage
+          key={message.id}
+          message={message}
+          onRerunQuery={onRerunQuery}
+        />
       ))}
 
       {isLoading && (
-        <div className="flex items-center gap-2 text-gray-500" data-testid="ai-chat-loading">
-          <DotAnimation />
-          <span>Thinking...</span>
+        <div className="flex justify-start">
+          <Paper
+            className={cn(
+              'bg-gray-50 dark:bg-gray-900/30',
+              'border-gray-200 dark:border-gray-800',
+              'shadow-sm px-4 py-3',
+              'chat-loading-message ai-chat-message-enter'
+            )}
+            radius="md"
+            withBorder
+          >
+            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <DotAnimation />
+              <Text size="sm">Thinking...</Text>
+            </div>
+          </Paper>
         </div>
       )}
 
       {error && (
-        <div className="text-red-500 text-sm" data-testid="ai-chat-error">
-          Error: {error}
+        <div className="flex justify-start">
+          <Paper
+            className={cn(
+              'bg-red-50 dark:bg-red-950/30',
+              'border-red-200 dark:border-red-800',
+              'shadow-sm px-4 py-3'
+            )}
+            radius="md"
+            withBorder
+          >
+            <div className="flex items-center gap-2">
+              <IconAlertCircle size={16} className="text-red-500" />
+              <Text size="sm" c="red">
+                {error}
+              </Text>
+            </div>
+          </Paper>
         </div>
       )}
     </Stack>
