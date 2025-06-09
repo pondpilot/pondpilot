@@ -2,8 +2,8 @@ import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { SqlEditor } from '@features/editor/sql-editor';
 import { Paper, Text, ActionIcon, Group, Code, Tooltip, Box, Badge, useMantineColorScheme, LoadingOverlay, Menu, Textarea } from '@mantine/core';
-import { modals } from '@mantine/modals';
 import { useClipboard } from '@mantine/hooks';
+import { modals } from '@mantine/modals';
 import { showNotification } from '@mantine/notifications';
 import { ChatMessage as ChatMessageType, ChatMessageId } from '@models/ai-chat';
 import { IconCopy, IconExternalLink, IconPlayerPlay, IconPencil, IconCheck, IconX, IconTrash, IconDots } from '@tabler/icons-react';
@@ -21,12 +21,12 @@ interface ChatMessageProps {
   onRerunConversation?: (messageId: ChatMessageId, content: string) => void;
 }
 
-export const ChatMessage = ({ 
-  message, 
-  onRerunQuery, 
-  onUpdateMessage, 
+export const ChatMessage = ({
+  message,
+  onRerunQuery,
+  onUpdateMessage,
   onDeleteMessage,
-  onRerunConversation 
+  onRerunConversation,
 }: ChatMessageProps) => {
   const clipboard = useClipboard();
   const { colorScheme } = useMantineColorScheme();
@@ -84,7 +84,7 @@ export const ChatMessage = ({
     if (onUpdateMessage && editedContent.trim()) {
       onUpdateMessage(message.id, editedContent);
       setIsEditingMessage(false);
-      
+
       // For user messages, offer to re-run the conversation
       if (isUser && onRerunConversation) {
         modals.openConfirmModal({

@@ -1,20 +1,19 @@
 import { aiChatController } from '@controllers/ai-chat';
 import { saveAIChatConversations } from '@controllers/ai-chat/persist';
-import { Stack, ScrollArea, Box } from '@mantine/core';
+import { Stack, ScrollArea, Box, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { showNotification } from '@mantine/notifications';
 import { ChatMessageId } from '@models/ai-chat';
 import { TabId, AIChatTab } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { cn } from '@utils/ui/styles';
 import { classifySQLStatements, SQLStatementType } from '@utils/editor/sql';
+import { cn } from '@utils/ui/styles';
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Text } from '@mantine/core';
 
 import { ChatInput } from './components/chat-input';
 import { ChatMessageList } from './components/chat-message-list';
-import { useChatAI } from './hooks/use-chat-ai';
 import { useAIChatSubscription } from './hooks/use-ai-chat-subscription';
+import { useChatAI } from './hooks/use-chat-ai';
 import './ai-chat.css';
 
 interface ChatConversationProps {
@@ -27,7 +26,7 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  
+
   // Subscribe to AI chat controller changes
   useAIChatSubscription();
 

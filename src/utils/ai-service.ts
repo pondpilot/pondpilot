@@ -49,6 +49,40 @@ export class AIService {
     }
   }
 
+  async generateChatTitle(userMessage: string, assistantResponse: string): Promise<string> {
+    if (!this.config.apiKey) {
+      return 'New Chat';
+    }
+
+    try {
+      const prompt = `Based on this conversation, generate a concise title (2-5 words) that captures the main topic or query:
+
+User: ${userMessage}
+Assistant: ${assistantResponse}
+
+Respond with ONLY the title, nothing else.`;
+
+      const request: AIRequest = {
+        prompt,
+        useStructuredResponse: false,
+      };
+
+      const response = await this.generateSQLAssistance(request);
+
+      if (response.success && response.content) {
+        // Clean up the title - remove quotes, trim whitespace
+        const title = response.content.replace(/["']/g, '').trim();
+        // Ensure it's not too long
+        return title.length > 50 ? `${title.substring(0, 47)}...` : title;
+      }
+
+      return 'New Chat';
+    } catch (error) {
+      console.error('Failed to generate chat title:', error);
+      return 'New Chat';
+    }
+  }
+
   async generateSQLAssistance(request: AIRequest): Promise<AIResponse> {
     if (!this.config.apiKey) {
       return {
