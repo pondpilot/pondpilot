@@ -1,4 +1,5 @@
 import { IconType } from '@components/named-icon';
+import { aiChatController } from '@controllers/ai-chat';
 import { Comparison, ComparisonId } from '@models/comparison';
 import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId, LocalFile, LocalFolder } from '@models/file-system';
@@ -36,7 +37,8 @@ export function getTabName(
 
   // AI Chat tab
   if (tab.type === 'ai-chat') {
-    return 'Chat with Data';
+    const conversation = aiChatController.getConversation(tab.conversationId);
+    return conversation?.title || 'New Chat';
   }
 
   // Data source tabs

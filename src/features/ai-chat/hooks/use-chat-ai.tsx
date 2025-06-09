@@ -1,4 +1,5 @@
 import { aiChatController } from '@controllers/ai-chat';
+import { saveAIChatConversations } from '@controllers/ai-chat/persist';
 import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { ChatConversationId, ChatMessageQuery, QueryResults } from '@models/ai-chat';
 import { getAIConfig } from '@utils/ai-config';
@@ -8,6 +9,69 @@ import { useCallback } from 'react';
 
 const MAX_RESULT_ROWS = 100;
 const AI_MODEL_CONTEXT_LIMIT = 8000; // Conservative limit for context management
+const MAX_CONTEXT_ROWS = 10; // Maximum rows to include in AI context
+const MAX_CONTEXT_CHARS_PER_CELL = 100; // Maximum characters per cell in context
+
+// Custom replacer for JSON.stringify to handle BigInts
+const bigIntReplacer = (key: string, value: any) => {
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+  return value;
+};
+
+// Helper function to format query results for AI context
+const formatResultsForContext = (results: QueryResults): string => {
+  const { columns, rows, rowCount, truncated } = results;
+
+  // Sample rows if there are too many
+  let sampledRows = rows;
+  let sampleInfo = '';
+
+  if (rows.length > MAX_CONTEXT_ROWS) {
+    // Take first 5 and last 5 rows
+    const firstRows = rows.slice(0, Math.ceil(MAX_CONTEXT_ROWS / 2));
+    const lastRows = rows.slice(-Math.floor(MAX_CONTEXT_ROWS / 2));
+    sampledRows = [...firstRows, ...lastRows];
+    sampleInfo = ` (showing ${sampledRows.length} of ${rowCount} rows - first ${firstRows.length} and last ${lastRows.length} rows)`;
+  }
+
+  // Truncate long cell values and handle BigInt
+  const truncatedData = sampledRows.map(row =>
+    row.map(cell => {
+      if (cell === null) return null;
+
+      // Convert BigInt to string before any string operations
+      let processedCell = cell;
+      if (typeof cell === 'bigint') {
+        processedCell = cell.toString();
+      }
+
+      const cellStr = String(processedCell);
+      if (cellStr.length > MAX_CONTEXT_CHARS_PER_CELL) {
+        return `${cellStr.substring(0, MAX_CONTEXT_CHARS_PER_CELL - 3)}...`;
+      }
+      return processedCell;
+    })
+  );
+
+  // Create JSON representation (BigInt already handled in truncatedData)
+  const dataJson = truncatedData.map(row => {
+    const obj: Record<string, any> = {};
+    columns.forEach((col, idx) => {
+      obj[col] = row[idx];
+    });
+    return obj;
+  });
+
+  return JSON.stringify({
+    columns,
+    rowCount,
+    truncated: truncated || rows.length > MAX_CONTEXT_ROWS,
+    sampleInfo: sampleInfo || (truncated ? ' (truncated to 100 rows)' : ''),
+    data: dataJson,
+  }, bigIntReplacer, 2);
+};
 
 export const useChatAI = () => {
   const duckDbConnectionPool = useDuckDBConnectionPool();
@@ -67,6 +131,9 @@ export const useChatAI = () => {
       throw new Error('Conversation not found');
     }
 
+    // Check if this is the first exchange (only user message exists)
+    const isFirstExchange = conversation.messages.length === 1 && conversation.messages[0]?.role === 'user';
+
     // Get trimmed conversation history for context
     const contextMessages = aiChatController.getTrimmedMessages(
       conversationId,
@@ -114,12 +181,14 @@ ${schemaContext}
 Instructions:
 - Generate SQL queries to answer user questions about their data
 - Always explain what the query does before showing it
-- After showing results, provide insights or explanations
-- If a query fails, analyze the error and suggest a fix
+- After showing results, provide insights or explanations based on the actual data
+- Query results are provided in JSON format with columns, row count, and sampled data
+- If results show a sample (first and last rows), acknowledge this in your analysis
+- If a query fails, analyze the error details and suggest a specific fix
 - Keep responses concise and focused
 - Format numbers and dates nicely in explanations
-- If results are truncated, mention it
-- For follow-up questions, consider previous queries and results in context
+- When referencing specific data points, use the actual values from the JSON results
+- For follow-up questions, use previous queries, results, and errors to provide better assistance
 
 When you need to generate a SQL query, respond with:
 [EXPLANATION]
@@ -130,7 +199,7 @@ The SQL query
 
 Do not use any other format markers.`;
 
-    // Build conversation context
+    // Build conversation context with full query results
     let conversationContext = '';
     contextMessages.forEach(msg => {
       if (msg.role === 'user') {
@@ -138,11 +207,16 @@ Do not use any other format markers.`;
       } else {
         conversationContext += `Assistant: ${msg.content}\n`;
         if (msg.query) {
-          conversationContext += `\nSQL Query:\n${msg.query.sql}\n`;
+          conversationContext += `\nSQL Query:\n\`\`\`sql\n${msg.query.sql}\n\`\`\`\n`;
+          conversationContext += `Execution Time: ${msg.query.executionTime}ms\n`;
+
           if (msg.query.error) {
-            conversationContext += `Error: ${msg.query.error}\n`;
+            conversationContext += `\nQuery Error:\n\`\`\`json\n${JSON.stringify({
+              error: msg.query.error,
+              successful: false,
+            }, bigIntReplacer, 2)}\n\`\`\`\n`;
           } else if (msg.query.results) {
-            conversationContext += `Results: ${msg.query.results.rowCount} rows${msg.query.results.truncated ? ' (truncated)' : ''}\n`;
+            conversationContext += `\nQuery Results:\n\`\`\`json\n${formatResultsForContext(msg.query.results)}\n\`\`\`\n`;
           }
         }
         conversationContext += '\n';
@@ -213,7 +287,7 @@ Do not use any other format markers.`;
         // Add AI message with explanation and SQL query object (without executing)
         const aiMessage = aiChatController.addMessage(conversationId, {
           role: 'assistant',
-          content: explanation + '\n\n⚠️ This query contains DDL statements (CREATE, ALTER, DROP, etc.) and was not executed automatically. You can run it manually using the button below.',
+          content: `${explanation}\n\n⚠️ This query contains DDL statements (CREATE, ALTER, DROP, etc.) and was not executed automatically. You can run it manually using the button below.`,
           timestamp: new Date(),
         });
 
@@ -251,6 +325,20 @@ Do not use any other format markers.`;
           query: queryResult,
         });
       }
+
+      // Generate title if this was the first exchange
+      if (isFirstExchange) {
+        const titleConfig = getAIConfig();
+        const titleService = getAIService(titleConfig);
+
+        // Generate title asynchronously (don't block the UI)
+        titleService.generateChatTitle(userMessage, explanation).then(async (title) => {
+          if (title && title !== 'New Chat') {
+            aiChatController.updateConversation(conversationId, { title });
+            await saveAIChatConversations();
+          }
+        });
+      }
     } else {
       // No SQL found, just add the response as a message
       aiChatController.addMessage(conversationId, {
@@ -258,6 +346,20 @@ Do not use any other format markers.`;
         content,
         timestamp: new Date(),
       });
+
+      // Generate title if this was the first exchange
+      if (isFirstExchange) {
+        const titleConfig2 = getAIConfig();
+        const titleService2 = getAIService(titleConfig2);
+
+        // Generate title asynchronously (don't block the UI)
+        titleService2.generateChatTitle(userMessage, content).then(async (title) => {
+          if (title && title !== 'New Chat') {
+            aiChatController.updateConversation(conversationId, { title });
+            await saveAIChatConversations();
+          }
+        });
+      }
     }
   }, [duckDbConnectionPool, executeQuery]);
 

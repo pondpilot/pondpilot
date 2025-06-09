@@ -23,6 +23,7 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
+import { useAIChatSubscription } from '@features/ai-chat/hooks/use-ai-chat-subscription';
 import { ScrollArea, Group, Skeleton, ActionIcon } from '@mantine/core';
 import { TabId } from '@models/tab';
 import { useAppStore, useTabNameMap, useTabIconMap } from '@store/app-store';
@@ -39,6 +40,11 @@ const tabIconProps = {
 };
 
 export const TabsPane = memo(() => {
+  /**
+   * Subscribe to AI chat changes for live title updates
+   */
+  useAIChatSubscription();
+
   /**
    * Common hooks
    */

@@ -1,7 +1,7 @@
 import { Textarea, ActionIcon, Text } from '@mantine/core';
 import { IconSend } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
-import { useState, KeyboardEvent } from 'react';
+import { useState, KeyboardEvent, useRef, useEffect } from 'react';
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
@@ -11,6 +11,14 @@ interface ChatInputProps {
 
 export const ChatInput = ({ onSendMessage, isLoading, placeholder }: ChatInputProps) => {
   const [message, setMessage] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Keep focus on the input
+  useEffect(() => {
+    if (!isLoading && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [isLoading]);
 
   const handleSend = () => {
     const trimmedMessage = message.trim();
@@ -31,6 +39,7 @@ export const ChatInput = ({ onSendMessage, isLoading, placeholder }: ChatInputPr
     <div className="space-y-1">
       <div className="relative chat-input">
         <Textarea
+          ref={textareaRef}
           data-testid="ai-chat-input"
           placeholder={placeholder}
           value={message}

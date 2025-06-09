@@ -10,6 +10,7 @@ import {
   setActiveTabId,
   setPreviewTabId,
 } from '@controllers/tab';
+import { useAIChatSubscription } from '@features/ai-chat/hooks/use-ai-chat-subscription';
 import { showNotification } from '@mantine/notifications';
 import { ChatConversation, ChatConversationId } from '@models/ai-chat';
 import { useAppStore } from '@store/app-store';
@@ -61,7 +62,13 @@ const onCloseItemClick = (node: TreeNodeData<ChatNodeTypeToIdTypeMap>): void => 
 };
 
 const onDelete = async (node: TreeNodeData<ChatNodeTypeToIdTypeMap>): Promise<void> => {
-  // Delete the conversation
+  // Close the tab if it's open
+  deleteTabByConversationId(node.value);
+
+  // Delete from controller (this will trigger notifications to update UI)
+  aiChatController.deleteConversation(node.value);
+
+  // Delete from persistent storage
   await deletePersistedConversation(node.value);
 
   showNotification({
@@ -71,6 +78,9 @@ const onDelete = async (node: TreeNodeData<ChatNodeTypeToIdTypeMap>): Promise<vo
 };
 
 export const ChatExplorer = memo(() => {
+  // Subscribe to AI chat changes for live updates
+  useAIChatSubscription();
+
   // Local state to store conversations
   const [conversations, setConversations] = useState(() =>
     aiChatController.getAllConversations()
@@ -118,12 +128,6 @@ export const ChatExplorer = memo(() => {
           label: 'Copy title',
           onClick: (chatNode) => {
             copyToClipboard(chatNode.label, { showNotification: true });
-          },
-        },
-        {
-          label: 'Rename',
-          onClick: (chatNode, tree) => {
-            tree.startRenaming(chatNode.value);
           },
         },
       ],
