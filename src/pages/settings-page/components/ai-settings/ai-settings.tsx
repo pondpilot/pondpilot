@@ -414,26 +414,28 @@ export const AISettings = () => {
           </Alert>
         )}
 
-        <Group justify="flex-start" className="mt-2">
-          {hasChanges && (
-            <>
-              <Button onClick={handleSave} size="sm">
+        <Group justify="space-between" className="mt-2">
+          <Group>
+            {hasChanges && (
+              <Button color="background-accent" onClick={handleSave}>
                 Save Changes
               </Button>
-              <Button onClick={handleReset} variant="outline" size="sm">
-                Reset
-              </Button>
-            </>
+            )}
+            <Button
+              onClick={handleTestConnection}
+              variant="outline"
+              color="background-accent"
+              loading={testStatus.testing}
+              disabled={!config.apiKey || (config.provider === 'custom' && !config.customEndpoint)}
+            >
+              Test Connection
+            </Button>
+          </Group>
+          {hasChanges && (
+            <Button color="red" onClick={handleReset} variant="outline">
+              Reset
+            </Button>
           )}
-          <Button
-            onClick={handleTestConnection}
-            variant="light"
-            size="sm"
-            loading={testStatus.testing}
-            disabled={!config.apiKey || (config.provider === 'custom' && !config.customEndpoint)}
-          >
-            Test Connection
-          </Button>
         </Group>
 
         {!config.apiKey && (

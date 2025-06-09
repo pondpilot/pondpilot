@@ -10,7 +10,7 @@ import {
   Menu,
   Modal,
   Pagination,
-  Popover,
+  PasswordInput,
   Select,
   Skeleton,
   Switch,
@@ -24,6 +24,7 @@ import {
   SpotlightActionsList,
   SpotlightEmpty,
 } from '@mantine/spotlight';
+import { cn } from '@utils/ui/styles';
 
 export const theme = createTheme({
   breakpoints: {
@@ -520,6 +521,14 @@ export const theme = createTheme({
     Select: Select.extend({
       defaultProps: {
         size: 'xs',
+        classNames: {
+          input: cn(
+            'border-0 bg-backgroundSecondary-light placeholder-textSecondary-light',
+            'dark:bg-backgroundSecondary-dark dark:placeholder-textSecondary-dark',
+          ),
+          dropdown: cn('border-0 bg-backgroundSecondary-light', 'dark:bg-backgroundSecondary-dark'),
+          option: 'hover:bg-backgroundPrimary-light dark:hover:bg-backgroundPrimary-dark',
+        },
       },
     }),
     Pagination: Pagination.extend({
@@ -530,6 +539,23 @@ export const theme = createTheme({
     TextInput: TextInput.extend({
       defaultProps: {
         size: 'xs',
+        classNames: {
+          input: cn(
+            'bg-backgroundSecondary-light  border-0 placeholder-textSecondary-light',
+            'dark:bg-backgroundSecondary-dark dark:placeholder-textSecondary-dark',
+          ),
+        },
+      },
+    }),
+    PasswordInput: PasswordInput.extend({
+      defaultProps: {
+        size: 'xs',
+        classNames: {
+          input: cn(
+            'bg-backgroundSecondary-light  border-0 placeholder-textSecondary-light',
+            'dark:bg-backgroundSecondary-dark dark:placeholder-textSecondary-dark',
+          ),
+        },
       },
     }),
     Menu: Menu.extend({
@@ -550,16 +576,7 @@ export const theme = createTheme({
         },
       },
     }),
-    Popover: Popover.extend({
-      defaultProps: {
-        withArrow: true,
-        position: 'top',
-        classNames: {
-          dropdown:
-            'py-1 px-1 text-sm dark:bg-white bg-zinc-800 text-textContrast-light dark:text-textContrast-dark',
-        },
-      },
-    }),
+
     Checkbox: Checkbox.extend({
       defaultProps: {
         size: 'xs',
