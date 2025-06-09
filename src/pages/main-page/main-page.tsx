@@ -185,7 +185,7 @@ export const MainPage = () => {
         maxSize={sidebarCollapsed ? 56 : 400}
         minSize={sidebarCollapsed ? 56 : 200}
       >
-        <AccordionNavbar onCollapse={sidebarCollapsed ? undefined : toggleSidebar} />
+        <AccordionNavbar onCollapse={toggleSidebar} collapsed={sidebarCollapsed} />
       </Allotment.Pane>
       <Allotment.Pane preferredSize={layoutSizes?.[1]}>{mainContent}</Allotment.Pane>
     </Allotment>

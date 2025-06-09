@@ -12,6 +12,7 @@ import {
   IconPlus,
   IconSettings,
   IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarRightCollapse,
   IconChevronDown,
 } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
@@ -21,6 +22,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface NavbarProps {
   onCollapse?: () => void;
+  collapsed?: boolean;
 }
 
 type SectionState = {
@@ -31,7 +33,7 @@ type SectionState = {
 /**
  * Accordion-style navigation bar with collapsible sections
  */
-export const AccordionNavbar = ({ onCollapse }: NavbarProps) => {
+export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) => {
   const navigate = useNavigate();
   const appLoadState = useAppStore.use.appLoadState();
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
@@ -69,6 +71,74 @@ export const AccordionNavbar = ({ onCollapse }: NavbarProps) => {
   // Calculate flex grow for expanded sections
   const expandedCount = Object.values(sectionStates).filter(Boolean).length;
   const flexGrow = expandedCount === 2 ? 1 : expandedCount === 1 ? 1 : 0;
+
+  // Render compact view when collapsed
+  if (collapsed) {
+    return (
+      <Stack className="h-full bg-gray-50 dark:bg-gray-900" gap={0}>
+        {/* Create New Query button */}
+        <Box className="p-2 border-b border-gray-200 dark:border-gray-700">
+          <Tooltip label="Create new query" position="right" withArrow>
+            <ActionIcon
+              size="lg"
+              variant="subtle"
+              className="w-full"
+              data-testid={setDataTestId('collapsed-new-query-button')}
+              onClick={() => {
+                const newEmptyScript = createSQLScript();
+                getOrCreateTabFromScript(newEmptyScript, true);
+              }}
+            >
+              <IconPlus size={20} />
+            </ActionIcon>
+          </Tooltip>
+        </Box>
+
+        {/* Bottom toolbar */}
+        <Box className="mt-auto border-t border-gray-200 dark:border-gray-700 p-2">
+          <Stack gap="xs">
+            <Tooltip label="Settings" position="right" withArrow>
+              <ActionIcon
+                size="lg"
+                variant="subtle"
+                className="w-full"
+                data-testid={setDataTestId('settings-button')}
+                onClick={() => navigate('/settings')}
+              >
+                <IconSettings size={20} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="GitHub" position="right" withArrow>
+              <ActionIcon
+                size="lg"
+                variant="subtle"
+                className="w-full"
+                component="a"
+                href={APP_GITHUB_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <IconBrandGithub size={20} />
+              </ActionIcon>
+            </Tooltip>
+            {onCollapse && (
+              <Tooltip label="Expand sidebar" position="right" withArrow>
+                <ActionIcon
+                  size="lg"
+                  variant="subtle"
+                  className="w-full"
+                  data-testid={setDataTestId('expand-sidebar-button')}
+                  onClick={onCollapse}
+                >
+                  <IconLayoutSidebarRightCollapse size={20} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Stack>
+        </Box>
+      </Stack>
+    );
+  }
 
   return (
     <Stack className="h-full" gap={0}>
