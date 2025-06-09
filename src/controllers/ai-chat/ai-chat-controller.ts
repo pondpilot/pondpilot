@@ -4,8 +4,11 @@ import { makeIdFactory } from '@utils/new-id';
 const makeConversationId = makeIdFactory<ChatConversationId>();
 const makeMessageId = makeIdFactory<ChatMessageId>();
 
+type Listener = () => void;
+
 export class AIChatController {
   private conversations: Map<ChatConversationId, ChatConversation> = new Map();
+  private listeners: Set<Listener> = new Set();
 
   createConversation(title?: string): ChatConversation {
     const conversation: ChatConversation = {
@@ -16,6 +19,7 @@ export class AIChatController {
       updatedAt: new Date(),
     };
     this.conversations.set(conversation.id, conversation);
+    this.notify();
     return conversation;
   }
 
@@ -27,11 +31,13 @@ export class AIChatController {
     const conversation = this.conversations.get(id);
     if (conversation) {
       Object.assign(conversation, updates, { updatedAt: new Date() });
+      this.notify();
     }
   }
 
   deleteConversation(id: ChatConversationId): void {
     this.conversations.delete(id);
+    this.notify();
   }
 
   addMessage(conversationId: ChatConversationId, message: Omit<ChatMessage, 'id'>): ChatMessage | undefined {
@@ -45,6 +51,7 @@ export class AIChatController {
 
     conversation.messages.push(newMessage);
     conversation.updatedAt = new Date();
+    this.notify();
 
     return newMessage;
   }
@@ -61,6 +68,7 @@ export class AIChatController {
     if (messageIndex !== -1) {
       Object.assign(conversation.messages[messageIndex], updates);
       conversation.updatedAt = new Date();
+      this.notify();
     }
   }
 
@@ -70,6 +78,7 @@ export class AIChatController {
 
     conversation.messages = conversation.messages.filter((m) => m.id !== messageId);
     conversation.updatedAt = new Date();
+    this.notify();
   }
 
   getAllConversations(): ChatConversation[] {
@@ -81,6 +90,7 @@ export class AIChatController {
     if (conversation) {
       conversation.messages = [];
       conversation.updatedAt = new Date();
+      this.notify();
     }
   }
 
@@ -115,6 +125,27 @@ export class AIChatController {
     }
 
     return trimmedMessages;
+  }
+
+  // Event system methods
+  subscribe(listener: Listener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify(): void {
+    this.listeners.forEach(listener => listener());
+  }
+
+  // Hydration method for loading persisted data
+  hydrate(conversations: ChatConversation[]): void {
+    this.conversations.clear();
+    conversations.forEach(conversation => {
+      this.conversations.set(conversation.id, conversation);
+    });
+    this.notify();
   }
 }
 

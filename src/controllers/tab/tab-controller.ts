@@ -319,31 +319,18 @@ export const getOrCreateTabFromScript = (
 };
 
 /**
- * Gets existing or creates a new AI chat tab.
- * If a chat tab already exists, it returns that tab without creating a new one.
+ * Creates a new AI chat tab with a new conversation.
  *
  * @param setActive - Whether to set the new tab as active. This is a shortcut for
  *                  calling `setActiveTabId(tab.id)` on the returned tab.
  * @param title - Optional title for the new conversation
  * @returns An AI Chat tab object.
  */
-export const getOrCreateAIChatTab = (
+export const createAIChatTab = (
   setActive: boolean = false,
   title?: string,
 ): AIChatTab => {
   const state = useAppStore.getState();
-
-  // Check if an AI chat tab already exists
-  const existingTab = Array.from(state.tabs.values()).find(
-    (tab): tab is AIChatTab => tab.type === 'ai-chat',
-  );
-
-  if (existingTab) {
-    if (setActive) {
-      setActiveTabId(existingTab.id);
-    }
-    return existingTab;
-  }
 
   // Create a new conversation
   const conversation = aiChatController.createConversation(title);

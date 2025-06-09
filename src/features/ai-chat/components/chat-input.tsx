@@ -40,6 +40,8 @@ export const ChatInput = ({ onSendMessage, isLoading, placeholder }: ChatInputPr
           maxRows={4}
           autosize
           disabled={isLoading}
+          aria-label="Chat message input"
+          aria-describedby="chat-input-help"
           classNames={{
             input: cn(
               'pr-12 resize-none',
@@ -69,11 +71,12 @@ export const ChatInput = ({ onSendMessage, isLoading, placeholder }: ChatInputPr
               ? 'bg-blue-500 hover:bg-blue-600 text-white'
               : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
           )}
+          aria-label="Send message"
         >
           <IconSend size={16} />
         </ActionIcon>
       </div>
-      <Text size="xs" c="dimmed" className="px-2">
+      <Text size="xs" c="dimmed" className="px-2" id="chat-input-help">
         Press Enter to send, Shift+Enter for new line
       </Text>
     </div>

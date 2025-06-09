@@ -6,7 +6,7 @@ import {
   getOrCreateTabFromLocalDBObject,
   getOrCreateTabFromFlatFileDataSource,
   getOrCreateTabFromScript,
-  getOrCreateAIChatTab,
+  createAIChatTab,
   deleteTab,
 } from '@controllers/tab';
 import {
@@ -39,6 +39,7 @@ import {
   IconLayoutNavbarCollapse,
   IconScale,
   IconMessage,
+  IconMessagePlus,
 } from '@tabler/icons-react';
 import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
 import { fileSystemService } from '@utils/file-system-adapter';
@@ -157,9 +158,9 @@ export const SpotlightMenu = () => {
   const navigateActions: Action[] = [
     {
       id: 'ai-chat',
-      label: 'Chat with Data',
+      label: 'New AI Chat',
       handler: () => {
-        getOrCreateAIChatTab(true);
+        createAIChatTab(true, 'New Chat');
         Spotlight.close();
         ensureHome();
       },
@@ -476,12 +477,12 @@ export const SpotlightMenu = () => {
   ];
 
   const aiChatAction: Action = {
-    id: 'open-ai-chat',
-    label: 'Chat with Data',
-    icon: <IconMessage size={20} className={ICON_CLASSES} />,
+    id: 'new-ai-chat',
+    label: 'New AI Chat',
+    icon: <IconMessagePlus size={20} className={ICON_CLASSES} />,
     hotkey: [control, option, 'C'],
     handler: () => {
-      getOrCreateAIChatTab(true);
+      createAIChatTab(true, 'New Chat');
       resetSpotlight();
       ensureHome();
     },
