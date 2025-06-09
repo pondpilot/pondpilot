@@ -59,6 +59,7 @@ export const useChatAI = () => {
   const sendMessage = useCallback(async (
     conversationId: ChatConversationId,
     userMessage: string,
+    isRerun: boolean = false,
   ) => {
     const conversation = aiChatController.getConversation(conversationId);
     if (!conversation) {
@@ -166,6 +167,36 @@ Do not use any other format markers.`;
     const content = response.content || '';
 
     // Parse response to extract SQL
+    // For re-runs, extract SQL directly from the message
+    if (isRerun) {
+      const sqlCodeBlockMatch = userMessage.match(/```sql\n([\s\S]*?)\n```/);
+      if (sqlCodeBlockMatch && sqlCodeBlockMatch[1]) {
+        const sql = sqlCodeBlockMatch[1].trim();
+
+        // Add AI message confirming re-run
+        const aiMessage = aiChatController.addMessage(conversationId, {
+          role: 'assistant',
+          content: 'Re-running the query...',
+          timestamp: new Date(),
+        });
+
+        if (!aiMessage) {
+          throw new Error('Failed to add AI message');
+        }
+
+        // Execute the query
+        const queryResult = await executeQuery(sql);
+
+        // Update the message with query results
+        aiChatController.updateMessage(conversationId, aiMessage.id, {
+          content: queryResult.successful ? 'Query executed successfully.' : 'Query execution failed.',
+          query: queryResult,
+        });
+
+        return;
+      }
+    }
+
     const sqlMatch = content.match(/\[SQL\]\s*\n([\s\S]*?)(?:\n\n|\n\[|$)/);
     const explanationMatch = content.match(/\[EXPLANATION\]\s*\n([\s\S]*?)(?:\n\[SQL\]|$)/);
 

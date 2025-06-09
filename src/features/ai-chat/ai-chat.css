@@ -1,0 +1,198 @@
+/* Message animations */
+.ai-chat-message-enter {
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* SQL Editor transition */
+.sql-editor-transition {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Button hover effects */
+.chat-action-button {
+  transition: all 0.15s ease;
+}
+
+.chat-action-button:hover {
+  transform: translateY(-1px);
+}
+
+/* Table hover effects */
+.chat-result-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.chat-result-table tbody tr:hover {
+  background-color: var(--mantine-color-gray-0);
+}
+
+.dark .chat-result-table tbody tr:hover {
+  background-color: var(--mantine-color-gray-9);
+}
+
+/* Copy menu animation */
+.copy-menu-enter {
+  animation: menuFadeIn 0.15s ease-out;
+}
+
+@keyframes menuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Loading dots enhancement */
+.chat-loading-message {
+  animation: pulseOpacity 2s ease-in-out infinite;
+}
+
+@keyframes pulseOpacity {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Professional scrollbar styling */
+.chat-scrollarea::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.chat-scrollarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-scrollarea::-webkit-scrollbar-thumb {
+  background-color: rgba(155, 155, 155, 0.5);
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.chat-scrollarea::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(155, 155, 155, 0.7);
+}
+
+/* Message timestamp fade */
+.message-timestamp {
+  transition: opacity 0.2s ease;
+  opacity: 0.6;
+}
+
+.message-container:hover .message-timestamp {
+  opacity: 1;
+}
+
+/* Professional focus states */
+.chat-input:focus-within {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+/* Result table container */
+.result-table-container {
+  animation: tableReveal 0.3s ease-out;
+}
+
+@keyframes tableReveal {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 1000px;
+  }
+}
+
+/* Edit mode transitions */
+.edit-mode-enter {
+  animation: editModeEnter 0.2s ease-out;
+}
+
+.edit-mode-exit {
+  animation: editModeExit 0.2s ease-out;
+}
+
+@keyframes editModeEnter {
+  from {
+    opacity: 0;
+    transform: scaleY(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes editModeExit {
+  from {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  to {
+    opacity: 0;
+    transform: scaleY(0.95);
+  }
+}
+
+/* Dense professional spacing */
+.chat-message-content {
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+}
+
+.chat-message-content p {
+  margin: 0.5rem 0;
+}
+
+.chat-message-content pre {
+  margin: 0.75rem 0;
+}
+
+/* Action button groups */
+.action-button-group {
+  gap: 2px;
+}
+
+.action-button-group .mantine-ActionIcon-root {
+  backdrop-filter: blur(10px);
+}
+
+/* Professional badge styling */
+.result-badge {
+  font-weight: 500;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+}
+
+/* Smooth color transitions */
+.message-bubble {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.message-bubble:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.dark .message-bubble:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
