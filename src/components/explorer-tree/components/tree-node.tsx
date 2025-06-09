@@ -294,7 +294,15 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
     >
       {isRenaming ? (
         <>
-          <Popover opened={!!renameInputError}>
+          <Popover
+            withArrow
+            position="top"
+            classNames={{
+              dropdown:
+                'py-1 px-1 text-sm dark:bg-white bg-zinc-800 text-textContrast-light dark:text-textContrast-dark',
+            }}
+            opened={!!renameInputError}
+          >
             <Popover.Target>
               <TextInput
                 data-testid={setDataTestId(`${treeNodeDataTestIdPrefix}-rename-input`)}
