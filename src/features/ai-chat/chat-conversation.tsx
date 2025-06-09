@@ -1,16 +1,20 @@
 import { aiChatController } from '@controllers/ai-chat';
 import { saveAIChatConversations } from '@controllers/ai-chat/persist';
 import { Stack, ScrollArea, Box } from '@mantine/core';
+import { modals } from '@mantine/modals';
 import { showNotification } from '@mantine/notifications';
 import { ChatMessageId } from '@models/ai-chat';
 import { TabId, AIChatTab } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { cn } from '@utils/ui/styles';
+import { classifySQLStatements, SQLStatementType } from '@utils/editor/sql';
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { Text } from '@mantine/core';
 
 import { ChatInput } from './components/chat-input';
 import { ChatMessageList } from './components/chat-message-list';
 import { useChatAI } from './hooks/use-chat-ai';
+import { useAIChatSubscription } from './hooks/use-ai-chat-subscription';
 import './ai-chat.css';
 
 interface ChatConversationProps {
@@ -23,7 +27,9 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  const [, forceUpdate] = useState({});
+  
+  // Subscribe to AI chat controller changes
+  useAIChatSubscription();
 
   const conversation = tab ? aiChatController.getConversation(tab.conversationId) : undefined;
   const messages = conversation?.messages || [];
@@ -76,27 +82,70 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
   const handleRerunQuery = async (messageId: ChatMessageId, sql: string) => {
     if (!tab || !conversation) return;
 
-    try {
-      // Execute the query directly
-      const queryResult = await executeQuery(sql);
+    // Check if SQL contains DDL statements
+    const classifiedStatements = classifySQLStatements([sql]);
+    const hasDDL = classifiedStatements.some((s) => s.sqlType === SQLStatementType.DDL);
 
-      // Update the existing message with new results
-      aiChatController.updateMessage(conversation.id, messageId, {
-        query: queryResult,
-      });
+    if (hasDDL) {
+      // Show confirmation dialog for DDL queries
+      modals.openConfirmModal({
+        title: 'Execute DDL Statement?',
+        centered: true,
+        children: (
+          <Text size="sm">
+            This query contains DDL statements (CREATE, ALTER, DROP, etc.) that will modify the database structure. Are you sure you want to execute it?
+          </Text>
+        ),
+        labels: { confirm: 'Execute', cancel: 'Cancel' },
+        confirmProps: { color: 'red' },
+        onConfirm: async () => {
+          try {
+            // Execute the query directly
+            const queryResult = await executeQuery(sql);
 
-      // Save conversation after update
-      await saveAIChatConversations();
+            // Update the existing message with new results
+            aiChatController.updateMessage(conversation.id, messageId, {
+              query: queryResult,
+            });
 
-      showNotification({
-        message: queryResult.successful ? 'Query re-executed successfully' : 'Query execution failed',
-        color: queryResult.successful ? 'green' : 'red',
+            // Save conversation after update
+            await saveAIChatConversations();
+
+            showNotification({
+              message: queryResult.successful ? 'Query executed successfully' : 'Query execution failed',
+              color: queryResult.successful ? 'green' : 'red',
+            });
+          } catch (err) {
+            showNotification({
+              message: 'Failed to execute query',
+              color: 'red',
+            });
+          }
+        },
       });
-    } catch (err) {
-      showNotification({
-        message: 'Failed to re-run query',
-        color: 'red',
-      });
+    } else {
+      try {
+        // Execute the query directly
+        const queryResult = await executeQuery(sql);
+
+        // Update the existing message with new results
+        aiChatController.updateMessage(conversation.id, messageId, {
+          query: queryResult,
+        });
+
+        // Save conversation after update
+        await saveAIChatConversations();
+
+        showNotification({
+          message: queryResult.successful ? 'Query re-executed successfully' : 'Query execution failed',
+          color: queryResult.successful ? 'green' : 'red',
+        });
+      } catch (err) {
+        showNotification({
+          message: 'Failed to re-run query',
+          color: 'red',
+        });
+      }
     }
   };
 
@@ -107,9 +156,6 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
     aiChatController.updateMessage(conversation.id, messageId, {
       content,
     });
-
-    // Force re-render to update the view
-    forceUpdate({});
 
     // Save conversation after update
     await saveAIChatConversations();
@@ -125,9 +171,6 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
 
     // Delete the message
     aiChatController.deleteMessage(conversation.id, messageId);
-
-    // Force re-render to update the view
-    forceUpdate({});
 
     // Save conversation after update
     await saveAIChatConversations();
@@ -154,9 +197,6 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
       messagesToDelete.forEach((msg) => {
         aiChatController.deleteMessage(conversation.id, msg.id);
       });
-
-      // Force re-render to update the view
-      forceUpdate({});
 
       // Save conversation after deleting messages
       await saveAIChatConversations();

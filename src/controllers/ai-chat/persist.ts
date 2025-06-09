@@ -45,30 +45,19 @@ export async function loadAIChatConversations(): Promise<void> {
     db.close();
 
     if (conversations && conversations.length > 0) {
-      // Clear existing conversations
-      aiChatController.getAllConversations().forEach((conv) => {
-        aiChatController.deleteConversation(conv.id);
-      });
+      // Restore conversations with proper date objects
+      const restoredConversations = conversations.map((conversation: ChatConversation) => ({
+        ...conversation,
+        createdAt: new Date(conversation.createdAt),
+        updatedAt: new Date(conversation.updatedAt),
+        messages: conversation.messages.map((msg) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp),
+        })),
+      }));
 
-      // Load persisted conversations
-      conversations.forEach((conversation: ChatConversation) => {
-        // Recreate the conversation with proper date objects
-        const restoredConversation: ChatConversation = {
-          ...conversation,
-          createdAt: new Date(conversation.createdAt),
-          updatedAt: new Date(conversation.updatedAt),
-          messages: conversation.messages.map((msg) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp),
-          })),
-        };
-
-        // Add to controller's map directly
-        (aiChatController as any).conversations.set(
-          restoredConversation.id,
-          restoredConversation,
-        );
-      });
+      // Use hydrate method to restore conversations
+      aiChatController.hydrate(restoredConversations);
     }
   } catch (error) {
     console.error('Failed to load AI chat conversations:', error);

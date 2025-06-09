@@ -49,6 +49,7 @@ export const ChatMessageList = ({
             )}
             radius="md"
             withBorder
+            data-testid="ai-chat-loading"
           >
             <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
               <DotAnimation />

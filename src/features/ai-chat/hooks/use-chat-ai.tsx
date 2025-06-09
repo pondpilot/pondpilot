@@ -3,6 +3,7 @@ import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context
 import { ChatConversationId, ChatMessageQuery, QueryResults } from '@models/ai-chat';
 import { getAIConfig } from '@utils/ai-config';
 import { getAIService } from '@utils/ai-service';
+import { classifySQLStatements, SQLStatementType } from '@utils/editor/sql';
 import { useCallback } from 'react';
 
 const MAX_RESULT_ROWS = 100;
@@ -204,24 +205,52 @@ Do not use any other format markers.`;
       const sql = sqlMatch[1].trim();
       const explanation = explanationMatch ? explanationMatch[1].trim() : content.split('[SQL]')[0].trim();
 
-      // Add AI message with explanation
-      const aiMessage = aiChatController.addMessage(conversationId, {
-        role: 'assistant',
-        content: explanation,
-        timestamp: new Date(),
-      });
+      // Check if SQL contains DDL statements
+      const classifiedStatements = classifySQLStatements([sql]);
+      const hasDDL = classifiedStatements.some((s) => s.sqlType === SQLStatementType.DDL);
 
-      if (!aiMessage) {
-        throw new Error('Failed to add AI message');
+      if (hasDDL) {
+        // Add AI message with explanation and SQL query object (without executing)
+        const aiMessage = aiChatController.addMessage(conversationId, {
+          role: 'assistant',
+          content: explanation + '\n\n⚠️ This query contains DDL statements (CREATE, ALTER, DROP, etc.) and was not executed automatically. You can run it manually using the button below.',
+          timestamp: new Date(),
+        });
+
+        if (!aiMessage) {
+          throw new Error('Failed to add AI message');
+        }
+
+        // Add the query object without results (so it shows the SQL with run button)
+        aiChatController.updateMessage(conversationId, aiMessage.id, {
+          query: {
+            sql,
+            successful: false,
+            executionTime: 0,
+            error: undefined,
+            results: undefined,
+          },
+        });
+      } else {
+        // Add AI message with explanation
+        const aiMessage = aiChatController.addMessage(conversationId, {
+          role: 'assistant',
+          content: explanation,
+          timestamp: new Date(),
+        });
+
+        if (!aiMessage) {
+          throw new Error('Failed to add AI message');
+        }
+
+        // Execute the query
+        const queryResult = await executeQuery(sql);
+
+        // Update the message with query results
+        aiChatController.updateMessage(conversationId, aiMessage.id, {
+          query: queryResult,
+        });
       }
-
-      // Execute the query
-      const queryResult = await executeQuery(sql);
-
-      // Update the message with query results
-      aiChatController.updateMessage(conversationId, aiMessage.id, {
-        query: queryResult,
-      });
     } else {
       // No SQL found, just add the response as a message
       aiChatController.addMessage(conversationId, {
