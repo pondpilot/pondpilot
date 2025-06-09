@@ -8,6 +8,8 @@ import { setDataTestId } from '@utils/test-id';
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 
+import { normalizeChangelogLinks } from './utils';
+
 export const WHATS_NEW_MODAL_OPTIONS: ModalSettings = {
   size: 675,
   styles: { body: { paddingBottom: 0 }, header: { paddingInlineEnd: 16 } },
@@ -82,7 +84,7 @@ export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
                 ),
               }}
             >
-              {ghReleaseNotesData.body}
+              {normalizeChangelogLinks(ghReleaseNotesData.body)}
             </ReactMarkdown>
           </ScrollArea>
         </div>
