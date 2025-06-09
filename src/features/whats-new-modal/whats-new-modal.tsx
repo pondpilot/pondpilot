@@ -87,7 +87,10 @@ export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
           </ScrollArea>
         </div>
       )}
-      <Group justify="end" className="sticky bottom-0 bg-backgroundPrimary-light py-6 px-4">
+      <Group
+        justify="end"
+        className="sticky bottom-0 bg-backgroundPrimary-light py-6 px-4 dark:bg-backgroundPrimary-dark"
+      >
         {!isLoading && (
           <Button
             onClick={onClose}
