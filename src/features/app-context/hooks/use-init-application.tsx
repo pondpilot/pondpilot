@@ -76,15 +76,15 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
     try {
       const { getDatabaseModel } = await import('@controllers/db/duckdb-meta');
       const remoteMetadata = await getDatabaseModel(conn, connectedDatabases);
-      
+
       // Merge with existing metadata
       const currentMetadata = useAppStore.getState().databaseMetadata;
       const newMetadata = new Map(currentMetadata);
-      
+
       for (const [dbName, dbModel] of remoteMetadata) {
         newMetadata.set(dbName, dbModel);
       }
-      
+
       useAppStore.setState({ databaseMetadata: newMetadata }, false, 'RemoteDB/loadMetadata');
     } catch (error) {
       console.error('Failed to load metadata for remote databases:', error);

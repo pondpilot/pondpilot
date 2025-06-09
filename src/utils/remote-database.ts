@@ -11,7 +11,6 @@ import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { executeWithRetry } from '@utils/connection-manager';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { buildAttachQuery, buildDetachQuery } from '@utils/sql-builder';
 
 /**
@@ -49,7 +48,7 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
 
     // First, re-attach the database with READ_ONLY flag
     const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly: true });
-    
+
     try {
       await executeWithRetry(pool, attachQuery, {
         maxRetries: 3,
@@ -60,26 +59,26 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
     } catch (attachError: any) {
       // Check for various "already attached" error messages
       const errorMsg = attachError.message || '';
-      const isAlreadyAttached = 
+      const isAlreadyAttached =
         errorMsg.includes('already in use') ||
         errorMsg.includes('already attached') ||
         errorMsg.includes('Unique file handle conflict');
-        
+
       if (!isAlreadyAttached) {
         throw attachError;
       }
     }
 
     // Wait for the database to be fully loaded
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Verify the database is attached by checking the catalog
     const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${remoteDb.dbName}'`;
-    
+
     let dbFound = false;
     let attempts = 0;
     const maxAttempts = 5;
-    
+
     while (!dbFound && attempts < maxAttempts) {
       try {
         const result = await pool.query(checkQuery);
@@ -89,12 +88,14 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
           throw new Error('Database not found in catalog');
         }
       } catch (error) {
-        attempts++;
+        attempts += 1;
         if (attempts >= maxAttempts) {
-          throw new Error(`Database ${remoteDb.dbName} could not be verified after ${maxAttempts} attempts`);
+          throw new Error(
+            `Database ${remoteDb.dbName} could not be verified after ${maxAttempts} attempts`,
+          );
         }
         console.warn(`Attempt ${attempts}: Database not ready yet, waiting...`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     }
 
@@ -104,15 +105,15 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
     try {
       const { getDatabaseModel } = await import('@controllers/db/duckdb-meta');
       const remoteMetadata = await getDatabaseModel(pool, [remoteDb.dbName]);
-      
+
       // Merge with existing metadata
       const currentMetadata = useAppStore.getState().databaseMetadata;
       const newMetadata = new Map(currentMetadata);
-      
+
       for (const [dbName, dbModel] of remoteMetadata) {
         newMetadata.set(dbName, dbModel);
       }
-      
+
       useAppStore.setState({ databaseMetadata: newMetadata }, false, 'RemoteDB/reconnectMetadata');
     } catch (metadataError) {
       console.error('Failed to load metadata after reconnection:', metadataError);

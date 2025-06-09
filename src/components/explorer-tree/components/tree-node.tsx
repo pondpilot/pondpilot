@@ -1,5 +1,5 @@
 import { NamedIcon } from '@components/named-icon';
-import { TextInput, Popover, ActionIcon, Menu, Text, Divider, Group } from '@mantine/core';
+import { TextInput, Popover, ActionIcon, Menu, Text, Divider, Group, Tooltip } from '@mantine/core';
 import { IconDotsVertical, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
@@ -26,6 +26,23 @@ type RenameState = {
   isRenaming: boolean;
   pendingRenamedValue: string;
   renameInputError: string | null;
+};
+
+const ConditionalTooltip = ({
+  tooltip,
+  children,
+}: {
+  tooltip?: string;
+  children: React.ReactNode;
+}) => {
+  if (tooltip) {
+    return (
+      <Tooltip label={tooltip} position="top" withArrow>
+        {children}
+      </Tooltip>
+    );
+  }
+  return <>{children}</>;
 };
 
 export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
@@ -55,6 +72,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
     onDelete,
     onCloseItemClick,
     contextMenu: customContextMenu,
+    tooltip,
   } = node;
 
   const curNodeIndex = flattenedNodeIds.indexOf(itemId);
@@ -320,7 +338,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
             <Popover.Dropdown>{renameInputError}</Popover.Dropdown>
           </Popover>
         </>
-      ) : (
+      ) : contextMenu.length > 0 ? (
         <Menu
           width={152}
           onClose={menuOnClose}
@@ -409,6 +427,41 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
             </Menu.Target>
           </Group>
         </Menu>
+      ) : (
+        <ConditionalTooltip tooltip={tooltip}>
+          <Group
+            onClick={handleNodeClick}
+            onContextMenu={contextMenu.length > 0 ? handleContextMenuClick : undefined}
+            onDoubleClick={handleStartRename}
+            gap={5}
+            wrap="nowrap"
+            className={cn('cursor-pointer h-[30px] px-1 rounded group')}
+            ref={nodeRef}
+          >
+            {level !== 1 && <Divider orientation="vertical" />}
+            {isActive && onCloseItemClick ? (
+              <ActionIcon size={18} onClick={handleCloseItemClick}>
+                <IconX />
+              </ActionIcon>
+            ) : (
+              <div className="text-iconDefault-light dark:text-iconDefault-dark p-[1px]">
+                <NamedIcon iconType={iconType} size={16} />
+              </div>
+            )}
+
+            <Text
+              c={label === 'File Views' || label.startsWith('[DB] ') ? 'dimmed' : 'text-primary'}
+              className={cn(
+                'text-sm px-1',
+                (label === 'File Views' || label.startsWith('[DB] ')) && 'italic',
+              )}
+              lh="18px"
+              truncate
+            >
+              {label.startsWith('[DB] ') ? label.substring(5) : label}
+            </Text>
+          </Group>
+        </ConditionalTooltip>
       )}
     </div>
   );

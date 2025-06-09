@@ -402,20 +402,11 @@ export function buildDatabaseFileNode(
     value: entry.id,
     label: `[DB] ${entry.uniqueAlias}`, // Special prefix to identify database files
     iconType: 'db',
-    isDisabled: false, // Not disabled so context menu works
+    isDisabled: false,
     isSelectable: false,
     doNotExpandOnClick: true,
     onDelete: undefined, // No delete option for database files
-    contextMenu: [
-      {
-        children: [
-          {
-            label: 'Find in the Local Databases section',
-            isDisabled: true,
-            onClick: () => {}, // No-op since it's just informational
-          },
-        ],
-      },
-    ],
+    contextMenu: [], // No context menu for database files
+    tooltip: 'Find in the Local Databases section',
   };
 }

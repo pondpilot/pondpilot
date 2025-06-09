@@ -88,10 +88,14 @@ export function buildDatabaseNode(
   // For remote databases, append connection state indicator
   if (isRemoteDb) {
     const remoteDb = dataSource as RemoteDB;
-    const stateIcon = remoteDb.connectionState === 'connected' ? '✓' 
-      : remoteDb.connectionState === 'connecting' ? '⟳' 
-      : remoteDb.connectionState === 'error' ? '⚠' 
-      : '✕';
+    const stateIcon =
+      remoteDb.connectionState === 'connected'
+        ? '✓'
+        : remoteDb.connectionState === 'connecting'
+          ? '⟳'
+          : remoteDb.connectionState === 'error'
+            ? '⚠'
+            : '✕';
     dbLabel = `${dbLabel} ${stateIcon}`;
   }
 
