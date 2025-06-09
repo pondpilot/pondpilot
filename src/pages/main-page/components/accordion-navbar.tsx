@@ -80,12 +80,12 @@ export const AccordionNavbar = ({ onCollapse }: NavbarProps) => {
         )}
         style={{
           flexGrow: sectionStates.dataExplorer ? flexGrow : 0,
-          minHeight: sectionStates.dataExplorer ? 200 : 52,
-          maxHeight: sectionStates.dataExplorer ? '100%' : 52,
+          minHeight: sectionStates.dataExplorer ? 200 : 36,
+          maxHeight: sectionStates.dataExplorer ? '100%' : 36,
         }}
       >
         <Group
-          className="justify-between px-2 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 select-none"
+          className="justify-between px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 select-none"
           gap={0}
           onClick={() => toggleSection('dataExplorer')}
         >
@@ -145,12 +145,12 @@ export const AccordionNavbar = ({ onCollapse }: NavbarProps) => {
         )}
         style={{
           flexGrow: sectionStates.queries ? flexGrow : 0,
-          minHeight: sectionStates.queries ? 200 : 52,
-          maxHeight: sectionStates.queries ? '100%' : 52,
+          minHeight: sectionStates.queries ? 200 : 36,
+          maxHeight: sectionStates.queries ? '100%' : 36,
         }}
       >
         <Group
-          className="justify-between px-2 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 select-none"
+          className="justify-between px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 select-none"
           gap={0}
           onClick={() => toggleSection('queries')}
         >

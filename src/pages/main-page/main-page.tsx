@@ -13,7 +13,7 @@ import { importSQLFiles } from '@utils/import-script-file';
 import { Allotment } from 'allotment';
 import { useCallback, useRef, useEffect, useState } from 'react';
 
-import { CollapsedNavbar, Navbar, AccordionNavbar } from './components';
+import { AccordionNavbar } from './components';
 import './main-page.css';
 
 export const MainPage = () => {
@@ -28,11 +28,6 @@ export const MainPage = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     const stored = localStorage.getItem(LOCAL_STORAGE_KEYS.SIDEBAR_COLLAPSED);
     return stored ? JSON.parse(stored) : false;
-  });
-
-  const [useAccordionLayout, setUseAccordionLayout] = useLocalStorage<boolean>({
-    key: 'navbar-accordion-layout',
-    defaultValue: false,
   });
 
   const tabCount = useAppStore((state) => state.tabs.size);
@@ -190,13 +185,7 @@ export const MainPage = () => {
         maxSize={sidebarCollapsed ? 56 : 400}
         minSize={sidebarCollapsed ? 56 : 200}
       >
-        {sidebarCollapsed ? (
-          <CollapsedNavbar onExpand={toggleSidebar} />
-        ) : useAccordionLayout ? (
-          <AccordionNavbar onCollapse={toggleSidebar} />
-        ) : (
-          <Navbar onCollapse={toggleSidebar} />
-        )}
+        <AccordionNavbar onCollapse={sidebarCollapsed ? undefined : toggleSidebar} />
       </Allotment.Pane>
       <Allotment.Pane preferredSize={layoutSizes?.[1]}>{mainContent}</Allotment.Pane>
     </Allotment>
