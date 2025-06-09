@@ -51,7 +51,7 @@ and more!
 - Add proper handling of empty XLSX sheets [#140](https://github.com/pondpilot/pondpilot/pull/140)
 - Add rename support to all data sources and make sure we restore tabs from non-top-level sources [#128](https://github.com/pondpilot/pondpilot/pull/128)
 
-**Full Changelog**: [v0.2.0...v0.3.0](https://github.com/$OWNER/$REPOSITORY/compare/v0.2.0...v0.3.0)
+**Full Changelog**: [v0.2.0...v0.3.0](https://github.com/pondpilot/pondpilot/compare/v0.2.0...v0.3.0)
 
 ## [0.2.0] - 2025-05-13
 
@@ -104,7 +104,7 @@ We are working on a new version. Here are some features you can expect:
 
 - [Feature]: Show onboarding video for first-time users [#99](https://github.com/pondpilot/pondpilot/pull/99)
 
-**Full Changelog**: [v0.1.0...v0.2.0](https://github.com/$OWNER/$REPOSITORY/compare/v0.1.0...v0.2.0)
+**Full Changelog**: [v0.1.0...v0.2.0](https://github.com/pondpilot/pondpilot/compare/v0.1.0...v0.2.0)
 
 ## 🦆 PondPilot v0.1.0 Release Notes 🦆
 
