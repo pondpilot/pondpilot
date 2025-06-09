@@ -78,6 +78,8 @@ function toDelimitedString(
   data: DataTable,
   options: DelimitedTextExportOptions,
 ): string {
+  const quoteChar = '"';
+  const escapeChar = '"';
   const formattedRows = getStringifyTypedRows(data, columns, '');
   const sanitizedRows = formattedRows.map((row) => row.map((value) => sanitizeForExcel(value)));
   const dataContent = formatTableData(sanitizedRows, options.delimiter as ',' | '\t');
@@ -88,14 +90,11 @@ function toDelimitedString(
         const headerText = col.name;
         if (
           headerText.includes(options.delimiter) ||
-          headerText.includes(options.quoteChar) ||
+          headerText.includes(quoteChar) ||
           headerText.includes('\n')
         ) {
-          const escaped = headerText.replace(
-            new RegExp(options.quoteChar, 'g'),
-            options.escapeChar + options.quoteChar,
-          );
-          return options.quoteChar + escaped + options.quoteChar;
+          const escaped = headerText.replace(new RegExp(quoteChar, 'g'), escapeChar + quoteChar);
+          return quoteChar + escaped + quoteChar;
         }
         return headerText;
       })

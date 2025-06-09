@@ -40,8 +40,6 @@ test('Should export data to CSV (via modal)', async ({
   await exportTableToCSVAdvanced({
     path: path1,
     delimiter: ',',
-    quoteChar: '"',
-    escapeChar: '"',
     includeHeader: true,
     filename: 'export1.csv',
   });
@@ -51,89 +49,6 @@ test('Should export data to CSV (via modal)', async ({
     'normal val,"comma,val","comma quote, ""val"""',
   ].join('\n');
   expect(fileContent1).toBe(expectedCSV1);
-
-  // FIXME: Does not work well
-  // // Option 2: no header, different delimiter, different quotes
-  // const path2 = testTmp.join('export2.csv');
-  // await exportTableToCSVAdvanced({
-  //   path: path2,
-  //   delimiter: ';',
-  //   quoteChar: "'",
-  //   escapeChar: '\\',
-  //   includeHeader: false,
-  //   filename: 'export2.csv',
-  // });
-  // const fileContent2 = readFileSync(path2, 'utf-8');
-  // const expectedCSV2 = ['normal val;\'comma,val\';\'comma quote, ""val""\''].join('\n');
-  // expect(fileContent2).toBe(expectedCSV2);
-
-  // // Option 3: tab as delimiter, custom quotes
-  // const path3 = testTmp.join('export3.csv');
-  // await exportTableToCSVAdvanced({
-  //   path: path3,
-  //   delimiter: '\t',
-  //   quoteChar: '`',
-  //   escapeChar: '`',
-  //   includeHeader: true,
-  //   filename: 'export3.csv',
-  // });
-  // const fileContent3 = readFileSync(path3, 'utf-8');
-  // const expectedCSV3 = [
-  //   // only values with delimiter or quotes are wrapped in quotes, quotes inside are doubled
-  //   'normal_col\t`comma,col`\t`comma quote,`"col"``',
-  //   'normal val\t`comma,val`\t`comma quote, "val"`',
-  // ].join('\n');
-  // expect(fileContent3).toBe(expectedCSV3);
-});
-
-test.skip('Should export data to CSV with modified export options (via modal)', async ({
-  testTmp,
-  exportTableToCSVAdvanced,
-  fillScript,
-  runScript,
-  createScriptAndSwitchToItsTab,
-}) => {
-  await createScriptAndSwitchToItsTab();
-  await fillScript(`
-  select
-    'normal val' as normal_col,
-    'comma,val' as 'comma,col',
-    'comma quote, "val"' as 'comma quote,"col"'
-`);
-  await runScript();
-
-  // FIXME: Does not work well. Maybe expected data is not correct?
-  // Option 2: no header, different delimiter, different quotes
-  const path2 = testTmp.join('export2.csv');
-  await exportTableToCSVAdvanced({
-    path: path2,
-    delimiter: ';',
-    quoteChar: "'",
-    escapeChar: '\\',
-    includeHeader: false,
-    filename: 'export2.csv',
-  });
-  const fileContent2 = readFileSync(path2, 'utf-8');
-  const expectedCSV2 = ['normal val;\'comma,val\';\'comma quote, ""val""\''].join('\n');
-  expect(fileContent2).toBe(expectedCSV2);
-
-  // Option 3: tab as delimiter, custom quotes
-  const path3 = testTmp.join('export3.csv');
-  await exportTableToCSVAdvanced({
-    path: path3,
-    delimiter: '\t',
-    quoteChar: '`',
-    escapeChar: '`',
-    includeHeader: true,
-    filename: 'export3.csv',
-  });
-  const fileContent3 = readFileSync(path3, 'utf-8');
-  const expectedCSV3 = [
-    // only values with delimiter or quotes are wrapped in quotes, quotes inside are doubled
-    'normal_col\t`comma,col`\t`comma quote,`"col"``',
-    'normal val\t`comma,val`\t`comma quote, "val"`',
-  ].join('\n');
-  expect(fileContent3).toBe(expectedCSV3);
 });
 
 test('should export data to TSV (via modal)', async ({

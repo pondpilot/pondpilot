@@ -52,8 +52,6 @@ type DataViewFixtures = {
   exportTableToCSVAdvanced: (options: {
     path: string;
     delimiter?: string;
-    quoteChar?: string;
-    escapeChar?: string;
     includeHeader?: boolean;
     filename?: string;
   }) => Promise<void>;
@@ -292,98 +290,64 @@ export const test = base.extend<DataViewFixtures>({
   },
 
   exportTableToCSVAdvanced: async ({ page, openExportModalAndSelectFormat }, use) => {
-    await use(
-      async ({
-        path,
-        delimiter = ',',
-        quoteChar = '"',
-        escapeChar = '"',
-        includeHeader = true,
-        filename = 'export.csv',
-      }) => {
-        // Open the modal and select CSV format
-        await openExportModalAndSelectFormat('csv');
+    await use(async ({ path, delimiter = ',', includeHeader = true, filename = 'export.csv' }) => {
+      // Open the modal and select CSV format
+      await openExportModalAndSelectFormat('csv');
 
-        // Set CSV options
-        if (delimiter !== undefined) {
-          const delimiterInput = page.getByTestId('export-csv-delimiter');
-          await delimiterInput.fill(delimiter);
+      // Set CSV options
+      if (delimiter !== undefined) {
+        const delimiterInput = page.getByTestId('export-csv-delimiter');
+        await delimiterInput.fill(delimiter);
+      }
+      if (includeHeader !== undefined) {
+        const headerCheckbox = page.getByTestId('export-include-header');
+        const checked = await headerCheckbox.isChecked();
+        if (checked !== includeHeader) {
+          await headerCheckbox.click();
         }
-        if (quoteChar !== undefined) {
-          const quoteCharInput = page.getByTestId('export-csv-quote-char');
-          await quoteCharInput.fill(quoteChar);
-        }
-        if (escapeChar !== undefined) {
-          const escapeCharInput = page.getByTestId('export-csv-escape-char');
-          await escapeCharInput.fill(escapeChar);
-        }
-        if (includeHeader !== undefined) {
-          const headerCheckbox = page.getByTestId('export-include-header');
-          const checked = await headerCheckbox.isChecked();
-          if (checked !== includeHeader) {
-            await headerCheckbox.click();
-          }
-        }
+      }
 
-        // Enter file name
-        const filenameInput = page.getByTestId('export-filename');
-        await filenameInput.fill(filename);
+      // Enter file name
+      const filenameInput = page.getByTestId('export-filename');
+      await filenameInput.fill(filename);
 
-        // Confirm export
-        const exportButton = page.getByTestId('export-confirm');
-        const downloadPromise = page.waitForEvent('download');
-        await exportButton.click();
+      // Confirm export
+      const exportButton = page.getByTestId('export-confirm');
+      const downloadPromise = page.waitForEvent('download');
+      await exportButton.click();
 
-        // Wait for download and save file
-        const download = await downloadPromise;
-        await download.saveAs(path);
-      },
-    );
+      // Wait for download and save file
+      const download = await downloadPromise;
+      await download.saveAs(path);
+    });
   },
 
   exportTableToTSVAdvanced: async ({ page, openExportModalAndSelectFormat }, use) => {
-    await use(
-      async ({
-        path,
-        quoteChar = '"',
-        escapeChar = '"',
-        includeHeader = true,
-        filename = 'export.tsv',
-      }) => {
-        // Open the export modal and select TSV format
-        await openExportModalAndSelectFormat('tsv');
+    await use(async ({ path, includeHeader = true, filename = 'export.tsv' }) => {
+      // Open the export modal and select TSV format
+      await openExportModalAndSelectFormat('tsv');
 
-        // Set TSV options (no delimiter field for TSV)
-        if (quoteChar !== undefined) {
-          const quoteCharInput = page.getByTestId('export-tsv-quote-char');
-          await quoteCharInput.fill(quoteChar);
+      if (includeHeader !== undefined) {
+        const headerCheckbox = page.getByTestId('export-include-header');
+        const checked = await headerCheckbox.isChecked();
+        if (checked !== includeHeader) {
+          await headerCheckbox.click();
         }
-        if (escapeChar !== undefined) {
-          const escapeCharInput = page.getByTestId('export-tsv-escape-char');
-          await escapeCharInput.fill(escapeChar);
-        }
-        if (includeHeader !== undefined) {
-          const headerCheckbox = page.getByTestId('export-include-header');
-          const checked = await headerCheckbox.isChecked();
-          if (checked !== includeHeader) {
-            await headerCheckbox.click();
-          }
-        }
+      }
 
-        // Enter file name
-        const filenameInput = page.getByTestId('export-filename');
-        await filenameInput.fill(filename);
+      // Enter file name
+      const filenameInput = page.getByTestId('export-filename');
+      await filenameInput.fill(filename);
 
-        // Confirm export
-        const exportButton = page.getByTestId('export-confirm');
-        const downloadPromise = page.waitForEvent('download');
-        await exportButton.click();
+      // Confirm export
+      const exportButton = page.getByTestId('export-confirm');
+      const downloadPromise = page.waitForEvent('download');
+      await exportButton.click();
 
-        // Wait for download and save file
-        const download = await downloadPromise;
-        await download.saveAs(path);
-      },
-    );
+      // Wait for download and save file
+      const download = await downloadPromise;
+      await download.saveAs(path);
+    });
   },
 
   exportTableToXLSXAdvanced: async ({ page, openExportModalAndSelectFormat }, use) => {
