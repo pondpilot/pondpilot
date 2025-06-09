@@ -1,4 +1,7 @@
+export * from './chat-error-boundary';
 export * from './chat-message-list';
 export * from './chat-message';
 export * from './chat-input';
 export * from './chat-result-table';
+export * from './message-actions';
+export * from './sql-query-display';
