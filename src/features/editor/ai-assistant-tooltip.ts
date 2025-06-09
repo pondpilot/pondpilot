@@ -17,6 +17,7 @@ import {
   insertAIResponseEffect,
   showStructuredResponseEffect,
   hideStructuredResponseEffect,
+  clearErrorContextEffect,
 } from './ai-assistant/effects';
 import {
   getServicesFromState,
@@ -35,6 +36,7 @@ import {
 import { TabExecutionError } from '../../controllers/tab/tab-controller';
 import { AI_PROVIDERS } from '../../models/ai-service';
 import { StructuredSQLResponse } from '../../models/structured-ai-response';
+import { useAppStore } from '../../store/app-store';
 import { saveAIConfig, getAIConfig } from '../../utils/ai-config';
 import { resolveAIContext } from '../../utils/editor/statement-parser';
 import { AsyncDuckDBConnectionPool } from '../duckdb-context/duckdb-connection-pool';
@@ -183,6 +185,9 @@ export const aiAssistantStateField = StateField.define<{
       }
       if (effect.is(hideAIAssistantEffect)) {
         return { visible: false };
+      }
+      if (effect.is(clearErrorContextEffect)) {
+        return { ...value, errorContext: undefined };
       }
     }
     return value;
@@ -421,7 +426,14 @@ const aiAssistantKeymap = keymap.of([
         hideAIAssistant(view);
       } else {
         // If AI assistant is not visible, show it
-        showAIAssistant(view);
+        // Try to get error context from the global store
+        const store = useAppStore.getState();
+
+        // Get the active tab ID
+        const tabId = store.activeTabId;
+
+        const errorContext = tabId ? store.tabExecutionErrors.get(tabId) : undefined;
+        showAIAssistant(view, errorContext);
       }
       return true;
     },
