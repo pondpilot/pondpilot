@@ -1,6 +1,6 @@
 import { DotAnimation } from '@components/dots-animation';
 import { Stack, Paper, Text } from '@mantine/core';
-import { ChatMessage as ChatMessageType } from '@models/ai-chat';
+import { ChatMessage as ChatMessageType, ChatMessageId } from '@models/ai-chat';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 
@@ -10,14 +10,20 @@ interface ChatMessageListProps {
   messages: ChatMessageType[];
   isLoading: boolean;
   error?: string;
-  onRerunQuery?: (messageId: string, sql: string) => void;
+  onRerunQuery?: (messageId: ChatMessageId, sql: string) => void;
+  onUpdateMessage?: (messageId: ChatMessageId, content: string) => void;
+  onDeleteMessage?: (messageId: ChatMessageId) => void;
+  onRerunConversation?: (messageId: ChatMessageId, content: string) => void;
 }
 
-export const ChatMessageList = ({ 
-  messages, 
-  isLoading, 
-  error, 
-  onRerunQuery 
+export const ChatMessageList = ({
+  messages,
+  isLoading,
+  error,
+  onRerunQuery,
+  onUpdateMessage,
+  onDeleteMessage,
+  onRerunConversation,
 }: ChatMessageListProps) => {
   return (
     <Stack className="gap-3">
@@ -26,6 +32,9 @@ export const ChatMessageList = ({
           key={message.id}
           message={message}
           onRerunQuery={onRerunQuery}
+          onUpdateMessage={onUpdateMessage}
+          onDeleteMessage={onDeleteMessage}
+          onRerunConversation={onRerunConversation}
         />
       ))}
 

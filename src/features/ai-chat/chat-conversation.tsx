@@ -1,7 +1,8 @@
 import { aiChatController } from '@controllers/ai-chat';
 import { saveAIChatConversations } from '@controllers/ai-chat/persist';
-import { Stack, ScrollArea, Paper, Box } from '@mantine/core';
+import { Stack, ScrollArea, Box } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
+import { ChatMessageId } from '@models/ai-chat';
 import { TabId, AIChatTab } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { cn } from '@utils/ui/styles';
@@ -22,11 +23,12 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const [, forceUpdate] = useState({});
 
   const conversation = tab ? aiChatController.getConversation(tab.conversationId) : undefined;
   const messages = conversation?.messages || [];
 
-  const { sendMessage } = useChatAI();
+  const { sendMessage, executeQuery } = useChatAI();
 
   const scrollToBottom = useCallback(() => {
     if (scrollViewportRef.current) {
@@ -71,47 +73,108 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
     }
   };
 
-  const handleRerunQuery = async (messageId: string, sql: string) => {
+  const handleRerunQuery = async (messageId: ChatMessageId, sql: string) => {
+    if (!tab || !conversation) return;
+
+    try {
+      // Execute the query directly
+      const queryResult = await executeQuery(sql);
+
+      // Update the existing message with new results
+      aiChatController.updateMessage(conversation.id, messageId, {
+        query: queryResult,
+      });
+
+      // Save conversation after update
+      await saveAIChatConversations();
+
+      showNotification({
+        message: queryResult.successful ? 'Query re-executed successfully' : 'Query execution failed',
+        color: queryResult.successful ? 'green' : 'red',
+      });
+    } catch (err) {
+      showNotification({
+        message: 'Failed to re-run query',
+        color: 'red',
+      });
+    }
+  };
+
+  const handleUpdateMessage = async (messageId: ChatMessageId, content: string) => {
+    if (!tab || !conversation) return;
+
+    // Update the message content
+    aiChatController.updateMessage(conversation.id, messageId, {
+      content,
+    });
+
+    // Force re-render to update the view
+    forceUpdate({});
+
+    // Save conversation after update
+    await saveAIChatConversations();
+
+    showNotification({
+      message: 'Message updated',
+      color: 'green',
+    });
+  };
+
+  const handleDeleteMessage = async (messageId: ChatMessageId) => {
+    if (!tab || !conversation) return;
+
+    // Delete the message
+    aiChatController.deleteMessage(conversation.id, messageId);
+
+    // Force re-render to update the view
+    forceUpdate({});
+
+    // Save conversation after update
+    await saveAIChatConversations();
+
+    showNotification({
+      message: 'Message deleted',
+      color: 'green',
+    });
+  };
+
+  const handleRerunConversation = async (messageId: ChatMessageId, content: string) => {
     if (!tab || !conversation) return;
 
     setIsLoading(true);
     setError(undefined);
 
     try {
-      // Find the original message
-      const originalMessage = conversation.messages.find(m => m.id === messageId);
-      if (!originalMessage) {
-        throw new Error('Original message not found');
-      }
+      // Find the index of the edited message
+      const messageIndex = conversation.messages.findIndex((m) => m.id === messageId);
+      if (messageIndex === -1) return;
 
-      // Add a new user message indicating the re-run
-      const userMessage = aiChatController.addMessage(conversation.id, {
-        role: 'user',
-        content: `Re-run the following query:\n\n\`\`\`sql\n${sql}\n\`\`\``,
-        timestamp: new Date(),
+      // Delete all messages after the edited message
+      const messagesToDelete = conversation.messages.slice(messageIndex + 1);
+      messagesToDelete.forEach((msg) => {
+        aiChatController.deleteMessage(conversation.id, msg.id);
       });
 
-      if (!userMessage) {
-        throw new Error('Failed to add message');
-      }
+      // Force re-render to update the view
+      forceUpdate({});
 
-      // Save conversation
+      // Save conversation after deleting messages
       await saveAIChatConversations();
 
-      // Send to AI for execution
-      await sendMessage(conversation.id, userMessage.content, true);
+      // Send the edited content to AI and get response
+      await sendMessage(conversation.id, content);
 
-      // Save conversation after execution
+      // Save conversation after AI response
       await saveAIChatConversations();
 
       showNotification({
-        message: 'Query re-executed successfully',
+        message: 'Conversation re-run successfully',
         color: 'green',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : 'Failed to re-run conversation');
       showNotification({
-        message: 'Failed to re-run query',
+        message: 'Failed to re-run conversation',
         color: 'red',
       });
     } finally {
@@ -145,28 +208,28 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
               isLoading={isLoading}
               error={error}
               onRerunQuery={handleRerunQuery}
+              onUpdateMessage={handleUpdateMessage}
+              onDeleteMessage={handleDeleteMessage}
+              onRerunConversation={handleRerunConversation}
             />
           </div>
         </Box>
       </ScrollArea>
 
-      <Paper
+      <Box
         className={cn(
           'border-t border-gray-200 dark:border-gray-800',
           'bg-white dark:bg-gray-900',
-          'shadow-lg'
+          'shadow-lg',
+          'px-4 py-3'
         )}
-        radius={0}
-        p="sm"
       >
-        <div className="max-w-4xl mx-auto">
-          <ChatInput
-            onSendMessage={handleSendMessage}
-            isLoading={isLoading}
-            placeholder="Ask a question about your data..."
-          />
-        </div>
-      </Paper>
+        <ChatInput
+          onSendMessage={handleSendMessage}
+          isLoading={isLoading}
+          placeholder="Ask a question about your data..."
+        />
+      </Box>
     </Stack>
   );
 };

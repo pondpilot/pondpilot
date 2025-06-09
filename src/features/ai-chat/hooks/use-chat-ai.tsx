@@ -222,22 +222,6 @@ Do not use any other format markers.`;
       aiChatController.updateMessage(conversationId, aiMessage.id, {
         query: queryResult,
       });
-
-      // If query was successful and returned results, add insights
-      if (queryResult.successful && queryResult.results && queryResult.results.rowCount > 0) {
-        const rowText = queryResult.results.rowCount !== 1 ? 's' : '';
-        const truncatedText = queryResult.results.truncated
-          ? ` Results were truncated to ${MAX_RESULT_ROWS} rows.`
-          : '';
-        const resultSummary = `The query returned ${queryResult.results.rowCount} row${rowText}.${truncatedText}`;
-
-        // Add a follow-up message with results summary
-        aiChatController.addMessage(conversationId, {
-          role: 'assistant',
-          content: resultSummary,
-          timestamp: new Date(),
-        });
-      }
     } else {
       // No SQL found, just add the response as a message
       aiChatController.addMessage(conversationId, {

@@ -269,4 +269,3 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
     </div>
   );
 };
-
