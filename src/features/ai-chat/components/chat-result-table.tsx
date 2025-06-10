@@ -1,6 +1,6 @@
+import { showSuccess } from '@components/app-notifications';
 import { Table, ScrollArea, Text, Box, ActionIcon, Tooltip, Menu } from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
-import { showNotification } from '@mantine/notifications';
 import { QueryResults } from '@models/ai-chat';
 import { IconCopy, IconDownload, IconSortAscending, IconSortDescending } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
@@ -59,19 +59,13 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
   const handleCopyCell = (value: any) => {
     const text = value === null ? 'NULL' : String(value);
     clipboard.copy(text);
-    showNotification({
-      message: 'Cell value copied',
-      color: 'green',
-    });
+    showSuccess({ title: 'Cell value copied', message: '' });
   };
 
   const handleCopyRow = (row: any[]) => {
     const text = row.map(v => v === null ? 'NULL' : String(v)).join('\t');
     clipboard.copy(text);
-    showNotification({
-      message: 'Row copied',
-      color: 'green',
-    });
+    showSuccess({ title: 'Row copied', message: '' });
   };
 
   const handleExportCsv = () => {
@@ -107,10 +101,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
     a.click();
     URL.revokeObjectURL(url);
 
-    showNotification({
-      message: 'Results exported to CSV',
-      color: 'green',
-    });
+    showSuccess({ title: 'Results exported to CSV', message: '' });
   };
 
   if (results.rows.length === 0) {

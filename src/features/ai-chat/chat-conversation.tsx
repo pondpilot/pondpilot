@@ -1,8 +1,8 @@
+import { showSuccess, showError } from '@components/app-notifications';
 import { aiChatController } from '@controllers/ai-chat';
 import { saveAIChatConversations } from '@controllers/ai-chat/persist';
 import { Stack, ScrollArea, Box, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
-import { showNotification } from '@mantine/notifications';
 import { ChatMessageId } from '@models/ai-chat';
 import { TabId, AIChatTab } from '@models/tab';
 import { useAppStore } from '@store/app-store';
@@ -93,7 +93,8 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
         centered: true,
         children: (
           <Text size="sm">
-            This query contains DDL statements (CREATE, ALTER, DROP, etc.) that will modify the database structure. Are you sure you want to execute it?
+            This query contains DDL statements (CREATE, ALTER, DROP, etc.) that will modify the
+            database structure. Are you sure you want to execute it?
           </Text>
         ),
         labels: { confirm: 'Execute', cancel: 'Cancel' },
@@ -111,15 +112,13 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
             // Save conversation after update
             await saveAIChatConversations();
 
-            showNotification({
-              message: queryResult.successful ? 'Query executed successfully' : 'Query execution failed',
-              color: queryResult.successful ? 'green' : 'red',
-            });
+            if (queryResult.successful) {
+              showSuccess({ title: 'Query executed successfully', message: '' });
+            } else {
+              showError({ title: 'Query execution failed', message: '' });
+            }
           } catch (err) {
-            showNotification({
-              message: 'Failed to execute query',
-              color: 'red',
-            });
+            showError({ title: 'Failed to execute query', message: '' });
           }
         },
       });
@@ -136,15 +135,13 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
         // Save conversation after update
         await saveAIChatConversations();
 
-        showNotification({
-          message: queryResult.successful ? 'Query re-executed successfully' : 'Query execution failed',
-          color: queryResult.successful ? 'green' : 'red',
-        });
+        if (queryResult.successful) {
+          showSuccess({ title: 'Query re-executed successfully', message: '' });
+        } else {
+          showError({ title: 'Query execution failed', message: '' });
+        }
       } catch (err) {
-        showNotification({
-          message: 'Failed to re-run query',
-          color: 'red',
-        });
+        showError({ title: 'Failed to re-run query', message: '' });
       }
     }
   };
@@ -160,10 +157,7 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
     // Save conversation after update
     await saveAIChatConversations();
 
-    showNotification({
-      message: 'Message updated',
-      color: 'green',
-    });
+    showSuccess({ title: 'Message updated', message: '' });
   };
 
   const handleDeleteMessage = async (messageId: ChatMessageId) => {
@@ -175,10 +169,7 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
     // Save conversation after update
     await saveAIChatConversations();
 
-    showNotification({
-      message: 'Message deleted',
-      color: 'green',
-    });
+    showSuccess({ title: 'Message deleted', message: '' });
   };
 
   const handleRerunConversation = async (messageId: ChatMessageId, content: string) => {
@@ -207,16 +198,10 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
       // Save conversation after AI response
       await saveAIChatConversations();
 
-      showNotification({
-        message: 'Conversation re-run successfully',
-        color: 'green',
-      });
+      showSuccess({ title: 'Conversation re-run successfully', message: '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to re-run conversation');
-      showNotification({
-        message: 'Failed to re-run conversation',
-        color: 'red',
-      });
+      showError({ title: 'Failed to re-run conversation', message: '' });
     } finally {
       setIsLoading(false);
     }

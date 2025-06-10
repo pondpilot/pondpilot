@@ -32,7 +32,7 @@ Do not use any other format markers.`;
 
 export function buildConversationContext(messages: ChatMessage[]): string {
   let conversationContext = '';
-  
+
   messages.forEach(msg => {
     if (msg.role === 'user') {
       conversationContext += `User: ${msg.content}\n\n`;
@@ -54,7 +54,7 @@ export function buildConversationContext(messages: ChatMessage[]): string {
       conversationContext += '\n';
     }
   });
-  
+
   return conversationContext;
 }
 
@@ -71,7 +71,7 @@ export function parseAIResponse(content: string): ParsedAIResponse {
   if (sqlMatch && sqlMatch[1]) {
     const sql = sqlMatch[1].trim();
     const explanation = explanationMatch ? explanationMatch[1].trim() : content.split('[SQL]')[0].trim();
-    
+
     return {
       sql,
       explanation,
@@ -80,4 +80,4 @@ export function parseAIResponse(content: string): ParsedAIResponse {
   }
 
   return { content };
-};
+}

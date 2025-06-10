@@ -1,6 +1,8 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 
-export async function fetchDatabaseSchema(duckDbConnectionPool: AsyncDuckDBConnectionPool): Promise<string> {
+export async function fetchDatabaseSchema(
+  duckDbConnectionPool: AsyncDuckDBConnectionPool,
+): Promise<string> {
   try {
     const result = await duckDbConnectionPool.query(`
       SELECT table_schema, table_name, column_name, data_type 
@@ -27,4 +29,4 @@ export async function fetchDatabaseSchema(duckDbConnectionPool: AsyncDuckDBConne
     console.warn('Failed to get schema context:', error);
     return '';
   }
-};
+}
