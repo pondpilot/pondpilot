@@ -106,7 +106,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
 
   if (results.rows.length === 0) {
     return (
-      <Box className="text-center py-8 text-gray-500">
+      <Box className="text-center py-8 text-textSecondary-light dark:text-textSecondary-dark">
         <Text size="sm">No results returned</Text>
       </Box>
     );
@@ -124,7 +124,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
             size="sm"
             variant="subtle"
             onClick={handleExportCsv}
-            className="hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
           >
             <IconDownload size={14} />
           </ActionIcon>
@@ -251,7 +251,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
       </ScrollArea>
 
       {results.truncated && (
-        <Box className="text-center py-2 border-t border-gray-200 dark:border-gray-700">
+        <Box className="text-center py-2 border-t border-borderPrimary-light dark:border-borderPrimary-dark">
           <Text size="xs" c="dimmed">
             Showing first {results.rowCount} rows
           </Text>

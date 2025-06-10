@@ -216,14 +216,14 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
   }
 
   return (
-    <Stack className="h-full gap-0 bg-gray-50 dark:bg-gray-950" data-testid="ai-chat-container">
+    <Stack className="h-full gap-0 bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark" data-testid="ai-chat-container">
       <ScrollArea
         className="flex-1 chat-scrollarea"
         viewportRef={scrollViewportRef}
         scrollbarSize={6}
         classNames={{
-          scrollbar: 'bg-gray-200 dark:bg-gray-800',
-          thumb: 'bg-gray-400 dark:bg-gray-600 hover:bg-gray-500 dark:hover:bg-gray-500',
+          scrollbar: 'bg-transparent008-light dark:bg-transparent008-dark',
+          thumb: 'bg-transparent032-light dark:bg-transparent032-dark hover:bg-transparent072-light dark:hover:bg-transparent072-dark',
         }}
       >
         <Box className="min-h-full flex flex-col">
@@ -245,8 +245,8 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
 
       <Box
         className={cn(
-          'border-t border-gray-200 dark:border-gray-800',
-          'bg-white dark:bg-gray-900',
+          'border-t border-borderPrimary-light dark:border-borderPrimary-dark',
+          'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
           'shadow-lg',
           'px-4 py-3'
         )}

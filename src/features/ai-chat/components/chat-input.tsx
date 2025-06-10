@@ -55,9 +55,9 @@ export const ChatInput = ({ onSendMessage, isLoading, placeholder }: ChatInputPr
             input: cn(
               'pr-12 resize-none',
               'text-sm',
-              'border-gray-300 dark:border-gray-700',
-              'focus:border-blue-500 dark:focus:border-blue-400',
-              'bg-white dark:bg-gray-900'
+              'border-borderPrimary-light dark:border-borderPrimary-dark',
+              'focus:border-borderAccent-light dark:focus:border-borderAccent-dark',
+              'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark'
             ),
           }}
           styles={{
@@ -77,8 +77,8 @@ export const ChatInput = ({ onSendMessage, isLoading, placeholder }: ChatInputPr
             'absolute right-2 bottom-2',
             'transition-all duration-200',
             message.trim() && !isLoading
-              ? 'bg-blue-500 hover:bg-blue-600 text-white'
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+              ? 'bg-backgroundAccent-light hover:bg-backgroundAccent-light/90 dark:bg-backgroundAccent-dark dark:hover:bg-backgroundAccent-dark/90 text-textContrast-light dark:text-textContrast-dark'
+              : 'bg-transparent008-light dark:bg-transparent008-dark text-textTertiary-light dark:text-textTertiary-dark'
           )}
           aria-label="Send message"
         >

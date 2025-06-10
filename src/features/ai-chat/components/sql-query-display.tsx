@@ -55,7 +55,7 @@ export const SqlQueryDisplay = ({
 
   return (
     <div className="space-y-2">
-      <Box className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 relative">
+      <Box className="bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark rounded-lg p-3 border border-borderSecondary-light dark:border-borderSecondary-dark relative">
         <LoadingOverlay
           visible={isRerunning}
           overlayProps={{ radius: 'sm', blur: 1 }}
@@ -106,7 +106,7 @@ export const SqlQueryDisplay = ({
                     variant="subtle"
                     onClick={() => setIsEditingQuery(true)}
                     data-testid="ai-chat-edit-query"
-                    className="hover:bg-gray-200 dark:hover:bg-gray-700 chat-action-button"
+                    className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
                   >
                     <IconPencil size={14} />
                   </ActionIcon>
@@ -117,7 +117,7 @@ export const SqlQueryDisplay = ({
                     variant="subtle"
                     onClick={handleRunQuery}
                     data-testid="ai-chat-rerun-query"
-                    className="hover:bg-gray-200 dark:hover:bg-gray-700 chat-action-button"
+                    className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
                     disabled={isRerunning}
                   >
                     <IconPlayerPlay size={14} />
@@ -129,7 +129,7 @@ export const SqlQueryDisplay = ({
                     variant="subtle"
                     onClick={handleCopyQuery}
                     data-testid="ai-chat-copy-query"
-                    className="hover:bg-gray-200 dark:hover:bg-gray-700 chat-action-button"
+                    className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
                   >
                     <IconCopy size={14} />
                   </ActionIcon>
@@ -140,7 +140,7 @@ export const SqlQueryDisplay = ({
                     variant="subtle"
                     onClick={handleOpenInScript}
                     data-testid="ai-chat-open-script"
-                    className="hover:bg-gray-200 dark:hover:bg-gray-700 chat-action-button"
+                    className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
                   >
                     <IconExternalLink size={14} />
                   </ActionIcon>
@@ -151,7 +151,7 @@ export const SqlQueryDisplay = ({
         </Group>
 
         {isEditingQuery ? (
-          <div className="rounded-md overflow-hidden border border-gray-300 dark:border-gray-600 edit-mode-enter sql-editor-transition">
+          <div className="rounded-md overflow-hidden border border-borderSecondary-light dark:border-borderSecondary-dark edit-mode-enter sql-editor-transition">
             <div style={{ height: '150px', overflow: 'auto' }}>
               <SqlEditor
                 value={editedSql}
@@ -163,7 +163,7 @@ export const SqlQueryDisplay = ({
             </div>
           </div>
         ) : (
-          <Code block className="language-sql text-xs bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700">
+          <Code block className="language-sql text-xs bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border border-borderPrimary-light dark:border-borderPrimary-dark">
             {query.sql}
           </Code>
         )}
@@ -182,13 +182,13 @@ export const SqlQueryDisplay = ({
           </Group>
         </Box>
       ) : query.results ? (
-        <Box className="bg-white dark:bg-gray-950 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden result-table-container relative">
+        <Box className="bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark rounded-lg border border-borderPrimary-light dark:border-borderPrimary-dark overflow-hidden result-table-container relative">
           <LoadingOverlay
             visible={isRerunning}
             overlayProps={{ radius: 'sm', blur: 2 }}
             loaderProps={{ size: 'sm' }}
           />
-          <Box className="bg-gray-50 dark:bg-gray-900 px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+          <Box className="bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark px-3 py-2 border-b border-borderPrimary-light dark:border-borderPrimary-dark">
             <Group justify="space-between">
               <Group gap="xs">
                 <Badge size="sm" variant="dot" color="green" className="result-badge">
