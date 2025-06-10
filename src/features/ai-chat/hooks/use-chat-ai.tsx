@@ -7,7 +7,7 @@ import { getAIService } from '@utils/ai-service';
 import { classifySQLStatements, SQLStatementType } from '@utils/editor/sql';
 import { useCallback } from 'react';
 
-import { 
+import {
   AI_MODEL_CONTEXT_LIMIT,
   buildSystemPrompt,
   buildConversationContext,

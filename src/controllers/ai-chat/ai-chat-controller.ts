@@ -33,9 +33,9 @@ export class AIChatController {
       const updatedConversation: ChatConversation = {
         ...conversation,
         ...updates,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
-      
+
       this.conversations.set(id, updatedConversation);
       this.notify();
     }
@@ -59,9 +59,9 @@ export class AIChatController {
     const updatedConversation: ChatConversation = {
       ...conversation,
       messages: [...conversation.messages, newMessage],
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
-    
+
     this.conversations.set(conversationId, updatedConversation);
     this.notify();
 
@@ -82,16 +82,16 @@ export class AIChatController {
       const updatedMessages = [...conversation.messages];
       updatedMessages[messageIndex] = {
         ...conversation.messages[messageIndex],
-        ...updates
+        ...updates,
       };
-      
+
       // Create new conversation object
       const updatedConversation: ChatConversation = {
         ...conversation,
         messages: updatedMessages,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
-      
+
       this.conversations.set(conversationId, updatedConversation);
       this.notify();
     }
@@ -105,9 +105,9 @@ export class AIChatController {
     const updatedConversation: ChatConversation = {
       ...conversation,
       messages: conversation.messages.filter((m) => m.id !== messageId),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
-    
+
     this.conversations.set(conversationId, updatedConversation);
     this.notify();
   }
@@ -122,9 +122,9 @@ export class AIChatController {
       const updatedConversation: ChatConversation = {
         ...conversation,
         messages: [],
-        updatedAt: new Date()
+        updatedAt: new Date(),
       };
-      
+
       this.conversations.set(conversationId, updatedConversation);
       this.notify();
     }

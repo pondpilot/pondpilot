@@ -1,9 +1,9 @@
+import { showSuccess } from '@components/app-notifications';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { SqlEditor } from '@features/editor/sql-editor';
 import { ActionIcon, Code, Group, Tooltip, Badge, Box, useMantineColorScheme, LoadingOverlay, Text } from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
-import { showNotification } from '@mantine/notifications';
 import { ChatMessageQuery } from '@models/ai-chat';
 import { IconCopy, IconExternalLink, IconPlayerPlay, IconPencil, IconCheck, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
@@ -28,10 +28,7 @@ export const SqlQueryDisplay = ({
 
   const handleCopyQuery = () => {
     clipboard.copy(query.sql);
-    showNotification({
-      message: 'Query copied to clipboard',
-      color: 'green',
-    });
+    showSuccess({ title: 'Query copied to clipboard', message: '' });
   };
 
   const handleOpenInScript = () => {
@@ -40,10 +37,7 @@ export const SqlQueryDisplay = ({
       query.sql,
     );
     getOrCreateTabFromScript(script, true);
-    showNotification({
-      message: 'Query opened in new script tab',
-      color: 'green',
-    });
+    showSuccess({ title: 'Query opened in new script tab', message: '' });
   };
 
   const handleRunQuery = async () => {
@@ -212,4 +206,3 @@ export const SqlQueryDisplay = ({
     </div>
   );
 };
-

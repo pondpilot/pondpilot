@@ -1,7 +1,7 @@
+import { showSuccess } from '@components/app-notifications';
 import { Paper, Text, ActionIcon, Group, Code, Box, Textarea } from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
-import { showNotification } from '@mantine/notifications';
 import { ChatMessage as ChatMessageType, ChatMessageId } from '@models/ai-chat';
 import { IconCheck, IconX } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
@@ -35,10 +35,7 @@ export const ChatMessage = ({
 
   const handleCopyMessage = () => {
     clipboard.copy(message.content);
-    showNotification({
-      message: 'Message copied to clipboard',
-      color: 'green',
-    });
+    showSuccess({ title: 'Message copied to clipboard', message: '' });
   };
 
   const handleEditMessage = () => {
@@ -58,7 +55,8 @@ export const ChatMessage = ({
           centered: true,
           children: (
             <Text size="sm">
-              Would you like to re-run the conversation from this point? This will delete all subsequent messages and generate a new response.
+              Would you like to re-run the conversation from this point? This will delete all
+              subsequent messages and generate a new response.
             </Text>
           ),
           labels: { confirm: 'Re-run', cancel: 'Keep existing' },

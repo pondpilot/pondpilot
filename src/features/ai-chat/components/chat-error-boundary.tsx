@@ -45,17 +45,18 @@ export class ChatErrorBoundary extends Component<Props, State> {
                 Something went wrong in the chat
               </Text>
             </div>
-            
+
             <Text size="xs" c="dimmed">
-              The chat encountered an error. You can try refreshing the conversation or starting a new one.
+              The chat encountered an error. You can try refreshing the conversation or
+              starting a new one.
             </Text>
-            
+
             {process.env.NODE_ENV === 'development' && (
               <Code block className="text-xs">
                 {this.state.error.message}
               </Code>
             )}
-            
+
             <Button
               size="xs"
               variant="subtle"
