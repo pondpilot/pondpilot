@@ -89,10 +89,6 @@ export function ExportOptionsModal({
   // CSV/TSV options
   const [delimiter, setDelimiter] = useState(',');
   const [delimiterError, setDelimiterError] = useState('');
-  const [quoteChar, setQuoteChar] = useState('"');
-  const [quoteCharError, setQuoteCharError] = useState('');
-  const [escapeChar, setEscapeChar] = useState('"');
-  const [escapeCharError, setEscapeCharError] = useState('');
 
   // XLSX options
   const [sheetName, setSheetName] = useState('Sheet1');
@@ -135,27 +131,10 @@ export function ExportOptionsModal({
             delimiter={delimiter}
             setDelimiter={setDelimiter}
             delimiterError={delimiterError}
-            quoteChar={quoteChar}
-            setQuoteChar={setQuoteChar}
-            quoteCharError={quoteCharError}
-            escapeChar={escapeChar}
-            setEscapeChar={setEscapeChar}
-            escapeCharError={escapeCharError}
           />
         );
       case 'tsv':
-        return (
-          <TsvOptions
-            includeHeader={includeHeader}
-            setIncludeHeader={setIncludeHeader}
-            quoteChar={quoteChar}
-            setQuoteChar={setQuoteChar}
-            quoteCharError={quoteCharError}
-            escapeChar={escapeChar}
-            setEscapeChar={setEscapeChar}
-            escapeCharError={escapeCharError}
-          />
-        );
+        return <TsvOptions includeHeader={includeHeader} setIncludeHeader={setIncludeHeader} />;
       case 'xlsx':
         return (
           <XlsxOptions
@@ -212,8 +191,6 @@ export function ExportOptionsModal({
       filename: exportFilename,
       format,
       delimiter,
-      quoteChar,
-      escapeChar,
       sheetName,
       tableName,
       rootElement,
@@ -225,8 +202,6 @@ export function ExportOptionsModal({
     // Set all error states
     setFilenameError(errors.filenameError);
     setDelimiterError(errors.delimiterError);
-    setQuoteCharError(errors.quoteCharError);
-    setEscapeCharError(errors.escapeCharError);
     setSheetNameError(errors.sheetNameError);
     setTableNameError(errors.tableNameError);
     setRootElementError(errors.rootElementError);
@@ -246,8 +221,6 @@ export function ExportOptionsModal({
           const csvOptions: DelimitedTextExportOptions = {
             includeHeader,
             delimiter: format === 'csv' ? delimiter : '\t',
-            quoteChar,
-            escapeChar,
           };
           _result = await onExport(format, csvOptions, exportFilename);
           break;

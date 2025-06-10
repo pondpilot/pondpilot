@@ -15,8 +15,6 @@ interface ValidationState {
 interface ValidationErrors {
   filenameError: string;
   delimiterError: string;
-  quoteCharError: string;
-  escapeCharError: string;
   sheetNameError: string;
   tableNameError: string;
   rootElementError: string;
@@ -31,8 +29,6 @@ export function validateExportOptions(state: ValidationState): {
   const errors: ValidationErrors = {
     filenameError: '',
     delimiterError: '',
-    quoteCharError: '',
-    escapeCharError: '',
     sheetNameError: '',
     tableNameError: '',
     rootElementError: '',
@@ -53,25 +49,6 @@ export function validateExportOptions(state: ValidationState): {
     case 'csv':
       if (!state.delimiter || state.delimiter.length !== 1) {
         errors.delimiterError = 'Delimiter must be a single character';
-        isValid = false;
-      }
-      if (!state.quoteChar || state.quoteChar.length !== 1) {
-        errors.quoteCharError = 'Quote character must be a single character';
-        isValid = false;
-      }
-      if (!state.escapeChar || state.escapeChar.length !== 1) {
-        errors.escapeCharError = 'Escape character must be a single character';
-        isValid = false;
-      }
-      break;
-
-    case 'tsv':
-      if (!state.quoteChar || state.quoteChar.length !== 1) {
-        errors.quoteCharError = 'Quote character must be a single character';
-        isValid = false;
-      }
-      if (!state.escapeChar || state.escapeChar.length !== 1) {
-        errors.escapeCharError = 'Escape character must be a single character';
         isValid = false;
       }
       break;
