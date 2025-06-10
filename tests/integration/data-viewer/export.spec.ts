@@ -93,7 +93,7 @@ test('should export data to TSV (via modal)', async ({
   ].join('\n');
   expect(fileContent1).toBe(expectedTSV1);
 
-  // Option 2: export TSV без хедера (по умолчанию разделитель табуляция)
+  // Option 2: export TSV whithout header (by default it uses tab as delimiter)
   const path2 = testTmp.join('export2.tsv');
   await exportTableToTSVAdvanced({
     path: path2,
