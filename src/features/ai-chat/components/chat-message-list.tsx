@@ -42,8 +42,8 @@ export const ChatMessageList = ({
         <div className="flex justify-start">
           <Paper
             className={cn(
-              'bg-gray-50 dark:bg-gray-900/30',
-              'border-gray-200 dark:border-gray-800',
+              'bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark',
+              'border-borderSecondary-light dark:border-borderSecondary-dark',
               'shadow-sm px-4 py-3',
               'chat-loading-message ai-chat-message-enter'
             )}
@@ -51,7 +51,7 @@ export const ChatMessageList = ({
             withBorder
             data-testid="ai-chat-loading"
           >
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-2 text-textSecondary-light dark:text-textSecondary-dark">
               <DotAnimation />
               <Text size="sm">Thinking...</Text>
             </div>

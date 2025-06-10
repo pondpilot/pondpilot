@@ -112,8 +112,8 @@ export const ChatMessage = ({
           className={cn(
             'transition-all duration-200 message-bubble group',
             isUser
-              ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900'
-              : 'bg-gray-50 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800',
+              ? 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border-borderPrimary-light dark:border-borderPrimary-dark'
+              : 'bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark border-borderSecondary-light dark:border-borderSecondary-dark',
             'shadow-sm hover:shadow-md'
           )}
           p="sm"
@@ -154,7 +154,7 @@ export const ChatMessage = ({
             ) : (
               <>
                 {/* Message content with markdown support */}
-                <div className="prose dark:prose-invert max-w-none prose-sm prose-p:my-2 prose-pre:my-2 chat-message-content flex-1">
+                <div className="prose dark:prose-invert max-w-none prose-sm prose-p:my-2 prose-pre:my-2 chat-message-content flex-1 text-textPrimary-light dark:text-textPrimary-dark">
                   <ReactMarkdown
                     components={{
                 code: ({ className, children, ...props }) => {
