@@ -72,8 +72,6 @@ type DataViewFixtures = {
    */
   exportTableToTSVAdvanced: (options: {
     path: string;
-    quoteChar?: string;
-    escapeChar?: string;
     includeHeader?: boolean;
     filename?: string;
   }) => Promise<void>;

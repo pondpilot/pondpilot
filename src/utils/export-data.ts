@@ -82,7 +82,7 @@ function toDelimitedString(
   const escapeChar = '"';
   const formattedRows = getStringifyTypedRows(data, columns, '');
   const sanitizedRows = formattedRows.map((row) => row.map((value) => sanitizeForExcel(value)));
-  const dataContent = formatTableData(sanitizedRows, options.delimiter as ',' | '\t');
+  const dataContent = formatTableData(sanitizedRows, options.delimiter);
   let content = '';
   if (options.includeHeader) {
     const headerRow = columns
