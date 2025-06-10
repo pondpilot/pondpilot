@@ -17,7 +17,7 @@ import {
 } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface NavbarProps {
@@ -37,6 +37,9 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
   const navigate = useNavigate();
   const appLoadState = useAppStore.use.appLoadState();
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const [dataExplorerHeight, setDataExplorerHeight] = useState<number | null>(null);
 
   // Load saved section states or default to both expanded
   const [sectionStates, setSectionStates] = useState<SectionState>(() => {
@@ -54,23 +57,89 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
     };
   });
 
+  // Load saved height
+  useEffect(() => {
+    const savedHeight = localStorage.getItem('accordion-data-explorer-height');
+    if (savedHeight) {
+      setDataExplorerHeight(parseInt(savedHeight, 10));
+    }
+  }, []);
+
   // Save state changes to localStorage
   useEffect(() => {
     localStorage.setItem('accordion-navbar-sections', JSON.stringify(sectionStates));
   }, [sectionStates]);
 
+  // Save height to localStorage
+  useEffect(() => {
+    if (dataExplorerHeight !== null) {
+      localStorage.setItem('accordion-data-explorer-height', dataExplorerHeight.toString());
+    }
+  }, [dataExplorerHeight]);
+
   const appReady = appLoadState === 'ready';
 
+  // Calculate if both are expanded before toggle section
+  const bothExpanded = sectionStates.dataExplorer && sectionStates.queries;
+
   const toggleSection = (section: keyof SectionState) => {
-    setSectionStates((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
+    setSectionStates((prev) => {
+      const newState = {
+        ...prev,
+        [section]: !prev[section],
+      };
+      // Reset height when:
+      // 1. Going from one expanded to both expanded
+      // 2. Collapsing the queries section (to prevent it from collapsing upward)
+      if (
+        (newState.dataExplorer && newState.queries && !bothExpanded) ||
+        (section === 'queries' && !newState.queries)
+      ) {
+        setDataExplorerHeight(null);
+      }
+      return newState;
+    });
   };
 
-  // Calculate flex grow for expanded sections
-  const expandedCount = Object.values(sectionStates).filter(Boolean).length;
-  const flexGrow = expandedCount === 2 ? 1 : expandedCount === 1 ? 1 : 0;
+  // Handle resize
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isResizing || !containerRef.current) return;
+
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newHeight = e.clientY - containerRect.top - 36; // 36px is the header height
+      const minHeight = 100;
+      const maxHeight = containerRect.height - 36 - 36 - 34; // headers + footer
+
+      setDataExplorerHeight(Math.max(minHeight, Math.min(maxHeight, newHeight)));
+    },
+    [isResizing],
+  );
+
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+    }
+  }, [isResizing, handleMouseMove, handleMouseUp]);
 
   // Render compact view when collapsed
   if (collapsed) {
@@ -78,7 +147,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
       <Stack className="h-full bg-gray-50 dark:bg-gray-900" gap={0}>
         {/* Create New Query button */}
         <Box className="p-2 border-b border-gray-200 dark:border-gray-700">
-          <Tooltip label="Create new query" position="right" withArrow>
+          <Tooltip label="Create new query" position="right" withArrow openDelay={500}>
             <ActionIcon
               size="lg"
               variant="subtle"
@@ -97,7 +166,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
         {/* Bottom toolbar */}
         <Box className="mt-auto border-t border-gray-200 dark:border-gray-700 p-2">
           <Stack gap="xs">
-            <Tooltip label="Settings" position="right" withArrow>
+            <Tooltip label="Settings" position="right" withArrow openDelay={500}>
               <ActionIcon
                 size="lg"
                 variant="subtle"
@@ -108,7 +177,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
                 <IconSettings size={20} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label="GitHub" position="right" withArrow>
+            <Tooltip label="GitHub" position="right" withArrow openDelay={500}>
               <ActionIcon
                 size="lg"
                 variant="subtle"
@@ -122,7 +191,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
               </ActionIcon>
             </Tooltip>
             {onCollapse && (
-              <Tooltip label="Expand sidebar" position="right" withArrow>
+              <Tooltip label="Expand sidebar" position="right" withArrow openDelay={500}>
                 <ActionIcon
                   size="lg"
                   variant="subtle"
@@ -141,17 +210,20 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
   }
 
   return (
-    <Stack className="h-full" gap={0}>
+    <Stack className="h-full" gap={0} ref={containerRef}>
       {/* Data Explorer Section */}
       <Box
         className={cn(
-          'border-b border-gray-200 dark:border-gray-700 transition-all duration-300 flex flex-col overflow-hidden',
-          sectionStates.dataExplorer && 'flex-1',
+          'border-b border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden',
+          !isResizing && 'transition-all duration-300',
         )}
         style={{
-          flexGrow: sectionStates.dataExplorer ? flexGrow : 0,
-          minHeight: sectionStates.dataExplorer ? 200 : 36,
-          maxHeight: sectionStates.dataExplorer ? '100%' : 36,
+          flex: sectionStates.dataExplorer
+            ? dataExplorerHeight
+              ? `0 0 ${dataExplorerHeight}px`
+              : '1 1 auto'
+            : '0 0 36px',
+          minHeight: sectionStates.dataExplorer ? 100 : 36,
         }}
       >
         <Group
@@ -172,17 +244,29 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
               Data Explorer
             </Text>
           </Group>
-          {appReady && sectionStates.dataExplorer && (
+          {appReady && (
             <Group gap={8} onClick={(e) => e.stopPropagation()}>
               <ActionIcon
-                onClick={handleAddFolder}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddFolder();
+                  if (!sectionStates.dataExplorer) {
+                    setSectionStates((prev) => ({ ...prev, dataExplorer: true }));
+                  }
+                }}
                 size={16}
                 data-testid={setDataTestId('navbar-add-folder-button')}
               >
                 <IconFolderPlus />
               </ActionIcon>
               <ActionIcon
-                onClick={() => handleAddFile()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddFile();
+                  if (!sectionStates.dataExplorer) {
+                    setSectionStates((prev) => ({ ...prev, dataExplorer: true }));
+                  }
+                }}
                 size={16}
                 data-testid={setDataTestId('navbar-add-file-button')}
               >
@@ -192,31 +276,71 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
           )}
         </Group>
 
-        {sectionStates.dataExplorer && (
-          <Box className="overflow-hidden flex flex-col flex-1">
-            {appReady ? (
-              <DataExplorer />
-            ) : (
-              <Stack gap={6} className="px-3 py-1.5">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
-                ))}
-              </Stack>
-            )}
-          </Box>
-        )}
+        <Box
+          className="overflow-hidden flex flex-col flex-1"
+          style={{
+            opacity: sectionStates.dataExplorer ? 1 : 0,
+            transition: 'opacity 200ms',
+          }}
+        >
+          {appReady ? (
+            <DataExplorer />
+          ) : (
+            <Stack gap={6} className="px-3 py-1.5">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
+              ))}
+            </Stack>
+          )}
+        </Box>
       </Box>
+
+      {/* Resize Handle */}
+      {bothExpanded && (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize handle"
+          tabIndex={0}
+          className={cn(
+            'h-[1px] bg-gray-200 dark:bg-gray-700 relative cursor-ns-resize hover:bg-blue-500',
+            isResizing && 'bg-blue-500',
+          )}
+          onMouseDown={handleMouseDown}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              const currentHeight = dataExplorerHeight || 200;
+              setDataExplorerHeight(Math.max(100, currentHeight - 10));
+            } else if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              const currentHeight = dataExplorerHeight || 200;
+              if (containerRef.current) {
+                const containerRect = containerRef.current.getBoundingClientRect();
+                const maxHeight = containerRect.height - 36 - 36 - 34;
+                setDataExplorerHeight(Math.min(maxHeight, currentHeight + 10));
+              }
+            }
+          }}
+        >
+          {/* Invisible hit area for easier grabbing */}
+          <div className="absolute inset-x-0 -top-2 -bottom-2" />
+        </div>
+      )}
 
       {/* Queries Section */}
       <Box
         className={cn(
-          'border-b border-gray-200 dark:border-gray-700 transition-all duration-300 flex flex-col overflow-hidden',
-          sectionStates.queries && 'flex-1',
+          'flex flex-col overflow-hidden',
+          !isResizing && 'transition-all duration-300',
+          // Only add border when collapsed AND data explorer is also collapsed
+          !sectionStates.queries &&
+            !sectionStates.dataExplorer &&
+            'border-b border-gray-200 dark:border-gray-700',
         )}
         style={{
-          flexGrow: sectionStates.queries ? flexGrow : 0,
-          minHeight: sectionStates.queries ? 200 : 36,
-          maxHeight: sectionStates.queries ? '100%' : 36,
+          flex: sectionStates.queries ? '1 1 auto' : '0 0 36px',
+          minHeight: sectionStates.queries ? 100 : 36,
         }}
       >
         <Group
@@ -237,13 +361,16 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
               Queries
             </Text>
           </Group>
-          {appReady && sectionStates.queries && (
+          {appReady && (
             <ActionIcon
               data-testid={setDataTestId('script-explorer-add-script-button')}
               onClick={(e) => {
                 e.stopPropagation();
                 const newEmptyScript = createSQLScript();
                 getOrCreateTabFromScript(newEmptyScript, true);
+                if (!sectionStates.queries) {
+                  setSectionStates((prev) => ({ ...prev, queries: true }));
+                }
               }}
               size={16}
             >
@@ -252,23 +379,27 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
           )}
         </Group>
 
-        {sectionStates.queries && (
-          <Box className="overflow-hidden flex flex-col flex-1">
-            {appReady ? (
-              <ScriptExplorer />
-            ) : (
-              <Stack gap={6} className="px-3 py-1.5">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
-                ))}
-              </Stack>
-            )}
-          </Box>
-        )}
+        <Box
+          className="overflow-hidden flex flex-col flex-1"
+          style={{
+            opacity: sectionStates.queries ? 1 : 0,
+            transition: 'opacity 200ms',
+          }}
+        >
+          {appReady ? (
+            <ScriptExplorer />
+          ) : (
+            <Stack gap={6} className="px-3 py-1.5">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
+              ))}
+            </Stack>
+          )}
+        </Box>
       </Box>
 
       {/* Bottom toolbar */}
-      <Box className="mt-auto h-[34px] px-3 flex items-center justify-between">
+      <Box className="mt-auto h-[34px] px-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700">
         <Group gap="xs">
           <ActionIcon
             size={20}
@@ -288,7 +419,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
           </ActionIcon>
         </Group>
         {onCollapse && (
-          <Tooltip label="Collapse sidebar" position="top" withArrow>
+          <Tooltip label="Collapse sidebar" position="top" withArrow openDelay={500}>
             <ActionIcon
               size={20}
               data-testid={setDataTestId('collapse-sidebar-button')}

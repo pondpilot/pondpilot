@@ -37,7 +37,7 @@ export const DataExplorerContent = ({
 
   return (
     <ScrollArea className="flex-1" offsetScrollbars scrollbarSize={8}>
-      <Stack gap="xs" className="pb-4">
+      <Stack gap="xs" className="pt-2 pb-4">
         {/* System database (pondpilot) - always visible */}
         {showSystemDb && (
           <DataExplorerSection
@@ -52,6 +52,7 @@ export const DataExplorerContent = ({
         {/* File system tree */}
         {showFileSystem && fileSystemNodes.length > 0 && (
           <DataExplorerSection
+            title="Local Files"
             nodes={fileSystemNodes}
             initialExpandedState={expandedState}
             extraData={extraData}

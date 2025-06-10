@@ -32,7 +32,7 @@ export const Header = memo(() => {
       className="gap-3 cursor-pointer hover:opacity-80 transition-opacity"
       onClick={() => navigate('/')}
     >
-      <Tooltip label="Hi, I'm Polly!" position="bottom">
+      <Tooltip label="Hi, I'm Polly!" position="bottom" openDelay={500}>
         <div>
           <img src={duckLogo} alt="PondPilot" className="w-8 h-8 dark:hidden" />
           <img src={duckLogoDark} alt="PondPilot" className="w-8 h-8 hidden dark:block" />
@@ -42,7 +42,7 @@ export const Header = memo(() => {
         <Text size="lg" fw={600} className="text-textPrimary-light dark:text-textPrimary-dark">
           PondPilot
         </Text>
-        <Tooltip label="Release Notes" position="bottom">
+        <Tooltip label="Release Notes" position="bottom" openDelay={500}>
           <Text
             size="xs"
             c="text-secondary"

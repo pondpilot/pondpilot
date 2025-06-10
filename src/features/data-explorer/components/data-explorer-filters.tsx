@@ -32,9 +32,9 @@ interface FilterButton {
 
 const filterButtons: FilterButton[] = [
   { type: 'all', Icon: IconList, tooltip: 'Show all' },
-  { type: 'databases', Icon: IconDatabase, tooltip: 'Show local databases only' },
-  { type: 'remote', Icon: IconCloud, tooltip: 'Show remote databases only' },
-  { type: 'files', Icon: IconFile, tooltip: 'Show files only' },
+  { type: 'databases', Icon: IconDatabase, tooltip: 'Local databases' },
+  { type: 'remote', Icon: IconCloud, tooltip: 'Remote databases' },
+  { type: 'files', Icon: IconFile, tooltip: 'Files' },
 ];
 
 const fileTypeLabels: Partial<Record<supportedDataSourceFileExt, string>> = {
@@ -120,10 +120,10 @@ export const DataExplorerFilters = memo(
             if (button.type === 'files' && activeFilter === 'files') {
               return (
                 <Group key={button.type} gap={0}>
-                  <Tooltip label={button.tooltip} position="bottom">
+                  <Tooltip label={button.tooltip} position="bottom" openDelay={500}>
                     <ActionIcon
                       variant="light"
-                      size="sm"
+                      size={20}
                       color="background-accent"
                       onClick={() => onFilterChange(button.type)}
                       aria-label={button.tooltip}
@@ -142,7 +142,7 @@ export const DataExplorerFilters = memo(
                     <Menu.Target>
                       <ActionIcon
                         variant="light"
-                        size="sm"
+                        size={20}
                         color="background-accent"
                         className="rounded-l-none border-l border-gray-400 dark:border-gray-600"
                         aria-label="Filter file types"
@@ -199,10 +199,10 @@ export const DataExplorerFilters = memo(
             }
 
             return (
-              <Tooltip key={button.type} label={button.tooltip} position="bottom">
+              <Tooltip key={button.type} label={button.tooltip} position="bottom" openDelay={500}>
                 <ActionIcon
                   variant={activeFilter === button.type ? 'light' : 'subtle'}
-                  size="sm"
+                  size={20}
                   color={activeFilter === button.type ? 'background-accent' : undefined}
                   onClick={() => onFilterChange(button.type)}
                   aria-label={button.tooltip}
@@ -236,8 +236,8 @@ export const DataExplorerFilters = memo(
               className="search-input search-input-grow"
               styles={{
                 input: {
-                  height: 28, // Match ActionIcon sm size
-                  minHeight: 28,
+                  height: 20, // Match ActionIcon size
+                  minHeight: 20,
                 },
               }}
               rightSection={
@@ -259,10 +259,11 @@ export const DataExplorerFilters = memo(
         <Tooltip
           label={searchExpanded && searchQuery ? 'Clear search' : 'Search'}
           position="bottom"
+          openDelay={500}
         >
           <ActionIcon
             variant={searchQuery ? 'light' : 'subtle'}
-            size="sm"
+            size={20}
             color={searchQuery ? 'background-accent' : undefined}
             onClick={handleSearchToggle}
             aria-label="Toggle search"
