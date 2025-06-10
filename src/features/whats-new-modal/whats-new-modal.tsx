@@ -68,7 +68,7 @@ export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
                 h4: ({ node, ...props }) => <Title className="py-2" order={4} {...props} />,
                 p: ({ node, ...props }) => <Text className="py-2" {...props} />,
                 ul: ({ node, ...props }) => (
-                  <List className="py-2" {...props} maw={660} size="sm" />
+                  <List className="py-2 list-disc list-inside" {...props} maw={600} size="sm" />
                 ),
                 li: ({ node, ...props }) => <List.Item {...props} />,
                 a: ({ node, ...props }) => (
