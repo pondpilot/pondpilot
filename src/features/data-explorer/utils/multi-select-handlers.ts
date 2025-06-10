@@ -46,10 +46,25 @@ export function handleMultiSelectDelete(
     // Handle file nodes
     if ('entryId' in nodeInfo) {
       if (nodeType === 'file' && !nodeInfo.isSheet) {
-        // For files, we need to find the corresponding data source
-        const dataSourceId = node.value as PersistentDataSourceId;
-        if (dataSourceId) {
-          deletableDataSourceIds.push(dataSourceId);
+        // For files, we need to find the corresponding data source by entry ID
+        for (const [dsId, ds] of context.flatFileSources) {
+          if (ds.fileSourceId === nodeInfo.entryId && ds.type !== 'xlsx-sheet') {
+            deletableDataSourceIds.push(dsId);
+            break;
+          }
+        }
+      } else if (nodeType === 'sheet' && nodeInfo.isSheet && nodeInfo.sheetName) {
+        // For XLSX sheets, find the specific sheet data source
+        for (const [dsId, ds] of context.flatFileSources) {
+          if (
+            ds.fileSourceId === nodeInfo.entryId &&
+            ds.type === 'xlsx-sheet' &&
+            'sheetName' in ds &&
+            ds.sheetName === nodeInfo.sheetName
+          ) {
+            deletableDataSourceIds.push(dsId);
+            break;
+          }
         }
       } else if (nodeType === 'folder' && nodeInfo.entryId) {
         folderIds.push(nodeInfo.entryId);
@@ -76,8 +91,15 @@ export function handleMultiSelectShowSchema(
 ): void {
   const { nodeMap, anyNodeIdToNodeTypeMap, flatFileSources } = context;
 
+  // Filter nodeIds to only include valid ones
+  const validNodeIds = nodeIds.filter((id) => {
+    const nodeType = anyNodeIdToNodeTypeMap.get(id);
+    const nodeInfo = nodeMap.get(id);
+    return nodeType !== undefined && nodeInfo !== undefined;
+  });
+
   // Get the node info for all selected nodes
-  const selectedNodesInfo = nodeIds
+  const selectedNodesInfo = validNodeIds
     .map((id) => ({ id, info: nodeMap.get(id), type: anyNodeIdToNodeTypeMap.get(id) }))
     .filter((item) => item.info !== undefined && item.type !== undefined);
 
@@ -85,10 +107,19 @@ export function handleMultiSelectShowSchema(
 
   // Separate database and file nodes
   const dbNodes = selectedNodesInfo.filter((item) => item.info && 'db' in item.info);
-  const fileNodes = selectedNodesInfo.filter((item) => item.info && 'entryId' in item.info);
+  const fileNodes = selectedNodesInfo.filter(
+    (item) =>
+      item.info && 'entryId' in item.info && (item.type === 'file' || item.type === 'sheet'),
+  );
+  const folderNodes = selectedNodesInfo.filter(
+    (item) => item.info && 'entryId' in item.info && item.type === 'folder',
+  );
 
-  // Can't mix database and file nodes
-  if (dbNodes.length > 0 && fileNodes.length > 0) {
+  // For database nodes, filter to only include object nodes (tables/views)
+  const dbObjectNodes = dbNodes.filter((item) => item.type === 'object');
+
+  // Can't mix database and file/folder nodes
+  if (dbNodes.length > 0 && (fileNodes.length > 0 || folderNodes.length > 0)) {
     showWarning({
       title: 'Mixed Selection',
       message: 'Cannot show schema for mixed database and file selections',
@@ -97,13 +128,13 @@ export function handleMultiSelectShowSchema(
   }
 
   // Handle database nodes
-  if (dbNodes.length > 0) {
-    const firstNodeInfo = dbNodes[0].info;
+  if (dbObjectNodes.length > 0) {
+    const firstNodeInfo = dbObjectNodes[0].info;
     if (!firstNodeInfo || !isDBNodeInfo(firstNodeInfo)) {
       return;
     }
 
-    const sameSchemaNodes = dbNodes.every(
+    const sameSchemaNodes = dbObjectNodes.every(
       (item) =>
         item.info &&
         isDBNodeInfo(item.info) &&
@@ -119,7 +150,7 @@ export function handleMultiSelectShowSchema(
       return;
     }
 
-    const objectNames = dbNodes
+    const objectNames = dbObjectNodes
       .filter((item) => item.info && isDBNodeInfo(item.info) && item.info.objectName !== null)
       .map((item) => {
         const { info } = item;
@@ -143,12 +174,41 @@ export function handleMultiSelectShowSchema(
 
   // Handle file nodes
   if (fileNodes.length > 0) {
-    const sourceIds = fileNodes
-      .filter((item) => item.type === 'file')
-      .map((item) => item.id)
-      .filter((id): id is PersistentDataSourceId =>
-        flatFileSources.has(id as PersistentDataSourceId),
-      );
+    const sourceIds: PersistentDataSourceId[] = [];
+
+    fileNodes.forEach((item) => {
+      if (item.type === 'file' && item.info && 'entryId' in item.info) {
+        // For regular files, we need to find the data source by entry ID
+        const { entryId } = item.info;
+        // Find the data source that matches this entry
+        for (const [dsId, ds] of flatFileSources) {
+          if (ds.fileSourceId === entryId && ds.type !== 'xlsx-sheet') {
+            sourceIds.push(dsId);
+            break;
+          }
+        }
+      } else if (
+        item.type === 'sheet' &&
+        item.info &&
+        'entryId' in item.info &&
+        item.info.isSheet &&
+        item.info.sheetName
+      ) {
+        // For XLSX sheets, we need to find the data source
+        // Find the data source that matches this sheet
+        for (const [dsId, ds] of flatFileSources) {
+          if (
+            ds.fileSourceId === item.info.entryId &&
+            ds.type === 'xlsx-sheet' &&
+            'sheetName' in ds &&
+            ds.sheetName === item.info.sheetName
+          ) {
+            sourceIds.push(dsId);
+            break;
+          }
+        }
+      }
+    });
 
     if (sourceIds.length > 0) {
       getOrCreateSchemaBrowserTab({
@@ -156,6 +216,27 @@ export function handleMultiSelectShowSchema(
         sourceType: 'file',
         objectNames: sourceIds,
         setActive: true,
+      });
+    }
+  }
+
+  // Handle folder nodes
+  if (folderNodes.length > 0) {
+    // For now, we'll handle single folder selection
+    // Multiple folder selection could be supported in the future
+    if (folderNodes.length === 1) {
+      const folderInfo = folderNodes[0].info;
+      if (folderInfo && 'entryId' in folderInfo && folderInfo.entryId) {
+        getOrCreateSchemaBrowserTab({
+          sourceId: folderInfo.entryId,
+          sourceType: 'folder',
+          setActive: true,
+        });
+      }
+    } else {
+      showWarning({
+        title: 'Multiple Folders',
+        message: 'Schema browser for multiple folders is not yet supported',
       });
     }
   }
@@ -169,13 +250,25 @@ export function getShowSchemaHandler(
   selectedNodes: TreeNodeData<DataExplorerNodeTypeMap>[],
   context: MultiSelectHandlerContext,
 ): ((nodeIds: string[]) => void) | undefined {
-  // Check if all nodes are of appropriate types for schema viewing
-  const validNodeTypes = ['object', 'file'];
-  const areAllValidNodes = selectedNodes.every(
-    (node) => node && validNodeTypes.includes(node.nodeType),
-  );
+  // console.log('[getShowSchemaHandler] Called with selectedNodes:', selectedNodes.map(n => ({
+  //   value: n.value,
+  //   nodeType: n.nodeType,
+  //   label: n.label,
+  // })));
 
-  return areAllValidNodes && selectedNodes.length > 0
+  // Filter to only include nodes of appropriate types for schema viewing
+  const validNodeTypes = ['object', 'file', 'sheet', 'folder'];
+  const validNodes = selectedNodes.filter((node) => node && validNodeTypes.includes(node.nodeType));
+
+  // console.log('[getShowSchemaHandler] Valid nodes after filtering:', validNodes.map(n => ({
+  //   value: n.value,
+  //   nodeType: n.nodeType,
+  //   label: n.label,
+  // })));
+  // console.log('[getShowSchemaHandler] Returning handler:', validNodes.length > 0 ? 'YES' : 'NO');
+
+  // If we have at least one valid node, show the handler
+  return validNodes.length > 0
     ? (nodeIds: string[]) => handleMultiSelectShowSchema(nodeIds, context)
     : undefined;
 }

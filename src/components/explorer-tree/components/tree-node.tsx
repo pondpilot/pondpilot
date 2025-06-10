@@ -37,7 +37,7 @@ const ConditionalTooltip = ({
 }) => {
   if (tooltip) {
     return (
-      <Tooltip label={tooltip} position="top" withArrow>
+      <Tooltip label={tooltip} position="top" withArrow openDelay={500}>
         {children}
       </Tooltip>
     );
@@ -168,6 +168,20 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
 
     if (isDisabled) return;
 
+    // Handle Alt/Option key for toggling expansion
+    if (e.altKey) {
+      if (hasChildren && node.doNotExpandOnClick !== true) {
+        tree.toggleExpanded(itemId);
+      }
+      if (isSelectable) {
+        tree.select(itemId);
+        setIsUserSelection(true);
+      }
+      onNodeClick?.(node, tree);
+      nodeRef.current?.focus();
+      return;
+    }
+
     // Handle Shift key selection (range selection)
     if (e.shiftKey) {
       if (tree.anchorNode) {
@@ -179,7 +193,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
         tree.setSelectedState(flattenedNodeIds.slice(start, end + 1));
         nodeRef.current?.focus();
       } else {
-        hasChildren && tree.toggleExpanded(itemId);
+        // First shift+click sets the anchor
         if (isSelectable) {
           tree.select(itemId);
           setIsUserSelection(true);

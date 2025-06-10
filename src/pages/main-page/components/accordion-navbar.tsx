@@ -297,13 +297,11 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
 
       {/* Resize Handle */}
       {bothExpanded && (
-        <div
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label="Resize handle"
-          tabIndex={0}
+        <button
+          type="button"
+          aria-label="Resize handle - use arrow keys to adjust"
           className={cn(
-            'h-[1px] bg-gray-200 dark:bg-gray-700 relative cursor-ns-resize hover:bg-blue-500',
+            'h-[1px] bg-gray-200 dark:bg-gray-700 relative cursor-ns-resize hover:bg-blue-500 w-full border-none outline-none focus:bg-blue-500',
             isResizing && 'bg-blue-500',
           )}
           onMouseDown={handleMouseDown}
@@ -325,7 +323,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
         >
           {/* Invisible hit area for easier grabbing */}
           <div className="absolute inset-x-0 -top-2 -bottom-2" />
-        </div>
+        </button>
       )}
 
       {/* Queries Section */}
