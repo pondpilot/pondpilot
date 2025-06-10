@@ -89,7 +89,7 @@ test('should export data to TSV (via modal)', async ({
   const fileContent1 = readFileSync(path1, 'utf-8');
   const expectedTSV1 = [
     'normal_col\ttab_col\t"tab quote,""col"""',
-    'normal val\tcomma\tval\t"tab quote\t""val"""',
+    'normal val\t"comma\tval"\t"tab quote\t""val"""',
   ].join('\n');
   expect(fileContent1).toBe(expectedTSV1);
 
@@ -101,7 +101,7 @@ test('should export data to TSV (via modal)', async ({
     filename: 'export2.tsv',
   });
   const fileContent2 = readFileSync(path2, 'utf-8');
-  const expectedTSV2 = ['normal val\tcomma\tval\t"tab quote\t""val"""'].join('\n');
+  const expectedTSV2 = ['normal val\t"comma\tval"\t"tab quote\t""val"""'].join('\n');
   expect(fileContent2).toBe(expectedTSV2);
 });
 
