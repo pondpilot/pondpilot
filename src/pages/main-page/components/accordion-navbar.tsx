@@ -88,15 +88,26 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
         ...prev,
         [section]: !prev[section],
       };
-      // Reset height when:
-      // 1. Going from one expanded to both expanded
-      // 2. Collapsing the queries section (to prevent it from collapsing upward)
-      if (
-        (newState.dataExplorer && newState.queries && !bothExpanded) ||
-        (section === 'queries' && !newState.queries)
-      ) {
+
+      // When transitioning from one section expanded to both expanded
+      if (newState.dataExplorer && newState.queries && !bothExpanded) {
+        // If expanding from only one section to both, set a reasonable default height
+        // This prevents the data explorer from taking all available space
+        if (containerRef.current) {
+          const containerHeight = containerRef.current.clientHeight;
+          const headerHeight = 36; // px
+          const footerHeight = 34; // px
+          const availableHeight = containerHeight - headerHeight * 2 - footerHeight - 1; // -1 for resize handle
+          // Set data explorer to 50% of available space by default
+          setDataExplorerHeight(Math.max(100, Math.floor(availableHeight / 2)));
+        } else {
+          setDataExplorerHeight(null);
+        }
+      } else if (section === 'queries' && !newState.queries) {
+        // Collapsing the queries section
         setDataExplorerHeight(null);
       }
+
       return newState;
     });
   };
@@ -219,7 +230,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
         )}
         style={{
           flex: sectionStates.dataExplorer
-            ? dataExplorerHeight
+            ? dataExplorerHeight && bothExpanded
               ? `0 0 ${dataExplorerHeight}px`
               : '1 1 auto'
             : '0 0 36px',
