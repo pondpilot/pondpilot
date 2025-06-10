@@ -14,8 +14,8 @@ export const DataExplorerNode = (
   // Get active data source ID for file system nodes
   const activeDataSourceId = useDataSourceIdForActiveTab();
 
-  // @ts-expect-error: type of the id is not assignable, but it is correct
-  const curNodeIndex = flattenedNodeIds.indexOf(itemId);
+  // Find the current node index in the flattened list
+  const curNodeIndex = flattenedNodeIds.findIndex((id) => id === itemId);
   const prevNodeId = curNodeIndex > 0 ? flattenedNodeIds[curNodeIndex - 1] : null;
   const nextNodeId =
     curNodeIndex < flattenedNodeIds.length - 1 ? flattenedNodeIds[curNodeIndex + 1] : null;

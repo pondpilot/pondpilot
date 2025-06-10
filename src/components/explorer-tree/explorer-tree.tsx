@@ -88,6 +88,7 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, any>, Extra
   const handleRenderNode = useCallback(
     (payload: MantineRenderTreeNodePayload): ReactNode => {
       // Build the enhanced payload with the required properties
+      // Note: Complex conditional types in RenderTreeNodePayload make proper typing challenging
       const enhancedPayload = {
         ...payload,
         node: payload.node as TreeNodeData<NTypeToIdTypeMap>,

@@ -1,9 +1,10 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { LocalDB, RemoteDB, SYSTEM_DATABASE_ID } from '@models/data-source';
-import { useMemo } from 'react';
+import { LocalDB, RemoteDB } from '@models/data-source';
 
-import { buildDatabaseNode } from '../builders/database-tree-builder';
 import { DataExplorerNodeMap } from '../model';
+import { useLocalDbNodes } from './use-local-db-nodes';
+import { useRemoteDbNodes } from './use-remote-db-nodes';
+import { useSystemDbNode } from './use-system-db-node';
 
 type UseBuildNodesProps = {
   systemDatabase: LocalDB | undefined;
@@ -19,93 +20,61 @@ type UseBuildNodesProps = {
   flatFileSources: Map<string, any>;
 };
 
-export const useBuildNodes = ({
-  systemDatabase,
-  localDatabases,
-  remoteDatabases,
-  nodeMap,
-  anyNodeIdToNodeTypeMap,
-  conn,
-  localDBLocalEntriesMap,
-  databaseMetadata,
-  fileViewNames,
-  initialExpandedState,
-  flatFileSources,
-}: UseBuildNodesProps) => {
+/**
+ * Composite hook that orchestrates building all types of database nodes
+ * by delegating to specialized hooks for each node type
+ */
+export const useBuildNodes = (props: UseBuildNodesProps) => {
+  const {
+    systemDatabase,
+    localDatabases,
+    remoteDatabases,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    localDBLocalEntriesMap,
+    databaseMetadata,
+    fileViewNames,
+    initialExpandedState,
+    flatFileSources,
+  } = props;
+
   // Build local database nodes
-  const localDbNodes = useMemo(
-    () =>
-      localDatabases.map((db) =>
-        buildDatabaseNode(db, false, {
-          nodeMap,
-          anyNodeIdToNodeTypeMap,
-          conn,
-          localDatabases,
-          localDBLocalEntriesMap,
-          databaseMetadata,
-          fileViewNames,
-          initialExpandedState,
-          flatFileSources,
-        }),
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      localDatabases,
-      nodeMap,
-      anyNodeIdToNodeTypeMap,
-      conn,
-      localDBLocalEntriesMap,
-      databaseMetadata,
-      fileViewNames,
-      flatFileSources,
-    ],
-  );
+  const localDbNodes = useLocalDbNodes({
+    localDatabases,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    localDBLocalEntriesMap,
+    databaseMetadata,
+    fileViewNames,
+    initialExpandedState,
+    flatFileSources,
+  });
 
   // Build remote database nodes
-  const remoteDatabaseNodes = useMemo(
-    () =>
-      remoteDatabases.map((db) =>
-        buildDatabaseNode(db, false, {
-          nodeMap,
-          anyNodeIdToNodeTypeMap,
-          conn,
-          localDatabases: [],
-          localDBLocalEntriesMap: new Map(),
-          databaseMetadata,
-          initialExpandedState,
-          flatFileSources,
-        }),
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [remoteDatabases, nodeMap, anyNodeIdToNodeTypeMap, conn, databaseMetadata, flatFileSources],
-  );
+  const remoteDatabaseNodes = useRemoteDbNodes({
+    remoteDatabases,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    flatFileSources,
+  });
 
-  // Build system database node if it exists
-  const systemDbNode = systemDatabase
-    ? buildDatabaseNode(systemDatabase, true, {
-        nodeMap,
-        anyNodeIdToNodeTypeMap,
-        conn,
-        localDatabases: [],
-        localDBLocalEntriesMap,
-        databaseMetadata,
-        fileViewNames,
-        initialExpandedState,
-        flatFileSources,
-      })
-    : null;
-
-  // Ensure system database node is always available for display
-  const systemDbNodeForDisplay = systemDbNode || {
-    nodeType: 'db' as const,
-    value: SYSTEM_DATABASE_ID,
-    label: 'PondPilot',
-    iconType: 'duck' as const,
-    isDisabled: false,
-    isSelectable: false,
-    contextMenu: [],
-    children: [],
-  };
+  // Build system database node
+  const { systemDbNode, systemDbNodeForDisplay } = useSystemDbNode({
+    systemDatabase,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    localDBLocalEntriesMap,
+    databaseMetadata,
+    fileViewNames,
+    initialExpandedState,
+    flatFileSources,
+  });
 
   return {
     localDbNodes,

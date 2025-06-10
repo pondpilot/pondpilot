@@ -66,6 +66,11 @@ export function filterTreeNodes(
       // For files filter
       if (filterType === 'files') {
         if (node.nodeType === 'file' || node.nodeType === 'sheet') {
+          // Exclude database files (marked with [DB] prefix) from files view
+          if (node.label.startsWith('[DB] ')) {
+            return null;
+          }
+
           // Check if file type filter is active and this file should be included
           if (fileTypeFilter && getFileExtension) {
             const ext = getFileExtension(node);
