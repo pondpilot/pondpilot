@@ -1,5 +1,7 @@
 import { EditorView } from '@codemirror/view';
 
+import { DataBaseModel } from '../../../models/db';
+
 export interface AIAction {
   type:
     | 'replace_statement'
@@ -34,4 +36,13 @@ export interface AIAssistantContext {
     statementType?: string;
     currentScript: string;
   };
+}
+
+// Database model types - using existing types from models
+export type DatabaseModel = Map<string, DataBaseModel>;
+
+// Database model cache
+export interface DatabaseModelCache {
+  data: DatabaseModel;
+  timestamp: number;
 }

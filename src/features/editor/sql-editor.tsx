@@ -9,6 +9,7 @@ import { defaultKeymap, insertTab, history } from '@codemirror/commands';
 import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
 import { keymap, placeholder } from '@codemirror/view';
 import { showNotification } from '@mantine/notifications';
+import { useAppStore } from '@store/app-store';
 import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
@@ -64,6 +65,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
     const { darkTheme, lightTheme } = useEditorTheme(colorSchemeDark);
     const connectionPool = useDuckDBConnectionPool();
     const editorRef = useRef<ReactCodeMirrorRef>(null);
+    const sqlScripts = useAppStore((state) => state.sqlScripts);
 
     const tableNameHighlightPlugin = useMemo(() => {
       if (schema) {
@@ -150,7 +152,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         upperCaseKeywords: true,
         schema,
       });
-      const aiAssistantExtension = aiAssistantTooltip(connectionPool);
+      const aiAssistantExtension = aiAssistantTooltip(connectionPool, undefined, sqlScripts);
       const tooltipExtension = functionTooltip(functionTooltips);
 
       return [
@@ -178,6 +180,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
       tableNameHighlightPlugin,
       functionTooltips,
       connectionPool,
+      sqlScripts,
     ]);
 
     return (

@@ -10,8 +10,12 @@ import {
   insertAIResponseEffect,
 } from './effects';
 import { handleAIServiceError, handleSchemaContextError } from './error-handler';
+import { extractMentions } from './mention-autocomplete';
+import { getPromptHistoryManager } from './prompt-history';
 import { AIAssistantServices } from './services-facet';
 import { preventEventPropagation } from './ui-factories';
+import { categorizeMentions, expandDatabaseMentions } from './utils/mention-categorization';
+import { getDatabaseModel } from '../../../controllers/db/duckdb-meta';
 import { TabExecutionError } from '../../../controllers/tab/tab-controller';
 
 export interface AIAssistantHandlers {
@@ -61,17 +65,67 @@ export function createAIAssistantHandlers(
     generateBtn.appendChild(loadingDots);
 
     try {
+      // Extract mentioned tables, databases, and scripts from the query
+      const mentions = extractMentions(query);
+      const allMentionedTables: string[] = [];
+      let mentionedScripts = new Set<string>();
+
       // Generate schema context if connection is available
       let schemaContext: string | undefined;
+      let scriptContext: string | undefined;
       const dbConnectionPool = services.connectionPool;
 
-      if (dbConnectionPool) {
+      if (dbConnectionPool || services.sqlScripts) {
         try {
-          const context = await services.schemaContextService.generateSchemaContext(
-            dbConnectionPool,
-            sqlStatement,
-          );
-          schemaContext = services.schemaContextService.formatSchemaContextForAI(context);
+          // Check mentions against database model and scripts to categorize properly
+          const databaseModel = dbConnectionPool
+            ? await getDatabaseModel(dbConnectionPool)
+            : undefined;
+
+          // Extract all mention strings from the prompt
+          const allMentions = [...mentions.tables, ...mentions.databases, ...mentions.scripts];
+
+          // Categorize mentions using the extracted utility
+          const categorized = categorizeMentions(allMentions, databaseModel, services.sqlScripts);
+          mentionedScripts = categorized.mentionedScriptIds;
+          const { mentionedDbNames } = categorized;
+          const { mentionedTableNames } = categorized;
+
+          // Add mentioned tables to the list
+          mentionedTableNames.forEach((table) => allMentionedTables.push(table));
+
+          // Expand @db mentions to include all tables in that database
+          if (mentionedDbNames.size > 0) {
+            const expandedTables = expandDatabaseMentions(mentionedDbNames, databaseModel);
+            expandedTables.forEach((table) => {
+              if (!allMentionedTables.includes(table)) {
+                allMentionedTables.push(table);
+              }
+            });
+          }
+
+          if (dbConnectionPool) {
+            const context = await services.schemaContextService.generateSchemaContext(
+              dbConnectionPool,
+              sqlStatement,
+              allMentionedTables, // Pass all tables including expanded from databases
+            );
+            schemaContext = services.schemaContextService.formatSchemaContextForAI(context);
+          }
+
+          // Generate script context for mentioned scripts
+          if (mentionedScripts.size > 0 && services.sqlScripts) {
+            const scriptContents: string[] = [];
+            for (const scriptId of mentionedScripts) {
+              const script = services.sqlScripts.get(scriptId);
+              if (script) {
+                scriptContents.push(`-- Script: ${script.name}\n${script.content}`);
+              }
+            }
+            if (scriptContents.length > 0) {
+              scriptContext = `Referenced SQL Scripts:\n\n${scriptContents.join('\n\n')}`;
+            }
+          }
         } catch (error) {
           handleSchemaContextError(error);
         }
@@ -95,10 +149,18 @@ export function createAIAssistantHandlers(
         }
       }
 
+      // Combine schema and script contexts
+      let combinedContext = schemaContext;
+      if (scriptContext) {
+        combinedContext = combinedContext
+          ? `${combinedContext}\n\n${scriptContext}`
+          : scriptContext;
+      }
+
       const aiRequest = {
         prompt: enhancedPrompt,
         sqlContext: sqlStatement,
-        schemaContext,
+        schemaContext: combinedContext,
         useStructuredResponse: true,
         queryError,
       };
@@ -106,6 +168,12 @@ export function createAIAssistantHandlers(
       const response = await services.aiService.generateSQLAssistance(aiRequest);
 
       if (response.success) {
+        // Save successful prompts to history (use original query, not enhanced)
+        if (query) {
+          const historyManager = getPromptHistoryManager();
+          historyManager.addPrompt(query);
+        }
+
         if (response.structuredResponse) {
           // Handle structured response - hide AI assistant and show action selection UI
           view.dispatch({

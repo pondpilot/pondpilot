@@ -5,6 +5,7 @@
 
 import { Facet, EditorState } from '@codemirror/state';
 
+import { SQLScript } from '../../../models/sql-script';
 import { getAIConfig } from '../../../utils/ai-config';
 import { AIService, getAIService, AIServiceConfig } from '../../../utils/ai-service';
 import {
@@ -17,6 +18,7 @@ export interface AIAssistantServices {
   aiService: AIService;
   schemaContextService: SchemaContextService;
   connectionPool: AsyncDuckDBConnectionPool | null;
+  sqlScripts?: Map<string, SQLScript>;
 }
 
 /**
@@ -34,6 +36,7 @@ export const aiAssistantServicesFacet = Facet.define<AIAssistantServices, AIAssi
 export function createAIAssistantServices(
   connectionPool?: AsyncDuckDBConnectionPool | null,
   customConfig?: AIServiceConfig,
+  sqlScripts?: Map<string, SQLScript>,
 ): AIAssistantServices {
   const config = customConfig || getAIConfig();
   const aiService = getAIService(config);
@@ -43,6 +46,7 @@ export function createAIAssistantServices(
     aiService,
     schemaContextService,
     connectionPool: connectionPool || null,
+    sqlScripts,
   };
 }
 
@@ -52,8 +56,11 @@ export function createAIAssistantServices(
 export function aiAssistantServicesExtension(
   connectionPool?: AsyncDuckDBConnectionPool | null,
   services?: AIAssistantServices,
+  sqlScripts?: Map<string, SQLScript>,
 ) {
-  return aiAssistantServicesFacet.of(services || createAIAssistantServices(connectionPool));
+  return aiAssistantServicesFacet.of(
+    services || createAIAssistantServices(connectionPool, undefined, sqlScripts),
+  );
 }
 
 /**
