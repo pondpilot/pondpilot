@@ -223,7 +223,9 @@ ${request.prompt}`;
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
       try {
-        const response = await fetch(`${config.baseUrl}/chat/completions`, {
+        // Ensure we don't have double slashes by removing trailing slash from baseUrl
+        const baseUrl = config.baseUrl.endsWith('/') ? config.baseUrl.slice(0, -1) : config.baseUrl;
+        const response = await fetch(`${baseUrl}/chat/completions`, {
           method: 'POST',
           headers,
           body: JSON.stringify(requestBody),

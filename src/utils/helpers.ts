@@ -46,16 +46,17 @@ export function quote(s: string, options = { single: false }): string {
 }
 
 /**
- * Escapes a string for CSV/TSV where commas are used as delimiters.
- * If the string contains a comma, it will be wrapped in quotes.
+ * Escapes a string for CSV/TSV where a custom delimiter is used.
+ * If the string contains the delimiter, a tab, a newline, or quotes, it will be wrapped in quotes.
  * If the string contains quotes, they will be escaped by doubling them.
  *
  * @param {string} s - The string to escape.
+ * @param {string} delimiter - The delimiter to check for (e.g., ',' or '\t').
  * @returns {string} The escaped string.
  */
-export function escapeField(s: string): string {
-  if (s.search(/"|,|\n/g) === -1) {
-    return s;
+export function escapeField(s: string, delimiter: string = ','): string {
+  if (s.includes(delimiter) || s.includes('"') || s.includes('\n') || s.includes('\t')) {
+    return quote(s);
   }
-  return quote(s);
+  return s;
 }

@@ -17,8 +17,6 @@ export interface BaseExportOptions {
  */
 export interface DelimitedTextExportOptions extends BaseExportOptions {
   delimiter: string;
-  quoteChar: string;
-  escapeChar: string;
 }
 
 /**

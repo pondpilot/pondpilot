@@ -90,8 +90,6 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
       const csvOptions: DelimitedTextExportOptions = {
         includeHeader: true,
         delimiter: ',',
-        quoteChar: '"',
-        escapeChar: '"',
       };
 
       await exportData(dataAdapter, 'csv', csvOptions, fileName);
