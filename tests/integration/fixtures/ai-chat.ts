@@ -134,6 +134,10 @@ export const test = base.extend<{
           responseContent = 'I\'ll retrieve all data from large_data.\n\n[EXPLANATION]\nSelecting all rows from large_data\n\n[SQL]\nSELECT * FROM large_data';
         } else if (userMessage.toLowerCase().includes('what tables and columns')) {
           responseContent = 'Here are all available tables and their columns:\n\n**test_data**\n- id (integer)\n- name (varchar)\n- value (integer)\n\n**products**\n- id (integer)\n- product (varchar)\n\n**inventory**\n- product_id (integer)\n- quantity (integer)';
+        } else if (userMessage.toLowerCase().includes('test malicious script injection')) {
+          responseContent = 'This content has been sanitized. <script>alert("XSS attempt")</script> The script above should not execute. Also testing <img src="x" onclick="alert(\'XSS\')"> and [malicious link](javascript:alert("XSS")).';
+        } else if (userMessage.toLowerCase().includes('test safe markdown')) {
+          responseContent = 'Here is **bold text**, *italic text*, and `code text`. This should be preserved:\n\n```sql\nSELECT * FROM test_data;\n```\n\nAnd a safe [link](https://example.com).';
         } else {
           responseContent = 'I can help you query your data. What would you like to know?';
         }

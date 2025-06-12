@@ -7,6 +7,7 @@ import { IconCheck, IconX } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
 
 import { MessageActions } from './message-actions';
 import { SqlQueryDisplay } from './sql-query-display';
@@ -157,6 +158,7 @@ export const ChatMessage = ({
                 {/* Message content with markdown support */}
                 <div className="prose dark:prose-invert max-w-none prose-sm prose-p:my-2 prose-pre:my-2 chat-message-content flex-1 text-textPrimary-light dark:text-textPrimary-dark">
                   <ReactMarkdown
+                    rehypePlugins={[rehypeSanitize]}
                     components={{
                 code: ({ className, children, ...props }) => {
                   const match = /language-(\w+)/.exec(className || '');
