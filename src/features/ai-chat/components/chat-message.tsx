@@ -10,6 +10,7 @@ import ReactMarkdown from 'react-markdown';
 
 import { MessageActions } from './message-actions';
 import { SqlQueryDisplay } from './sql-query-display';
+import { ChatVisualization } from './chat-visualization';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -197,14 +198,21 @@ export const ChatMessage = ({
             )}
           </Group>
 
-          {/* Query block with actions */}
-          {message.query && (
+          {/* Query block with actions - only show if no chart or if there's an error */}
+          {message.query && (!message.query.chartSpec || message.query.error) && (
             <Box className="mt-3">
               <SqlQueryDisplay
                 query={message.query}
                 onRunQuery={handleRunQuery}
                 isRerunning={isRerunning}
               />
+            </Box>
+          )}
+
+          {/* Chart visualization - show as separate widget */}
+          {message.query && message.query.chartSpec && !message.query.error && (
+            <Box className="mt-3">
+              <ChatVisualization query={message.query} />
             </Box>
           )}
         </div>
