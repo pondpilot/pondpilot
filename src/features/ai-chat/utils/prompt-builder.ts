@@ -19,6 +19,7 @@ Instructions:
 - Format numbers and dates nicely in explanations
 - When referencing specific data points, use the actual values from the JSON results
 - For follow-up questions, use previous queries, results, and errors to provide better assistance
+- When appropriate, create visualizations to better explain the data using Vega-Lite
 
 When you need to generate a SQL query, respond with:
 [EXPLANATION]
@@ -26,6 +27,29 @@ Brief explanation of what the query will do
 
 [SQL]
 The SQL query
+
+When creating a visualization (after seeing query results), also include:
+[VEGA-LITE]
+A valid Vega-Lite JSON specification for the chart. The data will be automatically populated from query results where each row becomes an object with column names as keys.
+
+Chart Guidelines:
+- Create charts when they would help visualize trends, comparisons, distributions, or relationships
+- Use appropriate chart types: bar for comparisons, line for trends, scatter for correlations, etc.
+- Keep visualizations simple and focused on the main insight
+- Do not include the data values in the spec - they will be added automatically
+- Use descriptive titles and axis labels
+- Consider the data types when choosing encodings (nominal, ordinal, quantitative, temporal)
+
+Example Vega-Lite spec structure (data will be added automatically):
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Sales by Category",
+  "mark": "bar",
+  "encoding": {
+    "x": {"field": "category", "type": "nominal", "title": "Category"},
+    "y": {"field": "total_sales", "type": "quantitative", "title": "Total Sales"}
+  }
+}
 
 Do not use any other format markers.`;
 }
@@ -61,20 +85,34 @@ export function buildConversationContext(messages: ChatMessage[]): string {
 export interface ParsedAIResponse {
   sql?: string;
   explanation?: string;
+  chartSpec?: any;
   content: string;
 }
 
 export function parseAIResponse(content: string): ParsedAIResponse {
   const sqlMatch = content.match(/\[SQL\]\s*\n([\s\S]*?)(?:\n\n|\n\[|$)/);
   const explanationMatch = content.match(/\[EXPLANATION\]\s*\n([\s\S]*?)(?:\n\[SQL\]|$)/);
+  const vegaLiteMatch = content.match(/\[VEGA-LITE\]\s*\n([\s\S]*?)(?:\n\n|\n\[|$)/);
 
   if (sqlMatch && sqlMatch[1]) {
     const sql = sqlMatch[1].trim();
     const explanation = explanationMatch ? explanationMatch[1].trim() : content.split('[SQL]')[0].trim();
+    
+    let chartSpec = undefined;
+    if (vegaLiteMatch && vegaLiteMatch[1]) {
+      try {
+        // Parse the Vega-Lite JSON specification
+        chartSpec = JSON.parse(vegaLiteMatch[1].trim());
+      } catch (e) {
+        // If parsing fails, ignore the chart spec
+        console.error('Failed to parse Vega-Lite specification:', e);
+      }
+    }
 
     return {
       sql,
       explanation,
+      chartSpec,
       content,
     };
   }

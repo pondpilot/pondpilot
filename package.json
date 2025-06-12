@@ -69,10 +69,13 @@
     "react-icons": "^5.3.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.23.1",
+    "react-vega": "^7.6.0",
     "reactflow": "^11.11.4",
     "sql-formatter": "^15.6.6",
     "tailwind-merge": "^2.5.2",
     "uuid": "^11.1.0",
+    "vega": "^6.1.2",
+    "vega-lite": "^6.1.0",
     "vite-plugin-pwa": "^0.21.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zustand": "^5.0.3"
