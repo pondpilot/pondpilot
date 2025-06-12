@@ -9,6 +9,8 @@ import { IconCopy, IconExternalLink, IconPlayerPlay, IconPencil, IconCheck, Icon
 import { useState } from 'react';
 
 import { ChatResultTable } from './chat-result-table';
+import { ChatResultChart } from './chat-result-chart';
+import { ResultViewToggle, ResultViewType } from './result-view-toggle';
 
 interface SqlQueryDisplayProps {
   query: ChatMessageQuery;
@@ -25,6 +27,7 @@ export const SqlQueryDisplay = ({
   const { colorScheme } = useMantineColorScheme();
   const [isEditingQuery, setIsEditingQuery] = useState(false);
   const [editedSql, setEditedSql] = useState(query.sql);
+  const [viewType, setViewType] = useState<ResultViewType>(query.chartSpec ? 'chart' : 'table');
 
   const handleCopyQuery = () => {
     clipboard.copy(query.sql);
@@ -198,9 +201,18 @@ export const SqlQueryDisplay = ({
                   {query.results.rows.length} rows
                 </Text>
               </Group>
+              <ResultViewToggle
+                value={viewType}
+                onChange={setViewType}
+                hasChart={!!query.chartSpec}
+              />
             </Group>
           </Box>
-          <ChatResultTable results={query.results} />
+          {viewType === 'table' ? (
+            <ChatResultTable results={query.results} />
+          ) : (
+            <ChatResultChart results={query.results} spec={query.chartSpec} />
+          )}
         </Box>
       ) : null}
     </div>

@@ -69,11 +69,11 @@ export const useChatAI = () => {
 
     const content = response.content || '';
 
-    // Parse response to extract SQL
+    // Parse response to extract SQL and chart spec
     const parsed = parseAIResponse(content);
 
     if (parsed.sql && parsed.explanation) {
-      const { sql, explanation } = parsed;
+      const { sql, explanation, chartSpec } = parsed;
 
       // Check if SQL contains DDL statements
       const classifiedStatements = classifySQLStatements([sql]);
@@ -99,6 +99,7 @@ export const useChatAI = () => {
             executionTime: 0,
             error: undefined,
             results: undefined,
+            chartSpec,
           },
         });
       } else {
@@ -116,9 +117,12 @@ export const useChatAI = () => {
         // Execute the query
         const queryResult = await executeQuery(sql);
 
-        // Update the message with query results
+        // Update the message with query results and chart spec
         aiChatController.updateMessage(conversationId, aiMessage.id, {
-          query: queryResult,
+          query: {
+            ...queryResult,
+            chartSpec,
+          },
         });
       }
 

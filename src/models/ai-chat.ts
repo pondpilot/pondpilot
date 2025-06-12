@@ -16,6 +16,7 @@ export interface ChatMessageQuery {
   error?: string;
   results?: QueryResults;
   executionTime?: number;
+  chartSpec?: any; // Vega-Lite specification
 }
 
 export interface ChatMessage {
