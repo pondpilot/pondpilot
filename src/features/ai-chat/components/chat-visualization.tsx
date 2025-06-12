@@ -1,7 +1,7 @@
 import { showSuccess } from '@components/app-notifications';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
-import { Box, Text, Badge, Group, ActionIcon, Tooltip, Collapse, Code } from '@mantine/core';
+import { Box, Text, Badge, Group, ActionIcon, Tooltip, Collapse, Code, Loader, Center } from '@mantine/core';
 import { useDisclosure, useClipboard } from '@mantine/hooks';
 import { ChatMessageQuery } from '@models/ai-chat';
 import { IconCode, IconExternalLink, IconCopy, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
@@ -16,6 +16,25 @@ interface ChatVisualizationProps {
 export const ChatVisualization = ({ query }: ChatVisualizationProps) => {
   const [showSql, { toggle: toggleSql }] = useDisclosure(false);
   const clipboard = useClipboard();
+
+  // Show loading state while generating chart
+  if (query.isGeneratingChart && query.results) {
+    return (
+      <Box className="bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark rounded-lg p-3 border border-borderSecondary-light dark:border-borderSecondary-dark">
+        <Group justify="space-between" className="mb-3">
+          <Badge size="sm" variant="dot" color="violet">
+            Visualization
+          </Badge>
+          <Text size="xs" c="dimmed">
+            Generating chart...
+          </Text>
+        </Group>
+        <Center h={200}>
+          <Loader size="sm" color="violet" />
+        </Center>
+      </Box>
+    );
+  }
 
   if (!query.chartSpec || !query.results) {
     return null;

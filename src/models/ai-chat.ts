@@ -1,4 +1,5 @@
 import { NewId } from './new-id';
+import { VegaLiteSpec } from './vega-lite';
 
 export type ChatConversationId = NewId<'ChatConversationId'>;
 export type ChatMessageId = NewId<'ChatMessageId'>;
@@ -16,7 +17,8 @@ export interface ChatMessageQuery {
   error?: string;
   results?: QueryResults;
   executionTime?: number;
-  chartSpec?: any; // Vega-Lite specification
+  chartSpec?: VegaLiteSpec;
+  isGeneratingChart?: boolean;
 }
 
 export interface ChatMessage {

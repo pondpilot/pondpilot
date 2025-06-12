@@ -1,13 +1,15 @@
 import { showSuccess, showError } from '@components/app-notifications';
 import { Box, Text, ActionIcon, Tooltip, Menu, Group, useMantineColorScheme } from '@mantine/core';
 import { QueryResults } from '@models/ai-chat';
+import { VegaLiteSpec } from '@models/vega-lite';
 import { IconDownload, IconCopy, IconPhoto } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { VegaLite } from 'react-vega';
+import { getChartThemeConfig } from '../constants/chart-theme';
 
 interface ChatResultChartProps {
   results: QueryResults;
-  spec: any;
+  spec: VegaLiteSpec;
 }
 
 export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
@@ -20,7 +22,7 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
       if (containerRef.current) {
         const { width } = containerRef.current.getBoundingClientRect();
         // Set height based on aspect ratio or chart type
-        const height = spec.height || Math.min(400, width * 0.6);
+        const height = typeof spec.height === 'number' ? spec.height : Math.min(400, width * 0.6);
         setDimensions({ width: width - 40, height });
       }
     };
@@ -44,20 +46,7 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
     })},
     config: {
       ...spec.config,
-      background: 'transparent',
-      axis: {
-        labelColor: colorScheme === 'dark' ? '#e1e1e1' : '#333',
-        titleColor: colorScheme === 'dark' ? '#e1e1e1' : '#333',
-        gridColor: colorScheme === 'dark' ? '#444' : '#ddd',
-        domainColor: colorScheme === 'dark' ? '#666' : '#999',
-      },
-      legend: {
-        labelColor: colorScheme === 'dark' ? '#e1e1e1' : '#333',
-        titleColor: colorScheme === 'dark' ? '#e1e1e1' : '#333',
-      },
-      title: {
-        color: colorScheme === 'dark' ? '#e1e1e1' : '#333',
-      },
+      ...getChartThemeConfig(colorScheme as 'light' | 'dark'),
     },
   };
 

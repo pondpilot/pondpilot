@@ -2,6 +2,7 @@ import { aiChatController } from '@controllers/ai-chat';
 import { saveAIChatConversations } from '@controllers/ai-chat/persist';
 import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { ChatConversationId } from '@models/ai-chat';
+import { VegaLiteSpec, isValidVegaLiteSpec } from '@models/vega-lite';
 import { getAIConfig } from '@utils/ai-config';
 import { getAIService } from '@utils/ai-service';
 import { classifySQLStatements, SQLStatementType } from '@utils/editor/sql';
@@ -14,6 +15,8 @@ import {
   parseAIResponse,
   fetchDatabaseSchema,
   formatResultsForContext,
+  analyzeChartableData,
+  userWantsVisualization,
 } from '../utils';
 import { useQueryExecution } from './use-query-execution';
 
@@ -62,7 +65,15 @@ Respond with ONLY the JSON specification, no explanation:`;
       const cleanContent = response.content.trim();
       // Remove markdown code block if present
       const jsonContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim();
-      return JSON.parse(jsonContent);
+      const parsedSpec = JSON.parse(jsonContent);
+      
+      // Validate the spec structure
+      if (!isValidVegaLiteSpec(parsedSpec)) {
+        console.error('Invalid Vega-Lite specification structure');
+        return null;
+      }
+      
+      return parsedSpec as VegaLiteSpec;
     } catch (e) {
       console.error('Failed to parse chart specification:', e);
       return null;
@@ -168,24 +179,20 @@ Respond with ONLY the JSON specification, no explanation:`;
 
         // Generate chart if results are suitable
         let generatedChartSpec = chartSpec;
-        if (!generatedChartSpec && queryResult.successful && queryResult.results && 
-            queryResult.results.rows.length > 1 && // More than 1 row makes sense for visualization
-            queryResult.results.columns.length >= 2) { // Need at least 2 columns for meaningful chart
+        if (!generatedChartSpec && queryResult.successful && queryResult.results) {
+          const dataAnalysis = analyzeChartableData(queryResult.results);
           
-          // Check if data is suitable for visualization
-          const hasNumericData = queryResult.results.rows.some(row => 
-            row.some(cell => typeof cell === 'number')
-          );
-          
-          const hasDateData = queryResult.results.columns.some(col => 
-            col.toLowerCase().includes('date') || 
-            col.toLowerCase().includes('time') ||
-            col.toLowerCase().includes('year') ||
-            col.toLowerCase().includes('month')
-          );
+          // Generate chart if data is chartable and user seems interested in visualization
+          if (dataAnalysis.isChartable || userWantsVisualization(userMessage)) {
+            // First update to show loading state
+            aiChatController.updateMessage(conversationId, aiMessage.id, {
+              query: {
+                ...queryResult,
+                isGeneratingChart: true,
+              },
+            });
 
-          // Generate chart for numeric or temporal data
-          if (hasNumericData || hasDateData) {
+            // Generate the chart
             generatedChartSpec = await generateChartFromResults(sql, queryResult.results, userMessage);
           }
         }
@@ -195,6 +202,7 @@ Respond with ONLY the JSON specification, no explanation:`;
           query: {
             ...queryResult,
             chartSpec: generatedChartSpec,
+            isGeneratingChart: false,
           },
         });
       }
