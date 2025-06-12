@@ -13,12 +13,61 @@ import {
   buildConversationContext,
   parseAIResponse,
   fetchDatabaseSchema,
+  formatResultsForContext,
 } from '../utils';
 import { useQueryExecution } from './use-query-execution';
 
 export const useChatAI = () => {
   const duckDbConnectionPool = useDuckDBConnectionPool();
   const { executeQuery } = useQueryExecution();
+
+  const generateChartFromResults = useCallback(async (
+    query: string,
+    results: any,
+    userIntent: string
+  ) => {
+    const config = getAIConfig();
+    const aiService = getAIService(config);
+
+    const chartPrompt = `Given this SQL query and its results, create a Vega-Lite visualization.
+
+User's request: ${userIntent}
+
+SQL Query:
+${query}
+
+Query Results:
+${formatResultsForContext(results)}
+
+Generate ONLY a Vega-Lite specification that best visualizes this data. Consider:
+- The user's intent and what they're trying to understand
+- The data types and structure
+- The most appropriate chart type (bar, line, scatter, etc.)
+- Clear titles and axis labels
+
+Respond with ONLY the JSON specification, no explanation:`;
+
+    const response = await aiService.generateSQLAssistance({
+      prompt: chartPrompt,
+      useStructuredResponse: false,
+      schemaContext: '',
+    });
+
+    if (!response.success || !response.content) {
+      return null;
+    }
+
+    try {
+      // Try to parse the JSON directly
+      const cleanContent = response.content.trim();
+      // Remove markdown code block if present
+      const jsonContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim();
+      return JSON.parse(jsonContent);
+    } catch (e) {
+      console.error('Failed to parse chart specification:', e);
+      return null;
+    }
+  }, []);
 
   const sendMessage = useCallback(async (
     conversationId: ChatConversationId,
@@ -117,11 +166,35 @@ export const useChatAI = () => {
         // Execute the query
         const queryResult = await executeQuery(sql);
 
+        // Generate chart if results are suitable
+        let generatedChartSpec = chartSpec;
+        if (!generatedChartSpec && queryResult.successful && queryResult.results && 
+            queryResult.results.rows.length > 1 && // More than 1 row makes sense for visualization
+            queryResult.results.columns.length >= 2) { // Need at least 2 columns for meaningful chart
+          
+          // Check if data is suitable for visualization
+          const hasNumericData = queryResult.results.rows.some(row => 
+            row.some(cell => typeof cell === 'number')
+          );
+          
+          const hasDateData = queryResult.results.columns.some(col => 
+            col.toLowerCase().includes('date') || 
+            col.toLowerCase().includes('time') ||
+            col.toLowerCase().includes('year') ||
+            col.toLowerCase().includes('month')
+          );
+
+          // Generate chart for numeric or temporal data
+          if (hasNumericData || hasDateData) {
+            generatedChartSpec = await generateChartFromResults(sql, queryResult.results, userMessage);
+          }
+        }
+
         // Update the message with query results and chart spec
         aiChatController.updateMessage(conversationId, aiMessage.id, {
           query: {
             ...queryResult,
-            chartSpec,
+            chartSpec: generatedChartSpec,
           },
         });
       }
@@ -161,7 +234,7 @@ export const useChatAI = () => {
         });
       }
     }
-  }, [duckDbConnectionPool, executeQuery]);
+  }, [duckDbConnectionPool, executeQuery, generateChartFromResults]);
 
   return {
     sendMessage,
