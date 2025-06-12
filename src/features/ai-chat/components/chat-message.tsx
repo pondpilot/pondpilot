@@ -209,8 +209,8 @@ export const ChatMessage = ({
             </Box>
           )}
 
-          {/* Chart visualization - show as separate widget */}
-          {message.query && message.query.chartSpec && !message.query.error && (
+          {/* Chart visualization - show as separate widget or loading state */}
+          {message.query && (message.query.chartSpec || message.query.isGeneratingChart) && !message.query.error && (
             <Box className="mt-3">
               <ChatVisualization query={message.query} />
             </Box>
