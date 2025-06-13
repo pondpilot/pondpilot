@@ -155,7 +155,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
   // Render compact view when collapsed
   if (collapsed) {
     return (
-      <Stack className="h-full bg-gray-50 dark:bg-gray-900" gap={0}>
+      <Stack className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark" gap={0}>
         {/* Create New Query button */}
         <Box className="p-2 border-b border-gray-200 dark:border-gray-700">
           <Tooltip label="Create new query" position="right" withArrow openDelay={500}>
@@ -221,7 +221,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
   }
 
   return (
-    <Stack className="h-full" gap={0} ref={containerRef}>
+    <Stack className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark" gap={0} ref={containerRef}>
       {/* Data Explorer Section */}
       <Box
         className={cn(
