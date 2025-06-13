@@ -1,11 +1,10 @@
 import { ActionIcon, Group, Tooltip, Menu, Checkbox, TextInput, Box } from '@mantine/core';
 import { supportedDataSourceFileExt } from '@models/file-system';
 import {
-  IconList,
+  IconListCheck,
   IconDatabase,
   IconFile,
   IconCloud,
-  IconChevronDown,
   IconSearch,
   IconX,
 } from '@tabler/icons-react';
@@ -31,10 +30,10 @@ interface FilterButton {
 }
 
 const filterButtons: FilterButton[] = [
-  { type: 'all', Icon: IconList, tooltip: 'Show all' },
+  { type: 'all', Icon: IconListCheck, tooltip: 'Show all' },
+  { type: 'files', Icon: IconFile, tooltip: 'Files' },
   { type: 'databases', Icon: IconDatabase, tooltip: 'Local databases' },
   { type: 'remote', Icon: IconCloud, tooltip: 'Remote databases' },
-  { type: 'files', Icon: IconFile, tooltip: 'Files' },
 ];
 
 const fileTypeLabels: Partial<Record<supportedDataSourceFileExt, string>> = {
@@ -117,84 +116,76 @@ export const DataExplorerFilters = memo(
           }}
         >
           {filterButtons.map((button) => {
-            if (button.type === 'files' && activeFilter === 'files') {
+            if (button.type === 'files') {
               return (
-                <Group key={button.type} gap={0}>
-                  <Tooltip label={button.tooltip} position="bottom" openDelay={500}>
-                    <ActionIcon
-                      variant="light"
-                      size={20}
-                      color="background-accent"
-                      onClick={() => onFilterChange(button.type)}
-                      aria-label={button.tooltip}
-                      className="rounded-r-none"
-                    >
-                      <button.Icon size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Menu
-                    opened={menuOpened}
-                    onChange={setMenuOpened}
-                    position="bottom-start"
-                    closeOnItemClick={false}
-                    width={200}
-                  >
-                    <Menu.Target>
+                <Menu
+                  key={button.type}
+                  opened={menuOpened}
+                  onChange={setMenuOpened}
+                  position="bottom-start"
+                  closeOnItemClick={false}
+                  width={200}
+                >
+                  <Menu.Target>
+                    <Tooltip label={button.tooltip} position="bottom" openDelay={500}>
                       <ActionIcon
-                        variant="light"
+                        variant={activeFilter === 'files' ? 'light' : 'subtle'}
                         size={20}
-                        color="background-accent"
-                        className="rounded-l-none border-l border-gray-400 dark:border-gray-600"
-                        aria-label="Filter file types"
-                      >
-                        <IconChevronDown size={14} />
-                      </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                      <Menu.Label>File types</Menu.Label>
-                      <Menu.Item
+                        color={activeFilter === 'files' ? 'background-accent' : undefined}
                         onClick={() => {
-                          if (onFileTypeFilterChange) {
-                            if (allFileTypesSelected) {
-                              onFileTypeFilterChange({
-                                csv: false,
-                                json: false,
-                                parquet: false,
-                                xlsx: false,
-                              });
-                            } else {
-                              onFileTypeFilterChange({
-                                csv: true,
-                                json: true,
-                                parquet: true,
-                                xlsx: true,
-                              });
-                            }
-                          }
+                          onFilterChange(button.type);
+                          setMenuOpened(true);
                         }}
+                        aria-label={button.tooltip}
                       >
+                        <button.Icon size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Label>File types</Menu.Label>
+                    <Menu.Item
+                      onClick={() => {
+                        if (onFileTypeFilterChange) {
+                          if (allFileTypesSelected) {
+                            onFileTypeFilterChange({
+                              csv: false,
+                              json: false,
+                              parquet: false,
+                              xlsx: false,
+                            });
+                          } else {
+                            onFileTypeFilterChange({
+                              csv: true,
+                              json: true,
+                              parquet: true,
+                              xlsx: true,
+                            });
+                          }
+                        }
+                      }}
+                    >
+                      <Group>
+                        <Checkbox
+                          checked={allFileTypesSelected}
+                          indeterminate={someFileTypesSelected}
+                          readOnly
+                          size="xs"
+                        />
+                        <span>All file types</span>
+                      </Group>
+                    </Menu.Item>
+                    <Menu.Divider />
+                    {(Object.keys(fileTypeLabels) as (keyof FileTypeFilter)[]).map((fileType) => (
+                      <Menu.Item key={fileType} onClick={() => handleFileTypeToggle(fileType)}>
                         <Group>
-                          <Checkbox
-                            checked={allFileTypesSelected}
-                            indeterminate={someFileTypesSelected}
-                            readOnly
-                            size="xs"
-                          />
-                          <span>All file types</span>
+                          <Checkbox checked={fileTypeFilter[fileType]} readOnly size="xs" />
+                          <span>{fileTypeLabels[fileType]}</span>
                         </Group>
                       </Menu.Item>
-                      <Menu.Divider />
-                      {(Object.keys(fileTypeLabels) as (keyof FileTypeFilter)[]).map((fileType) => (
-                        <Menu.Item key={fileType} onClick={() => handleFileTypeToggle(fileType)}>
-                          <Group>
-                            <Checkbox checked={fileTypeFilter[fileType]} readOnly size="xs" />
-                            <span>{fileTypeLabels[fileType]}</span>
-                          </Group>
-                        </Menu.Item>
-                      ))}
-                    </Menu.Dropdown>
-                  </Menu>
-                </Group>
+                    ))}
+                  </Menu.Dropdown>
+                </Menu>
               );
             }
 
