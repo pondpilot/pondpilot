@@ -226,7 +226,6 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
       <Box
         className={cn(
           'border-b border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden',
-          !isResizing && 'transition-all duration-300',
         )}
         style={{
           flex: sectionStates.dataExplorer
