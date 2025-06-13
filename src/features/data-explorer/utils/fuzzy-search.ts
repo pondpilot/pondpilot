@@ -1,8 +1,8 @@
 import { ReactNode, isValidElement } from 'react';
 
 /**
- * Simple fuzzy search implementation
- * Returns true if all characters in the query appear in the target string in order
+ * Search implementation that prioritizes exact substring matches
+ * Falls back to fuzzy matching only for short queries or when characters are close together
  */
 export function fuzzyMatch(query: string, target: string | ReactNode): boolean {
   if (!query) return true;
@@ -22,10 +22,40 @@ export function fuzzyMatch(query: string, target: string | ReactNode): boolean {
   const normalizedQuery = query.toLowerCase();
   const normalizedTarget = targetString.toLowerCase();
 
+  // First, check for exact substring match
+  if (normalizedTarget.includes(normalizedQuery)) {
+    return true;
+  }
+
+  // For very short queries (1-2 chars), only do substring matching
+  if (normalizedQuery.length <= 2) {
+    return false;
+  }
+
+  // Check if query matches at word boundaries
+  const words = normalizedTarget.split(/[\s\-_./\\]+/);
+  for (const word of words) {
+    if (word.startsWith(normalizedQuery)) {
+      return true;
+    }
+  }
+
+  // For longer queries, do a more restrictive fuzzy match
+  // Only allow fuzzy matching if characters are found within a reasonable distance
   let queryIndex = 0;
+  let lastMatchIndex = -1;
+  const maxGap = 3; // Maximum gap between matched characters
 
   for (let i = 0; i < normalizedTarget.length && queryIndex < normalizedQuery.length; i += 1) {
     if (normalizedTarget[i] === normalizedQuery[queryIndex]) {
+      // Check if gap between matches is too large
+      if (lastMatchIndex !== -1 && i - lastMatchIndex > maxGap) {
+        // Reset and try to find a better match
+        queryIndex = 0;
+        lastMatchIndex = -1;
+        continue;
+      }
+      lastMatchIndex = i;
       queryIndex += 1;
     }
   }
