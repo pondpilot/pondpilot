@@ -1,5 +1,5 @@
 import { TreeNodeData } from '@components/explorer-tree';
-import { Stack, ScrollArea } from '@mantine/core';
+import { Stack } from '@mantine/core';
 
 import { DataExplorerSection } from './data-explorer-section';
 import { DataExplorerContext, DataExplorerNodeTypeMap } from '../model';
@@ -36,8 +36,8 @@ export const DataExplorerContent = ({
   const expandedState = { ...initialExpandedState, ...searchExpandedState };
 
   return (
-    <ScrollArea className="flex-1" offsetScrollbars scrollbarSize={8}>
-      <Stack gap="xs" className="pt-2 pb-4">
+    <div className="flex-1 overflow-y-auto overflow-x-hidden">
+      <Stack gap="xs" className="pt-2 pb-4 px-2 pr-3">
         {/* System database (pondpilot) - always visible */}
         {showSystemDb && (
           <DataExplorerSection
@@ -85,6 +85,6 @@ export const DataExplorerContent = ({
           />
         )}
       </Stack>
-    </ScrollArea>
+    </div>
   );
 };
