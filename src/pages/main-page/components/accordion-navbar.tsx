@@ -221,7 +221,11 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
   }
 
   return (
-    <Stack className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark" gap={0} ref={containerRef}>
+    <Stack
+      className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
+      gap={0}
+      ref={containerRef}
+    >
       {/* Data Explorer Section */}
       <Box
         className={cn(
