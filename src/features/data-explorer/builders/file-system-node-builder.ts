@@ -387,7 +387,7 @@ export function buildDatabaseFileNode(
   entry: LocalEntry,
   context: FileSystemBuilderContext,
 ): TreeNodeData<DataExplorerNodeTypeMap> {
-  const { nodeMap, anyNodeIdToNodeTypeMap, conn } = context;
+  const { nodeMap, anyNodeIdToNodeTypeMap } = context;
 
   // Type guard to ensure entry is a file
   if (entry.kind !== 'file') {

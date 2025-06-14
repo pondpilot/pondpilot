@@ -9,6 +9,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import type { Icon } from '@tabler/icons-react';
+import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { memo, useState, useRef, useEffect } from 'react';
 
@@ -83,6 +84,17 @@ export const DataExplorerFilters = memo(
     const allFileTypesSelected = activeFileTypes.length === 4;
     const someFileTypesSelected = activeFileTypes.length > 0 && activeFileTypes.length < 4;
 
+    // const getFileTypeDisplay = () => {
+    //   if (allFileTypesSelected) return '';
+    //   if (activeFileTypes.length === 0) return 'None';
+    //   if (activeFileTypes.length === 1) {
+    //     return fileTypeLabels[activeFileTypes[0][0] as keyof FileTypeFilter];
+    //   }
+    //   return activeFileTypes
+    //     .map(([type]) => fileTypeLabels[type as keyof FileTypeFilter])
+    //     .join(', ');
+    // };
+
     useEffect(() => {
       if (searchExpanded && searchInputRef.current) {
         searchInputRef.current.focus();
@@ -104,6 +116,7 @@ export const DataExplorerFilters = memo(
 
     return (
       <Box
+        data-testid={setDataTestId('data-explorer-filters')}
         px="xs"
         py={6}
         className="border-b border-gray-200 dark:border-gray-700 flex items-center justify-between relative"
@@ -137,6 +150,8 @@ export const DataExplorerFilters = memo(
                           setMenuOpened(true);
                         }}
                         aria-label={button.tooltip}
+                        data-active={activeFilter === 'files'}
+                        data-testid={setDataTestId('file-type-filter')}
                       >
                         <button.Icon size={16} />
                       </ActionIcon>
@@ -197,6 +212,7 @@ export const DataExplorerFilters = memo(
                   color={activeFilter === button.type ? 'background-accent' : undefined}
                   onClick={() => onFilterChange(button.type)}
                   aria-label={button.tooltip}
+                  data-active={activeFilter === button.type}
                 >
                   <button.Icon size={16} />
                 </ActionIcon>

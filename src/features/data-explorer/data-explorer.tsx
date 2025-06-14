@@ -39,7 +39,7 @@ export const DataExplorer = memo(() => {
     flatFileSourcesValues,
     allDataSources,
     localEntriesValues,
-    nonLocalDBFileEntries,
+    nonLocalDBFileEntries: _nonLocalDBFileEntries,
     fileViewNames,
     nodeMap,
     anyNodeIdToNodeTypeMap,
