@@ -1,3 +1,4 @@
+import DuckIcon from '@assets/duck-bw.svg?react';
 import {
   IconCode,
   IconJson,
@@ -28,6 +29,7 @@ export type IconType =
   | 'code-file'
   | 'xlsx'
   | 'db'
+  | 'duck' // PondPilot system database
   // Database data sources
   | 'db-schema'
   | 'db-table'
@@ -73,6 +75,16 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
       return <IconCode {...iconProps} />;
     case 'db':
       return <IconDatabase {...iconProps} />;
+    case 'duck': {
+      const { stroke: _stroke, ...duckIconProps } = iconProps;
+      return (
+        <DuckIcon
+          {...duckIconProps}
+          className={iconProps.className}
+          style={{ width: iconProps.size, height: iconProps.size }}
+        />
+      );
+    }
     case 'db-schema':
       return <IconSchema {...iconProps} />;
     case 'db-table':

@@ -1,3 +1,4 @@
+import { PERSISTENT_DB_NAME } from './db-persistence';
 import { LocalEntryId } from './file-system';
 import { NewId } from './new-id';
 
@@ -75,7 +76,7 @@ export interface XlsxSheetView extends FlatFileDataSource {
 
 export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView | JSONView;
 
-export interface AttachedDB extends SingleFileDataSourceBase {
+export interface LocalDB extends SingleFileDataSourceBase {
   readonly type: 'attached-db';
 
   /**
@@ -88,4 +89,60 @@ export interface AttachedDB extends SingleFileDataSourceBase {
    */
   dbName: string;
 }
-export type AnyDataSource = AnyFlatFileDataSource | AttachedDB;
+
+/**
+ * Remote database attached via URL (HTTPS, S3, etc.)
+ * These databases are read-only and accessed over the network
+ */
+export interface RemoteDB {
+  readonly type: 'remote-db';
+
+  /**
+   * Unique identifier for the remote database
+   */
+  id: PersistentDataSourceId;
+
+  /**
+   * URL of the remote database (e.g., https://..., s3://...)
+   */
+  url: string;
+
+  /**
+   * Database name used in ATTACH statement
+   */
+  dbName: string;
+
+  /**
+   * Type of the database (always duckdb for now)
+   */
+  dbType: 'duckdb';
+
+  /**
+   * Connection state for handling network issues
+   */
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting';
+
+  /**
+   * Error message if connection failed
+   */
+  connectionError?: string;
+
+  /**
+   * Timestamp of when this database was attached
+   */
+  attachedAt: number;
+
+  /**
+   * Optional comment/description
+   */
+  comment?: string;
+}
+
+export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB;
+
+// Special constant for the system database
+export const SYSTEM_DATABASE_ID = 'pondpilot-system-db' as PersistentDataSourceId;
+export const SYSTEM_DATABASE_NAME = PERSISTENT_DB_NAME;
+
+// Empty file source ID for system database
+export const SYSTEM_DATABASE_FILE_SOURCE_ID = '' as LocalEntryId;

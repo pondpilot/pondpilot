@@ -39,8 +39,8 @@ export const ScriptEditor = ({
   const { colorScheme } = useMantineColorScheme();
 
   const sqlScript = useAppStore((state) => state.sqlScripts.get(scriptId)!);
-  const dataBaseMetadata = useAppStore.use.dataBaseMetadata();
-  const databaseModelsArray = Array.from(dataBaseMetadata.values());
+  const databaseMetadata = useAppStore.use.databaseMetadata();
+  const databaseModelsArray = Array.from(databaseMetadata.values());
 
   /**
    * State

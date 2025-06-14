@@ -1,5 +1,6 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { v4 } from 'uuid';
@@ -310,6 +311,44 @@ export const DuckDBConnectionPoolProvider = ({
           const name = v4();
           await pool.query(`CREATE OR REPLACE TABLE "${name}" as select 1;`);
           await pool.query(`DROP TABLE "${name}";`);
+
+          // Cleanup any leftover UUID-named temporary tables from previous sessions
+          try {
+            // Query to find all tables with UUID-like names (36 chars with dashes in specific positions)
+            const cleanupQuery = `
+              SELECT table_name 
+              FROM information_schema.tables 
+              WHERE table_catalog = '${PERSISTENT_DB_NAME}' 
+                AND table_schema = 'main'
+                AND LENGTH(table_name) = 36
+                AND table_name SIMILAR TO '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+            `;
+
+            const result = await pool.query(cleanupQuery);
+            const uuidTables = result.toArray();
+
+            if (uuidTables.length > 0) {
+              // eslint-disable-next-line no-console
+              console.log(
+                `Found ${uuidTables.length} leftover temporary UUID tables, cleaning up...`,
+              );
+
+              for (const row of uuidTables) {
+                const tableName = row.table_name;
+                try {
+                  await pool.query(`DROP TABLE IF EXISTS "${tableName}";`);
+                } catch (dropError) {
+                  console.warn(`Failed to drop temporary table ${tableName}:`, dropError);
+                }
+              }
+
+              // eslint-disable-next-line no-console
+              console.log('Cleanup of temporary UUID tables completed.');
+            }
+          } catch (cleanupError) {
+            // Don't fail initialization if cleanup fails, just log it
+            console.warn('Failed to cleanup temporary UUID tables:', cleanupError);
+          }
 
           setConnectionPool(pool);
           memoizedStatusUpdate({

@@ -73,7 +73,7 @@ export const deleteDataSources = async (
     .filter((ds) => ds !== undefined);
 
   const deletedLocalEntries = deletedDataSources
-    .map((ds) => localEntries.get(ds.fileSourceId))
+    .map((ds) => ('fileSourceId' in ds ? localEntries.get(ds.fileSourceId) : undefined))
     // This is really just for type safety, as we know that the localEntries map
     // will contain the entries for the data sources being deleted
     .filter((le) => le !== undefined);
@@ -152,40 +152,65 @@ export const deleteDataSources = async (
 
   // Delete the data sources from the database
   for (const dataSource of deletedDataSources) {
+    if (dataSource.type === 'remote-db') {
+      // For remote databases, just detach
+      detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.url);
+      continue;
+    }
+
+    if (!('fileSourceId' in dataSource)) {
+      continue;
+    }
+
     const file = localEntries.get(dataSource.fileSourceId);
     if (!file || file.kind !== 'file' || file.fileType !== 'data-source') {
       continue;
     }
     if (dataSource.type === 'attached-db') {
       detachAndUnregisterDatabase(conn, dataSource.dbName, `${file.uniqueAlias}.${file.ext}`);
-    } else {
+    } else if ('viewName' in dataSource) {
       // Wait for the view to be dropped to get fresh views metadata after that
       await dropViewAndUnregisterFile(conn, dataSource.viewName, `${file.uniqueAlias}.${file.ext}`);
     }
   }
 
   // After database is updated (views are dropped), create the updated state for database metadata
-  const { dataBaseMetadata } = useAppStore.getState();
+  const { databaseMetadata } = useAppStore.getState();
   const deletedDataBases = new Set(
-    deletedDataSources.filter((ds) => ds.type === 'attached-db').map((ds) => ds.dbName),
+    deletedDataSources
+      .filter((ds) => ds.type === 'attached-db' || ds.type === 'remote-db')
+      .map((ds) => ds.dbName),
   );
   // Filter out deleted databases from the metadata
-  let newDataBaseMetadata = new Map(
-    Array.from(dataBaseMetadata).filter(([dbName, _]) => !deletedDataBases.has(dbName)),
+  // eslint-disable-next-line prefer-const
+  let newDatabaseMetadata = new Map(
+    Array.from(databaseMetadata).filter(([dbName, _]) => !deletedDataBases.has(dbName)),
   );
-  // Update medatata views
-  if (deletedDataSources.some((ds) => ds.type !== 'attached-db')) {
+  // Update metadata views
+  if (deletedDataSources.some((ds) => ds.type !== 'attached-db' && ds.type !== 'remote-db')) {
+    // Refresh metadata for pondpilot database
     const newViewsMetadata = await getDatabaseModel(conn, [PERSISTENT_DB_NAME], ['main']);
-    if (newViewsMetadata.size === 0) {
-      newDataBaseMetadata.delete(PERSISTENT_DB_NAME);
+
+    // Update pondpilot database metadata
+    if (newViewsMetadata.has(PERSISTENT_DB_NAME)) {
+      newDatabaseMetadata.set(PERSISTENT_DB_NAME, newViewsMetadata.get(PERSISTENT_DB_NAME)!);
     } else {
-      newDataBaseMetadata = new Map([...newDataBaseMetadata, ...newViewsMetadata]);
+      // Ensure pondpilot always has metadata even if empty
+      newDatabaseMetadata.set(PERSISTENT_DB_NAME, {
+        name: PERSISTENT_DB_NAME,
+        schemas: [
+          {
+            name: 'main',
+            objects: [],
+          },
+        ],
+      });
     }
   }
   // Set metadata state
   useAppStore.setState(
     {
-      dataBaseMetadata: newDataBaseMetadata,
+      databaseMetadata: newDatabaseMetadata,
     },
     undefined,
     'AppStore/deleteDataSource',

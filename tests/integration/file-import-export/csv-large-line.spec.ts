@@ -9,6 +9,7 @@ import { test as baseTest } from '../fixtures/page';
 const test = mergeTests(baseTest, filePickerTest, dataViewTest);
 
 test('should handle CSV files with very large lines', async ({
+  page,
   addFileButton,
   storage,
   filePicker,
@@ -41,6 +42,14 @@ test('should handle CSV files with very large lines', async ({
   // Click the add file button
   await addFileButton.click();
 
+  // Wait for the file to appear in the explorer
+  await page.waitForSelector(
+    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
+    {
+      timeout: 5000,
+    },
+  );
+
   // Verify explorer items
   await assertFileExplorerItems(['large_line']);
 
@@ -60,6 +69,7 @@ test('should handle CSV files with very large lines', async ({
 });
 
 test('should handle CSV files with multiple large lines', async ({
+  page,
   addFileButton,
   storage,
   filePicker,
@@ -97,6 +107,14 @@ test('should handle CSV files with multiple large lines', async ({
 
   // Click the add file button
   await addFileButton.click();
+
+  // Wait for the file to appear in the explorer
+  await page.waitForSelector(
+    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
+    {
+      timeout: 5000,
+    },
+  );
 
   // Verify explorer items
   await assertFileExplorerItems(['multiple_large_lines']);

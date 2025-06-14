@@ -10,6 +10,25 @@ export const test = base.extend<PageFixtures>({
   page: async ({ page }, use) => {
     // ---------- BEFORE EACH TEST ----------
 
+    // Set up File Access API mocks before loading the app
+    await page.evaluate(() => {
+      // Mock the File Access API to enable app initialization
+      if (!('showOpenFilePicker' in window)) {
+        Object.defineProperty(window, 'showOpenFilePicker', {
+          value: async () => [],
+          writable: true,
+          configurable: true,
+        });
+      }
+      if (!('showDirectoryPicker' in window)) {
+        Object.defineProperty(window, 'showDirectoryPicker', {
+          value: async () => ({}),
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
+
     // Set local storage before navigating to the page
     await setOnboardingShown(page);
 

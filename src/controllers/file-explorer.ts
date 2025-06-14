@@ -24,7 +24,7 @@ export const renameFile = async (
 
   // Check if the data source exists
   const dataSource = dataSources.get(fileDataSourceId);
-  if (!dataSource || dataSource.type === 'attached-db') {
+  if (!dataSource || dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
     throw new Error(`File source ${fileDataSourceId} not found`);
   }
 
@@ -83,13 +83,13 @@ export const renameFile = async (
 
   // Update views metadata
   const newViewsMetadata = await getDatabaseModel(conn, [PERSISTENT_DB_NAME], ['main']);
-  const newDataBaseMetadata = new Map([
-    ...useAppStore.getState().dataBaseMetadata,
+  const newDatabaseMetadata = new Map([
+    ...useAppStore.getState().databaseMetadata,
     ...newViewsMetadata,
   ]);
   useAppStore.setState(
     {
-      dataBaseMetadata: newDataBaseMetadata,
+      databaseMetadata: newDatabaseMetadata,
     },
     undefined,
     'AppStore/renameFile',
@@ -137,7 +137,10 @@ export const renameXlsxFile = async (
   );
 
   // Get all data sources that are associated with this file
-  const curDataSources = [...dataSources.values()].filter((ds) => ds.fileSourceId === localEntryId);
+  const curDataSources = [...dataSources.values()].filter(
+    (ds) =>
+      ds.type !== 'attached-db' && ds.type !== 'remote-db' && ds.fileSourceId === localEntryId,
+  );
 
   for (const dataSource of curDataSources) {
     if (dataSource.type !== 'xlsx-sheet') {
@@ -203,13 +206,13 @@ export const renameXlsxFile = async (
 
   // Update views metadata
   const newViewsMetadata = await getDatabaseModel(conn, [PERSISTENT_DB_NAME], ['main']);
-  const newDataBaseMetadata = new Map([
-    ...useAppStore.getState().dataBaseMetadata,
+  const newDatabaseMetadata = new Map([
+    ...useAppStore.getState().databaseMetadata,
     ...newViewsMetadata,
   ]);
   useAppStore.setState(
     {
-      dataBaseMetadata: newDataBaseMetadata,
+      databaseMetadata: newDatabaseMetadata,
     },
     undefined,
     'AppStore/renameXlsxFile',

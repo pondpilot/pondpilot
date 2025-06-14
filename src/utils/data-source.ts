@@ -1,8 +1,9 @@
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
-  AttachedDB,
+  LocalDB,
   PersistentDataSourceId,
+  RemoteDB,
 } from '@models/data-source';
 import { DataSourceLocalFile } from '@models/file-system';
 import { findUniqueName } from '@utils/helpers';
@@ -30,17 +31,17 @@ export function ensureFlatFileDataSource(
     obj = dataSourceOrId;
   }
 
-  if (obj.type === 'attached-db') {
+  if (obj.type === 'attached-db' || obj.type === 'remote-db') {
     throw new Error(`Data source with id ${obj.id} is not a flat file data source`);
   }
 
   return obj;
 }
 
-export function ensureAttachedDBDataSource(
-  dataSourceOrId: AttachedDB | PersistentDataSourceId,
+export function ensureLocalDBDataSource(
+  dataSourceOrId: LocalDB | PersistentDataSourceId,
   dataSources: Map<PersistentDataSourceId, AnyDataSource>,
-): AttachedDB {
+): LocalDB {
   let obj: AnyDataSource;
 
   if (typeof dataSourceOrId === 'string') {
@@ -56,10 +57,35 @@ export function ensureAttachedDBDataSource(
   }
 
   if (obj.type !== 'attached-db') {
-    throw new Error(`Data source with id ${obj.id} is not an attached DB data source`);
+    throw new Error(`Data source with id ${obj.id} is not a local DB data source`);
   }
 
   return obj;
+}
+
+export function ensureDatabaseDataSource(
+  dataSourceOrId: LocalDB | RemoteDB | PersistentDataSourceId,
+  dataSources: Map<PersistentDataSourceId, AnyDataSource>,
+): LocalDB | RemoteDB {
+  let obj: AnyDataSource;
+
+  if (typeof dataSourceOrId === 'string') {
+    const fromState = dataSources.get(dataSourceOrId);
+
+    if (!fromState) {
+      throw new Error(`Data source with id ${dataSourceOrId} not found`);
+    }
+
+    obj = fromState;
+  } else {
+    obj = dataSourceOrId;
+  }
+
+  if (obj.type !== 'attached-db' && obj.type !== 'remote-db') {
+    throw new Error(`Data source with id ${obj.id} is not a database data source`);
+  }
+
+  return obj as LocalDB | RemoteDB;
 }
 
 export function addFlatFileDataSource(
@@ -123,10 +149,7 @@ export function addXlsxSheetDataSource(
   };
 }
 
-export function addAttachedDB(
-  localEntry: DataSourceLocalFile,
-  reservedDbs: Set<string>,
-): AttachedDB {
+export function addLocalDB(localEntry: DataSourceLocalFile, reservedDbs: Set<string>): LocalDB {
   const dataSourceId = makePersistentDataSourceId();
 
   const dbName = findUniqueName(
@@ -146,4 +169,29 @@ export function addAttachedDB(
     default:
       throw new Error('Unexpcted unsupported database source file type');
   }
+}
+
+export function isFlatFileDataSource(
+  dataSource: AnyDataSource,
+): dataSource is AnyFlatFileDataSource {
+  return (
+    dataSource.type === 'csv' ||
+    dataSource.type === 'json' ||
+    dataSource.type === 'parquet' ||
+    dataSource.type === 'xlsx-sheet'
+  );
+}
+
+export function isRemoteDatabase(dataSource: AnyDataSource): dataSource is RemoteDB {
+  return dataSource.type === 'remote-db';
+}
+
+export function isLocalDatabase(dataSource: AnyDataSource): dataSource is LocalDB {
+  return dataSource.type === 'attached-db';
+}
+
+export function getFlatFileDataSourceFromMap(
+  dataSources: Map<PersistentDataSourceId, AnyDataSource>,
+): AnyFlatFileDataSource[] {
+  return Array.from(dataSources.values()).filter(isFlatFileDataSource);
 }
