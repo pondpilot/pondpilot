@@ -37,7 +37,7 @@ export const DataExplorerContent = ({
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden">
-      <Stack gap="xs" className="pt-2 pb-4 px-2 pr-3">
+      <Stack gap="xs" className="pt-2 pb-4">
         {/* System database (pondpilot) - always visible */}
         {showSystemDb && (
           <DataExplorerSection

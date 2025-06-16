@@ -19,7 +19,7 @@ export const DataExplorerNode = (
   const prevNodeId = curNodeIndex > 0 ? flattenedNodeIds[curNodeIndex - 1] : null;
   const nextNodeId =
     curNodeIndex < flattenedNodeIds.length - 1 ? flattenedNodeIds[curNodeIndex + 1] : null;
-  
+
   // Check if this is the first or last node in the current tree section
   const isFirstInSection = curNodeIndex === 0;
   const isLastInSection = curNodeIndex === flattenedNodeIds.length - 1;
