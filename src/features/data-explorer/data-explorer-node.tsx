@@ -19,6 +19,10 @@ export const DataExplorerNode = (
   const prevNodeId = curNodeIndex > 0 ? flattenedNodeIds[curNodeIndex - 1] : null;
   const nextNodeId =
     curNodeIndex < flattenedNodeIds.length - 1 ? flattenedNodeIds[curNodeIndex + 1] : null;
+  
+  // Check if this is the first or last node in the current tree section
+  const isFirstInSection = curNodeIndex === 0;
+  const isLastInSection = curNodeIndex === flattenedNodeIds.length - 1;
 
   // Get node info from the node map
   const nodeInfo = extraData.nodeMap.get(itemId);
@@ -73,12 +77,17 @@ export const DataExplorerNode = (
   const overrideContextMenu =
     tree.selectedState.length > 1 ? extraData.getOverrideContextMenu(tree.selectedState) : null;
 
+  // Adjust active state propagation for section boundaries
+  // Don't remove border radius if we're at a section boundary
+  const adjustedPrevActive = isFirstInSection ? false : isPrevActive;
+  const adjustedNextActive = isLastInSection ? false : isNextActive;
+
   return (
     <MemoizedBaseTreeNode<DataExplorerNodeTypeMap>
       {...props}
       isActive={isActive}
-      isPrevActive={isPrevActive}
-      isNextActive={isNextActive}
+      isPrevActive={adjustedPrevActive}
+      isNextActive={adjustedNextActive}
       overrideContextMenu={overrideContextMenu}
     />
   );
