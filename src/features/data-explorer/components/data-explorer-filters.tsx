@@ -140,7 +140,12 @@ export const DataExplorerFilters = memo(
                   width={200}
                 >
                   <Menu.Target>
-                    <Tooltip label={button.tooltip} position="bottom" openDelay={500}>
+                    <Tooltip
+                      label={button.tooltip}
+                      position="bottom"
+                      openDelay={500}
+                      disabled={menuOpened}
+                    >
                       <ActionIcon
                         variant={activeFilter === 'files' ? 'light' : 'subtle'}
                         size={20}
