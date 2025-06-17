@@ -3,8 +3,8 @@ import { SchemaBrowserTab } from '@models/tab';
 import {
   useAppStore,
   useFlatFileDataSourceMap,
-  useAttachedDBDataSourceMap,
-  useAttachedDBMetadata,
+  useDatabaseDataSourceMap,
+  useLocalDBMetadata,
 } from '@store/app-store';
 import { useState, useEffect } from 'react';
 
@@ -25,7 +25,7 @@ import {
  * Hook to fetch and manage schema data for visualization
  *
  * This hook handles:
- * - Fetching schema information based on tab type (flat file, local entry, attached DB)
+ * - Fetching schema information based on tab type (flat file, local entry, local DB)
  * - Caching schema data with 15-minute TTL to improve performance
  * - Error handling and loading states
  * - Constraint information (primary keys, foreign keys, NOT NULL)
@@ -55,8 +55,8 @@ export function useSchemaData(
 
   const localEntries = useAppStore((state) => state.localEntries);
   const flatFileSources = useFlatFileDataSourceMap();
-  const dbSources = useAttachedDBDataSourceMap();
-  const dbMetadata = useAttachedDBMetadata();
+  const dbSources = useDatabaseDataSourceMap();
+  const dbMetadata = useLocalDBMetadata();
 
   useEffect(() => {
     // Create abort controller for cancellation

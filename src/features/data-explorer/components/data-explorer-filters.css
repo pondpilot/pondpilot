@@ -1,0 +1,44 @@
+@keyframes grow-from-right {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.search-input-grow {
+  animation: grow-from-right 200ms ease-out;
+  clip-path: inset(0 0 0 0);
+}
+
+.filter-buttons-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 200ms ease-out;
+}
+
+.filter-buttons-container.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.search-container {
+  position: absolute;
+  left: 12px;
+  right: 44px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+.search-input {
+  width: 100%;
+}
+
+.search-toggle-button {
+  position: relative;
+  z-index: 2;
+}

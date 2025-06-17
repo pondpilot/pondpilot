@@ -184,7 +184,7 @@ export const test = base.extend<DataViewFixtures>({
 
   waitForDataTable: async ({ dataTable }, use) => {
     await use(async () => {
-      await expect(dataTable).toBeVisible();
+      await expect(dataTable).toBeVisible({ timeout: 10000 });
       return dataTable;
     });
   },

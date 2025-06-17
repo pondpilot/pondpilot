@@ -1,7 +1,7 @@
 import { NamedIcon } from '@components/named-icon';
 import { createSQLScript } from '@controllers/sql-script';
 import {
-  getOrCreateTabFromAttachedDBObject,
+  getOrCreateTabFromLocalDBObject,
   getOrCreateTabFromFlatFileDataSource,
   getOrCreateTabFromScript,
   deleteTab,
@@ -29,6 +29,7 @@ import {
   IconLayoutGridRemove,
   IconLayoutNavbarCollapse,
 } from '@tabler/icons-react';
+import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 import { setDataTestId } from '@utils/test-id';
@@ -100,7 +101,7 @@ export const SpotlightMenu = () => {
    */
   const sqlScripts = useAppStore.use.sqlScripts();
   const dataSources = useAppStore.use.dataSources();
-  const dataBaseMetadata = useAppStore.use.dataBaseMetadata();
+  const databaseMetadata = useAppStore.use.databaseMetadata();
   const localEntries = useAppStore.use.localEntries();
 
   /**
@@ -150,9 +151,9 @@ export const SpotlightMenu = () => {
   const dataSourceActions: Action[] = [];
 
   for (const dataSource of dataSources.values()) {
-    if (dataSource.type === 'attached-db') {
+    if (isLocalDatabase(dataSource) || isRemoteDatabase(dataSource)) {
       // For databases we need to read all tables and views from metadata
-      const dbMetadata = dataBaseMetadata.get(dataSource.dbName);
+      const dbMetadata = databaseMetadata.get(dataSource.dbName);
 
       if (!dbMetadata) {
         continue;
@@ -171,7 +172,7 @@ export const SpotlightMenu = () => {
               />
             ),
             handler: () => {
-              getOrCreateTabFromAttachedDBObject(
+              getOrCreateTabFromLocalDBObject(
                 dataSource,
                 schema.name,
                 tableOrView.name,

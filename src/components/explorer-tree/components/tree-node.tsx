@@ -1,15 +1,17 @@
-import { NamedIcon } from '@components/named-icon';
-import { TextInput, Popover, ActionIcon, Menu, Text, Divider, Group } from '@mantine/core';
-import { IconDotsVertical, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { Fragment, memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { shallow } from 'zustand/shallow';
 
-import { TreeNodeMenuType, TreeNodeData, BaseTreeNodeProps } from '../model';
-import { TreeNodeMenuItem } from './tree-menu-item';
-import { getMenuItemDataTestId, mergeMenus } from '../utils/context-menu';
+import { BaseTreeNodeProps } from '../model';
 import { getNodeDataTestIdPrefix } from '../utils/node-test-id';
+import {
+  TreeNodeRenameInput,
+  TreeNodeContextMenu,
+  TreeNodeContent,
+  useTreeNodeRename,
+  useTreeNodeContextMenu,
+} from './tree-node/index';
 
 const ITEM_CLASSES = {
   base: 'cursor-pointer h-[30px] rounded group bg-transparent !outline-none',
@@ -22,13 +24,7 @@ const ITEM_CLASSES = {
   },
 };
 
-type RenameState = {
-  isRenaming: boolean;
-  pendingRenamedValue: string;
-  renameInputError: string | null;
-};
-
-export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
+const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
   level,
   node,
   hasChildren,
@@ -43,18 +39,14 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
   flattenedNodeIds,
 }: BaseTreeNodeProps<NTypeToIdTypeMap>) => {
   const nodeRef = useRef<HTMLDivElement>(null);
-
   const {
     value: itemId,
-    iconType,
-    label,
     isDisabled,
     isSelectable,
     onNodeClick,
     renameCallbacks,
-    onDelete,
     onCloseItemClick,
-    contextMenu: customContextMenu,
+    tooltip,
   } = node;
 
   const curNodeIndex = flattenedNodeIds.indexOf(itemId);
@@ -67,81 +59,35 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
 
   const treeNodeDataTestIdPrefix = getNodeDataTestIdPrefix(dataTestIdPrefix, itemId);
 
-  /*
-   * Renaming logic
-   */
-  const { validateRename, onRenameSubmit, prepareRenameValue } = renameCallbacks || {};
-  const [{ isRenaming, pendingRenamedValue, renameInputError }, setRenaming] =
-    useState<RenameState>({
-      isRenaming: false,
-      pendingRenamedValue: label,
-      renameInputError: null,
-    });
+  // Use rename hook
+  const {
+    isRenaming,
+    pendingRenamedValue,
+    renameInputError,
+    handleStartRename,
+    handleOnRenameChange,
+    handleRenameCancel,
+    handleRenameKeyDown,
+  } = useTreeNodeRename(node, renameCallbacks);
 
-  const handleStartRename = (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    // Check if the item is not disabled, not renaming already, and if the rename callbacks are present
-    if (!isDisabled && !isRenaming && validateRename && onRenameSubmit) {
-      setRenaming({
-        isRenaming: true,
-        pendingRenamedValue: prepareRenameValue?.(node) || label,
-        renameInputError: null,
-      });
-    }
-  };
+  // Use context menu hook
+  const {
+    menuOpened,
+    menuPosition,
+    contextMenu,
+    handleOpenMenuButton,
+    handleCloseMenu,
+    handleContextMenuClick,
+  } = useTreeNodeContextMenu(node, renameCallbacks, overrideContextMenu, handleStartRename);
 
-  const handleOnRenameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setRenaming({
-      isRenaming: true,
-      pendingRenamedValue: e.currentTarget.value,
-      // Null assertion is safe because we are checking if validateRename is present before rendering
-      // components that call this handler
-      renameInputError: validateRename!(node, e.currentTarget.value),
-    });
-  };
-
-  const handleRenameCancel = () => {
-    setRenaming({ isRenaming: false, pendingRenamedValue: label, renameInputError: null });
-  };
-
-  const handleRenameSubmit = () => {
-    // Double check if the name is valid
-    // Null assertion is safe because we are checking if validateRename is present before rendering
-    // components that call this handler
-    if (validateRename!(node, pendingRenamedValue) === null) {
-      setRenaming({ isRenaming: false, pendingRenamedValue, renameInputError: null });
-      onRenameSubmit!(node, pendingRenamedValue);
-      return;
-    }
-
-    // If we made a mistake and called this with an invalid name,
-    // handle as if the user cancelled the rename
-    handleRenameCancel();
-  };
-
-  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
-    e.stopPropagation();
-    if (e.key === 'Enter' && !renameInputError) {
-      handleRenameSubmit();
-    } else if (e.key === 'Escape') {
-      handleRenameCancel();
-    }
-  };
-
-  /*
-   * Item click handlers
-   */
-
-  /**
-   * Needs to detect the change of the active element from outside, to scroll it into the visible area, but avoid scrolling if the user clicked on the list
-   */
+  // Selection tracking for scroll behavior
   const [isUserSelection, setIsUserSelection] = useState(false);
 
   const handleCloseItemClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Null assertion is safe because we are checking if onCloseItemClick is present before rendering
-    // components that call this handler
-    onCloseItemClick!(node);
+    if (onCloseItemClick) {
+      onCloseItemClick(node);
+    }
     tree.deselect(itemId);
   };
 
@@ -149,6 +95,20 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
     e.stopPropagation();
 
     if (isDisabled) return;
+
+    // Handle Alt/Option key for toggling expansion
+    if (e.altKey) {
+      if (hasChildren && node.doNotExpandOnClick !== true) {
+        tree.toggleExpanded(itemId);
+      }
+      if (isSelectable) {
+        tree.select(itemId);
+        setIsUserSelection(true);
+      }
+      onNodeClick?.(node, tree);
+      nodeRef.current?.focus();
+      return;
+    }
 
     // Handle Shift key selection (range selection)
     if (e.shiftKey) {
@@ -161,7 +121,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
         tree.setSelectedState(flattenedNodeIds.slice(start, end + 1));
         nodeRef.current?.focus();
       } else {
-        hasChildren && tree.toggleExpanded(itemId);
+        // First shift+click sets the anchor
         if (isSelectable) {
           tree.select(itemId);
           setIsUserSelection(true);
@@ -218,64 +178,7 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
       }
     }
     setIsUserSelection(false);
-  }, [isActive]);
-
-  /*
-   * Construct menu items
-   */
-  const [menuOpened, setMenuOpened] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{
-    x: number | undefined;
-    y: number | undefined;
-  }>({ x: 0, y: 0 });
-
-  const menuStyles =
-    menuPosition.x && menuPosition.y
-      ? {
-          top: menuPosition.y + 15,
-          left: menuPosition.x - 10,
-        }
-      : undefined;
-
-  const defaultMenu: TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> = [];
-
-  defaultMenu.push({
-    children: [
-      {
-        label: 'Rename',
-        onClick: () => handleStartRename(),
-        isDisabled: isDisabled || !renameCallbacks,
-      },
-    ],
-  });
-
-  defaultMenu.push({
-    children: [
-      {
-        label: 'Delete',
-        onClick: () => onDelete?.(node),
-        isDisabled: isDisabled || !onDelete,
-      },
-    ],
-  });
-
-  const contextMenu = overrideContextMenu || mergeMenus([customContextMenu, defaultMenu]);
-
-  const handleOpenMenuButton = (event: React.MouseEvent) => {
-    setMenuPosition({ x: undefined, y: undefined });
-    event.stopPropagation();
-    setMenuOpened(true);
-  };
-
-  const menuOnClose = () => {
-    setMenuOpened(false);
-  };
-
-  const handleContextMenuClick = (event: React.MouseEvent) => {
-    event.preventDefault();
-    setMenuPosition({ x: event.clientX, y: event.clientY });
-    setMenuOpened(true);
-  };
+  }, [isActive, isUserSelection, itemId, selected, tree]);
 
   return (
     <div
@@ -285,7 +188,6 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
       className={cn(
         elementProps.className,
         ITEM_CLASSES.base,
-
         isDisabled ? ITEM_CLASSES.disabled : ITEM_CLASSES.hover.default,
         (isActive || selected) && [ITEM_CLASSES.transparent008, ITEM_CLASSES.hover.active],
         (isPrevSelected || isPrevActive) && 'rounded-t-none',
@@ -293,108 +195,56 @@ export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
       )}
     >
       {isRenaming ? (
-        <>
-          <Popover opened={!!renameInputError}>
-            <Popover.Target>
-              <TextInput
-                data-testid={setDataTestId(`${treeNodeDataTestIdPrefix}-rename-input`)}
-                value={pendingRenamedValue}
-                onChange={handleOnRenameChange}
-                onKeyDown={handleRenameKeyDown}
-                error={!!renameInputError}
-                onBlur={handleRenameCancel}
-                fw={500}
-                classNames={{
-                  input: 'px-3 py-1',
-                }}
-                size="xs"
-                autoFocus
-              />
-            </Popover.Target>
-            <Popover.Dropdown>{renameInputError}</Popover.Dropdown>
-          </Popover>
-        </>
-      ) : (
-        <Menu
-          width={152}
-          onClose={menuOnClose}
-          opened={menuOpened}
-          disabled={isDisabled}
-          position="bottom-start"
-          arrowOffset={8}
-          withinPortal={false}
-          floatingStrategy="fixed"
-          closeDelay={0}
-          data-testid={setDataTestId(`${treeNodeDataTestIdPrefix}-dots-menu-button`)}
+        <TreeNodeRenameInput
+          pendingRenamedValue={pendingRenamedValue}
+          renameInputError={renameInputError}
+          treeNodeDataTestIdPrefix={treeNodeDataTestIdPrefix}
+          node={node}
+          validateRename={renameCallbacks?.validateRename || (() => null)}
+          onRenameChange={handleOnRenameChange}
+          onRenameKeyDown={handleRenameKeyDown}
+          onRenameCancel={handleRenameCancel}
+        />
+      ) : contextMenu.length > 0 ? (
+        <TreeNodeContextMenu
+          menuOpened={menuOpened}
+          menuPosition={menuPosition}
+          contextMenu={contextMenu}
+          isDisabled={isDisabled}
+          node={node}
+          tree={tree}
+          treeNodeDataTestIdPrefix={treeNodeDataTestIdPrefix}
+          onClose={handleCloseMenu}
         >
-          <Menu.Dropdown
-            style={menuStyles}
-            data-testid={setDataTestId(`${treeNodeDataTestIdPrefix}-context-menu`)}
-          >
-            {contextMenu.map((item, index) => {
-              const isLast = index === contextMenu.length - 1;
-              return (
-                <Fragment key={item.children.map((child) => child.label).join('|')}>
-                  {item.children.map((menuItem, menuItemIndex) => (
-                    <TreeNodeMenuItem
-                      key={menuItem.label}
-                      menuItem={menuItem}
-                      node={node}
-                      tree={tree}
-                      menuOnClose={menuOnClose}
-                      dataTestId={setDataTestId(
-                        getMenuItemDataTestId(
-                          treeNodeDataTestIdPrefix,
-                          menuItem.label,
-                          index,
-                          menuItemIndex,
-                        ),
-                      )}
-                    />
-                  ))}
-                  {!isLast && <Menu.Divider />}
-                </Fragment>
-              );
-            })}
-          </Menu.Dropdown>
-
-          <Group
-            // This will effectively override the default Mantine `onClick`
-            // which is still applied from `...elementProps` on the top most div
-            onClick={handleNodeClick}
-            onContextMenu={handleContextMenuClick}
-            onDoubleClick={handleStartRename}
-            gap={5}
-            wrap="nowrap"
-            className={cn('cursor-pointer h-[30px] px-1 rounded group')}
-            ref={nodeRef}
-          >
-            {level !== 1 && <Divider orientation="vertical" />}
-            {isActive && onCloseItemClick ? (
-              <ActionIcon size={18} onClick={handleCloseItemClick}>
-                <IconX />
-              </ActionIcon>
-            ) : (
-              <div className="text-iconDefault-light dark:text-iconDefault-dark p-[1px]">
-                <NamedIcon iconType={iconType} size={16} />
-              </div>
-            )}
-
-            <Text c="text-primary" className="text-sm px-1" lh="18px" truncate>
-              {label}
-            </Text>
-            <Menu.Target>
-              <ActionIcon
-                onClick={handleOpenMenuButton}
-                className={cn('opacity-0 group-hover:opacity-100', menuOpened && 'opacity-100')}
-                ml="auto"
-                size={16}
-              >
-                <IconDotsVertical size={16} />
-              </ActionIcon>
-            </Menu.Target>
-          </Group>
-        </Menu>
+          <TreeNodeContent
+            level={level}
+            node={node}
+            isActive={isActive}
+            menuOpened={menuOpened}
+            tooltip={tooltip}
+            hasContextMenu
+            nodeRef={nodeRef}
+            onNodeClick={handleNodeClick}
+            onContextMenuClick={handleContextMenuClick}
+            onStartRename={handleStartRename}
+            onCloseItemClick={handleCloseItemClick}
+            onOpenMenuButton={handleOpenMenuButton}
+          />
+        </TreeNodeContextMenu>
+      ) : (
+        <TreeNodeContent
+          level={level}
+          node={node}
+          isActive={isActive}
+          menuOpened={false}
+          tooltip={tooltip}
+          hasContextMenu={false}
+          nodeRef={nodeRef}
+          onNodeClick={handleNodeClick}
+          onContextMenuClick={contextMenu.length > 0 ? handleContextMenuClick : undefined}
+          onStartRename={handleStartRename}
+          onCloseItemClick={handleCloseItemClick}
+        />
       )}
     </div>
   );

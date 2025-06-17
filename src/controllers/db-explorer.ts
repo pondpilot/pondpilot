@@ -1,13 +1,12 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { AttachedDB, PersistentDataSourceId } from '@models/data-source';
-import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { LocalDB, PersistentDataSourceId } from '@models/data-source';
 import { useAppStore } from '@store/app-store';
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from '@utils/duckdb/identifier';
 import { findUniqueName } from '@utils/helpers';
 
 import { persistPutDataSources } from './data-source/persist';
 import { reAttachDatabase } from './db/data-source';
-import { getAttachedDBs } from './db/duckdb-meta';
+import { getLocalDBs } from './db/duckdb-meta';
 
 export const renameDB = async (
   dbId: PersistentDataSourceId,
@@ -19,21 +18,21 @@ export const renameDB = async (
   // Check if the data source exists
   const dataSource = dataSources.get(dbId);
   if (!dataSource || dataSource.type !== 'attached-db') {
-    throw new Error(`Attached DB with id ${dbId} not found`);
+    throw new Error(`Local DB with id ${dbId} not found`);
   }
 
   // Get local entry for the database
   const localEntry = localEntries.get(dataSource.fileSourceId);
   if (!localEntry || localEntry.kind !== 'file') {
     throw new Error(
-      `Local entry ${dataSource.fileSourceId} associated with the attached DB ${dbId} not found`,
+      `Local entry ${dataSource.fileSourceId} associated with the local DB ${dbId} not found`,
     );
   }
 
   const oldDbName = dataSource.dbName;
 
   // Fetch currently attached databases, to avoid name collisions
-  const reservedDbs = new Set((await getAttachedDBs(conn, false)) || [PERSISTENT_DB_NAME]);
+  const reservedDbs = new Set((await getLocalDBs(conn, false)) || []);
 
   // Make sure the name is unique
   const newDbName = findUniqueName(
@@ -45,7 +44,7 @@ export const renameDB = async (
   await reAttachDatabase(conn, `${localEntry.uniqueAlias}.${localEntry.ext}`, oldDbName, newDbName);
 
   // Create updated data source
-  const updatedDB: AttachedDB = {
+  const updatedDB: LocalDB = {
     ...dataSource,
     dbName: newDbName,
   };
@@ -68,17 +67,17 @@ export const renameDB = async (
   }
 
   // Update metadata
-  const { dataBaseMetadata } = useAppStore.getState();
-  const metadata = dataBaseMetadata.get(oldDbName);
+  const { databaseMetadata } = useAppStore.getState();
+  const metadata = databaseMetadata.get(oldDbName);
   if (metadata) {
-    const newDataBaseMetadata = new Map(dataBaseMetadata);
+    const newDatabaseMetadata = new Map(databaseMetadata);
     // Replace the old name with the new name
     metadata.name = newDbName;
-    newDataBaseMetadata.set(newDbName, metadata);
-    newDataBaseMetadata.delete(oldDbName);
+    newDatabaseMetadata.set(newDbName, metadata);
+    newDatabaseMetadata.delete(oldDbName);
     useAppStore.setState(
       {
-        dataBaseMetadata: newDataBaseMetadata,
+        databaseMetadata: newDatabaseMetadata,
       },
       undefined,
       'AppStore/renameDB',

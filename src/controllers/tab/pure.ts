@@ -2,9 +2,9 @@
 // tab controller logic.
 // By convetion the order should follow CRUD groups!
 
-import { AnyFlatFileDataSource, AttachedDB } from '@models/data-source';
+import { AnyFlatFileDataSource, LocalDB, RemoteDB } from '@models/data-source';
 import { SQLScriptId } from '@models/sql-script';
-import { AnyTab, AttachedDBDataTab, FlatFileDataSourceTab, ScriptTab, TabId } from '@models/tab';
+import { AnyTab, LocalDBDataTab, FlatFileDataSourceTab, ScriptTab, TabId } from '@models/tab';
 
 /**
  * ------------------------------------------------------------
@@ -18,12 +18,12 @@ import { AnyTab, AttachedDBDataTab, FlatFileDataSourceTab, ScriptTab, TabId } fr
  * ------------------------------------------------------------
  */
 
-export const findTabFromAttachedDBObjectImpl = (
+export const findTabFromLocalDBObjectImpl = (
   tabs: Map<TabId, AnyTab>,
-  dataSource: AttachedDB,
+  dataSource: LocalDB | RemoteDB,
   schemaName: string,
   objectName: string,
-): AttachedDBDataTab | undefined =>
+): LocalDBDataTab | undefined =>
   Array.from(tabs.values())
     .filter((tab) => tab.type === 'data-source' && tab.dataSourceType === 'db')
     .find(

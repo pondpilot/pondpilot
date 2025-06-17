@@ -1,12 +1,17 @@
 // Public tab controller API's
 // By convetion the order should follow CRUD groups!
-import { AnyFlatFileDataSource, AttachedDB, PersistentDataSourceId } from '@models/data-source';
+import {
+  AnyFlatFileDataSource,
+  LocalDB,
+  PersistentDataSourceId,
+  RemoteDB,
+} from '@models/data-source';
 import { ColumnSortSpecList } from '@models/db';
 import { LocalEntryId } from '@models/file-system';
 import { CONTENT_VIEW_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import {
-  AttachedDBDataTab,
+  LocalDBDataTab,
   FlatFileDataSourceTab,
   SchemaBrowserTab,
   ScriptTab,
@@ -14,7 +19,7 @@ import {
   TabId,
 } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { ensureAttachedDBDataSource, ensureFlatFileDataSource } from '@utils/data-source';
+import { ensureDatabaseDataSource, ensureFlatFileDataSource } from '@utils/data-source';
 import { ensureScript } from '@utils/sql-script';
 import { ensureTab, makeTabId } from '@utils/tab';
 import { shallow } from 'zustand/shallow';
@@ -22,7 +27,7 @@ import { shallow } from 'zustand/shallow';
 import { persistCreateTab, persistDeleteTab } from './persist';
 import {
   deleteTabImpl,
-  findTabFromAttachedDBObjectImpl,
+  findTabFromLocalDBObjectImpl,
   findTabFromFlatFileDataSourceImpl,
   findTabFromScriptImpl,
 } from './pure';
@@ -104,7 +109,7 @@ export const getOrCreateSchemaBrowserTab = (options: {
 };
 
 /**
- * Gets existing or creates a new tab for a given table/view in an attached database.
+ * Gets existing or creates a new tab for a given table/view in a local database.
  * If the source is already associated with a tab, it returns that tab without creating a new one.
  *
  * @param dataSourceOrId - The ID of an object to create a tab from.
@@ -114,27 +119,22 @@ export const getOrCreateSchemaBrowserTab = (options: {
  * @param setActive - Whether to set the new tab as active. This is a shortcut for
  *                  calling `setActiveTabId(tab.id)` on the returned tab.
  * @returns A new Tab object.
- * @throws An error if the Attached DB with the given ID does not exist.
+ * @throws An error if the Local DB with the given ID does not exist.
  */
-export const getOrCreateTabFromAttachedDBObject = (
-  dataSourceOrId: AttachedDB | PersistentDataSourceId,
+export const getOrCreateTabFromLocalDBObject = (
+  dataSourceOrId: LocalDB | RemoteDB | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
   objectType: 'table' | 'view',
   setActive: boolean = false,
-): AttachedDBDataTab => {
+): LocalDBDataTab => {
   const state = useAppStore.getState();
 
-  // Get the attached db as an object
-  const dataSource = ensureAttachedDBDataSource(dataSourceOrId, state.dataSources);
+  // Get the database (attached or remote) as an object
+  const dataSource = ensureDatabaseDataSource(dataSourceOrId, state.dataSources);
 
   // Check if object already has an associated tab
-  const existingTab = findTabFromAttachedDBObjectImpl(
-    state.tabs,
-    dataSource,
-    schemaName,
-    objectName,
-  );
+  const existingTab = findTabFromLocalDBObjectImpl(state.tabs, dataSource, schemaName, objectName);
 
   // No need to create a new tab if one already exists
   if (existingTab) {
@@ -147,7 +147,7 @@ export const getOrCreateTabFromAttachedDBObject = (
 
   // Create a new tab
   const tabId = makeTabId();
-  const tab: AttachedDBDataTab = {
+  const tab: LocalDBDataTab = {
     type: 'data-source',
     dataSourceType: 'db',
     id: tabId,
@@ -360,24 +360,24 @@ export const findSchemaBrowserTab = (
 };
 
 /**
- * Finds a tab displaying an existing Attached DB object or undefined.
+ * Finds a tab displaying an existing Local DB object or undefined.
  *
- * @param dataSourceOrId - The ID or an Attached DB object to find the tab for.
+ * @param dataSourceOrId - The ID or a Local DB object to find the tab for.
  * @returns A new Tab object if found.
- * @throws An error if the Attached DB with the given ID does not exist.
+ * @throws An error if the Local DB with the given ID does not exist.
  */
-export const findTabFromAttachedDBObject = (
-  dataSourceOrId: AttachedDB | PersistentDataSourceId,
+export const findTabFromLocalDBObject = (
+  dataSourceOrId: LocalDB | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
-): AttachedDBDataTab | undefined => {
+): LocalDBDataTab | undefined => {
   const state = useAppStore.getState();
 
-  // Get the attached db as an object
-  const dataSource = ensureAttachedDBDataSource(dataSourceOrId, state.dataSources);
+  // Get the database (attached or remote) as an object
+  const dataSource = ensureDatabaseDataSource(dataSourceOrId, state.dataSources);
 
   // Check if the script already has an associated tab
-  return findTabFromAttachedDBObjectImpl(state.tabs, dataSource, schemaName, objectName);
+  return findTabFromLocalDBObjectImpl(state.tabs, dataSource, schemaName, objectName);
 };
 
 /**
@@ -435,13 +435,34 @@ export const updateTabDataViewStaleDataCache = (
 
   // Create a full model of the incoming stale data if the current
   // state does not have it as a fallback
+  // Ensure data is serializable by converting any DuckDB Row objects to plain objects
+  const serializableData = newCache.staleData?.data
+    ? newCache.staleData.data.map((row) => {
+        // If it's already a plain object, return as is
+        if (row && typeof row === 'object' && row.constructor === Object) {
+          return row;
+        }
+        // If it's a DuckDB Row or other object, convert to plain object
+        if (row && typeof row === 'object') {
+          const plainRow: Record<string, any> = {};
+          for (const key in row) {
+            if (Object.prototype.hasOwnProperty.call(row, key)) {
+              plainRow[key] = (row as any)[key];
+            }
+          }
+          return plainRow;
+        }
+        return row;
+      })
+    : [];
+
   const fullNewStaleData = {
     schema: [],
-    data: [],
     rowOffset: 0,
     realRowCount: null,
     estimatedRowCount: null,
     ...newCache.staleData,
+    data: serializableData, // Override with serializable version
   };
 
   // Create new tab object with updated layout
@@ -455,6 +476,7 @@ export const updateTabDataViewStaleDataCache = (
             ? {
                 ...currentTab.dataViewStateCache.staleData,
                 ...newCache.staleData,
+                data: serializableData, // Override with serializable version
               }
             : fullNewStaleData,
         }

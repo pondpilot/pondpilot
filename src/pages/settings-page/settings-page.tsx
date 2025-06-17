@@ -85,6 +85,7 @@ export const SettingsPage = () => {
 
             <ThemeSwitcher />
           </Stack>
+
           <Divider />
           <AISettings />
           <Divider />

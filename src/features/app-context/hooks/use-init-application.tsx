@@ -5,11 +5,92 @@ import {
   useDuckDBConnectionPool,
   useDuckDBInitializer,
 } from '@features/duckdb-context/duckdb-context';
-import { setAppLoadState } from '@store/app-store';
+import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
+import { MaxRetriesExceededError } from '@utils/connection-errors';
+import { attachDatabaseWithRetry } from '@utils/connection-manager';
+import { isRemoteDatabase } from '@utils/data-source';
+import { updateRemoteDbConnectionState } from '@utils/remote-database';
+import { buildAttachQuery } from '@utils/sql-builder';
 import { useEffect } from 'react';
 
 import { useShowPermsAlert } from './use-show-perm-alert';
+
+// Reconnect to remote databases after app initialization
+async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promise<void> {
+  const { dataSources } = useAppStore.getState();
+  const connectedDatabases: string[] = [];
+
+  for (const [id, dataSource] of dataSources) {
+    if (isRemoteDatabase(dataSource)) {
+      try {
+        updateRemoteDbConnectionState(id, 'connecting');
+
+        // First, re-attach the database with READ_ONLY flag for remote databases
+        try {
+          const attachQuery = buildAttachQuery(dataSource.url, dataSource.dbName, {
+            readOnly: true,
+          });
+
+          // Use connection manager with retries and timeout
+          await attachDatabaseWithRetry(conn, attachQuery, {
+            maxRetries: 3,
+            timeout: 30000, // 30 seconds
+            retryDelay: 2000, // 2 seconds
+            exponentialBackoff: true,
+          });
+
+          // Re-attached remote database
+          updateRemoteDbConnectionState(id, 'connected');
+          connectedDatabases.push(dataSource.dbName);
+        } catch (attachError: any) {
+          // If it's already attached, that's fine
+          if (attachError.message?.includes('already in use')) {
+            // Verify the existing connection
+            await conn.query('SELECT 1');
+            updateRemoteDbConnectionState(id, 'connected');
+            connectedDatabases.push(dataSource.dbName);
+          } else {
+            throw attachError;
+          }
+        }
+      } catch (error) {
+        let errorMessage: string;
+
+        if (error instanceof MaxRetriesExceededError) {
+          errorMessage = `Connection timeout after ${error.attempts} attempts: ${error.lastError.message}`;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = String(error);
+        }
+
+        console.warn(`Failed to reconnect to remote database ${dataSource.dbName}:`, errorMessage);
+        updateRemoteDbConnectionState(id, 'error', errorMessage);
+      }
+    }
+  }
+
+  // Load metadata for successfully connected remote databases
+  if (connectedDatabases.length > 0) {
+    try {
+      const { getDatabaseModel } = await import('@controllers/db/duckdb-meta');
+      const remoteMetadata = await getDatabaseModel(conn, connectedDatabases);
+
+      // Merge with existing metadata
+      const currentMetadata = useAppStore.getState().databaseMetadata;
+      const newMetadata = new Map(currentMetadata);
+
+      for (const [dbName, dbModel] of remoteMetadata) {
+        newMetadata.set(dbName, dbModel);
+      }
+
+      useAppStore.setState({ databaseMetadata: newMetadata }, false, 'RemoteDB/loadMetadata');
+    } catch (error) {
+      console.error('Failed to load metadata for remote databases:', error);
+    }
+  }
+}
 
 interface UseAppInitializationProps {
   isFileAccessApiSupported: boolean;
@@ -35,6 +116,9 @@ export function useAppInitialization({
 
       // Load DuckDB functions into the store
       await loadDuckDBFunctions(resolvedConn);
+
+      // Reconnect to remote databases
+      await reconnectRemoteDatabases(resolvedConn);
 
       // TODO: more detailed/better message
       if (discardedEntries.length) {
@@ -75,8 +159,8 @@ export function useAppInitialization({
 
         showWarning({
           title: 'Warning',
-          message: `A total of ${totalDiscarded} file handles were discarded. 
-          ${totalErrors} couldn't be read, ${totalDenied} were denied by user, and 
+          message: `A total of ${totalDiscarded} file handles were discarded.
+          ${totalErrors} couldn't be read, ${totalDenied} were denied by user, and
           ${totalRemoved} were removed from disk.`,
         });
       }

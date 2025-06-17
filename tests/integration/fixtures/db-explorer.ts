@@ -48,16 +48,17 @@ type DBExplorerFixtures = {
   }) => Promise<void>;
 };
 
-const DB_EXPLORER_DATA_TESTID_PREFIX = 'db-explorer';
+const DB_EXPLORER_DATA_TESTID_PREFIX = 'data-explorer-local';
 
 export const test = base.extend<DBExplorerFixtures>({
   dbExplorer: async ({ page }, use) => {
     await use(page.getByTestId(DB_EXPLORER_DATA_TESTID_PREFIX));
   },
 
-  openDatabaseExplorer: async ({ page, dbExplorer }, use) => {
+  openDatabaseExplorer: async ({ dbExplorer }, use) => {
     await use(async () => {
-      await page.getByTestId('navbar-show-databases-button').click();
+      // With unified explorer, databases are always visible in the sidebar
+      // No need to click a button to show them
       await expect(dbExplorer).toBeVisible();
     });
   },
