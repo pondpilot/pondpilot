@@ -24,7 +24,7 @@ const ITEM_CLASSES = {
   },
 };
 
-export const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
+const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
   level,
   node,
   hasChildren,
