@@ -92,7 +92,7 @@ export class SchemaContextService {
     const relatedTables = new Set<string>();
 
     // For each referenced table, find tables that reference it or are referenced by it
-    for (const [, database] of databaseModel.entries()) {
+    for (const [_dbName, database] of databaseModel.entries()) {
       for (const schema of database.schemas) {
         for (const table of schema.objects) {
           const tableLower = table.name.toLowerCase();

@@ -19,8 +19,18 @@ import { ScriptExplorerContext, ScrtiptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
 
 // We could have used closure, but this is possibly slightly more performant
-const onNodeClick = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>, _tree: any): void => {
+const onNodeClick = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>, tree: any): void => {
   const id = node.value;
+
+  // Don't open tabs during multi-selection operations
+  // This callback is NOT called during Ctrl/Cmd+Click (multi-selection)
+  // It's only called for regular clicks and the first click in a multi-select
+
+  // If there are already multiple items selected, don't switch tabs
+  // This preserves the multi-selection state
+  if (tree.selectedState.length > 1) {
+    return;
+  }
 
   // Check if the tab is already open
   const existingTab = findTabFromScript(id);

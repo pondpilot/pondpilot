@@ -126,6 +126,12 @@ export type TreeNodeData<NTypeToIdTypeMap extends Record<string, any>> =
            */
           contextMenu: TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>>;
 
+          /**
+           * Optional tooltip text to display when hovering over the item.
+           * Useful for providing additional context or information.
+           */
+          tooltip?: string;
+
           children?: TreeNodeData<NTypeToIdTypeMap>[];
         } & MantineTreeNodeData
       : never

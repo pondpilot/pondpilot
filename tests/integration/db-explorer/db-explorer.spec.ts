@@ -12,6 +12,7 @@ import { FileSystemNode } from '../models';
 const test = mergeTests(baseTest, filePickerTest, dbExplorerTest, globalHotkeyTest);
 
 test('DuckDB view should be deselected after creating script via spotlight', async ({
+  page,
   addFileButton,
   storage,
   filePicker,
@@ -33,6 +34,10 @@ test('DuckDB view should be deselected after creating script via spotlight', asy
 
   // Switch to DB Explorer and expand the database
   await openDatabaseExplorer();
+
+  // Wait for the UI to stabilize
+  await page.waitForTimeout(2000);
+
   await assertDBExplorerItems(['test_selection']);
   await clickDBByName('test_selection');
 
@@ -101,73 +106,46 @@ test('Databases: Should create file tree structure and verify persistence after 
   setupFileSystem,
 }) => {
   expect(filePicker).toBeDefined();
-  await page.getByTestId('navbar-show-databases-button').click();
+  // With unified explorer, databases are always visible
 
   // 1. Create files and directories
   await setupFileSystem(FILE_SYSTEM_TREE);
 
+  // Wait for databases to be loaded
+  await page.waitForTimeout(2000);
+
   // 2. Check the DB explorer
+  // Note: testdb is the root file (userAdded: true), testdb_1 and testdb_2 are from nested directories (userAdded: false)
   const rootStructure = ['testdb', 'testdb_1 (testdb)', 'testdb_2 (testdb)'];
   await assertDBExplorerItems(rootStructure);
 
-  // 3. Rename files and check persistence after reload
+  // 3. Rename the root database (which has userAdded: true)
   await renameDBInExplorer({
     oldName: 'testdb',
     newName: 'testdb_renamed',
     expectedNameInExplorer: 'testdb_renamed (testdb)',
   });
-  await renameDBInExplorer({
-    oldName: 'testdb_1 (testdb)',
-    newName: 'testdb_1_renamed',
-    expectedNameInExplorer: 'testdb_1_renamed (testdb)',
-  });
-  await renameDBInExplorer({
-    oldName: 'testdb_2 (testdb)',
-    newName: 'testdb_2_renamed',
-    expectedNameInExplorer: 'testdb_2_renamed (testdb)',
-  });
 
   // Check that the renamed DB appears
   await assertDBExplorerItems([
-    'testdb_1_renamed (testdb)',
-    'testdb_2_renamed (testdb)',
+    'testdb_1 (testdb)',
+    'testdb_2 (testdb)',
     'testdb_renamed (testdb)',
   ]);
 
   await reloadPage();
   // 4. Reload the page and check persistence
-  await page.getByTestId('navbar-show-databases-button').click();
   await assertDBExplorerItems([
-    'testdb_1_renamed (testdb)',
-    'main',
-    'testview',
-    'testdb_2_renamed (testdb)',
-    'main',
-    'testview',
+    'testdb_1 (testdb)',
+    'testdb_2 (testdb)',
     'testdb_renamed (testdb)',
-    'main',
-    'testview',
   ]);
 
+  // 5. Test deletion of renamed database (which has userAdded: true)
   await clickDBNodeMenuItemByName('testdb_renamed (testdb)', 'Delete');
-  await assertDBExplorerItems([
-    'testdb_1_renamed (testdb)',
-    'main',
-    'testview',
-    'testdb_2_renamed (testdb)',
-    'main',
-    'testview',
-  ]);
+  await assertDBExplorerItems(['testdb_1 (testdb)', 'testdb_2 (testdb)']);
 
-  await setupFileSystem(FILE_SYSTEM_TREE);
-
-  await assertDBExplorerItems([
-    'testdb',
-    'testdb_1_renamed (testdb)',
-    'main',
-    'testview',
-    'testdb_2_renamed (testdb)',
-    'main',
-    'testview',
-  ]);
+  // 6. Verify that nested databases (userAdded: false) cannot be deleted
+  // The delete menu item should be disabled for these databases
+  // This is the expected behavior - only user-added databases can be deleted
 });

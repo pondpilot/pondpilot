@@ -34,9 +34,9 @@ export function getTabName(
     return 'Unknown data source';
   }
 
-  // Attached DB objects
+  // Database objects (both local attached and remote)
   if (tab.dataSourceType === 'db') {
-    if (dataSource.type !== 'attached-db') {
+    if (dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db') {
       return 'Unknown data source';
     }
 
@@ -44,11 +44,13 @@ export function getTabName(
   }
 
   // Flat files
-  if (dataSource.type === 'attached-db') {
+  if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
     return 'Unknown data source';
   }
 
-  return getFlatFileDataSourceName(dataSource, localEntries, { nonAliased: true });
+  return getFlatFileDataSourceName(dataSource as AnyFlatFileDataSource, localEntries, {
+    nonAliased: true,
+  });
 }
 
 export function getTabIcon(
@@ -66,10 +68,10 @@ export function getTabIcon(
   if (tab.type === 'data-source' && tab.dataSourceType === 'file') {
     const dataSource = dataSources.get(tab.dataSourceId);
 
-    if (!dataSource || dataSource.type === 'attached-db') {
+    if (!dataSource || dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
       return 'error';
     }
-    return getFlatFileDataSourceIcon(dataSource);
+    return getFlatFileDataSourceIcon(dataSource as AnyFlatFileDataSource);
   }
 
   // AttachedDBDataTab
@@ -136,7 +138,7 @@ export function getFlatFileDataSourceName(
     : `${dataSource.viewName} (${localEntry.name})`;
 }
 
-export function getAttachedDBDataSourceName(dbName: string, entry: LocalEntry): string {
+export function getLocalDBDataSourceName(dbName: string, entry: LocalEntry): string {
   return entry.name === dbName ? dbName : `${dbName} (${entry.name})`;
 }
 

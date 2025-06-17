@@ -25,6 +25,7 @@ export default function App() {
     key: LOCAL_STORAGE_KEYS.MAX_CONNECTION_POOL_SIZE,
     defaultValue: 30,
   });
+
   return (
     <MantineProvider theme={theme}>
       <ModalsProvider>

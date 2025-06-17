@@ -1,9 +1,16 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { ColumnAggregateType, DataAdapterQueries } from '@models/data-adapter';
-import { AnyDataSource, AnyFlatFileDataSource, AttachedDB } from '@models/data-source';
+import {
+  AnyDataSource,
+  AnyFlatFileDataSource,
+  LocalDB,
+  RemoteDB,
+  SYSTEM_DATABASE_ID,
+  SYSTEM_DATABASE_NAME,
+} from '@models/data-source';
 import { DBColumn } from '@models/db';
 import { LocalEntry, LocalFile } from '@models/file-system';
-import { AnyFileSourceTab, AttachedDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
+import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 import { convertArrowTable } from './arrow';
@@ -112,10 +119,12 @@ function getFlatFileDataAdapterQueries(
   throw new Error('Unexpected data source type');
 }
 
-function getAttachedDBDataAdapterApi(
+// Generic function that works for both LocalDB and RemoteDB since they share the same interface
+// for database operations (both have dbName and dbType fields)
+function getDatabaseDataAdapterApi(
   pool: AsyncDuckDBConnectionPool,
-  dataSource: AttachedDB,
-  tab: TabReactiveState<AttachedDBDataTab>,
+  dataSource: LocalDB | RemoteDB,
+  tab: TabReactiveState<LocalDBDataTab>,
 ): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
   const dbName = toDuckDBIdentifier(dataSource.dbName);
   const schemaName = toDuckDBIdentifier(tab.schemaName);
@@ -167,11 +176,11 @@ export function getFileDataAdapterQueries({
   tab: TabReactiveState<AnyFileSourceTab>;
   sourceFile: LocalEntry | undefined;
 }): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
-  if (!dataSource || !sourceFile) {
+  if (!dataSource) {
     return {
       adapter: null,
       userErrors: [],
-      internalErrors: ['Data source or source file are missing for the tab'],
+      internalErrors: ['Data source is missing for the tab'],
     };
   }
 
@@ -181,12 +190,50 @@ export function getFileDataAdapterQueries({
         adapter: null,
         userErrors: [],
         internalErrors: [
-          `Tried creating an attached db object data adapter from a tab with different source type: ${tab.dataSourceType}`,
+          `Tried creating a local db object data adapter from a tab with different source type: ${tab.dataSourceType}`,
         ],
       };
     }
 
-    return getAttachedDBDataAdapterApi(pool, dataSource, tab);
+    // For system database (pondpilot-system-db), we don't need a source file
+    if (dataSource.id === SYSTEM_DATABASE_ID || dataSource.dbName === SYSTEM_DATABASE_NAME) {
+      return getDatabaseDataAdapterApi(pool, dataSource, tab);
+    }
+
+    // For other local databases, we need a source file
+    if (!sourceFile) {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: ['Source file is missing for the local database'],
+      };
+    }
+
+    return getDatabaseDataAdapterApi(pool, dataSource, tab);
+  }
+
+  if (dataSource.type === 'remote-db') {
+    if (tab.dataSourceType !== 'db') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: [
+          `Tried creating a remote db object data adapter from a tab with different source type: ${tab.dataSourceType}`,
+        ],
+      };
+    }
+
+    // Check connection state
+    if (dataSource.connectionState !== 'connected') {
+      return {
+        adapter: null,
+        userErrors: [`Remote database '${dataSource.dbName}' is not connected`],
+        internalErrors: [],
+      };
+    }
+
+    // Remote databases use the same logic as local databases
+    return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 
   if (
@@ -202,6 +249,14 @@ export function getFileDataAdapterQueries({
         internalErrors: [
           `Tried creating a flat file data adapter from a tab with different source type: ${tab.dataSourceType}`,
         ],
+      };
+    }
+
+    if (!sourceFile) {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: ['Source file is missing for the flat file data source'],
       };
     }
 

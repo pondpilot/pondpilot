@@ -54,13 +54,13 @@ export interface FlatFileDataSourceTab extends TabBase {
 }
 
 // The reason why we do not create flat data sources and treat tabs
-// that show attached database objects same as other files is that it allows
+// that show local database objects same as other files is that it allows
 // us to easily restore app after restart or when database has been changed
 // externally, or when the user decides to change database alias.
 // Tab knows the qualified name of the object in the database, and the rest
 // can be inferred. This causes more complex controller functions, but simplifies
 // state management and data view model.
-export interface AttachedDBDataTab extends TabBase {
+export interface LocalDBDataTab extends TabBase {
   readonly type: 'data-source';
   readonly dataSourceType: 'db';
 
@@ -96,7 +96,7 @@ export interface SchemaBrowserTab extends TabBase {
   layoutState?: Record<string, unknown>;
 }
 
-export type AnyFileSourceTab = FlatFileDataSourceTab | AttachedDBDataTab;
+export type AnyFileSourceTab = FlatFileDataSourceTab | LocalDBDataTab;
 export type AnyTab = ScriptTab | AnyFileSourceTab | SchemaBrowserTab;
 export type TabReactiveState<T extends AnyTab> = T extends ScriptTab
   ? Omit<ScriptTab, 'dataViewStateCache'>
@@ -104,4 +104,4 @@ export type TabReactiveState<T extends AnyTab> = T extends ScriptTab
     ? Omit<FlatFileDataSourceTab, 'dataViewStateCache'>
     : T extends SchemaBrowserTab
       ? Omit<SchemaBrowserTab, 'dataViewStateCache'>
-      : Omit<AttachedDBDataTab, 'dataViewStateCache'>;
+      : Omit<LocalDBDataTab, 'dataViewStateCache'>;
