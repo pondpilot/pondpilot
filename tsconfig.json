@@ -32,8 +32,5 @@
       "@assets/*": ["assets/*"]
     }
   },
-  "include": ["src", "tests", "playwright.config.ts"],
-  "exclude": [
-    "tests/unit/features/data-explorer/**/*"
-  ]
+  "include": ["src", "tests", "playwright.config.ts"]
 }

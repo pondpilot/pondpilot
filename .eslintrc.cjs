@@ -4,7 +4,6 @@ module.exports = {
     project: './tsconfig.json',
   },
   plugins: ['unused-imports', 'playwright', 'local-rules'],
-  ignorePatterns: ['tests/unit/features/data-explorer/**/*'],
   rules: {
     'arrow-body-style': 'off',
     'react/react-in-jsx-scope': 'off',

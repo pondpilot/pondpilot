@@ -1,21 +1,26 @@
-import { TreeNodeData } from '@components/explorer-tree/model';
 import { DataExplorerFilterType } from '@features/data-explorer/components/data-explorer-filters';
 import { useFilterNodes } from '@features/data-explorer/hooks/use-filter-nodes';
-import { DataExplorerNodeTypeMap } from '@features/data-explorer/model';
 // Import the hook after mocks are set up
 import { filterTreeNodes } from '@features/data-explorer/utils';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
 // Mock React hooks
 jest.mock('react', () => ({
-  useMemo: jest.fn((fn) => fn()),
-  useCallback: jest.fn((fn) => fn),
+  useMemo: jest.fn((fn: any) => fn()),
+  useCallback: jest.fn((fn: any) => fn),
 }));
 
 // Mock the filterTreeNodes utility
 jest.mock('@features/data-explorer/utils', () => ({
   filterTreeNodes: jest.fn(
-    (nodes, filter, fileTypeFilter, getFileExt, searchQuery, _expandedState) => {
+    (
+      nodes: any,
+      filter: any,
+      fileTypeFilter: any,
+      getFileExt: any,
+      searchQuery: any,
+      _expandedState: any,
+    ) => {
       // Simple mock implementation
       if (searchQuery) {
         // For search, just return nodes that include the search query in label
@@ -31,13 +36,13 @@ jest.mock('@features/data-explorer/utils', () => ({
 }));
 
 describe('useFilterNodes', () => {
-  const createFileNode = (id: string, label: string): TreeNodeData<DataExplorerNodeTypeMap> => ({
+  const createFileNode = (id: string, label: string): any => ({
     value: id,
     label,
     nodeType: 'file',
   });
 
-  const createDbNode = (id: string, label: string): TreeNodeData<DataExplorerNodeTypeMap> => ({
+  const createDbNode = (id: string, label: string): any => ({
     value: id,
     label,
     nodeType: 'db',

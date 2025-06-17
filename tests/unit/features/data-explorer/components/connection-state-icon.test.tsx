@@ -129,7 +129,7 @@ describe('ConnectionStateIcon', () => {
       };
 
       expect(propsWithError.error).toBeDefined();
-      expect(propsWithoutError.error).toBeUndefined();
+      expect((propsWithoutError as any).error).toBeUndefined();
     });
   });
 

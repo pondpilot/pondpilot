@@ -1,5 +1,6 @@
 // Import mocked functions
 import { showWarning } from '@components/app-notifications';
+import { TreeNodeData } from '@components/explorer-tree';
 import { deleteDataSources } from '@controllers/data-source';
 import { deleteLocalFileOrFolders } from '@controllers/file-system';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
@@ -29,11 +30,7 @@ describe('multi-select-handlers', () => {
   };
 
   // Helper to create nodes with required properties
-  const createNode = (
-    value: string,
-    label: string,
-    nodeType: keyof DataExplorerNodeTypeMap,
-  ): any => ({
+  const createNode = (value: string, label: string, nodeType: keyof DataExplorerNodeTypeMap): any => ({
     value,
     label,
     nodeType,
@@ -69,7 +66,9 @@ describe('multi-select-handlers', () => {
       });
       mockContext.anyNodeIdToNodeTypeMap.set(nodeValue, 'db');
 
-      const nodes = [createNode(nodeValue, 'Test Database', 'db')];
+      const nodes = [
+        createNode(nodeValue, 'Test Database', 'db'),
+      ];
 
       handleMultiSelectDelete(nodes, mockContext);
 
@@ -94,7 +93,9 @@ describe('multi-select-handlers', () => {
         type: 'csv',
       });
 
-      const nodes = [createNode(nodeValue, 'data.csv', 'file')];
+      const nodes = [
+        createNode(nodeValue, 'data.csv', 'file'),
+      ];
 
       handleMultiSelectDelete(nodes, mockContext);
 
@@ -121,7 +122,13 @@ describe('multi-select-handlers', () => {
         sheetName,
       });
 
-      const nodes = [createNode(nodeValue, sheetName, 'sheet')];
+      const nodes = [
+        {
+          value: nodeValue,
+          label: sheetName,
+          nodeType: 'sheet',
+        },
+      ];
 
       handleMultiSelectDelete(nodes, mockContext);
 
@@ -141,7 +148,13 @@ describe('multi-select-handlers', () => {
       });
       mockContext.anyNodeIdToNodeTypeMap.set(nodeValue, 'folder');
 
-      const nodes = [createNode(nodeValue, 'Documents', 'folder')];
+      const nodes = [
+        {
+          value: nodeValue,
+          label: 'Documents',
+          nodeType: 'folder',
+        },
+      ];
 
       handleMultiSelectDelete(nodes, mockContext);
 
@@ -169,8 +182,16 @@ describe('multi-select-handlers', () => {
       mockContext.anyNodeIdToNodeTypeMap.set('folder-node', 'folder');
 
       const nodes = [
-        createNode('db-node', 'Database', 'db'),
-        createNode('folder-node', 'Folder', 'folder'),
+        {
+          value: 'db-node',
+          label: 'Database',
+          nodeType: 'db',
+        },
+        {
+          value: 'folder-node',
+          label: 'Folder',
+          nodeType: 'folder',
+        },
       ];
 
       handleMultiSelectDelete(nodes, mockContext);
@@ -180,7 +201,13 @@ describe('multi-select-handlers', () => {
     });
 
     it('should skip nodes without valid info', () => {
-      const nodes = [createNode('unknown-node', 'Unknown', 'file')];
+      const nodes = [
+        {
+          value: 'unknown-node',
+          label: 'Unknown',
+          nodeType: 'file',
+        },
+      ];
 
       handleMultiSelectDelete(nodes, mockContext);
 
@@ -428,11 +455,11 @@ describe('multi-select-handlers', () => {
 
   describe('getShowSchemaHandler', () => {
     it('should return handler for valid node types', () => {
-      const validNodes = [
-        createNode('obj1', 'Table', 'object'),
-        createNode('file1', 'File', 'file'),
-        createNode('sheet1', 'Sheet', 'sheet'),
-        createNode('folder1', 'Folder', 'folder'),
+      const validNodes: TreeNodeData<DataExplorerNodeTypeMap>[] = [
+        { value: 'obj1', label: 'Table', nodeType: 'object' },
+        { value: 'file1', label: 'File', nodeType: 'file' },
+        { value: 'sheet1', label: 'Sheet', nodeType: 'sheet' },
+        { value: 'folder1', label: 'Folder', nodeType: 'folder' },
       ];
 
       const handler = getShowSchemaHandler(validNodes, mockContext);
@@ -442,10 +469,10 @@ describe('multi-select-handlers', () => {
     });
 
     it('should return undefined for invalid node types', () => {
-      const invalidNodes = [
-        createNode('db1', 'Database', 'db'),
-        createNode('schema1', 'Schema', 'schema'),
-        createNode('col1', 'Column', 'column'),
+      const invalidNodes: TreeNodeData<DataExplorerNodeTypeMap>[] = [
+        { value: 'db1', label: 'Database', nodeType: 'db' },
+        { value: 'schema1', label: 'Schema', nodeType: 'schema' },
+        { value: 'col1', label: 'Column', nodeType: 'column' },
       ];
 
       const handler = getShowSchemaHandler(invalidNodes, mockContext);
@@ -454,10 +481,10 @@ describe('multi-select-handlers', () => {
     });
 
     it('should filter mixed valid and invalid nodes', () => {
-      const mixedNodes = [
-        createNode('obj1', 'Table', 'object'), // valid
-        createNode('db1', 'Database', 'db'), // invalid
-        createNode('file1', 'File', 'file'), // valid
+      const mixedNodes: TreeNodeData<DataExplorerNodeTypeMap>[] = [
+        { value: 'obj1', label: 'Table', nodeType: 'object' }, // valid
+        { value: 'db1', label: 'Database', nodeType: 'db' }, // invalid
+        { value: 'file1', label: 'File', nodeType: 'file' }, // valid
       ];
 
       const handler = getShowSchemaHandler(mixedNodes, mockContext);
@@ -472,7 +499,9 @@ describe('multi-select-handlers', () => {
     });
 
     it('should create a handler that calls handleMultiSelectShowSchema', () => {
-      const nodes = [createNode('file1', 'data.csv', 'file')];
+      const nodes = [
+        { value: 'file1', label: 'data.csv', nodeType: 'file' },
+      ];
 
       const handler = getShowSchemaHandler(nodes, mockContext);
 

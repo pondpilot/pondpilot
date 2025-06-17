@@ -10,7 +10,7 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { LocalDB, RemoteDB, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
-import { LocalEntry, LocalEntryId } from '@models/file-system';
+import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 // Import mocked functions
 import { copyToClipboard } from '@utils/clipboard';
 import { reconnectRemoteDatabase, disconnectRemoteDatabase } from '@utils/remote-database';
@@ -22,7 +22,7 @@ jest.mock('@controllers/tab');
 jest.mock('@utils/clipboard');
 jest.mock('@utils/remote-database');
 jest.mock('@features/data-explorer/builders/database-node-builder', () => ({
-  buildSchemaTreeNode: jest.fn().mockImplementation(({ schema }) => ({
+  buildSchemaTreeNode: jest.fn().mockImplementation(({ schema }: any) => ({
     nodeType: 'schema',
     value: `schema-${schema.name}`,
     label: schema.name,
@@ -64,14 +64,16 @@ describe('buildDatabaseNode', () => {
       const systemDb: LocalDB = {
         id: 'system-db' as PersistentDataSourceId,
         type: 'attached-db',
+        dbType: 'duckdb',
         dbName: PERSISTENT_DB_NAME,
-        fileSourceId: null,
+        fileSourceId: '' as LocalEntryId,
       };
 
       const metadata: DataBaseModel = {
+        name: PERSISTENT_DB_NAME,
         schemas: [
-          { name: 'main', tables: [], views: [] },
-          { name: 'information_schema', tables: [], views: [] },
+          { name: 'main', objects: [] },
+          { name: 'information_schema', objects: [] },
         ],
       };
 
@@ -89,12 +91,14 @@ describe('buildDatabaseNode', () => {
       const systemDb: LocalDB = {
         id: 'system-db' as PersistentDataSourceId,
         type: 'attached-db',
+        dbType: 'duckdb',
         dbName: PERSISTENT_DB_NAME,
-        fileSourceId: null,
+        fileSourceId: '' as LocalEntryId,
       };
 
       const metadata: DataBaseModel = {
-        schemas: [{ name: 'main', tables: [], views: [] }],
+        name: PERSISTENT_DB_NAME,
+        schemas: [{ name: 'main', objects: [] }],
       };
 
       mockContext.databaseMetadata.set(PERSISTENT_DB_NAME, metadata);
@@ -116,16 +120,21 @@ describe('buildDatabaseNode', () => {
       const localDb: LocalDB = {
         id: 'local-db' as PersistentDataSourceId,
         type: 'attached-db',
+        dbType: 'duckdb',
         dbName: 'my_database',
         fileSourceId: 'file-123' as LocalEntryId,
       };
 
-      const localEntry: LocalEntry = {
+      const localEntry: LocalFile = {
+        kind: 'file',
         id: 'file-123' as LocalEntryId,
-        localPath: '/path/to/database.db',
-        name: 'database.db',
-        entryType: 'file',
+        name: 'database',
+        ext: 'duckdb',
+        fileType: 'data-source',
+        parentId: null,
         userAdded: true,
+        handle: {} as FileSystemFileHandle,
+        uniqueAlias: 'database_123',
       };
 
       mockContext.localDBLocalEntriesMap.set('file-123' as LocalEntryId, localEntry);
@@ -133,7 +142,7 @@ describe('buildDatabaseNode', () => {
 
       const node = buildDatabaseNode(localDb, false, mockContext);
 
-      expect(node.label).toBe('my_database (database.db)');
+      expect(node.label).toBe('my_database (database)');
       expect(node.iconType).toBe('db');
     });
 
@@ -141,16 +150,21 @@ describe('buildDatabaseNode', () => {
       const localDb: LocalDB = {
         id: 'local-db' as PersistentDataSourceId,
         type: 'attached-db',
+        dbType: 'duckdb',
         dbName: 'my_database',
         fileSourceId: 'file-123' as LocalEntryId,
       };
 
-      const localEntry: LocalEntry = {
+      const localEntry: LocalFile = {
+        kind: 'file',
         id: 'file-123' as LocalEntryId,
-        localPath: '/path/to/database.db',
-        name: 'database.db',
-        entryType: 'file',
+        name: 'database',
+        ext: 'duckdb',
+        fileType: 'data-source',
+        parentId: null,
         userAdded: true,
+        handle: {} as FileSystemFileHandle,
+        uniqueAlias: 'database_123',
       };
 
       mockContext.localDBLocalEntriesMap.set('file-123' as LocalEntryId, localEntry);
@@ -170,16 +184,21 @@ describe('buildDatabaseNode', () => {
       const localDb: LocalDB = {
         id: 'local-db' as PersistentDataSourceId,
         type: 'attached-db',
+        dbType: 'duckdb',
         dbName: 'my_database',
         fileSourceId: 'file-123' as LocalEntryId,
       };
 
-      const localEntry: LocalEntry = {
+      const localEntry: LocalFile = {
+        kind: 'file',
         id: 'file-123' as LocalEntryId,
-        localPath: '/path/to/database.db',
-        name: 'database.db',
-        entryType: 'file',
+        name: 'database',
+        ext: 'duckdb',
+        fileType: 'data-source',
+        parentId: null,
         userAdded: true,
+        handle: {} as FileSystemFileHandle,
+        uniqueAlias: 'database_123',
       };
 
       mockContext.localDBLocalEntriesMap.set('file-123' as LocalEntryId, localEntry);
@@ -188,7 +207,7 @@ describe('buildDatabaseNode', () => {
       const node = buildDatabaseNode(localDb, false, mockContext);
 
       expect(node.renameCallbacks).toBeDefined();
-      expect(node.renameCallbacks?.prepareRenameValue()).toBe('my_database');
+      expect(node.renameCallbacks?.prepareRenameValue?.(node)).toBe('my_database');
 
       // Test rename submit
       node.renameCallbacks?.onRenameSubmit(node, 'new_name');
@@ -199,16 +218,21 @@ describe('buildDatabaseNode', () => {
       const localDb: LocalDB = {
         id: 'local-db' as PersistentDataSourceId,
         type: 'attached-db',
+        dbType: 'duckdb',
         dbName: 'my_database',
         fileSourceId: 'file-123' as LocalEntryId,
       };
 
-      const localEntry: LocalEntry = {
+      const localEntry: LocalFile = {
+        kind: 'file',
         id: 'file-123' as LocalEntryId,
-        localPath: '/path/to/database.db',
-        name: 'database.db',
-        entryType: 'file',
+        name: 'database',
+        ext: 'duckdb',
+        fileType: 'data-source',
+        parentId: null,
         userAdded: false,
+        handle: {} as FileSystemFileHandle,
+        uniqueAlias: 'database_123',
       };
 
       mockContext.localDBLocalEntriesMap.set('file-123' as LocalEntryId, localEntry);
@@ -225,9 +249,11 @@ describe('buildDatabaseNode', () => {
       const remoteDb: RemoteDB = {
         id: 'remote-db' as PersistentDataSourceId,
         type: 'remote-db',
+        dbType: 'duckdb',
         dbName: 'remote_database',
         url: 'https://example.com/db.duckdb',
         connectionState: 'connected',
+        attachedAt: Date.now(),
       };
 
       const node = buildDatabaseNode(remoteDb, false, mockContext);
@@ -250,9 +276,11 @@ describe('buildDatabaseNode', () => {
         const remoteDb: RemoteDB = {
           id: 'remote-db' as PersistentDataSourceId,
           type: 'remote-db',
+          dbType: 'duckdb',
           dbName: 'remote_database',
           url: 'https://example.com/db.duckdb',
           connectionState: state,
+          attachedAt: Date.now(),
         };
 
         const node = buildDatabaseNode(remoteDb, false, mockContext);
@@ -264,9 +292,11 @@ describe('buildDatabaseNode', () => {
       const remoteDb: RemoteDB = {
         id: 'remote-db' as PersistentDataSourceId,
         type: 'remote-db',
+        dbType: 'duckdb',
         dbName: 'remote_database',
         url: 'https://example.com/db.duckdb',
         connectionState: 'connected',
+        attachedAt: Date.now(),
       };
 
       const node = buildDatabaseNode(remoteDb, false, mockContext);
@@ -277,7 +307,7 @@ describe('buildDatabaseNode', () => {
       expect(copyUrlItem).toBeDefined();
 
       // Test Copy URL
-      copyUrlItem?.onClick?.();
+      copyUrlItem?.onClick?.(node, {} as any);
       expect(copyToClipboard).toHaveBeenCalledWith('https://example.com/db.duckdb', {
         showNotification: true,
         notificationTitle: 'URL Copied',
@@ -288,9 +318,11 @@ describe('buildDatabaseNode', () => {
       const remoteDb: RemoteDB = {
         id: 'remote-db' as PersistentDataSourceId,
         type: 'remote-db',
+        dbType: 'duckdb',
         dbName: 'remote_database',
         url: 'https://example.com/db.duckdb',
         connectionState: 'connected',
+        attachedAt: Date.now(),
       };
 
       const node = buildDatabaseNode(remoteDb, false, mockContext);
@@ -300,7 +332,7 @@ describe('buildDatabaseNode', () => {
       expect(refreshItem).toBeDefined();
 
       // Test refresh
-      refreshItem?.onClick?.();
+      refreshItem?.onClick?.(node, {} as any);
       expect(refreshDatabaseMetadata).toHaveBeenCalledWith(mockContext.conn, ['remote_database']);
     });
 
@@ -308,9 +340,11 @@ describe('buildDatabaseNode', () => {
       const remoteDb: RemoteDB = {
         id: 'remote-db' as PersistentDataSourceId,
         type: 'remote-db',
+        dbType: 'duckdb',
         dbName: 'remote_database',
         url: 'https://example.com/db.duckdb',
         connectionState: 'disconnected',
+        attachedAt: Date.now(),
       };
 
       const node = buildDatabaseNode(remoteDb, false, mockContext);
@@ -320,7 +354,7 @@ describe('buildDatabaseNode', () => {
       expect(reconnectItem).toBeDefined();
 
       // Test reconnect
-      reconnectItem?.onClick?.();
+      reconnectItem?.onClick?.(node, {} as any);
       expect(reconnectRemoteDatabase).toHaveBeenCalledWith(mockContext.conn, remoteDb);
     });
 
@@ -328,9 +362,11 @@ describe('buildDatabaseNode', () => {
       const remoteDb: RemoteDB = {
         id: 'remote-db' as PersistentDataSourceId,
         type: 'remote-db',
+        dbType: 'duckdb',
         dbName: 'remote_database',
         url: 'https://example.com/db.duckdb',
         connectionState: 'connected',
+        attachedAt: Date.now(),
       };
 
       const node = buildDatabaseNode(remoteDb, false, mockContext);
@@ -340,7 +376,7 @@ describe('buildDatabaseNode', () => {
       expect(disconnectItem).toBeDefined();
 
       // Test disconnect
-      disconnectItem?.onClick?.();
+      disconnectItem?.onClick?.(node, {} as any);
       expect(disconnectRemoteDatabase).toHaveBeenCalledWith(mockContext.conn, remoteDb);
     });
   });
@@ -350,8 +386,9 @@ describe('buildDatabaseNode', () => {
       const localDb: LocalDB = {
         id: 'local-db' as PersistentDataSourceId,
         type: 'attached-db',
+        dbType: 'duckdb',
         dbName: 'my_database',
-        fileSourceId: null,
+        fileSourceId: '' as LocalEntryId,
       };
 
       const node = buildDatabaseNode(localDb, false, mockContext);
@@ -360,7 +397,7 @@ describe('buildDatabaseNode', () => {
       // Should have Copy name
       const copyNameItem = menuItems.find((item) => item.label === 'Copy name');
       expect(copyNameItem).toBeDefined();
-      copyNameItem?.onClick?.();
+      copyNameItem?.onClick?.(node, {} as any);
       expect(copyToClipboard).toHaveBeenCalledWith('my_database', {
         showNotification: true,
       });
@@ -374,14 +411,16 @@ describe('buildDatabaseNode', () => {
       const localDb: LocalDB = {
         id: 'local-db' as PersistentDataSourceId,
         type: 'attached-db',
+        dbType: 'duckdb',
         dbName: 'my_database',
-        fileSourceId: null,
+        fileSourceId: '' as LocalEntryId,
       };
 
       const metadata: DataBaseModel = {
+        name: 'my_database',
         schemas: [
-          { name: 'public', tables: [], views: [] },
-          { name: 'main', tables: [], views: [] },
+          { name: 'public', objects: [] },
+          { name: 'main', objects: [] },
         ],
       };
 
@@ -391,7 +430,7 @@ describe('buildDatabaseNode', () => {
       const menuItems = node.contextMenu?.[0].children || [];
       const showSchemaItem = menuItems.find((item) => item.label === 'Show Schema');
 
-      showSchemaItem?.onClick?.();
+      showSchemaItem?.onClick?.(node, {} as any);
 
       expect(getOrCreateSchemaBrowserTab).toHaveBeenCalledWith({
         sourceId: 'local-db',
@@ -407,8 +446,9 @@ describe('buildDatabaseNode', () => {
       const localDb: LocalDB = {
         id: 'local-db' as PersistentDataSourceId,
         type: 'attached-db',
+        dbType: 'duckdb',
         dbName: 'my_database',
-        fileSourceId: null,
+        fileSourceId: '' as LocalEntryId,
       };
 
       buildDatabaseNode(localDb, false, mockContext);
@@ -429,15 +469,17 @@ describe('buildDatabaseNode', () => {
       const localDb: LocalDB = {
         id: 'local-db' as PersistentDataSourceId,
         type: 'attached-db',
+        dbType: 'duckdb',
         dbName: 'my_database',
-        fileSourceId: null,
+        fileSourceId: '' as LocalEntryId,
       };
 
       const metadata: DataBaseModel = {
+        name: 'my_database',
         schemas: [
-          { name: 'zzz', tables: [], views: [] },
-          { name: 'aaa', tables: [], views: [] },
-          { name: 'mmm', tables: [], views: [] },
+          { name: 'zzz', objects: [] },
+          { name: 'aaa', objects: [] },
+          { name: 'mmm', objects: [] },
         ],
       };
 
@@ -455,12 +497,14 @@ describe('buildDatabaseNode', () => {
       const localDb: LocalDB = {
         id: 'local-db' as PersistentDataSourceId,
         type: 'attached-db',
+        dbType: 'duckdb',
         dbName: 'my_database',
-        fileSourceId: null,
+        fileSourceId: '' as LocalEntryId,
       };
 
       const metadata: DataBaseModel = {
-        schemas: [{ name: 'public', tables: [], views: [] }],
+        name: 'my_database',
+        schemas: [{ name: 'public', objects: [] }],
       };
 
       mockContext.databaseMetadata.set('my_database', metadata);
@@ -471,7 +515,7 @@ describe('buildDatabaseNode', () => {
       expect(buildSchemaTreeNode).toHaveBeenCalledWith({
         dbId: 'local-db',
         dbName: 'my_database',
-        schema: { name: 'public', tables: [], views: [] },
+        schema: { name: 'public', objects: [] },
         fileViewNames: undefined,
         conn: undefined,
         context: {
