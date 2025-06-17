@@ -17,7 +17,6 @@ import { ModalsProvider } from '@mantine/modals';
 import { Notifications } from '@mantine/notifications';
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { theme } from '@theme/theme';
-import React from 'react';
 
 import { Router } from './router/router';
 

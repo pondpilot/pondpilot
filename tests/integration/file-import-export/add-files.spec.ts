@@ -15,7 +15,7 @@ import { FileSystemNode } from '../models';
 
 const test = mergeTests(baseTest, filePickerTest, dataViewTest, spotlightTest, dbExplorerTest);
 
-test.skip('should add csv files and folders', async ({
+test('should add csv files and folders', async ({
   page,
   addFileButton,
   storage,
