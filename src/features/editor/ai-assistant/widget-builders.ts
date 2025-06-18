@@ -132,6 +132,16 @@ export function createCombinedContextSection(
 
   schemaSection.appendChild(schemaLabel);
   schemaSection.appendChild(schemaIndicator);
+
+  // Add hint about @mentions
+  const mentionHint = document.createElement('div');
+  mentionHint.className = 'ai-widget-mention-hint';
+  mentionHint.style.fontSize = '12px';
+  mentionHint.style.marginTop = '4px';
+  mentionHint.style.opacity = '0.7';
+  mentionHint.textContent = 'Tip: Use @ to mention specific tables in your prompt';
+  schemaSection.appendChild(mentionHint);
+
   contentArea.appendChild(schemaSection);
 
   // Add toggle functionality (only for the left section, not the model select)
@@ -277,13 +287,18 @@ export function createInputSection(
   onSubmit: () => void,
   onTextareaKeyDown: (event: KeyboardEvent) => void,
   errorContext?: TabExecutionError,
-): { inputSection: HTMLElement; textarea: HTMLTextAreaElement; generateBtn: HTMLButtonElement } {
+): {
+  inputSection: HTMLElement;
+  textarea: HTMLTextAreaElement;
+  generateBtn: HTMLButtonElement;
+  textareaContainer: HTMLElement;
+} {
   const inputSection = createContainer('ai-widget-input-section');
   const textareaContainer = createContainer('ai-widget-textarea-container');
 
   const placeholder = errorContext
     ? 'Press Enter to fix the error, or describe what you want...'
-    : 'Ask AI to help with your SQL...';
+    : 'Ask AI to help with your SQL... (use @ to mention tables)';
 
   const textarea = createTextarea({
     placeholder,
@@ -309,7 +324,7 @@ export function createInputSection(
   inputSection.appendChild(textareaContainer);
   inputSection.appendChild(closeBtn);
 
-  return { inputSection, textarea, generateBtn };
+  return { inputSection, textarea, generateBtn, textareaContainer };
 }
 
 /**
@@ -341,6 +356,16 @@ export function assembleAIAssistantWidget(components: {
   container.tabIndex = -1;
 
   const widgetContainer = createContainer('ai-widget-container');
+
+  // Add ARIA live region for announcements
+  const liveRegion = document.createElement('div');
+  liveRegion.className = 'ai-widget-live-region';
+  liveRegion.setAttribute('role', 'status');
+  liveRegion.setAttribute('aria-live', 'polite');
+  liveRegion.setAttribute('aria-atomic', 'true');
+  liveRegion.style.cssText =
+    'position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden;';
+  widgetContainer.appendChild(liveRegion);
 
   // Add combined context section (now includes model selector)
   widgetContainer.appendChild(components.contextSection);

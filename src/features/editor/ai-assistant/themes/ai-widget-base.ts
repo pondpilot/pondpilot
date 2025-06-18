@@ -75,6 +75,8 @@ export const aiWidgetBaseTheme = EditorView.baseTheme({
     padding: '4px 12px',
     borderTop: '1px solid #e5e7eb',
     backgroundColor: '#f9fafb',
+    flexWrap: 'wrap',
+    minHeight: 'auto',
 
     '[data-mantine-color-scheme="dark"] &': {
       backgroundColor: '#262626',
@@ -83,13 +85,19 @@ export const aiWidgetBaseTheme = EditorView.baseTheme({
   },
 
   '.ai-widget-spacer': {
-    flex: '1',
+    flex: '1 1 auto',
+    minWidth: '0',
   },
 
   '.ai-widget-hint': {
     fontSize: '11px',
     color: '#9ca3af',
     marginLeft: '4px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    flex: '1 1 auto',
+    minWidth: '0',
 
     '[data-mantine-color-scheme="dark"] &': {
       color: '#6b7280',

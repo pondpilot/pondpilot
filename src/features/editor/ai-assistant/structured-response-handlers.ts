@@ -7,6 +7,7 @@ import { showError, showSuccess } from '@components/app-notifications/app-notifi
 
 import { AI_ASSISTANT_TIMINGS } from './constants';
 import { hideStructuredResponseEffect, clearErrorContextEffect } from './effects';
+import { createCleanupRegistry } from './utils/cleanup-registry';
 import { clearTabExecutionError } from '../../../controllers/tab/tab-controller';
 import { SQLAction, SQLAlternative } from '../../../models/structured-ai-response';
 import { useAppStore } from '../../../store/app-store';
@@ -272,12 +273,15 @@ export function createStructuredResponseHandlers(view: EditorView): StructuredRe
   };
 
   const setupEventHandlers = (container: HTMLElement, actions: SQLAction[]): (() => void) => {
+    // Create cleanup registry for this widget instance
+    const cleanupRegistry = createCleanupRegistry();
+
     // Set up keyboard navigation on the container
     container.setAttribute('tabindex', '0');
 
     // Create local event handler for container
     const containerKeydownHandler = (e: KeyboardEvent) => handleKeyDown(e, actions);
-    container.addEventListener('keydown', containerKeydownHandler);
+    cleanupRegistry.addEventListener(container, 'keydown', containerKeydownHandler);
 
     // Capture all keyboard events globally when widget is active
     const globalKeydownHandler = (e: KeyboardEvent) => {
@@ -288,61 +292,37 @@ export function createStructuredResponseHandlers(view: EditorView): StructuredRe
     };
 
     // Add global event listener to capture all keyboard input
-    document.addEventListener('keydown', globalKeydownHandler, true);
+    cleanupRegistry.addEventListener(document, 'keydown', globalKeydownHandler, true);
 
-    // Auto-focus the container for keyboard navigation with cleanup tracking
-    let focusTimeoutId: number | null = null;
-    focusTimeoutId = window.setTimeout(() => {
+    // Auto-focus the container for keyboard navigation
+    cleanupRegistry.setTimeout(() => {
       // Check if container is still in DOM before focusing
       if (document.contains(container)) {
         container.focus();
         container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
-      focusTimeoutId = null;
     }, AI_ASSISTANT_TIMINGS.NEXT_TICK_DELAY);
 
-    // Clean up function to be called when widget is destroyed
-    const cleanup = () => {
-      // Remove container event listener
-      container.removeEventListener('keydown', containerKeydownHandler);
-
-      // Remove global event listener
-      document.removeEventListener('keydown', globalKeydownHandler, true);
-
-      // Cancel pending focus timeout
-      if (focusTimeoutId !== null) {
-        window.clearTimeout(focusTimeoutId);
-        focusTimeoutId = null;
-      }
-
-      // Disconnect mutation observer if it exists
-      if (observer) {
-        observer.disconnect();
-      }
-    };
-
     // Set up mutation observer for automatic cleanup when container is removed
-    let observer: MutationObserver | null = null;
-
-    // Only set up observer if cleanup hasn't been called manually
-    observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        mutation.removedNodes.forEach((node) => {
-          if (node === container || (node instanceof Element && node.contains(container))) {
-            cleanup();
-          }
+    cleanupRegistry.observeMutations(
+      document.documentElement,
+      (mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.removedNodes.forEach((node) => {
+            if (node === container || (node instanceof Element && node.contains(container))) {
+              cleanupRegistry.dispose();
+            }
+          });
         });
-      });
-    });
-
-    // Observe document for container removal, with broader scope
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
+      },
+      {
+        childList: true,
+        subtree: true,
+      },
+    );
 
     // Return cleanup function for manual cleanup
-    return cleanup;
+    return () => cleanupRegistry.dispose();
   };
 
   return {

@@ -19,6 +19,8 @@ import {
   hideStructuredResponseEffect,
   clearErrorContextEffect,
 } from './ai-assistant/effects';
+import { HistoryNavigationManager } from './ai-assistant/managers/history-manager';
+import { MentionManager } from './ai-assistant/managers/mention-manager';
 import {
   getServicesFromState,
   aiAssistantServicesExtension,
@@ -26,6 +28,7 @@ import {
 } from './ai-assistant/services-facet';
 import { StructuredResponseWidget } from './ai-assistant/structured-response-widget';
 import { aiAssistantTheme } from './ai-assistant/theme';
+import { createCleanupRegistry } from './ai-assistant/utils/cleanup-registry';
 import {
   createCombinedContextSection,
   createInputSection,
@@ -35,6 +38,7 @@ import {
 } from './ai-assistant/widget-builders';
 import { TabExecutionError } from '../../controllers/tab/tab-controller';
 import { AI_PROVIDERS } from '../../models/ai-service';
+import { SQLScript } from '../../models/sql-script';
 import { StructuredSQLResponse } from '../../models/structured-ai-response';
 import { useAppStore } from '../../store/app-store';
 import { saveAIConfig, getAIConfig } from '../../utils/ai-config';
@@ -43,7 +47,6 @@ import { AsyncDuckDBConnectionPool } from '../duckdb-context/duckdb-connection-p
 
 class AIAssistantWidget extends WidgetType {
   private cleanup?: () => void;
-  private focusTimeoutId?: number;
 
   constructor(
     private view: EditorView,
@@ -103,7 +106,6 @@ class AIAssistantWidget extends WidgetType {
       };
 
       saveAIConfig(updatedConfig);
-
       services.aiService.updateConfig(updatedConfig);
     };
 
@@ -118,17 +120,81 @@ class AIAssistantWidget extends WidgetType {
       this.errorContext,
     );
 
+    // Create input section first to get textarea and generateBtn references
+    let submitWrapper: () => void;
+
     const { inputSection, textarea, generateBtn } = createInputSection(
       handlers.hideWidget,
-      () => handlers.handleSubmit(textarea, generateBtn),
-      (event) =>
-        handlers.handleTextareaKeyDown(
-          event,
-          () => handlers.handleSubmit(textarea, generateBtn),
-          handlers.hideWidget,
-        ),
+      () => submitWrapper(),
+      () => {}, // Placeholder for keyboard handler, will be updated
       this.errorContext,
     );
+
+    // Now set up managers with the textarea and button references
+    const mentionManager = new MentionManager(textarea, generateBtn, services);
+    const historyManager = new HistoryNavigationManager(textarea);
+
+    // Update the submit wrapper now that we have mention and history
+    submitWrapper = () => {
+      // Don't submit if mention dropdown is active
+      if (!mentionManager.state.isActive) {
+        historyManager.resetHistory();
+        handlers.handleSubmit(textarea, generateBtn);
+      }
+    };
+
+    // Helper function to check if mention manager should handle the event
+    const shouldMentionHandleKey = (event: KeyboardEvent): boolean => {
+      if (!mentionManager.state.isActive) return false;
+      return mentionManager.handleNavigation(event);
+    };
+
+    // Helper function to check if history manager should handle the event
+    const shouldHistoryHandleKey = (event: KeyboardEvent): boolean => {
+      if (mentionManager.state.isActive) return false;
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return false;
+      return historyManager.handleNavigation(event);
+    };
+
+    // Helper function to check if default handler should process the event
+    const shouldUseDefaultHandler = (event: KeyboardEvent): boolean => {
+      // Use default handler if mention is not active
+      if (!mentionManager.state.isActive) return true;
+
+      // Use default handler if key is not Enter or Tab
+      // (When mention is active, Enter/Tab are used for selection)
+      return event.key !== 'Enter' && event.key !== 'Tab';
+    };
+
+    // Consolidated keyboard handler with clear priority chain
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Priority chain: Mention → History → Default
+      if (shouldMentionHandleKey(event)) {
+        return; // Mention handled the key
+      }
+
+      if (shouldHistoryHandleKey(event)) {
+        return; // History handled the key
+      }
+
+      if (shouldUseDefaultHandler(event)) {
+        handlers.handleTextareaKeyDown(event, submitWrapper, handlers.hideWidget);
+      }
+    };
+
+    // Create cleanup registry for this widget instance
+    const cleanupRegistry = createCleanupRegistry();
+
+    // Replace the placeholder keyboard handler
+    textarea.removeEventListener('keydown', textarea.onkeydown as any);
+    cleanupRegistry.addEventListener(textarea, 'keydown', handleKeyDown);
+
+    // Add input event listener for @ mentions and manual typing
+    const handleInput = async () => {
+      await mentionManager.handleInput(() => historyManager.handleManualInput());
+    };
+
+    cleanupRegistry.addEventListener(textarea, 'input', handleInput);
 
     const footer = createWidgetFooter(generateBtn);
 
@@ -138,11 +204,17 @@ class AIAssistantWidget extends WidgetType {
       footer,
     });
 
-    this.cleanup = handlers.setupEventHandlers(container, handlers.hideWidget);
+    // Enhanced cleanup
+    const originalCleanup = handlers.setupEventHandlers(container, handlers.hideWidget);
+    cleanupRegistry.register(() => {
+      mentionManager.cleanup();
+      originalCleanup();
+    });
 
-    this.focusTimeoutId = window.setTimeout(() => {
+    this.cleanup = () => cleanupRegistry.dispose();
+
+    cleanupRegistry.setTimeout(() => {
       textarea.focus();
-      this.focusTimeoutId = undefined;
     }, 0);
 
     return container;
@@ -156,11 +228,6 @@ class AIAssistantWidget extends WidgetType {
     if (this.cleanup) {
       this.cleanup();
       this.cleanup = undefined;
-    }
-
-    if (this.focusTimeoutId !== undefined) {
-      window.clearTimeout(this.focusTimeoutId);
-      this.focusTimeoutId = undefined;
     }
   }
 }
@@ -416,7 +483,7 @@ export function hideAIAssistant(view: EditorView): boolean {
 // Keymap to prevent editor from handling events when AI assistant is active
 const aiAssistantKeymap = keymap.of([
   {
-    key: 'Cmd-i',
+    key: 'Control-i',
     mac: 'Cmd-i',
     preventDefault: true,
     run: (view) => {
@@ -456,9 +523,10 @@ const aiAssistantKeymap = keymap.of([
 export function aiAssistantTooltip(
   connectionPool?: AsyncDuckDBConnectionPool | null,
   services?: AIAssistantServices,
+  sqlScripts?: Map<string, SQLScript>,
 ) {
   return [
-    aiAssistantServicesExtension(connectionPool, services),
+    aiAssistantServicesExtension(connectionPool, services, sqlScripts),
     aiAssistantStateField,
     aiAssistantWidgetPlugin,
     structuredResponseField,
