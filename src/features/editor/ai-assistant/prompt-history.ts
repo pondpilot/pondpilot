@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 
 import { PROMPT_HISTORY } from './constants';
+import { handleNonCriticalError } from './error-handler';
 import { sanitizeForStorage } from './utils/sanitization';
 
 // Types
@@ -38,7 +39,7 @@ function loadHistoryFromStorage(): PromptHistoryItem[] {
       )
       .slice(0, PROMPT_HISTORY.MAX_ITEMS);
   } catch (error) {
-    console.error('Failed to load prompt history:', error);
+    handleNonCriticalError('Failed to load prompt history', error);
     return [];
   }
 }
@@ -47,7 +48,7 @@ function saveHistoryToStorage(items: PromptHistoryItem[]): void {
   try {
     localStorage.setItem(PROMPT_HISTORY.STORAGE_KEY, JSON.stringify(items));
   } catch (error) {
-    console.error('Failed to save prompt history:', error);
+    handleNonCriticalError('Failed to save prompt history', error);
     // Continue operating with in-memory history
   }
 }
@@ -103,7 +104,7 @@ export function createPromptHistoryManager(): PromptHistoryManager {
       try {
         localStorage.removeItem(PROMPT_HISTORY.STORAGE_KEY);
       } catch (error) {
-        console.error('Failed to clear prompt history:', error);
+        handleNonCriticalError('Failed to clear prompt history', error);
       }
     },
 

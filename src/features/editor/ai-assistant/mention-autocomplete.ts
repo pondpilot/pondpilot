@@ -1,4 +1,4 @@
-import { DATABASE_LIMITS } from './constants';
+import { DATABASE_LIMITS, MENTION_AUTOCOMPLETE, FUZZY_SCORE } from './constants';
 import { DatabaseModel, DatabaseModelCache } from './model';
 import {
   getDropdownPositionStyles,
@@ -8,25 +8,6 @@ import {
 import { sanitizeText, getObjectSizeInBytes, bytesToMB } from './utils/sanitization';
 import { getDatabaseModel } from '../../../controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
-
-// Constants for fuzzy search scoring
-const FUZZY_SCORE = {
-  EXACT_MATCH: 1000,
-  PREFIX_MATCH_BASE: 900,
-  CONTAINS_MATCH_BASE: 700,
-  CHAR_MATCH: 100,
-  CONSECUTIVE_BONUS: 50,
-  WORD_BOUNDARY_BONUS: 30,
-  POSITION_PENALTY: 10,
-  LENGTH_PENALTY: 2,
-} as const;
-
-// UI Constants
-const MENTION_UI = {
-  MAX_SUGGESTIONS: 15,
-  DROPDOWN_MAX_HEIGHT: 200,
-  ITEM_HEIGHT: 40,
-} as const;
 
 export interface MentionSuggestion {
   value: string;
@@ -73,7 +54,7 @@ export function createInitialMentionState(): MentionState {
  * @param text - The table/database name to score
  * @returns Score indicating match quality (higher is better)
  */
-function fuzzyScore(query: string, text: string): number {
+export function fuzzyScore(query: string, text: string): number {
   const lowerQuery = query.toLowerCase();
   const lowerText = text.toLowerCase();
 
@@ -163,7 +144,7 @@ export async function getTableSuggestions(
   if (!connectionPool) {
     // If no connection pool, still return script suggestions if any
     return suggestions.length > 0
-      ? suggestions.slice(0, MENTION_UI.MAX_SUGGESTIONS)
+      ? suggestions.slice(0, MENTION_AUTOCOMPLETE.MAX_SUGGESTIONS)
       : [
           {
             value: '',
@@ -177,22 +158,49 @@ export async function getTableSuggestions(
   try {
     const databaseModel = await getCachedDatabaseModel(connectionPool);
 
-    // Count total objects for warning
+    // Count total objects and check for large database
     let totalObjects = 0;
+    let _totalDatabases = 0;
+    let _totalSchemas = 0;
+
     for (const [, database] of databaseModel.entries()) {
+      _totalDatabases += 1;
       for (const schema of database.schemas) {
+        _totalSchemas += 1;
         totalObjects += schema.objects.length;
       }
     }
 
-    // Add warning if too many objects
-    if (totalObjects > DATABASE_LIMITS.LARGE_DB_THRESHOLD) {
+    // Implement graceful degradation for very large databases
+    const isVeryLargeDB = totalObjects > DATABASE_LIMITS.LARGE_DB_THRESHOLD * 2;
+    const isLargeDB = totalObjects > DATABASE_LIMITS.LARGE_DB_THRESHOLD;
+
+    // Add warning about large database
+    if (isVeryLargeDB) {
+      suggestions.push({
+        value: '',
+        label: `⚠️ Very large database (${totalObjects.toLocaleString()} objects) - showing limited results`,
+        type: 'error' as const,
+        score: Number.MAX_SAFE_INTEGER, // Always show at top
+      });
+    } else if (isLargeDB) {
       suggestions.push({
         value: '',
         label: `⚠️ Large database (${totalObjects.toLocaleString()} objects) - search may be slow`,
         type: 'error' as const,
         score: Number.MAX_SAFE_INTEGER, // Always show at top
       });
+    }
+
+    // For very large databases, require more specific queries
+    if (isVeryLargeDB && query.length < 3) {
+      suggestions.push({
+        value: '',
+        label: 'Type at least 3 characters to search in this large database',
+        type: 'error' as const,
+        score: Number.MAX_SAFE_INTEGER - 1,
+      });
+      return suggestions;
     }
 
     // Add database suggestions
@@ -208,11 +216,39 @@ export async function getTableSuggestions(
       }
     }
 
-    // Add table and view suggestions
+    // Add table and view suggestions with performance optimizations for large DBs
     const seenObjects = new Set<string>();
+    let objectsProcessed = 0;
+    const maxObjectsToProcess = isVeryLargeDB ? 2000 : isLargeDB ? 5000 : Number.MAX_SAFE_INTEGER;
+
+    // For very large DBs, prioritize exact and prefix matches
+    const minScoreThreshold = isVeryLargeDB ? 700 : 0;
+
     for (const [dbName, database] of databaseModel.entries()) {
       for (const schema of database.schemas) {
+        // Skip system schemas for very large databases unless explicitly searched
+        if (
+          isVeryLargeDB &&
+          (schema.name === 'information_schema' || schema.name === 'pg_catalog') &&
+          !query.toLowerCase().includes(schema.name)
+        ) {
+          continue;
+        }
+
         for (const object of schema.objects) {
+          // Hard limit on objects processed for performance
+          if (objectsProcessed >= maxObjectsToProcess) {
+            suggestions.push({
+              value: '',
+              label: `Results limited to ${maxObjectsToProcess} objects. Type more specific query.`,
+              type: 'error' as const,
+              score: -1,
+            });
+            break;
+          }
+
+          objectsProcessed += 1;
+
           // Create a unique key to prevent duplicates
           const objectKey = `${dbName}.${schema.name}.${object.name}`;
 
@@ -221,7 +257,9 @@ export async function getTableSuggestions(
 
             // Calculate fuzzy score
             const score = fuzzyScore(query, object.name);
-            if (score > 0) {
+
+            // Apply minimum score threshold for very large DBs
+            if (score > minScoreThreshold) {
               // Create label with database and schema info
               const contextInfo = `${dbName}.${schema.name}`;
               suggestions.push({
@@ -260,11 +298,13 @@ export async function getTableSuggestions(
 
     // Note: We cannot add SQL LIMIT when fetching from getDatabaseModel because:
     // 1. We need all metadata to perform fuzzy search across all tables/databases
-    // 2. The scoring happens client-side after fetching all objects
-    // 3. System catalog tables are typically small enough to fetch entirely
-    return suggestions.slice(0, MENTION_UI.MAX_SUGGESTIONS); // Limit results after scoring
+
+    return suggestions.slice(0, MENTION_AUTOCOMPLETE.MAX_SUGGESTIONS); // Limit results after scoring
   } catch (error) {
-    console.error('Error fetching table suggestions:', error);
+    // Use standardized error logging
+    const { logError } = await import('./error-handler');
+    logError('Error fetching table suggestions', error);
+
     // Return user-friendly error message
     return [
       {
@@ -354,7 +394,6 @@ type RepositionHandler = () => void;
 const dropdownHandlers = new WeakMap<HTMLElement, RepositionHandler>();
 
 let databaseModelCache: DatabaseModelCache | null = null;
-const DATABASE_CACHE_TTL_MS = 30000; // 30 seconds
 
 async function getCachedDatabaseModel(
   connectionPool: AsyncDuckDBConnectionPool,
@@ -362,7 +401,10 @@ async function getCachedDatabaseModel(
   const now = Date.now();
 
   // Return cached data if it's still valid and size is acceptable
-  if (databaseModelCache && now - databaseModelCache.timestamp < DATABASE_CACHE_TTL_MS) {
+  if (
+    databaseModelCache &&
+    now - databaseModelCache.timestamp < MENTION_AUTOCOMPLETE.DATABASE_CACHE_TTL_MS
+  ) {
     const cacheSizeMB = bytesToMB(getObjectSizeInBytes(databaseModelCache.data));
     if (cacheSizeMB < DATABASE_LIMITS.MAX_CACHE_SIZE_MB) {
       return databaseModelCache.data;
@@ -377,16 +419,48 @@ async function getCachedDatabaseModel(
 
   // Check size before caching
   const newCacheSizeMB = bytesToMB(getObjectSizeInBytes(data));
-  if (newCacheSizeMB > DATABASE_LIMITS.MAX_CACHE_SIZE_MB) {
-    console.warn(
-      `Database model is very large (${newCacheSizeMB.toFixed(2)}MB), caching anyway but performance may be impacted`,
-    );
+
+  // Count total objects for performance decisions
+  let totalObjects = 0;
+  for (const [, database] of data.entries()) {
+    for (const schema of database.schemas) {
+      totalObjects += schema.objects.length;
+    }
   }
 
-  databaseModelCache = {
-    data,
-    timestamp: now,
-  };
+  if (newCacheSizeMB > DATABASE_LIMITS.MAX_CACHE_SIZE_MB * 2) {
+    // For extremely large databases, consider not caching at all
+    // Use standardized error logging for large database warning
+    const { handleNonCriticalError } = await import('./error-handler');
+    handleNonCriticalError(
+      'Database model size warning',
+      new Error(
+        `Database model is extremely large (${newCacheSizeMB.toFixed(2)}MB, ${totalObjects.toLocaleString()} objects). ` +
+          'Consider using a more focused database connection or filtering schemas.',
+      ),
+    );
+    // Still cache but with shorter TTL for very large DBs
+    databaseModelCache = {
+      data,
+      timestamp: now - MENTION_AUTOCOMPLETE.DATABASE_CACHE_TTL_MS * 0.7, // Reduce effective TTL by 70%
+    };
+  } else if (newCacheSizeMB > DATABASE_LIMITS.MAX_CACHE_SIZE_MB) {
+    console.warn(
+      `Database model is very large (${newCacheSizeMB.toFixed(2)}MB, ${totalObjects.toLocaleString()} objects), ` +
+        'caching with reduced TTL for performance.',
+    );
+    // Cache with reduced TTL
+    databaseModelCache = {
+      data,
+      timestamp: now - MENTION_AUTOCOMPLETE.DATABASE_CACHE_TTL_MS * 0.5, // Reduce effective TTL by 50%
+    };
+  } else {
+    // Normal caching
+    databaseModelCache = {
+      data,
+      timestamp: now,
+    };
+  }
 
   return data;
 }
@@ -669,8 +743,8 @@ export function createMentionDropdown(
         dropdown,
         textareaRect,
         windowRect,
-        MENTION_UI.ITEM_HEIGHT,
-        MENTION_UI.DROPDOWN_MAX_HEIGHT,
+        MENTION_AUTOCOMPLETE.ITEM_HEIGHT,
+        MENTION_AUTOCOMPLETE.DROPDOWN_MAX_HEIGHT,
         suggestions.length,
       );
 

@@ -357,6 +357,16 @@ export function assembleAIAssistantWidget(components: {
 
   const widgetContainer = createContainer('ai-widget-container');
 
+  // Add ARIA live region for announcements
+  const liveRegion = document.createElement('div');
+  liveRegion.className = 'ai-widget-live-region';
+  liveRegion.setAttribute('role', 'status');
+  liveRegion.setAttribute('aria-live', 'polite');
+  liveRegion.setAttribute('aria-atomic', 'true');
+  liveRegion.style.cssText =
+    'position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden;';
+  widgetContainer.appendChild(liveRegion);
+
   // Add combined context section (now includes model selector)
   widgetContainer.appendChild(components.contextSection);
 

@@ -206,67 +206,62 @@ export function createAIAssistantHandlers(
     }
   };
 
+  // Helper function to check if keyboard event is a copy/paste operation
+  const isCopyPasteKeyEvent = (event: KeyboardEvent): boolean => {
+    if (!(event.metaKey || event.ctrlKey)) return false;
+
+    const key = event.key.toLowerCase();
+    return key === 'c' || key === 'v' || key === 'x' || key === 'a';
+  };
+
+  // Helper function to handle common keyboard event logic
+  const handleKeyboardEventPropagation = (event: KeyboardEvent): boolean => {
+    if (isCopyPasteKeyEvent(event)) {
+      // Just stop propagation to prevent editor from handling it
+      event.stopPropagation();
+      return true; // Event was handled
+    }
+
+    // Prevent all other events from bubbling to editor
+    event.stopPropagation();
+    return false; // Event needs further processing
+  };
+
   const handleTextareaKeyDown = (
     event: KeyboardEvent,
     onSubmit: () => void,
     onClose: () => void,
   ) => {
-    // Allow copy/paste keyboard shortcuts to work normally
-    if (
-      (event.metaKey || event.ctrlKey) &&
-      (event.key === 'c' ||
-        event.key === 'v' ||
-        event.key === 'x' ||
-        event.key === 'a' ||
-        event.key === 'C' ||
-        event.key === 'V' ||
-        event.key === 'X' ||
-        event.key === 'A')
-    ) {
-      // Just stop propagation to prevent editor from handling it
-      event.stopPropagation();
-      return;
+    // Handle common keyboard event logic
+    if (handleKeyboardEventPropagation(event)) {
+      return; // Copy/paste event was handled
     }
 
-    if (event.key === 'Enter') {
-      if (event.shiftKey) {
+    // Handle specific textarea keys
+    switch (event.key) {
+      case 'Enter':
+        if (!event.shiftKey) {
+          // Enter without Shift: Send query to AI service
+          event.preventDefault();
+          onSubmit();
+        }
         // Shift+Enter: Allow default behavior for new line
-        return;
-      }
-      // Enter: Send query to AI service
-      event.preventDefault();
-      event.stopPropagation();
-      onSubmit();
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
+        break;
+
+      case 'Escape':
+        event.preventDefault();
+        onClose();
+        break;
     }
-    // Prevent event from bubbling to editor
-    event.stopPropagation();
   };
 
   const handleContainerKeyDown = (event: KeyboardEvent, onClose: () => void) => {
-    // Allow copy/paste keyboard shortcuts to work normally
-    if (
-      (event.metaKey || event.ctrlKey) &&
-      (event.key === 'c' ||
-        event.key === 'v' ||
-        event.key === 'x' ||
-        event.key === 'a' ||
-        event.key === 'C' ||
-        event.key === 'V' ||
-        event.key === 'X' ||
-        event.key === 'A')
-    ) {
-      // Just stop propagation to prevent editor from handling it
-      event.stopPropagation();
-      return;
+    // Handle common keyboard event logic
+    if (handleKeyboardEventPropagation(event)) {
+      return; // Copy/paste event was handled
     }
 
-    // Capture all keyboard events to prevent editor from receiving them
-    event.stopPropagation();
-
+    // Handle escape for container
     if (event.key === 'Escape') {
       event.preventDefault();
       onClose();

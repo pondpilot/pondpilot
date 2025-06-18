@@ -75,8 +75,42 @@ export function displayError(error: unknown, options: ErrorDisplayOptions): void
   }
 }
 
-export function logError(context: string, error: unknown): void {
-  console.error(`[AI Assistant] ${context}:`, error);
+export function logError(
+  context: string,
+  error: unknown,
+  severity: 'error' | 'warn' = 'error',
+): void {
+  const prefix = `[AI Assistant] ${context}:`;
+  if (severity === 'warn') {
+    console.warn(prefix, error);
+  } else {
+    console.error(prefix, error);
+  }
+}
+
+export function handleNonCriticalError(context: string, error: unknown): void {
+  // For errors that don't affect user experience but should be logged
+  logError(context, error, 'warn');
+}
+
+export function handleCriticalError(
+  context: string,
+  error: unknown,
+  options?: { showToast?: boolean; onRetry?: () => void },
+): void {
+  // For errors that affect user experience
+  logError(context, error);
+
+  if (options?.showToast) {
+    const categorizedError = categorizeError(error);
+    showError({
+      title: 'AI Assistant Error',
+      message: categorizedError.userMessage,
+      autoClose: categorizedError.retryable
+        ? 5000
+        : AI_ASSISTANT_TIMINGS.ERROR_NOTIFICATION_DURATION,
+    });
+  }
 }
 
 export function categorizeError(error: unknown): DetailedError {

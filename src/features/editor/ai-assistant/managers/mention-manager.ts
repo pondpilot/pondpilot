@@ -8,14 +8,18 @@ import {
   MentionState,
 } from '../mention-autocomplete';
 import { AIAssistantServices } from '../services-facet';
+import { announceToScreenReader } from '../ui-factories';
+import { createCleanupRegistry, CleanupRegistry } from '../utils/cleanup-registry';
 
 export class MentionManager {
   private mentionState: MentionState;
   private mentionDropdown: HTMLElement | null = null;
   private debounceTimer: number | null = null;
+  private currentRequestId = 0;
   private textarea: HTMLTextAreaElement;
   private generateBtn: HTMLButtonElement;
   private services: AIAssistantServices;
+  private cleanupRegistry: CleanupRegistry;
 
   constructor(
     textarea: HTMLTextAreaElement,
@@ -26,6 +30,7 @@ export class MentionManager {
     this.generateBtn = generateBtn;
     this.services = services;
     this.mentionState = createInitialMentionState();
+    this.cleanupRegistry = createCleanupRegistry();
   }
 
   get state(): MentionState {
@@ -51,11 +56,15 @@ export class MentionManager {
         this.debounceTimer = null;
       }
 
+      // Increment request ID for this new search
+      this.currentRequestId += 1;
+      const requestId = this.currentRequestId;
+
       if (trigger.query === '') {
-        await this.debouncedFetchSuggestions(trigger.query);
+        await this.debouncedFetchSuggestions(trigger.query, requestId);
       } else {
         this.debounceTimer = window.setTimeout(() => {
-          this.debouncedFetchSuggestions(trigger.query);
+          this.debouncedFetchSuggestions(trigger.query, requestId);
           this.debounceTimer = null;
         }, MENTION_AUTOCOMPLETE.DEBOUNCE_DELAY_MS);
       }
@@ -64,6 +73,8 @@ export class MentionManager {
         window.clearTimeout(this.debounceTimer);
         this.debounceTimer = null;
       }
+      // Cancel any pending requests when mention is deactivated
+      this.currentRequestId += 1;
       this.mentionState = createInitialMentionState();
       this.updateMentionDropdown();
     }
@@ -83,6 +94,19 @@ export class MentionManager {
         'aria-activedescendant',
         `ai-mention-option-${this.mentionState.selectedIndex}`,
       );
+
+      // Announce selected suggestion to screen readers
+      const selectedSuggestion = this.mentionState.suggestions[this.mentionState.selectedIndex];
+      if (selectedSuggestion && selectedSuggestion.type !== 'error') {
+        const suggestionText = selectedSuggestion.contextInfo
+          ? `${selectedSuggestion.label} in ${selectedSuggestion.contextInfo}`
+          : selectedSuggestion.label;
+        announceToScreenReader({
+          message: `${suggestionText}, ${this.mentionState.selectedIndex + 1} of ${this.mentionState.suggestions.length}`,
+          priority: 'polite',
+        });
+      }
+
       this.updateMentionDropdown();
       return true;
     }
@@ -98,6 +122,19 @@ export class MentionManager {
         'aria-activedescendant',
         `ai-mention-option-${this.mentionState.selectedIndex}`,
       );
+
+      // Announce selected suggestion to screen readers
+      const selectedSuggestion = this.mentionState.suggestions[this.mentionState.selectedIndex];
+      if (selectedSuggestion && selectedSuggestion.type !== 'error') {
+        const suggestionText = selectedSuggestion.contextInfo
+          ? `${selectedSuggestion.label} in ${selectedSuggestion.contextInfo}`
+          : selectedSuggestion.label;
+        announceToScreenReader({
+          message: `${suggestionText}, ${this.mentionState.selectedIndex + 1} of ${this.mentionState.suggestions.length}`,
+          priority: 'polite',
+        });
+      }
+
       this.updateMentionDropdown();
       return true;
     }
@@ -126,14 +163,17 @@ export class MentionManager {
   }
 
   cleanup(): void {
+    // Cancel any pending requests
+    this.currentRequestId += 1;
+
     if (this.mentionDropdown) {
       cleanupMentionDropdown(this.mentionDropdown);
       this.mentionDropdown = null;
     }
-    if (this.debounceTimer !== null) {
-      window.clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
+
+    // Dispose the cleanup registry which will clear timeouts
+    this.cleanupRegistry.dispose();
+    this.debounceTimer = null;
   }
 
   private applyMentionSuggestion(suggestion: { value: string }): void {
@@ -159,6 +199,7 @@ export class MentionManager {
       this.textarea.removeAttribute('aria-controls');
       this.textarea.removeAttribute('aria-autocomplete');
       this.textarea.removeAttribute('aria-activedescendant');
+      this.textarea.setAttribute('aria-expanded', 'false');
     }
 
     this.generateBtn.disabled =
@@ -178,19 +219,33 @@ export class MentionManager {
 
       this.textarea.setAttribute('aria-controls', this.mentionDropdown.id);
       this.textarea.setAttribute('aria-autocomplete', 'list');
+      this.textarea.setAttribute('aria-expanded', 'true');
 
       const selectedOptionId = `ai-mention-option-${this.mentionState.selectedIndex}`;
       this.textarea.setAttribute('aria-activedescendant', selectedOptionId);
+
+      // Announce dropdown state to screen readers
+      const suggestionCount = this.mentionState.suggestions.length;
+      const announcement =
+        suggestionCount === 1
+          ? '1 suggestion available. Use arrow keys to navigate.'
+          : `${suggestionCount} suggestions available. Use arrow keys to navigate.`;
+
+      announceToScreenReader({
+        message: announcement,
+        priority: 'polite',
+      });
     }
   }
 
-  private async debouncedFetchSuggestions(query: string): Promise<void> {
+  private async debouncedFetchSuggestions(query: string, requestId: number): Promise<void> {
     const suggestions = await getTableSuggestions(
       this.services.connectionPool,
       query,
       this.services.sqlScripts,
     );
-    if (this.mentionState.isActive && this.mentionState.query === query) {
+    // Only update if this is still the most recent request
+    if (requestId === this.currentRequestId && this.mentionState.isActive) {
       this.mentionState.suggestions = suggestions;
       this.mentionState.selectedIndex = 0;
       this.updateMentionDropdown();

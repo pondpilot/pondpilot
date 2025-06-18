@@ -32,6 +32,12 @@ export interface FooterOptions {
   className?: string;
 }
 
+export interface LiveRegionOptions {
+  message: string;
+  priority?: 'polite' | 'assertive';
+  container?: HTMLElement;
+}
+
 export interface SelectOptions {
   options: Array<{ value: string; label: string; disabled?: boolean; isGroup?: boolean }>;
   value?: string;
@@ -280,4 +286,49 @@ export function createSection(
   section.appendChild(label);
 
   return { section, label };
+}
+
+/**
+ * Announces a message to screen readers via ARIA live region
+ */
+export function announceToScreenReader(options: LiveRegionOptions): void {
+  const { message, priority = 'polite', container } = options;
+
+  // Try to find existing live region in the container
+  let liveRegion: HTMLElement | null = null;
+
+  if (container) {
+    liveRegion = container.querySelector('.ai-widget-live-region');
+  }
+
+  // If no live region found, try document
+  if (!liveRegion) {
+    liveRegion = document.querySelector('.ai-widget-live-region');
+  }
+
+  // If still no live region, create a temporary one
+  if (!liveRegion) {
+    liveRegion = document.createElement('div');
+    liveRegion.className = 'ai-widget-live-region-temp';
+    liveRegion.setAttribute('role', 'status');
+    liveRegion.setAttribute('aria-live', priority);
+    liveRegion.setAttribute('aria-atomic', 'true');
+    liveRegion.style.cssText =
+      'position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden;';
+    document.body.appendChild(liveRegion);
+
+    // Remove temporary live region after announcement
+    setTimeout(() => {
+      liveRegion?.remove();
+    }, 1000);
+  }
+
+  // Clear and set new message
+  liveRegion.textContent = '';
+  // Use setTimeout to ensure the change is detected by screen readers
+  setTimeout(() => {
+    if (liveRegion) {
+      liveRegion.textContent = message;
+    }
+  }, 100);
 }
