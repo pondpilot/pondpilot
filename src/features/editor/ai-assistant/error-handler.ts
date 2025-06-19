@@ -275,7 +275,10 @@ export function categorizeError(error: unknown): DetailedError {
   }
 
   // Model and context errors
-  if (errorLower.includes('model') && (errorLower.includes('not found') || errorLower.includes('does not exist'))) {
+  if (
+    errorLower.includes('model') &&
+    (errorLower.includes('not found') || errorLower.includes('does not exist'))
+  ) {
     return {
       type: 'api',
       code: ErrorCode.API_MODEL_NOT_FOUND,
@@ -329,7 +332,10 @@ export function categorizeError(error: unknown): DetailedError {
   }
 
   // Parse errors
-  if (errorLower.includes('json') || (errorLower.includes('parse') && errorLower.includes('json'))) {
+  if (
+    errorLower.includes('json') ||
+    (errorLower.includes('parse') && errorLower.includes('json'))
+  ) {
     return {
       type: 'parse',
       code: ErrorCode.PARSE_JSON,

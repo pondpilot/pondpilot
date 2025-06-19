@@ -192,9 +192,17 @@ export function preventEventPropagation(element: HTMLElement): void {
         return;
       }
 
-      // For keyboard events, allow copy/paste keyboard shortcuts
+      // For keyboard events, allow copy/paste keyboard shortcuts and AI toggle
       if (eventType === 'keydown' || eventType === 'keyup' || eventType === 'keypress') {
         const keyEvent = e as KeyboardEvent;
+        // Allow Cmd/Ctrl + I (AI assistant toggle)
+        if (
+          (keyEvent.metaKey || keyEvent.ctrlKey) &&
+          (keyEvent.key === 'i' || keyEvent.key === 'I')
+        ) {
+          // Don't stop propagation, let it bubble up to toggle AI assistant
+          return;
+        }
         // Allow Cmd/Ctrl + C/V/X/A
         if (
           (keyEvent.metaKey || keyEvent.ctrlKey) &&

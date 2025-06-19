@@ -214,8 +214,19 @@ export function createAIAssistantHandlers(
     return key === 'c' || key === 'v' || key === 'x' || key === 'a';
   };
 
+  // Helper function to check if keyboard event is toggle AI assistant
+  const isToggleAIAssistantEvent = (event: KeyboardEvent): boolean => {
+    const key = event.key.toLowerCase();
+    return key === 'i' && (event.metaKey || event.ctrlKey);
+  };
+
   // Helper function to handle common keyboard event logic
   const handleKeyboardEventPropagation = (event: KeyboardEvent): boolean => {
+    // Allow Cmd+i/Ctrl+i to propagate to toggle AI assistant
+    if (isToggleAIAssistantEvent(event)) {
+      return true; // Let event bubble up
+    }
+
     if (isCopyPasteKeyEvent(event)) {
       // Just stop propagation to prevent editor from handling it
       event.stopPropagation();
@@ -232,6 +243,11 @@ export function createAIAssistantHandlers(
     onSubmit: () => void,
     onClose: () => void,
   ) => {
+    // Check if it's Cmd+i/Ctrl+i and let it bubble up to toggle AI assistant
+    if (isToggleAIAssistantEvent(event)) {
+      return; // Don't handle, let it bubble up
+    }
+
     // Handle common keyboard event logic
     if (handleKeyboardEventPropagation(event)) {
       return; // Copy/paste event was handled
@@ -256,6 +272,11 @@ export function createAIAssistantHandlers(
   };
 
   const handleContainerKeyDown = (event: KeyboardEvent, onClose: () => void) => {
+    // Check if it's Cmd+i/Ctrl+i and let it bubble up to toggle AI assistant
+    if (isToggleAIAssistantEvent(event)) {
+      return; // Don't handle, let it bubble up
+    }
+
     // Handle common keyboard event logic
     if (handleKeyboardEventPropagation(event)) {
       return; // Copy/paste event was handled

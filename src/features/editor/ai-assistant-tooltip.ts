@@ -477,6 +477,8 @@ export function hideAIAssistant(view: EditorView): boolean {
   view.dispatch({
     effects: hideAIAssistantEffect.of(null),
   });
+  // Restore focus to the editor
+  view.focus();
   return true;
 }
 

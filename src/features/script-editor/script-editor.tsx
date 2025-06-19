@@ -2,7 +2,11 @@ import { showAlert } from '@components/app-notifications';
 import { createSQLScript, updateSQLScriptContent } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { SqlEditor } from '@features/editor';
-import { showAIAssistant } from '@features/editor/ai-assistant-tooltip';
+import {
+  showAIAssistant,
+  hideAIAssistant,
+  aiAssistantStateField,
+} from '@features/editor/ai-assistant-tooltip';
 import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
 import { Group, useMantineColorScheme } from '@mantine/core';
 import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
@@ -179,9 +183,18 @@ export const ScriptEditor = ({
 
   const handleAIAssistantClick = () => {
     if (editorRef.current?.view && tabId) {
-      const { tabExecutionErrors } = useAppStore.getState();
-      const errorContext = tabExecutionErrors.get(tabId);
-      showAIAssistant(editorRef.current.view, errorContext);
+      const { view } = editorRef.current;
+      const aiState = view.state.field(aiAssistantStateField, false);
+
+      if (aiState?.visible) {
+        // If AI assistant is visible, hide it
+        hideAIAssistant(view);
+      } else {
+        // If AI assistant is not visible, show it
+        const { tabExecutionErrors } = useAppStore.getState();
+        const errorContext = tabExecutionErrors.get(tabId);
+        showAIAssistant(view, errorContext);
+      }
     }
   };
 
