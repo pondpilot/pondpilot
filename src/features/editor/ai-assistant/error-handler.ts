@@ -16,8 +16,42 @@ function navigateToSettings(): void {
   window.dispatchEvent(settingsEvent);
 }
 
+export enum ErrorCode {
+  // Network errors
+  NETWORK_CORS = 'NETWORK_CORS',
+  NETWORK_OFFLINE = 'NETWORK_OFFLINE',
+  NETWORK_TIMEOUT = 'NETWORK_TIMEOUT',
+  NETWORK_GENERAL = 'NETWORK_GENERAL',
+
+  // Authentication errors
+  AUTH_INVALID_KEY = 'AUTH_INVALID_KEY',
+  AUTH_EXPIRED_KEY = 'AUTH_EXPIRED_KEY',
+  AUTH_MISSING_KEY = 'AUTH_MISSING_KEY',
+
+  // API errors
+  API_RATE_LIMIT = 'API_RATE_LIMIT',
+  API_QUOTA_EXCEEDED = 'API_QUOTA_EXCEEDED',
+  API_BILLING_ISSUE = 'API_BILLING_ISSUE',
+  API_MODEL_NOT_FOUND = 'API_MODEL_NOT_FOUND',
+  API_CONTEXT_LENGTH = 'API_CONTEXT_LENGTH',
+  API_GENERAL = 'API_GENERAL',
+
+  // Configuration errors
+  CONFIG_NO_PROVIDER = 'CONFIG_NO_PROVIDER',
+  CONFIG_INVALID_PROVIDER = 'CONFIG_INVALID_PROVIDER',
+  CONFIG_MISSING_KEY = 'CONFIG_MISSING_KEY',
+
+  // Parse errors
+  PARSE_JSON = 'PARSE_JSON',
+  PARSE_RESPONSE = 'PARSE_RESPONSE',
+
+  // Unknown
+  UNKNOWN = 'UNKNOWN',
+}
+
 export interface DetailedError {
   type: 'network' | 'api' | 'auth' | 'parse' | 'config' | 'unknown';
+  code: ErrorCode;
   message: string;
   userMessage: string;
   retryable: boolean;
@@ -118,13 +152,10 @@ export function categorizeError(error: unknown): DetailedError {
   const errorLower = errorMessage.toLowerCase();
 
   // Network/CORS errors
-  if (
-    errorLower.includes('cors') ||
-    errorLower.includes('failed to fetch') ||
-    errorLower.includes('network request failed')
-  ) {
+  if (errorLower.includes('cors')) {
     return {
       type: 'network',
+      code: ErrorCode.NETWORK_CORS,
       message: errorMessage,
       userMessage:
         'Browser security restrictions prevent direct API calls. Consider using a proxy server or alternative provider.',
@@ -136,14 +167,31 @@ export function categorizeError(error: unknown): DetailedError {
     };
   }
 
+  if (errorLower.includes('failed to fetch') || errorLower.includes('network request failed')) {
+    return {
+      type: 'network',
+      code: ErrorCode.NETWORK_GENERAL,
+      message: errorMessage,
+      userMessage: 'Network request failed. Please check your internet connection.',
+      retryable: true,
+    };
+  }
+
+  if (errorLower.includes('timeout')) {
+    return {
+      type: 'network',
+      code: ErrorCode.NETWORK_TIMEOUT,
+      message: errorMessage,
+      userMessage: 'Request timed out. Please try again.',
+      retryable: true,
+    };
+  }
+
   // Authentication errors
-  if (
-    errorLower.includes('unauthorized') ||
-    errorLower.includes('invalid api key') ||
-    errorLower.includes('authentication')
-  ) {
+  if (errorLower.includes('invalid api key') || errorLower.includes('incorrect api key')) {
     return {
       type: 'auth',
+      code: ErrorCode.AUTH_INVALID_KEY,
       message: errorMessage,
       userMessage: 'Invalid API key. Please check your API key configuration in Settings.',
       retryable: false,
@@ -154,10 +202,39 @@ export function categorizeError(error: unknown): DetailedError {
     };
   }
 
+  if (errorLower.includes('expired') && errorLower.includes('key')) {
+    return {
+      type: 'auth',
+      code: ErrorCode.AUTH_EXPIRED_KEY,
+      message: errorMessage,
+      userMessage: 'API key has expired. Please update your API key in Settings.',
+      retryable: false,
+      action: {
+        label: 'Update API Key',
+        callback: navigateToSettings,
+      },
+    };
+  }
+
+  if (errorLower.includes('unauthorized') || errorLower.includes('authentication')) {
+    return {
+      type: 'auth',
+      code: ErrorCode.AUTH_MISSING_KEY,
+      message: errorMessage,
+      userMessage: 'Authentication failed. Please check your API key configuration.',
+      retryable: false,
+      action: {
+        label: 'Go to Settings',
+        callback: navigateToSettings,
+      },
+    };
+  }
+
   // Rate limiting
   if (errorLower.includes('rate limit') || errorLower.includes('too many requests')) {
     return {
       type: 'api',
+      code: ErrorCode.API_RATE_LIMIT,
       message: errorMessage,
       userMessage: 'Rate limit exceeded. Please wait a moment before trying again.',
       retryable: true,
@@ -165,37 +242,84 @@ export function categorizeError(error: unknown): DetailedError {
   }
 
   // API quota/billing errors
-  if (
-    errorLower.includes('quota') ||
-    errorLower.includes('billing') ||
-    errorLower.includes('insufficient funds')
-  ) {
+  if (errorLower.includes('quota')) {
     return {
       type: 'api',
+      code: ErrorCode.API_QUOTA_EXCEEDED,
       message: errorMessage,
-      userMessage:
-        'API quota exceeded or billing issue. Please check your account with the AI provider.',
+      userMessage: 'API quota exceeded. Please check your account limits.',
       retryable: false,
       action: {
         label: 'Check Account',
         callback: () => {
-          // Open provider billing page - this could be made more specific per provider
           window.open('https://platform.openai.com/account/billing', '_blank');
         },
       },
     };
   }
 
+  if (errorLower.includes('billing') || errorLower.includes('insufficient funds')) {
+    return {
+      type: 'api',
+      code: ErrorCode.API_BILLING_ISSUE,
+      message: errorMessage,
+      userMessage: 'Billing issue detected. Please check your payment method.',
+      retryable: false,
+      action: {
+        label: 'Check Billing',
+        callback: () => {
+          window.open('https://platform.openai.com/account/billing', '_blank');
+        },
+      },
+    };
+  }
+
+  // Model and context errors
+  if (errorLower.includes('model') && (errorLower.includes('not found') || errorLower.includes('does not exist'))) {
+    return {
+      type: 'api',
+      code: ErrorCode.API_MODEL_NOT_FOUND,
+      message: errorMessage,
+      userMessage: 'The selected AI model is not available. Please check your model settings.',
+      retryable: false,
+      action: {
+        label: 'Check Settings',
+        callback: navigateToSettings,
+      },
+    };
+  }
+
+  if (errorLower.includes('context length') || errorLower.includes('token limit')) {
+    return {
+      type: 'api',
+      code: ErrorCode.API_CONTEXT_LENGTH,
+      message: errorMessage,
+      userMessage: 'Request too long. Please reduce the amount of text or context.',
+      retryable: true,
+    };
+  }
+
   // Configuration errors
-  if (
-    errorLower.includes('api key not configured') ||
-    errorLower.includes('unsupported ai provider')
-  ) {
+  if (errorLower.includes('api key not configured')) {
     return {
       type: 'config',
+      code: ErrorCode.CONFIG_MISSING_KEY,
       message: errorMessage,
-      userMessage:
-        'AI Assistant not configured. Please set up your API key and provider in Settings.',
+      userMessage: 'API key not configured. Please add your API key in Settings.',
+      retryable: false,
+      action: {
+        label: 'Go to Settings',
+        callback: navigateToSettings,
+      },
+    };
+  }
+
+  if (errorLower.includes('unsupported ai provider')) {
+    return {
+      type: 'config',
+      code: ErrorCode.CONFIG_INVALID_PROVIDER,
+      message: errorMessage,
+      userMessage: 'Unsupported AI provider. Please select a valid provider in Settings.',
       retryable: false,
       action: {
         label: 'Go to Settings',
@@ -205,13 +329,20 @@ export function categorizeError(error: unknown): DetailedError {
   }
 
   // Parse errors
-  if (
-    errorLower.includes('parse') ||
-    errorLower.includes('json') ||
-    errorLower.includes('malformed')
-  ) {
+  if (errorLower.includes('json') || (errorLower.includes('parse') && errorLower.includes('json'))) {
     return {
       type: 'parse',
+      code: ErrorCode.PARSE_JSON,
+      message: errorMessage,
+      userMessage: 'Failed to parse AI response. Please try again.',
+      retryable: true,
+    };
+  }
+
+  if (errorLower.includes('parse') || errorLower.includes('malformed')) {
+    return {
+      type: 'parse',
+      code: ErrorCode.PARSE_RESPONSE,
       message: errorMessage,
       userMessage: 'Received invalid response from AI provider. Please try again.',
       retryable: true,
@@ -222,6 +353,7 @@ export function categorizeError(error: unknown): DetailedError {
   if (errorLower.includes('api error')) {
     return {
       type: 'api',
+      code: ErrorCode.API_GENERAL,
       message: errorMessage,
       userMessage: 'AI service error. Please try again or contact support if the issue persists.',
       retryable: true,
@@ -231,6 +363,7 @@ export function categorizeError(error: unknown): DetailedError {
   // Unknown errors
   return {
     type: 'unknown',
+    code: ErrorCode.UNKNOWN,
     message: errorMessage,
     userMessage: 'An unexpected error occurred. Please try again.',
     retryable: true,

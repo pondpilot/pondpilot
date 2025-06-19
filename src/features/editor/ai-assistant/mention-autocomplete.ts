@@ -1,4 +1,4 @@
-import { DATABASE_LIMITS, MENTION_AUTOCOMPLETE, FUZZY_SCORE } from './constants';
+import { DATABASE_LIMITS, MENTION_AUTOCOMPLETE, FUZZY_SCORE, UI_SELECTORS } from './constants';
 import { DatabaseModel, DatabaseModelCache } from './model';
 import {
   getDropdownPositionStyles,
@@ -590,7 +590,7 @@ export function createMentionDropdown(
   textarea?: HTMLTextAreaElement,
 ): HTMLElement {
   const dropdown = document.createElement('div');
-  dropdown.className = 'ai-widget-mention-dropdown';
+  dropdown.className = UI_SELECTORS.MENTION_DROPDOWN.slice(1); // Remove leading dot
 
   // Add ARIA attributes for accessibility
   dropdown.setAttribute('role', 'listbox');
@@ -615,7 +615,7 @@ export function createMentionDropdown(
 
   suggestions.forEach((suggestion, index) => {
     const item = document.createElement('div');
-    item.className = 'ai-widget-mention-item';
+    item.className = UI_SELECTORS.MENTION_ITEM.slice(1); // Remove leading dot
 
     // Add ARIA attributes for each option
     item.setAttribute('role', 'option');
@@ -623,7 +623,7 @@ export function createMentionDropdown(
 
     const isSelected = index === selectedIndex;
     if (isSelected) {
-      item.classList.add('selected');
+      item.classList.add(UI_SELECTORS.SELECTED);
       item.setAttribute('aria-selected', 'true');
     } else {
       item.setAttribute('aria-selected', 'false');
@@ -670,7 +670,7 @@ export function createMentionDropdown(
     icon.appendChild(svgIcon);
 
     const labelContainer = document.createElement('span');
-    labelContainer.className = 'ai-widget-mention-label';
+    labelContainer.className = UI_SELECTORS.MENTION_LABEL.slice(1); // Remove leading dot
     Object.assign(labelContainer.style, {
       flex: '1',
       display: 'flex',
@@ -693,7 +693,7 @@ export function createMentionDropdown(
     // Add context info for tables and views
     if (suggestion.contextInfo && (suggestion.type === 'table' || suggestion.type === 'view')) {
       const contextSpan = document.createElement('span');
-      contextSpan.className = 'ai-widget-mention-context';
+      contextSpan.className = UI_SELECTORS.MENTION_CONTEXT.slice(1); // Remove leading dot
       // Sanitize context info for safety
       contextSpan.textContent = sanitizeText(suggestion.contextInfo);
       Object.assign(contextSpan.style, {
@@ -719,7 +719,7 @@ export function createMentionDropdown(
     } else {
       // Style error items differently
       Object.assign(item.style, getErrorItemStyles());
-      item.classList.add('error');
+      item.classList.add(UI_SELECTORS.ERROR);
       icon.style.color = isDarkMode ? '#ef4444' : '#dc2626';
     }
 
@@ -734,7 +734,7 @@ export function createMentionDropdown(
       // Find the AI assistant widget container
       // Look for the widget container that's a child of cm-ai-assistant-widget
       const cmWidget = textarea.closest('.cm-ai-assistant-widget');
-      const aiWidgetContainer = cmWidget ? cmWidget.querySelector('.ai-widget-container') : null;
+      const aiWidgetContainer = cmWidget ? cmWidget.querySelector(UI_SELECTORS.CONTAINER) : null;
       const windowRect = aiWidgetContainer
         ? aiWidgetContainer.getBoundingClientRect()
         : textareaRect;
@@ -750,7 +750,7 @@ export function createMentionDropdown(
 
       // Ensure selected item is visible
       const selectedItem = dropdown.querySelector(
-        '.ai-widget-mention-item.selected',
+        UI_SELECTORS.MENTION_ITEM_SELECTED,
       ) as HTMLElement;
       if (selectedItem) {
         selectedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });

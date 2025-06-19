@@ -82,3 +82,56 @@ export const FUZZY_SCORE = {
   /** Penalty per character length difference */
   LENGTH_PENALTY: 2,
 } as const;
+
+export const UI_SELECTORS = {
+  // Base widget classes
+  CONTAINER: '.ai-widget-container',
+  CLOSE_BUTTON: '.ai-widget-close',
+  FOOTER: '.ai-widget-footer',
+  SPACER: '.ai-widget-spacer',
+  HINT: '.ai-widget-hint',
+
+  // Input section classes
+  INPUT_SECTION: '.ai-widget-input-section',
+  TEXTAREA: '.ai-widget-textarea',
+  GENERATE_BUTTON: '.ai-widget-generate',
+  LOADING: 'ai-widget-loading',
+
+  // Context section classes
+  CONTEXT: '.ai-widget-context',
+  CONTEXT_LABEL: '.ai-widget-context-label',
+  CONTEXT_CODE: '.ai-widget-context-code',
+  SCHEMA_CONTEXT: '.ai-widget-schema-context',
+  SCHEMA_CONTEXT_LABEL: '.ai-widget-schema-context-label',
+  SCHEMA_INDICATOR: '.ai-widget-schema-indicator',
+  COMBINED_CONTEXT: '.ai-widget-combined-context',
+  CONTEXT_HEADER: '.ai-widget-context-header',
+  CONTEXT_LEFT: '.ai-widget-context-left',
+  CONTEXT_TOGGLE: '.ai-widget-context-toggle',
+  CONTEXT_HEADER_LABEL: '.ai-widget-context-header-label',
+  CONTEXT_CONTENT: '.ai-widget-context-content',
+  CONTEXT_SUBSECTION: '.ai-widget-context-subsection',
+
+  // Mention dropdown classes
+  MENTION_DROPDOWN: '.ai-widget-mention-dropdown',
+  MENTION_ITEM: '.ai-widget-mention-item',
+  MENTION_ITEM_SELECTED: '.ai-widget-mention-item.selected',
+  MENTION_LABEL: '.ai-widget-mention-label',
+  MENTION_CONTEXT: '.ai-widget-mention-context',
+
+  // Response section classes
+  RESPONSE_SECTION: '.ai-widget-response-section',
+  RESPONSE_OUTPUT: '.ai-widget-response-output',
+  RESPONSE_HEADER: '.ai-widget-response-header',
+  RESPONSE_CONTENT: '.ai-widget-response-content',
+  RESPONSE_ACTIONS: '.ai-widget-response-actions',
+  RESPONSE_ERROR: '.ai-widget-response-error',
+  RESPONSE_INSERT_BUTTON: '.ai-widget-insert-button',
+  RESPONSE_REPLACE_BUTTON: '.ai-widget-replace-button',
+
+  // State classes (without dots, for classList operations)
+  EXPANDED: 'expanded',
+  SELECTED: 'selected',
+  ERROR: 'error',
+  HIDDEN: 'hidden',
+} as const;
