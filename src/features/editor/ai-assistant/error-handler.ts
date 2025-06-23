@@ -1,4 +1,8 @@
-import { showError, showWarning } from '@components/app-notifications/app-notifications';
+import {
+  showError,
+  showWarning,
+  showErrorWithAction,
+} from '@components/app-notifications/app-notifications';
 import type { NotificationData } from '@mantine/notifications';
 
 import { AI_ASSISTANT_TIMINGS } from './constants';
@@ -11,9 +15,9 @@ interface ExtendedNotificationData extends NotificationData {
 }
 
 function navigateToSettings(): void {
-  //TODO: This is a placeholder - replace with router useNavigate
-  const settingsEvent = new CustomEvent('navigate-to-settings');
-  window.dispatchEvent(settingsEvent);
+  // Dispatch custom event to navigate to settings without page reload
+  const event = new CustomEvent('navigate-to-route', { detail: { route: '/settings' } });
+  window.dispatchEvent(event);
 }
 
 export enum ErrorCode {
@@ -105,7 +109,12 @@ export function displayError(error: unknown, options: ErrorDisplayOptions): void
       notificationData.autoClose = 4000;
     }
 
-    showError(notificationData);
+    // Use showErrorWithAction if there's an action, otherwise use showError
+    if (notificationData.action) {
+      showErrorWithAction(notificationData);
+    } else {
+      showError(notificationData);
+    }
   }
 }
 
@@ -137,13 +146,28 @@ export function handleCriticalError(
 
   if (options?.showToast) {
     const categorizedError = categorizeError(error);
-    showError({
+    const notificationData: ExtendedNotificationData = {
       title: 'AI Assistant Error',
       message: categorizedError.userMessage,
       autoClose: categorizedError.retryable
         ? 5000
         : AI_ASSISTANT_TIMINGS.ERROR_NOTIFICATION_DURATION,
-    });
+    };
+
+    // Add action if available
+    if (categorizedError.action) {
+      notificationData.action = {
+        label: categorizedError.action.label,
+        onClick: categorizedError.action.callback,
+      };
+    }
+
+    // Use showErrorWithAction if there's an action, otherwise use showError
+    if (notificationData.action) {
+      showErrorWithAction(notificationData);
+    } else {
+      showError(notificationData);
+    }
   }
 }
 

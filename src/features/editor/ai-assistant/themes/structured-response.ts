@@ -5,7 +5,7 @@ export const structuredResponseTheme = EditorView.baseTheme({
   '.cm-structured-response-widget': {
     display: 'block',
     width: '100%',
-    margin: '4px 0',
+    margin: '0', // Remove vertical margin to prevent downward shift
     padding: '0',
     outline: 'none',
 

@@ -149,13 +149,19 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    padding: '4px 8px',
-    borderBottom: '1px solid #e5e7eb',
-    backgroundColor: '#f9fafb',
+  },
 
-    '[data-mantine-color-scheme="dark"] &': {
-      backgroundColor: '#262626',
-      borderBottomColor: '#404040',
+  '.ai-widget-select-button': {
+    cursor: 'pointer !important',
+
+    '&:hover': {
+      backgroundColor: '#f3f4f6 !important',
+      borderColor: '#3b82f6 !important',
+    },
+
+    '[data-mantine-color-scheme="dark"] &:hover': {
+      backgroundColor: '#4b5563 !important',
+      borderColor: '#60a5fa !important',
     },
   },
 });

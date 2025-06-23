@@ -246,7 +246,7 @@ export const aiAssistantStateField = StateField.define<{
         const line = tr.state.doc.lineAt(cursorPos);
         return {
           visible: true,
-          widgetPos: line.from,
+          widgetPos: line.to, // Position at end of line to avoid content shift
           errorContext: effect.value.errorContext,
         };
       }
@@ -299,7 +299,7 @@ const aiAssistantWidgetPlugin = ViewPlugin.fromClass(
 
         const widget = Decoration.widget({
           widget: new AIAssistantWidget(view, sqlStatement, errorContext),
-          side: 0,
+          side: 1, // Place widget after the position to avoid layout shift
         });
         decorations.push(widget.range(widgetPos));
       }

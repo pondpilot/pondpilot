@@ -212,13 +212,32 @@ export function createModelSelectionSection(onModelChange: (model: string) => vo
     }
   });
 
-  // Fallback if no providers are logged in
+  // If no providers are logged in, create a dummy select that acts like a button
   if (selectOptions.length === 0) {
-    selectOptions.push({
-      value: '',
-      label: 'No models available - Configure API keys in Settings',
-      disabled: true,
+    const dummySelect = document.createElement('select');
+    dummySelect.className = 'ai-widget-select ai-widget-select-button';
+    dummySelect.setAttribute('aria-label', 'Go to Settings to configure API keys');
+
+    const option = document.createElement('option');
+    option.textContent = 'Configure API Keys →';
+    option.value = '';
+    dummySelect.appendChild(option);
+
+    dummySelect.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Dispatch navigation event to go to settings
+      const event = new CustomEvent('navigate-to-route', { detail: { route: '/settings' } });
+      window.dispatchEvent(event);
     });
+
+    dummySelect.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // Prevent dropdown from opening
+    });
+
+    modelSection.appendChild(dummySelect);
+
+    return { modelSection, modelSelect: dummySelect };
   }
 
   const modelSelect = createSelect({

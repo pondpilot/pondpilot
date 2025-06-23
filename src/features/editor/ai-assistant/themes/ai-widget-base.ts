@@ -22,14 +22,11 @@ export const aiWidgetBaseTheme = EditorView.baseTheme({
     position: 'relative',
     boxSizing: 'border-box', // Ensure padding is included in width
     textAlign: 'left !important', // Force left alignment
+    backgroundColor: 'transparent',
 
     '& > *': {
       marginLeft: '0 !important', // Ensure all children are left aligned
       marginRight: 'auto !important',
-    },
-
-    '[data-mantine-color-scheme="dark"] &': {
-      backgroundColor: 'rgba(255, 255, 255, 0.02)',
     },
   },
 
@@ -41,7 +38,7 @@ export const aiWidgetBaseTheme = EditorView.baseTheme({
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
     overflow: 'hidden',
     fontSize: '14px',
-    margin: '8px 0', // Reduced vertical margin
+    margin: '0', // Remove vertical margin to prevent downward shift
     marginLeft: '0 !important', // Force left alignment
     marginRight: 'auto !important', // Push to the left
 
