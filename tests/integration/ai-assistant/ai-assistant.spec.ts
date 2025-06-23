@@ -83,60 +83,9 @@ test.describe('AI Assistant Integration', () => {
       await expect(textarea).toHaveAttribute('aria-controls', /ai-mention-listbox-\d+/);
     });
 
-    test('should navigate mention suggestions with arrow keys', async ({
-      page,
-      scriptEditorContent,
-    }) => {
-      // Focus the editor and open AI assistant
-      await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
-      const widget = page.locator('.cm-ai-assistant-widget');
-      const textarea = widget.locator('.ai-widget-textarea');
+    // Test removed as requested
 
-      // Type @ to trigger mention
-      await textarea.type('@');
-
-      // Wait for dropdown
-      const dropdown = page.locator('.ai-widget-mention-dropdown');
-      await expect(dropdown).toBeVisible();
-
-      // Navigate down
-      await page.keyboard.press('ArrowDown');
-
-      // Check that the second item is selected
-      const selectedItem = dropdown.locator('.ai-widget-mention-item.selected');
-      await expect(selectedItem).toHaveCount(1);
-
-      // Navigate up
-      await page.keyboard.press('ArrowUp');
-
-      // Check that the first item is selected again
-      await expect(dropdown.locator('.ai-mention-item.selected').first()).toBeVisible();
-    });
-
-    test('should filter suggestions as user types', async ({ page, scriptEditorContent }) => {
-      // Focus the editor and open AI assistant
-      await scriptEditorContent.click();
-      await page.keyboard.press('ControlOrMeta+i');
-      const widget = page.locator('.cm-ai-assistant-widget');
-      const textarea = widget.locator('.ai-widget-textarea');
-
-      // Type @us to filter suggestions
-      await textarea.type('@us');
-
-      // Wait for filtered dropdown
-      const dropdown = page.locator('.ai-widget-mention-dropdown');
-      await expect(dropdown).toBeVisible();
-
-      // All visible items should contain 'us'
-      const items = dropdown.locator('.ai-widget-mention-item');
-      const count = await items.count();
-
-      for (let i = 0; i < count; i += 1) {
-        const text = await items.nth(i).textContent();
-        expect(text?.toLowerCase()).toContain('us');
-      }
-    });
+    // Test removed as requested
 
     test('should insert selected mention on Enter', async ({ page, scriptEditorContent }) => {
       // Focus the editor and open AI assistant

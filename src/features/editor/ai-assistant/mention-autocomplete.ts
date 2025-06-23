@@ -642,9 +642,12 @@ export function createMentionDropdown(
       backgroundColor: isSelected ? (isDarkMode ? '#3b82f6' : '#dbeafe') : 'transparent',
     });
 
-    // Add hover effect
-    item.addEventListener('mouseenter', () => {
-      if (!item.classList.contains('selected')) {
+    // Add hover effect only when using mouse
+    let isUsingMouse = false;
+
+    item.addEventListener('mouseenter', (e) => {
+      isUsingMouse = e.movementX !== 0 || e.movementY !== 0;
+      if (!item.classList.contains('selected') && isUsingMouse) {
         item.style.backgroundColor = isDarkMode ? '#374151' : '#f3f4f6';
       }
     });
@@ -753,7 +756,7 @@ export function createMentionDropdown(
         UI_SELECTORS.MENTION_ITEM_SELECTED,
       ) as HTMLElement;
       if (selectedItem) {
-        selectedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        selectedItem.scrollIntoView({ block: 'nearest', behavior: 'auto' });
       }
     };
 

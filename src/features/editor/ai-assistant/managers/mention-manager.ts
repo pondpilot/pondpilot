@@ -193,49 +193,108 @@ export class MentionManager {
   }
 
   private async updateMentionDropdown(): Promise<void> {
-    if (this.mentionDropdown) {
-      cleanupMentionDropdown(this.mentionDropdown);
-      this.mentionDropdown = null;
-      this.textarea.removeAttribute('aria-controls');
-      this.textarea.removeAttribute('aria-autocomplete');
-      this.textarea.removeAttribute('aria-activedescendant');
-      this.textarea.setAttribute('aria-expanded', 'false');
-    }
-
-    this.generateBtn.disabled =
+    const shouldShowDropdown =
       this.mentionState.isActive && this.mentionState.suggestions.length > 0;
 
-    if (this.mentionState.isActive && this.mentionState.suggestions.length > 0) {
-      this.mentionDropdown = createMentionDropdown(
-        this.mentionState.suggestions,
-        this.mentionState.selectedIndex,
-        (suggestion) => {
-          this.applyMentionSuggestion(suggestion);
-        },
-        this.textarea,
-      );
+    // Update generate button state
+    this.generateBtn.disabled = shouldShowDropdown;
 
-      document.body.appendChild(this.mentionDropdown);
-
-      this.textarea.setAttribute('aria-controls', this.mentionDropdown.id);
-      this.textarea.setAttribute('aria-autocomplete', 'list');
-      this.textarea.setAttribute('aria-expanded', 'true');
-
-      const selectedOptionId = `ai-mention-option-${this.mentionState.selectedIndex}`;
-      this.textarea.setAttribute('aria-activedescendant', selectedOptionId);
-
-      // Announce dropdown state to screen readers
-      const suggestionCount = this.mentionState.suggestions.length;
-      const announcement =
-        suggestionCount === 1
-          ? '1 suggestion available. Use arrow keys to navigate.'
-          : `${suggestionCount} suggestions available. Use arrow keys to navigate.`;
-
-      announceToScreenReader({
-        message: announcement,
-        priority: 'polite',
-      });
+    // If we need to hide the dropdown
+    if (!shouldShowDropdown) {
+      if (this.mentionDropdown) {
+        cleanupMentionDropdown(this.mentionDropdown);
+        this.mentionDropdown = null;
+        this.textarea.removeAttribute('aria-controls');
+        this.textarea.removeAttribute('aria-autocomplete');
+        this.textarea.removeAttribute('aria-activedescendant');
+        this.textarea.setAttribute('aria-expanded', 'false');
+      }
+      return;
     }
+
+    // If dropdown exists, just update the selection instead of recreating
+    if (this.mentionDropdown) {
+      this.updateDropdownSelection();
+      return;
+    }
+
+    // Create new dropdown
+    this.mentionDropdown = createMentionDropdown(
+      this.mentionState.suggestions,
+      this.mentionState.selectedIndex,
+      (suggestion) => {
+        this.applyMentionSuggestion(suggestion);
+      },
+      this.textarea,
+    );
+
+    document.body.appendChild(this.mentionDropdown);
+
+    this.textarea.setAttribute('aria-controls', this.mentionDropdown.id);
+    this.textarea.setAttribute('aria-autocomplete', 'list');
+    this.textarea.setAttribute('aria-expanded', 'true');
+
+    const selectedOptionId = `ai-mention-option-${this.mentionState.selectedIndex}`;
+    this.textarea.setAttribute('aria-activedescendant', selectedOptionId);
+
+    // Announce dropdown state to screen readers
+    const suggestionCount = this.mentionState.suggestions.length;
+    const announcement =
+      suggestionCount === 1
+        ? '1 suggestion available. Use arrow keys to navigate.'
+        : `${suggestionCount} suggestions available. Use arrow keys to navigate.`;
+
+    announceToScreenReader({
+      message: announcement,
+      priority: 'polite',
+    });
+  }
+
+  private updateDropdownSelection(): void {
+    if (!this.mentionDropdown) return;
+
+    // Update aria attributes
+    const selectedOptionId = `ai-mention-option-${this.mentionState.selectedIndex}`;
+    this.textarea.setAttribute('aria-activedescendant', selectedOptionId);
+
+    // Update visual selection
+    const items = this.mentionDropdown.querySelectorAll('.ai-widget-mention-item');
+    const isDarkMode =
+      document.documentElement.getAttribute('data-mantine-color-scheme') === 'dark';
+
+    items.forEach((item, index) => {
+      const htmlItem = item as HTMLElement;
+      const isSelected = index === this.mentionState.selectedIndex;
+
+      if (isSelected) {
+        item.classList.add('selected');
+        item.setAttribute('aria-selected', 'true');
+        // Update inline styles for selected state
+        htmlItem.style.backgroundColor = isDarkMode ? '#3b82f6' : '#dbeafe';
+
+        // Update icon color for selected state
+        const icon = htmlItem.querySelector('.ai-widget-mention-icon') as HTMLElement;
+        if (icon) {
+          icon.style.color = isDarkMode ? '#ffffff' : '#1e40af';
+        }
+
+        // Ensure the selected item is visible without smooth scrolling
+        htmlItem.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      } else {
+        item.classList.remove('selected');
+        item.setAttribute('aria-selected', 'false');
+        // Reset background - mouseleave handler will have already cleared it
+        if (!htmlItem.matches(':hover')) {
+          htmlItem.style.backgroundColor = 'transparent';
+        }
+
+        // Reset icon color
+        const icon = htmlItem.querySelector('.ai-widget-mention-icon') as HTMLElement;
+        if (icon) {
+          icon.style.color = isDarkMode ? '#9ca3af' : '#6b7280';
+        }
+      }
+    });
   }
 
   private async debouncedFetchSuggestions(query: string, requestId: number): Promise<void> {
