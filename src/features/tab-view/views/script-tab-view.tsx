@@ -11,7 +11,6 @@ import {
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
-import { DataView } from '@features/tab-view/components/data-view';
 import { RemoteDB } from '@models/data-source';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
@@ -28,7 +27,7 @@ import {
 import { Allotment } from 'allotment';
 import { memo, useCallback, useState } from 'react';
 
-import { DataViewInfoPane } from './data-view-info-pane';
+import { DataView, DataViewInfoPane } from '../components';
 import { useDataAdapter } from '../hooks/use-data-adapter';
 
 interface ScriptTabViewProps {

@@ -3,7 +3,7 @@ import { AnyFileSourceTab, TabId } from '@models/tab';
 import { useTabReactiveState } from '@store/app-store';
 import { memo } from 'react';
 
-import { DataView, DataViewInfoPane } from '.';
+import { DataView, DataViewInfoPane } from '../components';
 import { useDataAdapter } from '../hooks/use-data-adapter';
 
 interface FileDataSourceTabViewProps {
