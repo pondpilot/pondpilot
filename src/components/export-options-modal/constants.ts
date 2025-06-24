@@ -11,8 +11,9 @@ export const formatOptions = [
 
 export const commonTextInputClassNames = {
   root: 'w-full',
-  label: 'mb-2 text-sm font-medium text-textPrimary-light dark:text-textPrimary-dark',
-  input: 'border-borderPrimary-light dark:border-borderPrimary-dark rounded-lg h-10 px-3',
+  label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark px-4',
+  input:
+    'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
 };
 
 export const commonCheckboxClassNames = {

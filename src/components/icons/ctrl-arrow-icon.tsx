@@ -15,7 +15,7 @@ export function CtrlArrowIcon({ size, style, ...others }: CtrlArrowIconProps) {
       style={{ width: size, height: size, ...style }}
       {...others}
     >
-      <path d="M5 8.33329L10 4.16663L15 8.33329" stroke="#6F7785" />
+      <path d="M5 8.33329L10 4.16663L15 8.33329" />
     </svg>
   );
 }

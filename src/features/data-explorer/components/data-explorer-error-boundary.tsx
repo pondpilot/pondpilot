@@ -36,11 +36,11 @@ export class DataExplorerErrorBoundary extends Component<ErrorBoundaryProps, Err
       }
 
       return (
-        <Alert variant="light" color="red" title="Data Explorer Error" className="m-4">
+        <Alert variant="light" color="text-error" title="Data Explorer Error" className="m-4">
           <p>Something went wrong while loading the data explorer.</p>
           <Button
             variant="subtle"
-            color="red"
+            color="text-error"
             size="xs"
             onClick={this.handleReset}
             className="mt-2"

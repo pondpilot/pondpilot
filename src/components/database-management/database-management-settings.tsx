@@ -83,7 +83,7 @@ export const DatabaseManagementSettings = () => {
               Database Storage
             </Text>
           </Group>
-          <Text c="dimmed">
+          <Text c="text-secondary">
             Your browser does not support persistent storage. PondPilot requires persistent storage
             to function.
           </Text>
@@ -100,7 +100,7 @@ export const DatabaseManagementSettings = () => {
 
   return (
     <Stack>
-      <Text c="dimmed">{storageText}</Text>
+      <Text c="text-secondary">{storageText}</Text>
 
       <Stack>
         <Text size="sm">Database Size: {dbSize}</Text>
@@ -138,7 +138,7 @@ export const DatabaseManagementSettings = () => {
         </Group> */}
         <Button
           leftSection={<IconTrash size={16} />}
-          color="red"
+          color="text-error"
           variant="outline"
           onClick={handleClear}
           loading={isClearing}
@@ -149,7 +149,7 @@ export const DatabaseManagementSettings = () => {
       </Group>
 
       {importError && (
-        <Text color="red" size="sm" mt={rem(5)}>
+        <Text c="text-error" size="sm" mt={rem(5)}>
           {importError}
         </Text>
       )}
