@@ -1,6 +1,7 @@
 import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { memo } from 'react';
+import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import { memo, useMemo } from 'react';
 
 import { DataExplorerFilters, DataExplorerContent } from './components';
 import { useFileSystemTreeBuilder } from './components/file-system-tree-builder';
@@ -57,6 +58,37 @@ export const DataExplorer = memo(() => {
     nodeMap,
     anyNodeIdToNodeTypeMap,
   });
+
+  // Detect available file types from local entries
+  const availableFileTypes = useMemo(() => {
+    const fileTypes = new Set<supportedFlatFileDataSourceFileExt>();
+
+    // Check all local entries for file types
+    for (const entry of localEntriesValues.values()) {
+      if (entry.kind === 'file' && entry.fileType === 'data-source') {
+        const { ext } = entry;
+        // Only include flat file types (exclude .duckdb)
+        if (ext === 'csv' || ext === 'json' || ext === 'parquet' || ext === 'xlsx') {
+          fileTypes.add(ext);
+        }
+      }
+    }
+
+    return fileTypes;
+  }, [localEntriesValues]);
+
+  // Detect available data source types
+  const availableDataSourceTypes = useMemo(() => {
+    const hasFiles = fileSystemNodes.length > 0;
+    const hasLocalDbs = localDatabases.length > 0;
+    const hasRemoteDbs = remoteDatabases.length > 0;
+
+    return {
+      files: hasFiles,
+      databases: hasLocalDbs,
+      remote: hasRemoteDbs,
+    };
+  }, [fileSystemNodes.length, localDatabases.length, remoteDatabases.length]);
 
   // Build database nodes
   const { localDbNodes, remoteDatabaseNodes, systemDbNode, systemDbNodeForDisplay } = useBuildNodes(
@@ -128,6 +160,8 @@ export const DataExplorer = memo(() => {
         onFileTypeFilterChange={setFileTypeFilter}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        availableFileTypes={availableFileTypes}
+        availableDataSourceTypes={availableDataSourceTypes}
       />
       <DataExplorerContent
         showSystemDb={filteredSections.showSystemDb}
