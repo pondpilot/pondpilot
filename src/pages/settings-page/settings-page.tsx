@@ -136,7 +136,12 @@ export const SettingsPage = () => {
                     This action will permanently delete all saved queries and uploaded files. This
                     cannot be undone.
                   </Text>
-                  <Button className="w-fit" onClick={openConfirm} variant="outline" c="text-error">
+                  <Button
+                    className="w-fit"
+                    onClick={openConfirm}
+                    variant="outline"
+                    color="text-error"
+                  >
                     Clear all
                   </Button>
                 </Stack>
