@@ -11,7 +11,7 @@ import {
 import type { Icon } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
-import { memo, useState, useRef, useEffect } from 'react';
+import { memo, useState, useRef, useEffect, useMemo } from 'react';
 
 import './data-explorer-filters.css';
 
@@ -30,7 +30,7 @@ interface FilterButton {
   tooltip: string;
 }
 
-const filterButtons: FilterButton[] = [
+const allFilterButtons: FilterButton[] = [
   { type: 'all', Icon: IconListCheck, tooltip: 'Show all' },
   { type: 'files', Icon: IconFile, tooltip: 'Files' },
   { type: 'databases', Icon: IconDatabase, tooltip: 'Local databases' },
@@ -51,6 +51,12 @@ interface DataExplorerFiltersProps {
   onFileTypeFilterChange?: (fileTypes: FileTypeFilter) => void;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
+  availableFileTypes?: Set<keyof FileTypeFilter>;
+  availableDataSourceTypes?: {
+    files: boolean;
+    databases: boolean;
+    remote: boolean;
+  };
 }
 
 export const DataExplorerFilters = memo(
@@ -66,6 +72,8 @@ export const DataExplorerFilters = memo(
     onFileTypeFilterChange,
     searchQuery = '',
     onSearchChange,
+    availableFileTypes,
+    availableDataSourceTypes,
   }: DataExplorerFiltersProps) => {
     const [menuOpened, setMenuOpened] = useState(false);
     const [searchExpanded, setSearchExpanded] = useState(false);
@@ -81,19 +89,47 @@ export const DataExplorerFilters = memo(
     };
 
     const activeFileTypes = Object.entries(fileTypeFilter).filter(([_, enabled]) => enabled);
-    const allFileTypesSelected = activeFileTypes.length === 4;
-    const someFileTypesSelected = activeFileTypes.length > 0 && activeFileTypes.length < 4;
 
-    // const getFileTypeDisplay = () => {
-    //   if (allFileTypesSelected) return '';
-    //   if (activeFileTypes.length === 0) return 'None';
-    //   if (activeFileTypes.length === 1) {
-    //     return fileTypeLabels[activeFileTypes[0][0] as keyof FileTypeFilter];
-    //   }
-    //   return activeFileTypes
-    //     .map(([type]) => fileTypeLabels[type as keyof FileTypeFilter])
-    //     .join(', ');
-    // };
+    // Calculate selection state based on available types
+    const availableTypesCount = availableFileTypes?.size || 4;
+    const activeAvailableTypes = activeFileTypes.filter(
+      ([type]) => !availableFileTypes || availableFileTypes.has(type as keyof FileTypeFilter),
+    );
+    const allFileTypesSelected = activeAvailableTypes.length === availableTypesCount;
+    const someFileTypesSelected =
+      activeAvailableTypes.length > 0 && activeAvailableTypes.length < availableTypesCount;
+
+    // Filter buttons based on available data source types
+    const visibleFilterButtons = useMemo(() => {
+      if (!availableDataSourceTypes) {
+        return allFilterButtons;
+      }
+
+      const buttons: FilterButton[] = [];
+
+      // Always show "all" if there's at least one data source type
+      const hasAnyDataSource =
+        availableDataSourceTypes.files ||
+        availableDataSourceTypes.databases ||
+        availableDataSourceTypes.remote;
+
+      if (hasAnyDataSource) {
+        buttons.push(allFilterButtons[0]); // "all" button
+      }
+
+      // Add other buttons based on availability
+      if (availableDataSourceTypes.files) {
+        buttons.push(allFilterButtons.find((b) => b.type === 'files')!);
+      }
+      if (availableDataSourceTypes.databases) {
+        buttons.push(allFilterButtons.find((b) => b.type === 'databases')!);
+      }
+      if (availableDataSourceTypes.remote) {
+        buttons.push(allFilterButtons.find((b) => b.type === 'remote')!);
+      }
+
+      return buttons;
+    }, [availableDataSourceTypes]);
 
     useEffect(() => {
       if (searchExpanded && searchInputRef.current) {
@@ -128,7 +164,7 @@ export const DataExplorerFilters = memo(
             gap: 4,
           }}
         >
-          {filterButtons.map((button) => {
+          {visibleFilterButtons.map((button) => {
             if (button.type === 'files') {
               return (
                 <Menu
@@ -167,21 +203,35 @@ export const DataExplorerFilters = memo(
                     <Menu.Item
                       onClick={() => {
                         if (onFileTypeFilterChange) {
+                          const newFilter = { ...fileTypeFilter };
+
                           if (allFileTypesSelected) {
-                            onFileTypeFilterChange({
-                              csv: false,
-                              json: false,
-                              parquet: false,
-                              xlsx: false,
+                            // Deselect all available types
+                            if (availableFileTypes) {
+                              availableFileTypes.forEach((type) => {
+                                newFilter[type] = false;
+                              });
+                            } else {
+                              // Fallback to deselect all
+                              newFilter.csv = false;
+                              newFilter.json = false;
+                              newFilter.parquet = false;
+                              newFilter.xlsx = false;
+                            }
+                          } else if (availableFileTypes) {
+                            // Select all available types
+                            availableFileTypes.forEach((type) => {
+                              newFilter[type] = true;
                             });
                           } else {
-                            onFileTypeFilterChange({
-                              csv: true,
-                              json: true,
-                              parquet: true,
-                              xlsx: true,
-                            });
+                            // Fallback to select all
+                            newFilter.csv = true;
+                            newFilter.json = true;
+                            newFilter.parquet = true;
+                            newFilter.xlsx = true;
                           }
+
+                          onFileTypeFilterChange(newFilter);
                         }
                       }}
                     >
@@ -196,14 +246,16 @@ export const DataExplorerFilters = memo(
                       </Group>
                     </Menu.Item>
                     <Menu.Divider />
-                    {(Object.keys(fileTypeLabels) as (keyof FileTypeFilter)[]).map((fileType) => (
-                      <Menu.Item key={fileType} onClick={() => handleFileTypeToggle(fileType)}>
-                        <Group>
-                          <Checkbox checked={fileTypeFilter[fileType]} readOnly size="xs" />
-                          <span>{fileTypeLabels[fileType]}</span>
-                        </Group>
-                      </Menu.Item>
-                    ))}
+                    {(Object.keys(fileTypeLabels) as (keyof FileTypeFilter)[])
+                      .filter((fileType) => !availableFileTypes || availableFileTypes.has(fileType))
+                      .map((fileType) => (
+                        <Menu.Item key={fileType} onClick={() => handleFileTypeToggle(fileType)}>
+                          <Group>
+                            <Checkbox checked={fileTypeFilter[fileType]} readOnly size="xs" />
+                            <span>{fileTypeLabels[fileType]}</span>
+                          </Group>
+                        </Menu.Item>
+                      ))}
                   </Menu.Dropdown>
                 </Menu>
               );
