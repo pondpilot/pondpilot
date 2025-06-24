@@ -176,17 +176,17 @@ export const theme = createTheme({
     }),
     'text-success': virtualColor({
       name: 'text-success',
-      dark: 'green-300',
+      dark: 'green-700',
       light: 'green-700',
     }),
     'text-warning': virtualColor({
       name: 'text-warning',
-      dark: 'orange-400',
+      dark: 'orange-700',
       light: 'orange-700',
     }),
     'text-error': virtualColor({
       name: 'text-error',
-      dark: 'magenta-400',
+      dark: 'magenta-700',
       light: 'magenta-700',
     }),
     'text-accent': virtualColor({
@@ -245,7 +245,7 @@ export const theme = createTheme({
     }),
     'background-secondary': virtualColor({
       name: 'background-secondary',
-      dark: 'blue-grey-700',
+      dark: 'blue-grey-900',
       light: 'blue-grey-100',
     }),
     'background-tertiary': virtualColor({
@@ -518,6 +518,11 @@ export const theme = createTheme({
         c: 'text-primary',
       },
     }),
+    Title: Text.extend({
+      defaultProps: {
+        c: 'text-primary',
+      },
+    }),
     Select: Select.extend({
       defaultProps: {
         size: 'xs',
@@ -593,8 +598,8 @@ export const theme = createTheme({
         padding: 24,
         shadow: 'lg',
         overlayProps: {
-          blur: 0.2,
-          className: 'bg-transparent012-light dark:bg-transparent004-dark',
+          blur: 0.7,
+          className: 'bg-transparent016-light dark:bg-transparent008-dark',
         },
         classNames: {
           content: 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark rounded-2xl',

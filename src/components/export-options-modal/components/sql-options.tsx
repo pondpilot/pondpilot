@@ -30,7 +30,6 @@ export function SqlOptions({
         onChange={(e) => setTableName(e.currentTarget.value)}
         data-testid={setDataTestId('export-sql-table-name')}
         error={tableNameError}
-        size="md"
         classNames={commonTextInputClassNames}
       />
       <Checkbox
