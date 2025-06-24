@@ -6,6 +6,7 @@ import {
   getOrCreateTabFromScript,
   deleteTab,
 } from '@controllers/tab';
+import { useOpenDatasourceWizard } from '@features/datasource-wizard';
 import { ImportScriptModalContent } from '@features/script-import';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
@@ -95,6 +96,7 @@ export const SpotlightMenu = () => {
 
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const { command, option, control } = useOsModifierIcon();
+  const openDatasourceWizard = useOpenDatasourceWizard();
 
   /**
    * Store access
@@ -215,6 +217,17 @@ export const SpotlightMenu = () => {
 
   const dataSourceGroupActions: Action[] = [
     {
+      id: 'add-data-source',
+      label: 'Add Data Source',
+      icon: <IconDatabasePlus size={20} className={ICON_CLASSES} />,
+      hotkey: [control, 'D'],
+      handler: () => {
+        openDatasourceWizard();
+        resetSpotlight();
+        ensureHome();
+      },
+    },
+    {
       id: 'add-file',
       label: 'Add File',
       icon: <IconFilePlus size={20} className={ICON_CLASSES} />,
@@ -233,17 +246,6 @@ export const SpotlightMenu = () => {
       handler: async () => {
         resetSpotlight();
         await handleAddFolder();
-        ensureHome();
-      },
-    },
-    {
-      id: 'add-duckdb-db',
-      label: 'Add DuckDB Database',
-      icon: <IconDatabasePlus size={20} className={ICON_CLASSES} />,
-      hotkey: [control, 'D'],
-      handler: () => {
-        handleAddFile(['.duckdb']);
-        resetSpotlight();
         ensureHome();
       },
     },

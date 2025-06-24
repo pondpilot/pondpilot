@@ -3,6 +3,7 @@ import duck from '@assets/duck.svg';
 import { ICON_CLASSES, SCRIPT_DISPLAY_NAME } from '@components/spotlight/consts';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
+import { useOpenDatasourceWizard } from '@features/datasource-wizard';
 import {
   ONBOARDING_MODAL_OPTIONS,
   OnboardingModalContent,
@@ -30,6 +31,7 @@ export const StartGuide = () => {
   const mod = useOsModifierIcon();
   const colorScheme = useAppTheme();
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
+  const openDatasourceWizard = useOpenDatasourceWizard();
 
   const shortcustList = [
     {
@@ -53,6 +55,15 @@ export const StartGuide = () => {
       },
     },
     {
+      key: 'add-data-source',
+      label: 'Add Data Source',
+      icon: <IconDatabasePlus size={20} className={ICON_CLASSES} />,
+      hotkey: [mod.control, 'D'],
+      handler: () => {
+        openDatasourceWizard();
+      },
+    },
+    {
       key: 'add-file',
       label: 'Add File',
       icon: <IconFilePlus size={20} className={ICON_CLASSES} />,
@@ -68,15 +79,6 @@ export const StartGuide = () => {
       hotkey: [mod.option, mod.command, 'F'],
       handler: () => {
         handleAddFolder();
-      },
-    },
-    {
-      key: 'add-duckdb-db',
-      label: 'Add DuckDB Database',
-      icon: <IconDatabasePlus size={20} className={ICON_CLASSES} />,
-      hotkey: [mod.control, 'D'],
-      handler: () => {
-        handleAddFile(['.duckdb']);
       },
     },
   ];
