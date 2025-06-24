@@ -46,32 +46,37 @@ export const AppErrorFallback = () => {
         <List type="ordered" spacing="lg">
           <List.Item
             icon={
-              <ThemeIcon color="blue" size={24} radius="xl">
+              <ThemeIcon color="background-accent" size={24} radius="xl">
                 <IconRefresh size={16} />
               </ThemeIcon>
             }
           >
             <Text fw={500}>1. Try reloading the page first</Text>
-            <Text c="dimmed" size="sm" mt={4}>
+            <Text c="text-secondary" size="sm" mt={4}>
               This may resolve temporary issues
             </Text>
-            <Button onClick={handleReload} mt="xs" variant="light">
+            <Button onClick={handleReload} mt="xs" variant="light" color="background-accent">
               Reload page
             </Button>
           </List.Item>
 
           <List.Item
             icon={
-              <ThemeIcon color="blue" size={24} radius="xl">
+              <ThemeIcon color="background-accent" size={24} radius="xl">
                 <IconDownload size={16} />
               </ThemeIcon>
             }
           >
             <Text fw={500}>2. If the error persists, export your queries</Text>
-            <Text c="dimmed" size="sm" mt={4}>
+            <Text c="text-secondary" size="sm" mt={4}>
               This will save all your SQL scripts as a ZIP archive
             </Text>
-            <Button onClick={exportArchive} mt="xs" disabled={exportError}>
+            <Button
+              onClick={exportArchive}
+              mt="xs"
+              disabled={exportError}
+              color="background-accent"
+            >
               Export SQL scripts
             </Button>
             {exportError && (
@@ -93,32 +98,32 @@ export const AppErrorFallback = () => {
 
           <List.Item
             icon={
-              <ThemeIcon color="red" size={24} radius="xl">
+              <ThemeIcon color="text-error" size={24} radius="xl">
                 <IconTrash size={16} />
               </ThemeIcon>
             }
           >
             <Text fw={500}>3. Clear application data</Text>
-            <Text c="dimmed" size="sm" mt={4}>
+            <Text c="text-secondary" size="sm" mt={4}>
               After exporting, clear all data
             </Text>
-            <Button variant="outline" color="red" onClick={deleteApplicationData} mt="xs">
+            <Button variant="outline" color="text-error" onClick={deleteApplicationData} mt="xs">
               Delete application data
             </Button>
           </List.Item>
 
           <List.Item
             icon={
-              <ThemeIcon color="blue" size={24} radius="xl">
+              <ThemeIcon color="background-accent" size={24} radius="xl">
                 <IconRefresh size={16} />
               </ThemeIcon>
             }
           >
             <Text fw={500}>4. Reload the page again</Text>
-            <Text c="dimmed" size="sm" mt={4}>
+            <Text c="text-secondary" size="sm" mt={4}>
               After clearing data, reload to start fresh
             </Text>
-            <Button onClick={handleReload} mt="xs" variant="light">
+            <Button onClick={handleReload} mt="xs" variant="light" color="background-accent">
               Reload page
             </Button>
           </List.Item>
@@ -131,7 +136,7 @@ export const AppErrorFallback = () => {
             }
           >
             <Text fw={500}>5. Import scripts</Text>
-            <Text c="dimmed" size="sm" mt={4}>
+            <Text c="text-secondary" size="sm" mt={4}>
               After reloading, use the script import feature to restore from the ZIP file
             </Text>
           </List.Item>

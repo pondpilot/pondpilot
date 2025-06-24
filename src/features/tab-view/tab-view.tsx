@@ -15,6 +15,8 @@ export const TabView = () => {
   const tabToTypeMap = useTabTypeMap();
   const activeTabId = useAppStore.use.activeTabId();
 
+  throw new Error('TabView is not implemented');
+
   // Use tab cache t avoid rendering all tabs at once
   const { addToCache, isTabCached } = useTabCache(TAB_CACHE_SIZE);
 
