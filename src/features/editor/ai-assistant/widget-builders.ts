@@ -17,6 +17,7 @@ import {
 import { TabExecutionError } from '../../../controllers/tab/tab-controller';
 import { AI_PROVIDERS } from '../../../models/ai-service';
 import { getAIConfig } from '../../../utils/ai-config';
+import { navigateToSettings } from '../../../utils/route-navigation';
 import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
 
 /**
@@ -226,9 +227,7 @@ export function createModelSelectionSection(onModelChange: (model: string) => vo
     dummySelect.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      // Dispatch navigation event to go to settings
-      const event = new CustomEvent('navigate-to-route', { detail: { route: '/settings' } });
-      window.dispatchEvent(event);
+      navigateToSettings();
     });
 
     dummySelect.addEventListener('mousedown', (e) => {

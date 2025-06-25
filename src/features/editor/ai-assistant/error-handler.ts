@@ -4,6 +4,7 @@ import {
   showErrorWithAction,
 } from '@components/app-notifications/app-notifications';
 import type { NotificationData } from '@mantine/notifications';
+import { navigateToSettings } from '@utils/route-navigation';
 
 import { AI_ASSISTANT_TIMINGS } from './constants';
 
@@ -12,12 +13,6 @@ interface ExtendedNotificationData extends NotificationData {
     label: string;
     onClick: () => void;
   };
-}
-
-function navigateToSettings(): void {
-  // Dispatch custom event to navigate to settings without page reload
-  const event = new CustomEvent('navigate-to-route', { detail: { route: '/settings' } });
-  window.dispatchEvent(event);
 }
 
 export enum ErrorCode {
