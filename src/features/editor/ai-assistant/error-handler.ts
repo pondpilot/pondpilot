@@ -271,14 +271,8 @@ export function categorizeError(error: unknown): DetailedError {
       type: 'api',
       code: ErrorCode.API_QUOTA_EXCEEDED,
       message: errorMessage,
-      userMessage: 'API quota exceeded. Please check your account limits.',
+      userMessage: 'API quota exceeded. Please check your account limits with your AI provider.',
       retryable: false,
-      action: {
-        label: 'Check Account',
-        callback: () => {
-          window.open('https://platform.openai.com/account/billing', '_blank');
-        },
-      },
     };
   }
 
@@ -287,14 +281,9 @@ export function categorizeError(error: unknown): DetailedError {
       type: 'api',
       code: ErrorCode.API_BILLING_ISSUE,
       message: errorMessage,
-      userMessage: 'Billing issue detected. Please check your payment method.',
+      userMessage:
+        'Billing issue detected. Please check your payment method with your AI provider.',
       retryable: false,
-      action: {
-        label: 'Check Billing',
-        callback: () => {
-          window.open('https://platform.openai.com/account/billing', '_blank');
-        },
-      },
     };
   }
 
