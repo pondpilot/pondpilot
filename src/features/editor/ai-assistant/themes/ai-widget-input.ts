@@ -48,9 +48,9 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    padding: '4px 8px',
+    padding: '4px 12px',
     border: 'none',
-    borderRadius: '4px',
+    borderRadius: '16px',
     backgroundColor: '#4957C1', // backgroundAccent-light
     color: '#FFFFFF', // textContrast-light
     fontSize: '12px',
@@ -103,7 +103,7 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
     outline: 'none',
     transition: 'all 0.2s ease',
     minWidth: '90px',
-    maxWidth: '130px',
+    maxWidth: '160px',
 
     '&:hover': {
       backgroundColor: '#f3f4f6',
