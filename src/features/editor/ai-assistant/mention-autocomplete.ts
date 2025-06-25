@@ -613,6 +613,34 @@ export function createMentionDropdown(
     overflowY: 'auto',
   });
 
+  // Track whether we're using keyboard navigation
+  let isKeyboardNavigation = false;
+
+  // Listen for keyboard navigation on the textarea
+  if (textarea) {
+    const keydownHandler = () => {
+      isKeyboardNavigation = true;
+    };
+    textarea.addEventListener('keydown', keydownHandler);
+
+    // Store handler for cleanup
+    (dropdown as any)._keydownHandler = keydownHandler;
+    (dropdown as any)._textarea = textarea;
+  }
+
+  // Re-enable mouse hover on actual mouse movement over the dropdown
+  let lastMouseX = -1;
+  let lastMouseY = -1;
+
+  dropdown.addEventListener('mousemove', (e) => {
+    // Check if mouse actually moved
+    if (lastMouseX !== -1 && (e.clientX !== lastMouseX || e.clientY !== lastMouseY)) {
+      isKeyboardNavigation = false;
+    }
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+  });
+
   suggestions.forEach((suggestion, index) => {
     const item = document.createElement('div');
     item.className = UI_SELECTORS.MENTION_ITEM.slice(1); // Remove leading dot
@@ -643,11 +671,9 @@ export function createMentionDropdown(
     });
 
     // Add hover effect only when using mouse
-    let isUsingMouse = false;
-
-    item.addEventListener('mouseenter', (e) => {
-      isUsingMouse = e.movementX !== 0 || e.movementY !== 0;
-      if (!item.classList.contains('selected') && isUsingMouse) {
+    item.addEventListener('mouseenter', () => {
+      // Only apply hover style if not using keyboard and not already selected
+      if (!isKeyboardNavigation && !item.classList.contains('selected')) {
         item.style.backgroundColor = isDarkMode ? '#374151' : '#f3f4f6';
       }
     });
@@ -783,5 +809,13 @@ export function cleanupMentionDropdown(dropdown: HTMLElement) {
     window.removeEventListener('resize', repositionHandler);
     dropdownHandlers.delete(dropdown);
   }
+
+  // Clean up keyboard event listener
+  const keydownHandler = (dropdown as any)._keydownHandler;
+  const textarea = (dropdown as any)._textarea;
+  if (keydownHandler && textarea) {
+    textarea.removeEventListener('keydown', keydownHandler);
+  }
+
   dropdown.remove();
 }

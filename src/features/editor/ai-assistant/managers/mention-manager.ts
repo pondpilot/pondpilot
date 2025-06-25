@@ -295,10 +295,9 @@ export class MentionManager {
       } else {
         item.classList.remove('selected');
         item.setAttribute('aria-selected', 'false');
-        // Reset background - mouseleave handler will have already cleared it
-        if (!htmlItem.matches(':hover')) {
-          htmlItem.style.backgroundColor = 'transparent';
-        }
+        // Always reset background when not selected during keyboard navigation
+        // This prevents double selection appearance when mouse hovers
+        htmlItem.style.backgroundColor = 'transparent';
 
         // Reset icon color
         const icon = htmlItem.querySelector('.ai-widget-mention-icon') as HTMLElement;
