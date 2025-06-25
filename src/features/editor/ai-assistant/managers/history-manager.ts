@@ -31,6 +31,8 @@ export class HistoryNavigationManager {
         if (historicalPrompt) {
           this.textarea.value = historicalPrompt;
           this.textarea.setSelectionRange(this.textarea.value.length, this.textarea.value.length);
+          // Trigger resize after setting value
+          this.triggerTextareaResize();
         }
       }
       return true;
@@ -51,11 +53,19 @@ export class HistoryNavigationManager {
           }
         }
         this.textarea.setSelectionRange(this.textarea.value.length, this.textarea.value.length);
+        // Trigger resize after setting value
+        this.triggerTextareaResize();
       }
       return true;
     }
 
     return false;
+  }
+
+  private triggerTextareaResize(): void {
+    // Manually trigger the auto-resize functionality
+    this.textarea.style.height = 'auto';
+    this.textarea.style.height = `${Math.min(this.textarea.scrollHeight, 120)}px`;
   }
 
   // Reset history index on any manual input (not just on submit)
