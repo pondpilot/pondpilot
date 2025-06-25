@@ -204,10 +204,31 @@ class AIAssistantWidget extends WidgetType {
       footer,
     });
 
+    // Set up mutation observer to watch for theme changes
+    const themeObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (
+          mutation.type === 'attributes' &&
+          mutation.attributeName === 'data-mantine-color-scheme'
+        ) {
+          const newColorScheme = document.documentElement.getAttribute('data-mantine-color-scheme');
+          if (newColorScheme) {
+            container.setAttribute('data-mantine-color-scheme', newColorScheme);
+          }
+        }
+      });
+    });
+
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-mantine-color-scheme'],
+    });
+
     // Enhanced cleanup
     const originalCleanup = handlers.setupEventHandlers(container, handlers.hideWidget);
     cleanupRegistry.register(() => {
       mentionManager.cleanup();
+      themeObserver.disconnect();
       originalCleanup();
     });
 

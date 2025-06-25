@@ -33,7 +33,7 @@ export const aiWidgetBaseTheme = EditorView.baseTheme({
   '.ai-widget-container': {
     maxWidth: '500px',
     border: '1px solid #d1d5db',
-    borderRadius: '6px',
+    borderRadius: '12px',
     backgroundColor: '#ffffff',
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
     overflow: 'hidden',

@@ -606,13 +606,37 @@ export function createMentionDropdown(
     ...getDropdownPositionStyles(),
     background: isDarkMode ? '#1f2937' : '#ffffff',
     border: `1px solid ${isDarkMode ? '#374151' : '#e5e7eb'}`,
-    borderRadius: '6px',
+    borderRadius: '0',
     boxShadow: isDarkMode
       ? '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3)'
       : '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
     maxHeight: '200px',
     overflowY: 'auto',
+    padding: '4px 0',
+    scrollbarWidth: 'none', // Firefox
+    msOverflowStyle: 'none', // IE and Edge
   });
+
+  // Hide scrollbar for Chrome, Safari and Opera
+  dropdown.style.cssText += `
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  `;
+  dropdown.style.setProperty('overflow-y', 'auto', 'important');
+
+  // Add a style element to handle webkit scrollbar
+  const styleId = `ai-mention-dropdown-scrollbar-${Date.now()}`;
+  const style = document.createElement('style');
+  style.id = styleId;
+  style.textContent = `
+    #${dropdown.id}::-webkit-scrollbar {
+      display: none;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // Store style element reference for cleanup
+  (dropdown as any)._scrollbarStyle = style;
 
   // Track whether we're using keyboard navigation
   let isKeyboardNavigation = false;
@@ -700,18 +724,20 @@ export function createMentionDropdown(
       alignItems: 'center',
       gap: '8px',
       padding: '8px 12px',
+      margin: '2px 8px',
+      borderRadius: '16px',
       cursor: 'pointer',
       transition: 'background-color 0.1s ease',
       fontSize: '14px',
-      color: isDarkMode ? '#e5e7eb' : 'var(--mantine-color-text)',
-      backgroundColor: isSelected ? (isDarkMode ? '#3b82f6' : '#dbeafe') : 'transparent',
+      color: isDarkMode ? '#A8B3C4' : '#6F7785',
+      backgroundColor: isSelected ? (isDarkMode ? '#29324C' : '#E0E2F4') : 'transparent',
     });
 
     // Add hover effect only when using mouse
     item.addEventListener('mouseenter', () => {
       // Only apply hover style if not using keyboard and not already selected
       if (!isKeyboardNavigation && !item.classList.contains('selected')) {
-        item.style.backgroundColor = isDarkMode ? '#374151' : '#f3f4f6';
+        item.style.backgroundColor = isDarkMode ? '#FFFFFF0A' : '#2123280A';
       }
     });
 
@@ -730,7 +756,7 @@ export function createMentionDropdown(
       width: '16px',
       height: '16px',
       marginRight: '8px',
-      color: isSelected && isDarkMode ? '#ffffff' : isDarkMode ? '#9ca3af' : '#6b7280',
+      color: isDarkMode ? '#A8B3C4' : '#6F7785',
     });
     const svgIcon = createIconSvg(suggestion.type);
     icon.appendChild(svgIcon);
@@ -751,7 +777,7 @@ export function createMentionDropdown(
     label.textContent = sanitizeText(suggestion.label);
     Object.assign(label.style, {
       whiteSpace: 'nowrap',
-      color: isSelected ? (isDarkMode ? '#ffffff' : '#1e40af') : 'inherit',
+      color: 'inherit',
     });
 
     labelContainer.appendChild(label);
@@ -852,6 +878,12 @@ export function cleanupMentionDropdown(dropdown: HTMLElement) {
   const textarea = (dropdown as any)._textarea;
   if (keydownHandler && textarea) {
     textarea.removeEventListener('keydown', keydownHandler);
+  }
+
+  // Clean up scrollbar style element
+  const scrollbarStyle = (dropdown as any)._scrollbarStyle;
+  if (scrollbarStyle) {
+    scrollbarStyle.remove();
   }
 
   dropdown.remove();

@@ -374,6 +374,13 @@ export function assembleAIAssistantWidget(components: {
   container.contentEditable = 'false';
   container.tabIndex = -1;
 
+  // Detect and apply the current theme from the parent document
+  const rootElement = document.documentElement;
+  const currentColorScheme = rootElement.getAttribute('data-mantine-color-scheme');
+  if (currentColorScheme) {
+    container.setAttribute('data-mantine-color-scheme', currentColorScheme);
+  }
+
   const widgetContainer = createContainer('ai-widget-container');
 
   // Add ARIA live region for announcements

@@ -312,12 +312,12 @@ export class MentionManager {
         item.classList.add('selected');
         item.setAttribute('aria-selected', 'true');
         // Update inline styles for selected state
-        htmlItem.style.backgroundColor = isDarkMode ? '#3b82f6' : '#dbeafe';
+        htmlItem.style.backgroundColor = isDarkMode ? '#29324C' : '#E0E2F4';
 
         // Update icon color for selected state
         const icon = htmlItem.querySelector('.ai-widget-mention-icon') as HTMLElement;
         if (icon) {
-          icon.style.color = isDarkMode ? '#ffffff' : '#1e40af';
+          icon.style.color = isDarkMode ? '#A8B3C4' : '#6F7785';
         }
 
         // Ensure the selected item is visible without smooth scrolling
@@ -332,7 +332,7 @@ export class MentionManager {
         // Reset icon color
         const icon = htmlItem.querySelector('.ai-widget-mention-icon') as HTMLElement;
         if (icon) {
-          icon.style.color = isDarkMode ? '#9ca3af' : '#6b7280';
+          icon.style.color = isDarkMode ? '#A8B3C4' : '#6F7785';
         }
       }
     });
