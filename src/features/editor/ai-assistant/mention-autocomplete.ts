@@ -588,6 +588,7 @@ export function createMentionDropdown(
   selectedIndex: number,
   onSelect: (suggestion: MentionSuggestion) => void,
   textarea?: HTMLTextAreaElement,
+  onSelectionChange?: (newIndex: number) => void,
 ): HTMLElement {
   const dropdown = document.createElement('div');
   dropdown.className = UI_SELECTORS.MENTION_DROPDOWN.slice(1); // Remove leading dot
@@ -628,6 +629,11 @@ export function createMentionDropdown(
     (dropdown as any)._textarea = textarea;
   }
 
+  // Store the selection change callback if provided
+  if (onSelectionChange) {
+    (dropdown as any)._onSelectionChange = onSelectionChange;
+  }
+
   // Re-enable mouse hover on actual mouse movement over the dropdown
   let lastMouseX = -1;
   let lastMouseY = -1;
@@ -639,6 +645,37 @@ export function createMentionDropdown(
     }
     lastMouseX = e.clientX;
     lastMouseY = e.clientY;
+  });
+
+  // Add wheel event listener to clear keyboard selection on mouse scroll
+  dropdown.addEventListener('wheel', (e) => {
+    // Allow default scroll behavior but clear keyboard selection
+
+    // Clear keyboard navigation mode
+    isKeyboardNavigation = false;
+
+    // Remove all selected styling from items
+    const items = dropdown.querySelectorAll('.ai-widget-mention-item');
+    items.forEach((item) => {
+      const htmlItem = item as HTMLElement;
+      item.classList.remove('selected');
+      item.setAttribute('aria-selected', 'false');
+      htmlItem.style.backgroundColor = 'transparent';
+
+      // Reset icon color
+      const icon = htmlItem.querySelector('.ai-widget-mention-icon') as HTMLElement;
+      if (icon) {
+        icon.style.color = isDarkMode ? '#9ca3af' : '#6b7280';
+      }
+    });
+
+    // Clear the selected index
+    selectedIndex = -1;
+
+    // Notify parent component about selection change
+    if ((dropdown as any)._onSelectionChange) {
+      (dropdown as any)._onSelectionChange(-1);
+    }
   });
 
   suggestions.forEach((suggestion, index) => {

@@ -88,8 +88,14 @@ export class MentionManager {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       event.stopPropagation();
-      this.mentionState.selectedIndex =
-        (this.mentionState.selectedIndex + 1) % this.mentionState.suggestions.length;
+
+      // If no selection (from mouse scroll), start at -1 so next will be 0
+      if (this.mentionState.selectedIndex === -1) {
+        this.mentionState.selectedIndex = 0;
+      } else {
+        this.mentionState.selectedIndex =
+          (this.mentionState.selectedIndex + 1) % this.mentionState.suggestions.length;
+      }
       this.textarea.setAttribute(
         'aria-activedescendant',
         `ai-mention-option-${this.mentionState.selectedIndex}`,
@@ -114,10 +120,16 @@ export class MentionManager {
     if (event.key === 'ArrowUp') {
       event.preventDefault();
       event.stopPropagation();
-      this.mentionState.selectedIndex =
-        this.mentionState.selectedIndex === 0
-          ? this.mentionState.suggestions.length - 1
-          : this.mentionState.selectedIndex - 1;
+
+      // If no selection (from mouse scroll), start at the last item
+      if (this.mentionState.selectedIndex === -1) {
+        this.mentionState.selectedIndex = this.mentionState.suggestions.length - 1;
+      } else {
+        this.mentionState.selectedIndex =
+          this.mentionState.selectedIndex === 0
+            ? this.mentionState.suggestions.length - 1
+            : this.mentionState.selectedIndex - 1;
+      }
       this.textarea.setAttribute(
         'aria-activedescendant',
         `ai-mention-option-${this.mentionState.selectedIndex}`,
@@ -143,6 +155,12 @@ export class MentionManager {
       if (!event.shiftKey && this.mentionState.suggestions.length > 0) {
         event.preventDefault();
         event.stopPropagation();
+
+        // If no selection (from mouse scroll), select the first item
+        if (this.mentionState.selectedIndex === -1) {
+          this.mentionState.selectedIndex = 0;
+        }
+
         const suggestion = this.mentionState.suggestions[this.mentionState.selectedIndex];
         if (suggestion && suggestion.type !== 'error') {
           this.applyMentionSuggestion(suggestion);
@@ -238,6 +256,10 @@ export class MentionManager {
         this.applyMentionSuggestion(suggestion);
       },
       this.textarea,
+      (newIndex) => {
+        // Update the selected index when scrolling with mouse
+        this.mentionState.selectedIndex = newIndex;
+      },
     );
 
     document.body.appendChild(this.mentionDropdown);
@@ -246,8 +268,12 @@ export class MentionManager {
     this.textarea.setAttribute('aria-autocomplete', 'list');
     this.textarea.setAttribute('aria-expanded', 'true');
 
-    const selectedOptionId = `ai-mention-option-${this.mentionState.selectedIndex}`;
-    this.textarea.setAttribute('aria-activedescendant', selectedOptionId);
+    if (this.mentionState.selectedIndex >= 0) {
+      const selectedOptionId = `ai-mention-option-${this.mentionState.selectedIndex}`;
+      this.textarea.setAttribute('aria-activedescendant', selectedOptionId);
+    } else {
+      this.textarea.removeAttribute('aria-activedescendant');
+    }
 
     // Announce dropdown state to screen readers
     const suggestionCount = this.mentionState.suggestions.length;
@@ -266,8 +292,12 @@ export class MentionManager {
     if (!this.mentionDropdown) return;
 
     // Update aria attributes
-    const selectedOptionId = `ai-mention-option-${this.mentionState.selectedIndex}`;
-    this.textarea.setAttribute('aria-activedescendant', selectedOptionId);
+    if (this.mentionState.selectedIndex >= 0) {
+      const selectedOptionId = `ai-mention-option-${this.mentionState.selectedIndex}`;
+      this.textarea.setAttribute('aria-activedescendant', selectedOptionId);
+    } else {
+      this.textarea.removeAttribute('aria-activedescendant');
+    }
 
     // Update visual selection
     const items = this.mentionDropdown.querySelectorAll('.ai-widget-mention-item');
