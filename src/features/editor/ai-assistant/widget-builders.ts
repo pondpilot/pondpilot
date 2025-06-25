@@ -306,6 +306,7 @@ export function createInputSection(
   onSubmit: () => void,
   onTextareaKeyDown: (event: KeyboardEvent) => void,
   errorContext?: TabExecutionError,
+  activeRequest?: boolean,
 ): {
   inputSection: HTMLElement;
   textarea: HTMLTextAreaElement;
@@ -328,8 +329,15 @@ export function createInputSection(
 
   const closeBtn = createCloseButton({
     onClose,
-    ariaLabel: 'Close AI Assistant',
+    ariaLabel: activeRequest ? 'Request in progress' : 'Close AI Assistant',
   });
+
+  // Disable close button if request is active
+  if (activeRequest) {
+    closeBtn.disabled = true;
+    closeBtn.style.opacity = '0.5';
+    closeBtn.style.cursor = 'not-allowed';
+  }
 
   const buttonText = errorContext ? 'Fix Error' : 'Generate';
   const generateBtn = createButton({
@@ -338,6 +346,18 @@ export function createInputSection(
     ariaLabel: errorContext ? 'Fix SQL error' : 'Generate AI assistance',
     onClick: onSubmit,
   });
+
+  // If request is active, show loading state
+  if (activeRequest) {
+    generateBtn.disabled = true;
+    generateBtn.classList.add('ai-widget-loading');
+    generateBtn.textContent = '';
+
+    const loadingDots = document.createElement('span');
+    loadingDots.className = 'ai-widget-loading-dots';
+    loadingDots.textContent = '...';
+    generateBtn.appendChild(loadingDots);
+  }
 
   textareaContainer.appendChild(textarea);
   inputSection.appendChild(textareaContainer);

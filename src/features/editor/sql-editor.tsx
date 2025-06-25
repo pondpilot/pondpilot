@@ -15,7 +15,8 @@ import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
-import { aiAssistantTooltip, aiAssistantStateField } from './ai-assistant-tooltip';
+import { aiAssistantStateField } from './ai-assistant/state-field';
+import { aiAssistantTooltip, structuredResponseField } from './ai-assistant-tooltip';
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
 import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
@@ -168,17 +169,19 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         (() => {
           const updatePlaceholder = (view: EditorView) => {
             const aiState = view.state.field(aiAssistantStateField, false);
+            const structuredResponseState = view.state.field(structuredResponseField, false);
             const placeholderElement = view.dom.querySelector('.cm-placeholder') as HTMLElement;
 
             if (placeholderElement) {
-              if (aiState?.visible) {
+              // Hide placeholder if either AI assistant or structured response is visible
+              if (aiState?.visible || structuredResponseState?.response) {
                 placeholderElement.style.display = 'none';
                 placeholderElement.style.visibility = 'hidden';
               } else {
                 placeholderElement.style.display = '';
                 placeholderElement.style.visibility = '';
               }
-            } else if (aiState?.visible) {
+            } else if (aiState?.visible || structuredResponseState?.response) {
               // If placeholder doesn't exist yet but AI is visible, try again
               setTimeout(() => updatePlaceholder(view), 0);
             }
@@ -197,7 +200,9 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
                 if (
                   update.docChanged ||
                   update.startState.field(aiAssistantStateField, false)?.visible !==
-                    update.state.field(aiAssistantStateField, false)?.visible
+                    update.state.field(aiAssistantStateField, false)?.visible ||
+                  update.startState.field(structuredResponseField, false)?.response !==
+                    update.state.field(structuredResponseField, false)?.response
                 ) {
                   updatePlaceholder(update.view);
                 }

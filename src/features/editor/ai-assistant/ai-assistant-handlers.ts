@@ -8,11 +8,14 @@ import {
   hideAIAssistantEffect,
   showStructuredResponseEffect,
   insertAIResponseEffect,
+  startAIRequestEffect,
+  endAIRequestEffect,
 } from './effects';
 import { handleAIServiceError, handleSchemaContextError } from './error-handler';
 import { extractMentions } from './mention-autocomplete';
 import { getPromptHistoryManager } from './prompt-history';
 import { AIAssistantServices } from './services-facet';
+import { aiAssistantStateField } from './state-field';
 import { preventEventPropagation } from './ui-factories';
 import { categorizeMentions, expandDatabaseMentions } from './utils/mention-categorization';
 import { getDatabaseModel } from '../../../controllers/db/duckdb-meta';
@@ -37,6 +40,13 @@ export function createAIAssistantHandlers(
 ): AIAssistantHandlers {
   const hideWidget = () => {
     if (view) {
+      // Check if there's an active request
+      const aiState = view.state.field(aiAssistantStateField);
+      if (aiState.activeRequest) {
+        // Don't hide the widget if request is active
+        return;
+      }
+
       view.dispatch({
         effects: hideAIAssistantEffect.of(null),
       });
@@ -49,6 +59,18 @@ export function createAIAssistantHandlers(
 
     // If no query and no error context, don't proceed
     if (!query && !errorContext) return;
+
+    // Check if there's already an active request
+    const aiState = view.state.field(aiAssistantStateField);
+    if (aiState.activeRequest) {
+      // Don't proceed if request is already active
+      return;
+    }
+
+    // Dispatch effect to mark request as active
+    view.dispatch({
+      effects: startAIRequestEffect.of(null),
+    });
 
     // Disable controls and show loading state
     generateBtn.disabled = true;
@@ -197,6 +219,11 @@ export function createAIAssistantHandlers(
     } catch (error) {
       handleAIServiceError(error, textarea, query);
     } finally {
+      // Dispatch effect to mark request as complete
+      view.dispatch({
+        effects: endAIRequestEffect.of(null),
+      });
+
       // Remove loading state and restore original text
       generateBtn.classList.remove('ai-widget-loading');
       generateBtn.innerHTML = ''; // Clear loading dots

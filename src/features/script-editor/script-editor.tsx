@@ -2,11 +2,8 @@ import { showAlert } from '@components/app-notifications';
 import { createSQLScript, updateSQLScriptContent } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { SqlEditor } from '@features/editor';
-import {
-  showAIAssistant,
-  hideAIAssistant,
-  aiAssistantStateField,
-} from '@features/editor/ai-assistant-tooltip';
+import { aiAssistantStateField } from '@features/editor/ai-assistant/state-field';
+import { showAIAssistant, hideAIAssistant } from '@features/editor/ai-assistant-tooltip';
 import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
 import { Group, useMantineColorScheme } from '@mantine/core';
 import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';

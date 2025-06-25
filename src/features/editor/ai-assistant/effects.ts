@@ -17,3 +17,7 @@ export const showStructuredResponseEffect = StateEffect.define<{
 }>();
 export const hideStructuredResponseEffect = StateEffect.define<null>();
 export const clearErrorContextEffect = StateEffect.define<null>();
+
+// Effects for tracking AI request state
+export const startAIRequestEffect = StateEffect.define<null>();
+export const endAIRequestEffect = StateEffect.define<null>();

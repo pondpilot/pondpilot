@@ -117,7 +117,8 @@ Key principles:
 2. Be specific about what changes you're making and why
 3. Consider performance implications
 4. Suggest alternatives when appropriate
-5. Include helpful explanations for learning${isErrorFixing ? '\n6. When fixing errors, provide the corrected ENTIRE script using the "fix_error" action type' : ''}`
+5. Include helpful explanations for learning
+6. IMPORTANT: The user may use @table_name notation to reference tables (e.g., @customers). This is just their way of referring to tables - in your SQL code, use the actual table names WITHOUT the @ symbol${isErrorFixing ? '\n7. When fixing errors, provide the corrected ENTIRE script using the "fix_error" action type' : ''}`
         : `You are a SQL expert assistant. Help users with their SQL queries, providing clear, accurate, and efficient solutions.
 
 Rules:
@@ -125,9 +126,20 @@ Rules:
 2. Explain your reasoning briefly
 3. If the user's SQL has issues, suggest improvements
 4. Focus on DuckDB SQL syntax when relevant
-5. Be concise but helpful${isErrorFixing ? '\n6. When fixing errors, provide the complete corrected script' : ''}`;
+5. Be concise but helpful
+6. IMPORTANT: The user may use @table_name notation to reference tables (e.g., @customers). This is just their way of referring to tables - in your SQL code, use the actual table names WITHOUT the @ symbol${isErrorFixing ? '\n7. When fixing errors, provide the complete corrected script' : ''}`;
 
       let userPrompt = request.prompt;
+
+      // Process mentions in the prompt to make them clearer for the AI
+      // Replace @table_name with "the table_name table" to avoid confusion
+      userPrompt = userPrompt.replace(/@(\w+)/g, (match, tableName) => {
+        // Check if it's likely a table/database reference (not an email or other @ usage)
+        if (tableName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+          return `the ${tableName} table`;
+        }
+        return match; // Keep original if it doesn't look like a table name
+      });
 
       // Add error context if available
       if (request.queryError) {
@@ -220,7 +232,7 @@ ${request.prompt}`;
 
       // Add timeout to fetch request
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
 
       try {
         // Ensure we don't have double slashes by removing trailing slash from baseUrl

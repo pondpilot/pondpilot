@@ -17,7 +17,6 @@ import {
   insertAIResponseEffect,
   showStructuredResponseEffect,
   hideStructuredResponseEffect,
-  clearErrorContextEffect,
 } from './ai-assistant/effects';
 import { HistoryNavigationManager } from './ai-assistant/managers/history-manager';
 import { MentionManager } from './ai-assistant/managers/mention-manager';
@@ -26,6 +25,7 @@ import {
   aiAssistantServicesExtension,
   AIAssistantServices,
 } from './ai-assistant/services-facet';
+import { aiAssistantStateField } from './ai-assistant/state-field';
 import { StructuredResponseWidget } from './ai-assistant/structured-response-widget';
 import { aiAssistantTheme } from './ai-assistant/theme';
 import { createCleanupRegistry } from './ai-assistant/utils/cleanup-registry';
@@ -52,6 +52,7 @@ class AIAssistantWidget extends WidgetType {
     private view: EditorView,
     private sqlStatement?: string,
     private errorContext?: TabExecutionError,
+    private activeRequest?: boolean,
   ) {
     super();
   }
@@ -60,12 +61,14 @@ class AIAssistantWidget extends WidgetType {
     return (
       other instanceof AIAssistantWidget &&
       other.sqlStatement === this.sqlStatement &&
-      other.errorContext === this.errorContext
+      other.errorContext === this.errorContext &&
+      other.activeRequest === this.activeRequest
     );
   }
 
   toDOM() {
     const services = getServicesFromState(this.view.state);
+    const aiState = this.view.state.field(aiAssistantStateField);
 
     const handlers = createAIAssistantHandlers(
       this.view,
@@ -128,6 +131,7 @@ class AIAssistantWidget extends WidgetType {
       () => submitWrapper(),
       () => {}, // Placeholder for keyboard handler, will be updated
       this.errorContext,
+      aiState.activeRequest,
     );
 
     // Now set up managers with the textarea and button references
@@ -253,46 +257,6 @@ class AIAssistantWidget extends WidgetType {
   }
 }
 
-// State field for AI assistant UI state
-export const aiAssistantStateField = StateField.define<{
-  visible: boolean;
-  widgetPos?: number;
-  errorContext?: TabExecutionError;
-}>({
-  create: () => ({ visible: false }),
-  update(value, tr) {
-    let newValue = value;
-
-    // First, map the position through any document changes
-    if (value.widgetPos !== undefined && tr.docChanged) {
-      newValue = {
-        ...value,
-        widgetPos: tr.changes.mapPos(value.widgetPos),
-      };
-    }
-
-    // Then handle effects
-    for (const effect of tr.effects) {
-      if (effect.is(showAIAssistantEffect)) {
-        const cursorPos = tr.state.selection.main.head;
-        const line = tr.state.doc.lineAt(cursorPos);
-        return {
-          visible: true,
-          widgetPos: line.to, // Position at end of line to avoid content shift
-          errorContext: effect.value.errorContext,
-        };
-      }
-      if (effect.is(hideAIAssistantEffect)) {
-        return { visible: false };
-      }
-      if (effect.is(clearErrorContextEffect)) {
-        return { ...newValue, errorContext: undefined };
-      }
-    }
-    return newValue;
-  },
-});
-
 // ViewPlugin to handle AI assistant widget rendering
 const aiAssistantWidgetPlugin = ViewPlugin.fromClass(
   class {
@@ -337,7 +301,7 @@ const aiAssistantWidgetPlugin = ViewPlugin.fromClass(
         }
 
         const widget = Decoration.widget({
-          widget: new AIAssistantWidget(view, sqlStatement, errorContext),
+          widget: new AIAssistantWidget(view, sqlStatement, errorContext, state.activeRequest),
           side: 1, // Place widget after the position to avoid layout shift
         });
         decorations.push(widget.range(widgetPos));
@@ -576,6 +540,9 @@ const aiAssistantKeymap = keymap.of([
     },
   },
 ]);
+
+// Export the structured response field for external use
+export { structuredResponseField };
 
 // Export the extension
 export function aiAssistantTooltip(
