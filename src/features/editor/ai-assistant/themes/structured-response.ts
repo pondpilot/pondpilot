@@ -100,7 +100,7 @@ export const structuredResponseTheme = EditorView.baseTheme({
 
     '&.recommended': {
       borderColor: '#3b82f6',
-      backgroundColor: '#eff6ff',
+      backgroundColor: '#E0E2F4',
     },
 
     '&:last-child': {
@@ -113,7 +113,7 @@ export const structuredResponseTheme = EditorView.baseTheme({
     },
 
     '[data-mantine-color-scheme="dark"] &.recommended': {
-      backgroundColor: '#1e3a8a',
+      backgroundColor: '#29324C',
       borderColor: '#3b82f6',
     },
   },
