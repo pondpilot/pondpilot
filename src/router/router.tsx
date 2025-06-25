@@ -1,5 +1,6 @@
 import { BrowserNotSupported } from '@components/browser-not-supported';
 import { AppErrorFallback } from '@components/error-fallback';
+import { GlobalNavigationHandler } from '@components/global-navigation-handler';
 import { Layout } from '@components/layout';
 import { MultipleTabsBlocked } from '@components/multiple-tabs-blocked';
 import { useFeatureContext } from '@features/feature-context';
@@ -64,7 +65,11 @@ export function Router() {
   const router = createBrowserRouter([
     {
       path: '/',
-      element: <Layout isFileAccessApiSupported={canUseApp} isMobileDevice={isMobileDevice} />,
+      element: (
+        <GlobalNavigationHandler>
+          <Layout isFileAccessApiSupported={canUseApp} isMobileDevice={isMobileDevice} />
+        </GlobalNavigationHandler>
+      ),
       errorElement: <AppErrorFallback />,
       children: [
         ...getAppRoutes(),
