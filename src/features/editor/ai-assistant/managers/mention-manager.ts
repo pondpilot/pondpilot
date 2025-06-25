@@ -212,10 +212,22 @@ export class MentionManager {
       return;
     }
 
-    // If dropdown exists, just update the selection instead of recreating
+    // Always recreate the dropdown when suggestions change to ensure click handlers are correct
+    // Only update selection if we're just navigating (not typing)
     if (this.mentionDropdown) {
-      this.updateDropdownSelection();
-      return;
+      // Check if suggestions have changed by comparing lengths or content
+      const dropdownItems = this.mentionDropdown.querySelectorAll('.ai-widget-mention-item');
+      const suggestionsChanged = dropdownItems.length !== this.mentionState.suggestions.length;
+
+      if (!suggestionsChanged) {
+        // Just update the selection if suggestions haven't changed
+        this.updateDropdownSelection();
+        return;
+      }
+
+      // Clean up old dropdown before creating new one
+      cleanupMentionDropdown(this.mentionDropdown);
+      this.mentionDropdown = null;
     }
 
     // Create new dropdown
