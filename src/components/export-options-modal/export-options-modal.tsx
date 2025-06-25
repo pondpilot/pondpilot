@@ -341,7 +341,7 @@ export function ExportOptionsModal({
               <IconX size={18} />
             </ActionIcon>
           </Group>
-          <Stack className="gap-16 px-6">
+          <Stack className="px-6">
             <Box>
               <TextInput
                 ref={inputRef}
@@ -350,12 +350,10 @@ export function ExportOptionsModal({
                 onChange={(e) => setExportFilename(e.currentTarget.value)}
                 data-testid={setDataTestId('export-filename')}
                 error={filenameError}
-                size="md"
-                mb="lg"
                 classNames={commonTextInputClassNames}
               />
 
-              <Text size="sm" c="dimmed" mb="lg">
+              <Text size="sm" c="text-secondary" mt={24} mb={16}>
                 Choose a format and configure options to export your data.
               </Text>
 

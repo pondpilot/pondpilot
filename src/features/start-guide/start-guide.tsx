@@ -1,6 +1,5 @@
 import duckDark from '@assets/duck-dark.svg';
 import duck from '@assets/duck.svg';
-import { HotkeyPill } from '@components/hotkey-pill';
 import { ICON_CLASSES, SCRIPT_DISPLAY_NAME } from '@components/spotlight/consts';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
@@ -24,6 +23,7 @@ import {
 } from '@tabler/icons-react';
 import { importSQLFiles } from '@utils/import-script-file';
 import { setDataTestId } from '@utils/test-id';
+import { cn } from '@utils/ui/styles';
 
 export const StartGuide = () => {
   const mod = useOsModifierIcon();
@@ -119,12 +119,14 @@ export const StartGuide = () => {
         <Stack className="px-2" gap={14}>
           <Group>
             <Image src={colorScheme === 'dark' ? duckDark : duck} />
-            <Title order={1}>PondPilot</Title>
+            <Title fw={400} order={1}>
+              PondPilot
+            </Title>
           </Group>
           <Title order={3}>Start data analysis with quick actions</Title>
         </Stack>
         <Stack justify="space-between" align="start" mih={300} className="xl:flex-row" gap={32}>
-          <Stack flex={1} maw={340} miw={340}>
+          <Stack flex={1} maw={340} miw={340} gap={8}>
             {shortcustList.map((item) => (
               <Button
                 key={item.key}
@@ -142,7 +144,12 @@ export const StartGuide = () => {
                 }}
                 px={10}
                 h="auto"
-                className="focus:outline-none focus:bg-transparentBrandBlue-016 dark:focus:bg-transparentBrandBlue-016 hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark"
+                className={cn(
+                  'group',
+                  'focus:outline-none',
+                  'focus:bg-transparentBrandBlue-012 dark:focus:bg-darkModeTransparentBrandBlue-032',
+                  'hover:bg-transparent004-light dark:hover:bg-transparent004-dark',
+                )}
               >
                 <Group w="100%" justify="space-between" wrap="nowrap">
                   <Group gap="sm" wrap="nowrap">
@@ -150,13 +157,27 @@ export const StartGuide = () => {
                     <Text c="text-primary">{item.label}</Text>
                   </Group>
 
-                  <HotkeyPill variant="transparent" value={item.hotkey} />
+                  <div
+                    className={cn(
+                      'bg-backgroundSecondary-light',
+                      'dark:bg-backgroundSecondary-dark',
+                      'dark:group-hover:bg-backgroundSecondary-dark',
+                      'dark:group-focus:bg-backgroundSecondary-dark',
+                      'flex items-center justify-center gap-1 font-mono px-4 py-1 rounded-full',
+                    )}
+                  >
+                    {item.hotkey?.map((hk, index) => (
+                      <Text c="text-secondary" key={index} className="text-sm">
+                        {hk}
+                      </Text>
+                    ))}
+                  </div>
                 </Group>
               </Button>
             ))}
           </Stack>
           <Group w={340} className="xl:justify-end">
-            <Stack align="start">
+            <Stack align="start" gap={8}>
               {goToList.map((item) => (
                 <Button
                   key={item.key}

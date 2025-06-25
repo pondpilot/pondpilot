@@ -10,7 +10,7 @@ export const DevModal = () => {
         <Text size="lg" mb="sm">
           DuckDB init progress
         </Text>
-        <Text size="sm" c="dimmed">
+        <Text size="sm" c="text-secondary">
           {dbInitState === 'error' ? 'DuckDB Failed to initialize' : message}
         </Text>
       </Stack>

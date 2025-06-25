@@ -34,7 +34,6 @@ export function XlsxOptions({
         onChange={(e) => setSheetName(e.currentTarget.value)}
         data-testid={setDataTestId('export-xlsx-sheet-name')}
         error={sheetNameError}
-        size="md"
         classNames={commonTextInputClassNames}
       />
     </Stack>

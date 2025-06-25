@@ -1,4 +1,4 @@
-import { Stack, Checkbox, Box, Text, Radio, Group } from '@mantine/core';
+import { Stack, Checkbox, Text, Radio, Group } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
 
 import { commonCheckboxClassNames } from '../constants';
@@ -30,14 +30,16 @@ export function MarkdownOptions({
         color="background-accent"
         classNames={commonCheckboxClassNames}
       />
-      <Box>
-        <Text size="sm" fw={500} mb="xs">
-          Markdown Format
-        </Text>
-        <Text size="xs" c="dimmed" mb="sm">
-          Use GitHub for best compatibility with GitHub and similar platforms; choose Standard for
-          widest compatibility.
-        </Text>
+      <Stack gap={16}>
+        <Stack gap={4}>
+          <Text size="sm" fw={500}>
+            Markdown Format
+          </Text>
+          <Text size="xs" c="text-secondary">
+            Use GitHub for best compatibility with GitHub and similar platforms; choose Standard for
+            widest compatibility.
+          </Text>
+        </Stack>
         <Radio.Group
           value={mdFormat}
           onChange={(value) => setMdFormat(value as 'github' | 'standard')}
@@ -63,7 +65,7 @@ export function MarkdownOptions({
             />
           </Group>
         </Radio.Group>
-      </Box>
+      </Stack>
       <Checkbox
         label="Align columns"
         checked={alignColumns}

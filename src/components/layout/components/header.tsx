@@ -28,10 +28,7 @@ export const Header = memo(() => {
       <Text size="xs">SETTINGS</Text>
     </Group>
   ) : (
-    <Group
-      className="gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-      onClick={() => navigate('/')}
-    >
+    <Group className="gap-3 cursor-default">
       <Tooltip label="Hi, I'm Polly!" position="bottom" openDelay={500}>
         <div>
           <img src={duckLogo} alt="PondPilot" className="w-8 h-8 dark:hidden" />

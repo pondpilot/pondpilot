@@ -131,7 +131,7 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
   }, [hasActualData, hasStaleData, isFetching, isSorting, hasDataSourceError, tabType]);
 
   return (
-    <Group justify="space-between" className={cn('h-7 my-2 px-3')}>
+    <Group justify="space-between" className="h-7 my-2 px-3">
       <Group gap={4}>
         {hasData && (
           <ColRowCount
@@ -166,12 +166,22 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
           <Menu.Target>
             <Button
               disabled={disableCopyAndExport}
-              color="background-tertiary"
-              c="text-primary"
               rightSection={<IconChevronDown size={14} />}
               data-testid={setDataTestId('export-table-button')}
+              classNames={{
+                root: cn(
+                  // TODO: use styles from theme. Issue: https://github.com/pondpilot/pondpilot/issues/96
+                  'rounded-full text-textPrimary-light dark:text-textPrimary-dark bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark',
+
+                  'data-[disabled=true]:bg-transparentBrandBlue-016 data-[disabled=true]:dark:bg-darkModeTransparentBrandBlue-016',
+
+                  'data-[disabled=true]:text-textTertiary-light data-[disabled=true]:dark:text-textTertiary-dark',
+
+                  'hover:bg-backgroundTertiary-light dark:hover:bg-backgroundTertiary-dark hover:text-textPrimary-light dark:hover:text-textPrimary-dark',
+                ),
+              }}
             >
-              <Group gap={4}>Export</Group>
+              Export
             </Button>
           </Menu.Target>
 

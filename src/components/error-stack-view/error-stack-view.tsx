@@ -15,7 +15,7 @@ export const ErrorStackView = ({ error }: { error: Error }) => {
           <Text size="sm" fw={500} component="span">
             Error details:
           </Text>
-          <Text size="sm" c="blue" component="span">
+          <Text size="sm" c="text-accent" component="span">
             Show/hide details
           </Text>
         </summary>

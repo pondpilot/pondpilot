@@ -23,13 +23,13 @@ export const TabErrorFallback = (props: FallbackProps) => {
         <List type="ordered" spacing="lg">
           <List.Item
             icon={
-              <ThemeIcon color="blue" size={24} radius="xl">
+              <ThemeIcon color="background-accent" size={24} radius="xl">
                 <IconRefresh size={16} />
               </ThemeIcon>
             }
           >
             <Text fw={500}>1. Try reloading the page first</Text>
-            <Text c="dimmed" size="sm" mt={4}>
+            <Text c="text-secondary" size="sm" mt={4}>
               This may resolve temporary issues
             </Text>
             <Button onClick={() => window.location.reload()} mt="xs" variant="light">
@@ -39,13 +39,13 @@ export const TabErrorFallback = (props: FallbackProps) => {
 
           <List.Item
             icon={
-              <ThemeIcon color="blue" size={24} radius="xl">
+              <ThemeIcon color="background-accent" size={24} radius="xl">
                 <IconX size={16} />
               </ThemeIcon>
             }
           >
             <Text fw={500}>2. If the error persists, close the tab</Text>
-            <Text c="dimmed" size="sm" mt={4}>
+            <Text c="text-secondary" size="sm" mt={4}>
               This will delete the the tab
             </Text>
             <Button onClick={resetErrorBoundary} mt="xs">

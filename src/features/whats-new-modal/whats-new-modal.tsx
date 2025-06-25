@@ -68,7 +68,13 @@ export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
                 h4: ({ node, ...props }) => <Title className="py-2" order={4} {...props} />,
                 p: ({ node, ...props }) => <Text className="py-2" {...props} />,
                 ul: ({ node, ...props }) => (
-                  <List className="py-2 list-disc list-inside" {...props} maw={600} size="sm" />
+                  <List
+                    className="py-2 list-disc list-inside"
+                    {...props}
+                    c="text-primary"
+                    maw={600}
+                    size="sm"
+                  />
                 ),
                 li: ({ node, ...props }) => <List.Item {...props} />,
                 a: ({ node, ...props }) => (
@@ -87,7 +93,10 @@ export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
           </ScrollArea>
         </div>
       )}
-      <Group justify="end" className="sticky bottom-0 bg-backgroundPrimary-light py-6 px-4">
+      <Group
+        justify="end"
+        className="sticky bottom-0 bg-backgroundPrimary-light py-6 px-4 dark:bg-backgroundPrimary-dark"
+      >
         {!isLoading && (
           <Button
             onClick={onClose}

@@ -34,7 +34,6 @@ export function CsvOptions({
         onChange={(e) => setDelimiter(e.currentTarget.value)}
         data-testid={setDataTestId('export-csv-delimiter')}
         error={delimiterError}
-        size="md"
         classNames={commonTextInputClassNames}
       />
     </Stack>

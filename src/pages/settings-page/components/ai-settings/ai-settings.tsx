@@ -235,7 +235,7 @@ export const AISettings = () => {
                 <Button
                   size="xs"
                   variant="subtle"
-                  color="red"
+                  color="text-error"
                   onClick={() => handleClearProviderKey(provider.id)}
                   p={2}
                 >
@@ -324,7 +324,7 @@ export const AISettings = () => {
                         {model.id}
                       </Text>
                       <ActionIcon
-                        color="red"
+                        color="text-error"
                         variant="subtle"
                         size="sm"
                         onClick={() => {
@@ -389,7 +389,7 @@ export const AISettings = () => {
           {renderApiKeyStatus()}
         </Box>
 
-        <Alert icon={<IconShieldCheck size={16} />} color="blue" variant="light">
+        <Alert icon={<IconShieldCheck size={16} />} color="background-accent" variant="light">
           <Text size="sm">
             <strong>Privacy Notice:</strong> When using AI assistance, your SQL queries and database
             schema information are sent to {currentProvider?.name || 'the selected AI provider'}.
@@ -399,7 +399,7 @@ export const AISettings = () => {
         </Alert>
 
         {saveError && (
-          <Alert color="red" variant="light">
+          <Alert color="text-error" variant="light">
             <Text size="sm">{saveError}</Text>
           </Alert>
         )}
@@ -414,30 +414,32 @@ export const AISettings = () => {
           </Alert>
         )}
 
-        <Group justify="flex-start" className="mt-2">
-          {hasChanges && (
-            <>
-              <Button onClick={handleSave} size="sm">
+        <Group justify="space-between" className="mt-2">
+          <Group>
+            {hasChanges && (
+              <Button color="background-accent" onClick={handleSave}>
                 Save Changes
               </Button>
-              <Button onClick={handleReset} variant="outline" size="sm">
-                Reset
-              </Button>
-            </>
+            )}
+            <Button
+              onClick={handleTestConnection}
+              variant="outline"
+              color="background-accent"
+              loading={testStatus.testing}
+              disabled={!config.apiKey || (config.provider === 'custom' && !config.customEndpoint)}
+            >
+              Test Connection
+            </Button>
+          </Group>
+          {hasChanges && (
+            <Button color="text-error" onClick={handleReset} variant="outline">
+              Reset
+            </Button>
           )}
-          <Button
-            onClick={handleTestConnection}
-            variant="light"
-            size="sm"
-            loading={testStatus.testing}
-            disabled={!config.apiKey || (config.provider === 'custom' && !config.customEndpoint)}
-          >
-            Test Connection
-          </Button>
         </Group>
 
         {!config.apiKey && (
-          <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
+          <Alert icon={<IconInfoCircle size={16} />} color="background-accent" variant="light">
             <Text size="sm">
               The AI assistant will be available once you configure an API key. You can obtain an
               API key from your chosen AI provider&apos;s dashboard.
