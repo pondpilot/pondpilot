@@ -240,6 +240,17 @@ export const aiAssistantStateField = StateField.define<{
 }>({
   create: () => ({ visible: false }),
   update(value, tr) {
+    let newValue = value;
+
+    // First, map the position through any document changes
+    if (value.widgetPos !== undefined && tr.docChanged) {
+      newValue = {
+        ...value,
+        widgetPos: tr.changes.mapPos(value.widgetPos),
+      };
+    }
+
+    // Then handle effects
     for (const effect of tr.effects) {
       if (effect.is(showAIAssistantEffect)) {
         const cursorPos = tr.state.selection.main.head;
@@ -254,10 +265,10 @@ export const aiAssistantStateField = StateField.define<{
         return { visible: false };
       }
       if (effect.is(clearErrorContextEffect)) {
-        return { ...value, errorContext: undefined };
+        return { ...newValue, errorContext: undefined };
       }
     }
-    return value;
+    return newValue;
   },
 });
 
@@ -290,6 +301,13 @@ const aiAssistantWidgetPlugin = ViewPlugin.fromClass(
       const decorations: Range<Decoration>[] = [];
 
       if (visible && widgetPos !== undefined) {
+        // Validate that the position is within document bounds
+        const docLength = view.state.doc.length;
+        if (widgetPos > docLength) {
+          // Position is out of bounds, don't render the widget
+          return Decoration.set([]);
+        }
+
         const resolvedContext = resolveAIContext(view.state);
 
         let sqlStatement: string | undefined;
@@ -319,19 +337,29 @@ const structuredResponseField = StateField.define<{
 }>({
   create: () => ({ response: null }),
   update(value, tr) {
+    let newValue = value;
+
+    // First, map the position through any document changes
+    if (value.position !== undefined && tr.docChanged) {
+      newValue = {
+        ...value,
+        position: tr.changes.mapPos(value.position),
+      };
+    }
+
+    // Then handle effects
     for (const effect of tr.effects) {
       if (effect.is(showStructuredResponseEffect)) {
-        const newValue = {
+        return {
           response: effect.value.response,
           position: tr.state.selection.main.head,
         };
-        return newValue;
       }
       if (effect.is(hideStructuredResponseEffect)) {
         return { response: null };
       }
     }
-    return value;
+    return newValue;
   },
 });
 
@@ -364,6 +392,13 @@ const structuredResponseWidgetPlugin = ViewPlugin.fromClass(
       const decorations: Range<Decoration>[] = [];
 
       if (response && position !== undefined) {
+        // Validate that the position is within document bounds
+        const docLength = view.state.doc.length;
+        if (position > docLength) {
+          // Position is out of bounds, don't render the widget
+          return Decoration.set([]);
+        }
+
         const widget = Decoration.widget({
           widget: new StructuredResponseWidget(view, response),
           side: 1,
