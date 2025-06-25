@@ -11,6 +11,7 @@ interface DatasourceWizardModalProps {
   onClose: () => void;
   handleAddFile: () => Promise<void>;
   handleAddFolder: () => Promise<void>;
+  initialStep?: WizardStep;
 }
 
 type WizardStep = 'selection' | 'remote-config';
@@ -19,8 +20,9 @@ export function DatasourceWizardModal({
   onClose,
   handleAddFile,
   handleAddFolder,
+  initialStep = 'selection',
 }: DatasourceWizardModalProps) {
-  const [step, setStep] = useState<WizardStep>('selection');
+  const [step, setStep] = useState<WizardStep>(initialStep);
 
   const handleRemoteDatabaseClick = () => {
     setStep('remote-config');

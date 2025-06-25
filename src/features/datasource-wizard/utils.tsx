@@ -22,3 +22,23 @@ export const useOpenDatasourceWizard = () => {
     });
   }, [handleAddFile, handleAddFolder]);
 };
+
+export const useOpenRemoteDatabaseConfig = () => {
+  const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
+
+  return useCallback(() => {
+    const modalId = modals.open({
+      size: 700,
+      withCloseButton: false,
+      padding: 0,
+      children: (
+        <DatasourceWizardModal
+          onClose={() => modals.close(modalId)}
+          handleAddFile={handleAddFile}
+          handleAddFolder={handleAddFolder}
+          initialStep="remote-config"
+        />
+      ),
+    });
+  }, [handleAddFile, handleAddFolder]);
+};

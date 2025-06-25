@@ -1,2 +1,2 @@
 export { DatasourceWizardModal } from './datasource-wizard-modal';
-export { useOpenDatasourceWizard } from './utils';
+export { useOpenDatasourceWizard, useOpenRemoteDatabaseConfig } from './utils';
