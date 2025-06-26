@@ -37,6 +37,7 @@ export function createAIAssistantHandlers(
   sqlStatement: string | undefined,
   services: AIAssistantServices,
   errorContext?: TabExecutionError,
+  cursorContext?: { isOnEmptyLine: boolean; hasExistingQuery: boolean },
 ): AIAssistantHandlers {
   const hideWidget = () => {
     if (view) {
@@ -178,6 +179,7 @@ export function createAIAssistantHandlers(
         schemaContext: combinedContext,
         useStructuredResponse: true,
         queryError,
+        cursorContext,
       };
 
       const response = await services.aiService.generateSQLAssistance(aiRequest);

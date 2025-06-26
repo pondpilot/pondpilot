@@ -118,6 +118,41 @@ export const structuredResponseTheme = EditorView.baseTheme({
     },
   },
 
+  '.action-type-indicator': {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    marginBottom: '8px',
+    fontSize: '12px',
+    color: '#6b7280',
+    backgroundColor: '#f3f4f6',
+    borderRadius: '12px',
+    padding: '4px 10px',
+    width: 'fit-content',
+
+    '[data-mantine-color-scheme="dark"] &': {
+      backgroundColor: '#1f2937',
+      color: '#9ca3af',
+    },
+  },
+
+  '.action-type-icon': {
+    fontSize: '14px',
+    lineHeight: '1',
+  },
+
+  '.action-type-label': {
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    fontSize: '11px',
+    letterSpacing: '0.025em',
+  },
+
+  '.action-type-description': {
+    fontSize: '11px',
+    opacity: '0.8',
+  },
+
   '.action-description': {
     fontSize: '14px',
     color: '#374151',

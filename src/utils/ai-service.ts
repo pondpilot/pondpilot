@@ -118,7 +118,20 @@ Key principles:
 3. Consider performance implications
 4. Suggest alternatives when appropriate
 5. Include helpful explanations for learning
-6. IMPORTANT: The user may use @table_name notation to reference tables (e.g., @customers). This is just their way of referring to tables - in your SQL code, use the actual table names WITHOUT the @ symbol${isErrorFixing ? '\n7. When fixing errors, provide the corrected ENTIRE script using the "fix_error" action type' : ''}`
+6. IMPORTANT: The user may use @table_name notation to reference tables (e.g., @customers). This is just their way of referring to tables - in your SQL code, use the actual table names WITHOUT the @ symbol${isErrorFixing ? '\n7. When fixing errors, provide the corrected ENTIRE script using the "fix_error" action type' : ''}
+
+Action Type Selection Guidelines:
+- Use "replace_statement" when the user asks to fix, improve, or rewrite an existing query
+- Use "insert_after" when the user asks for another query or wants to add additional queries (especially if they already have a complete query)
+- Use "insert_before" when the user wants to add setup queries, CTEs, or preparatory statements
+- Use "insert_at_cursor" when the context is unclear or when inserting a snippet at a specific location
+- Use "add_comment" when the user asks for explanations or documentation
+- Use "fix_error" ONLY when fixing SQL errors and you need to replace the entire script
+
+IMPORTANT Cursor Context Heuristic:
+${request.cursorContext?.isOnEmptyLine && request.cursorContext?.hasExistingQuery ? '- The user invoked the assistant on an EMPTY LINE with existing queries in the editor. This strongly suggests they want to ADD a new query, not replace existing ones. Prefer "insert_after" or "insert_at_cursor" unless they explicitly ask to modify the existing query.' : ''}
+${request.cursorContext?.isOnEmptyLine && !request.cursorContext?.hasExistingQuery ? '- The user invoked the assistant on an empty line in an empty editor. Use "replace_statement" or "insert_at_cursor" as appropriate.' : ''}
+${!request.cursorContext?.isOnEmptyLine ? '- The user invoked the assistant within or near an existing statement. Consider the context and their request to decide the appropriate action.' : ''}`
         : `You are a SQL expert assistant. Help users with their SQL queries, providing clear, accurate, and efficient solutions.
 
 Rules:

@@ -52,6 +52,7 @@ class AIAssistantWidget extends WidgetType {
     private view: EditorView,
     private sqlStatement?: string,
     private errorContext?: TabExecutionError,
+    private cursorContext?: { isOnEmptyLine: boolean; hasExistingQuery: boolean },
   ) {
     super();
   }
@@ -73,6 +74,7 @@ class AIAssistantWidget extends WidgetType {
       this.sqlStatement,
       services,
       this.errorContext,
+      this.cursorContext,
     );
 
     // Create model selection section
@@ -298,8 +300,17 @@ const aiAssistantWidgetPlugin = ViewPlugin.fromClass(
           sqlStatement = resolvedContext.text;
         }
 
+        // Detect cursor context for better AI action type selection
+        const cursorPos = view.state.selection.main.head;
+        const currentLine = view.state.doc.lineAt(cursorPos);
+        const isOnEmptyLine = currentLine.text.trim() === '';
+        const hasExistingQuery = view.state.doc.toString().trim().length > 0;
+
         const widget = Decoration.widget({
-          widget: new AIAssistantWidget(view, sqlStatement, errorContext),
+          widget: new AIAssistantWidget(view, sqlStatement, errorContext, {
+            isOnEmptyLine,
+            hasExistingQuery,
+          }),
           side: 1, // Place widget after the position to avoid layout shift
         });
         decorations.push(widget.range(widgetPos));
