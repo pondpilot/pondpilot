@@ -484,6 +484,13 @@ const aiAssistantViewPlugin = ViewPlugin.fromClass(
 
 // Command to show AI assistant
 export function showAIAssistant(view: EditorView, errorContext?: TabExecutionError): boolean {
+  // Check if there's an active structured response
+  const structuredState = view.state.field(structuredResponseField, false);
+  if (structuredState?.response) {
+    // Don't show AI assistant if structured response is active
+    return false;
+  }
+
   view.dispatch({
     effects: showAIAssistantEffect.of({ view, errorContext }),
   });
