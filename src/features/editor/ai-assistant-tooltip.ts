@@ -52,7 +52,6 @@ class AIAssistantWidget extends WidgetType {
     private view: EditorView,
     private sqlStatement?: string,
     private errorContext?: TabExecutionError,
-    private activeRequest?: boolean,
   ) {
     super();
   }
@@ -61,8 +60,7 @@ class AIAssistantWidget extends WidgetType {
     return (
       other instanceof AIAssistantWidget &&
       other.sqlStatement === this.sqlStatement &&
-      other.errorContext === this.errorContext &&
-      other.activeRequest === this.activeRequest
+      other.errorContext === this.errorContext
     );
   }
 
@@ -301,7 +299,7 @@ const aiAssistantWidgetPlugin = ViewPlugin.fromClass(
         }
 
         const widget = Decoration.widget({
-          widget: new AIAssistantWidget(view, sqlStatement, errorContext, state.activeRequest),
+          widget: new AIAssistantWidget(view, sqlStatement, errorContext),
           side: 1, // Place widget after the position to avoid layout shift
         });
         decorations.push(widget.range(widgetPos));
@@ -494,6 +492,13 @@ export function showAIAssistant(view: EditorView, errorContext?: TabExecutionErr
 
 // Command to hide AI assistant
 export function hideAIAssistant(view: EditorView): boolean {
+  // Check if there's an active request
+  const aiState = view.state.field(aiAssistantStateField, false);
+  if (aiState?.activeRequest) {
+    // Don't hide the widget if request is active
+    return false;
+  }
+
   view.dispatch({
     effects: hideAIAssistantEffect.of(null),
   });
