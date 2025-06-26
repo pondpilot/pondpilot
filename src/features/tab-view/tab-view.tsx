@@ -4,10 +4,9 @@ import { useAppStore, useTabTypeMap } from '@store/app-store';
 import { useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
-import { TabErrorFallback, SchemaTabView } from './components';
-import { FileDataSourceTabView } from './components/file-data-source-tab-view';
-import { ScriptTabView } from './components/script-tab-view';
+import { TabErrorFallback } from './components';
 import { useTabCache } from './hooks/use-tab-cache';
+import { FileDataSourceTabView, SchemaTabView, ScriptTabView } from './views';
 
 const TAB_CACHE_SIZE = 10;
 
