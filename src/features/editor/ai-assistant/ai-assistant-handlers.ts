@@ -41,6 +41,13 @@ export function createAIAssistantHandlers(
 ): AIAssistantHandlers {
   const hideWidget = () => {
     if (view) {
+      // Check if there's an active request
+      const aiState = view.state.field(aiAssistantStateField);
+      if (aiState.activeRequest) {
+        // Don't hide the widget if request is active
+        return;
+      }
+
       view.dispatch({
         effects: hideAIAssistantEffect.of(null),
       });

@@ -57,7 +57,7 @@ export function createCombinedContextSection(
   if (onClose) {
     const closeBtn = createCloseButton({
       onClose,
-      ariaLabel: activeRequest ? 'Request in progress' : 'Close AI Assistant',
+      ariaLabel: 'Close AI Assistant',
     });
 
     // Disable close button if request is active
@@ -344,9 +344,11 @@ export function createInputSection(
     rows: 1,
     ariaLabel: 'AI assistant input',
     onKeyDown: onTextareaKeyDown,
-    onInput: onPromptChange ? (e) => onPromptChange((e.target as HTMLTextAreaElement).value) : undefined,
+    onInput: onPromptChange
+      ? (e) => onPromptChange((e.target as HTMLTextAreaElement).value)
+      : undefined,
   });
-  
+
   // Set initial value if provided
   if (currentPrompt !== undefined) {
     textarea.value = currentPrompt;

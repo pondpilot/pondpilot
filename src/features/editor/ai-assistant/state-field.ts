@@ -44,8 +44,8 @@ export const aiAssistantStateField = StateField.define<{
       }
       if (effect.is(hideAIAssistantEffect)) {
         // Clear prompt only if no active request
-        return { 
-          ...value, 
+        return {
+          ...value,
           visible: false,
           currentPrompt: value.activeRequest ? value.currentPrompt : undefined,
         };
