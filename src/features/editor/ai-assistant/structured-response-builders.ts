@@ -3,8 +3,47 @@
  */
 
 import { createContainer, createButton, createFooter, createSpacer } from './ui-factories';
-import { SQLAction, SQLAlternative } from '../../../models/structured-ai-response';
+import { SQLAction, SQLAlternative, SQLActionType } from '../../../models/structured-ai-response';
 import { copyToClipboard } from '../../../utils/clipboard';
+
+/**
+ * Mapping of action types to user-friendly descriptions and icons
+ */
+const ACTION_TYPE_INFO: Record<
+  SQLActionType,
+  { label: string; icon: string; description: string }
+> = {
+  replace_statement: {
+    label: 'Replace',
+    icon: '↻',
+    description: 'Replaces the current SQL statement',
+  },
+  insert_after: {
+    label: 'Insert After',
+    icon: '↓',
+    description: 'Inserts after the current statement',
+  },
+  insert_before: {
+    label: 'Insert Before',
+    icon: '↑',
+    description: 'Inserts before the current statement',
+  },
+  insert_at_cursor: {
+    label: 'Insert',
+    icon: '⎆',
+    description: 'Inserts at cursor position',
+  },
+  add_comment: {
+    label: 'Add Comment',
+    icon: '💬',
+    description: 'Adds explanatory comment',
+  },
+  fix_error: {
+    label: 'Fix Error',
+    icon: '🔧',
+    description: 'Replaces entire script to fix errors',
+  },
+};
 
 /**
  * Creates the header section with title and summary
@@ -35,6 +74,26 @@ export function createActionCard(
   onClose: () => void,
 ): HTMLElement {
   const card = createContainer(action.recommended ? 'action-card recommended' : 'action-card');
+
+  // Add action type indicator
+  const actionTypeInfo = ACTION_TYPE_INFO[action.type];
+  const actionTypeIndicator = createContainer('action-type-indicator');
+
+  const typeIcon = document.createElement('span');
+  typeIcon.className = 'action-type-icon';
+  typeIcon.textContent = actionTypeInfo.icon;
+
+  const typeLabel = document.createElement('span');
+  typeLabel.className = 'action-type-label';
+  typeLabel.textContent = actionTypeInfo.label;
+
+  const typeDescription = document.createElement('span');
+  typeDescription.className = 'action-type-description';
+  typeDescription.textContent = ` — ${actionTypeInfo.description}`;
+
+  actionTypeIndicator.appendChild(typeIcon);
+  actionTypeIndicator.appendChild(typeLabel);
+  actionTypeIndicator.appendChild(typeDescription);
 
   const description = createContainer('action-description');
   description.textContent = action.description;
@@ -79,6 +138,7 @@ export function createActionCard(
   buttonsContainer.appendChild(applyBtn);
   buttonsContainer.appendChild(copyBtn);
 
+  card.appendChild(actionTypeIndicator);
   card.appendChild(description);
   card.appendChild(codePreview);
   card.appendChild(confidence);

@@ -17,6 +17,7 @@ import {
 import { TabExecutionError } from '../../../controllers/tab/tab-controller';
 import { AI_PROVIDERS } from '../../../models/ai-service';
 import { getAIConfig } from '../../../utils/ai-config';
+import { navigateToSettings } from '../../../utils/route-navigation';
 import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
 
 /**
@@ -28,6 +29,8 @@ export function createCombinedContextSection(
   connectionPool: AsyncDuckDBConnectionPool | null,
   modelSelect: HTMLSelectElement,
   errorContext?: TabExecutionError,
+  onClose?: () => void,
+  activeRequest?: boolean,
 ): HTMLElement {
   const contextSection = createContainer('ai-widget-combined-context');
 
@@ -49,6 +52,23 @@ export function createCombinedContextSection(
 
   headerSection.appendChild(leftSection);
   headerSection.appendChild(modelSelect);
+
+  // Add close button to header if handler provided
+  if (onClose) {
+    const closeBtn = createCloseButton({
+      onClose,
+      ariaLabel: 'Close AI Assistant',
+    });
+
+    // Disable close button if request is active
+    if (activeRequest) {
+      closeBtn.disabled = true;
+      closeBtn.style.opacity = '0.5';
+      closeBtn.style.cursor = 'not-allowed';
+    }
+
+    headerSection.appendChild(closeBtn);
+  }
 
   // Create collapsible content area
   const contentArea = createContainer('ai-widget-context-content');
@@ -132,6 +152,16 @@ export function createCombinedContextSection(
 
   schemaSection.appendChild(schemaLabel);
   schemaSection.appendChild(schemaIndicator);
+
+  // Add hint about @mentions
+  const mentionHint = document.createElement('div');
+  mentionHint.className = 'ai-widget-mention-hint';
+  mentionHint.style.fontSize = '12px';
+  mentionHint.style.marginTop = '4px';
+  mentionHint.style.opacity = '0.7';
+  mentionHint.textContent = 'Tip: Use @ to mention specific tables in your prompt';
+  schemaSection.appendChild(mentionHint);
+
   contentArea.appendChild(schemaSection);
 
   // Add toggle functionality (only for the left section, not the model select)
@@ -202,13 +232,30 @@ export function createModelSelectionSection(onModelChange: (model: string) => vo
     }
   });
 
-  // Fallback if no providers are logged in
+  // If no providers are logged in, create a dummy select that acts like a button
   if (selectOptions.length === 0) {
-    selectOptions.push({
-      value: '',
-      label: 'No models available - Configure API keys in Settings',
-      disabled: true,
+    const dummySelect = document.createElement('select');
+    dummySelect.className = 'ai-widget-select ai-widget-select-button';
+    dummySelect.setAttribute('aria-label', 'Go to Settings to configure API keys');
+
+    const option = document.createElement('option');
+    option.textContent = 'Configure API Keys →';
+    option.value = '';
+    dummySelect.appendChild(option);
+
+    dummySelect.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      navigateToSettings();
     });
+
+    dummySelect.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // Prevent dropdown from opening
+    });
+
+    modelSection.appendChild(dummySelect);
+
+    return { modelSection, modelSelect: dummySelect };
   }
 
   const modelSelect = createSelect({
@@ -273,29 +320,39 @@ export function createSchemaContextSection(
  * Creates the input section with textarea and close button
  */
 export function createInputSection(
-  onClose: () => void,
   onSubmit: () => void,
   onTextareaKeyDown: (event: KeyboardEvent) => void,
   errorContext?: TabExecutionError,
-): { inputSection: HTMLElement; textarea: HTMLTextAreaElement; generateBtn: HTMLButtonElement } {
+  activeRequest?: boolean,
+  currentPrompt?: string,
+  onPromptChange?: (value: string) => void,
+): {
+  inputSection: HTMLElement;
+  textarea: HTMLTextAreaElement;
+  generateBtn: HTMLButtonElement;
+  textareaContainer: HTMLElement;
+} {
   const inputSection = createContainer('ai-widget-input-section');
   const textareaContainer = createContainer('ai-widget-textarea-container');
 
   const placeholder = errorContext
     ? 'Press Enter to fix the error, or describe what you want...'
-    : 'Ask AI to help with your SQL...';
+    : 'Ask AI to help with your SQL... (use @ to mention tables)';
 
   const textarea = createTextarea({
     placeholder,
     rows: 1,
     ariaLabel: 'AI assistant input',
     onKeyDown: onTextareaKeyDown,
+    onInput: onPromptChange
+      ? (e) => onPromptChange((e.target as HTMLTextAreaElement).value)
+      : undefined,
   });
 
-  const closeBtn = createCloseButton({
-    onClose,
-    ariaLabel: 'Close AI Assistant',
-  });
+  // Set initial value if provided
+  if (currentPrompt !== undefined) {
+    textarea.value = currentPrompt;
+  }
 
   const buttonText = errorContext ? 'Fix Error' : 'Generate';
   const generateBtn = createButton({
@@ -305,11 +362,22 @@ export function createInputSection(
     onClick: onSubmit,
   });
 
+  // If request is active, show loading state
+  if (activeRequest) {
+    generateBtn.disabled = true;
+    generateBtn.classList.add('ai-widget-loading');
+    generateBtn.textContent = '';
+
+    const loadingDots = document.createElement('span');
+    loadingDots.className = 'ai-widget-loading-dots';
+    loadingDots.textContent = '...';
+    generateBtn.appendChild(loadingDots);
+  }
+
   textareaContainer.appendChild(textarea);
   inputSection.appendChild(textareaContainer);
-  inputSection.appendChild(closeBtn);
 
-  return { inputSection, textarea, generateBtn };
+  return { inputSection, textarea, generateBtn, textareaContainer };
 }
 
 /**
@@ -340,7 +408,24 @@ export function assembleAIAssistantWidget(components: {
   container.contentEditable = 'false';
   container.tabIndex = -1;
 
+  // Detect and apply the current theme from the parent document
+  const rootElement = document.documentElement;
+  const currentColorScheme = rootElement.getAttribute('data-mantine-color-scheme');
+  if (currentColorScheme) {
+    container.setAttribute('data-mantine-color-scheme', currentColorScheme);
+  }
+
   const widgetContainer = createContainer('ai-widget-container');
+
+  // Add ARIA live region for announcements
+  const liveRegion = document.createElement('div');
+  liveRegion.className = 'ai-widget-live-region';
+  liveRegion.setAttribute('role', 'status');
+  liveRegion.setAttribute('aria-live', 'polite');
+  liveRegion.setAttribute('aria-atomic', 'true');
+  liveRegion.style.cssText =
+    'position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden;';
+  widgetContainer.appendChild(liveRegion);
 
   // Add combined context section (now includes model selector)
   widgetContainer.appendChild(components.contextSection);

@@ -7,14 +7,16 @@
 import { acceptCompletion, completionStatus, startCompletion } from '@codemirror/autocomplete';
 import { defaultKeymap, insertTab, history } from '@codemirror/commands';
 import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
-import { keymap, placeholder } from '@codemirror/view';
+import { keymap, placeholder, ViewPlugin } from '@codemirror/view';
 import { showNotification } from '@mantine/notifications';
+import { useAppStore } from '@store/app-store';
 import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
-import { aiAssistantTooltip } from './ai-assistant-tooltip';
+import { aiAssistantStateField } from './ai-assistant/state-field';
+import { aiAssistantTooltip, structuredResponseField } from './ai-assistant-tooltip';
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
 import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
@@ -27,6 +29,7 @@ const placeholderTheme = EditorView.theme({
   '.cm-placeholder': {
     color: '#9CA3AF',
     fontStyle: 'italic',
+    whiteSpace: 'nowrap',
   },
 });
 
@@ -64,6 +67,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
     const { darkTheme, lightTheme } = useEditorTheme(colorSchemeDark);
     const connectionPool = useDuckDBConnectionPool();
     const editorRef = useRef<ReactCodeMirrorRef>(null);
+    const sqlScripts = useAppStore((state) => state.sqlScripts);
 
     const tableNameHighlightPlugin = useMemo(() => {
       if (schema) {
@@ -150,7 +154,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         upperCaseKeywords: true,
         schema,
       });
-      const aiAssistantExtension = aiAssistantTooltip(connectionPool);
+      const aiAssistantExtension = aiAssistantTooltip(connectionPool, undefined, sqlScripts);
       const tooltipExtension = functionTooltip(functionTooltips);
 
       return [
@@ -161,6 +165,51 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         keyExtensions,
         tableNameHighlightPlugin,
         SqlStatementHighlightPlugin,
+        // Dynamic placeholder extension
+        (() => {
+          const updatePlaceholder = (view: EditorView) => {
+            const aiState = view.state.field(aiAssistantStateField, false);
+            const structuredResponseState = view.state.field(structuredResponseField, false);
+            const placeholderElement = view.dom.querySelector('.cm-placeholder') as HTMLElement;
+
+            if (placeholderElement) {
+              // Hide placeholder if either AI assistant or structured response is visible
+              if (aiState?.visible || structuredResponseState?.response) {
+                placeholderElement.style.display = 'none';
+                placeholderElement.style.visibility = 'hidden';
+              } else {
+                placeholderElement.style.display = '';
+                placeholderElement.style.visibility = '';
+              }
+            } else if (aiState?.visible || structuredResponseState?.response) {
+              // If placeholder doesn't exist yet but AI is visible, try again
+              setTimeout(() => updatePlaceholder(view), 0);
+            }
+          };
+
+          return ViewPlugin.fromClass(
+            class PlaceholderVisibilityPlugin {
+              constructor(view: EditorView) {
+                updatePlaceholder(view);
+                // Check again after a short delay to catch any late-rendered placeholders
+                setTimeout(() => updatePlaceholder(view), 10);
+                setTimeout(() => updatePlaceholder(view), 100);
+              }
+
+              update(update: any) {
+                if (
+                  update.docChanged ||
+                  update.startState.field(aiAssistantStateField, false)?.visible !==
+                    update.state.field(aiAssistantStateField, false)?.visible ||
+                  update.startState.field(structuredResponseField, false)?.response !==
+                    update.state.field(structuredResponseField, false)?.response
+                ) {
+                  updatePlaceholder(update.view);
+                }
+              }
+            },
+          );
+        })(),
         placeholder('Press Cmd+I to open the AI Assistant'),
         placeholderTheme,
         EditorView.updateListener.of((state: any) => {
@@ -178,6 +227,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
       tableNameHighlightPlugin,
       functionTooltips,
       connectionPool,
+      sqlScripts,
     ]);
 
     return (

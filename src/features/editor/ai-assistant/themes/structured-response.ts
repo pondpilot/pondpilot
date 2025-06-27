@@ -5,7 +5,7 @@ export const structuredResponseTheme = EditorView.baseTheme({
   '.cm-structured-response-widget': {
     display: 'block',
     width: '100%',
-    margin: '4px 0',
+    margin: '0', // Remove vertical margin to prevent downward shift
     padding: '0',
     outline: 'none',
 
@@ -100,7 +100,7 @@ export const structuredResponseTheme = EditorView.baseTheme({
 
     '&.recommended': {
       borderColor: '#3b82f6',
-      backgroundColor: '#eff6ff',
+      backgroundColor: '#E0E2F4',
     },
 
     '&:last-child': {
@@ -113,9 +113,44 @@ export const structuredResponseTheme = EditorView.baseTheme({
     },
 
     '[data-mantine-color-scheme="dark"] &.recommended': {
-      backgroundColor: '#1e3a8a',
+      backgroundColor: '#29324C',
       borderColor: '#3b82f6',
     },
+  },
+
+  '.action-type-indicator': {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    marginBottom: '8px',
+    fontSize: '12px',
+    color: '#6b7280',
+    backgroundColor: '#f3f4f6',
+    borderRadius: '12px',
+    padding: '4px 10px',
+    width: 'fit-content',
+
+    '[data-mantine-color-scheme="dark"] &': {
+      backgroundColor: '#1f2937',
+      color: '#9ca3af',
+    },
+  },
+
+  '.action-type-icon': {
+    fontSize: '14px',
+    lineHeight: '1',
+  },
+
+  '.action-type-label': {
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    fontSize: '11px',
+    letterSpacing: '0.025em',
+  },
+
+  '.action-type-description': {
+    fontSize: '11px',
+    opacity: '0.8',
   },
 
   '.action-description': {
@@ -179,8 +214,8 @@ export const structuredResponseTheme = EditorView.baseTheme({
     backgroundColor: '#4957C1', // backgroundAccent-light
     color: '#FFFFFF', // textContrast-light
     border: 'none',
-    borderRadius: '4px',
-    padding: '6px 12px',
+    borderRadius: '16px',
+    padding: '6px 16px',
     fontSize: '12px',
     fontWeight: '500',
     cursor: 'pointer',
@@ -200,8 +235,8 @@ export const structuredResponseTheme = EditorView.baseTheme({
     backgroundColor: 'transparent',
     color: '#6b7280',
     border: '1px solid #d1d5db',
-    borderRadius: '4px',
-    padding: '6px 12px',
+    borderRadius: '16px',
+    padding: '6px 16px',
     fontSize: '12px',
     fontWeight: '500',
     cursor: 'pointer',
@@ -313,8 +348,8 @@ export const structuredResponseTheme = EditorView.baseTheme({
     backgroundColor: '#4957C1', // backgroundAccent-light
     color: '#FFFFFF', // textContrast-light
     border: 'none',
-    borderRadius: '4px',
-    padding: '6px 12px',
+    borderRadius: '16px',
+    padding: '6px 16px',
     fontSize: '12px',
     fontWeight: '500',
     cursor: 'pointer',
@@ -334,8 +369,8 @@ export const structuredResponseTheme = EditorView.baseTheme({
     backgroundColor: 'transparent',
     color: '#6b7280',
     border: '1px solid #d1d5db',
-    borderRadius: '4px',
-    padding: '6px 12px',
+    borderRadius: '16px',
+    padding: '6px 16px',
     fontSize: '12px',
     fontWeight: '500',
     cursor: 'pointer',
@@ -389,8 +424,8 @@ export const structuredResponseTheme = EditorView.baseTheme({
     backgroundColor: 'transparent',
     color: '#6b7280',
     border: '1px solid #d1d5db',
-    borderRadius: '4px',
-    padding: '6px 16px',
+    borderRadius: '16px',
+    padding: '6px 18px',
     fontSize: '13px',
     fontWeight: '500',
     cursor: 'pointer',
