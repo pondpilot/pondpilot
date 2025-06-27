@@ -12,15 +12,15 @@ interface FormatSelectorProps {
 
 export function FormatSelector({ format, onFormatChange }: FormatSelectorProps) {
   return (
-    <Stack gap={4} w={140}>
+    <Stack gap={0} w={140}>
       {formatOptions.map((option) => (
         <UnstyledButton
           key={option.value}
           onClick={() => onFormatChange(option.value as ExportFormat)}
           className={cn(
-            'px-4 py-2.5 rounded-full transition-colors text-sm font-medium text-left',
+            'px-4 py-2 rounded-full transition-colors text-sm font-medium text-left',
             format === option.value
-              ? 'bg-transparentBrandBlue-016 dark:bg-transparentBrandBlue-016 text-textPrimary-light dark:text-textPrimary-dark'
+              ? 'bg-transparentBrandBlue-016 dark:bg-darkModeTransparentBrandBlue-032 text-textPrimary-light dark:text-textPrimary-dark'
               : 'hover:bg-transparent004 hover:dark:bg-transparent004 text-textSecondary-light dark:text-textSecondary-dark',
           )}
           data-testid={setDataTestId(`export-format-${option.value}`)}

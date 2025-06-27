@@ -40,7 +40,6 @@ export function XmlOptions({
         onChange={(e) => setRootElement(e.currentTarget.value)}
         data-testid={setDataTestId('export-xml-root')}
         error={rootElementError}
-        size="md"
         classNames={commonTextInputClassNames}
       />
       <TextInput
@@ -49,7 +48,6 @@ export function XmlOptions({
         onChange={(e) => setRowElement(e.currentTarget.value)}
         data-testid={setDataTestId('export-xml-row')}
         error={rowElementError}
-        size="md"
         classNames={commonTextInputClassNames}
       />
     </Stack>

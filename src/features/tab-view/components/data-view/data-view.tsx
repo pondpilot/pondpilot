@@ -5,6 +5,8 @@ import {
   updateTabDataViewColumnSizesCache,
   updateTabDataViewDataPageCache,
 } from '@controllers/tab';
+import { useColumnSummary } from '@features/tab-view/hooks';
+import { copyTableColumns } from '@features/tab-view/utils';
 import { Center, Group, Loader, Stack, Text } from '@mantine/core';
 import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
 import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@models/data-adapter';
@@ -16,9 +18,7 @@ import { formatStringsAsMDList } from '@utils/pretty';
 import { setDataTestId } from '@utils/test-id';
 import { useCallback, useRef, useState } from 'react';
 
-import { useColumnSummary } from '../hooks';
-import { copyTableColumns } from '../utils';
-import { DataViewRestartReadButton } from './reset-button';
+import { DataViewRestartReadButton } from './components';
 
 interface DataViewProps {
   /**

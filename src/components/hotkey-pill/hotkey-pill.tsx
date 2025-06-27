@@ -1,4 +1,5 @@
 import { Pill, Text } from '@mantine/core';
+import { cn } from '@utils/ui/styles';
 import { PropsWithChildren, ReactNode } from 'react';
 
 interface HotkeyPillProps extends PropsWithChildren {
@@ -19,7 +20,7 @@ export const HotkeyPill = ({ value, children, variant }: HotkeyPillProps) => {
             : 'background-tertiary'
       }
       c="icon-default"
-      className={`${variant === 'transparent' ? 'px-0' : 'px-4'} py-1 h-7 text-base font-mono`}
+      className={cn('py-1 h-7 text-base font-mono', variant === 'transparent' ? 'px-0' : 'px-4')}
       classNames={{ label: 'flex items-center justify-center', root: 'justify-center' }}
     >
       {children || (

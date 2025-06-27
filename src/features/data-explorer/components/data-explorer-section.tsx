@@ -28,7 +28,7 @@ export const DataExplorerSection = ({
   return (
     <Stack gap={title ? 0 : 'xs'}>
       {title && (
-        <Text size="sm" fw={600} c="dimmed" px="xs" py={4}>
+        <Text size="sm" fw={600} c="text-secondary" px="xs" py={4}>
           {title}
         </Text>
       )}
