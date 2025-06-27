@@ -17,6 +17,7 @@ import {
   insertAIResponseEffect,
   showStructuredResponseEffect,
   hideStructuredResponseEffect,
+  updatePromptEffect,
 } from './ai-assistant/effects';
 import { HistoryNavigationManager } from './ai-assistant/managers/history-manager';
 import { MentionManager } from './ai-assistant/managers/mention-manager';
@@ -58,11 +59,9 @@ class AIAssistantWidget extends WidgetType {
   }
 
   eq(other: AIAssistantWidget) {
-    return (
-      other instanceof AIAssistantWidget &&
-      other.sqlStatement === this.sqlStatement &&
-      other.errorContext === this.errorContext
-    );
+    // Always return false to force widget recreation when state changes
+    // This ensures the close button updates properly when activeRequest changes
+    return false;
   }
 
   toDOM() {
@@ -121,17 +120,25 @@ class AIAssistantWidget extends WidgetType {
       services.connectionPool,
       modelSelect,
       this.errorContext,
+      handlers.hideWidget,
+      aiState.activeRequest,
     );
 
     // Create input section first to get textarea and generateBtn references
     let submitWrapper: () => void;
 
     const { inputSection, textarea, generateBtn } = createInputSection(
-      handlers.hideWidget,
       () => submitWrapper(),
       () => {}, // Placeholder for keyboard handler, will be updated
       this.errorContext,
       aiState.activeRequest,
+      aiState.currentPrompt,
+      (value) => {
+        // Update prompt in state
+        this.view.dispatch({
+          effects: updatePromptEffect.of(value),
+        });
+      },
     );
 
     // Now set up managers with the textarea and button references
@@ -195,6 +202,10 @@ class AIAssistantWidget extends WidgetType {
 
     // Add input event listener for @ mentions and manual typing
     const handleInput = async () => {
+      // Update prompt in state
+      this.view.dispatch({
+        effects: updatePromptEffect.of(textarea.value),
+      });
       await mentionManager.handleInput(() => historyManager.handleManualInput());
     };
 

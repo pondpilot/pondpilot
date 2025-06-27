@@ -21,3 +21,6 @@ export const clearErrorContextEffect = StateEffect.define<null>();
 // Effects for tracking AI request state
 export const startAIRequestEffect = StateEffect.define<null>();
 export const endAIRequestEffect = StateEffect.define<null>();
+
+// Effect for updating prompt text
+export const updatePromptEffect = StateEffect.define<string>();

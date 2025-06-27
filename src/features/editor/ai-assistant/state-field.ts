@@ -6,6 +6,7 @@ import {
   clearErrorContextEffect,
   startAIRequestEffect,
   endAIRequestEffect,
+  updatePromptEffect,
 } from './effects';
 import { TabExecutionError } from '../../../controllers/tab/tab-controller';
 
@@ -15,6 +16,7 @@ export const aiAssistantStateField = StateField.define<{
   widgetPos?: number;
   errorContext?: TabExecutionError;
   activeRequest: boolean;
+  currentPrompt?: string;
 }>({
   create: () => ({ visible: false, activeRequest: false }),
   update(value, tr) {
@@ -41,7 +43,12 @@ export const aiAssistantStateField = StateField.define<{
         };
       }
       if (effect.is(hideAIAssistantEffect)) {
-        return { ...value, visible: false };
+        // Clear prompt only if no active request
+        return { 
+          ...value, 
+          visible: false,
+          currentPrompt: value.activeRequest ? value.currentPrompt : undefined,
+        };
       }
       if (effect.is(clearErrorContextEffect)) {
         return { ...newValue, errorContext: undefined };
@@ -51,6 +58,9 @@ export const aiAssistantStateField = StateField.define<{
       }
       if (effect.is(endAIRequestEffect)) {
         return { ...newValue, activeRequest: false };
+      }
+      if (effect.is(updatePromptEffect)) {
+        return { ...newValue, currentPrompt: effect.value };
       }
     }
     return newValue;
