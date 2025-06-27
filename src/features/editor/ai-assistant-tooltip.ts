@@ -59,9 +59,19 @@ class AIAssistantWidget extends WidgetType {
   }
 
   eq(other: AIAssistantWidget) {
-    // Always return false to force widget recreation when state changes
-    // This ensures the close button updates properly when activeRequest changes
-    return false;
+    if (!(other instanceof AIAssistantWidget)) return false;
+
+    // Get the current AI state to compare activeRequest
+    const currentState = this.view.state.field(aiAssistantStateField);
+    const otherState = other.view.state.field(aiAssistantStateField);
+
+    // Only recreate if structural properties change
+    return (
+      this.sqlStatement === other.sqlStatement &&
+      this.errorContext === other.errorContext &&
+      currentState.activeRequest === otherState.activeRequest &&
+      currentState.visible === otherState.visible
+    );
   }
 
   toDOM() {

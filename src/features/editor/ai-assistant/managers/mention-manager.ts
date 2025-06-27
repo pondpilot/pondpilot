@@ -194,15 +194,26 @@ export class MentionManager {
     this.debounceTimer = null;
   }
 
-  private applyMentionSuggestion(suggestion: { value: string }): void {
+  private applyMentionSuggestion(suggestion: {
+    value: string;
+    type?: string;
+    contextInfo?: string;
+  }): void {
     const { value } = this.textarea;
     const start = Math.min(this.mentionState.startPos, value.length);
     const end = Math.min(this.mentionState.endPos, value.length);
 
-    const newValue = `${value.substring(0, start)}@${suggestion.value} ${value.substring(end)}`;
+    // Use fully qualified name for tables and views if context info is available
+    let insertValue = suggestion.value;
+    if ((suggestion.type === 'table' || suggestion.type === 'view') && suggestion.contextInfo) {
+      // contextInfo contains "database.schema", so we combine it with the table name
+      insertValue = `${suggestion.contextInfo}.${suggestion.value}`;
+    }
+
+    const newValue = `${value.substring(0, start)}@${insertValue} ${value.substring(end)}`;
     this.textarea.value = newValue;
 
-    const newCursorPos = start + 1 + suggestion.value.length + 1;
+    const newCursorPos = start + 1 + insertValue.length + 1;
     this.textarea.setSelectionRange(newCursorPos, newCursorPos);
 
     this.mentionState = createInitialMentionState();
