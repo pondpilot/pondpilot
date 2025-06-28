@@ -4,9 +4,15 @@
  * Modified by Andrii Butko (C) [2025]
  * Licensed under GNU AGPL v3.0
  */
-import { acceptCompletion, completionStatus, startCompletion } from '@codemirror/autocomplete';
+import {
+  acceptCompletion,
+  completionStatus,
+  startCompletion,
+  completionKeymap,
+} from '@codemirror/autocomplete';
 import { defaultKeymap, insertTab, history } from '@codemirror/commands';
 import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
+import { Prec } from '@codemirror/state';
 import { keymap, placeholder, ViewPlugin } from '@codemirror/view';
 import { showNotification } from '@mantine/notifications';
 import { useAppStore } from '@store/app-store';
@@ -78,73 +84,79 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
 
     const keyExtensions = useMemo(
       () =>
-        keymap.of([
-          {
-            key: KEY_BINDING.run.toCodeMirrorKey(),
-            preventDefault: true,
-            run: () => true,
-          },
-          {
-            key: 'Tab',
-            preventDefault: true,
-            run: (target) => {
-              if (completionStatus(target.state) === 'active') {
-                acceptCompletion(target);
-              } else {
-                insertTab(target);
-              }
-              return true;
+        Prec.highest(
+          keymap.of([
+            {
+              key: 'Tab',
+              run: (target) => {
+                if (completionStatus(target.state) === 'active') {
+                  // Accept the autocompletion suggestion when Tab is pressed
+                  acceptCompletion(target);
+                  return true;
+                }
+                return insertTab(target);
+              },
             },
-          },
-          {
-            key: 'Ctrl-Space',
-            mac: 'Cmd-Space',
-            preventDefault: true,
-            run: startCompletion,
-          },
-          {
-            key: 'Ctrl-=',
-            mac: 'Cmd-=',
-            preventDefault: true,
-            run: () => {
-              if (onFontSizeChanged) {
-                const newFontSize = Math.min(2, (fontSize ?? 1) + 0.2);
-                onFontSizeChanged(newFontSize);
-                showNotification({
-                  message: `Change code editor font size to ${Math.floor(newFontSize * 100)}%`,
-                  autoClose: 1000,
-                  id: 'font-size',
-                });
-              }
-              return true;
+            {
+              key: KEY_BINDING.run.toCodeMirrorKey(),
+              preventDefault: true,
+              run: () => true,
             },
-          },
-          {
-            key: 'Ctrl--',
-            mac: 'Cmd--',
-            preventDefault: true,
-            run: () => {
-              if (onFontSizeChanged) {
-                const newFontSize = Math.max(0.4, (fontSize ?? 1) - 0.2);
-                onFontSizeChanged(newFontSize);
-                showNotification({
-                  message: `Change code editor font size to ${Math.floor(newFontSize * 100)}%`,
-                  autoClose: 1000,
-                  id: 'font-size',
-                });
-              }
-              return true;
+            {
+              key: 'Ctrl-Space',
+              mac: 'Cmd-Space',
+              preventDefault: true,
+              run: startCompletion,
             },
-          },
+            {
+              key: 'Ctrl-=',
+              mac: 'Cmd-=',
+              preventDefault: true,
+              run: () => {
+                if (onFontSizeChanged) {
+                  const newFontSize = Math.min(2, (fontSize ?? 1) + 0.2);
+                  onFontSizeChanged(newFontSize);
+                  showNotification({
+                    message: `Change code editor font size to ${Math.floor(newFontSize * 100)}%`,
+                    autoClose: 1000,
+                    id: 'font-size',
+                  });
+                }
+                return true;
+              },
+            },
+            {
+              key: 'Ctrl--',
+              mac: 'Cmd--',
+              preventDefault: true,
+              run: () => {
+                if (onFontSizeChanged) {
+                  const newFontSize = Math.max(0.4, (fontSize ?? 1) - 0.2);
+                  onFontSizeChanged(newFontSize);
+                  showNotification({
+                    message: `Change code editor font size to ${Math.floor(newFontSize * 100)}%`,
+                    autoClose: 1000,
+                    id: 'font-size',
+                  });
+                }
+                return true;
+              },
+            },
 
-          // Filter out Cmd-i from defaultKeymap to avoid conflicts with AI assistant
-          ...defaultKeymap.filter((binding) => {
-            // Remove any binding that uses Cmd-i or Ctrl-i
-            const key = binding.key || '';
-            const mac = binding.mac || '';
-            return !key.includes('Mod-i') && !key.includes('Ctrl-i') && !mac.includes('Cmd-i');
-          }),
-        ]),
+            // Add completion keymap but filter out Tab since we handle it above
+            ...completionKeymap.filter((binding) => {
+              const key = binding.key || '';
+              return !key.includes('Tab');
+            }),
+            // Filter out Cmd-i from defaultKeymap to avoid conflicts with AI assistant
+            ...defaultKeymap.filter((binding) => {
+              // Remove any binding that uses Cmd-i or Ctrl-i
+              const key = binding.key || '';
+              const mac = binding.mac || '';
+              return !key.includes('Mod-i') && !key.includes('Ctrl-i') && !mac.includes('Cmd-i');
+            }),
+          ]),
+        ),
       [fontSize, onFontSizeChanged],
     );
 
@@ -159,10 +171,10 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
 
       return [
         history(),
+        keyExtensions, // Our keymaps need to come first to have priority
         sqlDialect,
         tooltipExtension,
-        aiAssistantExtension, // AI assistant keymap comes before default keymaps
-        keyExtensions,
+        aiAssistantExtension,
         tableNameHighlightPlugin,
         SqlStatementHighlightPlugin,
         // Dynamic placeholder extension
