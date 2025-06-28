@@ -9,6 +9,7 @@ import {
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { dataAdapterRegistry } from '@features/tab-view/hooks/data-adapter-registry';
 import { PersistentDataSourceId } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
@@ -100,6 +101,11 @@ export const deleteDataSources = async (
   let newPreviewTabId = previewTabId;
 
   if (tabsToDelete.length > 0) {
+    // Cancel all active data operations for tabs that will be deleted
+    // and wait for cleanup to complete. This ensures DuckDB connections
+    // are properly released before attempting to drop files.
+    await dataAdapterRegistry.cancelTabsAndWaitForCleanup(tabsToDelete);
+
     const result = deleteTabImpl({
       deleteTabIds: tabsToDelete,
       tabs,
@@ -112,6 +118,20 @@ export const deleteDataSources = async (
     newTabOrder = result.newTabOrder;
     newActiveTabId = result.newActiveTabId;
     newPreviewTabId = result.newPreviewTabId;
+
+    // Force kill all queries on all connections
+    // This is more aggressive but necessary for large files
+    await conn.forceKillAllQueries();
+
+    // For large files that are still in use, we need to recreate all connections
+    // This is the most aggressive approach but ensures file handles are released
+    if (tabsToDelete.length > 0) {
+      console.log('Recreating all DuckDB connections to ensure file handles are released');
+      await conn.recreateAllConnections();
+
+      // Give the system a moment to fully release file handles
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
   }
 
   // Create the updated state for local entires

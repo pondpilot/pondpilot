@@ -25,6 +25,7 @@ import {
 import { isSchemaError } from '@utils/schema-error-detection';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { dataAdapterRegistry } from './data-adapter-registry';
 import { useDataAdapterQueries } from './use-data-adapter-queries';
 
 // Data adapter is a logic layer between abstract batch streaming data source
@@ -368,6 +369,11 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       }
     } catch (error) {
       if (!(error instanceof PoolTimeoutError)) {
+        // Check if this is a query cancellation - don't treat as error
+        if (error instanceof Error && error.message?.includes('query was canceled')) {
+          // This is expected when cancelling queries during cleanup
+          return;
+        }
         console.error('Failed to fetch row count:', error);
         if (error instanceof Error && error.message?.includes('Out of Memory Error')) {
           setAppendDataSourceReadError(
@@ -412,7 +418,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           }
         }
       } catch (error: any) {
-        if (error instanceof PoolTimeoutError) {
+        // Check if this is a query cancellation - don't treat as error
+        if (error.message?.includes('query was canceled')) {
+          // This is expected when cancelling queries during cleanup
+          // Just return silently without setting any errors
+          return;
+        } else if (error instanceof PoolTimeoutError) {
           setAppendDataSourceReadError(
             'Too many tabs open or operations running. Please wait and re-open this tab.',
           );
@@ -674,6 +685,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           if (error.message?.includes('NotFoundError')) {
             console.error('Data source have been moved or deleted:', error);
             setAppendDataSourceReadError('Data source have been moved or deleted.');
+          } else if (error.message?.includes('query was canceled')) {
+            // This is an expected error when we're cancelling queries for cleanup
+            // Don't log it as an error or show it to the user
+            // Just silently handle it
           } else {
             console.error('Failed to read data from the data source:', error);
             setAppendDataSourceReadError(
@@ -826,29 +841,38 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   useEffect(() => {
     const newReaderPromise = getNewReader(sort);
 
+    // Create a cleanup function that properly waits for all operations to complete
+    const cleanupAsync = async () => {
+      // Make sure we cancel everything
+      cancelAllDataOperations();
+
+      // This will ensure that we first wait until new reader call
+      // has finished. Even though it should be cancelled by
+      // the previous call, we want to make sure state is fully
+      // updated. Otherwise if the tab is closed quickly,
+      // we may get into inconsistent state. This is also happening
+      // in dev mode due to React.StrictMode firring this hook twice.
+      await newReaderPromise;
+
+      // Cancel the main data reader
+      const curReader = mainDataReaderRef.current;
+      if (curReader) {
+        // First drop the ref, so any async operation will not proceed
+        // while we are waiting for the cancel to finish next
+        mainDataReaderRef.current = null;
+        await curReader.cancel();
+      }
+    };
+
+    // Register this data adapter's cancellation and cleanup functions
+    dataAdapterRegistry.register(tab.id, cancelAllDataOperations, cleanupAsync);
+
     return () => {
-      const asyncDestructor = async () => {
-        // Make sure we cancel everything
-        cancelAllDataOperations();
+      // Unregister from the registry
+      dataAdapterRegistry.unregister(tab.id);
 
-        // This will ensure that we first wait until new reader call
-        // has finished. Even though it should be cancelled by
-        // the previous call, we want to make sure state is fully
-        // updated. Otherwise if the tab is closed quickly,
-        // we may get into inconsistent state. This is also happening
-        // in dev mode due to React.StrictMode firring this hook twice.
-        await newReaderPromise;
-
-        // Cancel the main data reader
-        const curReader = mainDataReaderRef.current;
-        if (curReader) {
-          // First drop the ref, so any async operation will not proceed
-          // while we are waiting for the cancel to finish next
-          mainDataReaderRef.current = null;
-          await curReader.cancel();
-        }
-      };
-      asyncDestructor();
+      // Still run cleanup on unmount
+      cleanupAsync();
     };
     // We intentionally use this only on mount, as we want different
     // behavior on all other changes - handled by the effect above
