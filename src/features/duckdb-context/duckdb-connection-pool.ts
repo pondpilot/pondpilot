@@ -1,5 +1,9 @@
 import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { toAbortablePromise } from '@utils/abort';
+import {
+  CONNECTION_IDLE_TIMEOUT_MS,
+  CONNECTION_RECREATION_TIMEOUT_MS,
+} from '@utils/duckdb-file-operations';
 import * as arrow from 'apache-arrow';
 
 import { AsyncDuckDBPooledConnection } from './duckdb-pooled-connection';
@@ -104,20 +108,24 @@ export class AsyncDuckDBConnectionPool {
    * Wait for all connections to be idle (not in use).
    * This is useful before operations that need exclusive access to files.
    *
-   * @param timeout Maximum time to wait in milliseconds (default 5000)
+   * @param timeout Maximum time to wait in milliseconds (default CONNECTION_IDLE_TIMEOUT_MS)
    * @returns Promise that resolves when all connections are idle
    * @throws Error if timeout is exceeded
    */
-  public async waitForAllConnectionsIdle(timeout: number = 5000): Promise<void> {
+  public async waitForAllConnectionsIdle(
+    timeout: number = CONNECTION_IDLE_TIMEOUT_MS,
+  ): Promise<void> {
     const startTime = Date.now();
 
     while (this._inUse.size > 0) {
       if (Date.now() - startTime > timeout) {
-        throw new Error(`Timeout waiting for connections to be idle. ${this._inUse.size} connections still in use.`);
+        throw new Error(
+          `Timeout waiting for connections to be idle. ${this._inUse.size} connections still in use.`,
+        );
       }
 
       // Wait a bit before checking again
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }
 
@@ -133,12 +141,15 @@ export class AsyncDuckDBConnectionPool {
     for (const conn of this._connections) {
       if (conn) {
         promises.push(
-          conn.cancelSent()
-            .then(() => { /* Convert boolean to void */ })
+          conn
+            .cancelSent()
+            .then(() => {
+              /* Convert boolean to void */
+            })
             .catch((error) => {
               // Log but don't throw - we want to cancel as many as possible
               console.warn('Error canceling query on connection:', error);
-            })
+            }),
         );
       }
     }
@@ -153,7 +164,7 @@ export class AsyncDuckDBConnectionPool {
    */
   public async recreateAllConnections(): Promise<void> {
     // First, wait for all connections to be idle
-    await this.waitForAllConnectionsIdle(10000).catch(() => {
+    await this.waitForAllConnectionsIdle(CONNECTION_RECREATION_TIMEOUT_MS).catch(() => {
       // If timeout, continue anyway - we need to force close
       console.warn('Timeout waiting for connections to be idle, forcing recreation');
     });
@@ -162,11 +173,11 @@ export class AsyncDuckDBConnectionPool {
     const poolSize = this._connections.length;
 
     // Close all existing connections
-    const closePromises: Promise<void>[] = this._connections.map(conn =>
+    const closePromises: Promise<void>[] = this._connections.map((conn) =>
       conn.close().catch((error: unknown) => {
         console.warn('Error closing connection during recreation:', error);
         // Return void to satisfy TypeScript
-      })
+      }),
     );
     await Promise.all(closePromises);
 
