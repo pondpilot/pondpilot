@@ -125,8 +125,10 @@ export async function dropViewAndUnregisterFile(
           delay = Math.min(delay * 1.5, 3000);
         }
 
-        console.warn(`File ${fileName} is still in use, retrying in ${delay}ms... (${retries} retries left)`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        console.warn(
+          `File ${fileName} is still in use, retrying in ${delay}ms... (${retries} retries left)`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
       } else {
         // No more retries or different error
         break;
@@ -281,8 +283,10 @@ export async function detachAndUnregisterDatabase(
           delay = Math.min(delay * 1.5, 3000);
         }
 
-        console.warn(`Database file ${fileName} is still in use, retrying in ${delay}ms... (${retries} retries left)`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        console.warn(
+          `Database file ${fileName} is still in use, retrying in ${delay}ms... (${retries} retries left)`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
       } else {
         // No more retries or different error
         break;

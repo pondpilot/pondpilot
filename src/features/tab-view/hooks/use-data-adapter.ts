@@ -22,6 +22,7 @@ import {
   isTheSameSortSpec,
   toggleMultiColumnSort,
 } from '@utils/db';
+import { isQueryCancelledError } from '@utils/duckdb-file-operations';
 import { isSchemaError } from '@utils/schema-error-detection';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -370,7 +371,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     } catch (error) {
       if (!(error instanceof PoolTimeoutError)) {
         // Check if this is a query cancellation - don't treat as error
-        if (error instanceof Error && error.message?.includes('query was canceled')) {
+        if (isQueryCancelledError(error)) {
           // This is expected when cancelling queries during cleanup
           return;
         }
@@ -419,11 +420,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         }
       } catch (error: any) {
         // Check if this is a query cancellation - don't treat as error
-        if (error.message?.includes('query was canceled')) {
+        if (isQueryCancelledError(error)) {
           // This is expected when cancelling queries during cleanup
           // Just return silently without setting any errors
           return;
-        } else if (error instanceof PoolTimeoutError) {
+        }
+        if (error instanceof PoolTimeoutError) {
           setAppendDataSourceReadError(
             'Too many tabs open or operations running. Please wait and re-open this tab.',
           );
@@ -685,7 +687,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           if (error.message?.includes('NotFoundError')) {
             console.error('Data source have been moved or deleted:', error);
             setAppendDataSourceReadError('Data source have been moved or deleted.');
-          } else if (error.message?.includes('query was canceled')) {
+          } else if (isQueryCancelledError(error)) {
             // This is an expected error when we're cancelling queries for cleanup
             // Don't log it as an error or show it to the user
             // Just silently handle it
@@ -872,7 +874,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       dataAdapterRegistry.unregister(tab.id);
 
       // Still run cleanup on unmount
-      cleanupAsync();
+      cleanupAsync().catch((error) => {
+        // Log the error but don't propagate it to avoid unhandled promise rejection
+        if (!isQueryCancelledError(error)) {
+          console.error('Error during data adapter cleanup:', error);
+        }
+      });
     };
     // We intentionally use this only on mount, as we want different
     // behavior on all other changes - handled by the effect above

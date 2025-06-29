@@ -1,4 +1,5 @@
 import { TabId } from '@models/tab';
+import { CLEANUP_OPERATION_TIMEOUT_MS, withTimeout } from '@utils/duckdb-file-operations';
 
 interface TabCleanup {
   cancel: () => void;
@@ -37,12 +38,21 @@ class DataAdapterRegistry {
       if (tabCleanup) {
         // First cancel all operations
         tabCleanup.cancel();
-        // Then wait for cleanup
-        cleanupPromises.push(tabCleanup.cleanup());
+        // Then wait for cleanup with timeout protection
+        cleanupPromises.push(
+          withTimeout(
+            tabCleanup.cleanup(),
+            CLEANUP_OPERATION_TIMEOUT_MS,
+            `Cleanup for tab ${tabId}`,
+          ).catch((error) => {
+            console.warn(`Cleanup for tab ${tabId} failed or timed out:`, error);
+            // Don't throw - we want to continue with other cleanups
+          }),
+        );
       }
     }
 
-    // Wait for all cleanups to complete
+    // Wait for all cleanups to complete (or timeout)
     await Promise.all(cleanupPromises);
   }
 
