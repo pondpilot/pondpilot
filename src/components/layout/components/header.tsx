@@ -1,5 +1,3 @@
-import duckLogoDark from '@assets/duck-dark.svg';
-import duckLogo from '@assets/duck.svg';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { SpotlightMenu } from '@components/spotlight';
 import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-modal';
@@ -29,12 +27,7 @@ export const Header = memo(() => {
     </Group>
   ) : (
     <Group className="gap-3 cursor-default">
-      <Tooltip label="Hi, I'm Polly!" position="bottom" openDelay={500}>
-        <div>
-          <img src={duckLogo} alt="PondPilot" className="w-8 h-8 dark:hidden" />
-          <img src={duckLogoDark} alt="PondPilot" className="w-8 h-8 hidden dark:block" />
-        </div>
-      </Tooltip>
+      <div className="bg-red-500 text-white px-2 py-1 rounded text-sm font-bold">CACHE TEST v2</div>
       <Group gap={4} align="baseline">
         <Text size="lg" fw={600} className="text-textPrimary-light dark:text-textPrimary-dark">
           PondPilot
