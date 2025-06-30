@@ -3,6 +3,7 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { dropFileWithRetry } from '@utils/duckdb-file-operations';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
@@ -98,48 +99,7 @@ export async function dropViewAndUnregisterFile(
   }
 
   const db = conn.bindings;
-
-  /**
-   * Unregister file handle with retry logic
-   */
-  let retries = 10; // More retries for very large files
-  let lastError: unknown;
-  let delay = 100; // Start with 100ms
-
-  while (retries > 0) {
-    try {
-      await db.dropFile(fileName);
-      return; // Success, exit
-    } catch (error) {
-      lastError = error;
-      retries -= 1;
-
-      if (retries > 0 && error instanceof Error && error.message.includes('file is in use')) {
-        // For the first few retries, use shorter delays
-        // For later retries, use longer delays with exponential backoff
-        if (retries > 7) {
-          // Quick retries first (100ms each)
-          delay = 100;
-        } else {
-          // Exponential backoff for later retries
-          delay = Math.min(delay * 1.5, 3000);
-        }
-
-        console.warn(
-          `File ${fileName} is still in use, retrying in ${delay}ms... (${retries} retries left)`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      } else {
-        // No more retries or different error
-        break;
-      }
-    }
-  }
-
-  // If we get here, all retries failed
-  console.error(`Failed to drop file ${fileName} after retries:`, lastError);
-  // Don't throw the error - let the operation continue
-  // The file handle will eventually be released when the browser tab is closed
+  await dropFileWithRetry(db, fileName, 'File');
 }
 
 /**
@@ -256,48 +216,7 @@ export async function detachAndUnregisterDatabase(
   }
 
   const db = conn.bindings;
-
-  /**
-   * Unregister file handle with retry logic
-   */
-  let retries = 10; // More retries for database files
-  let lastError: unknown;
-  let delay = 100; // Start with 100ms
-
-  while (retries > 0) {
-    try {
-      await db.dropFile(fileName);
-      return; // Success, exit
-    } catch (error) {
-      lastError = error;
-      retries -= 1;
-
-      if (retries > 0 && error instanceof Error && error.message.includes('file is in use')) {
-        // For the first few retries, use shorter delays
-        // For later retries, use longer delays with exponential backoff
-        if (retries > 7) {
-          // Quick retries first (100ms each)
-          delay = 100;
-        } else {
-          // Exponential backoff for later retries
-          delay = Math.min(delay * 1.5, 3000);
-        }
-
-        console.warn(
-          `Database file ${fileName} is still in use, retrying in ${delay}ms... (${retries} retries left)`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      } else {
-        // No more retries or different error
-        break;
-      }
-    }
-  }
-
-  // If we get here, all retries failed
-  console.error(`Failed to drop database file ${fileName} after retries:`, lastError);
-  // Don't throw the error - let the operation continue
-  // The file handle will eventually be released when the browser tab is closed
+  await dropFileWithRetry(db, fileName, 'Database file');
 }
 
 /**

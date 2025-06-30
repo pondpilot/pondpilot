@@ -132,9 +132,6 @@ export const deleteDataSources = async (
         console.log('Recreating all DuckDB connections to ensure file handles are released');
       }
       await conn.recreateAllConnections();
-
-      // Give the system a moment to fully release file handles
-      await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
 
