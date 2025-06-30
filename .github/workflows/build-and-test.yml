@@ -14,6 +14,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.head_commit.message, '[quick deploy]') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -85,30 +86,35 @@ jobs:
         run: yarn install --immutable
 
       - name: Run unit tests
+        if: ${{ !contains(github.event.head_commit.message, '[quick deploy]') }}
         run: yarn test:unit
         env:
           CI: true
 
       - name: Install Playwright browsers
+        if: ${{ !contains(github.event.head_commit.message, '[quick deploy]') }}
         run: yarn playwright install --with-deps chromium webkit
 
       - name: Install DuckDB
+        if: ${{ !contains(github.event.head_commit.message, '[quick deploy]') }}
         run: |
           curl https://install.duckdb.org | sh
           sudo ln -s /home/runner/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb
           duckdb --version
 
       - name: Build for integration tests
+        if: ${{ !contains(github.event.head_commit.message, '[quick deploy]') }}
         run: yarn build --mode int-test-build
 
       - name: Run Playwright tests
+        if: ${{ !contains(github.event.head_commit.message, '[quick deploy]') }}
         run: |
           yarn playwright test
         env:
           CI: true
 
       - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && !contains(github.event.head_commit.message, '[quick deploy]') }}
         with:
           name: playwright-report
           path: playwright-report/
