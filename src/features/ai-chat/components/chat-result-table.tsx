@@ -1,6 +1,6 @@
 import { showSuccess } from '@components/app-notifications';
-import { NamedIcon } from '@components/named-icon';
-import { ScrollArea, Text, Box, ActionIcon, Tooltip, Menu, Group, Badge } from '@mantine/core';
+import { NamedIcon, IconType } from '@components/named-icon';
+import { Text, Box, ActionIcon, Tooltip, Menu, Group, Badge } from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
 import { QueryResults } from '@models/ai-chat';
 import { IconCopy, IconDownload, IconTriangleInvertedFilled } from '@tabler/icons-react';
@@ -20,6 +20,51 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
   const clipboard = useClipboard();
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
+
+  // Detect column types based on data
+  const columnTypes = useMemo(() => {
+    return results.columns.map((column, colIndex) => {
+      const columnLower = column.toLowerCase();
+      const sampleValues = results.rows.slice(0, 10).map((row) => row[colIndex]);
+      const nonNullValues = sampleValues.filter((v) => v != null);
+
+      // Check for temporal columns
+      const temporalKeywords = ['date', 'time', 'year', 'month', 'day', 'hour', 'minute', 'timestamp', 'created', 'updated', 'modified'];
+      const hasTemporalName = temporalKeywords.some((keyword) => columnLower.includes(keyword));
+
+      if (hasTemporalName || sampleValues.some((value) => {
+        if (value == null) return false;
+        const str = String(value);
+        return /^\d{4}-\d{2}-\d{2}/.test(str) || /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(str);
+      })) {
+        return 'column-timestamp';
+      }
+
+      // Check for numeric columns
+      if (nonNullValues.length > 0) {
+        const numericCount = nonNullValues.filter((v) => typeof v === 'number').length;
+        if (numericCount / nonNullValues.length >= 0.8) {
+          // Check if all numbers are integers
+          const allIntegers = nonNullValues
+            .filter((v) => typeof v === 'number')
+            .every((v) => Number.isInteger(v as number));
+          return allIntegers ? 'column-integer' : 'column-float';
+        }
+      }
+
+      // Check for boolean
+      if (nonNullValues.length > 0) {
+        const booleanValues = ['true', 'false', '1', '0', 't', 'f', 'yes', 'no'];
+        const allBoolean = nonNullValues.every((v) =>
+          typeof v === 'boolean' || booleanValues.includes(String(v).toLowerCase())
+        );
+        if (allBoolean) return 'column-boolean';
+      }
+
+      // Default to string
+      return 'column-string';
+    });
+  }, [results]);
 
   // Sort the data if needed
   const sortedRows = useMemo(() => {
@@ -144,9 +189,8 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
       </Box>
 
       {/* Table container */}
-      <div className="overflow-hidden rounded-b-xl border border-borderLight-light dark:border-borderLight-dark border-t-0">
-        <ScrollArea className="max-h-96" scrollbarSize={6}>
-          <div className="w-full">
+      <div className="overflow-auto rounded-b-xl border border-borderLight-light dark:border-borderLight-dark border-t-0 max-h-96">
+        <div className="min-w-fit">
             {/* Table header */}
             <div className="sticky top-0 z-10 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark">
               <div className="bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark">
@@ -160,7 +204,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
                         'text-textPrimary-light dark:text-textPrimary-dark whitespace-nowrap select-none',
                         'border-r border-borderLight-light dark:border-borderLight-dark',
                         'cursor-pointer group overflow-hidden',
-                        'min-w-[100px] flex-1',
+                        'min-w-[150px]',
                         'bg-transparent border-0 hover:bg-transparent',
                         index === 0 && 'rounded-tl-xl',
                         index === results.columns.length - 1 && 'rounded-tr-xl border-r-0',
@@ -169,7 +213,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <div className="text-iconDefault-light dark:text-iconDefault-dark flex-shrink-0">
-                          <NamedIcon iconType="column-other" size={16} />
+                          <NamedIcon iconType={columnTypes[index] as IconType} size={16} />
                         </div>
                         <Text size="sm" fw={500} c="text-contrast" truncate="end" className="flex-1">
                           {column}
@@ -203,7 +247,8 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
                     key={rowIndex}
                     className={cn(
                       'flex border-b border-borderLight-light dark:border-borderLight-dark',
-                      oddRow && 'bg-transparent004-light dark:bg-transparent004-dark',
+                      !oddRow && 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
+                      oddRow && 'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
                       lastRow && 'rounded-bl-xl rounded-br-xl border-b',
                     )}
                   >
@@ -217,7 +262,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
                           className={cn(
                             'relative whitespace-nowrap overflow-hidden border-transparent select-none',
                             'border-r border-borderLight-light dark:border-borderLight-dark',
-                            'min-w-[100px] flex-1 group/cell',
+                            'min-w-[150px] group/cell',
                             isLastCell && 'border-r-0',
                             lastRow && cellIndex === 0 && 'rounded-bl-lg',
                             lastRow && isLastCell && 'rounded-br-lg',
@@ -278,8 +323,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
                 );
               })}
             </div>
-          </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {results.truncated && (
