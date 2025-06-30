@@ -12,7 +12,9 @@ test.describe('AI Chat Simple Tests', () => {
     await page.keyboard.press('Control+Alt+C');
 
     // Wait for the chat tab to appear
-    await page.waitForSelector('[data-testid="tab"]:has-text("Chat with Data")', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="tab"]:has-text("Chat with Data")', {
+      timeout: 10000,
+    });
 
     // Verify the tab exists
     const chatTab = page.getByTestId('tab').filter({ hasText: 'Chat with Data' });

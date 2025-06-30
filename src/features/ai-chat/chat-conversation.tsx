@@ -11,7 +11,7 @@ import { cn } from '@utils/ui/styles';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
 import { ChatErrorBoundary } from './components/chat-error-boundary';
-import { ChatInput } from './components/chat-input';
+import { ChatInputWithMentions } from './components/chat-input-with-mentions';
 import { ChatMessageList } from './components/chat-message-list';
 import { useAIChatSubscription } from './hooks/use-ai-chat-subscription';
 import { useChatAI } from './hooks/use-chat-ai';
@@ -216,14 +216,18 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
   }
 
   return (
-    <Stack className="h-full gap-0 bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark" data-testid="ai-chat-container">
+    <Stack
+      className="h-full gap-0 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
+      data-testid="ai-chat-container"
+    >
       <ScrollArea
         className="flex-1 chat-scrollarea"
         viewportRef={scrollViewportRef}
         scrollbarSize={6}
         classNames={{
           scrollbar: 'bg-transparent008-light dark:bg-transparent008-dark',
-          thumb: 'bg-transparent032-light dark:bg-transparent032-dark hover:bg-transparent072-light dark:hover:bg-transparent072-dark',
+          thumb:
+            'bg-transparent032-light dark:bg-transparent032-dark hover:bg-transparent072-light dark:hover:bg-transparent072-dark',
         }}
       >
         <Box className="min-h-full flex flex-col">
@@ -245,18 +249,12 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
 
       <Box
         className={cn(
-          'border-t border-borderPrimary-light dark:border-borderPrimary-dark',
           'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
-          'shadow-lg',
-          'px-4 py-3'
+          'px-4 py-4',
         )}
       >
         <ChatErrorBoundary>
-          <ChatInput
-            onSendMessage={handleSendMessage}
-            isLoading={isLoading}
-            placeholder="Ask a question about your data..."
-          />
+          <ChatInputWithMentions onSendMessage={handleSendMessage} isLoading={isLoading} />
         </ChatErrorBoundary>
       </Box>
     </Stack>

@@ -48,9 +48,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
   const handleSort = (columnIndex: number) => {
     setSortConfig((current) => {
       if (current?.column === columnIndex) {
-        return current.direction === 'asc'
-          ? { column: columnIndex, direction: 'desc' }
-          : null;
+        return current.direction === 'asc' ? { column: columnIndex, direction: 'desc' } : null;
       }
       return { column: columnIndex, direction: 'asc' };
     });
@@ -63,7 +61,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
   };
 
   const handleCopyRow = (row: any[]) => {
-    const text = row.map(v => v === null ? 'NULL' : String(v)).join('\t');
+    const text = row.map((v) => (v === null ? 'NULL' : String(v))).join('\t');
     clipboard.copy(text);
     showSuccess({ title: 'Row copied', message: '' });
   };
@@ -73,24 +71,28 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
     let csv = '';
 
     // Add headers
-    csv += `${results.columns.map(col => {
-      // Quote if contains comma, newline, or quote
-      if (col.includes(',') || col.includes('\n') || col.includes('"')) {
-        return `"${col.replace(/"/g, '""')}"`;
-      }
-      return col;
-    }).join(',')}\n`;
+    csv += `${results.columns
+      .map((col) => {
+        // Quote if contains comma, newline, or quote
+        if (col.includes(',') || col.includes('\n') || col.includes('"')) {
+          return `"${col.replace(/"/g, '""')}"`;
+        }
+        return col;
+      })
+      .join(',')}\n`;
 
     // Add data rows
-    results.rows.forEach(row => {
-      csv += `${row.map(cell => {
-        const value = cell === null ? '' : String(cell);
-        // Quote if contains comma, newline, or quote
-        if (value.includes(',') || value.includes('\n') || value.includes('"')) {
-          return `"${value.replace(/"/g, '""')}"`;
-        }
-        return value;
-      }).join(',')}\n`;
+    results.rows.forEach((row) => {
+      csv += `${row
+        .map((cell) => {
+          const value = cell === null ? '' : String(cell);
+          // Quote if contains comma, newline, or quote
+          if (value.includes(',') || value.includes('\n') || value.includes('"')) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        })
+        .join(',')}\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -131,12 +133,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
         </Tooltip>
       </Box>
 
-      <ScrollArea
-        className={cn(
-          isLargeResult ? 'max-h-96' : 'max-h-64'
-        )}
-        scrollbarSize={6}
-      >
+      <ScrollArea className={cn(isLargeResult ? 'max-h-96' : 'max-h-64')} scrollbarSize={6}>
         <Table
           striped={false}
           highlightOnHover
@@ -180,7 +177,7 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
                       onClick={() => handleSort(index)}
                       className={cn(
                         'opacity-0 group-hover:opacity-100 transition-opacity',
-                        sortConfig?.column === index && 'opacity-100'
+                        sortConfig?.column === index && 'opacity-100',
                       )}
                     >
                       {sortConfig?.column === index && sortConfig.direction === 'desc' ? (
@@ -206,9 +203,13 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
                   >
                     <Box className="flex items-center justify-between gap-2">
                       {cell === null ? (
-                        <Text c="dimmed" size="xs" fs="italic">NULL</Text>
+                        <Text c="dimmed" size="xs" fs="italic">
+                          NULL
+                        </Text>
                       ) : typeof cell === 'object' ? (
-                        <Text size="xs" className="font-mono">{JSON.stringify(cell)}</Text>
+                        <Text size="xs" className="font-mono">
+                          {JSON.stringify(cell)}
+                        </Text>
                       ) : (
                         <Text size="xs">{String(cell)}</Text>
                       )}

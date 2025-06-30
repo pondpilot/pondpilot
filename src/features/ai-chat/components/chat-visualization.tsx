@@ -1,7 +1,18 @@
 import { showSuccess } from '@components/app-notifications';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
-import { Box, Text, Badge, Group, ActionIcon, Tooltip, Collapse, Code, Loader, Center } from '@mantine/core';
+import {
+  Box,
+  Text,
+  Badge,
+  Group,
+  ActionIcon,
+  Tooltip,
+  Collapse,
+  Code,
+  Loader,
+  Center,
+} from '@mantine/core';
 import { useDisclosure, useClipboard } from '@mantine/hooks';
 import { ChatMessageQuery } from '@models/ai-chat';
 import { IconCode, IconExternalLink, IconCopy, IconChevronUp } from '@tabler/icons-react';
@@ -45,10 +56,7 @@ export const ChatVisualization = ({ query }: ChatVisualizationProps) => {
   };
 
   const handleOpenInScript = () => {
-    const script = createSQLScript(
-      `Chart Query - ${new Date().toLocaleString()}`,
-      query.sql,
-    );
+    const script = createSQLScript(`Chart Query - ${new Date().toLocaleString()}`, query.sql);
     getOrCreateTabFromScript(script, true);
     showSuccess({ title: 'Query opened in new script tab', message: '' });
   };
@@ -111,7 +119,10 @@ export const ChatVisualization = ({ query }: ChatVisualizationProps) => {
             <Text size="xs" c="dimmed" className="mb-2">
               SQL Query:
             </Text>
-            <Code block className="language-sql text-xs bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border border-borderPrimary-light dark:border-borderPrimary-dark">
+            <Code
+              block
+              className="language-sql text-xs bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border border-borderPrimary-light dark:border-borderPrimary-dark"
+            >
               {query.sql}
             </Code>
           </Box>

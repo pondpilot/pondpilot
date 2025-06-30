@@ -97,18 +97,11 @@ export const ChatMessage = ({
     <div
       className={cn(
         'flex w-full ai-chat-message-enter message-container',
-        isUser ? 'justify-end' : 'justify-start'
+        isUser ? 'justify-end' : 'justify-start',
       )}
       data-testid="ai-chat-message"
     >
-      <Box
-        className={cn(
-          'max-w-4xl rounded-lg',
-          isUser
-            ? 'ml-auto mr-2'
-            : 'mr-auto ml-2'
-        )}
-      >
+      <Box className={cn('max-w-4xl rounded-lg', isUser ? 'ml-auto mr-2' : 'mr-auto ml-2')}>
         {/* Message bubble */}
         <Paper
           className={cn(
@@ -116,110 +109,110 @@ export const ChatMessage = ({
             isUser
               ? 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border-borderPrimary-light dark:border-borderPrimary-dark'
               : 'bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark border-borderSecondary-light dark:border-borderSecondary-dark',
-            'shadow-sm hover:shadow-md'
+            'shadow-sm hover:shadow-md',
           )}
           p="sm"
           radius="md"
           withBorder
         >
-        <div className="space-y-2">
-          {/* Message actions menu */}
-          <Group justify="space-between" align="start">
-            {isEditingMessage ? (
-              <div className="flex-1">
-                <Textarea
-                  value={editedContent}
-                  onChange={(e) => setEditedContent(e.target.value)}
-                  minRows={2}
-                  autosize
-                  className="flex-1"
-                />
-                <Group gap="xs" mt="xs">
-                  <ActionIcon
-                    size="sm"
-                    variant="filled"
-                    color="green"
-                    onClick={handleSaveMessageEdit}
-                  >
-                    <IconCheck size={14} />
-                  </ActionIcon>
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    color="red"
-                    onClick={handleCancelMessageEdit}
-                  >
-                    <IconX size={14} />
-                  </ActionIcon>
-                </Group>
-              </div>
-            ) : (
-              <>
-                {/* Message content with markdown support */}
-                <div className="prose dark:prose-invert max-w-none prose-sm prose-p:my-2 prose-pre:my-2 chat-message-content flex-1 text-textPrimary-light dark:text-textPrimary-dark">
-                  <ReactMarkdown
-                    rehypePlugins={[rehypeSanitize]}
-                    components={{
-                      code: ({ className, children, ...props }) => {
-                        const match = /language-(\w+)/.exec(className || '');
-                        const language = match ? match[1] : '';
-                        const inline = !className || !className.includes('language-');
-
-                        if (!inline && language === 'sql' && !message.query) {
-                          // SQL code block without execution
-                          return (
-                            <div className="my-2">
-                              <Code block className="language-sql">
-                                {String(children).replace(/\n$/, '')}
-                              </Code>
-                            </div>
-                          );
-                        }
-
-                        return inline ? (
-                          <Code {...props}>{children}</Code>
-                        ) : (
-                          <Code block {...props}>
-                            {children}
-                          </Code>
-                        );
-                      },
-                    }}
-                  >
-                      {message.content}
-                  </ReactMarkdown>
+          <div className="space-y-2">
+            {/* Message actions menu */}
+            <Group justify="space-between" align="start">
+              {isEditingMessage ? (
+                <div className="flex-1">
+                  <Textarea
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                    minRows={2}
+                    autosize
+                    className="flex-1"
+                  />
+                  <Group gap="xs" mt="xs">
+                    <ActionIcon
+                      size="sm"
+                      variant="filled"
+                      color="green"
+                      onClick={handleSaveMessageEdit}
+                    >
+                      <IconCheck size={14} />
+                    </ActionIcon>
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      color="red"
+                      onClick={handleCancelMessageEdit}
+                    >
+                      <IconX size={14} />
+                    </ActionIcon>
+                  </Group>
                 </div>
-                <MessageActions
-                  isUser={isUser}
-                  onCopy={handleCopyMessage}
-                  onEdit={onUpdateMessage ? handleEditMessage : undefined}
-                  onDelete={onDeleteMessage ? handleDeleteMessage : undefined}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+              ) : (
+                <>
+                  {/* Message content with markdown support */}
+                  <div className="prose dark:prose-invert max-w-none prose-sm prose-p:my-2 prose-pre:my-2 chat-message-content flex-1 text-textPrimary-light dark:text-textPrimary-dark">
+                    <ReactMarkdown
+                      rehypePlugins={[rehypeSanitize]}
+                      components={{
+                        code: ({ className, children, ...props }) => {
+                          const match = /language-(\w+)/.exec(className || '');
+                          const language = match ? match[1] : '';
+                          const inline = !className || !className.includes('language-');
+
+                          if (!inline && language === 'sql' && !message.query) {
+                            // SQL code block without execution
+                            return (
+                              <div className="my-2">
+                                <Code block className="language-sql">
+                                  {String(children).replace(/\n$/, '')}
+                                </Code>
+                              </div>
+                            );
+                          }
+
+                          return inline ? (
+                            <Code {...props}>{children}</Code>
+                          ) : (
+                            <Code block {...props}>
+                              {children}
+                            </Code>
+                          );
+                        },
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
+                  <MessageActions
+                    isUser={isUser}
+                    onCopy={handleCopyMessage}
+                    onEdit={onUpdateMessage ? handleEditMessage : undefined}
+                    onDelete={onDeleteMessage ? handleDeleteMessage : undefined}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
+                </>
+              )}
+            </Group>
+
+            {/* Query block with actions - only show if no chart or if there's an error */}
+            {message.query && (!message.query.chartSpec || message.query.error) && (
+              <Box className="mt-3">
+                <SqlQueryDisplay
+                  query={message.query}
+                  onRunQuery={handleRunQuery}
+                  isRerunning={isRerunning}
                 />
-              </>
+              </Box>
             )}
-          </Group>
 
-          {/* Query block with actions - only show if no chart or if there's an error */}
-          {message.query && (!message.query.chartSpec || message.query.error) && (
-            <Box className="mt-3">
-              <SqlQueryDisplay
-                query={message.query}
-                onRunQuery={handleRunQuery}
-                isRerunning={isRerunning}
-              />
-            </Box>
-          )}
-
-          {/* Chart visualization - show as separate widget or loading state */}
-          {message.query &&
-            (message.query.chartSpec || message.query.isGeneratingChart) &&
-            !message.query.error && (
-            <Box className="mt-3">
-              <ChatVisualization query={message.query} />
-            </Box>
-          )}
-        </div>
+            {/* Chart visualization - show as separate widget or loading state */}
+            {message.query &&
+              (message.query.chartSpec || message.query.isGeneratingChart) &&
+              !message.query.error && (
+                <Box className="mt-3">
+                  <ChatVisualization query={message.query} />
+                </Box>
+              )}
+          </div>
         </Paper>
 
         {/* Timestamp */}

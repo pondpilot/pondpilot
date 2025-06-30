@@ -36,58 +36,73 @@ export const ChatInput = ({ onSendMessage, isLoading, placeholder }: ChatInputPr
   };
 
   return (
-    <div className="space-y-1">
-      <div className="relative chat-input">
-        <Textarea
-          ref={textareaRef}
-          data-testid="ai-chat-input"
-          placeholder={placeholder}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
-          minRows={1}
-          maxRows={4}
-          autosize
-          disabled={isLoading}
-          aria-label="Chat message input"
-          aria-describedby="chat-input-help"
-          classNames={{
-            input: cn(
-              'pr-12 resize-none',
-              'text-sm',
-              'border-borderPrimary-light dark:border-borderPrimary-dark',
-              'focus:border-borderAccent-light dark:focus:border-borderAccent-dark',
-              'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark'
-            ),
-          }}
-          styles={{
-            input: {
-              paddingRight: '3rem',
-            },
-          }}
-        />
-        <ActionIcon
-          onClick={handleSend}
-          disabled={!message.trim() || isLoading}
-          loading={isLoading}
-          variant="filled"
-          size="sm"
-          radius="md"
+    <div className="flex justify-center">
+      <div className="relative w-full max-w-2xl">
+        <div
           className={cn(
-            'absolute right-2 bottom-2',
-            'transition-all duration-200',
-            message.trim() && !isLoading
-              ? 'bg-backgroundAccent-light hover:bg-backgroundAccent-light/90 dark:bg-backgroundAccent-dark dark:hover:bg-backgroundAccent-dark/90 text-textContrast-light dark:text-textContrast-dark'
-              : 'bg-transparent008-light dark:bg-transparent008-dark text-textTertiary-light dark:text-textTertiary-dark'
+            'relative chat-input',
+            'rounded-full',
+            'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
+            'shadow-md hover:shadow-lg transition-shadow duration-200',
+            'border border-borderPrimary-light dark:border-borderPrimary-dark',
           )}
-          aria-label="Send message"
         >
-          <IconSend size={16} />
-        </ActionIcon>
+          <Textarea
+            ref={textareaRef}
+            data-testid="ai-chat-input"
+            placeholder={placeholder}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            minRows={1}
+            maxRows={4}
+            autosize
+            disabled={isLoading}
+            aria-label="Chat message input"
+            aria-describedby="chat-input-help"
+            classNames={{
+              input: cn(
+                'pr-12 pl-5 py-3 resize-none',
+                'text-sm',
+                'border-0',
+                'bg-transparent',
+                'placeholder:text-textTertiary-light dark:placeholder:text-textTertiary-dark',
+                'focus:outline-none',
+              ),
+              wrapper: 'border-0',
+            }}
+            styles={{
+              input: {
+                paddingRight: '3rem',
+              },
+              wrapper: {
+                backgroundColor: 'transparent',
+              },
+            }}
+          />
+          <ActionIcon
+            onClick={handleSend}
+            disabled={!message.trim() || isLoading}
+            loading={isLoading}
+            variant="filled"
+            size="md"
+            radius="xl"
+            className={cn(
+              'absolute right-2 top-1/2 -translate-y-1/2',
+              'transition-all duration-200',
+              message.trim() && !isLoading
+                ? 'bg-backgroundAccent-light hover:bg-backgroundAccent-light/90 dark:bg-backgroundAccent-dark dark:hover:bg-backgroundAccent-dark/90 text-textContrast-light dark:text-textContrast-dark'
+                : 'bg-transparent008-light dark:bg-transparent008-dark text-textTertiary-light dark:text-textTertiary-dark',
+            )}
+            aria-label="Send message"
+          >
+            <IconSend size={18} />
+          </ActionIcon>
+        </div>
+        <Text size="xs" c="dimmed" className="text-center mt-2" id="chat-input-help">
+          Press Enter to send, Shift+Enter for new line
+        </Text>
       </div>
-      <Text size="xs" c="dimmed" className="px-2" id="chat-input-help">
-        Press Enter to send, Shift+Enter for new line
-      </Text>
     </div>
   );
 };

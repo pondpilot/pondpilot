@@ -27,8 +27,8 @@ export const formatResultsForContext = (results: QueryResults): string => {
   }
 
   // Truncate long cell values and handle BigInt
-  const truncatedData = sampledRows.map(row =>
-    row.map(cell => {
+  const truncatedData = sampledRows.map((row) =>
+    row.map((cell) => {
       if (cell === null) return null;
 
       // Convert BigInt to string before any string operations
@@ -42,11 +42,11 @@ export const formatResultsForContext = (results: QueryResults): string => {
         return `${cellStr.substring(0, MAX_CONTEXT_CHARS_PER_CELL - 3)}...`;
       }
       return processedCell;
-    })
+    }),
   );
 
   // Create JSON representation (BigInt already handled in truncatedData)
-  const dataJson = truncatedData.map(row => {
+  const dataJson = truncatedData.map((row) => {
     const obj: Record<string, any> = {};
     columns.forEach((col, idx) => {
       obj[col] = row[idx];
@@ -54,11 +54,15 @@ export const formatResultsForContext = (results: QueryResults): string => {
     return obj;
   });
 
-  return JSON.stringify({
-    columns,
-    rowCount,
-    truncated: truncated || rows.length > MAX_CONTEXT_ROWS,
-    sampleInfo: sampleInfo || (truncated ? ' (truncated to 100 rows)' : ''),
-    data: dataJson,
-  }, bigIntReplacer, 2);
+  return JSON.stringify(
+    {
+      columns,
+      rowCount,
+      truncated: truncated || rows.length > MAX_CONTEXT_ROWS,
+      sampleInfo: sampleInfo || (truncated ? ' (truncated to 100 rows)' : ''),
+      data: dataJson,
+    },
+    bigIntReplacer,
+    2,
+  );
 };

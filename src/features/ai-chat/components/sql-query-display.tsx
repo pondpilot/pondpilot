@@ -2,10 +2,27 @@ import { showSuccess } from '@components/app-notifications';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { SqlEditor } from '@features/editor/sql-editor';
-import { ActionIcon, Code, Group, Tooltip, Badge, Box, useMantineColorScheme, LoadingOverlay, Text } from '@mantine/core';
+import {
+  ActionIcon,
+  Code,
+  Group,
+  Tooltip,
+  Badge,
+  Box,
+  useMantineColorScheme,
+  LoadingOverlay,
+  Text,
+} from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
 import { ChatMessageQuery } from '@models/ai-chat';
-import { IconCopy, IconExternalLink, IconPlayerPlay, IconPencil, IconCheck, IconX } from '@tabler/icons-react';
+import {
+  IconCopy,
+  IconExternalLink,
+  IconPlayerPlay,
+  IconPencil,
+  IconCheck,
+  IconX,
+} from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { ChatResultTable } from './chat-result-table';
@@ -163,7 +180,10 @@ export const SqlQueryDisplay = ({
             </div>
           </div>
         ) : (
-          <Code block className="language-sql text-xs bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border border-borderPrimary-light dark:border-borderPrimary-dark">
+          <Code
+            block
+            className="language-sql text-xs bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border border-borderPrimary-light dark:border-borderPrimary-dark"
+          >
             {query.sql}
           </Code>
         )}
