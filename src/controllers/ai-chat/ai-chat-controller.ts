@@ -46,7 +46,10 @@ export class AIChatController {
     this.notify();
   }
 
-  addMessage(conversationId: ChatConversationId, message: Omit<ChatMessage, 'id'>): ChatMessage | undefined {
+  addMessage(
+    conversationId: ChatConversationId,
+    message: Omit<ChatMessage, 'id'>,
+  ): ChatMessage | undefined {
     const conversation = this.conversations.get(conversationId);
     if (!conversation) return undefined;
 
@@ -71,7 +74,7 @@ export class AIChatController {
   updateMessage(
     conversationId: ChatConversationId,
     messageId: ChatMessageId,
-    updates: Partial<ChatMessage>
+    updates: Partial<ChatMessage>,
   ): void {
     const conversation = this.conversations.get(conversationId);
     if (!conversation) return;
@@ -172,13 +175,13 @@ export class AIChatController {
   }
 
   private notify(): void {
-    this.listeners.forEach(listener => listener());
+    this.listeners.forEach((listener) => listener());
   }
 
   // Hydration method for loading persisted data
   hydrate(conversations: ChatConversation[]): void {
     this.conversations.clear();
-    conversations.forEach(conversation => {
+    conversations.forEach((conversation) => {
       this.conversations.set(conversation.id, conversation);
     });
     this.notify();

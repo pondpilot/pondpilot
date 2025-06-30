@@ -1,8 +1,8 @@
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript, createAIChatTab } from '@controllers/tab';
+import { ChatExplorer } from '@features/chat-explorer';
 import { DataExplorer } from '@features/data-explorer';
 import { ScriptExplorer } from '@features/script-explorer';
-import { ChatExplorer } from '@features/chat-explorer';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { ActionIcon, Group, Skeleton, Stack, Text, Tooltip, Box } from '@mantine/core';
 import { APP_GITHUB_URL } from '@models/app-urls';
@@ -86,7 +86,9 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
   // Calculate if all sections are expanded before toggle section
   const allExpanded = sectionStates.dataExplorer && sectionStates.queries && sectionStates.aiChat;
   // Calculate if at least two sections are expanded (for resizing logic)
-  const multipleSectionsExpanded = [sectionStates.dataExplorer, sectionStates.queries, sectionStates.aiChat].filter(Boolean).length >= 2;
+  const multipleSectionsExpanded =
+    [sectionStates.dataExplorer, sectionStates.queries, sectionStates.aiChat].filter(Boolean)
+      .length >= 2;
 
   const toggleSection = (section: keyof SectionState) => {
     setSectionStates((prev) => {
@@ -96,9 +98,13 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
       };
 
       // Calculate how many sections will be expanded after this toggle
-      const newExpandedCount = [newState.dataExplorer, newState.queries, newState.aiChat].filter(Boolean).length;
-      const prevExpandedCount = [prev.dataExplorer, prev.queries, prev.aiChat].filter(Boolean).length;
-      
+      const newExpandedCount = [newState.dataExplorer, newState.queries, newState.aiChat].filter(
+        Boolean,
+      ).length;
+      const prevExpandedCount = [prev.dataExplorer, prev.queries, prev.aiChat].filter(
+        Boolean,
+      ).length;
+
       // When transitioning from one section to multiple sections
       if (newExpandedCount >= 2 && prevExpandedCount === 1) {
         // If expanding from only one section to multiple, set a reasonable default height
@@ -108,7 +114,11 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
           const headerHeight = 36; // px
           const footerHeight = 34; // px
           const expandedSections = newExpandedCount;
-          const availableHeight = containerHeight - headerHeight * expandedSections - footerHeight - (expandedSections - 1); // resize handles
+          const availableHeight =
+            containerHeight -
+            headerHeight * expandedSections -
+            footerHeight -
+            (expandedSections - 1); // resize handles
           // Set data explorer to proportional space by default
           setDataExplorerHeight(Math.max(100, Math.floor(availableHeight / expandedSections)));
         } else {

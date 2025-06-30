@@ -38,13 +38,15 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
     ...spec,
     width: spec.width || dimensions.width,
     height: spec.height || dimensions.height,
-    data: spec.data || { values: results.rows.map((row) => {
-      const obj: any = {};
-      results.columns.forEach((col, j) => {
-        obj[col] = row[j];
-      });
-      return obj;
-    }) },
+    data: spec.data || {
+      values: results.rows.map((row) => {
+        const obj: any = {};
+        results.columns.forEach((col, j) => {
+          obj[col] = row[j];
+        });
+        return obj;
+      }),
+    },
     config: {
       ...spec.config,
       ...getChartThemeConfig(colorScheme as 'light' | 'dark'),
@@ -145,22 +147,13 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
               </Tooltip>
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu.Item
-                leftSection={<IconPhoto size={14} />}
-                onClick={handleExportPNG}
-              >
+              <Menu.Item leftSection={<IconPhoto size={14} />} onClick={handleExportPNG}>
                 Export as PNG
               </Menu.Item>
-              <Menu.Item
-                leftSection={<IconPhoto size={14} />}
-                onClick={handleExportSVG}
-              >
+              <Menu.Item leftSection={<IconPhoto size={14} />} onClick={handleExportSVG}>
                 Export as SVG
               </Menu.Item>
-              <Menu.Item
-                leftSection={<IconCopy size={14} />}
-                onClick={handleCopySpec}
-              >
+              <Menu.Item leftSection={<IconCopy size={14} />} onClick={handleCopySpec}>
                 Copy Vega-Lite spec
               </Menu.Item>
             </Menu.Dropdown>
@@ -173,12 +166,7 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
         className="overflow-hidden rounded-md bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
         style={{ minHeight: dimensions.height + 40 }}
       >
-        <VegaLite
-          spec={enhancedSpec}
-          actions={false}
-          renderer="canvas"
-          className="w-full"
-        />
+        <VegaLite spec={enhancedSpec} actions={false} renderer="canvas" className="w-full" />
       </Box>
 
       {results.truncated && (

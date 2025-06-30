@@ -45,7 +45,7 @@ export const ChatMessageList = ({
               'bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark',
               'border-borderSecondary-light dark:border-borderSecondary-dark',
               'shadow-sm px-4 py-3',
-              'chat-loading-message ai-chat-message-enter'
+              'chat-loading-message ai-chat-message-enter',
             )}
             radius="md"
             withBorder
@@ -65,7 +65,7 @@ export const ChatMessageList = ({
             className={cn(
               'bg-red-50 dark:bg-red-950/30',
               'border-red-200 dark:border-red-800',
-              'shadow-sm px-4 py-3'
+              'shadow-sm px-4 py-3',
             )}
             radius="md"
             withBorder

@@ -155,14 +155,29 @@ export function isValidVegaLiteSpec(spec: any): spec is VegaLiteSpec {
 
 // Validate encoding types
 export function isValidEncodingType(type: string | undefined): boolean {
-  return type !== undefined && ['quantitative', 'temporal', 'ordinal', 'nominal', 'geojson'].includes(type);
+  return (
+    type !== undefined &&
+    ['quantitative', 'temporal', 'ordinal', 'nominal', 'geojson'].includes(type)
+  );
 }
 
 // Validate mark types
 export function isValidMarkType(mark: string): mark is VegaLiteMark {
   return [
-    'area', 'bar', 'circle', 'line', 'point', 'rect', 'rule',
-    'square', 'text', 'tick', 'trail', 'geoshape', 'boxplot',
-    'errorband', 'errorbar',
+    'area',
+    'bar',
+    'circle',
+    'line',
+    'point',
+    'rect',
+    'rule',
+    'square',
+    'text',
+    'tick',
+    'trail',
+    'geoshape',
+    'boxplot',
+    'errorband',
+    'errorbar',
   ].includes(mark);
 }

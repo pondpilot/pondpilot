@@ -29,10 +29,13 @@ test.describe('AI Chat Feature', () => {
   test.beforeEach(async ({ storage, testTmp, filePicker, addFileButton }) => {
     // Create test data file
     const testDataPath = testTmp.join('test_data.csv');
-    createFile(testDataPath, `id,name,value
+    createFile(
+      testDataPath,
+      `id,name,value
 1,Alice,100
 2,Bob,200
-3,Charlie,300`);
+3,Charlie,300`,
+    );
 
     // Upload test data file
     await storage.uploadFile(testDataPath, 'test_data.csv');
@@ -57,7 +60,10 @@ test.describe('AI Chat Feature', () => {
     await page.click('text=Chat with Data');
 
     // Wait for spotlight to close
-    await page.waitForSelector('[data-testid="spotlight-search"]', { state: 'hidden', timeout: 5000 });
+    await page.waitForSelector('[data-testid="spotlight-search"]', {
+      state: 'hidden',
+      timeout: 5000,
+    });
 
     // Verify chat tab is created
     await aiChat.assertChatTabExists();
@@ -188,7 +194,7 @@ test.describe('AI Chat Feature', () => {
     await aiChat.waitForResponse();
 
     // Wait for new result
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Allow UI to update
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // Allow UI to update
 
     // Get all query results (should be 2)
     const allResults = await aiChat.page.$$('[data-testid="ai-chat-query-result"]');
@@ -228,12 +234,22 @@ test.describe('AI Chat Feature', () => {
     await aiChat.assertMessageContains('0 rows');
   });
 
-  test('should format different data types correctly', async ({ aiChat, storage, page, testTmp, filePicker, addFileButton }) => {
+  test('should format different data types correctly', async ({
+    aiChat,
+    storage,
+    page,
+    testTmp,
+    filePicker,
+    addFileButton,
+  }) => {
     // Upload data with various types
     const mixedTypesPath = testTmp.join('mixed_types.csv');
-    createFile(mixedTypesPath, `date,number,boolean,text
+    createFile(
+      mixedTypesPath,
+      `date,number,boolean,text
 2024-01-01,123.45,true,Hello
-2024-02-01,456.78,false,World`);
+2024-02-01,456.78,false,World`,
+    );
     await storage.uploadFile(mixedTypesPath, 'mixed_types.csv');
 
     await filePicker.selectFiles(['mixed_types.csv']);
@@ -252,7 +268,14 @@ test.describe('AI Chat Feature', () => {
     expect(result!.rows[0]).toContain('123.45');
   });
 
-  test('should show truncation message for large results', async ({ aiChat, storage, page, testTmp, filePicker, addFileButton }) => {
+  test('should show truncation message for large results', async ({
+    aiChat,
+    storage,
+    page,
+    testTmp,
+    filePicker,
+    addFileButton,
+  }) => {
     // Create CSV with 150 rows
     const rows = ['id,value'];
     for (let i = 1; i <= 150; i++) {
@@ -274,7 +297,14 @@ test.describe('AI Chat Feature', () => {
     await aiChat.assertMessageContains('100');
   });
 
-  test('should handle schema context correctly', async ({ aiChat, storage, page, testTmp, filePicker, addFileButton }) => {
+  test('should handle schema context correctly', async ({
+    aiChat,
+    storage,
+    page,
+    testTmp,
+    filePicker,
+    addFileButton,
+  }) => {
     // Upload multiple files to have richer schema
     const productsPath = testTmp.join('products.csv');
     createFile(productsPath, 'id,product\n1,Apple\n2,Banana');

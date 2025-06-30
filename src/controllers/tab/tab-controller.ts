@@ -326,10 +326,7 @@ export const getOrCreateTabFromScript = (
  * @param title - Optional title for the new conversation
  * @returns An AI Chat tab object.
  */
-export const createAIChatTab = (
-  setActive: boolean = false,
-  title?: string,
-): AIChatTab => {
+export const createAIChatTab = (setActive: boolean = false, title?: string): AIChatTab => {
   const state = useAppStore.getState();
 
   // Create a new conversation

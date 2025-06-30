@@ -2,7 +2,10 @@ import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
 import { aiChatController } from '@controllers/ai-chat';
-import { deletePersistedConversation, updatePersistedConversation } from '@controllers/ai-chat/persist';
+import {
+  deletePersistedConversation,
+  updatePersistedConversation,
+} from '@controllers/ai-chat/persist';
 import {
   deleteTabByConversationId,
   findTabFromConversation,
@@ -82,9 +85,7 @@ export const ChatExplorer = memo(() => {
   useAIChatSubscription();
 
   // Local state to store conversations
-  const [conversations, setConversations] = useState(() =>
-    aiChatController.getAllConversations()
-  );
+  const [conversations, setConversations] = useState(() => aiChatController.getAllConversations());
 
   // Update when conversations change
   useEffect(() => {
@@ -117,8 +118,8 @@ export const ChatExplorer = memo(() => {
   });
 
   // Sort conversations by updated date (most recent first)
-  const sortedConversations = [...conversations].sort((a, b) =>
-    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  const sortedConversations = [...conversations].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
   );
 
   const contextMenu: TreeNodeMenuType<TreeNodeData<ChatNodeTypeToIdTypeMap>> = [
@@ -138,10 +139,11 @@ export const ChatExplorer = memo(() => {
     (conversation) => {
       // Generate a display name for the conversation
       const lastMessage = conversation.messages[conversation.messages.length - 1];
-      const title = conversation.title ||
-        (lastMessage?.role === 'user' ?
-          lastMessage.content.slice(0, 50) + (lastMessage.content.length > 50 ? '...' : '') :
-          'Untitled chat');
+      const title =
+        conversation.title ||
+        (lastMessage?.role === 'user'
+          ? lastMessage.content.slice(0, 50) + (lastMessage.content.length > 50 ? '...' : '')
+          : 'Untitled chat');
 
       const updatedDate = new Date(conversation.updatedAt);
       const dateStr = updatedDate.toLocaleDateString();
@@ -178,7 +180,7 @@ export const ChatExplorer = memo(() => {
         },
         // no children
       } as TreeNodeData<ChatNodeTypeToIdTypeMap>;
-    }
+    },
   );
 
   // Use the common explorer context hook
