@@ -9,6 +9,36 @@ interface TabCleanup {
 /**
  * Global registry for active data adapter cleanup functions.
  * This allows us to cancel all active queries and wait for cleanup before file deletion.
+ *
+ * ## Purpose
+ *
+ * The DataAdapterRegistry serves as a centralized coordination point for managing
+ * asynchronous data operations across multiple tabs. It implements the Observer/Registry
+ * pattern to decouple high-level operations (like deleting data sources) from low-level
+ * components (like individual data adapters).
+ *
+ * ## Architecture
+ *
+ * This is a singleton pattern that maintains a map of tab IDs to their cleanup functions.
+ * Each data adapter registers its cancellation and cleanup functions when mounted, and
+ * unregisters them when unmounted. This ensures that:
+ *
+ * 1. We can cleanly cancel all running queries before file operations
+ * 2. We can wait for all async operations to complete before proceeding
+ * 3. We avoid race conditions when deleting files that may still be in use
+ *
+ * ## Usage
+ *
+ * - Data adapters register themselves on mount using `register()`
+ * - Data adapters unregister themselves on unmount using `unregister()`
+ * - File deletion operations call `cancelTabsAndWaitForCleanup()` before attempting
+ *   to delete files, ensuring all connections are properly released
+ *
+ * ## Error Handling
+ *
+ * The registry uses defensive error handling - if a cleanup operation fails or times out,
+ * it logs a warning but continues with other cleanups. This ensures that one failed
+ * cleanup doesn't prevent other tabs from being cleaned up properly.
  */
 class DataAdapterRegistry {
   private cleanups = new Map<TabId, TabCleanup>();

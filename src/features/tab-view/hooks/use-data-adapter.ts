@@ -845,7 +845,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       dataAdapterRegistry.unregister(tab.id);
 
       // Still run cleanup on unmount
-      cleanupAsync();
+      cleanupAsync().catch((error) => {
+        // Log the error but don't propagate it to avoid unhandled promise rejection
+        if (!isQueryCancelledError(error)) {
+          console.error('Error during data adapter cleanup:', error);
+        }
+      });
     };
     // We intentionally use this only on mount, as we want different
     // behavior on all other changes - handled by the effect above
