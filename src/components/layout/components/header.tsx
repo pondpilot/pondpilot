@@ -27,7 +27,9 @@ export const Header = memo(() => {
     </Group>
   ) : (
     <Group className="gap-3 cursor-default">
-      <div className="bg-red-500 text-white px-2 py-1 rounded text-sm font-bold">CACHE TEST v2</div>
+      <div className="bg-green-500 text-white px-2 py-1 rounded text-sm font-bold">
+        CACHE TEST v3
+      </div>
       <Group gap={4} align="baseline">
         <Text size="lg" fw={600} className="text-textPrimary-light dark:text-textPrimary-dark">
           PondPilot
