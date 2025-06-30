@@ -1,0 +1,62 @@
+# Cache control headers for PondPilot
+
+# HTML files - never cache to ensure fresh app shell
+/*.html
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# Root HTML
+/
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# Service Worker - never cache to ensure updates
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# Manifest - short cache to allow updates
+/manifest.webmanifest
+  Cache-Control: public, max-age=3600
+
+# JavaScript and CSS files with hashes - aggressive caching (1 year)
+/assets/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# WASM files - long cache for DuckDB modules
+/assets/*.wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+# Static assets - moderate caching
+/assets/*.png
+  Cache-Control: public, max-age=2592000
+
+/assets/*.svg
+  Cache-Control: public, max-age=2592000
+
+/assets/*.ico
+  Cache-Control: public, max-age=2592000
+
+# Fonts - long cache
+/assets/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*.woff
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*.ttf
+  Cache-Control: public, max-age=31536000, immutable
+
+# JSON files - no cache to ensure fresh data
+/assets/*.json
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# Favicon
+/favicon.svg
+  Cache-Control: public, max-age=86400

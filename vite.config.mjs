@@ -32,6 +32,11 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         workbox: {
           maximumFileSizeToCacheInBytes: 25000000,
+          // Force immediate activation and control
+          clientsClaim: true,
+          skipWaiting: true,
+          // Clean up old caches automatically
+          cleanupOutdatedCaches: true,
           // Cache duckdb CDN resources
           runtimeCaching: [
             {
