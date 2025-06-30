@@ -9,9 +9,9 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 
+import { ChatVisualization } from './chat-visualization';
 import { MessageActions } from './message-actions';
 import { SqlQueryDisplay } from './sql-query-display';
-import { ChatVisualization } from './chat-visualization';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -160,32 +160,32 @@ export const ChatMessage = ({
                   <ReactMarkdown
                     rehypePlugins={[rehypeSanitize]}
                     components={{
-                code: ({ className, children, ...props }) => {
-                  const match = /language-(\w+)/.exec(className || '');
-                  const language = match ? match[1] : '';
-                  const inline = !className || !className.includes('language-');
+                      code: ({ className, children, ...props }) => {
+                        const match = /language-(\w+)/.exec(className || '');
+                        const language = match ? match[1] : '';
+                        const inline = !className || !className.includes('language-');
 
-                  if (!inline && language === 'sql' && !message.query) {
-                    // SQL code block without execution
-                    return (
-                      <div className="my-2">
-                        <Code block className="language-sql">
-                          {String(children).replace(/\n$/, '')}
-                        </Code>
-                      </div>
-                    );
-                  }
+                        if (!inline && language === 'sql' && !message.query) {
+                          // SQL code block without execution
+                          return (
+                            <div className="my-2">
+                              <Code block className="language-sql">
+                                {String(children).replace(/\n$/, '')}
+                              </Code>
+                            </div>
+                          );
+                        }
 
-                  return inline ? (
-                    <Code {...props}>{children}</Code>
-                  ) : (
-                    <Code block {...props}>
-                      {children}
-                    </Code>
-                  );
-                },
-              }}
-                    >
+                        return inline ? (
+                          <Code {...props}>{children}</Code>
+                        ) : (
+                          <Code block {...props}>
+                            {children}
+                          </Code>
+                        );
+                      },
+                    }}
+                  >
                       {message.content}
                   </ReactMarkdown>
                 </div>
@@ -212,7 +212,9 @@ export const ChatMessage = ({
           )}
 
           {/* Chart visualization - show as separate widget or loading state */}
-          {message.query && (message.query.chartSpec || message.query.isGeneratingChart) && !message.query.error && (
+          {message.query &&
+            (message.query.chartSpec || message.query.isGeneratingChart) &&
+            !message.query.error && (
             <Box className="mt-3">
               <ChatVisualization query={message.query} />
             </Box>

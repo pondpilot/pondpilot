@@ -8,15 +8,15 @@ export interface VegaLiteSpec {
   height?: number | 'container';
   padding?: number | { left?: number; right?: number; top?: number; bottom?: number };
   autosize?: 'fit' | 'fit-x' | 'fit-y' | 'none' | 'pad';
-  
+
   data?: {
     values?: any[];
     url?: string;
     name?: string;
   };
-  
+
   mark: VegaLiteMark | VegaLiteMarkDef;
-  
+
   encoding?: {
     x?: VegaLiteEncoding;
     y?: VegaLiteEncoding;
@@ -27,18 +27,18 @@ export interface VegaLiteSpec {
     tooltip?: VegaLiteEncoding | VegaLiteEncoding[];
     [key: string]: VegaLiteEncoding | VegaLiteEncoding[] | undefined;
   };
-  
+
   layer?: VegaLiteSpec[];
   concat?: VegaLiteSpec[];
   vconcat?: VegaLiteSpec[];
   hconcat?: VegaLiteSpec[];
-  
+
   transform?: VegaLiteTransform[];
-  
+
   config?: VegaLiteConfig;
 }
 
-export type VegaLiteMark = 
+export type VegaLiteMark =
   | 'area'
   | 'bar'
   | 'circle'
@@ -106,12 +106,12 @@ export interface VegaLiteTransform {
 export interface VegaLiteConfig {
   background?: string;
   padding?: number | { left?: number; right?: number; top?: number; bottom?: number };
-  
+
   mark?: {
     color?: string;
     [key: string]: any;
   };
-  
+
   axis?: {
     labelColor?: string;
     titleColor?: string;
@@ -120,24 +120,24 @@ export interface VegaLiteConfig {
     tickColor?: string;
     [key: string]: any;
   };
-  
+
   legend?: {
     labelColor?: string;
     titleColor?: string;
     [key: string]: any;
   };
-  
+
   title?: {
     color?: string;
     fontSize?: number;
     [key: string]: any;
   };
-  
+
   view?: {
     stroke?: string;
     [key: string]: any;
   };
-  
+
   [key: string]: any;
 }
 
@@ -163,6 +163,6 @@ export function isValidMarkType(mark: string): mark is VegaLiteMark {
   return [
     'area', 'bar', 'circle', 'line', 'point', 'rect', 'rule',
     'square', 'text', 'tick', 'trail', 'geoshape', 'boxplot',
-    'errorband', 'errorbar'
+    'errorband', 'errorbar',
   ].includes(mark);
 }
