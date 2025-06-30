@@ -1,8 +1,9 @@
 import { showSuccess } from '@components/app-notifications';
-import { Table, ScrollArea, Text, Box, ActionIcon, Tooltip, Menu } from '@mantine/core';
+import { NamedIcon } from '@components/named-icon';
+import { ScrollArea, Text, Box, ActionIcon, Tooltip, Menu, Group, Badge } from '@mantine/core';
 import { useClipboard } from '@mantine/hooks';
 import { QueryResults } from '@models/ai-chat';
-import { IconCopy, IconDownload, IconSortAscending, IconSortDescending } from '@tabler/icons-react';
+import { IconCopy, IconDownload, IconTriangleInvertedFilled } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { useState, useMemo } from 'react';
 
@@ -108,151 +109,181 @@ export const ChatResultTable = ({ results }: ChatResultTableProps) => {
 
   if (results.rows.length === 0) {
     return (
-      <Box className="text-center py-8 text-textSecondary-light dark:text-textSecondary-dark">
-        <Text size="sm">No results returned</Text>
-      </Box>
+      <div className="w-full">
+        <div className="w-full h-10 flex justify-center items-center text-textSecondary-light dark:text-textSecondary-dark border border-borderLight-light dark:border-borderLight-dark rounded-xl bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark">
+          <Text size="sm" c="text-secondary">No results</Text>
+        </div>
+      </div>
     );
   }
 
-  // Use simple table for small results
-  const isLargeResult = results.rows.length > 20 || results.columns.length > 10;
-
   return (
-    <div className="relative">
-      {/* Export button */}
-      <Box className="absolute -top-10 right-0 z-10">
-        <Tooltip label="Export as CSV">
-          <ActionIcon
-            size="sm"
-            variant="subtle"
-            onClick={handleExportCsv}
-            className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
-          >
-            <IconDownload size={14} />
-          </ActionIcon>
-        </Tooltip>
+    <div className="w-full">
+      {/* Header with results count and export button */}
+      <Box className="bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark px-4 py-2 rounded-t-xl border border-borderLight-light dark:border-borderLight-dark border-b-0">
+        <Group justify="space-between">
+          <Group gap="xs">
+            <Badge size="sm" variant="dot" color="green" className="result-badge">
+              Results
+            </Badge>
+            <Text size="xs" c="dimmed">
+              {results.rows.length} rows
+            </Text>
+          </Group>
+          <Tooltip label="Export as CSV">
+            <ActionIcon
+              size="sm"
+              variant="subtle"
+              onClick={handleExportCsv}
+              className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
+            >
+              <IconDownload size={14} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
       </Box>
 
-      <ScrollArea className={cn(isLargeResult ? 'max-h-96' : 'max-h-64')} scrollbarSize={6}>
-        <Table
-          striped={false}
-          highlightOnHover
-          withTableBorder={false}
-          className="text-xs chat-result-table"
-          data-testid="ai-chat-query-result"
-          styles={{
-            table: {
-              borderCollapse: 'collapse',
-            },
-            td: {
-              padding: '6px 12px',
-              borderBottom: '1px solid var(--mantine-color-gray-2)',
-            },
-            th: {
-              padding: '8px 12px',
-              borderBottom: '2px solid var(--mantine-color-gray-3)',
-              background: 'var(--mantine-color-gray-0)',
-              fontWeight: 600,
-              fontSize: '0.75rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.025em',
-            },
-          }}
-        >
-          <thead>
-            <tr>
-              {results.columns.map((column, index) => (
-                <th key={index} className="group relative">
-                  <Box className="flex items-center gap-1">
-                    <Text
-                      size="xs"
-                      className="cursor-pointer select-none"
-                      onClick={() => handleSort(index)}
-                    >
-                      {column}
-                    </Text>
-                    <ActionIcon
-                      size="xs"
-                      variant="subtle"
-                      onClick={() => handleSort(index)}
+      {/* Table container */}
+      <div className="overflow-hidden rounded-b-xl border border-borderLight-light dark:border-borderLight-dark border-t-0">
+        <ScrollArea className="max-h-96" scrollbarSize={6}>
+          <div className="w-full">
+            {/* Table header */}
+            <div className="sticky top-0 z-10 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark">
+              <div className="bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark">
+                <div className="flex">
+                  {results.columns.map((column, index) => (
+                    <button
+                      key={index}
+                      type="button"
                       className={cn(
-                        'opacity-0 group-hover:opacity-100 transition-opacity',
-                        sortConfig?.column === index && 'opacity-100',
+                        'relative z-10 flex items-center gap-2 px-4 py-[11px] h-[40px] text-sm font-medium',
+                        'text-textPrimary-light dark:text-textPrimary-dark whitespace-nowrap select-none',
+                        'border-r border-borderLight-light dark:border-borderLight-dark',
+                        'cursor-pointer group overflow-hidden',
+                        'min-w-[100px] flex-1',
+                        'bg-transparent border-0 hover:bg-transparent',
+                        index === 0 && 'rounded-tl-xl',
+                        index === results.columns.length - 1 && 'rounded-tr-xl border-r-0',
                       )}
+                      onClick={() => handleSort(index)}
                     >
-                      {sortConfig?.column === index && sortConfig.direction === 'desc' ? (
-                        <IconSortDescending size={12} />
-                      ) : (
-                        <IconSortAscending size={12} />
-                      )}
-                    </ActionIcon>
-                  </Box>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sortedRows.map((row, rowIndex) => (
-              <tr key={rowIndex} className="group">
-                {row.map((cell, cellIndex) => (
-                  <td
-                    key={cellIndex}
-                    className="relative"
-                    onMouseEnter={() => setHoveredCell({ row: rowIndex, col: cellIndex })}
-                    onMouseLeave={() => setHoveredCell(null)}
-                  >
-                    <Box className="flex items-center justify-between gap-2">
-                      {cell === null ? (
-                        <Text c="dimmed" size="xs" fs="italic">
-                          NULL
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="text-iconDefault-light dark:text-iconDefault-dark flex-shrink-0">
+                          <NamedIcon iconType="column-other" size={16} />
+                        </div>
+                        <Text size="sm" fw={500} c="text-contrast" truncate="end" className="flex-1">
+                          {column}
                         </Text>
-                      ) : typeof cell === 'object' ? (
-                        <Text size="xs" className="font-mono">
-                          {JSON.stringify(cell)}
-                        </Text>
-                      ) : (
-                        <Text size="xs">{String(cell)}</Text>
-                      )}
+                        <IconTriangleInvertedFilled
+                          size={8}
+                          className={cn(
+                            'opacity-0 text-iconDefault-light dark:text-iconDefault-dark flex-shrink-0',
+                            'group-hover:opacity-100',
+                            sortConfig?.column === index && 'opacity-100',
+                            sortConfig?.column === index &&
+                              sortConfig.direction === 'desc' &&
+                              'rotate-180',
+                          )}
+                        />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-                      {/* Copy actions */}
-                      {hoveredCell?.row === rowIndex && hoveredCell?.col === cellIndex && (
-                        <Menu position="bottom-end" withArrow shadow="md">
-                          <Menu.Target>
-                            <ActionIcon
-                              size="xs"
-                              variant="subtle"
-                              className="opacity-0 group-hover:opacity-100"
+            {/* Table body */}
+            <div>
+              {sortedRows.map((row, rowIndex) => {
+                const oddRow = rowIndex % 2 !== 0;
+                const lastRow = rowIndex === sortedRows.length - 1;
+
+                return (
+                  <div
+                    key={rowIndex}
+                    className={cn(
+                      'flex border-b border-borderLight-light dark:border-borderLight-dark',
+                      oddRow && 'bg-transparent004-light dark:bg-transparent004-dark',
+                      lastRow && 'rounded-bl-xl rounded-br-xl border-b',
+                    )}
+                  >
+                    {row.map((cell, cellIndex) => {
+                      const isLastCell = cellIndex === row.length - 1;
+                      const isNumber = typeof cell === 'number';
+
+                      return (
+                        <div
+                          key={cellIndex}
+                          className={cn(
+                            'relative whitespace-nowrap overflow-hidden border-transparent select-none',
+                            'border-r border-borderLight-light dark:border-borderLight-dark',
+                            'min-w-[100px] flex-1 group/cell',
+                            isLastCell && 'border-r-0',
+                            lastRow && cellIndex === 0 && 'rounded-bl-lg',
+                            lastRow && isLastCell && 'rounded-br-lg',
+                          )}
+                          onMouseEnter={() => setHoveredCell({ row: rowIndex, col: cellIndex })}
+                          onMouseLeave={() => setHoveredCell(null)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div
+                              className={cn(
+                                'text-sm p-2 overflow-hidden text-ellipsis whitespace-nowrap',
+                                isNumber && 'justify-end font-mono flex w-full',
+                                cell === null && 'italic text-textSecondary-light dark:text-textSecondary-dark',
+                              )}
                             >
-                              <IconCopy size={12} />
-                            </ActionIcon>
-                          </Menu.Target>
-                          <Menu.Dropdown>
-                            <Menu.Item
-                              leftSection={<IconCopy size={14} />}
-                              onClick={() => handleCopyCell(cell)}
-                            >
-                              Copy cell
-                            </Menu.Item>
-                            <Menu.Item
-                              leftSection={<IconCopy size={14} />}
-                              onClick={() => handleCopyRow(row)}
-                            >
-                              Copy row
-                            </Menu.Item>
-                          </Menu.Dropdown>
-                        </Menu>
-                      )}
-                    </Box>
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      </ScrollArea>
+                              {cell === null ? (
+                                'NULL'
+                              ) : typeof cell === 'object' ? (
+                                <span className="font-mono">{JSON.stringify(cell)}</span>
+                              ) : (
+                                String(cell)
+                              )}
+                            </div>
+
+                            {/* Copy actions */}
+                            {hoveredCell?.row === rowIndex && hoveredCell?.col === cellIndex && (
+                              <Menu position="bottom-end" withArrow shadow="md">
+                                <Menu.Target>
+                                  <ActionIcon
+                                    size="xs"
+                                    variant="subtle"
+                                    className="opacity-0 group-hover/cell:opacity-100 mr-2"
+                                  >
+                                    <IconCopy size={12} />
+                                  </ActionIcon>
+                                </Menu.Target>
+                                <Menu.Dropdown>
+                                  <Menu.Item
+                                    leftSection={<IconCopy size={14} />}
+                                    onClick={() => handleCopyCell(cell)}
+                                  >
+                                    Copy cell
+                                  </Menu.Item>
+                                  <Menu.Item
+                                    leftSection={<IconCopy size={14} />}
+                                    onClick={() => handleCopyRow(row)}
+                                  >
+                                    Copy row
+                                  </Menu.Item>
+                                </Menu.Dropdown>
+                              </Menu>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </ScrollArea>
+      </div>
 
       {results.truncated && (
-        <Box className="text-center py-2 border-t border-borderPrimary-light dark:border-borderPrimary-dark">
+        <Box className="text-center py-2 mt-2">
           <Text size="xs" c="dimmed">
             Showing first {results.rowCount} rows
           </Text>
