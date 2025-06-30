@@ -4,8 +4,7 @@ import { getOrCreateTabFromScript } from '@controllers/tab';
 import { Box, Text, Badge, Group, ActionIcon, Tooltip, Collapse, Code, Loader, Center } from '@mantine/core';
 import { useDisclosure, useClipboard } from '@mantine/hooks';
 import { ChatMessageQuery } from '@models/ai-chat';
-import { IconCode, IconExternalLink, IconCopy, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
-import { cn } from '@utils/ui/styles';
+import { IconCode, IconExternalLink, IconCopy, IconChevronUp } from '@tabler/icons-react';
 
 import { ChatResultChart } from './chat-result-chart';
 

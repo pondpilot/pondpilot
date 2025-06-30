@@ -70,8 +70,8 @@ export function parseAIResponse(content: string): ParsedAIResponse {
   if (sqlMatch && sqlMatch[1]) {
     const sql = sqlMatch[1].trim();
     const explanation = explanationMatch ? explanationMatch[1].trim() : content.split('[SQL]')[0].trim();
-    
-    let chartSpec = undefined;
+
+    let chartSpec;
     if (vegaLiteMatch && vegaLiteMatch[1]) {
       try {
         // Parse the Vega-Lite JSON specification

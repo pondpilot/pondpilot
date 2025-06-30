@@ -5,6 +5,7 @@ import { VegaLiteSpec } from '@models/vega-lite';
 import { IconDownload, IconCopy, IconPhoto } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { VegaLite } from 'react-vega';
+
 import { getChartThemeConfig } from '../constants/chart-theme';
 
 interface ChatResultChartProps {
@@ -37,13 +38,13 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
     ...spec,
     width: spec.width || dimensions.width,
     height: spec.height || dimensions.height,
-    data: spec.data || { values: results.rows.map((row, i) => {
+    data: spec.data || { values: results.rows.map((row) => {
       const obj: any = {};
       results.columns.forEach((col, j) => {
         obj[col] = row[j];
       });
       return obj;
-    })},
+    }) },
     config: {
       ...spec.config,
       ...getChartThemeConfig(colorScheme as 'light' | 'dark'),
@@ -98,7 +99,7 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
       // Clone and prepare SVG
       const svgClone = svgElement.cloneNode(true) as SVGElement;
       const svgString = new XMLSerializer().serializeToString(svgClone);
-      
+
       // Create blob and download
       const blob = new Blob([svgString], { type: 'image/svg+xml' });
       const url = URL.createObjectURL(blob);
@@ -168,7 +169,7 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
       </Box>
 
       {/* Chart */}
-      <Box 
+      <Box
         className="overflow-hidden rounded-md bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
         style={{ minHeight: dimensions.height + 40 }}
       >

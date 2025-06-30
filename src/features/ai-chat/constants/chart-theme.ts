@@ -57,7 +57,7 @@ export type ColorScheme = keyof ChartTheme;
  */
 export function getChartThemeConfig(colorScheme: 'light' | 'dark') {
   const theme = CHART_THEME[colorScheme];
-  
+
   return {
     background: theme.background,
     axis: theme.axis,

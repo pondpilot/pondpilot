@@ -66,13 +66,13 @@ Respond with ONLY the JSON specification, no explanation:`;
       // Remove markdown code block if present
       const jsonContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim();
       const parsedSpec = JSON.parse(jsonContent);
-      
+
       // Validate the spec structure
       if (!isValidVegaLiteSpec(parsedSpec)) {
         console.error('Invalid Vega-Lite specification structure');
         return null;
       }
-      
+
       return parsedSpec as VegaLiteSpec;
     } catch (e) {
       console.error('Failed to parse chart specification:', e);
@@ -181,7 +181,7 @@ Respond with ONLY the JSON specification, no explanation:`;
         let generatedChartSpec = chartSpec;
         if (!generatedChartSpec && queryResult.successful && queryResult.results) {
           const dataAnalysis = analyzeChartableData(queryResult.results);
-          
+
           // Generate chart if data is chartable and user seems interested in visualization
           if (dataAnalysis.isChartable || userWantsVisualization(userMessage)) {
             // First update to show loading state
@@ -193,7 +193,11 @@ Respond with ONLY the JSON specification, no explanation:`;
             });
 
             // Generate the chart
-            generatedChartSpec = await generateChartFromResults(sql, queryResult.results, userMessage);
+            generatedChartSpec = await generateChartFromResults(
+              sql,
+              queryResult.results,
+              userMessage
+            );
           }
         }
 

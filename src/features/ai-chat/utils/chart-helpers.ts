@@ -35,28 +35,24 @@ export function analyzeChartableData(results: QueryResults): ChartableDataAnalys
   results.columns.forEach((column, colIndex) => {
     const columnLower = column.toLowerCase();
     const sampleValues = results.rows.slice(0, 10).map(row => row[colIndex]);
-    
+
     // Check for temporal columns
     if (isTemporalColumn(columnLower, sampleValues)) {
       analysis.temporalColumns.push(column);
       analysis.hasTemporalData = true;
-    }
-    
-    // Check for numeric columns
-    else if (isNumericColumn(sampleValues)) {
+    } else if (isNumericColumn(sampleValues)) {
+      // Check for numeric columns
       analysis.numericColumns.push(column);
       analysis.hasNumericData = true;
-    }
-    
-    // Everything else is categorical
-    else {
+    } else {
+      // Everything else is categorical
       analysis.categoricalColumns.push(column);
       analysis.hasCategoricalData = true;
     }
   });
 
   // Determine if data is chartable
-  analysis.isChartable = analysis.hasNumericData || 
+  analysis.isChartable = analysis.hasNumericData ||
                         (analysis.hasTemporalData && results.columns.length >= 2);
 
   // Suggest chart types based on data
@@ -74,7 +70,7 @@ function isTemporalColumn(columnName: string, sampleValues: any[]): boolean {
   // Check column name for temporal indicators
   const temporalKeywords = ['date', 'time', 'year', 'month', 'day', 'hour', 'minute', 'timestamp', 'created', 'updated', 'modified'];
   const hasTemporalName = temporalKeywords.some(keyword => columnName.includes(keyword));
-  
+
   if (hasTemporalName) {
     return true;
   }
@@ -86,7 +82,7 @@ function isTemporalColumn(columnName: string, sampleValues: any[]): boolean {
     // Simple date pattern checks
     return /^\d{4}-\d{2}-\d{2}/.test(str) || // ISO date
            /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(str) || // US date
-           /^\d{4}$/.test(str) && Number(str) > 1900 && Number(str) < 2100; // Year
+           (/^\d{4}$/.test(str) && Number(str) > 1900 && Number(str) < 2100); // Year
   });
 }
 
@@ -96,7 +92,7 @@ function isTemporalColumn(columnName: string, sampleValues: any[]): boolean {
 function isNumericColumn(sampleValues: any[]): boolean {
   const nonNullValues = sampleValues.filter(v => v != null);
   if (nonNullValues.length === 0) return false;
-  
+
   // Check if at least 80% of non-null values are numbers
   const numericCount = nonNullValues.filter(v => typeof v === 'number').length;
   return numericCount / nonNullValues.length >= 0.8;
@@ -107,12 +103,12 @@ function isNumericColumn(sampleValues: any[]): boolean {
  */
 function suggestChartTypes(analysis: ChartableDataAnalysis, results: QueryResults): string[] {
   const suggestions: string[] = [];
-  
+
   // Time series
   if (analysis.hasTemporalData && analysis.hasNumericData) {
     suggestions.push('line', 'area');
   }
-  
+
   // Categorical comparisons
   if (analysis.hasCategoricalData && analysis.hasNumericData) {
     if (results.rows.length <= 20) {
@@ -122,7 +118,7 @@ function suggestChartTypes(analysis: ChartableDataAnalysis, results: QueryResult
       suggestions.push('pie', 'donut');
     }
   }
-  
+
   // Distributions
   if (analysis.numericColumns.length >= 1) {
     suggestions.push('histogram');
@@ -130,12 +126,16 @@ function suggestChartTypes(analysis: ChartableDataAnalysis, results: QueryResult
       suggestions.push('scatter');
     }
   }
-  
+
   // Heatmap for large categorical x categorical with numeric value
-  if (analysis.categoricalColumns.length >= 2 && analysis.numericColumns.length >= 1 && results.rows.length > 10) {
+  if (
+    analysis.categoricalColumns.length >= 2 &&
+    analysis.numericColumns.length >= 1 &&
+    results.rows.length > 10
+  ) {
     suggestions.push('heatmap');
   }
-  
+
   return [...new Set(suggestions)]; // Remove duplicates
 }
 
@@ -148,9 +148,9 @@ export function userWantsVisualization(userMessage: string): boolean {
     'trend', 'distribution', 'compare', 'comparison',
     'over time', 'by month', 'by year', 'by day',
     'histogram', 'scatter', 'bar chart', 'line chart',
-    'pie chart', 'heatmap'
+    'pie chart', 'heatmap',
   ];
-  
+
   const messageLower = userMessage.toLowerCase();
   return visualizationKeywords.some(keyword => messageLower.includes(keyword));
 }
