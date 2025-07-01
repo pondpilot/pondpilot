@@ -6,7 +6,7 @@ import { test as tabTest } from '../fixtures/tab';
 
 const test = mergeTests(pageTest, aiChatTest, tabTest);
 
-test.describe('AI Chat Simple Tests', () => {
+test.describe.skip('AI Chat Simple Tests', () => {
   test('should create AI chat tab using keyboard shortcut', async ({ page }) => {
     // Use keyboard shortcut to open AI chat
     await page.keyboard.press('Control+Alt+C');

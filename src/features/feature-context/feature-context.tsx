@@ -1,4 +1,3 @@
-import { useTabCoordination } from '@hooks/use-tab-coordination';
 import { getBrowserSupportedFeatures } from '@utils/browser';
 import { isPersistenceSupported } from '@utils/duckdb-persistence';
 import { fileSystemService } from '@utils/file-system-adapter';
@@ -37,8 +36,6 @@ export const useFeatureContext = (): FeatureContextType => {
  * FeatureProvider component provides the available features of the browser.
  */
 export const FeatureProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const isTabBlocked = useTabCoordination();
-
   const contextValue = useMemo(() => {
     const browserFeatures = getBrowserSupportedFeatures();
     const isOPFSSupported = isPersistenceSupported();
@@ -66,11 +63,10 @@ export const FeatureProvider: React.FC<{ children: React.ReactNode }> = ({ child
       // Other features
       isMobileDevice: browserFeatures.isMobileDevice,
       isOPFSSupported,
-      isTabBlocked,
     };
 
     return features;
-  }, [isTabBlocked]);
+  }, []);
 
   return <FeatureContext.Provider value={contextValue}>{children}</FeatureContext.Provider>;
 };

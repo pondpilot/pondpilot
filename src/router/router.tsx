@@ -2,7 +2,6 @@ import { BrowserNotSupported } from '@components/browser-not-supported';
 import { AppErrorFallback } from '@components/error-fallback';
 import { GlobalNavigationHandler } from '@components/global-navigation-handler';
 import { Layout } from '@components/layout';
-import { MultipleTabsBlocked } from '@components/multiple-tabs-blocked';
 import { useFeatureContext } from '@features/feature-context';
 import { SharedScriptImport } from '@features/script-import';
 import { MainPage } from '@pages/main-page';
@@ -28,13 +27,8 @@ if (import.meta.env.DEV || __INTEGRATION_TEST__) {
 }
 
 export function Router() {
-  const { isFileAccessApiSupported, isMobileDevice, isOPFSSupported, isTabBlocked } =
-    useFeatureContext();
+  const { isFileAccessApiSupported, isMobileDevice, isOPFSSupported } = useFeatureContext();
   const canUseApp = isFileAccessApiSupported && isOPFSSupported;
-
-  if (isTabBlocked) {
-    return <MultipleTabsBlocked />;
-  }
 
   const getAppRoutes = () => {
     if (!canUseApp) {

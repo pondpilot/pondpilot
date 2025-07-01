@@ -7,7 +7,7 @@ import { useAppStore } from '@store/app-store';
 import { getAIConfig } from '@utils/ai-config';
 import { getAIService } from '@utils/ai-service';
 import { classifySQLStatements, SQLStatementType } from '@utils/editor/sql';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 import {
   AI_MODEL_CONTEXT_LIMIT,
@@ -25,6 +25,10 @@ export const useChatAI = () => {
   const duckDbConnectionPool = useDuckDBConnectionPool();
   const { executeQuery } = useQueryExecution();
   const sqlScripts = useAppStore((state) => state.sqlScripts);
+
+  // Track active requests to prevent race conditions
+  const activeRequestsRef = useRef<Map<string, AbortController>>(new Map());
+  const requestCounterRef = useRef(0);
 
   // Function to build script context from @query mentions
   const buildScriptContext = useCallback(
@@ -149,6 +153,22 @@ Respond with ONLY the JSON specification, no explanation:`;
         throw new Error('Conversation not found');
       }
 
+      // Create a unique request ID
+      requestCounterRef.current += 1;
+      const requestId = `${conversationId}-${requestCounterRef.current}`;
+      const abortController = new AbortController();
+
+      // Cancel any previous pending requests for this conversation
+      activeRequestsRef.current.forEach((controller, id) => {
+        if (id.startsWith(conversationId)) {
+          controller.abort();
+          activeRequestsRef.current.delete(id);
+        }
+      });
+
+      // Track this request
+      activeRequestsRef.current.set(requestId, abortController);
+
       // Check if this is the first exchange (only user message exists)
       const isFirstExchange =
         conversation.messages.length === 1 && conversation.messages[0]?.role === 'user';
@@ -187,13 +207,26 @@ Respond with ONLY the JSON specification, no explanation:`;
       const config = getAIConfig();
       const aiService = getAIService(config);
 
-      const response = await aiService.generateSQLAssistance({
-        prompt: fullPrompt,
-        useStructuredResponse: false,
-        schemaContext: systemPrompt,
-      });
+      let response;
+      try {
+        response = await aiService.generateSQLAssistance({
+          prompt: fullPrompt,
+          useStructuredResponse: false,
+          schemaContext: systemPrompt,
+        });
+
+        // Check if this request was aborted
+        if (abortController.signal.aborted) {
+          return; // Exit early if request was cancelled
+        }
+      } catch (error) {
+        // Clean up the request tracking
+        activeRequestsRef.current.delete(requestId);
+        throw error;
+      }
 
       if (!response.success) {
+        activeRequestsRef.current.delete(requestId);
         throw new Error(response.error || 'AI request failed');
       }
 
@@ -275,12 +308,22 @@ Respond with ONLY the JSON specification, no explanation:`;
                 },
               });
 
-              // Generate the chart
-              generatedChartSpec = await generateChartFromResults(
-                sql,
-                queryResult.results,
-                userMessage,
-              );
+              try {
+                // Generate the chart
+                generatedChartSpec = await generateChartFromResults(
+                  sql,
+                  queryResult.results,
+                  userMessage,
+                );
+
+                // Check if request was aborted during chart generation
+                if (abortController.signal.aborted) {
+                  return;
+                }
+              } catch (chartError) {
+                console.error('Chart generation failed:', chartError);
+                // Continue without chart rather than failing the entire request
+              }
             }
           }
 
@@ -311,6 +354,9 @@ Respond with ONLY the JSON specification, no explanation:`;
           await generateAndSaveChatTitle(conversationId, userMessage, content);
         }
       }
+
+      // Clean up request tracking
+      activeRequestsRef.current.delete(requestId);
     },
     [
       duckDbConnectionPool,
@@ -321,8 +367,17 @@ Respond with ONLY the JSON specification, no explanation:`;
     ],
   );
 
+  // Clean up function to cancel all active requests
+  const cancelAllRequests = useCallback(() => {
+    activeRequestsRef.current.forEach((controller) => {
+      controller.abort();
+    });
+    activeRequestsRef.current.clear();
+  }, []);
+
   return {
     sendMessage,
     executeQuery,
+    cancelAllRequests,
   };
 };
