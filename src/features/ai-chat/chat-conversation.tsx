@@ -13,6 +13,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { ChatErrorBoundary } from './components/chat-error-boundary';
 import { ChatInput } from './components/chat-input';
 import { ChatMessageList } from './components/chat-message-list';
+import { PrivacyNotification } from './components/privacy-notification';
 import { useAIChatSubscription } from './hooks/use-ai-chat-subscription';
 import { useChatAI } from './hooks/use-chat-ai';
 
@@ -231,6 +232,7 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
       >
         <Box className="min-h-full flex flex-col">
           <div className="flex-1 px-4 py-3">
+            <PrivacyNotification />
             <ChatErrorBoundary>
               <ChatMessageList
                 messages={messages}
