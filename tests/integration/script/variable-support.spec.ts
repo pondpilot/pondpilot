@@ -17,7 +17,7 @@ test.describe('Script Variable Support', () => {
     await createScriptAndSwitchToItsTab();
 
     // Test numeric variable
-    await fillScript('SET VARIABLE my_var = 30; SELECT 20 + getvariable(\'my_var\') AS total;');
+    await fillScript("SET VARIABLE my_var = 30; SELECT 20 + getvariable('my_var') AS total;");
     await runScript();
 
     // Check that the result shows 50 (20 + 30)
@@ -37,7 +37,7 @@ test.describe('Script Variable Support', () => {
 
     // Test string variable
     await fillScript(
-      'SET VARIABLE greeting = \'Hello, DuckDB!\'; SELECT getvariable(\'greeting\') AS message;',
+      "SET VARIABLE greeting = 'Hello, DuckDB!'; SELECT getvariable('greeting') AS message;",
     );
     await runScript();
 
@@ -58,7 +58,7 @@ test.describe('Script Variable Support', () => {
 
     // Test multiple variables
     await fillScript(
-      'SET VARIABLE x = 10; SET VARIABLE y = 20; SET VARIABLE z = 30; SELECT getvariable(\'x\') + getvariable(\'y\') + getvariable(\'z\') AS sum;',
+      "SET VARIABLE x = 10; SET VARIABLE y = 20; SET VARIABLE z = 30; SELECT getvariable('x') + getvariable('y') + getvariable('z') AS sum;",
     );
     await runScript();
 
@@ -79,7 +79,7 @@ test.describe('Script Variable Support', () => {
 
     // Test variables within a transaction
     await fillScript(
-      'CREATE TABLE test_table (id INTEGER, value INTEGER); INSERT INTO test_table VALUES (1, 100); SET VARIABLE multiplier = 5; UPDATE test_table SET value = value * getvariable(\'multiplier\'); SELECT * FROM test_table;',
+      "CREATE TABLE test_table (id INTEGER, value INTEGER); INSERT INTO test_table VALUES (1, 100); SET VARIABLE multiplier = 5; UPDATE test_table SET value = value * getvariable('multiplier'); SELECT * FROM test_table;",
     );
     await runScript();
 
