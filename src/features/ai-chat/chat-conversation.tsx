@@ -1,6 +1,5 @@
 import { showSuccess, showError } from '@components/app-notifications';
 import { aiChatController } from '@controllers/ai-chat';
-import { saveAIChatConversations } from '@controllers/ai-chat/persist';
 import { Stack, ScrollArea, Box, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { ChatMessageId } from '@models/ai-chat';
@@ -64,14 +63,8 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
         throw new Error('Failed to add message');
       }
 
-      // Save conversation
-      await saveAIChatConversations();
-
       // Send to AI and get response
       await sendMessage(conversation.id, content);
-
-      // Save conversation after AI response
-      await saveAIChatConversations();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -109,9 +102,6 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
               query: queryResult,
             });
 
-            // Save conversation after update
-            await saveAIChatConversations();
-
             if (queryResult.successful) {
               showSuccess({ title: 'Query executed successfully', message: '' });
             } else {
@@ -132,9 +122,6 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
           query: queryResult,
         });
 
-        // Save conversation after update
-        await saveAIChatConversations();
-
         if (queryResult.successful) {
           showSuccess({ title: 'Query re-executed successfully', message: '' });
         } else {
@@ -154,9 +141,6 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
       content,
     });
 
-    // Save conversation after update
-    await saveAIChatConversations();
-
     showSuccess({ title: 'Message updated', message: '' });
   };
 
@@ -165,9 +149,6 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
 
     // Delete the message
     aiChatController.deleteMessage(conversation.id, messageId);
-
-    // Save conversation after update
-    await saveAIChatConversations();
 
     showSuccess({ title: 'Message deleted', message: '' });
   };
@@ -189,14 +170,8 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
         aiChatController.deleteMessage(conversation.id, msg.id);
       });
 
-      // Save conversation after deleting messages
-      await saveAIChatConversations();
-
       // Send the edited content to AI and get response
       await sendMessage(conversation.id, content);
-
-      // Save conversation after AI response
-      await saveAIChatConversations();
 
       showSuccess({ title: 'Conversation re-run successfully', message: '' });
     } catch (err) {

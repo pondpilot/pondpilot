@@ -32,7 +32,7 @@ interface UseMentionsReturn {
   mentionState: MentionState;
   handleInput: (text: string, cursorPos: number) => void;
   handleKeyDown: (e: React.KeyboardEvent) => boolean;
-  applyMention: (suggestion: MentionSuggestion, text: string, cursorPos: number) => string;
+  applyMention: (suggestion: MentionSuggestion, text: string) => string;
   resetMentions: () => void;
   setSelectedIndex: (index: number) => void;
 }
@@ -289,7 +289,7 @@ export const useMentions = ({
 
   // Apply mention to text
   const applyMention = useCallback(
-    (suggestion: MentionSuggestion, text: string, _cursorPos: number): string => {
+    (suggestion: MentionSuggestion, text: string): string => {
       const start = Math.min(mentionState.startPos, text.length);
       const end = Math.min(mentionState.endPos, text.length);
 

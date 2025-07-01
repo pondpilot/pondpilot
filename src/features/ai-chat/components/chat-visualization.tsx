@@ -12,10 +12,17 @@ import {
   Code,
   Loader,
   Center,
+  Alert,
 } from '@mantine/core';
 import { useDisclosure, useClipboard } from '@mantine/hooks';
 import { ChatMessageQuery } from '@models/ai-chat';
-import { IconCode, IconExternalLink, IconCopy, IconChevronUp } from '@tabler/icons-react';
+import {
+  IconCode,
+  IconExternalLink,
+  IconCopy,
+  IconChevronUp,
+  IconAlertCircle,
+} from '@tabler/icons-react';
 
 import { ChatResultChart } from './chat-result-chart';
 
@@ -42,6 +49,31 @@ export const ChatVisualization = ({ query }: ChatVisualizationProps) => {
         <Center h={200}>
           <Loader size="sm" color="blue" />
         </Center>
+      </Box>
+    );
+  }
+
+  // Show error if chart generation failed
+  if (query.chartGenerationError && query.results) {
+    return (
+      <Box className="bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark rounded-lg p-3 border border-borderSecondary-light dark:border-borderSecondary-dark">
+        <Group justify="space-between" className="mb-3">
+          <Badge size="sm" variant="dot" color="red">
+            Visualization Error
+          </Badge>
+        </Group>
+        <Alert
+          icon={<IconAlertCircle size={16} />}
+          title="Chart Generation Failed"
+          color="red"
+          variant="light"
+        >
+          <Text size="sm">{query.chartGenerationError}</Text>
+          <Text size="xs" c="dimmed" className="mt-2">
+            The chart could not be generated. Try asking for a simpler visualization or check if the
+            data is suitable for charting.
+          </Text>
+        </Alert>
       </Box>
     );
   }

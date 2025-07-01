@@ -1,4 +1,5 @@
 import { ChatConversation, ChatConversationId, ChatMessage, ChatMessageId } from '@models/ai-chat';
+import { debounce } from '@utils/debounce';
 import { makeIdFactory } from '@utils/new-id';
 
 const makeConversationId = makeIdFactory<ChatConversationId>();
@@ -9,6 +10,7 @@ type Listener = () => void;
 export class AIChatController {
   private conversations: Map<ChatConversationId, ChatConversation> = new Map();
   private listeners: Set<Listener> = new Set();
+  private debouncedSave?: () => void;
 
   createConversation(title?: string): ChatConversation {
     const conversation: ChatConversation = {
@@ -176,6 +178,8 @@ export class AIChatController {
 
   private notify(): void {
     this.listeners.forEach((listener) => listener());
+    // Trigger debounced save after any state change
+    this.debouncedSave?.();
   }
 
   // Hydration method for loading persisted data
@@ -187,9 +191,15 @@ export class AIChatController {
     this.notify();
   }
 
+  // Set the save function for auto-persistence
+  setSaveFunction(saveFunction: () => Promise<void>): void {
+    this.debouncedSave = debounce(saveFunction, 1000);
+  }
+
   // Cleanup method
   destroy(): void {
-    // No cleanup needed without broadcast synchronization
+    // Cancel any pending saves
+    this.debouncedSave = undefined;
   }
 }
 
