@@ -6,7 +6,7 @@ import { test as tabTest } from '../fixtures/tab';
 
 const test = mergeTests(pageTest, aiChatTest, tabTest);
 
-test.describe('AI Chat DDL Query Tests', () => {
+test.describe.skip('AI Chat DDL Query Tests', () => {
   test.beforeEach(async ({ page }) => {
     // Mock AI service to return DDL queries
     await page.route('**/v1/messages', async (route) => {

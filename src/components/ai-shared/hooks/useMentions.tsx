@@ -1,7 +1,9 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
+import { CHAT } from '../../../config/constants';
+import { useDebounce } from '../../../hooks/use-debounce';
 import { escapeSqlString } from '../utils/sql-escape';
 
 export interface MentionSuggestion {
@@ -35,7 +37,7 @@ interface UseMentionsReturn {
   setSelectedIndex: (index: number) => void;
 }
 
-const DEBOUNCE_DELAY = 150;
+const { DEBOUNCE_DELAY } = CHAT;
 
 export const useMentions = ({
   connectionPool,
@@ -50,7 +52,6 @@ export const useMentions = ({
     selectedIndex: 0,
   });
 
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const requestIdRef = useRef(0);
 
   // Detect mention trigger
@@ -186,6 +187,9 @@ export const useMentions = ({
     [connectionPool, sqlScripts],
   );
 
+  // Create debounced version of fetchSuggestions
+  const [debouncedFetchSuggestions, cancelDebounce] = useDebounce(fetchSuggestions, DEBOUNCE_DELAY);
+
   // Handle input changes
   const handleInput = useCallback(
     (text: string, cursorPos: number) => {
@@ -200,29 +204,21 @@ export const useMentions = ({
           endPos: cursorPos,
         }));
 
-        // Cancel previous debounce
-        if (debounceTimerRef.current) {
-          clearTimeout(debounceTimerRef.current);
-        }
-
         // Increment request ID
         requestIdRef.current += 1;
         const currentRequestId = requestIdRef.current;
 
-        // Debounce the fetch
+        // Fetch suggestions
         if (trigger.query === '') {
           // Fetch immediately for empty query
           fetchSuggestions(trigger.query, currentRequestId);
         } else {
-          debounceTimerRef.current = setTimeout(() => {
-            fetchSuggestions(trigger.query, currentRequestId);
-          }, DEBOUNCE_DELAY);
+          // Use debounced version for non-empty queries
+          debouncedFetchSuggestions(trigger.query, currentRequestId);
         }
       } else {
         // Cancel any pending requests
-        if (debounceTimerRef.current) {
-          clearTimeout(debounceTimerRef.current);
-        }
+        cancelDebounce();
         requestIdRef.current += 1;
 
         setMentionState({
@@ -235,7 +231,7 @@ export const useMentions = ({
         });
       }
     },
-    [detectMentionTrigger, fetchSuggestions],
+    [detectMentionTrigger, fetchSuggestions, debouncedFetchSuggestions, cancelDebounce],
   );
 
   // Handle keyboard navigation
@@ -310,9 +306,7 @@ export const useMentions = ({
 
   // Reset mentions
   const resetMentions = useCallback(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
+    cancelDebounce();
     requestIdRef.current += 1;
 
     setMentionState({
@@ -323,16 +317,9 @@ export const useMentions = ({
       suggestions: [],
       selectedIndex: 0,
     });
-  }, []);
+  }, [cancelDebounce]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
+  // Cleanup on unmount is handled by the useDebounce hook
 
   // Function to update selected index (for mouse hover)
   const setSelectedIndex = useCallback((index: number) => {

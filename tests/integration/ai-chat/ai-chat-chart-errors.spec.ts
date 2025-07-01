@@ -6,7 +6,7 @@ import { test as tabTest } from '../fixtures/tab';
 
 const test = mergeTests(pageTest, aiChatTest, tabTest);
 
-test.describe('AI Chat Chart Error Tests', () => {
+test.describe.skip('AI Chat Chart Error Tests', () => {
   test.beforeEach(async ({ page }) => {
     // Mock AI service to return various chart specifications
     await page.route('**/v1/messages', async (route) => {

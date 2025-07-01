@@ -1,3 +1,4 @@
+import { AI_SERVICE } from '../config/constants';
 import { AIRequest, AIResponse, AIServiceConfig } from '../models/ai-service';
 import { SQL_ASSISTANT_FUNCTION, StructuredSQLResponse } from '../models/structured-ai-response';
 
@@ -279,7 +280,7 @@ ${request.prompt}`;
 
       // Add timeout to fetch request
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+      const timeoutId = setTimeout(() => controller.abort(), AI_SERVICE.REQUEST_TIMEOUT);
 
       try {
         // Ensure we don't have double slashes by removing trailing slash from baseUrl
@@ -300,7 +301,7 @@ ${request.prompt}`;
         if (fetchError instanceof Error && fetchError.name === 'AbortError') {
           return {
             success: false,
-            error: `Request timeout: ${config.providerName} took too long to respond`,
+            error: `Request timeout: ${config.providerName} took longer than ${AI_SERVICE.REQUEST_TIMEOUT / 1000} seconds to respond`,
           };
         }
 
