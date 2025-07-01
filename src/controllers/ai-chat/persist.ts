@@ -59,16 +59,25 @@ export async function loadAIChatConversations(): Promise<void> {
       // Use hydrate method to restore conversations
       aiChatController.hydrate(restoredConversations);
     }
+
+    // Set up auto-save function after loading
+    aiChatController.setSaveFunction(saveAIChatConversations);
   } catch (error) {
     console.error('Failed to load AI chat conversations:', error);
+    // Still set up auto-save even if loading fails
+    aiChatController.setSaveFunction(saveAIChatConversations);
   }
 }
+
+// Note: These functions are no longer needed since the controller
+// automatically persists changes via debounced saves.
+// They are kept for backward compatibility but simply delegate
+// to the controller methods.
 
 export async function deletePersistedConversation(
   conversationId: ChatConversationId,
 ): Promise<void> {
   aiChatController.deleteConversation(conversationId);
-  await saveAIChatConversations();
 }
 
 export async function updatePersistedConversation(
@@ -76,5 +85,4 @@ export async function updatePersistedConversation(
   updates: Partial<ChatConversation>,
 ): Promise<void> {
   aiChatController.updateConversation(conversationId, updates);
-  await saveAIChatConversations();
 }

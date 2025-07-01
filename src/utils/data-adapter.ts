@@ -1,3 +1,4 @@
+import { escapeSqlString } from '@components/ai-shared/utils/sql-escape';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { ColumnAggregateType, DataAdapterQueries } from '@models/data-adapter';
 import {
@@ -102,7 +103,7 @@ function getFlatFileDataAdapterQueries(
       ...baseAttrs,
       getRowCount: async (abortSignal: AbortSignal) => {
         const { value, aborted } = await pool.queryAbortable(
-          `SELECT num_rows FROM parquet_file_metadata('${sourceFile.uniqueAlias}.${sourceFile.ext}')`,
+          `SELECT num_rows FROM parquet_file_metadata('${escapeSqlString(`${sourceFile.uniqueAlias}.${sourceFile.ext}`)}')`,
           abortSignal,
         );
 

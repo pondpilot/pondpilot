@@ -19,6 +19,7 @@ export interface ChatMessageQuery {
   executionTime?: number;
   chartSpec?: VegaLiteSpec;
   isGeneratingChart?: boolean;
+  chartGenerationError?: string;
 }
 
 export interface ChatMessage {

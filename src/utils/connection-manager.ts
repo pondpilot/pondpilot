@@ -4,6 +4,7 @@
  * Utilities for managing database connections with timeouts and retries
  */
 
+import { escapeSqlString } from '@components/ai-shared/utils/sql-escape';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 
 import { ConnectionTimeoutError, MaxRetriesExceededError } from './connection-errors';
@@ -148,7 +149,7 @@ export async function testRemoteConnection(
 ): Promise<boolean> {
   try {
     // Use a simple query that should work on any database
-    const testQuery = `SELECT 1 FROM information_schema.schemata WHERE catalog_name = '${dbName}' LIMIT 1`;
+    const testQuery = `SELECT 1 FROM information_schema.schemata WHERE catalog_name = '${escapeSqlString(dbName)}' LIMIT 1`;
     await executeWithRetry(pool, testQuery, config);
     return true;
   } catch (error) {

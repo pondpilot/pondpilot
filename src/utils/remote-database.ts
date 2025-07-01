@@ -4,6 +4,7 @@
  * Utilities for managing remote database connections and error handling
  */
 
+import { escapeSqlString } from '@components/ai-shared/utils/sql-escape';
 import { showError, showWarning, showSuccess } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { deleteTab } from '@controllers/tab';
@@ -83,7 +84,7 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Verify the database is attached by checking the catalog
-    const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${remoteDb.dbName}'`;
+    const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlString(remoteDb.dbName)}'`;
 
     let dbFound = false;
     let attempts = 0;
