@@ -102,10 +102,7 @@ export const ChatMessage = ({
 
   return (
     <div
-      className={cn(
-        'flex w-full animate-fade-in group',
-        isUser ? 'justify-end' : 'justify-start',
-      )}
+      className={cn('flex w-full animate-fade-in group', isUser ? 'justify-end' : 'justify-start')}
       data-testid="ai-chat-message"
     >
       <Box className={cn('max-w-4xl', isUser ? 'ml-auto mr-3' : 'mr-auto ml-3')}>
@@ -224,7 +221,11 @@ export const ChatMessage = ({
 
         {/* Timestamp */}
         <Group justify={isUser ? 'end' : 'start'} className="mt-1 px-1">
-          <Text size="xs" c="dimmed" className="transition-opacity duration-200 opacity-60 group-hover:opacity-100">
+          <Text
+            size="xs"
+            c="dimmed"
+            className="transition-opacity duration-200 opacity-60 group-hover:opacity-100"
+          >
             {new Date(message.timestamp).toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',

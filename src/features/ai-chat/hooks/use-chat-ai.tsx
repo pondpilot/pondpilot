@@ -54,7 +54,7 @@ export const useChatAI = () => {
 
       return undefined;
     },
-    [sqlScripts]
+    [sqlScripts],
   );
 
   const generateChartFromResults = useCallback(
@@ -95,13 +95,13 @@ Respond with ONLY the JSON specification, no explanation:`;
         const cleanContent = response.content.trim();
         // Remove markdown code block if present
         const jsonContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim();
-        
+
         let parsedSpec;
         try {
           parsedSpec = JSON.parse(jsonContent);
         } catch (parseError) {
           console.error('Failed to parse chart specification JSON:', parseError);
-          console.error('Raw content:', jsonContent.substring(0, 200) + '...');
+          console.error('Raw content:', `${jsonContent.substring(0, 200)}...`);
           return null;
         }
 
@@ -111,7 +111,7 @@ Respond with ONLY the JSON specification, no explanation:`;
             hasSchema: !!parsedSpec.$schema,
             schemaValue: parsedSpec.$schema,
             hasMark: !!parsedSpec.mark,
-            markValue: parsedSpec.mark
+            markValue: parsedSpec.mark,
           });
           return null;
         }
@@ -312,7 +312,13 @@ Respond with ONLY the JSON specification, no explanation:`;
         }
       }
     },
-    [duckDbConnectionPool, executeQuery, generateChartFromResults, buildScriptContext, generateAndSaveChatTitle],
+    [
+      duckDbConnectionPool,
+      executeQuery,
+      generateChartFromResults,
+      buildScriptContext,
+      generateAndSaveChatTitle,
+    ],
   );
 
   return {

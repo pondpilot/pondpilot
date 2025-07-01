@@ -36,12 +36,13 @@ export const PrivacyNotification = () => {
             Privacy Notice
           </Text>
           <Text size="xs" c="dimmed">
-            When you use AI features, your database schema (table and column names) is shared with your selected AI provider 
-            to generate accurate SQL queries. No actual data from your tables is sent unless you explicitly run a query. 
-            Your API keys are stored locally and never sent to our servers.{' '}
-            <Anchor 
-              href="https://docs.pondpilot.io/privacy" 
-              target="_blank" 
+            When you use AI features, your database schema (table and column names) is shared with
+            your selected AI provider to generate accurate SQL queries. No actual data from your
+            tables is sent unless you explicitly run a query. Your API keys are stored locally and
+            never sent to our servers.{' '}
+            <Anchor
+              href="https://docs.pondpilot.io/privacy"
+              target="_blank"
               size="xs"
               rel="noopener noreferrer"
             >

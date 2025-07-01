@@ -3,8 +3,8 @@ import { IconTable, IconDatabase, IconFileText, IconAlertCircle } from '@tabler/
 import { cn } from '@utils/ui/styles';
 import { useEffect, useRef, useState } from 'react';
 
-import { MentionSuggestion } from '../hooks/useMentions';
 import { ScreenReaderAnnouncement } from './ScreenReaderAnnouncement';
+import { MentionSuggestion } from '../hooks/useMentions';
 
 interface MentionDropdownProps {
   suggestions: MentionSuggestion[];
@@ -89,7 +89,7 @@ export const MentionDropdown = ({
         // Get the scrollable container's position and dimensions
         const containerRect = container.getBoundingClientRect();
         const itemRect = selectedItemRef.current.getBoundingClientRect();
-        
+
         // Check if item is outside the visible area
         if (itemRect.top < containerRect.top) {
           // Item is above visible area
@@ -111,110 +111,110 @@ export const MentionDropdown = ({
     if (suggestions.length === 0) {
       return 'No suggestions available';
     }
-    
+
     const selectedSuggestion = suggestions[selectedIndex];
     if (selectedSuggestion) {
       const itemType = selectedSuggestion.type === 'error' ? 'error' : selectedSuggestion.type;
       return `${selectedSuggestion.label}, ${itemType}${selectedSuggestion.contextInfo ? `, in ${selectedSuggestion.contextInfo}` : ''}, ${selectedIndex + 1} of ${suggestions.length}`;
     }
-    
+
     return `${suggestions.length} suggestions available`;
   };
 
   return (
     <>
-    <Paper
-      ref={dropdownRef}
-      shadow="md"
-      radius="md"
-      className={cn(
-        'fixed z-[10000]',
-        'min-w-[200px] max-w-[400px]',
-        'bg-white dark:bg-[#1f2937]',
-        'border border-[#e5e7eb] dark:border-[#374151]',
-        'shadow-lg',
-        'rounded-xl',
-        'overflow-hidden',
-      )}
-      style={{
-        top: position.top,
-        bottom: position.bottom,
-        left: position.left,
-      }}
-      data-testid={dataTestId}
-    >
-      <Box
-        className="py-1 [&::-webkit-scrollbar]:hidden"
-        style={
-          {
-            maxHeight,
-            overflowY: 'auto',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-          } as React.CSSProperties
-        }
-        role="listbox"
-        aria-label="Mention suggestions"
-        aria-activedescendant={selectedIndex >= 0 ? `mention-option-${selectedIndex}` : undefined}
-        tabIndex={-1}
+      <Paper
+        ref={dropdownRef}
+        shadow="md"
+        radius="md"
+        className={cn(
+          'fixed z-[10000]',
+          'min-w-[200px] max-w-[400px]',
+          'bg-white dark:bg-[#1f2937]',
+          'border border-[#e5e7eb] dark:border-[#374151]',
+          'shadow-lg',
+          'rounded-xl',
+          'overflow-hidden',
+        )}
+        style={{
+          top: position.top,
+          bottom: position.bottom,
+          left: position.left,
+        }}
+        data-testid={dataTestId}
       >
-        {suggestions.map((suggestion, index) => {
-          const isSelected = selectedIndex === index;
-          const isDisabled = suggestion.type === 'error';
-          
-          return (
-            <Box
-              key={`${suggestion.type}-${suggestion.value}-${index}`}
-              ref={isSelected ? selectedItemRef : null}
-              className={cn(
-                'flex items-center gap-2 px-3 py-2 mx-2 rounded-lg cursor-pointer transition-colors',
-                'hover:bg-[#2123280A] dark:hover:bg-[#FFFFFF0A]',
-                isSelected && 'bg-[#E0E2F4] dark:bg-[#29324C]',
-                isDisabled && 'cursor-default opacity-70',
-              )}
-              onClick={() => {
-                if (!isDisabled) {
-                  onSelect(suggestion);
-                }
-              }}
-              onMouseEnter={() => {
-                if (!isDisabled && onHover) {
-                  onHover(index);
-                }
-              }}
-              role="option"
-              aria-selected={isSelected}
-              aria-disabled={isDisabled}
-              id={`mention-option-${index}`}
-              data-testid={`mention-option-${index}`}
-            >
-            <span className="text-[#6F7785] dark:text-[#A8B3C4] flex-shrink-0">
-              {getMentionIcon(suggestion.type)}
-            </span>
-            <div className="flex-1 min-w-0 flex items-center gap-2">
-              <Text
-                size="sm"
+        <Box
+          className="py-1 [&::-webkit-scrollbar]:hidden"
+          style={
+            {
+              maxHeight,
+              overflowY: 'auto',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            } as React.CSSProperties
+          }
+          role="listbox"
+          aria-label="Mention suggestions"
+          aria-activedescendant={selectedIndex >= 0 ? `mention-option-${selectedIndex}` : undefined}
+          tabIndex={-1}
+        >
+          {suggestions.map((suggestion, index) => {
+            const isSelected = selectedIndex === index;
+            const isDisabled = suggestion.type === 'error';
+
+            return (
+              <Box
+                key={`${suggestion.type}-${suggestion.value}-${index}`}
+                ref={isSelected ? selectedItemRef : null}
                 className={cn(
-                  'font-medium truncate',
-                  suggestion.type === 'error'
-                    ? 'text-red-600 dark:text-red-400'
-                    : 'text-[#6F7785] dark:text-[#A8B3C4]',
+                  'flex items-center gap-2 px-3 py-2 mx-2 rounded-lg cursor-pointer transition-colors',
+                  'hover:bg-[#2123280A] dark:hover:bg-[#FFFFFF0A]',
+                  isSelected && 'bg-[#E0E2F4] dark:bg-[#29324C]',
+                  isDisabled && 'cursor-default opacity-70',
                 )}
+                onClick={() => {
+                  if (!isDisabled) {
+                    onSelect(suggestion);
+                  }
+                }}
+                onMouseEnter={() => {
+                  if (!isDisabled && onHover) {
+                    onHover(index);
+                  }
+                }}
+                role="option"
+                aria-selected={isSelected}
+                aria-disabled={isDisabled}
+                id={`mention-option-${index}`}
+                data-testid={`mention-option-${index}`}
               >
-                {suggestion.label}
-              </Text>
-              {suggestion.contextInfo && (
-                <Text size="xs" className="text-[#9ca3af] dark:text-[#6b7280] truncate">
-                  {suggestion.contextInfo}
-                </Text>
-              )}
-            </div>
-          </Box>
-          );
-        })}
-      </Box>
-    </Paper>
-    <ScreenReaderAnnouncement message={getScreenReaderMessage()} />
+                <span className="text-[#6F7785] dark:text-[#A8B3C4] flex-shrink-0">
+                  {getMentionIcon(suggestion.type)}
+                </span>
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <Text
+                    size="sm"
+                    className={cn(
+                      'font-medium truncate',
+                      suggestion.type === 'error'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-[#6F7785] dark:text-[#A8B3C4]',
+                    )}
+                  >
+                    {suggestion.label}
+                  </Text>
+                  {suggestion.contextInfo && (
+                    <Text size="xs" className="text-[#9ca3af] dark:text-[#6b7280] truncate">
+                      {suggestion.contextInfo}
+                    </Text>
+                  )}
+                </div>
+              </Box>
+            );
+          })}
+        </Box>
+      </Paper>
+      <ScreenReaderAnnouncement message={getScreenReaderMessage()} />
     </>
   );
 };

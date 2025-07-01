@@ -5,9 +5,9 @@ interface ScreenReaderAnnouncementProps {
   politeness?: 'polite' | 'assertive';
 }
 
-export const ScreenReaderAnnouncement = ({ 
-  message, 
-  politeness = 'polite' 
+export const ScreenReaderAnnouncement = ({
+  message,
+  politeness = 'polite',
 }: ScreenReaderAnnouncementProps) => {
   const announcementRef = useRef<HTMLDivElement>(null);
 

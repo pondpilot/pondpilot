@@ -18,16 +18,16 @@ test.describe('AI Chat DDL Query Tests', () => {
 
       if (userMessage.toLowerCase().includes('create table')) {
         responseContent =
-          'I\'ll create a table for you.\n\n[EXPLANATION]\nCreating a new table called users with id, name, and email columns\n\n[SQL]\nCREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR, email VARCHAR)';
+          "I'll create a table for you.\n\n[EXPLANATION]\nCreating a new table called users with id, name, and email columns\n\n[SQL]\nCREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR, email VARCHAR)";
       } else if (userMessage.toLowerCase().includes('alter table')) {
         responseContent =
-          'I\'ll add a new column to the users table.\n\n[EXPLANATION]\nAdding a created_at column to track when records were created\n\n[SQL]\nALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP';
+          "I'll add a new column to the users table.\n\n[EXPLANATION]\nAdding a created_at column to track when records were created\n\n[SQL]\nALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP";
       } else if (userMessage.toLowerCase().includes('drop table')) {
         responseContent =
-          'I\'ll drop the old_users table.\n\n[EXPLANATION]\nRemoving the old_users table as it\'s no longer needed\n\n[SQL]\nDROP TABLE IF EXISTS old_users';
+          "I'll drop the old_users table.\n\n[EXPLANATION]\nRemoving the old_users table as it's no longer needed\n\n[SQL]\nDROP TABLE IF EXISTS old_users";
       } else if (userMessage.toLowerCase().includes('create view')) {
         responseContent =
-          'I\'ll create a view to show active users.\n\n[EXPLANATION]\nCreating a view to filter only active users\n\n[SQL]\nCREATE VIEW active_users AS SELECT * FROM users WHERE status = \'active\'';
+          "I'll create a view to show active users.\n\n[EXPLANATION]\nCreating a view to filter only active users\n\n[SQL]\nCREATE VIEW active_users AS SELECT * FROM users WHERE status = 'active'";
       }
 
       await route.fulfill({
@@ -81,7 +81,7 @@ test.describe('AI Chat DDL Query Tests', () => {
     // Open AI chat and send DDL query
     await page.keyboard.press('Control+Alt+C');
     await expect(page.getByTestId('ai-chat-container')).toBeVisible();
-    
+
     await aiChat.sendMessage('Create a table for users');
     await page.waitForSelector('text=/DDL statements.*not executed automatically/i');
 

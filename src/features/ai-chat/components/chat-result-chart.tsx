@@ -1,5 +1,14 @@
 import { showSuccess, showError } from '@components/app-notifications';
-import { Box, Text, ActionIcon, Tooltip, Menu, Group, useMantineColorScheme, Alert } from '@mantine/core';
+import {
+  Box,
+  Text,
+  ActionIcon,
+  Tooltip,
+  Menu,
+  Group,
+  useMantineColorScheme,
+  Alert,
+} from '@mantine/core';
 import { QueryResults } from '@models/ai-chat';
 import { VegaLiteSpec } from '@models/vega-lite';
 import { IconDownload, IconCopy, IconPhoto, IconAlertCircle } from '@tabler/icons-react';
@@ -9,7 +18,10 @@ import { VegaLite } from 'react-vega';
 import { getChartThemeConfig } from '../constants/chart-theme';
 
 // Simple error boundary for chart rendering
-class ChartErrorBoundary extends Component<{ children: ReactNode; onError?: (error: Error) => void }, { hasError: boolean }> {
+class ChartErrorBoundary extends Component<
+  { children: ReactNode; onError?: (error: Error) => void },
+  { hasError: boolean }
+> {
   constructor(props: any) {
     super(props);
     this.state = { hasError: false };
@@ -33,7 +45,9 @@ class ChartErrorBoundary extends Component<{ children: ReactNode; onError?: (err
           color="red"
           className="m-4"
         >
-          <Text size="sm">Failed to render the chart. The specification may be invalid or incompatible.</Text>
+          <Text size="sm">
+            Failed to render the chart. The specification may be invalid or incompatible.
+          </Text>
           <Text size="xs" c="dimmed" className="mt-2">
             Try asking for a simpler visualization or check the Vega-Lite specification for errors.
           </Text>
@@ -94,26 +108,31 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
   // Validate required fields for common errors
   useEffect(() => {
     setRenderError(null);
-    
+
     try {
       // Check if encoding exists and has required fields
       if (spec.encoding) {
-        const encoding = spec.encoding;
+        const { encoding } = spec;
         // Check if at least x or y encoding exists
         if (!encoding.x && !encoding.y) {
-          setRenderError('Chart specification is missing x or y encoding. At least one axis must be defined.');
+          setRenderError(
+            'Chart specification is missing x or y encoding. At least one axis must be defined.',
+          );
           return;
         }
-        
+
         // Check if field names are valid
         if (encoding.x?.field && !results.columns.includes(encoding.x.field)) {
-          setRenderError(`Column "${encoding.x.field}" specified in x-axis does not exist in the data.`);
+          setRenderError(
+            `Column "${encoding.x.field}" specified in x-axis does not exist in the data.`,
+          );
           return;
         }
-        
+
         if (encoding.y?.field && !results.columns.includes(encoding.y.field)) {
-          setRenderError(`Column "${encoding.y.field}" specified in y-axis does not exist in the data.`);
-          return;
+          setRenderError(
+            `Column "${encoding.y.field}" specified in y-axis does not exist in the data.`,
+          );
         }
       }
     } catch (e) {
@@ -126,7 +145,7 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
       showError({ title: 'Cannot export chart', message: 'Fix rendering errors before exporting' });
       return;
     }
-    
+
     try {
       // Access the Vega view through the component
       const vegaElement = containerRef.current?.querySelector('.vega-embed');
@@ -167,7 +186,7 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
       showError({ title: 'Cannot export chart', message: 'Fix rendering errors before exporting' });
       return;
     }
-    
+
     try {
       // Access the SVG element
       const svgElement = containerRef.current?.querySelector('svg');
@@ -253,7 +272,8 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
           >
             <Text size="sm">{renderError}</Text>
             <Text size="xs" c="dimmed" className="mt-2">
-              The AI-generated chart specification contains errors. You can try asking for a different visualization or modify the query.
+              The AI-generated chart specification contains errors. You can try asking for a
+              different visualization or modify the query.
             </Text>
           </Alert>
         ) : (
@@ -262,10 +282,10 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
               setRenderError(error.message || 'Failed to render chart');
             }}
           >
-            <VegaLite 
-              spec={enhancedSpec} 
-              actions={false} 
-              renderer="canvas" 
+            <VegaLite
+              spec={enhancedSpec}
+              actions={false}
+              renderer="canvas"
               className="w-full"
               onError={(error: Error) => {
                 console.error('VegaLite rendering error:', error);
