@@ -28,7 +28,7 @@ export const Header = memo(() => {
   ) : (
     <Group className="gap-3 cursor-default">
       <Tooltip label="Hi, I'm Polly!" position="bottom" openDelay={500}>
-        <div className="bg-red-600">Test 5</div>
+        <div className="bg-green-600">Test 6</div>
       </Tooltip>
       <Group gap={4} align="baseline">
         <Text size="lg" fw={600} className="text-textPrimary-light dark:text-textPrimary-dark">
