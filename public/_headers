@@ -18,9 +18,11 @@
   Pragma: no-cache
   Expires: 0
 
-# Manifest - short cache to allow updates
+# Manifest - never cache to ensure immediate updates
 /manifest.webmanifest
-  Cache-Control: public, max-age=3600
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
 
 # JavaScript and CSS files with hashes - aggressive caching (1 year)
 /assets/*.js
