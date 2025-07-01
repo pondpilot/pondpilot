@@ -175,10 +175,12 @@ export function userWantsVisualization(userMessage: string): boolean {
   ];
 
   const messageLower = userMessage.toLowerCase();
-  
+
   // Check for explicit visualization keywords
-  const hasExplicitKeyword = explicitVisualizationKeywords.some((keyword) => messageLower.includes(keyword));
-  
+  const hasExplicitKeyword = explicitVisualizationKeywords.some((keyword) =>
+    messageLower.includes(keyword),
+  );
+
   // Additional check for phrases that explicitly request visualization
   const explicitPhrases = [
     'show me a',
@@ -190,11 +192,14 @@ export function userWantsVisualization(userMessage: string): boolean {
     'plot the',
     'graph the',
   ];
-  
-  const hasExplicitPhrase = explicitPhrases.some((phrase) => 
-    messageLower.includes(phrase) && 
-    explicitVisualizationKeywords.some(keyword => messageLower.includes(phrase) && messageLower.includes(keyword))
+
+  const hasExplicitPhrase = explicitPhrases.some(
+    (phrase) =>
+      messageLower.includes(phrase) &&
+      explicitVisualizationKeywords.some(
+        (keyword) => messageLower.includes(phrase) && messageLower.includes(keyword),
+      ),
   );
-  
+
   return hasExplicitKeyword || hasExplicitPhrase;
 }

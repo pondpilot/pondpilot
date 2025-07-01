@@ -11,7 +11,7 @@ import { cn } from '@utils/ui/styles';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
 import { ChatErrorBoundary } from './components/chat-error-boundary';
-import { ChatInputWithMentions } from './components/chat-input-with-mentions';
+import { ChatInput } from './components/chat-input';
 import { ChatMessageList } from './components/chat-message-list';
 import { useAIChatSubscription } from './hooks/use-ai-chat-subscription';
 import { useChatAI } from './hooks/use-chat-ai';
@@ -247,14 +247,9 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
         </Box>
       </ScrollArea>
 
-      <Box
-        className={cn(
-          'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
-          'px-4 py-4',
-        )}
-      >
+      <Box className={cn('bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark', 'px-4 py-4')}>
         <ChatErrorBoundary>
-          <ChatInputWithMentions onSendMessage={handleSendMessage} isLoading={isLoading} />
+          <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
         </ChatErrorBoundary>
       </Box>
     </Stack>

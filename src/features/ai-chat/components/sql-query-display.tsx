@@ -123,7 +123,7 @@ export const SqlQueryDisplay = ({
                     variant="subtle"
                     onClick={() => setIsEditingQuery(true)}
                     data-testid="ai-chat-edit-query"
-                    className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
+                    className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
                   >
                     <IconPencil size={14} />
                   </ActionIcon>
@@ -134,7 +134,7 @@ export const SqlQueryDisplay = ({
                     variant="subtle"
                     onClick={handleRunQuery}
                     data-testid="ai-chat-rerun-query"
-                    className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
+                    className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
                     disabled={isRerunning}
                   >
                     <IconPlayerPlay size={14} />
@@ -146,7 +146,7 @@ export const SqlQueryDisplay = ({
                     variant="subtle"
                     onClick={handleCopyQuery}
                     data-testid="ai-chat-copy-query"
-                    className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
+                    className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
                   >
                     <IconCopy size={14} />
                   </ActionIcon>
@@ -157,7 +157,7 @@ export const SqlQueryDisplay = ({
                     variant="subtle"
                     onClick={handleOpenInScript}
                     data-testid="ai-chat-open-script"
-                    className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
+                    className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
                   >
                     <IconExternalLink size={14} />
                   </ActionIcon>
@@ -202,24 +202,12 @@ export const SqlQueryDisplay = ({
           </Group>
         </Box>
       ) : query.results ? (
-        <Box className="bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark rounded-lg border border-borderPrimary-light dark:border-borderPrimary-dark overflow-hidden result-table-container relative">
+        <Box className="rounded-lg overflow-hidden result-table-container relative">
           <LoadingOverlay
             visible={isRerunning}
             overlayProps={{ radius: 'sm', blur: 2 }}
             loaderProps={{ size: 'sm' }}
           />
-          <Box className="bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark px-3 py-2 border-b border-borderPrimary-light dark:border-borderPrimary-dark">
-            <Group justify="space-between">
-              <Group gap="xs">
-                <Badge size="sm" variant="dot" color="green" className="result-badge">
-                  Results
-                </Badge>
-                <Text size="xs" c="dimmed">
-                  {query.results.rows.length} rows
-                </Text>
-              </Group>
-            </Group>
-          </Box>
           <ChatResultTable results={query.results} />
         </Box>
       ) : null}

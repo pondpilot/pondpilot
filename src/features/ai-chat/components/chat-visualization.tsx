@@ -32,7 +32,7 @@ export const ChatVisualization = ({ query }: ChatVisualizationProps) => {
     return (
       <Box className="bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark rounded-lg p-3 border border-borderSecondary-light dark:border-borderSecondary-dark">
         <Group justify="space-between" className="mb-3">
-          <Badge size="sm" variant="dot" color="violet">
+          <Badge size="sm" variant="dot" color="blue">
             Visualization
           </Badge>
           <Text size="xs" c="dimmed">
@@ -40,7 +40,7 @@ export const ChatVisualization = ({ query }: ChatVisualizationProps) => {
           </Text>
         </Group>
         <Center h={200}>
-          <Loader size="sm" color="violet" />
+          <Loader size="sm" color="blue" />
         </Center>
       </Box>
     );
@@ -67,7 +67,7 @@ export const ChatVisualization = ({ query }: ChatVisualizationProps) => {
       <Box className="bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark rounded-lg p-3 border border-borderSecondary-light dark:border-borderSecondary-dark">
         <Group justify="space-between" className="mb-3">
           <Group gap="xs">
-            <Badge size="sm" variant="dot" color="violet">
+            <Badge size="sm" variant="dot" color="blue">
               Visualization
             </Badge>
             {query.executionTime && (
@@ -82,7 +82,7 @@ export const ChatVisualization = ({ query }: ChatVisualizationProps) => {
                 size="sm"
                 variant="subtle"
                 onClick={toggleSql}
-                className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark"
+                className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
               >
                 {showSql ? <IconChevronUp size={14} /> : <IconCode size={14} />}
               </ActionIcon>
@@ -92,7 +92,7 @@ export const ChatVisualization = ({ query }: ChatVisualizationProps) => {
                 size="sm"
                 variant="subtle"
                 onClick={handleCopyQuery}
-                className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark"
+                className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
               >
                 <IconCopy size={14} />
               </ActionIcon>
@@ -102,7 +102,7 @@ export const ChatVisualization = ({ query }: ChatVisualizationProps) => {
                 size="sm"
                 variant="subtle"
                 onClick={handleOpenInScript}
-                className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark"
+                className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
               >
                 <IconExternalLink size={14} />
               </ActionIcon>

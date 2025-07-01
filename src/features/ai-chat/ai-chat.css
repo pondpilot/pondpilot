@@ -1,16 +1,15 @@
 /* Message animations */
 .ai-chat-message-enter {
-  animation: messageSlideIn 0.3s ease-out;
+  animation: fade-in 0.2s ease-out;
 }
 
-@keyframes messageSlideIn {
+@keyframes fade-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
   }
+
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -21,54 +20,18 @@
 
 /* Button hover effects */
 .chat-action-button {
-  transition: all 0.15s ease;
-}
-
-.chat-action-button:hover {
-  transform: translateY(-1px);
-}
-
-/* Table hover effects */
-.chat-result-table tbody tr {
   transition: background-color 0.15s ease;
 }
 
-.chat-result-table tbody tr:hover {
-  background-color: var(--mantine-color-gray-0);
-}
-
-.dark .chat-result-table tbody tr:hover {
-  background-color: var(--mantine-color-gray-9);
-}
 
 /* Copy menu animation */
 .copy-menu-enter {
-  animation: menuFadeIn 0.15s ease-out;
-}
-
-@keyframes menuFadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  animation: fade-in 0.15s ease-out;
 }
 
 /* Loading dots enhancement */
 .chat-loading-message {
-  animation: pulseOpacity 2s ease-in-out infinite;
-}
-
-@keyframes pulseOpacity {
-  0%, 100% {
-    opacity: 0.8;
-  }
-  50% {
-    opacity: 1;
-  }
+  opacity: 0.9;
 }
 
 /* Professional scrollbar styling */
@@ -101,62 +64,70 @@
   opacity: 1;
 }
 
-/* Professional focus states */
-.chat-input:focus-within {
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+/* Professional focus states - Claude Desktop style */
+.chat-input-container {
+  transition: all 0.2s ease;
+}
+
+.chat-input-container:focus-within {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Input field enhancements */
+.chat-input-container textarea {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+}
+
+/* Hide scrollbar when textarea is at minimal height (1 row) */
+.chat-input-container textarea[data-floating-scrollbar="false"] {
+  overflow: hidden !important;
+}
+
+.chat-input-container textarea[data-floating-scrollbar="true"] {
+  overflow: auto !important;
+}
+
+.chat-input-container textarea::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-input-container textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-input-container textarea::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.chat-input-container textarea::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Dark mode scrollbar */
+.dark .chat-input-container textarea::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .chat-input-container textarea::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Result table container */
 .result-table-container {
-  animation: tableReveal 0.3s ease-out;
-}
-
-@keyframes tableReveal {
-  from {
-    opacity: 0;
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    max-height: 1000px;
-  }
+  animation: fade-in 0.2s ease-out;
 }
 
 /* Edit mode transitions */
 .edit-mode-enter {
-  animation: editModeEnter 0.2s ease-out;
-}
-
-.edit-mode-exit {
-  animation: editModeExit 0.2s ease-out;
-}
-
-@keyframes editModeEnter {
-  from {
-    opacity: 0;
-    transform: scaleY(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scaleY(1);
-  }
-}
-
-@keyframes editModeExit {
-  from {
-    opacity: 1;
-    transform: scaleY(1);
-  }
-  to {
-    opacity: 0;
-    transform: scaleY(0.95);
-  }
+  animation: fade-in 0.2s ease-out;
 }
 
 /* Dense professional spacing */
 .chat-message-content {
   line-height: 1.5;
-  letter-spacing: -0.01em;
 }
 
 .chat-message-content p {
@@ -169,30 +140,16 @@
 
 /* Action button groups */
 .action-button-group {
-  gap: 2px;
-}
-
-.action-button-group .mantine-ActionIcon-root {
-  backdrop-filter: blur(10px);
+  gap: 0.25rem;
 }
 
 /* Professional badge styling */
 .result-badge {
   font-weight: 500;
-  letter-spacing: 0.025em;
   text-transform: uppercase;
-  font-size: 0.65rem;
 }
 
 /* Smooth color transitions */
 .message-bubble {
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.message-bubble:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.dark .message-bubble:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }

@@ -35,7 +35,12 @@ Brief explanation of what the query will do
 [SQL]
 The SQL query
 
-Do not use any other format markers besides [EXPLANATION] and [SQL].`;
+CRITICAL FORMAT RULES:
+- NEVER use markdown code blocks (\`\`\`sql, \`\`\`json, etc.) in your response
+- NEVER wrap SQL queries in backticks or any other formatting
+- Only use the [EXPLANATION] and [SQL] markers as shown above
+- Place the raw SQL query directly after the [SQL] marker with no additional formatting
+- This is essential for proper query execution - markdown blocks will break the system`;
 }
 
 export function buildConversationContext(messages: ChatMessage[]): string {
@@ -83,7 +88,11 @@ export function parseAIResponse(content: string): ParsedAIResponse {
   const vegaLiteMatch = content.match(/\[VEGA-LITE\]\s*\n([\s\S]*?)(?:\n\n|\n\[|$)/);
 
   if (sqlMatch && sqlMatch[1]) {
-    const sql = sqlMatch[1].trim();
+    let sql = sqlMatch[1].trim();
+
+    // Remove markdown code blocks if present (fallback for models that ignore instructions)
+    sql = sql.replace(/^```(?:sql)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+
     const explanation = explanationMatch
       ? explanationMatch[1].trim()
       : content.split('[SQL]')[0].trim();
