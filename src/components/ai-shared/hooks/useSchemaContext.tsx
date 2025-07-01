@@ -1,6 +1,8 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { useState, useEffect, useCallback } from 'react';
 
+import { escapeSqlString } from '../utils/sql-escape';
+
 interface SchemaInfo {
   tables: Array<{
     database: string;
@@ -60,14 +62,19 @@ export const useSchemaContext = ({ connectionPool, enabled = true }: UseSchemaCo
       // Fetch columns for each table
       const tables = await Promise.all(
         tableRows.map(async (table: any) => {
+          // Escape values to prevent SQL injection
+          const escapedDatabase = escapeSqlString(table.database);
+          const escapedSchema = escapeSqlString(table.schema);
+          const escapedName = escapeSqlString(table.name);
+
           const columnsResult = await connectionPool.query(`
             SELECT 
               column_name as name,
               data_type as type
             FROM information_schema.columns
-            WHERE table_catalog = '${table.database}'
-              AND table_schema = '${table.schema}'
-              AND table_name = '${table.name}'
+            WHERE table_catalog = '${escapedDatabase}'
+              AND table_schema = '${escapedSchema}'
+              AND table_name = '${escapedName}'
             ORDER BY ordinal_position
           `);
 

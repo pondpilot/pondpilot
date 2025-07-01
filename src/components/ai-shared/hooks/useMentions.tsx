@@ -2,6 +2,8 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
+import { escapeSqlString } from '../utils/sql-escape';
+
 export interface MentionSuggestion {
   value: string;
   label: string;
@@ -30,6 +32,7 @@ interface UseMentionsReturn {
   handleKeyDown: (e: React.KeyboardEvent) => boolean;
   applyMention: (suggestion: MentionSuggestion, text: string, cursorPos: number) => string;
   resetMentions: () => void;
+  setSelectedIndex: (index: number) => void;
 }
 
 const DEBOUNCE_DELAY = 150;
@@ -108,15 +111,18 @@ export const useMentions = ({
       if (connectionPool) {
         try {
           // First get database suggestions
+          // Escape the query to prevent SQL injection
+          const escapedQuery = escapeSqlString(query);
+
           const dbResult = await connectionPool.query(`
           SELECT DISTINCT 
             catalog_name as database_name
           FROM information_schema.schemata
-          WHERE LOWER(catalog_name) LIKE LOWER('%${query}%')
+          WHERE LOWER(catalog_name) LIKE LOWER('%${escapedQuery}%')
             AND catalog_name NOT IN ('system', 'temp')
           ORDER BY 
-            CASE WHEN LOWER(catalog_name) = LOWER('${query}') THEN 0
-                 WHEN LOWER(catalog_name) LIKE LOWER('${query}%') THEN 1
+            CASE WHEN LOWER(catalog_name) = LOWER('${escapedQuery}') THEN 0
+                 WHEN LOWER(catalog_name) LIKE LOWER('${escapedQuery}%') THEN 1
                  ELSE 2 END,
             catalog_name
           LIMIT 10
@@ -141,11 +147,11 @@ export const useMentions = ({
             table_name,
             table_type
           FROM information_schema.tables
-          WHERE LOWER(table_name) LIKE LOWER('%${query}%')
+          WHERE LOWER(table_name) LIKE LOWER('%${escapedQuery}%')
             AND table_schema NOT IN ('information_schema', 'pg_catalog')
           ORDER BY 
-            CASE WHEN LOWER(table_name) = LOWER('${query}') THEN 0
-                 WHEN LOWER(table_name) LIKE LOWER('${query}%') THEN 1
+            CASE WHEN LOWER(table_name) = LOWER('${escapedQuery}') THEN 0
+                 WHEN LOWER(table_name) LIKE LOWER('${escapedQuery}%') THEN 1
                  ELSE 2 END,
             table_name
           LIMIT 20
@@ -328,11 +334,20 @@ export const useMentions = ({
     };
   }, []);
 
+  // Function to update selected index (for mouse hover)
+  const setSelectedIndex = useCallback((index: number) => {
+    setMentionState((prev) => ({
+      ...prev,
+      selectedIndex: index,
+    }));
+  }, []);
+
   return {
     mentionState,
     handleInput,
     handleKeyDown,
     applyMention,
     resetMentions,
+    setSelectedIndex,
   };
 };

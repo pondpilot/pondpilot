@@ -31,6 +31,7 @@ export const ChatInput = ({
     handleInput,
     handleKeyDown: handleMentionKeyDown,
     resetMentions,
+    setSelectedIndex,
   } = useMentions({
     connectionPool,
     sqlScripts,
@@ -214,13 +215,15 @@ export const ChatInput = ({
           </div>
           <div
             className={cn(
-              'relative chat-input-container',
+              'relative',
               'rounded-2xl',
               'bg-gray-50 dark:bg-gray-800/50',
               'transition-all duration-200',
               'border border-gray-200 dark:border-gray-700',
               'focus-within:border-gray-300 dark:focus-within:border-gray-600',
               'focus-within:shadow-sm',
+              'focus-within:-translate-y-[1px]',
+              'focus-within:shadow-[0_2px_8px_rgba(0,0,0,0.08)]',
             )}
           >
             <Textarea
@@ -254,6 +257,9 @@ export const ChatInput = ({
                   'placeholder:text-gray-500 dark:placeholder:text-gray-400',
                   'focus:outline-none',
                   'text-gray-900 dark:text-gray-100',
+                  'scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent',
+                  'dark:scrollbar-thumb-gray-600',
+                  hasMultipleRows ? 'overflow-auto' : 'overflow-hidden',
                 ),
                 wrapper: 'border-0',
               }}
@@ -298,6 +304,7 @@ export const ChatInput = ({
             suggestions={mentionState.suggestions}
             selectedIndex={mentionState.selectedIndex}
             onSelect={handleMentionSelectForDropdown}
+            onHover={setSelectedIndex}
             anchorRect={textareaRect}
             data-testid="ai-chat-mention-dropdown"
           />

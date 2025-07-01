@@ -329,6 +329,19 @@ module.exports = {
           900: '#CAD8FF',
         },
       },
+      animation: {
+        'fade-in': 'fade-in 0.2s ease-out',
+        'fade-in-fast': 'fade-in 0.15s ease-out',
+      },
+      keyframes: {
+        'fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+      },
+      transitionProperty: {
+        'shadow-border': 'box-shadow, border-color',
+      },
     },
   },
   plugins: [],
