@@ -9,6 +9,7 @@ import { useAppStore } from '@store/app-store';
 import { IconArrowLeft, IconAlertCircle } from '@tabler/icons-react';
 import { executeWithRetry } from '@utils/connection-manager';
 import { makePersistentDataSourceId } from '@utils/data-source';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { validateRemoteDatabaseUrl } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { useState } from 'react';
@@ -128,7 +129,34 @@ export function RemoteDatabaseConfig({ onBack, onClose }: RemoteDatabaseConfigPr
         exponentialBackoff: true,
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Verify the database is attached by checking the catalog
+      // This replaces the arbitrary 1-second delay with a proper readiness check
+      const escapedDbName = toDuckDBIdentifier(remoteDb.dbName);
+      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = ${escapedDbName}`;
+
+      let dbFound = false;
+      let attempts = 0;
+      const maxAttempts = 3;
+
+      while (!dbFound && attempts < maxAttempts) {
+        try {
+          const result = await pool.query(checkQuery);
+          if (result && result.numRows > 0) {
+            dbFound = true;
+          } else {
+            throw new Error('Database not found in catalog');
+          }
+        } catch (error) {
+          attempts += 1;
+          if (attempts >= maxAttempts) {
+            throw new Error(
+              `Database ${remoteDb.dbName} could not be verified after ${maxAttempts} attempts`,
+            );
+          }
+          console.warn(`Attempt ${attempts}: Database not ready yet, waiting...`);
+          await new Promise((resolve) => setTimeout(resolve, 500)); // Shorter delay between attempts
+        }
+      }
 
       remoteDb.connectionState = 'connected';
       newDataSources.set(remoteDb.id, remoteDb);
