@@ -4,6 +4,7 @@ import { cn } from '@utils/ui/styles';
 import { useEffect, useRef, useState } from 'react';
 
 import { MentionSuggestion } from '../hooks/useMentions';
+import { ScreenReaderAnnouncement } from './ScreenReaderAnnouncement';
 
 interface MentionDropdownProps {
   suggestions: MentionSuggestion[];
@@ -43,6 +44,7 @@ export const MentionDropdown = ({
   'data-testid': dataTestId = 'mention-dropdown',
 }: MentionDropdownProps) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const selectedItemRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top?: number; bottom?: number; left: number }>({
     left: 0,
   });
@@ -79,11 +81,48 @@ export const MentionDropdown = ({
     }
   }, [anchorRect, suggestions.length, maxHeight]);
 
+  // Scroll selected item into view
+  useEffect(() => {
+    if (selectedItemRef.current && dropdownRef.current) {
+      const container = dropdownRef.current.querySelector('[role="listbox"]');
+      if (container) {
+        // Get the scrollable container's position and dimensions
+        const containerRect = container.getBoundingClientRect();
+        const itemRect = selectedItemRef.current.getBoundingClientRect();
+        
+        // Check if item is outside the visible area
+        if (itemRect.top < containerRect.top) {
+          // Item is above visible area
+          selectedItemRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        } else if (itemRect.bottom > containerRect.bottom) {
+          // Item is below visible area
+          selectedItemRef.current.scrollIntoView({ block: 'end', behavior: 'smooth' });
+        }
+      }
+    }
+  }, [selectedIndex]);
+
   if (suggestions.length === 0) {
     return null;
   }
 
+  // Generate screen reader announcement
+  const getScreenReaderMessage = () => {
+    if (suggestions.length === 0) {
+      return 'No suggestions available';
+    }
+    
+    const selectedSuggestion = suggestions[selectedIndex];
+    if (selectedSuggestion) {
+      const itemType = selectedSuggestion.type === 'error' ? 'error' : selectedSuggestion.type;
+      return `${selectedSuggestion.label}, ${itemType}${selectedSuggestion.contextInfo ? `, in ${selectedSuggestion.contextInfo}` : ''}, ${selectedIndex + 1} of ${suggestions.length}`;
+    }
+    
+    return `${suggestions.length} suggestions available`;
+  };
+
   return (
+    <>
     <Paper
       ref={dropdownRef}
       shadow="md"
@@ -103,8 +142,6 @@ export const MentionDropdown = ({
         left: position.left,
       }}
       data-testid={dataTestId}
-      role="listbox"
-      aria-label="Mention suggestions"
     >
       <Box
         className="py-1 [&::-webkit-scrollbar]:hidden"
@@ -116,31 +153,41 @@ export const MentionDropdown = ({
             msOverflowStyle: 'none',
           } as React.CSSProperties
         }
+        role="listbox"
+        aria-label="Mention suggestions"
+        aria-activedescendant={selectedIndex >= 0 ? `mention-option-${selectedIndex}` : undefined}
+        tabIndex={-1}
       >
-        {suggestions.map((suggestion, index) => (
-          <Box
-            key={`${suggestion.type}-${suggestion.value}-${index}`}
-            className={cn(
-              'flex items-center gap-2 px-3 py-2 mx-2 rounded-lg cursor-pointer transition-colors',
-              'hover:bg-[#2123280A] dark:hover:bg-[#FFFFFF0A]',
-              selectedIndex === index && 'bg-[#E0E2F4] dark:bg-[#29324C]',
-              suggestion.type === 'error' && 'cursor-default opacity-70',
-            )}
-            onClick={() => {
-              if (suggestion.type !== 'error') {
-                onSelect(suggestion);
-              }
-            }}
-            onMouseEnter={() => {
-              if (suggestion.type !== 'error' && onHover) {
-                onHover(index);
-              }
-            }}
-            role="option"
-            aria-selected={selectedIndex === index}
-            id={`mention-option-${index}`}
-            data-testid={`mention-option-${index}`}
-          >
+        {suggestions.map((suggestion, index) => {
+          const isSelected = selectedIndex === index;
+          const isDisabled = suggestion.type === 'error';
+          
+          return (
+            <Box
+              key={`${suggestion.type}-${suggestion.value}-${index}`}
+              ref={isSelected ? selectedItemRef : null}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2 mx-2 rounded-lg cursor-pointer transition-colors',
+                'hover:bg-[#2123280A] dark:hover:bg-[#FFFFFF0A]',
+                isSelected && 'bg-[#E0E2F4] dark:bg-[#29324C]',
+                isDisabled && 'cursor-default opacity-70',
+              )}
+              onClick={() => {
+                if (!isDisabled) {
+                  onSelect(suggestion);
+                }
+              }}
+              onMouseEnter={() => {
+                if (!isDisabled && onHover) {
+                  onHover(index);
+                }
+              }}
+              role="option"
+              aria-selected={isSelected}
+              aria-disabled={isDisabled}
+              id={`mention-option-${index}`}
+              data-testid={`mention-option-${index}`}
+            >
             <span className="text-[#6F7785] dark:text-[#A8B3C4] flex-shrink-0">
               {getMentionIcon(suggestion.type)}
             </span>
@@ -163,8 +210,11 @@ export const MentionDropdown = ({
               )}
             </div>
           </Box>
-        ))}
+          );
+        })}
       </Box>
     </Paper>
+    <ScreenReaderAnnouncement message={getScreenReaderMessage()} />
+    </>
   );
 };
