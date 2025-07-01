@@ -96,19 +96,15 @@ export const ChatExplorer = memo(() => {
     // Initial load
     updateConversations();
 
-    // Listen for storage events (cross-tab updates)
-    const handleStorageChange = () => {
-      updateConversations();
-    };
-
-    window.addEventListener('storage', handleStorageChange);
+    // Subscribe to AI chat controller changes (includes cross-tab updates)
+    const unsubscribeController = aiChatController.subscribe(updateConversations);
 
     // Also update when app state changes
-    const unsubscribe = useAppStore.subscribe(() => updateConversations());
+    const unsubscribeStore = useAppStore.subscribe(() => updateConversations());
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      unsubscribe();
+      unsubscribeController();
+      unsubscribeStore();
     };
   }, []);
 
