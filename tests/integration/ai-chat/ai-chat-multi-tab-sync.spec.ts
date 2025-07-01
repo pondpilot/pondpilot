@@ -15,19 +15,19 @@ test.describe('AI Chat Multi-Tab Sync Tests', () => {
 
   test.beforeEach(async ({ browser: b }) => {
     browser = b;
-    
+
     // Create two browser contexts to simulate different tabs
     context1 = await browser.newContext();
     context2 = await browser.newContext();
-    
+
     // Create pages in each context
     page1 = await context1.newPage();
     page2 = await context2.newPage();
-    
+
     // Navigate both pages to the app
     await page1.goto('/');
     await page2.goto('/');
-    
+
     // Wait for app to load
     await page1.waitForSelector('[data-testid="tab"]');
     await page2.waitForSelector('[data-testid="tab"]');
@@ -59,7 +59,7 @@ test.describe('AI Chat Multi-Tab Sync Tests', () => {
     await expect(page2.locator('[data-testid^="chat-explorer-node"]')).toBeVisible({
       timeout: 10000,
     });
-    
+
     // Click on the conversation in the second tab
     const chatNode = page2.locator('[data-testid^="chat-explorer-node"]').first();
     await chatNode.click();
@@ -136,8 +136,8 @@ test.describe('AI Chat Multi-Tab Sync Tests', () => {
     await page1.waitForTimeout(1000);
 
     // Verify conversation is deleted in both tabs
-    await expect(page1.locator('[data-testid^="chat-explorer-node"]')).not.toBeVisible();
-    await expect(page2.locator('[data-testid^="chat-explorer-node"]')).not.toBeVisible();
+    await expect(page1.locator('[data-testid^="chat-explorer-node"]')).toBeHidden();
+    await expect(page2.locator('[data-testid^="chat-explorer-node"]')).toBeHidden();
   });
 
   test('should sync conversation title updates across tabs', async () => {
@@ -159,7 +159,7 @@ test.describe('AI Chat Multi-Tab Sync Tests', () => {
     // Rename conversation in first tab
     const chatNode1 = page1.locator('[data-testid^="chat-explorer-node"]').first();
     await chatNode1.click({ button: 'right' });
-    
+
     // Click rename option
     const renameOption = page1.getByText('Rename');
     await renameOption.click();
@@ -195,16 +195,13 @@ test.describe('AI Chat Multi-Tab Sync Tests', () => {
 
     // Send messages from both tabs simultaneously
     const input2 = page2.getByTestId('ai-chat-input');
-    
+
     // Type in both inputs without sending
     await input1.fill('Message from tab 1');
     await input2.fill('Message from tab 2');
-    
+
     // Send both messages with minimal delay
-    await Promise.all([
-      page1.keyboard.press('Enter'),
-      page2.keyboard.press('Enter')
-    ]);
+    await Promise.all([page1.keyboard.press('Enter'), page2.keyboard.press('Enter')]);
 
     // Wait for messages to appear
     await page1.waitForTimeout(3000);

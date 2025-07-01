@@ -22,25 +22,25 @@ export class AIChatController {
           this.conversations.set(message.conversation.id, message.conversation);
           this.notify();
           break;
-          
+
         case 'CONVERSATION_UPDATED':
           // Update conversation from another tab
           this.conversations.set(message.conversationId, message.conversation);
           this.notify();
           break;
-          
+
         case 'CONVERSATION_DELETED':
           // Delete conversation from another tab
           this.conversations.delete(message.conversationId);
           this.notify();
           break;
-          
+
         case 'CONVERSATIONS_CLEARED':
           // Clear all conversations from another tab
           this.conversations.clear();
           this.notify();
           break;
-          
+
         case 'FULL_SYNC':
           // Full sync from another tab
           this.conversations = new Map(message.conversations);
@@ -59,13 +59,13 @@ export class AIChatController {
       updatedAt: new Date(),
     };
     this.conversations.set(conversation.id, conversation);
-    
+
     // Broadcast to other tabs
     aiChatBroadcastSync.broadcast({
       type: 'CONVERSATION_ADDED',
       conversation,
     });
-    
+
     this.notify();
     return conversation;
   }
@@ -84,27 +84,27 @@ export class AIChatController {
       };
 
       this.conversations.set(id, updatedConversation);
-      
+
       // Broadcast to other tabs
       aiChatBroadcastSync.broadcast({
         type: 'CONVERSATION_UPDATED',
         conversationId: id,
         conversation: updatedConversation,
       });
-      
+
       this.notify();
     }
   }
 
   deleteConversation(id: ChatConversationId): void {
     this.conversations.delete(id);
-    
+
     // Broadcast to other tabs
     aiChatBroadcastSync.broadcast({
       type: 'CONVERSATION_DELETED',
       conversationId: id,
     });
-    
+
     this.notify();
   }
 
@@ -128,14 +128,14 @@ export class AIChatController {
     };
 
     this.conversations.set(conversationId, updatedConversation);
-    
+
     // Broadcast to other tabs
     aiChatBroadcastSync.broadcast({
       type: 'CONVERSATION_UPDATED',
       conversationId,
       conversation: updatedConversation,
     });
-    
+
     this.notify();
 
     return newMessage;
@@ -166,14 +166,14 @@ export class AIChatController {
       };
 
       this.conversations.set(conversationId, updatedConversation);
-      
+
       // Broadcast to other tabs
       aiChatBroadcastSync.broadcast({
         type: 'CONVERSATION_UPDATED',
         conversationId,
         conversation: updatedConversation,
       });
-      
+
       this.notify();
     }
   }
@@ -190,14 +190,14 @@ export class AIChatController {
     };
 
     this.conversations.set(conversationId, updatedConversation);
-    
+
     // Broadcast to other tabs
     aiChatBroadcastSync.broadcast({
       type: 'CONVERSATION_UPDATED',
       conversationId,
       conversation: updatedConversation,
     });
-    
+
     this.notify();
   }
 
@@ -215,14 +215,14 @@ export class AIChatController {
       };
 
       this.conversations.set(conversationId, updatedConversation);
-      
+
       // Broadcast to other tabs
       aiChatBroadcastSync.broadcast({
         type: 'CONVERSATION_UPDATED',
         conversationId,
         conversation: updatedConversation,
       });
-      
+
       this.notify();
     }
   }
@@ -278,7 +278,7 @@ export class AIChatController {
     conversations.forEach((conversation) => {
       this.conversations.set(conversation.id, conversation);
     });
-    
+
     // Only broadcast if this is not from a broadcast message (to avoid loops)
     if (!fromBroadcast) {
       aiChatBroadcastSync.broadcast({
@@ -286,10 +286,10 @@ export class AIChatController {
         conversations: this.conversations,
       });
     }
-    
+
     this.notify();
   }
-  
+
   // Cleanup method to unsubscribe from broadcasts
   destroy(): void {
     if (this.broadcastUnsubscribe) {

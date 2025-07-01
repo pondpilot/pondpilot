@@ -142,12 +142,12 @@ SELECT month, revenue FROM sales ORDER BY month`;
                 message: {
                   role: 'assistant',
                   content: JSON.stringify({
-                    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-                    "mark": "bar",
-                    "encoding": {
-                      "x": {"field": "month", "type": "ordinal"},
-                      "y": {"field": "revenue", "type": "quantitative"}
-                    }
+                    $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                    mark: 'bar',
+                    encoding: {
+                      x: { field: 'month', type: 'ordinal' },
+                      y: { field: 'revenue', type: 'quantitative' },
+                    },
                   }),
                 },
                 finish_reason: 'stop',
@@ -208,7 +208,7 @@ SELECT month, revenue FROM sales ORDER BY month`;
 
     // Check for error about missing encoding
     await expect(
-      page.locator('text=/Chart specification is missing x or y encoding/i')
+      page.locator('text=/Chart specification is missing x or y encoding/i'),
     ).toBeVisible({
       timeout: 10000,
     });
@@ -232,7 +232,7 @@ SELECT month, revenue FROM sales ORDER BY month`;
     });
 
     // No error messages should appear
-    await expect(page.locator('text=/Chart Rendering Error/i')).not.toBeVisible();
+    await expect(page.locator('text=/Chart Rendering Error/i')).toBeHidden();
   });
 
   test('should show loading state while generating chart', async ({ page, aiChat }) => {
@@ -264,8 +264,6 @@ SELECT month, revenue FROM sales ORDER BY month`;
     await page.waitForSelector('text=/Column.*does not exist/i', { timeout: 10000 });
 
     // Check for helpful suggestion text
-    await expect(
-      page.locator('text=/try asking for a different visualization/i')
-    ).toBeVisible();
+    await expect(page.locator('text=/try asking for a different visualization/i')).toBeVisible();
   });
 });

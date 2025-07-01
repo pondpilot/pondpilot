@@ -92,7 +92,9 @@ export interface ParsedAIResponse {
 
 export function parseAIResponse(content: string): ParsedAIResponse {
   const sqlMatch = content.match(/\[SQL\]\s*\n([\s\S]*?)(?:\n\n|\n\[|$)/);
-  const explanationMatch = content.match(/\[EXPLANATION\]\s*\n([\s\S]*?)(?:\n\[SQL\]|\n\[VEGA-LITE\]|$)/);
+  const explanationMatch = content.match(
+    /\[EXPLANATION\]\s*\n([\s\S]*?)(?:\n\[SQL\]|\n\[VEGA-LITE\]|$)/,
+  );
   const vegaLiteMatch = content.match(/\[VEGA-LITE\]\s*\n([\s\S]*?)(?:\n\n|\n\[|$)/);
 
   // Check for explanation-only response first

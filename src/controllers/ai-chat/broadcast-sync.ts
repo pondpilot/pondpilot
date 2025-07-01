@@ -2,7 +2,7 @@ import { ChatConversationId, ChatConversation } from '@models/ai-chat';
 
 const AI_CHAT_SYNC_CHANNEL = 'ai-chat-sync';
 
-export type AIChatSyncMessage = 
+export type AIChatSyncMessage =
   | {
       type: 'CONVERSATION_ADDED';
       conversation: ChatConversation;
@@ -27,7 +27,7 @@ export type AIChatSyncMessage =
 export class AIChatBroadcastSync {
   private channel: BroadcastChannel | null = null;
   private listeners: Set<(message: AIChatSyncMessage) => void> = new Set();
-  
+
   constructor() {
     if (typeof BroadcastChannel !== 'undefined') {
       this.channel = new BroadcastChannel(AI_CHAT_SYNC_CHANNEL);
@@ -37,7 +37,7 @@ export class AIChatBroadcastSync {
 
   private handleMessage = (event: MessageEvent<AIChatSyncMessage>) => {
     // Notify all listeners about the incoming message
-    this.listeners.forEach(listener => {
+    this.listeners.forEach((listener) => {
       try {
         listener(event.data);
       } catch (error) {
@@ -58,7 +58,7 @@ export class AIChatBroadcastSync {
 
   subscribe(listener: (message: AIChatSyncMessage) => void): () => void {
     this.listeners.add(listener);
-    
+
     return () => {
       this.listeners.delete(listener);
     };
