@@ -24,7 +24,7 @@ export const MessageActions = ({
           variant="subtle"
           onClick={onCopy}
           data-testid="ai-chat-copy-message"
-          className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
+          className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
         >
           <IconCopy size={14} />
         </ActionIcon>
@@ -37,7 +37,7 @@ export const MessageActions = ({
             variant="subtle"
             onClick={onEdit}
             data-testid="ai-chat-edit-message"
-            className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
+            className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
           >
             <IconPencil size={14} />
           </ActionIcon>
@@ -51,7 +51,7 @@ export const MessageActions = ({
             variant="subtle"
             onClick={onDelete}
             data-testid="ai-chat-delete-message"
-            className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
+            className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
           >
             <IconTrash size={14} />
           </ActionIcon>
@@ -64,7 +64,7 @@ export const MessageActions = ({
             <ActionIcon
               size="sm"
               variant="subtle"
-              className="hover:bg-transparent016-light dark:hover:bg-transparent016-dark chat-action-button"
+              className="hover:bg-transparent008-light dark:hover:bg-transparent008-dark"
             >
               <IconDots size={14} />
             </ActionIcon>

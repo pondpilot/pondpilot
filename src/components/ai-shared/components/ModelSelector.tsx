@@ -101,6 +101,9 @@ export const ModelSelector = ({
         searchable={false}
         rightSection={null}
         allowDeselect={false}
+        comboboxProps={{
+          dropdownPosition: 'top',
+        }}
       />
     );
   }
@@ -134,6 +137,7 @@ export const ModelSelector = ({
       data-testid={dataTestId}
       comboboxProps={{
         transitionProps: { transition: 'fade', duration: 200 },
+        dropdownPosition: 'top',
       }}
       classNames={{
         dropdown: 'max-h-[300px]',

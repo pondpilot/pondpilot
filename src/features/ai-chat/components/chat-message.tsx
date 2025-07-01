@@ -62,7 +62,14 @@ export const ChatMessage = ({
             </Text>
           ),
           labels: { confirm: 'Re-run', cancel: 'Keep existing' },
-          confirmProps: { color: 'blue' },
+          confirmProps: {
+            color: 'background-accent',
+            variant: 'filled',
+          },
+          cancelProps: {
+            variant: 'subtle',
+            color: 'gray',
+          },
           onConfirm: () => {
             onRerunConversation(message.id, editedContent);
           },
@@ -101,7 +108,7 @@ export const ChatMessage = ({
       )}
       data-testid="ai-chat-message"
     >
-      <Box className={cn('max-w-4xl rounded-lg', isUser ? 'ml-auto mr-2' : 'mr-auto ml-2')}>
+      <Box className={cn('max-w-4xl', isUser ? 'ml-auto mr-3' : 'mr-auto ml-3')}>
         {/* Message bubble */}
         <Paper
           className={cn(
@@ -111,8 +118,8 @@ export const ChatMessage = ({
               : 'bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark border-borderSecondary-light dark:border-borderSecondary-dark',
             'shadow-sm hover:shadow-md',
           )}
-          p="sm"
-          radius="md"
+          p="md"
+          radius="lg"
           withBorder
         >
           <div className="space-y-2">
