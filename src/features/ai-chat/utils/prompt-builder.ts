@@ -14,6 +14,8 @@ Instructions:
 - Keep responses concise and focused
 - Format numbers and dates nicely in explanations
 - For follow-up questions, use previous queries, results, and errors to provide better assistance
+- When users ask for explanations of queries (e.g., "explain @query"), provide a clear explanation without generating new SQL
+- For explanation-only requests, respond with just the [EXPLANATION] section without [SQL]
 
 IMPORTANT Database Context Rules:
 - When users mention databases, schemas, or tables using @mentions (e.g., @database.schema.table), preserve the FULL qualified names in your SQL queries
@@ -29,11 +31,17 @@ VISUALIZATION RULES:
 - Table format is the preferred default output for all queries
 
 Response Format:
+
+For queries and data analysis:
 [EXPLANATION]
 Brief explanation of what the query will do
 
 [SQL]
 The SQL query
+
+For explanation-only requests (e.g., "explain this query", "what does @query do"):
+[EXPLANATION]
+Detailed explanation of the query or concept
 
 CRITICAL FORMAT RULES:
 - NEVER use markdown code blocks (\`\`\`sql, \`\`\`json, etc.) in your response
@@ -84,8 +92,16 @@ export interface ParsedAIResponse {
 
 export function parseAIResponse(content: string): ParsedAIResponse {
   const sqlMatch = content.match(/\[SQL\]\s*\n([\s\S]*?)(?:\n\n|\n\[|$)/);
-  const explanationMatch = content.match(/\[EXPLANATION\]\s*\n([\s\S]*?)(?:\n\[SQL\]|$)/);
+  const explanationMatch = content.match(/\[EXPLANATION\]\s*\n([\s\S]*?)(?:\n\[SQL\]|\n\[VEGA-LITE\]|$)/);
   const vegaLiteMatch = content.match(/\[VEGA-LITE\]\s*\n([\s\S]*?)(?:\n\n|\n\[|$)/);
+
+  // Check for explanation-only response first
+  if (explanationMatch && !sqlMatch) {
+    return {
+      explanation: explanationMatch[1].trim(),
+      content,
+    };
+  }
 
   if (sqlMatch && sqlMatch[1]) {
     let sql = sqlMatch[1].trim();

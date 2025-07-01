@@ -3,6 +3,7 @@ import { saveAIChatConversations } from '@controllers/ai-chat/persist';
 import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { ChatConversationId } from '@models/ai-chat';
 import { VegaLiteSpec, isValidVegaLiteSpec } from '@models/vega-lite';
+import { useAppStore } from '@store/app-store';
 import { getAIConfig } from '@utils/ai-config';
 import { getAIService } from '@utils/ai-service';
 import { classifySQLStatements, SQLStatementType } from '@utils/editor/sql';
@@ -23,6 +24,38 @@ import { useQueryExecution } from './use-query-execution';
 export const useChatAI = () => {
   const duckDbConnectionPool = useDuckDBConnectionPool();
   const { executeQuery } = useQueryExecution();
+  const sqlScripts = useAppStore((state) => state.sqlScripts);
+
+  // Function to build script context from @query mentions
+  const buildScriptContext = useCallback(
+    (message: string): string | undefined => {
+      // Find all @mentions
+      const mentions = message.match(/@(\w+)/g);
+      if (!mentions) return undefined;
+      
+      const scriptContents: string[] = [];
+      
+      // Check each mention against scripts
+      for (const mention of mentions) {
+        const mentionName = mention.substring(1); // Remove @
+        
+        // Find script by name in the Map
+        for (const [scriptId, script] of sqlScripts.entries()) {
+          if (script.name.toLowerCase() === mentionName.toLowerCase()) {
+            scriptContents.push(`-- Script: ${script.name}\n${script.sql}`);
+            break;
+          }
+        }
+      }
+      
+      if (scriptContents.length > 0) {
+        return `Referenced SQL Scripts:\n\n${scriptContents.join('\n\n')}`;
+      }
+      
+      return undefined;
+    },
+    [sqlScripts]
+  );
 
   const generateChartFromResults = useCallback(
     async (query: string, results: any, userIntent: string) => {
@@ -103,8 +136,17 @@ Respond with ONLY the JSON specification, no explanation:`;
       // Get full database schema
       const schemaContext = await fetchDatabaseSchema(duckDbConnectionPool);
 
+      // Build script context from @mentions
+      const scriptContext = buildScriptContext(userMessage);
+
+      // Combine schema and script contexts
+      let combinedContext = schemaContext;
+      if (scriptContext) {
+        combinedContext = `${schemaContext}\n\n${scriptContext}`;
+      }
+
       // Build the prompt for the AI
-      const systemPrompt = buildSystemPrompt(schemaContext);
+      const systemPrompt = buildSystemPrompt(combinedContext);
 
       // Build conversation context with full query results
       const conversationContext = buildConversationContext(contextMessages);
@@ -130,7 +172,29 @@ Respond with ONLY the JSON specification, no explanation:`;
       // Parse response to extract SQL and chart spec
       const parsed = parseAIResponse(content);
 
-      if (parsed.sql && parsed.explanation) {
+      // Handle explanation-only responses
+      if (parsed.explanation && !parsed.sql) {
+        // Just add the explanation as a message
+        aiChatController.addMessage(conversationId, {
+          role: 'assistant',
+          content: parsed.explanation,
+          timestamp: new Date(),
+        });
+
+        // Generate title if this was the first exchange
+        if (isFirstExchange) {
+          const titleConfig = getAIConfig();
+          const titleService = getAIService(titleConfig);
+
+          // Generate title asynchronously (don't block the UI)
+          titleService.generateChatTitle(userMessage, parsed.explanation).then(async (title) => {
+            if (title && title !== 'New Chat') {
+              aiChatController.updateConversation(conversationId, { title });
+              await saveAIChatConversations();
+            }
+          });
+        }
+      } else if (parsed.sql && parsed.explanation) {
         const { sql, explanation, chartSpec } = parsed;
 
         // Check if SQL contains DDL statements
@@ -245,7 +309,7 @@ Respond with ONLY the JSON specification, no explanation:`;
         }
       }
     },
-    [duckDbConnectionPool, executeQuery, generateChartFromResults],
+    [duckDbConnectionPool, executeQuery, generateChartFromResults, buildScriptContext],
   );
 
   return {
