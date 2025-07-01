@@ -1,12 +1,49 @@
 import { showSuccess, showError } from '@components/app-notifications';
-import { Box, Text, ActionIcon, Tooltip, Menu, Group, useMantineColorScheme } from '@mantine/core';
+import { Box, Text, ActionIcon, Tooltip, Menu, Group, useMantineColorScheme, Alert } from '@mantine/core';
 import { QueryResults } from '@models/ai-chat';
 import { VegaLiteSpec } from '@models/vega-lite';
-import { IconDownload, IconCopy, IconPhoto } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import { IconDownload, IconCopy, IconPhoto, IconAlertCircle } from '@tabler/icons-react';
+import { useEffect, useRef, useState, Component, ReactNode } from 'react';
 import { VegaLite } from 'react-vega';
 
 import { getChartThemeConfig } from '../constants/chart-theme';
+
+// Simple error boundary for chart rendering
+class ChartErrorBoundary extends Component<{ children: ReactNode; onError?: (error: Error) => void }, { hasError: boolean }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error('Chart rendering error:', error);
+    this.props.onError?.(error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Alert
+          icon={<IconAlertCircle size={16} />}
+          title="Chart Rendering Error"
+          color="red"
+          className="m-4"
+        >
+          <Text size="sm">Failed to render the chart. The specification may be invalid or incompatible.</Text>
+          <Text size="xs" c="dimmed" className="mt-2">
+            Try asking for a simpler visualization or check the Vega-Lite specification for errors.
+          </Text>
+        </Alert>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 interface ChatResultChartProps {
   results: QueryResults;
@@ -17,6 +54,7 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
   const { colorScheme } = useMantineColorScheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 600, height: 400 });
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -53,7 +91,42 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
     },
   };
 
+  // Validate required fields for common errors
+  useEffect(() => {
+    setRenderError(null);
+    
+    try {
+      // Check if encoding exists and has required fields
+      if (spec.encoding) {
+        const encoding = spec.encoding;
+        // Check if at least x or y encoding exists
+        if (!encoding.x && !encoding.y) {
+          setRenderError('Chart specification is missing x or y encoding. At least one axis must be defined.');
+          return;
+        }
+        
+        // Check if field names are valid
+        if (encoding.x?.field && !results.columns.includes(encoding.x.field)) {
+          setRenderError(`Column "${encoding.x.field}" specified in x-axis does not exist in the data.`);
+          return;
+        }
+        
+        if (encoding.y?.field && !results.columns.includes(encoding.y.field)) {
+          setRenderError(`Column "${encoding.y.field}" specified in y-axis does not exist in the data.`);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Error validating chart spec:', e);
+    }
+  }, [spec, results.columns]);
+
   const handleExportPNG = async () => {
+    if (renderError) {
+      showError({ title: 'Cannot export chart', message: 'Fix rendering errors before exporting' });
+      return;
+    }
+    
     try {
       // Access the Vega view through the component
       const vegaElement = containerRef.current?.querySelector('.vega-embed');
@@ -90,6 +163,11 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
   };
 
   const handleExportSVG = () => {
+    if (renderError) {
+      showError({ title: 'Cannot export chart', message: 'Fix rendering errors before exporting' });
+      return;
+    }
+    
     try {
       // Access the SVG element
       const svgElement = containerRef.current?.querySelector('svg');
@@ -166,7 +244,36 @@ export const ChatResultChart = ({ results, spec }: ChatResultChartProps) => {
         className="overflow-hidden rounded-md bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
         style={{ minHeight: dimensions.height + 40 }}
       >
-        <VegaLite spec={enhancedSpec} actions={false} renderer="canvas" className="w-full" />
+        {renderError ? (
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            title="Chart Rendering Error"
+            color="red"
+            className="m-4"
+          >
+            <Text size="sm">{renderError}</Text>
+            <Text size="xs" c="dimmed" className="mt-2">
+              The AI-generated chart specification contains errors. You can try asking for a different visualization or modify the query.
+            </Text>
+          </Alert>
+        ) : (
+          <ChartErrorBoundary
+            onError={(error) => {
+              setRenderError(error.message || 'Failed to render chart');
+            }}
+          >
+            <VegaLite 
+              spec={enhancedSpec} 
+              actions={false} 
+              renderer="canvas" 
+              className="w-full"
+              onError={(error: Error) => {
+                console.error('VegaLite rendering error:', error);
+                setRenderError(error.message || 'Failed to render chart');
+              }}
+            />
+          </ChartErrorBoundary>
+        )}
       </Box>
 
       {results.truncated && (
