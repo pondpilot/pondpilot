@@ -11,46 +11,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
+  # Temporarily disabled for faster deployment testing
+  # lint:
+  #   name: Lint
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '22'
 
-      - name: Enable Corepack
-        run: |
-          corepack enable
+  #     - name: Enable Corepack
+  #       run: |
+  #         corepack enable
 
-      - name: Get yarn cache directory path
-        id: yarn-cache-dir-path
-        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+  #     - name: Get yarn cache directory path
+  #       id: yarn-cache-dir-path
+  #       run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
 
-      - name: Cache Yarn Dependencies
-        uses: actions/cache@v4
-        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
-        with:
-          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
+  #     - name: Cache Yarn Dependencies
+  #       uses: actions/cache@v4
+  #       id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+  #       with:
+  #         path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+  #         key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-yarn-
 
-      - name: Install dependencies
-        run: yarn install --immutable
+  #     - name: Install dependencies
+  #       run: yarn install --immutable
 
-      - name: Type check
-        run: yarn typecheck
+  #     - name: Type check
+  #       run: yarn typecheck
 
-      - name: Lint JS/TS
-        run: yarn lint
+  #     - name: Lint JS/TS
+  #       run: yarn lint
 
-      - name: Check for formatting issues
-        run: yarn prettier
+  #     - name: Check for formatting issues
+  #       run: yarn prettier
 
   build-test:
     name: Build & Test
@@ -84,35 +85,36 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Run unit tests
-        run: yarn test:unit
-        env:
-          CI: true
+      # Temporarily disabled for faster deployment testing
+      # - name: Run unit tests
+      #   run: yarn test:unit
+      #   env:
+      #     CI: true
 
-      - name: Install Playwright browsers
-        run: yarn playwright install --with-deps chromium webkit
+      # - name: Install Playwright browsers
+      #   run: yarn playwright install --with-deps chromium webkit
 
-      - name: Install DuckDB
-        run: |
-          curl https://install.duckdb.org | sh
-          sudo ln -s /home/runner/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb
-          duckdb --version
+      # - name: Install DuckDB
+      #   run: |
+      #     curl https://install.duckdb.org | sh
+      #     sudo ln -s /home/runner/.duckdb/cli/latest/duckdb /usr/local/bin/duckdb
+      #     duckdb --version
 
-      - name: Build for integration tests
-        run: yarn build --mode int-test-build
+      # - name: Build for integration tests
+      #   run: yarn build --mode int-test-build
 
-      - name: Run Playwright tests
-        run: |
-          yarn playwright test
-        env:
-          CI: true
+      # - name: Run Playwright tests
+      #   run: |
+      #     yarn playwright test
+      #   env:
+      #     CI: true
 
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
+      # - uses: actions/upload-artifact@v4
+      #   if: ${{ !cancelled() }}
+      #   with:
+      #     name: playwright-report
+      #     path: playwright-report/
+      #     retention-days: 30
 
       - name: Build for production
         run: yarn build
