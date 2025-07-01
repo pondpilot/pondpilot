@@ -89,7 +89,7 @@ export const SqlQueryDisplay = ({
               </Text>
             )}
           </Group>
-          <Group gap={4} className="action-button-group">
+          <Group gap={4} className="gap-1">
             {isEditingQuery ? (
               <>
                 <Tooltip label="Save changes">
@@ -168,7 +168,7 @@ export const SqlQueryDisplay = ({
         </Group>
 
         {isEditingQuery ? (
-          <div className="rounded-md overflow-hidden border border-borderSecondary-light dark:border-borderSecondary-dark edit-mode-enter sql-editor-transition">
+          <div className="rounded-md overflow-hidden border border-borderSecondary-light dark:border-borderSecondary-dark animate-fade-in transition-all duration-200 ease-in-out">
             <div style={{ height: '150px', overflow: 'auto' }}>
               <SqlEditor
                 value={editedSql}

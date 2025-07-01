@@ -103,7 +103,7 @@ export const ChatMessage = ({
   return (
     <div
       className={cn(
-        'flex w-full ai-chat-message-enter message-container',
+        'flex w-full animate-fade-in group',
         isUser ? 'justify-end' : 'justify-start',
       )}
       data-testid="ai-chat-message"
@@ -112,7 +112,7 @@ export const ChatMessage = ({
         {/* Message bubble */}
         <Paper
           className={cn(
-            'transition-all duration-200 message-bubble group',
+            'transition-shadow-border duration-200',
             isUser
               ? 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark border-borderPrimary-light dark:border-borderPrimary-dark'
               : 'bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark border-borderSecondary-light dark:border-borderSecondary-dark',
@@ -156,7 +156,7 @@ export const ChatMessage = ({
               ) : (
                 <>
                   {/* Message content with markdown support */}
-                  <div className="prose dark:prose-invert max-w-none prose-sm prose-p:my-2 prose-pre:my-2 chat-message-content flex-1 text-textPrimary-light dark:text-textPrimary-dark">
+                  <div className="prose dark:prose-invert max-w-none prose-sm prose-p:my-2 prose-pre:my-3 leading-normal flex-1 text-textPrimary-light dark:text-textPrimary-dark">
                     <ReactMarkdown
                       rehypePlugins={[rehypeSanitize]}
                       components={{
@@ -224,7 +224,7 @@ export const ChatMessage = ({
 
         {/* Timestamp */}
         <Group justify={isUser ? 'end' : 'start'} className="mt-1 px-1">
-          <Text size="xs" c="dimmed" className="message-timestamp">
+          <Text size="xs" c="dimmed" className="transition-opacity duration-200 opacity-60 group-hover:opacity-100">
             {new Date(message.timestamp).toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',

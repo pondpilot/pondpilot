@@ -15,7 +15,6 @@ import { ChatInput } from './components/chat-input';
 import { ChatMessageList } from './components/chat-message-list';
 import { useAIChatSubscription } from './hooks/use-ai-chat-subscription';
 import { useChatAI } from './hooks/use-chat-ai';
-import './ai-chat.css';
 
 interface ChatConversationProps {
   tabId: TabId;
@@ -221,13 +220,13 @@ export const ChatConversation = ({ tabId }: ChatConversationProps) => {
       data-testid="ai-chat-container"
     >
       <ScrollArea
-        className="flex-1 chat-scrollarea"
+        className="flex-1"
         viewportRef={scrollViewportRef}
         scrollbarSize={6}
         classNames={{
           scrollbar: 'bg-transparent008-light dark:bg-transparent008-dark',
           thumb:
-            'bg-transparent032-light dark:bg-transparent032-dark hover:bg-transparent072-light dark:hover:bg-transparent072-dark',
+            'bg-transparent032-light dark:bg-transparent032-dark hover:bg-transparent072-light dark:hover:bg-transparent072-dark transition-colors duration-200',
         }}
       >
         <Box className="min-h-full flex flex-col">

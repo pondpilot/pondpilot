@@ -84,7 +84,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
   const appReady = appLoadState === 'ready';
 
   // Calculate if all sections are expanded before toggle section
-  const allExpanded = sectionStates.dataExplorer && sectionStates.queries && sectionStates.aiChat;
+  const _allExpanded = sectionStates.dataExplorer && sectionStates.queries && sectionStates.aiChat;
   // Calculate if at least two sections are expanded (for resizing logic)
   const multipleSectionsExpanded =
     [sectionStates.dataExplorer, sectionStates.queries, sectionStates.aiChat].filter(Boolean)

@@ -9,6 +9,7 @@ interface MentionDropdownProps {
   suggestions: MentionSuggestion[];
   selectedIndex: number;
   onSelect: (suggestion: MentionSuggestion) => void;
+  onHover?: (index: number) => void;
   anchorRect?: DOMRect;
   maxHeight?: number;
   'data-testid'?: string;
@@ -36,6 +37,7 @@ export const MentionDropdown = ({
   suggestions,
   selectedIndex,
   onSelect,
+  onHover,
   anchorRect,
   maxHeight = 200,
   'data-testid': dataTestId = 'mention-dropdown',
@@ -130,11 +132,8 @@ export const MentionDropdown = ({
               }
             }}
             onMouseEnter={() => {
-              if (suggestion.type !== 'error') {
-                // Update selected index on hover
-                if ('_onSelectionChange' in dropdownRef.current!) {
-                  (dropdownRef.current as any)._onSelectionChange?.(index);
-                }
+              if (suggestion.type !== 'error' && onHover) {
+                onHover(index);
               }
             }}
             role="option"

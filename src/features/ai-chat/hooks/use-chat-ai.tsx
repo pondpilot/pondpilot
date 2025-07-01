@@ -32,26 +32,26 @@ export const useChatAI = () => {
       // Find all @mentions
       const mentions = message.match(/@(\w+)/g);
       if (!mentions) return undefined;
-      
+
       const scriptContents: string[] = [];
-      
+
       // Check each mention against scripts
       for (const mention of mentions) {
         const mentionName = mention.substring(1); // Remove @
-        
+
         // Find script by name in the Map
-        for (const [scriptId, script] of sqlScripts.entries()) {
+        for (const [_scriptId, script] of sqlScripts.entries()) {
           if (script.name.toLowerCase() === mentionName.toLowerCase()) {
-            scriptContents.push(`-- Script: ${script.name}\n${script.sql}`);
+            scriptContents.push(`-- Script: ${script.name}\n${script.content}`);
             break;
           }
         }
       }
-      
+
       if (scriptContents.length > 0) {
         return `Referenced SQL Scripts:\n\n${scriptContents.join('\n\n')}`;
       }
-      
+
       return undefined;
     },
     [sqlScripts]
@@ -108,6 +108,23 @@ Respond with ONLY the JSON specification, no explanation:`;
         console.error('Failed to parse chart specification:', e);
         return null;
       }
+    },
+    [],
+  );
+
+  // Helper function to generate and save chat title
+  const generateAndSaveChatTitle = useCallback(
+    async (conversationId: ChatConversationId, userMessage: string, assistantResponse: string) => {
+      const titleConfig = getAIConfig();
+      const titleService = getAIService(titleConfig);
+
+      // Generate title asynchronously (don't block the UI)
+      titleService.generateChatTitle(userMessage, assistantResponse).then(async (title) => {
+        if (title && title !== 'New Chat') {
+          aiChatController.updateConversation(conversationId, { title });
+          await saveAIChatConversations();
+        }
+      });
     },
     [],
   );
@@ -183,16 +200,7 @@ Respond with ONLY the JSON specification, no explanation:`;
 
         // Generate title if this was the first exchange
         if (isFirstExchange) {
-          const titleConfig = getAIConfig();
-          const titleService = getAIService(titleConfig);
-
-          // Generate title asynchronously (don't block the UI)
-          titleService.generateChatTitle(userMessage, parsed.explanation).then(async (title) => {
-            if (title && title !== 'New Chat') {
-              aiChatController.updateConversation(conversationId, { title });
-              await saveAIChatConversations();
-            }
-          });
+          await generateAndSaveChatTitle(conversationId, userMessage, parsed.explanation);
         }
       } else if (parsed.sql && parsed.explanation) {
         const { sql, explanation, chartSpec } = parsed;
@@ -275,16 +283,7 @@ Respond with ONLY the JSON specification, no explanation:`;
 
         // Generate title if this was the first exchange
         if (isFirstExchange) {
-          const titleConfig = getAIConfig();
-          const titleService = getAIService(titleConfig);
-
-          // Generate title asynchronously (don't block the UI)
-          titleService.generateChatTitle(userMessage, explanation).then(async (title) => {
-            if (title && title !== 'New Chat') {
-              aiChatController.updateConversation(conversationId, { title });
-              await saveAIChatConversations();
-            }
-          });
+          await generateAndSaveChatTitle(conversationId, userMessage, explanation);
         }
       } else {
         // No SQL found, just add the response as a message
@@ -296,20 +295,11 @@ Respond with ONLY the JSON specification, no explanation:`;
 
         // Generate title if this was the first exchange
         if (isFirstExchange) {
-          const titleConfig2 = getAIConfig();
-          const titleService2 = getAIService(titleConfig2);
-
-          // Generate title asynchronously (don't block the UI)
-          titleService2.generateChatTitle(userMessage, content).then(async (title) => {
-            if (title && title !== 'New Chat') {
-              aiChatController.updateConversation(conversationId, { title });
-              await saveAIChatConversations();
-            }
-          });
+          await generateAndSaveChatTitle(conversationId, userMessage, content);
         }
       }
     },
-    [duckDbConnectionPool, executeQuery, generateChartFromResults, buildScriptContext],
+    [duckDbConnectionPool, executeQuery, generateChartFromResults, buildScriptContext, generateAndSaveChatTitle],
   );
 
   return {
