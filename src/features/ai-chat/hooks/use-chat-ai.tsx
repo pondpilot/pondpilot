@@ -95,17 +95,30 @@ Respond with ONLY the JSON specification, no explanation:`;
         const cleanContent = response.content.trim();
         // Remove markdown code block if present
         const jsonContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim();
-        const parsedSpec = JSON.parse(jsonContent);
+        
+        let parsedSpec;
+        try {
+          parsedSpec = JSON.parse(jsonContent);
+        } catch (parseError) {
+          console.error('Failed to parse chart specification JSON:', parseError);
+          console.error('Raw content:', jsonContent.substring(0, 200) + '...');
+          return null;
+        }
 
         // Validate the spec structure
         if (!isValidVegaLiteSpec(parsedSpec)) {
-          console.error('Invalid Vega-Lite specification structure');
+          console.error('Invalid Vega-Lite specification structure:', {
+            hasSchema: !!parsedSpec.$schema,
+            schemaValue: parsedSpec.$schema,
+            hasMark: !!parsedSpec.mark,
+            markValue: parsedSpec.mark
+          });
           return null;
         }
 
         return parsedSpec as VegaLiteSpec;
       } catch (e) {
-        console.error('Failed to parse chart specification:', e);
+        console.error('Unexpected error processing chart specification:', e);
         return null;
       }
     },
