@@ -4,6 +4,7 @@ import {
   getOrCreateTabFromLocalDBObject,
   getOrCreateTabFromFlatFileDataSource,
   getOrCreateTabFromScript,
+  createAIChatTab,
   deleteTab,
 } from '@controllers/tab';
 import { ImportScriptModalContent } from '@features/script-import';
@@ -28,6 +29,8 @@ import {
   IconKeyboard,
   IconLayoutGridRemove,
   IconLayoutNavbarCollapse,
+  IconMessage,
+  IconMessagePlus,
 } from '@tabler/icons-react';
 import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
 import { importSQLFiles } from '@utils/import-script-file';
@@ -123,6 +126,16 @@ export const SpotlightMenu = () => {
   };
 
   const navigateActions: Action[] = [
+    {
+      id: 'ai-chat',
+      label: 'New AI Chat',
+      handler: () => {
+        createAIChatTab(true, 'New Chat');
+        Spotlight.close();
+        ensureHome();
+      },
+      icon: <IconMessage size={20} className={ICON_CLASSES} />,
+    },
     {
       id: 'data-sources',
       label: 'Data Sources',
@@ -341,7 +354,24 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const quickActions: Action[] = [...scriptGroupActions, ...dataSourceGroupActions, ...tabActions];
+  const aiChatAction: Action = {
+    id: 'new-ai-chat',
+    label: 'New AI Chat',
+    icon: <IconMessagePlus size={20} className={ICON_CLASSES} />,
+    hotkey: [control, option, 'C'],
+    handler: () => {
+      createAIChatTab(true, 'New Chat');
+      resetSpotlight();
+      ensureHome();
+    },
+  };
+
+  const quickActions: Action[] = [
+    aiChatAction,
+    ...scriptGroupActions,
+    ...dataSourceGroupActions,
+    ...tabActions,
+  ];
 
   const searchModeActions: Action[] = [
     {
