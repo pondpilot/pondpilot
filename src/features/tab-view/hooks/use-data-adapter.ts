@@ -22,6 +22,7 @@ import {
   isTheSameSortSpec,
   toggleMultiColumnSort,
 } from '@utils/db';
+import { isSchemaError } from '@utils/schema-error-detection';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useDataAdapterQueries } from './use-data-adapter-queries';
@@ -423,12 +424,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             console.error('Data source have been moved or deleted:', error);
             setAppendDataSourceReadError('Data source have been moved or deleted.');
           }
-        } else if (
-          error.message?.includes('Binder Error') ||
-          error.message?.includes('does not exist') ||
-          error.message?.includes('Invalid column') ||
-          error.message?.includes('Contents of view were altered')
-        ) {
+        } else if (isSchemaError(error)) {
           if (options.retry_with_file_sync) {
             await syncFiles(pool);
             await reset(newSortParams);
@@ -654,12 +650,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             console.error('Data source have been moved or deleted:', error);
             setAppendDataSourceReadError('Data source have been moved or deleted.');
           }
-        } else if (
-          error.message?.includes('Binder Error') ||
-          error.message?.includes('does not exist') ||
-          error.message?.includes('Invalid column') ||
-          error.message?.includes('Contents of view were altered')
-        ) {
+        } else if (isSchemaError(error)) {
           if (options.retry_with_file_sync) {
             // Schema mismatch detected - sync files and recreate views
             await syncFiles(pool);
