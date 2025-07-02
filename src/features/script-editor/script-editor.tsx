@@ -1,4 +1,4 @@
-import { showAlert } from '@components/app-notifications';
+import { showAlert, showSuccess, showError } from '@components/app-notifications';
 import { createSQLScript, updateSQLScriptContent } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { SqlEditor } from '@features/editor';
@@ -14,6 +14,7 @@ import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip';
 import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
+import { formatSQLSafe } from '@utils/sql-formatter';
 import { setDataTestId } from '@utils/test-id';
 import { useEffect, useRef, useState, useMemo } from 'react';
 
@@ -191,6 +192,37 @@ export const ScriptEditor = ({
         const { tabExecutionErrors } = useAppStore.getState();
         const errorContext = tabExecutionErrors.get(tabId);
         showAIAssistant(view, errorContext);
+      }
+    }
+  };
+
+  const handleFormatClick = () => {
+    if (editorRef.current?.view) {
+      const { view } = editorRef.current;
+      const currentCode = view.state.doc.toString();
+      const formatResult = formatSQLSafe(currentCode);
+
+      if (formatResult.success) {
+        // Replace the entire document with formatted SQL
+        view.dispatch({
+          changes: {
+            from: 0,
+            to: view.state.doc.length,
+            insert: formatResult.result,
+          },
+        });
+        showSuccess({
+          title: 'SQL formatted successfully',
+          autoClose: 2000,
+          id: 'sql-format',
+        });
+      } else {
+        showError({
+          title: 'Failed to format SQL',
+          message: formatResult.error,
+          autoClose: 3000,
+          id: 'sql-format-error',
+        });
       }
     }
   };
