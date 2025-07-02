@@ -52,7 +52,7 @@ interface DataExplorerFiltersProps {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   availableFileTypes?: Set<keyof FileTypeFilter>;
-  availableDataSourceTypes?: {
+  availableDataSourceTypes: {
     files: boolean;
     databases: boolean;
     remote: boolean;
@@ -101,10 +101,6 @@ export const DataExplorerFilters = memo(
 
     // Filter buttons based on available data source types
     const visibleFilterButtons = useMemo(() => {
-      if (!availableDataSourceTypes) {
-        return allFilterButtons;
-      }
-
       const buttons: FilterButton[] = [];
 
       // Always show "all" if there's at least one data source type
@@ -112,6 +108,10 @@ export const DataExplorerFilters = memo(
         availableDataSourceTypes.files ||
         availableDataSourceTypes.databases ||
         availableDataSourceTypes.remote;
+
+      if (!hasAnyDataSource) {
+        return allFilterButtons;
+      }
 
       if (hasAnyDataSource) {
         buttons.push(allFilterButtons[0]); // "all" button
