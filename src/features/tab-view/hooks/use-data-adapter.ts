@@ -22,6 +22,7 @@ import {
   isTheSameSortSpec,
   toggleMultiColumnSort,
 } from '@utils/db';
+import { isSchemaError } from '@utils/schema-error-detection';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useDataAdapterQueries } from './use-data-adapter-queries';
@@ -423,6 +424,15 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             console.error('Data source have been moved or deleted:', error);
             setAppendDataSourceReadError('Data source have been moved or deleted.');
           }
+        } else if (isSchemaError(error)) {
+          if (options.retry_with_file_sync) {
+            await syncFiles(pool);
+            await reset(newSortParams);
+            await getNewReader(newSortParams, { retry_with_file_sync: false });
+          } else {
+            console.error('Schema mismatch detected:', error);
+            setAppendDataSourceReadError('Data source schema has changed. Please refresh the tab.');
+          }
         } else if (error.message?.includes('NotFoundError')) {
           console.error('Data source have been moved or deleted:', error);
           setAppendDataSourceReadError('Data source have been moved or deleted.');
@@ -639,6 +649,25 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             // We got an unrecoverable actual error
             console.error('Data source have been moved or deleted:', error);
             setAppendDataSourceReadError('Data source have been moved or deleted.');
+          }
+        } else if (isSchemaError(error)) {
+          if (options.retry_with_file_sync) {
+            // Schema mismatch detected - sync files and recreate views
+            await syncFiles(pool);
+            // Do a full reset to the same sort. This will put the current batch
+            // of data to stale state, re-create the reader etc.
+            await reset(sort);
+
+            // Re-enter the fetch loop
+            await fetchDataSingleEntry({
+              retry_with_file_sync: false,
+            });
+
+            afterRetry = true;
+          } else {
+            // We got an unrecoverable schema mismatch error
+            console.error('Schema mismatch detected:', error);
+            setAppendDataSourceReadError('Data source schema has changed. Please refresh the tab.');
           }
         } else if (!abortSignal.aborted) {
           // Fetch was not cancelled we got an actual error

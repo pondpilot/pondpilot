@@ -7,6 +7,8 @@ import {
   registerFileHandle,
   registerFileSourceAndCreateView,
   createXlsxSheetView,
+  reCreateView,
+  reCreateXlsxSheetView,
 } from '@controllers/db/data-source';
 import { getLocalDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
@@ -531,7 +533,7 @@ const checkFileReadability = async (
 };
 
 export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
-  const { localEntries, registeredFiles } = useAppStore.getState();
+  const { localEntries, registeredFiles, dataSources } = useAppStore.getState();
 
   const localFiles = Array.from(localEntries.values()).filter(
     (entry) => entry.kind === 'file' && entry.fileType === 'data-source',
@@ -548,7 +550,7 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
 
     if (checkCurrentFile === 'readable') {
       // File content was changed
-      // Try to register it again
+      // Try to register it again and recreate associated views
       try {
         const regFile = await registerFileHandle(
           conn,
@@ -556,6 +558,40 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
           `${source.uniqueAlias}.${source.ext}`,
         );
         newRegisteredFiles.set(source.id, regFile);
+
+        // Find and recreate all views associated with this file
+        const associatedDataSources = Array.from(dataSources.values()).filter(
+          (ds) =>
+            (ds.type === 'csv' ||
+              ds.type === 'json' ||
+              ds.type === 'parquet' ||
+              ds.type === 'xlsx-sheet') &&
+            ds.fileSourceId === source.id,
+        );
+
+        for (const dataSource of associatedDataSources) {
+          if (dataSource.type === 'xlsx-sheet') {
+            await reCreateXlsxSheetView(
+              conn,
+              `${source.uniqueAlias}.${source.ext}`,
+              dataSource.sheetName,
+              dataSource.viewName,
+              dataSource.viewName,
+            );
+          } else if (
+            dataSource.type === 'csv' ||
+            dataSource.type === 'json' ||
+            dataSource.type === 'parquet'
+          ) {
+            await reCreateView(
+              conn,
+              source.ext as 'csv' | 'json' | 'parquet',
+              `${source.uniqueAlias}.${source.ext}`,
+              dataSource.viewName,
+              dataSource.viewName,
+            );
+          }
+        }
       } catch (e) {
         console.error(`Failed to register file handle ${source.handle.name}:`, e);
         localFileToDelete.push(source);
@@ -579,9 +615,9 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
   if (localFileToDelete.length > 0) {
     // Get Data Sources to delete
     const localFileIdsToDelete = new Set(localFileToDelete.map((file) => file.id));
-    const { dataSources } = useAppStore.getState();
+    const { dataSources: dataSourcesForDelete } = useAppStore.getState();
     const dataSourceIdsToDelete = new Set<PersistentDataSourceId>();
-    for (const [dataSourceId, dataSource] of dataSources) {
+    for (const [dataSourceId, dataSource] of dataSourcesForDelete) {
       if (
         dataSource.type !== 'attached-db' &&
         dataSource.type !== 'remote-db' &&
