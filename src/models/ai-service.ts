@@ -35,6 +35,10 @@ export interface AIRequest {
     statementType?: string;
     currentScript: string;
   };
+  cursorContext?: {
+    isOnEmptyLine: boolean;
+    hasExistingQuery: boolean;
+  };
 }
 
 export interface AIResponse {

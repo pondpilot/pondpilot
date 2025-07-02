@@ -90,11 +90,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
       const runQueryWithFileSyncAndRetry = async (code: string) => {
         try {
-          await pool.query(code);
+          await conn.query(code);
         } catch (error: any) {
           if (error.message?.includes('NotReadableError')) {
             await syncFiles(pool);
-            await pool.query(code);
+            await conn.query(code);
           } else {
             throw error;
           }
@@ -121,7 +121,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
 
         if (needsTransaction) {
-          await pool.query('BEGIN TRANSACTION');
+          await conn.query('BEGIN TRANSACTION');
         }
 
         // Execute each statement except the last one
@@ -132,7 +132,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (needsTransaction) {
-              await pool.query('ROLLBACK');
+              await conn.query('ROLLBACK');
             }
             console.error('Error executing statement:', statement.type, error);
             setScriptExecutionState('error');
@@ -169,7 +169,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             const message = error instanceof Error ? error.message : String(error);
 
             if (needsTransaction) {
-              await pool.query('ROLLBACK');
+              await conn.query('ROLLBACK');
             }
             console.error(
               'Creation of a prepared statement for the last SELECT statement failed:',
@@ -206,7 +206,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (needsTransaction) {
-              await pool.query('ROLLBACK');
+              await conn.query('ROLLBACK');
             }
             console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
             setScriptExecutionState('error');
@@ -236,7 +236,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
         // All statements executed successfully
         if (needsTransaction) {
-          await pool.query('COMMIT');
+          await conn.query('COMMIT');
         }
 
         // Check if any DDL or database operations were executed and refresh metadata
@@ -247,7 +247,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
         if (hasDDL || hasAttachDetach) {
           // Get all currently attached databases
-          const attachedDatabasesResult = await pool.query(
+          const attachedDatabasesResult = await conn.query(
             'SELECT DISTINCT database_name FROM duckdb_databases() WHERE NOT internal',
           );
           const attachedDatabases = attachedDatabasesResult.toArray();

@@ -48,9 +48,9 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    padding: '4px 8px',
+    padding: '4px 12px',
     border: 'none',
-    borderRadius: '4px',
+    borderRadius: '16px',
     backgroundColor: '#4957C1', // backgroundAccent-light
     color: '#FFFFFF', // textContrast-light
     fontSize: '12px',
@@ -59,6 +59,8 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
     transition: 'opacity 0.2s ease',
     minWidth: '70px',
     justifyContent: 'center',
+    flexShrink: '0',
+    whiteSpace: 'nowrap',
 
     '&:hover': {
       opacity: '0.9',
@@ -91,53 +93,84 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
   },
 
   '.ai-widget-select': {
-    padding: '1px 3px',
+    padding: '2px 6px',
     border: '1px solid #e5e7eb',
-    borderRadius: '3px',
-    backgroundColor: '#ffffff',
-    color: '#6b7280',
-    fontSize: '9px',
+    borderRadius: '6px',
+    backgroundColor: '#f9fafb',
+    color: '#374151',
+    fontSize: '11px',
     cursor: 'pointer',
     outline: 'none',
-    transition: 'border-color 0.2s ease',
-    minWidth: '80px',
-    maxWidth: '120px',
+    transition: 'all 0.2s ease',
+    minWidth: '90px',
+    maxWidth: '160px',
+
+    '&:hover': {
+      backgroundColor: '#f3f4f6',
+      borderColor: '#d1d5db',
+    },
 
     '&:focus': {
-      borderColor: '#3b82f6',
-      boxShadow: '0 0 0 1px #3b82f6',
+      borderColor: '#4957C1',
+      boxShadow: '0 0 0 2px rgba(73, 87, 193, 0.1)',
     },
 
     '[data-mantine-color-scheme="dark"] &': {
+      backgroundColor: '#1f2937',
+      borderColor: '#374151',
+      color: '#e5e7eb',
+    },
+
+    '[data-mantine-color-scheme="dark"] &:hover': {
       backgroundColor: '#374151',
       borderColor: '#4b5563',
-      color: '#9ca3af',
     },
 
     '[data-mantine-color-scheme="dark"] &:focus': {
-      borderColor: '#60a5fa',
-      boxShadow: '0 0 0 1px #60a5fa',
+      borderColor: '#4C61FF',
+      boxShadow: '0 0 0 2px rgba(76, 97, 255, 0.1)',
     },
 
     '& optgroup': {
       fontWeight: '600',
-      fontSize: '8px',
-      color: '#374151',
-      backgroundColor: '#f9fafb',
-      padding: '1px 0',
+      fontSize: '10px',
+      color: '#6b7280',
+      backgroundColor: '#f3f4f6',
+      padding: '4px 6px',
+      fontStyle: 'normal',
 
       '[data-mantine-color-scheme="dark"] &': {
-        color: '#e5e7eb',
-        backgroundColor: '#2a2a2a',
+        color: '#9ca3af',
+        backgroundColor: '#1a1a1a',
       },
     },
 
     '& option': {
-      padding: '1px 3px',
-      fontSize: '9px',
+      padding: '4px 8px',
+      fontSize: '11px',
+      backgroundColor: '#ffffff',
+      color: '#374151',
+
+      '&:hover': {
+        backgroundColor: '#E5E7F6',
+      },
 
       '&:checked': {
-        backgroundColor: '#3b82f6',
+        backgroundColor: '#4957C1',
+        color: '#ffffff',
+      },
+
+      '[data-mantine-color-scheme="dark"] &': {
+        backgroundColor: '#1f2937',
+        color: '#e5e7eb',
+      },
+
+      '[data-mantine-color-scheme="dark"] &:hover': {
+        backgroundColor: '#374151',
+      },
+
+      '[data-mantine-color-scheme="dark"] &:checked': {
+        backgroundColor: '#4C61FF',
         color: '#ffffff',
       },
     },
@@ -147,13 +180,19 @@ export const aiWidgetInputTheme = EditorView.baseTheme({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    padding: '4px 8px',
-    borderBottom: '1px solid #e5e7eb',
-    backgroundColor: '#f9fafb',
+  },
 
-    '[data-mantine-color-scheme="dark"] &': {
-      backgroundColor: '#262626',
-      borderBottomColor: '#404040',
+  '.ai-widget-select-button': {
+    cursor: 'pointer !important',
+
+    '&:hover': {
+      backgroundColor: '#f3f4f6 !important',
+      borderColor: '#3b82f6 !important',
+    },
+
+    '[data-mantine-color-scheme="dark"] &:hover': {
+      backgroundColor: '#4b5563 !important',
+      borderColor: '#60a5fa !important',
     },
   },
 });

@@ -13,6 +13,7 @@ interface LayoutProps {
 
 export function Layout({ isFileAccessApiSupported, isMobileDevice }: LayoutProps) {
   const { handleFileDrop } = useAddLocalFilesOrFolders();
+
   if (isMobileDevice) {
     return <DesktopOnly />;
   }
