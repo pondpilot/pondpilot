@@ -14,12 +14,11 @@ import { defaultKeymap, insertTab, history } from '@codemirror/commands';
 import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
 import { Prec } from '@codemirror/state';
 import { keymap, placeholder, ViewPlugin } from '@codemirror/view';
-import { showSuccess, showError } from '@components/app-notifications';
+import { showSuccess } from '@components/app-notifications';
 import { useAppStore } from '@store/app-store';
 import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
-import { formatSQLSafe } from '@utils/sql-formatter';
 import { forwardRef, KeyboardEventHandler, useMemo, useRef } from 'react';
 
 import { aiAssistantStateField } from './ai-assistant/state-field';
@@ -119,6 +118,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
                   onFontSizeChanged(newFontSize);
                   showSuccess({
                     title: `Font size: ${Math.floor(newFontSize * 100)}%`,
+                    message: '',
                     autoClose: 1000,
                     id: 'font-size',
                   });
@@ -136,6 +136,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
                   onFontSizeChanged(newFontSize);
                   showSuccess({
                     title: `Font size: ${Math.floor(newFontSize * 100)}%`,
+                    message: '',
                     autoClose: 1000,
                     id: 'font-size',
                   });
@@ -147,31 +148,9 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
               key: KEY_BINDING.format.toCodeMirrorKey(),
               preventDefault: true,
               run: (view) => {
-                const currentCode = view.state.doc.toString();
-                const formatResult = formatSQLSafe(currentCode);
-
-                if (formatResult.success) {
-                  // Replace the entire document with formatted SQL
-                  view.dispatch({
-                    changes: {
-                      from: 0,
-                      to: view.state.doc.length,
-                      insert: formatResult.result,
-                    },
-                  });
-                  showSuccess({
-                    title: 'SQL formatted successfully',
-                    autoClose: 2000,
-                    id: 'sql-format',
-                  });
-                } else {
-                  showError({
-                    title: 'Failed to format SQL',
-                    message: formatResult.error,
-                    autoClose: 3000,
-                    id: 'sql-format-error',
-                  });
-                }
+                import('@controllers/sql-formatter').then(({ formatSQLInEditor }) => {
+                  formatSQLInEditor(view);
+                });
                 return true;
               },
             },

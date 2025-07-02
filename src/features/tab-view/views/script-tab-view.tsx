@@ -1,4 +1,4 @@
-import { showError, showErrorWithAction } from '@components/app-notifications';
+import { showError, showErrorWithAction, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources, persistDeleteDataSource } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
@@ -79,6 +79,12 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           if (sqlScript && sqlScript.content !== queryToExecute) {
             const { updateSQLScriptContent } = await import('@controllers/sql-script');
             updateSQLScriptContent(sqlScript, queryToExecute);
+            showSuccess({
+              title: 'Query auto-formatted',
+              message: '',
+              autoClose: 1500,
+              id: 'sql-auto-format',
+            });
           }
         }
       }

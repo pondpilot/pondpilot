@@ -1,4 +1,4 @@
-import { showError, showSuccess, showWarning } from '@components/app-notifications';
+import { showError, showWarning } from '@components/app-notifications';
 import { NamedIcon } from '@components/named-icon';
 import { createSQLScript } from '@controllers/sql-script';
 import {
@@ -33,7 +33,6 @@ import {
 import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
-import { formatSQLSafe } from '@utils/sql-formatter';
 import { setDataTestId } from '@utils/test-id';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -291,10 +290,11 @@ export const SpotlightMenu = () => {
       hotkey: [control, 'Shift', 'I'],
       handler: () => {
         // Get the active tab and check if it's a script tab
-        const { activeTabId, tabs, sqlScripts } = useAppStore.getState();
+        const { activeTabId, tabs, sqlScripts: scripts } = useAppStore.getState();
         if (!activeTabId) {
           showError({
             title: 'No active tab',
+            message: '',
             autoClose: 2000,
           });
           Spotlight.close();
@@ -305,41 +305,27 @@ export const SpotlightMenu = () => {
         if (!activeTab || activeTab.type !== 'script') {
           showWarning({
             title: 'Format SQL is only available in SQL script tabs',
+            message: '',
             autoClose: 3000,
           });
           Spotlight.close();
           return;
         }
 
-        const sqlScript = sqlScripts.get(activeTab.sqlScriptId);
+        const sqlScript = scripts.get(activeTab.sqlScriptId);
         if (!sqlScript) {
           showError({
             title: 'No SQL script found',
+            message: '',
             autoClose: 2000,
           });
           Spotlight.close();
           return;
         }
 
-        const formatResult = formatSQLSafe(sqlScript.content);
-        if (formatResult.success) {
-          // Update the script content
-          import('@controllers/sql-script').then(({ updateSQLScriptContent }) => {
-            updateSQLScriptContent(sqlScript, formatResult.result);
-            showSuccess({
-              title: 'SQL formatted successfully',
-              autoClose: 2000,
-              id: 'sql-format',
-            });
-          });
-        } else {
-          showError({
-            title: 'Failed to format SQL',
-            message: formatResult.error,
-            autoClose: 3000,
-            id: 'sql-format-error',
-          });
-        }
+        import('@controllers/sql-formatter').then(({ formatAndApplySQLScript }) => {
+          formatAndApplySQLScript(sqlScript);
+        });
         Spotlight.close();
       },
     },

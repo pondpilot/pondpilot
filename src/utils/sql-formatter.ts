@@ -16,8 +16,7 @@ export function formatSQLSafe(sql: string): { success: boolean; result: string; 
 
   try {
     const formatted = format(sql, {
-      language: 'sql',
-      dialect: 'duckdb',
+      language: 'duckdb',
       keywordCase: 'upper',
     });
     return {
