@@ -47,7 +47,6 @@ export const ScriptEditor = ({
    * State
    */
   const editorRef = useRef<ReactCodeMirrorRef>(null);
-  const [fontSize, setFontSize] = useState(0.875);
   const [dirty, setDirty] = useState(false);
   const [lastExecutedContent, setLastExecutedContent] = useState('');
 
@@ -216,8 +215,6 @@ export const ScriptEditor = ({
           value={sqlScript?.content || ''}
           onChange={onSqlEditorChange}
           schema={schema}
-          fontSize={fontSize}
-          onFontSizeChanged={setFontSize}
           functionTooltips={functionTooltips}
           onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
             if (KEY_BINDING.run.match(e)) {
