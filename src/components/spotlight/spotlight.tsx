@@ -287,7 +287,7 @@ export const SpotlightMenu = () => {
       id: 'format-sql',
       label: 'Format SQL',
       icon: <IconCode size={20} className={ICON_CLASSES} />,
-      hotkey: [control, 'Shift', 'I'],
+      hotkey: [control, 'Shift', 'F'],
       handler: () => {
         // Get the active tab and check if it's a script tab
         const { activeTabId, tabs, sqlScripts: scripts } = useAppStore.getState();

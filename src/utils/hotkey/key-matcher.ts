@@ -93,7 +93,7 @@ export const KEY_BINDING = {
   save: new KeyMatcher({ ctrl: true, key: 's' }),
   copy: new KeyMatcher({ ctrl: true, key: 'c' }),
   paste: new KeyMatcher({ ctrl: true, key: 'v' }),
-  format: new KeyMatcher({ ctrl: true, shift: true, key: 'i' }),
+  format: new KeyMatcher({ ctrl: true, shift: true, key: 'f' }),
   kmenu: new KeyMatcher({ ctrl: true, key: 'k' }),
   runSelection: new KeyMatcher({ ctrl: true, shift: true, key: 'Enter' }),
   openNewScript: new KeyMatcher({ ctrl: true, alt: true, key: 'n' }),
