@@ -1,0 +1,82 @@
+# Cache Control Headers for Different File Types
+
+# HTML files - no caching to ensure fresh content
+/*.html
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# Service Worker - no caching for immediate updates
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# Manifest - no caching to ensure updates are reflected
+/manifest.json
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# JavaScript and CSS files - aggressive caching (1 year)
+/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# WASM files - aggressive caching (1 year)
+/*.wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+# Static assets - medium-term caching (30 days)
+/*.png
+  Cache-Control: public, max-age=2592000
+
+/*.svg
+  Cache-Control: public, max-age=2592000
+
+/*.ico
+  Cache-Control: public, max-age=2592000
+
+/*.jpg
+  Cache-Control: public, max-age=2592000
+
+/*.jpeg
+  Cache-Control: public, max-age=2592000
+
+/*.webp
+  Cache-Control: public, max-age=2592000
+
+# Fonts - aggressive caching (1 year)
+/*.woff
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.ttf
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.otf
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.eot
+  Cache-Control: public, max-age=31536000, immutable
+
+# JSON files - no caching to ensure fresh data
+/*.json
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# Favicon - short-term caching (24 hours)
+/favicon.ico
+  Cache-Control: public, max-age=86400
+
+# Security Headers for all files
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-XSS-Protection: 1; mode=block
