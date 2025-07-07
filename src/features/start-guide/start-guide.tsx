@@ -9,8 +9,9 @@ import {
 } from '@features/onboarding-modal-content';
 import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-modal';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useAppTheme } from '@hooks/use-app-theme';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
-import { Button, Group, Image, Stack, Text, Title, useMantineColorScheme } from '@mantine/core';
+import { Button, Group, Image, Stack, Text, Title } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { spotlight } from '@mantine/spotlight';
 import {
@@ -27,7 +28,7 @@ import { cn } from '@utils/ui/styles';
 
 export const StartGuide = () => {
   const mod = useOsModifierIcon();
-  const { colorScheme } = useMantineColorScheme();
+  const colorScheme = useAppTheme();
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
 
   const shortcustList = [
