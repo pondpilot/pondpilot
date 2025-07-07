@@ -9,9 +9,9 @@ import {
 } from '@features/onboarding-modal-content';
 import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-modal';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useAppTheme } from '@hooks/use-app-theme';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { Button, Group, Image, Stack, Text, Title } from '@mantine/core';
-import { useAppTheme } from '@hooks/use-app-theme';
 import { modals } from '@mantine/modals';
 import { spotlight } from '@mantine/spotlight';
 import {
