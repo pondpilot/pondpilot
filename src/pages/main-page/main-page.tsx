@@ -5,7 +5,8 @@ import { TabView } from '@features/tab-view/tab-view';
 import { TabsPane } from '@features/tabs-pane';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { Stack } from '@mantine/core';
-import { useColorScheme, useHotkeys, useLocalStorage } from '@mantine/hooks';
+import { useHotkeys, useLocalStorage } from '@mantine/hooks';
+import { useAppTheme } from '@hooks/use-app-theme';
 import { Spotlight } from '@mantine/spotlight';
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { useAppStore } from '@store/app-store';
@@ -21,7 +22,7 @@ export const MainPage = () => {
    * Common hooks
    */
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
-  const colorScheme = useColorScheme();
+  const colorScheme = useAppTheme();
   const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({
     key: LOCAL_STORAGE_KEYS.MAIN_LAYOUT_DIMENSIONS,
   });

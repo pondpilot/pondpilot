@@ -6,7 +6,8 @@ import { aiAssistantStateField } from '@features/editor/ai-assistant/state-field
 import { showAIAssistant, hideAIAssistant } from '@features/editor/ai-assistant-tooltip';
 import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
 import { Group } from '@mantine/core';
-import { useColorScheme, useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
+import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
+import { useAppTheme } from '@hooks/use-app-theme';
 import { Spotlight } from '@mantine/spotlight';
 import { RunScriptMode, ScriptExecutionState, SQLScriptId } from '@models/sql-script';
 import { useAppStore, useDuckDBFunctions } from '@store/app-store';
@@ -37,7 +38,7 @@ export const ScriptEditor = ({
   /**
    * Common hooks
    */
-  const colorScheme = useColorScheme();
+  const colorScheme = useAppTheme();
 
   const sqlScript = useAppStore((state) => state.sqlScripts.get(scriptId)!);
   const databaseMetadata = useAppStore.use.databaseMetadata();

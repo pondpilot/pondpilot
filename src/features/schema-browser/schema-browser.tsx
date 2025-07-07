@@ -1,5 +1,5 @@
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { useColorScheme } from '@mantine/hooks';
+import { useAppTheme } from '@hooks/use-app-theme';
 import { SchemaBrowserTab } from '@models/tab';
 import { memo, useState, useCallback } from 'react';
 import ReactFlow, {
@@ -71,7 +71,7 @@ const SchemaBrowserComponent = ({ tab }: SchemaBrowserProps) => {
     : null;
 
   // Track dark mode for background color
-  const colorScheme = useColorScheme();
+  const colorScheme = useAppTheme();
   const isDarkMode = colorScheme === 'dark';
 
   // Handle edge selection

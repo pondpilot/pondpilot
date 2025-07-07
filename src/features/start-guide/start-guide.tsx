@@ -11,7 +11,7 @@ import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-moda
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { Button, Group, Image, Stack, Text, Title } from '@mantine/core';
-import { useColorScheme } from '@mantine/hooks';
+import { useAppTheme } from '@hooks/use-app-theme';
 import { modals } from '@mantine/modals';
 import { spotlight } from '@mantine/spotlight';
 import {
@@ -28,7 +28,7 @@ import { cn } from '@utils/ui/styles';
 
 export const StartGuide = () => {
   const mod = useOsModifierIcon();
-  const colorScheme = useColorScheme();
+  const colorScheme = useAppTheme();
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
 
   const shortcustList = [
