@@ -19,6 +19,7 @@ import {
   IconLetterCaseToggle,
   IconNumber10,
   IconBrackets,
+  IconMessage,
 } from '@tabler/icons-react';
 import React from 'react';
 
@@ -57,6 +58,8 @@ export type IconType =
   | 'column-array'
   | 'column-object'
   | 'column-other'
+  // AI Chat
+  | 'ai-message'
   // In case of errors have a fallback icon
   | 'error';
 
@@ -129,6 +132,8 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
       return <IconFileTypeXls {...iconProps} />;
     case 'xlsx-sheet':
       return <IconTable {...iconProps} />;
+    case 'ai-message':
+      return <IconMessage {...iconProps} />;
 
     case 'error':
       return <IconQuestionMark {...iconProps} />;
