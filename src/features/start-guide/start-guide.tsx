@@ -3,6 +3,7 @@ import duck from '@assets/duck.svg';
 import { ICON_CLASSES, SCRIPT_DISPLAY_NAME } from '@components/spotlight/consts';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
+import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import {
   ONBOARDING_MODAL_OPTIONS,
   OnboardingModalContent,
@@ -30,6 +31,7 @@ export const StartGuide = () => {
   const mod = useOsModifierIcon();
   const colorScheme = useAppTheme();
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
+  const { openDataWizardModal } = useOpenDataWizardModal();
 
   const shortcustList = [
     {
@@ -71,12 +73,12 @@ export const StartGuide = () => {
       },
     },
     {
-      key: 'add-duckdb-db',
-      label: 'Add DuckDB Database',
+      key: 'add-remote-database',
+      label: 'Add Remote Database',
       icon: <IconDatabasePlus size={20} className={ICON_CLASSES} />,
       hotkey: [mod.control, 'D'],
       handler: () => {
-        handleAddFile(['.duckdb']);
+        openDataWizardModal('remote-config');
       },
     },
   ];

@@ -13,7 +13,7 @@ const test = mergeTests(baseTest, filePickerTest, dbExplorerTest, schemaBrowserT
 test.describe('Schema Browser', () => {
   // eslint-disable-next-line playwright/expect-expect
   test('should display schema browser for single table database', async ({
-    addFileButton,
+    addFile,
     storage,
     filePicker,
     testTmp,
@@ -41,7 +41,7 @@ test.describe('Schema Browser', () => {
     // Upload and add the database file
     await storage.uploadFile(dbPath, 'single_table.duckdb');
     await filePicker.selectFiles(['single_table.duckdb']);
-    await addFileButton.click();
+    await addFile();
 
     // Open database explorer first
     await openDatabaseExplorer();
@@ -62,7 +62,7 @@ test.describe('Schema Browser', () => {
 
   // eslint-disable-next-line playwright/expect-expect
   test('should display schema browser for multi-table database with relationships', async ({
-    addFileButton,
+    addFile,
     storage,
     filePicker,
     testTmp,
@@ -115,7 +115,7 @@ test.describe('Schema Browser', () => {
     // Upload and add the database file
     await storage.uploadFile(dbPath, 'multi_table.duckdb');
     await filePicker.selectFiles(['multi_table.duckdb']);
-    await addFileButton.click();
+    await addFile();
 
     // Open database explorer first
     await openDatabaseExplorer();
@@ -147,7 +147,7 @@ test.describe('Schema Browser', () => {
   });
 
   test('should toggle layout direction', async ({
-    addFileButton,
+    addFile,
     storage,
     filePicker,
     testTmp,
@@ -165,7 +165,7 @@ test.describe('Schema Browser', () => {
     // Upload and add the database file
     await storage.uploadFile(dbPath, 'layout_test.duckdb');
     await filePicker.selectFiles(['layout_test.duckdb']);
-    await addFileButton.click();
+    await addFile();
 
     // Open database explorer first
     await openDatabaseExplorer();
@@ -197,7 +197,7 @@ test.describe('Schema Browser', () => {
   });
 
   test('should refresh schema browser', async ({
-    addFileButton,
+    addFile,
     storage,
     filePicker,
     testTmp,
@@ -216,7 +216,7 @@ test.describe('Schema Browser', () => {
     // Upload and add the database file
     await storage.uploadFile(dbPath, 'refresh_test.duckdb');
     await filePicker.selectFiles(['refresh_test.duckdb']);
-    await addFileButton.click();
+    await addFile();
 
     // Open database explorer first
     await openDatabaseExplorer();
@@ -243,7 +243,7 @@ test.describe('Schema Browser', () => {
 
   // eslint-disable-next-line playwright/expect-expect
   test('should handle CSV file schema visualization', async ({
-    addFileButton,
+    addFile,
     storage,
     filePicker,
     testTmp,
@@ -265,7 +265,7 @@ test.describe('Schema Browser', () => {
     // Upload and add the CSV file
     await storage.uploadFile(csvPath, 'sample_data.csv');
     await filePicker.selectFiles(['sample_data.csv']);
-    await addFileButton.click();
+    await addFile();
 
     // Wait for file to appear in file explorer by checking for its presence
     const csvFileNode = page.getByText('sample_data', { exact: true });
@@ -285,7 +285,7 @@ test.describe('Schema Browser', () => {
 
   // eslint-disable-next-line playwright/expect-expect
   test('should handle database views in schema browser', async ({
-    addFileButton,
+    addFile,
     storage,
     filePicker,
     testTmp,
@@ -320,7 +320,7 @@ test.describe('Schema Browser', () => {
     // Upload and add the database file
     await storage.uploadFile(dbPath, 'views_test.duckdb');
     await filePicker.selectFiles(['views_test.duckdb']);
-    await addFileButton.click();
+    await addFile();
 
     // Open database explorer first
     await openDatabaseExplorer();
@@ -343,7 +343,7 @@ test.describe('Schema Browser', () => {
 
   // eslint-disable-next-line playwright/expect-expect
   test('should handle empty database schema gracefully', async ({
-    addFileButton,
+    addFile,
     storage,
     filePicker,
     testTmp,
@@ -359,7 +359,7 @@ test.describe('Schema Browser', () => {
     // Upload and add the database file
     await storage.uploadFile(dbPath, 'empty.duckdb');
     await filePicker.selectFiles(['empty.duckdb']);
-    await addFileButton.click();
+    await addFile();
 
     // Open database explorer first
     await openDatabaseExplorer();
@@ -383,7 +383,7 @@ test.describe('Schema Browser', () => {
 
   // eslint-disable-next-line playwright/expect-expect
   test('should handle very large schemas with performance limits', async ({
-    addFileButton,
+    addFile,
     storage,
     filePicker,
     testTmp,
@@ -403,7 +403,7 @@ test.describe('Schema Browser', () => {
     // Upload and add the database file
     await storage.uploadFile(dbPath, 'large_schema.duckdb');
     await filePicker.selectFiles(['large_schema.duckdb']);
-    await addFileButton.click();
+    await addFile();
 
     // Open database explorer first
     await openDatabaseExplorer();

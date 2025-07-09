@@ -589,6 +589,7 @@ export const theme = createTheme({
         classNames: {
           input:
             'dark:checked:bg-icon-accent-light checked:bg-icon-accent-dark bg-transparent border-borderPrimary-light dark:border-borderPrimary-dark checked:border-0',
+          label: 'text-sm',
         },
       },
     }),

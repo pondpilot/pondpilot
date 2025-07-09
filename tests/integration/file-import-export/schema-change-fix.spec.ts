@@ -23,7 +23,7 @@ test('Should handle CSV schema changes when sorting after file modification', as
   testTmp,
   storage,
   filePicker,
-  addFileButton,
+  addFile,
   openFileFromExplorer,
   waitForDataTable,
   assertDataTableMatches,
@@ -36,7 +36,7 @@ test('Should handle CSV schema changes when sorting after file modification', as
   // Step 2: Upload and add file to PondPilot
   await storage.uploadFile(csvPath, 'bug-118-test.csv');
   await filePicker.selectFiles(['bug-118-test.csv']);
-  await addFileButton.click();
+  await addFile();
   await waitForFilesToBeProcessed();
 
   // Step 3: Open file and verify initial data

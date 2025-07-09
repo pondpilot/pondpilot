@@ -53,6 +53,7 @@ test.describe('Data Explorer Filtering', () => {
   test('should filter by type when clicking filter buttons', async ({
     page,
     addFileButton,
+    addFile,
     fileSystemExplorer: _fileSystemExplorer,
     testTmp,
     waitForFilesToBeProcessed,
@@ -71,7 +72,7 @@ test.describe('Data Explorer Filtering', () => {
     await filePicker.selectFiles(['test.csv', 'data.json', 'test.duckdb']);
 
     // Click add file button
-    await addFileButton.click();
+    await addFile();
 
     // Wait for files to appear in the explorer
     await page.waitForSelector(
@@ -105,7 +106,7 @@ test.describe('Data Explorer Filtering', () => {
   // eslint-disable-next-line playwright/expect-expect
   test('should filter by file type using dropdown', async ({
     page,
-    addFileButton,
+    addFile,
     fileSystemExplorer: _fileSystemExplorer,
     testTmp,
     waitForFilesToBeProcessed,
@@ -122,7 +123,7 @@ test.describe('Data Explorer Filtering', () => {
     await filePicker.selectFiles(['test.csv', 'data.json']);
 
     // Click add file button
-    await addFileButton.click();
+    await addFile();
 
     // Wait for files to appear in the explorer
     await page.waitForSelector(

@@ -30,7 +30,7 @@ test.describe('Unified Explorer', () => {
 
   test('should display mixed content types with proper section headers', async ({
     page,
-    addFileButton,
+    addFile,
     testTmp,
     waitForFilesToBeProcessed,
     storage,
@@ -45,7 +45,7 @@ test.describe('Unified Explorer', () => {
     await filePicker.selectFiles(['data.csv', 'report.json']);
 
     // Click add file button
-    await addFileButton.click();
+    await addFile();
 
     // Wait for files to appear in the file system explorer
     await page
@@ -64,7 +64,7 @@ test.describe('Unified Explorer', () => {
 
   test('should show section headers only when content exists', async ({
     page,
-    addFileButton,
+    addFile,
     testTmp,
     waitForFilesToBeProcessed,
     storage,
@@ -73,7 +73,7 @@ test.describe('Unified Explorer', () => {
     // Upload only CSV file
     await storage.uploadFile(testTmp.join('data.csv'), 'data.csv');
     await filePicker.selectFiles(['data.csv']);
-    await addFileButton.click();
+    await addFile();
 
     await page
       .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
@@ -94,7 +94,7 @@ test.describe('Unified Explorer', () => {
 
   test('should handle file operations correctly', async ({
     page,
-    addFileButton,
+    addFile,
     testTmp,
     waitForFilesToBeProcessed,
     storage,
@@ -105,7 +105,7 @@ test.describe('Unified Explorer', () => {
     // Upload test files
     await storage.uploadFile(testTmp.join('data.csv'), 'data.csv');
     await filePicker.selectFiles(['data.csv']);
-    await addFileButton.click();
+    await addFile();
 
     await page
       .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
@@ -127,7 +127,7 @@ test.describe('Unified Explorer', () => {
 
   test('should support file selection interactions', async ({
     page,
-    addFileButton,
+    addFile,
     testTmp,
     waitForFilesToBeProcessed,
     storage,
@@ -146,7 +146,7 @@ test.describe('Unified Explorer', () => {
     await storage.uploadFile(testTmp.join('file3.csv'), 'file3.csv');
 
     await filePicker.selectFiles(['file1.csv', 'file2.csv', 'file3.csv']);
-    await addFileButton.click();
+    await addFile();
 
     await page
       .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
@@ -168,7 +168,7 @@ test.describe('Unified Explorer', () => {
   // eslint-disable-next-line playwright/expect-expect
   test('should handle file interactions via explorer', async ({
     page,
-    addFileButton,
+    addFile,
     testTmp,
     waitForFilesToBeProcessed,
     storage,
@@ -179,7 +179,7 @@ test.describe('Unified Explorer', () => {
     // Upload test file
     await storage.uploadFile(testTmp.join('data.csv'), 'data.csv');
     await filePicker.selectFiles(['data.csv']);
-    await addFileButton.click();
+    await addFile();
 
     await page
       .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
@@ -201,7 +201,7 @@ test.describe('Unified Explorer', () => {
 
   test('should maintain proper file organization in sections', async ({
     page,
-    addFileButton,
+    addFile,
     testTmp,
     waitForFilesToBeProcessed,
     storage,
@@ -217,7 +217,7 @@ test.describe('Unified Explorer', () => {
     await storage.uploadFile(testTmp.join('config.json'), 'config.json');
 
     await filePicker.selectFiles(['spreadsheet.csv', 'config.json']);
-    await addFileButton.click();
+    await addFile();
 
     await page
       .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
@@ -236,7 +236,7 @@ test.describe('Unified Explorer', () => {
 
   test('should handle section headers and content visibility', async ({
     page,
-    addFileButton,
+    addFile,
     testTmp,
     waitForFilesToBeProcessed,
     storage,
@@ -249,7 +249,7 @@ test.describe('Unified Explorer', () => {
     // Add a file
     await storage.uploadFile(testTmp.join('data.csv'), 'data.csv');
     await filePicker.selectFiles(['data.csv']);
-    await addFileButton.click();
+    await addFile();
 
     await page
       .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')

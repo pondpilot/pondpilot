@@ -128,7 +128,7 @@ test('Create new script with hotkey', async ({
 
 test('Script should be deselected when selecting a file', async ({
   page,
-  addFileButton,
+  addFile,
   storage,
   filePicker,
   testTmp,
@@ -143,7 +143,7 @@ test('Script should be deselected when selecting a file', async ({
   createFile(testFile, testFileContent);
   await storage.uploadFile(testFile, 'unique_selection_test.csv');
   await filePicker.selectFiles(['unique_selection_test.csv']);
-  await addFileButton.click();
+  await addFile();
 
   // Wait for the file to be processed by checking it appears
   await page.waitForSelector(

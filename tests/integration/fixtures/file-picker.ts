@@ -146,15 +146,7 @@ export const test = baseTest.extend<FilePickerFixtures>({
     await use(filePicker);
   },
   setupFileSystem: async (
-    {
-      getAllDBNodes,
-      getAllFileNodes,
-      addFileButton,
-      addFolderButton,
-      storage,
-      testTmp,
-      filePicker,
-    },
+    { getAllDBNodes, getAllFileNodes, addFile, addFolder, storage, testTmp, filePicker },
     use,
   ) => {
     await use(async (fileTree: FileSystemNode[]) => {
@@ -272,7 +264,7 @@ export const test = baseTest.extend<FilePickerFixtures>({
       const isAddingFiles = rootFiles.some((fileName) => !fileName.endsWith('duckdb'));
       const isAddingDbFiles = rootFiles.some((fileName) => fileName.endsWith('duckdb'));
 
-      await addFileButton.click();
+      await addFile();
 
       // Wait for at least one file to appear in the explorer
       // This is more reliable than waiting for a specific count
@@ -289,7 +281,7 @@ export const test = baseTest.extend<FilePickerFixtures>({
 
       for (const rootDir of rootDirs) {
         await filePicker.selectDir(rootDir);
-        await addFolderButton.click();
+        await addFolder();
       }
     });
   },

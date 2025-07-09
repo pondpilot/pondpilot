@@ -25,7 +25,7 @@ const test = mergeTests(
 
 test('roundtrip csv file with quotes and commas', async ({
   page,
-  addFileButton,
+  addFile,
   storage,
   filePicker,
   testTmp,
@@ -44,7 +44,7 @@ test('roundtrip csv file with quotes and commas', async ({
   // Patch the file picker
   await filePicker.selectFiles(['test_file.csv']);
   // Click the add file button
-  await addFileButton.click();
+  await addFile();
 
   // Wait for the file to appear in the explorer
   await page.waitForSelector(
