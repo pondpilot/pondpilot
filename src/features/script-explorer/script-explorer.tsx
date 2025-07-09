@@ -12,6 +12,7 @@ import {
 import { SQLScriptId } from '@models/sql-script';
 import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
+import { exportSingleScript } from '@utils/script-export';
 import { createShareableScriptUrl } from '@utils/script-sharing';
 import { memo } from 'react';
 
@@ -76,6 +77,15 @@ const prepareRenameValue = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): str
   // Strip the .sql extension
   node.label.replace(/\.sql$/, '');
 
+const handleExportScript = (node: TreeNodeData<ScrtiptNodeTypeToIdTypeMap>): void => {
+  const scriptId = node.value;
+  const script = useAppStore.getState().sqlScripts.get(scriptId);
+
+  if (!script) return;
+
+  exportSingleScript(script);
+};
+
 export const ScriptExplorer = memo(() => {
   /**
    * Global state
@@ -119,6 +129,10 @@ export const ScriptExplorer = memo(() => {
               notificationMessage: 'Shareable link copied to clipboard',
             });
           },
+        },
+        {
+          label: 'Export script',
+          onClick: handleExportScript,
         },
       ],
     },
