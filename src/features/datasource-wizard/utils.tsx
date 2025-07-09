@@ -1,44 +1,37 @@
+import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { modals } from '@mantine/modals';
-import { useCallback } from 'react';
+import { cn } from '@utils/ui/styles';
 
-import { DatasourceWizardModal } from './datasource-wizard-modal';
+import { DatasourceWizardModal, WizardStep } from './datasource-wizard-modal';
 
-export const useOpenDatasourceWizard = () => {
+export const useOpenDataWizardModal = () => {
+  const pool = useDuckDBConnectionPool();
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
 
-  return useCallback(() => {
-    const modalId = modals.open({
-      size: 700,
-      withCloseButton: false,
-      padding: 0,
-      children: (
-        <DatasourceWizardModal
-          onClose={() => modals.close(modalId)}
-          handleAddFile={handleAddFile}
-          handleAddFolder={handleAddFolder}
-        />
-      ),
-    });
-  }, [handleAddFile, handleAddFolder]);
-};
-
-export const useOpenRemoteDatabaseConfig = () => {
-  const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
-
-  return useCallback(() => {
-    const modalId = modals.open({
-      size: 700,
-      withCloseButton: false,
-      padding: 0,
-      children: (
-        <DatasourceWizardModal
-          onClose={() => modals.close(modalId)}
-          handleAddFile={handleAddFile}
-          handleAddFolder={handleAddFolder}
-          initialStep="remote-config"
-        />
-      ),
-    });
-  }, [handleAddFile, handleAddFolder]);
+  return {
+    openDataWizardModal: (step: WizardStep) => {
+      const modalId = modals.open({
+        size: 'auto',
+        withCloseButton: false,
+        padding: 0,
+        classNames: {
+          content: cn(
+            'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark rounded-2xl',
+            'max-w-4xl w-fit min-w-96',
+          ),
+          header: 'p-4 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
+        },
+        children: (
+          <DatasourceWizardModal
+            pool={pool}
+            onClose={() => modals.close(modalId)}
+            initialStep={step}
+            handleAddFile={handleAddFile}
+            handleAddFolder={handleAddFolder}
+          />
+        ),
+      });
+    },
+  };
 };

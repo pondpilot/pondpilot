@@ -6,7 +6,7 @@ import {
   getOrCreateTabFromScript,
   deleteTab,
 } from '@controllers/tab';
-import { useOpenRemoteDatabaseConfig } from '@features/datasource-wizard';
+import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import { ImportScriptModalContent } from '@features/script-import';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
@@ -96,7 +96,7 @@ export const SpotlightMenu = () => {
 
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const { command, option, control } = useOsModifierIcon();
-  const openRemoteDatabaseConfig = useOpenRemoteDatabaseConfig();
+  const { openDataWizardModal } = useOpenDataWizardModal();
 
   /**
    * Store access
@@ -244,7 +244,7 @@ export const SpotlightMenu = () => {
       icon: <IconDatabasePlus size={20} className={ICON_CLASSES} />,
       hotkey: [control, 'D'],
       handler: () => {
-        openRemoteDatabaseConfig();
+        openDataWizardModal('remote-config');
         resetSpotlight();
         ensureHome();
       },

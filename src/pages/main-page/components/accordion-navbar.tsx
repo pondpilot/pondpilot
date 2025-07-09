@@ -1,7 +1,7 @@
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { DataExplorer } from '@features/data-explorer';
-import { useOpenDatasourceWizard } from '@features/datasource-wizard';
+import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import { ScriptExplorer } from '@features/script-explorer';
 import { ActionIcon, Group, Skeleton, Stack, Text, Tooltip, Box } from '@mantine/core';
 import { APP_GITHUB_URL } from '@models/app-urls';
@@ -35,7 +35,9 @@ type SectionState = {
 export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) => {
   const navigate = useNavigate();
   const appLoadState = useAppStore.use.appLoadState();
-  const openDatasourceWizard = useOpenDatasourceWizard();
+
+  const { openDataWizardModal } = useOpenDataWizardModal();
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [dataExplorerHeight, setDataExplorerHeight] = useState<number | null>(null);
@@ -262,7 +264,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
               <ActionIcon
                 onClick={(e) => {
                   e.stopPropagation();
-                  openDatasourceWizard();
+                  openDataWizardModal('selection');
                   if (!sectionStates.dataExplorer) {
                     setSectionStates((prev) => ({ ...prev, dataExplorer: true }));
                   }

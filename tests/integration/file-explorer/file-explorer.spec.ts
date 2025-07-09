@@ -23,7 +23,7 @@ const test = mergeTests(
 
 test('File should be deselected after creating script from it', async ({
   page,
-  addFileButton,
+  addFile,
   storage,
   filePicker,
   testTmp,
@@ -40,7 +40,7 @@ test('File should be deselected after creating script from it', async ({
   createFile(testFile, testFileContent);
   await storage.uploadFile(testFile, 'test_selection.csv');
   await filePicker.selectFiles(['test_selection.csv']);
-  await addFileButton.click();
+  await addFile();
 
   // Wait for the file to appear in the explorer
   await page.waitForSelector(

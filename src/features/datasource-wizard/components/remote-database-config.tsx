@@ -1,54 +1,61 @@
 import { showError, showSuccess } from '@components/app-notifications';
+import { commonTextInputClassNames } from '@components/export-options-modal/constants';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Stack, TextInput, Text, Button, Group, Checkbox, Alert } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
+import { notifications } from '@mantine/notifications';
 import { RemoteDB } from '@models/data-source';
 import { useAppStore } from '@store/app-store';
-import { IconArrowLeft, IconAlertCircle } from '@tabler/icons-react';
+import { IconAlertCircle } from '@tabler/icons-react';
 import { executeWithRetry } from '@utils/connection-manager';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { validateRemoteDatabaseUrl } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
+import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 
 interface RemoteDatabaseConfigProps {
+  pool: AsyncDuckDBConnectionPool | null;
   onBack: () => void;
   onClose: () => void;
 }
 
-export function RemoteDatabaseConfig({ onBack, onClose }: RemoteDatabaseConfigProps) {
+export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseConfigProps) {
   const [url, setUrl] = useInputState('');
   const [dbName, setDbName] = useInputState('');
   const [readOnly, setReadOnly] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
-  const pool = useDuckDBConnectionPool();
 
   const handleTest = async () => {
     if (!pool) {
       showError({
         title: 'App not ready',
         message: 'Please wait for the app to initialize',
+        autoClose: false,
       });
       return;
     }
 
     const urlValidation = validateRemoteDatabaseUrl(url);
     if (!urlValidation.isValid) {
+      notifications.clean();
       showError({
-        title: 'Invalid URL',
+        title: 'Validation error',
         message: urlValidation.error || 'Please enter a valid URL',
+        autoClose: false,
       });
       return;
     }
 
     if (!dbName.trim()) {
       showError({
-        title: 'Database name required',
+        title: 'Database name error',
         message: 'Please enter a name for the database',
+        autoClose: false,
       });
       return;
     }
@@ -61,7 +68,7 @@ export function RemoteDatabaseConfig({ onBack, onClose }: RemoteDatabaseConfigPr
         timeout: 10000,
       });
 
-      const detachQuery = `DETACH DATABASE ${dbName}`;
+      const detachQuery = `DETACH DATABASE ${toDuckDBIdentifier(dbName)}`;
       await pool.query(detachQuery);
 
       showSuccess({
@@ -131,8 +138,7 @@ export function RemoteDatabaseConfig({ onBack, onClose }: RemoteDatabaseConfigPr
 
       // Verify the database is attached by checking the catalog
       // This replaces the arbitrary 1-second delay with a proper readiness check
-      const escapedDbName = toDuckDBIdentifier(remoteDb.dbName);
-      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = ${escapedDbName}`;
+      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${remoteDb.dbName}'`;
 
       let dbFound = false;
       let attempts = 0;
@@ -204,71 +210,70 @@ export function RemoteDatabaseConfig({ onBack, onClose }: RemoteDatabaseConfigPr
 
   return (
     <Stack gap={16}>
-      <Button
-        variant="subtle"
-        onClick={onBack}
-        leftSection={<IconArrowLeft size={16} />}
-        className="w-fit -ml-2"
-        size="compact-sm"
+      <Text size="sm" c="text-secondary" className="pl-4">
+        Connect to a remote database using a URL
+      </Text>
+
+      <Alert
+        icon={<IconAlertCircle size={16} />}
+        color="background-accent"
+        className="text-sm"
+        classNames={{ icon: 'mr-1' }}
       >
-        Back
-      </Button>
-
-      <Stack gap={12}>
-        <Text fw={500}>Configure Remote Database</Text>
-        <Text size="sm" c="text-secondary">
-          Connect to a remote database using a URL
-        </Text>
-      </Stack>
-
-      <Alert icon={<IconAlertCircle size={16} />} color="blue" className="text-sm">
         Supported protocols: HTTPS, S3, GCS (Google Cloud Storage), Azure Blob Storage
       </Alert>
 
       <Stack gap={12}>
         <TextInput
           label="Database URL"
+          data-testid={setDataTestId('remote-database-url-input')}
           placeholder="https://example.com/data.parquet"
           value={url}
           onChange={setUrl}
           description="Enter the full URL to your remote database or file"
           required
+          classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
         />
 
         <TextInput
           label="Database Name"
+          data-testid={setDataTestId('remote-database-name-input')}
           placeholder="my_remote_db"
           value={dbName}
           onChange={setDbName}
           description="Choose a name to reference this database in queries"
           required
+          classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
         />
 
         <Checkbox
-          label="Read-only access"
+          label="Read-only access (Recommended for remote databases)"
           checked={readOnly}
           onChange={(event) => setReadOnly(event.currentTarget.checked)}
-          description="Recommended for remote databases"
+          className="pl-4"
         />
       </Stack>
 
-      <Group justify="flex-end" gap={8} className="mt-4">
-        <Button variant="subtle" onClick={onBack}>
+      <Group justify="end" className="mt-4">
+        <Button variant="transparent" color="text-secondary" onClick={onBack}>
           Cancel
         </Button>
         <Button
           variant="light"
+          color="background-accent"
           onClick={handleTest}
           loading={isTesting}
-          disabled={!url.trim() || !dbName.trim()}
+          disabled={!url.trim() || !dbName.trim() || isLoading}
+          data-testid={setDataTestId('test-remote-database-connection-button')}
         >
           Test Connection
         </Button>
         <Button
           onClick={handleAdd}
           loading={isLoading}
-          disabled={!url.trim() || !dbName.trim()}
+          disabled={!url.trim() || !dbName.trim() || isTesting}
           color="background-accent"
+          data-testid={setDataTestId('add-remote-database-button')}
         >
           Add Database
         </Button>

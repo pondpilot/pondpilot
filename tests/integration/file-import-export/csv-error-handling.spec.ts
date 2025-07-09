@@ -10,7 +10,7 @@ import { test as baseTest } from '../fixtures/page';
 const test = mergeTests(baseTest, filePickerTest, dataViewTest, notificationTest);
 
 test('should show generic error for invalid CSV files', async ({
-  addFileButton,
+  addFile,
   storage,
   filePicker,
   testTmp,
@@ -34,7 +34,7 @@ test('should show generic error for invalid CSV files', async ({
   await filePicker.selectFiles(['invalid.csv']);
 
   // Click the add file button
-  await addFileButton.click();
+  await addFile();
 
   // Verify the file was not added to the explorer
   await assertFileExplorerItems([]);

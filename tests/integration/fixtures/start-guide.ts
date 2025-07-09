@@ -34,7 +34,7 @@ export const test = base.extend<StartGuideFixtures>({
   },
 
   addDuckDBAction: async ({ page }, use) => {
-    await use(page.getByTestId('start-guide-action-add-duckdb-db'));
+    await use(page.getByTestId('start-guide-action-add-remote-database'));
   },
 
   goToMenuAction: async ({ page }, use) => {
