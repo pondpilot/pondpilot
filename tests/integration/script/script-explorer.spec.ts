@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+
 import { expect, mergeTests } from '@playwright/test';
 
 import { createFile } from '../../utils';
@@ -180,4 +182,36 @@ test('Script should be deselected when selecting a file', async ({
 
   // The test has verified that clicking between files and scripts properly
   // changes selection as expected
+});
+
+test('Export script from context menu', async ({
+  testTmp,
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  clickScriptNodeMenuItemByName,
+  page,
+}) => {
+  // Create a script with some content
+  await createScriptAndSwitchToItsTab();
+  const scriptContent = "SELECT 'hello' as greeting, 42 as answer;";
+
+  await fillScript(scriptContent);
+
+  // Set up download promise before clicking the menu item
+  const downloadPromise = page.waitForEvent('download');
+
+  // Right-click on the script and select "Export script"
+  await clickScriptNodeMenuItemByName('query.sql', 'Export script');
+
+  // Wait for download and save to test directory
+  const download = await downloadPromise;
+  const exportPath = testTmp.join('exported_script.sql');
+  await download.saveAs(exportPath);
+
+  // Verify the downloaded file content
+  const exportedContent = readFileSync(exportPath, 'utf-8');
+  expect(exportedContent).toBe(scriptContent);
+
+  // Verify the suggested filename
+  expect(download.suggestedFilename()).toBe('query.sql');
 });
