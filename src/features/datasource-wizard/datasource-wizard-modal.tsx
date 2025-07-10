@@ -1,10 +1,17 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Group, Stack, Title, ActionIcon, Text, Divider } from '@mantine/core';
-import { IconDatabasePlus, IconFilePlus, IconFolderPlus, IconX } from '@tabler/icons-react';
+import {
+  IconDatabasePlus,
+  IconFilePlus,
+  IconFolderPlus,
+  IconServer,
+  IconX,
+} from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
+import { HttpServerConfig } from './components/http-server-config';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
 
 interface DatasourceWizardModalProps {
@@ -15,7 +22,7 @@ interface DatasourceWizardModalProps {
   initialStep?: WizardStep;
 }
 
-export type WizardStep = 'selection' | 'remote-config';
+export type WizardStep = 'selection' | 'remote-config' | 'http-server-config';
 
 export function DatasourceWizardModal({
   onClose,
@@ -28,6 +35,10 @@ export function DatasourceWizardModal({
 
   const handleRemoteDatabaseClick = () => {
     setStep('remote-config');
+  };
+
+  const handleHttpServerClick = () => {
+    setStep('http-server-config');
   };
 
   const handleBack = () => {
@@ -86,6 +97,20 @@ export function DatasourceWizardModal({
       description: 'S3, GCS, Azure, HTTPS',
       testId: 'add-remote-database-card',
     },
+    {
+      type: 'http-server' as const,
+      onClick: handleHttpServerClick,
+      icon: (
+        <IconServer
+          size={48}
+          className="text-textSecondary-light dark:text-textSecondary-dark"
+          stroke={1.5}
+        />
+      ),
+      title: 'HTTP DB Server',
+      description: 'DuckDB HTTP Server',
+      testId: 'add-http-server-card',
+    },
   ];
 
   return (
@@ -105,7 +130,7 @@ export function DatasourceWizardModal({
               ADD DATA SOURCE
             </Text>
             <Text size="xs">/</Text>
-            <Text size="xs">REMOTE DATABASE</Text>
+            <Text size="xs">{step === 'remote-config' ? 'REMOTE DATABASE' : 'HTTP DB SERVER'}</Text>
           </Group>
         )}
 
@@ -150,6 +175,10 @@ export function DatasourceWizardModal({
 
       {step === 'remote-config' && (
         <RemoteDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+
+      {step === 'http-server-config' && (
+        <HttpServerConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
     </Stack>
   );
