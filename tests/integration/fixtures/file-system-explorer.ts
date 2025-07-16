@@ -54,6 +54,9 @@ type FileSystemExplorerFixtures = {
   deselectAllFiles: () => Promise<void>;
   clickFileMenuItemByName: (fileName: string, menuItemName: string) => Promise<void>;
   createScriptFromFileExplorer: (fileName: string) => Promise<void>;
+  openDatasourceWizard: () => Promise<void>;
+  addFile: () => Promise<void>;
+  addFolder: () => Promise<void>;
 };
 
 export const FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX = 'data-explorer-fs';
@@ -70,12 +73,18 @@ export const test = base.extend<FileSystemExplorerFixtures>({
     });
   },
 
+  openDatasourceWizard: async ({ page }, use) => {
+    await use(async () => {
+      await page.getByTestId('navbar-add-datasource-button').click();
+    });
+  },
+
   addFileButton: async ({ page }, use) => {
-    await use(page.getByTestId('navbar-add-file-button'));
+    await use(page.getByTestId('datasource-modal-add-file-card'));
   },
 
   addFolderButton: async ({ page }, use) => {
-    await use(page.getByTestId('navbar-add-folder-button'));
+    await use(page.getByTestId('datasource-modal-add-folder-button'));
   },
 
   openFileFromExplorer: async ({ getFileNodeByName }, use) => {
@@ -202,6 +211,24 @@ export const test = base.extend<FileSystemExplorerFixtures>({
         fileName,
         'Create a Query',
       );
+    });
+  },
+
+  addFile: async ({ page }, use) => {
+    await use(async () => {
+      await page.getByTestId('navbar-add-datasource-button').click();
+      const addFileButton = page.getByTestId('datasource-modal-add-file-card');
+      await expect(addFileButton).toBeVisible();
+      await addFileButton.click();
+    });
+  },
+
+  addFolder: async ({ page }, use) => {
+    await use(async () => {
+      await page.getByTestId('navbar-add-datasource-button').click();
+      const addFolderButton = page.getByTestId('datasource-modal-add-folder-card');
+      await expect(addFolderButton).toBeVisible();
+      await addFolderButton.click();
     });
   },
 });

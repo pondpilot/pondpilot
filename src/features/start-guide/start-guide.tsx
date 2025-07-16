@@ -3,14 +3,16 @@ import duck from '@assets/duck.svg';
 import { ICON_CLASSES, SCRIPT_DISPLAY_NAME } from '@components/spotlight/consts';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
+import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import {
   ONBOARDING_MODAL_OPTIONS,
   OnboardingModalContent,
 } from '@features/onboarding-modal-content';
 import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-modal';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useAppTheme } from '@hooks/use-app-theme';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
-import { Button, Group, Image, Stack, Text, Title, useMantineColorScheme } from '@mantine/core';
+import { Button, Group, Image, Stack, Text, Title } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { spotlight } from '@mantine/spotlight';
 import {
@@ -27,8 +29,9 @@ import { cn } from '@utils/ui/styles';
 
 export const StartGuide = () => {
   const mod = useOsModifierIcon();
-  const { colorScheme } = useMantineColorScheme();
+  const colorScheme = useAppTheme();
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
+  const { openDataWizardModal } = useOpenDataWizardModal();
 
   const shortcustList = [
     {
@@ -70,12 +73,12 @@ export const StartGuide = () => {
       },
     },
     {
-      key: 'add-duckdb-db',
-      label: 'Add DuckDB Database',
+      key: 'add-remote-database',
+      label: 'Add Remote Database',
       icon: <IconDatabasePlus size={20} className={ICON_CLASSES} />,
       hotkey: [mod.control, 'D'],
       handler: () => {
-        handleAddFile(['.duckdb']);
+        openDataWizardModal('remote-config');
       },
     },
   ];

@@ -10,7 +10,7 @@ const test = mergeTests(baseTest, filePickerTest, dataViewTest);
 
 test('should handle CSV files with very large lines', async ({
   page,
-  addFileButton,
+  addFile,
   storage,
   filePicker,
   testTmp,
@@ -40,7 +40,7 @@ test('should handle CSV files with very large lines', async ({
   await filePicker.selectFiles(['large_line.csv']);
 
   // Click the add file button
-  await addFileButton.click();
+  await addFile();
 
   // Wait for the file to appear in the explorer
   await page.waitForSelector(
@@ -70,7 +70,7 @@ test('should handle CSV files with very large lines', async ({
 
 test('should handle CSV files with multiple large lines', async ({
   page,
-  addFileButton,
+  addFile,
   storage,
   filePicker,
   testTmp,
@@ -106,7 +106,7 @@ test('should handle CSV files with multiple large lines', async ({
   await filePicker.selectFiles(['multiple_large_lines.csv']);
 
   // Click the add file button
-  await addFileButton.click();
+  await addFile();
 
   // Wait for the file to appear in the explorer
   await page.waitForSelector(

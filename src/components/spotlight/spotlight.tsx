@@ -7,6 +7,7 @@ import {
   getOrCreateTabFromScript,
   deleteTab,
 } from '@controllers/tab';
+import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import { ImportScriptModalContent } from '@features/script-import';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
@@ -96,6 +97,7 @@ export const SpotlightMenu = () => {
 
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const { command, option, control } = useOsModifierIcon();
+  const { openDataWizardModal } = useOpenDataWizardModal();
 
   /**
    * Store access
@@ -238,12 +240,12 @@ export const SpotlightMenu = () => {
       },
     },
     {
-      id: 'add-duckdb-db',
-      label: 'Add DuckDB Database',
+      id: 'add-remote-database',
+      label: 'Add Remote Database',
       icon: <IconDatabasePlus size={20} className={ICON_CLASSES} />,
       hotkey: [control, 'D'],
       handler: () => {
-        handleAddFile(['.duckdb']);
+        openDataWizardModal('remote-config');
         resetSpotlight();
         ensureHome();
       },

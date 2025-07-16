@@ -17,7 +17,7 @@ const test = mergeTests(baseTest, filePickerTest, dataViewTest, spotlightTest, d
 
 test('should add csv files and folders', async ({
   page,
-  addFileButton,
+  addFile,
   storage,
   filePicker,
   testTmp,
@@ -36,7 +36,7 @@ test('should add csv files and folders', async ({
   // Patch the file picker
   await filePicker.selectFiles(['test1.csv']);
   // Click the add file button
-  await addFileButton.click();
+  await addFile();
 
   // Wait for the file to appear in the explorer
   await page.waitForSelector(
@@ -69,7 +69,7 @@ test('should add csv files and folders', async ({
   // Patch the file picker
   await filePicker.selectFiles(['select_two_files/test2.csv', 'select_two_files/test3.csv']);
   // Click the add file button
-  await addFileButton.click();
+  await addFile();
 
   // Wait for the new files to appear
   await page.waitForTimeout(1000);
@@ -227,7 +227,7 @@ test('should add and read Excel files with multiple sheets', async ({
 
 test('should handle duckdb files with reserved names correctly', async ({
   page,
-  addFileButton,
+  addFile,
   storage,
   filePicker,
   testTmp,
@@ -264,7 +264,7 @@ test('should handle duckdb files with reserved names correctly', async ({
     await filePicker.selectFiles([`${name}.duckdb`]);
 
     // Click the add file button
-    await addFileButton.click();
+    await addFile();
 
     // Wait for the database to be added
     await page.waitForTimeout(2000);

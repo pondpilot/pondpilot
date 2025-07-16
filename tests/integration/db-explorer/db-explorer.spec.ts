@@ -13,7 +13,7 @@ const test = mergeTests(baseTest, filePickerTest, dbExplorerTest, globalHotkeyTe
 
 test('DuckDB view should be deselected after creating script via spotlight', async ({
   page,
-  addFileButton,
+  addFile,
   storage,
   filePicker,
   testTmp,
@@ -30,7 +30,7 @@ test('DuckDB view should be deselected after creating script via spotlight', asy
   // Upload and add the DuckDB file
   await storage.uploadFile(dbPath, 'test_selection.duckdb');
   await filePicker.selectFiles(['test_selection.duckdb']);
-  await addFileButton.click();
+  await addFile();
 
   // Switch to DB Explorer and expand the database
   await openDatabaseExplorer();

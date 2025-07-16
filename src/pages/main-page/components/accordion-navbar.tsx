@@ -1,14 +1,13 @@
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { DataExplorer } from '@features/data-explorer';
+import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import { ScriptExplorer } from '@features/script-explorer';
-import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { ActionIcon, Group, Skeleton, Stack, Text, Tooltip, Box } from '@mantine/core';
 import { APP_GITHUB_URL } from '@models/app-urls';
 import { useAppStore } from '@store/app-store';
 import {
   IconBrandGithub,
-  IconFolderPlus,
   IconPlus,
   IconSettings,
   IconLayoutSidebarLeftCollapse,
@@ -36,7 +35,9 @@ type SectionState = {
 export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) => {
   const navigate = useNavigate();
   const appLoadState = useAppStore.use.appLoadState();
-  const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
+
+  const { openDataWizardModal } = useOpenDataWizardModal();
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [dataExplorerHeight, setDataExplorerHeight] = useState<number | null>(null);
@@ -259,34 +260,21 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
             </Text>
           </Group>
           {appReady && (
-            <Group gap={8} onClick={(e) => e.stopPropagation()}>
+            <Tooltip label="Add data source" position="bottom" withArrow openDelay={500}>
               <ActionIcon
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleAddFolder();
+                  openDataWizardModal('selection');
                   if (!sectionStates.dataExplorer) {
                     setSectionStates((prev) => ({ ...prev, dataExplorer: true }));
                   }
                 }}
                 size={16}
-                data-testid={setDataTestId('navbar-add-folder-button')}
-              >
-                <IconFolderPlus />
-              </ActionIcon>
-              <ActionIcon
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleAddFile();
-                  if (!sectionStates.dataExplorer) {
-                    setSectionStates((prev) => ({ ...prev, dataExplorer: true }));
-                  }
-                }}
-                size={16}
-                data-testid={setDataTestId('navbar-add-file-button')}
+                data-testid={setDataTestId('navbar-add-datasource-button')}
               >
                 <IconPlus />
               </ActionIcon>
-            </Group>
+            </Tooltip>
           )}
         </Group>
 
