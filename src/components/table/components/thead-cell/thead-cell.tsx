@@ -68,6 +68,7 @@ const THeadTitle = ({
             'p-2 -m-2', // Add padding and negative margin to increase click area without changing layout
             !isNumber && 'ml-auto',
           )}
+          data-testid={setDataTestId(`data-table-header-cell-sort-${columnName}`)}
           onMouseDown={(e) => {
             e.stopPropagation();
             onSort?.(columnName);

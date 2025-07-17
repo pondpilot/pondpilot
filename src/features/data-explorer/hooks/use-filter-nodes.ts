@@ -41,10 +41,11 @@ export const useFilterNodes = ({
 
   // Filter nodes and compute expanded state based on search
   const { filteredSections, searchExpandedState } = useMemo(() => {
-    const showSystemDb = activeFilter === 'all' || activeFilter === 'databases';
-    const showFileSystem = activeFilter === 'all' || activeFilter === 'files';
-    const showLocalDbs = activeFilter === 'all' || activeFilter === 'databases';
-    const showRemoteDbs = activeFilter === 'all' || activeFilter === 'remote';
+    const showAll = activeFilter === 'all';
+    const showSystemDb = showAll || activeFilter === 'databases';
+    const showFileSystem = showAll || activeFilter === 'files';
+    const showLocalDbs = showAll || activeFilter === 'databases';
+    const showRemoteDbs = showAll || activeFilter === 'remote';
 
     // Create a new expanded state for search
     const expandedState: Record<string, boolean> = {};

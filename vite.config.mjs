@@ -30,6 +30,9 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         disable: mode !== 'production' || isDockerBuild, // Disable PWA for Docker builds
         registerType: 'autoUpdate',
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
         workbox: {
           maximumFileSizeToCacheInBytes: 25000000,
           // Cache duckdb CDN resources
