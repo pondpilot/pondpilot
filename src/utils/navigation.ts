@@ -1,4 +1,5 @@
 import { IconType } from '@components/named-icon';
+import { aiChatController } from '@controllers/ai-chat';
 import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId, LocalFile, LocalFolder } from '@models/file-system';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
@@ -25,6 +26,12 @@ export function getTabName(
   // Schema Browser tab
   if (tab.type === 'schema-browser') {
     return getSchemaBrowserTabTitle(tab, dataSources, localEntries);
+  }
+
+  // AI Chat tab
+  if (tab.type === 'ai-chat') {
+    const conversation = aiChatController.getConversation(tab.conversationId);
+    return conversation?.title || 'New Chat';
   }
 
   // Data source tabs
@@ -63,6 +70,10 @@ export function getTabIcon(
 
   if (tab.type === 'schema-browser') {
     return 'db-schema';
+  }
+
+  if (tab.type === 'ai-chat') {
+    return 'ai-message';
   }
 
   if (tab.type === 'data-source' && tab.dataSourceType === 'file') {

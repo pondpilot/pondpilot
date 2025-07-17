@@ -1,5 +1,6 @@
 import { createSQLScript } from '@controllers/sql-script';
-import { getOrCreateTabFromScript } from '@controllers/tab';
+import { getOrCreateTabFromScript, createAIChatTab } from '@controllers/tab';
+import { ChatExplorer } from '@features/chat-explorer';
 import { DataExplorer } from '@features/data-explorer';
 import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import { ScriptExplorer } from '@features/script-explorer';
@@ -13,6 +14,7 @@ import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarRightCollapse,
   IconChevronDown,
+  IconRobot,
 } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
@@ -27,6 +29,7 @@ interface NavbarProps {
 type SectionState = {
   dataExplorer: boolean;
   queries: boolean;
+  aiChat: boolean;
 };
 
 /**
@@ -55,6 +58,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
     return {
       dataExplorer: true,
       queries: true,
+      aiChat: true,
     };
   });
 
@@ -80,8 +84,12 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
 
   const appReady = appLoadState === 'ready';
 
-  // Calculate if both are expanded before toggle section
-  const bothExpanded = sectionStates.dataExplorer && sectionStates.queries;
+  // Calculate if all sections are expanded before toggle section
+  const _allExpanded = sectionStates.dataExplorer && sectionStates.queries && sectionStates.aiChat;
+  // Calculate if at least two sections are expanded (for resizing logic)
+  const multipleSectionsExpanded =
+    [sectionStates.dataExplorer, sectionStates.queries, sectionStates.aiChat].filter(Boolean)
+      .length >= 2;
 
   const toggleSection = (section: keyof SectionState) => {
     setSectionStates((prev) => {
@@ -90,22 +98,35 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
         [section]: !prev[section],
       };
 
-      // When transitioning from one section expanded to both expanded
-      if (newState.dataExplorer && newState.queries && !bothExpanded) {
-        // If expanding from only one section to both, set a reasonable default height
+      // Calculate how many sections will be expanded after this toggle
+      const newExpandedCount = [newState.dataExplorer, newState.queries, newState.aiChat].filter(
+        Boolean,
+      ).length;
+      const prevExpandedCount = [prev.dataExplorer, prev.queries, prev.aiChat].filter(
+        Boolean,
+      ).length;
+
+      // When transitioning from one section to multiple sections
+      if (newExpandedCount >= 2 && prevExpandedCount === 1) {
+        // If expanding from only one section to multiple, set a reasonable default height
         // This prevents the data explorer from taking all available space
         if (containerRef.current) {
           const containerHeight = containerRef.current.clientHeight;
           const headerHeight = 36; // px
           const footerHeight = 34; // px
-          const availableHeight = containerHeight - headerHeight * 2 - footerHeight - 1; // -1 for resize handle
-          // Set data explorer to 50% of available space by default
-          setDataExplorerHeight(Math.max(100, Math.floor(availableHeight / 2)));
+          const expandedSections = newExpandedCount;
+          const availableHeight =
+            containerHeight -
+            headerHeight * expandedSections -
+            footerHeight -
+            (expandedSections - 1); // resize handles
+          // Set data explorer to proportional space by default
+          setDataExplorerHeight(Math.max(100, Math.floor(availableHeight / expandedSections)));
         } else {
           setDataExplorerHeight(null);
         }
-      } else if (section === 'queries' && !newState.queries) {
-        // Collapsing the queries section
+      } else if (newExpandedCount === 1) {
+        // When only one section remains expanded, remove height constraint
         setDataExplorerHeight(null);
       }
 
@@ -234,7 +255,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
         )}
         style={{
           flex: sectionStates.dataExplorer
-            ? dataExplorerHeight && bothExpanded
+            ? dataExplorerHeight && multipleSectionsExpanded
               ? `0 0 ${dataExplorerHeight}px`
               : '1 1 auto'
             : '0 0 36px',
@@ -298,7 +319,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
       </Box>
 
       {/* Resize Handle */}
-      {bothExpanded && (
+      {multipleSectionsExpanded && (
         <button
           type="button"
           aria-label="Resize handle - use arrow keys to adjust"
@@ -388,6 +409,76 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
         >
           {appReady ? (
             <ScriptExplorer />
+          ) : (
+            <Stack gap={6} className="px-3 py-1.5">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
+              ))}
+            </Stack>
+          )}
+        </Box>
+      </Box>
+
+      {/* AI Chat Section */}
+      <Box
+        className={cn(
+          'flex flex-col overflow-hidden',
+          !isResizing && 'transition-all duration-300',
+          // Only add border when collapsed AND other sections are also collapsed
+          !sectionStates.aiChat &&
+            !sectionStates.dataExplorer &&
+            !sectionStates.queries &&
+            'border-b border-gray-200 dark:border-gray-700',
+        )}
+        style={{
+          flex: sectionStates.aiChat ? '1 1 auto' : '0 0 36px',
+          minHeight: sectionStates.aiChat ? 100 : 36,
+        }}
+      >
+        <Group
+          className="justify-between px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 select-none"
+          gap={0}
+          onClick={() => toggleSection('aiChat')}
+        >
+          <Group gap={4}>
+            <div className="text-gray-500 dark:text-gray-400 transition-transform duration-200">
+              <IconChevronDown
+                size={16}
+                style={{
+                  transform: sectionStates.aiChat ? 'rotate(0deg)' : 'rotate(-90deg)',
+                }}
+              />
+            </div>
+            <Text size="sm" fw={500} c="text-primary">
+              AI Chat
+            </Text>
+          </Group>
+          {appReady && (
+            <ActionIcon
+              data-testid={setDataTestId('chat-explorer-add-chat-button')}
+              onClick={(e) => {
+                e.stopPropagation();
+                createAIChatTab(true);
+                if (!sectionStates.aiChat) {
+                  setSectionStates((prev) => ({ ...prev, aiChat: true }));
+                }
+              }}
+              size={16}
+            >
+              <IconRobot />
+            </ActionIcon>
+          )}
+        </Group>
+
+        <Box
+          className="overflow-hidden flex flex-col flex-1"
+          style={{
+            opacity: sectionStates.aiChat ? 1 : 0,
+            transition: 'opacity 200ms',
+          }}
+        >
+          {appReady ? (
+            <ChatExplorer />
           ) : (
             <Stack gap={6} className="px-3 py-1.5">
               {Array.from({ length: 3 }).map((_, index) => (

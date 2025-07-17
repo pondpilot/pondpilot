@@ -1,3 +1,4 @@
+import { loadAIChatConversations } from '@controllers/ai-chat/persist';
 import { persistDeleteDataSource, persistPutDataSources } from '@controllers/data-source/persist';
 import {
   registerAndAttachDatabase,
@@ -770,6 +771,9 @@ export const restoreAppDataFromIDB = async (
       ],
     });
   }
+
+  // Load AI chat conversations
+  await loadAIChatConversations();
 
   // Finally update the store with the hydrated data
   useAppStore.setState(
