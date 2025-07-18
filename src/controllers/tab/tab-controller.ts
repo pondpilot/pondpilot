@@ -825,7 +825,7 @@ export const deleteTab = (tabIds: TabId[]) => {
 
   // Get tabs that are being deleted for cleanup
   const tabsToDelete = tabIds
-    .map(id => tabs.get(id))
+    .map((id) => tabs.get(id))
     .filter((tab): tab is NonNullable<typeof tab> => tab !== undefined);
 
   const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl({

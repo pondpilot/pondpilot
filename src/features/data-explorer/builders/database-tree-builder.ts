@@ -183,27 +183,27 @@ export function buildDatabaseNode(
   // Add HTTP Server-specific menu items
   const httpServerMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] =
     isHttpServerDb
-    ? [
-        {
-          label: 'Copy Server URL',
-          onClick: () => {
-            const httpServerDb = dataSource as HTTPServerDB;
-            const serverUrl = `http://${httpServerDb.host}:${httpServerDb.port}`;
-            copyToClipboard(serverUrl, {
-              showNotification: true,
-              notificationTitle: 'Server URL Copied',
-            });
+      ? [
+          {
+            label: 'Copy Server URL',
+            onClick: () => {
+              const httpServerDb = dataSource as HTTPServerDB;
+              const serverUrl = `http://${httpServerDb.host}:${httpServerDb.port}`;
+              copyToClipboard(serverUrl, {
+                showNotification: true,
+                notificationTitle: 'Server URL Copied',
+              });
+            },
           },
-        },
-        {
-          label: 'Refresh',
-          onClick: async () => {
-            // TODO: Implement HTTP Server refresh logic
-            // Refreshing HTTP Server database: ${dbName}
+          {
+            label: 'Refresh',
+            onClick: async () => {
+              // TODO: Implement HTTP Server refresh logic
+              // Refreshing HTTP Server database: ${dbName}
+            },
           },
-        },
-      ]
-    : [];
+        ]
+      : [];
 
   const onDbRenameSubmit = (node: TreeNodeData<DataExplorerNodeTypeMap>, newName: string): void => {
     newName = newName.trim();
