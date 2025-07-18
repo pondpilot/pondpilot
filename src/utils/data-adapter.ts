@@ -173,10 +173,10 @@ function getHTTPServerDataAdapterApi(
   tab: TabReactiveState<LocalDBDataTab>,
 ): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
   const { schemaName, objectName } = tab;
-  
+
   // Generate view name for queries
   const viewName = `httpserver_${dataSource.id}_${schemaName}_${objectName}`;
-  
+
   // Function to ensure view exists
   const ensureViewExists = async (abortSignal: AbortSignal) => {
     const { createHTTPServerView } = await import('./httpserver-database');
@@ -194,7 +194,7 @@ function getHTTPServerDataAdapterApi(
     adapter: {
       getSortableReader: async (sort, abortSignal) => {
         await ensureViewExists(abortSignal);
-        
+
         let baseQuery = `SELECT * FROM ${fqn}`;
         if (sort.length > 0) {
           const orderBy = sort
@@ -202,13 +202,17 @@ function getHTTPServerDataAdapterApi(
             .join(', ');
           baseQuery += ` ORDER BY ${orderBy}`;
         }
-        
+
         const reader = await pool.sendAbortable(baseQuery, abortSignal, true);
         return reader;
       },
-      getColumnAggregate: async (columnName: string, aggType: ColumnAggregateType, abortSignal: AbortSignal) => {
+      getColumnAggregate: async (
+        columnName: string,
+        aggType: ColumnAggregateType,
+        abortSignal: AbortSignal,
+      ) => {
         await ensureViewExists(abortSignal);
-        
+
         const queryToRun = `SELECT ${aggType}(${toDuckDBIdentifier(columnName)}) FROM ${fqn}`;
         const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
 
@@ -219,7 +223,7 @@ function getHTTPServerDataAdapterApi(
       },
       getColumnsData: async (columns: DBColumn[], abortSignal: AbortSignal) => {
         await ensureViewExists(abortSignal);
-        
+
         const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
         const queryToRun = `SELECT ${columnNames} FROM ${fqn}`;
         const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);

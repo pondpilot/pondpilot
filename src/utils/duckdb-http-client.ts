@@ -95,7 +95,6 @@ export class DuckDBHttpClient {
       }
 
       const text = await response.text();
-      console.log('Query response text:', text);
 
       // Parse JSON Lines format
       const lines = text.trim().split('\n');
@@ -132,8 +131,6 @@ export class DuckDBHttpClient {
         ORDER BY schema_name, table_name
       `);
 
-      console.log('Tables result:', tablesResult);
-
       // Get column information using DuckDB system tables
       const columnsResult = await this.executeQuery(`
         SELECT 
@@ -145,8 +142,6 @@ export class DuckDBHttpClient {
         WHERE schema_name = 'main'
         ORDER BY table_name, column_index
       `);
-
-      console.log('Columns result:', columnsResult);
 
       // Group columns by table
       const columnsByTable = new Map<string, ColumnSchema[]>();
