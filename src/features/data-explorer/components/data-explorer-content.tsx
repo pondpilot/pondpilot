@@ -13,6 +13,8 @@ type DataExplorerContentProps = {
   localDbNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   showRemoteDbs: boolean;
   remoteDbNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
+  showHttpServerDbs: boolean;
+  httpServerDbNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   initialExpandedState: Record<string, boolean>;
   searchExpandedState: Record<string, boolean>;
   extraData: DataExplorerContext;
@@ -28,6 +30,8 @@ export const DataExplorerContent = ({
   localDbNodes,
   showRemoteDbs,
   remoteDbNodes,
+  showHttpServerDbs,
+  httpServerDbNodes,
   initialExpandedState,
   searchExpandedState,
   extraData,
@@ -81,6 +85,18 @@ export const DataExplorerContent = ({
             initialExpandedState={expandedState}
             extraData={extraData}
             dataTestIdPrefix="data-explorer-remote"
+            hasActiveElement={hasActiveElement}
+          />
+        )}
+
+        {/* HTTP Server databases section */}
+        {showHttpServerDbs && httpServerDbNodes.length > 0 && (
+          <DataExplorerSection
+            title="HTTP Server Databases"
+            nodes={httpServerDbNodes}
+            initialExpandedState={expandedState}
+            extraData={extraData}
+            dataTestIdPrefix="data-explorer-httpserver"
             hasActiveElement={hasActiveElement}
           />
         )}
