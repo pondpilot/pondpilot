@@ -3,7 +3,11 @@ import { commonTextInputClassNames } from '@components/export-options-modal/cons
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Alert, Button, Group, PasswordInput, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
+import { PersistentDataSourceId } from '@models/data-source';
+import { DBColumnId } from '@models/db';
+import { useAppStore } from '@store/app-store';
 import { IconAlertCircle } from '@tabler/icons-react';
+import { createHttpClient } from '@utils/duckdb-http-client';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 
@@ -46,14 +50,26 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
 
     setIsTesting(true);
     try {
-      // TODO: Implement test connection logic
-      console.log('Testing connection to:', { host, port, protocol, authMethod });
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      
-      showSuccess({
-        title: 'Connection successful',
-        message: 'DuckDB HTTP Server connection test passed',
+      const client = createHttpClient({
+        host: host.trim(),
+        port: parseInt(port.trim(), 10),
+        protocol,
+        authMethod,
+        username: authMethod === 'basic' ? username.trim() : undefined,
+        password: authMethod === 'basic' ? password.trim() : undefined,
+        token: authMethod === 'token' ? token.trim() : undefined,
       });
+
+      const isConnected = await client.testConnection();
+
+      if (isConnected) {
+        showSuccess({
+          title: 'Connection successfulфыв',
+          message: 'DuckDB HTTP Server connection test passed',
+        });
+      } else {
+        throw new Error('Connection test failed');
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       showError({
@@ -85,13 +101,88 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
 
     setIsConnecting(true);
     try {
-      // TODO: Implement add connection logic
-      console.log('Adding HTTP server connection:', { host, port, protocol, authMethod, databaseName });
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      
+      const client = createHttpClient({
+        host: host.trim(),
+        port: parseInt(port.trim(), 10),
+        protocol,
+        authMethod,
+        username: authMethod === 'basic' ? username.trim() : undefined,
+        password: authMethod === 'basic' ? password.trim() : undefined,
+        token: authMethod === 'token' ? token.trim() : undefined,
+      });
+
+      // Test connection first
+      const isConnected = await client.testConnection();
+
+      if (!isConnected) {
+        throw new Error('Connection test failed');
+      }
+
+      // Get schema to verify database is accessible
+      const schema = await client.getSchema();
+
+      // Create HTTPServerDB data source
+      const httpServerDb = {
+        type: 'httpserver-db' as const,
+        id: `httpserver-${Date.now()}-${Math.random().toString(36).substring(2, 11)}` as PersistentDataSourceId,
+        host: host.trim(),
+        port: parseInt(port.trim(), 10),
+        dbName: databaseName.trim(),
+        connectionState: 'connected' as const,
+        attachedAt: Date.now(),
+        comment: `HTTP Server at ${protocol}://${host.trim()}:${port.trim()}`,
+      };
+
+      // Convert HTTP Server schema to DataBaseModel format
+      const databaseModel = {
+        name: httpServerDb.dbName,
+        schemas: [
+          {
+            name: 'main',
+            objects: schema.tables.map((table) => ({
+              name: table.name,
+              label: table.name,
+              type: 'table' as const,
+              columns: table.columns.map((col, index) => ({
+                name: col.name,
+                databaseType: col.type,
+                nullable: col.nullable,
+                sqlType: 'string' as const, // Default to string for HTTP server columns
+                id: `col-${table.name}-${col.name}-${index}` as DBColumnId,
+                columnIndex: index,
+              })),
+            })),
+          },
+        ],
+      };
+
+      // Add to app store
+      const { dataSources, databaseMetadata } = useAppStore.getState();
+      const newDataSources = new Map(dataSources);
+      const newDatabaseMetadata = new Map(databaseMetadata);
+
+      newDataSources.set(httpServerDb.id, httpServerDb);
+      newDatabaseMetadata.set(httpServerDb.dbName, databaseModel);
+
+      useAppStore.setState(
+        {
+          dataSources: newDataSources,
+          databaseMetadata: newDatabaseMetadata,
+        },
+        false,
+        'HTTPServerDB/add',
+      );
+
+      // Persist to IndexedDB
+      const { _iDbConn } = useAppStore.getState();
+      if (_iDbConn) {
+        const { persistPutDataSources } = await import('@controllers/data-source/persist');
+        await persistPutDataSources(_iDbConn, [httpServerDb]);
+      }
+
       showSuccess({
         title: 'Database added',
-        message: `Successfully connected to HTTP server '${databaseName}'`,
+        message: `Successfully connected to HTTP server '${databaseName}' (${schema.tables.length} tables found)`,
       });
       onClose();
     } catch (error) {
@@ -133,7 +224,8 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
             description="Connection protocol"
             classNames={{
               label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark px-4',
-              input: 'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
+              input:
+                'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
               description: 'pl-4 text-sm',
             }}
           />
@@ -182,7 +274,8 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
           description="Select authentication method for the HTTP server"
           classNames={{
             label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark px-4',
-            input: 'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
+            input:
+              'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
             description: 'pl-4 text-sm',
           }}
         />
@@ -207,7 +300,8 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
               required
               classNames={{
                 label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark px-4',
-                input: 'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
+                input:
+                  'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
               }}
             />
           </Group>
@@ -224,7 +318,8 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
             required
             classNames={{
               label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark px-4',
-              input: 'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
+              input:
+                'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
               description: 'pl-4 text-sm',
             }}
           />

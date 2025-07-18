@@ -17,6 +17,7 @@ import {
   XlsxSheetView,
   RemoteDB,
   LocalDB,
+  HTTPServerDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
   SYSTEM_DATABASE_FILE_SOURCE_ID,
@@ -671,6 +672,19 @@ export const restoreAppDataFromIDB = async (
   // Just mark them as valid so they don't get deleted
   for (const remoteDb of remoteDatabases) {
     validDataSources.add(remoteDb.id);
+  }
+
+  // Handle HTTP server databases - they need to be re-connected
+  const httpServerDatabases = Array.from(dataSources.values()).filter(
+    (ds) => ds.type === 'httpserver-db',
+  ) as HTTPServerDB[];
+
+  // We don't re-connect HTTP server databases here because:
+  // 1. They will be re-connected in reconnectHTTPServerDatabases() after app init
+  // 2. We want to handle connection errors properly
+  // Just mark them as valid so they don't get deleted
+  for (const httpServerDb of httpServerDatabases) {
+    validDataSources.add(httpServerDb.id);
   }
 
   if (missingDataSources.size > 0) {

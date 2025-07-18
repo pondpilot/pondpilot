@@ -9,7 +9,11 @@ import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry } from '@utils/connection-manager';
-import { isRemoteDatabase } from '@utils/data-source';
+import { isRemoteDatabase, isHTTPServerDatabase } from '@utils/data-source';
+import {
+  updateHTTPServerDbConnectionState,
+  reconnectHTTPServerDatabase,
+} from '@utils/httpserver-database';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { useEffect } from 'react';
@@ -92,6 +96,40 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
   }
 }
 
+// Reconnect to HTTPServerDB databases after app initialization
+async function reconnectHTTPServerDatabases(): Promise<void> {
+  const { dataSources } = useAppStore.getState();
+  const connectedDatabases: string[] = [];
+
+  for (const [id, dataSource] of dataSources) {
+    if (isHTTPServerDatabase(dataSource)) {
+      try {
+        // eslint-disable-next-line no-console
+        console.log(`Attempting to reconnect HTTPServerDB: ${dataSource.dbName}`);
+
+        // Use the enhanced reconnectHTTPServerDatabase function that fetches metadata
+        const success = await reconnectHTTPServerDatabase(dataSource);
+
+        if (success) {
+          connectedDatabases.push(dataSource.dbName);
+          // eslint-disable-next-line no-console
+          console.log(`Successfully reconnected HTTPServerDB: ${dataSource.dbName}`);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.warn(`Failed to reconnect to HTTPServerDB ${dataSource.dbName}:`, errorMessage);
+        updateHTTPServerDbConnectionState(id, 'error', errorMessage);
+      }
+    }
+  }
+
+  // Successfully reconnected databases
+  if (connectedDatabases.length > 0) {
+    // eslint-disable-next-line no-console
+    console.log(`Reconnected ${connectedDatabases.length} HTTPServerDB(s):`, connectedDatabases);
+  }
+}
+
 interface UseAppInitializationProps {
   isFileAccessApiSupported: boolean;
   isMobileDevice: boolean;
@@ -119,6 +157,9 @@ export function useAppInitialization({
 
       // Reconnect to remote databases
       await reconnectRemoteDatabases(resolvedConn);
+
+      // Reconnect to HTTPServerDB databases
+      await reconnectHTTPServerDatabases();
 
       // TODO: more detailed/better message
       if (discardedEntries.length) {

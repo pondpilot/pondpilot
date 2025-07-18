@@ -3,7 +3,7 @@ import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { LocalDB, RemoteDB } from '@models/data-source';
+import { LocalDB, RemoteDB, HTTPServerDB } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry } from '@models/file-system';
@@ -54,12 +54,13 @@ interface DatabaseTreeBuilderContext {
  * @returns TreeNodeData configured as a complete database node with all children
  */
 export function buildDatabaseNode(
-  dataSource: LocalDB | RemoteDB,
+  dataSource: LocalDB | RemoteDB | HTTPServerDB,
   isSystemDb: boolean,
   context: DatabaseTreeBuilderContext,
 ): TreeNodeData<DataExplorerNodeTypeMap> {
   const { id: dbId, dbName } = dataSource;
   const isRemoteDb = dataSource.type === 'remote-db';
+  const isHttpServerDb = dataSource.type === 'httpserver-db';
   const {
     nodeMap,
     anyNodeIdToNodeTypeMap,
@@ -85,15 +86,15 @@ export function buildDatabaseNode(
     dbLabel = getLocalDBDataSourceName(dbName, localFile);
   }
 
-  // For remote databases, append connection state indicator
-  if (isRemoteDb) {
-    const remoteDb = dataSource as RemoteDB;
+  // For remote databases and HTTP server databases, append connection state indicator
+  if (isRemoteDb || isHttpServerDb) {
+    const dbWithState = dataSource as RemoteDB | HTTPServerDB;
     const stateIcon =
-      remoteDb.connectionState === 'connected'
+      dbWithState.connectionState === 'connected'
         ? '✓'
-        : remoteDb.connectionState === 'connecting'
+        : dbWithState.connectionState === 'connecting'
           ? '⟳'
-          : remoteDb.connectionState === 'error'
+          : dbWithState.connectionState === 'error'
             ? '⚠'
             : '✕';
     dbLabel = `${dbLabel} ${stateIcon}`;
@@ -130,7 +131,7 @@ export function buildDatabaseNode(
       },
     },
     // Only add Refresh for non-remote databases (remote databases have their own Refresh/Reconnect)
-    ...(isRemoteDb
+    ...(isRemoteDb || isHttpServerDb
       ? []
       : [
           {
@@ -179,6 +180,31 @@ export function buildDatabaseNode(
       ]
     : [];
 
+  // Add HTTP Server-specific menu items
+  const httpServerMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] =
+    isHttpServerDb
+    ? [
+        {
+          label: 'Copy Server URL',
+          onClick: () => {
+            const httpServerDb = dataSource as HTTPServerDB;
+            const serverUrl = `http://${httpServerDb.host}:${httpServerDb.port}`;
+            copyToClipboard(serverUrl, {
+              showNotification: true,
+              notificationTitle: 'Server URL Copied',
+            });
+          },
+        },
+        {
+          label: 'Refresh',
+          onClick: async () => {
+            // TODO: Implement HTTP Server refresh logic
+            // Refreshing HTTP Server database: ${dbName}
+          },
+        },
+      ]
+    : [];
+
   const onDbRenameSubmit = (node: TreeNodeData<DataExplorerNodeTypeMap>, newName: string): void => {
     newName = newName.trim();
     const db = localDatabases.find((d) => d.id === node.value);
@@ -200,7 +226,7 @@ export function buildDatabaseNode(
     isDisabled: false,
     isSelectable: true,
     renameCallbacks:
-      !isSystemDb && !isRemoteDb && localFile?.userAdded
+      !isSystemDb && !isRemoteDb && !isHttpServerDb && localFile?.userAdded
         ? {
             prepareRenameValue: () => dbName,
             validateRename: (node: any, newName: string) =>
@@ -209,7 +235,7 @@ export function buildDatabaseNode(
           }
         : undefined,
     onDelete:
-      !isSystemDb && (isRemoteDb || localFile?.userAdded)
+      !isSystemDb && (isRemoteDb || isHttpServerDb || localFile?.userAdded)
         ? (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
             if (node.nodeType === 'db') {
               deleteDataSources(conn, [node.value]);
@@ -218,7 +244,7 @@ export function buildDatabaseNode(
         : undefined,
     contextMenu: [
       {
-        children: [...baseContextMenuItems, ...remoteMenuItems],
+        children: [...baseContextMenuItems, ...remoteMenuItems, ...httpServerMenuItems],
       },
     ],
     children: sortedSchemas?.map((schema) =>

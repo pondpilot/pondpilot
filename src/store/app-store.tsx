@@ -5,6 +5,7 @@ import {
   AnyFlatFileDataSource,
   LocalDB,
   RemoteDB,
+  HTTPServerDB,
   PersistentDataSourceId,
 } from '@models/data-source';
 import { DataBaseModel, DBFunctionsMetadata, DBTableOrViewSchema } from '@models/db';
@@ -249,7 +250,10 @@ export function useProtectedViews(): Set<string> {
           state.dataSources
             .values()
             .filter(
-              (dataSource) => dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db',
+              (dataSource) =>
+                dataSource.type !== 'attached-db' &&
+                dataSource.type !== 'remote-db' &&
+                dataSource.type !== 'httpserver-db',
             )
             .map((dataSource): string => (dataSource as AnyFlatFileDataSource).viewName),
         ),
@@ -265,9 +269,12 @@ export function useFlatFileDataSourceEMap(): Map<PersistentDataSourceId, AnyFlat
           state.dataSources
             .entries()
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
-            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as IteratorObject<
-            [PersistentDataSourceId, AnyFlatFileDataSource]
-          >,
+            .filter(
+              ([, dataSource]) =>
+                dataSource.type !== 'attached-db' &&
+                dataSource.type !== 'remote-db' &&
+                dataSource.type !== 'httpserver-db',
+            ) as IteratorObject<[PersistentDataSourceId, AnyFlatFileDataSource]>,
         ),
     ),
   );
@@ -281,9 +288,12 @@ export function useFlatFileDataSourceMap(): Map<PersistentDataSourceId, AnyFlatF
           state.dataSources
             .entries()
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
-            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as IteratorObject<
-            [PersistentDataSourceId, AnyFlatFileDataSource]
-          >,
+            .filter(
+              ([, dataSource]) =>
+                dataSource.type !== 'attached-db' &&
+                dataSource.type !== 'remote-db' &&
+                dataSource.type !== 'httpserver-db',
+            ) as IteratorObject<[PersistentDataSourceId, AnyFlatFileDataSource]>,
         ),
     ),
   );
@@ -305,18 +315,23 @@ export function useLocalDBDataSourceMap(): Map<PersistentDataSourceId, LocalDB> 
   );
 }
 
-export function useDatabaseDataSourceMap(): Map<PersistentDataSourceId, LocalDB | RemoteDB> {
+export function useDatabaseDataSourceMap(): Map<
+  PersistentDataSourceId,
+  LocalDB | RemoteDB | HTTPServerDB
+> {
   return useAppStore(
     useShallow(
       (state) =>
         new Map(
           state.dataSources
             .entries()
-            // Include both local and remote databases
+            // Include local, remote, and HTTP server databases
             .filter(
               ([, dataSource]) =>
-                dataSource.type === 'attached-db' || dataSource.type === 'remote-db',
-            ) as IteratorObject<[PersistentDataSourceId, LocalDB | RemoteDB]>,
+                dataSource.type === 'attached-db' ||
+                dataSource.type === 'remote-db' ||
+                dataSource.type === 'httpserver-db',
+            ) as IteratorObject<[PersistentDataSourceId, LocalDB | RemoteDB | HTTPServerDB]>,
         ),
     ),
   );

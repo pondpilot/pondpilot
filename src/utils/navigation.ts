@@ -34,9 +34,13 @@ export function getTabName(
     return 'Unknown data source';
   }
 
-  // Database objects (both local attached and remote)
+  // Database objects (both local attached, remote, and HTTP server)
   if (tab.dataSourceType === 'db') {
-    if (dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db') {
+    if (
+      dataSource.type !== 'attached-db' &&
+      dataSource.type !== 'remote-db' &&
+      dataSource.type !== 'httpserver-db'
+    ) {
       return 'Unknown data source';
     }
 
@@ -44,7 +48,11 @@ export function getTabName(
   }
 
   // Flat files
-  if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+  if (
+    dataSource.type === 'attached-db' ||
+    dataSource.type === 'remote-db' ||
+    dataSource.type === 'httpserver-db'
+  ) {
     return 'Unknown data source';
   }
 
@@ -68,7 +76,12 @@ export function getTabIcon(
   if (tab.type === 'data-source' && tab.dataSourceType === 'file') {
     const dataSource = dataSources.get(tab.dataSourceId);
 
-    if (!dataSource || dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+    if (
+      !dataSource ||
+      dataSource.type === 'attached-db' ||
+      dataSource.type === 'remote-db' ||
+      dataSource.type === 'httpserver-db'
+    ) {
       return 'error';
     }
     return getFlatFileDataSourceIcon(dataSource as AnyFlatFileDataSource);
