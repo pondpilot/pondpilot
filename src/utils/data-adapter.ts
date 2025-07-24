@@ -178,13 +178,44 @@ function getHTTPServerDataAdapterApi(
   // Generate view name for queries (using sanitized identifiers)
   const viewName = generateHTTPServerViewName(dataSource, schemaName, objectName);
 
+  // Function to handle network errors without duplicating notifications
+  const handleNetworkError = async (error: any) => {
+    const { isNetworkError, updateHTTPServerDbConnectionState, handleHTTPServerDatabaseError } =
+      await import('./httpserver-database');
+
+    if (isNetworkError(error)) {
+      updateHTTPServerDbConnectionState(dataSource.id, 'disconnected', 'Connection lost');
+      handleHTTPServerDatabaseError(dataSource.id, error as Error);
+    }
+  };
+
   // Function to ensure view exists
   const ensureViewExists = async (abortSignal: AbortSignal) => {
     const { createHTTPServerView } = await import('./httpserver-database');
+
+    // Allow reconnection attempts - only block if explicitly in error state
+    if (dataSource.connectionState === 'error') {
+      throw new Error(
+        `HTTP Server database '${dataSource.dbName}' has connection errors. Please check the connection.`,
+      );
+    }
+
     try {
       await createHTTPServerView(pool, dataSource, schemaName, objectName);
+
+      // If view creation succeeds and we were disconnected, update state to connected
+      if (dataSource.connectionState === 'disconnected') {
+        const { updateHTTPServerDbConnectionState, clearHTTPServerErrorState } = await import(
+          './httpserver-database'
+        );
+        updateHTTPServerDbConnectionState(dataSource.id, 'connected');
+
+        // Clear error state since we've reconnected successfully
+        clearHTTPServerErrorState(dataSource.id);
+      }
     } catch (error) {
       console.error('Failed to create HTTPServerDB view:', error);
+      await handleNetworkError(error);
       throw error;
     }
   };
@@ -194,45 +225,90 @@ function getHTTPServerDataAdapterApi(
   return {
     adapter: {
       getSortableReader: async (sort, abortSignal) => {
-        await ensureViewExists(abortSignal);
+        try {
+          await ensureViewExists(abortSignal);
 
-        let baseQuery = `SELECT * FROM ${fqn}`;
-        if (sort.length > 0) {
-          const orderBy = sort
-            .map((s) => `${toDuckDBIdentifier(s.column)} ${s.order || 'asc'}`)
-            .join(', ');
-          baseQuery += ` ORDER BY ${orderBy}`;
+          let baseQuery = `SELECT * FROM ${fqn}`;
+          if (sort.length > 0) {
+            const orderBy = sort
+              .map((s) => `${toDuckDBIdentifier(s.column)} ${s.order || 'asc'}`)
+              .join(', ');
+            baseQuery += ` ORDER BY ${orderBy}`;
+          }
+
+          const reader = await pool.sendAbortable(baseQuery, abortSignal, true);
+          return reader;
+        } catch (error) {
+          await handleNetworkError(error);
+
+          const { isNetworkError } = await import('./httpserver-database');
+          if (isNetworkError(error)) {
+            // For network errors, throw a special error that won't be added to dataSourceReadError
+            const networkError = new Error(
+              `Lost connection to HTTP Server '${dataSource.dbName}'. Please reconnect.`,
+            );
+            (networkError as any).isHTTPServerNetworkError = true;
+            throw networkError;
+          }
+          throw error;
         }
-
-        const reader = await pool.sendAbortable(baseQuery, abortSignal, true);
-        return reader;
       },
       getColumnAggregate: async (
         columnName: string,
         aggType: ColumnAggregateType,
         abortSignal: AbortSignal,
       ) => {
-        await ensureViewExists(abortSignal);
+        try {
+          await ensureViewExists(abortSignal);
 
-        const queryToRun = `SELECT ${aggType}(${toDuckDBIdentifier(columnName)}) FROM ${fqn}`;
-        const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+          const queryToRun = `SELECT ${aggType}(${toDuckDBIdentifier(columnName)}) FROM ${fqn}`;
+          const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
 
-        if (aborted) {
-          return { value: undefined, aborted };
+          if (aborted) {
+            return { value: undefined, aborted };
+          }
+          return { value: value.getChildAt(0)?.get(0), aborted };
+        } catch (error) {
+          await handleNetworkError(error);
+
+          const { isNetworkError } = await import('./httpserver-database');
+          if (isNetworkError(error)) {
+            // For network errors, throw a special error that won't be added to dataSourceReadError
+            const networkError = new Error(
+              `Lost connection to HTTP Server '${dataSource.dbName}'. Please reconnect.`,
+            );
+            (networkError as any).isHTTPServerNetworkError = true;
+            throw networkError;
+          }
+          throw error;
         }
-        return { value: value.getChildAt(0)?.get(0), aborted };
       },
       getColumnsData: async (columns: DBColumn[], abortSignal: AbortSignal) => {
-        await ensureViewExists(abortSignal);
+        try {
+          await ensureViewExists(abortSignal);
 
-        const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
-        const queryToRun = `SELECT ${columnNames} FROM ${fqn}`;
-        const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+          const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
+          const queryToRun = `SELECT ${columnNames} FROM ${fqn}`;
+          const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
 
-        if (aborted) {
-          return { value: [], aborted };
+          if (aborted) {
+            return { value: [], aborted };
+          }
+          return { value: convertArrowTable(value, columns), aborted };
+        } catch (error) {
+          await handleNetworkError(error);
+
+          const { isNetworkError } = await import('./httpserver-database');
+          if (isNetworkError(error)) {
+            // For network errors, throw a special error that won't be added to dataSourceReadError
+            const networkError = new Error(
+              `Lost connection to HTTP Server '${dataSource.dbName}'. Please reconnect.`,
+            );
+            (networkError as any).isHTTPServerNetworkError = true;
+            throw networkError;
+          }
+          throw error;
         }
-        return { value: convertArrowTable(value, columns), aborted };
       },
     },
     userErrors: [],
