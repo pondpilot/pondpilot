@@ -412,7 +412,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           }
         }
       } catch (error: any) {
-        if (error instanceof PoolTimeoutError) {
+        // Don't add HTTP Server network errors to dataSourceReadError - they're handled separately
+        if ((error as any).isHTTPServerNetworkError) {
+          throw error; // Re-throw to maintain expected behavior
+        } else if (error instanceof PoolTimeoutError) {
           setAppendDataSourceReadError(
             'Too many tabs open or operations running. Please wait and re-open this tab.',
           );
@@ -631,7 +634,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           setDataVersion((prev) => prev + 1);
         }
       } catch (error: any) {
-        if (error.message?.includes('NotReadableError')) {
+        // Don't add HTTP Server network errors to dataSourceReadError - they're handled separately
+        if ((error as any).isHTTPServerNetworkError) {
+          throw error; // Re-throw to maintain expected behavior
+        } else if (error.message?.includes('NotReadableError')) {
           if (options.retry_with_file_sync) {
             // First try to sync files, that may re-create a working handle
             await syncFiles(pool);

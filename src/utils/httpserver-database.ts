@@ -18,6 +18,26 @@ import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import { createHttpClient, DatabaseSchema } from '@utils/duckdb-http-client';
 
 /**
+ * Checks if an error is a network-related error that indicates connection loss
+ */
+export function isNetworkError(error: any): boolean {
+  const errorMessage = error?.message || error?.toString() || '';
+
+  return (
+    errorMessage.includes('NetworkError') ||
+    errorMessage.includes('Failed to fetch') ||
+    errorMessage.includes('Failed to load') ||
+    errorMessage.includes("Failed to execute 'send'") ||
+    errorMessage.includes('ERR_NETWORK') ||
+    errorMessage.includes('ERR_INTERNET_DISCONNECTED') ||
+    errorMessage.includes('Connection refused') ||
+    errorMessage.includes('ECONNREFUSED') ||
+    errorMessage.includes('ETIMEDOUT') ||
+    errorMessage.includes('ENETUNREACH')
+  );
+}
+
+/**
  * Converts DatabaseSchema from HTTPServer client to DataBaseModel format
  */
 function convertDatabaseSchemaToDataBaseModel(
@@ -316,26 +336,59 @@ export async function reconnectHTTPServerDatabase(httpServerDb: HTTPServerDB): P
   }
 }
 
+// Per-connection error state tracking to prevent duplicate notifications
+const connectionErrorStates = new Map<
+  string,
+  {
+    lastErrorTime: number;
+    errorShown: boolean;
+    isRecovering: boolean;
+  }
+>();
+
+/**
+ * Clears error state for a specific connection (used when reconnecting)
+ */
+export function clearHTTPServerErrorState(dbId: PersistentDataSourceId): void {
+  connectionErrorStates.delete(dbId);
+}
+
 /**
  * Handles errors when accessing HTTPServerDB
  */
 export function handleHTTPServerDatabaseError(dbId: PersistentDataSourceId, error: Error): void {
   const errorMessage = error.message || String(error);
+  const now = Date.now();
+  const errorState = connectionErrorStates.get(dbId);
 
-  // Check for common network errors
-  if (
-    errorMessage.includes('NetworkError') ||
-    errorMessage.includes('Failed to fetch') ||
-    errorMessage.includes('ERR_NETWORK') ||
-    errorMessage.includes('ERR_INTERNET_DISCONNECTED') ||
-    errorMessage.includes('Connection refused')
-  ) {
+  // Only show notification if we haven't shown one recently for this connection (within 5 seconds)
+  const shouldShowNotification = !errorState || now - errorState.lastErrorTime > 5000;
+
+  // Check for common network errors using our helper
+  if (isNetworkError(error)) {
     updateHTTPServerDbConnectionState(dbId, 'disconnected', 'Network connection lost');
 
-    showWarning({
-      title: 'Connection Lost',
-      message: 'Lost connection to HTTP server database. Please check your internet connection.',
-    });
+    if (shouldShowNotification) {
+      // Get the database name for better error messages
+      const { dataSources } = useAppStore.getState();
+      const dataSource = dataSources.get(dbId);
+      const dbName =
+        dataSource && dataSource.type === 'httpserver-db'
+          ? dataSource.dbName
+          : 'HTTP server database';
+
+      showWarning({
+        title: 'Connection Lost',
+        message: `Lost connection to '${dbName}'. The server may be down or unreachable.`,
+      });
+
+      // Update error state tracking
+      connectionErrorStates.set(dbId, {
+        lastErrorTime: now,
+        errorShown: true,
+        isRecovering: false,
+      });
+    }
   } else if (
     errorMessage.includes('403') ||
     errorMessage.includes('401') ||
@@ -343,17 +396,33 @@ export function handleHTTPServerDatabaseError(dbId: PersistentDataSourceId, erro
   ) {
     updateHTTPServerDbConnectionState(dbId, 'error', 'Access denied');
 
-    showError({
-      title: 'Access Denied',
-      message: 'You do not have permission to access this HTTP server database.',
-    });
+    if (shouldShowNotification) {
+      showError({
+        title: 'Access Denied',
+        message: 'You do not have permission to access this HTTP server database.',
+      });
+
+      connectionErrorStates.set(dbId, {
+        lastErrorTime: now,
+        errorShown: true,
+        isRecovering: false,
+      });
+    }
   } else {
     updateHTTPServerDbConnectionState(dbId, 'error', errorMessage);
 
-    showError({
-      title: 'Database Error',
-      message: `Error accessing HTTP server database: ${errorMessage}`,
-    });
+    if (shouldShowNotification) {
+      showError({
+        title: 'Database Error',
+        message: `Error accessing HTTP server database: ${errorMessage}`,
+      });
+
+      connectionErrorStates.set(dbId, {
+        lastErrorTime: now,
+        errorShown: true,
+        isRecovering: false,
+      });
+    }
   }
 }
 
