@@ -10,6 +10,7 @@ import { copyTableColumns } from '@features/tab-view/utils';
 import { Button, Center, Group, Loader, Stack, Text } from '@mantine/core';
 import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
 import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@models/data-adapter';
+import { HTTPServerDB } from '@models/data-source';
 import { DBColumn } from '@models/db';
 import { MAX_DATA_VIEW_PAGE_SIZE, TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
@@ -30,6 +31,19 @@ interface DataViewProps {
 }
 
 export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps) => {
+  // Get the tab and data source information
+  const tabState = useAppStore((state) => state.tabs.get(tabId));
+  const dataSources = useAppStore((state) => state.dataSources);
+  const dataSource =
+    tabState?.type === 'data-source' && tabState.dataSourceType === 'db'
+      ? dataSources.get(tabState.dataSourceId)
+      : undefined;
+
+  // Determine if this is an HTTP Server database
+  const isHTTPServerDB = dataSource?.type === 'httpserver-db';
+
+  // Determine button text based on data source type
+  const restartButtonText = isHTTPServerDB ? 'Reconnect' : 'Restart';
   /**
    * Helpful hooks
    */
@@ -223,7 +237,54 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     // Reset the requested page to 0
     setAndCacheDataPage(0);
 
-    await dataAdapter.reset();
+    try {
+      // For HTTP Server databases, test the connection before showing success
+      if (isHTTPServerDB && dataSource) {
+        const { clearHTTPServerErrorState } = await import('@utils/httpserver-database');
+
+        // Clear error state to allow reconnection
+        clearHTTPServerErrorState(dataSource.id);
+
+        // Test actual connection
+        const httpServerDB = dataSource as HTTPServerDB;
+        const { createHttpClient } = await import('@utils/duckdb-http-client');
+        const client = createHttpClient({
+          host: httpServerDB.host,
+          port: httpServerDB.port,
+          protocol: 'http',
+        });
+
+        const connectionResult = await client.testConnection();
+        if (!connectionResult) {
+          throw new Error('Connection test failed - server is not reachable');
+        }
+
+        // Update connection state to connected after successful test
+        const { updateHTTPServerDbConnectionState } = await import('@utils/httpserver-database');
+        updateHTTPServerDbConnectionState(dataSource.id, 'connected');
+      }
+
+      await dataAdapter.reset();
+
+      // Show success notification for HTTP Server reconnection
+      if (isHTTPServerDB && dataSource) {
+        const { showSuccess } = await import('@components/app-notifications');
+        showSuccess({
+          title: 'Reconnected',
+          message: `Successfully reconnected to HTTP server '${dataSource.dbName}'`,
+        });
+      }
+    } catch (error) {
+      // Show error notification for HTTP Server reconnection failure
+      if (isHTTPServerDB && dataSource) {
+        const { showError } = await import('@components/app-notifications');
+        showError({
+          title: 'Reconnection Failed',
+          message: `Failed to reconnect to HTTP server '${dataSource.dbName}'. Please check the server.`,
+        });
+      }
+      console.error('Data adapter reset failed:', error);
+    }
   };
 
   const onColumnResizeChange = useCallback(
@@ -325,7 +386,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
                 onClick={handleDataAdapterReset}
                 data-testid={setDataTestId('data-view-reset-button')}
               >
-                Restart
+                {restartButtonText}
               </Button>
             </Stack>
           </Center>
@@ -347,7 +408,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
                 onClick={handleDataAdapterReset}
                 data-testid={setDataTestId('data-view-reset-button')}
               >
-                Restart
+                {restartButtonText}
               </Button>
             </Group>
           </Stack>
