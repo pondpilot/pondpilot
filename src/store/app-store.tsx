@@ -5,6 +5,7 @@ import {
   AnyFlatFileDataSource,
   LocalDB,
   RemoteDB,
+  HTTPServerDB,
   PersistentDataSourceId,
 } from '@models/data-source';
 import { DataBaseModel, DBFunctionsMetadata, DBTableOrViewSchema } from '@models/db';
@@ -13,6 +14,7 @@ import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab, TabId, TabReactiveState, TabType } from '@models/tab';
+import { isDatabaseSource } from '@utils/data-source';
 import { getTabIcon, getTabName } from '@utils/navigation';
 import { IDBPDatabase } from 'idb';
 import { create } from 'zustand';
@@ -248,7 +250,10 @@ export function useProtectedViews(): Set<string> {
         new Set(
           Array.from(state.dataSources.values())
             .filter(
-              (dataSource) => dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db',
+              (dataSource) =>
+                dataSource.type !== 'attached-db' &&
+                dataSource.type !== 'remote-db' &&
+                dataSource.type !== 'httpserver-db',
             )
             .map((dataSource): string => (dataSource as AnyFlatFileDataSource).viewName),
         ),
@@ -263,10 +268,12 @@ export function useFlatFileDataSourceEMap(): Map<PersistentDataSourceId, AnyFlat
         new Map(
           Array.from(state.dataSources.entries())
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
-            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as [
-            PersistentDataSourceId,
-            AnyFlatFileDataSource,
-          ][],
+            .filter(
+              ([, dataSource]) =>
+                dataSource.type !== 'attached-db' &&
+                dataSource.type !== 'remote-db' &&
+                dataSource.type !== 'httpserver-db',
+            ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
     ),
   );
@@ -279,10 +286,12 @@ export function useFlatFileDataSourceMap(): Map<PersistentDataSourceId, AnyFlatF
         new Map(
           Array.from(state.dataSources.entries())
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
-            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as [
-            PersistentDataSourceId,
-            AnyFlatFileDataSource,
-          ][],
+            .filter(
+              ([, dataSource]) =>
+                dataSource.type !== 'attached-db' &&
+                dataSource.type !== 'remote-db' &&
+                dataSource.type !== 'httpserver-db',
+            ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
     ),
   );
@@ -304,17 +313,20 @@ export function useLocalDBDataSourceMap(): Map<PersistentDataSourceId, LocalDB> 
   );
 }
 
-export function useDatabaseDataSourceMap(): Map<PersistentDataSourceId, LocalDB | RemoteDB> {
+export function useDatabaseDataSourceMap(): Map<
+  PersistentDataSourceId,
+  LocalDB | RemoteDB | HTTPServerDB
+> {
   return useAppStore(
     useShallow(
       (state) =>
         new Map(
           Array.from(state.dataSources.entries())
-            // Include both local and remote databases
-            .filter(
-              ([, dataSource]) =>
-                dataSource.type === 'attached-db' || dataSource.type === 'remote-db',
-            ) as [PersistentDataSourceId, LocalDB | RemoteDB][],
+            // Include local, remote, and HTTP server databases
+            .filter(([, dataSource]) => isDatabaseSource(dataSource)) as [
+            PersistentDataSourceId,
+            LocalDB | RemoteDB | HTTPServerDB,
+          ][],
         ),
     ),
   );

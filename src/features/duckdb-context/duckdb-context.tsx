@@ -341,9 +341,6 @@ export const DuckDBConnectionPoolProvider = ({
                   console.warn(`Failed to drop temporary table ${tableName}:`, dropError);
                 }
               }
-
-              // eslint-disable-next-line no-console
-              console.log('Cleanup of temporary UUID tables completed.');
             }
           } catch (cleanupError) {
             // Don't fail initialization if cleanup fails, just log it

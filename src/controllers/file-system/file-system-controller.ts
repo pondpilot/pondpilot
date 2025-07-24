@@ -26,7 +26,12 @@ import {
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
-import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
+import {
+  isDatabaseSource,
+  addLocalDB,
+  addFlatFileDataSource,
+  addXlsxSheetDataSource,
+} from '@utils/data-source';
 import { localEntryFromHandle } from '@utils/file-system';
 import { findUniqueName } from '@utils/helpers';
 import { makeSQLScriptId } from '@utils/sql-script';
@@ -495,7 +500,7 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
   // Map file IDs to data source IDs
   const fileIdToDataSourceIds = new Map<LocalEntryId, PersistentDataSourceId[]>();
   for (const [dataSourceId, dataSource] of dataSources) {
-    if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+    if (isDatabaseSource(dataSource)) {
       continue;
     }
     const fileId = dataSource.fileSourceId;
@@ -677,6 +682,7 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
       if (
         dataSource.type !== 'attached-db' &&
         dataSource.type !== 'remote-db' &&
+        dataSource.type !== 'httpserver-db' &&
         localFileIdsToDelete.has(dataSource.fileSourceId)
       ) {
         dataSourceIdsToDelete.add(dataSourceId);

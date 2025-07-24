@@ -156,7 +156,11 @@ export const SpotlightMenu = () => {
   const dataSourceActions: Action[] = [];
 
   for (const dataSource of dataSources.values()) {
-    if (isLocalDatabase(dataSource) || isRemoteDatabase(dataSource)) {
+    if (
+      isLocalDatabase(dataSource) ||
+      isRemoteDatabase(dataSource) ||
+      dataSource.type === 'httpserver-db'
+    ) {
       // For databases we need to read all tables and views from metadata
       const dbMetadata = databaseMetadata.get(dataSource.dbName);
 

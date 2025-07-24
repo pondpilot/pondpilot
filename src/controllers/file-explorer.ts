@@ -3,6 +3,7 @@ import { PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntryId } from '@models/file-system';
 import { useAppStore } from '@store/app-store';
+import { isDatabaseSource } from '@utils/data-source';
 import { findUniqueName } from '@utils/helpers';
 
 import { persistPutDataSources } from './data-source/persist';
@@ -24,7 +25,7 @@ export const renameFile = async (
 
   // Check if the data source exists
   const dataSource = dataSources.get(fileDataSourceId);
-  if (!dataSource || dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+  if (!dataSource || isDatabaseSource(dataSource)) {
     throw new Error(`File source ${fileDataSourceId} not found`);
   }
 
@@ -137,8 +138,7 @@ export const renameXlsxFile = async (
 
   // Get all data sources that are associated with this file
   const curDataSources = [...dataSources.values()].filter(
-    (ds) =>
-      ds.type !== 'attached-db' && ds.type !== 'remote-db' && ds.fileSourceId === localEntryId,
+    (ds) => !isDatabaseSource(ds) && ds.fileSourceId === localEntryId,
   );
 
   for (const dataSource of curDataSources) {

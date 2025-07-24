@@ -5,6 +5,7 @@ import {
   LocalDB,
   PersistentDataSourceId,
   RemoteDB,
+  HTTPServerDB,
 } from '@models/data-source';
 import { ColumnSortSpecList } from '@models/db';
 import { LocalEntryId } from '@models/file-system';
@@ -109,7 +110,7 @@ export const getOrCreateSchemaBrowserTab = (options: {
 };
 
 /**
- * Gets existing or creates a new tab for a given table/view in a local database.
+ * Gets existing or creates a new tab for a given table/view in a database.
  * If the source is already associated with a tab, it returns that tab without creating a new one.
  *
  * @param dataSourceOrId - The ID of an object to create a tab from.
@@ -119,10 +120,10 @@ export const getOrCreateSchemaBrowserTab = (options: {
  * @param setActive - Whether to set the new tab as active. This is a shortcut for
  *                  calling `setActiveTabId(tab.id)` on the returned tab.
  * @returns A new Tab object.
- * @throws An error if the Local DB with the given ID does not exist.
+ * @throws An error if the database with the given ID does not exist.
  */
 export const getOrCreateTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | RemoteDB | PersistentDataSourceId,
+  dataSourceOrId: LocalDB | RemoteDB | HTTPServerDB | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
   objectType: 'table' | 'view',
@@ -360,14 +361,14 @@ export const findSchemaBrowserTab = (
 };
 
 /**
- * Finds a tab displaying an existing Local DB object or undefined.
+ * Finds a tab displaying an existing database object or undefined.
  *
- * @param dataSourceOrId - The ID or a Local DB object to find the tab for.
+ * @param dataSourceOrId - The ID or a database object to find the tab for.
  * @returns A new Tab object if found.
- * @throws An error if the Local DB with the given ID does not exist.
+ * @throws An error if the database with the given ID does not exist.
  */
 export const findTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | PersistentDataSourceId,
+  dataSourceOrId: LocalDB | RemoteDB | HTTPServerDB | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
 ): LocalDBDataTab | undefined => {
@@ -822,6 +823,11 @@ export const deleteTab = (tabIds: TabId[]) => {
     _iDbConn: iDbConn,
   } = useAppStore.getState();
 
+  // Get tabs that are being deleted for cleanup
+  const tabsToDelete = tabIds
+    .map((id) => tabs.get(id))
+    .filter((tab): tab is NonNullable<typeof tab> => tab !== undefined);
+
   const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl({
     deleteTabIds: tabIds,
     tabs,
@@ -846,6 +852,13 @@ export const deleteTab = (tabIds: TabId[]) => {
     undefined,
     'AppStore/deleteTab',
   );
+
+  // Clean up HTTPServer views for deleted tabs
+  if (tabsToDelete.length > 0) {
+    // We'll clean up views in the background, but we can't access DuckDB pool directly from here
+    // The cleanup will happen when the data adapter is destroyed
+    // HTTPServer views cleanup will be handled by data adapter destruction
+  }
 
   if (iDbConn) {
     // Now we can pass the entire array (or single ID) directly
