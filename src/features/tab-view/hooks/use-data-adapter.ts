@@ -1016,6 +1016,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     dataReadCancelled.current = true;
     abortDataFetch();
     setLastSortSafe(sort);
+    setIsFetchingData(false);
   }, [abortDataFetch, setLastSortSafe, sort]);
 
   const ackDataReadCancelled = useCallback(() => {

@@ -13,6 +13,7 @@ import { PersistentDataSourceId } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
+import { isDatabaseSource } from '@utils/data-source';
 
 import { persistDeleteDataSource } from './persist';
 
@@ -187,7 +188,7 @@ export const deleteDataSources = async (
     Array.from(databaseMetadata).filter(([dbName, _]) => !deletedDataBases.has(dbName)),
   );
   // Update metadata views
-  if (deletedDataSources.some((ds) => ds.type !== 'attached-db' && ds.type !== 'remote-db')) {
+  if (deletedDataSources.some((ds) => !isDatabaseSource(ds))) {
     // Refresh metadata for pondpilot database
     const newViewsMetadata = await getDatabaseModel(conn, [PERSISTENT_DB_NAME], ['main']);
 

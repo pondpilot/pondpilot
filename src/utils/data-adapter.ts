@@ -5,6 +5,7 @@ import {
   AnyFlatFileDataSource,
   LocalDB,
   RemoteDB,
+  HTTPServerDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
 } from '@models/data-source';
@@ -16,6 +17,7 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { convertArrowTable } from './arrow';
 import { classifySQLStatement, trimQuery } from './editor/sql';
 import { quote } from './helpers';
+import { generateHTTPServerViewName } from './httpserver-database';
 
 function getGetSortableReaderApiFromFQN(
   pool: AsyncDuckDBConnectionPool,
@@ -165,6 +167,79 @@ function getDatabaseDataAdapterApi(
   };
 }
 
+// Function specifically for HTTPServerDB that creates views on-demand
+function getHTTPServerDataAdapterApi(
+  pool: AsyncDuckDBConnectionPool,
+  dataSource: HTTPServerDB,
+  tab: TabReactiveState<LocalDBDataTab>,
+): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
+  const { schemaName, objectName } = tab;
+
+  // Generate view name for queries (using sanitized identifiers)
+  const viewName = generateHTTPServerViewName(dataSource, schemaName, objectName);
+
+  // Function to ensure view exists
+  const ensureViewExists = async (abortSignal: AbortSignal) => {
+    const { createHTTPServerView } = await import('./httpserver-database');
+    try {
+      await createHTTPServerView(pool, dataSource, schemaName, objectName);
+    } catch (error) {
+      console.error('Failed to create HTTPServerDB view:', error);
+      throw error;
+    }
+  };
+
+  const fqn = `main.${toDuckDBIdentifier(viewName)}`;
+
+  return {
+    adapter: {
+      getSortableReader: async (sort, abortSignal) => {
+        await ensureViewExists(abortSignal);
+
+        let baseQuery = `SELECT * FROM ${fqn}`;
+        if (sort.length > 0) {
+          const orderBy = sort
+            .map((s) => `${toDuckDBIdentifier(s.column)} ${s.order || 'asc'}`)
+            .join(', ');
+          baseQuery += ` ORDER BY ${orderBy}`;
+        }
+
+        const reader = await pool.sendAbortable(baseQuery, abortSignal, true);
+        return reader;
+      },
+      getColumnAggregate: async (
+        columnName: string,
+        aggType: ColumnAggregateType,
+        abortSignal: AbortSignal,
+      ) => {
+        await ensureViewExists(abortSignal);
+
+        const queryToRun = `SELECT ${aggType}(${toDuckDBIdentifier(columnName)}) FROM ${fqn}`;
+        const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+
+        if (aborted) {
+          return { value: undefined, aborted };
+        }
+        return { value: value.getChildAt(0)?.get(0), aborted };
+      },
+      getColumnsData: async (columns: DBColumn[], abortSignal: AbortSignal) => {
+        await ensureViewExists(abortSignal);
+
+        const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
+        const queryToRun = `SELECT ${columnNames} FROM ${fqn}`;
+        const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+
+        if (aborted) {
+          return { value: [], aborted };
+        }
+        return { value: convertArrowTable(value, columns), aborted };
+      },
+    },
+    userErrors: [],
+    internalErrors: [],
+  };
+}
+
 export function getFileDataAdapterQueries({
   pool,
   dataSource,
@@ -236,6 +311,30 @@ export function getFileDataAdapterQueries({
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 
+  if (dataSource.type === 'httpserver-db') {
+    if (tab.dataSourceType !== 'db') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: [
+          `Tried creating an HTTP server db object data adapter from a tab with different source type: ${tab.dataSourceType}`,
+        ],
+      };
+    }
+
+    // Check connection state
+    if (dataSource.connectionState !== 'connected') {
+      return {
+        adapter: null,
+        userErrors: [`HTTP server database '${dataSource.dbName}' is not connected`],
+        internalErrors: [],
+      };
+    }
+
+    // HTTP server databases use special view-based logic
+    return getHTTPServerDataAdapterApi(pool, dataSource, tab);
+  }
+
   if (
     dataSource.type === 'csv' ||
     dataSource.type === 'json' ||
@@ -281,7 +380,7 @@ export function getFileDataAdapterQueries({
   return {
     adapter: null,
     userErrors: [],
-    internalErrors: [`Unexpected unsupported data source type: ${dataSource}`],
+    internalErrors: [`Unexpected unsupported data source type: ${JSON.stringify(dataSource)}`],
   };
 }
 

@@ -1,5 +1,5 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { LocalDB, RemoteDB, PersistentDataSourceId } from '@models/data-source';
+import { LocalDB, RemoteDB, HTTPServerDB, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { SchemaBrowserTab } from '@models/tab';
 
@@ -15,7 +15,7 @@ import { createSchemaNode } from '../schema-extraction';
 export async function processDbSource(
   tab: Omit<SchemaBrowserTab, 'dataViewStateCache'>,
   pool: AsyncDuckDBConnectionPool,
-  dbSources: Map<PersistentDataSourceId, LocalDB | RemoteDB>,
+  dbSources: Map<PersistentDataSourceId, LocalDB | RemoteDB | HTTPServerDB>,
   dbMetadata: Map<string, DataBaseModel>,
   abortSignal: AbortSignal,
 ): Promise<SchemaGraph> {
