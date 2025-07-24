@@ -1,4 +1,10 @@
-import { LocalDB, RemoteDB, SYSTEM_DATABASE_ID, AnyDataSource } from '@models/data-source';
+import {
+  LocalDB,
+  RemoteDB,
+  HTTPServerDB,
+  SYSTEM_DATABASE_ID,
+  AnyDataSource,
+} from '@models/data-source';
 import { useMemo } from 'react';
 
 export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>) => {
@@ -6,6 +12,7 @@ export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>
     let systemDb: LocalDB | undefined;
     const localDbs: LocalDB[] = [];
     const remoteDbs: RemoteDB[] = [];
+    const httpServerDbs: HTTPServerDB[] = [];
 
     allDataSources.forEach((dataSource) => {
       if (dataSource.type === 'attached-db') {
@@ -16,13 +23,21 @@ export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>
         }
       } else if (dataSource.type === 'remote-db') {
         remoteDbs.push(dataSource);
+      } else if (dataSource.type === 'httpserver-db') {
+        httpServerDbs.push(dataSource);
       }
     });
 
     // Sort databases
     localDbs.sort((a, b) => a.dbName.localeCompare(b.dbName));
     remoteDbs.sort((a, b) => a.dbName.localeCompare(b.dbName));
+    httpServerDbs.sort((a, b) => a.dbName.localeCompare(b.dbName));
 
-    return { systemDatabase: systemDb, localDatabases: localDbs, remoteDatabases: remoteDbs };
+    return {
+      systemDatabase: systemDb,
+      localDatabases: localDbs,
+      remoteDatabases: remoteDbs,
+      httpServerDatabases: httpServerDbs,
+    };
   }, [allDataSources]);
 };

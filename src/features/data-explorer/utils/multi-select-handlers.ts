@@ -250,22 +250,9 @@ export function getShowSchemaHandler(
   selectedNodes: TreeNodeData<DataExplorerNodeTypeMap>[],
   context: MultiSelectHandlerContext,
 ): ((nodeIds: string[]) => void) | undefined {
-  // console.log('[getShowSchemaHandler] Called with selectedNodes:', selectedNodes.map(n => ({
-  //   value: n.value,
-  //   nodeType: n.nodeType,
-  //   label: n.label,
-  // })));
-
   // Filter to only include nodes of appropriate types for schema viewing
   const validNodeTypes = ['object', 'file', 'sheet', 'folder'];
   const validNodes = selectedNodes.filter((node) => node && validNodeTypes.includes(node.nodeType));
-
-  // console.log('[getShowSchemaHandler] Valid nodes after filtering:', validNodes.map(n => ({
-  //   value: n.value,
-  //   nodeType: n.nodeType,
-  //   label: n.label,
-  // })));
-  // console.log('[getShowSchemaHandler] Returning handler:', validNodes.length > 0 ? 'YES' : 'NO');
 
   // If we have at least one valid node, show the handler
   return validNodes.length > 0

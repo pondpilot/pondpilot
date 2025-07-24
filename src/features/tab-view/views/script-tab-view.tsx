@@ -24,6 +24,10 @@ import {
   SQLStatement,
   SQLStatementType,
 } from '@utils/editor/sql';
+import {
+  preprocessHTTPServerReferences,
+  validateHTTPServerReferences,
+} from '@utils/httpserver-query-preprocessor';
 import { Allotment } from 'allotment';
 import { memo, useCallback, useState } from 'react';
 
@@ -60,12 +64,40 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
   const pool = useInitializedDuckDBConnectionPool();
   const protectedViews = useProtectedViews();
+  const dataSources = useAppStore.use.dataSources();
 
   const runScriptQuery = useCallback(
     async (query: string) => {
       setScriptExecutionState('running');
-      // Parse query into statements
-      const statements = splitSQLByStats(query);
+
+      // Validate HTTPServerDB references before processing
+      const httpServerErrors = validateHTTPServerReferences(query, dataSources);
+      if (httpServerErrors.length > 0) {
+        console.error('Errors in HTTPServer references:', httpServerErrors);
+        setScriptExecutionState('error');
+        showError({
+          title: 'HTTPServer Database Error',
+          message: httpServerErrors.join('\n'),
+        });
+        return;
+      }
+
+      // Preprocess query to create HTTPServerDB views for direct database references
+      let processedQuery: string;
+      try {
+        processedQuery = await preprocessHTTPServerReferences(query, pool, dataSources);
+      } catch (error) {
+        console.error('Error preprocessing HTTPServer references:', error);
+        setScriptExecutionState('error');
+        showError({
+          title: 'HTTPServer Preprocessing Error',
+          message: `Failed to create HTTPServer views: ${error instanceof Error ? error.message : String(error)}`,
+        });
+        return;
+      }
+
+      // Parse query into statements (use processed query)
+      const statements = splitSQLByStats(processedQuery);
 
       // Classify statements
       const classifiedStatements = classifySQLStatements(statements);
@@ -257,9 +289,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           const newMetadata = await getDatabaseModel(pool, dbNames);
 
           // Update metadata in store
-          const { databaseMetadata, dataSources } = useAppStore.getState();
+          const { databaseMetadata, dataSources: currentDataSources } = useAppStore.getState();
           const updatedMetadata = new Map(databaseMetadata);
-          const updatedDataSources = new Map(dataSources);
+          const updatedDataSources = new Map(currentDataSources);
 
           // Update or remove database metadata based on results
           for (const [dbName, dbModel] of newMetadata) {
@@ -284,8 +316,8 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
                     url.startsWith('azure://')
                   ) {
                     // Check if this database is already registered
-                    const existingDb = Array.from(dataSources.values()).find(
-                      (ds) =>
+                    const existingDb = Array.from(currentDataSources.values()).find(
+                      (ds: any) =>
                         (ds.type === 'remote-db' && ds.dbName === dbName) ||
                         (ds.type === 'attached-db' && ds.dbName === dbName),
                     );
@@ -365,7 +397,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // update the state and trigger re-render.
       updateScriptTabLastExecutedQuery({ tabId, lastExecutedQuery, force: true });
     },
-    [pool, protectedViews, tabId, incrementScriptVersion],
+    [pool, protectedViews, tabId, incrementScriptVersion, dataSources],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {
