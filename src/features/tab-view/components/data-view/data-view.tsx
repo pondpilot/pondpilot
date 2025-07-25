@@ -1,3 +1,4 @@
+import { showError, showSuccess } from '@components/app-notifications';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { Table } from '@components/table/table';
@@ -15,6 +16,8 @@ import { DBColumn } from '@models/db';
 import { MAX_DATA_VIEW_PAGE_SIZE, TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { IconCancel, IconClipboardSmile } from '@tabler/icons-react';
+import { createHttpClient } from '@utils/duckdb-http-client';
+import { clearHTTPServerErrorState, updateHTTPServerDbConnectionState } from '@utils/httpserver-database';
 import { formatStringsAsMDList } from '@utils/pretty';
 import { setDataTestId } from '@utils/test-id';
 import { useCallback, useRef, useState } from 'react';
@@ -240,14 +243,12 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     try {
       // For HTTP Server databases, test the connection before showing success
       if (isHTTPServerDB && dataSource) {
-        const { clearHTTPServerErrorState } = await import('@utils/httpserver-database');
 
         // Clear error state to allow reconnection
         clearHTTPServerErrorState(dataSource.id);
 
         // Test actual connection
         const httpServerDB = dataSource as HTTPServerDB;
-        const { createHttpClient } = await import('@utils/duckdb-http-client');
         const client = createHttpClient({
           host: httpServerDB.host,
           port: httpServerDB.port,
@@ -260,7 +261,6 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
         }
 
         // Update connection state to connected after successful test
-        const { updateHTTPServerDbConnectionState } = await import('@utils/httpserver-database');
         updateHTTPServerDbConnectionState(dataSource.id, 'connected');
       }
 
@@ -268,7 +268,6 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
 
       // Show success notification for HTTP Server reconnection
       if (isHTTPServerDB && dataSource) {
-        const { showSuccess } = await import('@components/app-notifications');
         showSuccess({
           title: 'Reconnected',
           message: `Successfully reconnected to HTTP server '${dataSource.dbName}'`,
@@ -277,7 +276,6 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     } catch (error) {
       // Show error notification for HTTP Server reconnection failure
       if (isHTTPServerDB && dataSource) {
-        const { showError } = await import('@components/app-notifications');
         showError({
           title: 'Reconnection Failed',
           message: `Failed to reconnect to HTTP server '${dataSource.dbName}'. Please check the server.`,

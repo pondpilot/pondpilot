@@ -171,7 +171,7 @@ test.describe('HTTPServer Database Addition Tests', () => {
       page,
       HTTPSERVER_EXPLORER_PREFIX,
       'main ✓',
-      'Refresh'
+      'Refresh',
     );
 
     // Wait for refresh notification

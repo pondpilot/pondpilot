@@ -17,7 +17,14 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { convertArrowTable } from './arrow';
 import { classifySQLStatement, trimQuery } from './editor/sql';
 import { quote } from './helpers';
-import { generateHTTPServerViewName } from './httpserver-database';
+import {
+  generateHTTPServerViewName,
+  isNetworkError,
+  updateHTTPServerDbConnectionState,
+  handleHTTPServerDatabaseError,
+  createHTTPServerView,
+  clearHTTPServerErrorState,
+} from './httpserver-database';
 
 function getGetSortableReaderApiFromFQN(
   pool: AsyncDuckDBConnectionPool,
@@ -180,9 +187,6 @@ function getHTTPServerDataAdapterApi(
 
   // Function to handle network errors without duplicating notifications
   const handleNetworkError = async (error: any) => {
-    const { isNetworkError, updateHTTPServerDbConnectionState, handleHTTPServerDatabaseError } =
-      await import('./httpserver-database');
-
     if (isNetworkError(error)) {
       updateHTTPServerDbConnectionState(dataSource.id, 'disconnected', 'Connection lost');
       handleHTTPServerDatabaseError(dataSource.id, error as Error);
@@ -191,8 +195,6 @@ function getHTTPServerDataAdapterApi(
 
   // Function to ensure view exists
   const ensureViewExists = async (abortSignal: AbortSignal) => {
-    const { createHTTPServerView } = await import('./httpserver-database');
-
     // Allow reconnection attempts - only block if explicitly in error state
     if (dataSource.connectionState === 'error') {
       throw new Error(
@@ -205,9 +207,6 @@ function getHTTPServerDataAdapterApi(
 
       // If view creation succeeds and we were disconnected, update state to connected
       if (dataSource.connectionState === 'disconnected') {
-        const { updateHTTPServerDbConnectionState, clearHTTPServerErrorState } = await import(
-          './httpserver-database'
-        );
         updateHTTPServerDbConnectionState(dataSource.id, 'connected');
 
         // Clear error state since we've reconnected successfully
@@ -241,7 +240,6 @@ function getHTTPServerDataAdapterApi(
         } catch (error) {
           await handleNetworkError(error);
 
-          const { isNetworkError } = await import('./httpserver-database');
           if (isNetworkError(error)) {
             // For network errors, throw a special error that won't be added to dataSourceReadError
             const networkError = new Error(
@@ -271,7 +269,6 @@ function getHTTPServerDataAdapterApi(
         } catch (error) {
           await handleNetworkError(error);
 
-          const { isNetworkError } = await import('./httpserver-database');
           if (isNetworkError(error)) {
             // For network errors, throw a special error that won't be added to dataSourceReadError
             const networkError = new Error(
@@ -298,7 +295,6 @@ function getHTTPServerDataAdapterApi(
         } catch (error) {
           await handleNetworkError(error);
 
-          const { isNetworkError } = await import('./httpserver-database');
           if (isNetworkError(error)) {
             // For network errors, throw a special error that won't be added to dataSourceReadError
             const networkError = new Error(

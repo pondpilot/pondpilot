@@ -1,5 +1,6 @@
 import { showError, showSuccess } from '@components/app-notifications';
 import { commonTextInputClassNames } from '@components/export-options-modal/constants';
+import { persistPutDataSources } from '@controllers/data-source/persist';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Alert, Button, Group, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
@@ -113,6 +114,27 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
       const { dataSources, databaseMetadata } = useAppStore.getState();
       const dbName = databaseName.trim();
 
+      // Check for potential view name conflicts with existing HTTPServer databases
+      const existingHTTPServerDatabases = Array.from(dataSources.values()).filter(
+        (dataSource) => dataSource.type === 'httpserver-db',
+      );
+
+      for (const table of schema.tables) {
+        const proposedViewName = `httpserver_${dbName.replace(/[-]/g, '_')}_${table.name.replace(/[-]/g, '_')}`;
+
+        // Check if any existing HTTPServer DB would create the same view name
+        for (const existingDb of existingHTTPServerDatabases) {
+          if (existingDb.type === 'httpserver-db') {
+            const existingViewName = `httpserver_${existingDb.dbName.replace(/[-]/g, '_')}_${table.name.replace(/[-]/g, '_')}`;
+            if (proposedViewName === existingViewName) {
+              throw new Error(
+                `View name conflict: Table '${table.name}' would create the same view name as existing HTTPServer database '${existingDb.dbName}'. Please choose a different database name.`,
+              );
+            }
+          }
+        }
+      }
+
       // Check if database name already exists in metadata
       if (databaseMetadata.has(dbName)) {
         throw new Error(
@@ -120,27 +142,42 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
         );
       }
 
-      // Check if any existing HTTPServerDB uses the same database name
+      // Check if any existing HTTPServerDB uses the same connection parameters
+      const hostTrimmed = host.trim();
+      const portTrimmed = port.trim();
+
       const existingHTTPServerDB = Array.from(dataSources.values()).find(
-        (dataSource) => dataSource.type === 'httpserver-db' && dataSource.dbName === dbName,
+        (dataSource) =>
+          dataSource.type === 'httpserver-db' &&
+          ((dataSource as any).dbName === dbName ||
+            ((dataSource as any).host === hostTrimmed &&
+              (dataSource as any).port === parseInt(portTrimmed, 10))),
       );
 
       if (existingHTTPServerDB) {
-        throw new Error(
-          `HTTPServer database with name '${dbName}' already exists. Please choose a different name.`,
-        );
+        const httpServerDb = existingHTTPServerDB as any;
+        if (httpServerDb.dbName === dbName) {
+          throw new Error(
+            `HTTPServer database with name '${dbName}' already exists. Please choose a different name.`,
+          );
+        } else {
+          throw new Error(
+            `HTTPServer connection to ${hostTrimmed}:${portTrimmed} already exists with database name '${httpServerDb.dbName}'.`,
+          );
+        }
       }
 
-      // Create HTTPServerDB data source
+      // Create HTTPServerDB data source with deterministic ID
+
       const httpServerDb = {
         type: 'httpserver-db' as const,
-        id: `httpserver-${Date.now()}-${Math.random().toString(36).substring(2, 11)}` as PersistentDataSourceId,
-        host: host.trim(),
-        port: parseInt(port.trim(), 10),
-        dbName: databaseName.trim(),
+        id: `httpserver-${hostTrimmed}-${portTrimmed}-${dbName}` as PersistentDataSourceId,
+        host: hostTrimmed,
+        port: parseInt(portTrimmed, 10),
+        dbName,
         connectionState: 'connected' as const,
         attachedAt: Date.now(),
-        comment: `HTTP Server at ${protocol}://${host.trim()}:${port.trim()}`,
+        comment: `HTTP Server at ${protocol}://${hostTrimmed}:${portTrimmed}`,
       };
 
       // Convert HTTP Server schema to DataBaseModel format
@@ -185,7 +222,6 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
       // Persist to IndexedDB
       const { _iDbConn } = useAppStore.getState();
       if (_iDbConn) {
-        const { persistPutDataSources } = await import('@controllers/data-source/persist');
         await persistPutDataSources(_iDbConn, [httpServerDb]);
       }
 

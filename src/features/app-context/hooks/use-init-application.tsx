@@ -81,7 +81,6 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
   // Load metadata for successfully connected remote databases
   if (connectedDatabases.length > 0) {
     try {
-      // Load metadata for remote databases
       const remoteMetadata = await getDatabaseModel(conn, connectedDatabases);
 
       // Merge with existing metadata
@@ -115,7 +114,6 @@ async function reconnectHTTPServerDatabases(): Promise<void> {
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.warn(`Failed to reconnect to HTTPServerDB ${dataSource.dbName}:`, errorMessage);
         updateHTTPServerDbConnectionState(id, 'error', errorMessage);
       }
     }
