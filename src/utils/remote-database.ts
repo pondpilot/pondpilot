@@ -113,7 +113,6 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
 
     // Load metadata for the reconnected database
     try {
-      // Load metadata for the reconnected database
       const remoteMetadata = await getDatabaseModel(pool, [remoteDb.dbName]);
 
       // Merge with existing metadata
