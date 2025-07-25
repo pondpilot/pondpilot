@@ -68,18 +68,18 @@ function convertDatabaseSchemaToDataBaseModel(
 }
 
 /**
- * Generates a unique view name for HTTPServer database table
+ * Generates a deterministic view name for HTTPServer database table
+ * Uses only dbName + tableName to ensure stable names across sessions
  */
 export function generateHTTPServerViewName(
   dataSource: HTTPServerDB,
   schemaName: string,
   objectName: string,
 ): string {
-  // Replace dashes and other invalid SQL identifier characters with underscores
-  const sanitizedId = dataSource.id.replace(/[-]/g, '_');
-  const sanitizedSchema = schemaName.replace(/[-]/g, '_');
+  // Use only dbName and objectName for deterministic view names
+  const sanitizedDb = dataSource.dbName.replace(/[-]/g, '_');
   const sanitizedObject = objectName.replace(/[-]/g, '_');
-  return `httpserver_${sanitizedId}_${sanitizedSchema}_${sanitizedObject}`;
+  return `httpserver_${sanitizedDb}_${sanitizedObject}`;
 }
 
 /**

@@ -1,5 +1,6 @@
 import { showError, showWarning } from '@components/app-notifications';
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   useDuckDBConnectionPool,
@@ -78,7 +79,6 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
   // Load metadata for successfully connected remote databases
   if (connectedDatabases.length > 0) {
     try {
-      const { getDatabaseModel } = await import('@controllers/db/duckdb-meta');
       const remoteMetadata = await getDatabaseModel(conn, connectedDatabases);
 
       // Merge with existing metadata
@@ -112,7 +112,6 @@ async function reconnectHTTPServerDatabases(): Promise<void> {
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.warn(`Failed to reconnect to HTTPServerDB ${dataSource.dbName}:`, errorMessage);
         updateHTTPServerDbConnectionState(id, 'error', errorMessage);
       }
     }

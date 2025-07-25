@@ -1,4 +1,5 @@
 import { DATABASE_LIMITS, MENTION_AUTOCOMPLETE, FUZZY_SCORE, UI_SELECTORS } from './constants';
+import { logError, handleNonCriticalError } from './error-handler';
 import { DatabaseModel, DatabaseModelCache } from './model';
 import {
   getDropdownPositionStyles,
@@ -302,7 +303,6 @@ export async function getTableSuggestions(
     return suggestions.slice(0, MENTION_AUTOCOMPLETE.MAX_SUGGESTIONS); // Limit results after scoring
   } catch (error) {
     // Use standardized error logging
-    const { logError } = await import('./error-handler');
     logError('Error fetching table suggestions', error);
 
     // Return user-friendly error message
@@ -431,7 +431,6 @@ async function getCachedDatabaseModel(
   if (newCacheSizeMB > DATABASE_LIMITS.MAX_CACHE_SIZE_MB * 2) {
     // For extremely large databases, consider not caching at all
     // Use standardized error logging for large database warning
-    const { handleNonCriticalError } = await import('./error-handler');
     handleNonCriticalError(
       'Database model size warning',
       new Error(
