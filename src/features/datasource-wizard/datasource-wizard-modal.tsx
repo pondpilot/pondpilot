@@ -1,10 +1,17 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { Group, Stack, Title, ActionIcon, Text, Divider } from '@mantine/core';
-import { IconDatabasePlus, IconFilePlus, IconFolderPlus, IconX } from '@tabler/icons-react';
+import { Group, Stack, Title, ActionIcon, Text, Divider, SimpleGrid } from '@mantine/core';
+import {
+  IconDatabasePlus,
+  IconFilePlus,
+  IconFolderPlus,
+  IconServer,
+  IconX,
+} from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
+import { HttpServerConfig } from './components/http-server-config';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
 
 interface DatasourceWizardModalProps {
@@ -15,7 +22,7 @@ interface DatasourceWizardModalProps {
   initialStep?: WizardStep;
 }
 
-export type WizardStep = 'selection' | 'remote-config';
+export type WizardStep = 'selection' | 'remote-config' | 'http-server-config';
 
 export function DatasourceWizardModal({
   onClose,
@@ -28,6 +35,10 @@ export function DatasourceWizardModal({
 
   const handleRemoteDatabaseClick = () => {
     setStep('remote-config');
+  };
+
+  const handleHttpServerClick = () => {
+    setStep('http-server-config');
   };
 
   const handleBack = () => {
@@ -43,7 +54,7 @@ export function DatasourceWizardModal({
     onClose();
   };
 
-  const datasourceCards = [
+  const localDataSources = [
     {
       type: 'file' as const,
       onClick: handleCardClick('file'),
@@ -72,6 +83,9 @@ export function DatasourceWizardModal({
       description: 'Browse entire directories',
       testId: 'add-folder-card',
     },
+  ];
+
+  const remoteDataSources = [
     {
       type: 'remote' as const,
       onClick: handleRemoteDatabaseClick,
@@ -85,6 +99,20 @@ export function DatasourceWizardModal({
       title: 'Remote Database',
       description: 'S3, GCS, Azure, HTTPS',
       testId: 'add-remote-database-card',
+    },
+    {
+      type: 'http-server' as const,
+      onClick: handleHttpServerClick,
+      icon: (
+        <IconServer
+          size={48}
+          className="text-textSecondary-light dark:text-textSecondary-dark"
+          stroke={1.5}
+        />
+      ),
+      title: 'HTTP DB Server',
+      description: 'DuckDB HTTP Server',
+      testId: 'add-http-server-card',
     },
   ];
 
@@ -105,7 +133,7 @@ export function DatasourceWizardModal({
               ADD DATA SOURCE
             </Text>
             <Text size="xs">/</Text>
-            <Text size="xs">REMOTE DATABASE</Text>
+            <Text size="xs">{step === 'remote-config' ? 'REMOTE DATABASE' : 'HTTP DB SERVER'}</Text>
           </Group>
         )}
 
@@ -115,41 +143,86 @@ export function DatasourceWizardModal({
       </Group>
 
       {step === 'selection' && (
-        <Group>
-          <Group gap="md" className="justify-center md:justify-start">
-            {datasourceCards.map((card) => (
-              <BaseActionCard
-                key={card.type}
-                onClick={card.onClick}
-                icon={card.icon}
-                title={card.title}
-                description={card.description}
-                testId={card.testId}
-              />
-            ))}
+        <Stack gap="lg">
+          <Group align="flex-start" gap="xl">
+            <Stack gap="lg" className="flex-1 min-w-0">
+              {/* Local Data Sources Section */}
+              <Stack gap="md">
+                <Group gap="xs" align="center">
+                  <Text size="sm" fw={500} c="text-primary">
+                    Local Files
+                  </Text>
+                  <Text size="xs" c="text-secondary">
+                    • Files and folders on your device
+                  </Text>
+                </Group>
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" verticalSpacing="md">
+                  {localDataSources.map((card) => (
+                    <BaseActionCard
+                      key={card.type}
+                      onClick={card.onClick}
+                      icon={card.icon}
+                      title={card.title}
+                      description={card.description}
+                      testId={card.testId}
+                    />
+                  ))}
+                </SimpleGrid>
+              </Stack>
+
+              <Divider />
+
+              {/* Remote Data Sources Section */}
+              <Stack gap="md">
+                <Group gap="xs" align="center">
+                  <Text size="sm" fw={500} c="text-primary">
+                    Remote
+                  </Text>
+                  <Text size="xs" c="text-secondary">
+                    • External databases and servers
+                  </Text>
+                </Group>
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" verticalSpacing="md">
+                  {remoteDataSources.map((card) => (
+                    <BaseActionCard
+                      key={card.type}
+                      onClick={card.onClick}
+                      icon={card.icon}
+                      title={card.title}
+                      description={card.description}
+                      testId={card.testId}
+                    />
+                  ))}
+                </SimpleGrid>
+              </Stack>
+            </Stack>
+
+            <Divider orientation="vertical" visibleFrom="md" />
+
+            <Stack w={200} visibleFrom="md">
+              <Text size="xs" c="text-secondary">
+                💡 Tips:
+              </Text>
+              <Text size="xs" className="pl-3" c="text-secondary">
+                • Drag and drop files or folders directly into the app
+              </Text>
+              <Text size="xs" className="pl-3" c="text-secondary">
+                • Use SQL ATTACH statement for advanced database connections
+              </Text>
+              <Text size="xs" className="pl-3" c="text-secondary">
+                • Supported formats: CSV, Parquet, JSON, Excel, DuckDB, and more
+              </Text>
+            </Stack>
           </Group>
-
-          <Divider orientation="vertical" visibleFrom="md" />
-
-          <Stack w={200} visibleFrom="md">
-            <Text size="xs" c="text-secondary">
-              💡 Tips:
-            </Text>
-            <Text size="xs" className="pl-3" c="text-secondary">
-              • Drag and drop files or folders directly into the app
-            </Text>
-            <Text size="xs" className="pl-3" c="text-secondary">
-              • Use SQL ATTACH statement for advanced database connections
-            </Text>
-            <Text size="xs" className="pl-3" c="text-secondary">
-              • Supported formats: CSV, Parquet, JSON, Excel, DuckDB, and more
-            </Text>
-          </Stack>
-        </Group>
+        </Stack>
       )}
 
       {step === 'remote-config' && (
         <RemoteDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+
+      {step === 'http-server-config' && (
+        <HttpServerConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
     </Stack>
   );
