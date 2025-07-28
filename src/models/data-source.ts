@@ -176,11 +176,6 @@ export interface HTTPServerDB {
   authType: 'none' | 'basic' | 'token';
 
   /**
-   * Username for basic authentication (stored separately for security)
-   */
-  username?: string;
-
-  /**
    * Connection state for handling network issues
    */
   connectionState: 'connected' | 'disconnected' | 'error' | 'connecting';
