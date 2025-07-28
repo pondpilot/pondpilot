@@ -77,6 +77,7 @@ export class DuckDBHttpClient {
       const response = await fetch(`${this.baseUrl}/`, {
         method: 'POST',
         headers: {
+          ...this.headers,
           'Content-Type': 'text/plain',
         },
         body: sql,
