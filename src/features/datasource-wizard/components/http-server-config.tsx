@@ -2,13 +2,14 @@ import { showError, showSuccess } from '@components/app-notifications';
 import { commonTextInputClassNames } from '@components/export-options-modal/constants';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { Alert, Button, Group, Select, Stack, Text, TextInput } from '@mantine/core';
+import { Alert, Button, Group, Select, Stack, Text, TextInput, PasswordInput } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { PersistentDataSourceId } from '@models/data-source';
 import { DBColumnId } from '@models/db';
 import { useAppStore } from '@store/app-store';
-import { IconAlertCircle } from '@tabler/icons-react';
+import { IconShield } from '@tabler/icons-react';
 import { createHttpClient } from '@utils/duckdb-http-client';
+import { saveHTTPServerCredentials } from '@utils/httpserver-credentials';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 
@@ -23,6 +24,10 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
   const [port, setPort] = useInputState('9999');
   const [protocol, setProtocol] = useState<'http' | 'https'>('http');
   const [databaseName, setDatabaseName] = useInputState('main');
+  const [authType, setAuthType] = useState<'none' | 'basic' | 'token'>('none');
+  const [username, setUsername] = useInputState('');
+  const [password, setPassword] = useInputState('');
+  const [token, setToken] = useInputState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
@@ -51,6 +56,10 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
         host: host.trim(),
         port: parseInt(port.trim(), 10),
         protocol,
+        authType,
+        username: authType === 'basic' ? username.trim() : undefined,
+        password: authType === 'basic' ? password.trim() : undefined,
+        token: authType === 'token' ? token.trim() : undefined,
       });
 
       const isConnected = await client.testConnection();
@@ -98,6 +107,10 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
         host: host.trim(),
         port: parseInt(port.trim(), 10),
         protocol,
+        authType,
+        username: authType === 'basic' ? username.trim() : undefined,
+        password: authType === 'basic' ? password.trim() : undefined,
+        token: authType === 'token' ? token.trim() : undefined,
       });
 
       // Test connection first
@@ -168,17 +181,25 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
       }
 
       // Create HTTPServerDB data source with deterministic ID
-
       const httpServerDb = {
         type: 'httpserver-db' as const,
         id: `httpserver-${hostTrimmed}-${portTrimmed}-${dbName}` as PersistentDataSourceId,
         host: hostTrimmed,
         port: parseInt(portTrimmed, 10),
         dbName,
+        authType,
+        username: authType === 'basic' ? username.trim() : undefined,
         connectionState: 'connected' as const,
         attachedAt: Date.now(),
         comment: `HTTP Server at ${protocol}://${hostTrimmed}:${portTrimmed}`,
       };
+
+      // Save credentials separately for security
+      if (authType === 'basic' && password.trim()) {
+        saveHTTPServerCredentials(httpServerDb.id, { password: password.trim() });
+      } else if (authType === 'token' && token.trim()) {
+        saveHTTPServerCredentials(httpServerDb.id, { token: token.trim() });
+      }
 
       // Convert HTTP Server schema to DataBaseModel format
       const databaseModel = {
@@ -248,12 +269,16 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
       </Text>
 
       <Alert
-        icon={<IconAlertCircle size={16} />}
+        icon={<IconShield size={16} />}
         color="background-accent"
         className="text-sm"
         classNames={{ icon: 'mr-1' }}
       >
-        Direct connection to DuckDB HTTP Server (No Authentication)
+        {authType === 'none'
+          ? 'Direct connection to DuckDB HTTP Server (No Authentication)'
+          : authType === 'basic'
+            ? 'Basic Authentication (Username/Password)'
+            : 'Token Authentication (API Key)'}
       </Alert>
 
       <Stack gap={12}>
@@ -296,6 +321,72 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
           />
         </Group>
 
+        <Select
+          label="Authentication"
+          value={authType}
+          onChange={(value) => setAuthType(value as 'none' | 'basic' | 'token')}
+          data={[
+            { value: 'none', label: 'No Authentication' },
+            { value: 'basic', label: 'Basic Authentication (Username/Password)' },
+            { value: 'token', label: 'Token Authentication (API Key)' },
+          ]}
+          description="Choose authentication method for DuckDB HTTP Server"
+          classNames={{
+            label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark px-4',
+            input:
+              'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
+            description: 'pl-4 text-sm',
+          }}
+        />
+
+        {authType === 'basic' && (
+          <Group grow>
+            <TextInput
+              label="Username"
+              data-testid={setDataTestId('http-server-username-input')}
+              placeholder="Enter username"
+              value={username}
+              onChange={setUsername}
+              description="Username for basic authentication"
+              required
+              classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
+            />
+            <PasswordInput
+              label="Password"
+              data-testid={setDataTestId('http-server-password-input')}
+              placeholder="Enter password"
+              value={password}
+              onChange={setPassword}
+              description="Password for basic authentication"
+              required
+              classNames={{
+                label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark px-4',
+                input:
+                  'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
+                description: 'pl-4 text-sm',
+              }}
+            />
+          </Group>
+        )}
+
+        {authType === 'token' && (
+          <PasswordInput
+            label="API Token"
+            data-testid={setDataTestId('http-server-token-input')}
+            placeholder="Enter API token"
+            value={token}
+            onChange={setToken}
+            description="API token for token authentication"
+            required
+            classNames={{
+              label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark px-4',
+              input:
+                'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
+              description: 'pl-4 text-sm',
+            }}
+          />
+        )}
+
         <TextInput
           label="Database Name"
           data-testid={setDataTestId('http-server-database-name-input')}
@@ -317,7 +408,13 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
           color="background-accent"
           onClick={handleTest}
           loading={isTesting}
-          disabled={!host.trim() || !port.trim() || isConnecting}
+          disabled={
+            !host.trim() ||
+            !port.trim() ||
+            (authType === 'basic' && (!username.trim() || !password.trim())) ||
+            (authType === 'token' && !token.trim()) ||
+            isConnecting
+          }
           data-testid={setDataTestId('test-http-server-connection-button')}
         >
           Test Connection
@@ -325,7 +422,14 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
         <Button
           onClick={handleAdd}
           loading={isConnecting}
-          disabled={!host.trim() || !port.trim() || !databaseName.trim() || isTesting}
+          disabled={
+            !host.trim() ||
+            !port.trim() ||
+            !databaseName.trim() ||
+            (authType === 'basic' && (!username.trim() || !password.trim())) ||
+            (authType === 'token' && !token.trim()) ||
+            isTesting
+          }
           color="background-accent"
           data-testid={setDataTestId('add-http-server-button')}
         >
