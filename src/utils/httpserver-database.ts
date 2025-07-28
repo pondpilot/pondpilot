@@ -16,6 +16,24 @@ import { getTableColumnId } from '@utils/db';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import { createHttpClient, DatabaseSchema } from '@utils/duckdb-http-client';
+import { getCredentialsForServer } from '@utils/httpserver-credentials';
+
+/**
+ * Create HTTP client with credentials for HTTPServerDB
+ */
+function createAuthenticatedHttpClient(httpServerDb: HTTPServerDB) {
+  const credentials = getCredentialsForServer(httpServerDb.id);
+
+  return createHttpClient({
+    host: httpServerDb.host,
+    port: httpServerDb.port,
+    protocol: 'http',
+    authType: httpServerDb.authType,
+    username: credentials?.username,
+    password: credentials?.password,
+    token: credentials?.token,
+  });
+}
 
 /**
  * Checks if an error is a network-related error that indicates connection loss
@@ -185,12 +203,8 @@ export async function refreshHTTPServerSchema(
   httpServerDb: HTTPServerDB,
 ): Promise<void> {
   try {
-    // Create HTTP client
-    const client = createHttpClient({
-      host: httpServerDb.host,
-      port: httpServerDb.port,
-      protocol: 'http',
-    });
+    // Create HTTP client with authentication
+    const client = createAuthenticatedHttpClient(httpServerDb);
 
     // Fetch fresh schema from HTTP server
     const schema = await client.getSchema();
@@ -280,12 +294,8 @@ export async function reconnectHTTPServerDatabase(httpServerDb: HTTPServerDB): P
   try {
     updateHTTPServerDbConnectionState(httpServerDb.id, 'connecting');
 
-    // Test the connection
-    const client = createHttpClient({
-      host: httpServerDb.host,
-      port: httpServerDb.port,
-      protocol: 'http',
-    });
+    // Test the connection with authentication
+    const client = createAuthenticatedHttpClient(httpServerDb);
 
     const connectionResult = await client.testConnection();
 

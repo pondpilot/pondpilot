@@ -307,7 +307,7 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
             placeholder="localhost"
             value={host}
             onChange={setHost}
-            description="Server hostname or IP address"
+            description="Hostname or IP address"
             required
             classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
           />
