@@ -17,7 +17,11 @@ import { MAX_DATA_VIEW_PAGE_SIZE, TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { IconCancel, IconClipboardSmile } from '@tabler/icons-react';
 import { createHttpClient } from '@utils/duckdb-http-client';
-import { clearHTTPServerErrorState, updateHTTPServerDbConnectionState } from '@utils/httpserver-database';
+import { getCredentialsForServer } from '@utils/httpserver-credentials';
+import {
+  clearHTTPServerErrorState,
+  updateHTTPServerDbConnectionState,
+} from '@utils/httpserver-database';
 import { formatStringsAsMDList } from '@utils/pretty';
 import { setDataTestId } from '@utils/test-id';
 import { useCallback, useRef, useState } from 'react';
@@ -243,16 +247,21 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     try {
       // For HTTP Server databases, test the connection before showing success
       if (isHTTPServerDB && dataSource) {
-
         // Clear error state to allow reconnection
         clearHTTPServerErrorState(dataSource.id);
 
-        // Test actual connection
+        // Test actual connection with authentication
         const httpServerDB = dataSource as HTTPServerDB;
+        const credentials = getCredentialsForServer(httpServerDB.id);
+
         const client = createHttpClient({
           host: httpServerDB.host,
           port: httpServerDB.port,
           protocol: 'http',
+          authType: httpServerDB.authType,
+          username: credentials?.username,
+          password: credentials?.password,
+          token: credentials?.token,
         });
 
         const connectionResult = await client.testConnection();
