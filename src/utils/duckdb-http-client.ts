@@ -8,6 +8,10 @@ export interface HttpServerConfig {
   host: string;
   port: number;
   protocol: 'http' | 'https';
+  authType?: 'none' | 'basic' | 'token';
+  username?: string;
+  password?: string;
+  token?: string;
 }
 
 export interface TableSchema {
