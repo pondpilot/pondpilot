@@ -188,15 +188,17 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
         port: parseInt(portTrimmed, 10),
         dbName,
         authType,
-        username: authType === 'basic' ? username.trim() : undefined,
         connectionState: 'connected' as const,
         attachedAt: Date.now(),
         comment: `HTTP Server at ${protocol}://${hostTrimmed}:${portTrimmed}`,
       };
 
       // Save credentials separately for security
-      if (authType === 'basic' && password.trim()) {
-        saveHTTPServerCredentials(httpServerDb.id, { password: password.trim() });
+      if (authType === 'basic' && username.trim() && password.trim()) {
+        saveHTTPServerCredentials(httpServerDb.id, {
+          username: username.trim(),
+          password: password.trim(),
+        });
       } else if (authType === 'token' && token.trim()) {
         saveHTTPServerCredentials(httpServerDb.id, { token: token.trim() });
       }

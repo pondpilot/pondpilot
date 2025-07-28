@@ -41,6 +41,14 @@ export class DuckDBHttpClient {
     this.headers = {
       'Content-Type': 'application/json',
     };
+
+    // Add authentication headers based on auth type
+    if (config.authType === 'basic' && config.username && config.password) {
+      const credentials = btoa(`${config.username}:${config.password}`);
+      this.headers.Authorization = `Basic ${credentials}`;
+    } else if (config.authType === 'token' && config.token) {
+      this.headers['X-API-Key'] = config.token;
+    }
   }
 
   /**
