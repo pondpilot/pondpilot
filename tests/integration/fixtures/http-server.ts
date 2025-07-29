@@ -7,17 +7,25 @@ import { test as base } from '@playwright/test';
 interface HttpServerOptions {
   connectionSuccess?: boolean;
   tables?: Array<{ name: string; columns: Array<{ name: string; type: string }> }>;
+  requireAuth?: boolean;
+  authType?: 'basic' | 'token';
+  validCredentials?: { username?: string; password?: string; token?: string };
+  onRequest?: (headers: Record<string, string>) => void;
 }
 
 export interface HttpServerFixture {
-  setupHttpServerMocks: (options?: HttpServerOptions) => Promise<void>;
+  setupMockServer: (options?: HttpServerOptions) => Promise<void>;
 }
 
 export const test = base.extend<HttpServerFixture>({
-  setupHttpServerMocks: async ({ page }, use) => {
+  setupMockServer: async ({ page }, use) => {
     const setupMocks = async (options: HttpServerOptions = {}) => {
       const {
         connectionSuccess = true,
+        requireAuth = false,
+        authType = 'basic',
+        validCredentials = {},
+        onRequest,
         tables = [
           {
             name: 'users',
@@ -42,6 +50,41 @@ export const test = base.extend<HttpServerFixture>({
       const mockHandler = async (route: any) => {
         const request = route.request();
         const method = request.method();
+        const headers = request.headers();
+
+        // Call onRequest callback if provided
+        if (onRequest) {
+          onRequest(headers);
+        }
+
+        // Check authentication if required
+        if (requireAuth) {
+          let authValid = false;
+
+          if (authType === 'basic') {
+            const authHeader = headers.authorization || headers.Authorization;
+            if (authHeader && authHeader.startsWith('Basic ')) {
+              const base64Credentials = authHeader.split(' ')[1];
+              const credentials = atob(base64Credentials);
+              const [username, password] = credentials.split(':');
+
+              authValid =
+                username === validCredentials.username && password === validCredentials.password;
+            }
+          } else if (authType === 'token') {
+            const tokenHeader = headers['x-api-key'] || headers['X-API-Key'];
+            authValid = tokenHeader === validCredentials.token;
+          }
+
+          if (!authValid) {
+            await route.fulfill({
+              status: 401,
+              headers: { 'Content-Type': 'text/plain' },
+              body: 'Unauthorized',
+            });
+            return;
+          }
+        }
 
         if (method === 'GET' || method === 'HEAD') {
           const requestUrl = new URL(request.url());
