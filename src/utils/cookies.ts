@@ -14,7 +14,7 @@ export interface CookieOptions {
 
 const DEFAULT_COOKIE_OPTIONS: CookieOptions = {
   path: '/',
-  secure: window.location.protocol === 'https:',
+  secure: typeof window !== 'undefined' ? window.location.protocol === 'https:' : false,
   sameSite: 'strict',
   maxAge: 30 * 24 * 60 * 60, // 30 days
 };
