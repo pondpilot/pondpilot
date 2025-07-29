@@ -325,6 +325,7 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
 
         <Select
           label="Authentication"
+          data-testid={setDataTestId('http-server-auth-type-select')}
           value={authType}
           onChange={(value) => setAuthType(value as 'none' | 'basic' | 'token')}
           data={[
