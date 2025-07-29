@@ -41,6 +41,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [dataExplorerHeight, setDataExplorerHeight] = useState<number | null>(null);
+  const resizeStartRef = useRef<{ initialHeight: number; startY: number } | null>(null);
 
   // Load saved section states or default to both expanded
   const [sectionStates, setSectionStates] = useState<SectionState>(() => {
@@ -114,17 +115,34 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
   };
 
   // Handle resize
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (!containerRef.current) return;
+
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const currentHeight = dataExplorerHeight || (containerRect.height - 36 - 36 - 34) / 2;
+
+      resizeStartRef.current = {
+        initialHeight: currentHeight,
+        startY: e.clientY,
+      };
+
+      setIsResizing(true);
+    },
+    [dataExplorerHeight],
+  );
 
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
-      if (!isResizing || !containerRef.current) return;
+      if (!isResizing || !containerRef.current || !resizeStartRef.current) return;
 
       const containerRect = containerRef.current.getBoundingClientRect();
-      const newHeight = e.clientY - containerRect.top - 36; // 36px is the header height
+      const { initialHeight, startY } = resizeStartRef.current;
+
+      // Calculate new height based on mouse movement from the initial start position
+      const mouseDelta = e.clientY - startY;
+      const newHeight = initialHeight + mouseDelta;
       const minHeight = 100;
       const maxHeight = containerRect.height - 36 - 36 - 34; // headers + footer
 
@@ -135,6 +153,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
 
   const handleMouseUp = useCallback(() => {
     setIsResizing(false);
+    resizeStartRef.current = null;
   }, []);
 
   useEffect(() => {
