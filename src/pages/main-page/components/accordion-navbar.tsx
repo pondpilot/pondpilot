@@ -158,7 +158,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
     return (
       <Stack className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark" gap={0}>
         {/* Create New Query button */}
-        <Box className="p-2 border-b border-gray-200 dark:border-gray-700">
+        <Box className="p-2 border-b border-borderPrimary-light dark:border-borderPrimary-dark">
           <Tooltip label="Create new query" position="right" withArrow openDelay={500}>
             <ActionIcon
               size="lg"
@@ -176,7 +176,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
         </Box>
 
         {/* Bottom toolbar */}
-        <Box className="mt-auto border-t border-gray-200 dark:border-gray-700 p-2">
+        <Box className="mt-auto border-t border-borderPrimary-light dark:border-borderPrimary-dark p-2">
           <Stack gap="xs">
             <Tooltip label="Settings" position="right" withArrow openDelay={500}>
               <ActionIcon
@@ -230,7 +230,9 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
       {/* Data Explorer Section */}
       <Box
         className={cn(
-          'border-b border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden',
+          'border-b border-borderPrimary-light dark:border-borderPrimary-dark flex flex-col overflow-hidden',
+          // Only apply transitions when not resizing
+          !isResizing && 'transition-all duration-300',
         )}
         style={{
           flex: sectionStates.dataExplorer
@@ -239,15 +241,17 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
               : '1 1 auto'
             : '0 0 36px',
           minHeight: sectionStates.dataExplorer ? 100 : 36,
+          // Ensure smooth transitions
+          transitionProperty: isResizing ? 'none' : 'flex, min-height',
         }}
       >
         <Group
-          className="justify-between px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 select-none"
+          className="justify-between px-2 py-1.5 cursor-pointer hover:bg-transparent008-light dark:hover:bg-transparent008-dark select-none"
           gap={0}
           onClick={() => toggleSection('dataExplorer')}
         >
           <Group gap={4}>
-            <div className="text-gray-500 dark:text-gray-400 transition-transform duration-200">
+            <div className="text-textTertiary-light dark:text-textTertiary-dark transition-transform duration-200">
               <IconChevronDown
                 size={16}
                 style={{
@@ -302,10 +306,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
         <button
           type="button"
           aria-label="Resize handle - use arrow keys to adjust"
-          className={cn(
-            'h-[1px] bg-gray-200 dark:bg-gray-700 relative cursor-ns-resize hover:bg-blue-500 w-full border-none outline-none focus:bg-blue-500',
-            isResizing && 'bg-blue-500',
-          )}
+          className="h-[1px] bg-borderPrimary-light dark:bg-borderPrimary-dark relative cursor-ns-resize w-full border-none outline-none"
           onMouseDown={handleMouseDown}
           onKeyDown={(e) => {
             if (e.key === 'ArrowUp') {
@@ -332,24 +333,27 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
       <Box
         className={cn(
           'flex flex-col overflow-hidden',
-          !isResizing && 'transition-all duration-300',
+          // Only apply transitions when not resizing and both panels aren't changing
+          !isResizing && !bothExpanded && 'transition-all duration-300',
           // Only add border when collapsed AND data explorer is also collapsed
           !sectionStates.queries &&
             !sectionStates.dataExplorer &&
-            'border-b border-gray-200 dark:border-gray-700',
+            'border-b border-borderPrimary-light dark:border-borderPrimary-dark',
         )}
         style={{
           flex: sectionStates.queries ? '1 1 auto' : '0 0 36px',
           minHeight: sectionStates.queries ? 100 : 36,
+          // Ensure smooth transitions
+          transitionProperty: isResizing || bothExpanded ? 'none' : 'flex, min-height',
         }}
       >
         <Group
-          className="justify-between px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 select-none"
+          className="justify-between px-2 py-1.5 cursor-pointer hover:bg-transparent008-light dark:hover:bg-transparent008-dark select-none"
           gap={0}
           onClick={() => toggleSection('queries')}
         >
           <Group gap={4}>
-            <div className="text-gray-500 dark:text-gray-400 transition-transform duration-200">
+            <div className="text-textTertiary-light dark:text-textTertiary-dark transition-transform duration-200">
               <IconChevronDown
                 size={16}
                 style={{
@@ -399,34 +403,37 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
       </Box>
 
       {/* Bottom toolbar */}
-      <Box className="mt-auto h-[34px] px-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700">
-        <Group gap="xs">
+      <Box className="flex-shrink-0 h-[34px] px-3 flex items-center justify-between border-t border-borderPrimary-light dark:border-borderPrimary-dark">
+        <Group gap="xs" className="flex-shrink-0">
           <ActionIcon
-            size={20}
+            size="sm"
             data-testid={setDataTestId('settings-button')}
             onClick={() => navigate('/settings')}
+            className="flex-shrink-0"
           >
-            <IconSettings />
+            <IconSettings size={20} />
           </ActionIcon>
           <ActionIcon
-            size={20}
+            size="sm"
             component="a"
             href={APP_GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
+            className="flex-shrink-0"
           >
-            <IconBrandGithub />
+            <IconBrandGithub size={20} />
           </ActionIcon>
         </Group>
         {onCollapse && (
           <Tooltip label="Collapse sidebar" position="top" withArrow openDelay={500}>
             <ActionIcon
-              size={20}
+              size="sm"
               data-testid={setDataTestId('collapse-sidebar-button')}
               onClick={onCollapse}
               variant="subtle"
+              className="flex-shrink-0"
             >
-              <IconLayoutSidebarLeftCollapse />
+              <IconLayoutSidebarLeftCollapse size={20} />
             </ActionIcon>
           </Tooltip>
         )}
