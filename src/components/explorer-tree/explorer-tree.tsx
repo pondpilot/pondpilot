@@ -170,7 +170,7 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, any>, Extra
   return (
     <Stack
       gap={0}
-      className={cn('h-[calc(100%-50px)]')}
+      className={cn('h-full')}
       data-testid={setDataTestId(dataTestIdPrefix)}
       ref={treeRef}
     >
