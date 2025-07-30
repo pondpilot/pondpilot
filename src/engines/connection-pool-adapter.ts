@@ -99,7 +99,7 @@ export class ConnectionPoolAdapter extends AsyncDuckDBConnectionPool {
           nullable: col.nullable || false,
         })),
       },
-      toArray: () => result.rows as T[],
+      toArray: () => result.rows as _T[],
       getChildAt: (index: number) => {
         // Return column data
         const columnName = result.columns[index].name;
