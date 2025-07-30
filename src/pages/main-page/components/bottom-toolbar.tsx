@@ -1,10 +1,6 @@
 import { ActionIcon, Group, Tooltip, Box } from '@mantine/core';
 import { APP_GITHUB_URL } from '@models/app-urls';
-import {
-  IconBrandGithub,
-  IconSettings,
-  IconLayoutSidebarLeftCollapse,
-} from '@tabler/icons-react';
+import { IconBrandGithub, IconSettings, IconLayoutSidebarLeftCollapse } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { useNavigate } from 'react-router-dom';
 
