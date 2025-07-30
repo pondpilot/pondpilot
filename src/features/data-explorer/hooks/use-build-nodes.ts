@@ -3,8 +3,8 @@ import { LocalDB, RemoteDB, MotherDuckDB } from '@models/data-source';
 
 import { DataExplorerNodeMap } from '../model';
 import { useLocalDbNodes } from './use-local-db-nodes';
-import { useRemoteDbNodes } from './use-remote-db-nodes';
 import { useMotherDuckNodes } from './use-motherduck-nodes';
+import { useRemoteDbNodes } from './use-remote-db-nodes';
 import { useSystemDbNode } from './use-system-db-node';
 
 type UseBuildNodesProps = {

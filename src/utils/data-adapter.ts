@@ -174,13 +174,12 @@ function getMotherDuckDataAdapterApi(
   return {
     adapter: {
       getEstimatedRowCount: undefined, // MotherDuck doesn't support estimated row count queries
-      getSortableReader: async (sort, abortSignal) => {
+      getSortableReader: async (sort, _abortSignal) => {
         try {
           const { motherDuckConnectionManager } = await import('@utils/motherduck-connection');
           const connection = await motherDuckConnectionManager.getConnection(dataSource);
 
-          const schemaName = tab.schemaName;
-          const tableName = tab.objectName;
+          const { schemaName, objectName: tableName } = tab;
           const fqn = dataSource.database
             ? `${dataSource.database}.${schemaName}.${tableName}`
             : `${schemaName}.${tableName}`;
@@ -194,7 +193,7 @@ function getMotherDuckDataAdapterApi(
             baseQuery += ` ORDER BY ${orderBy}`;
           }
 
-          const result = await connection.evaluateQuery(baseQuery);
+          const _result = await connection.evaluateQuery(baseQuery);
 
           // Convert MotherDuck result to Arrow table format expected by PondPilot
           // For now, we'll need to simulate the expected interface
@@ -206,11 +205,11 @@ function getMotherDuckDataAdapterApi(
           );
         }
       },
-      getColumnAggregate: async (column, aggregateType, abortSignal) => {
+      getColumnAggregate: async (_column, _aggregateType, _abortSignal) => {
         // TODO: Implement MotherDuck column aggregation
         throw new Error('MotherDuck column aggregation not implemented yet');
       },
-      getColumnsData: async (columns, abortSignal) => {
+      getColumnsData: async (_columns, _abortSignal) => {
         // TODO: Implement MotherDuck column data retrieval
         throw new Error('MotherDuck column data retrieval not implemented yet');
       },

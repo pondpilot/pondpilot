@@ -11,8 +11,8 @@ import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
-import { RemoteDatabaseConfig } from './components/remote-database-config';
 import { MotherDuckConfig } from './components/motherduck-config';
+import { RemoteDatabaseConfig } from './components/remote-database-config';
 
 interface DatasourceWizardModalProps {
   onClose: () => void;
