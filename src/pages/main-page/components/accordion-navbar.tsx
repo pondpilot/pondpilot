@@ -1,176 +1,29 @@
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
-import { DataExplorer } from '@features/data-explorer';
-import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
-import { ScriptExplorer } from '@features/script-explorer';
-import { ActionIcon, Group, Skeleton, Stack, Text, Tooltip, Box } from '@mantine/core';
+import { ActionIcon, Stack, Tooltip, Box } from '@mantine/core';
 import { APP_GITHUB_URL } from '@models/app-urls';
-import { useAppStore } from '@store/app-store';
 import {
   IconBrandGithub,
   IconPlus,
   IconSettings,
-  IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarRightCollapse,
-  IconChevronDown,
 } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { cn } from '@utils/ui/styles';
-import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+import { AccordionContent } from './accordion-content';
+import { BottomToolbar } from './bottom-toolbar';
 
 interface NavbarProps {
   onCollapse?: () => void;
   collapsed?: boolean;
 }
 
-type SectionState = {
-  dataExplorer: boolean;
-  queries: boolean;
-};
-
 /**
  * Accordion-style navigation bar with collapsible sections
  */
 export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) => {
   const navigate = useNavigate();
-  const appLoadState = useAppStore.use.appLoadState();
-
-  const { openDataWizardModal } = useOpenDataWizardModal();
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isResizing, setIsResizing] = useState(false);
-  const [dataExplorerHeight, setDataExplorerHeight] = useState<number | null>(null);
-  const resizeStartRef = useRef<{ initialHeight: number; startY: number } | null>(null);
-
-  // Load saved section states or default to both expanded
-  const [sectionStates, setSectionStates] = useState<SectionState>(() => {
-    const saved = localStorage.getItem('accordion-navbar-sections');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to parse saved section states:', e);
-      }
-    }
-    return {
-      dataExplorer: true,
-      queries: true,
-    };
-  });
-
-  // Load saved height
-  useEffect(() => {
-    const savedHeight = localStorage.getItem('accordion-data-explorer-height');
-    if (savedHeight) {
-      setDataExplorerHeight(parseInt(savedHeight, 10));
-    }
-  }, []);
-
-  // Save state changes to localStorage
-  useEffect(() => {
-    localStorage.setItem('accordion-navbar-sections', JSON.stringify(sectionStates));
-  }, [sectionStates]);
-
-  // Save height to localStorage
-  useEffect(() => {
-    if (dataExplorerHeight !== null) {
-      localStorage.setItem('accordion-data-explorer-height', dataExplorerHeight.toString());
-    }
-  }, [dataExplorerHeight]);
-
-  const appReady = appLoadState === 'ready';
-
-  // Calculate if both are expanded before toggle section
-  const bothExpanded = sectionStates.dataExplorer && sectionStates.queries;
-
-  const toggleSection = (section: keyof SectionState) => {
-    setSectionStates((prev) => {
-      const newState = {
-        ...prev,
-        [section]: !prev[section],
-      };
-
-      // When transitioning from one section expanded to both expanded
-      if (newState.dataExplorer && newState.queries && !bothExpanded) {
-        // If expanding from only one section to both, set a reasonable default height
-        // This prevents the data explorer from taking all available space
-        if (containerRef.current) {
-          const containerHeight = containerRef.current.clientHeight;
-          const headerHeight = 36; // px
-          const footerHeight = 34; // px
-          const availableHeight = containerHeight - headerHeight * 2 - footerHeight - 1; // -1 for resize handle
-          // Set data explorer to 50% of available space by default
-          setDataExplorerHeight(Math.max(100, Math.floor(availableHeight / 2)));
-        } else {
-          setDataExplorerHeight(null);
-        }
-      } else if (section === 'queries' && !newState.queries) {
-        // Collapsing the queries section
-        setDataExplorerHeight(null);
-      }
-
-      return newState;
-    });
-  };
-
-  // Handle resize
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      if (!containerRef.current) return;
-
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const currentHeight = dataExplorerHeight || (containerRect.height - 36 - 36 - 34) / 2;
-
-      resizeStartRef.current = {
-        initialHeight: currentHeight,
-        startY: e.clientY,
-      };
-
-      setIsResizing(true);
-    },
-    [dataExplorerHeight],
-  );
-
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (!isResizing || !containerRef.current || !resizeStartRef.current) return;
-
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const { initialHeight, startY } = resizeStartRef.current;
-
-      // Calculate new height based on mouse movement from the initial start position
-      const mouseDelta = e.clientY - startY;
-      const newHeight = initialHeight + mouseDelta;
-      const minHeight = 100;
-      const maxHeight = containerRect.height - 36 - 36 - 34; // headers + footer
-
-      setDataExplorerHeight(Math.max(minHeight, Math.min(maxHeight, newHeight)));
-    },
-    [isResizing],
-  );
-
-  const handleMouseUp = useCallback(() => {
-    setIsResizing(false);
-    resizeStartRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'ns-resize';
-      document.body.style.userSelect = 'none';
-
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      };
-    }
-  }, [isResizing, handleMouseMove, handleMouseUp]);
 
   // Render compact view when collapsed
   if (collapsed) {
@@ -241,222 +94,14 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
   }
 
   return (
-    <Stack
-      className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
-      gap={0}
-      ref={containerRef}
-    >
-      {/* Data Explorer Section */}
-      <Box
-        className={cn(
-          'border-b border-borderPrimary-light dark:border-borderPrimary-dark flex flex-col overflow-hidden',
-          // Only apply transitions when not resizing
-          !isResizing && 'transition-all duration-300',
-        )}
-        style={{
-          flex: sectionStates.dataExplorer
-            ? dataExplorerHeight && bothExpanded
-              ? `0 0 ${dataExplorerHeight}px`
-              : '1 1 auto'
-            : '0 0 36px',
-          minHeight: sectionStates.dataExplorer ? 100 : 36,
-          // Ensure smooth transitions
-          transitionProperty: isResizing ? 'none' : 'flex, min-height',
-        }}
-      >
-        <Group
-          className="justify-between px-2 py-1.5 cursor-pointer hover:bg-transparent008-light dark:hover:bg-transparent008-dark select-none"
-          gap={0}
-          onClick={() => toggleSection('dataExplorer')}
-        >
-          <Group gap={4}>
-            <div className="text-textTertiary-light dark:text-textTertiary-dark transition-transform duration-200">
-              <IconChevronDown
-                size={16}
-                style={{
-                  transform: sectionStates.dataExplorer ? 'rotate(0deg)' : 'rotate(-90deg)',
-                }}
-              />
-            </div>
-            <Text size="sm" fw={500} c="text-primary">
-              Data Explorer
-            </Text>
-          </Group>
-          {appReady && (
-            <Tooltip label="Add data source" position="bottom" withArrow openDelay={500}>
-              <ActionIcon
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openDataWizardModal('selection');
-                  if (!sectionStates.dataExplorer) {
-                    setSectionStates((prev) => ({ ...prev, dataExplorer: true }));
-                  }
-                }}
-                size={16}
-                data-testid={setDataTestId('navbar-add-datasource-button')}
-              >
-                <IconPlus />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Group>
-
-        <Box
-          className="overflow-hidden flex flex-col flex-1"
-          style={{
-            opacity: sectionStates.dataExplorer ? 1 : 0,
-            transition: 'opacity 200ms',
-          }}
-        >
-          {appReady ? (
-            <DataExplorer />
-          ) : (
-            <Stack gap={6} className="px-3 py-1.5">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
-              ))}
-            </Stack>
-          )}
-        </Box>
+    <Stack className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark" gap={0}>
+      {/* Accordion Container - takes remaining space minus bottom toolbar */}
+      <Box className="flex-1" style={{ height: 'calc(100% - 34px)' }}>
+        <AccordionContent />
       </Box>
 
-      {/* Resize Handle */}
-      {bothExpanded && (
-        <button
-          type="button"
-          aria-label="Resize handle - use arrow keys to adjust"
-          className="h-[1px] bg-borderPrimary-light dark:bg-borderPrimary-dark relative cursor-ns-resize w-full border-none outline-none"
-          onMouseDown={handleMouseDown}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowUp') {
-              e.preventDefault();
-              const currentHeight = dataExplorerHeight || 200;
-              setDataExplorerHeight(Math.max(100, currentHeight - 10));
-            } else if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              const currentHeight = dataExplorerHeight || 200;
-              if (containerRef.current) {
-                const containerRect = containerRef.current.getBoundingClientRect();
-                const maxHeight = containerRect.height - 36 - 36 - 34;
-                setDataExplorerHeight(Math.min(maxHeight, currentHeight + 10));
-              }
-            }
-          }}
-        >
-          {/* Invisible hit area for easier grabbing */}
-          <div className="absolute inset-x-0 -top-2 -bottom-2" />
-        </button>
-      )}
-
-      {/* Queries Section */}
-      <Box
-        className={cn(
-          'flex flex-col overflow-hidden',
-          // Only apply transitions when not resizing and both panels aren't changing
-          !isResizing && !bothExpanded && 'transition-all duration-300',
-          // Only add border when collapsed AND data explorer is also collapsed
-          !sectionStates.queries &&
-            !sectionStates.dataExplorer &&
-            'border-b border-borderPrimary-light dark:border-borderPrimary-dark',
-        )}
-        style={{
-          flex: sectionStates.queries ? '1 1 auto' : '0 0 36px',
-          minHeight: sectionStates.queries ? 100 : 36,
-          // Ensure smooth transitions
-          transitionProperty: isResizing || bothExpanded ? 'none' : 'flex, min-height',
-        }}
-      >
-        <Group
-          className="justify-between px-2 py-1.5 cursor-pointer hover:bg-transparent008-light dark:hover:bg-transparent008-dark select-none"
-          gap={0}
-          onClick={() => toggleSection('queries')}
-        >
-          <Group gap={4}>
-            <div className="text-textTertiary-light dark:text-textTertiary-dark transition-transform duration-200">
-              <IconChevronDown
-                size={16}
-                style={{
-                  transform: sectionStates.queries ? 'rotate(0deg)' : 'rotate(-90deg)',
-                }}
-              />
-            </div>
-            <Text size="sm" fw={500} c="text-primary">
-              Queries
-            </Text>
-          </Group>
-          {appReady && (
-            <ActionIcon
-              data-testid={setDataTestId('script-explorer-add-script-button')}
-              onClick={(e) => {
-                e.stopPropagation();
-                const newEmptyScript = createSQLScript();
-                getOrCreateTabFromScript(newEmptyScript, true);
-                if (!sectionStates.queries) {
-                  setSectionStates((prev) => ({ ...prev, queries: true }));
-                }
-              }}
-              size={16}
-            >
-              <IconPlus />
-            </ActionIcon>
-          )}
-        </Group>
-
-        <Box
-          className="overflow-hidden flex flex-col flex-1"
-          style={{
-            opacity: sectionStates.queries ? 1 : 0,
-            transition: 'opacity 200ms',
-          }}
-        >
-          {appReady ? (
-            <ScriptExplorer />
-          ) : (
-            <Stack gap={6} className="px-3 py-1.5">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <Skeleton key={index} height={13} width={Math.random() * 100 + 70} />
-              ))}
-            </Stack>
-          )}
-        </Box>
-      </Box>
-
-      {/* Bottom toolbar */}
-      <Box className="flex-shrink-0 h-[34px] px-3 flex items-center justify-between border-t border-borderPrimary-light dark:border-borderPrimary-dark">
-        <Group gap="xs" className="flex-shrink-0">
-          <ActionIcon
-            size="sm"
-            data-testid={setDataTestId('settings-button')}
-            onClick={() => navigate('/settings')}
-            className="flex-shrink-0"
-          >
-            <IconSettings size={20} />
-          </ActionIcon>
-          <ActionIcon
-            size="sm"
-            component="a"
-            href={APP_GITHUB_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-shrink-0"
-          >
-            <IconBrandGithub size={20} />
-          </ActionIcon>
-        </Group>
-        {onCollapse && (
-          <Tooltip label="Collapse sidebar" position="top" withArrow openDelay={500}>
-            <ActionIcon
-              size="sm"
-              data-testid={setDataTestId('collapse-sidebar-button')}
-              onClick={onCollapse}
-              variant="subtle"
-              className="flex-shrink-0"
-            >
-              <IconLayoutSidebarLeftCollapse size={20} />
-            </ActionIcon>
-          </Tooltip>
-        )}
-      </Box>
+      {/* Bottom Toolbar - fixed height, isolated from accordion logic */}
+      <BottomToolbar onCollapse={onCollapse} />
     </Stack>
   );
 };
