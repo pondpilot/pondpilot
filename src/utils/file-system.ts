@@ -158,6 +158,8 @@ export function localEntryFromHandle(
       userAdded,
       handle,
       uniqueAlias: getUniqueAlias(name),
+      // Add Tauri path support
+      filePath: (handle as any)._tauriPath,
     };
     const extLower = ext.toLowerCase();
 
@@ -188,5 +190,13 @@ export function localEntryFromHandle(
     userAdded,
     handle,
     uniqueAlias: getUniqueAlias(handle.name),
+    // Add Tauri path support
+    directoryPath: (handle as any)._tauriPath,
   };
 }
+
+/**
+ * Platform-agnostic file picker functions.
+ * These automatically use the appropriate implementation based on the environment.
+ */
+export { pickFiles, pickFolder } from './file-system-new';
