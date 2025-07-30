@@ -1,0 +1,32 @@
+[package]
+name = "pondpilot-desktop"
+version = "0.1.0"
+description = "PondPilot Desktop - A blazing-fast, client-side data exploration tool"
+authors = ["PondPilot Team"]
+license = "MIT"
+repository = "https://github.com/pondpilot/pondpilot"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.6", features = ["shell-open", "dialog-all", "fs-all", "path-all"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+duckdb = { version = "1.0", features = ["bundled", "json", "parquet"] }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+[features]
+# this feature is used for production builds or when `devPath` points to the filesystem
+# DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true

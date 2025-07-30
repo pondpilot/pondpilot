@@ -158,6 +158,8 @@ export function localEntryFromHandle(
       userAdded,
       handle,
       uniqueAlias: getUniqueAlias(name),
+      // Add Tauri path support
+      filePath: (handle as any)._tauriPath,
     };
     const extLower = ext.toLowerCase();
 
@@ -188,83 +190,13 @@ export function localEntryFromHandle(
     userAdded,
     handle,
     uniqueAlias: getUniqueAlias(handle.name),
+    // Add Tauri path support
+    directoryPath: (handle as any)._tauriPath,
   };
 }
 
 /**
- * A thin, non-throwring wrapper around `window.showOpenFilePicker` API.
- *
- * @param accept - Array of accepted file extensions.
- * @param description - Description of the file types (shown in the file picker).
- * @param allowMultiple - Whether to allow multiple file selection.
- * @returns - An object containing the selected file handles and an error flag.
+ * Platform-agnostic file picker functions.
+ * These automatically use the appropriate implementation based on the environment.
  */
-export const pickFiles = async (
-  accept: FileExtension[],
-  description: string,
-  allowMultiple: boolean = true,
-): Promise<{ handles: FileSystemFileHandle[]; error: string | null }> => {
-  try {
-    return {
-      handles: await window.showOpenFilePicker({
-        types: [
-          {
-            description,
-            accept: {
-              'application/octet-stream': accept,
-            },
-          },
-        ],
-        excludeAcceptAllOption: false,
-        multiple: allowMultiple,
-      }),
-      error: null,
-    };
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
-      return {
-        handles: [],
-        error: null,
-      };
-    }
-
-    return {
-      handles: [],
-      error: error.message ?? 'Unknown error',
-    };
-  }
-};
-
-/**
- * A thin, non-throwring wrapper around `window.showDirectoryPicker` API.
- *
- * @param accept - Array of accepted file extensions.
- * @param description - Description of the file types (shown in the file picker).
- * @param allowMultiple - Whether to allow multiple file selection.
- * @returns - An object containing the selected file handles and an error flag.
- */
-export const pickFolder = async (): Promise<{
-  handle: FileSystemDirectoryHandle | null;
-  error: string | null;
-}> => {
-  try {
-    return {
-      handle: await window.showDirectoryPicker({
-        mode: 'read',
-      }),
-      error: null,
-    };
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
-      return {
-        handle: null,
-        error: null,
-      };
-    }
-
-    return {
-      handle: null,
-      error: error.message ?? 'Unknown error',
-    };
-  }
-};
+export { pickFiles, pickFolder } from './file-system-new';
