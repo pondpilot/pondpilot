@@ -59,7 +59,8 @@ export function buildDatabaseNode(
   context: DatabaseTreeBuilderContext,
 ): TreeNodeData<DataExplorerNodeTypeMap> {
   const { id: dbId } = dataSource;
-  const dbName = dataSource.type === 'motherduck' ? (dataSource.database || 'MotherDuck') : dataSource.dbName;
+  const dbName =
+    dataSource.type === 'motherduck' ? dataSource.database || 'MotherDuck' : dataSource.dbName;
   const isRemoteDb = dataSource.type === 'remote-db';
   const isMotherDuck = dataSource.type === 'motherduck';
   const {
@@ -89,10 +90,10 @@ export function buildDatabaseNode(
 
   // For remote databases and MotherDuck, append connection state indicator
   if (isRemoteDb || isMotherDuck) {
-    const connectionState = isMotherDuck 
-      ? (dataSource as MotherDuckDB).connectionState 
+    const connectionState = isMotherDuck
+      ? (dataSource as MotherDuckDB).connectionState
       : (dataSource as RemoteDB).connectionState;
-    
+
     const stateIcon =
       connectionState === 'connected'
         ? '✓'
@@ -185,26 +186,27 @@ export function buildDatabaseNode(
     : [];
 
   // Add MotherDuck-specific menu items
-  const motherDuckMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = isMotherDuck
-    ? [
-        {
-          label: 'Copy Database Name',
-          onClick: () => {
-            copyToClipboard((dataSource as MotherDuckDB).database || 'default', {
-              showNotification: true,
-              notificationTitle: 'Database Name Copied',
-            });
+  const motherDuckMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] =
+    isMotherDuck
+      ? [
+          {
+            label: 'Copy Database Name',
+            onClick: () => {
+              copyToClipboard((dataSource as MotherDuckDB).database || 'default', {
+                showNotification: true,
+                notificationTitle: 'Database Name Copied',
+              });
+            },
           },
-        },
-        {
-          label: 'Refresh',
-          onClick: async () => {
-            // For now, just refresh metadata - we'll implement proper MotherDuck refresh later
-            await refreshDatabaseMetadata(conn, [dbName]);
+          {
+            label: 'Refresh',
+            onClick: async () => {
+              // For now, just refresh metadata - we'll implement proper MotherDuck refresh later
+              await refreshDatabaseMetadata(conn, [dbName]);
+            },
           },
-        },
-      ]
-    : [];
+        ]
+      : [];
 
   const onDbRenameSubmit = (node: TreeNodeData<DataExplorerNodeTypeMap>, newName: string): void => {
     newName = newName.trim();

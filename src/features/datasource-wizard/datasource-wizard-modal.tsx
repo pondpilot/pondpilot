@@ -1,6 +1,12 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Group, Stack, Title, ActionIcon, Text, Divider } from '@mantine/core';
-import { IconDatabasePlus, IconFilePlus, IconFolderPlus, IconX, IconCloud } from '@tabler/icons-react';
+import {
+  IconDatabasePlus,
+  IconFilePlus,
+  IconFolderPlus,
+  IconX,
+  IconCloud,
+} from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 
@@ -124,9 +130,7 @@ export function DatasourceWizardModal({
               ADD DATA SOURCE
             </Text>
             <Text size="xs">/</Text>
-            <Text size="xs">
-              {step === 'remote-config' ? 'REMOTE DATABASE' : 'MOTHERDUCK'}
-            </Text>
+            <Text size="xs">{step === 'remote-config' ? 'REMOTE DATABASE' : 'MOTHERDUCK'}</Text>
           </Group>
         )}
 
@@ -173,9 +177,7 @@ export function DatasourceWizardModal({
         <RemoteDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
 
-      {step === 'motherduck-config' && (
-        <MotherDuckConfig onBack={handleBack} onClose={onClose} />
-      )}
+      {step === 'motherduck-config' && <MotherDuckConfig onBack={handleBack} onClose={onClose} />}
     </Stack>
   );
 }

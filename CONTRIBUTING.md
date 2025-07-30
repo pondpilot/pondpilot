@@ -64,7 +64,7 @@ We use a couple of tools, some of which are not strictly necessary, but make dev
 
 - [Node.js](https://nodejs.org/en/download/) - JavaScript runtime
 - [yarn](https://yarnpkg.com/getting-started/install) - Package manager
-    - Note that project uses the corepack approach, so yarn should be installed via corepack, which is bundled with Node.js v16.9.0 and later. Make sure to run `corepack enable` to enable it.
+  - Note that project uses the corepack approach, so yarn should be installed via corepack, which is bundled with Node.js v16.9.0 and later. Make sure to run `corepack enable` to enable it.
 - [prettier](https://prettier.io/) - Code formatter
 - [eslint](https://eslint.org/) - Linter
 - [typescript](https://www.typescriptlang.org/) - TypeScript compiler

@@ -1,5 +1,5 @@
-import { MDConnection } from '@motherduck/wasm-client';
 import { MotherDuckDB } from '@models/data-source';
+import { MDConnection } from '@motherduck/wasm-client';
 
 /**
  * MotherDuck connection manager for handling browser-to-cloud connections
@@ -20,7 +20,9 @@ export class MotherDuckConnectionManager {
 
       return connection;
     } catch (error) {
-      throw new Error(`MotherDuck connection failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `MotherDuck connection failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -70,7 +72,7 @@ export class MotherDuckConnectionManager {
    */
   async listDatabases(token: string): Promise<string[]> {
     const connection = await this.connect(token);
-    
+
     try {
       const result = await connection.evaluateQuery(`
         SELECT database_name 
@@ -78,13 +80,15 @@ export class MotherDuckConnectionManager {
         WHERE database_name != 'system'
         ORDER BY database_name
       `);
-      
+
       const databases = result.data.toRows().map((row: any) => row.database_name as string);
       await connection.close();
       return databases;
     } catch (error) {
       await connection.close();
-      throw new Error(`Failed to list databases: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to list databases: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -95,16 +99,18 @@ export class MotherDuckConnectionManager {
    */
   async listTables(dataSource: MotherDuckDB): Promise<string[]> {
     const connection = await this.getConnection(dataSource);
-    
+
     try {
       const query = dataSource.database
         ? `SELECT table_name FROM ${dataSource.database}.information_schema.tables WHERE table_schema != 'information_schema' ORDER BY table_name`
-        : `SHOW TABLES`;
-      
+        : 'SHOW TABLES';
+
       const result = await connection.evaluateQuery(query);
       return result.data.toRows().map((row: any) => row.table_name as string);
     } catch (error) {
-      throw new Error(`Failed to list tables: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to list tables: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -116,16 +122,16 @@ export class MotherDuckConnectionManager {
    */
   async executeQuery(dataSource: MotherDuckDB, query: string): Promise<any> {
     const connection = await this.getConnection(dataSource);
-    
+
     try {
       // Prefix with database USE statement if specified
-      const prefixedQuery = dataSource.database 
-        ? `USE ${dataSource.database}; ${query}`
-        : query;
-      
+      const prefixedQuery = dataSource.database ? `USE ${dataSource.database}; ${query}` : query;
+
       return await connection.evaluateQuery(prefixedQuery);
     } catch (error) {
-      throw new Error(`Query execution failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Query execution failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -156,7 +162,7 @@ export class MotherDuckConnectionManager {
         // Ignore close errors
       }
     });
-    
+
     await Promise.all(promises);
     this.connections.clear();
   }

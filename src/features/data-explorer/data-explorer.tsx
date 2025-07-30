@@ -48,7 +48,8 @@ export const DataExplorer = memo(() => {
   } = useDataExplorerData();
 
   // Separate databases by type
-  const { systemDatabase, localDatabases, remoteDatabases, motherDuckDatabases } = useDatabaseSeparation(allDataSources);
+  const { systemDatabase, localDatabases, remoteDatabases, motherDuckDatabases } =
+    useDatabaseSeparation(allDataSources);
 
   // Build file system tree
   const fileSystemNodes = useFileSystemTreeBuilder({
@@ -90,25 +91,34 @@ export const DataExplorer = memo(() => {
       remote: hasRemoteDbs,
       motherduck: hasMotherDuckDbs,
     };
-  }, [fileSystemNodes.length, localDatabases.length, remoteDatabases.length, motherDuckDatabases.length]);
+  }, [
+    fileSystemNodes.length,
+    localDatabases.length,
+    remoteDatabases.length,
+    motherDuckDatabases.length,
+  ]);
 
   // Build database nodes
-  const { localDbNodes, remoteDatabaseNodes, motherDuckNodes, systemDbNode, systemDbNodeForDisplay } = useBuildNodes(
-    {
-      systemDatabase,
-      localDatabases,
-      remoteDatabases,
-      motherDuckDatabases,
-      nodeMap,
-      anyNodeIdToNodeTypeMap,
-      conn,
-      localDBLocalEntriesMap,
-      databaseMetadata,
-      fileViewNames,
-      initialExpandedState,
-      flatFileSources,
-    },
-  );
+  const {
+    localDbNodes,
+    remoteDatabaseNodes,
+    motherDuckNodes,
+    systemDbNode,
+    systemDbNodeForDisplay,
+  } = useBuildNodes({
+    systemDatabase,
+    localDatabases,
+    remoteDatabases,
+    motherDuckDatabases,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    localDBLocalEntriesMap,
+    databaseMetadata,
+    fileViewNames,
+    initialExpandedState,
+    flatFileSources,
+  });
 
   // Create unified tree for context
   const unifiedTree = [

@@ -79,14 +79,7 @@ export const useFilterNodes = ({
       : remoteDatabaseNodes;
 
     const filteredMotherDuckNodes = searchQuery
-      ? filterTreeNodes(
-          motherDuckNodes,
-          'all',
-          undefined,
-          undefined,
-          searchQuery,
-          expandedState,
-        )
+      ? filterTreeNodes(motherDuckNodes, 'all', undefined, undefined, searchQuery, expandedState)
       : motherDuckNodes;
 
     return {

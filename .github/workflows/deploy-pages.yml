@@ -31,7 +31,7 @@ jobs:
     needs: test-and-build-prod
     permissions:
       contents: read
-      deployments: write      
+      deployments: write
     steps:
       - name: Download Build Artifacts
         uses: actions/download-artifact@v4
@@ -66,7 +66,7 @@ jobs:
               repo: context.repo.repo,
               run_id: ${{ github.event.workflow_run.id }}
             });
-            
+
             return response.data.conclusion;
           result-encoding: string
 

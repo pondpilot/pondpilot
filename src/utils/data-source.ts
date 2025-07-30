@@ -195,11 +195,7 @@ export function isMotherDuckDatabase(dataSource: AnyDataSource): dataSource is M
   return dataSource.type === 'motherduck';
 }
 
-export function addMotherDuckDB(
-  token: string,
-  database?: string,
-  comment?: string,
-): MotherDuckDB {
+export function addMotherDuckDB(token: string, database?: string, comment?: string): MotherDuckDB {
   return {
     id: makePersistentDataSourceId(),
     type: 'motherduck',

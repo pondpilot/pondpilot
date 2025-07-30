@@ -71,7 +71,8 @@ export function MotherDuckConfig({ onBack, onClose }: MotherDuckConfigProps) {
       } else {
         showError({
           title: 'Connection failed',
-          message: 'Unable to connect with the provided token. Please check your token and try again.',
+          message:
+            'Unable to connect with the provided token. Please check your token and try again.',
           autoClose: false,
         });
       }

@@ -178,31 +178,32 @@ function getMotherDuckDataAdapterApi(
         try {
           const { motherDuckConnectionManager } = await import('@utils/motherduck-connection');
           const connection = await motherDuckConnectionManager.getConnection(dataSource);
-          
+
           const schemaName = tab.schemaName;
           const tableName = tab.objectName;
-          const fqn = dataSource.database 
+          const fqn = dataSource.database
             ? `${dataSource.database}.${schemaName}.${tableName}`
             : `${schemaName}.${tableName}`;
-          
+
           let baseQuery = `SELECT * FROM ${fqn}`;
-          
+
           if (sort && sort.length > 0) {
             const orderBy = sort
               .map((sortSpec) => `${sortSpec.column} ${sortSpec.order === 'desc' ? 'DESC' : 'ASC'}`)
               .join(', ');
             baseQuery += ` ORDER BY ${orderBy}`;
           }
-          
+
           const result = await connection.evaluateQuery(baseQuery);
-          
+
           // Convert MotherDuck result to Arrow table format expected by PondPilot
           // For now, we'll need to simulate the expected interface
           // TODO: Implement proper Arrow table conversion from MotherDuck results
           throw new Error('MotherDuck query execution not fully implemented yet');
-          
         } catch (error) {
-          throw new Error(`MotherDuck query failed: ${error instanceof Error ? error.message : String(error)}`);
+          throw new Error(
+            `MotherDuck query failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
       },
       getColumnAggregate: async (column, aggregateType, abortSignal) => {
