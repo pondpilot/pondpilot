@@ -2777,6 +2777,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@motherduck/wasm-client@npm:^0.6.6":
+  version: 0.6.6
+  resolution: "@motherduck/wasm-client@npm:0.6.6"
+  peerDependencies:
+    apache-arrow: ^17.0.0
+  checksum: 10c0/ce09cd7b80a24ec2d6af65ba88509f356c6d39c9d243c77a0cb7fd47537f023e0830018a6c0497c4d2d754326f621c14853175fb4f165f3fa35481a339be7762
+  languageName: node
+  linkType: hard
+
 "@nodelib/fs.scandir@npm:2.1.5":
   version: 2.1.5
   resolution: "@nodelib/fs.scandir@npm:2.1.5"
@@ -10147,6 +10156,7 @@ __metadata:
     "@mantine/modals": "npm:^7.17.4"
     "@mantine/notifications": "npm:^7.17.0"
     "@mantine/spotlight": "npm:^7.17.0"
+    "@motherduck/wasm-client": "npm:^0.6.6"
     "@playwright/test": "npm:^1.51.0"
     "@tabler/icons-react": "npm:^3.28.1"
     "@tanstack/eslint-plugin-query": "npm:^5.68.0"

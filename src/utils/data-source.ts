@@ -2,6 +2,7 @@ import {
   AnyDataSource,
   AnyFlatFileDataSource,
   LocalDB,
+  MotherDuckDB,
   PersistentDataSourceId,
   RemoteDB,
 } from '@models/data-source';
@@ -31,7 +32,7 @@ export function ensureFlatFileDataSource(
     obj = dataSourceOrId;
   }
 
-  if (obj.type === 'attached-db' || obj.type === 'remote-db') {
+  if (obj.type === 'attached-db' || obj.type === 'remote-db' || obj.type === 'motherduck') {
     throw new Error(`Data source with id ${obj.id} is not a flat file data source`);
   }
 
@@ -64,9 +65,9 @@ export function ensureLocalDBDataSource(
 }
 
 export function ensureDatabaseDataSource(
-  dataSourceOrId: LocalDB | RemoteDB | PersistentDataSourceId,
+  dataSourceOrId: LocalDB | RemoteDB | MotherDuckDB | PersistentDataSourceId,
   dataSources: Map<PersistentDataSourceId, AnyDataSource>,
-): LocalDB | RemoteDB {
+): LocalDB | RemoteDB | MotherDuckDB {
   let obj: AnyDataSource;
 
   if (typeof dataSourceOrId === 'string') {
@@ -81,11 +82,11 @@ export function ensureDatabaseDataSource(
     obj = dataSourceOrId;
   }
 
-  if (obj.type !== 'attached-db' && obj.type !== 'remote-db') {
+  if (obj.type !== 'attached-db' && obj.type !== 'remote-db' && obj.type !== 'motherduck') {
     throw new Error(`Data source with id ${obj.id} is not a database data source`);
   }
 
-  return obj as LocalDB | RemoteDB;
+  return obj as LocalDB | RemoteDB | MotherDuckDB;
 }
 
 export function addFlatFileDataSource(
@@ -188,6 +189,51 @@ export function isRemoteDatabase(dataSource: AnyDataSource): dataSource is Remot
 
 export function isLocalDatabase(dataSource: AnyDataSource): dataSource is LocalDB {
   return dataSource.type === 'attached-db';
+}
+
+export function isMotherDuckDatabase(dataSource: AnyDataSource): dataSource is MotherDuckDB {
+  return dataSource.type === 'motherduck';
+}
+
+export function addMotherDuckDB(
+  token: string,
+  database?: string,
+  comment?: string,
+): MotherDuckDB {
+  return {
+    id: makePersistentDataSourceId(),
+    type: 'motherduck',
+    token: token.trim(),
+    database: database?.trim() || undefined,
+    comment: comment?.trim() || undefined,
+    connectionState: 'connecting',
+    connectedAt: Date.now(),
+  };
+}
+
+export function ensureMotherDuckDataSource(
+  dataSourceOrId: MotherDuckDB | PersistentDataSourceId,
+  dataSources: Map<PersistentDataSourceId, AnyDataSource>,
+): MotherDuckDB {
+  let obj: AnyDataSource;
+
+  if (typeof dataSourceOrId === 'string') {
+    const fromState = dataSources.get(dataSourceOrId);
+
+    if (!fromState) {
+      throw new Error(`Data source with id ${dataSourceOrId} not found`);
+    }
+
+    obj = fromState;
+  } else {
+    obj = dataSourceOrId;
+  }
+
+  if (obj.type !== 'motherduck') {
+    throw new Error(`Data source with id ${obj.id} is not a MotherDuck data source`);
+  }
+
+  return obj;
 }
 
 export function getFlatFileDataSourceFromMap(

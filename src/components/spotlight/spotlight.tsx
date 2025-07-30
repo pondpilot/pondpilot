@@ -30,7 +30,7 @@ import {
   IconLayoutGridRemove,
   IconLayoutNavbarCollapse,
 } from '@tabler/icons-react';
-import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
+import { isLocalDatabase, isRemoteDatabase, isMotherDuckDatabase } from '@utils/data-source';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 import { setDataTestId } from '@utils/test-id';
@@ -186,6 +186,23 @@ export const SpotlightMenu = () => {
             },
           });
         });
+      });
+
+      continue;
+    }
+
+    if (isMotherDuckDatabase(dataSource)) {
+      // MotherDuck databases - show connection status and database name
+      dataSourceActions.push({
+        id: `open-data-source-${dataSource.id}`,
+        label: `MotherDuck: ${dataSource.database || 'Default'}`,
+        icon: <NamedIcon iconType="cloud" size={20} className={ICON_CLASSES} />,
+        handler: () => {
+          // For now, just show a notification that MotherDuck is connected
+          // TODO: Add proper tab creation for MotherDuck databases
+          Spotlight.close();
+          ensureHome();
+        },
       });
 
       continue;

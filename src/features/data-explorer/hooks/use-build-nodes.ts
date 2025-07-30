@@ -1,15 +1,17 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { LocalDB, RemoteDB } from '@models/data-source';
+import { LocalDB, RemoteDB, MotherDuckDB } from '@models/data-source';
 
 import { DataExplorerNodeMap } from '../model';
 import { useLocalDbNodes } from './use-local-db-nodes';
 import { useRemoteDbNodes } from './use-remote-db-nodes';
+import { useMotherDuckNodes } from './use-motherduck-nodes';
 import { useSystemDbNode } from './use-system-db-node';
 
 type UseBuildNodesProps = {
   systemDatabase: LocalDB | undefined;
   localDatabases: LocalDB[];
   remoteDatabases: RemoteDB[];
+  motherDuckDatabases: MotherDuckDB[];
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, any>;
   conn: AsyncDuckDBConnectionPool;
@@ -29,6 +31,7 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     systemDatabase,
     localDatabases,
     remoteDatabases,
+    motherDuckDatabases,
     nodeMap,
     anyNodeIdToNodeTypeMap,
     conn,
@@ -63,6 +66,17 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     flatFileSources,
   });
 
+  // Build MotherDuck database nodes
+  const motherDuckNodes = useMotherDuckNodes({
+    motherDuckDatabases,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    flatFileSources,
+  });
+
   // Build system database node
   const { systemDbNode, systemDbNodeForDisplay } = useSystemDbNode({
     systemDatabase,
@@ -79,6 +93,7 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
   return {
     localDbNodes,
     remoteDatabaseNodes,
+    motherDuckNodes,
     systemDbNode,
     systemDbNodeForDisplay,
   };

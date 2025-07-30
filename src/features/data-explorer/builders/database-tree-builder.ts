@@ -3,7 +3,7 @@ import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { LocalDB, RemoteDB } from '@models/data-source';
+import { LocalDB, RemoteDB, MotherDuckDB } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry } from '@models/file-system';
@@ -48,18 +48,20 @@ interface DatabaseTreeBuilderContext {
  * - Reconnection and disconnection capabilities
  * - Refresh metadata when connected
  *
- * @param dataSource - LocalDB or RemoteDB to build the node for
+ * @param dataSource - LocalDB, RemoteDB, or MotherDuckDB to build the node for
  * @param isSystemDb - Whether this is the system database (affects labeling and permissions)
  * @param context - Complete builder context with all necessary data and maps
  * @returns TreeNodeData configured as a complete database node with all children
  */
 export function buildDatabaseNode(
-  dataSource: LocalDB | RemoteDB,
+  dataSource: LocalDB | RemoteDB | MotherDuckDB,
   isSystemDb: boolean,
   context: DatabaseTreeBuilderContext,
 ): TreeNodeData<DataExplorerNodeTypeMap> {
-  const { id: dbId, dbName } = dataSource;
+  const { id: dbId } = dataSource;
+  const dbName = dataSource.type === 'motherduck' ? (dataSource.database || 'MotherDuck') : dataSource.dbName;
   const isRemoteDb = dataSource.type === 'remote-db';
+  const isMotherDuck = dataSource.type === 'motherduck';
   const {
     nodeMap,
     anyNodeIdToNodeTypeMap,
@@ -85,15 +87,18 @@ export function buildDatabaseNode(
     dbLabel = getLocalDBDataSourceName(dbName, localFile);
   }
 
-  // For remote databases, append connection state indicator
-  if (isRemoteDb) {
-    const remoteDb = dataSource as RemoteDB;
+  // For remote databases and MotherDuck, append connection state indicator
+  if (isRemoteDb || isMotherDuck) {
+    const connectionState = isMotherDuck 
+      ? (dataSource as MotherDuckDB).connectionState 
+      : (dataSource as RemoteDB).connectionState;
+    
     const stateIcon =
-      remoteDb.connectionState === 'connected'
+      connectionState === 'connected'
         ? '✓'
-        : remoteDb.connectionState === 'connecting'
+        : connectionState === 'connecting'
           ? '⟳'
-          : remoteDb.connectionState === 'error'
+          : connectionState === 'error'
             ? '⚠'
             : '✕';
     dbLabel = `${dbLabel} ${stateIcon}`;
@@ -129,8 +134,8 @@ export function buildDatabaseNode(
         });
       },
     },
-    // Only add Refresh for non-remote databases (remote databases have their own Refresh/Reconnect)
-    ...(isRemoteDb
+    // Only add Refresh for non-remote databases (remote databases and MotherDuck have their own Refresh/Reconnect)
+    ...(isRemoteDb || isMotherDuck
       ? []
       : [
           {
@@ -179,6 +184,28 @@ export function buildDatabaseNode(
       ]
     : [];
 
+  // Add MotherDuck-specific menu items
+  const motherDuckMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = isMotherDuck
+    ? [
+        {
+          label: 'Copy Database Name',
+          onClick: () => {
+            copyToClipboard((dataSource as MotherDuckDB).database || 'default', {
+              showNotification: true,
+              notificationTitle: 'Database Name Copied',
+            });
+          },
+        },
+        {
+          label: 'Refresh',
+          onClick: async () => {
+            // For now, just refresh metadata - we'll implement proper MotherDuck refresh later
+            await refreshDatabaseMetadata(conn, [dbName]);
+          },
+        },
+      ]
+    : [];
+
   const onDbRenameSubmit = (node: TreeNodeData<DataExplorerNodeTypeMap>, newName: string): void => {
     newName = newName.trim();
     const db = localDatabases.find((d) => d.id === node.value);
@@ -196,7 +223,7 @@ export function buildDatabaseNode(
     nodeType: 'db',
     value: dbId,
     label: dbLabel,
-    iconType: isSystemDb || dbName === PERSISTENT_DB_NAME ? 'duck' : 'db',
+    iconType: isSystemDb || dbName === PERSISTENT_DB_NAME ? 'duck' : isMotherDuck ? 'cloud' : 'db',
     isDisabled: false,
     isSelectable: true,
     renameCallbacks:
@@ -209,7 +236,7 @@ export function buildDatabaseNode(
           }
         : undefined,
     onDelete:
-      !isSystemDb && (isRemoteDb || localFile?.userAdded)
+      !isSystemDb && (isRemoteDb || isMotherDuck || localFile?.userAdded)
         ? (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
             if (node.nodeType === 'db') {
               deleteDataSources(conn, [node.value]);
@@ -218,7 +245,7 @@ export function buildDatabaseNode(
         : undefined,
     contextMenu: [
       {
-        children: [...baseContextMenuItems, ...remoteMenuItems],
+        children: [...baseContextMenuItems, ...remoteMenuItems, ...motherDuckMenuItems],
       },
     ],
     children: sortedSchemas?.map((schema) =>

@@ -201,6 +201,10 @@ export function useDataSourceObjectSchema(
         dbName = PERSISTENT_DB_NAME;
         schemaName = 'main';
         objectName = dataSource.viewName;
+      } else if (dataSource.type === 'motherduck') {
+        // MotherDuck databases don't have a dbName property
+        // For now, return empty schema as metadata loading isn't implemented yet
+        return [];
       } else {
         dbName = dataSource.dbName;
 

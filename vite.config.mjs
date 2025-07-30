@@ -24,6 +24,12 @@ export default defineConfig(({ mode }) => {
       __INTEGRATION_TEST__: mode === 'int-test-build',
       __VERSION__: JSON.stringify(getVersionInfo()),
     },
+    server: {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
+    },
     plugins: [
       react(),
       tsconfigPaths(),

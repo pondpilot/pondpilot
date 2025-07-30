@@ -138,7 +138,60 @@ export interface RemoteDB {
   comment?: string;
 }
 
-export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB;
+/**
+ * MotherDuck cloud database connection
+ * Uses MotherDuck's WASM client for direct browser-to-cloud access
+ */
+export interface MotherDuckDB {
+  readonly type: 'motherduck';
+
+  /**
+   * Unique identifier for the MotherDuck connection
+   */
+  id: PersistentDataSourceId;
+
+  /**
+   * MotherDuck access token (starts with 'md_')
+   */
+  token: string;
+
+  /**
+   * Optional specific database name within MotherDuck
+   */
+  database?: string;
+
+  /**
+   * Optional schema selection
+   */
+  schema?: string;
+
+  /**
+   * Connection state management
+   */
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting';
+
+  /**
+   * Error message if connection failed
+   */
+  connectionError?: string;
+
+  /**
+   * Timestamp of when this connection was established
+   */
+  connectedAt?: number;
+
+  /**
+   * Optional comment/description
+   */
+  comment?: string;
+
+  /**
+   * MotherDuck organization name (if applicable)
+   */
+  organizationName?: string;
+}
+
+export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB | MotherDuckDB;
 
 // Special constant for the system database
 export const SYSTEM_DATABASE_ID = 'pondpilot-system-db' as PersistentDataSourceId;

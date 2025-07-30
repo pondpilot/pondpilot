@@ -5,6 +5,7 @@ import {
   AnyFlatFileDataSource,
   LocalDB,
   RemoteDB,
+  MotherDuckDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
 } from '@models/data-source';
@@ -165,6 +166,59 @@ function getDatabaseDataAdapterApi(
   };
 }
 
+// MotherDuck-specific data adapter that uses the MotherDuck connection manager
+function getMotherDuckDataAdapterApi(
+  dataSource: MotherDuckDB,
+  tab: TabReactiveState<LocalDBDataTab>,
+): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
+  return {
+    adapter: {
+      getEstimatedRowCount: undefined, // MotherDuck doesn't support estimated row count queries
+      getSortableReader: async (sort, abortSignal) => {
+        try {
+          const { motherDuckConnectionManager } = await import('@utils/motherduck-connection');
+          const connection = await motherDuckConnectionManager.getConnection(dataSource);
+          
+          const schemaName = tab.schemaName;
+          const tableName = tab.objectName;
+          const fqn = dataSource.database 
+            ? `${dataSource.database}.${schemaName}.${tableName}`
+            : `${schemaName}.${tableName}`;
+          
+          let baseQuery = `SELECT * FROM ${fqn}`;
+          
+          if (sort && sort.length > 0) {
+            const orderBy = sort
+              .map((sortSpec) => `${sortSpec.column} ${sortSpec.order === 'desc' ? 'DESC' : 'ASC'}`)
+              .join(', ');
+            baseQuery += ` ORDER BY ${orderBy}`;
+          }
+          
+          const result = await connection.evaluateQuery(baseQuery);
+          
+          // Convert MotherDuck result to Arrow table format expected by PondPilot
+          // For now, we'll need to simulate the expected interface
+          // TODO: Implement proper Arrow table conversion from MotherDuck results
+          throw new Error('MotherDuck query execution not fully implemented yet');
+          
+        } catch (error) {
+          throw new Error(`MotherDuck query failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      },
+      getColumnAggregate: async (column, aggregateType, abortSignal) => {
+        // TODO: Implement MotherDuck column aggregation
+        throw new Error('MotherDuck column aggregation not implemented yet');
+      },
+      getColumnsData: async (columns, abortSignal) => {
+        // TODO: Implement MotherDuck column data retrieval
+        throw new Error('MotherDuck column data retrieval not implemented yet');
+      },
+    },
+    userErrors: [],
+    internalErrors: [],
+  };
+}
+
 export function getFileDataAdapterQueries({
   pool,
   dataSource,
@@ -234,6 +288,30 @@ export function getFileDataAdapterQueries({
 
     // Remote databases use the same logic as local databases
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
+  }
+
+  if (dataSource.type === 'motherduck') {
+    if (tab.dataSourceType !== 'db') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: [
+          `Tried creating a MotherDuck data adapter from a tab with different source type: ${tab.dataSourceType}`,
+        ],
+      };
+    }
+
+    // Check connection state
+    if (dataSource.connectionState !== 'connected') {
+      return {
+        adapter: null,
+        userErrors: [`MotherDuck database '${dataSource.database || 'Default'}' is not connected`],
+        internalErrors: [],
+      };
+    }
+
+    // Use MotherDuck-specific data adapter
+    return getMotherDuckDataAdapterApi(dataSource, tab);
   }
 
   if (

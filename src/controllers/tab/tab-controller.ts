@@ -5,6 +5,7 @@ import {
   LocalDB,
   PersistentDataSourceId,
   RemoteDB,
+  MotherDuckDB,
 } from '@models/data-source';
 import { ColumnSortSpecList } from '@models/db';
 import { LocalEntryId } from '@models/file-system';
@@ -122,7 +123,7 @@ export const getOrCreateSchemaBrowserTab = (options: {
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const getOrCreateTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | RemoteDB | PersistentDataSourceId,
+  dataSourceOrId: LocalDB | RemoteDB | MotherDuckDB | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
   objectType: 'table' | 'view',
@@ -367,7 +368,7 @@ export const findSchemaBrowserTab = (
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const findTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | PersistentDataSourceId,
+  dataSourceOrId: LocalDB | RemoteDB | MotherDuckDB | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
 ): LocalDBDataTab | undefined => {

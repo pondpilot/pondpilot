@@ -439,7 +439,7 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
   // Map file IDs to data source IDs
   const fileIdToDataSourceIds = new Map<LocalEntryId, PersistentDataSourceId[]>();
   for (const [dataSourceId, dataSource] of dataSources) {
-    if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+    if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db' || dataSource.type === 'motherduck') {
       continue;
     }
     const fileId = dataSource.fileSourceId;
@@ -621,6 +621,7 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
       if (
         dataSource.type !== 'attached-db' &&
         dataSource.type !== 'remote-db' &&
+        dataSource.type !== 'motherduck' &&
         localFileIdsToDelete.has(dataSource.fileSourceId)
       ) {
         dataSourceIdsToDelete.add(dataSourceId);

@@ -1,11 +1,12 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Group, Stack, Title, ActionIcon, Text, Divider } from '@mantine/core';
-import { IconDatabasePlus, IconFilePlus, IconFolderPlus, IconX } from '@tabler/icons-react';
+import { IconDatabasePlus, IconFilePlus, IconFolderPlus, IconX, IconCloud } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
+import { MotherDuckConfig } from './components/motherduck-config';
 
 interface DatasourceWizardModalProps {
   onClose: () => void;
@@ -15,7 +16,7 @@ interface DatasourceWizardModalProps {
   initialStep?: WizardStep;
 }
 
-export type WizardStep = 'selection' | 'remote-config';
+export type WizardStep = 'selection' | 'remote-config' | 'motherduck-config';
 
 export function DatasourceWizardModal({
   onClose,
@@ -28,6 +29,10 @@ export function DatasourceWizardModal({
 
   const handleRemoteDatabaseClick = () => {
     setStep('remote-config');
+  };
+
+  const handleMotherDuckClick = () => {
+    setStep('motherduck-config');
   };
 
   const handleBack = () => {
@@ -86,6 +91,20 @@ export function DatasourceWizardModal({
       description: 'S3, GCS, Azure, HTTPS',
       testId: 'add-remote-database-card',
     },
+    {
+      type: 'motherduck' as const,
+      onClick: handleMotherDuckClick,
+      icon: (
+        <IconCloud
+          size={48}
+          className="text-textSecondary-light dark:text-textSecondary-dark"
+          stroke={1.5}
+        />
+      ),
+      title: 'MotherDuck',
+      description: 'Cloud DuckDB service',
+      testId: 'add-motherduck-card',
+    },
   ];
 
   return (
@@ -105,7 +124,9 @@ export function DatasourceWizardModal({
               ADD DATA SOURCE
             </Text>
             <Text size="xs">/</Text>
-            <Text size="xs">REMOTE DATABASE</Text>
+            <Text size="xs">
+              {step === 'remote-config' ? 'REMOTE DATABASE' : 'MOTHERDUCK'}
+            </Text>
           </Group>
         )}
 
@@ -150,6 +171,10 @@ export function DatasourceWizardModal({
 
       {step === 'remote-config' && (
         <RemoteDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+
+      {step === 'motherduck-config' && (
+        <MotherDuckConfig onBack={handleBack} onClose={onClose} />
       )}
     </Stack>
   );

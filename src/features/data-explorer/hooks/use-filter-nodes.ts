@@ -9,6 +9,7 @@ type UseFilterNodesProps = {
   fileSystemNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   localDbNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   remoteDatabaseNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
+  motherDuckNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   activeFilter: DataExplorerFilterType;
   fileTypeFilter: FileTypeFilter;
   searchQuery: string;
@@ -19,6 +20,7 @@ export const useFilterNodes = ({
   fileSystemNodes,
   localDbNodes,
   remoteDatabaseNodes,
+  motherDuckNodes,
   activeFilter,
   fileTypeFilter,
   searchQuery,
@@ -46,6 +48,7 @@ export const useFilterNodes = ({
     const showFileSystem = showAll || activeFilter === 'files';
     const showLocalDbs = showAll || activeFilter === 'databases';
     const showRemoteDbs = showAll || activeFilter === 'remote';
+    const showMotherDuckDbs = showAll || activeFilter === 'motherduck';
 
     // Create a new expanded state for search
     const expandedState: Record<string, boolean> = {};
@@ -75,15 +78,28 @@ export const useFilterNodes = ({
         )
       : remoteDatabaseNodes;
 
+    const filteredMotherDuckNodes = searchQuery
+      ? filterTreeNodes(
+          motherDuckNodes,
+          'all',
+          undefined,
+          undefined,
+          searchQuery,
+          expandedState,
+        )
+      : motherDuckNodes;
+
     return {
       filteredSections: {
         showSystemDb,
         showFileSystem,
         showLocalDbs,
         showRemoteDbs,
+        showMotherDuckDbs,
         filteredFileSystemNodes,
         filteredLocalDbNodes,
         filteredRemoteDbNodes,
+        filteredMotherDuckNodes,
       },
       searchExpandedState: searchQuery ? expandedState : {},
     };
@@ -95,6 +111,7 @@ export const useFilterNodes = ({
     searchQuery,
     localDbNodes,
     remoteDatabaseNodes,
+    motherDuckNodes,
   ]);
 
   return { filteredSections, searchExpandedState };

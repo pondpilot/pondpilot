@@ -24,7 +24,7 @@ export const renameFile = async (
 
   // Check if the data source exists
   const dataSource = dataSources.get(fileDataSourceId);
-  if (!dataSource || dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+  if (!dataSource || dataSource.type === 'attached-db' || dataSource.type === 'remote-db' || dataSource.type === 'motherduck') {
     throw new Error(`File source ${fileDataSourceId} not found`);
   }
 
@@ -139,7 +139,7 @@ export const renameXlsxFile = async (
   // Get all data sources that are associated with this file
   const curDataSources = [...dataSources.values()].filter(
     (ds) =>
-      ds.type !== 'attached-db' && ds.type !== 'remote-db' && ds.fileSourceId === localEntryId,
+      ds.type !== 'attached-db' && ds.type !== 'remote-db' && ds.type !== 'motherduck' && ds.fileSourceId === localEntryId,
   );
 
   for (const dataSource of curDataSources) {
