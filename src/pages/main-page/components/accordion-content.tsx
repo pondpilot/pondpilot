@@ -85,7 +85,19 @@ export const AccordionContent = () => {
           setDataExplorerHeight(null);
         }
       } else if (section === 'queries' && !newState.queries) {
-        // Collapsing the queries section
+        // Collapsing the queries section - expand DataExplorer to fill the space
+        if (containerRef.current && dataExplorerHeight) {
+          const containerHeight = containerRef.current.clientHeight;
+          const collapsedQueriesHeight = 36; // px - only header when collapsed
+          // DataExplorer should take all space except collapsed Queries
+          const finalHeight = Math.max(100, containerHeight - collapsedQueriesHeight);
+          setDataExplorerHeight(finalHeight);
+          // No setTimeout - keep the fixed height to avoid jump
+        } else {
+          setDataExplorerHeight(null);
+        }
+      } else if (section === 'dataExplorer' && !newState.dataExplorer) {
+        // Collapsing the data explorer section - reset height immediately since it's not visible
         setDataExplorerHeight(null);
       }
 
@@ -123,7 +135,8 @@ export const AccordionContent = () => {
       const mouseDelta = e.clientY - startY;
       const newHeight = initialHeight + mouseDelta;
       const minHeight = 100;
-      const maxHeight = containerRect.height - 36 - 36; // headers only (no footer in accordion)
+      // Reserve minimum space for Queries section (100px + 36px header = 136px)
+      const maxHeight = containerRect.height - 36 - 36 - 136; // headers + min queries space
 
       setDataExplorerHeight(Math.max(minHeight, Math.min(maxHeight, newHeight)));
     },
@@ -151,24 +164,31 @@ export const AccordionContent = () => {
     }
   }, [isResizing, handleMouseMove, handleMouseUp]);
 
+  // Reset dataExplorerHeight only when DataExplorer is closed
+  useEffect(() => {
+    if (!sectionStates.dataExplorer && dataExplorerHeight) {
+      setDataExplorerHeight(null);
+    }
+  }, [sectionStates.dataExplorer, dataExplorerHeight]);
+
   return (
     <Stack className="h-full" gap={0} ref={containerRef}>
       {/* Data Explorer Section */}
       <Box
         className={cn(
           'border-b border-borderPrimary-light dark:border-borderPrimary-dark flex flex-col overflow-hidden',
-          // Only apply transitions when not resizing
-          !isResizing && 'transition-all duration-300',
+          // Only apply transitions when not resizing - use specific properties
+          !isResizing && 'transition-[flex-basis,min-height] duration-300 ease-out',
         )}
         style={{
           flex: sectionStates.dataExplorer
-            ? dataExplorerHeight && bothExpanded
+            ? dataExplorerHeight
               ? `0 0 ${dataExplorerHeight}px`
               : '1 1 auto'
             : '0 0 36px',
           minHeight: sectionStates.dataExplorer ? 100 : 36,
           // Ensure smooth transitions
-          transitionProperty: isResizing ? 'none' : 'flex, min-height',
+          transitionProperty: isResizing ? 'none' : 'flex-basis, min-height',
         }}
       >
         <Group
@@ -242,7 +262,8 @@ export const AccordionContent = () => {
               const currentHeight = dataExplorerHeight || 200;
               if (containerRef.current) {
                 const containerRect = containerRef.current.getBoundingClientRect();
-                const maxHeight = containerRect.height - 36 - 36;
+                // Reserve minimum space for Queries section (100px + 36px header = 136px)
+                const maxHeight = containerRect.height - 36 - 36 - 136;
                 setDataExplorerHeight(Math.min(maxHeight, currentHeight + 10));
               }
             }
@@ -257,8 +278,8 @@ export const AccordionContent = () => {
       <Box
         className={cn(
           'flex flex-col overflow-hidden',
-          // Only apply transitions when not resizing and both panels aren't changing
-          !isResizing && !bothExpanded && 'transition-all duration-300',
+          // Apply transitions when not resizing - use specific properties
+          !isResizing && 'transition-[flex-basis,min-height] duration-300 ease-out',
           // Only add border when collapsed AND data explorer is also collapsed
           !sectionStates.queries &&
             !sectionStates.dataExplorer &&
@@ -267,8 +288,8 @@ export const AccordionContent = () => {
         style={{
           flex: sectionStates.queries ? '1 1 auto' : '0 0 36px',
           minHeight: sectionStates.queries ? 100 : 36,
-          // Ensure smooth transitions
-          transitionProperty: isResizing || bothExpanded ? 'none' : 'flex, min-height',
+          // Ensure smooth transitions (disable only during active resizing)
+          transitionProperty: isResizing ? 'none' : 'flex-basis, min-height',
         }}
       >
         <Group
@@ -312,6 +333,7 @@ export const AccordionContent = () => {
           style={{
             opacity: sectionStates.queries ? 1 : 0,
             transition: 'opacity 200ms',
+            maxHeight: sectionStates.queries ? 'calc(100% - 36px)' : undefined, // Subtract header height
           }}
         >
           {appReady ? (
