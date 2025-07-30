@@ -58,10 +58,11 @@ export class DatabaseEngineFactory {
   static detectOptimalEngine(): EngineConfig {
     // Detect the best engine based on the environment
     if (this.isTauriEnvironment()) {
+      // Use native DuckDB through Tauri IPC
       return {
         type: 'duckdb-tauri',
         storageType: 'persistent',
-        extensions: ['httpfs', 'postgres_scanner'],
+        extensions: ['httpfs'],
       };
     }
 

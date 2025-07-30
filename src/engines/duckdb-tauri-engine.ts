@@ -16,19 +16,23 @@ import {
   ExtensionOptions,
   ExtensionInfo,
 } from './types';
+import { TauriConnectionPool } from './tauri-connection-pool';
 
 /**
  * DuckDB Tauri Engine for Tauri desktop applications
- * This is a stub implementation that would communicate with Rust backend via IPC
+ * Communicates with Rust backend via IPC for native performance
  */
 export class DuckDBTauriEngine implements DatabaseEngine {
-  private invoke: any; // Tauri invoke function
+  private invoke: any = null;
+  private listen: any = null;
   private ready = false;
+  private connectionPool: TauriConnectionPool | null = null;
 
   async initialize(config: EngineConfig): Promise<void> {
     try {
       const tauriApi = await import('@tauri-apps/api' as any);
       this.invoke = tauriApi.invoke;
+      this.listen = tauriApi.listen;
 
       // Initialize DuckDB in Rust backend
       await this.invoke('initialize_duckdb', { config });
@@ -42,6 +46,9 @@ export class DuckDBTauriEngine implements DatabaseEngine {
   }
 
   async shutdown(): Promise<void> {
+    if (this.connectionPool) {
+      await this.connectionPool.close();
+    }
     if (this.invoke) {
       await this.invoke('shutdown_duckdb');
     }
@@ -53,11 +60,22 @@ export class DuckDBTauriEngine implements DatabaseEngine {
   }
 
   async createConnection(): Promise<DatabaseConnection> {
-    throw new Error('DuckDB Tauri Engine not yet implemented');
+    if (!this.invoke) {
+      throw new Error('Engine not initialized');
+    }
+    
+    const connId = await this.invoke('create_connection');
+    const { TauriConnection } = await import('./tauri-connection');
+    return new TauriConnection(this.invoke, connId);
   }
 
-  async createConnectionPool(_size: number): Promise<ConnectionPool> {
-    throw new Error('DuckDB Tauri Engine not yet implemented');
+  async createConnectionPool(size: number): Promise<ConnectionPool> {
+    if (!this.invoke) {
+      throw new Error('Engine not initialized');
+    }
+    
+    this.connectionPool = new TauriConnectionPool(this.invoke, size);
+    return this.connectionPool;
   }
 
   async registerFile(options: FileRegistration): Promise<void> {
@@ -77,13 +95,55 @@ export class DuckDBTauriEngine implements DatabaseEngine {
     return result;
   }
 
-  async* stream(_sql: string, _params?: any[]): AsyncGenerator<any> {
-    yield;
-    throw new Error('DuckDB Tauri Engine streaming not yet implemented');
+  async* stream(sql: string, params?: any[]): AsyncGenerator<any> {
+    const streamId = crypto.randomUUID();
+    const buffer: any[] = [];
+    let done = false;
+    
+    // Set up listener first
+    const unlisten = await this.listen(`stream-${streamId}`, (event: any) => {
+      buffer.push(event.payload);
+    });
+    
+    const unlistenEnd = await this.listen(`stream-${streamId}-end`, () => {
+      done = true;
+    });
+    
+    // Start streaming
+    await this.invoke('stream_query', { streamId, sql, params: params || [] });
+    
+    // Yield results as they come
+    try {
+      while (!done || buffer.length > 0) {
+        if (buffer.length > 0) {
+          yield buffer.shift();
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      }
+    } finally {
+      unlisten();
+      unlistenEnd();
+    }
   }
 
-  async prepare(_sql: string): Promise<PreparedStatement> {
-    throw new Error('DuckDB Tauri Engine not yet implemented');
+  async prepare(sql: string): Promise<PreparedStatement> {
+    const stmtId = await this.invoke('prepare_statement', { sql });
+    
+    return {
+      id: stmtId,
+      query: async (params?: any[]) => {
+        return this.invoke('prepared_statement_execute', {
+          statementId: stmtId,
+          params: params || [],
+        });
+      },
+      close: async () => {
+        await this.invoke('prepared_statement_close', {
+          statementId: stmtId,
+        });
+      },
+    };
   }
 
   async getCatalog(): Promise<CatalogInfo> {

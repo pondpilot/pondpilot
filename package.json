@@ -34,7 +34,10 @@
     "lint:stylelint": "stylelint '**/*.css' --cache",
     "lint:stylelint:fix": "stylelint '**/*.css' --cache --fix",
     "prettier": "prettier --check \"**/*.{ts,tsx}\"",
-    "prettier:write": "prettier --write \"**/*.{ts,tsx}\""
+    "prettier:write": "prettier --write \"**/*.{ts,tsx}\"",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@codemirror/lang-sql": "^6.8.0",
@@ -80,6 +83,8 @@
   "devDependencies": {
     "@playwright/test": "^1.51.0",
     "@tanstack/eslint-plugin-query": "^5.68.0",
+    "@tauri-apps/api": "^1.6.0",
+    "@tauri-apps/cli": "^1.6.0",
     "@types/dagre": "^0.7.52",
     "@types/node": "^22.13.9",
     "@types/react": "^19.0.0",

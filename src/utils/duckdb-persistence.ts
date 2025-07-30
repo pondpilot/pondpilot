@@ -47,6 +47,11 @@ export function downloadDatabaseFile(data: ArrayBuffer, fileName: string): void 
  * Check if persistence is supported in the current browser
  */
 export function isPersistenceSupported(): boolean {
+  // In Tauri, persistence is handled differently
+  if (typeof window !== 'undefined' && '__TAURI__' in window) {
+    return true;
+  }
+
   return (
     'navigator' in window &&
     'storage' in navigator &&

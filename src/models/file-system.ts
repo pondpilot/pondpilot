@@ -113,6 +113,11 @@ type LocalFileBase = {
    * multiple files with the same name in our single duckdb instance.
    */
   uniqueAlias: string;
+
+  /**
+   * File system path for Tauri applications
+   */
+  filePath?: string;
 };
 
 /**
@@ -182,6 +187,11 @@ export type LocalFolder = {
    * multiple top level folders with the same name
    */
   uniqueAlias: string;
+
+  /**
+   * File system path for Tauri applications
+   */
+  directoryPath?: string;
 };
 
 /**
