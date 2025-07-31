@@ -56,7 +56,7 @@ export function isPersistenceSupported(): boolean {
     'navigator' in window &&
     'storage' in navigator &&
     'getDirectory' in navigator.storage &&
-    typeof window.FileSystemDirectoryHandle !== 'undefined'
+    'FileSystemDirectoryHandle' in window
   );
 }
 

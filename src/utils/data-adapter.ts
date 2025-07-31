@@ -71,7 +71,8 @@ function getFlatFileDataAdapterQueries(
   dataSource: AnyFlatFileDataSource,
   sourceFile: LocalFile,
 ): DataAdapterQueries {
-  const fqn = `main.${toDuckDBIdentifier(dataSource.viewName)}`;
+  // Don't use database prefix - views are created in the default database
+  const fqn = toDuckDBIdentifier(dataSource.viewName);
 
   const baseAttrs: Partial<DataAdapterQueries> = {
     getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn),

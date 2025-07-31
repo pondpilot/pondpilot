@@ -52,6 +52,8 @@ import {
 import { findUniqueName } from '@utils/helpers';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
+import { PersistenceAdapter, createPersistenceAdapter } from './persistence';
+import { isTauriEnvironment } from '@utils/browser';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
@@ -743,7 +745,9 @@ export const restoreAppDataFromIDB = async (
   }
 
   // Read database meta data
+  console.log('[restore] Getting database metadata...');
   const databaseMetadata = await getDatabaseModel(conn);
+  console.log('[restore] Database metadata:', databaseMetadata);
 
   // Always add the PondPilot system database to dataSources
   // This ensures it's visible even when empty on fresh start

@@ -1,8 +1,8 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { v4 as uuidv4 } from 'uuid';
 
 import { DuckDBWasmConnection } from './duckdb-wasm-connection';
-import { DuckDBWasmConnectionPool } from './duckdb-wasm-connection-pool';
 import {
   DatabaseEngine,
   DatabaseConnection,
@@ -112,9 +112,12 @@ export class DuckDBWasmEngine implements DatabaseEngine {
   }
 
   async createConnectionPool(size: number): Promise<ConnectionPool> {
-    const pool = new DuckDBWasmConnectionPool(this, size);
-    await pool.initialize();
-    return pool;
+    // For web, return the native AsyncDuckDBConnectionPool
+    // that is fully compatible with DuckDB WASM
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+    return new AsyncDuckDBConnectionPool(this.db, size) as any;
   }
 
   async registerFile(options: FileRegistration): Promise<void> {
@@ -172,7 +175,7 @@ export class DuckDBWasmEngine implements DatabaseEngine {
     }
   }
 
-  async* stream(sql: string, params?: any[]): AsyncGenerator<any> {
+  async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
     const conn = await this.createConnection();
     try {
       yield* conn.stream(sql, params);

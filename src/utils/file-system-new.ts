@@ -3,18 +3,18 @@
  * This file provides compatibility adapters for the existing API
  */
 
-import { getFilePicker } from '../services/file-picker';
 import {
   CodeFileExt,
   codeFileExts,
   SUPPORTED_DATA_SOURCE_FILE_EXTS,
-  LocalEntry,
   LocalEntryId,
   LocalFile,
   LocalFolder,
   supportedDataSourceFileExt,
 } from '@models/file-system';
+
 import { makeIdFactory } from './new-id';
+import { getFilePicker } from '../services/file-picker';
 
 export const makeLocalEntryId = makeIdFactory<LocalEntryId>();
 
@@ -93,7 +93,9 @@ function createLocalFolderFromPicked(
     userAdded,
     uniqueAlias: getUniqueAlias(pickedDirectory.name),
     // Create mock handle for Tauri directories if needed
-    handle: pickedDirectory.handle || createMockDirectoryHandleFromPath(pickedDirectory.name, pickedDirectory.path),
+    handle:
+      pickedDirectory.handle ||
+      createMockDirectoryHandleFromPath(pickedDirectory.name, pickedDirectory.path),
     // Store the directory path for Tauri
     directoryPath: pickedDirectory.path,
   };
@@ -108,7 +110,7 @@ export const pickFiles = async (
   allowMultiple: boolean = true,
 ): Promise<{ handles: FileSystemFileHandle[]; error: string | null }> => {
   const filePicker = getFilePicker();
-  
+
   const result = await filePicker.pickFiles({
     accept,
     description,
@@ -131,11 +133,11 @@ export const pickFiles = async (
 
   // For web implementation, return the handles directly
   // For Tauri, we'll create mock handles that can be used with the existing system
-  const handles: FileSystemFileHandle[] = result.files.map(file => {
+  const handles: FileSystemFileHandle[] = result.files.map((file) => {
     if (file.handle) {
       return file.handle;
     }
-    
+
     // Create a mock handle for Tauri files
     return createMockFileHandle(file);
   });
@@ -154,7 +156,7 @@ export const pickFolder = async (): Promise<{
   error: string | null;
 }> => {
   const filePicker = getFilePicker();
-  
+
   const result = await filePicker.pickDirectory();
 
   if (result.error) {
@@ -203,7 +205,12 @@ function createMockDirectoryHandleFromPath(name: string, path?: string): FileSys
 /**
  * Create a mock FileSystemFileHandle for Tauri files
  */
-function createMockFileHandle(pickedFile: { name: string; path?: string; file?: File; lastModified?: number }): FileSystemFileHandle {
+function createMockFileHandle(pickedFile: {
+  name: string;
+  path?: string;
+  file?: File;
+  lastModified?: number;
+}): FileSystemFileHandle {
   return {
     kind: 'file',
     name: pickedFile.name,
@@ -211,15 +218,15 @@ function createMockFileHandle(pickedFile: { name: string; path?: string; file?: 
       if (pickedFile.file) {
         return pickedFile.file;
       }
-      
+
       // For Tauri, we need to read the file using Tauri APIs
       if (!pickedFile.path) {
         throw new Error('File path not available');
       }
-      
+
       const fs = await import('@tauri-apps/api/fs');
       const contents = await fs.readBinaryFile(pickedFile.path);
-      
+
       return new File([contents], pickedFile.name, {
         lastModified: pickedFile.lastModified || Date.now(),
       });
@@ -234,21 +241,19 @@ function createMockFileHandle(pickedFile: { name: string; path?: string; file?: 
 /**
  * Create a mock FileSystemDirectoryHandle for Tauri directories
  */
-function createMockDirectoryHandle(pickedDirectory: { name: string; path?: string }): FileSystemDirectoryHandle {
+function createMockDirectoryHandle(pickedDirectory: {
+  name: string;
+  path?: string;
+}): FileSystemDirectoryHandle {
   return {
     kind: 'directory',
     name: pickedDirectory.name,
-    entries: async function* () {
+    async *entries() {
       // This would need to be implemented to read directory contents using Tauri APIs
       // For now, return empty iterator
-      return;
     },
-    keys: async function* () {
-      return;
-    },
-    values: async function* () {
-      return;
-    },
+    async *keys() {},
+    async *values() {},
     getDirectoryHandle: async (name: string) => {
       throw new Error('Not implemented for Tauri mock handle');
     },

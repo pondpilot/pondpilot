@@ -45,10 +45,12 @@ export const useDataExplorerData = () => {
   );
 
   // Get all file view names from flat file sources for identification
-  const fileViewNames = useMemo(
-    () => new Set(flatFileSourcesValues.map((source) => source.viewName)),
-    [flatFileSourcesValues],
-  );
+  const fileViewNames = useMemo(() => {
+    const viewNames = new Set(flatFileSourcesValues.map((source) => source.viewName));
+    console.log('[use-data-explorer-data] fileViewNames:', Array.from(viewNames));
+    console.log('[use-data-explorer-data] flatFileSourcesValues:', flatFileSourcesValues);
+    return viewNames;
+  }, [flatFileSourcesValues]);
 
   // These are the node state maps that get passed as extra data to the explorer tree
   const nodeMap: DataExplorerNodeMap = new Map();
