@@ -13,6 +13,7 @@ import {
   PasswordInput,
   Select,
   Skeleton,
+  Slider,
   Switch,
   Text,
   TextInput,
@@ -606,6 +607,11 @@ export const theme = createTheme({
           content: 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark rounded-2xl',
           header: 'p-4 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
         },
+      },
+    }),
+    Slider: Slider.extend({
+      defaultProps: {
+        color: 'background-accent',
       },
     }),
   },

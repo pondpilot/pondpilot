@@ -1,4 +1,6 @@
+import { showError, showWarning } from '@components/app-notifications';
 import { NamedIcon } from '@components/named-icon';
+import { formatAndApplySQLScript } from '@controllers/sql-formatter';
 import { createSQLScript } from '@controllers/sql-script';
 import {
   getOrCreateTabFromLocalDBObject,
@@ -282,6 +284,50 @@ export const SpotlightMenu = () => {
       handler: () => {
         openImportScriptModal();
         resetSpotlight();
+      },
+    },
+    {
+      id: 'format-sql',
+      label: 'Format SQL',
+      icon: <IconCode size={20} className={ICON_CLASSES} />,
+      hotkey: [control, 'Shift', 'F'],
+      handler: () => {
+        // Get the active tab and check if it's a script tab
+        const { activeTabId, tabs, sqlScripts: scripts } = useAppStore.getState();
+        if (!activeTabId) {
+          showError({
+            title: 'No active tab',
+            message: '',
+            autoClose: 2000,
+          });
+          Spotlight.close();
+          return;
+        }
+
+        const activeTab = tabs.get(activeTabId);
+        if (!activeTab || activeTab.type !== 'script') {
+          showWarning({
+            title: 'Format SQL is only available in SQL script tabs',
+            message: '',
+            autoClose: 3000,
+          });
+          Spotlight.close();
+          return;
+        }
+
+        const sqlScript = scripts.get(activeTab.sqlScriptId);
+        if (!sqlScript) {
+          showError({
+            title: 'No SQL script found',
+            message: '',
+            autoClose: 2000,
+          });
+          Spotlight.close();
+          return;
+        }
+
+        formatAndApplySQLScript(sqlScript);
+        Spotlight.close();
       },
     },
   ];
