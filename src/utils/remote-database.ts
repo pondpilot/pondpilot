@@ -5,6 +5,7 @@
  */
 
 import { showError, showWarning, showSuccess } from '@components/app-notifications';
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { deleteTab } from '@controllers/tab';
 import { RemoteDB, PersistentDataSourceId } from '@models/data-source';
 import { TabId } from '@models/tab';
@@ -112,7 +113,7 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
 
     // Load metadata for the reconnected database
     try {
-      const { getDatabaseModel } = await import('@controllers/db/duckdb-meta');
+      // Load metadata for the reconnected database
       const remoteMetadata = await getDatabaseModel(pool, [remoteDb.dbName]);
 
       // Merge with existing metadata

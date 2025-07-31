@@ -16,7 +16,7 @@ on:
 jobs:
   validate-version:
     runs-on: ubuntu-latest
-    steps:      
+    steps:
       - name: Validate semantic version
         run: |
           if ! [[ "${{ github.event.inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -48,7 +48,7 @@ jobs:
             echo "Version ${version} is not strictly greater than the current version ${cur_version}"
             exit 1
           fi
-      
+
   release:
     needs: validate-version
     runs-on: ubuntu-latest
@@ -65,7 +65,7 @@ jobs:
           script: |
             const version = context.payload.inputs.version;
             const dryRun = context.payload.inputs.dry_run;
-            
+
             console.log(`Processing version: ${version}, dry-run: ${dryRun}`);
 
             const releases = await github.rest.repos.listReleases({
@@ -113,7 +113,7 @@ jobs:
           echo "Bumping version in package.json to ${version}"
           jq ".version = \"${version}\"" package.json > package.json.tmp
           mv package.json.tmp package.json
-      
+
       - name: Commit changes
         run: |
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
@@ -121,7 +121,7 @@ jobs:
               git --no-pager diff
               exit 0
           fi
-          
+
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add CHANGELOG.md package.json
@@ -145,7 +145,7 @@ jobs:
                 core.info(`Tag name would be: ${{ steps.get_draft.outputs.tag_name }}`);
                 return;
             }
-            
+
             const result = await github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,

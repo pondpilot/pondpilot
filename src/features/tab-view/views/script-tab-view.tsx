@@ -1,7 +1,8 @@
-import { showError, showErrorWithAction } from '@components/app-notifications';
+import { showError, showErrorWithAction, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources, persistDeleteDataSource } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
+import { updateSQLScriptContent } from '@controllers/sql-script';
 import {
   updateScriptTabLastExecutedQuery,
   updateScriptTabLayout,
@@ -11,6 +12,7 @@ import {
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
+import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import { RemoteDB } from '@models/data-source';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
@@ -24,6 +26,7 @@ import {
   SQLStatement,
   SQLStatementType,
 } from '@utils/editor/sql';
+import { formatSQLSafe } from '@utils/sql-formatter';
 import { Allotment } from 'allotment';
 import { memo, useCallback, useState } from 'react';
 
@@ -60,12 +63,34 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
   const pool = useInitializedDuckDBConnectionPool();
   const protectedViews = useProtectedViews();
+  const { preferences } = useEditorPreferences();
 
   const runScriptQuery = useCallback(
     async (query: string) => {
       setScriptExecutionState('running');
+
+      // Format query if preference is enabled
+      let queryToExecute = query;
+      if (preferences.formatOnRun) {
+        const formatResult = formatSQLSafe(query);
+        if (formatResult.success) {
+          queryToExecute = formatResult.result;
+          // Update the editor with formatted SQL
+          const sqlScript = useAppStore.getState().sqlScripts.get(tab.sqlScriptId);
+          if (sqlScript && sqlScript.content !== queryToExecute) {
+            // Update the script content with formatted SQL
+            updateSQLScriptContent(sqlScript, queryToExecute);
+            showSuccess({
+              title: 'Query auto-formatted',
+              message: '',
+              autoClose: 1500,
+              id: 'sql-auto-format',
+            });
+          }
+        }
+      }
       // Parse query into statements
-      const statements = splitSQLByStats(query);
+      const statements = splitSQLByStats(queryToExecute);
 
       // Classify statements
       const classifiedStatements = classifySQLStatements(statements);
@@ -365,7 +390,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // update the state and trigger re-render.
       updateScriptTabLastExecutedQuery({ tabId, lastExecutedQuery, force: true });
     },
-    [pool, protectedViews, tabId, incrementScriptVersion],
+    [pool, protectedViews, tabId, incrementScriptVersion, preferences, tab.sqlScriptId],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {

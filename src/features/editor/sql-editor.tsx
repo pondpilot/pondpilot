@@ -14,7 +14,8 @@ import { defaultKeymap, insertTab, history } from '@codemirror/commands';
 import { sql, SQLNamespace, PostgreSQL } from '@codemirror/lang-sql';
 import { Prec } from '@codemirror/state';
 import { keymap, placeholder, ViewPlugin } from '@codemirror/view';
-import { showNotification } from '@mantine/notifications';
+import { formatSQLInEditor } from '@controllers/sql-formatter';
+import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import { useAppStore } from '@store/app-store';
 import CodeMirror, { EditorView, Extension, ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { SqlStatementHighlightPlugin } from '@utils/editor/highlight-plugin';
@@ -46,8 +47,6 @@ interface SqlEditorProps {
   onChange?: (value: string) => void;
   schema?: SQLNamespace;
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
-  fontSize?: number;
-  onFontSizeChanged?: (fontSize: number) => void;
   onCursorChange?: (pos: number, lineNumber: number, columnNumber: number) => void;
   onBlur: () => void;
   functionTooltips: FunctionTooltip;
@@ -63,8 +62,6 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
       onKeyDown,
       onCursorChange,
       readOnly,
-      fontSize,
-      onFontSizeChanged,
       onBlur,
       functionTooltips,
     }: SqlEditorProps,
@@ -74,6 +71,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
     const connectionPool = useDuckDBConnectionPool();
     const editorRef = useRef<ReactCodeMirrorRef>(null);
     const sqlScripts = useAppStore((state) => state.sqlScripts);
+    const { preferences, updatePreference } = useEditorPreferences();
 
     const tableNameHighlightPlugin = useMemo(() => {
       if (schema) {
@@ -113,15 +111,8 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
               mac: 'Cmd-=',
               preventDefault: true,
               run: () => {
-                if (onFontSizeChanged) {
-                  const newFontSize = Math.min(2, (fontSize ?? 1) + 0.2);
-                  onFontSizeChanged(newFontSize);
-                  showNotification({
-                    message: `Change code editor font size to ${Math.floor(newFontSize * 100)}%`,
-                    autoClose: 1000,
-                    id: 'font-size',
-                  });
-                }
+                const newFontSize = Math.min(2, preferences.fontSize + 0.1);
+                updatePreference('fontSize', newFontSize);
                 return true;
               },
             },
@@ -130,15 +121,16 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
               mac: 'Cmd--',
               preventDefault: true,
               run: () => {
-                if (onFontSizeChanged) {
-                  const newFontSize = Math.max(0.4, (fontSize ?? 1) - 0.2);
-                  onFontSizeChanged(newFontSize);
-                  showNotification({
-                    message: `Change code editor font size to ${Math.floor(newFontSize * 100)}%`,
-                    autoClose: 1000,
-                    id: 'font-size',
-                  });
-                }
+                const newFontSize = Math.max(0.4, preferences.fontSize - 0.1);
+                updatePreference('fontSize', newFontSize);
+                return true;
+              },
+            },
+            {
+              key: KEY_BINDING.format.toCodeMirrorKey(),
+              preventDefault: true,
+              run: (view) => {
+                formatSQLInEditor(view);
                 return true;
               },
             },
@@ -157,7 +149,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
             }),
           ]),
         ),
-      [fontSize, onFontSizeChanged],
+      [preferences.fontSize, updatePreference],
     );
 
     const extensions = useMemo(() => {
@@ -270,7 +262,16 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
         width="100%"
         onChange={onChange}
         style={{
-          fontSize: fontSize ? `${fontSize}rem` : '0.875rem',
+          fontSize: `${preferences.fontSize}rem`,
+          fontFamily: "'IBM Plex Mono', monospace",
+          fontWeight:
+            preferences.fontWeight === 'light'
+              ? 300
+              : preferences.fontWeight === 'regular'
+                ? 400
+                : preferences.fontWeight === 'semibold'
+                  ? 600
+                  : 700,
           height: '100%',
           width: '100%',
           flex: 1,

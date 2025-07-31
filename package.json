@@ -70,6 +70,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.23.1",
     "reactflow": "^11.11.4",
+    "sql-formatter": "^15.6.6",
     "tailwind-merge": "^2.5.2",
     "uuid": "^11.1.0",
     "vite-plugin-pwa": "^0.21.0",

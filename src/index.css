@@ -68,6 +68,11 @@ body {
 
 .cm-editor {
   background: transparent;
+  font-family: 'IBM Plex Mono', monospace !important;
+}
+
+.cm-content {
+  font-family: 'IBM Plex Mono', monospace !important;
 }
 
 .cm-editor.cm-focused {
