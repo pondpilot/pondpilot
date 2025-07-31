@@ -3,8 +3,29 @@ import { Stack, Box, Title, Text, Switch, Group, Slider, SegmentedControl } from
 
 import { SqlPreview } from './sql-preview';
 
+const FONT_WEIGHT_OPTIONS = [
+  { label: 'Light', value: 'light', weight: 300 },
+  { label: 'Regular', value: 'regular', weight: 400 },
+  { label: 'SemiBold', value: 'semibold', weight: 600 },
+  { label: 'Bold', value: 'bold', weight: 700 },
+];
+
 export const EditorSettings = () => {
   const { preferences, updatePreference } = useEditorPreferences();
+
+  const fontWeightData = FONT_WEIGHT_OPTIONS.map((item) => ({
+    ...item,
+    label: (
+      <span
+        style={{
+          fontFamily: "'IBM Plex Mono', monospace",
+          fontWeight: item.weight,
+        }}
+      >
+        {item.label}
+      </span>
+    ),
+  }));
 
   return (
     <Stack className="gap-8">
@@ -47,12 +68,7 @@ export const EditorSettings = () => {
                 <SegmentedControl
                   value={preferences.fontWeight}
                   onChange={(value) => updatePreference('fontWeight', value as any)}
-                  data={[
-                    { label: 'Light', value: 'light' },
-                    { label: 'Regular', value: 'regular' },
-                    { label: 'SemiBold', value: 'semibold' },
-                    { label: 'Bold', value: 'bold' },
-                  ]}
+                  data={fontWeightData}
                 />
               </Stack>
             </Box>
