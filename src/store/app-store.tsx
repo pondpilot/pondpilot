@@ -22,6 +22,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { resetAppData } from './restore';
 import { createSelectors } from './utils';
 import { TabExecutionError } from '../controllers/tab/tab-controller';
+import { PersistenceAdapter } from './persistence';
 
 type AppLoadState = 'init' | 'ready' | 'error';
 
@@ -35,6 +36,12 @@ type AppStore = {
    * Used to persist the app state when connection is available.
    */
   _iDbConn: IDBPDatabase<AppIdbSchema> | null;
+
+  /**
+   * Persistence adapter for cross-platform storage (IndexedDB for web, SQLite for Tauri).
+   * This provides a unified interface for persisting app state.
+   */
+  _persistenceAdapter: PersistenceAdapter | null;
 
   /**
    * The current state of the app, indicating whether it is loading, ready, or has encountered an error.
@@ -97,6 +104,7 @@ type AppStore = {
 
 const initialState: AppStore = {
   _iDbConn: null,
+  _persistenceAdapter: null,
   appLoadState: 'init',
   dataSources: new Map(),
   localEntries: new Map(),

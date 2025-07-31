@@ -1,5 +1,5 @@
-import { ConnectionPool, DatabaseConnection } from './types';
 import { TauriConnection } from './tauri-connection';
+import { ConnectionPool, DatabaseConnection } from './types';
 
 export class TauriConnectionPool implements ConnectionPool {
   private maxPoolSize: number;
@@ -47,7 +47,7 @@ export class TauriConnectionPool implements ConnectionPool {
 
   async close(): Promise<void> {
     // Close all connections
-    await Promise.all(this.connections.map(conn => conn.close()));
+    await Promise.all(this.connections.map((conn) => conn.close()));
     this.connections = [];
     this.availableConnections = [];
   }

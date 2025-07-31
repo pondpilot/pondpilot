@@ -1,7 +1,8 @@
 import { isTauriEnvironment } from '@utils/browser';
+
+import { TauriFilePicker } from './tauri-file-picker';
 import { IFilePicker } from './types';
 import { WebFilePicker } from './web-file-picker';
-import { TauriFilePicker } from './tauri-file-picker';
 
 /**
  * Factory for creating platform-appropriate file picker

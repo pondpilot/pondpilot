@@ -17,6 +17,7 @@ export interface QueryResult {
   rows: any[];
   columns: ColumnInfo[];
   rowCount: number;
+  row_count?: number; // Tauri uses snake_case
   queryTime?: number;
 }
 

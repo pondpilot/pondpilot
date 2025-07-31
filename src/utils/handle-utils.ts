@@ -4,6 +4,7 @@
  */
 
 import { LocalFile, LocalFolder } from '@models/file-system';
+
 import { isTauriEnvironment } from './browser';
 
 /**
@@ -35,12 +36,12 @@ export function getEffectiveFileHandle(file: LocalFile): FileSystemFileHandle {
   if (file.handle) {
     return file.handle;
   }
-  
+
   if (isTauriEnvironment() && file.filePath) {
     // Create a mock handle for Tauri
     return createTauriMockFileHandle(file);
   }
-  
+
   throw new Error('File handle not available');
 }
 
@@ -51,12 +52,12 @@ export function getEffectiveDirectoryHandle(folder: LocalFolder): FileSystemDire
   if (folder.handle) {
     return folder.handle;
   }
-  
+
   if (isTauriEnvironment() && folder.directoryPath) {
     // Create a mock handle for Tauri
     return createTauriMockDirectoryHandle(folder);
   }
-  
+
   throw new Error('Directory handle not available');
 }
 
@@ -71,11 +72,11 @@ function createTauriMockFileHandle(file: LocalFile): FileSystemFileHandle {
       if (!file.filePath) {
         throw new Error('File path not available');
       }
-      
+
       // Read file using Tauri APIs
       const fs = await import('@tauri-apps/api/fs');
       const contents = await fs.readBinaryFile(file.filePath);
-      
+
       return new File([contents], file.name, {
         lastModified: Date.now(),
       });
@@ -93,16 +94,11 @@ function createTauriMockDirectoryHandle(folder: LocalFolder): FileSystemDirector
   return {
     kind: 'directory',
     name: folder.name,
-    entries: async function* () {
+    async *entries() {
       // This would need to be implemented to read directory contents using Tauri APIs
-      return;
     },
-    keys: async function* () {
-      return;
-    },
-    values: async function* () {
-      return;
-    },
+    async *keys() {},
+    async *values() {},
     getDirectoryHandle: async (name: string) => {
       throw new Error('Not implemented for Tauri mock handle');
     },

@@ -124,6 +124,9 @@ export default defineConfig(({ mode }) => {
 
     build: {
       sourcemap: mode === 'development',
+      rollupOptions: {
+        external: ['duckdb', 'fs/promises'],
+      },
     },
     optimizeDeps: {
       exclude: ['@duckdb/duckdb-wasm'],

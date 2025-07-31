@@ -2,6 +2,7 @@ import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import { isTauriEnvironment } from '@utils/browser';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
@@ -48,28 +49,36 @@ export async function registerFileSourceAndCreateView(
   const file = await handle.getFile();
   const db = conn.bindings;
 
-  /**
-   * Drop file if it already exists
-   */
-  await db.dropFile(fileName).catch(console.error);
+  if (isTauriEnvironment() && (handle as any)._tauriPath) {
+    // For Tauri files, use the file path directly
+    const filePath = (handle as any)._tauriPath;
+    // In Tauri, DuckDB can access files directly by path, so we don't need to register
+    // Instead, we'll create views that reference the file path directly
+    if (fileExt === 'csv') {
+      const csvQuery = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(filePath, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`;
+      await conn.query(csvQuery);
+    } else {
+      const query = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(filePath, { single: true })};`;
+      await conn.query(query);
+    }
+  } else {
+    // For web environment, use file handle registration
+    /**
+     * Drop file if it already exists
+     */
+    await db.dropFile(fileName).catch(console.error);
 
-  /**
-   * Register file handle
-   */
-  await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+    await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
 
-  /**
-   * Create view
-   */
-
-  if (fileExt === 'csv') {
-    await createCSVView(conn, viewName, fileName);
-    return file;
+    if (fileExt === 'csv') {
+      await createCSVView(conn, viewName, fileName);
+    } else {
+      await conn.query(
+        `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
+      );
+    }
   }
 
-  await conn.query(
-    `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
-  );
   return file;
 }
 
@@ -175,21 +184,39 @@ export async function registerAndAttachDatabase(
   await db.dropFile(fileName).catch(console.error);
 
   /**
-   * Register file handle
+   * Register file handle or use path for Tauri
    */
-  await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+  if (isTauriEnvironment() && (handle as any)._tauriPath) {
+    // For Tauri, use the file path directly in the attach query
+    const filePath = (handle as any)._tauriPath;
 
-  /**
-   * Detach any existing database with the same name
-   */
-  const detachQuery = buildDetachQuery(dbName, true);
-  await conn.query(detachQuery).catch(console.error);
+    /**
+     * Detach any existing database with the same name
+     */
+    const detachQuery = buildDetachQuery(dbName, true);
+    await conn.query(detachQuery).catch(console.error);
 
-  /**
-   * Attach the database
-   */
-  const attachQuery = buildAttachQuery(fileName, dbName, { readOnly: true });
-  await conn.query(attachQuery);
+    /**
+     * Attach database using file path
+     */
+    const attachQuery = buildAttachQuery(filePath, dbName, { readOnly: true });
+    await conn.query(attachQuery);
+  } else {
+    // For web environment, register file handle first
+    await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+
+    /**
+     * Detach any existing database with the same name
+     */
+    const detachQuery = buildDetachQuery(dbName, true);
+    await conn.query(detachQuery).catch(console.error);
+
+    /**
+     * Attach the database
+     */
+    const attachQuery = buildAttachQuery(fileName, dbName, { readOnly: true });
+    await conn.query(attachQuery);
+  }
 
   return file;
 }
@@ -280,11 +307,16 @@ export async function registerFileHandle(
   const file = await handle.getFile();
   const db = conn.bindings;
 
-  // Drop file if it already exists
-  await db.dropFile(fileName).catch(console.error);
+  // For Tauri, we don't need to register file handles as DuckDB can access files directly
+  if (isTauriEnvironment() && (handle as any)._tauriPath) {
+    // No file registration needed for Tauri
+  } else {
+    // Drop file if it already exists (web environment only)
+    await db.dropFile(fileName).catch(console.error);
 
-  // Register the file handle with DuckDB
-  await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+    // Register the file handle with DuckDB (web environment)
+    await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+  }
 
   return file;
 }
