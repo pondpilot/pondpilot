@@ -43,7 +43,9 @@ export async function getLocalDBs(
     ${excludeSystem ? 'WHERE NOT internal' : ''}
   `;
 
-  return queryOneColumn<arrow.Utf8>(conn, sql, 'database_name');
+  const result = await queryOneColumn<arrow.Utf8>(conn, sql, 'database_name');
+  console.log('[getLocalDBs] Found databases:', result);
+  return result;
 }
 
 /**
@@ -140,6 +142,9 @@ async function getTablesAndColumns(
 ): Promise<ColumnsQueryReturnType[]> {
   const sql = buildColumnsQueryWithFilters(databaseNames, schemaNames, objectNames);
   const res = await conn.query<ColumnsQueryArrowType>(sql);
+
+  console.log('[getTablesAndColumns] Query result:', res);
+  console.log('[getTablesAndColumns] numRows:', res.numRows);
 
   const columns = {
     database_name: res.getChild('database_name'),

@@ -69,7 +69,7 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
       const errorConn = {
         id: 'error',
         execute: () => Promise.reject(new Error('Pool destroyed')),
-        async* stream() {
+        async *stream() {
           yield;
           throw new Error('Pool destroyed');
         },
@@ -90,4 +90,3 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
     return this.availableConnections.length;
   }
 }
-

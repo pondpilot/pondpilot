@@ -55,6 +55,7 @@ export const addLocalFileOrFolders = async (
 }> => {
   const {
     _iDbConn: iDbConn,
+    _persistenceAdapter: persistenceAdapter,
     localEntries,
     registeredFiles,
     dataSources,
@@ -154,20 +155,29 @@ export const addLocalFileOrFolders = async (
           errors.push(`XLSX file ${file.name} has no sheets.`);
           return false;
         }
-        const fileName = `${file.uniqueAlias}.${file.ext}`;
+
+        // For Tauri, use the file path directly; for web, use the registered file name
+        const isTauri = (file.handle as any)._tauriPath;
+        const fileReference = isTauri
+          ? (file.handle as any)._tauriPath
+          : `${file.uniqueAlias}.${file.ext}`;
         const succeededSheets: string[] = [];
         const skippedSheets: string[] = [];
         let regFile: File | null = null;
         for (const sheetName of sheetNames) {
           try {
             if (!regFile) {
-              regFile = await registerFileHandle(conn, file.handle, fileName);
+              regFile = await registerFileHandle(
+                conn,
+                file.handle,
+                `${file.uniqueAlias}.${file.ext}`,
+              );
               newRegisteredFiles.push([file.id, regFile]);
             }
             const sheetDataSource = addXlsxSheetDataSource(file, sheetName, reservedViews);
             reservedViews.add(sheetDataSource.viewName);
             newManagedViews.push(sheetDataSource.viewName);
-            await createXlsxSheetView(conn, fileName, sheetName, sheetDataSource.viewName);
+            await createXlsxSheetView(conn, fileReference, sheetName, sheetDataSource.viewName);
             newDataSources.push([sheetDataSource.id, sheetDataSource]);
             succeededSheets.push(sheetName);
           } catch (err) {
@@ -405,9 +415,10 @@ export const addLocalFileOrFolders = async (
   // Update the store
   useAppStore.setState(newState, undefined, 'AppStore/addLocalFileOrFolders');
 
-  // If we have an IndexedDB connection, persist the new local entry
-  if (iDbConn) {
-    persistAddLocalEntry(iDbConn, newEntries, newDataSources);
+  // Persist the new local entry using the appropriate adapter
+  const persistenceStore = persistenceAdapter || iDbConn;
+  if (persistenceStore) {
+    persistAddLocalEntry(persistenceStore, newEntries, newDataSources);
   }
 
   // Return the new local entry and data source
@@ -424,7 +435,7 @@ export const addLocalFileOrFolders = async (
 };
 
 export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHandle[]) => {
-  const { _iDbConn: iDbConn, sqlScripts } = useAppStore.getState();
+  const { _iDbConn: iDbConn, _persistenceAdapter: persistenceAdapter, sqlScripts } = useAppStore.getState();
 
   const newScripts: [SQLScriptId, SQLScript][] = [];
 
@@ -453,10 +464,15 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
   // Update the store
   useAppStore.setState(newState, undefined, 'AppStore/importSQLFiles');
 
-  // If we have an IndexedDB connection, persist the new SQL scripts
-  if (iDbConn) {
+  // Persist the new SQL scripts using the appropriate adapter
+  const persistenceStore = persistenceAdapter || iDbConn;
+  if (persistenceStore) {
     for (const [id, script] of newScripts) {
-      iDbConn.put(SQL_SCRIPT_TABLE_NAME, script, id);
+      if (persistenceAdapter) {
+        await persistenceAdapter.put(SQL_SCRIPT_TABLE_NAME, script, id);
+      } else if (iDbConn) {
+        await iDbConn.put(SQL_SCRIPT_TABLE_NAME, script, id);
+      }
     }
   }
 };
@@ -480,7 +496,7 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
  */
 
 export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: LocalEntryId[]) => {
-  const { dataSources, localEntries, _iDbConn: iDbConn } = useAppStore.getState();
+  const { dataSources, localEntries, _iDbConn: iDbConn, _persistenceAdapter: persistenceAdapter } = useAppStore.getState();
 
   const folderChildren = new Map<LocalEntryId, LocalEntry[]>();
   for (const [_, entry] of localEntries) {
@@ -561,9 +577,10 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
     deleteDataSources(conn, dataSourceIdsToDelete);
   }
 
-  // Delete folder entries from IDB
-  if (iDbConn) {
-    persistDeleteLocalEntry(iDbConn, folderIdsToDelete);
+  // Delete folder entries from persistence store
+  const persistenceStore = persistenceAdapter || iDbConn;
+  if (persistenceStore) {
+    persistDeleteLocalEntry(persistenceStore, folderIdsToDelete);
   }
 };
 

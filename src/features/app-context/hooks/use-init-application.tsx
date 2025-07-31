@@ -7,12 +7,13 @@ import {
   useDuckDBInitializer,
 } from '@features/duckdb-context/duckdb-context';
 import { useAppStore, setAppLoadState } from '@store/app-store';
-import { restoreAppDataFromIDB } from '@store/restore';
+import { initializePersistence } from '@store/persistence-init';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry } from '@utils/connection-manager';
 import { isRemoteDatabase } from '@utils/data-source';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
+import { isTauriEnvironment } from '@utils/browser';
 import { useEffect } from 'react';
 
 import { useShowPermsAlert } from './use-show-perm-alert';
@@ -111,7 +112,7 @@ export function useAppInitialization({
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
     try {
-      const { discardedEntries, warnings } = await restoreAppDataFromIDB(resolvedConn, (_) =>
+      const { discardedEntries, warnings } = await initializePersistence(resolvedConn, (_) =>
         showPermsAlert(),
       );
 

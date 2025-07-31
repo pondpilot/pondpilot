@@ -1,6 +1,5 @@
-// Async functions to persist file system data to indexedDB.
-// These are necessary when multi-table transactions are needed,
-// as we are not blocking controller operations on indexedDB updates.
+// Async functions to persist file system data.
+// Updated to use PersistenceAdapter for both IndexedDB and SQLite (Tauri)
 
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
@@ -10,6 +9,8 @@ import {
   LOCAL_ENTRY_TABLE_NAME,
 } from '@models/persisted-store';
 import { IDBPDatabase } from 'idb';
+import { PersistenceAdapter, createPersistenceAdapter } from '@store/persistence';
+import { isTauriEnvironment } from '@utils/browser';
 
 /**
  * ------------------------------------------------------------
@@ -18,24 +19,68 @@ import { IDBPDatabase } from 'idb';
  */
 
 export const persistAddLocalEntry = async (
-  iDb: IDBPDatabase<AppIdbSchema>,
+  iDbOrAdapter: IDBPDatabase<AppIdbSchema> | PersistenceAdapter,
   newEntries: [LocalEntryId, LocalEntry][],
   newDataSources: [PersistentDataSourceId, AnyDataSource][],
 ) => {
-  const tx = iDb.transaction([LOCAL_ENTRY_TABLE_NAME, DATA_SOURCE_TABLE_NAME], 'readwrite');
+  // Check if we're using the adapter pattern
+  const adapter = isTauriEnvironment() ? iDbOrAdapter as PersistenceAdapter : null;
+  
+  if (adapter) {
+    // Using persistence adapter (Tauri/SQLite)
+    // Process entries
+    for (const [id, newLocalEntry] of newEntries) {
+      // For Tauri, include the file path
+      const persistenceEntry = {
+        ...newLocalEntry,
+        handle: null, // Don't store mock handles
+        filePath: (newLocalEntry as any).filePath,
+        directoryPath: (newLocalEntry as any).directoryPath,
+      };
+      await adapter.put(LOCAL_ENTRY_TABLE_NAME, persistenceEntry, id);
+    }
+    
+    // Process data sources
+    for (const [id, newDataSource] of newDataSources) {
+      await adapter.put(DATA_SOURCE_TABLE_NAME, newDataSource, id);
+    }
+  } else {
+    // Using IndexedDB directly (web)
+    const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;
+    const tx = iDb.transaction([LOCAL_ENTRY_TABLE_NAME, DATA_SOURCE_TABLE_NAME], 'readwrite');
 
-  // Add new local entries
-  for (const [id, newLocalEntry] of newEntries) {
-    await tx.objectStore(LOCAL_ENTRY_TABLE_NAME).put(newLocalEntry, id);
+    // Add new local entries, converting to persistence format
+    for (const [id, newLocalEntry] of newEntries) {
+      // Convert LocalEntry to LocalEntryPersistence
+      let persistenceEntry: any;
+
+      // Check if this is a Tauri handle with _tauriPath
+      if (newLocalEntry.handle && (newLocalEntry.handle as any)._tauriPath) {
+        // For Tauri handles, store only the path and essential properties
+        persistenceEntry = {
+          ...newLocalEntry,
+          handle: null, // Don't store the mock handle
+          tauriPath: (newLocalEntry.handle as any)._tauriPath, // Store the path separately
+        };
+      } else {
+        // For web handles, only store if userAdded
+        persistenceEntry = {
+          ...newLocalEntry,
+          handle: newLocalEntry.userAdded ? newLocalEntry.handle : null,
+        };
+      }
+
+      await tx.objectStore(LOCAL_ENTRY_TABLE_NAME).put(persistenceEntry, id);
+    }
+
+    // Add new data sources
+    for (const [id, newDataSource] of newDataSources) {
+      await tx.objectStore(DATA_SOURCE_TABLE_NAME).put(newDataSource, id);
+    }
+
+    // Commit the transaction
+    await tx.done;
   }
-
-  // Add new data sources
-  for (const [id, newDataSource] of newDataSources) {
-    await tx.objectStore(DATA_SOURCE_TABLE_NAME).put(newDataSource, id);
-  }
-
-  // Commit the transaction
-  await tx.done;
 };
 
 /**
@@ -57,17 +102,29 @@ export const persistAddLocalEntry = async (
  */
 
 export const persistDeleteLocalEntry = async (
-  iDb: IDBPDatabase<AppIdbSchema>,
+  iDbOrAdapter: IDBPDatabase<AppIdbSchema> | PersistenceAdapter,
   entryIdsToDelete: Iterable<LocalEntryId>,
 ) => {
-  const tx = iDb.transaction([LOCAL_ENTRY_TABLE_NAME], 'readwrite');
+  // Check if we're using the adapter pattern
+  const adapter = isTauriEnvironment() ? iDbOrAdapter as PersistenceAdapter : null;
+  
+  if (adapter) {
+    // Using persistence adapter (Tauri/SQLite)
+    for (const id of entryIdsToDelete) {
+      await adapter.delete(LOCAL_ENTRY_TABLE_NAME, id);
+    }
+  } else {
+    // Using IndexedDB directly (web)
+    const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;
+    const tx = iDb.transaction([LOCAL_ENTRY_TABLE_NAME], 'readwrite');
 
-  // Delete each local entry
-  const entryStore = tx.objectStore(LOCAL_ENTRY_TABLE_NAME);
-  for (const id of entryIdsToDelete) {
-    await entryStore.delete(id);
+    // Delete each local entry
+    const entryStore = tx.objectStore(LOCAL_ENTRY_TABLE_NAME);
+    for (const id of entryIdsToDelete) {
+      await entryStore.delete(id);
+    }
+
+    // Commit the transaction
+    await tx.done;
   }
-
-  // Commit the transaction
-  await tx.done;
 };

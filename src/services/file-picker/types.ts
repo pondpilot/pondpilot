@@ -56,17 +56,17 @@ export interface IFilePicker {
   /**
    * Open file picker to select one or multiple files
    */
-  pickFiles(options?: FilePickerOptions): Promise<FilePickerResult>;
+  pickFiles: (options?: FilePickerOptions) => Promise<FilePickerResult>;
 
   /**
    * Open directory picker to select a directory
    */
-  pickDirectory(options?: FilePickerOptions): Promise<DirectoryPickerResult>;
+  pickDirectory: (options?: FilePickerOptions) => Promise<DirectoryPickerResult>;
 
   /**
    * Open save file dialog
    */
-  saveFile(options?: SaveFileOptions): Promise<SaveFileResult>;
+  saveFile: (options?: SaveFileOptions) => Promise<SaveFileResult>;
 
   /**
    * Check if the file picker supports certain features

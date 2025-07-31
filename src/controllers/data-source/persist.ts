@@ -10,6 +10,8 @@ import {
   LOCAL_ENTRY_TABLE_NAME,
 } from '@models/persisted-store';
 import { IDBPDatabase } from 'idb';
+import { PersistenceAdapter } from '@store/persistence';
+import { isTauriEnvironment } from '@utils/browser';
 
 /**
  * ------------------------------------------------------------
@@ -18,19 +20,27 @@ import { IDBPDatabase } from 'idb';
  */
 
 export const persistPutDataSources = async (
-  iDb: IDBPDatabase<AppIdbSchema>,
+  iDbOrAdapter: IDBPDatabase<AppIdbSchema> | PersistenceAdapter,
   dataSources: Iterable<AnyDataSource>,
 ) => {
-  const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME], 'readwrite');
+  if (isTauriEnvironment()) {
+    const adapter = iDbOrAdapter as PersistenceAdapter;
+    for (const ds of dataSources) {
+      await adapter.put(DATA_SOURCE_TABLE_NAME, ds, ds.id);
+    }
+  } else {
+    const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;
+    const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME], 'readwrite');
 
-  // Replace data sources
-  const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
-  for (const ds of dataSources) {
-    await dataSourceStore.put(ds, ds.id);
+    // Replace data sources
+    const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
+    for (const ds of dataSources) {
+      await dataSourceStore.put(ds, ds.id);
+    }
+
+    // Commit the transaction
+    await tx.done;
   }
-
-  // Commit the transaction
-  await tx.done;
 };
 
 /**

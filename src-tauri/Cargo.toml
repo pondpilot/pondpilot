@@ -18,6 +18,7 @@ duckdb = { version = "1.0", features = ["bundled", "json", "parquet"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 uuid = { version = "1.0", features = ["v4", "serde"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
