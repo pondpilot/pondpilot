@@ -32,8 +32,10 @@ export class DatabaseEngineFactory {
       case 'duckdb-tauri':
         // Dynamically import Tauri engine when in Tauri environment
         if (this.isTauriEnvironment()) {
+          console.log('Creating Tauri DuckDB engine...');
           const { DuckDBTauriEngine } = await import('./duckdb-tauri-engine');
           engine = new DuckDBTauriEngine();
+          console.log('Tauri DuckDB engine created successfully');
         } else {
           throw new Error('Tauri DuckDB is only available in Tauri environment');
         }
@@ -47,7 +49,9 @@ export class DatabaseEngineFactory {
     }
 
     // Initialize the engine
+    console.log('Initializing engine with config:', config);
     await engine.initialize(config);
+    console.log('Engine initialized successfully, isReady:', engine.isReady());
 
     // Cache the engine
     this.engineCache.set(cacheKey, engine);

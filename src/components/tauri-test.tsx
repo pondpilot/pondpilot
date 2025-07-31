@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
 import { Button } from '@mantine/core';
+import { useEffect, useState } from 'react';
 
 export function TauriTest() {
   const [isTauri, setIsTauri] = useState(false);
@@ -53,7 +53,9 @@ export function TauriTest() {
         </Button>
       </div>
       {message && (
-        <p style={{ marginTop: '10px', padding: '10px', background: '#f0f0f0', borderRadius: '4px' }}>
+        <p
+          style={{ marginTop: '10px', padding: '10px', background: '#f0f0f0', borderRadius: '4px' }}
+        >
           {message}
         </p>
       )}

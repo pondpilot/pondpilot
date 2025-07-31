@@ -119,34 +119,43 @@ export const DatabaseConnectionPoolProvider = ({
         });
 
         // Determine engine configuration
+        const detectedEngine = DatabaseEngineFactory.detectOptimalEngine();
+        console.log('Detected optimal engine:', detectedEngine);
+
         const config: EngineConfig = engineConfig || {
-          type: 'duckdb-wasm',
-          storageType: 'persistent',
+          ...detectedEngine,
           storagePath: persistenceState.dbPath,
-          extensions: ['httpfs'],
           poolSize: normalizedPoolSize,
         };
 
-        // Ensure proper OPFS path format for WASM engine
-        if (config.type === 'duckdb-wasm' && config.storageType === 'persistent') {
-          let dbPath = config.storagePath || persistenceState.dbPath;
+        console.log('Final database engine config:', config);
 
-          // Make sure the path starts with opfs://
-          if (!dbPath.startsWith('opfs://')) {
-            dbPath = `opfs://${dbPath.replace(/^opfs:/, '')}`;
+        // Handle storage path configuration based on engine type
+        if (config.storageType === 'persistent') {
+          if (config.type === 'duckdb-wasm') {
+            // Ensure proper OPFS path format for WASM engine
+            let dbPath = config.storagePath || persistenceState.dbPath;
+
+            // Make sure the path starts with opfs://
+            if (!dbPath.startsWith('opfs://')) {
+              dbPath = `opfs://${dbPath.replace(/^opfs:/, '')}`;
+            }
+
+            // Validate the path
+            if (!isSafeOpfsPath(dbPath)) {
+              const normalizedPath = normalizeOpfsPath(dbPath);
+              throw new Error(
+                import.meta.env.DEV
+                  ? `Invalid or unsafe database path: ${normalizedPath}`
+                  : 'Invalid database configuration',
+              );
+            }
+
+            config.storagePath = dbPath;
+          } else if (config.type === 'duckdb-tauri') {
+            // For Tauri, use a local file path instead of OPFS
+            config.storagePath = 'pondpilot.db';
           }
-
-          // Validate the path
-          if (!isSafeOpfsPath(dbPath)) {
-            const normalizedPath = normalizeOpfsPath(dbPath);
-            throw new Error(
-              import.meta.env.DEV
-                ? `Invalid or unsafe database path: ${normalizedPath}`
-                : 'Invalid database configuration',
-            );
-          }
-
-          config.storagePath = dbPath;
         }
 
         memoizedStatusUpdate({
@@ -166,51 +175,8 @@ export const DatabaseConnectionPoolProvider = ({
         // Create connection pool
         const pool = await newEngine.createConnectionPool(normalizedPoolSize);
 
-        // If this is an abstracted AsyncDuckDBConnectionPool, set up checkpointing
-        if (config.type === 'duckdb-wasm' && updatePersistenceState) {
-          // The pool returned is our abstraction, but we need to handle checkpointing
-          // This would be better handled inside the engine itself
-          // For now, we'll use a wrapper approach
-          const originalQuery = pool.acquire.bind(pool);
-          let changeCount = 0;
-
-          pool.acquire = async () => {
-            const conn = await originalQuery();
-            // Wrap execute to track changes
-            const originalExecute = conn.execute.bind(conn);
-            conn.execute = async (sql: string, params?: any[]) => {
-              const result = await originalExecute(sql, params);
-
-              // Check if this was a write operation
-              const trimmedSql = sql.trim().toUpperCase();
-              if (
-                trimmedSql.startsWith('CREATE') ||
-                trimmedSql.startsWith('INSERT') ||
-                trimmedSql.startsWith('UPDATE') ||
-                trimmedSql.startsWith('DELETE') ||
-                trimmedSql.startsWith('DROP') ||
-                trimmedSql.startsWith('ALTER')
-              ) {
-                changeCount += 1;
-
-                // Checkpoint after certain number of changes
-                if (changeCount >= 100) {
-                  try {
-                    await newEngine.checkpoint();
-                    await updatePersistenceState();
-                    changeCount = 0;
-                  } catch (e) {
-                    console.warn('Failed to checkpoint:', e);
-                  }
-                }
-              }
-
-              return result;
-            };
-
-            return conn;
-          };
-        }
+        // Note: Checkpointing will be handled by the ConnectionPoolAdapter
+        // which wraps the generic pool and provides the expected interface
 
         setConnectionPool(pool);
 

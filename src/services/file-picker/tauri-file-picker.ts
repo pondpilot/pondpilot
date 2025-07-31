@@ -52,10 +52,15 @@ export class TauriFilePicker implements IFilePicker {
 
     try {
       // Convert extensions to Tauri format
-      const filters = accept.length > 0 ? [{
-        name: description,
-        extensions: accept.map(ext => ext.startsWith('.') ? ext.slice(1) : ext),
-      }] : undefined;
+      const filters =
+        accept.length > 0
+          ? [
+              {
+                name: description,
+                extensions: accept.map((ext) => (ext.startsWith('.') ? ext.slice(1) : ext)),
+              },
+            ]
+          : undefined;
 
       const result = await this.dialog.open({
         multiple,
@@ -76,7 +81,7 @@ export class TauriFilePicker implements IFilePicker {
 
       for (const path of paths) {
         const name = path.split('/').pop() || path.split('\\').pop() || 'unknown';
-        
+
         // For now, just add basic file info
         // TODO: Add file size/metadata when available in Tauri
         files.push({
@@ -163,11 +168,13 @@ export class TauriFilePicker implements IFilePicker {
 
     try {
       // Convert accept object to Tauri filters format
-      const filters = Object.keys(accept).length > 0 ? 
-        Object.entries(accept).map(([desc, extensions]) => ({
-          name: desc || description,
-          extensions: extensions.map(ext => ext.startsWith('.') ? ext.slice(1) : ext),
-        })) : undefined;
+      const filters =
+        Object.keys(accept).length > 0
+          ? Object.entries(accept).map(([desc, extensions]) => ({
+              name: desc || description,
+              extensions: extensions.map((ext) => (ext.startsWith('.') ? ext.slice(1) : ext)),
+            }))
+          : undefined;
 
       const result = await this.dialog.save({
         defaultPath: suggestedName,

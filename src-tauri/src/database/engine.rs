@@ -6,6 +6,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::time::Instant;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 pub struct DuckDBEngine {
     pool: Arc<Mutex<ConnectionPool>>,
@@ -13,8 +14,8 @@ pub struct DuckDBEngine {
 }
 
 impl DuckDBEngine {
-    pub fn new() -> Result<Self> {
-        let pool = ConnectionPool::new(5)?;
+    pub fn new(db_path: PathBuf) -> Result<Self> {
+        let pool = ConnectionPool::new(5, db_path)?;
         Ok(Self {
             pool: Arc::new(Mutex::new(pool)),
             registered_files: Arc::new(Mutex::new(HashMap::new())),
@@ -124,14 +125,15 @@ impl DuckDBEngine {
         let pool = self.pool.lock().await;
         let conn = pool.get()?;
         
-        let mut stmt = conn.prepare("PRAGMA database_list")?;
+        // Use duckdb_databases system table for consistency with web version
+        let mut stmt = conn.prepare("SELECT database_name, path FROM duckdb_databases()")?;
         let mut databases = Vec::new();
         
         let mut rows = stmt.query([])?;
         while let Some(row) = rows.next()? {
             databases.push(DatabaseInfo {
-                name: row.get(1)?,
-                path: row.get(2).ok(),
+                name: row.get(0)?,
+                path: row.get(1).ok(),
             });
         }
         

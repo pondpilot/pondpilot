@@ -83,7 +83,7 @@ export class DuckDBNativeEngine implements DatabaseEngine {
     throw new Error('DuckDB Native Engine not yet implemented');
   }
 
-  async* stream(_sql: string, _params?: any[]): AsyncGenerator<any> {
+  async *stream(_sql: string, _params?: any[]): AsyncGenerator<any> {
     yield;
     throw new Error('DuckDB Native Engine not yet implemented');
   }

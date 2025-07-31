@@ -1,10 +1,12 @@
 import { ConnectionPoolAdapter } from '@engines/connection-pool-adapter';
+import { DatabaseEngineFactory } from '@engines/database-engine-factory';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   DuckDBInitializerStatusContext,
   DuckDBInitializerContext,
   DuckDBConnPoolContext,
 } from '@features/duckdb-context/duckdb-context';
+import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
 import React, { useEffect, useState } from 'react';
 
 import {
@@ -37,24 +39,40 @@ const DuckDBCompatBridge: React.FC<{ children: React.ReactNode }> = ({ children 
   const dbPool = useDatabaseConnectionPool();
   const dbInitializer = useDatabaseInitializer();
   const dbStatus = useDatabaseInitializerStatus();
+  const { updatePersistenceState } = useDuckDBPersistence();
   const [adaptedPool, setAdaptedPool] = useState<AsyncDuckDBConnectionPool | null>(null);
 
   // Convert the generic pool to AsyncDuckDBConnectionPool when available
   useEffect(() => {
     if (dbPool) {
-      // Get persistence callback from the original context if available
-      const { updatePersistenceState } = window as any; // This would need proper integration
-      const adapter = new ConnectionPoolAdapter(dbPool, updatePersistenceState);
-      setAdaptedPool(adapter);
+      // Check if we're using DuckDB WASM engine
+      const detectedEngine = DatabaseEngineFactory.detectOptimalEngine();
+      if (detectedEngine.type === 'duckdb-wasm') {
+        // For web/WASM, the pool is already an AsyncDuckDBConnectionPool
+        setAdaptedPool(dbPool as any as AsyncDuckDBConnectionPool);
+      } else {
+        // For Tauri and other engines, use the adapter
+        const adapter = new ConnectionPoolAdapter(dbPool, updatePersistenceState);
+        setAdaptedPool(adapter as any as AsyncDuckDBConnectionPool);
+      }
     }
-  }, [dbPool]);
+  }, [dbPool, updatePersistenceState]);
 
   // Create a wrapper for the initializer that returns the adapted pool
   const duckdbInitializer = async () => {
     const pool = await dbInitializer();
     if (pool) {
-      const { updatePersistenceState } = window as any; // This would need proper integration
-      return new ConnectionPoolAdapter(pool, updatePersistenceState);
+      // Check if we're using DuckDB WASM engine
+      const detectedEngine = DatabaseEngineFactory.detectOptimalEngine();
+      if (detectedEngine.type === 'duckdb-wasm') {
+        // For web/WASM, the pool is already an AsyncDuckDBConnectionPool
+        return pool as any as AsyncDuckDBConnectionPool;
+      }
+      // For Tauri and other engines, use the adapter
+      return new ConnectionPoolAdapter(
+        pool,
+        updatePersistenceState,
+      ) as any as AsyncDuckDBConnectionPool;
     }
     return null;
   };

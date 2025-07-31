@@ -342,12 +342,30 @@ export function buildSchemaTreeNode({
     const fileViews: DBTableOrView[] = [];
     const regularObjects: DBTableOrView[] = [];
 
+    console.log('[buildSchemaTreeNode] Processing objects for file views separation:', {
+      dbName,
+      schemaName,
+      fileViewNames: Array.from(fileViewNames),
+      objects: sortedObjects.map(o => ({ name: o.name, type: o.type }))
+    });
+
     for (const object of sortedObjects) {
       if (object.type === 'view' && fileViewNames.has(object.name)) {
+        console.log('[buildSchemaTreeNode] Matched file view:', object.name);
         fileViews.push(object);
       } else {
         regularObjects.push(object);
       }
+    }
+    
+    // Log unmatched views for debugging
+    const unmatchedViews = sortedObjects.filter(o => 
+      o.type === 'view' && !fileViewNames.has(o.name)
+    );
+    if (unmatchedViews.length > 0) {
+      console.log('[buildSchemaTreeNode] Unmatched views (not in fileViewNames):', 
+        unmatchedViews.map(v => v.name)
+      );
     }
 
     // Build regular objects first
@@ -365,6 +383,7 @@ export function buildSchemaTreeNode({
 
     // Add file views section if there are any
     if (fileViews.length > 0) {
+      console.log('[buildSchemaTreeNode] Creating File Views section with', fileViews.length, 'views');
       const fileViewsSectionId = `${dbId}.${schemaName}.file-views`;
       context.nodeMap.set(fileViewsSectionId, {
         db: dbId,
@@ -394,6 +413,8 @@ export function buildSchemaTreeNode({
           }),
         ),
       });
+    } else {
+      console.log('[buildSchemaTreeNode] No file views found to create section');
     }
   } else {
     // For non-system databases, keep the original behavior

@@ -6,7 +6,6 @@ import {
   DirectoryPickerResult,
   SaveFileResult,
   PickedFile,
-  PickedDirectory,
 } from './types';
 
 /**
@@ -87,12 +86,15 @@ export class WebFilePicker implements IFilePicker {
     try {
       const handle = await window.showSaveFilePicker({
         suggestedName,
-        types: Object.keys(accept).length > 0 ? [
-          {
-            description,
-            accept: accept as any,
-          }
-        ] : undefined,
+        types:
+          Object.keys(accept).length > 0
+            ? [
+                {
+                  description,
+                  accept: accept as any,
+                },
+              ]
+            : undefined,
       });
 
       return {
@@ -127,14 +129,17 @@ export class WebFilePicker implements IFilePicker {
   ): Promise<FilePickerResult> {
     try {
       const handles = await window.showOpenFilePicker({
-        types: accept.length > 0 ? [
-          {
-            description,
-            accept: {
-              'application/octet-stream': accept as any,
-            },
-          },
-        ] : undefined,
+        types:
+          accept.length > 0
+            ? [
+                {
+                  description,
+                  accept: {
+                    'application/octet-stream': accept as any,
+                  },
+                },
+              ]
+            : undefined,
         excludeAcceptAllOption: false,
         multiple,
       });
@@ -174,15 +179,12 @@ export class WebFilePicker implements IFilePicker {
     }
   }
 
-  private async pickFilesWithInput(
-    accept: string[],
-    multiple: boolean,
-  ): Promise<FilePickerResult> {
+  private async pickFilesWithInput(accept: string[], multiple: boolean): Promise<FilePickerResult> {
     return new Promise((resolve) => {
       const input = document.createElement('input');
       input.type = 'file';
       input.multiple = multiple;
-      
+
       if (accept.length > 0) {
         input.accept = accept.join(',');
       }
@@ -197,7 +199,7 @@ export class WebFilePicker implements IFilePicker {
       input.onchange = async () => {
         try {
           const files: PickedFile[] = [];
-          
+
           if (input.files) {
             for (let i = 0; i < input.files.length; i++) {
               const file = input.files[i];

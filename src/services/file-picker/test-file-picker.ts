@@ -10,12 +10,12 @@ import { getFilePicker, FilePickerFactory } from './index';
  */
 export async function testFilePicker() {
   console.log('Testing file picker implementation...');
-  
+
   const picker = getFilePicker();
-  
+
   console.log('Platform:', FilePickerFactory.getPlatform());
   console.log('Supports:', picker.supports);
-  
+
   try {
     // Test file picking (this will open a dialog)
     console.log('Testing file picker...');
@@ -24,7 +24,7 @@ export async function testFilePicker() {
       description: 'Test Files',
       multiple: true,
     });
-    
+
     if (result.error) {
       console.error('File picker error:', result.error);
     } else if (result.cancelled) {

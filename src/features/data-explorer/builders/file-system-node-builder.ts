@@ -166,7 +166,8 @@ function buildXlsxSheetNode(
   const { nodeMap, anyNodeIdToNodeTypeMap } = context;
   const sheetLabel = sheet.sheetName;
   const sheetId = `${entry.id}::${sheet.sheetName}`;
-  const fqn = `main.${toDuckDBIdentifier(sheet.viewName)}`;
+  // Don't use database prefix - views are created in the default database
+  const fqn = toDuckDBIdentifier(sheet.viewName);
 
   nodeMap.set(sheetId, { entryId: entry.id, isSheet: true, sheetName: sheet.sheetName });
   anyNodeIdToNodeTypeMap.set(sheetId, 'sheet');
@@ -346,7 +347,8 @@ export function buildFileNode(
   const label = getFlatFileDataSourceName(relatedSource, entry);
   const iconType = getFlatFileDataSourceIcon(relatedSource);
   const value = entry.id;
-  const fqn = `main.${toDuckDBIdentifier(relatedSource.viewName)}`;
+  // Don't use database prefix - views are created in the default database
+  const fqn = toDuckDBIdentifier(relatedSource.viewName);
 
   // Get columns metadata if enabled
   const getFileColumns = (
