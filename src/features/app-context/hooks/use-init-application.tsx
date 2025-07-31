@@ -1,5 +1,6 @@
 import { showError, showWarning } from '@components/app-notifications';
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   useDuckDBConnectionPool,
@@ -9,7 +10,11 @@ import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry } from '@utils/connection-manager';
-import { isRemoteDatabase } from '@utils/data-source';
+import { isRemoteDatabase, isHTTPServerDatabase } from '@utils/data-source';
+import {
+  updateHTTPServerDbConnectionState,
+  reconnectHTTPServerDatabase,
+} from '@utils/httpserver-database';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { useEffect } from 'react';
@@ -74,7 +79,6 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
   // Load metadata for successfully connected remote databases
   if (connectedDatabases.length > 0) {
     try {
-      const { getDatabaseModel } = await import('@controllers/db/duckdb-meta');
       const remoteMetadata = await getDatabaseModel(conn, connectedDatabases);
 
       // Merge with existing metadata
@@ -88,6 +92,28 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
       useAppStore.setState({ databaseMetadata: newMetadata }, false, 'RemoteDB/loadMetadata');
     } catch (error) {
       console.error('Failed to load metadata for remote databases:', error);
+    }
+  }
+}
+
+// Reconnect to HTTPServerDB databases after app initialization
+async function reconnectHTTPServerDatabases(): Promise<void> {
+  const { dataSources } = useAppStore.getState();
+  const connectedDatabases: string[] = [];
+
+  for (const [id, dataSource] of dataSources) {
+    if (isHTTPServerDatabase(dataSource)) {
+      try {
+        // Use the enhanced reconnectHTTPServerDatabase function that fetches metadata
+        const success = await reconnectHTTPServerDatabase(dataSource);
+
+        if (success) {
+          connectedDatabases.push(dataSource.dbName);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        updateHTTPServerDbConnectionState(id, 'error', errorMessage);
+      }
     }
   }
 }
@@ -119,6 +145,9 @@ export function useAppInitialization({
 
       // Reconnect to remote databases
       await reconnectRemoteDatabases(resolvedConn);
+
+      // Reconnect to HTTPServerDB databases
+      await reconnectHTTPServerDatabases();
 
       // TODO: more detailed/better message
       if (discardedEntries.length) {

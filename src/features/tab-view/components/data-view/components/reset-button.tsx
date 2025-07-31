@@ -3,8 +3,10 @@ import { setDataTestId } from '@utils/test-id';
 
 export const DataViewRestartReadButton = ({
   onClick,
+  buttonText = 'Restart',
 }: {
   onClick: React.MouseEventHandler<HTMLButtonElement>;
+  buttonText?: string;
 }) => (
   <Button
     onClick={onClick}
@@ -12,6 +14,6 @@ export const DataViewRestartReadButton = ({
     color="background-accent"
     className="rounded-full px-3"
   >
-    Restart
+    {buttonText}
   </Button>
 );
