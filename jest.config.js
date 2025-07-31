@@ -2,11 +2,14 @@
 module.exports = {
   testEnvironment: 'node',
   transform: {
-    '^.+\.tsx?$': ['ts-jest', {
-      tsconfig: {
-        module: 'commonjs',
+    '^.+\.tsx?$': [
+      'ts-jest',
+      {
+        tsconfig: {
+          module: 'commonjs',
+        },
       },
-    }],
+    ],
   },
   roots: ['<rootDir>/tests/unit'],
   setupFiles: ['<rootDir>/tests/unit/jest-setup.js'],

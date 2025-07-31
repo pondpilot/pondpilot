@@ -56,10 +56,7 @@ export const EditorSettings = () => {
                 />
               </Stack>
             </Box>
-            <SqlPreview
-              fontSize={preferences.fontSize}
-              fontWeight={preferences.fontWeight}
-            />
+            <SqlPreview fontSize={preferences.fontSize} fontWeight={preferences.fontWeight} />
           </Group>
         </Box>
         <Box>

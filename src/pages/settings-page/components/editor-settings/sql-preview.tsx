@@ -11,10 +11,7 @@ interface SqlLine {
   tokens: Array<{ text: string; type: 'keyword' | 'table' | 'text' | 'function' }>;
 }
 
-export const SqlPreview = ({
-  fontSize,
-  fontWeight = 'regular',
-}: SqlPreviewProps) => {
+export const SqlPreview = ({ fontSize, fontWeight = 'regular' }: SqlPreviewProps) => {
   const { colorScheme } = useMantineColorScheme();
   const isDark = colorScheme === 'dark';
 

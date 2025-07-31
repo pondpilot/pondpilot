@@ -28,7 +28,7 @@ jobs:
               repo: context.repo.repo,
               run_id: ${{ github.event.workflow_run.id }}
             });
-            
+
             return response.data.conclusion;
           result-encoding: string
 

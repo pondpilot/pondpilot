@@ -6,12 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- next-header -->
+
 ## ✨ Highlights
 
 Today's release brings major productivity improvements that make working with your data more intuitive and efficient:
 
-* **@-mentions for Smart Context**: You can now mention datasets, queries, and scripts directly in your AI prompts by typing  followed by the object name. The AI assistant gets full context about the objects you're referencing, leading to more accurate SQL suggestions and better error fixes.
-* **Unified Explorer Experience**: We've completely redesigned the file and database explorers into a single, cohesive accordion-style interface. Now you can see databases within folders and navigate file systems and database schemas seamlessly in one place.
+- **@-mentions for Smart Context**: You can now mention datasets, queries, and scripts directly in your AI prompts by typing followed by the object name. The AI assistant gets full context about the objects you're referencing, leading to more accurate SQL suggestions and better error fixes.
+- **Unified Explorer Experience**: We've completely redesigned the file and database explorers into a single, cohesive accordion-style interface. Now you can see databases within folders and navigate file systems and database schemas seamlessly in one place.
 
 But that's not all! We've also enhanced autocomplete with Tab key support, improved the dark theme with better component consistency, streamlined export options, and fixed several important stability issues including schema synchronization and connection pool management.
 
@@ -20,9 +21,10 @@ We hope you'll enjoy these productivity-focused improvements! As always, we are 
 ## 🎯 What's Next
 
 We are already working on the next version, including:
-* Enhanced data source capabilities and better file handling
-* AI Assistant stability improvements and new features
-* UI refinements and improved offline functionality
+
+- Enhanced data source capabilities and better file handling
+- AI Assistant stability improvements and new features
+- UI refinements and improved offline functionality
 
 and more!
 
@@ -44,7 +46,6 @@ and more!
 - Clean-up error context if AI fix was applied [#164](https://github.com/pondpilot/pondpilot/pull/164)
 
 **Full Changelog**: [v0.3.0...v0.4.0](https://github.com/pondpilot/pondpilot/compare/v0.3.0...v0.4.0)
-
 
 ## [0.3.0] - 2025-06-05
 
