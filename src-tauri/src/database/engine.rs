@@ -5,7 +5,7 @@ use duckdb::Connection;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::time::Instant;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 // Whitelist of allowed DuckDB extensions for security
@@ -45,9 +45,11 @@ impl DuckDBEngine {
         // Initialize with config if needed
         if let Some(extensions) = config.extensions {
             let pool = self.pool.lock().await;
-            let conn = pool.get()?;
             for ext in extensions {
-                self.load_extension(&conn, &ext)?;
+                let ext_clone = ext.clone();
+                pool.execute_with_retry(move |conn| {
+                    Self::load_extension_static(conn, &ext_clone)
+                }).await?;
             }
         }
         Ok(())
@@ -56,51 +58,42 @@ impl DuckDBEngine {
     pub async fn execute_query(&self, sql: &str, _params: Vec<serde_json::Value>) -> Result<QueryResult> {
         let start = Instant::now();
         
-        // Log ATTACH queries for debugging (optional)
-        // Removed space-in-path check as it's not a real DuckDB limitation
+        // Check if this is a session-modifying statement
+        let sql_upper = sql.trim().to_uppercase();
+        let is_session_modifying = sql_upper.starts_with("ATTACH") || 
+                                  sql_upper.starts_with("DETACH") || 
+                                  sql_upper.starts_with("LOAD");
+        
+        let pool = self.pool.lock().await;
+        
+        if is_session_modifying {
+            // Use special handling for session-modifying statements
+            pool.execute_session_modifying_statement(sql).await?;
+            
+            // Return empty result for these statements
+            return Ok(QueryResult {
+                row_count: 0,
+                rows: vec![],
+                columns: vec![],
+                execution_time_ms: start.elapsed().as_millis() as u64,
+            });
+        }
         
         // Clone necessary data for the blocking task
         let sql_owned = sql.to_string();
-        let pool_clone = Arc::clone(&self.pool);
+        let start_clone = start.clone();
         
-        // Run DuckDB operations in a blocking task with panic protection
-        let result = tokio::task::spawn_blocking(move || {
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let pool = pool_clone.blocking_lock();
-                let conn = pool.get()?;
-                Self::execute_query_on_connection(conn, &sql_owned, start)
-            }))
-        }).await;
-        
-        match result {
-            Ok(Ok(query_result)) => query_result,
-            Ok(Err(panic_err)) => {
-                let panic_msg = if let Some(s) = panic_err.downcast_ref::<&str>() {
-                    s.to_string()
-                } else if let Some(s) = panic_err.downcast_ref::<String>() {
-                    s.clone()
-                } else {
-                    "Unknown panic occurred".to_string()
-                };
-                
-                eprintln!("PANIC in DuckDB operation: {}", panic_msg);
-                eprintln!("Query that caused panic: {}", sql);
-                
-                Err(crate::errors::DuckDBError::QueryError {
-                    message: format!("DuckDB internal error (panic): {}. This might be due to database corruption or version incompatibility.", panic_msg),
-                    sql: Some(sql.to_string()),
-                }.into())
-            }
-            Err(join_err) => {
-                Err(crate::errors::DuckDBError::QueryError {
-                    message: format!("Task execution error: {}", join_err),
-                    sql: Some(sql.to_string()),
-                }.into())
-            }
-        }
+        // Use execute_with_retry for better reliability
+        pool.execute_with_retry(move |conn| {
+            Self::execute_query_on_connection_ref(conn, &sql_owned, start_clone)
+        }).await
     }
     
     fn execute_query_on_connection(mut conn: duckdb::Connection, sql: &str, start: Instant) -> Result<QueryResult> {
+        Self::execute_query_on_connection_ref(&mut conn, sql, start)
+    }
+    
+    fn execute_query_on_connection_ref(conn: &mut duckdb::Connection, sql: &str, start: Instant) -> Result<QueryResult> {
         
         // For DML statements, execute and return affected rows
         if sql.trim_start().to_uppercase().starts_with("INSERT") 
@@ -126,7 +119,7 @@ impl DuckDBEngine {
                         if parts.len() >= 2 {
                             let extension_name = parts[1];
                             // Try to install and load the extension
-                            match Self::load_extension_static(&mut conn, extension_name) {
+                            match Self::load_extension_static(conn, extension_name) {
                                 Ok(_) => {
                                     // Return success as the extension is now loaded
                                     return Ok(QueryResult {
@@ -228,70 +221,76 @@ impl DuckDBEngine {
 
     pub async fn get_databases(&self) -> Result<Vec<DatabaseInfo>> {
         let pool = self.pool.lock().await;
-        let conn = pool.get()?;
         
-        // Use duckdb_databases system table for consistency with web version
-        let mut stmt = conn.prepare("SELECT database_name, path FROM duckdb_databases()")?;
-        let mut databases = Vec::new();
-        
-        let mut rows = stmt.query([])?;
-        while let Some(row) = rows.next()? {
-            databases.push(DatabaseInfo {
-                name: row.get(0)?,
-                path: row.get(1).ok(),
-            });
-        }
-        
-        Ok(databases)
+        pool.execute_with_retry(|conn| {
+            // Use duckdb_databases system table for consistency with web version
+            let mut stmt = conn.prepare("SELECT database_name, path FROM duckdb_databases()")?;
+            let mut databases = Vec::new();
+            
+            let mut rows = stmt.query([])?;
+            while let Some(row) = rows.next()? {
+                databases.push(DatabaseInfo {
+                    name: row.get(0)?,
+                    path: row.get(1).ok(),
+                });
+            }
+            
+            Ok(databases)
+        }).await
     }
 
     pub async fn get_tables(&self, database: &str) -> Result<Vec<TableInfo>> {
         let pool = self.pool.lock().await;
-        let conn = pool.get()?;
+        let database_owned = database.to_string();
         
-        let query = "SELECT table_name, table_schema 
-                     FROM information_schema.tables 
-                     WHERE table_catalog = ?
-                     AND table_type = 'BASE TABLE'";
-        
-        let mut stmt = conn.prepare(query)?;
-        let mut tables = Vec::new();
-        
-        let mut rows = stmt.query([database])?;
-        while let Some(row) = rows.next()? {
-            tables.push(TableInfo {
-                name: row.get(0)?,
-                schema: row.get(1)?,
-                row_count: None,
-                estimated_size: None,
-            });
-        }
-        
-        Ok(tables)
+        pool.execute_with_retry(move |conn| {
+            let query = "SELECT table_name, table_schema 
+                         FROM information_schema.tables 
+                         WHERE table_catalog = ?
+                         AND table_type = 'BASE TABLE'";
+            
+            let mut stmt = conn.prepare(query)?;
+            let mut tables = Vec::new();
+            
+            let mut rows = stmt.query([&database_owned])?;
+            while let Some(row) = rows.next()? {
+                tables.push(TableInfo {
+                    name: row.get(0)?,
+                    schema: row.get(1)?,
+                    row_count: None,
+                    estimated_size: None,
+                });
+            }
+            
+            Ok(tables)
+        }).await
     }
 
     pub async fn get_columns(&self, database: &str, table: &str) -> Result<Vec<ColumnInfo>> {
         let pool = self.pool.lock().await;
-        let conn = pool.get()?;
+        let database_owned = database.to_string();
+        let table_owned = table.to_string();
         
-        let query = "SELECT column_name, data_type, is_nullable 
-                     FROM information_schema.columns 
-                     WHERE table_catalog = ? 
-                     AND table_name = ?";
-        
-        let mut stmt = conn.prepare(query)?;
-        let mut columns = Vec::new();
-        
-        let mut rows = stmt.query([database, table])?;
-        while let Some(row) = rows.next()? {
-            columns.push(ColumnInfo {
-                name: row.get(0)?,
-                type_name: row.get(1)?,
-                nullable: row.get::<_, String>(2)? == "YES",
-            });
-        }
-        
-        Ok(columns)
+        pool.execute_with_retry(move |conn| {
+            let query = "SELECT column_name, data_type, is_nullable 
+                         FROM information_schema.columns 
+                         WHERE table_catalog = ? 
+                         AND table_name = ?";
+            
+            let mut stmt = conn.prepare(query)?;
+            let mut columns = Vec::new();
+            
+            let mut rows = stmt.query([&database_owned, &table_owned])?;
+            while let Some(row) = rows.next()? {
+                columns.push(ColumnInfo {
+                    name: row.get(0)?,
+                    type_name: row.get(1)?,
+                    nullable: row.get::<_, String>(2)? == "YES",
+                });
+            }
+            
+            Ok(columns)
+        }).await
     }
 
     pub async fn register_file(&self, options: FileRegistration) -> Result<()> {
@@ -344,21 +343,6 @@ impl DuckDBEngine {
         }
     }
 
-    fn load_extension(&self, conn: &Connection, name: &str) -> Result<()> {
-        // Validate extension name against whitelist
-        let extension_name = name.trim().to_lowercase();
-        if !ALLOWED_EXTENSIONS.contains(&extension_name.as_str()) {
-            return Err(crate::errors::DuckDBError::UnsupportedExtension(
-                format!("Extension '{}' is not in the allowed list", name)
-            ));
-        }
-        
-        // Use parameterized queries isn't supported for INSTALL/LOAD,
-        // but we've validated the input against a whitelist
-        conn.execute(&format!("INSTALL {}", extension_name), [])?;
-        conn.execute(&format!("LOAD {}", extension_name), [])?;
-        Ok(())
-    }
     
     fn load_extension_static(conn: &mut Connection, name: &str) -> Result<()> {
         // Validate extension name against whitelist

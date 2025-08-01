@@ -83,6 +83,11 @@ function buildColumnsQueryWithFilters(
   const filterBySchemaName = quotedSchemaNames && quotedSchemaNames.length > 0;
   const filterByObjectName = quotedObjectNames && quotedObjectNames.length > 0;
 
+  // For attached databases, we may need to query information_schema directly
+  // as duckdb_columns might not be populated in Tauri
+  // Let's add logging to see what's happening
+  console.log('[buildColumnsQueryWithFilters] Building query for databases:', databaseNames);
+
   return `
     SELECT 
         dt.table_oid is not null as is_table,
@@ -141,20 +146,66 @@ async function getTablesAndColumns(
   objectNames?: string[],
 ): Promise<ColumnsQueryReturnType[]> {
   const sql = buildColumnsQueryWithFilters(databaseNames, schemaNames, objectNames);
+  console.log('[getTablesAndColumns] Executing SQL:', sql);
+  console.log('[getTablesAndColumns] Database names:', databaseNames);
+  
+  // For Tauri, try to ensure metadata is fresh by querying system tables first
+  if (databaseNames && databaseNames.length > 0) {
+    try {
+      // Query duckdb_databases to verify the database is attached
+      const dbCheckQuery = `SELECT database_name, path FROM duckdb_databases() WHERE database_name IN (${databaseNames.map(name => `'${name}'`).join(',')})`;
+      const dbCheckResult = await conn.query(dbCheckQuery);
+      console.log('[getTablesAndColumns] Database check result:', dbCheckResult);
+      
+      // Try to force metadata refresh by querying PRAGMA
+      for (const dbName of databaseNames) {
+        if (dbName !== 'memory' && dbName !== 'temp' && dbName !== 'system') {
+          try {
+            // Try PRAGMA database_list to see if it helps
+            await conn.query('PRAGMA database_list');
+            
+            // Try querying the tables directly using information_schema
+            const tablesQuery = `
+              SELECT 
+                '${dbName}' as database_name,
+                schema_name,
+                table_name,
+                table_type
+              FROM information_schema.tables
+              WHERE table_catalog = '${dbName}'
+                AND schema_name NOT IN ('information_schema', 'pg_catalog')
+            `;
+            const tablesResult = await conn.query(tablesQuery);
+            console.log(`[getTablesAndColumns] Tables in ${dbName}:`, tablesResult);
+          } catch (e) {
+            console.log(`[getTablesAndColumns] Could not query information_schema for ${dbName}:`, e);
+          }
+        }
+      }
+    } catch (e) {
+      console.log('[getTablesAndColumns] Error checking databases:', e);
+    }
+  }
+  
   const res = await conn.query<ColumnsQueryArrowType>(sql);
 
   console.log('[getTablesAndColumns] Query result:', res);
   console.log('[getTablesAndColumns] numRows:', res.numRows);
+  console.log('[getTablesAndColumns] Result type:', typeof res);
+  console.log('[getTablesAndColumns] Has getChild method:', typeof res.getChild === 'function');
 
   // Handle Arrow table format
   const ret: ColumnsQueryReturnType[] = [];
-  const numRows = res.numRows || 0;
+  const numRows = res.numRows || res.rowCount || 0;
   
   if (numRows === 0) {
+    console.log('[getTablesAndColumns] No rows returned from metadata query');
     return ret;
   }
 
   // Get column vectors from the Arrow table
+  console.log('[getTablesAndColumns] Available columns:', res.getColumnNames ? res.getColumnNames() : 'getColumnNames not available');
+  
   const columns = {
     database_name: res.getChild('database_name'),
     schema_name: res.getChild('schema_name'),
@@ -165,6 +216,8 @@ async function getTablesAndColumns(
     data_type: res.getChild('data_type'),
     is_nullable: res.getChild('is_nullable'),
   };
+  
+  console.log('[getTablesAndColumns] Column vectors retrieved:', Object.keys(columns).map(k => `${k}: ${(columns as any)[k] ? 'found' : 'null'}`));
 
   for (let i = 0; i < numRows; i += 1) {
     const database_name_value = columns.database_name?.get(i);
