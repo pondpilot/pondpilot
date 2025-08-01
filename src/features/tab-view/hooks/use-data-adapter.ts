@@ -400,6 +400,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             ? await queries.getSortableReader(newSortParams, abortSignal)
             : await queries.getReader!(abortSignal);
 
+          console.log('[useDataAdapter] Got reader:', newReader);
+          console.log('[useDataAdapter] Reader has next method:', newReader && typeof newReader.next === 'function');
+
           // Reader will be null if load was aborted, so check it first
           if (newReader !== null) {
             mainDataReaderRef.current = newReader;
@@ -409,6 +412,13 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             if (!rowCountInfo.realRowCount) {
               fetchRowCount();
             }
+            
+            // Start fetching initial data immediately after a small delay
+            // to ensure all state updates have propagated
+            console.log('[useDataAdapter] Starting initial data fetch');
+            setTimeout(() => {
+              fetchData({ rowTo: 100, curSort: newSortParams });
+            }, 0);
           }
         }
       } catch (error: any) {
@@ -574,6 +584,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       let updateSchemaFromInferred = actualData.current.length === 0;
 
       try {
+        console.log('[useDataAdapter] Starting data read with reader:', mainDataReaderRef.current);
+        
         // Stop fetching when the reader is done or fetch is cancelled
         while (
           !readAll &&
@@ -583,6 +595,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           // If we read enough data, we can stop
           (fetchTo.current === null || actualData.current.length < fetchTo.current)
         ) {
+          console.log('[useDataAdapter] Calling reader.next()...');
           // Run an abortable read
           const { done, value } = await Promise.race([
             mainDataReaderRef.current.next(),
@@ -744,6 +757,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       rowTo: number | null;
       curSort: ColumnSortSpecList;
     }): Promise<void> => {
+      console.log('[fetchData] Called with rowTo:', rowTo, 'exhausted:', dataSourceExhausted, 'error:', dataSourceError.length, 'reader:', !!mainDataReaderRef.current);
+      
+      if (mainDataReaderRef.current) {
+        console.log('[fetchData] Reader closed?', mainDataReaderRef.current.closed);
+      }
+      
       if (
         // No reader - no fetching
         !mainDataReaderRef.current ||
@@ -755,6 +774,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // do no use closed reader either.
         mainDataReaderRef.current.closed
       ) {
+        console.log('[fetchData] Exiting early - reader check failed');
         return;
       }
 
@@ -767,10 +787,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       }
 
       // Now exit early if already fetching or have enough
+      console.log('[fetchData] Check: isFetchingData:', isFetchingData, 'actualData.length:', actualData.current.length, 'fetchTo:', fetchTo.current);
       if (
         isFetchingData ||
         (fetchTo.current !== null && actualData.current.length >= fetchTo.current)
       ) {
+        console.log('[fetchData] Exiting - already fetching or have enough data');
         return;
       }
 
@@ -796,6 +818,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       isFetchingData,
       fetchDataSingleEntry,
       setLastSortSafe,
+      // Note: mainDataReaderRef is intentionally not in dependencies
+      // because we access it via .current
     ],
   );
 

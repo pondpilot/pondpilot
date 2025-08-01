@@ -1,6 +1,7 @@
 import { ConnectionTimeoutError, PoolExhaustedError } from './errors';
 import { PoolConfig, getOptimalPoolConfig } from './pool-config';
 import { TauriConnection } from './tauri-connection';
+import { TauriArrowReader } from './tauri-arrow-reader';
 import { ConnectionPool, DatabaseConnection, PoolStats } from './types';
 import { DataType, Int32, Int64, Float32, Float64, Decimal, Utf8, Bool, DateDay, TimeMillisecond, TimestampMillisecond, IntervalDayTime, List, Struct, Binary, Field } from 'apache-arrow';
 
@@ -305,49 +306,31 @@ export class TauriConnectionPool implements ConnectionPool {
 
   async sendAbortable<T = any>(sql: string, signal: AbortSignal, stream?: boolean): Promise<T> {
     if (stream) {
-      // For streaming, return a reader-compatible object that reads all at once
-      const conn = await this.acquire();
-      let resultData: any = null;
-      let done = false;
-      let cancelled = false;
+      // Use true Arrow streaming
+      const streamId = crypto.randomUUID();
+      console.log(`[TauriConnectionPool] Starting stream query with ID: ${streamId}`);
       
-      // Execute the query immediately to get the data
-      const executeQuery = async () => {
-        try {
-          const result = await conn.execute(sql);
-          // Convert to Arrow-like format for compatibility
-          resultData = convertTauriResultToArrowLike(result);
-          await this.release(conn);
-        } catch (error) {
-          await this.release(conn);
-          throw error;
-        }
+      // Create Arrow reader FIRST to set up listeners
+      const reader = new TauriArrowReader(streamId);
+      console.log(`[TauriConnectionPool] TauriArrowReader created`);
+      
+      // Wait for listeners to be ready
+      await reader.waitForInit();
+      console.log(`[TauriConnectionPool] TauriArrowReader initialized`);
+      
+      // NOW initiate streaming on backend
+      await this.invoke('stream_query', {
+        sql: sql,
+        streamId: streamId,
+      });
+      console.log(`[TauriConnectionPool] stream_query invoked successfully`);
+      
+      // Handle abort
+      const abortHandler = () => {
+        console.log(`[TauriConnectionPool] Abort signal received, cancelling reader`);
+        reader.cancel();
       };
-      
-      // Start executing but don't wait
-      const queryPromise = executeQuery();
-      
-      const reader = {
-        async next() {
-          if (cancelled || done) {
-            return { done: true, value: undefined };
-          }
-          
-          // Wait for the query to complete
-          await queryPromise;
-          
-          // Return all data at once
-          done = true;
-          return { done: false, value: resultData };
-        },
-        async cancel() {
-          cancelled = true;
-          // Can't actually cancel the query in Tauri
-        },
-        get closed() {
-          return done || cancelled;
-        }
-      };
+      signal.addEventListener('abort', abortHandler, { once: true });
       
       return reader as T;
     } else {

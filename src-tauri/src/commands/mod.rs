@@ -1,10 +1,12 @@
+pub mod stream;
+
 use crate::database::{DuckDBEngine, EngineConfig, QueryResult, CatalogInfo, DatabaseInfo, TableInfo, ColumnInfo, FileRegistration, FileInfo};
 use std::sync::Arc;
-use tauri::{State, AppHandle, Emitter};
+use tauri::State;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-type EngineState<'r> = State<'r, Arc<Mutex<DuckDBEngine>>>;
+pub type EngineState<'r> = State<'r, Arc<Mutex<DuckDBEngine>>>;
 
 // Store for active streaming sessions
 // type StreamingSessions = Arc<Mutex<HashMap<String, bool>>>;
@@ -165,36 +167,6 @@ pub async fn shutdown_duckdb(_engine: EngineState<'_>) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-pub async fn stream_query(
-    app: AppHandle,
-    engine: EngineState<'_>,
-    stream_id: String,
-    sql: String,
-    params: Vec<serde_json::Value>,
-) -> Result<(), String> {
-    // Execute query and stream results
-    let engine = engine.lock().await;
-    
-    // For now, execute the full query and send results in chunks
-    let result = engine
-        .execute_query(&sql, params)
-        .await
-        .map_err(|e| e.to_string())?;
-    
-    // Send results in chunks of 100 rows
-    let chunk_size = 100;
-    for chunk in result.rows.chunks(chunk_size) {
-        app.emit(&format!("stream-{}", stream_id), chunk)
-            .map_err(|e| e.to_string())?;
-    }
-    
-    // Signal end of stream
-    app.emit(&format!("stream-{}-end", stream_id), ())
-        .map_err(|e| e.to_string())?;
-    
-    Ok(())
-}
 
 #[tauri::command]
 pub async fn prepare_statement(
