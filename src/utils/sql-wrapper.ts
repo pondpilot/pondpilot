@@ -9,29 +9,11 @@ export const DEFAULT_ROW_LIMIT = 10000;
  * 
  * @param sql The SQL query to wrap
  * @param limit Optional custom limit (defaults to DEFAULT_ROW_LIMIT)
- * @returns The wrapped query with a limit
+ * @returns The query unchanged (wrapping removed)
  */
 export function wrapQueryWithLimit(sql: string, limit: number = DEFAULT_ROW_LIMIT): string {
-  const trimmedSql = sql.trim();
-  const upperSql = trimmedSql.toUpperCase();
-  
-  // Don't wrap non-SELECT queries
-  if (!upperSql.startsWith('SELECT')) {
-    return sql;
-  }
-  
-  // Don't wrap queries that already have a LIMIT
-  if (upperSql.includes(' LIMIT ')) {
-    return sql;
-  }
-  
-  // Don't wrap CTEs - they often have their own limits internally
-  if (upperSql.startsWith('WITH ')) {
-    return sql;
-  }
-  
-  // Wrap the query with a subquery and limit
-  return `SELECT * FROM (${trimmedSql}) AS wrapped_query LIMIT ${limit}`;
+  // Return the query unchanged - no wrapping applied
+  return sql;
 }
 
 /**

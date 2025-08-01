@@ -8,8 +8,10 @@
 5. [File System Abstraction](#file-system-abstraction)
 6. [Persistence Layer](#persistence-layer)
 7. [Communication Patterns](#communication-patterns)
-8. [Build and Deployment](#build-and-deployment)
-9. [Developer Guide](#developer-guide)
+8. [Streaming Architecture](#streaming-architecture)
+9. [Connection Pool Management](#connection-pool-management)
+10. [Build and Deployment](#build-and-deployment)
+11. [Developer Guide](#developer-guide)
 
 ## Overview
 
@@ -309,10 +311,151 @@ Web Browser:
 └─────────┘                      └─────────┘
 
 Tauri Desktop:
-┌─────────┐     Event Stream     ┌─────────┐     Chunks      ┌─────────┐
+┌─────────┐     Event Stream     ┌─────────┐     Arrow IPC    ┌─────────┐
 │   UI    │ ◄────────────────── │  Rust   │ ◄──────────── │ DuckDB  │
-└─────────┘   stream-{id}-data   └─────────┘                └─────────┘
-              stream-{id}-end
+└─────────┘   stream-{id}-schema └─────────┘                └─────────┘
+              stream-{id}-batch
+              stream-{id}-complete
+```
+
+## Streaming Architecture
+
+### Overview
+
+Streaming is critical for handling large datasets without overwhelming memory. The Tauri implementation uses Apache Arrow IPC format for efficient data transfer.
+
+### Streaming Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Streaming Architecture                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  React UI                                                       │
+│  ┌──────────────┐                                               │
+│  │ stream_query │ ─────► Tauri Command                          │
+│  └──────────────┘        ┌─────────────────────────────┐       │
+│                          │ stream_query()               │       │
+│                          ├─────────────────────────────┤       │
+│                          │ 1. Register stream          │       │
+│                          │ 2. Get pooled connection    │       │
+│                          │ 3. Acquire streaming permit │       │
+│                          └──────────┬──────────────────┘       │
+│                                     │                           │
+│                          ┌──────────▼──────────────────┐       │
+│                          │ Blocking Task Thread        │       │
+│                          ├─────────────────────────────┤       │
+│                          │ • Execute DuckDB query      │       │
+│                          │ • Stream Arrow batches      │       │
+│                          │ • Convert to Arrow IPC      │       │
+│                          │ • Base64 encode            │       │
+│                          │ • Send via channel          │       │
+│                          └──────────┬──────────────────┘       │
+│                                     │                           │
+│                          ┌──────────▼──────────────────┐       │
+│                          │ Event Emitter               │       │
+│                          ├─────────────────────────────┤       │
+│                          │ stream-{id}-schema          │       │
+│                          │ stream-{id}-batch           │       │
+│                          │ stream-{id}-complete        │       │
+│                          └─────────────────────────────┘       │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+1. **Stream Manager**: Tracks active streams with cancellation tokens
+2. **Streaming Semaphore**: Limits concurrent streams (max 4)
+3. **Connection Pool**: Provides reusable connections for streaming
+4. **Arrow Conversion**: Converts DuckDB results to Arrow format
+
+### Streaming Optimizations
+
+1. **Early Termination**: Only sends first batch (2048 rows) initially
+2. **Cancellation Support**: Streams can be cancelled mid-execution
+3. **Connection Return**: Connections are properly returned to pool
+4. **Memory Efficiency**: Uses Arrow columnar format
+
+### Web vs Desktop Streaming
+
+```
+Web (WASM):
+• Single connection model
+• In-memory operations
+• JavaScript event loop handles queuing
+• No connection pool needed
+
+Desktop (Tauri):
+• Multiple connections from pool
+• File-based operations (can be slow)
+• Explicit connection management
+• Semaphore limits concurrency
+```
+
+## Connection Pool Management
+
+### Architecture
+
+The Tauri backend uses a sophisticated connection pool to manage DuckDB connections efficiently:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   Connection Pool Architecture                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                    ConnectionPool                        │   │
+│  ├─────────────────────────────────────────────────────────┤   │
+│  │ • max_connections: 10                                    │   │
+│  │ • pre_created: 5                                         │   │
+│  │ • available_connections: VecDeque<Connection>            │   │
+│  │ • query_semaphore: Semaphore(10)                        │   │
+│  │ • streaming_semaphore: Semaphore(4)                     │   │
+│  └────────────────┬────────────────────────────────────────┘   │
+│                   │                                             │
+│         ┌─────────┴──────────┬──────────────┐                  │
+│         ▼                    ▼              ▼                  │
+│  ┌──────────────┐    ┌──────────────┐ ┌──────────────┐        │
+│  │ get_pooled_  │    │ execute_     │ │ return_      │        │
+│  │ connection() │    │ with_retry() │ │ connection() │        │
+│  ├──────────────┤    ├──────────────┤ ├──────────────┤        │
+│  │ • Check pool │    │ • Get conn   │ │ • Add to     │        │
+│  │ • Create new │    │ • Run query  │ │   available  │        │
+│  │ • Wait if    │    │ • Return     │ │ • Notify     │        │
+│  │   exhausted  │    │   conn       │ │   waiters    │        │
+│  └──────────────┘    └──────────────┘ └──────────────┘        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Connection Lifecycle
+
+1. **Pre-creation**: 5 connections created at startup
+2. **On-demand**: New connections created up to max (10)
+3. **Reuse**: Connections returned to pool after use
+4. **Recovery**: Attached databases and extensions replicated
+
+### Key Improvements
+
+1. **Lock-free Queries**: Engine lock released before query execution
+2. **Connection Return**: All operations return connections to pool
+3. **Proper Cleanup**: Connections returned even on error paths
+4. **Resource Limits**: Semaphores prevent resource exhaustion
+
+### Performance Impact
+
+```
+Before (Connection per Query):
+• Create connection: ~100-500ms for large DB files
+• Execute query: Variable
+• Total: Creation overhead + query time
+
+After (Connection Pool):
+• Get pooled connection: <1ms
+• Execute query: Variable
+• Return connection: <1ms
+• Total: Query time only
 ```
 
 ## Build and Deployment
@@ -472,5 +615,14 @@ PondPilot's two-headed architecture provides:
 3. **Consistent UX**: Same interface across all platforms
 4. **Progressive Enhancement**: Features adapt to platform capabilities
 5. **Future-Proof**: Easy to add new platforms (mobile, cloud)
+6. **Efficient Streaming**: Handle large datasets without memory issues
+7. **Connection Pooling**: Reuse connections for better performance
 
 The abstraction layers ensure that platform-specific code is isolated, making the codebase maintainable and extensible. Whether running in a browser or as a desktop app, users get the best possible experience for their platform.
+
+### Recent Improvements
+
+- **Streaming Performance**: Fixed hanging when switching from large datasets
+- **Connection Pool**: Proper connection return prevents pool exhaustion
+- **Lock Contention**: Removed engine lock bottleneck for concurrent queries
+- **Resource Management**: Semaphores prevent resource overuse
