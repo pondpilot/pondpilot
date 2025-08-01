@@ -57,6 +57,10 @@ impl DuckDBEngine {
 
     pub async fn execute_query(&self, sql: &str, _params: Vec<serde_json::Value>) -> Result<QueryResult> {
         let start = Instant::now();
+        let query_id = format!("Q{}", start.elapsed().as_nanos() % 100000);
+        eprintln!("[QUERY-{}] ===== STARTING QUERY =====", query_id);
+        eprintln!("[QUERY-{}] SQL: {}", query_id, sql.chars().take(200).collect::<String>());
+        eprintln!("[QUERY-{}] Thread: {:?}", query_id, std::thread::current().id());
         
         // Check if this is a session-modifying statement
         let sql_upper = sql.trim().to_uppercase();
@@ -64,11 +68,19 @@ impl DuckDBEngine {
                                   sql_upper.starts_with("DETACH") || 
                                   sql_upper.starts_with("LOAD");
         
-        let pool = self.pool.lock().await;
-        
         if is_session_modifying {
+            eprintln!("[QUERY-{}] Acquiring engine pool lock for session-modifying statement...", query_id);
+            let pool = self.pool.lock().await;
+            eprintln!("[QUERY-{}] Engine pool lock acquired after {:?}", query_id, start.elapsed());
+            
             // Use special handling for session-modifying statements
-            pool.execute_session_modifying_statement(sql).await?;
+            eprintln!("[QUERY-{}] Executing session-modifying statement", query_id);
+            let result = pool.execute_session_modifying_statement(sql).await;
+            eprintln!("[QUERY-{}] Session-modifying statement completed, releasing lock", query_id);
+            drop(pool);
+            eprintln!("[QUERY-{}] Engine pool lock released", query_id);
+            
+            result?;
             
             // Return empty result for these statements
             return Ok(QueryResult {
@@ -79,14 +91,31 @@ impl DuckDBEngine {
             });
         }
         
+        // For regular queries, use the pool's execute_with_retry method
+        eprintln!("[QUERY-{}] Using connection pool for query execution...", query_id);
+        
+        let pool = self.pool.lock().await;
+        eprintln!("[QUERY-{}] Engine pool lock acquired after {:?}", query_id, start.elapsed());
+        
         // Clone necessary data for the blocking task
         let sql_owned = sql.to_string();
         let start_clone = start.clone();
+        let query_id_clone = query_id.clone();
         
-        // Use execute_with_retry for better reliability
-        pool.execute_with_retry(move |conn| {
-            Self::execute_query_on_connection_ref(conn, &sql_owned, start_clone)
-        }).await
+        eprintln!("[QUERY-{}] Executing query via pool...", query_id);
+        let result = pool.execute_with_retry(move |conn| {
+            eprintln!("[QUERY-{}] Inside execute_with_retry closure", query_id_clone);
+            let res = Self::execute_query_on_connection_ref(conn, &sql_owned, start_clone);
+            eprintln!("[QUERY-{}] Query execution completed with result: {}", query_id_clone, res.is_ok());
+            res
+        }).await;
+        
+        eprintln!("[QUERY-{}] execute_with_retry completed, releasing lock", query_id);
+        drop(pool);
+        eprintln!("[QUERY-{}] Engine pool lock released after {:?}", query_id, start.elapsed());
+        eprintln!("[QUERY-{}] ===== QUERY COMPLETE =====", query_id);
+        
+        result
     }
     
     fn execute_query_on_connection(mut conn: duckdb::Connection, sql: &str, start: Instant) -> Result<QueryResult> {
@@ -212,7 +241,9 @@ impl DuckDBEngine {
     }
 
     pub async fn get_catalog(&self) -> Result<CatalogInfo> {
+        eprintln!("[CATALOG] Getting catalog");
         let databases = self.get_databases().await?;
+        eprintln!("[CATALOG] Catalog retrieved");
         Ok(CatalogInfo {
             current_database: "main".to_string(),
             databases,
@@ -220,9 +251,14 @@ impl DuckDBEngine {
     }
 
     pub async fn get_databases(&self) -> Result<Vec<DatabaseInfo>> {
-        let pool = self.pool.lock().await;
+        let start = Instant::now();
+        eprintln!("[DATABASES] Creating new connection for database listing...");
         
-        pool.execute_with_retry(|conn| {
+        let pool = self.pool.lock().await;
+        eprintln!("[DATABASES] Engine pool lock acquired after {:?}", start.elapsed());
+        
+        let result = pool.execute_with_retry(|conn| {
+            eprintln!("[DATABASES] Executing duckdb_databases() query");
             // Use duckdb_databases system table for consistency with web version
             let mut stmt = conn.prepare("SELECT database_name, path FROM duckdb_databases()")?;
             let mut databases = Vec::new();
@@ -234,16 +270,39 @@ impl DuckDBEngine {
                     path: row.get(1).ok(),
                 });
             }
+            eprintln!("[DATABASES] Query completed, found {} databases", databases.len());
             
             Ok(databases)
-        }).await
+        }).await;
+        
+        eprintln!("[DATABASES] Releasing engine pool lock");
+        drop(pool);
+        eprintln!("[DATABASES] Engine pool lock released after {:?}", start.elapsed());
+        
+        result
     }
 
     pub async fn get_tables(&self, database: &str) -> Result<Vec<TableInfo>> {
-        let pool = self.pool.lock().await;
+        let start = Instant::now();
+        eprintln!("[TABLES] Getting tables for database '{}'", database);
+        
+        // Get a new connection without holding the engine lock
+        let conn = {
+            eprintln!("[TABLES] Acquiring engine pool lock...");
+            let pool = self.pool.lock().await;
+            eprintln!("[TABLES] Engine pool lock acquired after {:?}", start.elapsed());
+            let conn = pool.get()?;
+            eprintln!("[TABLES] Connection created, releasing engine pool lock");
+            drop(pool);
+            eprintln!("[TABLES] Engine pool lock released");
+            conn
+        };
+        
         let database_owned = database.to_string();
         
-        pool.execute_with_retry(move |conn| {
+        // Execute query on separate connection
+        let result = tokio::task::spawn_blocking(move || -> Result<Vec<TableInfo>> {
+            eprintln!("[TABLES] Executing information_schema.tables query");
             let query = "SELECT table_name, table_schema 
                          FROM information_schema.tables 
                          WHERE table_catalog = ?
@@ -261,17 +320,42 @@ impl DuckDBEngine {
                     estimated_size: None,
                 });
             }
+            eprintln!("[TABLES] Query completed, found {} tables", tables.len());
             
             Ok(tables)
         }).await
+            .map_err(|e| crate::errors::DuckDBError::QueryError {
+                message: format!("Task execution error: {}", e),
+                sql: Some("SELECT FROM information_schema.tables".to_string()),
+            })??;
+        
+        eprintln!("[TABLES] Total time: {:?}", start.elapsed());
+        
+        Ok(result)
     }
 
     pub async fn get_columns(&self, database: &str, table: &str) -> Result<Vec<ColumnInfo>> {
-        let pool = self.pool.lock().await;
+        let start = Instant::now();
+        eprintln!("[COLUMNS] Getting columns for table '{}.{}'", database, table);
+        
+        // Get a new connection without holding the engine lock
+        let conn = {
+            eprintln!("[COLUMNS] Acquiring engine pool lock...");
+            let pool = self.pool.lock().await;
+            eprintln!("[COLUMNS] Engine pool lock acquired after {:?}", start.elapsed());
+            let conn = pool.get()?;
+            eprintln!("[COLUMNS] Connection created, releasing engine pool lock");
+            drop(pool);
+            eprintln!("[COLUMNS] Engine pool lock released");
+            conn
+        };
+        
         let database_owned = database.to_string();
         let table_owned = table.to_string();
         
-        pool.execute_with_retry(move |conn| {
+        // Execute query on separate connection
+        let result = tokio::task::spawn_blocking(move || -> Result<Vec<ColumnInfo>> {
+            eprintln!("[COLUMNS] Executing information_schema.columns query");
             let query = "SELECT column_name, data_type, is_nullable 
                          FROM information_schema.columns 
                          WHERE table_catalog = ? 
@@ -288,9 +372,18 @@ impl DuckDBEngine {
                     nullable: row.get::<_, String>(2)? == "YES",
                 });
             }
+            eprintln!("[COLUMNS] Query completed, found {} columns", columns.len());
             
             Ok(columns)
         }).await
+            .map_err(|e| crate::errors::DuckDBError::QueryError {
+                message: format!("Task execution error: {}", e),
+                sql: Some("SELECT FROM information_schema.columns".to_string()),
+            })??;
+        
+        eprintln!("[COLUMNS] Total time: {:?}", start.elapsed());
+        
+        Ok(result)
     }
 
     pub async fn register_file(&self, options: FileRegistration) -> Result<()> {
@@ -358,5 +451,31 @@ impl DuckDBEngine {
         conn.execute(&format!("INSTALL {}", extension_name), [])?;
         conn.execute(&format!("LOAD {}", extension_name), [])?;
         Ok(())
+    }
+    
+    pub async fn get_streaming_semaphore(&self) -> Arc<tokio::sync::Semaphore> {
+        let pool = self.pool.lock().await;
+        pool.get_streaming_semaphore()
+    }
+    
+    pub async fn create_streaming_connection(&self) -> Result<duckdb::Connection> {
+        let pool = self.pool.lock().await;
+        pool.create_streaming_connection().await
+    }
+    
+    // Get both semaphore and create connection in one go to minimize lock time
+    pub async fn prepare_streaming(&self) -> Result<(Arc<tokio::sync::Semaphore>, duckdb::Connection)> {
+        let pool = self.pool.lock().await;
+        let sem = pool.get_streaming_semaphore();
+        // Get a pooled connection for streaming
+        let conn = pool.get_pooled_connection().await?;
+        Ok((sem, conn))
+    }
+    
+    // Return a streaming connection to the pool
+    pub async fn return_streaming_connection(&self, conn: duckdb::Connection) {
+        eprintln!("[ENGINE] Returning streaming connection to pool");
+        let pool = self.pool.lock().await;
+        pool.return_connection(conn).await;
     }
 }
