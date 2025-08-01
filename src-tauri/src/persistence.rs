@@ -51,6 +51,12 @@ impl PersistenceState {
                 key TEXT PRIMARY KEY,
                 data TEXT NOT NULL -- JSON serialized data
             );
+            
+            -- DuckDB session state (attached databases, loaded extensions)
+            CREATE TABLE IF NOT EXISTS duckdb_session (
+                key TEXT PRIMARY KEY,
+                data TEXT NOT NULL -- JSON serialized data
+            );
             "#
         )?;
         
@@ -97,6 +103,7 @@ fn map_table_name(table: &str) -> &'static str {
         "sql-script" => "sql_scripts",
         "tab" => "tabs",
         "content-view" => "content_view",
+        "duckdb-session" => "duckdb_session",
         _ => panic!("Unknown table name: {}", table),
     }
 }
