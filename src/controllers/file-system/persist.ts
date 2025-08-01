@@ -8,9 +8,9 @@ import {
   DATA_SOURCE_TABLE_NAME,
   LOCAL_ENTRY_TABLE_NAME,
 } from '@models/persisted-store';
-import { IDBPDatabase } from 'idb';
-import { PersistenceAdapter, createPersistenceAdapter } from '@store/persistence';
+import { PersistenceAdapter } from '@store/persistence';
 import { isTauriEnvironment } from '@utils/browser';
+import { IDBPDatabase } from 'idb';
 
 /**
  * ------------------------------------------------------------
@@ -24,8 +24,8 @@ export const persistAddLocalEntry = async (
   newDataSources: [PersistentDataSourceId, AnyDataSource][],
 ) => {
   // Check if we're using the adapter pattern
-  const adapter = isTauriEnvironment() ? iDbOrAdapter as PersistenceAdapter : null;
-  
+  const adapter = isTauriEnvironment() ? (iDbOrAdapter as PersistenceAdapter) : null;
+
   if (adapter) {
     // Using persistence adapter (Tauri/SQLite)
     // Process entries
@@ -39,7 +39,7 @@ export const persistAddLocalEntry = async (
       };
       await adapter.put(LOCAL_ENTRY_TABLE_NAME, persistenceEntry, id);
     }
-    
+
     // Process data sources
     for (const [id, newDataSource] of newDataSources) {
       await adapter.put(DATA_SOURCE_TABLE_NAME, newDataSource, id);
@@ -106,8 +106,8 @@ export const persistDeleteLocalEntry = async (
   entryIdsToDelete: Iterable<LocalEntryId>,
 ) => {
   // Check if we're using the adapter pattern
-  const adapter = isTauriEnvironment() ? iDbOrAdapter as PersistenceAdapter : null;
-  
+  const adapter = isTauriEnvironment() ? (iDbOrAdapter as PersistenceAdapter) : null;
+
   if (adapter) {
     // Using persistence adapter (Tauri/SQLite)
     for (const id of entryIdsToDelete) {

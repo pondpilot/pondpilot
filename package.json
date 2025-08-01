@@ -83,8 +83,11 @@
   "devDependencies": {
     "@playwright/test": "^1.51.0",
     "@tanstack/eslint-plugin-query": "^5.68.0",
-    "@tauri-apps/api": "^1.6.0",
-    "@tauri-apps/cli": "^1.6.0",
+    "@tauri-apps/api": "^2.7.0",
+    "@tauri-apps/cli": "^2.7.0",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-shell": "^2",
     "@types/dagre": "^0.7.52",
     "@types/node": "^22.13.9",
     "@types/react": "^19.0.0",

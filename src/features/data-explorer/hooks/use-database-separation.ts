@@ -21,8 +21,7 @@ export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>
       if (dataSource.type === 'attached-db') {
         // The system database is always 'pondpilot'
         const isSystemDb =
-          dataSource.id === SYSTEM_DATABASE_ID ||
-          dataSource.dbName === SYSTEM_DATABASE_NAME;
+          dataSource.id === SYSTEM_DATABASE_ID || dataSource.dbName === SYSTEM_DATABASE_NAME;
 
         if (isSystemDb) {
           systemDb = dataSource;
