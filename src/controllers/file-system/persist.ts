@@ -30,12 +30,11 @@ export const persistAddLocalEntry = async (
     // Using persistence adapter (Tauri/SQLite)
     // Process entries
     for (const [id, newLocalEntry] of newEntries) {
-      // For Tauri, include the file path
+      // For Tauri, include the file path as tauriPath
       const persistenceEntry = {
         ...newLocalEntry,
         handle: null, // Don't store mock handles
-        filePath: (newLocalEntry as any).filePath,
-        directoryPath: (newLocalEntry as any).directoryPath,
+        tauriPath: (newLocalEntry as any).filePath || (newLocalEntry as any).directoryPath,
       };
       await adapter.put(LOCAL_ENTRY_TABLE_NAME, persistenceEntry, id);
     }
@@ -54,13 +53,13 @@ export const persistAddLocalEntry = async (
       // Convert LocalEntry to LocalEntryPersistence
       let persistenceEntry: any;
 
-      // Check if this is a Tauri handle with _tauriPath
-      if (newLocalEntry.handle && (newLocalEntry.handle as any)._tauriPath) {
+      // Check if this is a Tauri handle with _tauriPath or has filePath
+      if ((newLocalEntry.handle && (newLocalEntry.handle as any)._tauriPath) || (newLocalEntry as any).filePath) {
         // For Tauri handles, store only the path and essential properties
         persistenceEntry = {
           ...newLocalEntry,
           handle: null, // Don't store the mock handle
-          tauriPath: (newLocalEntry.handle as any)._tauriPath, // Store the path separately
+          tauriPath: (newLocalEntry.handle as any)?._tauriPath || (newLocalEntry as any).filePath, // Store the path separately
         };
       } else {
         // For web handles, only store if userAdded
