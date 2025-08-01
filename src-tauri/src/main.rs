@@ -5,9 +5,11 @@ mod commands;
 mod database;
 mod persistence;
 mod errors;
+mod streaming;
 
 use database::DuckDBEngine;
 use persistence::PersistenceState;
+use streaming::StreamManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tauri::Manager;
@@ -22,8 +24,16 @@ fn test_connection() -> Result<String, String> {
     Ok("Tauri backend is working!".to_string())
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
+    // Configure tokio runtime with more blocking threads for DuckDB operations
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .max_blocking_threads(128) // Reduce from default 512 but still enough for concurrent DuckDB operations
+        .enable_all()
+        .build()
+        .expect("Failed to build tokio runtime");
+    
+    runtime.block_on(async {
     // Set up panic hook to catch and log panics
     std::panic::set_hook(Box::new(|panic_info| {
         eprintln!("PANIC occurred: {}", panic_info);
@@ -59,9 +69,13 @@ async fn main() {
             let persistence = PersistenceState::new(sqlite_path)
                 .expect("Failed to create persistence state");
             
-            // Store both in app state
+            // Create stream manager
+            let stream_manager = Arc::new(StreamManager::new());
+            
+            // Store all in app state
             app.manage(engine);
             app.manage(persistence);
+            app.manage(stream_manager);
             
             // Enable devtools in debug mode
             #[cfg(debug_assertions)]
@@ -78,7 +92,8 @@ async fn main() {
             commands::initialize_duckdb,
             commands::shutdown_duckdb,
             commands::execute_query,
-            commands::stream_query,
+            commands::stream::stream_query,
+            commands::stream::cancel_stream,
             commands::prepare_statement,
             commands::prepared_statement_execute,
             commands::prepared_statement_close,
@@ -107,4 +122,5 @@ async fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+    });
 }
