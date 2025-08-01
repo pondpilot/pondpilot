@@ -109,6 +109,12 @@ async function restoreAppDataFromSQLite(
         } as any;
       }
     }
+    // Ensure filePath is set for Tauri entries
+    if (entryData.tauriPath && entryData.kind === 'file') {
+      (entryData as any).filePath = entryData.tauriPath;
+    } else if (entryData.tauriPath && entryData.kind === 'directory') {
+      (entryData as any).directoryPath = entryData.tauriPath;
+    }
     localEntries.set(entryData.id, entryData as LocalEntry);
   }
 
@@ -156,8 +162,132 @@ async function restoreAppDataFromSQLite(
     await adapter.put(DATA_SOURCE_TABLE_NAME, systemDb, systemDb.id);
   }
 
-  // Get database metadata
-  console.log('[restore] Getting database metadata...');
+  // Initial state update (without database metadata yet)
+  useAppStore.setState({ dataSources });
+
+  // Register files and create views for data sources
+  const registeredFiles = new Map<LocalEntryId, File>();
+
+  // First, re-attach databases for attached-db data sources
+  for (const [id, dataSource] of dataSources) {
+    if (dataSource.type === 'attached-db' && dataSource.dbName !== SYSTEM_DATABASE_NAME) {
+      const localEntry = localEntries.get(dataSource.fileSourceId);
+      if (!localEntry || localEntry.kind !== 'file') {
+        console.warn(`Local entry not found for attached database ${id}`);
+        warnings.push(`Failed to restore attached database: ${dataSource.dbName} (file not found)`);
+        continue;
+      }
+
+      try {
+        // Get the file path - try multiple sources
+        const tauriPath = (localEntry.handle as any)?._tauriPath || 
+                         (localEntry as any).tauriPath || 
+                         (localEntry as any).filePath;
+        if (!tauriPath) {
+          console.warn(`No path available for database ${localEntry.name}`);
+          console.warn('LocalEntry:', localEntry);
+          warnings.push(`Failed to restore attached database: ${dataSource.dbName} (no file path)`);
+          continue;
+        }
+
+        // Re-attach the database
+        const { registerAndAttachDatabase } = await import('@controllers/db/data-source');
+        const fileName = `${localEntry.uniqueAlias}.${localEntry.ext}`;
+        
+        console.log(`[restore] Re-attaching database ${dataSource.dbName} from ${tauriPath}`);
+        const regFile = await registerAndAttachDatabase(
+          conn,
+          localEntry.handle,
+          fileName,
+          dataSource.dbName,
+        );
+        
+        if (regFile) {
+          registeredFiles.set(localEntry.id, regFile);
+        }
+        console.log(`[restore] Successfully re-attached database ${dataSource.dbName}`);
+      } catch (error) {
+        console.error(`Failed to re-attach database ${dataSource.dbName}:`, error);
+        warnings.push(`Failed to restore attached database: ${dataSource.dbName} (${error})`);
+      }
+    }
+  }
+
+  // Then handle other data sources
+  for (const [id, dataSource] of dataSources) {
+    if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+      continue;
+    }
+
+    const localEntry = localEntries.get(dataSource.fileSourceId);
+    if (!localEntry || localEntry.kind !== 'file') {
+      console.warn(`Local entry not found for data source ${id}`);
+      continue;
+    }
+
+    try {
+      // Register the file and create view
+      const { registerFileSourceAndCreateView, registerFileHandle, createXlsxSheetView } =
+        await import('@controllers/db/data-source');
+
+      if (dataSource.type === 'xlsx-sheet') {
+        // For Excel files, register file handle first
+        const fileName = `${localEntry.uniqueAlias}.${localEntry.ext}`;
+
+        // In Tauri, we don't need to register the file handle for Excel files
+        // Just create the sheet view directly
+        const tauriPath = (localEntry.handle as any)?._tauriPath || 
+                         (localEntry as any).tauriPath ||
+                         (localEntry as any).filePath;
+        if (!tauriPath) {
+          console.warn(
+            `No Tauri path available for Excel file ${localEntry.name}, skipping sheet view creation`,
+          );
+          warnings.push(
+            `Failed to restore Excel sheet: ${dataSource.sheetName} from ${localEntry.name} (no file path)`,
+          );
+          continue;
+        }
+
+        await createXlsxSheetView(conn, tauriPath, dataSource.sheetName, dataSource.viewName);
+      } else if (localEntry.ext === 'duckdb' || localEntry.ext === 'sql') {
+        // Skip duckdb and sql files - they are handled differently
+        console.log(`Skipping ${localEntry.ext} file registration for ${dataSource.id}`);
+      } else {
+        // For other file types (csv, json, parquet)
+        // In Tauri, check if handle is valid before trying to register
+        if (!localEntry.handle) {
+          console.warn(`No handle available for ${localEntry.name}, skipping registration`);
+          warnings.push(`Failed to restore data source: ${localEntry.name} (no file handle)`);
+          continue;
+        }
+
+        // In Tauri, pass the file path as fileName if handle has _tauriPath
+        const tauriPath = (localEntry.handle as any)?._tauriPath || 
+                         (localEntry as any).tauriPath ||
+                         (localEntry as any).filePath;
+        const fileName = tauriPath || `${localEntry.uniqueAlias}.${localEntry.ext}`;
+        const regFile = await registerFileSourceAndCreateView(
+          conn,
+          localEntry.handle!, // We've already checked it's not null above
+          localEntry.ext as supportedFlatFileDataSourceFileExt,
+          fileName,
+          dataSource.viewName,
+        );
+        if (regFile) {
+          registeredFiles.set(localEntry.id, regFile);
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to register file source for ${dataSource.id}:`, error);
+      warnings.push(`Failed to restore data source: ${localEntry.name}`);
+    }
+  }
+
+  useAppStore.setState({ registeredFiles });
+
+  // Now get database metadata after all databases are attached
+  console.log('[restore] Getting database metadata after all attachments...');
   const allDatabaseNames = ['pondpilot']; // Start with system database
 
   // Add all attached database names
@@ -183,78 +313,8 @@ async function restoreAppDataFromSQLite(
     });
   }
 
-  useAppStore.setState({ dataSources, databaseMetadata });
-
-  // Register files and create views for data sources
-  const registeredFiles = new Map<LocalEntryId, File>();
-
-  for (const [id, dataSource] of dataSources) {
-    if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
-      continue;
-    }
-
-    const localEntry = localEntries.get(dataSource.fileSourceId);
-    if (!localEntry || localEntry.kind !== 'file') {
-      console.warn(`Local entry not found for data source ${id}`);
-      continue;
-    }
-
-    try {
-      // Register the file and create view
-      const { registerFileSourceAndCreateView, registerFileHandle, createXlsxSheetView } =
-        await import('@controllers/db/data-source');
-
-      if (dataSource.type === 'xlsx-sheet') {
-        // For Excel files, register file handle first
-        const fileName = `${localEntry.uniqueAlias}.${localEntry.ext}`;
-
-        // In Tauri, we don't need to register the file handle for Excel files
-        // Just create the sheet view directly
-        const tauriPath = (localEntry.handle as any)?._tauriPath || (localEntry as any).tauriPath;
-        if (!tauriPath) {
-          console.warn(
-            `No Tauri path available for Excel file ${localEntry.name}, skipping sheet view creation`,
-          );
-          warnings.push(
-            `Failed to restore Excel sheet: ${dataSource.sheetName} from ${localEntry.name} (no file path)`,
-          );
-          continue;
-        }
-
-        await createXlsxSheetView(conn, tauriPath, dataSource.sheetName, dataSource.viewName);
-      } else if (localEntry.ext === 'duckdb' || localEntry.ext === 'sql') {
-        // Skip duckdb and sql files - they are handled differently
-        console.log(`Skipping ${localEntry.ext} file registration for ${dataSource.id}`);
-      } else {
-        // For other file types (csv, json, parquet)
-        // In Tauri, check if handle is valid before trying to register
-        if (!localEntry.handle) {
-          console.warn(`No handle available for ${localEntry.name}, skipping registration`);
-          warnings.push(`Failed to restore data source: ${localEntry.name} (no file handle)`);
-          continue;
-        }
-
-        // In Tauri, pass the file path as fileName if handle has _tauriPath
-        const tauriPath = (localEntry.handle as any)?._tauriPath || (localEntry as any).tauriPath;
-        const fileName = tauriPath || `${localEntry.uniqueAlias}.${localEntry.ext}`;
-        const regFile = await registerFileSourceAndCreateView(
-          conn,
-          localEntry.handle!, // We've already checked it's not null above
-          localEntry.ext as supportedFlatFileDataSourceFileExt,
-          fileName,
-          dataSource.viewName,
-        );
-        if (regFile) {
-          registeredFiles.set(localEntry.id, regFile);
-        }
-      }
-    } catch (error) {
-      console.error(`Failed to register file source for ${dataSource.id}:`, error);
-      warnings.push(`Failed to restore data source: ${localEntry.name}`);
-    }
-  }
-
-  useAppStore.setState({ registeredFiles });
+  // Final state update with complete metadata
+  useAppStore.setState({ databaseMetadata });
 
   return { discardedEntries: [], warnings };
 }
