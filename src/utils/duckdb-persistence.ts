@@ -47,14 +47,14 @@ export function downloadDatabaseFile(data: ArrayBuffer, fileName: string): void 
  * Check if persistence is supported in the current browser
  */
 export function isPersistenceSupported(): boolean {
-  // In Tauri, persistence is handled differently
+  // In Tauri, persistence is handled natively - don't check for OPFS
   if (
     typeof window !== 'undefined' &&
     ('__TAURI__' in window ||
       window.navigator.userAgent.includes('Tauri') ||
       '__TAURI_INTERNALS__' in window)
   ) {
-    return true;
+    return false; // Return false to prevent OPFS usage in Tauri
   }
 
   return (

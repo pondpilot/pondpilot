@@ -7,6 +7,7 @@ import { useFeatureContext } from '@features/feature-context';
 import { SharedScriptImport } from '@features/script-import';
 import { MainPage } from '@pages/main-page';
 import { SettingsPage } from '@pages/settings-page';
+import { isTauriEnvironment } from '@utils/browser';
 import { createBrowserRouter, RouterProvider, Navigate, RouteObject } from 'react-router-dom';
 
 let devOnlyRoutes: RouteObject[] = [];
@@ -30,7 +31,8 @@ if (import.meta.env.DEV || __INTEGRATION_TEST__) {
 export function Router() {
   const { isFileAccessApiSupported, isMobileDevice, isOPFSSupported, isTabBlocked } =
     useFeatureContext();
-  const canUseApp = isFileAccessApiSupported && isOPFSSupported;
+  // In Tauri, we don't need browser APIs, so always allow
+  const canUseApp = isTauriEnvironment() || (isFileAccessApiSupported && isOPFSSupported);
 
   if (isTabBlocked) {
     return <MultipleTabsBlocked />;
