@@ -50,18 +50,35 @@ function mapTauriTypeToArrowType(typeName: string): DataType {
 
 // Helper to convert Tauri result to Arrow-like format
 function convertTauriResultToArrowLike(result: any): any {
-  if (!result || !result.columns || !result.rows) {
+  // Debug log the raw result
+  if (result && typeof result === 'object') {
+    console.log('[convertTauriResultToArrowLike] Raw result keys:', Object.keys(result));
+    console.log('[convertTauriResultToArrowLike] Has columns:', 'columns' in result);
+    console.log('[convertTauriResultToArrowLike] Has rows:', 'rows' in result);
+    if ('rows' in result) {
+      console.log('[convertTauriResultToArrowLike] Rows length:', result.rows?.length);
+    }
+  }
+  
+  if (!result) {
     return result;
   }
+  
+  // Handle case where columns or rows might be undefined (empty result set)
+  const columns = result.columns || [];
+  const rows = result.rows || [];
+  
+  console.log('[convertTauriResultToArrowLike] Columns:', columns);
+  console.log('[convertTauriResultToArrowLike] Rows count:', rows.length);
 
   // Create a mock Arrow table object with getChild method
   const table = {
-    numRows: result.rows.length,
-    rowCount: result.rows.length,
-    numCols: result.columns.length,
+    numRows: rows.length,
+    rowCount: rows.length,
+    numCols: columns.length,
     // Add schema for compatibility with Arrow table operations
     schema: {
-      fields: result.columns.map((col: any, index: number) => {
+      fields: columns.map((col: any, index: number) => {
         // Map Tauri types to Arrow-like type objects
         const typeName = col.type_name || col.type || 'VARCHAR';
         const arrowType = mapTauriTypeToArrowType(typeName);
@@ -78,17 +95,17 @@ function convertTauriResultToArrowLike(result: any): any {
       }),
     },
     getChild(columnName: string) {
-      const columnIndex = result.columns.findIndex((col: any) => col.name === columnName);
+      const columnIndex = columns.findIndex((col: any) => col.name === columnName);
       if (columnIndex === -1) {
-        console.warn(`Column "${columnName}" not found in result columns:`, result.columns.map((c: any) => c.name));
+        console.warn(`Column "${columnName}" not found in result columns:`, columns.map((c: any) => c.name));
         return null;
       }
       
       // Get column info for type data
-      const columnInfo = result.columns[columnIndex];
+      const columnInfo = columns[columnIndex];
       
       // Create a mock column vector
-      const columnData = result.rows.map((row: any) => {
+      const columnData = rows.map((row: any) => {
         const value = row[columnName];
         // Handle null values explicitly
         return value === null || value === undefined ? null : value;
@@ -96,16 +113,16 @@ function convertTauriResultToArrowLike(result: any): any {
       
       const columnVector = {
         get(rowIndex: number) {
-          if (rowIndex < 0 || rowIndex >= result.rows.length) {
+          if (rowIndex < 0 || rowIndex >= rows.length) {
             return null;
           }
-          const value = result.rows[rowIndex][columnName];
+          const value = rows[rowIndex][columnName];
           return value === null || value === undefined ? null : value;
         },
         toArray() {
           return columnData;
         },
-        length: result.rows.length,
+        length: rows.length,
         // Add type information
         type: columnInfo.type_name || columnInfo.type || 'VARCHAR',
         nullable: columnInfo.nullable !== false,
@@ -125,20 +142,20 @@ function convertTauriResultToArrowLike(result: any): any {
       return columnVector;
     },
     getChildAt(index: number) {
-      if (index < 0 || index >= result.columns.length) {
-        console.warn(`Column index ${index} out of bounds. Total columns: ${result.columns.length}`);
+      if (index < 0 || index >= columns.length) {
+        console.warn(`Column index ${index} out of bounds. Total columns: ${columns.length}`);
         return null;
       }
-      const columnName = result.columns[index].name;
+      const columnName = columns[index].name;
       return this.getChild(columnName);
     },
     // Add column count method for compatibility
     getColumnCount() {
-      return result.columns.length;
+      return columns.length;
     },
     // Add method to get all column names
     getColumnNames() {
-      return result.columns.map((col: any) => col.name);
+      return columns.map((col: any) => col.name);
     },
     // For compatibility with code expecting direct property access
     ...result,
@@ -250,6 +267,7 @@ export class TauriConnectionPool implements ConnectionPool {
     const conn = await this.acquire();
     try {
       const result = await conn.execute(sql);
+      console.log('[TauriConnectionPool.query] Raw execute result:', result);
       // Convert Tauri result to Arrow-like format for compatibility
       return convertTauriResultToArrowLike(result) as T;
     } finally {

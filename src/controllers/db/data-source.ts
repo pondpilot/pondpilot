@@ -191,9 +191,55 @@ export async function registerAndAttachDatabase(
 
   // Attach database using the appropriate path
   // In web environment, use the registered fileName, not fileRef.path
-  const attachPath = needsFileRegistration() ? fileName : fileRef.path;
+  let attachPath = needsFileRegistration() ? fileName : fileRef.path;
+  
+  // In Tauri on Windows, ensure we use forward slashes for DuckDB
+  if (!needsFileRegistration() && attachPath.includes('\\')) {
+    console.log('[registerAndAttachDatabase] Converting Windows path to Unix format for DuckDB');
+    attachPath = attachPath.replace(/\\/g, '/');
+  }
+  
   const attachQuery = buildAttachQuery(attachPath, dbName, { readOnly: true });
-  await conn.query(attachQuery);
+  console.log('[registerAndAttachDatabase] Attaching database with query:', attachQuery);
+  console.log('[registerAndAttachDatabase] File reference:', fileRef);
+  console.log('[registerAndAttachDatabase] Attach path:', attachPath);
+  
+  try {
+    await conn.query(attachQuery);
+    
+    // Verify the database was attached by querying duckdb_databases
+    // First, let's see all databases
+    const allDbQuery = `SELECT database_name, internal FROM duckdb_databases`;
+    const allDbResult = await conn.query(allDbQuery);
+    console.log('[registerAndAttachDatabase] All databases after attach:', allDbResult);
+    
+    const verifyQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = ${quote(dbName, { single: true })}`;
+    const verifyResult = await conn.query(verifyQuery);
+    console.log('[registerAndAttachDatabase] Database attach verification:', verifyResult);
+    
+    // Also try a direct query to the attached database
+    try {
+      const directQuery = `SELECT current_database() as current_db, '${dbName}' as expected_db`;
+      const directResult = await conn.query(directQuery);
+      console.log('[registerAndAttachDatabase] Direct query result:', directResult);
+    } catch (e) {
+      console.log('[registerAndAttachDatabase] Direct query failed:', e);
+    }
+    
+    // Force a metadata refresh by running a simple query on the attached database
+    try {
+      const refreshQuery = `SELECT 1 FROM ${toDuckDBIdentifier(dbName)}.information_schema.tables LIMIT 1`;
+      await conn.query(refreshQuery).catch(() => {
+        // It's okay if this fails - some databases might not have information_schema
+        console.log('[registerAndAttachDatabase] Could not query information_schema, trying alternative');
+      });
+    } catch (e) {
+      // Ignore errors here, this is just to trigger metadata loading
+    }
+  } catch (error) {
+    console.error('[registerAndAttachDatabase] Failed to attach database:', error);
+    throw error;
+  }
 
   // Return file object for web, null for Tauri
   return await getFileContent(handle);
