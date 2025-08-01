@@ -110,7 +110,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // Query to be used in data adapter and saved to the store
       let lastExecutedQuery: string | null = null;
 
-      // Create a pooled connection
+      // Get a connection from the pool for the entire operation
       const conn = await pool.acquire();
 
       const runQueryWithFileSyncAndRetry = async (code: string) => {
@@ -146,7 +146,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
 
         if (needsTransaction) {
-          await conn.query('BEGIN TRANSACTION');
+          await conn.execute('BEGIN TRANSACTION');
         }
 
         // Execute each statement except the last one
@@ -157,7 +157,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await conn.execute('ROLLBACK');
             }
             console.error('Error executing statement:', statement.type, error);
             setScriptExecutionState('error');
@@ -194,7 +194,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             const message = error instanceof Error ? error.message : String(error);
 
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await conn.execute('ROLLBACK');
             }
             console.error(
               'Creation of a prepared statement for the last SELECT statement failed:',
@@ -231,7 +231,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await conn.execute('ROLLBACK');
             }
             console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
             setScriptExecutionState('error');
@@ -261,7 +261,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
         // All statements executed successfully
         if (needsTransaction) {
-          await conn.query('COMMIT');
+          await conn.execute('COMMIT');
         }
 
         // Check if any DDL or database operations were executed and refresh metadata
@@ -272,11 +272,60 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
         if (hasDDL || hasAttachDetach) {
           // Get all currently attached databases
-          const attachedDatabasesResult = await conn.query(
-            'SELECT DISTINCT database_name FROM duckdb_databases() WHERE NOT internal',
+          // Get all currently attached databases
+          // For queries that need Arrow table format, we need to use the pool's query method
+          // which returns the raw result from DuckDB
+          
+          // First, let's see all databases using the SAME connection that executed ATTACH
+          const allDbResult = await conn.execute('SELECT * FROM duckdb_databases()');
+          console.log('[script-tab-view] All databases (from ATTACH connection):', allDbResult);
+          
+          const attachedDatabasesResult = await conn.execute(
+            'SELECT DISTINCT database_name FROM duckdb_databases()',
           );
-          const attachedDatabases = attachedDatabasesResult.toArray();
-          const dbNames = attachedDatabases.map((row: any) => row.database_name);
+          
+          // Handle the result format from conn.execute (returns {rows: [...], columns: [...], ...})
+          let attachedDatabases: any[];
+          if (attachedDatabasesResult && attachedDatabasesResult.rows) {
+            // Direct result format from Tauri connection
+            attachedDatabases = attachedDatabasesResult.rows;
+          } else if (attachedDatabasesResult && typeof attachedDatabasesResult.toArray === 'function') {
+            // Arrow table format
+            attachedDatabases = attachedDatabasesResult.toArray();
+          } else if (Array.isArray(attachedDatabasesResult)) {
+            // Already an array
+            attachedDatabases = attachedDatabasesResult;
+          } else {
+            // Fallback
+            attachedDatabases = [];
+          }
+          
+          // Filter out system databases manually since attached databases might be marked as internal
+          const systemDatabases = ['system', 'temp'];
+          const dbNames = attachedDatabases
+            .map((row: any) => row.database_name)
+            .filter(name => !systemDatabases.includes(name));
+          console.log('[script-tab-view] Attached databases:', attachedDatabases);
+          console.log('[script-tab-view] Database names to refresh:', dbNames);
+
+          // For newly attached databases, we need to ensure metadata is loaded
+          // by querying the database schema
+          for (const dbName of dbNames) {
+            if (dbName !== 'memory' && dbName !== 'temp' && dbName !== 'system') {
+              try {
+                // Try to query the database to ensure metadata is loaded
+                const schemaQuery = `SELECT table_name FROM ${dbName}.information_schema.tables LIMIT 1`;
+                await pool.query(schemaQuery).catch(() => {
+                  // If information_schema doesn't exist, try duckdb_tables
+                  return pool.query(`SELECT name FROM ${dbName}.sqlite_master WHERE type='table' LIMIT 1`).catch(() => {
+                    // Ignore errors - some databases might not have these views
+                  });
+                });
+              } catch (e) {
+                // Ignore errors
+              }
+            }
+          }
 
           // Refresh metadata for all attached databases
           const newMetadata = await getDatabaseModel(pool, dbNames);
