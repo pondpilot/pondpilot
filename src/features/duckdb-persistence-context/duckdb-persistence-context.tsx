@@ -6,6 +6,7 @@ import {
 } from '@features/database-context';
 import { useFeatureContext } from '@features/feature-context';
 import { DBPersistenceState } from '@models/db-persistence';
+import { isTauriEnvironment } from '@utils/browser';
 import { OPFSUtil } from '@utils/opfs';
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
@@ -160,6 +161,16 @@ export const DuckDBPersistenceProvider: React.FC<{
 
   useEffect(() => {
     const init = async () => {
+      // Skip OPFS initialization entirely in Tauri
+      if (isTauriEnvironment()) {
+        memoizedStatusUpdate({
+          state: 'ready',
+          message: 'Using Tauri native storage',
+        });
+        setIsInitialized(true);
+        return;
+      }
+
       memoizedStatusUpdate({
         state: 'loading',
         message: 'Preparing database storage...',
