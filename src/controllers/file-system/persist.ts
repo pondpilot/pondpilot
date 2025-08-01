@@ -31,10 +31,13 @@ export const persistAddLocalEntry = async (
     // Process entries
     for (const [id, newLocalEntry] of newEntries) {
       // For Tauri, include the file path as tauriPath
+      const path = (newLocalEntry as any).filePath || 
+                   (newLocalEntry as any).directoryPath || 
+                   (newLocalEntry.handle as any)?._tauriPath;
       const persistenceEntry = {
         ...newLocalEntry,
         handle: null, // Don't store mock handles
-        tauriPath: (newLocalEntry as any).filePath || (newLocalEntry as any).directoryPath,
+        tauriPath: path,
       };
       await adapter.put(LOCAL_ENTRY_TABLE_NAME, persistenceEntry, id);
     }
