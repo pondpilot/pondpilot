@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- next-header -->
+## ✨ Highlights
+
+This release brings significant improvements to the SQL editing experience and data source management that make PondPilot more powerful and user-friendly:
+
+- **🎨 SQL Formatter with Editor Customization**: Transform your SQL editing experience with comprehensive formatting capabilities, including keyboard shortcuts (Ctrl/Cmd+Shift+F), customizable font sizes, font weights, and auto-format options. The new formatting system uses DuckDB dialect support to ensure your queries look clean and professional.
+
+- **🔌 Streamlined Datasource Wizard**: Adding remote databases is now easier than ever with our new guided wizard. The redesigned interface includes connection testing, improved error handling, and a responsive design that works seamlessly across desktop and mobile devices.
+
+- **📤 One-Click Script Export**: Quickly save and share your work with the new 'Export script' option in the query context menu. Download individual SQL scripts as .sql files directly from the script explorer, making it simple to manage and backup your queries.
+
+## 🎯 What's Next
+
+We're continuing to enhance the core editing and data management experience:
+
+- Additional SQL editor improvements and code intelligence features
+- Extended data source support for more database types
+- Enhanced export capabilities with multiple file formats
+- Further UI refinements based on user feedback
+
+## 📋 Changelog
+
+### 🚀 New
+
+- [Feature]: SQL Formatter with editor customization options [#189](https://github.com/pondpilot/pondpilot/pull/189)
+- [Feature]: Add datasource wizard with improved UX and connection testing [#186](https://github.com/pondpilot/pondpilot/pull/186)
+- [UX]: Add 'Export script' option to query context menu in script explorer [#196](https://github.com/pondpilot/pondpilot/pull/196)
+
+### 🐛 Fixed
+
+- [Bug]: Navbar accordion UI issues - improved animations, spacing, and layout consistency [#200](https://github.com/pondpilot/pondpilot/pull/200)
+- [Bug]: Replace useMantineColorScheme with useColorScheme for proper auto theme detection [#195](https://github.com/pondpilot/pondpilot/pull/195)
+
+**Full Changelog**: [v0.4.0...v0.5.0](https://github.com/pondpilot/pondpilot/compare/v0.4.0...v0.5.0)
+
 
 ## ✨ Highlights
 
