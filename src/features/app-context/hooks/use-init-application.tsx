@@ -1,11 +1,8 @@
 import { showError, showWarning } from '@components/app-notifications';
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import {
-  useDuckDBConnectionPool,
-  useDuckDBInitializer,
-} from '@features/duckdb-context/duckdb-context';
+import { ConnectionPool } from '@engines/types';
+import { useDatabaseConnectionPool, useDatabaseInitializer } from '@features/database-context';
 import { useAppStore, setAppLoadState } from '@store/app-store';
 import { initializePersistence } from '@store/persistence-init';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
@@ -13,13 +10,12 @@ import { attachDatabaseWithRetry } from '@utils/connection-manager';
 import { isRemoteDatabase } from '@utils/data-source';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
-import { isTauriEnvironment } from '@utils/browser';
 import { useEffect } from 'react';
 
 import { useShowPermsAlert } from './use-show-perm-alert';
 
 // Reconnect to remote databases after app initialization
-async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promise<void> {
+async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
   const { dataSources } = useAppStore.getState();
   const connectedDatabases: string[] = [];
 
@@ -105,10 +101,11 @@ export function useAppInitialization({
 }: UseAppInitializationProps) {
   const { showPermsAlert } = useShowPermsAlert();
 
-  const conn = useDuckDBConnectionPool();
-  const connectDuckDb = useDuckDBInitializer();
+  const conn = useDatabaseConnectionPool();
+  const connectDuckDb = useDatabaseInitializer();
+  const appLoadState = useAppStore((state) => state.appLoadState);
 
-  const initAppData = async (resolvedConn: AsyncDuckDBConnectionPool) => {
+  const initAppData = async (resolvedConn: ConnectionPool) => {
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
     try {
@@ -184,11 +181,14 @@ export function useAppInitialization({
     // we are not initializing either in-memory DuckDB or the app data.
     if (!isFileAccessApiSupported || isMobileDevice) return;
 
+    // Only initialize if we haven't already (prevent re-initialization)
+    if (appLoadState !== 'init') return;
+
     // Start initialization of data when the database is ready
     if (conn) {
       initAppData(conn);
     } else {
       connectDuckDb();
     }
-  }, [conn]);
+  }, [conn, appLoadState, isFileAccessApiSupported, isMobileDevice, connectDuckDb]);
 }

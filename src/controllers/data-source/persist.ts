@@ -9,9 +9,9 @@ import {
   DATA_SOURCE_TABLE_NAME,
   LOCAL_ENTRY_TABLE_NAME,
 } from '@models/persisted-store';
-import { IDBPDatabase } from 'idb';
 import { PersistenceAdapter } from '@store/persistence';
 import { isTauriEnvironment } from '@utils/browser';
+import { IDBPDatabase } from 'idb';
 
 /**
  * ------------------------------------------------------------
@@ -62,24 +62,41 @@ export const persistPutDataSources = async (
  */
 
 export const persistDeleteDataSource = async (
-  iDb: IDBPDatabase<AppIdbSchema>,
+  iDbOrAdapter: IDBPDatabase<AppIdbSchema> | PersistenceAdapter,
   deletedDataSourceIds: Iterable<PersistentDataSourceId>,
   entryIdsToDelete: Iterable<LocalEntryId>,
 ) => {
-  const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME, LOCAL_ENTRY_TABLE_NAME], 'readwrite');
+  if (isTauriEnvironment()) {
+    // Using persistence adapter (Tauri/SQLite)
+    const adapter = iDbOrAdapter as PersistenceAdapter;
 
-  // Delete each data source
-  const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
-  for (const id of deletedDataSourceIds) {
-    await dataSourceStore.delete(id);
+    // Delete each data source
+    for (const id of deletedDataSourceIds) {
+      await adapter.delete(DATA_SOURCE_TABLE_NAME, id);
+    }
+
+    // Delete each local entry
+    for (const id of entryIdsToDelete) {
+      await adapter.delete(LOCAL_ENTRY_TABLE_NAME, id);
+    }
+  } else {
+    // Using IndexedDB directly (web)
+    const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;
+    const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME, LOCAL_ENTRY_TABLE_NAME], 'readwrite');
+
+    // Delete each data source
+    const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
+    for (const id of deletedDataSourceIds) {
+      await dataSourceStore.delete(id);
+    }
+
+    // Delete each local entry
+    const localEntryStore = tx.objectStore(LOCAL_ENTRY_TABLE_NAME);
+    for (const id of entryIdsToDelete) {
+      await localEntryStore.delete(id);
+    }
+
+    // Commit the transaction
+    await tx.done;
   }
-
-  // Delete each local entry
-  const localEntryStore = tx.objectStore(LOCAL_ENTRY_TABLE_NAME);
-  for (const id of entryIdsToDelete) {
-    await localEntryStore.delete(id);
-  }
-
-  // Commit the transaction
-  await tx.done;
 };

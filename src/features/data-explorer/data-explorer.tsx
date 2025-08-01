@@ -1,5 +1,5 @@
 import { useExplorerContext } from '@components/explorer-tree/hooks';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { memo, useMemo } from 'react';
 
@@ -19,7 +19,7 @@ import { DataExplorerContext, DataExplorerNodeTypeMap } from './model';
  * Unified data explorer that combines file system and database exploration
  */
 export const DataExplorer = memo(() => {
-  const conn = useInitializedDuckDBConnectionPool();
+  const conn = useInitializedDatabaseConnectionPool();
 
   // State management
   const {

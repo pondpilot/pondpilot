@@ -1,4 +1,4 @@
-use anyhow::Result;
+use crate::errors::{DuckDBError, Result};
 use duckdb::Connection;
 use std::sync::Mutex;
 use std::path::PathBuf;
@@ -36,6 +36,8 @@ impl ConnectionPool {
     pub fn get(&self) -> Result<Connection> {
         // For simplicity, just return a new connection to the same database
         // In production, this would properly manage the pool
-        Ok(Connection::open(&self.db_path)?)
+        Connection::open(&self.db_path).map_err(|e| DuckDBError::ConnectionError {
+            message: format!("Failed to open database connection: {}", e),
+        })
     }
 }

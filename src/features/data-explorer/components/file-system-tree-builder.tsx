@@ -1,5 +1,5 @@
 import { TreeNodeData } from '@components/explorer-tree';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { AnyFlatFileDataSource, XlsxSheetView } from '@models/data-source';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { useMemo } from 'react';
@@ -13,7 +13,7 @@ import {
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
 
 interface FileSystemTreeBuilderProps {
-  conn: AsyncDuckDBConnectionPool;
+  conn: ConnectionPool;
   allLocalEntries: LocalEntry[];
   flatFileSourcesValues: AnyFlatFileDataSource[];
   nodeMap: DataExplorerNodeMap;

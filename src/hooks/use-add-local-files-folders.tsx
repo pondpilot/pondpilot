@@ -1,6 +1,6 @@
 import { showAlert, showError, showWarning } from '@components/app-notifications';
 import { addLocalFileOrFolders } from '@controllers/file-system/file-system-controller';
-import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useDatabaseConnectionPool } from '@features/database-context';
 import { notifications } from '@mantine/notifications';
 import {
   LocalEntry,
@@ -11,7 +11,7 @@ import { pickFiles, pickFolder } from '@utils/file-system';
 import { useCallback } from 'react';
 
 export const useAddLocalFilesOrFolders = () => {
-  const pool = useDuckDBConnectionPool();
+  const pool = useDatabaseConnectionPool();
 
   const handleAddFile = useCallback(
     async (exts: supportedDataSourceFileExtArray = SUPPORTED_DATA_SOURCE_FILE_EXTS) => {

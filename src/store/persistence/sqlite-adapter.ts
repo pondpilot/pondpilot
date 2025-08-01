@@ -1,4 +1,5 @@
-import { invoke } from '@tauri-apps/api/tauri';
+import { invoke } from '@tauri-apps/api/core';
+
 import { PersistenceAdapter } from './types';
 
 /**

@@ -1,4 +1,7 @@
+import { getLogger } from './debug-logger';
 import { DatabaseConnection, QueryResult, PreparedStatement } from './types';
+
+const logger = getLogger('database:tauri-connection');
 
 export class TauriConnection implements DatabaseConnection {
   id: string;
@@ -15,7 +18,7 @@ export class TauriConnection implements DatabaseConnection {
       throw new Error('Connection is closed');
     }
 
-    console.log('TauriConnection.execute() called:', { sql, connectionId: this.id, params });
+    logger.trace('TauriConnection.execute() called', { sql, connectionId: this.id, params });
 
     try {
       const result = await this.invoke('connection_execute', {
@@ -23,7 +26,7 @@ export class TauriConnection implements DatabaseConnection {
         sql,
         params: params || [],
       });
-      console.log('TauriConnection.execute() result:', result);
+      logger.trace('TauriConnection.execute() result', { result });
 
       // Normalize the Tauri response to match our interface
       return {
@@ -31,6 +34,7 @@ export class TauriConnection implements DatabaseConnection {
         columns: result.columns.map((col: any) => ({
           name: col.name,
           type: col.type_name || col.type,
+          type_name: col.type_name, // Preserve original type_name
           nullable: col.nullable,
         })),
         rowCount: result.row_count || result.rowCount || result.rows.length,
@@ -38,7 +42,7 @@ export class TauriConnection implements DatabaseConnection {
         queryTime: result.execution_time_ms,
       };
     } catch (error) {
-      console.error('TauriConnection.execute() failed:', error);
+      logger.error('TauriConnection.execute() failed', error);
       throw error;
     }
   }

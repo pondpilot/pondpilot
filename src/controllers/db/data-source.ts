@@ -1,12 +1,13 @@
-import * as duckdb from '@duckdb/duckdb-wasm';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { DuckDBDataProtocol } from '@duckdb/duckdb-wasm';
+import { ConnectionPool } from '@engines/types';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
-import { isTauriEnvironment } from '@utils/browser';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
+
+import { getFileReference, getFileContent, needsFileRegistration } from './file-access';
 
 /**
  * Helper function to create a view for CSV files with proper configuration
@@ -15,7 +16,7 @@ import { createXlsxSheetViewQuery } from '@utils/xlsx';
  * @param fileName - Name of the CSV file
  */
 async function createCSVView(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   viewName: string,
   fileName: string,
 ): Promise<void> {
@@ -40,43 +41,32 @@ async function createCSVView(
  * * @returns The registered file
  */
 export async function registerFileSourceAndCreateView(
-  conn: AsyncDuckDBConnectionPool,
-  handle: FileSystemFileHandle,
+  conn: ConnectionPool,
+  handle: FileSystemFileHandle | null,
   fileExt: supportedFlatFileDataSourceFileExt,
   fileName: string,
   viewName: string,
-): Promise<File> {
-  const file = await handle.getFile();
-  const db = conn.bindings;
+): Promise<File | null> {
+  // Get file reference (path for Tauri, filename for web)
+  const fileRef = getFileReference(handle, fileName);
 
-  if (isTauriEnvironment() && (handle as any)._tauriPath) {
-    // For Tauri files, use the file path directly
-    const filePath = (handle as any)._tauriPath;
-    // In Tauri, DuckDB can access files directly by path, so we don't need to register
-    // Instead, we'll create views that reference the file path directly
-    if (fileExt === 'csv') {
-      const csvQuery = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(filePath, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`;
-      await conn.query(csvQuery);
-    } else {
-      const query = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(filePath, { single: true })};`;
-      await conn.query(query);
-    }
+  // Register file if needed (web only)
+  let file: File | null = null;
+  if (needsFileRegistration()) {
+    // In web, we need to use the same fileName that was passed in, not fileRef.path
+    file = await registerFileHandle(conn, handle, fileName);
+  }
+
+  // Create the appropriate view based on file type
+  // In web environment, use the registered fileName, not fileRef.path
+  const queryFileName = needsFileRegistration() ? fileName : fileRef.path;
+
+  if (fileExt === 'csv') {
+    const csvQuery = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(queryFileName, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`;
+    await conn.query(csvQuery);
   } else {
-    // For web environment, use file handle registration
-    /**
-     * Drop file if it already exists
-     */
-    await db.dropFile(fileName).catch(console.error);
-
-    await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
-
-    if (fileExt === 'csv') {
-      await createCSVView(conn, viewName, fileName);
-    } else {
-      await conn.query(
-        `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
-      );
-    }
+    const query = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(queryFileName, { single: true })};`;
+    await conn.query(query);
   }
 
   return file;
@@ -92,7 +82,7 @@ export async function registerFileSourceAndCreateView(
  * @param fileName - The file name that was used to register the file, undefined if not available
  */
 export async function dropViewAndUnregisterFile(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   viewName: string,
   fileName: string | undefined,
 ) {
@@ -102,16 +92,19 @@ export async function dropViewAndUnregisterFile(
   const dropQuery = buildDropViewQuery(viewName, true);
   await conn.query(dropQuery).catch(console.error);
 
-  if (!fileName) {
+  if (!fileName || !needsFileRegistration()) {
+    // In Tauri, files don't need to be unregistered
     return;
   }
 
   const db = conn.bindings;
 
   /**
-   * Unregister file handle
+   * Unregister file handle (web only)
    */
-  await db.dropFile(fileName).catch(console.error);
+  if (db && typeof db.dropFile === 'function') {
+    await db.dropFile(fileName).catch(console.error);
+  }
 }
 
 /**
@@ -129,7 +122,7 @@ export async function dropViewAndUnregisterFile(
  *                      This function will overwrite any existing view with the same name.
  */
 export async function reCreateView(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   fileExt: supportedFlatFileDataSourceFileExt,
   fileName: string,
   oldViewName: string,
@@ -170,55 +163,40 @@ export async function reCreateView(
  * @returns The registered file
  */
 export async function registerAndAttachDatabase(
-  conn: AsyncDuckDBConnectionPool,
-  handle: FileSystemFileHandle,
+  conn: ConnectionPool,
+  handle: FileSystemFileHandle | null,
   fileName: string,
   dbName: string,
-): Promise<File> {
-  const file = await handle.getFile();
-  const db = conn.bindings;
+): Promise<File | null> {
+  // Get file reference (path for Tauri, filename for web)
+  const fileRef = getFileReference(handle, fileName);
 
-  /**
-   * Drop file if it already exists
-   */
-  await db.dropFile(fileName).catch(console.error);
+  // Detach any existing database with the same name
+  const detachQuery = buildDetachQuery(dbName, true);
+  await conn.query(detachQuery).catch(console.error);
 
-  /**
-   * Register file handle or use path for Tauri
-   */
-  if (isTauriEnvironment() && (handle as any)._tauriPath) {
-    // For Tauri, use the file path directly in the attach query
-    const filePath = (handle as any)._tauriPath;
+  if (needsFileRegistration()) {
+    // Web environment: register file handle
+    if (!handle) throw new Error('FileSystemFileHandle is required for web environment');
+    const file = await handle.getFile();
 
-    /**
-     * Detach any existing database with the same name
-     */
-    const detachQuery = buildDetachQuery(dbName, true);
-    await conn.query(detachQuery).catch(console.error);
-
-    /**
-     * Attach database using file path
-     */
-    const attachQuery = buildAttachQuery(filePath, dbName, { readOnly: true });
-    await conn.query(attachQuery);
-  } else {
-    // For web environment, register file handle first
-    await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
-
-    /**
-     * Detach any existing database with the same name
-     */
-    const detachQuery = buildDetachQuery(dbName, true);
-    await conn.query(detachQuery).catch(console.error);
-
-    /**
-     * Attach the database
-     */
-    const attachQuery = buildAttachQuery(fileName, dbName, { readOnly: true });
-    await conn.query(attachQuery);
+    const db = conn.bindings;
+    if (db && typeof db.registerFileHandle === 'function') {
+      await db.dropFile(fileName).catch(console.error);
+      // Use BROWSER_FILEREADER protocol
+      // Pass the File object obtained from the FileSystemFileHandle
+      await db.registerFileHandle(fileName, file, DuckDBDataProtocol.BROWSER_FILEREADER, true);
+    }
   }
 
-  return file;
+  // Attach database using the appropriate path
+  // In web environment, use the registered fileName, not fileRef.path
+  const attachPath = needsFileRegistration() ? fileName : fileRef.path;
+  const attachQuery = buildAttachQuery(attachPath, dbName, { readOnly: true });
+  await conn.query(attachQuery);
+
+  // Return file object for web, null for Tauri
+  return await getFileContent(handle);
 }
 
 /**
@@ -231,7 +209,7 @@ export async function registerAndAttachDatabase(
  * @param fileName - The file name that was used to register the database
  */
 export async function detachAndUnregisterDatabase(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   dbName: string,
   fileName: string | undefined,
 ) {
@@ -241,16 +219,19 @@ export async function detachAndUnregisterDatabase(
   const detachQuery = buildDetachQuery(dbName, true);
   await conn.query(detachQuery).catch(console.error);
 
-  if (!fileName) {
+  if (!fileName || !needsFileRegistration()) {
+    // In Tauri, files don't need to be unregistered
     return;
   }
 
   const db = conn.bindings;
 
   /**
-   * Unregister file handle
+   * Unregister file handle (web only)
    */
-  await db.dropFile(fileName).catch(console.error);
+  if (db && typeof db.dropFile === 'function') {
+    await db.dropFile(fileName).catch(console.error);
+  }
 }
 
 /**
@@ -267,7 +248,7 @@ export async function detachAndUnregisterDatabase(
  *                    This function will overwrite any existing database with the same name.
  */
 export async function reAttachDatabase(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   fileName: string,
   oldDbName: string,
   newDbName: string,
@@ -300,22 +281,33 @@ export async function reAttachDatabase(
  * @returns The registered file
  */
 export async function registerFileHandle(
-  conn: AsyncDuckDBConnectionPool,
-  handle: FileSystemFileHandle,
+  conn: ConnectionPool,
+  handle: FileSystemFileHandle | null,
   fileName: string,
-): Promise<File> {
+): Promise<File | null> {
+  if (!needsFileRegistration()) {
+    // Tauri: no registration needed
+    return null;
+  }
+
+  // Web: get file from handle
+  if (!handle) throw new Error('FileSystemFileHandle is required for web environment');
   const file = await handle.getFile();
+
+  // For web/WASM, the conn.bindings should have the file registration methods
+  // This will only work for WASM engine, which is fine since needsFileRegistration()
+  // returns false for Tauri
   const db = conn.bindings;
 
-  // For Tauri, we don't need to register file handles as DuckDB can access files directly
-  if (isTauriEnvironment() && (handle as any)._tauriPath) {
-    // No file registration needed for Tauri
+  if (db && typeof db.registerFileHandle === 'function') {
+    if (typeof db.dropFile === 'function') {
+      await db.dropFile(fileName).catch(console.error);
+    }
+    // Use BROWSER_FILEREADER protocol
+    // Pass the File object obtained from the FileSystemFileHandle
+    await db.registerFileHandle(fileName, file, DuckDBDataProtocol.BROWSER_FILEREADER, true);
   } else {
-    // Drop file if it already exists (web environment only)
-    await db.dropFile(fileName).catch(console.error);
-
-    // Register the file handle with DuckDB (web environment)
-    await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+    throw new Error('registerFileHandle method not found on connection pool bindings');
   }
 
   return file;
@@ -327,11 +319,18 @@ export async function registerFileHandle(
  * @param conn - DuckDB connection pool
  * @param fileName - The name of the file to drop
  */
-export async function dropFile(conn: AsyncDuckDBConnectionPool, fileName: string): Promise<void> {
+export async function dropFile(conn: ConnectionPool, fileName: string): Promise<void> {
+  if (!needsFileRegistration()) {
+    // In Tauri, files don't need to be dropped
+    return;
+  }
+
   const db = conn.bindings;
 
-  // Drop file if it already exists
-  await db.dropFile(fileName).catch(console.error);
+  // Drop file if it already exists (web only)
+  if (db && typeof db.dropFile === 'function') {
+    await db.dropFile(fileName).catch(console.error);
+  }
 }
 
 /**
@@ -343,7 +342,7 @@ export async function dropFile(conn: AsyncDuckDBConnectionPool, fileName: string
  * @param viewName - A valid, unique identifier of the view to create.
  */
 export async function createXlsxSheetView(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   fileName: string,
   sheetName: string,
   viewName: string,
@@ -366,7 +365,7 @@ export async function createXlsxSheetView(
  * @param newViewName - A valid, unique identifier of the view to create.
  */
 export async function reCreateXlsxSheetView(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   fileName: string,
   sheetName: string,
   oldViewName: string,

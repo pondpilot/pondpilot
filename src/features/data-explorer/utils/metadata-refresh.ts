@@ -1,6 +1,6 @@
 import { showWarning } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { useAppStore } from '@store/app-store';
 
 /**
@@ -20,7 +20,7 @@ import { useAppStore } from '@store/app-store';
  * @returns Promise that resolves when metadata refresh is complete
  */
 export async function refreshDatabaseMetadata(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   dbNames: string[],
 ): Promise<void> {
   try {

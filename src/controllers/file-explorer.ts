@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntryId } from '@models/file-system';
@@ -18,7 +18,7 @@ import { persistAddLocalEntry } from './file-system/persist';
 export const renameFile = async (
   fileDataSourceId: PersistentDataSourceId,
   newName: string,
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
 ): Promise<void> => {
   const { _iDbConn: iDbConn, dataSources, localEntries } = useAppStore.getState();
 
@@ -99,7 +99,7 @@ export const renameFile = async (
 export const renameXlsxFile = async (
   localEntryId: LocalEntryId,
   newName: string,
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
 ): Promise<void> => {
   const { _iDbConn: iDbConn, dataSources, localEntries } = useAppStore.getState();
 
