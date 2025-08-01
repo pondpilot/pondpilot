@@ -13,6 +13,8 @@ type DataExplorerContentProps = {
   localDbNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   showRemoteDbs: boolean;
   remoteDbNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
+  showMotherDuckDbs: boolean;
+  motherDuckNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   initialExpandedState: Record<string, boolean>;
   searchExpandedState: Record<string, boolean>;
   extraData: DataExplorerContext;
@@ -28,6 +30,8 @@ export const DataExplorerContent = ({
   localDbNodes,
   showRemoteDbs,
   remoteDbNodes,
+  showMotherDuckDbs,
+  motherDuckNodes,
   initialExpandedState,
   searchExpandedState,
   extraData,
@@ -81,6 +85,18 @@ export const DataExplorerContent = ({
             initialExpandedState={expandedState}
             extraData={extraData}
             dataTestIdPrefix="data-explorer-remote"
+            hasActiveElement={hasActiveElement}
+          />
+        )}
+
+        {/* MotherDuck section */}
+        {showMotherDuckDbs && motherDuckNodes.length > 0 && (
+          <DataExplorerSection
+            title="MotherDuck"
+            nodes={motherDuckNodes}
+            initialExpandedState={expandedState}
+            extraData={extraData}
+            dataTestIdPrefix="data-explorer-motherduck"
             hasActiveElement={hasActiveElement}
           />
         )}

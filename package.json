@@ -49,6 +49,7 @@
     "@mantine/modals": "^7.17.4",
     "@mantine/notifications": "^7.17.0",
     "@mantine/spotlight": "^7.17.0",
+    "@motherduck/wasm-client": "^0.6.6",
     "@tabler/icons-react": "^3.28.1",
     "@tanstack/react-table": "^8.20.5",
     "@uiw/codemirror-themes": "^4.23.8",

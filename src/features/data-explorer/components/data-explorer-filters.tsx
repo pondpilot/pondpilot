@@ -15,7 +15,7 @@ import { memo, useState, useRef, useEffect, useMemo } from 'react';
 
 import './data-explorer-filters.css';
 
-export type DataExplorerFilterType = 'all' | 'databases' | 'files' | 'remote';
+export type DataExplorerFilterType = 'all' | 'databases' | 'files' | 'remote' | 'motherduck';
 
 export type FileTypeFilter = {
   csv: boolean;
@@ -35,6 +35,7 @@ const allFilterButtons: FilterButton[] = [
   { type: 'files', Icon: IconFile, tooltip: 'Files' },
   { type: 'databases', Icon: IconDatabase, tooltip: 'Local databases' },
   { type: 'remote', Icon: IconCloud, tooltip: 'Remote databases' },
+  { type: 'motherduck', Icon: IconCloud, tooltip: 'MotherDuck' },
 ];
 
 const fileTypeLabels: Partial<Record<supportedDataSourceFileExt, string>> = {
@@ -56,6 +57,7 @@ interface DataExplorerFiltersProps {
     files: boolean;
     databases: boolean;
     remote: boolean;
+    motherduck: boolean;
   };
 }
 
@@ -107,7 +109,8 @@ export const DataExplorerFilters = memo(
       const hasAnyDataSource =
         availableDataSourceTypes.files ||
         availableDataSourceTypes.databases ||
-        availableDataSourceTypes.remote;
+        availableDataSourceTypes.remote ||
+        availableDataSourceTypes.motherduck;
 
       if (!hasAnyDataSource) {
         return allFilterButtons;
@@ -126,6 +129,9 @@ export const DataExplorerFilters = memo(
       }
       if (availableDataSourceTypes.remote) {
         buttons.push(allFilterButtons.find((b) => b.type === 'remote')!);
+      }
+      if (availableDataSourceTypes.motherduck) {
+        buttons.push(allFilterButtons.find((b) => b.type === 'motherduck')!);
       }
 
       return buttons;

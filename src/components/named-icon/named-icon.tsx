@@ -19,6 +19,7 @@ import {
   IconLetterCaseToggle,
   IconNumber10,
   IconBrackets,
+  IconCloud,
 } from '@tabler/icons-react';
 import React from 'react';
 
@@ -30,6 +31,7 @@ export type IconType =
   | 'xlsx'
   | 'db'
   | 'duck' // PondPilot system database
+  | 'cloud' // MotherDuck cloud database
   // Database data sources
   | 'db-schema'
   | 'db-table'
@@ -85,6 +87,8 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
         />
       );
     }
+    case 'cloud':
+      return <IconCloud {...iconProps} />;
     case 'db-schema':
       return <IconSchema {...iconProps} />;
     case 'db-table':
