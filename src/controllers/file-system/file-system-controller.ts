@@ -389,25 +389,21 @@ export const addLocalFileOrFolders = async (
   // Read the metadata for the newly attached databases
   let newDatabaseMetadata: Map<string, DataBaseModel> | null = null;
   if (newDatabaseNames.length > 0) {
-    newDatabaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
-
-    // Check if any non-empty databases failed to get metadata
-    const failedDatabases: string[] = [];
-    for (const dbName of newDatabaseNames) {
-      const hasMetadata = newDatabaseMetadata.has(dbName);
-      if (!hasMetadata) {
-        // Check if database is empty before considering it an error
-        const isEmpty = await isDatabaseEmpty(dbName);
-        if (!isEmpty) {
-          // Database is not empty but we couldn't get metadata - this is a real error
-          failedDatabases.push(dbName);
-        }
+    console.log('[processHandles] Reading metadata for newly attached databases:', newDatabaseNames);
+    try {
+      newDatabaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
+      console.log('[processHandles] Metadata retrieved, size:', newDatabaseMetadata.size);
+      console.log('[processHandles] Database names in metadata:', Array.from(newDatabaseMetadata.keys()));
+      
+      if (newDatabaseMetadata.size === 0) {
+        errors.push(
+          'Failed to read newly attached database metadata. Neither explorer not auto-complete will not show objects for them. You may try deleting and re-attaching the database(s).',
+        );
       }
-    }
-
-    if (failedDatabases.length > 0) {
+    } catch (error) {
+      console.error('[processHandles] Error reading database metadata:', error);
       errors.push(
-        `Failed to read metadata for database(s): ${failedDatabases.join(', ')}. Neither explorer nor auto-complete will show objects for them. You may try deleting and re-attaching the database(s).`,
+        'Error reading database metadata: ' + (error instanceof Error ? error.message : String(error))
       );
     }
   }
