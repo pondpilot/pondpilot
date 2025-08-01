@@ -9,8 +9,8 @@ import {
   clearTabExecutionError,
   setTabExecutionError,
 } from '@controllers/tab';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
+import { PreparedStatement } from '@engines/types';
 import { ScriptEditor } from '@features/script-editor';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import { RemoteDB } from '@models/data-source';
@@ -61,7 +61,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
   const [scriptExecutionState, setScriptExecutionState] = useState<ScriptExecutionState>('idle');
 
-  const pool = useInitializedDuckDBConnectionPool();
+  const pool = useInitializedDatabaseConnectionPool();
   const protectedViews = useProtectedViews();
   const { preferences } = useEditorPreferences();
 
@@ -111,15 +111,15 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       let lastExecutedQuery: string | null = null;
 
       // Create a pooled connection
-      const conn = await pool.getPooledConnection();
+      const conn = await pool.acquire();
 
       const runQueryWithFileSyncAndRetry = async (code: string) => {
         try {
-          await conn.query(code);
+          await conn.execute(code);
         } catch (error: any) {
           if (error.message?.includes('NotReadableError')) {
             await syncFiles(pool);
-            await conn.query(code);
+            await conn.execute(code);
           } else {
             throw error;
           }
@@ -128,7 +128,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
       const prepQueryWithFileSyncAndRetry = async (
         code: string,
-      ): Promise<AsyncDuckDBPooledPreparedStatement<any>> => {
+      ): Promise<PreparedStatement> => {
         try {
           return await conn.prepare(code);
         } catch (error: any) {
@@ -379,7 +379,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         }
       } finally {
         // Release the pooled connection
-        await conn.close();
+        await pool.release(conn);
       }
 
       setScriptExecutionState('success');

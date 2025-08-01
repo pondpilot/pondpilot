@@ -1,12 +1,31 @@
 use super::types::*;
 use super::pool::ConnectionPool;
-use anyhow::Result;
+use crate::errors::Result;
 use duckdb::Connection;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::time::Instant;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+
+// Whitelist of allowed DuckDB extensions for security
+const ALLOWED_EXTENSIONS: &[&str] = &[
+    "httpfs",
+    "parquet",
+    "json",
+    "excel",
+    "spatial",
+    "sqlite",
+    "postgres",
+    "mysql",
+    "arrow",
+    "aws",
+    "azure",
+    "gsheets",
+    "motherduck",
+    "iceberg",
+    "delta"
+];
 
 pub struct DuckDBEngine {
     pool: Arc<Mutex<ConnectionPool>>,
@@ -36,8 +55,52 @@ impl DuckDBEngine {
 
     pub async fn execute_query(&self, sql: &str, _params: Vec<serde_json::Value>) -> Result<QueryResult> {
         let start = Instant::now();
-        let pool = self.pool.lock().await;
-        let conn = pool.get()?;
+        
+        // Log ATTACH queries for debugging (optional)
+        // Removed space-in-path check as it's not a real DuckDB limitation
+        
+        // Clone necessary data for the blocking task
+        let sql_owned = sql.to_string();
+        let pool_clone = Arc::clone(&self.pool);
+        
+        // Run DuckDB operations in a blocking task with panic protection
+        let result = tokio::task::spawn_blocking(move || {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let pool = pool_clone.blocking_lock();
+                let conn = pool.get()?;
+                Self::execute_query_on_connection(conn, &sql_owned, start)
+            }))
+        }).await;
+        
+        match result {
+            Ok(Ok(query_result)) => query_result,
+            Ok(Err(panic_err)) => {
+                let panic_msg = if let Some(s) = panic_err.downcast_ref::<&str>() {
+                    s.to_string()
+                } else if let Some(s) = panic_err.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "Unknown panic occurred".to_string()
+                };
+                
+                eprintln!("PANIC in DuckDB operation: {}", panic_msg);
+                eprintln!("Query that caused panic: {}", sql);
+                
+                Err(crate::errors::DuckDBError::QueryError {
+                    message: format!("DuckDB internal error (panic): {}. This might be due to database corruption or version incompatibility.", panic_msg),
+                    sql: Some(sql.to_string()),
+                }.into())
+            }
+            Err(join_err) => {
+                Err(crate::errors::DuckDBError::QueryError {
+                    message: format!("Task execution error: {}", join_err),
+                    sql: Some(sql.to_string()),
+                }.into())
+            }
+        }
+    }
+    
+    fn execute_query_on_connection(mut conn: duckdb::Connection, sql: &str, start: Instant) -> Result<QueryResult> {
         
         // For DML statements, execute and return affected rows
         if sql.trim_start().to_uppercase().starts_with("INSERT") 
@@ -45,9 +108,51 @@ impl DuckDBEngine {
             || sql.trim_start().to_uppercase().starts_with("DELETE")
             || sql.trim_start().to_uppercase().starts_with("CREATE")
             || sql.trim_start().to_uppercase().starts_with("DROP")
-            || sql.trim_start().to_uppercase().starts_with("ALTER") {
+            || sql.trim_start().to_uppercase().starts_with("ALTER")
+            || sql.trim_start().to_uppercase().starts_with("ATTACH")
+            || sql.trim_start().to_uppercase().starts_with("DETACH")
+            || sql.trim_start().to_uppercase().starts_with("LOAD") {
             
-            let affected = conn.execute(sql, [])?;
+            let affected = match conn.execute(sql, []) {
+                Ok(count) => count,
+                Err(e) => {
+                    // Check if this is a LOAD command for an extension that needs to be installed
+                    if sql.trim_start().to_uppercase().starts_with("LOAD") 
+                        && e.to_string().contains("not found")
+                        && e.to_string().contains("Install it first using") {
+                        
+                        // Extract extension name from the LOAD command
+                        let parts: Vec<&str> = sql.trim().split_whitespace().collect();
+                        if parts.len() >= 2 {
+                            let extension_name = parts[1];
+                            // Try to install and load the extension
+                            match Self::load_extension_static(&mut conn, extension_name) {
+                                Ok(_) => {
+                                    // Return success as the extension is now loaded
+                                    return Ok(QueryResult {
+                                        row_count: 0,
+                                        rows: vec![],
+                                        columns: vec![],
+                                        execution_time_ms: start.elapsed().as_millis() as u64,
+                                    });
+                                },
+                                Err(install_err) => {
+                                    return Err(crate::errors::DuckDBError::QueryError {
+                                        message: format!("Failed to load extension '{}': {}. Auto-install failed: {}", 
+                                                       extension_name, e, install_err),
+                                        sql: Some(sql.to_string()),
+                                    }.into());
+                                }
+                            }
+                        }
+                    }
+                    
+                    return Err(crate::errors::DuckDBError::QueryError {
+                        message: format!("Failed to execute query: {}", e),
+                        sql: Some(sql.to_string()),
+                    }.into());
+                }
+            };
             let execution_time_ms = start.elapsed().as_millis() as u64;
             
             return Ok(QueryResult {
@@ -144,18 +249,15 @@ impl DuckDBEngine {
         let pool = self.pool.lock().await;
         let conn = pool.get()?;
         
-        let query = format!(
-            "SELECT table_name, table_schema 
-             FROM information_schema.tables 
-             WHERE table_catalog = '{}'
-             AND table_type = 'BASE TABLE'",
-            database
-        );
+        let query = "SELECT table_name, table_schema 
+                     FROM information_schema.tables 
+                     WHERE table_catalog = ?
+                     AND table_type = 'BASE TABLE'";
         
-        let mut stmt = conn.prepare(&query)?;
+        let mut stmt = conn.prepare(query)?;
         let mut tables = Vec::new();
         
-        let mut rows = stmt.query([])?;
+        let mut rows = stmt.query([database])?;
         while let Some(row) = rows.next()? {
             tables.push(TableInfo {
                 name: row.get(0)?,
@@ -172,18 +274,15 @@ impl DuckDBEngine {
         let pool = self.pool.lock().await;
         let conn = pool.get()?;
         
-        let query = format!(
-            "SELECT column_name, data_type, is_nullable 
-             FROM information_schema.columns 
-             WHERE table_catalog = '{}' 
-             AND table_name = '{}'",
-            database, table
-        );
+        let query = "SELECT column_name, data_type, is_nullable 
+                     FROM information_schema.columns 
+                     WHERE table_catalog = ? 
+                     AND table_name = ?";
         
-        let mut stmt = conn.prepare(&query)?;
+        let mut stmt = conn.prepare(query)?;
         let mut columns = Vec::new();
         
-        let mut rows = stmt.query([])?;
+        let mut rows = stmt.query([database, table])?;
         while let Some(row) = rows.next()? {
             columns.push(ColumnInfo {
                 name: row.get(0)?,
@@ -223,9 +322,57 @@ impl DuckDBEngine {
         Ok(files.values().cloned().collect())
     }
 
+    pub async fn get_xlsx_sheet_names(&self, file_path: &str) -> Result<Vec<String>> {
+        use calamine::{open_workbook_auto, Reader};
+        
+        // Use calamine to read sheet names efficiently
+        match open_workbook_auto(file_path) {
+            Ok(workbook) => {
+                let sheet_names = workbook.sheet_names()
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect();
+                Ok(sheet_names)
+            },
+            Err(e) => {
+                // Propagate the error instead of masking it
+                Err(crate::errors::DuckDBError::QueryError {
+                    message: format!("Failed to read Excel file: {}", e),
+                    sql: None,
+                })
+            }
+        }
+    }
+
     fn load_extension(&self, conn: &Connection, name: &str) -> Result<()> {
-        conn.execute(&format!("INSTALL {}", name), [])?;
-        conn.execute(&format!("LOAD {}", name), [])?;
+        // Validate extension name against whitelist
+        let extension_name = name.trim().to_lowercase();
+        if !ALLOWED_EXTENSIONS.contains(&extension_name.as_str()) {
+            return Err(crate::errors::DuckDBError::UnsupportedExtension(
+                format!("Extension '{}' is not in the allowed list", name)
+            ));
+        }
+        
+        // Use parameterized queries isn't supported for INSTALL/LOAD,
+        // but we've validated the input against a whitelist
+        conn.execute(&format!("INSTALL {}", extension_name), [])?;
+        conn.execute(&format!("LOAD {}", extension_name), [])?;
+        Ok(())
+    }
+    
+    fn load_extension_static(conn: &mut Connection, name: &str) -> Result<()> {
+        // Validate extension name against whitelist
+        let extension_name = name.trim().to_lowercase();
+        if !ALLOWED_EXTENSIONS.contains(&extension_name.as_str()) {
+            return Err(crate::errors::DuckDBError::UnsupportedExtension(
+                format!("Extension '{}' is not in the allowed list", name)
+            ));
+        }
+        
+        // Use parameterized queries isn't supported for INSTALL/LOAD,
+        // but we've validated the input against a whitelist
+        conn.execute(&format!("INSTALL {}", extension_name), [])?;
+        conn.execute(&format!("LOAD {}", extension_name), [])?;
         Ok(())
     }
 }

@@ -6,10 +6,8 @@ This directory contains the database engine abstraction layer that allows PondPi
 
 The abstraction layer provides a unified interface (`DatabaseEngine`) that can be implemented by different database engines:
 
-- **DuckDB WASM** - Current implementation for web browsers
-- **DuckDB Native** - For Electron desktop apps (stub)
-- **DuckDB Tauri** - For Tauri desktop apps (stub)
-- **SQLite** - Future lightweight option (not implemented)
+- **DuckDB WASM** - For web browsers
+- **DuckDB Tauri** - For Tauri desktop apps
 
 ## Usage
 
@@ -71,7 +69,7 @@ function App() {
 import { EngineConfig } from '@engines/types';
 
 const config: EngineConfig = {
-  type: 'duckdb-wasm',  // or 'duckdb-native', 'duckdb-tauri'
+  type: 'duckdb-wasm',  // or 'duckdb-tauri'
   storageType: 'persistent',
   storagePath: 'opfs://pondpilot.db',
   extensions: ['httpfs'],
@@ -97,18 +95,11 @@ const optimalConfig = DatabaseEngineFactory.detectOptimalEngine();
 ## Implementation Status
 
 - ✅ **DuckDB WASM Engine** - Fully implemented
+- ✅ **DuckDB Tauri Engine** - Fully implemented
 - ✅ **Database Engine Interface** - Complete
 - ✅ **Connection Pool Abstraction** - Complete
 - ✅ **Factory Pattern** - Complete
-- ⚠️ **DuckDB Native Engine** - Stub only
-- ⚠️ **DuckDB Tauri Engine** - Stub only
-- ❌ **SQLite Engine** - Not implemented
 
 ## Next Steps
 
-To use native engines in Electron or Tauri:
-
-1. Implement the stub methods in `duckdb-native-engine.ts` or `duckdb-tauri-engine.ts`
-2. Add the necessary dependencies (e.g., `duckdb` npm package for Electron)
-3. Handle IPC communication for Tauri
-4. Update the build configuration to include native modules
+The engine abstraction is complete with support for both web (WASM) and desktop (Tauri) environments.

@@ -1,4 +1,4 @@
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { useAppTheme } from '@hooks/use-app-theme';
 import { SchemaBrowserTab } from '@models/tab';
 import { memo, useState, useCallback } from 'react';
@@ -47,7 +47,7 @@ interface SchemaBrowserProps {
 }
 
 const SchemaBrowserComponent = ({ tab }: SchemaBrowserProps) => {
-  const conn = useInitializedDuckDBConnectionPool();
+  const conn = useInitializedDatabaseConnectionPool();
 
   // Direction state for layout (TB = top to bottom, LR = left to right)
   const [direction, setDirection] = useState<'TB' | 'LR'>('TB');

@@ -1,3 +1,5 @@
+import { getLogger } from './debug-logger';
+import { InitializationError, parseTauriError } from './errors';
 import { TauriConnectionPool } from './tauri-connection-pool';
 import {
   DatabaseEngine,
@@ -18,6 +20,8 @@ import {
   ExtensionInfo,
 } from './types';
 
+const logger = getLogger('database:tauri-engine');
+
 /**
  * DuckDB Tauri Engine for Tauri desktop applications
  * Communicates with Rust backend via IPC for native performance
@@ -28,28 +32,43 @@ export class DuckDBTauriEngine implements DatabaseEngine {
   private ready = false;
   private connectionPool: TauriConnectionPool | null = null;
 
+  /**
+   * Wrapper for Tauri invoke calls with proper error handling
+   */
+  private async invokeWithErrorHandling<T>(command: string, args?: any): Promise<T> {
+    try {
+      return await this.invoke(command, args);
+    } catch (error) {
+      throw parseTauriError(error);
+    }
+  }
+
   async initialize(config: EngineConfig): Promise<void> {
     try {
-      console.log('DuckDBTauriEngine.initialize() starting...');
-      const tauriApi = await import('@tauri-apps/api' as any);
-      this.invoke = tauriApi.invoke;
-      this.listen = tauriApi.listen;
-      console.log('Tauri API imported successfully');
+      logger.debug('DuckDBTauriEngine.initialize() starting...');
+      const { invoke } = await import('@tauri-apps/api/core');
+      const { listen } = await import('@tauri-apps/api/event');
+      this.invoke = invoke;
+      this.listen = listen;
+      logger.debug('Tauri API imported successfully');
 
       // Initialize DuckDB in Rust backend with proper storage configuration
-      console.log('Calling initialize_duckdb with config:', config);
+      logger.debug('Calling initialize_duckdb', { config });
       await this.invoke('initialize_duckdb', { config });
-      console.log('initialize_duckdb completed successfully');
+      logger.debug('initialize_duckdb completed successfully');
 
       // Note: The Rust backend should use config.storagePath to open a persistent database
       // file directly instead of in-memory, making the persistent file the main database
 
       this.ready = true;
-      console.log('DuckDBTauriEngine.initialize() completed successfully');
+      logger.info('DuckDBTauriEngine.initialize() completed successfully');
     } catch (e) {
-      console.error('DuckDBTauriEngine.initialize() failed:', e);
-      throw new Error(
-        'Tauri API not available. This engine can only be used in a Tauri application.',
+      logger.error('DuckDBTauriEngine.initialize() failed', e);
+      throw new InitializationError(
+        e instanceof Error && e.message.includes('not available')
+          ? 'Tauri API not available. This engine can only be used in a Tauri application.'
+          : `Failed to initialize DuckDB Tauri engine: ${e instanceof Error ? e.message : String(e)}`,
+        { originalError: e },
       );
     }
   }
@@ -70,7 +89,7 @@ export class DuckDBTauriEngine implements DatabaseEngine {
 
   async createConnection(): Promise<DatabaseConnection> {
     if (!this.invoke) {
-      throw new Error('Engine not initialized');
+      throw new InitializationError('Engine not initialized');
     }
 
     const connId = await this.invoke('create_connection');
@@ -80,28 +99,27 @@ export class DuckDBTauriEngine implements DatabaseEngine {
 
   async createConnectionPool(size: number): Promise<ConnectionPool> {
     if (!this.invoke) {
-      throw new Error('Engine not initialized');
+      throw new InitializationError('Engine not initialized');
     }
 
-    this.connectionPool = new TauriConnectionPool(this.invoke, size);
+    this.connectionPool = new TauriConnectionPool(this.invoke, { maxSize: size });
     return this.connectionPool;
   }
 
   async registerFile(options: FileRegistration): Promise<void> {
-    await this.invoke('register_file', { options });
+    await this.invokeWithErrorHandling<void>('register_file', { options });
   }
 
   async dropFile(name: string): Promise<void> {
-    await this.invoke('drop_file', { name });
+    await this.invokeWithErrorHandling<void>('drop_file', { name });
   }
 
   async listFiles(): Promise<FileInfo[]> {
-    return this.invoke('list_files');
+    return this.invokeWithErrorHandling<FileInfo[]>('list_files');
   }
 
   async execute(sql: string, params?: any[]): Promise<QueryResult> {
-    const result = await this.invoke('execute_query', { sql, params });
-    return result;
+    return await this.invokeWithErrorHandling<QueryResult>('execute_query', { sql, params });
   }
 
   async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
@@ -156,23 +174,23 @@ export class DuckDBTauriEngine implements DatabaseEngine {
   }
 
   async getCatalog(): Promise<CatalogInfo> {
-    return this.invoke('get_catalog');
+    return this.invokeWithErrorHandling<CatalogInfo>('get_catalog');
   }
 
   async getDatabases(): Promise<DatabaseInfo[]> {
-    return this.invoke('get_databases');
+    return this.invokeWithErrorHandling<DatabaseInfo[]>('get_databases');
   }
 
   async getTables(database: string): Promise<TableInfo[]> {
-    return this.invoke('get_tables', { database });
+    return this.invokeWithErrorHandling<TableInfo[]>('get_tables', { database });
   }
 
   async getColumns(database: string, table: string): Promise<ColumnInfo[]> {
-    return this.invoke('get_columns', { database, table });
+    return this.invokeWithErrorHandling<ColumnInfo[]>('get_columns', { database, table });
   }
 
   async checkpoint(): Promise<void> {
-    await this.invoke('checkpoint');
+    await this.invokeWithErrorHandling<void>('checkpoint');
   }
 
   async export(format: ExportFormat): Promise<ArrayBuffer | string> {
@@ -189,6 +207,10 @@ export class DuckDBTauriEngine implements DatabaseEngine {
 
   async listExtensions(): Promise<ExtensionInfo[]> {
     return this.invoke('list_extensions');
+  }
+
+  async getXlsxSheetNames(filePath: string): Promise<string[]> {
+    return this.invoke('get_xlsx_sheet_names', { file_path: filePath });
   }
 
   getCapabilities(): EngineCapabilities {

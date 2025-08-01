@@ -3,6 +3,7 @@
  */
 
 import { EditorView } from '@codemirror/view';
+import { ConnectionPool } from '@engines/types';
 
 import {
   createContainer,
@@ -18,7 +19,6 @@ import { TabExecutionError } from '../../../controllers/tab/tab-controller';
 import { AI_PROVIDERS } from '../../../models/ai-service';
 import { getAIConfig } from '../../../utils/ai-config';
 import { navigateToSettings } from '../../../utils/route-navigation';
-import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
 
 /**
  * Creates a collapsible context section that combines SQL and Schema contexts
@@ -26,7 +26,7 @@ import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connectio
 export function createCombinedContextSection(
   sqlStatement: string | undefined,
   view: EditorView,
-  connectionPool: AsyncDuckDBConnectionPool | null,
+  connectionPool: ConnectionPool | null,
   modelSelect: HTMLSelectElement,
   errorContext?: TabExecutionError,
   onClose?: () => void,
@@ -276,7 +276,7 @@ export function createModelSelectionSection(onModelChange: (model: string) => vo
  */
 export function createSchemaContextSection(
   view: EditorView,
-  connectionPool: AsyncDuckDBConnectionPool | null,
+  connectionPool: ConnectionPool | null,
 ): HTMLElement {
   const { section } = createSection(
     'Database Schema:',

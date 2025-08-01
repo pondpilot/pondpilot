@@ -121,6 +121,11 @@ export const DatabaseConnectionPoolProvider = ({
         // Determine engine configuration
         const detectedEngine = DatabaseEngineFactory.detectOptimalEngine();
         console.log('Detected optimal engine:', detectedEngine);
+        console.log(
+          'Is Tauri environment?',
+          typeof window !== 'undefined' && '__TAURI__' in window,
+        );
+        console.log('Window.__TAURI__:', (window as any).__TAURI__);
 
         const config: EngineConfig = engineConfig || {
           ...detectedEngine,
@@ -129,6 +134,7 @@ export const DatabaseConnectionPoolProvider = ({
         };
 
         console.log('Final database engine config:', config);
+        console.log('Engine config type:', config.type);
 
         // Handle storage path configuration based on engine type
         if (config.storageType === 'persistent') {

@@ -14,7 +14,7 @@ import {
   setPreviewTabId,
   deleteTabByDataSourceId,
 } from '@controllers/tab';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { AnyFlatFileDataSource, XlsxSheetView } from '@models/data-source';
 import { DBColumn, DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -35,7 +35,7 @@ import { validateFileRename, validateXlsxFileRename } from '../utils/validation'
 interface FileSystemBuilderContext {
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, keyof DataExplorerNodeTypeMap>;
-  conn: AsyncDuckDBConnectionPool;
+  conn: ConnectionPool;
   dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource>;
   flatFileSourcesValues: AnyFlatFileDataSource[];
   nonLocalDBFileEntries: LocalEntry[];

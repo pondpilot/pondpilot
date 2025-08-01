@@ -10,7 +10,7 @@ import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { persistAddLocalEntry } from '@controllers/file-system/persist';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
@@ -54,8 +54,6 @@ import { fileSystemService } from '@utils/file-system-adapter';
 import { findUniqueName } from '@utils/helpers';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
-import { PersistenceAdapter, createPersistenceAdapter } from './persistence';
-import { isTauriEnvironment } from '@utils/browser';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
@@ -405,7 +403,7 @@ async function restoreLocalEntries(
  * @returns {Promise<void>} A promise that resolves when the data is hydrated.
  */
 export const restoreAppDataFromIDB = async (
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   onBeforeRequestFilePermission: (handles: FileSystemHandle[]) => Promise<boolean>,
 ): Promise<{ discardedEntries: DiscardedEntry[]; warnings: string[] }> => {
   const iDbConn = await getAppDataDBConnection();
@@ -509,6 +507,14 @@ export const restoreAppDataFromIDB = async (
 
           validDataSources.add(dataSource.id);
 
+          if (!localEntry.handle) {
+            warnings.push(
+              `File handle is null for ${localEntry.name}, skipping database attachment.`,
+            );
+            discardedEntries.push({ type: 'removed', entry: localEntry, reason: 'no-handle' });
+            break;
+          }
+
           const regFile = await registerAndAttachDatabase(
             conn,
             localEntry.handle,
@@ -523,6 +529,12 @@ export const restoreAppDataFromIDB = async (
           // 1. Get the current sheet names
           // 2. Compare with stored data sources for this file
           // 3. Keep valid sheets, register missing sheets, remove deleted sheets
+
+          if (!localEntry.handle) {
+            warnings.push(`File handle is null for ${localEntry.name}, skipping restoration.`);
+            discardedEntries.push({ type: 'removed', entry: localEntry, reason: 'no-handle' });
+            break;
+          }
 
           const xlsxFile = await localEntry.handle.getFile();
           // Get current sheet names
@@ -637,7 +649,9 @@ export const restoreAppDataFromIDB = async (
             `${localEntry.uniqueAlias}.${localEntry.ext}`,
             (dataSource as AnyFlatFileDataSource).viewName,
           );
-          registeredFiles.set(localEntry.id, regFile);
+          if (regFile) {
+            registeredFiles.set(localEntry.id, regFile);
+          }
           break;
         }
       }

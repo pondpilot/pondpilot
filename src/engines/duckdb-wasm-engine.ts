@@ -1,8 +1,9 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { DuckDBWasmConnectionPool } from './duckdb-wasm-connection-pool';
 import { v4 as uuidv4 } from 'uuid';
 
 import { DuckDBWasmConnection } from './duckdb-wasm-connection';
+import { InitializationError, QueryExecutionError, FileOperationError } from './errors';
 import {
   DatabaseEngine,
   DatabaseConnection,
@@ -24,7 +25,7 @@ import {
 
 export class DuckDBWasmEngine implements DatabaseEngine {
   private worker: Worker | null = null;
-  private db: duckdb.AsyncDuckDB | null = null;
+  private _db: duckdb.AsyncDuckDB | null = null;
   private logger: duckdb.ConsoleLogger;
   private bundles: duckdb.DuckDBBundles;
   private ready = false;
@@ -34,6 +35,10 @@ export class DuckDBWasmEngine implements DatabaseEngine {
   constructor() {
     this.logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
     this.bundles = duckdb.getJsDelivrBundles();
+  }
+
+  get db(): duckdb.AsyncDuckDB | null {
+    return this._db;
   }
 
   async initialize(config: EngineConfig): Promise<void> {
@@ -51,10 +56,10 @@ export class DuckDBWasmEngine implements DatabaseEngine {
         );
 
       this.worker = new Worker(workerUrl);
-      this.db = new duckdb.AsyncDuckDB(this.logger, this.worker);
+      this._db = new duckdb.AsyncDuckDB(this.logger, this.worker);
 
       // Instantiate DuckDB
-      await this.db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      await this._db.instantiate(bundle.mainModule, bundle.pthreadWorker);
 
       // Open database
       const dbConfig: duckdb.DuckDBConfig = {
@@ -68,11 +73,11 @@ export class DuckDBWasmEngine implements DatabaseEngine {
         dbConfig.accessMode = duckdb.DuckDBAccessMode.READ_WRITE;
       }
 
-      await this.db.open(dbConfig);
+      await this._db.open(dbConfig);
 
       // Workaround for OPFS write mode issue
       if (config.storageType === 'persistent') {
-        const conn = await this.db.connect();
+        const conn = await this._db.connect();
         const tempTable = `temp_${uuidv4().replace(/-/g, '_')}`;
         await conn.query(`CREATE OR REPLACE TABLE ${tempTable} AS SELECT 1;`);
         await conn.query(`DROP TABLE ${tempTable};`);
@@ -86,7 +91,10 @@ export class DuckDBWasmEngine implements DatabaseEngine {
 
       this.ready = true;
     } catch (error) {
-      throw new Error(`Failed to initialize DuckDB WASM: ${error}`);
+      throw new InitializationError(
+        `Failed to initialize DuckDB WASM: ${error instanceof Error ? error.message : String(error)}`,
+        { originalError: error },
+      );
     }
   }
 
@@ -95,7 +103,7 @@ export class DuckDBWasmEngine implements DatabaseEngine {
       this.worker.terminate();
       this.worker = null;
     }
-    this.db = null;
+    this._db = null;
     this.ready = false;
   }
 
@@ -104,53 +112,58 @@ export class DuckDBWasmEngine implements DatabaseEngine {
   }
 
   async createConnection(): Promise<DatabaseConnection> {
-    if (!this.db) {
-      throw new Error('Database not initialized');
+    if (!this._db) {
+      throw new InitializationError('Database not initialized');
     }
-    const conn = await this.db.connect();
+    const conn = await this._db.connect();
     return new DuckDBWasmConnection(uuidv4(), conn, this);
   }
 
   async createConnectionPool(size: number): Promise<ConnectionPool> {
     // For web, return the native AsyncDuckDBConnectionPool
     // that is fully compatible with DuckDB WASM
-    if (!this.db) {
-      throw new Error('Database not initialized');
+    if (!this._db) {
+      throw new InitializationError('Database not initialized');
     }
-    return new AsyncDuckDBConnectionPool(this.db, size) as any;
+    const pool = new DuckDBWasmConnectionPool(this, { maxSize: size });
+    await pool.initialize();
+    return pool;
   }
 
   async registerFile(options: FileRegistration): Promise<void> {
-    if (!this.db) {
-      throw new Error('Database not initialized');
+    if (!this._db) {
+      throw new InitializationError('Database not initialized');
     }
 
     if (options.type === 'file-handle' && options.handle) {
-      await this.db.registerFileHandle(
+      await this._db.registerFileHandle(
         options.name,
         options.handle,
         duckdb.DuckDBDataProtocol.BROWSER_FILEREADER,
         true,
       );
     } else if (options.type === 'url' && options.url) {
-      await this.db.registerFileURL(
+      await this._db.registerFileURL(
         options.name,
         options.url,
         duckdb.DuckDBDataProtocol.HTTP,
         false,
       );
     } else {
-      throw new Error(`Unsupported file registration type: ${options.type}`);
+      throw new FileOperationError(
+        `Unsupported file registration type: ${options.type}`,
+        options.name,
+      );
     }
 
     this.registeredFiles.set(options.name, options);
   }
 
   async dropFile(name: string): Promise<void> {
-    if (!this.db) {
-      throw new Error('Database not initialized');
+    if (!this._db) {
+      throw new InitializationError('Database not initialized');
     }
-    await this.db.dropFile(name);
+    await this._db.dropFile(name);
     this.registeredFiles.delete(name);
   }
 
@@ -250,21 +263,21 @@ export class DuckDBWasmEngine implements DatabaseEngine {
   }
 
   async export(format: ExportFormat): Promise<ArrayBuffer | string> {
-    if (!this.db) {
-      throw new Error('Database not initialized');
+    if (!this._db) {
+      throw new InitializationError('Database not initialized');
     }
 
     switch (format) {
       case 'arrow':
         // Export via query for now
-        throw new Error('Arrow export not yet implemented');
+        throw new QueryExecutionError('Arrow export not yet implemented');
       default:
-        throw new Error(`Export format ${format} not supported in WASM mode`);
+        throw new QueryExecutionError(`Export format ${format} not supported in WASM mode`);
     }
   }
 
   async import(_data: ArrayBuffer | string, _format: ExportFormat): Promise<void> {
-    throw new Error('Import not yet implemented for DuckDB WASM');
+    throw new FileOperationError('Import not yet implemented for DuckDB WASM');
   }
 
   async loadExtension(name: string, _options?: ExtensionOptions): Promise<void> {

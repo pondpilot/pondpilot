@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { RemoteDB } from '@models/data-source';
 import { useMemo } from 'react';
 
@@ -9,7 +9,7 @@ type UseRemoteDbNodesProps = {
   remoteDatabases: RemoteDB[];
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, any>;
-  conn: AsyncDuckDBConnectionPool;
+  conn: ConnectionPool;
   databaseMetadata: Map<string, any>;
   initialExpandedState: Record<string, boolean>;
   flatFileSources: Map<string, any>;

@@ -1,8 +1,8 @@
 import { syncFiles } from '@controllers/file-system';
 import { updateTabDataViewStaleDataCache } from '@controllers/tab';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
-import { PoolTimeoutError } from '@features/duckdb-context/timeout-error';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
+import { ConnectionTimeoutError } from '@engines/errors';
+import { StreamReader } from '@models/data-adapter';
 import { useAbortController } from '@hooks/use-abort-controller';
 import { useDidUpdate } from '@mantine/hooks';
 import {
@@ -43,7 +43,7 @@ type UseDataAdapterProps = {
 };
 
 export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): DataAdapterApi => {
-  const pool = useInitializedDuckDBConnectionPool();
+  const pool = useInitializedDatabaseConnectionPool();
 
   /**
    * Hooks
@@ -186,7 +186,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    */
 
   // Holds the current connection to the database
-  const mainDataReaderRef = useRef<AsyncDuckDBPooledStreamReader<any> | null>(null);
+  const mainDataReaderRef = useRef<StreamReader<any> | null>(null);
 
   // Holds the data read from the data source. We use ref to allow efficient
   // appends instead of re-writing, what can be a huge array every time.
@@ -367,7 +367,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         if (!aborted) setEstimatedRowCount(value);
       }
     } catch (error) {
-      if (!(error instanceof PoolTimeoutError)) {
+      if (!(error instanceof ConnectionTimeoutError)) {
         console.error('Failed to fetch row count:', error);
         if (error instanceof Error && error.message?.includes('Out of Memory Error')) {
           setAppendDataSourceReadError(
@@ -412,7 +412,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           }
         }
       } catch (error: any) {
-        if (error instanceof PoolTimeoutError) {
+        if (error instanceof ConnectionTimeoutError) {
           setAppendDataSourceReadError(
             'Too many tabs open or operations running. Please wait and re-open this tab.',
           );

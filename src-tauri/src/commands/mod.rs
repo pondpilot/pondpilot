@@ -1,6 +1,6 @@
 use crate::database::{DuckDBEngine, EngineConfig, QueryResult, CatalogInfo, DatabaseInfo, TableInfo, ColumnInfo, FileRegistration, FileInfo};
 use std::sync::Arc;
-use tauri::{State, Manager, AppHandle};
+use tauri::{State, AppHandle, Emitter};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -117,6 +117,16 @@ pub async fn list_files(engine: EngineState<'_>) -> Result<Vec<FileInfo>, String
 }
 
 #[tauri::command]
+pub async fn get_xlsx_sheet_names(engine: EngineState<'_>, filePath: String) -> Result<Vec<String>, String> {
+    engine
+        .lock()
+        .await
+        .get_xlsx_sheet_names(&filePath)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn create_connection(_engine: EngineState<'_>) -> Result<String, String> {
     // For now, return a UUID that represents a connection
     // In a real implementation, this would create a connection from the pool
@@ -175,12 +185,12 @@ pub async fn stream_query(
     // Send results in chunks of 100 rows
     let chunk_size = 100;
     for chunk in result.rows.chunks(chunk_size) {
-        app.emit_all(&format!("stream-{}", stream_id), chunk)
+        app.emit(&format!("stream-{}", stream_id), chunk)
             .map_err(|e| e.to_string())?;
     }
     
     // Signal end of stream
-    app.emit_all(&format!("stream-{}-end", stream_id), ())
+    app.emit(&format!("stream-{}-end", stream_id), ())
         .map_err(|e| e.to_string())?;
     
     Ok(())

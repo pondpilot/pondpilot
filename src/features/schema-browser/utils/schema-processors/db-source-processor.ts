@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { LocalDB, RemoteDB, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { SchemaBrowserTab } from '@models/tab';
@@ -14,7 +14,7 @@ import { createSchemaNode } from '../schema-extraction';
  */
 export async function processDbSource(
   tab: Omit<SchemaBrowserTab, 'dataViewStateCache'>,
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   dbSources: Map<PersistentDataSourceId, LocalDB | RemoteDB>,
   dbMetadata: Map<string, DataBaseModel>,
   abortSignal: AbortSignal,

@@ -1,5 +1,10 @@
+import { isTauriEnvironment } from '@utils/browser';
+
+import { getLogger } from './debug-logger';
 import { DuckDBWasmEngine } from './duckdb-wasm-engine';
 import { DatabaseEngine, EngineConfig } from './types';
+
+const logger = getLogger('database:engine-factory');
 
 export class DatabaseEngineFactory {
   private static engineCache = new Map<string, DatabaseEngine>();
@@ -19,39 +24,26 @@ export class DatabaseEngineFactory {
         engine = new DuckDBWasmEngine();
         break;
 
-      case 'duckdb-native':
-        // Dynamically import native engine when in Electron environment
-        if (this.isElectronEnvironment()) {
-          const { DuckDBNativeEngine } = await import('./duckdb-native-engine');
-          engine = new DuckDBNativeEngine();
-        } else {
-          throw new Error('Native DuckDB is only available in Electron environment');
-        }
-        break;
-
       case 'duckdb-tauri':
         // Dynamically import Tauri engine when in Tauri environment
-        if (this.isTauriEnvironment()) {
-          console.log('Creating Tauri DuckDB engine...');
+        if (isTauriEnvironment()) {
+          logger.info('Creating Tauri DuckDB engine...');
           const { DuckDBTauriEngine } = await import('./duckdb-tauri-engine');
           engine = new DuckDBTauriEngine();
-          console.log('Tauri DuckDB engine created successfully');
+          logger.info('Tauri DuckDB engine created successfully');
         } else {
           throw new Error('Tauri DuckDB is only available in Tauri environment');
         }
         break;
-
-      case 'sqlite':
-        throw new Error('SQLite engine not yet implemented');
 
       default:
         throw new Error(`Unknown engine type: ${config.type}`);
     }
 
     // Initialize the engine
-    console.log('Initializing engine with config:', config);
+    logger.debug('Initializing engine', { config });
     await engine.initialize(config);
-    console.log('Engine initialized successfully, isReady:', engine.isReady());
+    logger.info('Engine initialized successfully', { isReady: engine.isReady() });
 
     // Cache the engine
     this.engineCache.set(cacheKey, engine);
@@ -61,20 +53,12 @@ export class DatabaseEngineFactory {
 
   static detectOptimalEngine(): EngineConfig {
     // Detect the best engine based on the environment
-    if (this.isTauriEnvironment()) {
+    if (isTauriEnvironment()) {
       // Use native DuckDB through Tauri IPC
       return {
         type: 'duckdb-tauri',
         storageType: 'persistent',
         extensions: ['httpfs'],
-      };
-    }
-
-    if (this.isElectronEnvironment()) {
-      return {
-        type: 'duckdb-native',
-        storageType: 'persistent',
-        extensions: ['httpfs', 'postgres_scanner'],
       };
     }
 
@@ -90,12 +74,8 @@ export class DatabaseEngineFactory {
     switch (type) {
       case 'duckdb-wasm':
         return true; // Always available
-      case 'duckdb-native':
-        return this.isElectronEnvironment();
       case 'duckdb-tauri':
-        return this.isTauriEnvironment();
-      case 'sqlite':
-        return false; // Not yet implemented
+        return isTauriEnvironment();
       default:
         return false;
     }
@@ -120,18 +100,6 @@ export class DatabaseEngineFactory {
 
   private static getCacheKey(config: EngineConfig): string {
     return `${config.type}-${config.storageType || 'memory'}-${config.storagePath || 'default'}`;
-  }
-
-  private static isElectronEnvironment(): boolean {
-    return (
-      typeof window !== 'undefined' &&
-      (window as any).process &&
-      (window as any).process.type === 'renderer'
-    );
-  }
-
-  private static isTauriEnvironment(): boolean {
-    return typeof window !== 'undefined' && '__TAURI__' in window;
   }
 
   private static supportsOPFS(): boolean {

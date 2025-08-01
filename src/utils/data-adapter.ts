@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { ColumnAggregateType, DataAdapterQueries } from '@models/data-adapter';
 import {
   AnyDataSource,
@@ -18,7 +18,7 @@ import { classifySQLStatement, trimQuery } from './editor/sql';
 import { quote } from './helpers';
 
 function getGetSortableReaderApiFromFQN(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   fqn: string,
 ): DataAdapterQueries['getSortableReader'] {
   return async (sort, abortSignal) => {
@@ -30,17 +30,23 @@ function getGetSortableReaderApiFromFQN(
         .join(', ');
       baseQuery += ` ORDER BY ${orderBy}`;
     }
+    if (!pool.sendAbortable) {
+      throw new Error('Connection pool does not support sendAbortable');
+    }
     const reader = await pool.sendAbortable(baseQuery, abortSignal, true);
     return reader;
   };
 }
 
 function getGetColumnAggregateFromFQN(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   fqn: string,
 ): DataAdapterQueries['getColumnAggregate'] {
   return async (columnName: string, aggType: ColumnAggregateType, abortSignal: AbortSignal) => {
     const queryToRun = `SELECT ${aggType}(${toDuckDBIdentifier(columnName)}) FROM ${fqn}`;
+    if (!pool.queryAbortable) {
+      throw new Error('Connection pool does not support queryAbortable');
+    }
     const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
 
     if (aborted) {
@@ -51,12 +57,15 @@ function getGetColumnAggregateFromFQN(
 }
 
 function getGetColumnsDataApiFromFQN(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   fqn: string,
 ): DataAdapterQueries['getColumnsData'] {
   return async (columns: DBColumn[], abortSignal: AbortSignal) => {
     const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
     const queryToRun = `SELECT ${columnNames} FROM ${fqn}`;
+    if (!pool.queryAbortable) {
+      throw new Error('Connection pool does not support queryAbortable');
+    }
     const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
 
     if (aborted) {
@@ -67,7 +76,7 @@ function getGetColumnsDataApiFromFQN(
 }
 
 function getFlatFileDataAdapterQueries(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   dataSource: AnyFlatFileDataSource,
   sourceFile: LocalFile,
 ): DataAdapterQueries {
@@ -84,6 +93,9 @@ function getFlatFileDataAdapterQueries(
     return {
       ...baseAttrs,
       getRowCount: async (abortSignal: AbortSignal) => {
+        if (!pool.queryAbortable) {
+          throw new Error('Connection pool does not support queryAbortable');
+        }
         const { value, aborted } = await pool.queryAbortable(
           `SELECT count(*) FROM ${toDuckDBIdentifier(dataSource.viewName)}`,
           abortSignal,
@@ -102,6 +114,9 @@ function getFlatFileDataAdapterQueries(
     return {
       ...baseAttrs,
       getRowCount: async (abortSignal: AbortSignal) => {
+        if (!pool.queryAbortable) {
+          throw new Error('Connection pool does not support queryAbortable');
+        }
         const { value, aborted } = await pool.queryAbortable(
           `SELECT num_rows FROM parquet_file_metadata('${sourceFile.uniqueAlias}.${sourceFile.ext}')`,
           abortSignal,
@@ -123,7 +138,7 @@ function getFlatFileDataAdapterQueries(
 // Generic function that works for both LocalDB and RemoteDB since they share the same interface
 // for database operations (both have dbName and dbType fields)
 function getDatabaseDataAdapterApi(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   dataSource: LocalDB | RemoteDB,
   tab: TabReactiveState<LocalDBDataTab>,
 ): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
@@ -138,6 +153,9 @@ function getDatabaseDataAdapterApi(
         dataSource.dbType === 'duckdb'
           ? tab.objectType === 'table'
             ? async (abortSignal: AbortSignal) => {
+                if (!pool.queryAbortable) {
+                  throw new Error('Connection pool does not support queryAbortable');
+                }
                 const { value, aborted } = await pool.queryAbortable(
                   `SELECT estimated_size 
                 FROM duckdb_tables
@@ -172,7 +190,7 @@ export function getFileDataAdapterQueries({
   tab,
   sourceFile,
 }: {
-  pool: AsyncDuckDBConnectionPool;
+  pool: ConnectionPool;
   dataSource: AnyDataSource | undefined;
   tab: TabReactiveState<AnyFileSourceTab>;
   sourceFile: LocalEntry | undefined;
@@ -290,7 +308,7 @@ export function getScriptAdapterQueries({
   pool,
   tab,
 }: {
-  pool: AsyncDuckDBConnectionPool;
+  pool: ConnectionPool;
   tab: TabReactiveState<ScriptTab>;
 }): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
   const { lastExecutedQuery } = tab;
@@ -322,12 +340,18 @@ export function getScriptAdapterQueries({
                 .join(', ');
               queryToRun = `SELECT * FROM (${trimmedQuery}) ORDER BY ${orderBy}`;
             }
+            if (!pool.sendAbortable) {
+              throw new Error('Connection pool does not support sendAbortable');
+            }
             const reader = await pool.sendAbortable(queryToRun, abortSignal, true);
             return reader;
           }
         : undefined,
       getReader: !classifiedStmt.isAllowedInSubquery
         ? async (abortSignal) => {
+            if (!pool.sendAbortable) {
+              throw new Error('Connection pool does not support sendAbortable');
+            }
             const reader = await pool.sendAbortable(trimmedQuery, abortSignal, true);
             return reader;
           }
@@ -335,6 +359,9 @@ export function getScriptAdapterQueries({
       getColumnAggregate: classifiedStmt.isAllowedInSubquery
         ? async (columnName: string, aggType: ColumnAggregateType, abortSignal: AbortSignal) => {
             const queryToRun = `SELECT ${aggType}(${columnName}) FROM (${trimmedQuery})`;
+            if (!pool.queryAbortable) {
+              throw new Error('Connection pool does not support queryAbortable');
+            }
             const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
 
             if (aborted) {
@@ -347,6 +374,9 @@ export function getScriptAdapterQueries({
         ? async (columns: DBColumn[], abortSignal: AbortSignal) => {
             const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
             const queryToRun = `SELECT ${columnNames} FROM (${trimmedQuery})`;
+            if (!pool.queryAbortable) {
+              throw new Error('Connection pool does not support queryAbortable');
+            }
             const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
 
             if (aborted) {

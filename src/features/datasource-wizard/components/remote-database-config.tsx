@@ -1,7 +1,7 @@
 import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { Stack, TextInput, Text, Button, Group, Checkbox, Alert } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
@@ -17,7 +17,7 @@ import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 
 interface RemoteDatabaseConfigProps {
-  pool: AsyncDuckDBConnectionPool | null;
+  pool: ConnectionPool | null;
   onBack: () => void;
   onClose: () => void;
 }

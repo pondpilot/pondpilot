@@ -1,4 +1,5 @@
 import { IDBPDatabase } from 'idb';
+
 import { PersistenceAdapter } from './types';
 
 /**
@@ -55,17 +56,11 @@ export class IndexedDBAdapter implements PersistenceAdapter {
 
   async putAll<T>(table: string, items: Array<{ key: string; value: T }>): Promise<void> {
     const tx = this.db.transaction(table, 'readwrite');
-    await Promise.all([
-      ...items.map(({ key, value }) => tx.store.put(value, key)),
-      tx.done,
-    ]);
+    await Promise.all([...items.map(({ key, value }) => tx.store.put(value, key)), tx.done]);
   }
 
   async deleteAll(table: string, keys: string[]): Promise<void> {
     const tx = this.db.transaction(table, 'readwrite');
-    await Promise.all([
-      ...keys.map(key => tx.store.delete(key)),
-      tx.done,
-    ]);
+    await Promise.all([...keys.map((key) => tx.store.delete(key)), tx.done]);
   }
 }

@@ -1,5 +1,5 @@
 import { TreeNodeData } from '@components/explorer-tree';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry } from '@models/file-system';
 
@@ -12,7 +12,7 @@ import {
 interface MultiSelectHandlersProps {
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, keyof DataExplorerNodeTypeMap>;
-  conn: AsyncDuckDBConnectionPool;
+  conn: ConnectionPool;
   flatFileSources: Map<PersistentDataSourceId, AnyFlatFileDataSource>;
   allLocalEntries: LocalEntry[];
 }

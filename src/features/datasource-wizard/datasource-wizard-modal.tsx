@@ -1,5 +1,5 @@
 import { showError } from '@components/app-notifications';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { Group, Stack, Title, ActionIcon, Text, Button, Alert } from '@mantine/core';
 import {
   IconDatabasePlus,
@@ -18,7 +18,7 @@ import { validateJSON, validateCSV } from './utils/clipboard-import';
 
 interface DatasourceWizardModalProps {
   onClose: () => void;
-  pool: AsyncDuckDBConnectionPool | null;
+  pool: ConnectionPool | null;
   handleAddFolder: () => Promise<void>;
   handleAddFile: () => Promise<void>;
   initialStep?: WizardStep;

@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { LocalDB, RemoteDB } from '@models/data-source';
 
 import { DataExplorerNodeMap } from '../model';
@@ -12,7 +12,7 @@ type UseBuildNodesProps = {
   remoteDatabases: RemoteDB[];
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, any>;
-  conn: AsyncDuckDBConnectionPool;
+  conn: ConnectionPool;
   localDBLocalEntriesMap: Map<string, any>;
   databaseMetadata: Map<string, any>;
   fileViewNames: Set<string>;

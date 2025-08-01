@@ -1,7 +1,9 @@
 import { DBPersistenceController } from '@controllers/db-persistence';
 import { DevModal } from '@features/app-context/components/dev-modal';
-import { DuckDBCompatProvider } from '@features/database-context/duckdb-compat-context';
-import { DuckDBInitializerStatusContext } from '@features/duckdb-context/duckdb-context';
+import {
+  DatabaseConnectionPoolProvider,
+  DatabaseInitializerStatusContext,
+} from '@features/database-context';
 import { useFeatureContext } from '@features/feature-context';
 import { DBPersistenceState } from '@models/db-persistence';
 import { OPFSUtil } from '@utils/opfs';
@@ -116,13 +118,16 @@ export const PersistenceConnector: React.FC<{
     <PersistenceUIContext.Provider value={uiContextValue}>
       <DuckDBPersistenceProvider onStatusUpdate={handlePersistenceStatus}>
         {/* Provide combined status to DevModal */}
-        <DuckDBInitializerStatusContext.Provider value={statusContextValue}>
+        <DatabaseInitializerStatusContext.Provider value={statusContextValue}>
           {import.meta.env.DEV && <DevModal />}
-          {/* DuckDBCompatProvider manages actual DuckDB initialization with engine detection */}
-          <DuckDBCompatProvider maxPoolSize={maxPoolSize} onStatusUpdate={handleDuckDBStatus}>
+          {/* DatabaseConnectionPoolProvider manages actual database initialization with engine detection */}
+          <DatabaseConnectionPoolProvider
+            maxPoolSize={maxPoolSize}
+            onStatusUpdate={handleDuckDBStatus}
+          >
             {children}
-          </DuckDBCompatProvider>
-        </DuckDBInitializerStatusContext.Provider>
+          </DatabaseConnectionPoolProvider>
+        </DatabaseInitializerStatusContext.Provider>
       </DuckDBPersistenceProvider>
     </PersistenceUIContext.Provider>
   );

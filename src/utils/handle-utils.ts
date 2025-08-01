@@ -74,8 +74,8 @@ function createTauriMockFileHandle(file: LocalFile): FileSystemFileHandle {
       }
 
       // Read file using Tauri APIs
-      const fs = await import('@tauri-apps/api/fs');
-      const contents = await fs.readBinaryFile(file.filePath);
+      const fs = await import('@tauri-apps/plugin-fs');
+      const contents = await fs.readFile(file.filePath);
 
       return new File([contents], file.name, {
         lastModified: Date.now(),

@@ -4,6 +4,7 @@
 mod commands;
 mod database;
 mod persistence;
+mod errors;
 
 use database::DuckDBEngine;
 use persistence::PersistenceState;
@@ -23,10 +24,24 @@ fn test_connection() -> Result<String, String> {
 
 #[tokio::main]
 async fn main() {
+    // Set up panic hook to catch and log panics
+    std::panic::set_hook(Box::new(|panic_info| {
+        eprintln!("PANIC occurred: {}", panic_info);
+        if let Some(location) = panic_info.location() {
+            eprintln!("Panic occurred in file '{}' at line {}", 
+                location.file(), 
+                location.line()
+            );
+        }
+    }));
+
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             // Get the app data directory
-            let app_data_dir = app.path_resolver().app_data_dir()
+            let app_data_dir = app.path().app_data_dir()
                 .expect("Failed to get app data directory");
             
             // Create database paths in app data directory
@@ -48,6 +63,13 @@ async fn main() {
             app.manage(engine);
             app.manage(persistence);
             
+            // Enable devtools in debug mode
+            #[cfg(debug_assertions)]
+            {
+                let window = app.get_webview_window("main").unwrap();
+                window.open_devtools();
+            }
+            
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -67,6 +89,7 @@ async fn main() {
             commands::register_file,
             commands::drop_file,
             commands::list_files,
+            commands::get_xlsx_sheet_names,
             commands::create_connection,
             commands::connection_execute,
             commands::connection_close,

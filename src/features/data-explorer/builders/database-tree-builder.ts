@@ -2,7 +2,7 @@ import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { LocalDB, RemoteDB } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -19,7 +19,7 @@ import { validateDbRename } from '../utils/validation';
 interface DatabaseTreeBuilderContext {
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, keyof DataExplorerNodeTypeMap>;
-  conn: AsyncDuckDBConnectionPool;
+  conn: ConnectionPool;
   localDatabases: LocalDB[];
   localDBLocalEntriesMap: Map<string, LocalEntry>;
   databaseMetadata: Map<string, DataBaseModel>;

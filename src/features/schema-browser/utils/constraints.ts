@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { ConstraintResult } from '@utils/duckdb/models';
 
 import { escapeStringLiteral } from './sql-escape';
@@ -32,7 +32,7 @@ export interface ConstraintInfo {
  * ```
  */
 export async function getTableConstraints(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   database: string,
   schema: string,
   table: string,

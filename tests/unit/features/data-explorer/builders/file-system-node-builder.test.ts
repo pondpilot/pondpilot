@@ -11,7 +11,7 @@ import {
   buildDatabaseFileNode,
 } from '@features/data-explorer/builders/file-system-node-builder';
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '@features/data-explorer/model';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { AnyFlatFileDataSource, XlsxSheetView, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId, LocalFolder, LocalFile } from '@models/file-system';
@@ -37,7 +37,7 @@ describe('file-system-node-builder', () => {
   let mockContext: {
     nodeMap: DataExplorerNodeMap;
     anyNodeIdToNodeTypeMap: Map<string, keyof DataExplorerNodeTypeMap>;
-    conn: AsyncDuckDBConnectionPool;
+    conn: ConnectionPool;
     dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource>;
     flatFileSourcesValues: AnyFlatFileDataSource[];
     nonLocalDBFileEntries: LocalEntry[];
@@ -50,7 +50,7 @@ describe('file-system-node-builder', () => {
     mockContext = {
       nodeMap: new Map(),
       anyNodeIdToNodeTypeMap: new Map(),
-      conn: {} as AsyncDuckDBConnectionPool,
+      conn: {} as ConnectionPool,
       dataSourceByFileId: new Map(),
       flatFileSourcesValues: [],
       nonLocalDBFileEntries: [],
