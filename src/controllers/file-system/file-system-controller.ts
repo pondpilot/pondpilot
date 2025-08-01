@@ -11,7 +11,8 @@ import {
   reCreateXlsxSheetView,
 } from '@controllers/db/data-source';
 import { getLocalDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { isSameFile } from '@controllers/db/file-access';
+import { ConnectionPool } from '@engines/types';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel, CSV_MAX_LINE_SIZE_MB } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -31,6 +32,7 @@ import { findUniqueName } from '@utils/helpers';
 import { makeSQLScriptId } from '@utils/sql-script';
 import { getXlsxSheetNames } from '@utils/xlsx';
 
+import { getFileReferenceForDuckDB, getFileContentSafe } from './file-helpers';
 import { persistAddLocalEntry, persistDeleteLocalEntry } from './persist';
 
 /**
@@ -40,7 +42,7 @@ import { persistAddLocalEntry, persistDeleteLocalEntry } from './persist';
  */
 
 export const addLocalFileOrFolders = async (
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   handles: (FileSystemDirectoryHandle | FileSystemFileHandle)[],
 ): Promise<{
   skippedExistingEntries: LocalEntry[];
@@ -94,32 +96,57 @@ export const addLocalFileOrFolders = async (
         newDatabaseNames.push(dbSource.dbName);
 
         // TODO: currently we assume this works, add proper error handling
+        const fileReference = getFileReferenceForDuckDB(file);
         const regFile = await registerAndAttachDatabase(
           conn,
           file.handle,
-          `${file.uniqueAlias}.${file.ext}`,
+          fileReference,
           dbSource.dbName,
         );
 
-        newRegisteredFiles.push([file.id, regFile]);
+        if (regFile) {
+          newRegisteredFiles.push([file.id, regFile]);
+        }
         newDataSources.push([dbSource.id, dbSource]);
         return true;
       }
       case 'xlsx': {
         // Excel file: only add if at least one sheet has data
-        const xlsxFile = await file.handle.getFile();
-        const sheetNames = await getXlsxSheetNames(xlsxFile);
+        let sheetNames: string[] = [];
+
+        const xlsxFile = await getFileContentSafe(file.handle);
+        if (xlsxFile) {
+          // Web environment: can read file directly
+          sheetNames = await getXlsxSheetNames(xlsxFile);
+        } else {
+          // Tauri environment: use native engine to get sheet names
+          try {
+            const { isTauriEnvironment } = await import('@utils/browser');
+            if (isTauriEnvironment()) {
+              const { invoke } = await import('@tauri-apps/api/core');
+              const fileReference = getFileReferenceForDuckDB(file);
+              sheetNames = await invoke<string[]>('get_xlsx_sheet_names', {
+                filePath: fileReference,
+              });
+            }
+          } catch (error) {
+            console.error(`Error getting sheet names for ${file.name}:`, error);
+            // Surface the error instead of silently falling back
+            throw new Error(
+              `Failed to read sheet names from Excel file "${file.name}". ` +
+                'The file may be corrupted or in an unsupported format. ' +
+                `Error: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
 
         if (sheetNames.length === 0) {
           errors.push(`XLSX file ${file.name} has no sheets.`);
           return false;
         }
 
-        // For Tauri, use the file path directly; for web, use the registered file name
-        const isTauri = (file.handle as any)._tauriPath;
-        const fileReference = isTauri
-          ? (file.handle as any)._tauriPath
-          : `${file.uniqueAlias}.${file.ext}`;
+        // Get proper file reference for DuckDB
+        const fileReference = getFileReferenceForDuckDB(file);
         const succeededSheets: string[] = [];
         const skippedSheets: string[] = [];
         let regFile: File | null = null;
@@ -131,7 +158,9 @@ export const addLocalFileOrFolders = async (
                 file.handle,
                 `${file.uniqueAlias}.${file.ext}`,
               );
-              newRegisteredFiles.push([file.id, regFile]);
+              if (regFile) {
+                newRegisteredFiles.push([file.id, regFile]);
+              }
             }
             const sheetDataSource = addXlsxSheetDataSource(file, sheetName, reservedViews);
             reservedViews.add(sheetDataSource.viewName);
@@ -168,15 +197,18 @@ export const addLocalFileOrFolders = async (
 
         // Then register the file source and create the view.
         try {
+          const fileReference = getFileReferenceForDuckDB(file);
           const regFile = await registerFileSourceAndCreateView(
             conn,
             file.handle,
             file.ext,
-            `${file.uniqueAlias}.${file.ext}`,
+            fileReference,
             dataSource.viewName,
           );
 
-          newRegisteredFiles.push([file.id, regFile]);
+          if (regFile) {
+            newRegisteredFiles.push([file.id, regFile]);
+          }
           newDataSources.push([dataSource.id, dataSource]);
           return true;
         } catch (err) {
@@ -262,7 +294,7 @@ export const addLocalFileOrFolders = async (
     // when a folder is being added that brings in a previously existing file.
     // The full proper reocnciliation is not implemented yet.
     for (const entry of localEntries.values()) {
-      if (await entry.handle.isSameEntry(localEntry.handle)) {
+      if (await isSameFile(entry, localEntry)) {
         skippedExistingEntries.push(localEntry);
         alreadyExists = true;
         break;
@@ -378,7 +410,11 @@ export const addLocalFileOrFolders = async (
 };
 
 export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHandle[]) => {
-  const { _iDbConn: iDbConn, _persistenceAdapter: persistenceAdapter, sqlScripts } = useAppStore.getState();
+  const {
+    _iDbConn: iDbConn,
+    _persistenceAdapter: persistenceAdapter,
+    sqlScripts,
+  } = useAppStore.getState();
 
   const newScripts: [SQLScriptId, SQLScript][] = [];
 
@@ -438,8 +474,13 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
  * ------------------------------------------------------------
  */
 
-export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: LocalEntryId[]) => {
-  const { dataSources, localEntries, _iDbConn: iDbConn, _persistenceAdapter: persistenceAdapter } = useAppStore.getState();
+export const deleteLocalFileOrFolders = (conn: ConnectionPool, ids: LocalEntryId[]) => {
+  const {
+    dataSources,
+    localEntries,
+    _iDbConn: iDbConn,
+    _persistenceAdapter: persistenceAdapter,
+  } = useAppStore.getState();
 
   const folderChildren = new Map<LocalEntryId, LocalEntry[]>();
   for (const [_, entry] of localEntries) {
@@ -548,7 +589,7 @@ const checkFileReadability = async (
   return 'notReadable';
 };
 
-export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
+export const syncFiles = async (conn: ConnectionPool) => {
   const { localEntries, registeredFiles, dataSources } = useAppStore.getState();
 
   const localFiles = Array.from(localEntries.values()).filter(

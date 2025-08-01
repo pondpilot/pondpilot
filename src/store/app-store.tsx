@@ -19,10 +19,10 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 
+import { PersistenceAdapter } from './persistence';
 import { resetAppData } from './restore';
 import { createSelectors } from './utils';
 import { TabExecutionError } from '../controllers/tab/tab-controller';
-import { PersistenceAdapter } from './persistence';
 
 type AppLoadState = 'init' | 'ready' | 'error';
 

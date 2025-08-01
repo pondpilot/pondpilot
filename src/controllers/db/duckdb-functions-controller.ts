@@ -1,5 +1,5 @@
 import { getDuckDBFunctions } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { DBFunctionsMetadata } from '@models/db';
 import { setDuckDBFunctions } from '@store/app-store';
 
@@ -15,9 +15,7 @@ import { setDuckDBFunctions } from '@store/app-store';
  * @param conn - DuckDB connection pool
  * @returns The loaded DuckDB functions
  */
-export async function loadDuckDBFunctions(
-  conn: AsyncDuckDBConnectionPool,
-): Promise<DBFunctionsMetadata[]> {
+export async function loadDuckDBFunctions(conn: ConnectionPool): Promise<DBFunctionsMetadata[]> {
   try {
     // Get functions using the existing method
     const functions = await getDuckDBFunctions(conn);

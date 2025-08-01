@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { Group, Stack, Title, ActionIcon, Text, Divider } from '@mantine/core';
 import { IconDatabasePlus, IconFilePlus, IconFolderPlus, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
@@ -9,7 +9,7 @@ import { RemoteDatabaseConfig } from './components/remote-database-config';
 
 interface DatasourceWizardModalProps {
   onClose: () => void;
-  pool: AsyncDuckDBConnectionPool | null;
+  pool: ConnectionPool | null;
   handleAddFolder: () => Promise<void>;
   handleAddFile: () => Promise<void>;
   initialStep?: WizardStep;

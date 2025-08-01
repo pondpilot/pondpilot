@@ -61,8 +61,10 @@ function getSheetNamesWithSheetJS(arrayBuffer: ArrayBuffer): string[] {
     const workbook = XLSX.read(arrayBuffer, SHEET_NAMES_ONLY_OPTIONS);
     return workbook.SheetNames;
   } catch (error) {
-    // If SheetJS fails completely, return empty array
-    return [];
+    // Re-throw the error with more context instead of silently returning empty array
+    throw new Error(
+      `Failed to parse Excel file: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
@@ -151,29 +153,38 @@ function extractSheetNamesFromZip(buf: Uint8Array): string[] | null {
  * @returns Array of sheet names
  */
 export async function getXlsxSheetNames(file: File): Promise<string[]> {
-  // For large files (>5MB), check if it's a valid XLSX before processing
-  if (file.size > SIGNATURE_CHECK_THRESHOLD) {
-    const headerBuf = await file.slice(0, 4).arrayBuffer();
-    if (!isValidXlsxFile(headerBuf)) {
-      // Not a valid XLSX/ZIP file, still try SheetJS
-      const arrayBuffer = await file.arrayBuffer();
-      return getSheetNamesWithSheetJS(arrayBuffer);
+  try {
+    // For large files (>5MB), check if it's a valid XLSX before processing
+    if (file.size > SIGNATURE_CHECK_THRESHOLD) {
+      const headerBuf = await file.slice(0, 4).arrayBuffer();
+      if (!isValidXlsxFile(headerBuf)) {
+        // Not a valid XLSX/ZIP file, but still try SheetJS
+        const arrayBuffer = await file.arrayBuffer();
+        return getSheetNamesWithSheetJS(arrayBuffer);
+      }
     }
-  }
 
-  const arrayBuffer = await file.arrayBuffer();
-  const buf = new Uint8Array(arrayBuffer);
+    const arrayBuffer = await file.arrayBuffer();
+    const buf = new Uint8Array(arrayBuffer);
 
-  // For very large files, use the efficient ZIP extraction first
-  if (file.size > LARGE_FILE_THRESHOLD) {
-    const sheetNames = extractSheetNamesFromZip(buf);
-    if (sheetNames && sheetNames.length > 0) {
-      return sheetNames;
+    // For very large files, use the efficient ZIP extraction first
+    if (file.size > LARGE_FILE_THRESHOLD) {
+      const sheetNames = extractSheetNamesFromZip(buf);
+      if (sheetNames && sheetNames.length > 0) {
+        return sheetNames;
+      }
     }
-  }
 
-  // For smaller files or if efficient extraction failed, use SheetJS with optimized options
-  return getSheetNamesWithSheetJS(arrayBuffer);
+    // For smaller files or if efficient extraction failed, use SheetJS with optimized options
+    return getSheetNamesWithSheetJS(arrayBuffer);
+  } catch (error) {
+    // Enhance error message with file information
+    throw new Error(
+      `Failed to extract sheet names from "${file.name}" (${(file.size / 1024 / 1024).toFixed(2)} MB): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
 }
 
 /**

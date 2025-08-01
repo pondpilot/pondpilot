@@ -1,4 +1,5 @@
-use rusqlite::{Connection, Result, params};
+use rusqlite::{Connection, params};
+use crate::errors::DuckDBError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -11,42 +12,42 @@ pub struct PersistenceState {
 }
 
 impl PersistenceState {
-    pub fn new(db_path: PathBuf) -> Result<Self> {
+    pub fn new(db_path: PathBuf) -> Result<Self, DuckDBError> {
         // Use the provided path directly
         println!("SQLite persistence path: {:?}", db_path);
         
         let conn = Connection::open(db_path)?;
         
         // Create tables if they don't exist
-        // Note: Table names must match TypeScript constants (hyphenated)
+        // Using underscore names for SQLite/Tauri (different from IndexedDB hyphenated names)
         conn.execute_batch(
             r#"
             -- Data sources table
-            CREATE TABLE IF NOT EXISTS "data-source" (
+            CREATE TABLE IF NOT EXISTS data_sources (
                 id TEXT PRIMARY KEY,
                 data TEXT NOT NULL -- JSON serialized data
             );
 
             -- Local file/folder entries
-            CREATE TABLE IF NOT EXISTS "local-entry" (
+            CREATE TABLE IF NOT EXISTS local_entries (
                 id TEXT PRIMARY KEY,
                 data TEXT NOT NULL -- JSON serialized data
             );
 
             -- SQL scripts
-            CREATE TABLE IF NOT EXISTS "sql-script" (
+            CREATE TABLE IF NOT EXISTS sql_scripts (
                 id TEXT PRIMARY KEY,
                 data TEXT NOT NULL -- JSON serialized data
             );
 
             -- Tabs
-            CREATE TABLE IF NOT EXISTS "tab" (
+            CREATE TABLE IF NOT EXISTS tabs (
                 id TEXT PRIMARY KEY,
                 data TEXT NOT NULL -- JSON serialized data
             );
             
             -- Content view (for storing active tab, tab order, etc.)
-            CREATE TABLE IF NOT EXISTS "content-view" (
+            CREATE TABLE IF NOT EXISTS content_view (
                 key TEXT PRIMARY KEY,
                 data TEXT NOT NULL -- JSON serialized data
             );
@@ -88,6 +89,18 @@ pub struct GetAllRequest {
     table: String,
 }
 
+// Helper function to map from hyphenated to underscore table names
+fn map_table_name(table: &str) -> &'static str {
+    match table {
+        "data-source" => "data_sources",
+        "local-entry" => "local_entries",
+        "sql-script" => "sql_scripts",
+        "tab" => "tabs",
+        "content-view" => "content_view",
+        _ => panic!("Unknown table name: {}", table),
+    }
+}
+
 // Helper function to extract ID from JSON value
 fn extract_id(value: &Value, key: Option<&str>) -> Result<String, String> {
     if let Some(k) = key {
@@ -110,8 +123,9 @@ pub async fn sqlite_get(
 ) -> Result<Option<Value>, String> {
     let conn = state.connection.lock().map_err(|e| e.to_string())?;
     
-    // Build query with proper table name (using quotes for hyphenated names)
-    let query = format!("SELECT data FROM '{}' WHERE id = ?1", table);
+    // Map hyphenated table name to underscore version
+    let mapped_table = map_table_name(&table);
+    let query = format!("SELECT data FROM {} WHERE id = ?1", mapped_table);
     
     let result: Result<String, _> = conn.query_row(&query, params![key], |row| {
         row.get(0)
@@ -141,8 +155,9 @@ pub async fn sqlite_put(
     let data = serde_json::to_string(&value)
         .map_err(|e| format!("Failed to serialize value: {}", e))?;
     
-    // Simple insert with just id and data (JSON blob)
-    let query = format!("INSERT OR REPLACE INTO '{}' (id, data) VALUES (?1, ?2)", table);
+    // Map hyphenated table name to underscore version
+    let mapped_table = map_table_name(&table);
+    let query = format!("INSERT OR REPLACE INTO {} (id, data) VALUES (?1, ?2)", mapped_table);
     
     conn.execute(&query, params![id, data])
         .map_err(|e| format!("Failed to insert into {}: {}", table, e))?;
@@ -158,7 +173,9 @@ pub async fn sqlite_delete(
 ) -> Result<(), String> {
     let conn = state.connection.lock().map_err(|e| e.to_string())?;
     
-    let query = format!("DELETE FROM '{}' WHERE id = ?1", table);
+    // Map hyphenated table name to underscore version
+    let mapped_table = map_table_name(&table);
+    let query = format!("DELETE FROM {} WHERE id = ?1", mapped_table);
     
     conn.execute(&query, params![key])
         .map_err(|e| format!("Failed to delete: {}", e))?;
@@ -173,7 +190,9 @@ pub async fn sqlite_clear(
 ) -> Result<(), String> {
     let conn = state.connection.lock().map_err(|e| e.to_string())?;
     
-    let query = format!("DELETE FROM '{}'", table);
+    // Map hyphenated table name to underscore version
+    let mapped_table = map_table_name(&table);
+    let query = format!("DELETE FROM {}", mapped_table);
     
     conn.execute(&query, [])
         .map_err(|e| format!("Failed to clear table: {}", e))?;
@@ -188,7 +207,9 @@ pub async fn sqlite_get_all(
 ) -> Result<Vec<Value>, String> {
     let conn = state.connection.lock().map_err(|e| e.to_string())?;
     
-    let query = format!("SELECT data FROM '{}'", table);
+    // Map hyphenated table name to underscore version
+    let mapped_table = map_table_name(&table);
+    let query = format!("SELECT data FROM {}", mapped_table);
     
     let mut stmt = conn.prepare(&query)
         .map_err(|e| format!("Failed to prepare statement: {}", e))?;

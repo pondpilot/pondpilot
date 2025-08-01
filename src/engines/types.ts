@@ -77,7 +77,8 @@ export interface EngineCapabilities {
 }
 
 export interface EngineConfig {
-  type: 'duckdb-wasm' | 'duckdb-native' | 'duckdb-tauri' | 'sqlite';
+  type: 'duckdb-wasm' | 'duckdb-tauri';
+  persistent?: boolean; // Legacy property for tests
   storageType?: 'memory' | 'persistent';
   storagePath?: string;
   workerUrl?: string;
@@ -96,12 +97,41 @@ export interface DatabaseConnection {
   isOpen: () => boolean;
 }
 
+export interface PoolStats {
+  totalConnections: number;
+  activeConnections: number;
+  idleConnections: number;
+  waitingRequests: number;
+  connectionsCreated?: number;
+  connectionsDestroyed?: number;
+  acquireCount?: number;
+  releaseCount?: number;
+  timeoutCount?: number;
+}
+
 export interface ConnectionPool {
+  // Core connection pool methods
   acquire: () => Promise<DatabaseConnection>;
   release: (connection: DatabaseConnection) => Promise<void>;
-  destroy: () => Promise<void>;
-  size: () => number;
-  available: () => number;
+  close: () => Promise<void>;
+  getStats?: () => PoolStats | null;
+
+  // High-level query methods (used by the app)
+  query: <T = any>(sql: string) => Promise<any>;
+  queryAbortable?: <T = any>(
+    sql: string,
+    signal: AbortSignal,
+  ) => Promise<{ value: any; aborted: boolean }>;
+  send?: <T = any>(sql: string, stream?: boolean) => Promise<any>;
+  sendAbortable?: <T = any>(sql: string, signal: AbortSignal, stream?: boolean) => Promise<any>;
+  getPooledConnection?: () => Promise<any>;
+  getTableNames?: (database: string, schema: string) => Promise<any>;
+
+  // Force checkpoint for persistence
+  forceCheckpoint?: () => Promise<boolean>;
+
+  // Access to underlying bindings (for WASM-specific operations)
+  bindings?: any;
 }
 
 export interface DatabaseEngine {

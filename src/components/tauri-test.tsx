@@ -17,7 +17,7 @@ export function TauriTest() {
     }
 
     try {
-      const { invoke } = await import('@tauri-apps/api' as any);
+      const { invoke } = await import('@tauri-apps/api/core');
       const result = await invoke('test_connection');
       setMessage(result as string);
     } catch (error) {
@@ -32,7 +32,7 @@ export function TauriTest() {
     }
 
     try {
-      const { invoke } = await import('@tauri-apps/api' as any);
+      const { invoke } = await import('@tauri-apps/api/core');
       const result = await invoke('greet', { name: 'PondPilot User' });
       setMessage(result as string);
     } catch (error) {

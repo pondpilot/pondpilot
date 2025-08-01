@@ -224,8 +224,8 @@ function createMockFileHandle(pickedFile: {
         throw new Error('File path not available');
       }
 
-      const fs = await import('@tauri-apps/api/fs');
-      const contents = await fs.readBinaryFile(pickedFile.path);
+      const fs = await import('@tauri-apps/plugin-fs');
+      const contents = await fs.readFile(pickedFile.path);
 
       return new File([contents], pickedFile.name, {
         lastModified: pickedFile.lastModified || Date.now(),

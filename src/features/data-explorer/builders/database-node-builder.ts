@@ -13,7 +13,7 @@ import {
   setActiveTabId,
   setPreviewTabId,
 } from '@controllers/tab';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { PersistentDataSourceId } from '@models/data-source';
 import { DBColumn, DBSchema, DBTableOrView } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -124,7 +124,7 @@ export function buildObjectTreeNode({
   schemaName: string;
   object: DBTableOrView;
   fileViewNames?: Set<string>;
-  conn?: AsyncDuckDBConnectionPool;
+  conn?: ConnectionPool;
   context: ExtendedBuilderContext;
 }): TreeNodeData<DataExplorerNodeTypeMap> {
   const { name: objectName, columns } = object;
@@ -314,7 +314,7 @@ export function buildSchemaTreeNode({
   dbName: string;
   schema: DBSchema;
   fileViewNames?: Set<string>;
-  conn?: AsyncDuckDBConnectionPool;
+  conn?: ConnectionPool;
   context: ExtendedBuilderContext;
   initialExpandedState: Record<string, boolean>;
 }): TreeNodeData<DataExplorerNodeTypeMap> {
@@ -346,7 +346,7 @@ export function buildSchemaTreeNode({
       dbName,
       schemaName,
       fileViewNames: Array.from(fileViewNames),
-      objects: sortedObjects.map(o => ({ name: o.name, type: o.type }))
+      objects: sortedObjects.map((o) => ({ name: o.name, type: o.type })),
     });
 
     for (const object of sortedObjects) {
@@ -357,14 +357,15 @@ export function buildSchemaTreeNode({
         regularObjects.push(object);
       }
     }
-    
+
     // Log unmatched views for debugging
-    const unmatchedViews = sortedObjects.filter(o => 
-      o.type === 'view' && !fileViewNames.has(o.name)
+    const unmatchedViews = sortedObjects.filter(
+      (o) => o.type === 'view' && !fileViewNames.has(o.name),
     );
     if (unmatchedViews.length > 0) {
-      console.log('[buildSchemaTreeNode] Unmatched views (not in fileViewNames):', 
-        unmatchedViews.map(v => v.name)
+      console.log(
+        '[buildSchemaTreeNode] Unmatched views (not in fileViewNames):',
+        unmatchedViews.map((v) => v.name),
       );
     }
 
@@ -383,7 +384,11 @@ export function buildSchemaTreeNode({
 
     // Add file views section if there are any
     if (fileViews.length > 0) {
-      console.log('[buildSchemaTreeNode] Creating File Views section with', fileViews.length, 'views');
+      console.log(
+        '[buildSchemaTreeNode] Creating File Views section with',
+        fileViews.length,
+        'views',
+      );
       const fileViewsSectionId = `${dbId}.${schemaName}.file-views`;
       context.nodeMap.set(fileViewsSectionId, {
         db: dbId,
