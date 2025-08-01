@@ -1,4 +1,4 @@
-import { showError, showErrorWithAction, showSuccess } from '@components/app-notifications';
+import { showError, showErrorWithAction, showSuccess, showWarning } from '@components/app-notifications';
 import { persistPutDataSources, persistDeleteDataSource } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
@@ -27,6 +27,7 @@ import {
   SQLStatementType,
 } from '@utils/editor/sql';
 import { formatSQLSafe } from '@utils/sql-formatter';
+import { DEFAULT_ROW_LIMIT, isResultTruncated } from '@utils/sql-wrapper';
 import { Allotment } from 'allotment';
 import { memo, useCallback, useState } from 'react';
 
