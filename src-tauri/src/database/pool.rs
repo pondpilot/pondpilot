@@ -1,4 +1,5 @@
 use crate::errors::{DuckDBError, Result};
+use crate::system_resources::{calculate_resource_limits, ResourceLimits};
 use duckdb::Connection;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{Semaphore, Mutex as TokioMutex};
@@ -79,6 +80,9 @@ pub struct ConnectionPool {
     
     // Connection configuration
     db_path: PathBuf,
+    
+    // Resource limits
+    resource_limits: ResourceLimits,
 }
 
 impl ConnectionPool {
@@ -88,14 +92,19 @@ impl ConnectionPool {
             fs::create_dir_all(parent)?;
         }
         
+        // Calculate dynamic resource limits
+        let resource_limits = calculate_resource_limits();
+        
         let conn = Connection::open(&db_path)?;
         
-        // Configure connection for better performance
-        conn.execute_batch("
-            PRAGMA threads=4;
-            PRAGMA memory_limit='4GB';
+        // Configure connection with dynamic limits
+        let primary_config = format!("
+            PRAGMA threads={};
+            PRAGMA memory_limit='{}';
             PRAGMA enable_progress_bar=true;
-        ").ok(); // Ignore errors for pragmas that might not be available
+        ", resource_limits.primary_threads, resource_limits.primary_memory);
+        
+        conn.execute_batch(&primary_config).ok(); // Ignore errors for pragmas that might not be available
         
         // Pre-create some connections for the pool
         let mut available_connections = VecDeque::new();
@@ -109,10 +118,11 @@ impl ConnectionPool {
             eprintln!("[POOL] Pre-creating connection {}/{}", i + 1, pre_create_count);
             match Connection::open(&db_path) {
                 Ok(new_conn) => {
-                    new_conn.execute_batch("
-                        PRAGMA threads=2;
-                        PRAGMA memory_limit='1GB';
-                    ").ok();
+                    let pool_config = format!("
+                        PRAGMA threads={};
+                        PRAGMA memory_limit='{}';
+                    ", resource_limits.pool_threads, resource_limits.pool_memory);
+                    new_conn.execute_batch(&pool_config).ok();
                     available_connections.push_back(new_conn);
                     eprintln!("[POOL] Connection {} created successfully", i + 1);
                 },
@@ -136,6 +146,7 @@ impl ConnectionPool {
             attached_databases: Arc::new(Mutex::new(HashMap::new())),
             loaded_extensions: Arc::new(Mutex::new(Vec::new())),
             db_path,
+            resource_limits,
         })
     }
 
@@ -167,10 +178,11 @@ impl ConnectionPool {
                 })?;
                 
             // Configure the new connection
-            new_conn.execute_batch("
-                PRAGMA threads=2;
-                PRAGMA memory_limit='1GB';
-            ").ok();
+            let pool_config = format!("
+                PRAGMA threads={};
+                PRAGMA memory_limit='{}';
+            ", self.resource_limits.pool_threads, self.resource_limits.pool_memory);
+            new_conn.execute_batch(&pool_config).ok();
             
             // Replicate attached databases
             {
@@ -383,11 +395,12 @@ impl ConnectionPool {
         *conn = Connection::open(&self.db_path)?;
         
         // Re-apply configuration
-        conn.execute_batch("
-            PRAGMA threads=4;
-            PRAGMA memory_limit='4GB';
+        let primary_config = format!("
+            PRAGMA threads={};
+            PRAGMA memory_limit='{}';
             PRAGMA enable_progress_bar=true;
-        ").ok();
+        ", self.resource_limits.primary_threads, self.resource_limits.primary_memory);
+        conn.execute_batch(&primary_config).ok();
         
         // Replay LOAD statements for extensions
         for extension in extensions.iter() {
