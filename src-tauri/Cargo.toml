@@ -37,6 +37,8 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
 thiserror = "1.0"
 calamine = "0.29"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
