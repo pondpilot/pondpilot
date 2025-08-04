@@ -6,6 +6,7 @@ mod database;
 mod persistence;
 mod errors;
 mod streaming;
+mod system_resources;
 
 use database::DuckDBEngine;
 use persistence::PersistenceState;
