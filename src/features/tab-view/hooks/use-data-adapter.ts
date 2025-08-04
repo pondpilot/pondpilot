@@ -45,6 +45,10 @@ type UseDataAdapterProps = {
 export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): DataAdapterApi => {
   const pool = useInitializedDatabaseConnectionPool();
 
+  // Add instance tracking for debugging race conditions
+  const instanceId = useRef(`adapter-${Math.random().toString(36).substr(2, 9)}`);
+  console.log(`[useDataAdapter-${instanceId.current}] Hook initialized for tab ${tab.id}`);
+
   /**
    * Hooks
    */
@@ -72,6 +76,14 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
   // Using this to cancel all background tasks on tab close
   const activeTabId = useAppStore.use.activeTabId();
+  
+  // Add cleanup tracking
+  useEffect(() => {
+    console.log(`[useDataAdapter-${instanceId.current}] Component mounted for tab ${tab.id}`);
+    return () => {
+      console.log(`[useDataAdapter-${instanceId.current}] Component unmounting for tab ${tab.id}`);
+    };
+  }, []);
 
   /**
    * Local Reactive State
@@ -400,25 +412,31 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             ? await queries.getSortableReader(newSortParams, abortSignal)
             : await queries.getReader!(abortSignal);
 
-          console.log('[useDataAdapter] Got reader:', newReader);
-          console.log('[useDataAdapter] Reader has next method:', newReader && typeof newReader.next === 'function');
+          console.log(`[useDataAdapter-${instanceId.current}] Got reader:`, newReader);
+          console.log(`[useDataAdapter-${instanceId.current}] Reader has next method:`, newReader && typeof newReader.next === 'function');
 
           // Reader will be null if load was aborted, so check it first
           if (newReader !== null) {
+            console.log(`[useDataAdapter-${instanceId.current}] Setting reader to ref, was: ${!!mainDataReaderRef.current}`);
             mainDataReaderRef.current = newReader;
-            setDataSourceVersion((prev) => prev + 1);
-
+            
+            // Force a synchronous check to detect immediate clearing
+            if (!mainDataReaderRef.current) {
+              console.error(`[useDataAdapter-${instanceId.current}] CRITICAL: Reader was immediately cleared after setting!`);
+            } else {
+              console.log(`[useDataAdapter-${instanceId.current}] Reader successfully set to ref`);
+            }
+            
             // Send row count fetching to background if we do not have it already
             if (!rowCountInfo.realRowCount) {
               fetchRowCount();
             }
             
-            // Start fetching initial data immediately after a small delay
-            // to ensure all state updates have propagated
-            console.log('[useDataAdapter] Starting initial data fetch');
-            setTimeout(() => {
-              fetchData({ rowTo: 100, curSort: newSortParams });
-            }, 0);
+            // Update version - this will trigger the effect to fetch initial data
+            // We set the reader first to avoid race conditions
+            setDataSourceVersion((prev) => prev + 1);
+            
+            console.log(`[useDataAdapter-${instanceId.current}] Reader ready, version updated to trigger fetch`);
           }
         }
       } catch (error: any) {
@@ -471,6 +489,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       queries,
       rowCountInfo.realRowCount,
       setAppendDataSourceReadError,
+      instanceId,
     ],
   );
 
@@ -483,6 +502,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    */
   const reset = useCallback(
     async (newSortParams: ColumnSortSpecList | null) => {
+      console.log(`[useDataAdapter-${instanceId.current}] reset() called with sortParams:`, newSortParams);
       // Reset a bunch of things.
 
       let lastAvailableRowCount = 0;
@@ -510,10 +530,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // Cancel the main data reader before creating a new one
       const curReader = mainDataReaderRef.current;
       if (curReader) {
+        console.log(`[useDataAdapter-${instanceId.current}] reset(): Clearing reader ref before cancellation`);
         // First drop the ref, so any async operation will not proceed
         // while we are waiting for the cancel to finish next
         mainDataReaderRef.current = null;
         await curReader.cancel();
+        console.log(`[useDataAdapter-${instanceId.current}] reset(): Reader cancelled`);
       }
 
       // As we will read from the start, we reset this flag
@@ -584,7 +606,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       let updateSchemaFromInferred = actualData.current.length === 0;
 
       try {
-        console.log('[useDataAdapter] Starting data read with reader:', mainDataReaderRef.current);
+        console.log(`[useDataAdapter-${instanceId.current}] Starting data read with reader:`, mainDataReaderRef.current);
         
         // Stop fetching when the reader is done or fetch is cancelled
         while (
@@ -595,7 +617,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           // If we read enough data, we can stop
           (fetchTo.current === null || actualData.current.length < fetchTo.current)
         ) {
-          console.log('[useDataAdapter] Calling reader.next()...');
+          console.log(`[useDataAdapter-${instanceId.current}] Calling reader.next()...`);
           // Run an abortable read
           const { done, value } = await Promise.race([
             mainDataReaderRef.current.next(),
@@ -757,10 +779,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       rowTo: number | null;
       curSort: ColumnSortSpecList;
     }): Promise<void> => {
-      console.log('[fetchData] Called with rowTo:', rowTo, 'exhausted:', dataSourceExhausted, 'error:', dataSourceError.length, 'reader:', !!mainDataReaderRef.current);
+      console.log(`[fetchData-${instanceId.current}] Called with rowTo:`, rowTo, 'exhausted:', dataSourceExhausted, 'error:', dataSourceError.length, 'reader:', !!mainDataReaderRef.current);
       
       if (mainDataReaderRef.current) {
-        console.log('[fetchData] Reader closed?', mainDataReaderRef.current.closed);
+        console.log(`[fetchData-${instanceId.current}] Reader closed?`, mainDataReaderRef.current.closed);
+      } else {
+        console.log(`[fetchData-${instanceId.current}] Reader is null/false, tracing why...`);
       }
       
       if (
@@ -774,7 +798,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // do no use closed reader either.
         mainDataReaderRef.current.closed
       ) {
-        console.log('[fetchData] Exiting early - reader check failed');
+        console.log(`[fetchData-${instanceId.current}] Exiting early - reader check failed`);
         return;
       }
 
@@ -787,12 +811,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       }
 
       // Now exit early if already fetching or have enough
-      console.log('[fetchData] Check: isFetchingData:', isFetchingData, 'actualData.length:', actualData.current.length, 'fetchTo:', fetchTo.current);
+      console.log(`[fetchData-${instanceId.current}] Check: isFetchingData:`, isFetchingData, 'actualData.length:', actualData.current.length, 'fetchTo:', fetchTo.current);
       if (
         isFetchingData ||
         (fetchTo.current !== null && actualData.current.length >= fetchTo.current)
       ) {
-        console.log('[fetchData] Exiting - already fetching or have enough data');
+        console.log(`[fetchData-${instanceId.current}] Exiting - already fetching or have enough data`);
         return;
       }
 
@@ -844,10 +868,35 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     }
   }, [activeTabId, abortUserTasks, abortBackgroundTasks, tab.id]);
 
+  // Effect to trigger initial data fetch when reader becomes available
+  useEffect(() => {
+    // Only trigger if we have a reader and it's not closed
+    if (mainDataReaderRef.current && !mainDataReaderRef.current.closed && 
+        !isFetchingData && !dataSourceExhausted && dataSourceError.length === 0) {
+      // Double-check the reader is still valid before fetching
+      console.log(`[useDataAdapter-${instanceId.current}] Effect: Reader available, triggering initial data fetch`);
+      fetchData({ rowTo: 100, curSort: sort });
+    } else if (dataSourceVersion > 0) {
+      // Log why we're not fetching if version was incremented
+      console.log(`[useDataAdapter-${instanceId.current}] Effect: Not fetching - reader:`, !!mainDataReaderRef.current, 
+                  'closed:', mainDataReaderRef.current?.closed,
+                  'fetching:', isFetchingData, 
+                  'exhausted:', dataSourceExhausted, 
+                  'errors:', dataSourceError.length);
+    }
+  }, [dataSourceVersion, fetchData, sort, isFetchingData, dataSourceExhausted, dataSourceError.length]);
+
+  // Track mount generation to handle StrictMode double mounting
+  const mountGenerationRef = useRef(0);
+  
   // On mount we may have cached data in our local state vars,
   // so we do not want to call a full `reset`, but only to initiate reader
   // creation in the background.
   useEffect(() => {
+    // Increment mount generation
+    const currentMountGeneration = ++mountGenerationRef.current;
+    console.log(`[useDataAdapter-${instanceId.current}] Mount generation: ${currentMountGeneration}`);
+    
     const newReaderPromise = getNewReader(sort);
 
     return () => {
@@ -866,10 +915,24 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // Cancel the main data reader
         const curReader = mainDataReaderRef.current;
         if (curReader) {
-          // First drop the ref, so any async operation will not proceed
-          // while we are waiting for the cancel to finish next
+          // In development with StrictMode, React will mount/unmount/remount components quickly
+          // We use a small delay to check if this is a StrictMode remount
+          if (import.meta.env.DEV) {
+            // Wait a tick to see if component remounts
+            await new Promise(resolve => setTimeout(resolve, 0));
+            
+            // Check if component has remounted with a new generation
+            if (mountGenerationRef.current > currentMountGeneration) {
+              console.log(`[useDataAdapter-${instanceId.current}] Cleanup effect: Detected StrictMode remount (gen ${currentMountGeneration} -> ${mountGenerationRef.current}), preserving reader`);
+              return;
+            }
+          }
+          
+          console.log(`[useDataAdapter-${instanceId.current}] Cleanup effect: Clearing reader ref`);
+          // Normal unmount - clear the ref and cancel
           mainDataReaderRef.current = null;
           await curReader.cancel();
+          console.log(`[useDataAdapter-${instanceId.current}] Cleanup effect: Reader cancelled`);
         }
       };
       asyncDestructor();
