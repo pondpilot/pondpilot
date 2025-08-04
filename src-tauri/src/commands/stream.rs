@@ -608,6 +608,115 @@ fn convert_duckdb_array_to_arrow(
             
             Ok(Arc::new(Date64Array::from(values)) as ArrayRef)
         }
+        DataType::Time32(unit) => {
+            // Convert DuckDB Time32Array to arrow Time32Array
+            match unit {
+                arrow_schema::TimeUnit::Second => {
+                    let duckdb_time = duckdb_array
+                        .as_any()
+                        .downcast_ref::<duckdb::arrow::array::Time32SecondArray>()
+                        .ok_or_else(|| anyhow::anyhow!("Failed to downcast to Time32SecondArray"))?;
+                    
+                    let values: Vec<Option<i32>> = (0..duckdb_time.len())
+                        .map(|i| {
+                            if duckdb_time.is_null(i) {
+                                None
+                            } else {
+                                Some(duckdb_time.value(i))
+                            }
+                        })
+                        .collect();
+                    
+                    Ok(Arc::new(Time32SecondArray::from(values)) as ArrayRef)
+                }
+                arrow_schema::TimeUnit::Millisecond => {
+                    let duckdb_time = duckdb_array
+                        .as_any()
+                        .downcast_ref::<duckdb::arrow::array::Time32MillisecondArray>()
+                        .ok_or_else(|| anyhow::anyhow!("Failed to downcast to Time32MillisecondArray"))?;
+                    
+                    let values: Vec<Option<i32>> = (0..duckdb_time.len())
+                        .map(|i| {
+                            if duckdb_time.is_null(i) {
+                                None
+                            } else {
+                                Some(duckdb_time.value(i))
+                            }
+                        })
+                        .collect();
+                    
+                    Ok(Arc::new(Time32MillisecondArray::from(values)) as ArrayRef)
+                }
+                _ => {
+                    Err(anyhow::anyhow!("Unsupported Time32 unit: {:?}", unit))
+                }
+            }
+        }
+        DataType::Time64(unit) => {
+            // Convert DuckDB Time64Array to arrow Time64Array
+            eprintln!("[STREAMING] Converting Time64 field, unit: {:?}", unit);
+            eprintln!("[STREAMING] DuckDB array type: {:?}", duckdb_array.data_type());
+            
+            // Check if DuckDB is actually returning a string instead of Time64
+            if let Some(duckdb_string) = duckdb_array.as_any().downcast_ref::<duckdb::arrow::array::StringArray>() {
+                eprintln!("[STREAMING] WARNING: Expected Time64 but got StringArray from DuckDB!");
+                // For now, just return the string array as-is to avoid the type mismatch
+                let values: Vec<Option<&str>> = (0..duckdb_string.len())
+                    .map(|i| {
+                        if duckdb_string.is_null(i) {
+                            None
+                        } else {
+                            Some(duckdb_string.value(i))
+                        }
+                    })
+                    .collect();
+                
+                // Return as string array for now
+                return Ok(Arc::new(StringArray::from(values)) as ArrayRef);
+            }
+            
+            match unit {
+                arrow_schema::TimeUnit::Microsecond => {
+                    let duckdb_time = duckdb_array
+                        .as_any()
+                        .downcast_ref::<duckdb::arrow::array::Time64MicrosecondArray>()
+                        .ok_or_else(|| anyhow::anyhow!("Failed to downcast to Time64MicrosecondArray. Actual type: {:?}", duckdb_array.data_type()))?;
+                    
+                    let values: Vec<Option<i64>> = (0..duckdb_time.len())
+                        .map(|i| {
+                            if duckdb_time.is_null(i) {
+                                None
+                            } else {
+                                Some(duckdb_time.value(i))
+                            }
+                        })
+                        .collect();
+                    
+                    Ok(Arc::new(Time64MicrosecondArray::from(values)) as ArrayRef)
+                }
+                arrow_schema::TimeUnit::Nanosecond => {
+                    let duckdb_time = duckdb_array
+                        .as_any()
+                        .downcast_ref::<duckdb::arrow::array::Time64NanosecondArray>()
+                        .ok_or_else(|| anyhow::anyhow!("Failed to downcast to Time64NanosecondArray"))?;
+                    
+                    let values: Vec<Option<i64>> = (0..duckdb_time.len())
+                        .map(|i| {
+                            if duckdb_time.is_null(i) {
+                                None
+                            } else {
+                                Some(duckdb_time.value(i))
+                            }
+                        })
+                        .collect();
+                    
+                    Ok(Arc::new(Time64NanosecondArray::from(values)) as ArrayRef)
+                }
+                _ => {
+                    Err(anyhow::anyhow!("Unsupported Time64 unit: {:?}", unit))
+                }
+            }
+        }
         DataType::Timestamp(unit, tz) => {
             // Convert DuckDB TimestampArray to arrow TimestampArray
             // We'll need to handle different time units
