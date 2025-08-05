@@ -152,26 +152,71 @@ impl ArrowStreamingExecutor {
             // For queries that return results, use Arrow API
             eprintln!("[ARROW_STREAMING] Preparing result-returning SQL for {}: {}", query_id, sql);
             
-            // Prepare and execute with Arrow
+            // Try to get schema without full execution
+            let schema = {
+                // First try: LIMIT 0 approach for SELECT queries
+                if sql.trim_start().to_uppercase().starts_with("SELECT") {
+                    // For complex queries (CTEs, subqueries), wrap in a subquery with LIMIT 0
+                    let schema_query = if sql.contains("WITH") || sql.contains("(") {
+                        format!("SELECT * FROM ({}) AS sq LIMIT 0", sql.trim_end_matches(';'))
+                    } else {
+                        format!("{} LIMIT 0", sql.trim_end_matches(';'))
+                    };
+                    
+                    match conn.prepare(&schema_query) {
+                        Ok(mut schema_stmt) => {
+                            match schema_stmt.query_arrow([]) {
+                                Ok(arrow_result) => {
+                                    eprintln!("[ARROW_STREAMING] Got schema using LIMIT 0 approach");
+                                    Some(arrow_result.get_schema())
+                                }
+                                Err(e) => {
+                                    eprintln!("[ARROW_STREAMING] Failed to get schema with LIMIT 0: {}", e);
+                                    None
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("[ARROW_STREAMING] Failed to prepare LIMIT 0 query: {}", e);
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            };
+            
+            // Prepare the actual query
             match conn.prepare(&sql) {
                 Ok(mut stmt) => {
-                    // First, we need to get the schema. The only way to do this with duckdb-rs
-                    // is to call query_arrow, but we'll immediately stream after getting schema
-                    match stmt.query_arrow([]) {
-                        Ok(arrow_result) => {
-                            // Get and send schema first
-                            let schema = arrow_result.get_schema();
-                            eprintln!("[ARROW_STREAMING] Got Arrow schema with {} columns", schema.fields().len());
-                            
-                            if tx.blocking_send(ArrowStreamMessage::Schema(schema.clone())).is_err() {
-                                eprintln!("[ARROW_STREAMING] Failed to send schema for query {}", query_id);
-                                return;
+                    // Get schema if we don't have it yet
+                    let schema = match schema {
+                        Some(s) => s,
+                        None => {
+                            // Fallback: execute the query to get schema (original behavior)
+                            eprintln!("[ARROW_STREAMING] Falling back to full query execution for schema");
+                            match stmt.query_arrow([]) {
+                                Ok(arrow_result) => arrow_result.get_schema(),
+                                Err(e) => {
+                                    eprintln!("[ARROW_STREAMING] Failed to get arrow result for {}: {}", query_id, e);
+                                    let _ = tx.blocking_send(ArrowStreamMessage::Error(
+                                        format!("Failed to get arrow result: {}", e)
+                                    ));
+                                    return;
+                                }
                             }
-                            
-                            // IMPORTANT: We don't iterate over arrow_result here!
-                            // Instead, we immediately create a new stream using the same statement
-                            // This should reuse the prepared statement and stream results
-                            match stmt.stream_arrow([], schema) {
+                        }
+                    };
+                    
+                    eprintln!("[ARROW_STREAMING] Got Arrow schema with {} columns", schema.fields().len());
+                    
+                    if tx.blocking_send(ArrowStreamMessage::Schema(schema.clone())).is_err() {
+                        eprintln!("[ARROW_STREAMING] Failed to send schema for query {}", query_id);
+                        return;
+                    }
+                    
+                    // Stream results using the schema
+                    match stmt.stream_arrow([], schema) {
                         Ok(mut stream) => {
                             let mut batch_count = 0;
                             let mut total_rows = 0;
@@ -204,14 +249,6 @@ impl ArrowStreamingExecutor {
                             eprintln!("[ARROW_STREAMING] Failed to stream arrow results for {}: {}", query_id, e);
                             let _ = tx.blocking_send(ArrowStreamMessage::Error(
                                 format!("Failed to stream results: {}", e)
-                            ));
-                        }
-                    }
-                        }
-                        Err(e) => {
-                            eprintln!("[ARROW_STREAMING] Failed to get arrow result for {}: {}", query_id, e);
-                            let _ = tx.blocking_send(ArrowStreamMessage::Error(
-                                format!("Failed to get arrow result: {}", e)
                             ));
                         }
                     }
