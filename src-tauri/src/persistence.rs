@@ -109,7 +109,7 @@ fn map_table_name(table: &str) -> &'static str {
 }
 
 // Helper function to extract ID from JSON value
-fn extract_id(value: &Value, key: Option<&str>) -> Result<String, String> {
+fn extract_id(value: &Value, key: Option<&str>) -> Result<String, DuckDBError> {
     if let Some(k) = key {
         return Ok(k.to_string());
     }
@@ -119,7 +119,9 @@ fn extract_id(value: &Value, key: Option<&str>) -> Result<String, String> {
         return Ok(id.to_string());
     }
     
-    Err("No ID provided and couldn't extract from value".to_string())
+    Err(DuckDBError::InvalidOperation {
+        message: "No ID provided and couldn't extract from value".to_string(),
+    })
 }
 
 #[tauri::command]
@@ -127,8 +129,10 @@ pub async fn sqlite_get(
     state: State<'_, PersistenceState>,
     table: String,
     key: String,
-) -> Result<Option<Value>, String> {
-    let conn = state.connection.lock().map_err(|e| e.to_string())?;
+) -> Result<Option<Value>, DuckDBError> {
+    let conn = state.connection.lock().map_err(|_| DuckDBError::PersistenceError {
+        message: "Failed to acquire connection lock".to_string(),
+    })?;
     
     // Map hyphenated table name to underscore version
     let mapped_table = map_table_name(&table);
@@ -140,12 +144,11 @@ pub async fn sqlite_get(
     
     match result {
         Ok(data) => {
-            let value: Value = serde_json::from_str(&data)
-                .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+            let value: Value = serde_json::from_str(&data)?;
             Ok(Some(value))
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(format!("Database error: {}", e)),
+        Err(e) => Err(e.into()),
     }
 }
 
@@ -155,19 +158,19 @@ pub async fn sqlite_put(
     table: String,
     value: Value,
     key: Option<String>,
-) -> Result<(), String> {
-    let conn = state.connection.lock().map_err(|e| e.to_string())?;
+) -> Result<(), DuckDBError> {
+    let conn = state.connection.lock().map_err(|_| DuckDBError::PersistenceError {
+        message: "Failed to acquire connection lock".to_string(),
+    })?;
     
     let id = extract_id(&value, key.as_deref())?;
-    let data = serde_json::to_string(&value)
-        .map_err(|e| format!("Failed to serialize value: {}", e))?;
+    let data = serde_json::to_string(&value)?;
     
     // Map hyphenated table name to underscore version
     let mapped_table = map_table_name(&table);
     let query = format!("INSERT OR REPLACE INTO {} (id, data) VALUES (?1, ?2)", mapped_table);
     
-    conn.execute(&query, params![id, data])
-        .map_err(|e| format!("Failed to insert into {}: {}", table, e))?;
+    conn.execute(&query, params![id, data])?;
     
     Ok(())
 }
@@ -177,15 +180,16 @@ pub async fn sqlite_delete(
     state: State<'_, PersistenceState>,
     table: String,
     key: String,
-) -> Result<(), String> {
-    let conn = state.connection.lock().map_err(|e| e.to_string())?;
+) -> Result<(), DuckDBError> {
+    let conn = state.connection.lock().map_err(|_| DuckDBError::PersistenceError {
+        message: "Failed to acquire connection lock".to_string(),
+    })?;
     
     // Map hyphenated table name to underscore version
     let mapped_table = map_table_name(&table);
     let query = format!("DELETE FROM {} WHERE id = ?1", mapped_table);
     
-    conn.execute(&query, params![key])
-        .map_err(|e| format!("Failed to delete: {}", e))?;
+    conn.execute(&query, params![key])?;
     
     Ok(())
 }
@@ -194,15 +198,16 @@ pub async fn sqlite_delete(
 pub async fn sqlite_clear(
     state: State<'_, PersistenceState>,
     table: String,
-) -> Result<(), String> {
-    let conn = state.connection.lock().map_err(|e| e.to_string())?;
+) -> Result<(), DuckDBError> {
+    let conn = state.connection.lock().map_err(|_| DuckDBError::PersistenceError {
+        message: "Failed to acquire connection lock".to_string(),
+    })?;
     
     // Map hyphenated table name to underscore version
     let mapped_table = map_table_name(&table);
     let query = format!("DELETE FROM {}", mapped_table);
     
-    conn.execute(&query, [])
-        .map_err(|e| format!("Failed to clear table: {}", e))?;
+    conn.execute(&query, [])?;
     
     Ok(())
 }
@@ -211,17 +216,18 @@ pub async fn sqlite_clear(
 pub async fn sqlite_get_all(
     state: State<'_, PersistenceState>,
     table: String,
-) -> Result<Vec<Value>, String> {
-    let conn = state.connection.lock().map_err(|e| e.to_string())?;
+) -> Result<Vec<Value>, DuckDBError> {
+    let conn = state.connection.lock().map_err(|_| DuckDBError::PersistenceError {
+        message: "Failed to acquire connection lock".to_string(),
+    })?;
     
     // Map hyphenated table name to underscore version
     let mapped_table = map_table_name(&table);
     let query = format!("SELECT data FROM {}", mapped_table);
     
-    let mut stmt = conn.prepare(&query)
-        .map_err(|e| format!("Failed to prepare statement: {}", e))?;
+    let mut stmt = conn.prepare(&query)?;
     
-    let values: Result<Vec<Value>, _> = stmt.query_map([], |row| {
+    let values = stmt.query_map([], |row| {
         let data: String = row.get(0)?;
         serde_json::from_str(&data)
             .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
@@ -229,9 +235,8 @@ pub async fn sqlite_get_all(
                 rusqlite::types::Type::Text, 
                 Box::new(e)
             ))
-    })
-    .map_err(|e| format!("Failed to query: {}", e))?
-    .collect();
+    })?
+    .collect::<Result<Vec<_>, _>>()?;
     
-    values.map_err(|e| format!("Failed to collect results: {}", e))
+    Ok(values)
 }

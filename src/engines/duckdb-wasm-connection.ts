@@ -1,9 +1,9 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
+import { wrapQueryWithLimit } from '@utils/sql-wrapper';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { DuckDBWasmEngine } from './duckdb-wasm-engine';
 import { DatabaseConnection, PreparedStatement, QueryResult } from './types';
-import { wrapQueryWithLimit } from '@utils/sql-wrapper';
 
 export class DuckDBWasmConnection implements DatabaseConnection {
   constructor(
@@ -15,7 +15,7 @@ export class DuckDBWasmConnection implements DatabaseConnection {
   async execute(sql: string, params?: any[]): Promise<QueryResult> {
     // Wrap SELECT queries with a limit to prevent memory exhaustion
     const wrappedSql = wrapQueryWithLimit(sql);
-    
+
     if (params && params.length > 0) {
       const stmt = await this.conn.prepare(wrappedSql);
       const result = await stmt.query(...params);
@@ -26,7 +26,7 @@ export class DuckDBWasmConnection implements DatabaseConnection {
     return this.engine.transformResult(result);
   }
 
-  async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
+  async* stream(sql: string, params?: any[]): AsyncGenerator<any> {
     const result = await this.execute(sql, params);
     for (const row of result.rows) {
       yield row;

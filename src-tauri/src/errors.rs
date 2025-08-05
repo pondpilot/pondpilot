@@ -33,6 +33,9 @@ pub enum DuckDBError {
 
     #[error("Unsupported extension: {0}")]
     UnsupportedExtension(String),
+
+    #[error("Resource limit exceeded: {resource} - {limit}")]
+    ResourceLimit { resource: String, limit: String },
 }
 
 impl From<duckdb::Error> for DuckDBError {

@@ -1,8 +1,8 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
-import { DuckDBWasmConnectionPool } from './duckdb-wasm-connection-pool';
 import { v4 as uuidv4 } from 'uuid';
 
 import { DuckDBWasmConnection } from './duckdb-wasm-connection';
+import { DuckDBWasmConnectionPool } from './duckdb-wasm-connection-pool';
 import { InitializationError, QueryExecutionError, FileOperationError } from './errors';
 import {
   DatabaseEngine,
@@ -188,7 +188,7 @@ export class DuckDBWasmEngine implements DatabaseEngine {
     }
   }
 
-  async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
+  async* stream(sql: string, params?: any[]): AsyncGenerator<any> {
     const conn = await this.createConnection();
     try {
       yield* conn.stream(sql, params);
