@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod config;
 mod database;
 mod persistence;
 mod errors;
@@ -26,10 +27,13 @@ fn test_connection() -> Result<String, String> {
 }
 
 fn main() {
-    // Configure tokio runtime with more blocking threads for DuckDB operations
+    // Load configuration from environment or defaults
+    let app_config = config::AppConfig::from_env();
+    
+    // Configure tokio runtime with configurable threads for DuckDB operations
     let runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(4)
-        .max_blocking_threads(128) // Reduce from default 512 but still enough for concurrent DuckDB operations
+        .worker_threads(app_config.runtime.worker_threads)
+        .max_blocking_threads(app_config.runtime.max_blocking_threads)
         .enable_all()
         .build()
         .expect("Failed to build tokio runtime");
