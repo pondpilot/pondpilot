@@ -81,10 +81,11 @@ fn sanitize_identifier(name: &str) -> Result<String> {
         });
     }
     
-    // Check length
-    if name.len() > 128 {
+    // Check length using configured maximum
+    let config = crate::config::AppConfig::from_env();
+    if name.len() > config.database.max_identifier_length {
         return Err(crate::errors::DuckDBError::InvalidQuery {
-            message: "Identifier too long (max 128 characters)".to_string(),
+            message: format!("Identifier too long (max {} characters)", config.database.max_identifier_length),
             sql: None,
         });
     }
@@ -314,11 +315,13 @@ impl DuckDBEngine {
     }
 
     pub async fn get_tables(&self, database: &str) -> Result<Vec<TableInfo>> {
+        // Sanitize database name to prevent SQL injection
+        let sanitized_database = sanitize_identifier(database)?;
         let sql = format!(
             "SELECT table_name, estimated_size, column_count 
              FROM duckdb_tables 
-             WHERE database_name = '{}'",
-            database
+             WHERE database_name = {}",
+            sanitized_database
         );
         
         let result = self.query(&sql)
@@ -343,12 +346,15 @@ impl DuckDBEngine {
     }
 
     pub async fn get_columns(&self, database: &str, table: &str) -> Result<Vec<super::types::ColumnInfo>> {
+        // Sanitize inputs to prevent SQL injection
+        let sanitized_database = sanitize_identifier(database)?;
+        let sanitized_table = sanitize_identifier(table)?;
         let sql = format!(
             "SELECT column_name, data_type, is_nullable 
              FROM duckdb_columns 
-             WHERE database_name = '{}' AND table_name = '{}'
+             WHERE database_name = {} AND table_name = {}
              ORDER BY column_index",
-            database, table
+            sanitized_database, sanitized_table
         );
         
         let result = self.execute_and_collect(&sql).await?;
@@ -385,7 +391,9 @@ impl DuckDBEngine {
             });
         }
 
-        let sql = format!("INSTALL {}; LOAD {};", extension_name, extension_name);
+        // Sanitize extension name even though it's whitelisted for defense in depth
+        let sanitized_extension = sanitize_identifier(extension_name)?;
+        let sql = format!("INSTALL {}; LOAD {};", sanitized_extension, sanitized_extension);
         self.execute_and_collect(&sql).await?;
         Ok(())
     }
@@ -443,8 +451,8 @@ impl DuckDBEngine {
 
         self.execute_and_collect(&sql).await?;
 
-        // Get actual file metadata
-        let metadata = std::fs::metadata(&validated_path)
+        // Get actual file metadata using async I/O to avoid blocking
+        let metadata = tokio::fs::metadata(&validated_path).await
             .map_err(|e| crate::errors::DuckDBError::FileAccess {
                 message: format!("Failed to get file metadata: {}", e),
             })?;

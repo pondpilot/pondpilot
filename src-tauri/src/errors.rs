@@ -50,8 +50,20 @@ pub enum DuckDBError {
 
 impl From<duckdb::Error> for DuckDBError {
     fn from(err: duckdb::Error) -> Self {
+        // Provide more context based on error string content
+        let err_string = err.to_string();
+        let message = if err_string.contains("no rows") {
+            "Query returned no rows when at least one was expected".to_string()
+        } else if err_string.contains("constraint") {
+            format!("Database constraint violation: {}", err_string)
+        } else if err_string.contains("syntax") {
+            format!("SQL syntax error: {}", err_string)
+        } else {
+            format!("Database error: {}", err_string)
+        };
+        
         DuckDBError::QueryError {
-            message: err.to_string(),
+            message,
             sql: None,
         }
     }
@@ -71,8 +83,14 @@ impl From<std::io::Error> for DuckDBError {
             std::io::ErrorKind::NotFound => DuckDBError::FileNotFound {
                 path: err.to_string(),
             },
+            std::io::ErrorKind::PermissionDenied => DuckDBError::FileAccess {
+                message: format!("Permission denied: {}", err),
+            },
+            std::io::ErrorKind::AlreadyExists => DuckDBError::FileAccess {
+                message: format!("File already exists: {}", err),
+            },
             _ => DuckDBError::InvalidOperation {
-                message: err.to_string(),
+                message: format!("I/O error: {} (kind: {:?})", err, err.kind()),
             },
         }
     }

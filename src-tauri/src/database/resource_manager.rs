@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use tokio::sync::{RwLock, Semaphore};
 use std::time::Instant;
 
-const MEMORY_PERMIT_SIZE: usize = 10 * 1024 * 1024; // 10MB per permit
+// Memory permit size is now configured via AppConfig
 
 #[derive(Debug)]
 pub struct ResourceManager {
@@ -72,9 +72,11 @@ impl Drop for ResourceGuard {
 
 impl ResourceManager {
     pub fn new(total_memory: usize, total_connections: usize) -> Self {
+        let config = crate::config::AppConfig::from_env();
+        
         // Reserve some memory for system operations
         let available_memory = (total_memory as f64 * 0.8) as usize; // Use 80% of total
-        let permits = available_memory / MEMORY_PERMIT_SIZE;
+        let permits = available_memory / config.memory_per_permit_bytes();
         
         eprintln!("[RESOURCE_MANAGER] Initialized with {}MB memory ({} permits)", 
                  available_memory / 1024 / 1024, permits);
@@ -100,14 +102,12 @@ impl ResourceManager {
                  query_id, estimated_memory / 1024 / 1024);
         
         // Calculate permits needed
-        let permits_needed = (estimated_memory / MEMORY_PERMIT_SIZE).max(1);
+        let config = crate::config::AppConfig::from_env();
+        let permits_needed = (estimated_memory / config.memory_per_permit_bytes()).max(1);
         
         // Try to acquire permits with timeout based on priority
-        let timeout = match hints.priority {
-            crate::database::query_builder::QueryPriority::High => std::time::Duration::from_secs(30),
-            crate::database::query_builder::QueryPriority::Normal => std::time::Duration::from_secs(10),
-            crate::database::query_builder::QueryPriority::Low => std::time::Duration::from_secs(5),
-        };
+        let config = crate::config::AppConfig::from_env();
+        let timeout = config.priority_timeout(hints.priority);
         
         let permit = match tokio::time::timeout(
             timeout,
@@ -154,8 +154,9 @@ impl ResourceManager {
     }
     
     fn default_query_memory(&self) -> usize {
-        // Default to 10% of total memory or 100MB, whichever is smaller
-        std::cmp::min(self.total_memory / 10, 100 * 1024 * 1024)
+        let config = crate::config::AppConfig::from_env();
+        // Default to 10% of total memory or configured default, whichever is smaller
+        std::cmp::min(self.total_memory / 10, config.default_query_memory_bytes())
     }
     
     pub async fn get_active_queries(&self) -> Vec<QueryMetrics> {
