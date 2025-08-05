@@ -1,12 +1,11 @@
 use super::types::*;
-use super::thread_safe_pool::{ThreadSafePool, PoolConfig};
+use super::unified_pool::{UnifiedPool, PoolConfig};
 use super::resource_manager::ResourceManager;
-use super::query_builder::QueryHints;
+use super::query_builder::{QueryHints, QueryBuilder};
 use super::arrow_streaming::ArrowStreamingExecutor;
 use crate::errors::Result;
 use crate::system_resources::get_total_memory;
 use std::sync::Arc;
-use std::time::Instant;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio_util::sync::CancellationToken;
@@ -124,7 +123,7 @@ fn sanitize_identifier(name: &str) -> Result<String> {
 
 #[derive(Debug, Clone)]
 pub struct DuckDBEngine {
-    pool: Arc<ThreadSafePool>,
+    pool: Arc<UnifiedPool>,
     resources: Arc<ResourceManager>,
     registered_files: Arc<tokio::sync::Mutex<HashMap<String, FileInfo>>>,
     db_path: PathBuf,
@@ -133,7 +132,7 @@ pub struct DuckDBEngine {
 impl DuckDBEngine {
     pub fn new(db_path: PathBuf) -> Result<Self> {
         let pool_config = PoolConfig::default();
-        let pool = Arc::new(ThreadSafePool::new(db_path.clone(), pool_config)?);
+        let pool = Arc::new(UnifiedPool::new(db_path.clone(), pool_config)?);
         
         let total_memory = get_total_memory();
         let resources = Arc::new(ResourceManager::new(total_memory, 10)); // 10 max connections
@@ -147,8 +146,6 @@ impl DuckDBEngine {
     }
 
     pub async fn initialize(&self, config: EngineConfig) -> Result<()> {
-        // Thread-safe pool doesn't need initialization
-        
         // Load extensions if specified
         if let Some(extensions) = config.extensions {
             for ext in extensions {
@@ -158,14 +155,22 @@ impl DuckDBEngine {
         
         Ok(())
     }
+    
+    /// Create a query builder for executing queries
+    pub fn query(&self, sql: &str) -> QueryBuilder {
+        QueryBuilder::new(Arc::new(tokio::sync::Mutex::new(self.clone())), sql.to_string())
+    }
 
 
 
     async fn execute_session_modifying_statement(&self, sql: &str) -> Result<()> {
         let sql_owned = sql.to_string();
         
-        // Execute using the pool's helper method
-        self.pool.execute_with_connection(move |conn| {
+        // Get connection permit
+        let permit = self.pool.acquire_connection_permit().await?;
+        
+        // Execute in blocking task
+        tokio::task::spawn_blocking(move || {
             eprintln!("[ENGINE_V2] Executing session-modifying SQL: {}", sql_owned);
             
             // Validate SQL
@@ -176,6 +181,9 @@ impl DuckDBEngine {
                 });
             }
             
+            // Create connection in this thread
+            let conn = permit.create_connection()?;
+            
             conn.execute(&sql_owned, [])
                 .map_err(|e| crate::errors::DuckDBError::QueryError {
                     message: format!("Failed to execute statement: {}", e),
@@ -183,7 +191,9 @@ impl DuckDBEngine {
                 })?;
                 
             Ok(())
-        }).await
+        }).await.map_err(|e| crate::errors::DuckDBError::ConnectionError {
+            message: format!("Task join error: {}", e),
+        })?
     }
 
 
@@ -281,7 +291,11 @@ impl DuckDBEngine {
     }
 
     pub async fn get_databases(&self) -> Result<Vec<DatabaseInfo>> {
-        let result = self.execute_and_collect("SELECT database_name, path FROM duckdb_databases").await?;
+        // Example of using QueryBuilder with catalog hints
+        let result = self.query("SELECT database_name, path FROM duckdb_databases")
+            .hint(QueryHints::catalog())
+            .execute_simple()
+            .await?;
         
         let mut databases = Vec::new();
         for row in &result.rows {
@@ -307,7 +321,10 @@ impl DuckDBEngine {
             database
         );
         
-        let result = self.execute_and_collect(&sql).await?;
+        let result = self.query(&sql)
+            .hint(QueryHints::catalog())
+            .execute_simple()
+            .await?;
         
         let mut tables = Vec::new();
         for row in &result.rows {
