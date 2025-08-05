@@ -122,7 +122,7 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
 
   async query<T = any>(sql: string): Promise<T> {
     // Use the engine's db directly for compatibility with DuckDB WASM
-    const db = this.engine.db;
+    const { db } = this.engine;
     if (!db) {
       throw new Error('Database not initialized');
     }
@@ -138,14 +138,14 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
 
   async queryAbortable<T = any>(sql: string, signal: AbortSignal): Promise<{ value: T; aborted: boolean }> {
     // Use the engine's db directly for compatibility with DuckDB WASM
-    const db = this.engine.db;
+    const { db } = this.engine;
     if (!db) {
       throw new Error('Database not initialized');
     }
-    
+
     const conn = await db.connect();
     let aborted = false;
-    
+
     // Set up abort handler
     const abortHandler = () => {
       aborted = true;
@@ -153,9 +153,9 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
         // Ignore close errors on abort
       });
     };
-    
+
     signal.addEventListener('abort', abortHandler);
-    
+
     try {
       const result = await conn.query(sql);
       return { value: result as T, aborted };
@@ -174,15 +174,15 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
 
   async sendAbortable<T = any>(sql: string, signal: AbortSignal, stream?: boolean): Promise<T> {
     // Use the engine's db directly for compatibility with DuckDB WASM
-    const db = this.engine.db;
+    const { db } = this.engine;
     if (!db) {
       throw new Error('Database not initialized');
     }
-    
+
     const conn = await db.connect();
     let stmt: any = null;
     let aborted = false;
-    
+
     // Set up abort handler
     const abortHandler = async () => {
       aborted = true;
@@ -197,18 +197,18 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
         // Ignore close errors on abort
       });
     };
-    
+
     signal.addEventListener('abort', abortHandler);
-    
+
     try {
       if (stream) {
         stmt = await conn.prepare(sql);
         const reader = await stmt.send();
-        
+
         // We need to keep the statement and connection alive
         // They will be closed when the reader is cancelled
         signal.removeEventListener('abort', abortHandler);
-        
+
         // Wrap the reader to handle cleanup
         const wrappedReader = {
           async next() {
@@ -241,14 +241,13 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
           },
           get closed() {
             return aborted || reader.closed;
-          }
+          },
         };
-        
+
         return wrappedReader as T;
-      } else {
+      }
         const result = await conn.query(sql);
         return result as T;
-      }
     } catch (error) {
       if (aborted) {
         throw new Error('Query aborted');

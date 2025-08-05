@@ -1,10 +1,10 @@
 // Stream reader interface that provides async iteration with cancellation support
+import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';
+
 export interface StreamReader<T> extends AsyncIterator<T> {
-  cancel(): Promise<void>;
+  cancel: () => Promise<void>;
   closed: boolean;
 }
-
-import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';
 
 /**
  * A custom error class that represents a cancelled data adapter operation.

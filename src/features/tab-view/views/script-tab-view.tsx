@@ -1,4 +1,4 @@
-import { showError, showErrorWithAction, showSuccess, showWarning } from '@components/app-notifications';
+import { showError, showErrorWithAction, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources, persistDeleteDataSource } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
@@ -9,8 +9,8 @@ import {
   clearTabExecutionError,
   setTabExecutionError,
 } from '@controllers/tab';
-import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { PreparedStatement } from '@engines/types';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { ScriptEditor } from '@features/script-editor';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import { RemoteDB } from '@models/data-source';
@@ -27,7 +27,6 @@ import {
   SQLStatementType,
 } from '@utils/editor/sql';
 import { formatSQLSafe } from '@utils/sql-formatter';
-import { DEFAULT_ROW_LIMIT, isResultTruncated } from '@utils/sql-wrapper';
 import { Allotment } from 'allotment';
 import { memo, useCallback, useState } from 'react';
 
@@ -276,23 +275,20 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           // Get all currently attached databases
           // For queries that need Arrow table format, we need to use the pool's query method
           // which returns the raw result from DuckDB
-          
+
           // First, let's see all databases using the SAME connection that executed ATTACH
-          const allDbResult = await conn.execute('SELECT * FROM duckdb_databases()');
+          const allDbResult = await conn.execute('SELECT * FROM duckdb_databases');
           console.log('[script-tab-view] All databases (from ATTACH connection):', allDbResult);
-          
+
           const attachedDatabasesResult = await conn.execute(
-            'SELECT DISTINCT database_name FROM duckdb_databases()',
+            'SELECT DISTINCT database_name FROM duckdb_databases',
           );
-          
+
           // Handle the result format from conn.execute (returns {rows: [...], columns: [...], ...})
           let attachedDatabases: any[];
           if (attachedDatabasesResult && attachedDatabasesResult.rows) {
             // Direct result format from Tauri connection
             attachedDatabases = attachedDatabasesResult.rows;
-          } else if (attachedDatabasesResult && typeof attachedDatabasesResult.toArray === 'function') {
-            // Arrow table format
-            attachedDatabases = attachedDatabasesResult.toArray();
           } else if (Array.isArray(attachedDatabasesResult)) {
             // Already an array
             attachedDatabases = attachedDatabasesResult;
@@ -300,7 +296,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             // Fallback
             attachedDatabases = [];
           }
-          
+
           // Filter out system databases manually since attached databases might be marked as internal
           const systemDatabases = ['system', 'temp'];
           const dbNames = attachedDatabases

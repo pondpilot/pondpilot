@@ -1,6 +1,7 @@
+import { wrapQueryWithLimit } from '@utils/sql-wrapper';
+
 import { getLogger } from './debug-logger';
 import { DatabaseConnection, QueryResult, PreparedStatement } from './types';
-import { wrapQueryWithLimit } from '@utils/sql-wrapper';
 
 const logger = getLogger('database:tauri-connection');
 
@@ -22,15 +23,25 @@ export class TauriConnection implements DatabaseConnection {
     // Wrap SELECT queries with a limit to prevent memory exhaustion
     // This ensures consistency with the WASM implementation
     const wrappedSql = wrapQueryWithLimit(sql);
-    
+
     logger.trace('TauriConnection.execute() called', { sql: wrappedSql, connectionId: this.id, params });
 
     try {
-      const result = await this.invoke('connection_execute', {
+      console.log(`[TauriConnection.execute] Invoking connection_execute for: ${sql.substring(0, 100)}...`);
+
+      // Add a timeout to detect hanging queries
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Query execution timeout after 30 seconds')), 30000);
+      });
+
+      const executePromise = this.invoke('connection_execute', {
         connectionId: this.id,
         sql: wrappedSql,
         params: params || [],
       });
+
+      const result = await Promise.race([executePromise, timeoutPromise]);
+      console.log('[TauriConnection.execute] Result received:', result);
       logger.trace('TauriConnection.execute() result', { result });
 
       // Normalize the Tauri response to match our interface
@@ -52,7 +63,7 @@ export class TauriConnection implements DatabaseConnection {
     }
   }
 
-  async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
+  async* stream(sql: string, params?: any[]): AsyncGenerator<any> {
     if (!this._isOpen) {
       throw new Error('Connection is closed');
     }

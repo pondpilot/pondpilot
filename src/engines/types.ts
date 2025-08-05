@@ -52,6 +52,12 @@ export interface PreparedStatement {
 
 export type ExportFormat = 'parquet' | 'csv' | 'json' | 'arrow';
 
+// Strict engine type enum
+export type EngineType = 'duckdb-wasm' | 'duckdb-tauri';
+
+// Storage type enum
+export type StorageType = 'memory' | 'persistent';
+
 export interface ExtensionOptions {
   path?: string;
   config?: Record<string, any>;
@@ -72,14 +78,14 @@ export interface EngineCapabilities {
   supportsRemoteFiles: boolean;
   maxFileSize?: number;
   maxMemory?: number;
-  supportedFileFormats: string[];
-  supportedExtensions: string[];
+  supportedFileFormats: readonly string[];
+  supportedExtensions: readonly string[];
 }
 
 export interface EngineConfig {
-  type: 'duckdb-wasm' | 'duckdb-tauri';
+  type: EngineType;
   persistent?: boolean; // Legacy property for tests
-  storageType?: 'memory' | 'persistent';
+  storageType?: StorageType;
   storagePath?: string;
   workerUrl?: string;
   wasmUrl?: string;

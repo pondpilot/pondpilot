@@ -28,10 +28,11 @@ pub struct ColumnInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableInfo {
-    pub name: String,
+    pub database: String,
     pub schema: String,
-    pub row_count: Option<i64>,
-    pub estimated_size: Option<i64>,
+    pub name: String,
+    pub row_count: Option<usize>,
+    pub size_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,10 +43,10 @@ pub struct DatabaseInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileRegistration {
-    pub name: String,
+    pub table_name: String,
     #[serde(rename = "type")]
     pub file_type: String,
-    pub path: Option<String>,
+    pub path: String,
     pub handle: Option<serde_json::Value>,
     pub url: Option<String>,
 }
@@ -54,11 +55,23 @@ pub struct FileRegistration {
 pub struct FileInfo {
     pub name: String,
     pub path: String,
-    pub size: Option<u64>,
+    pub size_bytes: u64,
+    pub last_modified: u64,
+    pub file_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CatalogInfo {
     pub databases: Vec<DatabaseInfo>,
     pub current_database: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EngineCapabilities {
+    pub supports_streaming: bool,
+    pub supports_transactions: bool,
+    pub supports_savepoints: bool,
+    pub supports_prepared_statements: bool,
+    pub max_connections: usize,
+    pub extensions: Vec<String>,
 }

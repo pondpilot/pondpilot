@@ -6,7 +6,7 @@ export const DEFAULT_ROW_LIMIT = 10000;
 /**
  * Wraps a SQL query with a row limit to prevent loading too much data into memory.
  * This should be used consistently across all database engines (WASM, Tauri, etc.)
- * 
+ *
  * @param sql The SQL query to wrap
  * @param limit Optional custom limit (defaults to DEFAULT_ROW_LIMIT)
  * @returns The query unchanged (wrapping removed)

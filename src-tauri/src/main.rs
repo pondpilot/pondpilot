@@ -7,8 +7,9 @@ mod persistence;
 mod errors;
 mod streaming;
 mod system_resources;
+mod startup_checks;
 
-use database::DuckDBEngine;
+use database::{DuckDBEngine, EngineConfig};
 use persistence::PersistenceState;
 use streaming::StreamManager;
 use std::sync::Arc;
@@ -61,10 +62,48 @@ fn main() {
             println!("DuckDB path: {:?}", duckdb_path);
             println!("SQLite path: {:?}", sqlite_path);
             
+            // Check for database lock before trying to create engine
+            if let Err(e) = startup_checks::check_database_lock(&duckdb_path) {
+                eprintln!("Database lock check failed: {}", e.message);
+                eprintln!("STARTUP ERROR: {}", e.title);
+                eprintln!("{}", e.message);
+                return Err("Database is locked by another process".into());
+            }
+            
             // Create DuckDB engine with persistent database
-            let engine = Arc::new(Mutex::new(
-                DuckDBEngine::new(duckdb_path).expect("Failed to create DuckDB engine")
-            ));
+            let engine = match DuckDBEngine::new(duckdb_path.clone()) {
+                Ok(engine) => Arc::new(Mutex::new(engine)),
+                Err(e) => {
+                    eprintln!("STARTUP ERROR: Database Connection Failed");
+                    eprintln!(
+                        "Failed to connect to the database:\n\n{}\n\n\
+                        This might be because:\n\
+                        1. Another instance of PondPilot is running\n\
+                        2. The database file is corrupted\n\
+                        3. Insufficient permissions\n\n\
+                        Try closing all PondPilot instances and restarting.",
+                        e
+                    );
+                    return Err("Failed to create DuckDB engine".into());
+                }
+            };
+            
+            // Schedule engine initialization after setup completes
+            let engine_clone = engine.clone();
+            tauri::async_runtime::spawn(async move {
+                eprintln!("[STARTUP] Initializing DuckDB engine...");
+                let config = EngineConfig {
+                    engine_type: "duckdb".to_string(),
+                    storage_type: None,
+                    storage_path: None,
+                    extensions: None,
+                    options: None,
+                };
+                match engine_clone.lock().await.initialize(config).await {
+                    Ok(_) => eprintln!("[STARTUP] DuckDB engine initialized successfully"),
+                    Err(e) => eprintln!("[STARTUP ERROR] Failed to initialize DuckDB engine: {}", e),
+                }
+            });
             
             // Create SQLite persistence state
             let persistence = PersistenceState::new(sqlite_path)

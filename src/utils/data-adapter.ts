@@ -17,18 +17,25 @@ import { convertArrowTable } from './arrow';
 import { classifySQLStatement, trimQuery } from './editor/sql';
 import { quote } from './helpers';
 
+// Initial batch size for table preview - 100K rows should be enough for initial view
+// while preventing full table scans on very large datasets
+const INITIAL_TABLE_PREVIEW_LIMIT = 100000;
+
 function getGetSortableReaderApiFromFQN(
   pool: ConnectionPool,
   fqn: string,
 ): DataAdapterQueries['getSortableReader'] {
   return async (sort, abortSignal) => {
-    let baseQuery = `SELECT * FROM ${fqn}`;
+    // For initial table preview, add a reasonable LIMIT to prevent scanning entire large tables
+    // This is especially important for CSV files which require full scans
+    let baseQuery = `SELECT * FROM ${fqn} LIMIT ${INITIAL_TABLE_PREVIEW_LIMIT}`;
 
     if (sort.length > 0) {
       const orderBy = sort
         .map((s) => `${toDuckDBIdentifier(s.column)} ${s.order || 'asc'}`)
         .join(', ');
-      baseQuery += ` ORDER BY ${orderBy}`;
+      // When sorting, we need to wrap the limited query in a subquery
+      baseQuery = `SELECT * FROM (SELECT * FROM ${fqn} LIMIT ${INITIAL_TABLE_PREVIEW_LIMIT}) ORDER BY ${orderBy}`;
     }
     if (!pool.sendAbortable) {
       throw new Error('Connection pool does not support sendAbortable');
@@ -80,8 +87,8 @@ function getFlatFileDataAdapterQueries(
   dataSource: AnyFlatFileDataSource,
   sourceFile: LocalFile,
 ): DataAdapterQueries {
-  // Don't use database prefix - views are created in the default database
-  const fqn = toDuckDBIdentifier(dataSource.viewName);
+  // Use fully qualified name with the persistent database prefix
+  const fqn = `${toDuckDBIdentifier(SYSTEM_DATABASE_NAME)}.main.${toDuckDBIdentifier(dataSource.viewName)}`;
 
   const baseAttrs: Partial<DataAdapterQueries> = {
     getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn),
@@ -92,21 +99,8 @@ function getFlatFileDataAdapterQueries(
   if (dataSource.type === 'csv' || dataSource.type === 'json' || dataSource.type === 'xlsx-sheet') {
     return {
       ...baseAttrs,
-      getRowCount: async (abortSignal: AbortSignal) => {
-        if (!pool.queryAbortable) {
-          throw new Error('Connection pool does not support queryAbortable');
-        }
-        const { value, aborted } = await pool.queryAbortable(
-          `SELECT count(*) FROM ${toDuckDBIdentifier(dataSource.viewName)}`,
-          abortSignal,
-        );
-
-        if (aborted) {
-          // Value is not used when aborted, so doesn't matter
-          return { value: 0, aborted };
-        }
-        return { value: Number(value.getChildAt(0)?.get(0)), aborted };
-      },
+      // Don't provide getRowCount for CSV/JSON/XLSX files as it requires scanning entire file
+      // which is expensive for large files. The UI will progressively load data instead.
     };
   }
 

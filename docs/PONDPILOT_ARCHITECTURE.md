@@ -436,6 +436,10 @@ The Tauri backend uses a sophisticated connection pool to manage DuckDB connecti
 3. **Reuse**: Connections returned to pool after use
 4. **Recovery**: Attached databases and extensions replicated
 
+### Thread Safety
+
+**CRITICAL**: DuckDB connections are NOT thread-safe. Each connection can only be used by one thread at a time. Attempting to share connections across threads will cause panics and crashes. This is why the connection pool uses proper synchronization and ensures connections are only used by one operation at a time.
+
 ### Key Improvements
 
 1. **Lock-free Queries**: Engine lock released before query execution

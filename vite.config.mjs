@@ -17,6 +17,7 @@ const getVersionInfo = () => {
 export default defineConfig(({ mode }) => {
   // Check for DOCKER_BUILD environment variable
   const isDockerBuild = process.env.DOCKER_BUILD === 'true';
+  const port = process.env.VITE_PORT ? parseInt(process.env.VITE_PORT) : 5174;
 
   // Get and normalize base path from environment variable, default to '/'
   // Ensures it both starts and ends with a single '/'
@@ -156,6 +157,10 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       exclude: ['@duckdb/duckdb-wasm'],
+    },
+    server: {
+      port: port,
+      strictPort: false, // Allow Vite to find another port if needed
     },
   };
 });

@@ -1,3 +1,5 @@
+import { EngineType } from './types';
+
 export interface PoolConfig {
   /**
    * Minimum number of connections to maintain in the pool
@@ -38,7 +40,7 @@ export interface PoolConfig {
 /**
  * Get optimal pool configuration based on engine type and environment
  */
-export function getOptimalPoolConfig(engineType: string): PoolConfig {
+export function getOptimalPoolConfig(engineType: EngineType): PoolConfig {
   switch (engineType) {
     case 'duckdb-tauri':
       return {

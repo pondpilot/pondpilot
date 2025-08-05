@@ -41,6 +41,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 sysinfo = "0.30"
 num_cpus = "1.16"
+futures = "0.3.31"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

@@ -86,11 +86,11 @@ async function restoreAppDataFromSQLite(
         entryData.handle = {
           kind: 'directory',
           name: entryData.name,
-          async *entries() {
+          async* entries() {
             // This would need to be implemented to read directory contents using Tauri APIs
           },
-          async *keys() {},
-          async *values() {},
+          async* keys() {},
+          async* values() {},
           getDirectoryHandle: async (name: string) => {
             throw new Error('Not implemented for Tauri mock handle');
           },
@@ -180,8 +180,8 @@ async function restoreAppDataFromSQLite(
 
       try {
         // Get the file path - try multiple sources
-        const tauriPath = (localEntry.handle as any)?._tauriPath || 
-                         (localEntry as any).tauriPath || 
+        const tauriPath = (localEntry.handle as any)?._tauriPath ||
+                         (localEntry as any).tauriPath ||
                          (localEntry as any).filePath;
         if (!tauriPath) {
           console.warn(`No path available for database ${localEntry.name}`);
@@ -193,7 +193,7 @@ async function restoreAppDataFromSQLite(
         // Re-attach the database
         const { registerAndAttachDatabase } = await import('@controllers/db/data-source');
         const fileName = `${localEntry.uniqueAlias}.${localEntry.ext}`;
-        
+
         console.log(`[restore] Re-attaching database ${dataSource.dbName} from ${tauriPath}`);
         const regFile = await registerAndAttachDatabase(
           conn,
@@ -201,7 +201,7 @@ async function restoreAppDataFromSQLite(
           fileName,
           dataSource.dbName,
         );
-        
+
         if (regFile) {
           registeredFiles.set(localEntry.id, regFile);
         }
@@ -236,7 +236,7 @@ async function restoreAppDataFromSQLite(
 
         // In Tauri, we don't need to register the file handle for Excel files
         // Just create the sheet view directly
-        const tauriPath = (localEntry.handle as any)?._tauriPath || 
+        const tauriPath = (localEntry.handle as any)?._tauriPath ||
                          (localEntry as any).tauriPath ||
                          (localEntry as any).filePath;
         if (!tauriPath) {
@@ -263,7 +263,7 @@ async function restoreAppDataFromSQLite(
         }
 
         // In Tauri, pass the file path as fileName if handle has _tauriPath
-        const tauriPath = (localEntry.handle as any)?._tauriPath || 
+        const tauriPath = (localEntry.handle as any)?._tauriPath ||
                          (localEntry as any).tauriPath ||
                          (localEntry as any).filePath;
         const fileName = tauriPath || `${localEntry.uniqueAlias}.${localEntry.ext}`;

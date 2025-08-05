@@ -1,6 +1,7 @@
 pub mod stream;
 
 use crate::database::{DuckDBEngine, EngineConfig, QueryResult, CatalogInfo, DatabaseInfo, TableInfo, ColumnInfo, FileRegistration, FileInfo};
+use crate::errors::Result;
 use std::sync::Arc;
 use tauri::State;
 use tokio::sync::Mutex;
@@ -15,13 +16,12 @@ pub type EngineState<'r> = State<'r, Arc<Mutex<DuckDBEngine>>>;
 pub async fn initialize_duckdb(
     engine: EngineState<'_>,
     config: EngineConfig,
-) -> Result<(), String> {
+) -> Result<()> {
     engine
         .lock()
         .await
         .initialize(config)
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -29,46 +29,43 @@ pub async fn execute_query(
     engine: EngineState<'_>,
     sql: String,
     params: Vec<serde_json::Value>,
-) -> Result<QueryResult, String> {
+) -> Result<QueryResult> {
+    eprintln!("[COMMAND] execute_query called with SQL: {}", sql);
     engine
         .lock()
         .await
         .execute_query(&sql, params)
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn get_catalog(engine: EngineState<'_>) -> Result<CatalogInfo, String> {
+pub async fn get_catalog(engine: EngineState<'_>) -> Result<CatalogInfo> {
     engine
         .lock()
         .await
         .get_catalog()
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn get_databases(engine: EngineState<'_>) -> Result<Vec<DatabaseInfo>, String> {
+pub async fn get_databases(engine: EngineState<'_>) -> Result<Vec<DatabaseInfo>> {
     engine
         .lock()
         .await
         .get_databases()
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn get_tables(
     engine: EngineState<'_>,
     database: String,
-) -> Result<Vec<TableInfo>, String> {
+) -> Result<Vec<TableInfo>> {
     engine
         .lock()
         .await
         .get_tables(&database)
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -76,60 +73,55 @@ pub async fn get_columns(
     engine: EngineState<'_>,
     database: String,
     table: String,
-) -> Result<Vec<ColumnInfo>, String> {
+) -> Result<Vec<ColumnInfo>> {
     engine
         .lock()
         .await
         .get_columns(&database, &table)
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn register_file(
     engine: EngineState<'_>,
     options: FileRegistration,
-) -> Result<(), String> {
+) -> Result<()> {
     engine
         .lock()
         .await
         .register_file(options)
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn drop_file(engine: EngineState<'_>, name: String) -> Result<(), String> {
+pub async fn drop_file(engine: EngineState<'_>, name: String) -> Result<()> {
     engine
         .lock()
         .await
         .drop_file(&name)
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn list_files(engine: EngineState<'_>) -> Result<Vec<FileInfo>, String> {
+pub async fn list_files(engine: EngineState<'_>) -> Result<Vec<FileInfo>> {
     engine
         .lock()
         .await
         .list_files()
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn get_xlsx_sheet_names(engine: EngineState<'_>, filePath: String) -> Result<Vec<String>, String> {
+pub async fn get_xlsx_sheet_names(engine: EngineState<'_>, file_path: String) -> Result<Vec<String>> {
     engine
         .lock()
         .await
-        .get_xlsx_sheet_names(&filePath)
+        .get_xlsx_sheet_names(&file_path)
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn create_connection(_engine: EngineState<'_>) -> Result<String, String> {
+pub async fn create_connection(_engine: EngineState<'_>) -> Result<String> {
     // For now, return a UUID that represents a connection
     // In a real implementation, this would create a connection from the pool
     Ok(Uuid::new_v4().to_string())
@@ -141,7 +133,7 @@ pub async fn connection_execute(
     _connection_id: String,
     sql: String,
     params: Vec<serde_json::Value>,
-) -> Result<QueryResult, String> {
+) -> Result<QueryResult> {
     // For now, just execute directly
     // In a real implementation, this would use the specific connection
     engine
@@ -149,20 +141,19 @@ pub async fn connection_execute(
         .await
         .execute_query(&sql, params)
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn connection_close(
     _engine: EngineState<'_>,
     _connection_id: String,
-) -> Result<(), String> {
+) -> Result<()> {
     // In a real implementation, this would return the connection to the pool
     Ok(())
 }
 
 #[tauri::command]
-pub async fn shutdown_duckdb(_engine: EngineState<'_>) -> Result<(), String> {
+pub async fn shutdown_duckdb(_engine: EngineState<'_>) -> Result<()> {
     // DuckDB shutdown is handled automatically when the engine is dropped
     Ok(())
 }
@@ -172,7 +163,7 @@ pub async fn shutdown_duckdb(_engine: EngineState<'_>) -> Result<(), String> {
 pub async fn prepare_statement(
     _engine: EngineState<'_>,
     _sql: String,
-) -> Result<String, String> {
+) -> Result<String> {
     // Return a unique ID for the prepared statement
     // In a real implementation, this would prepare the statement in DuckDB
     Ok(Uuid::new_v4().to_string())
@@ -183,7 +174,7 @@ pub async fn prepared_statement_execute(
     engine: EngineState<'_>,
     _statement_id: String,
     params: Vec<serde_json::Value>,
-) -> Result<QueryResult, String> {
+) -> Result<QueryResult> {
     // For now, just execute as a regular query
     // In a real implementation, this would use the prepared statement
     let sql = "SELECT 1"; // Placeholder
@@ -192,20 +183,19 @@ pub async fn prepared_statement_execute(
         .await
         .execute_query(sql, params)
         .await
-        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn prepared_statement_close(
     _engine: EngineState<'_>,
     _statement_id: String,
-) -> Result<(), String> {
+) -> Result<()> {
     // In a real implementation, this would close the prepared statement
     Ok(())
 }
 
 #[tauri::command]
-pub async fn checkpoint(_engine: EngineState<'_>) -> Result<(), String> {
+pub async fn checkpoint(_engine: EngineState<'_>) -> Result<()> {
     // DuckDB handles checkpointing automatically
     // Could force a WAL checkpoint here if using persistent storage
     Ok(())
@@ -215,7 +205,7 @@ pub async fn checkpoint(_engine: EngineState<'_>) -> Result<(), String> {
 pub async fn export_database(
     _engine: EngineState<'_>,
     _format: String,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>> {
     // For now, return empty data
     // In a real implementation, this would export the database
     Ok(Vec::new())
@@ -226,7 +216,7 @@ pub async fn import_database(
     _engine: EngineState<'_>,
     _data: Vec<u8>,
     _format: String,
-) -> Result<(), String> {
+) -> Result<()> {
     // In a real implementation, this would import data into the database
     Ok(())
 }
@@ -236,7 +226,7 @@ pub async fn load_extension(
     engine: EngineState<'_>,
     _name: String,
     _options: Option<serde_json::Value>,
-) -> Result<(), String> {
+) -> Result<()> {
     // Load extension in DuckDB
     let _pool = engine.lock().await;
     // Extension loading would be implemented here
@@ -244,7 +234,7 @@ pub async fn load_extension(
 }
 
 #[tauri::command]
-pub async fn list_extensions(_engine: EngineState<'_>) -> Result<Vec<String>, String> {
+pub async fn list_extensions(_engine: EngineState<'_>) -> Result<Vec<String>> {
     // Return list of loaded extensions
     // In a real implementation, query DuckDB for loaded extensions
     Ok(vec![])

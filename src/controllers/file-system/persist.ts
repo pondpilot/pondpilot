@@ -31,8 +31,8 @@ export const persistAddLocalEntry = async (
     // Process entries
     for (const [id, newLocalEntry] of newEntries) {
       // For Tauri, include the file path as tauriPath
-      const path = (newLocalEntry as any).filePath || 
-                   (newLocalEntry as any).directoryPath || 
+      const path = (newLocalEntry as any).filePath ||
+                   (newLocalEntry as any).directoryPath ||
                    (newLocalEntry.handle as any)?._tauriPath;
       const persistenceEntry = {
         ...newLocalEntry,

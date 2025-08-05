@@ -394,7 +394,7 @@ export const addLocalFileOrFolders = async (
       newDatabaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
       console.log('[processHandles] Metadata retrieved, size:', newDatabaseMetadata.size);
       console.log('[processHandles] Database names in metadata:', Array.from(newDatabaseMetadata.keys()));
-      
+
       if (newDatabaseMetadata.size === 0) {
         errors.push(
           'Failed to read newly attached database metadata. Neither explorer not auto-complete will not show objects for them. You may try deleting and re-attaching the database(s).',
@@ -403,7 +403,7 @@ export const addLocalFileOrFolders = async (
     } catch (error) {
       console.error('[processHandles] Error reading database metadata:', error);
       errors.push(
-        'Error reading database metadata: ' + (error instanceof Error ? error.message : String(error))
+        `Error reading database metadata: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }
@@ -667,6 +667,9 @@ export const syncFiles = async (conn: ConnectionPool) => {
           source.handle,
           `${source.uniqueAlias}.${source.ext}`,
         );
+        if (!regFile) {
+          throw new Error(`Failed to register file handle for ${source.uniqueAlias}.${source.ext}`);
+        }
         newRegisteredFiles.set(source.id, regFile);
 
         // Find and recreate all views associated with this file

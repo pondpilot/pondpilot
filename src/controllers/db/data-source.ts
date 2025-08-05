@@ -47,8 +47,17 @@ export async function registerFileSourceAndCreateView(
   fileName: string,
   viewName: string,
 ): Promise<File | null> {
+  console.log('[registerFileSourceAndCreateView] Called with:', {
+    handle: handle ? 'Present' : 'Null',
+    fileExt,
+    fileName,
+    viewName,
+    needsFileRegistration: needsFileRegistration(),
+  });
+
   // Get file reference (path for Tauri, filename for web)
   const fileRef = getFileReference(handle, fileName);
+  console.log('[registerFileSourceAndCreateView] File reference:', fileRef);
 
   // Register file if needed (web only)
   let file: File | null = null;
@@ -63,10 +72,24 @@ export async function registerFileSourceAndCreateView(
 
   if (fileExt === 'csv') {
     const csvQuery = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(queryFileName, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`;
-    await conn.query(csvQuery);
+    console.log('[registerFileSourceAndCreateView] Executing CSV view creation query:', csvQuery);
+    try {
+      await conn.query(csvQuery);
+      console.log('[registerFileSourceAndCreateView] CSV view created successfully for:', viewName);
+    } catch (error) {
+      console.error('[registerFileSourceAndCreateView] Error creating CSV view:', error);
+      throw error;
+    }
   } else {
     const query = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(queryFileName, { single: true })};`;
-    await conn.query(query);
+    console.log('[registerFileSourceAndCreateView] Executing view creation query:', query);
+    try {
+      await conn.query(query);
+      console.log('[registerFileSourceAndCreateView] View created successfully for:', viewName);
+    } catch (error) {
+      console.error('[registerFileSourceAndCreateView] Error creating view:', error);
+      throw error;
+    }
   }
 
   return file;
@@ -192,31 +215,31 @@ export async function registerAndAttachDatabase(
   // Attach database using the appropriate path
   // In web environment, use the registered fileName, not fileRef.path
   let attachPath = needsFileRegistration() ? fileName : fileRef.path;
-  
+
   // In Tauri on Windows, ensure we use forward slashes for DuckDB
   if (!needsFileRegistration() && attachPath.includes('\\')) {
     console.log('[registerAndAttachDatabase] Converting Windows path to Unix format for DuckDB');
     attachPath = attachPath.replace(/\\/g, '/');
   }
-  
+
   const attachQuery = buildAttachQuery(attachPath, dbName, { readOnly: true });
   console.log('[registerAndAttachDatabase] Attaching database with query:', attachQuery);
   console.log('[registerAndAttachDatabase] File reference:', fileRef);
   console.log('[registerAndAttachDatabase] Attach path:', attachPath);
-  
+
   try {
     await conn.query(attachQuery);
-    
+
     // Verify the database was attached by querying duckdb_databases
     // First, let's see all databases
-    const allDbQuery = `SELECT database_name, internal FROM duckdb_databases`;
+    const allDbQuery = 'SELECT database_name, internal FROM duckdb_databases';
     const allDbResult = await conn.query(allDbQuery);
     console.log('[registerAndAttachDatabase] All databases after attach:', allDbResult);
-    
+
     const verifyQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = ${quote(dbName, { single: true })}`;
     const verifyResult = await conn.query(verifyQuery);
     console.log('[registerAndAttachDatabase] Database attach verification:', verifyResult);
-    
+
     // Also try a direct query to the attached database
     try {
       const directQuery = `SELECT current_database() as current_db, '${dbName}' as expected_db`;
@@ -225,7 +248,7 @@ export async function registerAndAttachDatabase(
     } catch (e) {
       console.log('[registerAndAttachDatabase] Direct query failed:', e);
     }
-    
+
     // Force a metadata refresh by running a simple query on the attached database
     try {
       const refreshQuery = `SELECT 1 FROM ${toDuckDBIdentifier(dbName)}.information_schema.tables LIMIT 1`;

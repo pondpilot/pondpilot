@@ -3,13 +3,13 @@ import { showWarning } from '@components/app-notifications';
 import { deleteDataSources } from '@controllers/data-source';
 import { deleteLocalFileOrFolders } from '@controllers/file-system';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
+import { ConnectionPool } from '@engines/types';
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '@features/data-explorer/model';
 import {
   handleMultiSelectDelete,
   handleMultiSelectShowSchema,
   getShowSchemaHandler,
 } from '@features/data-explorer/utils/multi-select-handlers';
-import { ConnectionPool } from '@engines/types';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { PersistentDataSourceId } from '@models/data-source';
 import { LocalEntryId } from '@models/file-system';

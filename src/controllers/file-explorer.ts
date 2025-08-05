@@ -135,6 +135,10 @@ export const renameXlsxFile = async (
     `${updatedLocalEntry.uniqueAlias}.${updatedLocalEntry.ext}`,
   );
 
+  if (!newRegFile) {
+    throw new Error('Failed to register file handle');
+  }
+
   // Get all data sources that are associated with this file
   const curDataSources = [...dataSources.values()].filter(
     (ds) =>

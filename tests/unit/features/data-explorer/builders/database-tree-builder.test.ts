@@ -1,11 +1,11 @@
 import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
+import { ConnectionPool } from '@engines/types';
 import { buildSchemaTreeNode } from '@features/data-explorer/builders/database-node-builder';
 import { buildDatabaseNode } from '@features/data-explorer/builders/database-tree-builder';
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '@features/data-explorer/model';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
-import { ConnectionPool } from '@engines/types';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { LocalDB, RemoteDB, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel } from '@models/db';

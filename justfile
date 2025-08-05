@@ -35,6 +35,14 @@ check-and-fix:
     yarn lint:fix
     yarn prettier:write
 
+# Run Tauri development server
+tauri-dev:
+    yarn tauri dev
+
+# Build Tauri release version
+tauri-build:
+    yarn tauri build
+
 # Download duckdb wasm EH modules and sheetjs xlsx module to a cache directory.
 # This directory is gitignored and is used by test fixtures to bypass loading
 # big modules from internet when cache is available.
