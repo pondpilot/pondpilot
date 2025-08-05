@@ -4,10 +4,10 @@ use crate::database::{DuckDBEngine, EngineConfig, QueryResult, CatalogInfo, Data
 use crate::errors::Result;
 use std::sync::Arc;
 use tauri::State;
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
-pub type EngineState<'r> = State<'r, Arc<Mutex<DuckDBEngine>>>;
+// Note: DuckDBEngine is now stored directly without Mutex since it's thread-safe internally
+pub type EngineState<'r> = State<'r, Arc<DuckDBEngine>>;
 
 // Store for active streaming sessions
 // type StreamingSessions = Arc<Mutex<HashMap<String, bool>>>;
@@ -17,11 +17,8 @@ pub async fn initialize_duckdb(
     engine: EngineState<'_>,
     config: EngineConfig,
 ) -> Result<()> {
-    engine
-        .lock()
-        .await
-        .initialize(config)
-        .await
+    // No lock needed - initialize is thread-safe
+    engine.initialize(config).await
 }
 
 #[tauri::command]
@@ -30,30 +27,21 @@ pub async fn execute_query(
     sql: String,
     params: Vec<serde_json::Value>,
 ) -> Result<QueryResult> {
-    eprintln!("[COMMAND] execute_query called with SQL: {}", sql);
-    engine
-        .lock()
-        .await
-        .execute_query(&sql, params)
-        .await
+    tracing::debug!("[COMMAND] execute_query called with SQL: {}", sql);
+    // No lock needed - execute_query is thread-safe via the pool
+    engine.execute_query(&sql, params).await
 }
 
 #[tauri::command]
 pub async fn get_catalog(engine: EngineState<'_>) -> Result<CatalogInfo> {
-    engine
-        .lock()
-        .await
-        .get_catalog()
-        .await
+    // No lock needed - read-only operation
+    engine.get_catalog().await
 }
 
 #[tauri::command]
 pub async fn get_databases(engine: EngineState<'_>) -> Result<Vec<DatabaseInfo>> {
-    engine
-        .lock()
-        .await
-        .get_databases()
-        .await
+    // No lock needed - read-only operation
+    engine.get_databases().await
 }
 
 #[tauri::command]
@@ -61,11 +49,8 @@ pub async fn get_tables(
     engine: EngineState<'_>,
     database: String,
 ) -> Result<Vec<TableInfo>> {
-    engine
-        .lock()
-        .await
-        .get_tables(&database)
-        .await
+    // No lock needed - read-only operation
+    engine.get_tables(&database).await
 }
 
 #[tauri::command]
@@ -74,11 +59,8 @@ pub async fn get_columns(
     database: String,
     table: String,
 ) -> Result<Vec<ColumnInfo>> {
-    engine
-        .lock()
-        .await
-        .get_columns(&database, &table)
-        .await
+    // No lock needed - read-only operation
+    engine.get_columns(&database, &table).await
 }
 
 #[tauri::command]
@@ -86,38 +68,28 @@ pub async fn register_file(
     engine: EngineState<'_>,
     options: FileRegistration,
 ) -> Result<()> {
-    engine
-        .lock()
-        .await
-        .register_file(options)
-        .await
+    // Note: register_file modifies internal state (registered_files map)
+    // The lock is handled internally by the engine
+    engine.register_file(options).await
 }
 
 #[tauri::command]
 pub async fn drop_file(engine: EngineState<'_>, name: String) -> Result<()> {
-    engine
-        .lock()
-        .await
-        .drop_file(&name)
-        .await
+    // Note: drop_file modifies internal state (registered_files map)
+    // The lock is handled internally by the engine
+    engine.drop_file(&name).await
 }
 
 #[tauri::command]
 pub async fn list_files(engine: EngineState<'_>) -> Result<Vec<FileInfo>> {
-    engine
-        .lock()
-        .await
-        .list_files()
-        .await
+    // No lock needed - list_files handles its own synchronization
+    engine.list_files().await
 }
 
 #[tauri::command]
 pub async fn get_xlsx_sheet_names(engine: EngineState<'_>, file_path: String) -> Result<Vec<String>> {
-    engine
-        .lock()
-        .await
-        .get_xlsx_sheet_names(&file_path)
-        .await
+    // No lock needed - read-only operation
+    engine.get_xlsx_sheet_names(&file_path).await
 }
 
 #[tauri::command]
@@ -136,11 +108,8 @@ pub async fn connection_execute(
 ) -> Result<QueryResult> {
     // For now, just execute directly
     // In a real implementation, this would use the specific connection
-    engine
-        .lock()
-        .await
-        .execute_query(&sql, params)
-        .await
+    // No lock needed - execute_query is thread-safe
+    engine.execute_query(&sql, params).await
 }
 
 #[tauri::command]
@@ -178,11 +147,8 @@ pub async fn prepared_statement_execute(
     // For now, just execute as a regular query
     // In a real implementation, this would use the prepared statement
     let sql = "SELECT 1"; // Placeholder
-    engine
-        .lock()
-        .await
-        .execute_query(sql, params)
-        .await
+    // No lock needed - execute_query is thread-safe
+    engine.execute_query(sql, params).await
 }
 
 #[tauri::command]
@@ -224,13 +190,11 @@ pub async fn import_database(
 #[tauri::command]
 pub async fn load_extension(
     engine: EngineState<'_>,
-    _name: String,
+    name: String,
     _options: Option<serde_json::Value>,
 ) -> Result<()> {
-    // Load extension in DuckDB
-    let _pool = engine.lock().await;
-    // Extension loading would be implemented here
-    Ok(())
+    // No lock needed - load_extension is thread-safe
+    engine.load_extension(&name).await
 }
 
 #[tauri::command]
