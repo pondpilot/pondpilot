@@ -110,13 +110,14 @@ export const Table = memo(
     }, [
       schema,
       onColumnResizeChange,
+      table,
       table.getState().columnSizingInfo,
       table.getState().columnSizing,
     ]);
 
     useDidUpdate(() => {
       clearSelection();
-    }, [JSON.stringify(schema)]);
+    }, [schema]);
 
     useHotkeys([
       [

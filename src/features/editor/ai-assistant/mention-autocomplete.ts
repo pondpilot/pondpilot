@@ -671,7 +671,7 @@ export function createMentionDropdown(
   });
 
   // Add wheel event listener to clear keyboard selection on mouse scroll
-  dropdown.addEventListener('wheel', (e) => {
+  dropdown.addEventListener('wheel', (_e) => {
     // Allow default scroll behavior but clear keyboard selection
 
     // Clear keyboard navigation mode

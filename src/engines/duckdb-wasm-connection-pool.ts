@@ -39,7 +39,7 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
       const conn = await this.engine.createConnection();
       this.connections.push(conn as DuckDBWasmConnection);
       this.availableConnections.push(conn as DuckDBWasmConnection);
-      this.stats.connectionsCreated++;
+      this.stats.connectionsCreated += 1;
     }
 
     // Start idle connection cleanup timer
@@ -49,7 +49,7 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
   }
 
   async acquire(): Promise<DatabaseConnection> {
-    this.stats.acquireCount++;
+    this.stats.acquireCount += 1;
 
     // Clean up any timed out waiters
     this.cleanupTimedOutWaiters();
@@ -74,7 +74,7 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
     if (this.connections.length < this.config.maxSize) {
       const conn = await this.engine.createConnection();
       this.connections.push(conn as DuckDBWasmConnection);
-      this.stats.connectionsCreated++;
+      this.stats.connectionsCreated += 1;
       return conn;
     }
 
@@ -98,7 +98,7 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
         const index = this.waitQueue.indexOf(waiter);
         if (index !== -1) {
           this.waitQueue.splice(index, 1);
-          this.stats.timeoutCount++;
+          this.stats.timeoutCount += 1;
           reject(new ConnectionTimeoutError(this.config.acquireTimeout));
         }
       }, this.config.acquireTimeout);
@@ -108,7 +108,7 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
   async release(connection: DatabaseConnection): Promise<void> {
     const conn = connection as DuckDBWasmConnection;
 
-    this.stats.releaseCount++;
+    this.stats.releaseCount += 1;
 
     // If someone is waiting, give them the connection
     if (this.waitQueue.length > 0) {
@@ -136,7 +136,10 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
     }
   }
 
-  async queryAbortable<T = any>(sql: string, signal: AbortSignal): Promise<{ value: T; aborted: boolean }> {
+  async queryAbortable<T = any>(
+    sql: string,
+    signal: AbortSignal,
+  ): Promise<{ value: T; aborted: boolean }> {
     // Use the engine's db directly for compatibility with DuckDB WASM
     const { db } = this.engine;
     if (!db) {
@@ -216,7 +219,7 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
               return { done: true, value: undefined };
             }
             try {
-              return await reader.next();
+              return reader.next();
             } catch (error) {
               if (aborted) {
                 return { done: true, value: undefined };
@@ -246,8 +249,8 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
 
         return wrappedReader as T;
       }
-        const result = await conn.query(sql);
-        return result as T;
+      const result = await conn.query(sql);
+      return result as T;
     } catch (error) {
       if (aborted) {
         throw new Error('Query aborted');
@@ -305,7 +308,7 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
     const index = this.connections.indexOf(conn);
     if (index !== -1) {
       this.connections.splice(index, 1);
-      this.stats.connectionsDestroyed++;
+      this.stats.connectionsDestroyed += 1;
     }
 
     const availIndex = this.availableConnections.indexOf(conn);
@@ -340,7 +343,7 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
       const index = this.waitQueue.indexOf(waiter);
       if (index !== -1) {
         this.waitQueue.splice(index, 1);
-        this.stats.timeoutCount++;
+        this.stats.timeoutCount += 1;
         waiter.reject(new ConnectionTimeoutError(this.config.acquireTimeout));
       }
     });

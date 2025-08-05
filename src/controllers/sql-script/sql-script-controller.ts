@@ -222,7 +222,13 @@ export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
 
     // Delete associated tabs if any
     if (tabsToDelete.length) {
-      persistDeleteTab(persistenceAdapter, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
+      persistDeleteTab(
+        persistenceAdapter,
+        tabsToDelete,
+        newActiveTabId,
+        newPreviewTabId,
+        newTabOrder,
+      );
     }
   } else if (iDbConn) {
     // Delete SQL scripts from IndexedDB

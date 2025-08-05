@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import * as mockTauri from '@tauri-apps/api/core';
 
 import { DuckDBTauriEngine } from '../duckdb-tauri-engine';
 import { TauriConnectionPool } from '../tauri-connection-pool';
@@ -177,8 +178,7 @@ describe('DuckDBTauriEngine', () => {
     });
 
     it('should register files by path', async () => {
-      const mockTauri = require('@tauri-apps/api/core');
-      mockTauri.invoke.mockResolvedValueOnce({ success: true });
+      (mockTauri.invoke as jest.Mock).mockResolvedValueOnce({ success: true });
 
       await engine.registerFile({ name: 'test.csv', type: 'path', path: '/path/to/test.csv' });
 
@@ -195,8 +195,7 @@ describe('DuckDBTauriEngine', () => {
     });
 
     it('should drop files successfully', async () => {
-      const mockTauri = require('@tauri-apps/api/core');
-      mockTauri.invoke.mockResolvedValueOnce({ success: true });
+      (mockTauri.invoke as jest.Mock).mockResolvedValueOnce({ success: true });
 
       await engine.dropFile('test.csv');
 
@@ -206,8 +205,7 @@ describe('DuckDBTauriEngine', () => {
     });
 
     it('should handle file operation errors', async () => {
-      const mockTauri = require('@tauri-apps/api/core');
-      mockTauri.invoke.mockRejectedValueOnce(new Error('File not found'));
+      (mockTauri.invoke as jest.Mock).mockRejectedValueOnce(new Error('File not found'));
 
       await expect(
         engine.registerFile({ name: 'test.csv', type: 'path', path: '/invalid/path' }),

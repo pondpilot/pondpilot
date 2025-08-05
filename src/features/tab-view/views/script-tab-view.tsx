@@ -126,9 +126,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         }
       };
 
-      const prepQueryWithFileSyncAndRetry = async (
-        code: string,
-      ): Promise<PreparedStatement> => {
+      const prepQueryWithFileSyncAndRetry = async (code: string): Promise<PreparedStatement> => {
         try {
           return await conn.prepare(code);
         } catch (error: any) {
@@ -271,15 +269,6 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         );
 
         if (hasDDL || hasAttachDetach) {
-          // Get all currently attached databases
-          // Get all currently attached databases
-          // For queries that need Arrow table format, we need to use the pool's query method
-          // which returns the raw result from DuckDB
-
-          // First, let's see all databases using the SAME connection that executed ATTACH
-          const allDbResult = await conn.execute('SELECT * FROM duckdb_databases');
-          console.log('[script-tab-view] All databases (from ATTACH connection):', allDbResult);
-
           const attachedDatabasesResult = await conn.execute(
             'SELECT DISTINCT database_name FROM duckdb_databases',
           );
@@ -301,9 +290,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           const systemDatabases = ['system', 'temp'];
           const dbNames = attachedDatabases
             .map((row: any) => row.database_name)
-            .filter(name => !systemDatabases.includes(name));
-          console.log('[script-tab-view] Attached databases:', attachedDatabases);
-          console.log('[script-tab-view] Database names to refresh:', dbNames);
+            .filter((name) => !systemDatabases.includes(name));
 
           // For newly attached databases, we need to ensure metadata is loaded
           // by querying the database schema
@@ -314,9 +301,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
                 const schemaQuery = `SELECT table_name FROM ${dbName}.information_schema.tables LIMIT 1`;
                 await pool.query(schemaQuery).catch(() => {
                   // If information_schema doesn't exist, try duckdb_tables
-                  return pool.query(`SELECT name FROM ${dbName}.sqlite_master WHERE type='table' LIMIT 1`).catch(() => {
-                    // Ignore errors - some databases might not have these views
-                  });
+                  return pool
+                    .query(`SELECT name FROM ${dbName}.sqlite_master WHERE type='table' LIMIT 1`)
+                    .catch(() => {
+                      // Ignore errors - some databases might not have these views
+                    });
                 });
               } catch (e) {
                 // Ignore errors

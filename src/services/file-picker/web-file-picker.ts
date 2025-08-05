@@ -33,7 +33,7 @@ export class WebFilePicker implements IFilePicker {
     return this.pickFilesWithInput(accept, multiple);
   }
 
-  async pickDirectory(options: FilePickerOptions = {}): Promise<DirectoryPickerResult> {
+  async pickDirectory(_options: FilePickerOptions = {}): Promise<DirectoryPickerResult> {
     if (!this.supports.directories) {
       return {
         directory: null,
@@ -201,7 +201,7 @@ export class WebFilePicker implements IFilePicker {
           const files: PickedFile[] = [];
 
           if (input.files) {
-            for (let i = 0; i < input.files.length; i++) {
+            for (let i = 0; i < input.files.length; i += 1) {
               const file = input.files[i];
               files.push({
                 name: file.name,

@@ -5,13 +5,12 @@ import {
   AnyDataSource,
   SYSTEM_DATABASE_NAME,
 } from '@models/data-source';
-import { isTauriEnvironment } from '@utils/browser';
 import { useMemo } from 'react';
 
 export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>) => {
   return useMemo(() => {
-    console.log('[useDatabaseSeparation] All data sources:', allDataSources);
-    console.log('[useDatabaseSeparation] Is Tauri environment:', isTauriEnvironment());
+    // console.log('[useDatabaseSeparation] All data sources:', allDataSources);
+    // console.log('[useDatabaseSeparation] Is Tauri environment:', isTauriEnvironment());
 
     let systemDb: LocalDB | undefined;
     const localDbs: LocalDB[] = [];

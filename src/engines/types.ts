@@ -123,13 +123,13 @@ export interface ConnectionPool {
   getStats?: () => PoolStats | null;
 
   // High-level query methods (used by the app)
-  query: <T = any>(sql: string) => Promise<any>;
-  queryAbortable?: <T = any>(
+  query: <_T = any>(sql: string) => Promise<any>;
+  queryAbortable?: <_T = any>(
     sql: string,
     signal: AbortSignal,
   ) => Promise<{ value: any; aborted: boolean }>;
-  send?: <T = any>(sql: string, stream?: boolean) => Promise<any>;
-  sendAbortable?: <T = any>(sql: string, signal: AbortSignal, stream?: boolean) => Promise<any>;
+  send?: <_T = any>(sql: string, stream?: boolean) => Promise<any>;
+  sendAbortable?: <_T = any>(sql: string, signal: AbortSignal, stream?: boolean) => Promise<any>;
   getPooledConnection?: () => Promise<any>;
   getTableNames?: (database: string, schema: string) => Promise<any>;
 

@@ -15,8 +15,8 @@ export class FilePickerFactory {
    */
   static getFilePicker(): IFilePicker {
     if (!this.instance) {
-      console.log('FilePickerFactory: Creating new file picker instance');
-      console.log('FilePickerFactory: Platform detected:', this.getPlatform());
+      // console.log('FilePickerFactory: Creating new file picker instance');
+      // console.log('FilePickerFactory: Platform detected:', this.getPlatform());
       this.instance = this.createFilePicker();
     }
     return this.instance;

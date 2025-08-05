@@ -31,9 +31,9 @@ export class TauriFilePicker implements IFilePicker {
     try {
       // Import the entire dialog module
       this.dialogModule = await import('@tauri-apps/plugin-dialog');
-      console.log('Tauri dialog module loaded:', this.dialogModule);
+      // console.log('Tauri dialog module loaded:', this.dialogModule);
     } catch (error) {
-      console.error('Failed to load Tauri dialog API:', error);
+      // console.error('Failed to load Tauri dialog API:', error);
     }
   }
 
@@ -44,12 +44,12 @@ export class TauriFilePicker implements IFilePicker {
   }
 
   async pickFiles(options: FilePickerOptions = {}): Promise<FilePickerResult> {
-    console.log('TauriFilePicker.pickFiles called with options:', options);
+    // console.log('TauriFilePicker.pickFiles called with options:', options);
 
     await this.ensureInitialized();
 
     if (!this.dialogModule) {
-      console.error('Tauri dialog module not available after initialization');
+      // console.error('Tauri dialog module not available after initialization');
       return {
         files: [],
         error: 'Tauri dialog API not available',
@@ -71,13 +71,13 @@ export class TauriFilePicker implements IFilePicker {
             ]
           : undefined;
 
-      console.log('Calling dialog.open with:', { multiple, filters, directory: false });
+      // console.log('Calling dialog.open with:', { multiple, filters, directory: false });
       const result = await this.dialogModule.open({
         multiple,
         filters,
         directory: false,
       });
-      console.log('Dialog result:', result);
+      // console.log('Dialog result:', result);
 
       if (result === null) {
         return {
@@ -107,7 +107,7 @@ export class TauriFilePicker implements IFilePicker {
         cancelled: false,
       };
     } catch (error: any) {
-      console.error('Error calling dialog.open:', error);
+      // console.error('Error calling dialog.open:', error);
       return {
         files: [],
         error: error.message || 'Failed to pick files',
@@ -116,7 +116,7 @@ export class TauriFilePicker implements IFilePicker {
     }
   }
 
-  async pickDirectory(options: FilePickerOptions = {}): Promise<DirectoryPickerResult> {
+  async pickDirectory(_options: FilePickerOptions = {}): Promise<DirectoryPickerResult> {
     await this.ensureInitialized();
 
     if (!this.dialogModule) {

@@ -71,8 +71,14 @@ impl ArrowStreamingExecutor {
             };
             
             // Clear any pending transaction state
-            if let Err(e) = conn.execute("ROLLBACK", []) {
-                eprintln!("[ARROW_STREAMING] Failed to rollback transaction: {}", e);
+            // Only try to rollback if there's an active transaction
+            // Ignore the error if no transaction is active (TransactionContext Error)
+            match conn.execute("ROLLBACK", []) {
+                Ok(_) => eprintln!("[ARROW_STREAMING] Rolled back pending transaction"),
+                Err(e) if e.to_string().contains("no transaction is active") => {
+                    // This is expected if no transaction is active - not an error
+                }
+                Err(e) => eprintln!("[ARROW_STREAMING] Failed to rollback transaction: {}", e),
             }
             
             // Classify the SQL statement
@@ -153,8 +159,12 @@ impl ArrowStreamingExecutor {
             let schema = {
                 // First try: LIMIT 0 approach for SELECT queries
                 if sql.trim_start().to_uppercase().starts_with("SELECT") {
-                    // For complex queries (CTEs, subqueries), wrap in a subquery with LIMIT 0
-                    let schema_query = if sql.contains("WITH") || sql.contains("(") {
+                    // Check if the query already has a LIMIT clause
+                    let sql_upper = sql.to_uppercase();
+                    let has_limit = sql_upper.contains(" LIMIT ");
+                    
+                    // For complex queries or queries with LIMIT, wrap in a subquery
+                    let schema_query = if sql.contains("WITH") || sql.contains("(") || has_limit {
                         format!("SELECT * FROM ({}) AS sq LIMIT 0", sql.trim_end_matches(';'))
                     } else {
                         format!("{} LIMIT 0", sql.trim_end_matches(';'))

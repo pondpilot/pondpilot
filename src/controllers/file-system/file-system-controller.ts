@@ -171,7 +171,7 @@ export const addLocalFileOrFolders = async (
               });
             }
           } catch (error) {
-            console.error(`Error getting sheet names for ${file.name}:`, error);
+            // console.error(`Error getting sheet names for ${file.name}:`, error);
             // Surface the error instead of silently falling back
             throw new Error(
               `Failed to read sheet names from Excel file "${file.name}". ` +
@@ -389,11 +389,17 @@ export const addLocalFileOrFolders = async (
   // Read the metadata for the newly attached databases
   let newDatabaseMetadata: Map<string, DataBaseModel> | null = null;
   if (newDatabaseNames.length > 0) {
-    console.log('[processHandles] Reading metadata for newly attached databases:', newDatabaseNames);
+    // console.log(
+    //   '[processHandles] Reading metadata for newly attached databases:',
+    //   newDatabaseNames,
+    // );
     try {
       newDatabaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
-      console.log('[processHandles] Metadata retrieved, size:', newDatabaseMetadata.size);
-      console.log('[processHandles] Database names in metadata:', Array.from(newDatabaseMetadata.keys()));
+      // console.log('[processHandles] Metadata retrieved, size:', newDatabaseMetadata.size);
+      // console.log(
+      //   '[processHandles] Database names in metadata:',
+      //   Array.from(newDatabaseMetadata.keys()),
+      // );
 
       if (newDatabaseMetadata.size === 0) {
         errors.push(
@@ -401,9 +407,9 @@ export const addLocalFileOrFolders = async (
         );
       }
     } catch (error) {
-      console.error('[processHandles] Error reading database metadata:', error);
+      // console.error('[processHandles] Error reading database metadata:', error);
       errors.push(
-        `Error reading database metadata: ${error instanceof Error ? error.message : String(error)}`
+        `Error reading database metadata: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -706,7 +712,7 @@ export const syncFiles = async (conn: ConnectionPool) => {
           }
         }
       } catch (e) {
-        console.error(`Failed to register file handle ${source.handle.name}:`, e);
+        // console.error(`Failed to register file handle ${source.handle.name}:`, e);
         localFileToDelete.push(source);
       }
     } else {
