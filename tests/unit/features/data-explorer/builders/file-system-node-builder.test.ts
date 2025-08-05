@@ -4,6 +4,7 @@ import { renameFile, renameXlsxFile } from '@controllers/file-explorer';
 import { deleteLocalFileOrFolders } from '@controllers/file-system';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
+import { ConnectionPool } from '@engines/types';
 import {
   buildFolderNode,
   buildXlsxFileNode,
@@ -11,7 +12,6 @@ import {
   buildDatabaseFileNode,
 } from '@features/data-explorer/builders/file-system-node-builder';
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '@features/data-explorer/model';
-import { ConnectionPool } from '@engines/types';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { AnyFlatFileDataSource, XlsxSheetView, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId, LocalFolder, LocalFile } from '@models/file-system';

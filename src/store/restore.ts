@@ -521,6 +521,9 @@ export const restoreAppDataFromIDB = async (
             `${localEntry.uniqueAlias}.${localEntry.ext}`,
             dataSource.dbName,
           );
+          if (!regFile) {
+            throw new Error(`Failed to register and attach database ${dataSource.dbName}`);
+          }
           registeredFiles.set(localEntry.id, regFile);
           break;
         }
@@ -554,6 +557,9 @@ export const restoreAppDataFromIDB = async (
 
           // Register file handle - this may throw NotFoundError if the file no longer exists
           const regFile = await registerFileHandle(conn, localEntry.handle, fileName);
+          if (!regFile) {
+            throw new Error(`Failed to register file handle for ${fileName}`);
+          }
           registeredFiles.set(localEntry.id, regFile);
 
           // Find all data sources associated with this file

@@ -2,7 +2,7 @@ import { isTauriEnvironment } from '@utils/browser';
 
 import { getLogger } from './debug-logger';
 import { DuckDBWasmEngine } from './duckdb-wasm-engine';
-import { DatabaseEngine, EngineConfig } from './types';
+import { DatabaseEngine, EngineConfig, EngineType } from './types';
 
 const logger = getLogger('database:engine-factory');
 
@@ -70,7 +70,7 @@ export class DatabaseEngineFactory {
     };
   }
 
-  static isEngineAvailable(type: string): boolean {
+  static isEngineAvailable(type: EngineType): boolean {
     switch (type) {
       case 'duckdb-wasm':
         return true; // Always available
