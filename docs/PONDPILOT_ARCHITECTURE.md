@@ -77,22 +77,22 @@ export interface DatabaseEngine {
   initialize(config: EngineConfig): Promise<void>;
   shutdown(): Promise<void>;
   isReady(): boolean;
-  
+
   // Query Operations
   execute(sql: string, params?: any[]): Promise<QueryResult>;
   stream(sql: string, params?: any[]): AsyncIterator<any>;
   prepare(sql: string): Promise<PreparedStatement>;
-  
+
   // File Management
   registerFile(options: FileRegistration): Promise<void>;
   dropFile(name: string): Promise<void>;
   listFiles(): Promise<FileInfo[]>;
-  
+
   // Metadata
   getCatalog(): Promise<CatalogInfo>;
   getTables(database: string): Promise<TableInfo[]>;
   getColumns(database: string, table: string): Promise<ColumnInfo[]>;
-  
+
   // Capabilities
   getCapabilities(): EngineCapabilities;
 }
@@ -144,11 +144,11 @@ export class DatabaseEngineFactory {
         storagePath: '~/Library/Application Support/io.pondpilot.desktop/'
       };
     }
-    
+
     // Check browser capabilities
     const hasOPFS = 'storage' in navigator && 'getDirectory' in navigator.storage;
     const hasFileAPI = 'showOpenFilePicker' in window;
-    
+
     return {
       type: 'duckdb-wasm',
       storageType: hasOPFS ? 'persistent' : 'memory',
@@ -210,7 +210,7 @@ interface FileSystemFileHandle {
 // Tauri provides compatible mock
 class TauriFileHandle implements FileSystemFileHandle {
   constructor(private filePath: string) {}
-  
+
   async getFile(): Promise<File> {
     // Read file from disk via Tauri
     const contents = await invoke('read_file', { path: this.filePath });
@@ -498,18 +498,32 @@ After (Connection Pool):
 
 ```bash
 # Development
-yarn dev          # Web development server
-yarn tauri:dev    # Desktop development
+yarn dev              # Web development server
+yarn tauri:dev        # Desktop development (safe start)
+yarn tauri:dev:unsafe # Desktop without safety checks
 
 # Production
-yarn build        # Web production build
-yarn tauri:build  # Desktop installers
+yarn build            # Web production build
+yarn tauri:build      # Desktop installers
 
 # Testing
-yarn test         # Run all tests
-yarn test:unit    # Unit tests only
-yarn playwright   # E2E tests
+yarn test             # Run all tests
+yarn test:unit        # Unit tests only
+yarn playwright       # E2E tests
 ```
+
+### Platform-Specific Builds
+
+**Web Build**:
+- Outputs to `dist/` directory
+- Uses Vite for bundling
+- Deployable to any static hosting
+
+**Tauri Build**:
+- macOS: `.app`, `.dmg`
+- Windows: `.exe`, `.msi`
+- Linux: `.deb`, `.rpm`, `.AppImage`
+- Bundles include native DuckDB
 
 ## Developer Guide
 
@@ -534,6 +548,31 @@ function MyComponent() {
 }
 ```
 
+### Development Workflow
+
+1. **Initial Setup**:
+   ```bash
+   # Install dependencies
+   yarn install
+
+   # For Tauri development, also need:
+   cargo install tauri-cli
+   ```
+
+2. **Making Changes**:
+   - UI changes: Work in `src/` - automatically used by both platforms
+   - Engine changes: Update appropriate engine in `src/engines/`
+   - Tauri-specific: Update Rust code in `src-tauri/src/`
+
+3. **Testing Changes**:
+   ```bash
+   # Test web version
+   yarn dev
+
+   # Test desktop version
+   yarn tauri:dev
+   ```
+
 ### Creating Platform Adapters
 
 1. Define the interface:
@@ -552,7 +591,7 @@ export class WebMyFeature implements MyFeature {
   }
 }
 
-// Tauri implementation  
+// Tauri implementation
 export class TauriMyFeature implements MyFeature {
   async doSomething() {
     // Tauri-specific code
@@ -588,7 +627,7 @@ export function createMyFeature(): MyFeature {
 │                                                             │
 │  Choose Web When:                Choose Desktop When:       │
 │  • Accessibility is key          • Performance matters      │
-│  • No installation needed        • Large datasets (>2GB)    │
+│  • No installation needed        • Large datasets           │
 │  • Sharing via URL               • Complex analytics        │
 │  • Chrome-only is OK             • Native integrations      │
 │                                                             │
@@ -610,6 +649,25 @@ beforeEach(() => {
 });
 ```
 
+### Troubleshooting
+
+#### Port Conflicts (Development)
+- **Issue**: Port 5174 already in use
+- **Solution**: Run `yarn tauri:dev` which automatically finds available port
+
+#### Database Lock Conflicts
+- **Issue**: "Database already in use" error
+- **Solution**: Close other PondPilot instances or check with `lsof`
+
+#### Persistence Issues
+- **Web**: Check IndexedDB in browser DevTools
+- **Tauri**: Check SQLite at `~/Library/Application Support/io.pondpilot.desktop/pondpilot_sys.db`
+
+#### Building Issues
+- **macOS**: Ensure Xcode Command Line Tools installed
+- **Windows**: Install Microsoft C++ Build Tools
+- **Linux**: Install `libwebkit2gtk-4.0-dev` and build essentials
+
 ## Summary
 
 PondPilot's two-headed architecture provides:
@@ -624,9 +682,49 @@ PondPilot's two-headed architecture provides:
 
 The abstraction layers ensure that platform-specific code is isolated, making the codebase maintainable and extensible. Whether running in a browser or as a desktop app, users get the best possible experience for their platform.
 
-### Recent Improvements
+## Implementation Status
 
-- **Streaming Performance**: Fixed hanging when switching from large datasets
-- **Connection Pool**: Proper connection return prevents pool exhaustion
-- **Lock Contention**: Removed engine lock bottleneck for concurrent queries
-- **Resource Management**: Semaphores prevent resource overuse
+### ✅ Completed
+
+1. **Database Engine Abstraction Layer**
+   - DuckDB WASM Engine for web
+   - DuckDB Tauri Engine for desktop with native performance
+   - Unified interface across all engines
+   - Connection pooling with resource management
+
+2. **Tauri Desktop Application**
+   - Full native DuckDB integration via Rust
+   - IPC bridge for TypeScript ↔ Rust communication
+   - Streaming support with Apache Arrow IPC format
+   - Native file dialogs and system integration
+
+3. **Persistence Layer**
+   - SQLite persistence for Tauri (mirrors IndexedDB for web)
+   - Unified persistence adapter interface
+   - Automatic platform detection and adapter selection
+   - Mock file handles for cross-platform compatibility
+
+4. **Platform Features**
+   - Browser compatibility bypass in Tauri
+   - Graceful startup with port and lock detection
+   - Connection pool optimization (5 pre-created, max 10)
+   - Resource semaphores (10 queries, 4 streams)
+
+### ⏳ In Progress
+
+1. **Unified Streaming Architecture**
+   - Simplifying to single connection pool
+   - Query hints system for optimization
+   - Memory-based admission control
+
+2. **Table Naming Migration**
+   - Migrating from hyphenated to underscored names
+   - Supporting both formats during transition
+
+### 🚀 Future Enhancements
+
+1. **Desktop Features**
+   - System tray support
+   - Auto-updater functionality
+   - Native menu bar with shortcuts
+   - macOS code signing and notarization
