@@ -21,7 +21,7 @@ import { deleteSqlScriptImpl } from './pure';
 
 export const createSQLScript = (name: string = 'query', content: string = ''): SQLScript => {
   const { sqlScripts } = useAppStore.getState();
-  const allNames = new Set(sqlScripts.values().map((script) => script.name));
+  const allNames = new Set(Array.from(sqlScripts.values()).map((script) => script.name));
 
   const fileName = findUniqueName(name, (value) => allNames.has(value));
   const sqlScriptId = makeSQLScriptId();

@@ -12,7 +12,7 @@ import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-moda
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useAppTheme } from '@hooks/use-app-theme';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
-import { Button, Group, Image, Stack, Text, Title } from '@mantine/core';
+import { Button, Group, Stack, Text, Title } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { spotlight } from '@mantine/spotlight';
 import {
@@ -121,7 +121,13 @@ export const StartGuide = () => {
       <Stack w={700} gap={16}>
         <Stack className="px-2" gap={14}>
           <Group>
-            <Image src={colorScheme === 'dark' ? duckDark : duck} />
+            <img
+              src={colorScheme === 'dark' ? duckDark : duck}
+              alt="PondPilot Duck"
+              width={51}
+              height={42}
+              style={{ display: 'block' }}
+            />
             <Title fw={400} order={1}>
               PondPilot
             </Title>

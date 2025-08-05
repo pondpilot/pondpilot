@@ -11,7 +11,7 @@ interface DatasourceWizardModalProps {
   onClose: () => void;
   pool: AsyncDuckDBConnectionPool | null;
   handleAddFolder: () => Promise<void>;
-  handleAddFile: (exts?: string[]) => Promise<void>;
+  handleAddFile: () => Promise<void>;
   initialStep?: WizardStep;
 }
 

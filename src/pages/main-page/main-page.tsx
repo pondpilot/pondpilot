@@ -1,3 +1,4 @@
+import { BrowserCompatibilityAlert } from '@components/browser-compatibility-alert';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { StartGuide } from '@features/start-guide';
@@ -126,7 +127,7 @@ export const MainPage = () => {
     [
       'Ctrl+D',
       () => {
-        handleAddFile(['.duckdb']);
+        handleAddFile();
         Spotlight.close();
       },
     ],
@@ -160,7 +161,8 @@ export const MainPage = () => {
           <div className="flex-shrink-0">
             <TabsPane />
           </div>
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-auto">
+            <BrowserCompatibilityAlert />
             <TabView />
           </div>
         </Stack>
@@ -168,6 +170,7 @@ export const MainPage = () => {
 
       {!hasTabs && (
         <div className="h-full">
+          <BrowserCompatibilityAlert />
           <StartGuide />
         </div>
       )}

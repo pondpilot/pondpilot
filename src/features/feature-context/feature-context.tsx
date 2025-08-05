@@ -1,10 +1,23 @@
 import { useTabCoordination } from '@hooks/use-tab-coordination';
 import { getBrowserSupportedFeatures } from '@utils/browser';
 import { isPersistenceSupported } from '@utils/duckdb-persistence';
+import { fileSystemService } from '@utils/file-system-adapter';
 import React, { createContext, useContext, useMemo } from 'react';
 
 interface FeatureContextType {
+  // Legacy flag (kept for backward compatibility)
   isFileAccessApiSupported: boolean;
+
+  // Granular file system capabilities
+  hasNativeFileSystemAccess: boolean;
+  canPickFiles: boolean;
+  canPickMultipleFiles: boolean;
+  canPickDirectories: boolean;
+  canPersistFileHandles: boolean;
+  canWriteToFiles: boolean;
+  hasDragAndDrop: boolean;
+
+  // Other features
   isMobileDevice: boolean;
   isOPFSSupported: boolean;
   isTabBlocked: boolean;
@@ -30,8 +43,27 @@ export const FeatureProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const browserFeatures = getBrowserSupportedFeatures();
     const isOPFSSupported = isPersistenceSupported();
 
+    // Get granular capabilities from the file system service
+    const capabilities = fileSystemService.getBrowserCapabilities();
+
+    // Legacy flag - true if we can access files in any way (native or fallback)
+    const canAccessFileSystem =
+      capabilities.hasNativeFileSystemAccess || capabilities.hasFallbackFileAccess;
+
     const features: FeatureContextType = {
-      isFileAccessApiSupported: browserFeatures.isFileAccessApiSupported,
+      // Legacy flag (kept for backward compatibility)
+      isFileAccessApiSupported: canAccessFileSystem,
+
+      // Granular file system capabilities
+      hasNativeFileSystemAccess: capabilities.hasNativeFileSystemAccess,
+      canPickFiles: capabilities.canPickFiles,
+      canPickMultipleFiles: capabilities.canPickMultipleFiles,
+      canPickDirectories: capabilities.canPickDirectories,
+      canPersistFileHandles: capabilities.canPersistFileHandles,
+      canWriteToFiles: capabilities.canWriteToFiles,
+      hasDragAndDrop: capabilities.hasDragAndDrop,
+
+      // Other features
       isMobileDevice: browserFeatures.isMobileDevice,
       isOPFSSupported,
       isTabBlocked,

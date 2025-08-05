@@ -1,80 +1,75 @@
 import { showAlert, showError, showWarning } from '@components/app-notifications';
-import { addLocalFileOrFolders } from '@controllers/file-system/file-system-controller';
+import {
+  addLocalFileOrFoldersCompat,
+  pickDataSourceFilesCompat,
+  pickFolderCompat,
+} from '@controllers/file-system/cross-browser-file-system-controller';
 import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { notifications } from '@mantine/notifications';
-import {
-  LocalEntry,
-  supportedDataSourceFileExtArray,
-  SUPPORTED_DATA_SOURCE_FILE_EXTS,
-} from '@models/file-system';
-import { pickFiles, pickFolder } from '@utils/file-system';
+import { LocalEntry, WebkitFile } from '@models/file-system';
+import { fileSystemService } from '@utils/file-system-adapter';
 import { useCallback } from 'react';
 
 export const useAddLocalFilesOrFolders = () => {
   const pool = useDuckDBConnectionPool();
 
-  const handleAddFile = useCallback(
-    async (exts: supportedDataSourceFileExtArray = SUPPORTED_DATA_SOURCE_FILE_EXTS) => {
-      // TODO: we should see if we ca avoid calling this hook in uninitialized
-      // state, and instead of this check, use `useInitializedDuckDBConnection`
-      // to get the non-null connection
-      if (!pool) {
-        showError({
-          title: 'App is not ready',
-          message: 'Please wait for app to load before adding files',
-        });
-        return;
-      }
+  const handleAddFile = useCallback(async () => {
+    // TODO: we should see if we ca avoid calling this hook in uninitialized
+    // state, and instead of this check, use `useInitializedDuckDBConnection`
+    // to get the non-null connection
+    if (!pool) {
+      showError({
+        title: 'App is not ready',
+        message: 'Please wait for app to load before adding files',
+      });
+      return;
+    }
 
-      const { handles, error } = await pickFiles(
-        exts.map((dotlessExt) => `.${dotlessExt}` as FileExtension),
-        'Data Sources',
-      );
+    // Use cross-browser compatible file picker
+    const { handles, fallbackFiles, error } = await pickDataSourceFilesCompat();
 
-      if (error) {
-        showError({ title: 'Failed to add files', message: error });
-        return;
-      }
+    if (error) {
+      showError({ title: 'Failed to add files', message: error });
+      return;
+    }
 
-      if (!handles.length) {
-        showAlert({ title: 'Adding files', message: 'No files selected' });
-        return;
-      }
+    if (!handles.length && !fallbackFiles?.length) {
+      showAlert({ title: 'Adding files', message: 'No files selected' });
+      return;
+    }
 
-      const { skippedExistingEntries, skippedUnsupportedFiles, skippedEmptySheets, errors } =
-        await addLocalFileOrFolders(pool, handles);
+    const { skippedExistingEntries, skippedUnsupportedFiles, skippedEmptySheets, errors } =
+      await addLocalFileOrFoldersCompat(pool, handles, fallbackFiles);
 
-      if (skippedExistingEntries.length) {
+    if (skippedExistingEntries.length) {
+      showWarning({
+        title: 'Warning',
+        message: `${skippedExistingEntries.length} files were not added because they already exist.`,
+      });
+    }
+
+    if (skippedUnsupportedFiles.length) {
+      showWarning({
+        title: 'Warning',
+        message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
+      });
+    }
+
+    if (skippedEmptySheets.length) {
+      skippedEmptySheets.forEach(({ fileName, sheets }) => {
         showWarning({
           title: 'Warning',
-          message: `${skippedExistingEntries.length} files were not added because they already exist.`,
-        });
-      }
-
-      if (skippedUnsupportedFiles.length) {
-        showWarning({
-          title: 'Warning',
-          message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
-        });
-      }
-
-      if (skippedEmptySheets.length) {
-        skippedEmptySheets.forEach(({ fileName, sheets }) => {
-          showWarning({
-            title: 'Warning',
-            message: `Skipped empty sheets in ${fileName}: ${sheets.join(', ')}`,
-          });
-        });
-      }
-      errors.forEach((errorMessage) => {
-        showError({
-          title: 'Error',
-          message: errorMessage,
+          message: `Skipped empty sheets in ${fileName}: ${sheets.join(', ')}`,
         });
       });
-    },
-    [pool],
-  );
+    }
+    errors.forEach((errorMessage) => {
+      showError({
+        title: 'Error',
+        message: errorMessage,
+      });
+    });
+  }, [pool]);
 
   const handleAddFolder = useCallback(async () => {
     // TODO: we should see if we ca avoid calling this hook in uninitialized
@@ -88,14 +83,25 @@ export const useAddLocalFilesOrFolders = () => {
       return;
     }
 
-    const { handle, error } = await pickFolder();
+    // Check if browser supports proper folder handling
+    const browserInfo = fileSystemService.getBrowserInfo();
+    if (browserInfo.level !== 'full') {
+      showWarning({
+        title: 'Folder selection not supported',
+        message: `${browserInfo.name} doesn't support folder selection. Please use Chrome or Edge for this feature, or add individual files instead.`,
+      });
+      return;
+    }
+
+    // Use cross-browser compatible folder picker
+    const { handle, fallbackFiles, error } = await pickFolderCompat();
 
     if (error) {
       showError({ title: 'Failed to add folder', message: error });
       return;
     }
 
-    if (!handle) {
+    if (!handle && !fallbackFiles?.length) {
       showAlert({ title: 'Adding folder', message: 'No folder selected' });
       return;
     }
@@ -107,13 +113,16 @@ export const useAddLocalFilesOrFolders = () => {
       autoClose: false,
       color: 'text-accent',
     });
+
     const {
       skippedExistingEntries,
       skippedUnsupportedFiles,
       skippedEmptyFolders,
       skippedEmptySheets,
       errors,
-    } = await addLocalFileOrFolders(pool, [handle]);
+    } = handle
+      ? await addLocalFileOrFoldersCompat(pool, [handle], fallbackFiles)
+      : await addLocalFileOrFoldersCompat(pool, [], fallbackFiles);
     notifications.hide(notificationId);
 
     const skippedExistingFolders: LocalEntry[] = [];
@@ -182,17 +191,56 @@ export const useAddLocalFilesOrFolders = () => {
         return;
       }
 
-      const fileHandlesPromises = [...e.dataTransfer.items].map((item) =>
-        item.getAsFileSystemHandle(),
-      );
+      const handles: (FileSystemFileHandle | FileSystemDirectoryHandle)[] = [];
+      const fallbackFiles: File[] = [];
 
-      const handles = [];
+      // Check if we have native File System Access API support
+      const hasNativeSupport = 'getAsFileSystemHandle' in DataTransferItem.prototype;
 
-      for await (const handle of fileHandlesPromises) {
-        if (!handle) {
-          continue;
+      if (hasNativeSupport) {
+        // Chrome/Edge: Use native handles
+        const fileHandlesPromises = [...e.dataTransfer.items].map((item) =>
+          item.getAsFileSystemHandle(),
+        );
+
+        for await (const handle of fileHandlesPromises) {
+          if (!handle) {
+            continue;
+          }
+          handles.push(handle as FileSystemFileHandle | FileSystemDirectoryHandle);
         }
-        handles.push(handle as FileSystemFileHandle | FileSystemDirectoryHandle);
+      } else {
+        // Firefox/Safari: Use File objects
+        const items = [...e.dataTransfer.items];
+
+        for (const item of items) {
+          if (item.kind === 'file') {
+            const file = item.getAsFile();
+            if (file) {
+              fallbackFiles.push(file);
+            }
+          }
+        }
+
+        // Try to detect if files are from a folder based on their paths
+        // Note: In fallback mode, we can't distinguish between files and folders being dropped
+        // We'll treat all drops as file drops and let the user know about limitations
+        if (fallbackFiles.length > 0) {
+          const capabilities = fileSystemService.getBrowserCapabilities();
+          if (!capabilities.hasDragAndDropDirectory) {
+            // Check if it looks like folder content (multiple files with path separators)
+            const hasPathInfo = fallbackFiles.some(
+              (file) => (file as WebkitFile).webkitRelativePath || file.name.includes('/'),
+            );
+
+            if (hasPathInfo || fallbackFiles.length > 5) {
+              showWarning({
+                title: 'Folder drag & drop limitation',
+                message: `${fileSystemService.getBrowserInfo().name} doesn't fully support dragging folders. Individual files have been added instead.`,
+              });
+            }
+          }
+        }
       }
 
       const notificationId = showAlert({
@@ -204,16 +252,17 @@ export const useAddLocalFilesOrFolders = () => {
       });
 
       try {
-        if (handles.length === 0) {
+        if (handles.length === 0 && fallbackFiles.length === 0) {
           notifications.hide(notificationId);
           showAlert({
             title: 'No valid items',
             message: 'No supported files or folders were found in the dropped items.',
           });
+          return;
         }
 
         const { skippedExistingEntries, skippedUnsupportedFiles, errors } =
-          await addLocalFileOrFolders(pool, handles);
+          await addLocalFileOrFoldersCompat(pool, handles, fallbackFiles);
 
         notifications.hide(notificationId);
         if (skippedExistingEntries.length) {

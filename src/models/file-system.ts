@@ -204,3 +204,11 @@ export type LocalFolderPersistence = Omit<LocalFolder, 'handle'> & {
  */
 export type LocalEntry = LocalFile | LocalFolder;
 export type LocalEntryPersistence = LocalFilePersistence | LocalFolderPersistence;
+
+/**
+ * Type for files that may include webkit-specific properties
+ * Used when handling files from drag & drop or file inputs in non-Chrome browsers
+ */
+export type WebkitFile = File & {
+  readonly webkitRelativePath?: string;
+};
