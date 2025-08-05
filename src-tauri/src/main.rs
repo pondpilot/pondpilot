@@ -13,7 +13,6 @@ use database::{DuckDBEngine, EngineConfig};
 use persistence::PersistenceState;
 use streaming::StreamManager;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tauri::Manager;
 
 #[tauri::command]
@@ -72,7 +71,7 @@ fn main() {
             
             // Create DuckDB engine with persistent database
             let engine = match DuckDBEngine::new(duckdb_path.clone()) {
-                Ok(engine) => Arc::new(Mutex::new(engine)),
+                Ok(engine) => Arc::new(engine),
                 Err(e) => {
                     eprintln!("STARTUP ERROR: Database Connection Failed");
                     eprintln!(
@@ -99,7 +98,7 @@ fn main() {
                     extensions: None,
                     options: None,
                 };
-                match engine_clone.lock().await.initialize(config).await {
+                match engine_clone.initialize(config).await {
                     Ok(_) => eprintln!("[STARTUP] DuckDB engine initialized successfully"),
                     Err(e) => eprintln!("[STARTUP ERROR] Failed to initialize DuckDB engine: {}", e),
                 }
@@ -134,6 +133,7 @@ fn main() {
             commands::execute_query,
             commands::stream::stream_query,
             commands::stream::cancel_stream,
+            commands::stream::acknowledge_stream_batch,
             commands::prepare_statement,
             commands::prepared_statement_execute,
             commands::prepared_statement_close,

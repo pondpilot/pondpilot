@@ -49,7 +49,7 @@ pub async fn stream_query(
 
 async fn execute_streaming_query(
     app: AppHandle,
-    engine: Arc<tokio::sync::Mutex<DuckDBEngine>>,
+    engine: Arc<DuckDBEngine>,
     stream_manager: Arc<StreamManager>,
     sql: String,
     stream_id: String,
@@ -58,21 +58,20 @@ async fn execute_streaming_query(
     eprintln!("[STREAMING] Starting streaming query for stream {}", stream_id);
     eprintln!("[STREAMING] SQL: {}", sql);
     
-    // Register the stream
-    let cancel_token = stream_manager.register_stream(stream_id.clone()).await;
-    eprintln!("[STREAMING] Stream registered with cancellation token");
+    // Register the stream with backpressure support
+    let (cancel_token, mut ack_rx) = stream_manager.register_stream(stream_id.clone()).await;
+    eprintln!("[STREAMING] Stream registered with cancellation token and backpressure");
     
-    // Use the new unified API
-    let mut arrow_stream = {
-        let engine_guard = engine.lock().await;
-        engine_guard.execute_arrow_streaming(
-            sql.clone(),
-            QueryHints::streaming(),
-            Some(cancel_token.clone())
-        ).await?
-    };
+    // Use the new unified API - no lock needed
+    let mut arrow_stream = engine.execute_arrow_streaming(
+        sql.clone(),
+        QueryHints::streaming(),
+        Some(cancel_token.clone())
+    ).await?;
     
     let mut batch_count = 0;
+    let mut unacked_batches = 0;
+    const MAX_UNACKED_BATCHES: usize = 5; // Allow up to 5 unacknowledged batches
     
     // Process arrow stream messages
     while let Some(msg) = arrow_stream.recv().await {
@@ -103,6 +102,22 @@ async fn execute_streaming_query(
                 eprintln!("[STREAMING] Received batch {} for stream {} ({} rows)", 
                          batch_count, stream_id, batch.num_rows());
                 
+                // Check if we need to wait for acknowledgments
+                if unacked_batches >= MAX_UNACKED_BATCHES {
+                    eprintln!("[STREAMING] Waiting for acknowledgment (unacked: {})", unacked_batches);
+                    // Wait for acknowledgment before proceeding
+                    match ack_rx.recv().await {
+                        Some(_) => {
+                            unacked_batches -= 1;
+                            eprintln!("[STREAMING] Received acknowledgment, continuing");
+                        }
+                        None => {
+                            eprintln!("[STREAMING] Acknowledgment channel closed");
+                            break;
+                        }
+                    }
+                }
+                
                 // Serialize batch to IPC format
                 let mut batch_buffer = Vec::new();
                 {
@@ -116,10 +131,7 @@ async fn execute_streaming_query(
                 
                 let batch_base64 = general_purpose::STANDARD.encode(&batch_buffer);
                 app.emit(&format!("stream-{}-batch", stream_id), &batch_base64)?;
-                
-                // Add a small delay to provide pseudo-backpressure
-                // This prevents overwhelming the frontend with too many batches at once
-                tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+                unacked_batches += 1;
             }
             
             ArrowStreamMessage::Complete(total_batches) => {
@@ -158,6 +170,19 @@ pub async fn cancel_stream(
         })?;
     eprintln!("[STREAMING] Stream {} cancellation token triggered", stream_id);
     
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn acknowledge_stream_batch(
+    stream_manager: tauri::State<'_, Arc<StreamManager>>,
+    stream_id: String,
+) -> DuckDBResult<()> {
+    eprintln!("[COMMAND] acknowledge_stream_batch called for stream {}", stream_id);
+    stream_manager.inner().acknowledge_batch(&stream_id).await
+        .map_err(|e| DuckDBError::InvalidOperation {
+            message: format!("Failed to acknowledge batch: {}", e),
+        })?;
     Ok(())
 }
 

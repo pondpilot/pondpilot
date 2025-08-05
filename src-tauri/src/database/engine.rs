@@ -8,7 +8,7 @@ use crate::system_resources::get_total_memory;
 use std::sync::Arc;
 use std::time::Instant;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio_util::sync::CancellationToken;
 
 // Whitelist of allowed DuckDB extensions for security
@@ -29,6 +29,98 @@ const ALLOWED_EXTENSIONS: &[&str] = &[
     "iceberg",
     "delta"
 ];
+
+/// Validates and canonicalizes a file path for security
+fn validate_file_path(path: &str) -> Result<PathBuf> {
+    let path = Path::new(path);
+    
+    // Canonicalize to resolve symlinks and ../ components
+    let canonical = path.canonicalize()
+        .map_err(|e| crate::errors::DuckDBError::FileAccess {
+            message: format!("Invalid path: {}", e),
+        })?;
+    
+    // Get allowed directories
+    let allowed_dirs = vec![
+        dirs::home_dir(),
+        dirs::document_dir(),
+        dirs::download_dir(),
+        dirs::desktop_dir(),
+        dirs::data_dir(),
+        // Also allow temp directory for temporary files
+        Some(std::env::temp_dir()),
+    ];
+    
+    // Check if path is within allowed directories
+    let is_allowed = allowed_dirs.iter()
+        .filter_map(|d| d.as_ref())
+        .any(|dir| canonical.starts_with(dir));
+    
+    if !is_allowed {
+        return Err(crate::errors::DuckDBError::FileAccess {
+            message: "Access denied: path outside allowed directories".to_string(),
+        });
+    }
+    
+    // Additional security checks
+    if canonical.to_string_lossy().contains("..") {
+        return Err(crate::errors::DuckDBError::FileAccess {
+            message: "Path traversal detected".to_string(),
+        });
+    }
+    
+    Ok(canonical)
+}
+
+/// Sanitizes SQL identifiers (table names, column names, etc.) to prevent injection
+fn sanitize_identifier(name: &str) -> Result<String> {
+    // Check for empty identifier
+    if name.is_empty() {
+        return Err(crate::errors::DuckDBError::InvalidQuery {
+            message: "Empty identifier not allowed".to_string(),
+            sql: None,
+        });
+    }
+    
+    // Check length
+    if name.len() > 128 {
+        return Err(crate::errors::DuckDBError::InvalidQuery {
+            message: "Identifier too long (max 128 characters)".to_string(),
+            sql: None,
+        });
+    }
+    
+    // Only allow alphanumeric, underscore, and dash
+    // First character must be alphabetic or underscore
+    let mut chars = name.chars();
+    if let Some(first) = chars.next() {
+        if !first.is_alphabetic() && first != '_' {
+            return Err(crate::errors::DuckDBError::InvalidQuery {
+                message: format!("Invalid identifier '{}': must start with letter or underscore", name),
+                sql: None,
+            });
+        }
+    }
+    
+    // Check remaining characters
+    for c in name.chars() {
+        if !c.is_alphanumeric() && c != '_' && c != '-' {
+            return Err(crate::errors::DuckDBError::InvalidQuery {
+                message: format!("Invalid identifier '{}': contains illegal character '{}'", name, c),
+                sql: None,
+            });
+        }
+    }
+    
+    // Check against SQL keywords (basic list - expand as needed)
+    let sql_keywords = ["select", "from", "where", "drop", "insert", "update", "delete", "table", "view"];
+    if sql_keywords.contains(&name.to_lowercase().as_str()) {
+        // If it's a keyword, we need to quote it
+        return Ok(format!("\"{}\"", name));
+    }
+    
+    Ok(name.to_string())
+}
 
 #[derive(Debug, Clone)]
 pub struct DuckDBEngine {
@@ -282,36 +374,50 @@ impl DuckDBEngine {
     }
 
     pub async fn attach_database(&self, name: &str, path: &str) -> Result<()> {
-        let sql = format!("ATTACH DATABASE '{}' AS {}", path, name);
+        // Validate path and sanitize database name
+        let validated_path = validate_file_path(path)?;
+        let sanitized_name = sanitize_identifier(name)?;
+        let path_str = validated_path.to_string_lossy().replace("'", "''");
+        
+        let sql = format!("ATTACH DATABASE '{}' AS {}", path_str, sanitized_name);
         self.execute_and_collect(&sql).await?;
         Ok(())
     }
 
     pub async fn detach_database(&self, name: &str) -> Result<()> {
-        let sql = format!("DETACH DATABASE {}", name);
+        let sanitized_name = sanitize_identifier(name)?;
+        let sql = format!("DETACH DATABASE {}", sanitized_name);
         self.execute_and_collect(&sql).await?;
         Ok(())
     }
 
     pub async fn use_database(&self, database: &str) -> Result<()> {
-        let sql = format!("USE {}", database);
+        let sanitized_database = sanitize_identifier(database)?;
+        let sql = format!("USE {}", sanitized_database);
         self.execute_and_collect(&sql).await?;
         Ok(())
     }
 
     pub async fn register_file(&self, options: FileRegistration) -> Result<()> {
+        // Validate and sanitize inputs
+        let validated_path = validate_file_path(&options.path)?;
+        let sanitized_table_name = sanitize_identifier(&options.table_name)?;
+        
+        // Convert validated path to string, escaping single quotes for SQL
+        let path_str = validated_path.to_string_lossy().replace("'", "''");
+        
         let sql = match options.file_type.as_str() {
             "csv" => format!(
                 "CREATE OR REPLACE TABLE {} AS SELECT * FROM read_csv('{}', AUTO_DETECT=TRUE)",
-                options.table_name, options.path
+                sanitized_table_name, path_str
             ),
             "parquet" => format!(
                 "CREATE OR REPLACE TABLE {} AS SELECT * FROM read_parquet('{}')",
-                options.table_name, options.path
+                sanitized_table_name, path_str
             ),
             "json" => format!(
                 "CREATE OR REPLACE TABLE {} AS SELECT * FROM read_json_auto('{}')",
-                options.table_name, options.path
+                sanitized_table_name, path_str
             ),
             _ => return Err(crate::errors::DuckDBError::InvalidOperation {
                 message: format!("Unsupported file type: {}", options.file_type),
@@ -320,13 +426,23 @@ impl DuckDBEngine {
 
         self.execute_and_collect(&sql).await?;
 
-        // Store file info
+        // Get actual file metadata
+        let metadata = std::fs::metadata(&validated_path)
+            .map_err(|e| crate::errors::DuckDBError::FileAccess {
+                message: format!("Failed to get file metadata: {}", e),
+            })?;
+
+        // Store file info with actual metadata
         let mut files = self.registered_files.lock().await;
         files.insert(options.table_name.clone(), FileInfo {
             name: options.table_name,
-            path: options.path,
-            size_bytes: 0, // TODO: Get actual file size
-            last_modified: 0, // TODO: Get actual timestamp
+            path: validated_path.to_string_lossy().to_string(),
+            size_bytes: metadata.len(),
+            last_modified: metadata.modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
             file_type: options.file_type,
         });
 
@@ -334,7 +450,10 @@ impl DuckDBEngine {
     }
 
     pub async fn drop_file(&self, name: &str) -> Result<()> {
-        let sql = format!("DROP TABLE IF EXISTS {}", name);
+        // Sanitize the table name to prevent SQL injection
+        let sanitized_name = sanitize_identifier(name)?;
+        
+        let sql = format!("DROP TABLE IF EXISTS {}", sanitized_name);
         self.execute_and_collect(&sql).await?;
 
         let mut files = self.registered_files.lock().await;
@@ -382,7 +501,10 @@ impl DuckDBEngine {
         executor.execute_arrow_streaming().await
     }
 
-    pub async fn get_xlsx_sheet_names(&self, _file_path: &str) -> Result<Vec<String>> {
+    pub async fn get_xlsx_sheet_names(&self, file_path: &str) -> Result<Vec<String>> {
+        // Validate the file path first
+        let _validated_path = validate_file_path(file_path)?;
+        
         // TODO: Implement XLSX sheet name extraction
         Ok(vec![])
     }

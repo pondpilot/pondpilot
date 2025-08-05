@@ -19,6 +19,16 @@ pub enum DuckDBError {
     #[error("Invalid operation: {message}")]
     InvalidOperation { message: String },
 
+    #[error("File access error: {message}")]
+    FileAccess { message: String },
+
+    #[error("Invalid query: {message}")]
+    InvalidQuery { 
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sql: Option<String>,
+    },
+
     #[error("Persistence error: {message}")]
     PersistenceError { message: String },
 
