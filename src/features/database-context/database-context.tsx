@@ -120,12 +120,12 @@ export const DatabaseConnectionPoolProvider = ({
 
         // Determine engine configuration
         const detectedEngine = DatabaseEngineFactory.detectOptimalEngine();
-        console.log('Detected optimal engine:', detectedEngine);
-        console.log(
-          'Is Tauri environment?',
-          typeof window !== 'undefined' && '__TAURI__' in window,
-        );
-        console.log('Window.__TAURI__:', (window as any).__TAURI__);
+        // console.log('Detected optimal engine:', detectedEngine);
+        // console.log(
+        //   'Is Tauri environment?',
+        //   typeof window !== 'undefined' && '__TAURI__' in window,
+        // );
+        // console.log('Window.__TAURI__:', (window as any).__TAURI__);
 
         const config: EngineConfig = engineConfig || {
           ...detectedEngine,
@@ -133,8 +133,8 @@ export const DatabaseConnectionPoolProvider = ({
           poolSize: normalizedPoolSize,
         };
 
-        console.log('Final database engine config:', config);
-        console.log('Engine config type:', config.type);
+        // console.log('Final database engine config:', config);
+        // console.log('Engine config type:', config.type);
 
         // Handle storage path configuration based on engine type
         if (config.storageType === 'persistent') {
@@ -198,7 +198,7 @@ export const DatabaseConnectionPoolProvider = ({
 
         return pool;
       } catch (e: any) {
-        console.error('Database initialization error:', e);
+        // console.error('Database initialization error:', e);
         memoizedStatusUpdate({
           state: 'error',
           message: import.meta.env.DEV

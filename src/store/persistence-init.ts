@@ -1,4 +1,5 @@
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { getLogger } from '@engines/debug-logger';
 import { ConnectionPool } from '@engines/types';
 import {
   AnyDataSource,
@@ -22,6 +23,8 @@ import { isTauriEnvironment } from '@utils/browser';
 import { useAppStore } from './app-store';
 import { PersistenceAdapter, createPersistenceAdapter } from './persistence';
 import { restoreAppDataFromIDB } from './restore';
+
+const logger = getLogger('persistence-init');
 
 /**
  * Initialize persistence adapter and restore app data
@@ -51,7 +54,7 @@ export async function initializePersistence(
 async function restoreAppDataFromSQLite(
   conn: ConnectionPool,
   adapter: PersistenceAdapter,
-  onBeforeRequestFilePermission: (handles: FileSystemHandle[]) => Promise<boolean>,
+  _onBeforeRequestFilePermission: (handles: FileSystemHandle[]) => Promise<boolean>,
 ) {
   const warnings: string[] = [];
 
@@ -86,15 +89,19 @@ async function restoreAppDataFromSQLite(
         entryData.handle = {
           kind: 'directory',
           name: entryData.name,
-          async* entries() {
+          async *entries() {
             // This would need to be implemented to read directory contents using Tauri APIs
           },
-          async* keys() {},
-          async* values() {},
-          getDirectoryHandle: async (name: string) => {
+          async *keys() {
+            // Not implemented for Tauri mock handle
+          },
+          async *values() {
+            // Not implemented for Tauri mock handle
+          },
+          getDirectoryHandle: async (_name: string) => {
             throw new Error('Not implemented for Tauri mock handle');
           },
-          getFileHandle: async (name: string) => {
+          getFileHandle: async (_name: string) => {
             throw new Error('Not implemented for Tauri mock handle');
           },
           removeEntry: async (name: string) => {
@@ -173,19 +180,20 @@ async function restoreAppDataFromSQLite(
     if (dataSource.type === 'attached-db' && dataSource.dbName !== SYSTEM_DATABASE_NAME) {
       const localEntry = localEntries.get(dataSource.fileSourceId);
       if (!localEntry || localEntry.kind !== 'file') {
-        console.warn(`Local entry not found for attached database ${id}`);
+        logger.warn(`Local entry not found for attached database ${id}`);
         warnings.push(`Failed to restore attached database: ${dataSource.dbName} (file not found)`);
         continue;
       }
 
       try {
         // Get the file path - try multiple sources
-        const tauriPath = (localEntry.handle as any)?._tauriPath ||
-                         (localEntry as any).tauriPath ||
-                         (localEntry as any).filePath;
+        const tauriPath =
+          (localEntry.handle as any)?._tauriPath ||
+          (localEntry as any).tauriPath ||
+          (localEntry as any).filePath;
         if (!tauriPath) {
-          console.warn(`No path available for database ${localEntry.name}`);
-          console.warn('LocalEntry:', localEntry);
+          logger.warn(`No path available for database ${localEntry.name}`);
+          logger.warn('LocalEntry:', localEntry);
           warnings.push(`Failed to restore attached database: ${dataSource.dbName} (no file path)`);
           continue;
         }
@@ -194,7 +202,7 @@ async function restoreAppDataFromSQLite(
         const { registerAndAttachDatabase } = await import('@controllers/db/data-source');
         const fileName = `${localEntry.uniqueAlias}.${localEntry.ext}`;
 
-        console.log(`[restore] Re-attaching database ${dataSource.dbName} from ${tauriPath}`);
+        logger.debug(`[restore] Re-attaching database ${dataSource.dbName} from ${tauriPath}`);
         const regFile = await registerAndAttachDatabase(
           conn,
           localEntry.handle,
@@ -205,9 +213,9 @@ async function restoreAppDataFromSQLite(
         if (regFile) {
           registeredFiles.set(localEntry.id, regFile);
         }
-        console.log(`[restore] Successfully re-attached database ${dataSource.dbName}`);
+        logger.debug(`[restore] Successfully re-attached database ${dataSource.dbName}`);
       } catch (error) {
-        console.error(`Failed to re-attach database ${dataSource.dbName}:`, error);
+        logger.error(`Failed to re-attach database ${dataSource.dbName}:`, error);
         warnings.push(`Failed to restore attached database: ${dataSource.dbName} (${error})`);
       }
     }
@@ -221,7 +229,7 @@ async function restoreAppDataFromSQLite(
 
     const localEntry = localEntries.get(dataSource.fileSourceId);
     if (!localEntry || localEntry.kind !== 'file') {
-      console.warn(`Local entry not found for data source ${id}`);
+      logger.warn(`Local entry not found for data source ${id}`);
       continue;
     }
 
@@ -236,11 +244,12 @@ async function restoreAppDataFromSQLite(
 
         // In Tauri, we don't need to register the file handle for Excel files
         // Just create the sheet view directly
-        const tauriPath = (localEntry.handle as any)?._tauriPath ||
-                         (localEntry as any).tauriPath ||
-                         (localEntry as any).filePath;
+        const tauriPath =
+          (localEntry.handle as any)?._tauriPath ||
+          (localEntry as any).tauriPath ||
+          (localEntry as any).filePath;
         if (!tauriPath) {
-          console.warn(
+          logger.warn(
             `No Tauri path available for Excel file ${localEntry.name}, skipping sheet view creation`,
           );
           warnings.push(
@@ -252,20 +261,21 @@ async function restoreAppDataFromSQLite(
         await createXlsxSheetView(conn, tauriPath, dataSource.sheetName, dataSource.viewName);
       } else if (localEntry.ext === 'duckdb' || localEntry.ext === 'sql') {
         // Skip duckdb and sql files - they are handled differently
-        console.log(`Skipping ${localEntry.ext} file registration for ${dataSource.id}`);
+        logger.debug(`Skipping ${localEntry.ext} file registration for ${dataSource.id}`);
       } else {
         // For other file types (csv, json, parquet)
         // In Tauri, check if handle is valid before trying to register
         if (!localEntry.handle) {
-          console.warn(`No handle available for ${localEntry.name}, skipping registration`);
+          logger.warn(`No handle available for ${localEntry.name}, skipping registration`);
           warnings.push(`Failed to restore data source: ${localEntry.name} (no file handle)`);
           continue;
         }
 
         // In Tauri, pass the file path as fileName if handle has _tauriPath
-        const tauriPath = (localEntry.handle as any)?._tauriPath ||
-                         (localEntry as any).tauriPath ||
-                         (localEntry as any).filePath;
+        const tauriPath =
+          (localEntry.handle as any)?._tauriPath ||
+          (localEntry as any).tauriPath ||
+          (localEntry as any).filePath;
         const fileName = tauriPath || `${localEntry.uniqueAlias}.${localEntry.ext}`;
         const regFile = await registerFileSourceAndCreateView(
           conn,
@@ -279,7 +289,7 @@ async function restoreAppDataFromSQLite(
         }
       }
     } catch (error) {
-      console.error(`Failed to register file source for ${dataSource.id}:`, error);
+      logger.error(`Failed to register file source for ${dataSource.id}:`, error);
       warnings.push(`Failed to restore data source: ${localEntry.name}`);
     }
   }
@@ -287,7 +297,7 @@ async function restoreAppDataFromSQLite(
   useAppStore.setState({ registeredFiles });
 
   // Now get database metadata after all databases are attached
-  console.log('[restore] Getting database metadata after all attachments...');
+  logger.debug('[restore] Getting database metadata after all attachments...');
   const allDatabaseNames = ['pondpilot']; // Start with system database
 
   // Add all attached database names
@@ -298,7 +308,7 @@ async function restoreAppDataFromSQLite(
   }
 
   const databaseMetadata = await getDatabaseModel(conn, allDatabaseNames);
-  console.log('[restore] Database metadata:', databaseMetadata);
+  logger.debug('[restore] Database metadata:', databaseMetadata);
 
   // Always ensure system database has metadata, even if empty
   if (!databaseMetadata.has(SYSTEM_DATABASE_NAME)) {

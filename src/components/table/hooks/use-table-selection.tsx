@@ -44,23 +44,26 @@ export const useTableSelection = ({
     setLastSelectedColumn(null);
     setLastSelectedRow('0');
     onColumnSelectChange(null);
-  }, []);
+  }, [onColumnSelectChange]);
 
-  const handleCellSelect = useCallback((cell: Cell<any, any>) => {
-    const isIndexColumn = cell.column.getIsFirstColumn();
+  const handleCellSelect = useCallback(
+    (cell: Cell<any, any>) => {
+      const isIndexColumn = cell.column.getIsFirstColumn();
 
-    if (isIndexColumn) return;
-    clearSelection();
-    onCellSelectChange();
+      if (isIndexColumn) return;
+      clearSelection();
+      onCellSelectChange();
 
-    const { type } = cell.column.columnDef.meta as ColumnMeta;
-    const value = cell.getValue();
-    const formattedValue = stringifyTypedValue({
-      type,
-      value,
-    });
-    setSelectedCell({ cellId: cell.id, rawValue: value, formattedValue });
-  }, []);
+      const { type } = cell.column.columnDef.meta as ColumnMeta;
+      const value = cell.getValue();
+      const formattedValue = stringifyTypedValue({
+        type,
+        value,
+      });
+      setSelectedCell({ cellId: cell.id, rawValue: value, formattedValue });
+    },
+    [clearSelection, onCellSelectChange],
+  );
 
   const handleCopySelectedRows = useCallback(
     (table: Table<any>) => {
@@ -136,7 +139,7 @@ export const useTableSelection = ({
         setSelectedRows(selectedRowsRange);
       }
     },
-    [lastSelectedRow, JSON.stringify(selectedRows)],
+    [lastSelectedRow, onRowSelectChange, selectedRows],
   );
 
   const handleHeadCellClick = useCallback(
@@ -178,7 +181,7 @@ export const useTableSelection = ({
         setSelectedCols(selectedCols2);
       }
     },
-    [lastSelectedColumn, schema, JSON.stringify(selectedCols)],
+    [lastSelectedColumn, schema, selectedCols],
   );
 
   useDidUpdate(() => {

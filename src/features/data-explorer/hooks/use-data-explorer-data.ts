@@ -47,8 +47,8 @@ export const useDataExplorerData = () => {
   // Get all file view names from flat file sources for identification
   const fileViewNames = useMemo(() => {
     const viewNames = new Set(flatFileSourcesValues.map((source) => source.viewName));
-    console.log('[use-data-explorer-data] fileViewNames:', Array.from(viewNames));
-    console.log('[use-data-explorer-data] flatFileSourcesValues:', flatFileSourcesValues);
+    // console.log('[use-data-explorer-data] fileViewNames:', Array.from(viewNames));
+    // console.log('[use-data-explorer-data] flatFileSourcesValues:', flatFileSourcesValues);
     return viewNames;
   }, [flatFileSourcesValues]);
 

@@ -1,4 +1,21 @@
-import { DataType, Int32, Int64, Float32, Float64, Decimal, Utf8, Bool, DateDay, TimeMillisecond, TimestampMillisecond, IntervalDayTime, List, Struct, Binary, Field } from 'apache-arrow';
+import {
+  DataType,
+  Int32,
+  Int64,
+  Float32,
+  Float64,
+  Decimal,
+  Utf8,
+  Bool,
+  DateDay,
+  TimeMillisecond,
+  TimestampMillisecond,
+  IntervalDayTime,
+  List,
+  Struct,
+  Binary,
+  Field,
+} from 'apache-arrow';
 
 import { ConnectionTimeoutError, PoolExhaustedError } from './errors';
 import { PoolConfig, getOptimalPoolConfig } from './pool-config';
@@ -10,55 +27,68 @@ import { ConnectionPool, DatabaseConnection, PoolStats } from './types';
 function mapTauriTypeToArrowType(typeName: string): DataType {
   // Normalize the type name
   const upperType = typeName.toUpperCase();
-  
+
   // Map DuckDB types to Arrow DataType instances
   if (upperType.includes('BIGINT')) {
     return new Int64();
-  } if (upperType.includes('INT')) {
+  }
+  if (upperType.includes('INT')) {
     return new Int32();
-  } if (upperType.includes('DOUBLE') || upperType.includes('FLOAT8')) {
+  }
+  if (upperType.includes('DOUBLE') || upperType.includes('FLOAT8')) {
     return new Float64();
-  } if (upperType.includes('REAL') || upperType.includes('FLOAT4') || upperType.includes('FLOAT')) {
+  }
+  if (upperType.includes('REAL') || upperType.includes('FLOAT4') || upperType.includes('FLOAT')) {
     return new Float32();
-  } if (upperType.includes('DECIMAL') || upperType.includes('NUMERIC')) {
+  }
+  if (upperType.includes('DECIMAL') || upperType.includes('NUMERIC')) {
     // Default precision and scale
     return new Decimal(18, 3);
-  } if (upperType.includes('VARCHAR') || upperType.includes('TEXT') || upperType.includes('STRING')) {
-    return new Utf8();
-  } if (upperType.includes('BOOL')) {
-    return new Bool();
-  } if (upperType.includes('DATE')) {
-    return new DateDay();
-  } if (upperType.includes('TIME')) {
-    return new TimeMillisecond();
-  } if (upperType.includes('TIMESTAMPTZ') || upperType.includes('TIMESTAMP WITH TIME ZONE')) {
-    return new TimestampMillisecond('UTC');
-  } if (upperType.includes('TIMESTAMP')) {
-    return new TimestampMillisecond();
-  } else if (upperType.includes('INTERVAL')) {
-    return new IntervalDayTime();
-  } else if (upperType.includes('LIST') || upperType.includes('ARRAY')) {
-    // Default to list of strings
-    return new List(new Field('item', new Utf8(), true));
-  } else if (upperType.includes('STRUCT')) {
-    return new Struct([]);
-  } else if (upperType.includes('BLOB') || upperType.includes('BINARY')) {
-    return new Binary();
-  } else {
-    // Default to string for unknown types
+  }
+  if (upperType.includes('VARCHAR') || upperType.includes('TEXT') || upperType.includes('STRING')) {
     return new Utf8();
   }
+  if (upperType.includes('BOOL')) {
+    return new Bool();
+  }
+  if (upperType.includes('DATE')) {
+    return new DateDay();
+  }
+  if (upperType.includes('TIME')) {
+    return new TimeMillisecond();
+  }
+  if (upperType.includes('TIMESTAMPTZ') || upperType.includes('TIMESTAMP WITH TIME ZONE')) {
+    return new TimestampMillisecond('UTC');
+  }
+  if (upperType.includes('TIMESTAMP')) {
+    return new TimestampMillisecond();
+  }
+  if (upperType.includes('INTERVAL')) {
+    return new IntervalDayTime();
+  }
+  if (upperType.includes('LIST') || upperType.includes('ARRAY')) {
+    // Default to list of strings
+    return new List(new Field('item', new Utf8(), true));
+  }
+  if (upperType.includes('STRUCT')) {
+    return new Struct([]);
+  }
+  if (upperType.includes('BLOB') || upperType.includes('BINARY')) {
+    return new Binary();
+  }
+  // Default to string for unknown types
+  return new Utf8();
 }
 
 // Helper to convert Tauri result to Arrow-like format
 function convertTauriResultToArrowLike(result: any): any {
   // Debug log the raw result
   if (result && typeof result === 'object') {
-    console.log('[convertTauriResultToArrowLike] Raw result keys:', Object.keys(result));
-    console.log('[convertTauriResultToArrowLike] Has columns:', 'columns' in result);
-    console.log('[convertTauriResultToArrowLike] Has rows:', 'rows' in result);
+    // console.log('[convertTauriResultToArrowLike] Raw result keys:', Object.keys(result));
+    // console.log('[convertTauriResultToArrowLike] Has columns:', 'columns' in result);
+    // console.log('[convertTauriResultToArrowLike] Has rows:', 'rows' in result);
     if ('rows' in result) {
-      console.log('[convertTauriResultToArrowLike] Rows length:', result.rows?.length);
+      // console.log('[convertTauriResultToArrowLike] Rows length:', result.rows?.length);
     }
   }
 
@@ -70,8 +100,8 @@ function convertTauriResultToArrowLike(result: any): any {
   const columns = result.columns || [];
   const rows = result.rows || [];
 
-  console.log('[convertTauriResultToArrowLike] Columns:', columns);
-  console.log('[convertTauriResultToArrowLike] Rows count:', rows.length);
+  // console.log('[convertTauriResultToArrowLike] Columns:', columns);
+  // console.log('[convertTauriResultToArrowLike] Rows count:', rows.length);
 
   // Create a mock Arrow table object with getChild method
   const table = {
@@ -80,7 +110,7 @@ function convertTauriResultToArrowLike(result: any): any {
     numCols: columns.length,
     // Add schema for compatibility with Arrow table operations
     schema: {
-      fields: columns.map((col: any, index: number) => {
+      fields: columns.map((col: any, _index: number) => {
         // Map Tauri types to Arrow-like type objects
         const typeName = col.type_name || col.type || 'VARCHAR';
         const arrowType = mapTauriTypeToArrowType(typeName);
@@ -99,7 +129,10 @@ function convertTauriResultToArrowLike(result: any): any {
     getChild(columnName: string) {
       const columnIndex = columns.findIndex((col: any) => col.name === columnName);
       if (columnIndex === -1) {
-        console.warn(`Column "${columnName}" not found in result columns:`, columns.map((c: any) => c.name));
+        // console.warn(
+        //   `Column "${columnName}" not found in result columns:`,
+        //   columns.map((c: any) => c.name),
+        // );
         return null;
       }
 
@@ -134,7 +167,9 @@ function convertTauriResultToArrowLike(result: any): any {
           return {
             next() {
               if (index < columnData.length) {
-                return { value: columnData[index++], done: false };
+                const value = columnData[index];
+                index += 1;
+                return { value, done: false };
               }
               return { done: true, value: undefined };
             },
@@ -145,7 +180,7 @@ function convertTauriResultToArrowLike(result: any): any {
     },
     getChildAt(index: number) {
       if (index < 0 || index >= columns.length) {
-        console.warn(`Column index ${index} out of bounds. Total columns: ${columns.length}`);
+        // console.warn(`Column index ${index} out of bounds. Total columns: ${columns.length}`);
         return null;
       }
       const columnName = columns[index].name;
@@ -190,7 +225,7 @@ export class TauriConnectionPool implements ConnectionPool {
   }
 
   async acquire(): Promise<DatabaseConnection> {
-    this.stats.acquireCount++;
+    this.stats.acquireCount += 1;
 
     // If we have available connections, return one
     if (this.availableConnections.length > 0) {
@@ -214,7 +249,7 @@ export class TauriConnectionPool implements ConnectionPool {
       const connId = await this.invoke('create_connection');
       const conn = new TauriConnection(this.invoke, connId);
       this.connections.push(conn);
-      this.stats.connectionsCreated++;
+      this.stats.connectionsCreated += 1;
       return conn;
     }
 
@@ -238,7 +273,7 @@ export class TauriConnectionPool implements ConnectionPool {
         const index = this.waitQueue.indexOf(waiter);
         if (index !== -1) {
           this.waitQueue.splice(index, 1);
-          this.stats.timeoutCount++;
+          this.stats.timeoutCount += 1;
           reject(new ConnectionTimeoutError(this.config.acquireTimeout));
         }
       }, this.config.acquireTimeout);
@@ -247,7 +282,7 @@ export class TauriConnectionPool implements ConnectionPool {
 
   async release(connection: DatabaseConnection): Promise<void> {
     const tauriConn = connection as TauriConnection;
-    this.stats.releaseCount++;
+    this.stats.releaseCount += 1;
 
     if (!tauriConn.isOpen()) {
       // Connection is closed, remove it
@@ -269,7 +304,7 @@ export class TauriConnectionPool implements ConnectionPool {
     const conn = await this.acquire();
     try {
       const result = await conn.execute(sql);
-      console.log('[TauriConnectionPool.query] Raw execute result:', result);
+      // console.log('[TauriConnectionPool.query] Raw execute result:', result);
       // Convert Tauri result to Arrow-like format for compatibility
       return convertTauriResultToArrowLike(result) as T;
     } finally {
@@ -277,7 +312,10 @@ export class TauriConnectionPool implements ConnectionPool {
     }
   }
 
-  async queryAbortable<T = any>(sql: string, signal: AbortSignal): Promise<{ value: T; aborted: boolean }> {
+  async queryAbortable<T = any>(
+    sql: string,
+    signal: AbortSignal,
+  ): Promise<{ value: T; aborted: boolean }> {
     const conn = await this.acquire();
     let aborted = false;
 
@@ -309,42 +347,42 @@ export class TauriConnectionPool implements ConnectionPool {
     if (stream) {
       // Use true Arrow streaming
       const streamId = crypto.randomUUID();
-      console.log(`[TauriConnectionPool] Starting stream query with ID: ${streamId}`);
+      // console.log(`[TauriConnectionPool] Starting stream query with ID: ${streamId}`);
 
       // Create Arrow reader FIRST to set up listeners
       const reader = new TauriArrowReader(streamId);
-      console.log('[TauriConnectionPool] TauriArrowReader created');
+      // console.log('[TauriConnectionPool] TauriArrowReader created');
 
       // Wait for listeners to be ready
       await reader.waitForInit();
-      console.log('[TauriConnectionPool] TauriArrowReader initialized');
+      // console.log('[TauriConnectionPool] TauriArrowReader initialized');
 
       // NOW initiate streaming on backend
       await this.invoke('stream_query', {
         sql,
         streamId,
       });
-      console.log('[TauriConnectionPool] stream_query invoked successfully');
+      // console.log('[TauriConnectionPool] stream_query invoked successfully');
 
       // Handle abort
       const abortHandler = () => {
-        console.log('[TauriConnectionPool] Abort signal received, cancelling reader');
+        // console.log('[TauriConnectionPool] Abort signal received, cancelling reader');
         reader.cancel();
       };
       signal.addEventListener('abort', abortHandler, { once: true });
 
       return reader as T;
     }
-      // Non-streaming query
-      const conn = await this.acquire();
+    // Non-streaming query
+    const conn = await this.acquire();
 
-      try {
-        const result = await conn.execute(sql);
-        // Convert to Arrow-like format for compatibility
-        return convertTauriResultToArrowLike(result) as T;
-      } finally {
-        await this.release(conn);
-      }
+    try {
+      const result = await conn.execute(sql);
+      // Convert to Arrow-like format for compatibility
+      return convertTauriResultToArrowLike(result) as T;
+    } finally {
+      await this.release(conn);
+    }
   }
 
   async close(): Promise<void> {
@@ -384,7 +422,7 @@ export class TauriConnectionPool implements ConnectionPool {
     const index = this.connections.indexOf(conn);
     if (index !== -1) {
       this.connections.splice(index, 1);
-      this.stats.connectionsDestroyed++;
+      this.stats.connectionsDestroyed += 1;
     }
 
     const availIndex = this.availableConnections.indexOf(conn);

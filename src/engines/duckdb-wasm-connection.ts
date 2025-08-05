@@ -26,7 +26,7 @@ export class DuckDBWasmConnection implements DatabaseConnection {
     return this.engine.transformResult(result);
   }
 
-  async* stream(sql: string, params?: any[]): AsyncGenerator<any> {
+  async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
     const result = await this.execute(sql, params);
     for (const row of result.rows) {
       yield row;

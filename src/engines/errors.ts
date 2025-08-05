@@ -1,3 +1,5 @@
+/* eslint-disable max-classes-per-file */
+
 export interface ErrorDetails {
   query?: string;
   connectionId?: string;

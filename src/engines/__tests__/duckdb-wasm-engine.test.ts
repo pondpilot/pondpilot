@@ -231,7 +231,7 @@ describe('DuckDBWASMEngine', () => {
 
   describe('configuration', () => {
     it('should store persistent configuration', () => {
-      const persistentConfig: EngineConfig = {
+      const _persistentConfig: EngineConfig = {
         type: 'duckdb-wasm',
         persistent: true,
       };
@@ -241,7 +241,7 @@ describe('DuckDBWASMEngine', () => {
     });
 
     it('should handle custom WASM path', () => {
-      const customConfig: EngineConfig = {
+      const _customConfig: EngineConfig = {
         type: 'duckdb-wasm',
         persistent: false,
         wasmUrl: '/custom/path',
