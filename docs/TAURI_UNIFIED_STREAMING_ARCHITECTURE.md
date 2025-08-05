@@ -2,23 +2,23 @@
 
 ## Overview
 
-This document describes a simplified, unified streaming architecture for the Tauri backend that eliminates the complexity of multiple connection pools while maintaining high performance and resource safety.
+This document describes the thread-safe unified streaming architecture for the Tauri backend that respects DuckDB's thread safety requirements while eliminating the global mutex bottleneck.
 
 ## Problem Statement
 
-The current implementation has several critical issues:
+The original implementation had several critical issues:
 
-1. **Global Mutex Bottleneck**: All database operations are serialized through `Arc<Mutex<DuckDBEngine>>`, negating connection pool benefits
-2. **Complex Pool Management**: Multiple pool types (primary, streaming, catalog) add unnecessary complexity
-3. **Resource Leaks**: Potential for connection and memory leaks in error scenarios
-4. **Race Conditions**: Complex cancellation logic with potential race conditions
+1. **Global Mutex Bottleneck**: All database operations were serialized through `Arc<Mutex<DuckDBEngine>>`, preventing parallel execution
+2. **Thread Safety Violations**: DuckDB connections were being used across threads, causing "Connection can only be used on the thread that created it" errors
+3. **Complex Pool Management**: Attempted to pool connections across threads, which is fundamentally incompatible with DuckDB
+4. **Resource Leaks**: Potential for connection and memory leaks in error scenarios
 
 ## Design Principles
 
-1. **Simplicity First**: One pool, one connection type, one query method
-2. **Stream Everything**: All queries use streaming internally, optimized based on hints
-3. **Resource Safety**: Simple, robust resource management without complex hierarchies
-4. **Performance**: Maintain or improve performance through intelligent optimization
+1. **Thread Safety First**: Respect DuckDB's requirement that connections must be used on the thread that created them
+2. **Permit-Based Concurrency**: Use semaphores to limit concurrent connections without pooling the connections themselves
+3. **Simple Resource Management**: Each query creates and destroys its own connection within a single thread
+4. **Parallel Execution**: Remove global mutex to allow true parallel query execution
 
 ## Architecture
 
@@ -26,89 +26,77 @@ The current implementation has several critical issues:
 
 ```rust
 pub struct DuckDBEngine {
-    // Single unified pool - no global mutex
+    // Permit-based pool - no global mutex, no connection pooling
     pool: Arc<UnifiedPool>,
     
     // Resource management
     resources: Arc<ResourceManager>,
     
-    // Metrics collection
-    metrics: Arc<Metrics>,
+    // Registered files tracking
+    registered_files: Arc<Mutex<HashMap<String, FileInfo>>>,
 }
 
 pub struct UnifiedPool {
-    // All connections are streaming-capable
-    connections: Arc<RwLock<Vec<StreamingConnection>>>,
-    
-    // Simple semaphore for limiting concurrent operations
+    // Semaphore for limiting concurrent connections
     permits: Arc<Semaphore>,
     
     // Configuration
     config: PoolConfig,
+    
+    // Path to database
+    db_path: PathBuf,
+    
+    // Resource limits
+    resource_limits: ResourceLimits,
 }
 
 pub struct PoolConfig {
-    min_connections: usize,      // Minimum idle connections
-    max_connections: usize,      // Maximum total connections
-    idle_timeout: Duration,      // When to close idle connections
-    acquire_timeout: Duration,   // Max wait for connection
+    max_connections: usize,      // Maximum concurrent connections
+    acquire_timeout: Duration,   // Max wait for permit
 }
 ```
 
-### Connection Design
+### Connection Permit Design
 
 ```rust
-pub struct StreamingConnection {
-    conn: Connection,
-    id: ConnectionId,
-    created_at: Instant,
-    
-    // Track connection state
-    state: Arc<RwLock<ConnectionState>>,
-    
-    // Performance hints for current operation
-    hints: Arc<RwLock<ConnectionHints>>,
+// Connections are NOT pooled - instead we use permits
+pub struct ConnectionPermit {
+    _permit: tokio::sync::OwnedSemaphorePermit,
+    id: String,
+    db_path: PathBuf,
+    resource_limits: ResourceLimits,
 }
 
-pub enum ConnectionState {
-    Idle,
-    Executing { 
-        query_id: QueryId, 
-        started: Instant,
-        cancel_token: CancellationToken,
-    },
-    Streaming { 
-        stream_id: StreamId, 
-        started: Instant,
-        memory_used: AtomicUsize,
-        cancel_token: CancellationToken,
-    },
-}
-
-pub struct ConnectionHints {
-    // Memory management
-    memory_limit: Option<usize>,    // Override default memory limit
-    prefer_low_memory: bool,        // For catalog queries
-    
-    // Execution hints
-    expected_duration: Duration,     // For timeout calculation
-    expected_rows: Option<usize>,    // For buffer sizing
-    
-    // Control
-    cancellable: bool,              // User-cancellable query
-    priority: QueryPriority,        // High/Normal/Low
+impl ConnectionPermit {
+    /// Create a connection in the current thread
+    /// MUST be called from the thread where the connection will be used
+    pub fn create_connection(self) -> Result<Connection> {
+        // Connection is created in the CURRENT thread
+        let conn = Connection::open(&self.db_path)?;
+        
+        // Configure the connection
+        conn.execute_batch(&format!(
+            "PRAGMA threads={};
+            PRAGMA memory_limit='{}';
+            PRAGMA enable_progress_bar=true;",
+            self.resource_limits.pool_threads,
+            self.resource_limits.pool_memory
+        ))?;
+        
+        Ok(conn)
+    }
 }
 ```
 
 ### Query Execution Model
 
-All queries follow the same pattern but with different optimization hints:
+All queries follow the same thread-safe pattern:
 
 ```rust
 impl DuckDBEngine {
-    pub async fn query<T>(&self, sql: &str) -> QueryBuilder<T> {
+    pub fn query(&self, sql: &str) -> QueryBuilder {
         QueryBuilder {
-            engine: self.clone(),
+            engine: Arc::new(tokio::sync::Mutex::new(self.clone())),
             sql: sql.to_string(),
             hints: QueryHints::default(),
             cancel_token: None,
@@ -116,14 +104,14 @@ impl DuckDBEngine {
     }
 }
 
-pub struct QueryBuilder<T> {
-    engine: Arc<DuckDBEngine>,
+pub struct QueryBuilder {
+    engine: Arc<tokio::sync::Mutex<DuckDBEngine>>,
     sql: String,
     hints: QueryHints,
     cancel_token: Option<CancellationToken>,
 }
 
-impl<T> QueryBuilder<T> {
+impl QueryBuilder {
     pub fn hint(mut self, hints: QueryHints) -> Self {
         self.hints = hints;
         self
@@ -134,58 +122,39 @@ impl<T> QueryBuilder<T> {
         self
     }
     
-    pub async fn execute(self) -> Result<QueryResult<T>> {
-        self.engine.execute_query(self.sql, self.hints, self.cancel_token).await
+    /// Execute and return Arrow streaming results
+    pub async fn execute_streaming(self) -> Result<Receiver<ArrowStreamMessage>> {
+        let engine = self.engine.lock().await;
+        engine.execute_arrow_streaming(self.sql, self.hints, self.cancel_token).await
+    }
+    
+    /// Execute and collect all results
+    pub async fn execute_simple(self) -> Result<QueryResult> {
+        let engine = self.engine.lock().await;
+        engine.execute_query(&self.sql, vec![]).await
     }
 }
 ```
 
-### Smart Result Handling
+### Thread-Safe Execution Flow
 
 ```rust
-pub struct QueryResult<T> {
-    // Always streaming internally
-    stream: Box<dyn Stream<Item = Result<T>> + Send>,
-    
-    // Metadata for optimization
-    schema: Arc<Schema>,
-    size_hint: Option<usize>,
-    memory_estimate: Option<usize>,
-}
+// In async context
+let permit = pool.acquire_connection_permit().await?;
 
-impl<T> QueryResult<T> {
-    // For small results (e.g., catalog queries)
-    pub async fn collect_all(self) -> Result<Vec<T>> {
-        match self.size_hint {
-            Some(size) if size < 10_000 => {
-                // Small result, safe to collect
-                self.stream.try_collect().await
-            }
-            _ => {
-                // Large or unknown size
-                Err(anyhow!("Result too large for collect_all(), use stream()"))
-            }
-        }
-    }
+// Execute in blocking task
+tokio::task::spawn_blocking(move || {
+    // Create connection in THIS thread
+    let conn = permit.create_connection()?;
     
-    // For large results
-    pub fn stream(self) -> impl Stream<Item = Result<T>> {
-        self.stream
-    }
+    // Execute query on the connection
+    let result = conn.execute("SELECT * FROM table", [])?;
     
-    // For convenience - auto-detect based on size
-    pub async fn auto(self) -> Result<AutoResult<T>> {
-        match self.size_hint {
-            Some(size) if size < 10_000 => {
-                Ok(AutoResult::Collected(self.stream.try_collect().await?))
-            }
-            _ => {
-                Ok(AutoResult::Stream(self.stream))
-            }
-        }
-    }
-}
+    // Connection is dropped when task completes
+    Ok(result)
+}).await?
 ```
+
 
 ### Query Hints System
 
@@ -272,158 +241,212 @@ impl ResourceManager {
 }
 ```
 
-### Connection Lifecycle
+### Permit Lifecycle
 
 ```rust
 impl UnifiedPool {
-    async fn get_connection(&self) -> Result<PooledConnection> {
-        // Try to get idle connection first
-        if let Some(conn) = self.get_idle_connection().await {
-            return Ok(conn);
+    pub async fn acquire_connection_permit(&self) -> Result<ConnectionPermit> {
+        // Wait for available permit with timeout
+        match tokio::time::timeout(
+            self.config.acquire_timeout,
+            self.permits.clone().acquire_owned()
+        ).await {
+            Ok(Ok(permit)) => {
+                Ok(ConnectionPermit {
+                    _permit: permit,
+                    id: format!("conn-{}", self.connection_counter.fetch_add(1, Ordering::SeqCst)),
+                    db_path: self.db_path.clone(),
+                    resource_limits: self.resource_limits.clone(),
+                })
+            }
+            _ => Err(DuckDBError::ConnectionError {
+                message: "Pool exhausted or timeout".to_string(),
+            }),
         }
-        
-        // Create new if under limit
-        if self.connections.read().await.len() < self.config.max_connections {
-            return self.create_connection().await;
-        }
-        
-        // Wait for available connection
-        self.wait_for_connection().await
-    }
-    
-    async fn return_connection(&self, mut conn: StreamingConnection) {
-        // Reset connection state
-        conn.reset().await;
-        
-        // Check if still healthy
-        if conn.is_healthy().await {
-            // Return to pool
-            self.connections.write().await.push(conn);
-        }
-        // Unhealthy connections are dropped
     }
 }
 ```
 
-## Implementation Examples
+Key points:
+- No connection pooling - each query creates its own connection
+- Permits automatically released when dropped
+- Connection creation happens in the blocking thread
+- No complex health checks or connection state tracking
 
-### Catalog Query (Auto-Optimized)
+## Usage Examples
+
+### Query Execution Flow
+
+The fundamental pattern for all queries:
+
+```
+1. Async code requests a permit: pool.acquire_connection_permit().await
+2. Permit is passed to spawn_blocking task
+3. Inside blocking task:
+   - Connection is created: permit.create_connection()
+   - Query is executed on that connection
+   - Connection is dropped when task completes
+4. Permit is automatically released
+```
+
+### Simple Query Execution
 
 ```rust
-// List all tables - automatically optimized for small result
-let tables = engine
-    .query("SELECT * FROM information_schema.tables")
+// In async context
+let permit = pool.acquire_connection_permit().await?;
+
+// Execute in blocking task
+tokio::task::spawn_blocking(move || {
+    // Create connection in this thread
+    let conn = permit.create_connection()?;
+    
+    // Use connection
+    conn.execute("SELECT * FROM users", [])?;
+    
+    // Connection and permit dropped here
+    Ok(())
+}).await?
+```
+
+### Streaming Query Execution
+
+```rust
+pub async fn execute_arrow_streaming(self) -> Result<mpsc::Receiver<ArrowStreamMessage>> {
+    let (tx, rx) = mpsc::channel(10);
+    
+    // Get permit in async context
+    let permit = self.pool.acquire_connection_permit().await?;
+    
+    // Execute in blocking task
+    tokio::task::spawn_blocking(move || {
+        // Create connection in this thread
+        let conn = permit.create_connection()?;
+        
+        // Execute streaming query
+        let mut stmt = conn.prepare(&sql)?;
+        let mut stream = stmt.stream_arrow([], schema)?;
+        
+        // Stream results...
+    });
+    
+    Ok(rx)
+}
+```
+
+## QueryBuilder API
+
+The `QueryBuilder` provides a fluent interface for query execution:
+
+### Catalog Query
+
+```rust
+// List all databases with catalog hints
+let databases = engine
+    .query("SELECT * FROM duckdb_databases")
     .hint(QueryHints::catalog())
-    .execute()
-    .await?
-    .collect_all()  // Safe because hint indicates small result
+    .execute_simple()
     .await?;
 ```
 
-### Large Data Export
+### Streaming Large Dataset
 
 ```rust
-// Stream large dataset
-let mut stream = engine
+// Stream large dataset with cancellation
+let stream = engine
     .query("SELECT * FROM huge_table")
     .hint(QueryHints::streaming())
-    .with_cancel(user_cancel_token)
-    .execute()
-    .await?
-    .stream();
+    .with_cancel(cancel_token)
+    .execute_streaming()
+    .await?;
 
-while let Some(batch) = stream.next().await {
-    let batch = batch?;
-    // Process batch without loading entire dataset
-    writer.write_batch(batch).await?;
+// Process arrow messages
+while let Some(msg) = stream.recv().await {
+    match msg {
+        ArrowStreamMessage::Batch(batch) => {
+            // Process batch without loading entire dataset
+            process_arrow_batch(batch)?;
+        }
+        ArrowStreamMessage::Error(e) => return Err(e),
+        _ => {}
+    }
 }
 ```
 
-### Background Analysis
+### Direct Connection Usage
 
 ```rust
-// Row count with resource limits
-let count = engine
-    .query("SELECT COUNT(*) FROM large_table")
-    .hint(QueryHints::background())
-    .execute()
-    .await?
-    .collect_all()
-    .await?
-    .first()
-    .map(|row| row.get::<i64>(0));
+// For simple queries, bypass QueryBuilder
+let permit = pool.acquire_connection_permit().await?;
+
+let result = tokio::task::spawn_blocking(move || {
+    let conn = permit.create_connection()?;
+    conn.execute("CREATE TABLE users (id INT, name TEXT)", [])?;
+    Ok(())
+}).await??;
 ```
 
 ## Error Handling
 
-### Connection Errors
+### Thread Safety Errors
+
+The most common error in DuckDB is attempting to use a connection on a different thread:
+
+```
+Connection can only be used on the thread that created it. 
+Created on ThreadId(23), but being used on ThreadId(27)
+```
+
+This architecture prevents these errors by ensuring connections are always created and used in the same thread.
+
+### Connection Pool Errors
 
 ```rust
-#[derive(Debug, thiserror::Error)]
-pub enum PoolError {
-    #[error("Connection pool exhausted after {wait_time:?}")]
-    Exhausted { wait_time: Duration },
-    
-    #[error("Connection lost during query execution")]
-    ConnectionLost { query_id: QueryId },
-    
-    #[error("Resource limit exceeded: {resource}")]
-    ResourceLimit { resource: String, limit: String },
+pub enum DuckDBError {
+    ConnectionError { message: String },  // Pool exhausted, timeout
+    QueryError { message: String, sql: Option<String> },
+    // ... other variants
 }
 ```
 
-### Automatic Recovery
+## Current Implementation Status
 
-```rust
-impl StreamingConnection {
-    async fn execute_with_retry<T>(
-        &self,
-        f: impl Fn() -> Result<T>,
-    ) -> Result<T> {
-        let mut attempts = 0;
-        loop {
-            match f() {
-                Ok(result) => return Ok(result),
-                Err(e) if e.is_recoverable() && attempts < 3 => {
-                    attempts += 1;
-                    tokio::time::sleep(Duration::from_millis(100 * attempts)).await;
-                }
-                Err(e) => return Err(e),
-            }
-        }
-    }
-}
-```
+### ✅ Completed
+1. **Global Mutex Removed**: No more `Arc<Mutex<DuckDBEngine>>`
+2. **Thread-Safe Pool**: Permit-based system respects DuckDB's thread requirements
+3. **Query Builder**: Fluent API with hints and cancellation
+4. **Parallel Execution**: Queries can run concurrently, limited only by permits
+5. **Resource Management**: Semaphore-based connection limiting
 
-## Migration Path
-
-### Phase 1: Remove Global Mutex
-1. Extract connection pool from mutex wrapper
-2. Implement connection-level locking only
-3. Verify no regressions in existing functionality
-
-### Phase 2: Unify Connection Types
-1. Merge all pool types into UnifiedPool
-2. Implement hint-based optimization
-3. Migrate existing queries to use hints
-
-### Phase 3: Improve Resource Management
-1. Implement memory-based admission control
-2. Add connection health checks
-3. Implement automatic cleanup
-
-### Phase 4: Monitoring and Observability
-1. Add comprehensive metrics
-2. Implement health endpoints
-3. Add performance profiling
+### ❌ Not Implemented (By Design)
+1. **Connection Pooling**: Each query creates its own connection (required for thread safety)
+2. **Connection Health Checks**: Not needed since connections aren't reused
+3. **Complex Result Types**: Simplified to `execute_streaming()` and `execute_simple()`
+4. **Automatic Retry**: Can be added later if needed
 
 ## Benefits
 
-1. **Simplicity**: One pool, one query method, clear semantics
-2. **Performance**: No global locking, parallel query execution
-3. **Resource Safety**: Simple, predictable resource management
-4. **Maintainability**: Less code, fewer abstractions
-5. **Flexibility**: Hints allow optimization without complexity
+1. **Thread Safety**: Connections are always used on the thread that created them
+2. **Simplicity**: One pool, one query method, clear semantics
+3. **Performance**: No global locking, parallel query execution
+4. **Resource Safety**: Simple, predictable resource management
+5. **Maintainability**: Less code, fewer abstractions
+6. **Flexibility**: Hints allow optimization without complexity
+7. **Automatic Cleanup**: Connections are dropped with their threads
+
+## Limitations and Trade-offs
+
+1. **No Connection Reuse**: Each query creates a new connection
+2. **Connection Overhead**: Opening/closing connections has some cost
+3. **No Warmup**: Can't pre-create connections for performance
+
+However, in practice, DuckDB's connection creation is fast enough that these limitations rarely matter. The benefits of thread safety and simplicity outweigh the minor performance overhead.
+
+## Migration from Global Mutex
+
+The previous architecture used `Arc<Mutex<DuckDBEngine>>` which serialized ALL database operations. The new architecture allows true parallel query execution while respecting thread safety.
+
+- **Before**: All queries wait for the global mutex
+- **After**: Queries execute in parallel, limited only by permits
 
 ## Testing Strategy
 

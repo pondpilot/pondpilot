@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use serde::{Serialize, Deserialize};
-use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct QueryBuilder {
@@ -101,70 +100,22 @@ impl QueryBuilder {
         self
     }
     
-}
-
-pub struct QueryResult<T> {
-    pub stream: Box<dyn futures::Stream<Item = Result<T>> + Send + Unpin>,
-    pub schema: Arc<Schema>,
-    pub size_hint: Option<usize>,
-    pub memory_estimate: Option<usize>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Schema {
-    pub columns: Vec<ColumnInfo>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ColumnInfo {
-    pub name: String,
-    pub data_type: String,
-    pub nullable: bool,
-}
-
-pub enum AutoResult<T> {
-    Collected(Vec<T>),
-    Stream(Box<dyn futures::Stream<Item = Result<T>> + Send + Unpin>),
-}
-
-impl<T> QueryResult<T> 
-where
-    T: Send + 'static,
-{
-    /// For small results (e.g., catalog queries)
-    pub async fn collect_all(self) -> Result<Vec<T>> {
-        use futures::TryStreamExt;
+    /// Execute the query and return a streaming result
+    pub async fn execute_streaming(self) -> Result<tokio::sync::mpsc::Receiver<super::arrow_streaming::ArrowStreamMessage>> {
+        let engine = self.engine.lock().await;
         
-        match self.size_hint {
-            Some(size) if size < 10_000 => {
-                // Small result, safe to collect
-                self.stream.try_collect().await
-            }
-            _ => {
-                // Large or unknown size
-                Err(crate::errors::DuckDBError::InvalidOperation {
-                    message: "Result too large for collect_all(), use stream()".to_string(),
-                })
-            }
-        }
+        engine.execute_arrow_streaming(
+            self.sql,
+            self.hints,
+            self.cancel_token
+        ).await
     }
     
-    /// For large results
-    pub fn stream(self) -> impl futures::Stream<Item = Result<T>> {
-        self.stream
-    }
-    
-    /// Auto-detect based on size
-    pub async fn auto(self) -> Result<AutoResult<T>> {
-        use futures::TryStreamExt;
+    /// Execute the query and collect all results into a simple structure
+    pub async fn execute_simple(self) -> Result<super::types::QueryResult> {
+        let engine = self.engine.lock().await;
         
-        match self.size_hint {
-            Some(size) if size < 10_000 => {
-                Ok(AutoResult::Collected(self.stream.try_collect().await?))
-            }
-            _ => {
-                Ok(AutoResult::Stream(self.stream))
-            }
-        }
+        // For simple execution, use the execute_and_collect helper
+        engine.execute_query(&self.sql, vec![]).await
     }
 }

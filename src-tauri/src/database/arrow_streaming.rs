@@ -1,5 +1,5 @@
-use crate::errors::{Result, DuckDBError};
-use crate::database::thread_safe_pool::ThreadSafePool;
+use crate::errors::Result;
+use crate::database::unified_pool::UnifiedPool;
 use crate::database::sql_classifier::ClassifiedSqlStatement;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -15,7 +15,7 @@ pub enum ArrowStreamMessage {
 }
 
 pub struct ArrowStreamingExecutor {
-    pool: Arc<ThreadSafePool>,
+    pool: Arc<UnifiedPool>,
     sql: String,
     query_id: String,
     cancel_token: Option<CancellationToken>,
@@ -23,7 +23,7 @@ pub struct ArrowStreamingExecutor {
 
 impl ArrowStreamingExecutor {
     pub fn new(
-        pool: Arc<ThreadSafePool>,
+        pool: Arc<UnifiedPool>,
         sql: String,
         query_id: String,
         cancel_token: Option<CancellationToken>,
@@ -46,9 +46,6 @@ impl ArrowStreamingExecutor {
         
         // Get connection permit
         let permit = self.pool.acquire_connection_permit().await?;
-        
-        // Get streaming permit
-        let _streaming_permit = self.pool.acquire_streaming_permit().await?;
         
         // Execute in blocking task
         tokio::task::spawn_blocking(move || {
@@ -163,21 +160,19 @@ impl ArrowStreamingExecutor {
                         format!("{} LIMIT 0", sql.trim_end_matches(';'))
                     };
                     
-                    match conn.prepare(&schema_query) {
-                        Ok(mut schema_stmt) => {
-                            match schema_stmt.query_arrow([]) {
-                                Ok(arrow_result) => {
-                                    eprintln!("[ARROW_STREAMING] Got schema using LIMIT 0 approach");
-                                    Some(arrow_result.get_schema())
-                                }
-                                Err(e) => {
-                                    eprintln!("[ARROW_STREAMING] Failed to get schema with LIMIT 0: {}", e);
-                                    None
-                                }
-                            }
+                    let schema_result = (|| -> std::result::Result<Arc<ArrowSchema>, duckdb::Error> {
+                        let mut stmt = conn.prepare(&schema_query)?;
+                        let arrow_result = stmt.query_arrow([])?;
+                        Ok(arrow_result.get_schema())
+                    })();
+                    
+                    match schema_result {
+                        Ok(schema) => {
+                            eprintln!("[ARROW_STREAMING] Got schema using LIMIT 0 approach");
+                            Some(schema)
                         }
                         Err(e) => {
-                            eprintln!("[ARROW_STREAMING] Failed to prepare LIMIT 0 query: {}", e);
+                            eprintln!("[ARROW_STREAMING] Failed to get schema with LIMIT 0: {}", e);
                             None
                         }
                     }
@@ -186,9 +181,9 @@ impl ArrowStreamingExecutor {
                 }
             };
             
-            // Prepare the actual query
-            match conn.prepare(&sql) {
-                Ok(mut stmt) => {
+            // Execute the query and stream results
+            let query_result = (|| -> std::result::Result<(), duckdb::Error> {
+                let mut stmt = conn.prepare(&sql)?;
                     // Get schema if we don't have it yet
                     let schema = match schema {
                         Some(s) => s,
@@ -202,7 +197,7 @@ impl ArrowStreamingExecutor {
                                     let _ = tx.blocking_send(ArrowStreamMessage::Error(
                                         format!("Failed to get arrow result: {}", e)
                                     ));
-                                    return;
+                                    return Err(e);
                                 }
                             }
                         }
@@ -212,7 +207,7 @@ impl ArrowStreamingExecutor {
                     
                     if tx.blocking_send(ArrowStreamMessage::Schema(schema.clone())).is_err() {
                         eprintln!("[ARROW_STREAMING] Failed to send schema for query {}", query_id);
-                        return;
+                        return Ok(());
                     }
                     
                     // Stream results using the schema
@@ -244,20 +239,27 @@ impl ArrowStreamingExecutor {
                             eprintln!("[ARROW_STREAMING] Query {} completed with {} batches, {} total rows", 
                                      query_id, batch_count, total_rows);
                             let _ = tx.blocking_send(ArrowStreamMessage::Complete(total_rows));
+                            Ok(())
                         }
                         Err(e) => {
                             eprintln!("[ARROW_STREAMING] Failed to stream arrow results for {}: {}", query_id, e);
                             let _ = tx.blocking_send(ArrowStreamMessage::Error(
                                 format!("Failed to stream results: {}", e)
                             ));
+                            Err(e)
                         }
                     }
-                }
+            })();
+            
+            match query_result {
                 Err(e) => {
-                    eprintln!("[ARROW_STREAMING] Failed to prepare statement for {}: {}", query_id, e);
+                    eprintln!("[ARROW_STREAMING] Failed to execute query for {}: {}", query_id, e);
                     let _ = tx.blocking_send(ArrowStreamMessage::Error(
-                        format!("Failed to prepare statement: {}", e)
+                        format!("Failed to execute query: {}", e)
                     ));
+                }
+                Ok(()) => {
+                    // Query completed successfully
                 }
             }
             
