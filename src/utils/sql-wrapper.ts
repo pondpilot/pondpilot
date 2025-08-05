@@ -14,21 +14,24 @@ export const DEFAULT_ROW_LIMIT = 10000;
 export function wrapQueryWithLimit(sql: string, limit: number = DEFAULT_ROW_LIMIT): string {
   // Trim and normalize whitespace
   const normalizedSql = sql.trim();
-  
+
   // Check if query already has a LIMIT clause
   // This regex checks for LIMIT at word boundaries to avoid false positives
   const hasLimit = /\bLIMIT\s+\d+/i.test(normalizedSql);
   if (hasLimit) {
     return sql; // Return unchanged if already has limit
   }
-  
+
   // Check if this is a query that should have a limit
   // DDL statements, PRAGMA, etc. should not have limits
-  const shouldNotLimit = /^(CREATE|ALTER|DROP|PRAGMA|VACUUM|ANALYZE|EXPLAIN|ATTACH|DETACH|INSERT|UPDATE|DELETE|TRUNCATE)\s/i.test(normalizedSql);
+  const shouldNotLimit =
+    /^(CREATE|ALTER|DROP|PRAGMA|VACUUM|ANALYZE|EXPLAIN|ATTACH|DETACH|INSERT|UPDATE|DELETE|TRUNCATE)\s/i.test(
+      normalizedSql,
+    );
   if (shouldNotLimit) {
     return sql; // Return unchanged for non-SELECT statements
   }
-  
+
   // Check if it's a CTE or subquery that might need special handling
   const hasCTE = /^\s*WITH\s+/i.test(normalizedSql);
   if (hasCTE) {
@@ -41,19 +44,20 @@ export function wrapQueryWithLimit(sql: string, limit: number = DEFAULT_ROW_LIMI
       if (orderByMatch) {
         // Insert LIMIT before ORDER BY
         const orderByIndex = normalizedSql.lastIndexOf(orderByMatch[0]);
-        return normalizedSql.slice(0, orderByIndex) + `LIMIT ${limit} ` + normalizedSql.slice(orderByIndex);
+        return `${normalizedSql.slice(0, orderByIndex)}LIMIT ${limit} ${normalizedSql.slice(
+          orderByIndex,
+        )}`;
       }
     }
   }
-  
+
   // For regular SELECT queries, append LIMIT at the end
   // Check for trailing semicolon
   const hasSemicolon = normalizedSql.endsWith(';');
   if (hasSemicolon) {
-    return normalizedSql.slice(0, -1) + ` LIMIT ${limit};`;
-  } else {
-    return normalizedSql + ` LIMIT ${limit}`;
+    return `${normalizedSql.slice(0, -1)} LIMIT ${limit};`;
   }
+  return `${normalizedSql} LIMIT ${limit}`;
 }
 
 /**

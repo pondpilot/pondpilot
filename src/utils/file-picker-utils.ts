@@ -1,30 +1,12 @@
 /**
- * New file system utilities using the platform-agnostic file picker
- * This file provides compatibility adapters for the existing API
+ * Platform-agnostic file picker utilities
+ * This file provides compatibility adapters for the existing file picker API
  */
 
-import {
-  CodeFileExt,
-  codeFileExts,
-  SUPPORTED_DATA_SOURCE_FILE_EXTS,
-  LocalEntryId,
-  LocalFile,
-  LocalFolder,
-  supportedDataSourceFileExt,
-} from '@models/file-system';
+import { LocalEntryId, LocalFile, LocalFolder } from '@models/file-system';
 
-import { makeIdFactory } from './new-id';
+import { makeLocalEntryId, isSupportedDataSourceFileExt, isCodeFileExt } from './file-system';
 import { getFilePicker } from '../services/file-picker';
-
-export const makeLocalEntryId = makeIdFactory<LocalEntryId>();
-
-export function isSupportedDataSourceFileExt(x: unknown): x is supportedDataSourceFileExt {
-  return SUPPORTED_DATA_SOURCE_FILE_EXTS.includes(x as supportedDataSourceFileExt);
-}
-
-export function isCodeFileExt(x: unknown): x is CodeFileExt {
-  return codeFileExts.includes(x as CodeFileExt);
-}
 
 /**
  * Convert a picked file to a LocalFile or null if unsupported
@@ -79,7 +61,7 @@ function createLocalFileFromPicked(
 /**
  * Convert a picked directory to a LocalFolder
  */
-function createLocalFolderFromPicked(
+function _createLocalFolderFromPicked(
   pickedDirectory: { name: string; handle?: FileSystemDirectoryHandle; path?: string },
   parentId: LocalEntryId | null,
   userAdded: boolean,
@@ -105,7 +87,7 @@ function createLocalFolderFromPicked(
  * Compatibility adapter for the existing pickFiles API
  */
 export const pickFiles = async (
-  accept: FileExtension[],
+  accept: string[],
   description: string,
   allowMultiple: boolean = true,
 ): Promise<{ handles: FileSystemFileHandle[]; error: string | null }> => {
@@ -248,22 +230,26 @@ function createMockDirectoryHandle(pickedDirectory: {
   return {
     kind: 'directory',
     name: pickedDirectory.name,
-    async* entries() {
+    async *entries() {
       // This would need to be implemented to read directory contents using Tauri APIs
       // For now, return empty iterator
     },
-    async* keys() {},
-    async* values() {},
-    getDirectoryHandle: async (name: string) => {
+    async *keys() {
+      // Not implemented for Tauri mock handle
+    },
+    async *values() {
+      // Not implemented for Tauri mock handle
+    },
+    getDirectoryHandle: async (_name: string) => {
       throw new Error('Not implemented for Tauri mock handle');
     },
-    getFileHandle: async (name: string) => {
+    getFileHandle: async (_name: string) => {
       throw new Error('Not implemented for Tauri mock handle');
     },
-    removeEntry: async (name: string) => {
+    removeEntry: async (_name: string) => {
       throw new Error('Not implemented for Tauri mock handle');
     },
-    resolve: async (possibleDescendant: FileSystemHandle) => {
+    resolve: async (_possibleDescendant: FileSystemHandle) => {
       return null;
     },
     queryPermission: async () => 'granted' as PermissionState,
@@ -273,8 +259,11 @@ function createMockDirectoryHandle(pickedDirectory: {
   } as any;
 }
 
-// Re-export other utilities that don't need to change
+// Re-export utilities from file-system.ts for convenience
 export {
+  makeLocalEntryId,
+  isSupportedDataSourceFileExt,
+  isCodeFileExt,
   collectFileHandlePersmissions,
   requestFileHandlePersmissions,
   isAvailableFileHandle,

@@ -153,7 +153,7 @@ export function calculateDynamicPoolSize(): { min: number; max: number } {
   // Use conservative defaults that can be adjusted based on usage patterns
 
   // Check if we're in a worker context
-  const isWorker =
+  const _isWorker =
     typeof (globalThis as any).WorkerGlobalScope !== 'undefined' &&
     globalThis instanceof (globalThis as any).WorkerGlobalScope;
 

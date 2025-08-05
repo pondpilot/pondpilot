@@ -85,7 +85,7 @@ export const ModifierProvider = ({ children }: { children: React.ReactNode }) =>
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, []);
+  }, [isAltPressed, isCtrlPressed, isMetaPressed, isShiftPressed]);
 
   return <ModifierContext.Provider value={activeModifiers}>{children}</ModifierContext.Provider>;
 };

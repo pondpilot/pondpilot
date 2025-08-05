@@ -1,5 +1,6 @@
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { tableFromIPC, RecordBatch, Schema } from 'apache-arrow';
+
 import { getLogger } from './debug-logger';
 
 const logger = getLogger('database:tauri-arrow-reader');
@@ -49,7 +50,7 @@ export class TauriArrowReader {
               this.resolver({ done: true, value: undefined });
             }
           }
-        })
+        }),
       );
 
       // Batch listener
@@ -83,7 +84,7 @@ export class TauriArrowReader {
               this.resolver({ done: true, value: undefined });
             }
           }
-        })
+        }),
       );
 
       // Completion listener
@@ -92,13 +93,15 @@ export class TauriArrowReader {
           logger.debug(`[TauriArrowReader] Received complete event for stream ${this.streamId}`);
           this.completed = true;
           const batchCount = event.payload as number;
-          logger.debug(`[TauriArrowReader] Stream ${this.streamId} completed with ${batchCount} batches`);
+          logger.debug(
+            `[TauriArrowReader] Stream ${this.streamId} completed with ${batchCount} batches`,
+          );
 
           if (this.resolver && this.batchQueue.length === 0) {
             logger.debug('[TauriArrowReader] Resolving with done=true');
             this.resolver({ done: true, value: undefined });
           }
-        })
+        }),
       );
 
       // Error listener
@@ -110,7 +113,7 @@ export class TauriArrowReader {
           if (this.resolver) {
             this.resolver({ done: true, value: undefined });
           }
-        })
+        }),
       );
     } catch (e) {
       this.error = new Error(`Failed to setup listeners: ${e}`);
@@ -121,7 +124,7 @@ export class TauriArrowReader {
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
     const binaryString = atob(base64);
     const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
+    for (let i = 0; i < binaryString.length; i += 1) {
       bytes[i] = binaryString.charCodeAt(i);
     }
     return bytes.buffer;
@@ -142,7 +145,9 @@ export class TauriArrowReader {
     // If we have queued batches, return them first
     if (this.batchQueue.length > 0) {
       const batch = this.batchQueue.shift()!;
-      logger.debug(`[TauriArrowReader] Returning queued batch, ${this.batchQueue.length} remaining`);
+      logger.debug(
+        `[TauriArrowReader] Returning queued batch, ${this.batchQueue.length} remaining`,
+      );
       return { value: batch, done: false };
     }
 
@@ -181,7 +186,7 @@ export class TauriArrowReader {
 
     // Cancel stream on backend (fire and forget for faster response)
     const { invoke } = await import('@tauri-apps/api/core');
-    invoke('cancel_stream', { streamId: this.streamId }).catch(err => {
+    invoke('cancel_stream', { streamId: this.streamId }).catch((err) => {
       logger.error(`[TauriArrowReader] Failed to cancel stream ${this.streamId}:`, err);
     });
   }

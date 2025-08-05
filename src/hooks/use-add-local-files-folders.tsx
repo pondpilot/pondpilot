@@ -11,7 +11,7 @@ import { fileSystemService } from '@utils/file-system-adapter';
 import { useCallback } from 'react';
 
 export const useAddLocalFilesOrFolders = () => {
-  const pool = useDatabaseConnectionPool();
+  const pool = useDuckDBConnectionPool();
 
   const handleAddFile = useCallback(async () => {
     // TODO: we should see if we ca avoid calling this hook in uninitialized

@@ -663,7 +663,7 @@ export const restoreAppDataFromIDB = async (
       }
     } catch (error) {
       // Handle errors with file handles (NotFoundError, etc.)
-      console.error(`Error processing file ${localEntry.name}:`, error);
+      // console.error(`Error processing file ${localEntry.name}:`, error);
 
       // Add to discarded entries
       discardedEntries.push({
@@ -767,9 +767,9 @@ export const restoreAppDataFromIDB = async (
   }
 
   // Read database meta data
-  console.log('[restore] Getting database metadata...');
+  // console.log('[restore] Getting database metadata...');
   const databaseMetadata = await getDatabaseModel(conn);
-  console.log('[restore] Database metadata:', databaseMetadata);
+  // console.log('[restore] Database metadata:', databaseMetadata);
 
   // Always add the PondPilot system database to dataSources
   // This ensures it's visible even when empty on fresh start

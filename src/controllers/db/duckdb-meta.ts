@@ -44,7 +44,7 @@ export async function getLocalDBs(
   `;
 
   const result = await queryOneColumn<arrow.Utf8>(conn, sql, 'database_name');
-  console.log('[getLocalDBs] Found databases:', result);
+  // // console.log('[getLocalDBs] Found databases:', result);
   return result;
 }
 
@@ -86,7 +86,7 @@ function buildColumnsQueryWithFilters(
   // For attached databases, we may need to query information_schema directly
   // as duckdb_columns might not be populated in Tauri
   // Let's add logging to see what's happening
-  console.log('[buildColumnsQueryWithFilters] Building query for databases:', databaseNames);
+  // console.log('[buildColumnsQueryWithFilters] Building query for databases:', databaseNames);
 
   return `
     SELECT 
@@ -146,16 +146,16 @@ async function getTablesAndColumns(
   objectNames?: string[],
 ): Promise<ColumnsQueryReturnType[]> {
   const sql = buildColumnsQueryWithFilters(databaseNames, schemaNames, objectNames);
-  console.log('[getTablesAndColumns] Executing SQL:', sql);
-  console.log('[getTablesAndColumns] Database names:', databaseNames);
+  // console.log('[getTablesAndColumns] Executing SQL:', sql);
+  // console.log('[getTablesAndColumns] Database names:', databaseNames);
 
   // For Tauri, try to ensure metadata is fresh by querying system tables first
   if (databaseNames && databaseNames.length > 0) {
     try {
       // Query duckdb_databases to verify the database is attached
-      const dbCheckQuery = `SELECT database_name, path FROM duckdb_databases WHERE database_name IN (${databaseNames.map(name => `'${name}'`).join(',')})`;
-      const dbCheckResult = await conn.query(dbCheckQuery);
-      console.log('[getTablesAndColumns] Database check result:', dbCheckResult);
+      const dbCheckQuery = `SELECT database_name, path FROM duckdb_databases WHERE database_name IN (${databaseNames.map((name) => `'${name}'`).join(',')})`;
+      const _dbCheckResult = await conn.query(dbCheckQuery);
+      // console.log('[getTablesAndColumns] Database check result:', _dbCheckResult);
 
       // Try to force metadata refresh by querying PRAGMA
       for (const dbName of databaseNames) {
@@ -175,36 +175,42 @@ async function getTablesAndColumns(
               WHERE table_catalog = '${dbName}'
                 AND schema_name NOT IN ('information_schema', 'pg_catalog')
             `;
-            const tablesResult = await conn.query(tablesQuery);
-            console.log(`[getTablesAndColumns] Tables in ${dbName}:`, tablesResult);
+            const _tablesResult = await conn.query(tablesQuery);
+            // console.log(`[getTablesAndColumns] Tables in ${dbName}:`, _tablesResult);
           } catch (e) {
-            console.log(`[getTablesAndColumns] Could not query information_schema for ${dbName}:`, e);
+            // console.log(
+            //   `[getTablesAndColumns] Could not query information_schema for ${dbName}:`,
+            //   e,
+            // );
           }
         }
       }
     } catch (e) {
-      console.log('[getTablesAndColumns] Error checking databases:', e);
+      // console.log('[getTablesAndColumns] Error checking databases:', e);
     }
   }
 
   const res = await conn.query<ColumnsQueryArrowType>(sql);
 
-  console.log('[getTablesAndColumns] Query result:', res);
-  console.log('[getTablesAndColumns] numRows:', res.numRows);
-  console.log('[getTablesAndColumns] Result type:', typeof res);
-  console.log('[getTablesAndColumns] Has getChild method:', typeof res.getChild === 'function');
+  // console.log('[getTablesAndColumns] Query result:', res);
+  // console.log('[getTablesAndColumns] numRows:', res.numRows);
+  // console.log('[getTablesAndColumns] Result type:', typeof res);
+  // console.log('[getTablesAndColumns] Has getChild method:', typeof res.getChild === 'function');
 
   // Handle Arrow table format
   const ret: ColumnsQueryReturnType[] = [];
   const numRows = res.numRows || res.rowCount || 0;
 
   if (numRows === 0) {
-    console.log('[getTablesAndColumns] No rows returned from metadata query');
+    // console.log('[getTablesAndColumns] No rows returned from metadata query');
     return ret;
   }
 
   // Get column vectors from the Arrow table
-  console.log('[getTablesAndColumns] Available columns:', res.getColumnNames ? res.getColumnNames() : 'getColumnNames not available');
+  // console.log(
+  //   '[getTablesAndColumns] Available columns:',
+  //   res.getColumnNames ? res.getColumnNames() : 'getColumnNames not available',
+  // );
 
   const columns = {
     database_name: res.getChild('database_name'),
@@ -217,7 +223,10 @@ async function getTablesAndColumns(
     is_nullable: res.getChild('is_nullable'),
   };
 
-  console.log('[getTablesAndColumns] Column vectors retrieved:', Object.keys(columns).map(k => `${k}: ${(columns as any)[k] ? 'found' : 'null'}`));
+  // console.log(
+  //   '[getTablesAndColumns] Column vectors retrieved:',
+  //   Object.keys(columns).map((k) => `${k}: ${(columns as any)[k] ? 'found' : 'null'}`),
+  // );
 
   for (let i = 0; i < numRows; i += 1) {
     const database_name_value = columns.database_name?.get(i);
@@ -390,35 +399,35 @@ export async function getDuckDBFunctions(pool: ConnectionPool): Promise<DBFuncti
 
   const result: DBFunctionsMetadata[] = [];
   for (let i = 0; i < res.numRows; i += 1) {
-      const parametersValue = columns.parameters?.get(i);
-      let parameters: string[];
-      if (
-        parametersValue &&
-        typeof parametersValue === 'object' &&
-        typeof parametersValue.toArray === 'function'
-      ) {
-        parameters = parametersValue.toArray();
-      } else {
-        parameters = [];
-      }
-
-      const examplesValue = columns.examples?.get(i);
-      let examples: string[] | null = null;
-      if (
-        examplesValue &&
-        typeof examplesValue === 'object' &&
-        typeof examplesValue.toArray === 'function'
-      ) {
-        examples = examplesValue.toArray();
-      }
-
-      result.push({
-        function_name: columns.function_name?.get(i) ?? '',
-        description: columns.description?.get(i) || null,
-        parameters,
-        examples,
-        internal: columns.internal?.get(i) ?? false,
-      });
+    const parametersValue = columns.parameters?.get(i);
+    let parameters: string[];
+    if (
+      parametersValue &&
+      typeof parametersValue === 'object' &&
+      typeof parametersValue.toArray === 'function'
+    ) {
+      parameters = parametersValue.toArray();
+    } else {
+      parameters = [];
     }
-    return result;
+
+    const examplesValue = columns.examples?.get(i);
+    let examples: string[] | null = null;
+    if (
+      examplesValue &&
+      typeof examplesValue === 'object' &&
+      typeof examplesValue.toArray === 'function'
+    ) {
+      examples = examplesValue.toArray();
+    }
+
+    result.push({
+      function_name: columns.function_name?.get(i) ?? '',
+      description: columns.description?.get(i) || null,
+      parameters,
+      examples,
+      internal: columns.internal?.get(i) ?? false,
+    });
+  }
+  return result;
 }

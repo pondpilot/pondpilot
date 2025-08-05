@@ -199,4 +199,4 @@ export function localEntryFromHandle(
  * Platform-agnostic file picker functions.
  * These automatically use the appropriate implementation based on the environment.
  */
-export { pickFiles, pickFolder } from './file-system-new';
+// File picker functions (pickFiles, pickFolder) are now in file-picker-utils.ts

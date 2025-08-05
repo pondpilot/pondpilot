@@ -106,23 +106,23 @@ class DebugLogger {
     switch (level) {
       case LogLevel.ERROR:
         if (hasContext) {
-          console.error(message, context);
+          // console.error(message, context);
         } else {
-          console.error(message);
+          // console.error(message);
         }
         break;
       case LogLevel.WARN:
         if (hasContext) {
-          console.warn(message, context);
+          // console.warn(message, context);
         } else {
-          console.warn(message);
+          // console.warn(message);
         }
         break;
       default:
         if (hasContext) {
-          console.log(message, context);
+          // console.log(message, context);
         } else {
-          console.log(message);
+          // console.log(message);
         }
         break;
     }
