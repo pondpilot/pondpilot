@@ -10,5 +10,5 @@ pub mod arrow_streaming;
 
 pub use engine::DuckDBEngine;
 pub use types::*;
-pub use query_builder::{QueryHints};
+pub use query_builder::{QueryBuilder, QueryHints, QueryPriority};
 pub use sql_classifier::{SqlStatement, SqlStatementType, ClassifiedSqlStatement};
