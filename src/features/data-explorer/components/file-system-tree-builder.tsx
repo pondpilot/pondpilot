@@ -1,6 +1,7 @@
 import { TreeNodeData } from '@components/explorer-tree';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyFlatFileDataSource, XlsxSheetView } from '@models/data-source';
+import { DataBaseModel } from '@models/db';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { useMemo } from 'react';
 
@@ -18,6 +19,9 @@ interface FileSystemTreeBuilderProps {
   flatFileSourcesValues: AnyFlatFileDataSource[];
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, keyof DataExplorerNodeTypeMap>;
+  databaseMetadata?: Map<string, DataBaseModel>;
+  fileViewNames?: Set<string>;
+  showColumns?: boolean;
 }
 
 /**
@@ -30,6 +34,9 @@ export function useFileSystemTreeBuilder({
   flatFileSourcesValues,
   nodeMap,
   anyNodeIdToNodeTypeMap,
+  databaseMetadata,
+  fileViewNames,
+  showColumns,
 }: FileSystemTreeBuilderProps): TreeNodeData<DataExplorerNodeTypeMap>[] {
   // Create maps for efficient lookups
   const dataSourceByFileId = useMemo(
@@ -137,15 +144,24 @@ export function useFileSystemTreeBuilder({
         return;
       }
 
-      const fileNode = buildFileNode(entry, relatedSource, {
-        nodeMap,
-        anyNodeIdToNodeTypeMap,
-        conn,
-        dataSourceByFileId,
-        flatFileSourcesValues,
-        nonLocalDBFileEntries: allLocalEntries,
-        xlsxSheetsByFileId,
-      });
+      const fileNode = buildFileNode(
+        entry,
+        relatedSource,
+        {
+          nodeMap,
+          anyNodeIdToNodeTypeMap,
+          conn,
+          dataSourceByFileId,
+          flatFileSourcesValues,
+          nonLocalDBFileEntries: allLocalEntries,
+          xlsxSheetsByFileId,
+        },
+        {
+          databaseMetadata,
+          fileViewNames,
+          showColumns,
+        },
+      );
       fileTreeChildren.push(fileNode);
     });
 

@@ -1,4 +1,6 @@
-import { TreeNodeData } from '@components/explorer-tree';
+import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
+import { IconType } from '@components/named-icon';
+import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import { deleteDataSources } from '@controllers/data-source';
 import { renameFile, renameXlsxFile } from '@controllers/file-explorer';
 import { deleteLocalFileOrFolders } from '@controllers/file-system';
@@ -14,6 +16,8 @@ import {
 } from '@controllers/tab';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyFlatFileDataSource, XlsxSheetView } from '@models/data-source';
+import { DBColumn, DataBaseModel } from '@models/db';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { copyToClipboard } from '@utils/clipboard';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
@@ -36,6 +40,55 @@ interface FileSystemBuilderContext {
   flatFileSourcesValues: AnyFlatFileDataSource[];
   nonLocalDBFileEntries: LocalEntry[];
   xlsxSheetsByFileId: Map<LocalEntryId, XlsxSheetView[]>;
+}
+
+/**
+ * Builds a column node for a file in the file system tree
+ *
+ * @param column - Database column metadata
+ * @param fileId - ID of the file this column belongs to
+ * @param context - Builder context with node maps
+ * @returns TreeNodeData configured as a column node
+ */
+export function buildFileColumnTreeNode(
+  column: DBColumn,
+  fileId: LocalEntryId,
+  context: FileSystemBuilderContext,
+): TreeNodeData<DataExplorerNodeTypeMap> {
+  const { name: columnName, sqlType } = column;
+  const columnNodeId = `${fileId}::${columnName}`;
+  const iconType: IconType = getIconTypeForSQLType(sqlType);
+
+  context.nodeMap.set(columnNodeId, {
+    entryId: fileId,
+    isSheet: false,
+    sheetName: null,
+  });
+  context.anyNodeIdToNodeTypeMap.set(columnNodeId, 'column');
+
+  return {
+    nodeType: 'column',
+    value: columnNodeId,
+    label: columnName,
+    iconType,
+    isDisabled: false,
+    isSelectable: false,
+    contextMenu: [
+      {
+        children: [
+          {
+            label: 'Copy name',
+            onClick: () => {
+              copyToClipboard(toDuckDBIdentifier(columnName), {
+                showNotification: true,
+                notificationTitle: 'Copied',
+              });
+            },
+          },
+        ],
+      },
+    ],
+  };
 }
 
 /**
@@ -273,6 +326,11 @@ export function buildFileNode(
   entry: LocalEntry,
   relatedSource: AnyFlatFileDataSource,
   context: FileSystemBuilderContext,
+  options?: {
+    databaseMetadata?: Map<string, DataBaseModel>;
+    fileViewNames?: Set<string>;
+    showColumns?: boolean;
+  },
 ): TreeNodeData<DataExplorerNodeTypeMap> {
   const { nodeMap, anyNodeIdToNodeTypeMap, conn, flatFileSourcesValues } = context;
 
@@ -290,8 +348,82 @@ export function buildFileNode(
   const value = entry.id;
   const fqn = `main.${toDuckDBIdentifier(relatedSource.viewName)}`;
 
+  // Get columns metadata if enabled
+  const getFileColumns = (
+    viewName: string,
+    databaseMetadata?: Map<string, DataBaseModel>,
+  ): DBColumn[] | null => {
+    if (!databaseMetadata) return null;
+
+    const pondpilotDB = databaseMetadata.get(PERSISTENT_DB_NAME);
+    if (!pondpilotDB) return null;
+
+    const mainSchema = pondpilotDB.schemas.find((s) => s.name === 'main');
+    if (!mainSchema) return null;
+
+    const fileView = mainSchema.objects.find((obj) => obj.type === 'view' && obj.name === viewName);
+
+    return fileView?.columns || null;
+  };
+
+  let children: TreeNodeData<DataExplorerNodeTypeMap>[] | undefined;
+  const columns = options?.showColumns
+    ? getFileColumns(relatedSource.viewName, options.databaseMetadata)
+    : null;
+
+  if (columns && columns.length > 0) {
+    children = columns
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((column) => buildFileColumnTreeNode(column, entry.id, context));
+  }
+
   nodeMap.set(value, { entryId: entry.id, isSheet: false, sheetName: null });
   anyNodeIdToNodeTypeMap.set(value, 'file');
+
+  // Build context menu items
+  const contextMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [
+    {
+      label: 'Copy Full Name',
+      onClick: () => {
+        copyToClipboard(fqn, { showNotification: true });
+      },
+      onAlt: {
+        label: 'Copy Name',
+        onClick: () => {
+          copyToClipboard(toDuckDBIdentifier(relatedSource.viewName), {
+            showNotification: true,
+          });
+        },
+      },
+    },
+    {
+      label: 'Create a Query',
+      onClick: () => {
+        const query = `SELECT * FROM ${fqn};`;
+        const newScript = createSQLScript(`${relatedSource.viewName}_query`, query);
+        getOrCreateTabFromScript(newScript, true);
+      },
+    },
+    {
+      label: 'Show Schema',
+      onClick: () => {
+        getOrCreateSchemaBrowserTab({
+          sourceId: relatedSource.id,
+          sourceType: 'file',
+          setActive: true,
+        });
+      },
+    },
+  ];
+
+  // Add "Toggle columns" if columns are available
+  if (children && children.length > 0) {
+    contextMenuItems.push({
+      label: 'Toggle columns',
+      onClick: (node: any, tree: any) => tree.toggleExpanded(node.value),
+    });
+  }
 
   return {
     nodeType: 'file',
@@ -300,6 +432,7 @@ export function buildFileNode(
     iconType,
     isDisabled: false,
     isSelectable: true,
+    doNotExpandOnClick: true, // Only expand via context menu or Alt+Click
     renameCallbacks: {
       prepareRenameValue: () => relatedSource.viewName,
       validateRename: (node, newName) => validateFileRename(node, newName, flatFileSourcesValues),
@@ -328,43 +461,10 @@ export function buildFileNode(
     onCloseItemClick: (): void => {
       deleteTabByDataSourceId(relatedSource.id);
     },
+    children,
     contextMenu: [
       {
-        children: [
-          {
-            label: 'Copy Full Name',
-            onClick: () => {
-              copyToClipboard(fqn, { showNotification: true });
-            },
-            onAlt: {
-              label: 'Copy Name',
-              onClick: () => {
-                copyToClipboard(toDuckDBIdentifier(relatedSource.viewName), {
-                  showNotification: true,
-                });
-              },
-            },
-          },
-          {
-            label: 'Create a Query',
-            onClick: () => {
-              const query = `SELECT * FROM ${fqn};`;
-
-              const newScript = createSQLScript(`${relatedSource.viewName}_query`, query);
-              getOrCreateTabFromScript(newScript, true);
-            },
-          },
-          {
-            label: 'Show Schema',
-            onClick: () => {
-              getOrCreateSchemaBrowserTab({
-                sourceId: relatedSource.id,
-                sourceType: 'file',
-                setActive: true,
-              });
-            },
-          },
-        ],
+        children: contextMenuItems,
       },
     ],
   };
