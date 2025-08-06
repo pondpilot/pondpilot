@@ -6,6 +6,7 @@ import { TabView } from '@features/tab-view/tab-view';
 import { TabsPane } from '@features/tabs-pane';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { useAppTheme } from '@hooks/use-app-theme';
+import { useIsTauri } from '@hooks/use-is-tauri';
 import { Stack } from '@mantine/core';
 import { useHotkeys, useLocalStorage } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
@@ -14,6 +15,7 @@ import { useAppStore } from '@store/app-store';
 import { importSQLFiles } from '@utils/import-script-file';
 import { Allotment } from 'allotment';
 import { useCallback, useRef, useEffect, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 
 import { AccordionNavbar } from './components';
 import './main-page.css';
@@ -24,13 +26,41 @@ export const MainPage = () => {
    */
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const colorScheme = useAppTheme();
+  const isTauri = useIsTauri();
   const [layoutSizes, setOuterLayoutSizes] = useLocalStorage<number[]>({
     key: LOCAL_STORAGE_KEYS.MAIN_LAYOUT_DIMENSIONS,
   });
-  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+
+  // Get sidebar state from Tauri layout context if available
+  let tauriContext: { sidebarCollapsed: boolean; toggleSidebar: () => void } | undefined;
+  try {
+    if (isTauri) {
+      tauriContext = useOutletContext<{ sidebarCollapsed: boolean; toggleSidebar:() => void } | undefined>();
+    }
+  } catch (err) {
+    // Context might not be available in non-Tauri environment
+    tauriContext = undefined;
+  }
+
+  const [localSidebarCollapsed, setLocalSidebarCollapsed] = useState<boolean>(() => {
     const stored = localStorage.getItem(LOCAL_STORAGE_KEYS.SIDEBAR_COLLAPSED);
     return stored ? JSON.parse(stored) : false;
   });
+
+  // Use Tauri context if available, otherwise use local state
+  const sidebarCollapsed = tauriContext?.sidebarCollapsed ?? localSidebarCollapsed;
+  const setSidebarCollapsed = tauriContext ?
+    (value: boolean | ((prev: boolean) => boolean)) => {
+      // For Tauri, use the toggle function from context
+      if (typeof value === 'function') {
+        tauriContext.toggleSidebar();
+      } else {
+        // If value doesn't match current state, toggle
+        if (value !== tauriContext.sidebarCollapsed) {
+          tauriContext.toggleSidebar();
+        }
+      }
+    } : setLocalSidebarCollapsed;
 
   const tabCount = useAppStore((state) => state.tabs.size);
   const hasTabs = tabCount > 0;

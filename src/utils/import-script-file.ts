@@ -1,31 +1,22 @@
 import { showError } from '@components/app-notifications';
 import { importSQLFilesAndCreateScripts } from '@controllers/file-system';
 
-import { fileSystemService } from './file-system-adapter';
+import { pickFiles } from './file-picker-utils';
 
 export const importSQLFiles = async (): Promise<void> => {
   try {
-    const result = await fileSystemService.pickFiles({
-      accept: {
-        'application/octet-stream': ['.sql'],
-      },
-      description: 'Import SQL Files',
-      multiple: true,
-      excludeAcceptAllOption: false,
-    });
-
-    if (result.success && result.type === 'native') {
-      importSQLFilesAndCreateScripts(result.handles);
-    } else if (result.success && result.type === 'fallback') {
-      showError({
-        title: 'Browser Limitation',
-        message: 'File imports require Chrome or Edge browser for full functionality',
-      });
-    } else if (!result.success && !result.userCancelled) {
+    const { handles, error } = await pickFiles(['.sql'], 'Import SQL Files');
+    
+    if (error) {
       showError({
         title: 'Import Error',
-        message: result.error || 'Failed to import SQL files',
+        message: error,
       });
+      return;
+    }
+    
+    if (handles.length > 0) {
+      importSQLFilesAndCreateScripts(handles);
     }
   } catch (error) {
     console.error('Error importing SQL files: ', error);
