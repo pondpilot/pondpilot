@@ -125,8 +125,12 @@ fn sanitize_identifier(name: &str) -> Result<String> {
 #[derive(Debug, Clone)]
 pub struct DuckDBEngine {
     pool: Arc<UnifiedPool>,
+    // TODO: Integrate ResourceManager for query admission control and memory management
+    #[allow(dead_code)]
     resources: Arc<ResourceManager>,
     registered_files: Arc<tokio::sync::Mutex<HashMap<String, FileInfo>>>,
+    // TODO: Use db_path for database management operations
+    #[allow(dead_code)]
     db_path: PathBuf,
 }
 
@@ -164,6 +168,8 @@ impl DuckDBEngine {
 
 
 
+    // TODO: Use for SET/PRAGMA statements that modify session state
+    #[allow(dead_code)]
     async fn execute_session_modifying_statement(&self, sql: &str) -> Result<()> {
         let sql_owned = sql.to_string();
         
@@ -378,6 +384,8 @@ impl DuckDBEngine {
         Ok(columns)
     }
 
+    // TODO: Expose via API for connection health checks
+    #[allow(dead_code)]
     pub async fn test_connection(&self) -> Result<()> {
         self.execute_and_collect("SELECT 1").await?;
         Ok(())
@@ -398,6 +406,8 @@ impl DuckDBEngine {
         Ok(())
     }
 
+    // TODO: Expose multi-database support via API
+    #[allow(dead_code)]
     pub async fn attach_database(&self, name: &str, path: &str) -> Result<()> {
         // Validate path and sanitize database name
         let validated_path = validate_file_path(path)?;
@@ -409,6 +419,8 @@ impl DuckDBEngine {
         Ok(())
     }
 
+    // TODO: Expose multi-database support via API
+    #[allow(dead_code)]
     pub async fn detach_database(&self, name: &str) -> Result<()> {
         let sanitized_name = sanitize_identifier(name)?;
         let sql = format!("DETACH DATABASE {}", sanitized_name);
@@ -416,6 +428,8 @@ impl DuckDBEngine {
         Ok(())
     }
 
+    // TODO: Expose multi-database support via API
+    #[allow(dead_code)]
     pub async fn use_database(&self, database: &str) -> Result<()> {
         let sanitized_database = sanitize_identifier(database)?;
         let sql = format!("USE {}", sanitized_database);
@@ -492,6 +506,8 @@ impl DuckDBEngine {
         Ok(files.values().cloned().collect())
     }
 
+    // TODO: Expose capabilities discovery via API
+    #[allow(dead_code)]
     pub fn get_capabilities(&self) -> EngineCapabilities {
         EngineCapabilities {
             supports_streaming: true,
