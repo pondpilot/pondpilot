@@ -122,7 +122,7 @@ export class DuckDBTauriEngine implements DatabaseEngine {
     return this.invokeWithErrorHandling<QueryResult>('execute_query', { sql, params });
   }
 
-  async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
+  async* stream(sql: string, params?: any[]): AsyncGenerator<any> {
     const streamId = crypto.randomUUID();
     const buffer: any[] = [];
     let done = false;

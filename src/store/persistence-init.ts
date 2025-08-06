@@ -89,13 +89,13 @@ async function restoreAppDataFromSQLite(
         entryData.handle = {
           kind: 'directory',
           name: entryData.name,
-          async *entries() {
+          async* entries() {
             // This would need to be implemented to read directory contents using Tauri APIs
           },
-          async *keys() {
+          async* keys() {
             // Not implemented for Tauri mock handle
           },
-          async *values() {
+          async* values() {
             // Not implemented for Tauri mock handle
           },
           getDirectoryHandle: async (_name: string) => {
