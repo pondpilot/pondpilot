@@ -53,7 +53,7 @@ test.describe('Datasource Wizard', () => {
 
   test('should validate database name', async ({
     page,
-    _expectErrorNotification,
+    expectErrorNotification,
     openDatasourceWizard,
   }) => {
     // Navigate to remote database config
