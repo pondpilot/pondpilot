@@ -44,7 +44,11 @@ impl Clone for QueryMetrics {
 }
 
 pub struct ResourceGuard {
+    // TODO: Track memory permits when resource management is fully integrated
+    #[allow(dead_code)]
     memory_permit: tokio::sync::OwnedSemaphorePermit,
+    // TODO: Track reserved memory for query execution
+    #[allow(dead_code)]
     memory_reserved: usize,
     manager: Arc<ResourceManager>,
     query_id: String,
@@ -90,6 +94,8 @@ impl ResourceManager {
         }
     }
     
+    // TODO: Integrate with QueryBuilder for admission control
+    #[allow(dead_code)]
     pub async fn acquire_for_query(
         &self,
         query_id: String,
@@ -153,16 +159,22 @@ impl ResourceManager {
         })
     }
     
+    // TODO: Use configured default memory settings
+    #[allow(dead_code)]
     fn default_query_memory(&self) -> usize {
         let config = crate::config::AppConfig::from_env();
         // Default to 10% of total memory or configured default, whichever is smaller
         std::cmp::min(self.total_memory / 10, config.default_query_memory_bytes())
     }
     
+    // TODO: Expose query monitoring via API
+    #[allow(dead_code)]
     pub async fn get_active_queries(&self) -> Vec<QueryMetrics> {
         self.active_queries.read().await.values().cloned().collect()
     }
     
+    // TODO: Expose memory usage monitoring via API
+    #[allow(dead_code)]
     pub fn get_memory_usage(&self) -> (usize, usize) {
         let used = self.used_memory.load(Ordering::Relaxed);
         (used, self.total_memory)

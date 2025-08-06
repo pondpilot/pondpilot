@@ -2,7 +2,11 @@ use sysinfo::System;
 
 #[derive(Debug, Clone)]
 pub struct ResourceLimits {
+    // TODO: Use for primary connection configuration
+    #[allow(dead_code)]
     pub primary_memory: String,
+    // TODO: Use for primary connection thread configuration
+    #[allow(dead_code)]
     pub primary_threads: usize,
     pub pool_memory: String,
     pub pool_threads: usize,

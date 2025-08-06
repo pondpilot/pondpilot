@@ -14,7 +14,7 @@ use database::{DuckDBEngine, EngineConfig};
 use persistence::PersistenceState;
 use streaming::StreamManager;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Manager, Listener};
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -120,12 +120,34 @@ fn main() {
             app.manage(persistence);
             app.manage(stream_manager);
             
+            // Get the main window
+            let window = app.get_webview_window("main").unwrap();
+            
             // Enable devtools in debug mode
             #[cfg(debug_assertions)]
             {
-                let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
+            
+            // Log current configuration
+            eprintln!("[WEBVIEW] Debug mode: {}", cfg!(debug_assertions));
+            
+            // Check what URL is being loaded
+            if let Ok(current_url) = window.url() {
+                eprintln!("[WEBVIEW] Initial URL: {}", current_url);
+            }
+            
+            // Listen for navigation events
+            window.listen("tauri://navigate", |event| {
+                eprintln!("[WEBVIEW] Navigation event: {:?}", event.payload());
+            });
+            
+            // Listen for error events
+            let window_error = window.clone();
+            window_error.listen("tauri://error", move |event| {
+                eprintln!("[WEBVIEW] Error event: {:?}", event.payload());
+            });
+            
             
             Ok(())
         })

@@ -2,17 +2,20 @@ use crate::errors::{DuckDBError, Result};
 use crate::system_resources::{calculate_resource_limits, ResourceLimits};
 use duckdb::Connection;
 use std::sync::Arc;
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::Semaphore;
 use std::path::PathBuf;
 use std::fs;
 use std::time::Duration;
-use tokio_util::sync::CancellationToken;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug, Clone)]
 pub struct PoolConfig {
+    // TODO: Implement connection pre-warming based on min_connections
+    #[allow(dead_code)]
     pub min_connections: usize,
     pub max_connections: usize,
+    // TODO: Implement idle connection cleanup
+    #[allow(dead_code)]
     pub idle_timeout: Duration,
     pub acquire_timeout: Duration,
 }
