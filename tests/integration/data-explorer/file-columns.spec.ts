@@ -22,7 +22,7 @@ const test = mergeTests(
 test.describe('File Columns Display', () => {
   test.beforeEach(async ({ testTmp }) => {
     // Create test CSV file with known columns
-    await createFile(
+    createFile(
       testTmp.join('users.csv'),
       'id,name,email\n1,John Doe,john@example.com\n2,Jane Smith,jane@example.com',
     );
@@ -43,10 +43,7 @@ test.describe('File Columns Display', () => {
     await addFile();
 
     // Wait for file to appear in the explorer
-    await page
-      .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
-      .first()
-      .waitFor({ state: 'visible', timeout: 10000 });
+    await page.getByTestId(/^data-explorer-fs-tree-node-.*-container$/).first().waitFor();
 
     await waitForFilesToBeProcessed();
 
@@ -55,7 +52,7 @@ test.describe('File Columns Display', () => {
 
     // Right-click on file to open context menu
     const fileNode = page
-      .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+      .getByTestId(/^data-explorer-fs-tree-node-.*-container$/)
       .filter({
         has: page.locator('p').getByText('users', { exact: true }),
       });
@@ -70,9 +67,9 @@ test.describe('File Columns Display', () => {
     await toggleColumnsItem.click();
 
     // Wait for columns to appear and verify they're visible in the tree
-    await expect(page.locator('[data-testid*="::id-container"]')).toBeVisible();
-    await expect(page.locator('[data-testid*="::name-container"]')).toBeVisible();
-    await expect(page.locator('[data-testid*="::email-container"]')).toBeVisible();
+    await expect(page.getByTestId(/.*::id-container$/)).toBeVisible();
+    await expect(page.getByTestId(/.*::name-container$/)).toBeVisible();
+    await expect(page.getByTestId(/.*::email-container$/)).toBeVisible();
   });
 
   test('should expand file columns with Alt+Click and collapse on second Alt+Click', async ({
@@ -90,10 +87,7 @@ test.describe('File Columns Display', () => {
     await addFile();
 
     // Wait for file to appear in the explorer
-    await page
-      .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
-      .first()
-      .waitFor({ state: 'visible', timeout: 10000 });
+    await page.getByTestId(/^data-explorer-fs-tree-node-.*-container$/).first().waitFor();
 
     await waitForFilesToBeProcessed();
 
@@ -102,7 +96,7 @@ test.describe('File Columns Display', () => {
 
     // Get file node
     const fileNode = page
-      .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+      .getByTestId(/^data-explorer-fs-tree-node-.*-container$/)
       .filter({
         has: page.locator('p').getByText('users', { exact: true }),
       });
@@ -116,17 +110,17 @@ test.describe('File Columns Display', () => {
     await fileNode.click({ modifiers: ['Alt'] });
 
     // Wait for columns to appear
-    await expect(page.locator('[data-testid*="::id-container"]')).toBeVisible();
-    await expect(page.locator('[data-testid*="::name-container"]')).toBeVisible();
-    await expect(page.locator('[data-testid*="::email-container"]')).toBeVisible();
+    await expect(page.getByTestId(/.*::id-container$/)).toBeVisible();
+    await expect(page.getByTestId(/.*::name-container$/)).toBeVisible();
+    await expect(page.getByTestId(/.*::email-container$/)).toBeVisible();
 
     // Alt+Click again to collapse columns
     await fileNode.click({ modifiers: ['Alt'] });
 
     // Verify that columns are now hidden in the tree
-    await expect(page.locator('[data-testid*="::id-container"]')).toBeHidden();
-    await expect(page.locator('[data-testid*="::name-container"]')).toBeHidden();
-    await expect(page.locator('[data-testid*="::email-container"]')).toBeHidden();
+    await expect(page.getByTestId(/.*::id-container$/)).toBeHidden();
+    await expect(page.getByTestId(/.*::name-container$/)).toBeHidden();
+    await expect(page.getByTestId(/.*::email-container$/)).toBeHidden();
   });
 
   test('should NOT expand file columns with regular click', async ({
@@ -144,10 +138,7 @@ test.describe('File Columns Display', () => {
     await addFile();
 
     // Wait for file to appear in the explorer
-    await page
-      .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
-      .first()
-      .waitFor({ state: 'visible', timeout: 10000 });
+    await page.getByTestId(/^data-explorer-fs-tree-node-.*-container$/).first().waitFor();
 
     await waitForFilesToBeProcessed();
 
@@ -156,22 +147,22 @@ test.describe('File Columns Display', () => {
 
     // Get file node
     const fileNode = page
-      .locator('[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]')
+      .getByTestId(/^data-explorer-fs-tree-node-.*-container$/)
       .filter({
         has: page.locator('p').getByText('users', { exact: true }),
       });
 
     // Initially columns should not be visible
-    await expect(page.locator('[data-testid*="::id-container"]')).toBeHidden();
-    await expect(page.locator('[data-testid*="::name-container"]')).toBeHidden();
-    await expect(page.locator('[data-testid*="::email-container"]')).toBeHidden();
+    await expect(page.getByTestId(/.*::id-container$/)).toBeHidden();
+    await expect(page.getByTestId(/.*::name-container$/)).toBeHidden();
+    await expect(page.getByTestId(/.*::email-container$/)).toBeHidden();
 
     // Regular click should NOT expand columns
     await fileNode.click();
 
     // Verify that columns are still NOT visible (regular click doesn't expand)
-    await expect(page.locator('[data-testid*="::id-container"]')).toBeHidden();
-    await expect(page.locator('[data-testid*="::name-container"]')).toBeHidden();
-    await expect(page.locator('[data-testid*="::email-container"]')).toBeHidden();
+    await expect(page.getByTestId(/.*::id-container$/)).toBeHidden();
+    await expect(page.getByTestId(/.*::name-container$/)).toBeHidden();
+    await expect(page.getByTestId(/.*::email-container$/)).toBeHidden();
   });
 });
