@@ -57,6 +57,9 @@ export const DataExplorer = memo(() => {
     flatFileSourcesValues,
     nodeMap,
     anyNodeIdToNodeTypeMap,
+    databaseMetadata,
+    fileViewNames,
+    showColumns: true,
   });
 
   // Detect available file types from local entries

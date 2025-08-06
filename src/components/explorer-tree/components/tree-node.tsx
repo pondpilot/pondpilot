@@ -98,7 +98,7 @@ const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
 
     // Handle Alt/Option key for toggling expansion
     if (e.altKey) {
-      if (hasChildren && node.doNotExpandOnClick !== true) {
+      if (hasChildren && (node.doNotExpandOnClick !== true || node.nodeType === 'file')) {
         tree.toggleExpanded(itemId);
       }
       if (isSelectable) {
