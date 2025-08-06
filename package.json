@@ -39,7 +39,6 @@
     "prettier": "prettier --check \"**/*.{ts,tsx}\"",
     "prettier:write": "prettier --write \"**/*.{ts,tsx}\"",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
   },
   "dependencies": {
