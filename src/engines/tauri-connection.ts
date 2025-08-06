@@ -1,5 +1,3 @@
-import { wrapQueryWithLimit } from '@utils/sql-wrapper';
-
 import { getLogger } from './debug-logger';
 import { DatabaseConnection, QueryResult, PreparedStatement } from './types';
 
@@ -20,12 +18,8 @@ export class TauriConnection implements DatabaseConnection {
       throw new Error('Connection is closed');
     }
 
-    // Wrap SELECT queries with a limit to prevent memory exhaustion
-    // This ensures consistency with the WASM implementation
-    const wrappedSql = wrapQueryWithLimit(sql);
-
     logger.trace('TauriConnection.execute() called', {
-      sql: wrappedSql,
+      sql: sql,
       connectionId: this.id,
       params,
     });
@@ -42,7 +36,7 @@ export class TauriConnection implements DatabaseConnection {
 
       const executePromise = this.invoke('connection_execute', {
         connectionId: this.id,
-        sql: wrappedSql,
+        sql: sql,
         params: params || [],
       });
 
