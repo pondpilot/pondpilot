@@ -76,7 +76,10 @@ The easiest way to use PondPilot is through the hosted web app:
 
 ### Browser Requirements
 
-As of today PondPilot only guranteed to work best in Chrome due to the use of File System Access APIs not available in other browsers. Hopefully this will change in the future.
+PondPilot works across all major browsers with different feature sets:
+
+- **Chrome/Edge**: Full functionality with file persistence and folder selection
+- **Firefox/Safari**: Core features with session-only file access (files must be re-selected after refresh)
 
 ### Running Locally
 
