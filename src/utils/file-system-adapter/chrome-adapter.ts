@@ -54,7 +54,14 @@ export class ChromeFileSystemAdapter implements FileSystemAdapter {
     let name = 'Chrome';
     let version = '';
 
-    if (ua.includes('Edg/')) {
+    // Check for Tauri first
+    if (
+      typeof window !== 'undefined' &&
+      ('__TAURI__' in window || '__TAURI_INTERNALS__' in window)
+    ) {
+      name = 'PondPilot Desktop';
+      version = '';
+    } else if (ua.includes('Edg/')) {
       name = 'Edge';
       version = ua.match(/Edg\/(\d+)/)?.[1] || '';
     } else if (ua.includes('Chrome/')) {
