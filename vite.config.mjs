@@ -20,10 +20,10 @@ export default defineConfig(({ mode }) => {
   const port = process.env.VITE_PORT ? parseInt(process.env.VITE_PORT) : 5173;
   
   // Check if building for Tauri
-  const isTauriBuild = process.env.TAURI_ENV_PLATFORM !== undefined;
+  const isTauriBuild = process.env.TAURI_ENV_PLATFORM !== undefined || process.env.TAURI_PLATFORM !== undefined;
 
   return {
-    base: isTauriBuild ? './' : '/',
+    base: isTauriBuild ? '' : '/',
     mode: mode === 'int-test-build' ? 'production' : mode,
     define: {
       __INTEGRATION_TEST__: mode === 'int-test-build',
