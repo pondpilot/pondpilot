@@ -161,26 +161,36 @@ impl AppConfig {
     }
     
     /// Get default query memory in bytes
+    // TODO: Wire up resource management to use these configuration methods
+    #[allow(dead_code)]
     pub fn default_query_memory_bytes(&self) -> usize {
         self.resource.default_query_memory_mb * 1024 * 1024
     }
     
     /// Get catalog query memory in bytes
+    // TODO: Wire up resource management to use these configuration methods
+    #[allow(dead_code)]
     pub fn catalog_query_memory_bytes(&self) -> usize {
         self.resource.catalog_query_memory_mb * 1024 * 1024
     }
     
     /// Get analytics query memory in bytes
+    // TODO: Wire up resource management to use these configuration methods
+    #[allow(dead_code)]
     pub fn analytics_query_memory_bytes(&self) -> usize {
         self.resource.analytics_query_memory_mb * 1024 * 1024
     }
     
     /// Get idle timeout as Duration
+    // TODO: Implement connection idle timeout handling
+    #[allow(dead_code)]
     pub fn idle_timeout(&self) -> Duration {
         Duration::from_secs(self.database.idle_timeout_secs)
     }
     
     /// Get priority timeout as Duration
+    // TODO: Implement priority-based query timeouts
+    #[allow(dead_code)]
     pub fn priority_timeout(&self, priority: crate::database::query_builder::QueryPriority) -> Duration {
         use crate::database::query_builder::QueryPriority;
         

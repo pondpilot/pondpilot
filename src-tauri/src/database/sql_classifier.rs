@@ -172,8 +172,12 @@ impl SqlStatement {
 }
 
 pub struct ClassifiedSqlStatement {
+    // TODO: Use for query routing and optimization
+    #[allow(dead_code)]
     pub code: String,
     pub statement_type: SqlStatement,
+    // TODO: Use for query categorization
+    #[allow(dead_code)]
     pub sql_type: SqlStatementType,
     pub returns_result_set: bool,
 }

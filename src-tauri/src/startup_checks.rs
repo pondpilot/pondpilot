@@ -5,6 +5,8 @@ use std::process::Command;
 pub struct StartupError {
     pub title: String,
     pub message: String,
+    // TODO: Use for recoverable error handling
+    #[allow(dead_code)]
     pub recoverable: bool,
 }
 
@@ -18,6 +20,8 @@ impl StartupError {
     }
 }
 
+// TODO: Use for server port conflict resolution
+#[allow(dead_code)]
 pub fn check_port_availability(port: u16) -> Result<(), StartupError> {
     match TcpListener::bind(format!("127.0.0.1:{}", port)) {
         Ok(_) => Ok(()),
@@ -83,6 +87,8 @@ pub fn check_database_lock(db_path: &Path) -> Result<(), StartupError> {
     Ok(())
 }
 
+// TODO: Use for automatic port assignment
+#[allow(dead_code)]
 pub fn find_available_port(start_port: u16, max_attempts: u16) -> Option<u16> {
     for offset in 0..max_attempts {
         let port = start_port + offset;

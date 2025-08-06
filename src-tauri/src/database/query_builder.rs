@@ -9,6 +9,8 @@ pub struct QueryBuilder {
     pub engine: Arc<tokio::sync::Mutex<crate::database::DuckDBEngine>>,
     pub sql: String,
     pub hints: QueryHints,
+    // TODO: Implement query cancellation support
+    #[allow(dead_code)]
     pub cancel_token: Option<CancellationToken>,
 }
 
@@ -68,6 +70,8 @@ impl QueryHints {
     }
     
     /// Background tasks - low priority, limited memory
+    // TODO: Implement background query execution
+    #[allow(dead_code)]
     pub fn background() -> Self {
         Self {
             memory_limit: Some(500 * 1024 * 1024), // 500MB
@@ -95,12 +99,16 @@ impl QueryBuilder {
         self
     }
     
+    // TODO: Wire up cancellation token to query execution
+    #[allow(dead_code)]
     pub fn with_cancel(mut self, token: CancellationToken) -> Self {
         self.cancel_token = Some(token);
         self
     }
     
     /// Execute the query and return a streaming result
+    // TODO: Implement streaming execution path
+    #[allow(dead_code)]
     pub async fn execute_streaming(self) -> Result<tokio::sync::mpsc::Receiver<super::arrow_streaming::ArrowStreamMessage>> {
         let engine = self.engine.lock().await;
         
