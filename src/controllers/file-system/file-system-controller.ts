@@ -60,8 +60,7 @@ export const addLocalFileOrFolders = async (
   } = useAppStore.getState();
 
   const usedEntryNames = new Set(
-    localEntries
-      .values()
+    Array.from(localEntries.values())
       .filter((entry) => entry.kind === 'file' && entry.fileType === 'data-source')
       .map((entry) => entry.uniqueAlias),
   );

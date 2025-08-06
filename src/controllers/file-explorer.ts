@@ -116,8 +116,7 @@ export const renameXlsxFile = async (
 
   // Update the local entry name
   const usedAliases = new Set(
-    localEntries
-      .values()
+    Array.from(localEntries.values())
       .filter((entry) => entry.kind === 'file' && entry.id !== localEntryId)
       .map((entry) => entry.uniqueAlias),
   );

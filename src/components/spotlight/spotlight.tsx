@@ -33,6 +33,7 @@ import {
   IconLayoutNavbarCollapse,
 } from '@tabler/icons-react';
 import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
+import { fileSystemService } from '@utils/file-system-adapter';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 import { setDataTestId } from '@utils/test-id';
@@ -217,6 +218,7 @@ export const SpotlightMenu = () => {
     },
   }));
 
+  const browserInfo = fileSystemService.getBrowserInfo();
   const dataSourceGroupActions: Action[] = [
     {
       id: 'add-file',
@@ -229,17 +231,22 @@ export const SpotlightMenu = () => {
         ensureHome();
       },
     },
-    {
-      id: 'add-folder',
-      label: 'Add Folder',
-      icon: <IconFolderPlus size={20} className={ICON_CLASSES} />,
-      hotkey: [option, command, 'F'],
-      handler: async () => {
-        resetSpotlight();
-        await handleAddFolder();
-        ensureHome();
-      },
-    },
+    // Only show Add Folder for browsers with full File System Access API support
+    ...(browserInfo.level === 'full'
+      ? [
+          {
+            id: 'add-folder',
+            label: 'Add Folder',
+            icon: <IconFolderPlus size={20} className={ICON_CLASSES} />,
+            hotkey: [option, command, 'F'],
+            handler: async () => {
+              resetSpotlight();
+              await handleAddFolder();
+              ensureHome();
+            },
+          },
+        ]
+      : []),
     {
       id: 'add-remote-database',
       label: 'Add Remote Database',

@@ -1,4 +1,5 @@
 import { useFeatureContext } from '@features/feature-context';
+import { useBeforeUnloadProtection } from '@hooks/use-beforeunload-protection';
 import { createContext, useContext } from 'react';
 
 import { DevModal } from './components/dev-modal';
@@ -16,6 +17,9 @@ export const AppContextProvider = ({ children }: { children: React.ReactNode }) 
     isFileAccessApiSupported,
     isMobileDevice,
   });
+
+  // Add protection against losing file references in non-Chrome browsers
+  useBeforeUnloadProtection();
 
   return (
     <AppContext.Provider value={{}}>

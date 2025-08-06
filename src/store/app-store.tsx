@@ -246,8 +246,7 @@ export function useProtectedViews(): Set<string> {
     useShallow(
       (state) =>
         new Set(
-          state.dataSources
-            .values()
+          Array.from(state.dataSources.values())
             .filter(
               (dataSource) => dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db',
             )
@@ -262,12 +261,12 @@ export function useFlatFileDataSourceEMap(): Map<PersistentDataSourceId, AnyFlat
     useShallow(
       (state) =>
         new Map(
-          state.dataSources
-            .entries()
+          Array.from(state.dataSources.entries())
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
-            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as IteratorObject<
-            [PersistentDataSourceId, AnyFlatFileDataSource]
-          >,
+            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as [
+            PersistentDataSourceId,
+            AnyFlatFileDataSource,
+          ][],
         ),
     ),
   );
@@ -278,12 +277,12 @@ export function useFlatFileDataSourceMap(): Map<PersistentDataSourceId, AnyFlatF
     useShallow(
       (state) =>
         new Map(
-          state.dataSources
-            .entries()
+          Array.from(state.dataSources.entries())
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
-            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as IteratorObject<
-            [PersistentDataSourceId, AnyFlatFileDataSource]
-          >,
+            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as [
+            PersistentDataSourceId,
+            AnyFlatFileDataSource,
+          ][],
         ),
     ),
   );
@@ -294,12 +293,12 @@ export function useLocalDBDataSourceMap(): Map<PersistentDataSourceId, LocalDB> 
     useShallow(
       (state) =>
         new Map(
-          state.dataSources
-            .entries()
+          Array.from(state.dataSources.entries())
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
-            .filter(([, dataSource]) => dataSource.type === 'attached-db') as IteratorObject<
-            [PersistentDataSourceId, LocalDB]
-          >,
+            .filter(([, dataSource]) => dataSource.type === 'attached-db') as [
+            PersistentDataSourceId,
+            LocalDB,
+          ][],
         ),
     ),
   );
@@ -310,13 +309,12 @@ export function useDatabaseDataSourceMap(): Map<PersistentDataSourceId, LocalDB 
     useShallow(
       (state) =>
         new Map(
-          state.dataSources
-            .entries()
+          Array.from(state.dataSources.entries())
             // Include both local and remote databases
             .filter(
               ([, dataSource]) =>
                 dataSource.type === 'attached-db' || dataSource.type === 'remote-db',
-            ) as IteratorObject<[PersistentDataSourceId, LocalDB | RemoteDB]>,
+            ) as [PersistentDataSourceId, LocalDB | RemoteDB][],
         ),
     ),
   );
@@ -345,8 +343,7 @@ export function useLocalDBLocalEntriesMap(): Map<LocalEntryId, LocalFile> {
     useShallow(
       (state) =>
         new Map(
-          state.dataSources
-            .values()
+          Array.from(state.dataSources.values())
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
             .filter((dataSource) => dataSource.type === 'attached-db')
             .map((localDB) => state.localEntries.get(localDB.fileSourceId))

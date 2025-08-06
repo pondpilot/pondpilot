@@ -88,7 +88,7 @@ test.describe('Data Explorer Filtering', () => {
     await assertDBExplorerItems(['test_1 (test)']);
 
     // Click files filter - should still show data source files but hide databases
-    await page.getByRole('button', { name: 'Files' }).click();
+    await page.getByTestId('file-type-filter').click();
     await assertFileExplorerItems(['data', 'test']);
     await assertDBExplorerItems([]);
 
@@ -134,11 +134,11 @@ test.describe('Data Explorer Filtering', () => {
     await waitForFilesToBeProcessed();
 
     // First, click the Files filter button to ensure we're viewing files
-    await page.getByRole('button', { name: 'Files' }).click();
+    await page.getByTestId('file-type-filter').click();
     await waitForAnimationComplete();
 
     // The Files button should open the menu when already active
-    await page.getByRole('button', { name: 'Files' }).click();
+    await page.getByTestId('file-type-filter').click();
     await waitForAnimationComplete();
 
     // Initially all file types should be selected

@@ -4,6 +4,7 @@ import {
   registerFileHandle,
   registerFileSourceAndCreateView,
   createXlsxSheetView,
+  dropViewAndUnregisterFile,
 } from '@controllers/db/data-source';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { persistAddLocalEntry } from '@controllers/file-system/persist';
@@ -49,6 +50,7 @@ import {
   localEntryFromHandle,
   requestFileHandlePersmissions,
 } from '@utils/file-system';
+import { fileSystemService } from '@utils/file-system-adapter';
 import { findUniqueName } from '@utils/helpers';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
@@ -152,7 +154,7 @@ async function processDirectory(
             getUniqueAlias,
           );
           // Skip empty folders
-          if (resultMap.values().some((entry) => entry.parentId === localEntry.id)) {
+          if (Array.from(resultMap.values()).some((entry) => entry.parentId === localEntry.id)) {
             resultMap.set(localEntry.id, localEntry);
           }
         } else {
@@ -188,7 +190,7 @@ async function processDirectory(
         getUniqueAlias,
       );
       // Skip empty folders
-      if (resultMap.values().some((entry) => entry.parentId === subDirectory.id)) {
+      if (Array.from(resultMap.values()).some((entry) => entry.parentId === subDirectory.id)) {
         resultMap.set(subDirectory.id, subDirectory);
       }
     } else {
@@ -220,7 +222,7 @@ async function processDirectory(
             getUniqueAlias,
           );
           // Skip empty folders
-          if (resultMap.values().some((entry) => entry.parentId === newEntry.id)) {
+          if (Array.from(resultMap.values()).some((entry) => entry.parentId === newEntry.id)) {
             resultMap.set(newEntry.id, newEntry);
           }
         } else {
@@ -378,7 +380,7 @@ async function restoreLocalEntries(
         getUniqueAlias,
       );
       // Skip empty folders
-      if (resultMap.values().some((entry) => entry.parentId === rootEntry.id)) {
+      if (Array.from(resultMap.values()).some((entry) => entry.parentId === rootEntry.id)) {
         resultMap.set(rootEntry.id, rootEntry);
       } else {
         discardEntries.push({
@@ -769,6 +771,90 @@ export const restoreAppDataFromIDB = async (
         },
       ],
     });
+  }
+
+  // Clean up orphaned data sources if browser doesn't support persistent file handles
+  if (!fileSystemService.canPersistHandles()) {
+    const orphanedDataSourceIds = new Set<PersistentDataSourceId>();
+    const orphanedTabIds = new Set<TabId>();
+
+    // Find all file-based data sources that don't have corresponding local entries
+    for (const [dataSourceId, dataSource] of dataSources) {
+      if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+        continue;
+      }
+
+      // Check if the file source exists in localEntriesMap
+      if (!localEntriesMap.has(dataSource.fileSourceId)) {
+        orphanedDataSourceIds.add(dataSourceId);
+
+        // Also find tabs that reference this data source
+        for (const [tabId, tab] of newTabs) {
+          if (tab.type === 'data-source' && tab.dataSourceId === dataSourceId) {
+            orphanedTabIds.add(tabId);
+          }
+        }
+      }
+    }
+
+    // Remove orphaned data sources
+    if (orphanedDataSourceIds.size > 0) {
+      for (const dataSourceId of orphanedDataSourceIds) {
+        const dataSource = dataSources.get(dataSourceId);
+        if (dataSource && dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db') {
+          // Drop the view from DuckDB
+          try {
+            if (dataSource.type === 'xlsx-sheet') {
+              await dropViewAndUnregisterFile(conn, dataSource.viewName, undefined);
+            } else if (
+              dataSource.type === 'csv' ||
+              dataSource.type === 'json' ||
+              dataSource.type === 'parquet'
+            ) {
+              await dropViewAndUnregisterFile(conn, dataSource.viewName, undefined);
+            }
+          } catch (error) {
+            console.warn(`Failed to drop orphaned view ${dataSource.viewName}:`, error);
+          }
+        }
+        dataSources.delete(dataSourceId);
+      }
+
+      // Persist the deletion of orphaned data sources
+      await persistDeleteDataSource(iDbConn, orphanedDataSourceIds, []);
+    }
+
+    // Remove orphaned tabs
+    if (orphanedTabIds.size > 0) {
+      const deleteResult = deleteTabImpl({
+        deleteTabIds: Array.from(orphanedTabIds),
+        tabs: newTabs,
+        tabOrder: newTabOrder,
+        activeTabId: newActiveTabId,
+        previewTabId: newPreviewTabId,
+      });
+
+      newTabs = deleteResult.newTabs;
+      newTabOrder = deleteResult.newTabOrder;
+      newActiveTabId = deleteResult.newActiveTabId;
+      newPreviewTabId = deleteResult.newPreviewTabId;
+
+      // Persist tab deletions
+      await persistDeleteTab(
+        iDbConn,
+        Array.from(orphanedTabIds),
+        newActiveTabId,
+        newPreviewTabId,
+        newTabOrder,
+      );
+    }
+
+    if (orphanedDataSourceIds.size > 0 || orphanedTabIds.size > 0) {
+      warnings.push(
+        `Cleaned up ${orphanedDataSourceIds.size} orphaned file views and ${orphanedTabIds.size} tabs. ` +
+          'Files need to be re-selected in browsers without persistent file access support.',
+      );
+    }
   }
 
   // Finally update the store with the hydrated data
