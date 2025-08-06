@@ -59,6 +59,13 @@ fn main() {
             let app_data_dir = app.path().app_data_dir()
                 .expect("Failed to get app data directory");
             
+            // Create the directory if it doesn't exist
+            if !app_data_dir.exists() {
+                std::fs::create_dir_all(&app_data_dir)
+                    .expect("Failed to create app data directory");
+                println!("Created app data directory: {:?}", app_data_dir);
+            }
+            
             // Create database paths in app data directory
             let duckdb_path = app_data_dir.join("pondpilot.db");
             let sqlite_path = app_data_dir.join("pondpilot_state.db");
