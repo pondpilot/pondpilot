@@ -230,14 +230,14 @@ function createMockDirectoryHandle(pickedDirectory: {
   return {
     kind: 'directory',
     name: pickedDirectory.name,
-    async *entries() {
+    async* entries() {
       // This would need to be implemented to read directory contents using Tauri APIs
       // For now, return empty iterator
     },
-    async *keys() {
+    async* keys() {
       // Not implemented for Tauri mock handle
     },
-    async *values() {
+    async* values() {
       // Not implemented for Tauri mock handle
     },
     getDirectoryHandle: async (_name: string) => {
