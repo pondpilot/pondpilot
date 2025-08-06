@@ -5,7 +5,7 @@ export const DEFAULT_ROW_LIMIT = 10000;
 
 /**
  * Wraps a SQL query with a row limit to prevent loading too much data into memory.
- * This should be used consistently across all database engines (WASM, Tauri, etc.)
+ * Only used for WASM connections. Tauri connections use Arrow streaming instead.
  *
  * @param sql The SQL query to wrap
  * @param limit Optional custom limit (defaults to DEFAULT_ROW_LIMIT)
@@ -23,9 +23,9 @@ export function wrapQueryWithLimit(sql: string, limit: number = DEFAULT_ROW_LIMI
   }
 
   // Check if this is a query that should have a limit
-  // DDL statements, PRAGMA, etc. should not have limits
+  // DDL statements, PRAGMA, extension commands, etc. should not have limits
   const shouldNotLimit =
-    /^(CREATE|ALTER|DROP|PRAGMA|VACUUM|ANALYZE|EXPLAIN|ATTACH|DETACH|INSERT|UPDATE|DELETE|TRUNCATE)\s/i.test(
+    /^(CREATE|ALTER|DROP|PRAGMA|VACUUM|ANALYZE|EXPLAIN|ATTACH|DETACH|INSERT|UPDATE|DELETE|TRUNCATE|INSTALL|LOAD|SET|RESET|SHOW|DESCRIBE|DESC|COPY|IMPORT|EXPORT)\s/i.test(
       normalizedSql,
     );
   if (shouldNotLimit) {

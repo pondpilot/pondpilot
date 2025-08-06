@@ -3,6 +3,8 @@
  */
 
 import { SUPPORTED_DATA_SOURCE_FILE_EXTS } from '@models/file-system';
+import { getFilePicker } from '../../services/file-picker';
+import { isTauriEnvironment } from '@utils/browser';
 
 import { fileSystemService } from './file-system-service';
 import { createFileHandleWrapper, createDirectoryHandleWrapper } from './handle-converter';
@@ -30,6 +32,57 @@ export async function pickFilesForPondPilot(
   multiple: boolean = true,
 ): Promise<PickFilesResult> {
   try {
+    // For Tauri, use the file picker directly
+    if (isTauriEnvironment()) {
+      const filePicker = getFilePicker();
+      const result = await filePicker.pickFiles({
+        accept: accept || [],
+        description: description || 'Select files',
+        multiple,
+      });
+
+      if (result.cancelled || result.error) {
+        return {
+          handles: [],
+          error: result.error || null,
+          isFallbackMode: false,
+        };
+      }
+
+      // Create mock handles for Tauri files
+      const handles: FileSystemFileHandle[] = result.files.map((file) => {
+        if (file.handle) {
+          return file.handle;
+        }
+        
+        // Create a mock handle for files without handles
+        return {
+          kind: 'file',
+          name: file.name,
+          getFile: async () => {
+            if (file.path) {
+              const fs = await import('@tauri-apps/plugin-fs');
+              const contents = await fs.readFile(file.path);
+              return new File([contents], file.name, {
+                lastModified: Date.now(),
+              });
+            }
+            throw new Error('No path available for file');
+          },
+          queryPermission: async () => 'granted' as PermissionState,
+          requestPermission: async () => 'granted' as PermissionState,
+          _tauriPath: file.path,
+        } as any;
+      });
+
+      return {
+        handles,
+        error: null,
+        isFallbackMode: false,
+      };
+    }
+
+    // For non-Tauri browsers, use the file system service
     // Build accept object
     const acceptObj: Record<string, string[]> = {};
     if (accept && accept.length > 0) {

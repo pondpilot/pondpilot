@@ -11,3 +11,14 @@ interface HTMLInputElement {
 interface File {
   webkitRelativePath?: string;
 }
+
+// Tauri API types
+interface Window {
+  __TAURI__?: {
+    os: {
+      platform: () => Promise<string>;
+    };
+    [key: string]: any;
+  };
+  __TAURI_INTERNALS__?: any;
+}
