@@ -69,7 +69,7 @@ export class TauriConnection implements DatabaseConnection {
     }
   }
 
-  async* stream(sql: string, params?: any[]): AsyncGenerator<any> {
+  async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
     if (!this._isOpen) {
       throw new Error('Connection is closed');
     }

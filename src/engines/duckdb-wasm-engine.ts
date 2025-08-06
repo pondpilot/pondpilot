@@ -188,7 +188,7 @@ export class DuckDBWasmEngine implements DatabaseEngine {
     }
   }
 
-  async* stream(sql: string, params?: any[]): AsyncGenerator<any> {
+  async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
     const conn = await this.createConnection();
     try {
       yield* conn.stream(sql, params);
