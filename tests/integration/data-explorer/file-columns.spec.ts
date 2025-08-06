@@ -43,7 +43,10 @@ test.describe('File Columns Display', () => {
     await addFile();
 
     // Wait for file to appear in the explorer
-    await page.getByTestId(/^data-explorer-fs-tree-node-.*-container$/).first().waitFor();
+    await page
+      .getByTestId(/^data-explorer-fs-tree-node-.*-container$/)
+      .first()
+      .waitFor();
 
     await waitForFilesToBeProcessed();
 
@@ -51,11 +54,9 @@ test.describe('File Columns Display', () => {
     await assertFileExplorerItems(['users']);
 
     // Right-click on file to open context menu
-    const fileNode = page
-      .getByTestId(/^data-explorer-fs-tree-node-.*-container$/)
-      .filter({
-        has: page.locator('p').getByText('users', { exact: true }),
-      });
+    const fileNode = page.getByTestId(/^data-explorer-fs-tree-node-.*-container$/).filter({
+      has: page.locator('p').getByText('users', { exact: true }),
+    });
 
     await fileNode.click({ button: 'right' });
 
@@ -87,7 +88,10 @@ test.describe('File Columns Display', () => {
     await addFile();
 
     // Wait for file to appear in the explorer
-    await page.getByTestId(/^data-explorer-fs-tree-node-.*-container$/).first().waitFor();
+    await page
+      .getByTestId(/^data-explorer-fs-tree-node-.*-container$/)
+      .first()
+      .waitFor();
 
     await waitForFilesToBeProcessed();
 
@@ -95,11 +99,9 @@ test.describe('File Columns Display', () => {
     await assertFileExplorerItems(['users']);
 
     // Get file node
-    const fileNode = page
-      .getByTestId(/^data-explorer-fs-tree-node-.*-container$/)
-      .filter({
-        has: page.locator('p').getByText('users', { exact: true }),
-      });
+    const fileNode = page.getByTestId(/^data-explorer-fs-tree-node-.*-container$/).filter({
+      has: page.locator('p').getByText('users', { exact: true }),
+    });
 
     // Initially columns should not be visible
     await expect(page.getByText('id')).toBeHidden();
@@ -138,7 +140,10 @@ test.describe('File Columns Display', () => {
     await addFile();
 
     // Wait for file to appear in the explorer
-    await page.getByTestId(/^data-explorer-fs-tree-node-.*-container$/).first().waitFor();
+    await page
+      .getByTestId(/^data-explorer-fs-tree-node-.*-container$/)
+      .first()
+      .waitFor();
 
     await waitForFilesToBeProcessed();
 
@@ -146,11 +151,9 @@ test.describe('File Columns Display', () => {
     await assertFileExplorerItems(['users']);
 
     // Get file node
-    const fileNode = page
-      .getByTestId(/^data-explorer-fs-tree-node-.*-container$/)
-      .filter({
-        has: page.locator('p').getByText('users', { exact: true }),
-      });
+    const fileNode = page.getByTestId(/^data-explorer-fs-tree-node-.*-container$/).filter({
+      has: page.locator('p').getByText('users', { exact: true }),
+    });
 
     // Initially columns should not be visible
     await expect(page.getByTestId(/.*::id-container$/)).toBeHidden();

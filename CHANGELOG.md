@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- next-header -->
+
 ## ✨ Highlights
 
 This release brings significant improvements to the SQL editing experience and data source management that make PondPilot more powerful and user-friendly:
@@ -39,7 +40,6 @@ We're continuing to enhance the core editing and data management experience:
 - [Bug]: Replace useMantineColorScheme with useColorScheme for proper auto theme detection [#195](https://github.com/pondpilot/pondpilot/pull/195)
 
 **Full Changelog**: [v0.4.0...v0.5.0](https://github.com/pondpilot/pondpilot/compare/v0.4.0...v0.5.0)
-
 
 ## ✨ Highlights
 
