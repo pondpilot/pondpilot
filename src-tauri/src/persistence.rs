@@ -13,10 +13,21 @@ pub struct PersistenceState {
 
 impl PersistenceState {
     pub fn new(db_path: PathBuf) -> Result<Self, DuckDBError> {
+        // Ensure parent directory exists
+        if let Some(parent) = db_path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| DuckDBError::FileAccess {
+                        message: format!("Failed to create persistence directory: {}", e),
+                    })?;
+                println!("Created persistence directory: {:?}", parent);
+            }
+        }
+        
         // Use the provided path directly
         println!("SQLite persistence path: {:?}", db_path);
         
-        let conn = Connection::open(db_path)?;
+        let conn = Connection::open(&db_path)?;
         
         // Create tables if they don't exist
         // Using underscore names for SQLite/Tauri (different from IndexedDB hyphenated names)
