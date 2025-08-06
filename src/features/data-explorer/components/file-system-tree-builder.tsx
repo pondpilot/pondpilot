@@ -144,19 +144,24 @@ export function useFileSystemTreeBuilder({
         return;
       }
 
-      const fileNode = buildFileNode(entry, relatedSource, {
-        nodeMap,
-        anyNodeIdToNodeTypeMap,
-        conn,
-        dataSourceByFileId,
-        flatFileSourcesValues,
-        nonLocalDBFileEntries: allLocalEntries,
-        xlsxSheetsByFileId,
-      }, {
-        databaseMetadata,
-        fileViewNames,
-        showColumns,
-      });
+      const fileNode = buildFileNode(
+        entry,
+        relatedSource,
+        {
+          nodeMap,
+          anyNodeIdToNodeTypeMap,
+          conn,
+          dataSourceByFileId,
+          flatFileSourcesValues,
+          nonLocalDBFileEntries: allLocalEntries,
+          xlsxSheetsByFileId,
+        },
+        {
+          databaseMetadata,
+          fileViewNames,
+          showColumns,
+        },
+      );
       fileTreeChildren.push(fileNode);
     });
 

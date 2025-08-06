@@ -351,19 +351,17 @@ export function buildFileNode(
   // Get columns metadata if enabled
   const getFileColumns = (
     viewName: string,
-    databaseMetadata?: Map<string, DataBaseModel>
+    databaseMetadata?: Map<string, DataBaseModel>,
   ): DBColumn[] | null => {
     if (!databaseMetadata) return null;
 
     const pondpilotDB = databaseMetadata.get(PERSISTENT_DB_NAME);
     if (!pondpilotDB) return null;
 
-    const mainSchema = pondpilotDB.schemas.find(s => s.name === 'main');
+    const mainSchema = pondpilotDB.schemas.find((s) => s.name === 'main');
     if (!mainSchema) return null;
 
-    const fileView = mainSchema.objects.find(obj =>
-      obj.type === 'view' && obj.name === viewName
-    );
+    const fileView = mainSchema.objects.find((obj) => obj.type === 'view' && obj.name === viewName);
 
     return fileView?.columns || null;
   };
@@ -377,7 +375,7 @@ export function buildFileNode(
     children = columns
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map(column => buildFileColumnTreeNode(column, entry.id, context));
+      .map((column) => buildFileColumnTreeNode(column, entry.id, context));
   }
 
   nodeMap.set(value, { entryId: entry.id, isSheet: false, sheetName: null });
