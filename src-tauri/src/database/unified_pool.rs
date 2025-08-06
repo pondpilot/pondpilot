@@ -55,10 +55,15 @@ impl ConnectionPermit {
     pub fn create_connection(self) -> Result<Connection> {
         eprintln!("[UNIFIED_POOL] Creating connection {} in thread {:?}", 
                  self.id, std::thread::current().id());
+        eprintln!("[UNIFIED_POOL] Database path: {:?}", self.db_path);
+        eprintln!("[UNIFIED_POOL] Path exists: {}", self.db_path.exists());
+        if let Some(parent) = self.db_path.parent() {
+            eprintln!("[UNIFIED_POOL] Parent directory exists: {}", parent.exists());
+        }
         
         let conn = Connection::open(&self.db_path)
             .map_err(|e| DuckDBError::ConnectionError {
-                message: format!("Failed to create connection: {}", e),
+                message: format!("Failed to create connection to {:?}: {}", self.db_path, e),
             })?;
 
         // Configure the connection
