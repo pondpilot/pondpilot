@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "PondPilot",
@@ -22,12 +23,13 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self' customprotocol: asset: https://asset.localhost blob: data: filesystem: ws: wss: http: https: tauri: 'unsafe-eval' 'unsafe-inline' 'self'; img-src 'self' asset: https://asset.localhost protocol: https://tauri.localhost https://asset.localhost blob: data: 'unsafe-inline'",
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": ["$RESOURCE/**", "$APP/**", "**"]
       }
-    }
+    },
+    "withGlobalTauri": true
   },
   "bundle": {
     "active": true,
@@ -42,7 +44,8 @@
     "macOS": {
       "signingIdentity": "Developer ID Application: Ameba Labs, LLC (X93LWC49WV)",
       "minimumSystemVersion": "10.15",
-      "entitlements": "./entitlements.plist"
+      "entitlements": "./entitlements.plist",
+      "hardenedRuntime": true
     }
   },
   "plugins": {

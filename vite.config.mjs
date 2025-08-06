@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
   const port = process.env.VITE_PORT ? parseInt(process.env.VITE_PORT) : 5173;
   
   // Check if building for Tauri
-  const isTauriBuild = process.env.TAURI_ENV_PLATFORM !== undefined;
+  const isTauriBuild = process.env.TAURI_ENV_PLATFORM !== undefined || process.env.TAURI_PLATFORM !== undefined;
 
   // Get and normalize base path from environment variable, default to '/'
   // Ensures it both starts and ends with a single '/'
@@ -48,7 +48,7 @@ export default defineConfig(({ mode }) => {
   console.log(`[build] Using base path: ${basePath}`);
 
   return {
-    base: isTauriBuild ? './' : '/',
+    base: isTauriBuild ? '' : '/',
     mode: mode === 'int-test-build' ? 'production' : mode,
     base: basePath,
     define: {

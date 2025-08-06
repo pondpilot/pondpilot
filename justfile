@@ -43,6 +43,57 @@ tauri-dev:
 tauri-build:
     yarn tauri build
 
+# Build Tauri for macOS (ARM64 only)
+tauri-build-mac:
+    @echo "Building Tauri app for macOS (ARM64)..."
+    cd src-tauri && cargo build --release
+    yarn tauri build --target aarch64-apple-darwin
+
+# Create zip archive for notarization (Tauri handles signing with config)
+tauri-package-mac: tauri-build-mac
+    @echo "Verifying signature..."
+    codesign -dv --verbose=4 src-tauri/target/aarch64-apple-darwin/release/bundle/macos/PondPilot.app
+    @echo "Creating zip archive for notarization..."
+    cd src-tauri/target/aarch64-apple-darwin/release/bundle/macos && zip -r PondPilot.zip PondPilot.app
+    @echo "Archive created at src-tauri/target/aarch64-apple-darwin/release/bundle/macos/PondPilot.zip"
+
+# Submit for notarization
+tauri-notarize-mac PROFILE_NAME="notarytool-kefir": tauri-package-mac
+    @echo "Submitting for notarization..."
+    xcrun notarytool submit src-tauri/target/aarch64-apple-darwin/release/bundle/macos/PondPilot.zip \
+        --keychain-profile "{{PROFILE_NAME}}" \
+        --wait
+
+# Staple notarization to the app
+tauri-staple-mac: tauri-notarize-mac
+    @echo "Stapling notarization ticket to app..."
+    cd src-tauri/target/aarch64-apple-darwin/release/bundle/macos && unzip -o PondPilot.zip
+    xcrun stapler staple src-tauri/target/aarch64-apple-darwin/release/bundle/macos/PondPilot.app
+    @echo "Creating final distribution DMG..."
+    mkdir -p src-tauri/target/aarch64-apple-darwin/release/bundle/dmg
+    hdiutil create -volname "PondPilot" -srcfolder src-tauri/target/aarch64-apple-darwin/release/bundle/macos/PondPilot.app -ov -format UDZO src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/PondPilot.dmg
+
+# Check notarization status
+tauri-check-notarization SUBMISSION_ID:
+    xcrun notarytool info {{SUBMISSION_ID}} \
+        --keychain-profile "notarytool-kefir"
+
+# Get notarization log
+tauri-notarization-log SUBMISSION_ID:
+    xcrun notarytool log {{SUBMISSION_ID}} \
+        --keychain-profile "notarytool-kefir"
+
+# Full release flow for macOS
+tauri-release-mac: tauri-staple-mac
+    @echo "Release build complete!"
+    @echo "Notarized app available at: src-tauri/target/aarch64-apple-darwin/release/bundle/macos/PondPilot.app"
+    @echo "DMG available at: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/PondPilot.dmg"
+
+# Clean Tauri build artifacts
+tauri-clean:
+    cd src-tauri && cargo clean
+    rm -rf src-tauri/target/aarch64-apple-darwin/release/bundle/macos/PondPilot.zip
+
 # Download duckdb wasm EH modules and sheetjs xlsx module to a cache directory.
 # This directory is gitignored and is used by test fixtures to bypass loading
 # big modules from internet when cache is available.
