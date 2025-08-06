@@ -4,7 +4,7 @@
  */
 
 import { showWarning, showAlert } from '@components/app-notifications';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId, LocalFolder } from '@models/file-system';
 import { SESSION_STORAGE_KEYS } from '@models/local-storage';
@@ -22,7 +22,7 @@ import { addLocalFileOrFolders as originalAddLocalFileOrFolders } from './file-s
  * Enhanced version of addLocalFileOrFolders that handles fallback mode
  */
 export const addLocalFileOrFoldersCompat = async (
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   handles: (FileSystemDirectoryHandle | FileSystemFileHandle)[],
   fallbackFiles?: File[],
 ): Promise<{
