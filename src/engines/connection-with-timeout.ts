@@ -21,7 +21,7 @@ export class ConnectionWithTimeout implements DatabaseConnection {
     );
   }
 
-  async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
+  async* stream(sql: string, params?: any[]): AsyncGenerator<any> {
     // Note: Timeout logic for streaming is more complex and would require
     // cancellation tokens. For now, delegate directly to the connection.
     yield* this.connection.stream(sql, params);
