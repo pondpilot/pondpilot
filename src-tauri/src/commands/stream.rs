@@ -207,7 +207,7 @@ fn convert_duckdb_schema(duckdb_schema: &duckdb::arrow::datatypes::Schema) -> St
 fn convert_duckdb_datatype(dt: &duckdb::arrow::datatypes::DataType) -> arrow_schema::DataType {
     use duckdb::arrow::datatypes::DataType as DuckDBDataType;
     use duckdb::arrow::datatypes::TimeUnit as DuckDBTimeUnit;
-    use arrow_schema::{DataType, TimeUnit, Field, UnionFields};
+    use arrow_schema::{DataType, TimeUnit, Field};
     
     match dt {
         DuckDBDataType::Boolean => DataType::Boolean,
