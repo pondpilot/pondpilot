@@ -229,8 +229,8 @@ export class DuckDBWasmEngine implements DatabaseEngine {
 
   async getTables(database: string): Promise<TableInfo[]> {
     const result = await this.execute(
-      `SELECT table_schema, table_name, table_type 
-       FROM information_schema.tables 
+      `SELECT table_schema, table_name, table_type
+       FROM information_schema.tables
        WHERE table_catalog = ?`,
       [database],
     );
@@ -245,8 +245,8 @@ export class DuckDBWasmEngine implements DatabaseEngine {
 
   async getColumns(database: string, table: string): Promise<ColumnInfo[]> {
     const result = await this.execute(
-      `SELECT column_name, data_type, is_nullable 
-       FROM information_schema.columns 
+      `SELECT column_name, data_type, is_nullable
+       FROM information_schema.columns
        WHERE table_catalog = ? AND table_name = ?`,
       [database, table],
     );
@@ -284,7 +284,7 @@ export class DuckDBWasmEngine implements DatabaseEngine {
     const conn = await this.createConnection();
     try {
       // For community extensions like gsheets, we need to specify the source
-      if (name === 'gsheets') {
+      if (name === 'gsheets' || name === 'read_stat') {
         await conn.execute(`INSTALL ${name} FROM community`);
       } else {
         await conn.execute(`INSTALL ${name}`);
