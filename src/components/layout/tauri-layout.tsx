@@ -29,7 +29,13 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
   };
 
   // Add padding for macOS traffic lights when using overlay titlebar
-  const [platform, setPlatform] = useState<string>('');
+  // Default to 'darwin' if we're in Tauri since we're likely on macOS during development
+  const [platform, setPlatform] = useState<string>(() => {
+    if (typeof window !== 'undefined' && window.__TAURI__) {
+      return 'darwin'; // Default to macOS when in Tauri
+    }
+    return '';
+  });
 
   useEffect(() => {
     // Detect platform for proper titlebar spacing
@@ -39,8 +45,8 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
         if (window.__TAURI__) {
           const { os } = window.__TAURI__;
           if (os && os.platform) {
-            const platform = await os.platform();
-            setPlatform(platform);
+            const actualPlatform = await os.platform();
+            setPlatform(actualPlatform);
           }
         }
       } catch (err) {
@@ -62,24 +68,12 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
               ? 'h-[52px] bg-transparent border-b border-borderPrimary-light/30 dark:border-borderPrimary-dark/30'
               : 'h-[54px] border-b border-borderPrimary-light dark:border-borderPrimary-dark'
           }`}
+          data-tauri-drag-region
         >
-          <div 
-            className="w-full h-full flex items-center relative"
-            style={{
-              WebkitAppRegion: 'drag',
-            } as React.CSSProperties}
-          >
-            {/* Left section with traffic lights space and sidebar button */}
-            <div className="flex items-center flex-shrink-0">
-              {/* Space for traffic lights - increased to avoid overlap */}
-              {isMacOS && <div className="w-[80px]" />}
-              
-              {/* Sidebar button - NOT draggable */}
-              <div 
-                style={{
-                  WebkitAppRegion: 'no-drag',
-                } as React.CSSProperties}
-              >
+          <div className={`w-full h-full flex items-center ${isMacOS ? 'pb-[10px]' : ''}`}>
+            {/* Fixed positioning for macOS traffic lights area and sidebar button */}
+            {isMacOS ? (
+              <div className="flex items-center" style={{ marginLeft: '80px' }}>
                 <Tooltip
                   label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
                   position="bottom"
@@ -89,7 +83,7 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
                     size={28}
                     variant="subtle"
                     onClick={toggleSidebar}
-                    className={isMacOS ? 'ml-1' : 'ml-4'}
+                    className="mr-4"
                   >
                     {sidebarCollapsed ? (
                       <IconLayoutSidebarLeftExpand size={18} />
@@ -99,20 +93,35 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
                   </ActionIcon>
                 </Tooltip>
               </div>
-            </div>
+            ) : (
+              <div className="ml-4">
+                <Tooltip
+                  label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+                  position="bottom"
+                  openDelay={500}
+                >
+                  <ActionIcon
+                    size={28}
+                    variant="subtle"
+                    onClick={toggleSidebar}
+                  >
+                    {sidebarCollapsed ? (
+                      <IconLayoutSidebarLeftExpand size={18} />
+                    ) : (
+                      <IconLayoutSidebarLeftCollapse size={18} />
+                    )}
+                  </ActionIcon>
+                </Tooltip>
+              </div>
+            )}
 
             {/* Center container for search bar */}
-            <div 
-              className="flex-1 flex items-center justify-center px-4 pt-1"
-              style={{
-                WebkitAppRegion: 'no-drag',
-              } as React.CSSProperties}
-            >
+            <div className="flex-1 flex items-center justify-center px-4">
               <Header />
             </div>
 
-            {/* Right spacer for balance - adjusted to match left side */}
-            <div className="w-[109px] flex-shrink-0" />
+            {/* Right spacer */}
+            <div className="w-[112px]" />
           </div>
         </header>
 
