@@ -87,7 +87,7 @@ export const Header = memo(() => {
           classNames={{
             input: cn(
               'bg-backgroundSecondary-light  border-0 placeholder-textSecondary-light rounded-full',
-              isTauri ? 'h-[30px] text-xs' : 'h-[36px]',
+              isTauri ? 'h-[26px] text-xs' : 'h-[36px]',
               'dark:bg-backgroundSecondary-dark dark:placeholder-textSecondary-dark',
             ),
           }}
