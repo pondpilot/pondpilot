@@ -28,7 +28,7 @@ import {
 } from '@utils/editor/sql';
 import { formatSQLSafe } from '@utils/sql-formatter';
 import { Allotment } from 'allotment';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useState, useEffect } from 'react';
 
 import { DataView, DataViewInfoPane } from '../components';
 import { useDataAdapter } from '../hooks/use-data-adapter';
@@ -60,6 +60,21 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
   // and dispatches on the tab type. But we are being very robust here.
 
   const [scriptExecutionState, setScriptExecutionState] = useState<ScriptExecutionState>('idle');
+  
+  // Monitor data adapter errors and update script execution state
+  useEffect(() => {
+    if (dataAdapter.dataSourceError.length > 0) {
+      // Only update if we're currently showing success
+      if (scriptExecutionState === 'success') {
+        setScriptExecutionState('error');
+        // Show error notification for streaming errors
+        showError({
+          title: 'Query execution failed',
+          message: dataAdapter.dataSourceError.join('\n'),
+        });
+      }
+    }
+  }, [dataAdapter.dataSourceError, scriptExecutionState]);
 
   const pool = useInitializedDatabaseConnectionPool();
   const protectedViews = useProtectedViews();
@@ -98,7 +113,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // Check if the statements are valid
       const errors = validateStatements(classifiedStatements, protectedViews);
       if (errors.length > 0) {
-        console.error('Errors in SQL statements:', errors);
+        // Errors in SQL statements - user is notified via showError
         setScriptExecutionState('error');
         showError({
           title: 'Error in SQL statements',
@@ -157,7 +172,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             if (needsTransaction) {
               await conn.execute('ROLLBACK');
             }
-            console.error('Error executing statement:', statement.type, error);
+            // Error executing statement - user is notified via showErrorWithAction
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
               errorMessage: message,
@@ -194,10 +209,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             if (needsTransaction) {
               await conn.execute('ROLLBACK');
             }
-            console.error(
-              'Creation of a prepared statement for the last SELECT statement failed:',
-              error,
-            );
+            // Creation of a prepared statement for the last SELECT statement failed - user is notified
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
               errorMessage: message,
@@ -231,7 +243,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             if (needsTransaction) {
               await conn.execute('ROLLBACK');
             }
-            console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
+            // Error executing last non-SELECT statement - user is notified via showErrorWithAction
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
               errorMessage: message,
@@ -417,6 +429,8 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         await pool.release(conn);
       }
 
+      // Only set success state if there are no immediate errors
+      // Streaming errors will be caught by the useEffect hook
       setScriptExecutionState('success');
       clearTabExecutionError(tabId);
       incrementScriptVersion();
