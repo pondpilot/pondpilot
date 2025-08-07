@@ -39,17 +39,22 @@ export default function App() {
         if (window.__TAURI__) {
           const { os } = window.__TAURI__;
           if (os && os.platform) {
-            os.platform().then((platform: string) => {
-              if (platform === 'darwin') {
-                document.body.classList.add('tauri-macos');
-              } else if (platform === 'win32') {
-                document.body.classList.add('tauri-windows');
-              } else {
-                document.body.classList.add('tauri-linux');
-              }
-            }).catch((err: any) => {
-              console.warn('Failed to detect platform:', err);
-            });
+            os.platform()
+              .then((platform: string) => {
+                if (platform === 'darwin') {
+                  document.body.classList.add('tauri-macos');
+                } else if (platform === 'win32') {
+                  document.body.classList.add('tauri-windows');
+                } else {
+                  document.body.classList.add('tauri-linux');
+                }
+              })
+              .catch((err: unknown) => {
+                console.warn(
+                  'Failed to detect platform:',
+                  err instanceof Error ? err.message : err,
+                );
+              });
           }
         }
       } catch (err) {

@@ -32,15 +32,11 @@ export const MainPage = () => {
   });
 
   // Get sidebar state from Tauri layout context if available
-  let tauriContext: { sidebarCollapsed: boolean; toggleSidebar: () => void } | undefined;
-  try {
-    if (isTauri) {
-      tauriContext = useOutletContext<{ sidebarCollapsed: boolean; toggleSidebar:() => void } | undefined>();
-    }
-  } catch (err) {
-    // Context might not be available in non-Tauri environment
-    tauriContext = undefined;
-  }
+  // Always call the hook to maintain consistent hook order
+  const outletContext = useOutletContext<
+    { sidebarCollapsed: boolean; toggleSidebar:() => void } | undefined
+  >();
+  const tauriContext = isTauri ? outletContext : undefined;
 
   const [localSidebarCollapsed, setLocalSidebarCollapsed] = useState<boolean>(() => {
     const stored = localStorage.getItem(LOCAL_STORAGE_KEYS.SIDEBAR_COLLAPSED);
@@ -49,18 +45,17 @@ export const MainPage = () => {
 
   // Use Tauri context if available, otherwise use local state
   const sidebarCollapsed = tauriContext?.sidebarCollapsed ?? localSidebarCollapsed;
-  const setSidebarCollapsed = tauriContext ?
-    (value: boolean | ((prev: boolean) => boolean)) => {
-      // For Tauri, use the toggle function from context
-      if (typeof value === 'function') {
-        tauriContext.toggleSidebar();
-      } else {
-        // If value doesn't match current state, toggle
-        if (value !== tauriContext.sidebarCollapsed) {
+  const setSidebarCollapsed = tauriContext
+    ? (value: boolean | ((prev: boolean) => boolean)) => {
+        // For Tauri, use the toggle function from context
+        if (typeof value === 'function') {
+          tauriContext.toggleSidebar();
+        } else if (value !== tauriContext.sidebarCollapsed) {
+          // If value doesn't match current state, toggle
           tauriContext.toggleSidebar();
         }
       }
-    } : setLocalSidebarCollapsed;
+    : setLocalSidebarCollapsed;
 
   const tabCount = useAppStore((state) => state.tabs.size);
   const hasTabs = tabCount > 0;

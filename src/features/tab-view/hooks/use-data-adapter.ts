@@ -27,6 +27,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useDataAdapterQueries } from './use-data-adapter-queries';
 
+// SQL error patterns that indicate a query execution error rather than a file access error
+const SQL_ERROR_PATTERNS = ['Table Function with name', 'Catalog Error', 'Failed to execute query'];
+
+/**
+ * Checks if an error is a SQL execution error that shouldn't trigger file sync retries
+ */
+const isSqlExecutionError = (error: Error): boolean => {
+  return SQL_ERROR_PATTERNS.some((pattern) => error.message?.includes(pattern));
+};
+
 // Data adapter is a logic layer between abstract batch streaming data source
 // and the UI layer (Table component).
 //
@@ -662,7 +672,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           // And ping downstream components that data has changed
           setDataVersion((prev) => prev + 1);
         }
-        
+
         // After the loop exits, check if the reader has an error
         // This happens when the streaming query fails on the backend
         if (mainDataReaderRef.current?.closed && !abortSignal.aborted) {
@@ -671,9 +681,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             await mainDataReaderRef.current.next();
           } catch (error: any) {
             // Handle the error like other streaming errors
-            if (error.message?.includes('Table Function with name') || 
-                error.message?.includes('Catalog Error') ||
-                error.message?.includes('Failed to execute query')) {
+            if (isSqlExecutionError(error)) {
               // This is a SQL error, not a file access error
               setAppendDataSourceReadError(error.message);
               // Also clear the readAll flag since this wasn't actually successful
@@ -728,18 +736,13 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           if (error.message?.includes('NotFoundError')) {
             // Removed console statement
             setAppendDataSourceReadError('Data source have been moved or deleted.');
+          } else if (isSqlExecutionError(error)) {
+            // This is a SQL error, not a file access error - don't retry
+            setAppendDataSourceReadError(error.message);
           } else {
-            // Check if this is a query error that shouldn't be retried
-            if (error.message?.includes('Table Function with name') || 
-                error.message?.includes('Catalog Error') ||
-                error.message?.includes('Failed to execute query')) {
-              // This is a SQL error, not a file access error - don't retry
-              setAppendDataSourceReadError(error.message);
-            } else {
-              // Set a more specific error message if possible
-              const errorMessage = error.message || 'Failed to read data from the data source';
-              setAppendDataSourceReadError(errorMessage);
-            }
+            // Set a more specific error message if possible
+            const errorMessage = error.message || 'Failed to read data from the data source';
+            setAppendDataSourceReadError(errorMessage);
           }
         }
       }

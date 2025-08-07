@@ -29,10 +29,7 @@ export const Header = memo(() => {
       <Text size="xs">/</Text>
       <Text size="xs">SETTINGS</Text>
     </Group>
-  ) : isTauri ? (
-    // Tauri desktop: Clean header, no branding (version moved to sidebar)
-    null
-  ) : (
+  ) : isTauri ? null : ( // Tauri desktop: Clean header, no branding (version moved to sidebar)
     // Web version: Keep original design with logo
     <Group className="gap-3 cursor-default">
       <Tooltip label="Hi, I'm Polly!" position="bottom" openDelay={500}>
@@ -80,10 +77,7 @@ export const Header = memo(() => {
         <TextInput
           flex={isTauri ? undefined : 1}
           data-testid={setDataTestId('spotlight-trigger-input')}
-          className={cn(
-            'cursor-pointer',
-            isTauri ? 'w-[340px]' : 'max-w-[400px] min-w-[300px]'
-          )}
+          className={cn('cursor-pointer', isTauri ? 'w-[340px]' : 'max-w-[400px] min-w-[300px]')}
           classNames={{
             input: cn(
               'bg-backgroundSecondary-light  border-0 placeholder-textSecondary-light rounded-full',
@@ -94,7 +88,10 @@ export const Header = memo(() => {
           readOnly
           leftSection={
             <Group gap={3} onClick={spotlight.open}>
-              <IconSearch size={isTauri ? 15 : 18} className="dark:text-iconDefault-dark text-iconDefault-light" />{' '}
+              <IconSearch
+                size={isTauri ? 15 : 18}
+                className="dark:text-iconDefault-dark text-iconDefault-light"
+              />{' '}
               <Text c="text-secondary" className={isTauri ? 'text-xs' : 'text-sm'}>
                 Search
               </Text>

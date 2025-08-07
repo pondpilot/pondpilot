@@ -19,7 +19,7 @@ export class TauriConnection implements DatabaseConnection {
     }
 
     logger.trace('TauriConnection.execute() called', {
-      sql: sql,
+      sql,
       connectionId: this.id,
       params,
     });
@@ -36,7 +36,7 @@ export class TauriConnection implements DatabaseConnection {
 
       const executePromise = this.invoke('connection_execute', {
         connectionId: this.id,
-        sql: sql,
+        sql,
         params: params || [],
       });
 

@@ -23,7 +23,12 @@ export function Layout({ isFileAccessApiSupported, isMobileDevice }: LayoutProps
 
   // Use Tauri-specific layout for desktop app
   if (isTauri) {
-    return <TauriLayout isFileAccessApiSupported={isFileAccessApiSupported} isMobileDevice={isMobileDevice} />;
+    return (
+      <TauriLayout
+        isFileAccessApiSupported={isFileAccessApiSupported}
+        isMobileDevice={isMobileDevice}
+      />
+    );
   }
 
   // Web version layout

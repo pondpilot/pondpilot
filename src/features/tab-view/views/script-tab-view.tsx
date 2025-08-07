@@ -60,7 +60,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
   // and dispatches on the tab type. But we are being very robust here.
 
   const [scriptExecutionState, setScriptExecutionState] = useState<ScriptExecutionState>('idle');
-  
+
   // Monitor data adapter errors and update script execution state
   useEffect(() => {
     if (dataAdapter.dataSourceError.length > 0) {
