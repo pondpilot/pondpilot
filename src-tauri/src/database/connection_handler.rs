@@ -92,7 +92,6 @@ impl ConnectionHandler {
         } else {
             // For queries that return results
             // Use prepare_arrow for Arrow interface
-            use duckdb::arrow::record_batch::RecordBatch;
             use duckdb::arrow::array::Array;
             
             let mut stmt = self.connection.prepare(sql).map_err(|e| {
