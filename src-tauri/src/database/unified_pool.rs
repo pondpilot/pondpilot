@@ -79,15 +79,8 @@ impl ConnectionPermit {
         );
         conn.execute_batch(&config).ok();
 
-        // Load gsheets extension for every connection
-        eprintln!(
-            "[UNIFIED_POOL] Loading gsheets extension for connection {}",
-            self.id
-        );
-        match conn.execute_batch("LOAD gsheets; LOAD read_stat;") {
-            Ok(_) => eprintln!("[UNIFIED_POOL] Successfully loaded gsheets,read_stat extension"),
-            Err(e) => eprintln!("[UNIFIED_POOL] Failed to load gsheets extension: {}", e),
-        }
+        // Extensions are now loaded through the extension management system in TypeScript
+        // See src/services/extension-loader.ts
 
         Ok(conn)
     }

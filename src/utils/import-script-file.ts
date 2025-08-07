@@ -6,7 +6,7 @@ import { pickFiles } from './file-picker-utils';
 export const importSQLFiles = async (): Promise<void> => {
   try {
     const { handles, error } = await pickFiles(['.sql'], 'Import SQL Files');
-    
+
     if (error) {
       showError({
         title: 'Import Error',
@@ -14,7 +14,7 @@ export const importSQLFiles = async (): Promise<void> => {
       });
       return;
     }
-    
+
     if (handles.length > 0) {
       importSQLFilesAndCreateScripts(handles);
     }

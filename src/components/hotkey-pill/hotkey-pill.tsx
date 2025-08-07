@@ -23,8 +23,18 @@ export const HotkeyPill = ({ value, children, variant, size = 'md' }: HotkeyPill
       c="icon-default"
       className={cn(
         'font-mono',
-        size === 'xs' ? 'py-0.5 h-5 text-xs' : size === 'sm' ? 'py-0.5 h-6 text-sm' : 'py-1 h-7 text-base',
-        variant === 'transparent' ? 'px-0' : size === 'xs' ? 'px-2' : size === 'sm' ? 'px-3' : 'px-4'
+        size === 'xs'
+          ? 'py-0.5 h-5 text-xs'
+          : size === 'sm'
+            ? 'py-0.5 h-6 text-sm'
+            : 'py-1 h-7 text-base',
+        variant === 'transparent'
+          ? 'px-0'
+          : size === 'xs'
+            ? 'px-2'
+            : size === 'sm'
+              ? 'px-3'
+              : 'px-4',
       )}
       classNames={{ label: 'flex items-center justify-center', root: 'justify-center' }}
     >
