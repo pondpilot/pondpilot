@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use duckdb::arrow::datatypes::Schema as ArrowSchema;
 use duckdb::arrow::record_batch::RecordBatch;
+use tracing::debug;
 
 pub enum ArrowStreamMessage {
     Schema(Arc<ArrowSchema>),
@@ -49,13 +50,13 @@ impl ArrowStreamingExecutor {
         
         // Execute in blocking task
         tokio::task::spawn_blocking(move || {
-            eprintln!("[ARROW_STREAMING] Starting arrow query execution for {} in thread {:?}", 
+            debug!("[ARROW_STREAMING] Starting arrow query execution for {} in thread {:?}", 
                      query_id, std::thread::current().id());
             
             // Check cancellation before starting
             if let Some(ref token) = cancel_token {
                 if token.is_cancelled() {
-                    eprintln!("[ARROW_STREAMING] Query {} cancelled before execution", query_id);
+                    debug!("[ARROW_STREAMING] Query {} cancelled before execution", query_id);
                     return;
                 }
             }
@@ -64,7 +65,7 @@ impl ArrowStreamingExecutor {
             let conn = match permit.create_connection() {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("[ARROW_STREAMING] Failed to create connection for {}: {}", query_id, e);
+                    debug!("[ARROW_STREAMING] Failed to create connection for {}: {}", query_id, e);
                     let _ = tx.blocking_send(ArrowStreamMessage::Error(format!("Failed to create connection: {}", e)));
                     return;
                 }
@@ -74,21 +75,21 @@ impl ArrowStreamingExecutor {
             // Only try to rollback if there's an active transaction
             // Ignore the error if no transaction is active (TransactionContext Error)
             match conn.execute("ROLLBACK", []) {
-                Ok(_) => eprintln!("[ARROW_STREAMING] Rolled back pending transaction"),
+                Ok(_) => debug!("[ARROW_STREAMING] Rolled back pending transaction"),
                 Err(e) if e.to_string().contains("no transaction is active") => {
                     // This is expected if no transaction is active - not an error
                 }
-                Err(e) => eprintln!("[ARROW_STREAMING] Failed to rollback transaction: {}", e),
+                Err(e) => debug!("[ARROW_STREAMING] Failed to rollback transaction: {}", e),
             }
             
             // Classify the SQL statement
             let classified = ClassifiedSqlStatement::classify(&sql);
-            eprintln!("[ARROW_STREAMING] SQL classified as {:?}, returns_result_set: {}", 
+            debug!("[ARROW_STREAMING] SQL classified as {:?}, returns_result_set: {}", 
                      classified.statement_type, classified.returns_result_set);
             
             // For DDL/DML that don't return results, execute and return empty schema
             if !classified.returns_result_set {
-                eprintln!("[ARROW_STREAMING] Executing non-result SQL for {}", query_id);
+                debug!("[ARROW_STREAMING] Executing non-result SQL for {}", query_id);
                 
                 // Split SQL by semicolons to handle multiple statements
                 let statements: Vec<&str> = sql
@@ -102,14 +103,14 @@ impl ArrowStreamingExecutor {
                 let mut last_error = None;
                 
                 for statement in &statements {
-                    eprintln!("[ARROW_STREAMING] Executing statement: {}", statement);
+                    debug!("[ARROW_STREAMING] Executing statement: {}", statement);
                     match conn.execute(statement, []) {
                         Ok(rows_affected) => {
                             executed_count += 1;
                             total_rows_affected += rows_affected;
                         }
                         Err(e) => {
-                            eprintln!("[ARROW_STREAMING] Failed to execute statement '{}': {}", statement, e);
+                            debug!("[ARROW_STREAMING] Failed to execute statement '{}': {}", statement, e);
                             last_error = Some(e);
                             break;
                         }
@@ -153,7 +154,7 @@ impl ArrowStreamingExecutor {
             }
             
             // For queries that return results, use Arrow API
-            eprintln!("[ARROW_STREAMING] Preparing result-returning SQL for {}: {}", query_id, sql);
+            debug!("[ARROW_STREAMING] Preparing result-returning SQL for {}: {}", query_id, sql);
             
             // Try to get schema without full execution
             let schema = {
@@ -178,11 +179,11 @@ impl ArrowStreamingExecutor {
                     
                     match schema_result {
                         Ok(schema) => {
-                            eprintln!("[ARROW_STREAMING] Got schema using LIMIT 0 approach");
+                            debug!("[ARROW_STREAMING] Got schema using LIMIT 0 approach");
                             Some(schema)
                         }
                         Err(e) => {
-                            eprintln!("[ARROW_STREAMING] Failed to get schema with LIMIT 0: {}", e);
+                            debug!("[ARROW_STREAMING] Failed to get schema with LIMIT 0: {}", e);
                             None
                         }
                     }
@@ -199,11 +200,11 @@ impl ArrowStreamingExecutor {
                         Some(s) => s,
                         None => {
                             // Fallback: execute the query to get schema (original behavior)
-                            eprintln!("[ARROW_STREAMING] Falling back to full query execution for schema");
+                            debug!("[ARROW_STREAMING] Falling back to full query execution for schema");
                             match stmt.query_arrow([]) {
                                 Ok(arrow_result) => arrow_result.get_schema(),
                                 Err(e) => {
-                                    eprintln!("[ARROW_STREAMING] Failed to get arrow result for {}: {}", query_id, e);
+                                    debug!("[ARROW_STREAMING] Failed to get arrow result for {}: {}", query_id, e);
                                     let _ = tx.blocking_send(ArrowStreamMessage::Error(
                                         format!("Failed to get arrow result: {}", e)
                                     ));
@@ -213,10 +214,10 @@ impl ArrowStreamingExecutor {
                         }
                     };
                     
-                    eprintln!("[ARROW_STREAMING] Got Arrow schema with {} columns", schema.fields().len());
+                    debug!("[ARROW_STREAMING] Got Arrow schema with {} columns", schema.fields().len());
                     
                     if tx.blocking_send(ArrowStreamMessage::Schema(schema.clone())).is_err() {
-                        eprintln!("[ARROW_STREAMING] Failed to send schema for query {}", query_id);
+                        debug!("[ARROW_STREAMING] Failed to send schema for query {}", query_id);
                         return Ok(());
                     }
                     
@@ -230,29 +231,29 @@ impl ArrowStreamingExecutor {
                                 // Check cancellation
                                 if let Some(ref token) = cancel_token {
                                     if token.is_cancelled() {
-                                        eprintln!("[ARROW_STREAMING] Query {} cancelled during streaming", query_id);
+                                        debug!("[ARROW_STREAMING] Query {} cancelled during streaming", query_id);
                                         break;
                                     }
                                 }
                                 
                                 batch_count += 1;
                                 total_rows += batch.num_rows();
-                                eprintln!("[ARROW_STREAMING] Sending batch {} with {} rows for query {}", 
+                                debug!("[ARROW_STREAMING] Sending batch {} with {} rows for query {}", 
                                          batch_count, batch.num_rows(), query_id);
                                 
                                 if tx.blocking_send(ArrowStreamMessage::Batch(batch)).is_err() {
-                                    eprintln!("[ARROW_STREAMING] Receiver dropped for query {}", query_id);
+                                    debug!("[ARROW_STREAMING] Receiver dropped for query {}", query_id);
                                     break;
                                 }
                             }
                             
-                            eprintln!("[ARROW_STREAMING] Query {} completed with {} batches, {} total rows", 
+                            debug!("[ARROW_STREAMING] Query {} completed with {} batches, {} total rows", 
                                      query_id, batch_count, total_rows);
                             let _ = tx.blocking_send(ArrowStreamMessage::Complete(total_rows));
                             Ok(())
                         }
                         Err(e) => {
-                            eprintln!("[ARROW_STREAMING] Failed to stream arrow results for {}: {}", query_id, e);
+                            debug!("[ARROW_STREAMING] Failed to stream arrow results for {}: {}", query_id, e);
                             let _ = tx.blocking_send(ArrowStreamMessage::Error(
                                 format!("Failed to stream results: {}", e)
                             ));
@@ -263,7 +264,7 @@ impl ArrowStreamingExecutor {
             
             match query_result {
                 Err(e) => {
-                    eprintln!("[ARROW_STREAMING] Failed to execute query for {}: {}", query_id, e);
+                    debug!("[ARROW_STREAMING] Failed to execute query for {}: {}", query_id, e);
                     let _ = tx.blocking_send(ArrowStreamMessage::Error(
                         format!("Failed to execute query: {}", e)
                     ));

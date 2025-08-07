@@ -283,7 +283,12 @@ export class DuckDBWasmEngine implements DatabaseEngine {
   async loadExtension(name: string, _options?: ExtensionOptions): Promise<void> {
     const conn = await this.createConnection();
     try {
-      await conn.execute(`INSTALL ${name}`);
+      // For community extensions like gsheets, we need to specify the source
+      if (name === 'gsheets') {
+        await conn.execute(`INSTALL ${name} FROM community`);
+      } else {
+        await conn.execute(`INSTALL ${name}`);
+      }
       await conn.execute(`LOAD ${name}`);
     } finally {
       await conn.close();

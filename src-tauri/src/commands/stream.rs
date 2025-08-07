@@ -9,6 +9,7 @@ use tauri::{AppHandle, Emitter};
 use base64::{Engine as _, engine::general_purpose};
 use arrow_ipc::writer::StreamWriter;
 use std::sync::Arc as StdArc;
+use tracing::debug;
 
 #[tauri::command]
 pub async fn stream_query(
@@ -18,7 +19,7 @@ pub async fn stream_query(
     sql: String,
     stream_id: String,
 ) -> DuckDBResult<()> {
-    eprintln!("[COMMAND] stream_query called for stream {} with SQL: {}", stream_id, sql);
+    debug!("[COMMAND] stream_query called for stream {} with SQL: {}", stream_id, sql);
     let engine_arc = engine.inner().clone();
     let stream_manager = stream_manager.inner().clone();
     
@@ -31,10 +32,10 @@ pub async fn stream_query(
     tokio::spawn(async move {
         match execute_streaming_query(app_clone, engine_arc, stream_manager.clone(), sql, stream_id_clone.clone()).await {
             Ok(_) => {
-                eprintln!("[STREAMING] Stream {} completed successfully", stream_id_clone);
+                debug!("[STREAMING] Stream {} completed successfully", stream_id_clone);
             }
             Err(e) => {
-                eprintln!("[STREAMING] Stream {} failed: {}", stream_id_clone, e);
+                debug!("[STREAMING] Stream {} failed: {}", stream_id_clone, e);
                 // Emit error event
                 let _ = app_clone2.emit(&format!("stream-{}-error", stream_id_clone), &e.to_string());
             }
@@ -54,13 +55,13 @@ async fn execute_streaming_query(
     sql: String,
     stream_id: String,
 ) -> Result<()> {
-    eprintln!("[STREAMING] ===== STARTING STREAM {} =====", stream_id);
-    eprintln!("[STREAMING] Starting streaming query for stream {}", stream_id);
-    eprintln!("[STREAMING] SQL: {}", sql);
+    debug!("[STREAMING] ===== STARTING STREAM {} =====", stream_id);
+    debug!("[STREAMING] Starting streaming query for stream {}", stream_id);
+    debug!("[STREAMING] SQL: {}", sql);
     
     // Register the stream with backpressure support
     let (cancel_token, mut ack_rx) = stream_manager.register_stream(stream_id.clone()).await;
-    eprintln!("[STREAMING] Stream registered with cancellation token and backpressure");
+    debug!("[STREAMING] Stream registered with cancellation token and backpressure");
     
     // Use the new unified API - no lock needed
     let mut arrow_stream = engine.execute_arrow_streaming(
@@ -77,13 +78,13 @@ async fn execute_streaming_query(
     while let Some(msg) = arrow_stream.recv().await {
         // Check cancellation
         if cancel_token.is_cancelled() {
-            eprintln!("[STREAMING] Stream {} cancelled", stream_id);
+            debug!("[STREAMING] Stream {} cancelled", stream_id);
             break;
         }
         
         match msg {
             ArrowStreamMessage::Schema(schema) => {
-                eprintln!("[STREAMING] Received schema for stream {}", stream_id);
+                debug!("[STREAMING] Received schema for stream {}", stream_id);
                 
                 // Serialize schema to IPC format
                 let mut schema_buffer = Vec::new();
@@ -99,20 +100,20 @@ async fn execute_streaming_query(
             
             ArrowStreamMessage::Batch(batch) => {
                 batch_count += 1;
-                eprintln!("[STREAMING] Received batch {} for stream {} ({} rows)", 
+                debug!("[STREAMING] Received batch {} for stream {} ({} rows)", 
                          batch_count, stream_id, batch.num_rows());
                 
                 // Check if we need to wait for acknowledgments
                 if unacked_batches >= MAX_UNACKED_BATCHES {
-                    eprintln!("[STREAMING] Waiting for acknowledgment (unacked: {})", unacked_batches);
+                    debug!("[STREAMING] Waiting for acknowledgment (unacked: {})", unacked_batches);
                     // Wait for acknowledgment before proceeding
                     match ack_rx.recv().await {
                         Some(_) => {
                             unacked_batches -= 1;
-                            eprintln!("[STREAMING] Received acknowledgment, continuing");
+                            debug!("[STREAMING] Received acknowledgment, continuing");
                         }
                         None => {
-                            eprintln!("[STREAMING] Acknowledgment channel closed");
+                            debug!("[STREAMING] Acknowledgment channel closed");
                             break;
                         }
                     }
@@ -135,13 +136,13 @@ async fn execute_streaming_query(
             }
             
             ArrowStreamMessage::Complete(total_batches) => {
-                eprintln!("[STREAMING] Stream {} completed with {} batches", stream_id, total_batches);
+                debug!("[STREAMING] Stream {} completed with {} batches", stream_id, total_batches);
                 app.emit(&format!("stream-{}-complete", stream_id), &batch_count)?;
                 break;
             }
             
             ArrowStreamMessage::Error(error) => {
-                eprintln!("[STREAMING] Stream {} error: {}", stream_id, error);
+                debug!("[STREAMING] Stream {} error: {}", stream_id, error);
                 app.emit(&format!("stream-{}-error", stream_id), &error)?;
                 return Err(anyhow::anyhow!("Streaming error: {}", error));
             }
@@ -151,7 +152,7 @@ async fn execute_streaming_query(
     // Always send completion event
     app.emit(&format!("stream-{}-complete", stream_id), &batch_count)?;
     
-    eprintln!("[STREAMING] ===== STREAM {} COMPLETE =====", stream_id);
+    debug!("[STREAMING] ===== STREAM {} COMPLETE =====", stream_id);
     Ok(())
 }
 
@@ -160,15 +161,15 @@ pub async fn cancel_stream(
     stream_manager: tauri::State<'_, Arc<StreamManager>>,
     stream_id: String,
 ) -> DuckDBResult<()> {
-    eprintln!("[STREAMING] !!!!! CANCEL REQUEST FOR STREAM {} !!!!!", stream_id);
-    eprintln!("[STREAMING] Cancelling stream {}", stream_id);
+    debug!("[STREAMING] !!!!! CANCEL REQUEST FOR STREAM {} !!!!!", stream_id);
+    debug!("[STREAMING] Cancelling stream {}", stream_id);
     stream_manager
         .cancel_stream(&stream_id)
         .await
         .map_err(|e| DuckDBError::InvalidOperation {
             message: format!("Failed to cancel stream: {}", e),
         })?;
-    eprintln!("[STREAMING] Stream {} cancellation token triggered", stream_id);
+    debug!("[STREAMING] Stream {} cancellation token triggered", stream_id);
     
     Ok(())
 }
@@ -178,7 +179,7 @@ pub async fn acknowledge_stream_batch(
     stream_manager: tauri::State<'_, Arc<StreamManager>>,
     stream_id: String,
 ) -> DuckDBResult<()> {
-    eprintln!("[COMMAND] acknowledge_stream_batch called for stream {}", stream_id);
+    debug!("[COMMAND] acknowledge_stream_batch called for stream {}", stream_id);
     stream_manager.inner().acknowledge_batch(&stream_id).await
         .map_err(|e| DuckDBError::InvalidOperation {
             message: format!("Failed to acknowledge batch: {}", e),
@@ -206,7 +207,7 @@ fn convert_duckdb_schema(duckdb_schema: &duckdb::arrow::datatypes::Schema) -> St
 fn convert_duckdb_datatype(dt: &duckdb::arrow::datatypes::DataType) -> arrow_schema::DataType {
     use duckdb::arrow::datatypes::DataType as DuckDBDataType;
     use duckdb::arrow::datatypes::TimeUnit as DuckDBTimeUnit;
-    use arrow_schema::{DataType, TimeUnit};
+    use arrow_schema::{DataType, TimeUnit, Field, UnionFields};
     
     match dt {
         DuckDBDataType::Boolean => DataType::Boolean,
@@ -247,8 +248,67 @@ fn convert_duckdb_datatype(dt: &duckdb::arrow::datatypes::DataType) -> arrow_sch
         DuckDBDataType::LargeBinary => DataType::LargeBinary,
         DuckDBDataType::Decimal128(p, s) => DataType::Decimal128(*p, *s),
         DuckDBDataType::Decimal256(p, s) => DataType::Decimal256(*p, *s),
+        DuckDBDataType::List(field) => {
+            // Convert the inner field
+            let inner_field = Field::new(
+                field.name(),
+                convert_duckdb_datatype(field.data_type()),
+                field.is_nullable()
+            );
+            DataType::List(StdArc::new(inner_field))
+        },
+        DuckDBDataType::LargeList(field) => {
+            // Convert the inner field
+            let inner_field = Field::new(
+                field.name(),
+                convert_duckdb_datatype(field.data_type()),
+                field.is_nullable()
+            );
+            DataType::LargeList(StdArc::new(inner_field))
+        },
+        DuckDBDataType::FixedSizeList(field, size) => {
+            // Convert the inner field
+            let inner_field = Field::new(
+                field.name(),
+                convert_duckdb_datatype(field.data_type()),
+                field.is_nullable()
+            );
+            DataType::FixedSizeList(StdArc::new(inner_field), *size)
+        },
+        DuckDBDataType::Struct(fields) => {
+            // Convert all struct fields
+            let converted_fields: Vec<Field> = fields
+                .iter()
+                .map(|f| Field::new(
+                    f.name(),
+                    convert_duckdb_datatype(f.data_type()),
+                    f.is_nullable()
+                ))
+                .collect();
+            DataType::Struct(converted_fields.into())
+        },
+        DuckDBDataType::Union(_fields, _mode) => {
+            // Convert union fields - for now, default to Utf8 as Union type handling is complex
+            debug!("[STREAMING] Warning: Union type not fully supported, defaulting to Utf8");
+            DataType::Utf8
+        },
+        DuckDBDataType::Dictionary(key_type, value_type) => {
+            DataType::Dictionary(
+                Box::new(convert_duckdb_datatype(key_type)),
+                Box::new(convert_duckdb_datatype(value_type))
+            )
+        },
+        DuckDBDataType::Map(field, sorted) => {
+            // Convert the map field
+            let inner_field = Field::new(
+                field.name(),
+                convert_duckdb_datatype(field.data_type()),
+                field.is_nullable()
+            );
+            DataType::Map(StdArc::new(inner_field), *sorted)
+        },
         _ => {
-            eprintln!("[STREAMING] Warning: Unhandled DuckDB datatype: {:?}, defaulting to Utf8", dt);
+            debug!("[STREAMING] Warning: Unhandled DuckDB datatype: {:?}, defaulting to Utf8", dt);
             DataType::Utf8
         }
     }

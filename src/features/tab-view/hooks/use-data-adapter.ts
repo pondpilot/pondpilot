@@ -268,9 +268,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       if (rowCountInfo.realRowCount !== null) {
         // probably a bug, but not critical
-        console.warn(
-          'Unexpectedly setting real row count to a different value than the previous one.',
-        );
+        // Unexpected: setting real row count to a different value than the previous one
       }
 
       setRowCountInfo((prev) => {
@@ -302,7 +300,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       if (rowCountInfo.realRowCount !== null) {
         // probably a bug, but not critical
-        console.warn('Tried setting estimated row count while real row count is already set.');
+        // Tried setting estimated row count while real row count is already set
         return;
       }
 
@@ -664,6 +662,28 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           // And ping downstream components that data has changed
           setDataVersion((prev) => prev + 1);
         }
+        
+        // After the loop exits, check if the reader has an error
+        // This happens when the streaming query fails on the backend
+        if (mainDataReaderRef.current?.closed && !abortSignal.aborted) {
+          // Try to get the error by calling next()
+          try {
+            await mainDataReaderRef.current.next();
+          } catch (error: any) {
+            // Handle the error like other streaming errors
+            if (error.message?.includes('Table Function with name') || 
+                error.message?.includes('Catalog Error') ||
+                error.message?.includes('Failed to execute query')) {
+              // This is a SQL error, not a file access error
+              setAppendDataSourceReadError(error.message);
+              // Also clear the readAll flag since this wasn't actually successful
+              readAll = false;
+            } else if (!error.message?.includes('Stream cancelled')) {
+              // Re-throw to be caught by outer catch block (unless it's just a cancellation)
+              throw error;
+            }
+          }
+        }
       } catch (error: any) {
         if (error.message?.includes('NotReadableError')) {
           if (options.retry_with_file_sync) {
@@ -709,10 +729,17 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             // Removed console statement
             setAppendDataSourceReadError('Data source have been moved or deleted.');
           } else {
-            // Removed console statement
-            setAppendDataSourceReadError(
-              'Failed to read data from the data source. See console for technical details.',
-            );
+            // Check if this is a query error that shouldn't be retried
+            if (error.message?.includes('Table Function with name') || 
+                error.message?.includes('Catalog Error') ||
+                error.message?.includes('Failed to execute query')) {
+              // This is a SQL error, not a file access error - don't retry
+              setAppendDataSourceReadError(error.message);
+            } else {
+              // Set a more specific error message if possible
+              const errorMessage = error.message || 'Failed to read data from the data source';
+              setAppendDataSourceReadError(errorMessage);
+            }
           }
         }
       }

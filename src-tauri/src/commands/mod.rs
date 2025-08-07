@@ -93,32 +93,37 @@ pub async fn get_xlsx_sheet_names(engine: EngineState<'_>, file_path: String) ->
 }
 
 #[tauri::command]
-pub async fn create_connection(_engine: EngineState<'_>) -> Result<String> {
-    // For now, return a UUID that represents a connection
-    // In a real implementation, this would create a connection from the pool
-    Ok(Uuid::new_v4().to_string())
+pub async fn create_connection(engine: EngineState<'_>) -> Result<String> {
+    // Generate a unique connection ID
+    let connection_id = Uuid::new_v4().to_string();
+    
+    // Create and store the connection
+    engine.create_connection(connection_id.clone()).await?;
+    
+    eprintln!("[CREATE_CONNECTION] Created persistent connection: {}", connection_id);
+    Ok(connection_id)
 }
 
 #[tauri::command]
 pub async fn connection_execute(
     engine: EngineState<'_>,
-    _connection_id: String,
+    connection_id: String,
     sql: String,
     params: Vec<serde_json::Value>,
 ) -> Result<QueryResult> {
-    // For now, just execute directly
-    // In a real implementation, this would use the specific connection
-    // No lock needed - execute_query is thread-safe
-    engine.execute_query(&sql, params).await
+    // Use the specific connection to execute the query
+    eprintln!("[CONNECTION_EXECUTE] Using connection {} for SQL: {}", connection_id, sql);
+    engine.execute_on_connection(&connection_id, &sql, params).await
 }
 
 #[tauri::command]
 pub async fn connection_close(
-    _engine: EngineState<'_>,
-    _connection_id: String,
+    engine: EngineState<'_>,
+    connection_id: String,
 ) -> Result<()> {
-    // In a real implementation, this would return the connection to the pool
-    Ok(())
+    // Close and remove the connection from the manager
+    eprintln!("[CONNECTION_CLOSE] Closing connection: {}", connection_id);
+    engine.close_connection(&connection_id).await
 }
 
 #[tauri::command]
