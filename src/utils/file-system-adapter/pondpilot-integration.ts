@@ -3,11 +3,11 @@
  */
 
 import { SUPPORTED_DATA_SOURCE_FILE_EXTS } from '@models/file-system';
-import { getFilePicker } from '../../services/file-picker';
 import { isTauriEnvironment } from '@utils/browser';
 
 import { fileSystemService } from './file-system-service';
 import { createFileHandleWrapper, createDirectoryHandleWrapper } from './handle-converter';
+import { getFilePicker } from '../../services/file-picker';
 
 interface PickFilesResult {
   handles: FileSystemFileHandle[];
@@ -54,7 +54,7 @@ export async function pickFilesForPondPilot(
         if (file.handle) {
           return file.handle;
         }
-        
+
         // Create a mock handle for files without handles
         return {
           kind: 'file',

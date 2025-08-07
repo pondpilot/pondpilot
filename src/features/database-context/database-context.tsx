@@ -1,8 +1,11 @@
 import { DatabaseEngineFactory } from '@engines/database-engine-factory';
 import { DatabaseEngine, ConnectionPool, EngineConfig } from '@engines/types';
 import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
+import { isTauriEnvironment } from '@utils/browser';
 import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+
+import { ExtensionLoader } from '../../services/extension-loader';
 
 // Context types
 type DatabaseInitState = 'none' | 'loading' | 'ready' | 'error';
@@ -180,6 +183,25 @@ export const DatabaseConnectionPoolProvider = ({
 
         // Create connection pool
         const pool = await newEngine.createConnectionPool(normalizedPoolSize);
+
+        // Load auto-load extensions for Tauri engine
+        if (config.type === 'duckdb-tauri' && isTauriEnvironment()) {
+          try {
+            memoizedStatusUpdate({
+              state: 'loading',
+              message: 'Loading extensions...',
+            });
+            await ExtensionLoader.loadAutoExtensions(pool);
+          } catch (error) {
+            console.error('Failed to load extensions:', error);
+            memoizedStatusUpdate({
+              state: 'error',
+              message: `Failed to load extensions: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            });
+            // Extensions are not critical, continue with database initialization
+            // If extensions were critical, we would throw the error here
+          }
+        }
 
         // Note: Checkpointing will be handled by the ConnectionPoolAdapter
         // which wraps the generic pool and provides the expected interface

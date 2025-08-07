@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AISettings } from './components/ai-settings';
 import { EditorSettings } from './components/editor-settings';
+import { ExtensionSettings } from './components/extension-settings';
 import { ThemeSwitcher } from './components/theme-switcher';
 
 export const SettingsPage = () => {
@@ -91,6 +92,8 @@ export const SettingsPage = () => {
           <AISettings />
           <Divider />
           <EditorSettings />
+          <Divider />
+          <ExtensionSettings />
           <Divider />
           <Stack className="gap-8">
             <Title c="text-primary" order={2}>

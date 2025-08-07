@@ -79,12 +79,7 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
                   position="bottom"
                   openDelay={500}
                 >
-                  <ActionIcon
-                    size={28}
-                    variant="subtle"
-                    onClick={toggleSidebar}
-                    className="mr-4"
-                  >
+                  <ActionIcon size={28} variant="subtle" onClick={toggleSidebar} className="mr-4">
                     {sidebarCollapsed ? (
                       <IconLayoutSidebarLeftExpand size={18} />
                     ) : (
@@ -100,11 +95,7 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
                   position="bottom"
                   openDelay={500}
                 >
-                  <ActionIcon
-                    size={28}
-                    variant="subtle"
-                    onClick={toggleSidebar}
-                  >
+                  <ActionIcon size={28} variant="subtle" onClick={toggleSidebar}>
                     {sidebarCollapsed ? (
                       <IconLayoutSidebarLeftExpand size={18} />
                     ) : (
