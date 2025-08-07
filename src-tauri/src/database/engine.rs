@@ -3,12 +3,14 @@ use super::unified_pool::{UnifiedPool, PoolConfig};
 use super::resource_manager::ResourceManager;
 use super::query_builder::{QueryHints, QueryBuilder};
 use super::arrow_streaming::ArrowStreamingExecutor;
+use super::connection_handler::ThreadSafeConnectionManager;
 use crate::errors::Result;
 use crate::system_resources::get_total_memory;
 use std::sync::Arc;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio_util::sync::CancellationToken;
+use tracing::{debug, warn};
 
 // Whitelist of allowed DuckDB extensions for security
 const ALLOWED_EXTENSIONS: &[&str] = &[
@@ -132,6 +134,8 @@ pub struct DuckDBEngine {
     // TODO: Use db_path for database management operations
     #[allow(dead_code)]
     db_path: PathBuf,
+    /// Manages persistent connections (each in their own thread)
+    connection_manager: Arc<ThreadSafeConnectionManager>,
 }
 
 impl DuckDBEngine {
@@ -147,6 +151,7 @@ impl DuckDBEngine {
             resources,
             registered_files: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             db_path,
+            connection_manager: Arc::new(ThreadSafeConnectionManager::new()),
         })
     }
 
@@ -178,7 +183,7 @@ impl DuckDBEngine {
         
         // Execute in blocking task
         tokio::task::spawn_blocking(move || {
-            eprintln!("[ENGINE_V2] Executing session-modifying SQL: {}", sql_owned);
+            debug!("Executing session-modifying SQL: {}", sql_owned);
             
             // Validate SQL
             if sql_owned.trim().is_empty() {
@@ -287,6 +292,44 @@ impl DuckDBEngine {
 
     pub async fn execute_query(&self, sql: &str, _params: Vec<serde_json::Value>) -> Result<super::types::QueryResult> {
         self.execute_and_collect(sql).await
+    }
+
+    /// Create a new persistent connection with the given ID
+    pub async fn create_connection(&self, connection_id: String) -> Result<()> {
+        // Get a permit from the pool
+        let permit = self.pool.acquire_connection_permit().await?;
+        
+        // Create the connection in a blocking task
+        let conn = tokio::task::spawn_blocking(move || {
+            permit.create_connection()
+        }).await.map_err(|e| crate::errors::DuckDBError::ConnectionError {
+            message: format!("Task join error: {}", e),
+        })??;
+        
+        // Store it in the connection manager
+        self.connection_manager.create_connection(connection_id, conn).await
+    }
+
+    /// Execute a query on a specific connection
+    pub async fn execute_on_connection(&self, connection_id: &str, sql: &str, params: Vec<serde_json::Value>) -> Result<super::types::QueryResult> {
+        // Validate that we're not trying to use parameters (temporary limitation)
+        if !params.is_empty() {
+            warn!("Parameters provided but not supported in connection execution mode");
+            // For now, we'll proceed without parameters but log the warning
+            // In production, you might want to return an error here
+        }
+        
+        // Get the connection handle from the manager
+        let handle = self.connection_manager.get_connection(connection_id).await?;
+        
+        // Execute on the connection's dedicated thread
+        // Note: Parameters are passed but currently ignored due to DuckDB Rust binding limitations
+        handle.execute(sql.to_string(), params).await
+    }
+
+    /// Close a specific connection
+    pub async fn close_connection(&self, connection_id: &str) -> Result<()> {
+        self.connection_manager.close_connection(connection_id).await
     }
 
     pub async fn get_catalog(&self) -> Result<CatalogInfo> {

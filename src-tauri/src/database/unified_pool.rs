@@ -76,6 +76,13 @@ impl ConnectionPermit {
         );
         conn.execute_batch(&config).ok();
 
+        // Load gsheets extension for every connection
+        eprintln!("[UNIFIED_POOL] Loading gsheets extension for connection {}", self.id);
+        match conn.execute_batch("INSTALL gsheets; LOAD gsheets;") {
+            Ok(_) => eprintln!("[UNIFIED_POOL] Successfully loaded gsheets extension"),
+            Err(e) => eprintln!("[UNIFIED_POOL] Failed to load gsheets extension: {}", e),
+        }
+
         Ok(conn)
     }
 }

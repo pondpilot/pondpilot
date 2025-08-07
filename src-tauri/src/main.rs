@@ -106,7 +106,7 @@ fn main() {
                     engine_type: "duckdb".to_string(),
                     storage_type: None,
                     storage_path: None,
-                    extensions: None,
+                    extensions: Some(vec!["gsheets".to_string()]),
                     options: None,
                 };
                 match engine_clone.initialize(config).await {
