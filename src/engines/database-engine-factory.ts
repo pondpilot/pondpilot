@@ -58,7 +58,7 @@ export class DatabaseEngineFactory {
       return {
         type: 'duckdb-tauri',
         storageType: 'persistent',
-        extensions: ['httpfs', 'gsheets'],
+        extensions: ['httpfs', 'gsheets', 'read_stat'],
       };
     }
 
@@ -66,7 +66,7 @@ export class DatabaseEngineFactory {
     return {
       type: 'duckdb-wasm',
       storageType: this.supportsOPFS() ? 'persistent' : 'memory',
-      extensions: ['httpfs', 'gsheets'],
+      extensions: ['httpfs'],
     };
   }
 

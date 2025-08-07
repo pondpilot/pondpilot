@@ -1,12 +1,12 @@
 use crate::errors::{DuckDBError, Result};
 use crate::system_resources::{calculate_resource_limits, ResourceLimits};
 use duckdb::Connection;
-use std::sync::Arc;
-use tokio::sync::Semaphore;
-use std::path::PathBuf;
 use std::fs;
-use std::time::Duration;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Semaphore;
 
 #[derive(Debug, Clone)]
 pub struct PoolConfig {
@@ -31,7 +31,6 @@ impl Default for PoolConfig {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub struct UnifiedPool {
     permits: Arc<Semaphore>,
@@ -53,40 +52,46 @@ impl ConnectionPermit {
     /// Create a connection in the current thread
     /// This MUST be called from the thread where the connection will be used
     pub fn create_connection(self) -> Result<Connection> {
-        eprintln!("[UNIFIED_POOL] Creating connection {} in thread {:?}", 
-                 self.id, std::thread::current().id());
+        eprintln!(
+            "[UNIFIED_POOL] Creating connection {} in thread {:?}",
+            self.id,
+            std::thread::current().id()
+        );
         eprintln!("[UNIFIED_POOL] Database path: {:?}", self.db_path);
         eprintln!("[UNIFIED_POOL] Path exists: {}", self.db_path.exists());
         if let Some(parent) = self.db_path.parent() {
-            eprintln!("[UNIFIED_POOL] Parent directory exists: {}", parent.exists());
+            eprintln!(
+                "[UNIFIED_POOL] Parent directory exists: {}",
+                parent.exists()
+            );
         }
-        
-        let conn = Connection::open(&self.db_path)
-            .map_err(|e| DuckDBError::ConnectionError {
-                message: format!("Failed to create connection to {:?}: {}", self.db_path, e),
-            })?;
+
+        let conn = Connection::open(&self.db_path).map_err(|e| DuckDBError::ConnectionError {
+            message: format!("Failed to create connection to {:?}: {}", self.db_path, e),
+        })?;
 
         // Configure the connection
         let config = format!(
             "PRAGMA threads={};
             PRAGMA memory_limit='{}';
             PRAGMA enable_progress_bar=true;",
-            self.resource_limits.pool_threads,
-            self.resource_limits.pool_memory
+            self.resource_limits.pool_threads, self.resource_limits.pool_memory
         );
         conn.execute_batch(&config).ok();
 
         // Load gsheets extension for every connection
-        eprintln!("[UNIFIED_POOL] Loading gsheets extension for connection {}", self.id);
-        match conn.execute_batch("INSTALL gsheets; LOAD gsheets;") {
-            Ok(_) => eprintln!("[UNIFIED_POOL] Successfully loaded gsheets extension"),
+        eprintln!(
+            "[UNIFIED_POOL] Loading gsheets extension for connection {}",
+            self.id
+        );
+        match conn.execute_batch("LOAD gsheets; LOAD read_stat;") {
+            Ok(_) => eprintln!("[UNIFIED_POOL] Successfully loaded gsheets,read_stat extension"),
             Err(e) => eprintln!("[UNIFIED_POOL] Failed to load gsheets extension: {}", e),
         }
 
         Ok(conn)
     }
 }
-
 
 impl UnifiedPool {
     pub fn new(db_path: PathBuf, config: PoolConfig) -> Result<Self> {
@@ -97,7 +102,7 @@ impl UnifiedPool {
 
         let resource_limits = calculate_resource_limits();
         let permits = Arc::new(Semaphore::new(config.max_connections));
-        
+
         let pool = Self {
             permits,
             config,
@@ -109,17 +114,20 @@ impl UnifiedPool {
         Ok(pool)
     }
 
-
-
     /// Acquire a permit to create a connection
     /// The actual connection MUST be created in the thread where it will be used
     pub async fn acquire_connection_permit(&self) -> Result<ConnectionPermit> {
         match tokio::time::timeout(
             self.config.acquire_timeout,
-            self.permits.clone().acquire_owned()
-        ).await {
+            self.permits.clone().acquire_owned(),
+        )
+        .await
+        {
             Ok(Ok(permit)) => {
-                let id = format!("conn-{}", self.connection_counter.fetch_add(1, Ordering::SeqCst));
+                let id = format!(
+                    "conn-{}",
+                    self.connection_counter.fetch_add(1, Ordering::SeqCst)
+                );
                 eprintln!("[UNIFIED_POOL] Acquired permit for connection: {}", id);
                 Ok(ConnectionPermit {
                     _permit: permit,
@@ -132,10 +140,11 @@ impl UnifiedPool {
                 message: "Failed to acquire connection permit".to_string(),
             }),
             Err(_) => Err(DuckDBError::ConnectionError {
-                message: format!("Connection pool timeout after {:?}", self.config.acquire_timeout),
+                message: format!(
+                    "Connection pool timeout after {:?}",
+                    self.config.acquire_timeout
+                ),
             }),
         }
     }
-
 }
-
