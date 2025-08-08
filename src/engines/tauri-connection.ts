@@ -8,6 +8,7 @@ export class TauriConnection implements DatabaseConnection {
   private invoke: any;
   private _isOpen = true;
   private _extensionsLoaded = false;
+  private _attachedDbsLoaded = false;
 
   constructor(invoke: any, id: string) {
     this.invoke = invoke;
@@ -20,6 +21,14 @@ export class TauriConnection implements DatabaseConnection {
 
   markExtensionsLoaded(): void {
     this._extensionsLoaded = true;
+  }
+
+  hasAttachedDbsLoaded(): boolean {
+    return this._attachedDbsLoaded;
+  }
+
+  markAttachedDbsLoaded(): void {
+    this._attachedDbsLoaded = true;
   }
 
   async execute(sql: string, params?: any[]): Promise<QueryResult> {

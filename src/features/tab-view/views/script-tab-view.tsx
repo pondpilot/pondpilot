@@ -310,11 +310,18 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             if (dbName !== 'memory' && dbName !== 'temp' && dbName !== 'system') {
               try {
                 // Try to query the database to ensure metadata is loaded
-                const schemaQuery = `SELECT table_name FROM ${dbName}.information_schema.tables LIMIT 1`;
+                const { toDuckDBIdentifier } = await import('@utils/duckdb/identifier');
+                const schemaQuery = `SELECT table_name FROM ${toDuckDBIdentifier(
+                  dbName,
+                )}.information_schema.tables LIMIT 1`;
                 await pool.query(schemaQuery).catch(() => {
                   // If information_schema doesn't exist, try duckdb_tables
                   return pool
-                    .query(`SELECT name FROM ${dbName}.sqlite_master WHERE type='table' LIMIT 1`)
+                    .query(
+                      `SELECT name FROM ${toDuckDBIdentifier(
+                        dbName,
+                      )}.sqlite_master WHERE type='table' LIMIT 1`,
+                    )
                     .catch(() => {
                       // Ignore errors - some databases might not have these views
                     });
@@ -344,9 +351,14 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             for (const statement of classifiedStatements) {
               if (statement.type === SQLStatement.ATTACH) {
                 // Parse ATTACH statement to extract URL and database name
-                const attachMatch = statement.code.match(/ATTACH\s+'([^']+)'\s+AS\s+(\w+)/i);
+                const attachMatch = statement.code.match(
+                  /ATTACH\s+'([^']+)'\s+AS\s+("[^"]+"|\w+)/i,
+                );
                 if (attachMatch) {
-                  const [, url, dbName] = attachMatch;
+                  let [, url, dbName] = attachMatch as any;
+                  if (dbName.startsWith('"') && dbName.endsWith('"')) {
+                    dbName = dbName.slice(1, -1).replace(/""/g, '"');
+                  }
 
                   // Check if this is a remote database (not a local file)
                   if (
@@ -376,19 +388,23 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
                       updatedDataSources.set(remoteDb.id, remoteDb);
 
-                      // Persist to IndexedDB
-                      const { _iDbConn } = useAppStore.getState();
-                      if (_iDbConn) {
-                        await persistPutDataSources(_iDbConn, [remoteDb]);
+                      // Persist (SQLite in Tauri or IndexedDB on web)
+                      const { _iDbConn, _persistenceAdapter } = useAppStore.getState();
+                      const store = (_persistenceAdapter as any) || _iDbConn;
+                      if (store) {
+                        await persistPutDataSources(store, [remoteDb]);
                       }
                     }
                   }
                 }
               } else if (statement.type === SQLStatement.DETACH) {
                 // Parse DETACH statement to extract database name
-                const detachMatch = statement.code.match(/DETACH\s+(?:DATABASE\s+)?(\w+)/i);
+                const detachMatch = statement.code.match(/DETACH\s+(?:DATABASE\s+)?("[^"]+"|\w+)/i);
                 if (detachMatch) {
-                  const [, dbName] = detachMatch;
+                  let [, dbName] = detachMatch as any;
+                  if (dbName.startsWith('"') && dbName.endsWith('"')) {
+                    dbName = dbName.slice(1, -1).replace(/""/g, '"');
+                  }
 
                   // Find and remove the database from dataSources
                   const dbToRemove = Array.from(updatedDataSources.entries()).find(
@@ -404,10 +420,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
                     // Remove from metadata
                     updatedMetadata.delete(dbName);
 
-                    // Remove from IndexedDB
-                    const { _iDbConn } = useAppStore.getState();
-                    if (_iDbConn) {
-                      await persistDeleteDataSource(_iDbConn, [dbId], []);
+                    // Remove from persistent store
+                    const { _iDbConn, _persistenceAdapter } = useAppStore.getState();
+                    const store = (_persistenceAdapter as any) || _iDbConn;
+                    if (store) {
+                      await persistDeleteDataSource(store, [dbId], []);
                     }
                   }
                 }

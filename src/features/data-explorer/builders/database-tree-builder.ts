@@ -102,9 +102,12 @@ export function buildDatabaseNode(
   nodeMap.set(dbId, { db: dbId, schemaName: null, objectName: null, columnName: null });
   anyNodeIdToNodeTypeMap.set(dbId, 'db');
 
-  const sortedSchemas = databaseMetadata
-    .get(dbName)
-    ?.schemas?.sort((a: any, b: any) => a.name.localeCompare(b.name));
+  // Resolve schemas for this database from metadata
+  const dbSchemas = databaseMetadata.get(dbName)?.schemas;
+
+  // Do not fallback to 'main' here; database names should match what DuckDB reports
+
+  const sortedSchemas = dbSchemas?.slice().sort((a: any, b: any) => a.name.localeCompare(b.name));
 
   // Base context menu items
   const baseContextMenuItems = [
