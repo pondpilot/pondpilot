@@ -87,7 +87,7 @@ export function getLocalEntryIcon(entry: LocalEntry): IconType {
     ? 'folder'
     : entry.fileType === 'code-file'
       ? 'code-file'
-      : entry.ext === 'duckdb'
+      : entry.ext === 'duckdb' || entry.ext === 'db'
         ? 'db'
         : entry.ext === 'parquet'
           ? 'db-table'

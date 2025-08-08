@@ -45,8 +45,8 @@ export function DatasourceWizardModal({
   };
 
   const fileDescription = useMemo(() => {
-    // Show statistical formats only in Tauri
-    return isTauriEnvironment() ? 'CSV, Excel, Parquet, SAS…' : 'CSV, Excel, JSON, Parquet';
+    // Show additional formats only in Tauri
+    return isTauriEnvironment() ? 'CSV, Excel, Parquet, SQLite, SAS…' : 'CSV, Excel, JSON, Parquet';
   }, []);
 
   const datasourceCards = [
@@ -148,7 +148,7 @@ export function DatasourceWizardModal({
               • Use SQL ATTACH statement for advanced database connections
             </Text>
             <Text size="xs" className="pl-3" c="text-secondary">
-              • Supported formats: CSV, Parquet, JSON, Excel, DuckDB, and more
+              • Supported formats: CSV, Parquet, JSON, Excel, DuckDB, SQLite, and more
             </Text>
           </Stack>
         </Group>
