@@ -178,6 +178,14 @@ export function addLocalDB(localEntry: DataSourceLocalFile, reservedDbs: Set<str
         fileSourceId: localEntry.id,
         dbName,
       };
+    case 'db':
+      return {
+        id: dataSourceId,
+        type: 'attached-db',
+        dbType: 'sqlite',
+        fileSourceId: localEntry.id,
+        dbName,
+      };
     default:
       throw new Error('Unexpcted unsupported database source file type');
   }

@@ -61,6 +61,12 @@ const REQUIRED_EXTENSIONS: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = [
     type: 'community',
     required: true,
   },
+  {
+    name: 'sqlite_scanner',
+    description: 'Essential for reading and writing SQLite database files',
+    type: 'core',
+    required: true,
+  },
 ];
 
 // Optional core extensions (from duckdb_extensions())
@@ -144,11 +150,6 @@ const CORE_EXTENSIONS: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = [
     name: 'spatial',
     description:
       'Geospatial extension that adds support for working with spatial data and functions',
-    type: 'core',
-  },
-  {
-    name: 'sqlite_scanner',
-    description: 'Adds support for reading and writing SQLite database files',
     type: 'core',
   },
   {

@@ -9,9 +9,10 @@ export type LocalFileType = 'data-source' | 'code-file';
 // Core file extensions supported in both web and Tauri
 export const CORE_DATA_SOURCE_FILE_EXTS = ['csv', 'xlsx', 'duckdb', 'parquet', 'json'] as const;
 
-// Statistical file extensions only supported in Tauri (require native readstat extension)
+// Extensions only supported in Tauri (desktop version)
 export const TAURI_ONLY_DATA_SOURCE_FILE_EXTS = [
-  'sas7bdat',
+  'db', // SQLite databases
+  'sas7bdat', // Statistical file formats
   'xpt',
   'sav',
   'zsav',
@@ -26,14 +27,17 @@ export const SUPPORTED_DATA_SOURCE_FILE_EXTS = [
 ] as const;
 export type supportedDataSourceFileExt = (typeof SUPPORTED_DATA_SOURCE_FILE_EXTS)[number];
 export type supportedDataSourceFileExtArray = readonly supportedDataSourceFileExt[number][];
-export type supportedFlatFileDataSourceFileExt = Exclude<supportedDataSourceFileExt, 'duckdb'>;
+export type supportedFlatFileDataSourceFileExt = Exclude<
+  supportedDataSourceFileExt,
+  'duckdb' | 'db'
+>;
 
 export type AllDataSourceFileExt =
   | 'csv'
   | 'json'
   | 'txt'
   | 'duckdb'
-  | 'sqlite'
+  | 'db'
   | 'postgresql'
   | 'parquet'
   | 'arrow'
@@ -67,12 +71,12 @@ export const dataSourceMimeTypes = [
 
 export type DataSourceMimeType = (typeof dataSourceExtMap)[AllDataSourceFileExt];
 
-export const dataSourceExtMap = {
+export const dataSourceExtMap: Record<AllDataSourceFileExt, string> = {
   csv: 'text/csv',
   json: 'application/json',
   txt: 'text/plain',
   duckdb: 'application/duckdb',
-  sqlite: 'application/sqlite',
+  db: 'application/sqlite',
   postgresql: 'application/postgresql',
   parquet: 'application/parquet',
   arrow: 'application/arrow',

@@ -118,7 +118,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         id: makePersistentDataSourceId(),
         url: url.trim(),
         dbName: dbName.trim(),
-        dbType: 'duckdb',
+        dbType: 'duckdb' as const, // Remote databases are always DuckDB
         connectionState: 'connecting',
         attachedAt: Date.now(),
       };
@@ -226,10 +226,10 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         <TextInput
           label="Database URL"
           data-testid={setDataTestId('remote-database-url-input')}
-          placeholder="https://example.com/data.parquet"
+          placeholder="https://example.com/data.duckdb"
           value={url}
           onChange={setUrl}
-          description="Enter the full URL to your remote database or file"
+          description="Enter the full URL to your remote database file"
           required
         />
 

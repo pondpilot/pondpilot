@@ -34,6 +34,7 @@ export const renameFile = async (
     !localEntry ||
     localEntry.kind !== 'file' ||
     localEntry.ext === 'duckdb' ||
+    localEntry.ext === 'db' ||
     localEntry.ext === 'sql'
   ) {
     throw new Error(

@@ -631,6 +631,40 @@ export const restoreAppDataFromIDB = async (
           }
           break;
         }
+        case 'db': {
+          // Get the existing data source for this entry
+          let dataSource = dataSourceByLocalEntryId.get(localEntry.id);
+
+          if (!dataSource || dataSource.type !== 'attached-db') {
+            // This is a data corruption, but we can recover from it
+            dataSource = addLocalDB(localEntry, _reservedDbs);
+
+            // save to the map
+            missingDataSources.set(dataSource.id, dataSource);
+          }
+
+          validDataSources.add(dataSource.id);
+
+          if (!localEntry.handle) {
+            warnings.push(
+              `File handle is null for ${localEntry.name}, skipping database attachment.`,
+            );
+            discardedEntries.push({ type: 'removed', entry: localEntry, reason: 'no-handle' });
+            break;
+          }
+
+          const regFile = await registerAndAttachDatabase(
+            conn,
+            localEntry.handle,
+            `${localEntry.uniqueAlias}.${localEntry.ext}`,
+            dataSource.dbName,
+          );
+          if (!regFile) {
+            throw new Error(`Failed to register and attach database ${dataSource.dbName}`);
+          }
+          registeredFiles.set(localEntry.id, regFile);
+          break;
+        }
         default: {
           // Get the existing data source for this entry
           let dataSource = dataSourceByLocalEntryId.get(localEntry.id);

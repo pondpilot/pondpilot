@@ -117,7 +117,7 @@ export interface LocalDB extends SingleFileDataSourceBase {
   /**
    * Type of the database.
    */
-  dbType: 'duckdb' | 'sqllite';
+  dbType: 'duckdb' | 'sqlite';
 
   /**
    * valid unique identifier used to attach db as
@@ -148,7 +148,8 @@ export interface RemoteDB {
   dbName: string;
 
   /**
-   * Type of the database (always duckdb for now)
+   * Type of the database
+   * Note: Remote databases only support DuckDB currently
    */
   dbType: 'duckdb';
 
