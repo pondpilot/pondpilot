@@ -11,6 +11,12 @@ import {
 } from '@models/file-system';
 
 import { isTauriEnvironment } from './browser';
+import {
+  UnifiedFileHandle,
+  UnifiedDirectoryHandle,
+  UnifiedHandle,
+  convertLegacyHandle,
+} from './file-handle';
 import { makeIdFactory } from './new-id';
 
 export const makeLocalEntryId = makeIdFactory<LocalEntryId>();
@@ -125,19 +131,19 @@ export async function isAvailableFileHandle(handle: FileSystemHandle): Promise<b
 
 // Overload signatures:
 export function localEntryFromHandle(
-  handle: FileSystemFileHandle,
+  handle: FileSystemFileHandle | UnifiedFileHandle,
   parentId: LocalEntryId | null,
   userAdded: boolean,
   getUniqueAlias: (name: string) => string,
 ): LocalFile | null;
 export function localEntryFromHandle(
-  handle: FileSystemDirectoryHandle,
+  handle: FileSystemDirectoryHandle | UnifiedDirectoryHandle,
   parentId: LocalEntryId | null,
   userAdded: boolean,
   getUniqueAlias: (name: string) => string,
 ): LocalFolder;
 export function localEntryFromHandle(
-  handle: FileSystemFileHandle | FileSystemDirectoryHandle,
+  handle: FileSystemFileHandle | FileSystemDirectoryHandle | UnifiedHandle,
   parentId: LocalEntryId | null,
   userAdded: boolean,
   getUniqueAlias: (name: string) => string,
@@ -145,28 +151,59 @@ export function localEntryFromHandle(
 
 // Implementation:
 export function localEntryFromHandle(
-  handle: FileSystemFileHandle | FileSystemDirectoryHandle,
+  handle: FileSystemFileHandle | FileSystemDirectoryHandle | UnifiedHandle,
   parentId: LocalEntryId | null,
   userAdded: boolean,
   getUniqueAlias: (name: string) => string,
 ): LocalEntry | null {
-  if (handle.kind === 'file') {
-    const fileName = handle.name;
+  // Convert legacy handles to unified handles
+  let unifiedHandle: UnifiedHandle | null = null;
+
+  if ('_tauriPath' in handle) {
+    unifiedHandle = convertLegacyHandle(handle);
+  } else if ('getNativeHandle' in handle) {
+    unifiedHandle = handle as UnifiedHandle;
+  } else {
+    // It's a native FileSystemHandle
+    if (handle.kind === 'file') {
+      unifiedHandle = convertLegacyHandle(handle);
+    } else {
+      unifiedHandle = convertLegacyHandle(handle);
+    }
+  }
+
+  if (!unifiedHandle) return null;
+
+  if (unifiedHandle.kind === 'file') {
+    const fileName = unifiedHandle.name;
     const [name, ext] = fileName.split(/\.(?=[^.]+$)/);
 
     if (!ext) {
       return null;
     }
+
+    // Ensure we have a proper FileSystemFileHandle
+    let fileHandle: FileSystemFileHandle;
+    const nativeHandle = unifiedHandle.getNativeHandle();
+
+    if (nativeHandle) {
+      fileHandle = nativeHandle;
+    } else if (handle && 'getFile' in handle && handle.kind === 'file') {
+      fileHandle = handle as FileSystemFileHandle;
+    } else {
+      // This should not happen, but as a safety measure
+      return null;
+    }
+
     const commonFile = {
       kind: 'file' as const,
       id: makeLocalEntryId(),
       name,
       parentId,
       userAdded,
-      handle,
+      handle: fileHandle,
       uniqueAlias: getUniqueAlias(name),
-      // Add Tauri path support
-      filePath: (handle as any)._tauriPath,
+      filePath: unifiedHandle.getPath() || undefined,
     };
     const extLower = ext.toLowerCase();
 
@@ -189,16 +226,28 @@ export function localEntryFromHandle(
     return null;
   }
 
+  // Ensure we have a proper FileSystemDirectoryHandle
+  let dirHandle: FileSystemDirectoryHandle;
+  const nativeHandle = unifiedHandle.getNativeHandle();
+
+  if (nativeHandle) {
+    dirHandle = nativeHandle;
+  } else if (handle && 'getDirectoryHandle' in handle && handle.kind === 'directory') {
+    dirHandle = handle as FileSystemDirectoryHandle;
+  } else {
+    // This should not happen, but as a safety measure
+    throw new Error('Invalid directory handle');
+  }
+
   return {
     kind: 'directory' as const,
     id: makeLocalEntryId(),
-    name: handle.name,
+    name: unifiedHandle.name,
     parentId,
     userAdded,
-    handle,
-    uniqueAlias: getUniqueAlias(handle.name),
-    // Add Tauri path support
-    directoryPath: (handle as any)._tauriPath,
+    handle: dirHandle,
+    uniqueAlias: getUniqueAlias(unifiedHandle.name),
+    directoryPath: unifiedHandle.getPath() || undefined,
   };
 }
 

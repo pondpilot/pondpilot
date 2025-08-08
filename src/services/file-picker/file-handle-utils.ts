@@ -1,30 +1,31 @@
 import { isTauriEnvironment } from '@utils/browser';
+import { convertLegacyHandle } from '@utils/file-handle';
 
 /**
  * Check if a file handle is from Tauri environment
  */
 export function isTauriFileHandle(handle: FileSystemHandle): boolean {
-  return isTauriEnvironment() && '_tauriPath' in handle;
+  if (!isTauriEnvironment()) return false;
+
+  // Check if it's a unified handle that has a path
+  const unified = convertLegacyHandle(handle);
+  return unified?.getPath() !== null;
 }
 
 /**
  * Get the file path from a Tauri file handle
  */
 export function getTauriFilePath(handle: FileSystemFileHandle): string | undefined {
-  if (isTauriFileHandle(handle)) {
-    return (handle as any)._tauriPath;
-  }
-  return undefined;
+  const unified = convertLegacyHandle(handle);
+  return unified?.getPath() || undefined;
 }
 
 /**
  * Get the directory path from a Tauri directory handle
  */
 export function getTauriDirectoryPath(handle: FileSystemDirectoryHandle): string | undefined {
-  if (isTauriFileHandle(handle)) {
-    return (handle as any)._tauriPath;
-  }
-  return undefined;
+  const unified = convertLegacyHandle(handle);
+  return unified?.getPath() || undefined;
 }
 
 /**

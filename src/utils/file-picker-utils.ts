@@ -5,6 +5,12 @@
 
 import { LocalEntryId, LocalFile, LocalFolder } from '@models/file-system';
 
+import {
+  createUnifiedFileHandle,
+  createUnifiedDirectoryHandle,
+  createMockFileSystemFileHandle,
+  createMockFileSystemDirectoryHandle,
+} from './file-handle';
 import { makeLocalEntryId, isSupportedDataSourceFileExt, isCodeFileExt } from './file-system';
 import { getFilePicker } from '../services/file-picker';
 
@@ -193,6 +199,13 @@ function createMockFileHandle(pickedFile: {
   file?: File;
   lastModified?: number;
 }): FileSystemFileHandle {
+  // If we have a path, create a unified handle
+  if (pickedFile.path) {
+    const unifiedHandle = createUnifiedFileHandle(pickedFile.path, pickedFile.name);
+    return createMockFileSystemFileHandle(unifiedHandle);
+  }
+
+  // Otherwise, create a basic mock handle
   return {
     kind: 'file',
     name: pickedFile.name,
@@ -200,24 +213,17 @@ function createMockFileHandle(pickedFile: {
       if (pickedFile.file) {
         return pickedFile.file;
       }
-
-      // For Tauri, we need to read the file using Tauri APIs
-      if (!pickedFile.path) {
-        throw new Error('File path not available');
-      }
-
-      const fs = await import('@tauri-apps/plugin-fs');
-      const contents = await fs.readFile(pickedFile.path);
-
-      return new File([contents], pickedFile.name, {
-        lastModified: pickedFile.lastModified || Date.now(),
-      });
+      throw new Error('No file data available');
     },
     queryPermission: async () => 'granted' as PermissionState,
     requestPermission: async () => 'granted' as PermissionState,
-    // Add Tauri-specific properties
-    _tauriPath: pickedFile.path,
-  } as any;
+    createWritable: async () => {
+      throw new Error('Write not supported');
+    },
+    isSameEntry: async (other: FileSystemHandle) => false,
+    isFile: true,
+    isDirectory: false,
+  } as FileSystemFileHandle;
 }
 
 /**
@@ -227,36 +233,55 @@ function createMockDirectoryHandle(pickedDirectory: {
   name: string;
   path?: string;
 }): FileSystemDirectoryHandle {
-  return {
-    kind: 'directory',
+  // If we have a path, create a unified handle
+  if (pickedDirectory.path) {
+    const unifiedHandle = createUnifiedDirectoryHandle(pickedDirectory.path, pickedDirectory.name);
+    return createMockFileSystemDirectoryHandle(unifiedHandle);
+  }
+
+  // Otherwise, create a basic mock handle
+  const handle = {
+    kind: 'directory' as const,
     name: pickedDirectory.name,
     async *entries() {
-      // This would need to be implemented to read directory contents using Tauri APIs
-      // For now, return empty iterator
+      // Empty iterator
     },
     async *keys() {
-      // Not implemented for Tauri mock handle
+      // Empty iterator
     },
     async *values() {
-      // Not implemented for Tauri mock handle
+      // Empty iterator
     },
     getDirectoryHandle: async (_name: string) => {
-      throw new Error('Not implemented for Tauri mock handle');
+      throw new Error('Not implemented for mock handle');
     },
     getFileHandle: async (_name: string) => {
-      throw new Error('Not implemented for Tauri mock handle');
+      throw new Error('Not implemented for mock handle');
     },
     removeEntry: async (_name: string) => {
-      throw new Error('Not implemented for Tauri mock handle');
+      throw new Error('Not implemented for mock handle');
     },
     resolve: async (_possibleDescendant: FileSystemHandle) => {
       return null;
     },
     queryPermission: async () => 'granted' as PermissionState,
     requestPermission: async () => 'granted' as PermissionState,
-    // Add Tauri-specific properties
-    _tauriPath: pickedDirectory.path,
-  } as any;
+    isSameEntry: async (other: FileSystemHandle) => false,
+    isFile: false,
+    isDirectory: true,
+  };
+
+  // Add missing methods
+  (handle as any).getFile = undefined;
+  (handle as any).getDirectory = undefined;
+  (handle as any).getEntries = function () {
+    return this.entries();
+  };
+  (handle as any)[Symbol.asyncIterator] = function () {
+    return this.entries();
+  };
+
+  return handle as unknown as FileSystemDirectoryHandle;
 }
 
 // Re-export utilities from file-system.ts for convenience

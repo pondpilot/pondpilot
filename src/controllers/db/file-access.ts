@@ -3,6 +3,7 @@
  */
 
 import { isTauriEnvironment } from '@utils/browser';
+import { convertLegacyHandle } from '@utils/file-handle';
 
 export interface FileReference {
   path: string;
@@ -18,23 +19,23 @@ export function getFileReference(
   fallbackName: string,
 ): FileReference {
   if (isTauriEnvironment()) {
-    // In Tauri, use the path directly
-    const tauriPath = (handle as any)?._tauriPath;
-    if (!tauriPath) {
-      // If no _tauriPath, use the fallback name as the path
-      // This can happen during restoration from persistence
-      console.warn(
-        'Tauri file handle missing _tauriPath property, using fallback name:',
-        fallbackName,
-      );
-      return {
-        path: fallbackName,
-        handle: null,
-        isWebHandle: false,
-      };
+    // In Tauri, try to get path from unified handle
+    if (handle) {
+      const unified = convertLegacyHandle(handle);
+      const path = unified?.getPath();
+      if (path) {
+        return {
+          path,
+          handle: null,
+          isWebHandle: false,
+        };
+      }
     }
+
+    // If no path available, use fallback name
+    console.warn('Tauri file handle missing path, using fallback name:', fallbackName);
     return {
-      path: tauriPath,
+      path: fallbackName,
       handle: null,
       isWebHandle: false,
     };
@@ -81,10 +82,15 @@ export async function isSameFile(
   entry2: { handle: FileSystemFileHandle | FileSystemDirectoryHandle | null },
 ): Promise<boolean> {
   if (isTauriEnvironment()) {
-    // In Tauri, compare paths
-    const path1 = (entry1.handle as any)?._tauriPath;
-    const path2 = (entry2.handle as any)?._tauriPath;
-    return !!(path1 && path2 && path1 === path2);
+    // In Tauri, compare paths using unified handles
+    if (entry1.handle && entry2.handle) {
+      const unified1 = convertLegacyHandle(entry1.handle);
+      const unified2 = convertLegacyHandle(entry2.handle);
+      const path1 = unified1?.getPath();
+      const path2 = unified2?.getPath();
+      return !!(path1 && path2 && path1 === path2);
+    }
+    return false;
   }
   // In web, use isSameEntry
   if (entry1.handle && entry2.handle) {
