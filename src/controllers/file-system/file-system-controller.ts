@@ -33,7 +33,11 @@ import { findUniqueName } from '@utils/helpers';
 import { makeSQLScriptId } from '@utils/sql-script';
 import { getXlsxSheetNames } from '@utils/xlsx';
 
-import { getFileReferenceForDuckDB, getFileContentSafe } from './file-helpers';
+import {
+  getFileReferenceForDuckDB,
+  getFileContentSafe,
+  isConservativeSafePath,
+} from './file-helpers';
 import { persistAddLocalEntry, persistDeleteLocalEntry } from './persist';
 
 /**
@@ -119,6 +123,16 @@ export const addLocalFileOrFolders = async (
 
         // TODO: currently we assume this works, add proper error handling
         const fileReference = getFileReferenceForDuckDB(file);
+
+        // Preflight: check for dangerous path patterns
+        if (!isConservativeSafePath(fileReference)) {
+          errors.push(
+            `Cannot attach database from path: "${fileReference}". ` +
+              'The path contains potentially dangerous characters or patterns.',
+          );
+          return false;
+        }
+
         const regFile = await registerAndAttachDatabase(
           conn,
           file.handle,

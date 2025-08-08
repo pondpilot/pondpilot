@@ -45,9 +45,18 @@ export function isUnifiedDirectoryHandle(handle: UnifiedHandle): handle is Unifi
 export function convertLegacyHandle(handle: any): UnifiedHandle | null {
   if (!handle) return null;
 
+  // If this is a mock FileSystemHandle created from a unified handle,
+  // it will carry a hidden reference to the original unified handle.
+  // Prefer returning that so we preserve path information in Tauri.
+  // We deliberately avoid adding a type for this hidden field.
+  if (typeof handle === 'object' && handle && '__unifiedHandle' in (handle as any)) {
+    return (handle as any).__unifiedHandle as UnifiedHandle;
+  }
+
   if (handle.kind === 'file' && typeof handle.getFile === 'function') {
     return new WebFileHandle(handle as FileSystemFileHandle);
-  } if (handle.kind === 'directory' && typeof handle.entries === 'function') {
+  }
+  if (handle.kind === 'directory' && typeof handle.entries === 'function') {
     return new WebDirectoryHandle(handle as FileSystemDirectoryHandle);
   }
 

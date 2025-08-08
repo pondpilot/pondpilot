@@ -121,6 +121,37 @@ pub async fn connection_execute(
 ) -> Result<QueryResult> {
     // Use the specific connection to execute the query
     eprintln!("[CONNECTION_EXECUTE] Using connection {} for SQL: {}", connection_id, sql);
+    // Debug: If this is an ATTACH statement, log file diagnostics to help troubleshoot crashes
+    if sql.trim_start().to_uppercase().starts_with("ATTACH ") {
+        // Simple parse to extract the path between single quotes: ATTACH 'path' AS name
+        if let Some(start_idx) = sql.find('\'') {
+            if let Some(end_idx) = sql[start_idx + 1..].find('\'') {
+                let path_str = &sql[start_idx + 1..start_idx + 1 + end_idx];
+                eprintln!("[ATTACH_DEBUG] Requested path: {}", path_str);
+                // Try to canonicalize and fetch metadata
+                match std::fs::canonicalize(path_str) {
+                    Ok(canon) => {
+                        eprintln!("[ATTACH_DEBUG] Canonical path: {:?}", canon);
+                        match std::fs::metadata(&canon) {
+                            Ok(meta) => {
+                                eprintln!(
+                                    "[ATTACH_DEBUG] File size: {} bytes, readonly: {}",
+                                    meta.len(),
+                                    meta.permissions().readonly()
+                                );
+                            }
+                            Err(e) => {
+                                eprintln!("[ATTACH_DEBUG] Failed to get metadata: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[ATTACH_DEBUG] Canonicalize failed: {}", e);
+                    }
+                }
+            }
+        }
+    }
     engine.execute_on_connection(&connection_id, &sql, params).await
 }
 

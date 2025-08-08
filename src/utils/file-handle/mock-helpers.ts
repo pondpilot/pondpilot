@@ -9,7 +9,8 @@ import { UnifiedFileHandle, UnifiedDirectoryHandle } from './types';
 export function createMockFileSystemFileHandle(
   unifiedHandle: UnifiedFileHandle,
 ): FileSystemFileHandle {
-  return {
+  // Attach a hidden link to the unified handle so later conversion can recover it
+  const handle: any = {
     kind: 'file',
     name: unifiedHandle.name,
     getFile: () => unifiedHandle.getFile(),
@@ -24,13 +25,15 @@ export function createMockFileSystemFileHandle(
     },
     isFile: true,
     isDirectory: false,
-  } as FileSystemFileHandle;
+  };
+  handle.__unifiedHandle = unifiedHandle;
+  return handle as FileSystemFileHandle;
 }
 
 export function createMockFileSystemDirectoryHandle(
   unifiedHandle: UnifiedDirectoryHandle,
 ): FileSystemDirectoryHandle {
-  const handle = {
+  const handle: any = {
     kind: 'directory' as const,
     name: unifiedHandle.name,
     async *entries() {
@@ -91,5 +94,6 @@ export function createMockFileSystemDirectoryHandle(
     return this.entries();
   };
 
+  handle.__unifiedHandle = unifiedHandle;
   return handle as unknown as FileSystemDirectoryHandle;
 }
