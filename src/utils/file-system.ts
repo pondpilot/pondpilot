@@ -2,6 +2,7 @@ import {
   CodeFileExt,
   codeFileExts,
   SUPPORTED_DATA_SOURCE_FILE_EXTS,
+  CORE_DATA_SOURCE_FILE_EXTS,
   LocalEntry,
   LocalEntryId,
   LocalFile,
@@ -9,11 +10,17 @@ import {
   supportedDataSourceFileExt,
 } from '@models/file-system';
 
+import { isTauriEnvironment } from './browser';
 import { makeIdFactory } from './new-id';
 
 export const makeLocalEntryId = makeIdFactory<LocalEntryId>();
 
 export function isSupportedDataSourceFileExt(x: unknown): x is supportedDataSourceFileExt {
+  // In web version, only allow core extensions
+  if (!isTauriEnvironment()) {
+    return CORE_DATA_SOURCE_FILE_EXTS.includes(x as any);
+  }
+  // In Tauri, allow all extensions
   return SUPPORTED_DATA_SOURCE_FILE_EXTS.includes(x as supportedDataSourceFileExt);
 }
 

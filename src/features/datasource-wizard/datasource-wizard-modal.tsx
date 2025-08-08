@@ -1,8 +1,9 @@
 import { ConnectionPool } from '@engines/types';
 import { Group, Stack, Title, ActionIcon, Text, Divider } from '@mantine/core';
 import { IconDatabasePlus, IconFilePlus, IconFolderPlus, IconX } from '@tabler/icons-react';
+import { isTauriEnvironment } from '@utils/browser';
 import { setDataTestId } from '@utils/test-id';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
@@ -43,6 +44,11 @@ export function DatasourceWizardModal({
     onClose();
   };
 
+  const fileDescription = useMemo(() => {
+    // Show statistical formats only in Tauri
+    return isTauriEnvironment() ? 'CSV, Excel, Parquet, SAS…' : 'CSV, Excel, JSON, Parquet';
+  }, []);
+
   const datasourceCards = [
     {
       type: 'file' as const,
@@ -55,7 +61,7 @@ export function DatasourceWizardModal({
         />
       ),
       title: 'Add Files',
-      description: 'CSV, Parquet, JSON, Excel',
+      description: fileDescription,
       testId: 'add-file-card',
     },
     {

@@ -59,22 +59,51 @@ impl PersistenceState {
             
             -- Content view (for storing active tab, tab order, etc.)
             CREATE TABLE IF NOT EXISTS content_view (
-                key TEXT PRIMARY KEY,
+                id TEXT PRIMARY KEY,
                 data TEXT NOT NULL -- JSON serialized data
             );
             
             -- DuckDB session state (attached databases, loaded extensions)
             CREATE TABLE IF NOT EXISTS duckdb_session (
-                key TEXT PRIMARY KEY,
+                id TEXT PRIMARY KEY,
                 data TEXT NOT NULL -- JSON serialized data
             );
             "#
         )?;
+
+        // Best-effort in-place schema alignment for early dev builds where content_view/duckdb_session
+        // may have been created with 'key' as the PK column. If found, rename to 'id'.
+        // Ignore errors here to avoid impacting startup if table does not exist or rename not needed.
+        let _ = align_pk_column_to_id(&conn, "content_view");
+        let _ = align_pk_column_to_id(&conn, "duckdb_session");
         
         Ok(Self {
             connection: Arc::new(Mutex::new(conn)),
         })
     }
+}
+
+// Helper: check table_info and rename 'key' column to 'id' if present
+fn align_pk_column_to_id(conn: &rusqlite::Connection, table: &str) -> std::result::Result<(), rusqlite::Error> {
+    // See if there is a column named 'key'
+    let has_key: bool = conn.query_row(
+        &format!("SELECT COUNT(1) FROM pragma_table_info('{}') WHERE name = 'key'", table),
+        [],
+        |row| row.get::<_, i64>(0),
+    ).unwrap_or(0) > 0;
+
+    // And if there is already a column named 'id'
+    let has_id: bool = conn.query_row(
+        &format!("SELECT COUNT(1) FROM pragma_table_info('{}') WHERE name = 'id'", table),
+        [],
+        |row| row.get::<_, i64>(0),
+    ).unwrap_or(0) > 0;
+
+    if has_key && !has_id {
+        let sql = format!("ALTER TABLE {} RENAME COLUMN key TO id", table);
+        let _ = conn.execute(&sql, []);
+    }
+    Ok(())
 }
 
 #[derive(Debug, Serialize, Deserialize)]

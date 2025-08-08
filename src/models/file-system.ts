@@ -6,12 +6,23 @@ export type LocalEntryId = NewId<'LocalEntryId'>;
 
 export type LocalFileType = 'data-source' | 'code-file';
 
+// Core file extensions supported in both web and Tauri
+export const CORE_DATA_SOURCE_FILE_EXTS = ['csv', 'xlsx', 'duckdb', 'parquet', 'json'] as const;
+
+// Statistical file extensions only supported in Tauri (require native readstat extension)
+export const TAURI_ONLY_DATA_SOURCE_FILE_EXTS = [
+  'sas7bdat',
+  'xpt',
+  'sav',
+  'zsav',
+  'por',
+  'dta',
+] as const;
+
+// All supported extensions (used for type definitions)
 export const SUPPORTED_DATA_SOURCE_FILE_EXTS = [
-  'csv',
-  'xlsx',
-  'duckdb',
-  'parquet',
-  'json',
+  ...CORE_DATA_SOURCE_FILE_EXTS,
+  ...TAURI_ONLY_DATA_SOURCE_FILE_EXTS,
 ] as const;
 export type supportedDataSourceFileExt = (typeof SUPPORTED_DATA_SOURCE_FILE_EXTS)[number];
 export type supportedDataSourceFileExtArray = readonly supportedDataSourceFileExt[number][];
@@ -27,7 +38,13 @@ export type AllDataSourceFileExt =
   | 'parquet'
   | 'arrow'
   | 'xlsx'
-  | 'url';
+  | 'url'
+  | 'sas7bdat'
+  | 'xpt'
+  | 'sav'
+  | 'zsav'
+  | 'por'
+  | 'dta';
 
 export const dataSourceMimeTypes = [
   'text/csv',
@@ -40,6 +57,12 @@ export const dataSourceMimeTypes = [
   'application/arrow',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/x-uri',
+  'application/x-sas-data',
+  'application/x-sas-xport',
+  'application/x-spss-sav',
+  'application/x-spss-zsav',
+  'application/x-spss-por',
+  'application/x-stata-dta',
 ] as const;
 
 export type DataSourceMimeType = (typeof dataSourceExtMap)[AllDataSourceFileExt];
@@ -55,6 +78,12 @@ export const dataSourceExtMap = {
   arrow: 'application/arrow',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   url: 'text/x-uri', // remote sources
+  sas7bdat: 'application/x-sas-data',
+  xpt: 'application/x-sas-xport',
+  sav: 'application/x-spss-sav',
+  zsav: 'application/x-spss-zsav',
+  por: 'application/x-spss-por',
+  dta: 'application/x-stata-dta',
 } as const;
 
 export const ignoredFolders = new Set([

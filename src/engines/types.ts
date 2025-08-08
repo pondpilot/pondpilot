@@ -129,7 +129,12 @@ export interface ConnectionPool {
     signal: AbortSignal,
   ) => Promise<{ value: any; aborted: boolean }>;
   send?: <_T = any>(sql: string, stream?: boolean) => Promise<any>;
-  sendAbortable?: <_T = any>(sql: string, signal: AbortSignal, stream?: boolean) => Promise<any>;
+  sendAbortable?: <_T = any>(
+    sql: string,
+    signal: AbortSignal,
+    stream?: boolean,
+    options?: any,
+  ) => Promise<any>;
   getPooledConnection?: () => Promise<any>;
   getTableNames?: (database: string, schema: string) => Promise<any>;
 

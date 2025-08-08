@@ -199,5 +199,5 @@ export function createXlsxSheetViewQuery(
   sheetName: string,
   viewName: string,
 ): string {
-  return `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_xlsx(${quote(fileName, { single: true })}, sheet=${quote(sheetName, { single: true })}, ignore_errors=true);`;
+  return `CREATE OR REPLACE VIEW main.${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_xlsx(${quote(fileName, { single: true })}, sheet=${quote(sheetName, { single: true })}, ignore_errors=true);`;
 }

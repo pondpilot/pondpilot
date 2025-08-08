@@ -204,7 +204,13 @@ export function useDataSourceObjectSchema(
         dataSource.type === 'csv' ||
         dataSource.type === 'parquet' ||
         dataSource.type === 'xlsx-sheet' ||
-        dataSource.type === 'json'
+        dataSource.type === 'json' ||
+        dataSource.type === 'sas7bdat' ||
+        dataSource.type === 'xpt' ||
+        dataSource.type === 'sav' ||
+        dataSource.type === 'zsav' ||
+        dataSource.type === 'por' ||
+        dataSource.type === 'dta'
       ) {
         dbName = PERSISTENT_DB_NAME;
         schemaName = 'main';

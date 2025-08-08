@@ -1,4 +1,5 @@
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { tauriLog } from '@utils/tauri-logger';
 import { tableFromIPC, RecordBatch, Schema } from 'apache-arrow';
 
 import { getLogger } from './debug-logger';
@@ -32,6 +33,7 @@ export class TauriArrowReader {
       // Schema listener
       this.listeners.push(
         await listen(`stream-${this.streamId}-schema`, (event) => {
+          tauriLog(`[TauriArrowReader] schema event for ${this.streamId}`);
           logger.trace(`Received schema event for stream ${this.streamId}`);
           try {
             const schemaBase64 = event.payload as string;
@@ -45,6 +47,7 @@ export class TauriArrowReader {
             logger.debug('Schema parsed successfully', { schema: this.schema });
           } catch (e) {
             logger.error('Failed to parse schema', e);
+            tauriLog('[TauriArrowReader] Failed to parse schema:', e);
             this.error = new Error(`Failed to parse schema: ${e}`);
             if (this.resolver) {
               this.resolver({ done: true, value: undefined });
@@ -56,6 +59,7 @@ export class TauriArrowReader {
       // Batch listener
       this.listeners.push(
         await listen(`stream-${this.streamId}-batch`, async (event) => {
+          tauriLog(`[TauriArrowReader] batch event for ${this.streamId}`);
           logger.debug(`[TauriArrowReader] Received batch event for stream ${this.streamId}`);
           try {
             const batchBase64 = event.payload as string;
@@ -79,6 +83,7 @@ export class TauriArrowReader {
             }
           } catch (e) {
             logger.error('[TauriArrowReader] Failed to parse batch:', e);
+            tauriLog('[TauriArrowReader] Failed to parse batch:', e);
             this.error = new Error(`Failed to parse batch: ${e}`);
             if (this.resolver) {
               this.resolver({ done: true, value: undefined });
@@ -90,6 +95,7 @@ export class TauriArrowReader {
       // Completion listener
       this.listeners.push(
         await listen(`stream-${this.streamId}-complete`, (event) => {
+          tauriLog(`[TauriArrowReader] complete event for ${this.streamId}`);
           logger.debug(`[TauriArrowReader] Received complete event for stream ${this.streamId}`);
           this.completed = true;
           const batchCount = event.payload as number;
@@ -107,6 +113,7 @@ export class TauriArrowReader {
       // Error listener
       this.listeners.push(
         await listen(`stream-${this.streamId}-error`, (event) => {
+          tauriLog(`[TauriArrowReader] error event for ${this.streamId}:`, event.payload);
           this.error = new Error(event.payload as string);
           this.completed = true;
 
@@ -116,6 +123,7 @@ export class TauriArrowReader {
         }),
       );
     } catch (e) {
+      tauriLog('[TauriArrowReader] Failed to setup listeners:', e);
       this.error = new Error(`Failed to setup listeners: ${e}`);
       this.completed = true;
     }

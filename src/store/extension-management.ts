@@ -420,10 +420,11 @@ const COMMUNITY_EXTENSIONS: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = 
 ];
 
 const initialExtensions = [
-  // Required extensions are always installed and enabled
+  // Required extensions should be marked as installed by default
+  // They will be installed on first actual use if not present
   ...REQUIRED_EXTENSIONS.map((ext: Omit<DuckDBExtension, 'installed' | 'disabled'>) => ({
     ...ext,
-    installed: true,
+    installed: true, // Changed back to true to fix race condition
     disabled: false,
   })),
   ...CORE_EXTENSIONS.map((ext: Omit<DuckDBExtension, 'installed' | 'disabled'>) => ({
@@ -437,6 +438,10 @@ const initialExtensions = [
     disabled: false,
   })),
 ];
+
+// Track if store has been hydrated from persistence
+let storeHydrated = false;
+let hydrationPromise: Promise<void> | null = null;
 
 export const useExtensionManagementStore = create<ExtensionManagementState>()(
   persist(
@@ -472,8 +477,10 @@ export const useExtensionManagementStore = create<ExtensionManagementState>()(
                 ...ext,
                 installed: installedExtensions.includes(ext.name),
                 // An extension is disabled if it's installed but not loaded
-                disabled:
-                  installedExtensions.includes(ext.name) && !loadedExtensions.includes(ext.name),
+                // EXCEPT for required extensions - they should never be disabled
+                disabled: ext.required
+                  ? false
+                  : installedExtensions.includes(ext.name) && !loadedExtensions.includes(ext.name),
               })),
               isLoading: false,
             }));
@@ -560,6 +567,7 @@ export const useExtensionManagementStore = create<ExtensionManagementState>()(
     }),
     {
       name: 'extension-management',
+      version: 2, // Increment version to handle migration
       partialize: (state) => ({
         extensions: state.extensions.map((ext: DuckDBExtension) => ({
           name: ext.name,
@@ -567,6 +575,23 @@ export const useExtensionManagementStore = create<ExtensionManagementState>()(
           disabled: ext.disabled,
         })),
       }),
+      migrate: (persistedState: any, version: number) => {
+        // Handle migration from version 1 to version 2
+        if (version === 1 || !version) {
+          // Version 1 didn't have proper structure, just return the state as-is
+          // The merge function will handle proper initialization
+          return persistedState;
+        }
+        return persistedState;
+      },
+      onRehydrateStorage: () => (state) => {
+        // This runs after the store has been rehydrated
+        storeHydrated = true;
+        if (hydrationPromise) {
+          // Resolve any waiting promises
+          hydrationPromise = null;
+        }
+      },
       merge: (persistedState: any, currentState: any) => {
         // Merge persisted state with current state, keeping the full extension info
         const mergedExtensions = initialExtensions.map((ext: DuckDBExtension) => {
@@ -590,3 +615,33 @@ export const useExtensionManagementStore = create<ExtensionManagementState>()(
     },
   ),
 );
+
+/**
+ * Wait for the extension store to be hydrated from persistent storage
+ * This must be called before any operations that depend on persisted extension state
+ */
+export async function waitForExtensionStoreHydration(): Promise<void> {
+  if (storeHydrated) {
+    return;
+  }
+
+  if (!hydrationPromise) {
+    hydrationPromise = new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (storeHydrated) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 50); // Check every 50ms
+
+      // Timeout after 2 seconds to prevent infinite waiting
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        storeHydrated = true; // Force hydrated state
+        resolve();
+      }, 2000);
+    });
+  }
+
+  return hydrationPromise;
+}

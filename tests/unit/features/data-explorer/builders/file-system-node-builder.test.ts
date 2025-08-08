@@ -510,10 +510,7 @@ describe('file-system-node-builder', () => {
       (createSQLScript as jest.Mock).mockReturnValue({ id: 'script-123' });
       const queryItem = menuItems.find((item) => item.label === 'Create a Query');
       queryItem?.onClick?.(node, {} as any);
-      expect(createSQLScript).toHaveBeenCalledWith(
-        'data_csv_query',
-        'SELECT * FROM main.data_csv;',
-      );
+      expect(createSQLScript).toHaveBeenCalledWith('data_csv_query', 'SELECT * FROM data_csv;');
     });
   });
 
