@@ -9,7 +9,6 @@ import { isTauriEnvironment } from '@utils/browser';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
-import { tauriLog } from '@utils/tauri-logger';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
 
 import { getFileReference, getFileContent, needsFileRegistration } from './file-access';
@@ -50,28 +49,12 @@ async function createStatisticalFileView(
   }
 
   // Extensions are loaded centrally in the connection pool - no need to load here
-  const statsQuery = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_stat(${quote(fileName, { single: true })});`;
   const qualifiedStatsQuery = `CREATE OR REPLACE VIEW main.${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_stat(${quote(fileName, { single: true })});`;
 
   try {
-    if ((import.meta as any).env?.DEV) {
-      tauriLog('[createStatisticalFileView] Executing:', qualifiedStatsQuery);
-    }
     await conn.query(qualifiedStatsQuery);
-    if ((import.meta as any).env?.DEV) {
-      tauriLog(
-        '[createStatisticalFileView] View created successfully for statistical file:',
-        viewName,
-      );
-    }
   } catch (queryError) {
     console.error('[createStatisticalFileView] Failed to create view:', queryError);
-    if ((import.meta as any).env?.DEV) {
-      tauriLog(
-        '[createStatisticalFileView] ERROR creating statistical view:',
-        queryError instanceof Error ? queryError.message : String(queryError),
-      );
-    }
     throw new Error(`Failed to create view for statistical file: ${queryError}`);
   }
 }
@@ -286,6 +269,8 @@ export async function registerAndAttachDatabase(
   // Attach database using the appropriate path
   // In web environment, use the registered fileName, not fileRef.path
   let attachPath = needsFileRegistration() ? fileName : fileRef.path;
+
+  // Note: We no longer rewrite or copy paths; we rely on preflight checks to avoid known-crash patterns
 
   // In Tauri on Windows, ensure we use forward slashes for DuckDB
   if (!needsFileRegistration() && attachPath.includes('\\')) {

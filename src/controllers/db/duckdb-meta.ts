@@ -1,7 +1,6 @@
 import { ConnectionPool } from '@engines/types';
 import { DataBaseModel, DBColumn, DBFunctionsMetadata, DBTableOrView } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
-import { isTauriEnvironment } from '@utils/browser';
 import { getTableColumnId } from '@utils/db';
 import { normalizeDuckDBColumnType } from '@utils/duckdb/sql-type';
 import { quote } from '@utils/helpers';
@@ -62,13 +61,10 @@ export async function getViews(
   databaseName: string = PERSISTENT_DB_NAME,
   schemaName: string = 'main',
 ): Promise<string[] | null> {
-  // On Tauri, the persistent DB is opened as 'main'
-  const effectiveDbName =
-    isTauriEnvironment() && databaseName === PERSISTENT_DB_NAME ? 'main' : databaseName;
   const sql = `
     SELECT view_name 
     FROM duckdb_views
-    WHERE database_name == ${quote(effectiveDbName, { single: true })}
+    WHERE database_name == ${quote(databaseName, { single: true })}
       AND schema_name == ${quote(schemaName, { single: true })}
   `;
 
@@ -285,10 +281,7 @@ export async function getDatabaseModel(
   databaseNames?: string[],
   schemaNames?: string[],
 ): Promise<Map<string, DataBaseModel>> {
-  const adjustedDbNames = databaseNames?.map((n) =>
-    isTauriEnvironment() && n === PERSISTENT_DB_NAME ? 'main' : n,
-  );
-  const duckdbColumns = await getTablesAndColumns(conn, adjustedDbNames, schemaNames);
+  const duckdbColumns = await getTablesAndColumns(conn, databaseNames, schemaNames);
   const dbMap = new Map<string, DataBaseModel>();
 
   duckdbColumns.forEach((item) => {
@@ -333,15 +326,6 @@ export async function getDatabaseModel(
     tableOrView.columns.push(column);
   });
 
-  // In Tauri, normalize 'main' to the persistent name so the UI consistently
-  // references PERSISTENT_DB_NAME across environments.
-  if (isTauriEnvironment() && dbMap.has('main') && !dbMap.has(PERSISTENT_DB_NAME)) {
-    const mainDb = dbMap.get('main')!;
-    const normalized: DataBaseModel = { ...mainDb, name: PERSISTENT_DB_NAME };
-    dbMap.delete('main');
-    dbMap.set(PERSISTENT_DB_NAME, normalized);
-  }
-
   return dbMap;
 }
 
@@ -362,14 +346,7 @@ export async function getObjectModels(
 ): Promise<DBTableOrView[]> {
   if (objectNames.length === 0) return [];
 
-  const effectiveDbName =
-    isTauriEnvironment() && databaseName === PERSISTENT_DB_NAME ? 'main' : databaseName;
-  const duckdbColumns = await getTablesAndColumns(
-    conn,
-    [effectiveDbName],
-    [schemaName],
-    objectNames,
-  );
+  const duckdbColumns = await getTablesAndColumns(conn, [databaseName], [schemaName], objectNames);
 
   if (!duckdbColumns) return [];
 

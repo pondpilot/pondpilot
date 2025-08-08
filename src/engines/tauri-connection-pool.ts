@@ -219,6 +219,9 @@ export class TauriConnectionPool implements ConnectionPool {
     releaseCount: 0,
     timeoutCount: 0,
   };
+  // Mutex to prevent race conditions during connection acquisition
+  private acquireLock: Promise<void> = Promise.resolve();
+  private acquireLockResolver: (() => void) | null = null;
 
   constructor(invoke: any, config?: Partial<PoolConfig>) {
     this.invoke = invoke;
@@ -244,65 +247,89 @@ export class TauriConnectionPool implements ConnectionPool {
     return this.acquire();
   }
 
-  async acquire(): Promise<DatabaseConnection> {
-    this.stats.acquireCount += 1;
-
-    // If we have available connections, return one
-    if (this.availableConnections.length > 0) {
-      const conn = this.availableConnections.pop()!;
-
-      if (this.config.validateOnAcquire) {
-        if (await this.validateConnection(conn)) {
-          // Ensure extensions are loaded on reused connection (only if not already loaded)
-          if (!conn.hasExtensionsLoaded()) {
-            try {
-              const { ExtensionLoader } = await import('../services/extension-loader');
-              await ExtensionLoader.loadExtensionsForConnection(conn);
-              conn.markExtensionsLoaded();
-            } catch (error) {
-              console.warn('Failed to load extensions on reused connection:', error);
-            }
-          }
-          return conn;
-        }
-        // Connection is invalid, remove it
-        this.removeConnection(conn);
-        // Try again
-        return this.acquire();
-      }
-
-      // Ensure extensions are loaded on reused connection (only if not already loaded)
-      if (!conn.hasExtensionsLoaded()) {
-        try {
-          const { ExtensionLoader } = await import('../services/extension-loader');
-          await ExtensionLoader.loadExtensionsForConnection(conn);
-          conn.markExtensionsLoaded();
-        } catch (error) {
-          console.warn('Failed to load extensions on reused connection:', error);
-        }
-      }
-
-      return conn;
-    }
-
-    // If we haven't reached max pool size, create a new connection
-    if (this.connections.length < this.config.maxSize) {
-      const connId = await this.invoke('create_connection');
-      const conn = new TauriConnection(this.invoke, connId);
-      this.connections.push(conn);
-      this.stats.connectionsCreated += 1;
-
-      // Load required extensions for this connection (centralized approach)
+  /**
+   * Initialize a connection with extensions and attachments
+   */
+  private async initializeConnection(conn: TauriConnection, isNew: boolean = false): Promise<void> {
+    // Load extensions if not already loaded
+    if (!conn.hasExtensionsLoaded()) {
       try {
         const { ExtensionLoader } = await import('../services/extension-loader');
         await ExtensionLoader.loadExtensionsForConnection(conn);
         conn.markExtensionsLoaded();
       } catch (error) {
-        console.error('Failed to load extensions for new connection:', error);
+        const logLevel = isNew ? 'error' : 'warn';
+        console[logLevel](
+          `Failed to load extensions for ${isNew ? 'new' : 'reused'} connection:`,
+          error,
+        );
         // Continue anyway - connection is still usable for basic queries
       }
+    }
 
-      return conn;
+    // Load local DB attachments if not already loaded
+    if (!conn.hasAttachedDbsLoaded()) {
+      try {
+        const { AttachmentLoader } = await import('../services/attachment-loader');
+        await AttachmentLoader.loadLocalDBsForConnection(conn);
+        conn.markAttachedDbsLoaded();
+      } catch (error) {
+        const logLevel = isNew ? 'error' : 'warn';
+        console[logLevel](
+          `Failed to attach local DBs for ${isNew ? 'new' : 'reused'} connection:`,
+          error,
+        );
+      }
+    }
+  }
+
+  async acquire(): Promise<DatabaseConnection> {
+    this.stats.acquireCount += 1;
+
+    // Wait for any ongoing acquire operations to complete
+    await this.acquireLock;
+
+    // Create a new lock for this acquire operation
+    this.acquireLock = new Promise((resolve) => {
+      this.acquireLockResolver = resolve;
+    });
+
+    try {
+      // If we have available connections, return one
+      if (this.availableConnections.length > 0) {
+        const conn = this.availableConnections.pop()!;
+
+        if (this.config.validateOnAcquire) {
+          if (await this.validateConnection(conn)) {
+            await this.initializeConnection(conn);
+            return conn;
+          }
+          // Connection is invalid, remove it
+          this.removeConnection(conn);
+          // Try again (but release lock first)
+          return this.acquire();
+        }
+
+        await this.initializeConnection(conn);
+        return conn;
+      }
+
+      // If we haven't reached max pool size, create a new connection
+      if (this.connections.length < this.config.maxSize) {
+        const connId = await this.invoke('create_connection');
+        const conn = new TauriConnection(this.invoke, connId);
+        this.connections.push(conn);
+        this.stats.connectionsCreated += 1;
+
+        await this.initializeConnection(conn, true);
+        return conn;
+      }
+    } finally {
+      // Release the lock
+      if (this.acquireLockResolver) {
+        this.acquireLockResolver();
+        this.acquireLockResolver = null;
+      }
     }
 
     // Check if we've exceeded max waiting clients
@@ -386,7 +413,7 @@ export class TauriConnectionPool implements ConnectionPool {
       return { value: convertTauriResultToArrowLike(result) as T, aborted };
     } catch (error) {
       if (aborted || signal.aborted) {
-        return { value: null as any, aborted: true };
+        return { value: null as unknown as T, aborted: true };
       }
       throw error;
     } finally {
@@ -416,11 +443,41 @@ export class TauriConnectionPool implements ConnectionPool {
 
       // NOW initiate streaming on backend
       tauriLog('[TauriConnectionPool] stream_query invoking with SQL:', sql);
+      // Build default attachments for LocalDBs if not provided
+      let attachSpec: any = options?.attach;
+      if (!attachSpec) {
+        try {
+          const { useAppStore } = await import('../store/app-store');
+          const { getFileReferenceForDuckDB } = await import(
+            '../controllers/file-system/file-helpers'
+          );
+          const state = useAppStore.getState();
+          const attaches: Array<{ dbName: string; url: string; readOnly: boolean }> = [];
+          for (const ds of state.dataSources.values()) {
+            if (ds.type === 'attached-db') {
+              const entry = state.localEntries.get(ds.fileSourceId);
+              if (entry && entry.kind === 'file' && entry.fileType === 'data-source') {
+                const url = getFileReferenceForDuckDB(entry);
+                attaches.push({ dbName: ds.dbName, url, readOnly: true });
+              }
+            } else if (ds.type === 'remote-db') {
+              attaches.push({ dbName: ds.dbName, url: ds.url, readOnly: true });
+            }
+          }
+          if (attaches.length > 0) {
+            attachSpec = attaches;
+          }
+        } catch (e) {
+          // Log the error for debugging but continue - stream may still run without auto-attachments
+          console.warn('Failed to auto-build attachments for streaming query:', e);
+        }
+      }
+
       try {
         await this.invoke('stream_query', {
           sql,
           streamId,
-          attach: options?.attach,
+          attach: attachSpec,
         });
       } catch (err) {
         tauriLog('[TauriConnectionPool] stream_query invoke failed:', err);

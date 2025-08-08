@@ -1,3 +1,4 @@
+import { getFileReferenceForDuckDB } from '@controllers/file-system/file-helpers';
 import { ConnectionPool } from '@engines/types';
 import { ColumnAggregateType, DataAdapterQueries } from '@models/data-adapter';
 import {
@@ -11,6 +12,7 @@ import {
 import { DBColumn } from '@models/db';
 import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
+import { useAppStore } from '@store/app-store';
 import { isTauriEnvironment } from '@utils/browser';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
@@ -159,18 +161,46 @@ function getDatabaseDataAdapterApi(
   dataSource: LocalDB | RemoteDB,
   tab: TabReactiveState<LocalDBDataTab>,
 ): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
-  const dbName = toDuckDBIdentifier(dataSource.dbName);
-  const schemaName = toDuckDBIdentifier(tab.schemaName);
-  const tableName = toDuckDBIdentifier(tab.objectName);
-  const fqn = `${dbName}.${schemaName}.${tableName}`;
-  const attach =
-    (dataSource as RemoteDB).type === 'remote-db'
-      ? {
-          dbName: (dataSource as RemoteDB).dbName,
-          url: (dataSource as RemoteDB).url,
-          readOnly: true,
+  const dbIdent = toDuckDBIdentifier(dataSource.dbName);
+  const schemaIdent = toDuckDBIdentifier(tab.schemaName);
+  const tableIdent = toDuckDBIdentifier(tab.objectName);
+  const fqn = `${dbIdent}.${schemaIdent}.${tableIdent}`;
+  const attach = (() => {
+    // Remote DBs always need ATTACH on each new streaming connection
+    if ((dataSource as RemoteDB).type === 'remote-db') {
+      return {
+        dbName: (dataSource as RemoteDB).dbName,
+        url: (dataSource as RemoteDB).url,
+        readOnly: true,
+      };
+    }
+
+    // Local attached DBs are session-scoped. For Tauri, streaming uses a fresh connection,
+    // so we must re-attach using the original file path.
+    if (isTauriEnvironment() && (dataSource as LocalDB).type === 'attached-db') {
+      try {
+        const { localEntries } = useAppStore.getState();
+        const entry = localEntries.get((dataSource as LocalDB).fileSourceId);
+        if (entry && entry.kind === 'file' && entry.fileType === 'data-source') {
+          const url = getFileReferenceForDuckDB(entry);
+          return {
+            dbName: (dataSource as LocalDB).dbName,
+            url,
+            readOnly: true,
+          };
         }
-      : undefined;
+      } catch (error) {
+        // Log the error for debugging purposes
+        console.warn('Failed to build attach specification for local DB streaming:', {
+          dbName: (dataSource as LocalDB).dbName,
+          fileSourceId: (dataSource as LocalDB).fileSourceId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Fall through without attach; query will error and be reported to user
+      }
+    }
+    return undefined;
+  })();
 
   return {
     adapter: {
@@ -185,9 +215,9 @@ function getDatabaseDataAdapterApi(
                   `SELECT estimated_size 
                 FROM duckdb_tables
                 WHERE
-                  database_name = ${quote(dbName, { single: true })}
-                  AND schema_name = ${quote(schemaName, { single: true })}
-                  AND table_name = ${quote(tableName, { single: true })};
+                  database_name = ${quote(dataSource.dbName, { single: true })}
+                  AND schema_name = ${quote(tab.schemaName, { single: true })}
+                  AND table_name = ${quote(tab.objectName, { single: true })};
                 ;`,
                   abortSignal,
                 );
