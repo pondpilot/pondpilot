@@ -19,6 +19,12 @@ import {
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab, TabId } from '@models/tab';
 import { isTauriEnvironment } from '@utils/browser';
+import {
+  createUnifiedFileHandle,
+  createUnifiedDirectoryHandle,
+  createMockFileSystemFileHandle,
+  createMockFileSystemDirectoryHandle,
+} from '@utils/file-handle';
 
 import { useAppStore } from './app-store';
 import { PersistenceAdapter, createPersistenceAdapter } from './persistence';
@@ -69,51 +75,18 @@ async function restoreAppDataFromSQLite(
   for (const entryData of localEntriesArray) {
     // Check if this is a Tauri entry with a stored path
     if (entryData.tauriPath && !entryData.handle) {
-      // Create a mock handle
+      // Create a unified handle for Tauri
       if (entryData.kind === 'file') {
-        entryData.handle = {
-          kind: 'file',
-          name: `${entryData.name}${entryData.ext ? `.${entryData.ext}` : ''}`,
-          getFile: async () => {
-            const fs = await import('@tauri-apps/plugin-fs');
-            const contents = await fs.readFile(entryData.tauriPath);
-            return new File([contents], entryData.name, {
-              lastModified: Date.now(),
-            });
-          },
-          queryPermission: async () => 'granted' as PermissionState,
-          requestPermission: async () => 'granted' as PermissionState,
-          _tauriPath: entryData.tauriPath,
-        } as any;
+        const fileName = `${entryData.name}${entryData.ext ? `.${entryData.ext}` : ''}`;
+        const unifiedHandle = createUnifiedFileHandle(entryData.tauriPath, fileName);
+
+        // Create a mock FileSystemFileHandle for compatibility
+        entryData.handle = createMockFileSystemFileHandle(unifiedHandle);
       } else if (entryData.kind === 'directory') {
-        entryData.handle = {
-          kind: 'directory',
-          name: entryData.name,
-          async *entries() {
-            // This would need to be implemented to read directory contents using Tauri APIs
-          },
-          async *keys() {
-            // Not implemented for Tauri mock handle
-          },
-          async *values() {
-            // Not implemented for Tauri mock handle
-          },
-          getDirectoryHandle: async (_name: string) => {
-            throw new Error('Not implemented for Tauri mock handle');
-          },
-          getFileHandle: async (_name: string) => {
-            throw new Error('Not implemented for Tauri mock handle');
-          },
-          removeEntry: async (name: string) => {
-            throw new Error('Not implemented for Tauri mock handle');
-          },
-          resolve: async (possibleDescendant: FileSystemHandle) => {
-            return null;
-          },
-          queryPermission: async () => 'granted' as PermissionState,
-          requestPermission: async () => 'granted' as PermissionState,
-          _tauriPath: entryData.tauriPath,
-        } as any;
+        const unifiedHandle = createUnifiedDirectoryHandle(entryData.tauriPath, entryData.name);
+
+        // Create a mock FileSystemDirectoryHandle for compatibility
+        entryData.handle = createMockFileSystemDirectoryHandle(unifiedHandle);
       }
     }
     // Ensure filePath is set for Tauri entries
@@ -186,11 +159,8 @@ async function restoreAppDataFromSQLite(
       }
 
       try {
-        // Get the file path - try multiple sources
-        const tauriPath =
-          (localEntry.handle as any)?._tauriPath ||
-          (localEntry as any).tauriPath ||
-          (localEntry as any).filePath;
+        // Get the file path from the entry
+        const tauriPath = (localEntry as any).tauriPath || (localEntry as any).filePath;
         if (!tauriPath) {
           logger.warn(`No path available for database ${localEntry.name}`);
           logger.warn('LocalEntry:', localEntry);
@@ -244,10 +214,7 @@ async function restoreAppDataFromSQLite(
 
         // In Tauri, we don't need to register the file handle for Excel files
         // Just create the sheet view directly
-        const tauriPath =
-          (localEntry.handle as any)?._tauriPath ||
-          (localEntry as any).tauriPath ||
-          (localEntry as any).filePath;
+        const tauriPath = (localEntry as any).tauriPath || (localEntry as any).filePath;
         if (!tauriPath) {
           logger.warn(
             `No Tauri path available for Excel file ${localEntry.name}, skipping sheet view creation`,
@@ -271,11 +238,8 @@ async function restoreAppDataFromSQLite(
           continue;
         }
 
-        // In Tauri, pass the file path as fileName if handle has _tauriPath
-        const tauriPath =
-          (localEntry.handle as any)?._tauriPath ||
-          (localEntry as any).tauriPath ||
-          (localEntry as any).filePath;
+        // Get the file path or use the unique alias
+        const tauriPath = (localEntry as any).tauriPath || (localEntry as any).filePath;
         const fileName = tauriPath || `${localEntry.uniqueAlias}.${localEntry.ext}`;
         const regFile = await registerFileSourceAndCreateView(
           conn,

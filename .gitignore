@@ -145,7 +145,6 @@ tests/test-tmp
 
 # Rust
 target/
-Cargo.lock
 **/*.rs.bk
 *.pdb
 

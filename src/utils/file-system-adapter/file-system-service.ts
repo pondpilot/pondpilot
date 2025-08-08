@@ -27,11 +27,12 @@ class FileSystemService implements FileSystemAdapter {
     this.isTauri = isTauriEnvironment();
 
     // Detect browser capabilities and select appropriate adapter
-    // For Tauri, we use Chrome adapter as it provides full capabilities
-    // even though the underlying browser might be Safari/WebView
-    if (this.isTauri || this.hasFileSystemAccessAPI()) {
+    // For Tauri, we should NOT use Chrome adapter as window.showDirectoryPicker doesn't exist
+    if (!this.isTauri && this.hasFileSystemAccessAPI()) {
       this.adapter = new ChromeFileSystemAdapter();
     } else {
+      // For Tauri and other browsers, use fallback adapter
+      // Tauri file picking is handled by the separate TauriFilePicker service
       this.adapter = new FallbackFileSystemAdapter();
     }
   }

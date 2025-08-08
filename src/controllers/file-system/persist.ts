@@ -10,6 +10,7 @@ import {
 } from '@models/persisted-store';
 import { PersistenceAdapter } from '@store/persistence';
 import { isTauriEnvironment } from '@utils/browser';
+import { convertLegacyHandle } from '@utils/file-handle';
 import { IDBPDatabase } from 'idb';
 
 /**
@@ -30,11 +31,19 @@ export const persistAddLocalEntry = async (
     // Using persistence adapter (Tauri/SQLite)
     // Process entries
     for (const [id, newLocalEntry] of newEntries) {
-      // For Tauri, include the file path as tauriPath
-      const path =
-        (newLocalEntry as any).filePath ||
-        (newLocalEntry as any).directoryPath ||
-        (newLocalEntry.handle as any)?._tauriPath;
+      // Get path from unified handle or legacy properties
+      let path: string | null = null;
+
+      if (newLocalEntry.handle) {
+        const unifiedHandle = convertLegacyHandle(newLocalEntry.handle);
+        path = unifiedHandle?.getPath() || null;
+      }
+
+      // Fallback to legacy properties if no unified handle
+      if (!path) {
+        path = (newLocalEntry as any).filePath || (newLocalEntry as any).directoryPath || null;
+      }
+
       const persistenceEntry = {
         ...newLocalEntry,
         handle: null, // Don't store mock handles
@@ -57,16 +66,25 @@ export const persistAddLocalEntry = async (
       // Convert LocalEntry to LocalEntryPersistence
       let persistenceEntry: any;
 
-      // Check if this is a Tauri handle with _tauriPath or has filePath
-      if (
-        (newLocalEntry.handle && (newLocalEntry.handle as any)._tauriPath) ||
-        (newLocalEntry as any).filePath
-      ) {
+      // Check if this is a handle with a path (Tauri)
+      let path: string | null = null;
+
+      if (newLocalEntry.handle) {
+        const unifiedHandle = convertLegacyHandle(newLocalEntry.handle);
+        path = unifiedHandle?.getPath() || null;
+      }
+
+      // Fallback to legacy properties
+      if (!path && ((newLocalEntry as any).filePath || (newLocalEntry as any).directoryPath)) {
+        path = (newLocalEntry as any).filePath || (newLocalEntry as any).directoryPath;
+      }
+
+      if (path) {
         // For Tauri handles, store only the path and essential properties
         persistenceEntry = {
           ...newLocalEntry,
           handle: null, // Don't store the mock handle
-          tauriPath: (newLocalEntry.handle as any)?._tauriPath || (newLocalEntry as any).filePath, // Store the path separately
+          tauriPath: path, // Store the path separately
         };
       } else {
         // For web handles, only store if userAdded
