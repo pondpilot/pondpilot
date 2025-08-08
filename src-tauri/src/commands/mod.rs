@@ -87,9 +87,17 @@ pub async fn list_files(engine: EngineState<'_>) -> Result<Vec<FileInfo>> {
 }
 
 #[tauri::command]
-pub async fn get_xlsx_sheet_names(engine: EngineState<'_>, file_path: String) -> Result<Vec<String>> {
-    // No lock needed - read-only operation
-    engine.get_xlsx_sheet_names(&file_path).await
+pub async fn get_xlsx_sheet_names(
+    engine: EngineState<'_>,
+    file_path: Option<String>,
+    filePath: Option<String>,
+    
+) -> Result<Vec<String>> {
+    // Support both snake_case and camelCase arg names for compatibility
+    let path = file_path.or(filePath).ok_or_else(|| crate::errors::DuckDBError::InvalidOperation {
+        message: "Missing required parameter 'file_path'".to_string(),
+    })?;
+    engine.get_xlsx_sheet_names(&path).await
 }
 
 #[tauri::command]

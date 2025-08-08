@@ -7,10 +7,19 @@ export class TauriConnection implements DatabaseConnection {
   id: string;
   private invoke: any;
   private _isOpen = true;
+  private _extensionsLoaded = false;
 
   constructor(invoke: any, id: string) {
     this.invoke = invoke;
     this.id = id;
+  }
+
+  hasExtensionsLoaded(): boolean {
+    return this._extensionsLoaded;
+  }
+
+  markExtensionsLoaded(): void {
+    this._extensionsLoaded = true;
   }
 
   async execute(sql: string, params?: any[]): Promise<QueryResult> {

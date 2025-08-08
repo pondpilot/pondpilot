@@ -19,6 +19,7 @@ import {
   IconLetterCaseToggle,
   IconNumber10,
   IconBrackets,
+  IconPoo,
 } from '@tabler/icons-react';
 import React from 'react';
 
@@ -39,6 +40,12 @@ export type IconType =
   | 'json'
   | 'parquet'
   | 'xlsx-sheet'
+  | 'sas7bdat'
+  | 'xpt'
+  | 'sav'
+  | 'zsav'
+  | 'por'
+  | 'dta'
   // Column types
   | 'column-float'
   | 'column-decimal'
@@ -128,6 +135,14 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
     case 'xlsx':
       return <IconFileTypeXls {...iconProps} />;
     case 'xlsx-sheet':
+      return <IconTable {...iconProps} />;
+    case 'sas7bdat':
+      return <IconPoo {...iconProps} />;
+    case 'xpt':
+    case 'sav':
+    case 'zsav':
+    case 'por':
+    case 'dta':
       return <IconTable {...iconProps} />;
 
     case 'error':

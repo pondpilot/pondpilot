@@ -112,11 +112,9 @@ impl QueryBuilder {
     pub async fn execute_streaming(self) -> Result<tokio::sync::mpsc::Receiver<super::arrow_streaming::ArrowStreamMessage>> {
         let engine = self.engine.lock().await;
         
-        engine.execute_arrow_streaming(
-            self.sql,
-            self.hints,
-            self.cancel_token
-        ).await
+        engine
+            .execute_arrow_streaming(self.sql, self.hints, self.cancel_token, None)
+            .await
     }
     
     /// Execute the query and collect all results into a simple structure

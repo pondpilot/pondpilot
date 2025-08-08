@@ -210,7 +210,8 @@ export class DuckDBTauriEngine implements DatabaseEngine {
   }
 
   async getXlsxSheetNames(filePath: string): Promise<string[]> {
-    return this.invoke('get_xlsx_sheet_names', { file_path: filePath });
+    // Send both keys to be robust against param naming differences
+    return this.invoke('get_xlsx_sheet_names', { file_path: filePath, filePath });
   }
 
   getCapabilities(): EngineCapabilities {

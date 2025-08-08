@@ -93,7 +93,14 @@ export function getLocalEntryIcon(entry: LocalEntry): IconType {
           ? 'db-table'
           : entry.ext === 'xlsx'
             ? 'xlsx'
-            : entry.ext;
+            : entry.ext === 'sas7bdat' ||
+                entry.ext === 'xpt' ||
+                entry.ext === 'sav' ||
+                entry.ext === 'zsav' ||
+                entry.ext === 'por' ||
+                entry.ext === 'dta'
+              ? 'db-table'
+              : entry.ext;
 }
 
 /**

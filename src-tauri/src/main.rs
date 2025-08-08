@@ -26,6 +26,11 @@ fn test_connection() -> Result<String, String> {
     Ok("Tauri backend is working!".to_string())
 }
 
+#[tauri::command]
+fn log_message(message: String) {
+    println!("[JS] {}", message);
+}
+
 fn main() {
     // Load configuration from environment or defaults
     let app_config = config::AppConfig::from_env();
@@ -106,7 +111,9 @@ fn main() {
                     engine_type: "duckdb".to_string(),
                     storage_type: None,
                     storage_path: None,
-                    extensions: Some(vec!["gsheets".to_string()]),
+                    // Avoid loading extensions during startup to prevent init failures;
+                    // extensions are managed by the frontend loaders per-connection
+                    extensions: None,
                     options: None,
                 };
                 match engine_clone.initialize(config).await {
@@ -161,6 +168,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             greet,
             test_connection,
+            log_message,
             commands::initialize_duckdb,
             commands::shutdown_duckdb,
             commands::execute_query,

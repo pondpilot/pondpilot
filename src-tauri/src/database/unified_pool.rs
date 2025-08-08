@@ -79,6 +79,9 @@ impl ConnectionPermit {
         );
         conn.execute_batch(&config).ok();
 
+        // Extension-related session settings are applied per-connection from the frontend
+        // to avoid initialization-time errors and keep policy centralized.
+
         // Extensions are now loaded through the extension management system in TypeScript
         // See src/services/extension-loader.ts
 

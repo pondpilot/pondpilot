@@ -22,7 +22,26 @@ export type FileTypeFilter = {
   json: boolean;
   parquet: boolean;
   xlsx: boolean;
+  sas7bdat: boolean;
+  xpt: boolean;
+  sav: boolean;
+  zsav: boolean;
+  por: boolean;
+  dta: boolean;
 };
+
+export const getDefaultFileTypeFilter = (): FileTypeFilter => ({
+  csv: true,
+  json: true,
+  parquet: true,
+  xlsx: true,
+  sas7bdat: true,
+  xpt: true,
+  sav: true,
+  zsav: true,
+  por: true,
+  dta: true,
+});
 
 interface FilterButton {
   type: DataExplorerFilterType;
@@ -42,6 +61,12 @@ const fileTypeLabels: Partial<Record<supportedDataSourceFileExt, string>> = {
   json: 'JSON',
   parquet: 'Parquet',
   xlsx: 'Excel',
+  sas7bdat: 'SAS',
+  xpt: 'SAS XPT',
+  sav: 'SPSS',
+  zsav: 'SPSS (compressed)',
+  por: 'SPSS Portable',
+  dta: 'Stata',
 };
 
 interface DataExplorerFiltersProps {
@@ -63,12 +88,7 @@ export const DataExplorerFilters = memo(
   ({
     activeFilter,
     onFilterChange,
-    fileTypeFilter = {
-      csv: true,
-      json: true,
-      parquet: true,
-      xlsx: true,
-    },
+    fileTypeFilter = getDefaultFileTypeFilter(),
     onFileTypeFilterChange,
     searchQuery = '',
     onSearchChange,
@@ -216,6 +236,12 @@ export const DataExplorerFilters = memo(
                               newFilter.json = false;
                               newFilter.parquet = false;
                               newFilter.xlsx = false;
+                              newFilter.sas7bdat = false;
+                              newFilter.xpt = false;
+                              newFilter.sav = false;
+                              newFilter.zsav = false;
+                              newFilter.por = false;
+                              newFilter.dta = false;
                             }
                           } else if (availableFileTypes) {
                             // Select all available types
@@ -228,6 +254,12 @@ export const DataExplorerFilters = memo(
                             newFilter.json = true;
                             newFilter.parquet = true;
                             newFilter.xlsx = true;
+                            newFilter.sas7bdat = true;
+                            newFilter.xpt = true;
+                            newFilter.sav = true;
+                            newFilter.zsav = true;
+                            newFilter.por = true;
+                            newFilter.dta = true;
                           }
 
                           onFileTypeFilterChange(newFilter);

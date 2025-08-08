@@ -1,10 +1,15 @@
 import { DuckDBDataProtocol } from '@duckdb/duckdb-wasm';
 import { ConnectionPool } from '@engines/types';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
-import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import {
+  supportedFlatFileDataSourceFileExt,
+  TAURI_ONLY_DATA_SOURCE_FILE_EXTS,
+} from '@models/file-system';
+import { isTauriEnvironment } from '@utils/browser';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
+import { tauriLog } from '@utils/tauri-logger';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
 
 import { getFileReference, getFileContent, needsFileRegistration } from './file-access';
@@ -20,9 +25,60 @@ async function createCSVView(
   viewName: string,
   fileName: string,
 ): Promise<void> {
+  const qualifiedView = `main.${toDuckDBIdentifier(viewName)}`;
   await conn.query(
-    `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`,
+    `CREATE OR REPLACE VIEW ${qualifiedView} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`,
   );
+}
+
+/**
+ * Helper function to create a view for statistical file formats
+ * @param conn - DuckDB connection
+ * @param viewName - Name of the view to create
+ * @param fileName - Name of the statistical file
+ */
+async function createStatisticalFileView(
+  conn: ConnectionPool,
+  viewName: string,
+  fileName: string,
+): Promise<void> {
+  if (!isTauriEnvironment()) {
+    throw new Error(
+      'Statistical file formats (SAS, SPSS, Stata) are only supported in the desktop version. ' +
+        'Please download PondPilot Desktop to work with these file types.',
+    );
+  }
+
+  // Extensions are loaded centrally in the connection pool - no need to load here
+  const statsQuery = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_stat(${quote(fileName, { single: true })});`;
+  const qualifiedStatsQuery = `CREATE OR REPLACE VIEW main.${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_stat(${quote(fileName, { single: true })});`;
+
+  try {
+    tauriLog('[createStatisticalFileView] Executing:', qualifiedStatsQuery);
+    await conn.query(qualifiedStatsQuery);
+    tauriLog(
+      '[createStatisticalFileView] View created successfully for statistical file:',
+      viewName,
+    );
+  } catch (queryError) {
+    console.error('[createStatisticalFileView] Failed to create view:', queryError);
+    tauriLog(
+      '[createStatisticalFileView] ERROR creating statistical view:',
+      queryError instanceof Error ? queryError.message : String(queryError),
+    );
+    throw new Error(`Failed to create view for statistical file: ${queryError}`);
+  }
+}
+
+// Create a Set for efficient lookup
+const STATISTICAL_FILE_EXT_SET = new Set<string>(TAURI_ONLY_DATA_SOURCE_FILE_EXTS);
+
+/**
+ * Check if a file extension is a statistical file format
+ * @param fileExt - The file extension to check
+ */
+function isStatisticalFileExt(fileExt: string): boolean {
+  return STATISTICAL_FILE_EXT_SET.has(fileExt);
 }
 
 /**
@@ -71,12 +127,11 @@ export async function registerFileSourceAndCreateView(
   const queryFileName = needsFileRegistration() ? fileName : fileRef.path;
 
   if (fileExt === 'csv') {
-    const csvQuery = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(queryFileName, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`;
-    // console.log('[registerFileSourceAndCreateView] Executing CSV view creation query:', csvQuery);
-    await conn.query(csvQuery);
-    // console.log('[registerFileSourceAndCreateView] CSV view created successfully for:', viewName);
+    await createCSVView(conn, viewName, queryFileName);
+  } else if (isStatisticalFileExt(fileExt)) {
+    await createStatisticalFileView(conn, viewName, queryFileName);
   } else {
-    const query = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(queryFileName, { single: true })};`;
+    const query = `CREATE OR REPLACE VIEW main.${toDuckDBIdentifier(viewName)} AS SELECT * FROM ${quote(queryFileName, { single: true })};`;
     // console.log('[registerFileSourceAndCreateView] Executing view creation query:', query);
     await conn.query(query);
     // console.log('[registerFileSourceAndCreateView] View created successfully for:', viewName);
@@ -104,6 +159,11 @@ export async function dropViewAndUnregisterFile(
    */
   const dropQuery = buildDropViewQuery(viewName, true);
   await conn.query(dropQuery).catch(() => {
+    /* ignore */
+  });
+  // Also drop qualified view if previously created with schema
+  const dropQualified = buildDropViewQuery(`main.${viewName}`, true);
+  await conn.query(dropQualified).catch(() => {
     /* ignore */
   });
 
@@ -152,6 +212,14 @@ export async function reCreateView(
   await conn.query(dropQuery).catch(() => {
     /* ignore */
   });
+  const dropQualified = buildDropViewQuery(`main.${oldViewName}`, true);
+  await conn.query(dropQualified).catch(() => {
+    /* ignore */
+  });
+  const dropQualifiedOld = buildDropViewQuery(`main.${oldViewName}`, true);
+  await conn.query(dropQualifiedOld).catch(() => {
+    /* ignore */
+  });
 
   /**
    * Create view with the new name
@@ -159,12 +227,13 @@ export async function reCreateView(
 
   if (fileExt === 'csv') {
     await createCSVView(conn, newViewName, fileName);
-    return;
+  } else if (isStatisticalFileExt(fileExt)) {
+    await createStatisticalFileView(conn, newViewName, fileName);
+  } else {
+    await conn.query(
+      `CREATE OR REPLACE VIEW main.${toDuckDBIdentifier(newViewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
+    );
   }
-
-  await conn.query(
-    `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(newViewName)} AS SELECT * FROM ${quote(fileName, { single: true })};`,
-  );
 }
 
 /**

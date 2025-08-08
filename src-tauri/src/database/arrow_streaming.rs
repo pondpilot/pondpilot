@@ -20,6 +20,7 @@ pub struct ArrowStreamingExecutor {
     sql: String,
     query_id: String,
     cancel_token: Option<CancellationToken>,
+    setup_sql: Option<Vec<String>>,
 }
 
 impl ArrowStreamingExecutor {
@@ -28,12 +29,14 @@ impl ArrowStreamingExecutor {
         sql: String,
         query_id: String,
         cancel_token: Option<CancellationToken>,
+        setup_sql: Option<Vec<String>>,
     ) -> Self {
         Self {
             pool,
             sql,
             query_id,
             cancel_token,
+            setup_sql,
         }
     }
 
@@ -44,6 +47,7 @@ impl ArrowStreamingExecutor {
         let sql = self.sql.clone();
         let query_id = self.query_id.clone();
         let cancel_token = self.cancel_token.clone();
+        let setup_sql = self.setup_sql.clone();
         
         // Get connection permit
         let permit = self.pool.acquire_connection_permit().await?;
@@ -81,6 +85,49 @@ impl ArrowStreamingExecutor {
                 }
                 Err(e) => debug!("[ARROW_STREAMING] Failed to rollback transaction: {}", e),
             }
+            // Run setup statements (load extensions, attach databases) if provided
+            if let Some(setups) = setup_sql {
+                for stmt in setups {
+                    let trimmed = stmt.trim();
+                    if trimmed.is_empty() { continue; }
+                    debug!("[ARROW_STREAMING] Setup statement: {}", trimmed);
+                    // Special handling for LOAD statements to attempt install fallback for community extensions
+                    if trimmed.to_uppercase().starts_with("LOAD ") {
+                        // Extract extension name
+                        let ext = trimmed.split_whitespace().nth(1).unwrap_or("");
+                        match conn.execute(trimmed, []) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                let emsg = e.to_string();
+                                // Attempt install for community extensions if not installed
+                                if emsg.contains("not installed") || emsg.contains("Extension") || emsg.contains("unknown") {
+                                    let community_exts = ["gsheets", "read_stat"];
+                                    let install_stmt = if community_exts.contains(&ext) {
+                                        format!("INSTALL {} FROM community", ext)
+                                    } else {
+                                        format!("INSTALL {}", ext)
+                                    };
+                                    match conn.execute(&install_stmt, []) {
+                                        Ok(_) => {
+                                            let _ = conn.execute(trimmed, []);
+                                        }
+                                        Err(_ie) => {
+                                            // Ignore install failure; streaming may not need this ext
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    // For ATTACH and others, if it fails, emit error and abort
+                    if let Err(e) = conn.execute(trimmed, []) {
+                        let _ = tx.blocking_send(ArrowStreamMessage::Error(format!("Failed to execute setup statement: {}", e)));
+                        return;
+                    }
+                }
+            }
+
             
             // Classify the SQL statement
             let classified = ClassifiedSqlStatement::classify(&sql);
