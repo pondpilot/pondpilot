@@ -6,6 +6,12 @@
 import { LocalFile, LocalFolder } from '@models/file-system';
 
 import { isTauriEnvironment } from './browser';
+import {
+  createUnifiedFileHandle,
+  createUnifiedDirectoryHandle,
+  createMockFileSystemFileHandle,
+  createMockFileSystemDirectoryHandle,
+} from './file-handle';
 
 /**
  * Check if a file handle is available (not null and can be accessed)
@@ -65,58 +71,27 @@ export function getEffectiveDirectoryHandle(folder: LocalFolder): FileSystemDire
  * Create a mock FileSystemFileHandle for Tauri files
  */
 function createTauriMockFileHandle(file: LocalFile): FileSystemFileHandle {
-  return {
-    kind: 'file',
-    name: `${file.name}${file.fileType === 'data-source' ? `.${file.ext}` : file.fileType === 'code-file' ? `.${file.ext}` : ''}`,
-    getFile: async () => {
-      if (!file.filePath) {
-        throw new Error('File path not available');
-      }
+  if (!file.filePath) {
+    throw new Error('File path not available');
+  }
 
-      // Read file using Tauri APIs
-      const fs = await import('@tauri-apps/plugin-fs');
-      const contents = await fs.readFile(file.filePath);
+  const fileName = `${file.name}${file.fileType === 'data-source' ? `.${file.ext}` : file.fileType === 'code-file' ? `.${file.ext}` : ''}`;
+  const unifiedHandle = createUnifiedFileHandle(file.filePath, fileName);
 
-      return new File([contents], file.name, {
-        lastModified: Date.now(),
-      });
-    },
-    queryPermission: async () => 'granted' as PermissionState,
-    requestPermission: async () => 'granted' as PermissionState,
-    _tauriPath: file.filePath,
-  } as any;
+  // Create a mock FileSystemFileHandle
+  return createMockFileSystemFileHandle(unifiedHandle);
 }
 
 /**
  * Create a mock FileSystemDirectoryHandle for Tauri directories
  */
 function createTauriMockDirectoryHandle(folder: LocalFolder): FileSystemDirectoryHandle {
-  return {
-    kind: 'directory',
-    name: folder.name,
-    async *entries() {
-      // This would need to be implemented to read directory contents using Tauri APIs
-    },
-    async *keys() {
-      // Not implemented for Tauri mock handle
-    },
-    async *values() {
-      // Not implemented for Tauri mock handle
-    },
-    getDirectoryHandle: async (name: string) => {
-      throw new Error('Not implemented for Tauri mock handle');
-    },
-    getFileHandle: async (name: string) => {
-      throw new Error('Not implemented for Tauri mock handle');
-    },
-    removeEntry: async (name: string) => {
-      throw new Error('Not implemented for Tauri mock handle');
-    },
-    resolve: async (possibleDescendant: FileSystemHandle) => {
-      return null;
-    },
-    queryPermission: async () => 'granted' as PermissionState,
-    requestPermission: async () => 'granted' as PermissionState,
-    _tauriPath: folder.directoryPath,
-  } as any;
+  if (!folder.directoryPath) {
+    throw new Error('Directory path not available');
+  }
+
+  const unifiedHandle = createUnifiedDirectoryHandle(folder.directoryPath, folder.name);
+
+  // Create a mock FileSystemDirectoryHandle
+  return createMockFileSystemDirectoryHandle(unifiedHandle);
 }

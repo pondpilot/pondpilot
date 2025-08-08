@@ -36,6 +36,30 @@ export class ExtensionLoader {
         ...activeOptionalExtensions.filter((ext) => !ext.required),
       ];
 
+      // Gate auto-installation of community extensions
+      const allowCommunityAutoInstall = (() => {
+        try {
+          // Prefer explicit env override, otherwise allow on Tauri/DEV
+          if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+            const v = (import.meta as any).env.VITE_ALLOW_COMMUNITY_EXTENSIONS;
+            if (typeof v === 'string') return v === 'true';
+          }
+        } catch {}
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { isTauriEnvironment } = require('@utils/browser');
+          if (isTauriEnvironment && typeof isTauriEnvironment === 'function') {
+            // Allow on desktop by default
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+            if (isTauriEnvironment()) return true;
+          }
+        } catch {}
+        try {
+          return (import.meta as any).env?.DEV === true;
+        } catch {}
+        return false;
+      })();
+
       if (extensionsToLoad.length === 0) {
         logger.debug('No extensions to load');
         return;
@@ -56,7 +80,18 @@ export class ExtensionLoader {
             continue;
           } catch (loadErr: any) {
             const msg = ExtensionLoader.errorToMessage(loadErr);
-            logger.warn(`LOAD ${extension.name} failed, attempting install -> load. Error: ${msg}`);
+            logger.warn(`LOAD ${extension.name} failed. Error: ${msg}`);
+          }
+
+          // Decide whether we will attempt to install
+          const canInstall =
+            extension.type === 'core' ||
+            (extension.type === 'community' && allowCommunityAutoInstall);
+          if (!canInstall) {
+            logger.warn(
+              `Skipping auto-install of community extension ${extension.name}. Enable VITE_ALLOW_COMMUNITY_EXTENSIONS=true to allow installation.`,
+            );
+            continue;
           }
 
           // Install then load
@@ -201,10 +236,26 @@ export class ExtensionLoader {
       }
 
       logger.debug(`Loading ${requiredExtensions.length} required extensions for connection`);
-      tauriLog(
-        `[ExtensionLoader] Loading ${requiredExtensions.length} required extensions:`,
-        requiredExtensions.map((e) => e.name).join(', '),
-      );
+      if ((import.meta as any).env?.DEV) {
+        tauriLog(
+          `[ExtensionLoader] Loading ${requiredExtensions.length} required extensions:`,
+          requiredExtensions.map((e) => e.name).join(', '),
+        );
+      }
+
+      const allowCommunityAutoInstall = await (async () => {
+        try {
+          if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+            const v = (import.meta as any).env.VITE_ALLOW_COMMUNITY_EXTENSIONS;
+            if (typeof v === 'string') return v === 'true';
+          }
+        } catch {}
+        try {
+          const { isTauriEnvironment } = await import('@utils/browser');
+          if (isTauriEnvironment()) return true;
+        } catch {}
+        return (import.meta as any).env?.DEV === true;
+      })();
 
       for (const extension of requiredExtensions) {
         try {
@@ -212,31 +263,45 @@ export class ExtensionLoader {
           await connection.execute(`LOAD ${extension.name}`);
           logger.debug(`Loaded extension ${extension.name} for connection`);
         } catch (loadError: any) {
-          // If loading fails, try to install first then load (unconditionally)
+          // If loading fails, decide whether to install first then load
           const loadMsg = ExtensionLoader.errorToMessage(loadError);
-          logger.warn(
-            `LOAD ${extension.name} failed on connection, attempting install -> load. Error: ${loadMsg}`,
-          );
-          tauriLog(`[ExtensionLoader] LOAD failed for '${extension.name}', attempting install`);
+          logger.warn(`LOAD ${extension.name} failed on connection. Error: ${loadMsg}`);
+          if (!(extension.type === 'core' || allowCommunityAutoInstall)) {
+            logger.warn(
+              `Skipping auto-install of community extension ${extension.name} on connection (not allowed).`,
+            );
+            continue;
+          }
+          if ((import.meta as any).env?.DEV) {
+            tauriLog(`[ExtensionLoader] LOAD failed for '${extension.name}', attempting install`);
+          }
 
           try {
             logger.debug(`Extension ${extension.name} not installed, installing...`);
-            tauriLog(
-              `[ExtensionLoader] Installing extension '${extension.name}' (type: ${extension.type})`,
-            );
+            if ((import.meta as any).env?.DEV) {
+              tauriLog(
+                `[ExtensionLoader] Installing extension '${extension.name}' (type: ${extension.type})`,
+              );
+            }
             const installCommand =
               extension.type === 'core'
                 ? `INSTALL ${extension.name}`
                 : `INSTALL ${extension.name} FROM community`;
-            tauriLog(`[ExtensionLoader] Running: ${installCommand}`);
+            if ((import.meta as any).env?.DEV) {
+              tauriLog(`[ExtensionLoader] Running: ${installCommand}`);
+            }
             await connection.execute(installCommand);
             logger.debug(`Installed extension ${extension.name}`);
 
             // Now try to load again
-            tauriLog(`[ExtensionLoader] Loading: LOAD ${extension.name}`);
+            if ((import.meta as any).env?.DEV) {
+              tauriLog(`[ExtensionLoader] Loading: LOAD ${extension.name}`);
+            }
             await connection.execute(`LOAD ${extension.name}`);
             logger.debug(`Successfully loaded extension ${extension.name} after installation`);
-            tauriLog(`[ExtensionLoader] Successfully installed and loaded '${extension.name}'`);
+            if ((import.meta as any).env?.DEV) {
+              tauriLog(`[ExtensionLoader] Successfully installed and loaded '${extension.name}'`);
+            }
 
             // Update store to reflect installation
             store.extensions = store.extensions.map((ext) =>
@@ -244,9 +309,11 @@ export class ExtensionLoader {
             );
           } catch (installError: any) {
             logger.error(`Failed to install and load extension ${extension.name}:`, installError);
-            tauriLog(
-              `[ExtensionLoader] ERROR installing '${extension.name}': ${installError?.message || installError}`,
-            );
+            if ((import.meta as any).env?.DEV) {
+              tauriLog(
+                `[ExtensionLoader] ERROR installing '${extension.name}': ${installError?.message || installError}`,
+              );
+            }
           }
         }
       }

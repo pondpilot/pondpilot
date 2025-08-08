@@ -54,18 +54,24 @@ async function createStatisticalFileView(
   const qualifiedStatsQuery = `CREATE OR REPLACE VIEW main.${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_stat(${quote(fileName, { single: true })});`;
 
   try {
-    tauriLog('[createStatisticalFileView] Executing:', qualifiedStatsQuery);
+    if ((import.meta as any).env?.DEV) {
+      tauriLog('[createStatisticalFileView] Executing:', qualifiedStatsQuery);
+    }
     await conn.query(qualifiedStatsQuery);
-    tauriLog(
-      '[createStatisticalFileView] View created successfully for statistical file:',
-      viewName,
-    );
+    if ((import.meta as any).env?.DEV) {
+      tauriLog(
+        '[createStatisticalFileView] View created successfully for statistical file:',
+        viewName,
+      );
+    }
   } catch (queryError) {
     console.error('[createStatisticalFileView] Failed to create view:', queryError);
-    tauriLog(
-      '[createStatisticalFileView] ERROR creating statistical view:',
-      queryError instanceof Error ? queryError.message : String(queryError),
-    );
+    if ((import.meta as any).env?.DEV) {
+      tauriLog(
+        '[createStatisticalFileView] ERROR creating statistical view:',
+        queryError instanceof Error ? queryError.message : String(queryError),
+      );
+    }
     throw new Error(`Failed to create view for statistical file: ${queryError}`);
   }
 }
@@ -214,10 +220,6 @@ export async function reCreateView(
   });
   const dropQualified = buildDropViewQuery(`main.${oldViewName}`, true);
   await conn.query(dropQualified).catch(() => {
-    /* ignore */
-  });
-  const dropQualifiedOld = buildDropViewQuery(`main.${oldViewName}`, true);
-  await conn.query(dropQualifiedOld).catch(() => {
     /* ignore */
   });
 

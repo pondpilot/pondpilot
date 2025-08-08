@@ -12,11 +12,14 @@ import { isTauriEnvironment } from '@utils/browser';
  */
 export function getFileReferenceForDuckDB(file: DataSourceLocalFile): string {
   if (isTauriEnvironment()) {
-    const tauriPath = (file.handle as any)?._tauriPath;
-    if (!tauriPath) {
-      throw new Error(`Tauri file missing _tauriPath: ${file.name}`);
+    // First check if file has a stored path
+    const tauriPath = (file as any).filePath || (file as any).tauriPath;
+    if (tauriPath) {
+      return tauriPath;
     }
-    return tauriPath;
+
+    // If no stored path, throw error
+    throw new Error(`Tauri file missing file path: ${file.name}`);
   }
   // Web environment uses registered filename
   return `${file.uniqueAlias}.${file.ext}`;
