@@ -27,6 +27,7 @@ import {
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
+import { isTauriEnvironment } from '@utils/browser';
 import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
 import { localEntryFromHandle } from '@utils/file-system';
 import { findUniqueName } from '@utils/helpers';
@@ -121,7 +122,6 @@ export const addLocalFileOrFolders = async (
         // And save to new dbs as we'll need it later to get new metadata
         newDatabaseNames.push(dbSource.dbName);
 
-        // TODO: currently we assume this works, add proper error handling
         const fileReference = getFileReferenceForDuckDB(file);
 
         // Preflight: check for dangerous path patterns
@@ -133,12 +133,74 @@ export const addLocalFileOrFolders = async (
           return false;
         }
 
-        const regFile = await registerAndAttachDatabase(
-          conn,
-          file.handle,
-          fileReference,
-          dbSource.dbName,
-        );
+        let regFile: File | null = null;
+        try {
+          regFile = await registerAndAttachDatabase(
+            conn,
+            file.handle,
+            fileReference,
+            dbSource.dbName,
+          );
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errors.push(
+            `Failed to attach database "${dbSource.dbName}" from file "${file.name}": ${errorMessage}`,
+          );
+          console.error('[attachSourceFile] Database attachment failed:', error);
+          return false;
+        }
+
+        if (regFile) {
+          newRegisteredFiles.push([file.id, regFile]);
+        }
+        newDataSources.push([dbSource.id, dbSource]);
+        return true;
+      }
+      case 'db': {
+        // SQLite support is only available in Tauri
+        if (!isTauriEnvironment()) {
+          errors.push(
+            'SQLite database files (.db) are only supported in the desktop version. ' +
+              'Please download PondPilot Desktop to work with SQLite databases.',
+          );
+          return false;
+        }
+
+        const dbSource = addLocalDB(file, reservedDbs);
+
+        // Assume it will be added, so reserve the name
+        reservedDbs.add(dbSource.dbName);
+
+        // And save to new dbs as we'll need it later to get new metadata
+        newDatabaseNames.push(dbSource.dbName);
+
+        const fileReference = getFileReferenceForDuckDB(file);
+
+        // Preflight: check for dangerous path patterns
+        if (!isConservativeSafePath(fileReference)) {
+          errors.push(
+            `Cannot attach database from path: "${fileReference}". ` +
+              'The path contains potentially dangerous characters or patterns.',
+          );
+          return false;
+        }
+
+        let regFile: File | null = null;
+        try {
+          regFile = await registerAndAttachDatabase(
+            conn,
+            file.handle,
+            fileReference,
+            dbSource.dbName,
+          );
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errors.push(
+            `Failed to attach database "${dbSource.dbName}" from file "${file.name}": ${errorMessage}`,
+          );
+          console.error('[attachSourceFile] Database attachment failed:', error);
+          return false;
+        }
 
         // Check if database is empty and skip it if it is
         const isEmpty = await isDatabaseEmpty(dbSource.dbName);
@@ -176,7 +238,6 @@ export const addLocalFileOrFolders = async (
         } else {
           // Tauri environment: use native engine to get sheet names
           try {
-            const { isTauriEnvironment } = await import('@utils/browser');
             if (isTauriEnvironment()) {
               const { invoke } = await import('@tauri-apps/api/core');
               const fileReference = getFileReferenceForDuckDB(file);
