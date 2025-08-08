@@ -167,16 +167,52 @@ export const addLocalFileOrFolders = async (
               const { invoke } = await import('@tauri-apps/api/core');
               const fileReference = getFileReferenceForDuckDB(file);
               sheetNames = await invoke<string[]>('get_xlsx_sheet_names', {
+                file_path: fileReference,
                 filePath: fileReference,
               });
             }
-          } catch (error) {
-            // console.error(`Error getting sheet names for ${file.name}:`, error);
-            // Surface the error instead of silently falling back
+          } catch (error: any) {
+            // Robustly extract a meaningful error message
+            const extract = (e: any): string => {
+              try {
+                if (!e) return 'Unknown error';
+                if (typeof e === 'string') return e;
+                if (e.message) {
+                  if (typeof e.message === 'string') {
+                    // Try JSON.parse if it's a serialized object
+                    try {
+                      const parsed = JSON.parse(e.message);
+                      if (parsed && typeof parsed === 'object') {
+                        return parsed.details?.message || parsed.message || e.message;
+                      }
+                    } catch {
+                      // not JSON, use as-is
+                      return e.message;
+                    }
+                    return e.message;
+                  }
+                  // message is an object
+                  try {
+                    return JSON.stringify(e.message);
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                try {
+                  return JSON.stringify(e);
+                } catch {
+                  return String(e);
+                }
+              } catch {
+                return String(e);
+              }
+            };
+
+            const errMsg = extract(error);
             throw new Error(
               `Failed to read sheet names from Excel file "${file.name}". ` +
                 'The file may be corrupted or in an unsupported format. ' +
-                `Error: ${error instanceof Error ? error.message : String(error)}`,
+                `Error: ${errMsg}`,
             );
           }
         }

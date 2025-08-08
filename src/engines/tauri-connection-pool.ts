@@ -1,3 +1,4 @@
+import { tauriLog } from '@utils/tauri-logger';
 import {
   DataType,
   Int32,
@@ -222,6 +223,25 @@ export class TauriConnectionPool implements ConnectionPool {
   constructor(invoke: any, config?: Partial<PoolConfig>) {
     this.invoke = invoke;
     this.config = { ...getOptimalPoolConfig('duckdb-tauri'), ...config };
+
+    // Pre-load the extension store to ensure it's hydrated before first use
+    this.initializeExtensionStore();
+  }
+
+  private async initializeExtensionStore(): Promise<void> {
+    try {
+      const { waitForExtensionStoreHydration } = await import('../store/extension-management');
+      await waitForExtensionStoreHydration();
+    } catch (error) {
+      console.warn('Failed to initialize extension store:', error);
+    }
+  }
+
+  /**
+   * Alias for acquire() for compatibility with other pool implementations
+   */
+  async getConnection(): Promise<DatabaseConnection> {
+    return this.acquire();
   }
 
   async acquire(): Promise<DatabaseConnection> {
@@ -233,12 +253,33 @@ export class TauriConnectionPool implements ConnectionPool {
 
       if (this.config.validateOnAcquire) {
         if (await this.validateConnection(conn)) {
+          // Ensure extensions are loaded on reused connection (only if not already loaded)
+          if (!conn.hasExtensionsLoaded()) {
+            try {
+              const { ExtensionLoader } = await import('../services/extension-loader');
+              await ExtensionLoader.loadExtensionsForConnection(conn);
+              conn.markExtensionsLoaded();
+            } catch (error) {
+              console.warn('Failed to load extensions on reused connection:', error);
+            }
+          }
           return conn;
         }
         // Connection is invalid, remove it
         this.removeConnection(conn);
         // Try again
         return this.acquire();
+      }
+
+      // Ensure extensions are loaded on reused connection (only if not already loaded)
+      if (!conn.hasExtensionsLoaded()) {
+        try {
+          const { ExtensionLoader } = await import('../services/extension-loader');
+          await ExtensionLoader.loadExtensionsForConnection(conn);
+          conn.markExtensionsLoaded();
+        } catch (error) {
+          console.warn('Failed to load extensions on reused connection:', error);
+        }
       }
 
       return conn;
@@ -250,6 +291,17 @@ export class TauriConnectionPool implements ConnectionPool {
       const conn = new TauriConnection(this.invoke, connId);
       this.connections.push(conn);
       this.stats.connectionsCreated += 1;
+
+      // Load required extensions for this connection (centralized approach)
+      try {
+        const { ExtensionLoader } = await import('../services/extension-loader');
+        await ExtensionLoader.loadExtensionsForConnection(conn);
+        conn.markExtensionsLoaded();
+      } catch (error) {
+        console.error('Failed to load extensions for new connection:', error);
+        // Continue anyway - connection is still usable for basic queries
+      }
+
       return conn;
     }
 
@@ -343,7 +395,12 @@ export class TauriConnectionPool implements ConnectionPool {
     }
   }
 
-  async sendAbortable<T = any>(sql: string, signal: AbortSignal, stream?: boolean): Promise<T> {
+  async sendAbortable<T = any>(
+    sql: string,
+    signal: AbortSignal,
+    stream?: boolean,
+    options?: { attach?: { dbName: string; url: string; readOnly?: boolean } },
+  ): Promise<T> {
     if (stream) {
       // Use true Arrow streaming
       const streamId = crypto.randomUUID();
@@ -358,10 +415,17 @@ export class TauriConnectionPool implements ConnectionPool {
       // console.log('[TauriConnectionPool] TauriArrowReader initialized');
 
       // NOW initiate streaming on backend
-      await this.invoke('stream_query', {
-        sql,
-        streamId,
-      });
+      tauriLog('[TauriConnectionPool] stream_query invoking with SQL:', sql);
+      try {
+        await this.invoke('stream_query', {
+          sql,
+          streamId,
+          attach: options?.attach,
+        });
+      } catch (err) {
+        tauriLog('[TauriConnectionPool] stream_query invoke failed:', err);
+        throw err;
+      }
       // console.log('[TauriConnectionPool] stream_query invoked successfully');
 
       // Handle abort
@@ -377,6 +441,7 @@ export class TauriConnectionPool implements ConnectionPool {
     const conn = await this.acquire();
 
     try {
+      tauriLog('[TauriConnectionPool] Executing SQL via non-stream:', sql);
       const result = await conn.execute(sql);
       // Convert to Arrow-like format for compatibility
       return convertTauriResultToArrowLike(result) as T;

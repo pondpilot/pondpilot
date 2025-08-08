@@ -11,6 +11,7 @@ import {
 import { DBColumn } from '@models/db';
 import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
+import { isTauriEnvironment } from '@utils/browser';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 import { convertArrowTable } from './arrow';
@@ -24,6 +25,7 @@ const INITIAL_TABLE_PREVIEW_LIMIT = 100000;
 function getGetSortableReaderApiFromFQN(
   pool: ConnectionPool,
   fqn: string,
+  attach?: { dbName: string; url: string; readOnly?: boolean },
 ): DataAdapterQueries['getSortableReader'] {
   return async (sort, abortSignal) => {
     // For initial table preview, add a reasonable LIMIT to prevent scanning entire large tables
@@ -40,7 +42,12 @@ function getGetSortableReaderApiFromFQN(
     if (!pool.sendAbortable) {
       throw new Error('Connection pool does not support sendAbortable');
     }
-    const reader = await pool.sendAbortable(baseQuery, abortSignal, true);
+    const reader = await pool.sendAbortable(
+      baseQuery,
+      abortSignal,
+      true,
+      attach ? { attach } : undefined,
+    );
     return reader;
   };
 }
@@ -48,6 +55,7 @@ function getGetSortableReaderApiFromFQN(
 function getGetColumnAggregateFromFQN(
   pool: ConnectionPool,
   fqn: string,
+  _attach?: { dbName: string; url: string; readOnly?: boolean },
 ): DataAdapterQueries['getColumnAggregate'] {
   return async (columnName: string, aggType: ColumnAggregateType, abortSignal: AbortSignal) => {
     const queryToRun = `SELECT ${aggType}(${toDuckDBIdentifier(columnName)}) FROM ${fqn}`;
@@ -66,6 +74,7 @@ function getGetColumnAggregateFromFQN(
 function getGetColumnsDataApiFromFQN(
   pool: ConnectionPool,
   fqn: string,
+  _attach?: { dbName: string; url: string; readOnly?: boolean },
 ): DataAdapterQueries['getColumnsData'] {
   return async (columns: DBColumn[], abortSignal: AbortSignal) => {
     const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
@@ -87,8 +96,12 @@ function getFlatFileDataAdapterQueries(
   dataSource: AnyFlatFileDataSource,
   sourceFile: LocalFile,
 ): DataAdapterQueries {
-  // Use fully qualified name with the persistent database prefix
-  const fqn = `${toDuckDBIdentifier(SYSTEM_DATABASE_NAME)}.main.${toDuckDBIdentifier(dataSource.viewName)}`;
+  // Use FQN appropriate to environment:
+  // - Tauri (native DuckDB): use unqualified <view> to avoid cross-database/schema mismatches
+  // - Web/WASM (OPFS persistent DB named 'pondpilot'): use pondpilot.main.<view>
+  const fqn = isTauriEnvironment()
+    ? `${toDuckDBIdentifier(dataSource.viewName)}`
+    : `${toDuckDBIdentifier(SYSTEM_DATABASE_NAME)}.main.${toDuckDBIdentifier(dataSource.viewName)}`;
 
   const baseAttrs: Partial<DataAdapterQueries> = {
     getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn),
@@ -96,10 +109,20 @@ function getFlatFileDataAdapterQueries(
     getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
   };
 
-  if (dataSource.type === 'csv' || dataSource.type === 'json' || dataSource.type === 'xlsx-sheet') {
+  if (
+    dataSource.type === 'csv' ||
+    dataSource.type === 'json' ||
+    dataSource.type === 'xlsx-sheet' ||
+    dataSource.type === 'sas7bdat' ||
+    dataSource.type === 'xpt' ||
+    dataSource.type === 'sav' ||
+    dataSource.type === 'zsav' ||
+    dataSource.type === 'por' ||
+    dataSource.type === 'dta'
+  ) {
     return {
       ...baseAttrs,
-      // Don't provide getRowCount for CSV/JSON/XLSX files as it requires scanning entire file
+      // Don't provide getRowCount for CSV/JSON/XLSX/Statistical files as it requires scanning entire file
       // which is expensive for large files. The UI will progressively load data instead.
     };
   }
@@ -140,6 +163,14 @@ function getDatabaseDataAdapterApi(
   const schemaName = toDuckDBIdentifier(tab.schemaName);
   const tableName = toDuckDBIdentifier(tab.objectName);
   const fqn = `${dbName}.${schemaName}.${tableName}`;
+  const attach =
+    (dataSource as RemoteDB).type === 'remote-db'
+      ? {
+          dbName: (dataSource as RemoteDB).dbName,
+          url: (dataSource as RemoteDB).url,
+          readOnly: true,
+        }
+      : undefined;
 
   return {
     adapter: {
@@ -169,9 +200,9 @@ function getDatabaseDataAdapterApi(
               }
             : undefined
           : undefined,
-      getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn),
-      getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn),
-      getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
+      getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn, attach),
+      getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn, attach),
+      getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn, attach),
     },
     userErrors: [],
     internalErrors: [],
@@ -253,7 +284,13 @@ export function getFileDataAdapterQueries({
     dataSource.type === 'csv' ||
     dataSource.type === 'json' ||
     dataSource.type === 'xlsx-sheet' ||
-    dataSource.type === 'parquet'
+    dataSource.type === 'parquet' ||
+    dataSource.type === 'sas7bdat' ||
+    dataSource.type === 'xpt' ||
+    dataSource.type === 'sav' ||
+    dataSource.type === 'zsav' ||
+    dataSource.type === 'por' ||
+    dataSource.type === 'dta'
   ) {
     if (tab.dataSourceType !== 'file') {
       return {

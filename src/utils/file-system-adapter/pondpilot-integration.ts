@@ -2,7 +2,7 @@
  * Integration utilities for PondPilot to work with the file system adapter
  */
 
-import { SUPPORTED_DATA_SOURCE_FILE_EXTS } from '@models/file-system';
+import { SUPPORTED_DATA_SOURCE_FILE_EXTS, CORE_DATA_SOURCE_FILE_EXTS } from '@models/file-system';
 import { isTauriEnvironment } from '@utils/browser';
 
 import { fileSystemService } from './file-system-service';
@@ -187,7 +187,10 @@ export async function pickFolderForPondPilot(): Promise<PickFolderResult> {
  * Pick data source files specifically for PondPilot
  */
 export async function pickDataSourceFiles(): Promise<PickFilesResult> {
-  const extensions = SUPPORTED_DATA_SOURCE_FILE_EXTS.map((ext) => `.${ext}`);
+  // Only include statistical file formats in Tauri
+  const extensions = isTauriEnvironment()
+    ? SUPPORTED_DATA_SOURCE_FILE_EXTS.map((ext) => `.${ext}`)
+    : CORE_DATA_SOURCE_FILE_EXTS.map((ext) => `.${ext}`);
   return pickFilesForPondPilot(extensions, 'Data Source Files', true);
 }
 

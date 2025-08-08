@@ -247,6 +247,16 @@ export const test = baseTest.extend<FilePickerFixtures>({
             await storage.uploadFile(xlsxFilePath, file.path);
             break;
 
+          // Statistical file formats - not tested
+          case 'sas7bdat':
+          case 'xpt':
+          case 'sav':
+          case 'zsav':
+          case 'por':
+          case 'dta':
+            // Skip these for now - not creating test fixtures for statistical formats
+            break;
+
           default:
             assertNeverValueType(file);
         }

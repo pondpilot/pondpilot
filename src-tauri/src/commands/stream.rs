@@ -18,6 +18,7 @@ pub async fn stream_query(
     stream_manager: tauri::State<'_, Arc<StreamManager>>,
     sql: String,
     stream_id: String,
+    attach: Option<serde_json::Value>,
 ) -> DuckDBResult<()> {
     debug!("[COMMAND] stream_query called for stream {} with SQL: {}", stream_id, sql);
     let engine_arc = engine.inner().clone();
@@ -28,9 +29,10 @@ pub async fn stream_query(
     let app_clone = app.clone();
     let app_clone2 = app.clone();
     let stream_id_clone = stream_id.clone();
+    let attach_spec = attach.clone();
     
     tokio::spawn(async move {
-        match execute_streaming_query(app_clone, engine_arc, stream_manager.clone(), sql, stream_id_clone.clone()).await {
+        match execute_streaming_query(app_clone, engine_arc, stream_manager.clone(), sql, stream_id_clone.clone(), attach_spec).await {
             Ok(_) => {
                 debug!("[STREAMING] Stream {} completed successfully", stream_id_clone);
             }
@@ -54,6 +56,7 @@ async fn execute_streaming_query(
     stream_manager: Arc<StreamManager>,
     sql: String,
     stream_id: String,
+    attach: Option<serde_json::Value>,
 ) -> Result<()> {
     debug!("[STREAMING] ===== STARTING STREAM {} =====", stream_id);
     debug!("[STREAMING] Starting streaming query for stream {}", stream_id);
@@ -64,10 +67,41 @@ async fn execute_streaming_query(
     debug!("[STREAMING] Stream registered with cancellation token and backpressure");
     
     // Use the new unified API - no lock needed
+    // Build setup statements: load essential extensions and perform ATTACH if provided
+    let mut setup_stmts: Vec<String> = Vec::new();
+
+    // Ensure queries run against the main database for consistent view resolution
+    setup_stmts.push("USE main".to_string());
+
+    // Always try to load core extensions commonly required
+    setup_stmts.push("LOAD parquet".to_string());
+    setup_stmts.push("LOAD json".to_string());
+    setup_stmts.push("LOAD excel".to_string());
+    setup_stmts.push("LOAD httpfs".to_string());
+    // Community/optional extensions that may be needed
+    setup_stmts.push("LOAD gsheets".to_string());
+    setup_stmts.push("LOAD read_stat".to_string());
+
+    if let Some(ref spec) = attach {
+        if let (Some(db_name), Some(url)) = (
+            spec.get("dbName").and_then(|v| v.as_str()),
+            spec.get("url").and_then(|v| v.as_str()),
+        ) {
+            let read_only = spec.get("readOnly").and_then(|v| v.as_bool()).unwrap_or(true);
+            let attach_sql = if read_only {
+                format!("ATTACH '{}' AS {} (READ_ONLY)", url, db_name)
+            } else {
+                format!("ATTACH '{}' AS {}", url, db_name)
+            };
+            setup_stmts.push(attach_sql);
+        }
+    }
+
     let mut arrow_stream = engine.execute_arrow_streaming(
         sql.clone(),
         QueryHints::streaming(),
-        Some(cancel_token.clone())
+        Some(cancel_token.clone()),
+        Some(setup_stmts),
     ).await?;
     
     let mut batch_count = 0;

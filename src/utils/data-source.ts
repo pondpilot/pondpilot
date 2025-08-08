@@ -120,6 +120,18 @@ export function addFlatFileDataSource(
         fileSourceId: localEntry.id,
         viewName,
       };
+    case 'sas7bdat':
+    case 'xpt':
+    case 'sav':
+    case 'zsav':
+    case 'por':
+    case 'dta':
+      return {
+        id: dataSourceId,
+        type: localEntry.ext,
+        fileSourceId: localEntry.id,
+        viewName,
+      };
     default:
       throw new Error('Unexpcted unsupported data source file type');
   }

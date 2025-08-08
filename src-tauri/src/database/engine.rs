@@ -239,7 +239,7 @@ impl DuckDBEngine {
         );
 
         let executor =
-            ArrowStreamingExecutor::new(self.pool.clone(), sql.to_string(), query_id, None);
+            ArrowStreamingExecutor::new(self.pool.clone(), sql.to_string(), query_id, None, None);
 
         let mut stream = executor.execute_arrow_streaming().await?;
         let mut rows = Vec::new();
@@ -329,6 +329,8 @@ impl DuckDBEngine {
             .map_err(|e| crate::errors::DuckDBError::ConnectionError {
                 message: format!("Task join error: {}", e),
             })??;
+
+        // Extension-related session settings are applied from the frontend per connection
 
         // Store it in the connection manager
         self.connection_manager
@@ -496,10 +498,17 @@ impl DuckDBEngine {
 
         // Sanitize extension name even though it's whitelisted for defense in depth
         let sanitized_extension = sanitize_identifier(extension_name)?;
-        let sql = format!(
-            "INSTALL {}; LOAD {};",
-            sanitized_extension, sanitized_extension
-        );
+        
+        // Determine if it's a community extension that needs special handling
+        let community_extensions = ["gsheets", "read_stat"];
+        let install_cmd = if community_extensions.contains(&extension_name) {
+            format!("INSTALL {} FROM community", sanitized_extension)
+        } else {
+            format!("INSTALL {}", sanitized_extension)
+        };
+        
+        // Install and load the extension
+        let sql = format!("{}; LOAD {};", install_cmd, sanitized_extension);
         self.execute_and_collect(&sql).await?;
         Ok(())
     }
@@ -630,6 +639,7 @@ impl DuckDBEngine {
         sql: String,
         _hints: QueryHints,
         cancel_token: Option<CancellationToken>,
+        setup_sql: Option<Vec<String>>,
     ) -> Result<tokio::sync::mpsc::Receiver<super::arrow_streaming::ArrowStreamMessage>> {
         let query_id = format!(
             "A{}",
@@ -640,17 +650,31 @@ impl DuckDBEngine {
                 % 100000
         );
 
-        // Use the Arrow streaming executor
-        let executor = ArrowStreamingExecutor::new(self.pool.clone(), sql, query_id, cancel_token);
+        // Use the Arrow streaming executor (no extra ATTACH to avoid conflicts)
+        let executor = ArrowStreamingExecutor::new(self.pool.clone(), sql, query_id, cancel_token, setup_sql);
 
         executor.execute_arrow_streaming().await
     }
 
     pub async fn get_xlsx_sheet_names(&self, file_path: &str) -> Result<Vec<String>> {
         // Validate the file path first
-        let _validated_path = validate_file_path(file_path)?;
+        let validated_path = validate_file_path(file_path)?;
 
-        // TODO: Implement XLSX sheet name extraction
-        Ok(vec![])
+        // Use calamine to read sheet names without loading DuckDB excel extension
+        use calamine::{open_workbook_auto, Reader};
+
+        let workbook = open_workbook_auto(&validated_path).map_err(|e| {
+            crate::errors::DuckDBError::FileAccess {
+                message: format!("Failed to open XLSX file: {}", e),
+            }
+        })?;
+
+        // Collect sheet names that exist in the workbook
+        let mut sheet_names: Vec<String> = Vec::new();
+        for sheet in workbook.sheet_names().iter() {
+            sheet_names.push(sheet.to_string());
+        }
+
+        Ok(sheet_names)
     }
 }
