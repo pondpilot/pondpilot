@@ -24,28 +24,32 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
       try {
         updateRemoteDbConnectionState(id, 'connecting');
 
-        // First, re-attach the database with READ_ONLY flag for remote databases
+        // First, re-attach the database for remote databases
         try {
-          const attachQuery = buildAttachQuery(dataSource.url, dataSource.dbName, {
-            readOnly: true,
-          });
+          let attachQuery: string;
+          if (dataSource.url.trim().toLowerCase().startsWith('md:')) {
+            // MotherDuck direct DB attaches do not support alias; attach without AS
+            const { quote } = await import('@utils/helpers');
+            attachQuery = `ATTACH ${quote(dataSource.url.trim(), { single: true })}`;
+          } else {
+            attachQuery = buildAttachQuery(dataSource.url, dataSource.dbName, { readOnly: true });
+          }
 
-          // Use connection manager with retries and timeout
           await attachDatabaseWithRetry(conn, attachQuery, {
             maxRetries: 3,
-            timeout: 30000, // 30 seconds
-            retryDelay: 2000, // 2 seconds
+            timeout: 30000,
+            retryDelay: 2000,
             exponentialBackoff: true,
           });
 
-          // Re-attached remote database
           updateRemoteDbConnectionState(id, 'connected');
           connectedDatabases.push(dataSource.dbName);
         } catch (attachError: any) {
-          // If it's already attached, that's fine
-          if (attachError.message?.includes('already in use')) {
-            // Verify the existing connection
-            await conn.query('SELECT 1');
+          // If it's already attached or similar, treat as success
+          const msg = String(attachError?.message || attachError);
+          if (
+            /already in use|already attached|Unique file handle conflict|already exists/i.test(msg)
+          ) {
             updateRemoteDbConnectionState(id, 'connected');
             connectedDatabases.push(dataSource.dbName);
           } else {

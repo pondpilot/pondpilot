@@ -8,9 +8,16 @@ import { notifications } from '@mantine/notifications';
 import { RemoteDB } from '@models/data-source';
 import { useAppStore } from '@store/app-store';
 import { IconAlertCircle } from '@tabler/icons-react';
+import { isTauriEnvironment } from '@utils/browser';
 import { executeWithRetry } from '@utils/connection-manager';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { quote } from '@utils/helpers';
+import {
+  attachMotherDuckDatabase,
+  verifyDatabaseAttached,
+  MOTHERDUCK_CONSTANTS,
+} from '@utils/motherduck-helper';
 import { validateRemoteDatabaseUrl } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { setDataTestId } from '@utils/test-id';
@@ -61,13 +68,31 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
 
     setIsTesting(true);
     try {
-      const attachQuery = buildAttachQuery(url, dbName, { readOnly });
-      await executeWithRetry(pool, attachQuery, {
-        maxRetries: 1,
-        timeout: 10000,
-      });
+      let attachQuery: string;
+      let actualDbName = dbName;
 
-      const detachQuery = `DETACH DATABASE ${toDuckDBIdentifier(dbName)}`;
+      // Handle MotherDuck URLs specially
+      if (url.trim().toLowerCase().startsWith('md:')) {
+        const { remoteDb } = await attachMotherDuckDatabase(pool, url);
+        actualDbName = remoteDb.dbName;
+        attachQuery = `ATTACH ${quote(url.trim(), { single: true })}`;
+      } else {
+        attachQuery = buildAttachQuery(url, dbName, { readOnly });
+      }
+
+      try {
+        await executeWithRetry(pool, attachQuery, {
+          maxRetries: 1,
+          timeout: 10000,
+        });
+      } catch (e: any) {
+        const msg = String(e?.message || e);
+        const isDup =
+          /already in use|already attached|Unique file handle conflict|already exists/i.test(msg);
+        if (!isDup) throw e;
+      }
+
+      const detachQuery = `DETACH DATABASE ${toDuckDBIdentifier(actualDbName)}`;
       await pool.query(detachQuery);
 
       showSuccess({
@@ -75,7 +100,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         message: 'Remote database connection test passed',
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : 'An unexpected error occurred';
       showError({
         title: 'Connection failed',
         message: `Failed to connect: ${message}`,
@@ -113,55 +138,52 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
 
     setIsLoading(true);
     try {
-      const remoteDb: RemoteDB = {
-        type: 'remote-db',
-        id: makePersistentDataSourceId(),
-        url: url.trim(),
-        dbName: dbName.trim(),
-        dbType: 'duckdb' as const, // Remote databases are always DuckDB
-        connectionState: 'connecting',
-        attachedAt: Date.now(),
-      };
+      let remoteDb: RemoteDB;
+      let attachQuery: string;
+
+      // Handle MotherDuck URLs specially
+      if (url.trim().toLowerCase().startsWith('md:')) {
+        const mdResult = await attachMotherDuckDatabase(pool, url);
+        remoteDb = mdResult.remoteDb;
+        attachQuery = `ATTACH ${quote(url.trim(), { single: true })}`;
+      } else {
+        remoteDb = {
+          type: 'remote-db',
+          id: makePersistentDataSourceId(),
+          url: url.trim(),
+          dbName: dbName.trim(),
+          dbType: 'duckdb' as const,
+          connectionState: 'connecting',
+          attachedAt: Date.now(),
+        };
+        attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly });
+      }
 
       const { dataSources, databaseMetadata } = useAppStore.getState();
       const newDataSources = new Map(dataSources);
       newDataSources.set(remoteDb.id, remoteDb);
 
-      const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly });
-      await executeWithRetry(pool, attachQuery, {
-        maxRetries: 3,
-        timeout: 30000,
-        retryDelay: 2000,
-        exponentialBackoff: true,
-      });
+      try {
+        await executeWithRetry(pool, attachQuery, {
+          maxRetries: MOTHERDUCK_CONSTANTS.DEFAULT_ATTACH_MAX_RETRIES,
+          timeout: MOTHERDUCK_CONSTANTS.DEFAULT_ATTACH_TIMEOUT_MS,
+          retryDelay: MOTHERDUCK_CONSTANTS.DEFAULT_RETRY_DELAY_MS,
+          exponentialBackoff: true,
+        });
+      } catch (e: any) {
+        const msg = String(e?.message || e);
+        const isDup =
+          /already in use|already attached|Unique file handle conflict|already exists/i.test(msg);
+        if (!isDup) throw e;
+      }
 
       // Verify the database is attached by checking the catalog
-      // This replaces the arbitrary 1-second delay with a proper readiness check
-      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${remoteDb.dbName}'`;
-
-      let dbFound = false;
-      let attempts = 0;
-      const maxAttempts = 3;
-
-      while (!dbFound && attempts < maxAttempts) {
-        try {
-          const result = await pool.query(checkQuery);
-          if (result && result.numRows > 0) {
-            dbFound = true;
-          } else {
-            throw new Error('Database not found in catalog');
-          }
-        } catch (error) {
-          attempts += 1;
-          if (attempts >= maxAttempts) {
-            throw new Error(
-              `Database ${remoteDb.dbName} could not be verified after ${maxAttempts} attempts`,
-            );
-          }
-          console.warn(`Attempt ${attempts}: Database not ready yet, waiting...`);
-          await new Promise((resolve) => setTimeout(resolve, 500)); // Shorter delay between attempts
-        }
-      }
+      await verifyDatabaseAttached(
+        pool,
+        remoteDb.dbName,
+        MOTHERDUCK_CONSTANTS.MAX_VERIFICATION_ATTEMPTS,
+        500, // Using slightly longer delay than default for remote DBs
+      );
 
       remoteDb.connectionState = 'connected';
       newDataSources.set(remoteDb.id, remoteDb);
@@ -186,9 +208,10 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         );
       }
 
-      const { _iDbConn } = useAppStore.getState();
-      if (_iDbConn) {
-        await persistPutDataSources(_iDbConn, [remoteDb]);
+      const { _iDbConn, _persistenceAdapter } = useAppStore.getState();
+      const target = _persistenceAdapter || _iDbConn;
+      if (target) {
+        await persistPutDataSources(target, [remoteDb]);
       }
 
       showSuccess({
@@ -197,7 +220,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
       });
       onClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : 'An unexpected error occurred';
       showError({
         title: 'Failed to add database',
         message: `Error: ${message}`,
@@ -220,6 +243,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         classNames={{ icon: 'mr-1' }}
       >
         Supported protocols: HTTPS, S3, GCS (Google Cloud Storage), Azure Blob Storage
+        {isTauriEnvironment() ? ', MotherDuck (md:)' : ''}
       </Alert>
 
       <Stack gap={12}>
