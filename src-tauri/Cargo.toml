@@ -7,6 +7,14 @@ license = "MIT"
 repository = "https://github.com/pondpilot/pondpilot"
 edition = "2021"
 
+[[bin]]
+name = "pondpilot-desktop"
+path = "src/main.rs"
+
+[lib]
+name = "pondpilot_desktop"
+path = "src/lib.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

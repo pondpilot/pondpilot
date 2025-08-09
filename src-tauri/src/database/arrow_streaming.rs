@@ -89,9 +89,15 @@ impl ArrowStreamingExecutor {
             // Before running setup, if a MotherDuck token is available in the environment,
             // set it for this connection (no logging to avoid leaking secrets)
             if let Ok(token) = std::env::var("MOTHERDUCK_TOKEN") {
-                let escaped = token.replace('\'', "''");
-                let _ = conn.execute(&format!("SET motherduck_token='{}'", escaped), []);
-                let _ = conn.execute(&format!("SET motherduck_secret='{}'", escaped), []);
+                // Validate token format to prevent injection attacks
+                if token.len() <= 1000 && !token.contains('\0') && !token.contains('\n') {
+                    let escaped = token.replace('\'', "''");
+                    // Load motherduck extension first if needed
+                    let _ = conn.execute("LOAD motherduck", []);
+                    let _ = conn.execute(&format!("SET motherduck_token='{}'", escaped), []);
+                    let _ = conn.execute(&format!("SET motherduck_secret='{}'", escaped), []);
+                }
+                // Don't log or report errors to avoid token exposure
             }
 
             // Now run any provided setup statements

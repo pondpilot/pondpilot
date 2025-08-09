@@ -96,6 +96,7 @@ pub async fn get_xlsx_sheet_names(
     // Support both snake_case and camelCase arg names for compatibility
     let path = file_path.or(filePath).ok_or_else(|| crate::errors::DuckDBError::InvalidOperation {
         message: "Missing required parameter 'file_path'".to_string(),
+        operation: Some("get_xlsx_sheet_names".to_string()),
     })?;
     engine.get_xlsx_sheet_names(&path).await
 }
