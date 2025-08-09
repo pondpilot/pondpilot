@@ -39,19 +39,21 @@ export const ModifierProvider = ({ children }: { children: React.ReactNode }) =>
   // Subscribe on mount
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Checking for state of the button prevents multiple state updates
-      // when the secondary button is pressed
-      if (event.key === 'Alt' && !isAltPressed) {
-        setIsAltPressed(true);
+      // Using functional updates to avoid dependencies on state values
+      if (event.key === 'Alt') {
+        setIsAltPressed((prev) => {
+          // Prevent multiple state updates when key is held down
+          return prev ? prev : true;
+        });
       }
-      if (event.key === 'Control' && !isCtrlPressed) {
-        setIsCtrlPressed(true);
+      if (event.key === 'Control') {
+        setIsCtrlPressed((prev) => (prev ? prev : true));
       }
-      if (event.key === 'Meta' && !isMetaPressed) {
-        setIsMetaPressed(true);
+      if (event.key === 'Meta') {
+        setIsMetaPressed((prev) => (prev ? prev : true));
       }
-      if (event.key === 'Shift' && !isShiftPressed) {
-        setIsShiftPressed(true);
+      if (event.key === 'Shift') {
+        setIsShiftPressed((prev) => (prev ? prev : true));
       }
     };
 
@@ -85,7 +87,7 @@ export const ModifierProvider = ({ children }: { children: React.ReactNode }) =>
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [isAltPressed, isCtrlPressed, isMetaPressed, isShiftPressed]);
+  }, []);
 
   return <ModifierContext.Provider value={activeModifiers}>{children}</ModifierContext.Provider>;
 };

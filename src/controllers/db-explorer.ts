@@ -3,29 +3,35 @@ import { LocalDB, PersistentDataSourceId } from '@models/data-source';
 import { useAppStore } from '@store/app-store';
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from '@utils/duckdb/identifier';
 import { findUniqueName } from '@utils/helpers';
+import { withErrorHandling } from '@utils/error-handling';
 
 import { persistPutDataSources } from './data-source/persist';
 import { reAttachDatabase } from './db/data-source';
 import { getLocalDBs } from './db/duckdb-meta';
 
-export const renameDB = async (
-  dbId: PersistentDataSourceId,
-  newName: string,
-  conn: ConnectionPool,
-): Promise<void> => {
+export const renameDB = withErrorHandling(
+  async (
+    dbId: PersistentDataSourceId,
+    newName: string,
+    conn: ConnectionPool,
+  ): Promise<void> => {
   const { _iDbConn: iDbConn, dataSources, localEntries } = useAppStore.getState();
 
   // Check if the data source exists
   const dataSource = dataSources.get(dbId);
   if (!dataSource || dataSource.type !== 'attached-db') {
-    throw new Error(`Local DB with id ${dbId} not found`);
+    throw new Error(
+      `Cannot rename database: Database with ID "${dbId}" was not found or is not a local database. ` +
+      `It may have been removed or is a different type of data source.`
+    );
   }
 
   // Get local entry for the database
   const localEntry = localEntries.get(dataSource.fileSourceId);
   if (!localEntry || localEntry.kind !== 'file') {
     throw new Error(
-      `Local entry ${dataSource.fileSourceId} associated with the local DB ${dbId} not found`,
+      `Cannot rename database: The file associated with database "${dataSource.dbName}" could not be found. ` +
+      `The file may have been moved, deleted, or is no longer accessible.`
     );
   }
 
@@ -83,4 +89,12 @@ export const renameDB = async (
       'AppStore/renameDB',
     );
   }
-};
+},
+  {
+    operation: 'renameDB',
+    userAction: 'rename database',
+  },
+  {
+    notificationTitle: 'Failed to rename database',
+  },
+);

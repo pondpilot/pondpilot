@@ -17,6 +17,7 @@ import { ConnectionPool } from '@engines/types';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel, CSV_MAX_LINE_SIZE_MB } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { handleError } from '@utils/error-handling';
 import {
   DataSourceLocalFile,
   ignoredFolders,
@@ -146,7 +147,15 @@ export const addLocalFileOrFolders = async (
           errors.push(
             `Failed to attach database "${dbSource.dbName}" from file "${file.name}": ${errorMessage}`,
           );
-          console.error('[attachSourceFile] Database attachment failed:', error);
+          handleError(error, {
+            operation: 'attachSourceFile',
+            userAction: `attach database from ${file.name}`,
+            details: { 
+              fileName: file.name,
+              fileType: file.fileType,
+              dbName: dbSource.dbName,
+            },
+          }, { showNotification: false });
           return false;
         }
 
@@ -198,7 +207,15 @@ export const addLocalFileOrFolders = async (
           errors.push(
             `Failed to attach database "${dbSource.dbName}" from file "${file.name}": ${errorMessage}`,
           );
-          console.error('[attachSourceFile] Database attachment failed:', error);
+          handleError(error, {
+            operation: 'attachSourceFile',
+            userAction: `attach database from ${file.name}`,
+            details: { 
+              fileName: file.name,
+              fileType: file.fileType,
+              dbName: dbSource.dbName,
+            },
+          }, { showNotification: false });
           return false;
         }
 
