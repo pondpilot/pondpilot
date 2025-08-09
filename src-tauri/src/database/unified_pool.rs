@@ -1,12 +1,28 @@
 use crate::errors::{DuckDBError, Result};
 use crate::system_resources::{calculate_resource_limits, ResourceLimits};
 use duckdb::Connection;
+use serde::{Serialize, Deserialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PoolStats {
+    pub total_connections: usize,
+    pub used_connections: usize,
+    pub available_connections: usize,
+    pub connection_counter: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthCheckResult {
+    pub is_healthy: bool,
+    pub stats: PoolStats,
+    pub message: String,
+}
 
 #[derive(Debug, Clone)]
 pub struct PoolConfig {
@@ -68,6 +84,7 @@ impl ConnectionPermit {
 
         let conn = Connection::open(&self.db_path).map_err(|e| DuckDBError::ConnectionError {
             message: format!("Failed to create connection to {:?}: {}", self.db_path, e),
+            context: None,
         })?;
 
         // Configure the connection
@@ -110,6 +127,55 @@ impl UnifiedPool {
         Ok(pool)
     }
 
+    /// Get current pool statistics for monitoring
+    pub fn get_pool_stats(&self) -> PoolStats {
+        let available_permits = self.permits.available_permits();
+        let total_permits = self.config.max_connections;
+        let used_permits = total_permits - available_permits;
+        
+        PoolStats {
+            total_connections: total_permits,
+            used_connections: used_permits,
+            available_connections: available_permits,
+            connection_counter: self.connection_counter.load(Ordering::Relaxed),
+        }
+    }
+    
+    /// Perform a health check on the pool
+    pub async fn health_check(&self) -> Result<HealthCheckResult> {
+        let stats = self.get_pool_stats();
+        
+        // Try to acquire a permit with a short timeout to test availability
+        let can_acquire = match tokio::time::timeout(
+            Duration::from_millis(100),
+            self.permits.clone().acquire_owned(),
+        )
+        .await
+        {
+            Ok(Ok(permit)) => {
+                // Immediately release the permit
+                drop(permit);
+                true
+            }
+            _ => false,
+        };
+        
+        let is_healthy = can_acquire || stats.used_connections < stats.total_connections;
+        let message = if can_acquire {
+            "Pool is healthy and has available connections".to_string()
+        } else if stats.used_connections >= stats.total_connections {
+            "Pool is at maximum capacity".to_string()
+        } else {
+            "Pool is healthy but busy".to_string()
+        };
+        
+        Ok(HealthCheckResult {
+            is_healthy,
+            stats,
+            message,
+        })
+    }
+
     /// Acquire a permit to create a connection
     /// The actual connection MUST be created in the thread where it will be used
     pub async fn acquire_connection_permit(&self) -> Result<ConnectionPermit> {
@@ -134,12 +200,14 @@ impl UnifiedPool {
             }
             Ok(Err(_)) => Err(DuckDBError::ConnectionError {
                 message: "Failed to acquire connection permit".to_string(),
+                context: None,
             }),
             Err(_) => Err(DuckDBError::ConnectionError {
                 message: format!(
                     "Connection pool timeout after {:?}",
                     self.config.acquire_timeout
                 ),
+                context: None,
             }),
         }
     }

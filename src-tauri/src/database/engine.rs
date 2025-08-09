@@ -34,14 +34,71 @@ const ALLOWED_EXTENSIONS: &[&str] = &[
 
 /// Validates and canonicalizes a file path for security
 fn validate_file_path(path: &str) -> Result<PathBuf> {
-    let path = Path::new(path);
+    let path_obj = Path::new(path);
+    
+    // SECURITY: Check for path traversal attempts BEFORE canonicalization
+    // This prevents bypassing validation via symlinks or other tricks
+    let path_str = path_obj.to_string_lossy();
+    
+    // Check for obvious path traversal patterns
+    if path_str.contains("..") || path_str.contains("~") {
+        return Err(crate::errors::DuckDBError::FileAccess {
+            message: "Path traversal attempt detected".to_string(),
+            path: Some(path.to_string()),
+        });
+    }
+    
+    // Check for null bytes which could be used for path truncation attacks
+    if path.contains('\0') {
+        return Err(crate::errors::DuckDBError::FileAccess {
+            message: "Null bytes not allowed in file paths".to_string(),
+            path: Some(path.to_string()),
+        });
+    }
+    
+    // Check for suspicious patterns that might indicate attacks
+    let suspicious_patterns = [
+        "//", // Double slashes
+        "/./", // Current directory references
+        "/../", // Parent directory references  
+        "%2e%2e", // URL encoded traversal
+        "..%2f", // Mixed encoding
+        "%252e", // Double encoded
+    ];
+    
+    let path_lower = path_str.to_lowercase();
+    for pattern in &suspicious_patterns {
+        if path_lower.contains(pattern) {
+            return Err(crate::errors::DuckDBError::FileAccess {
+                message: format!("Suspicious path pattern detected: {}", pattern),
+                path: Some(path.to_string()),
+            });
+        }
+    }
 
-    // Canonicalize to resolve symlinks and ../ components
-    let canonical = path
+    // Now canonicalize to resolve the actual path
+    let canonical = path_obj
         .canonicalize()
         .map_err(|e| crate::errors::DuckDBError::FileAccess {
             message: format!("Invalid path: {}", e),
+            path: Some(path.to_string()),
         })?;
+        
+    // Verify the canonicalized path doesn't contain symlink tricks
+    // by checking if it still resolves to the same location
+    let re_canonical = canonical
+        .canonicalize()
+        .map_err(|e| crate::errors::DuckDBError::FileAccess {
+            message: format!("Path validation failed: {}", e),
+            path: Some(path.to_string()),
+        })?;
+        
+    if canonical != re_canonical {
+        return Err(crate::errors::DuckDBError::FileAccess {
+            message: "Path contains unstable symlinks".to_string(),
+            path: Some(path.to_string()),
+        });
+    }
 
     // Get allowed directories
     let allowed_dirs = vec![
@@ -63,13 +120,7 @@ fn validate_file_path(path: &str) -> Result<PathBuf> {
     if !is_allowed {
         return Err(crate::errors::DuckDBError::FileAccess {
             message: "Access denied: path outside allowed directories".to_string(),
-        });
-    }
-
-    // Additional security checks
-    if canonical.to_string_lossy().contains("..") {
-        return Err(crate::errors::DuckDBError::FileAccess {
-            message: "Path traversal detected".to_string(),
+            path: Some(path.to_string()),
         });
     }
 
@@ -83,6 +134,7 @@ fn sanitize_identifier(name: &str) -> Result<String> {
         return Err(crate::errors::DuckDBError::InvalidQuery {
             message: "Empty identifier not allowed".to_string(),
             sql: None,
+            position: None,
         });
     }
 
@@ -95,6 +147,7 @@ fn sanitize_identifier(name: &str) -> Result<String> {
                 config.database.max_identifier_length
             ),
             sql: None,
+            position: None,
         });
     }
 
@@ -109,6 +162,7 @@ fn sanitize_identifier(name: &str) -> Result<String> {
                     name
                 ),
                 sql: None,
+                position: None,
             });
         }
     }
@@ -122,6 +176,7 @@ fn sanitize_identifier(name: &str) -> Result<String> {
                     name, c
                 ),
                 sql: None,
+                position: None,
             });
         }
     }
@@ -205,6 +260,8 @@ impl DuckDBEngine {
                 return Err(crate::errors::DuckDBError::QueryError {
                     message: "Empty SQL query".to_string(),
                     sql: Some(sql_owned),
+                    error_code: None,
+                    line_number: None,
                 });
             }
 
@@ -215,6 +272,8 @@ impl DuckDBEngine {
                 .map_err(|e| crate::errors::DuckDBError::QueryError {
                     message: format!("Failed to execute statement: {}", e),
                     sql: Some(sql_owned.clone()),
+                    error_code: None,
+                    line_number: None,
                 })?;
 
             Ok(())
@@ -222,6 +281,7 @@ impl DuckDBEngine {
         .await
         .map_err(|e| crate::errors::DuckDBError::ConnectionError {
             message: format!("Task join error: {}", e),
+            context: None,
         })?
     }
 
@@ -296,6 +356,8 @@ impl DuckDBEngine {
                     return Err(crate::errors::DuckDBError::QueryError {
                         message: e,
                         sql: Some(sql.to_string()),
+                        error_code: None,
+                        line_number: None,
                     });
                 }
             }
@@ -328,6 +390,7 @@ impl DuckDBEngine {
             .await
             .map_err(|e| crate::errors::DuckDBError::ConnectionError {
                 message: format!("Task join error: {}", e),
+                context: None,
             })??;
 
         // Extension-related session settings are applied from the frontend per connection
@@ -493,6 +556,7 @@ impl DuckDBEngine {
                     "Extension '{}' is not in the allowed list for security reasons",
                     extension_name
                 ),
+                operation: Some("load_extension".to_string()),
             });
         }
 
@@ -568,6 +632,7 @@ impl DuckDBEngine {
             _ => {
                 return Err(crate::errors::DuckDBError::InvalidOperation {
                     message: format!("Unsupported file type: {}", options.file_type),
+                    operation: Some("register_file".to_string()),
                 })
             }
         };
@@ -578,6 +643,7 @@ impl DuckDBEngine {
         let metadata = tokio::fs::metadata(&validated_path).await.map_err(|e| {
             crate::errors::DuckDBError::FileAccess {
                 message: format!("Failed to get file metadata: {}", e),
+                path: Some(validated_path.to_string_lossy().to_string()),
             }
         })?;
 
@@ -666,6 +732,7 @@ impl DuckDBEngine {
         let workbook = open_workbook_auto(&validated_path).map_err(|e| {
             crate::errors::DuckDBError::FileAccess {
                 message: format!("Failed to open XLSX file: {}", e),
+                path: Some(validated_path.to_string_lossy().to_string()),
             }
         })?;
 

@@ -19,6 +19,7 @@ impl PersistenceState {
                 std::fs::create_dir_all(parent)
                     .map_err(|e| DuckDBError::FileAccess {
                         message: format!("Failed to create persistence directory: {}", e),
+                        path: Some(parent.to_string_lossy().to_string()),
                     })?;
                 println!("Created persistence directory: {:?}", parent);
             }
@@ -161,6 +162,7 @@ fn extract_id(value: &Value, key: Option<&str>) -> Result<String, DuckDBError> {
     
     Err(DuckDBError::InvalidOperation {
         message: "No ID provided and couldn't extract from value".to_string(),
+        operation: Some("extract_id".to_string()),
     })
 }
 
@@ -172,6 +174,7 @@ pub async fn sqlite_get(
 ) -> Result<Option<Value>, DuckDBError> {
     let conn = state.connection.lock().map_err(|_| DuckDBError::PersistenceError {
         message: "Failed to acquire connection lock".to_string(),
+        operation: None,
     })?;
     
     // Map hyphenated table name to underscore version
@@ -201,6 +204,7 @@ pub async fn sqlite_put(
 ) -> Result<(), DuckDBError> {
     let conn = state.connection.lock().map_err(|_| DuckDBError::PersistenceError {
         message: "Failed to acquire connection lock".to_string(),
+        operation: None,
     })?;
     
     let id = extract_id(&value, key.as_deref())?;
@@ -223,6 +227,7 @@ pub async fn sqlite_delete(
 ) -> Result<(), DuckDBError> {
     let conn = state.connection.lock().map_err(|_| DuckDBError::PersistenceError {
         message: "Failed to acquire connection lock".to_string(),
+        operation: None,
     })?;
     
     // Map hyphenated table name to underscore version
@@ -241,6 +246,7 @@ pub async fn sqlite_clear(
 ) -> Result<(), DuckDBError> {
     let conn = state.connection.lock().map_err(|_| DuckDBError::PersistenceError {
         message: "Failed to acquire connection lock".to_string(),
+        operation: None,
     })?;
     
     // Map hyphenated table name to underscore version
@@ -259,6 +265,7 @@ pub async fn sqlite_get_all(
 ) -> Result<Vec<Value>, DuckDBError> {
     let conn = state.connection.lock().map_err(|_| DuckDBError::PersistenceError {
         message: "Failed to acquire connection lock".to_string(),
+        operation: None,
     })?;
     
     // Map hyphenated table name to underscore version

@@ -129,30 +129,104 @@ impl AppConfig {
         
         // Override with environment variables if present
         if let Ok(val) = std::env::var("PONDPILOT_WORKER_THREADS") {
-            if let Ok(threads) = val.parse() {
-                config.runtime.worker_threads = threads;
+            if let Ok(threads) = val.parse::<usize>() {
+                if threads > 0 && threads <= 256 {
+                    config.runtime.worker_threads = threads;
+                } else {
+                    eprintln!("Warning: Invalid PONDPILOT_WORKER_THREADS value: {}, must be between 1 and 256", threads);
+                }
             }
         }
         
         if let Ok(val) = std::env::var("PONDPILOT_MAX_BLOCKING_THREADS") {
-            if let Ok(threads) = val.parse() {
-                config.runtime.max_blocking_threads = threads;
+            if let Ok(threads) = val.parse::<usize>() {
+                if threads > 0 && threads <= 1024 {
+                    config.runtime.max_blocking_threads = threads;
+                } else {
+                    eprintln!("Warning: Invalid PONDPILOT_MAX_BLOCKING_THREADS value: {}, must be between 1 and 1024", threads);
+                }
             }
         }
         
         if let Ok(val) = std::env::var("PONDPILOT_MAX_CONNECTIONS") {
-            if let Ok(connections) = val.parse() {
-                config.database.max_connections = connections;
+            if let Ok(connections) = val.parse::<usize>() {
+                if connections > 0 && connections <= 100 {
+                    config.database.max_connections = connections;
+                    // Ensure min_connections doesn't exceed max_connections
+                    if config.database.min_connections > connections {
+                        config.database.min_connections = connections.min(2);
+                    }
+                } else {
+                    eprintln!("Warning: Invalid PONDPILOT_MAX_CONNECTIONS value: {}, must be between 1 and 100", connections);
+                }
             }
         }
         
         if let Ok(val) = std::env::var("PONDPILOT_MAX_QUERY_MEMORY_MB") {
-            if let Ok(memory) = val.parse() {
-                config.resource.max_query_memory_mb = memory;
+            if let Ok(memory) = val.parse::<usize>() {
+                if memory >= 10 && memory <= 32768 { // 10MB to 32GB
+                    config.resource.max_query_memory_mb = memory;
+                    // Ensure default doesn't exceed max
+                    if config.resource.default_query_memory_mb > memory {
+                        config.resource.default_query_memory_mb = memory.min(100);
+                    }
+                } else {
+                    eprintln!("Warning: Invalid PONDPILOT_MAX_QUERY_MEMORY_MB value: {}, must be between 10 and 32768", memory);
+                }
             }
         }
         
+        // Validate the final configuration
+        config.validate();
         config
+    }
+    
+    /// Validate configuration values and fix any inconsistencies
+    pub fn validate(&mut self) {
+        // Ensure min_connections <= max_connections
+        if self.database.min_connections > self.database.max_connections {
+            eprintln!("Warning: min_connections {} > max_connections {}, adjusting", 
+                     self.database.min_connections, self.database.max_connections);
+            self.database.min_connections = self.database.max_connections;
+        }
+        
+        // Ensure max_streaming_connections doesn't exceed max_connections
+        if self.database.max_streaming_connections > self.database.max_connections {
+            eprintln!("Warning: max_streaming_connections {} > max_connections {}, adjusting",
+                     self.database.max_streaming_connections, self.database.max_connections);
+            self.database.max_streaming_connections = self.database.max_connections;
+        }
+        
+        // Ensure memory limits are sensible
+        if self.resource.default_query_memory_mb > self.resource.max_query_memory_mb {
+            eprintln!("Warning: default_query_memory_mb {} > max_query_memory_mb {}, adjusting",
+                     self.resource.default_query_memory_mb, self.resource.max_query_memory_mb);
+            self.resource.default_query_memory_mb = self.resource.max_query_memory_mb;
+        }
+        
+        // Ensure pool memory percentage is valid
+        if self.resource.pool_memory_percentage <= 0.0 || self.resource.pool_memory_percentage > 1.0 {
+            eprintln!("Warning: Invalid pool_memory_percentage {}, setting to 0.1", 
+                     self.resource.pool_memory_percentage);
+            self.resource.pool_memory_percentage = 0.1;
+        }
+        
+        // Ensure timeouts are reasonable (at least 1 second)
+        if self.database.idle_timeout_secs < 1 {
+            self.database.idle_timeout_secs = 300; // Default to 5 minutes
+        }
+        
+        if self.security.high_priority_timeout_secs < 1 {
+            self.security.high_priority_timeout_secs = 30;
+        }
+        
+        if self.security.normal_priority_timeout_secs < 1 {
+            self.security.normal_priority_timeout_secs = 10;
+        }
+        
+        if self.security.low_priority_timeout_secs < 1 {
+            self.security.low_priority_timeout_secs = 5;
+        }
     }
     
     /// Get memory per permit in bytes
