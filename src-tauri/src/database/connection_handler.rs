@@ -61,6 +61,21 @@ impl ConnectionHandler {
     }
 
     fn execute_sql(&mut self, sql: &str, params: &[serde_json::Value]) -> Result<QueryResult> {
+        // Ensure MotherDuck session settings are applied if token is present in the environment.
+        // We do this per execute to cover all connections; errors are ignored to avoid noise
+        // if the extension is not loaded or the setting is unknown.
+        if let Ok(token) = std::env::var("MOTHERDUCK_TOKEN") {
+            let escaped = token.replace('\'', "''");
+            // Try to load the extension (idempotent); ignore errors if not installed
+            let _ = self.connection.execute("LOAD motherduck", []);
+            let _ = self
+                .connection
+                .execute(&format!("SET motherduck_token='{}'", escaped), []);
+            let _ = self
+                .connection
+                .execute(&format!("SET motherduck_secret='{}'", escaped), []);
+        }
+
         // Classify the SQL statement
         let classified = ClassifiedSqlStatement::classify(sql);
         

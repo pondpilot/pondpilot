@@ -149,6 +149,28 @@ pub async fn connection_execute(
                         eprintln!("[ATTACH_DEBUG] Canonicalize failed: {}", e);
                     }
                 }
+
+                // Additional MotherDuck diagnostics
+                if path_str.starts_with("md:") {
+                    let token_present = std::env::var("MOTHERDUCK_TOKEN").ok().map(|t| !t.is_empty()).unwrap_or(false);
+                    eprintln!("[ATTACH_DEBUG] MotherDuck URL detected; env token present: {}", token_present);
+                    // Try to check extension load state on this connection
+                    match engine.execute_on_connection(&connection_id, "SELECT extension_name, loaded, installed FROM duckdb_extensions() WHERE extension_name='motherduck'", vec![]).await {
+                        Ok(info) => {
+                            if info.rows.is_empty() {
+                                eprintln!("[ATTACH_DEBUG] motherduck extension not reported by duckdb_extensions()");
+                            } else {
+                                let row = &info.rows[0];
+                                let loaded = row.get("loaded").and_then(|v| v.as_bool()).unwrap_or(false);
+                                let installed = row.get("installed").and_then(|v| v.as_bool()).unwrap_or(false);
+                                eprintln!("[ATTACH_DEBUG] motherduck extension status - loaded: {}, installed: {}", loaded, installed);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("[ATTACH_DEBUG] Failed to read duckdb_extensions(): {}", e);
+                        }
+                    }
+                }
             }
         }
     }

@@ -40,7 +40,14 @@ export class AttachmentLoader {
           if (!filePath) continue;
           const detachSql = buildDetachQuery(db.dbName, true);
           await connection.execute(detachSql).catch(() => {});
-          const attachSql = buildAttachQuery(filePath, db.dbName, { readOnly: true });
+          // Special handling for MotherDuck: ATTACH 'md:<db>' does not support alias
+          let attachSql: string;
+          if (typeof filePath === 'string' && filePath.toLowerCase().startsWith('md:')) {
+            const { quote } = await import('@utils/helpers');
+            attachSql = `ATTACH ${quote(filePath, { single: true })}`;
+          } else {
+            attachSql = buildAttachQuery(filePath, db.dbName, { readOnly: true });
+          }
           await connection.execute(attachSql);
           logger.info(`Attached local DB '${db.dbName}' for connection`);
         } catch (e) {

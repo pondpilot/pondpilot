@@ -90,6 +90,8 @@ async fn execute_streaming_query(
     setup_stmts.push("LOAD json".to_string());
     setup_stmts.push("LOAD excel".to_string());
     setup_stmts.push("LOAD httpfs".to_string());
+    // MotherDuck support for md: URLs
+    setup_stmts.push("LOAD motherduck".to_string());
     // Community/optional extensions that may be needed
     setup_stmts.push("LOAD gsheets".to_string());
     setup_stmts.push("LOAD read_stat".to_string());
@@ -106,13 +108,19 @@ async fn execute_streaming_query(
                         let read_only = item.get("readOnly").and_then(|v| v.as_bool()).unwrap_or(true);
                         let escaped_db_name = escape_identifier(db_name);
                         let escaped_url = escape_string_literal(url);
-                        setup_stmts.push(format!("DETACH DATABASE IF EXISTS {}", escaped_db_name));
-                        let attach_sql = if read_only {
-                            format!("ATTACH {} AS {} (READ_ONLY)", escaped_url, escaped_db_name)
+                        // Special handling for MotherDuck: ATTACH 'md:db' does not support alias
+                        if url.starts_with("md:") {
+                            setup_stmts.push(format!("DETACH DATABASE IF EXISTS {}", escaped_db_name));
+                            setup_stmts.push(format!("ATTACH {}", escaped_url));
                         } else {
-                            format!("ATTACH {} AS {}", escaped_url, escaped_db_name)
-                        };
-                        setup_stmts.push(attach_sql);
+                            setup_stmts.push(format!("DETACH DATABASE IF EXISTS {}", escaped_db_name));
+                            let attach_sql = if read_only {
+                                format!("ATTACH {} AS {} (READ_ONLY)", escaped_url, escaped_db_name)
+                            } else {
+                                format!("ATTACH {} AS {}", escaped_url, escaped_db_name)
+                            };
+                            setup_stmts.push(attach_sql);
+                        }
                     }
                 }
             }
@@ -124,13 +132,18 @@ async fn execute_streaming_query(
                 let read_only = spec.get("readOnly").and_then(|v| v.as_bool()).unwrap_or(true);
                 let escaped_db_name = escape_identifier(db_name);
                 let escaped_url = escape_string_literal(url);
-                setup_stmts.push(format!("DETACH DATABASE IF EXISTS {}", escaped_db_name));
-                let attach_sql = if read_only {
-                    format!("ATTACH {} AS {} (READ_ONLY)", escaped_url, escaped_db_name)
+                if url.starts_with("md:") {
+                    setup_stmts.push(format!("DETACH DATABASE IF EXISTS {}", escaped_db_name));
+                    setup_stmts.push(format!("ATTACH {}", escaped_url));
                 } else {
-                    format!("ATTACH {} AS {}", escaped_url, escaped_db_name)
-                };
-                setup_stmts.push(attach_sql);
+                    setup_stmts.push(format!("DETACH DATABASE IF EXISTS {}", escaped_db_name));
+                    let attach_sql = if read_only {
+                        format!("ATTACH {} AS {} (READ_ONLY)", escaped_url, escaped_db_name)
+                    } else {
+                        format!("ATTACH {} AS {}", escaped_url, escaped_db_name)
+                    };
+                    setup_stmts.push(attach_sql);
+                }
             }
         }
     }

@@ -86,6 +86,15 @@ impl ArrowStreamingExecutor {
                 Err(e) => debug!("[ARROW_STREAMING] Failed to rollback transaction: {}", e),
             }
             // Run setup statements (load extensions, attach databases) if provided
+            // Before running setup, if a MotherDuck token is available in the environment,
+            // set it for this connection (no logging to avoid leaking secrets)
+            if let Ok(token) = std::env::var("MOTHERDUCK_TOKEN") {
+                let escaped = token.replace('\'', "''");
+                let _ = conn.execute(&format!("SET motherduck_token='{}'", escaped), []);
+                let _ = conn.execute(&format!("SET motherduck_secret='{}'", escaped), []);
+            }
+
+            // Now run any provided setup statements
             if let Some(setups) = setup_sql {
                 for stmt in setups {
                     let trimmed = stmt.trim();
