@@ -1,21 +1,23 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { Group, Stack, Title, ActionIcon, Text, Divider } from '@mantine/core';
 import { IconDatabasePlus, IconFilePlus, IconFolderPlus, IconX } from '@tabler/icons-react';
+import { isTauriEnvironment } from '@utils/browser';
 import { setDataTestId } from '@utils/test-id';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
+import { MotherDuckDatabaseConfig } from './components/motherduck-database-config';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
 
 interface DatasourceWizardModalProps {
   onClose: () => void;
-  pool: AsyncDuckDBConnectionPool | null;
+  pool: ConnectionPool | null;
   handleAddFolder: () => Promise<void>;
   handleAddFile: () => Promise<void>;
   initialStep?: WizardStep;
 }
 
-export type WizardStep = 'selection' | 'remote-config';
+export type WizardStep = 'selection' | 'remote-config' | 'motherduck-config';
 
 export function DatasourceWizardModal({
   onClose,
@@ -28,6 +30,10 @@ export function DatasourceWizardModal({
 
   const handleRemoteDatabaseClick = () => {
     setStep('remote-config');
+  };
+
+  const handleMotherDuckClick = () => {
+    setStep('motherduck-config');
   };
 
   const handleBack = () => {
@@ -43,6 +49,12 @@ export function DatasourceWizardModal({
     onClose();
   };
 
+  const fileDescription = useMemo(() => {
+    // Show additional formats only in Tauri
+    return isTauriEnvironment() ? 'CSV, Excel, Parquet, SQLite, SAS…' : 'CSV, Excel, JSON, Parquet';
+  }, []);
+
+  const tauri = isTauriEnvironment();
   const datasourceCards = [
     {
       type: 'file' as const,
@@ -55,7 +67,7 @@ export function DatasourceWizardModal({
         />
       ),
       title: 'Add Files',
-      description: 'CSV, Parquet, JSON, Excel',
+      description: fileDescription,
       testId: 'add-file-card',
     },
     {
@@ -83,9 +95,27 @@ export function DatasourceWizardModal({
         />
       ),
       title: 'Remote Database',
-      description: 'S3, GCS, Azure, HTTPS',
+      description: tauri ? 'S3, GCS, Azure, HTTPS, MotherDuck' : 'S3, GCS, Azure, HTTPS',
       testId: 'add-remote-database-card',
     },
+    ...(tauri
+      ? [
+          {
+            type: 'motherduck' as const,
+            onClick: handleMotherDuckClick,
+            icon: (
+              <IconDatabasePlus
+                size={48}
+                className="text-textSecondary-light dark:text-textSecondary-dark"
+                stroke={1.5}
+              />
+            ),
+            title: 'MotherDuck',
+            description: 'Browse and attach MotherDuck databases',
+            testId: 'add-motherduck-database-card',
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -105,7 +135,7 @@ export function DatasourceWizardModal({
               ADD DATA SOURCE
             </Text>
             <Text size="xs">/</Text>
-            <Text size="xs">REMOTE DATABASE</Text>
+            <Text size="xs">{step === 'remote-config' ? 'REMOTE DATABASE' : 'MOTHERDUCK'}</Text>
           </Group>
         )}
 
@@ -142,7 +172,7 @@ export function DatasourceWizardModal({
               • Use SQL ATTACH statement for advanced database connections
             </Text>
             <Text size="xs" className="pl-3" c="text-secondary">
-              • Supported formats: CSV, Parquet, JSON, Excel, DuckDB, and more
+              • Supported formats: CSV, Parquet, JSON, Excel, DuckDB, SQLite, and more
             </Text>
           </Stack>
         </Group>
@@ -150,6 +180,9 @@ export function DatasourceWizardModal({
 
       {step === 'remote-config' && (
         <RemoteDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+      {step === 'motherduck-config' && (
+        <MotherDuckDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
     </Stack>
   );

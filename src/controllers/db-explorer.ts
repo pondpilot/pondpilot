@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { LocalDB, PersistentDataSourceId } from '@models/data-source';
 import { useAppStore } from '@store/app-store';
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from '@utils/duckdb/identifier';
@@ -11,7 +11,7 @@ import { getLocalDBs } from './db/duckdb-meta';
 export const renameDB = async (
   dbId: PersistentDataSourceId,
   newName: string,
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
 ): Promise<void> => {
   const { _iDbConn: iDbConn, dataSources, localEntries } = useAppStore.getState();
 

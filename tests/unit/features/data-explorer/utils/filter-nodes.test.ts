@@ -4,6 +4,8 @@ import { DataExplorerNodeTypeMap } from '@features/data-explorer/model';
 import { filterTreeNodes } from '@features/data-explorer/utils/filter-nodes';
 import { describe, it, expect } from '@jest/globals';
 
+import { getTestFileTypeFilter } from '../test-helpers';
+
 describe('filterTreeNodes', () => {
   // Helper function to create test nodes
   const createFileNode = (
@@ -101,12 +103,12 @@ describe('filterTreeNodes', () => {
     ];
 
     it('should filter files by extension when fileTypeFilter is provided', () => {
-      const fileTypeFilter: FileTypeFilter = {
+      const fileTypeFilter: FileTypeFilter = getTestFileTypeFilter({
         csv: true,
         json: false,
         parquet: true,
         xlsx: false,
-      };
+      });
 
       const result = filterTreeNodes(testNodes, 'files', fileTypeFilter, getFileExtension);
       const fileLabels = result.filter((n) => n.nodeType === 'file').map((n) => n.label);
@@ -119,12 +121,12 @@ describe('filterTreeNodes', () => {
     });
 
     it('should filter files in nested folders', () => {
-      const fileTypeFilter: FileTypeFilter = {
+      const fileTypeFilter: FileTypeFilter = getTestFileTypeFilter({
         csv: true,
         json: false,
         parquet: false,
         xlsx: false,
-      };
+      });
 
       const result = filterTreeNodes(testNodes, 'files', fileTypeFilter, getFileExtension);
       const folderNode = result.find((n) => n.label === 'mixed');
@@ -135,12 +137,12 @@ describe('filterTreeNodes', () => {
     });
 
     it('should exclude empty folders after filtering', () => {
-      const fileTypeFilter: FileTypeFilter = {
+      const fileTypeFilter: FileTypeFilter = getTestFileTypeFilter({
         csv: false,
         json: false,
         parquet: false,
         xlsx: false,
-      };
+      });
 
       const result = filterTreeNodes(testNodes, 'files', fileTypeFilter, getFileExtension);
       const folderNode = result.find((n) => n.label === 'mixed');
@@ -210,12 +212,12 @@ describe('filterTreeNodes', () => {
     ];
 
     it('should preserve nested folder structure when filtering', () => {
-      const fileTypeFilter: FileTypeFilter = {
+      const fileTypeFilter: FileTypeFilter = getTestFileTypeFilter({
         csv: true,
         json: true,
         parquet: false,
         xlsx: false,
-      };
+      });
 
       const result = filterTreeNodes(nestedNodes, 'files', fileTypeFilter, getFileExtension);
 

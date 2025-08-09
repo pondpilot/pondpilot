@@ -9,8 +9,8 @@ import {
   clearTabExecutionError,
   setTabExecutionError,
 } from '@controllers/tab';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
+import { PreparedStatement } from '@engines/types';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { ScriptEditor } from '@features/script-editor';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import { RemoteDB } from '@models/data-source';
@@ -28,7 +28,7 @@ import {
 } from '@utils/editor/sql';
 import { formatSQLSafe } from '@utils/sql-formatter';
 import { Allotment } from 'allotment';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useState, useEffect } from 'react';
 
 import { DataView, DataViewInfoPane } from '../components';
 import { useDataAdapter } from '../hooks/use-data-adapter';
@@ -61,7 +61,22 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
   const [scriptExecutionState, setScriptExecutionState] = useState<ScriptExecutionState>('idle');
 
-  const pool = useInitializedDuckDBConnectionPool();
+  // Monitor data adapter errors and update script execution state
+  useEffect(() => {
+    if (dataAdapter.dataSourceError.length > 0) {
+      // Only update if we're currently showing success
+      if (scriptExecutionState === 'success') {
+        setScriptExecutionState('error');
+        // Show error notification for streaming errors
+        showError({
+          title: 'Query execution failed',
+          message: dataAdapter.dataSourceError.join('\n'),
+        });
+      }
+    }
+  }, [dataAdapter.dataSourceError, scriptExecutionState]);
+
+  const pool = useInitializedDatabaseConnectionPool();
   const protectedViews = useProtectedViews();
   const { preferences } = useEditorPreferences();
 
@@ -98,7 +113,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // Check if the statements are valid
       const errors = validateStatements(classifiedStatements, protectedViews);
       if (errors.length > 0) {
-        console.error('Errors in SQL statements:', errors);
+        // Errors in SQL statements - user is notified via showError
         setScriptExecutionState('error');
         showError({
           title: 'Error in SQL statements',
@@ -110,25 +125,23 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // Query to be used in data adapter and saved to the store
       let lastExecutedQuery: string | null = null;
 
-      // Create a pooled connection
-      const conn = await pool.getPooledConnection();
+      // Get a connection from the pool for the entire operation
+      const conn = await pool.acquire();
 
       const runQueryWithFileSyncAndRetry = async (code: string) => {
         try {
-          await conn.query(code);
+          await conn.execute(code);
         } catch (error: any) {
           if (error.message?.includes('NotReadableError')) {
             await syncFiles(pool);
-            await conn.query(code);
+            await conn.execute(code);
           } else {
             throw error;
           }
         }
       };
 
-      const prepQueryWithFileSyncAndRetry = async (
-        code: string,
-      ): Promise<AsyncDuckDBPooledPreparedStatement<any>> => {
+      const prepQueryWithFileSyncAndRetry = async (code: string): Promise<PreparedStatement> => {
         try {
           return await conn.prepare(code);
         } catch (error: any) {
@@ -146,7 +159,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
 
         if (needsTransaction) {
-          await conn.query('BEGIN TRANSACTION');
+          await conn.execute('BEGIN TRANSACTION');
         }
 
         // Execute each statement except the last one
@@ -157,9 +170,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await conn.execute('ROLLBACK');
             }
-            console.error('Error executing statement:', statement.type, error);
+            // Error executing statement - user is notified via showErrorWithAction
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
               errorMessage: message,
@@ -194,12 +207,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             const message = error instanceof Error ? error.message : String(error);
 
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await conn.execute('ROLLBACK');
             }
-            console.error(
-              'Creation of a prepared statement for the last SELECT statement failed:',
-              error,
-            );
+            // Creation of a prepared statement for the last SELECT statement failed - user is notified
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
               errorMessage: message,
@@ -231,9 +241,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await conn.execute('ROLLBACK');
             }
-            console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
+            // Error executing last non-SELECT statement - user is notified via showErrorWithAction
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
               errorMessage: message,
@@ -261,7 +271,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
         // All statements executed successfully
         if (needsTransaction) {
-          await conn.query('COMMIT');
+          await conn.execute('COMMIT');
         }
 
         // Check if any DDL or database operations were executed and refresh metadata
@@ -271,12 +281,56 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         );
 
         if (hasDDL || hasAttachDetach) {
-          // Get all currently attached databases
-          const attachedDatabasesResult = await conn.query(
-            'SELECT DISTINCT database_name FROM duckdb_databases() WHERE NOT internal',
+          const attachedDatabasesResult = await conn.execute(
+            'SELECT DISTINCT database_name FROM duckdb_databases',
           );
-          const attachedDatabases = attachedDatabasesResult.toArray();
-          const dbNames = attachedDatabases.map((row: any) => row.database_name);
+
+          // Handle the result format from conn.execute (returns {rows: [...], columns: [...], ...})
+          let attachedDatabases: any[];
+          if (attachedDatabasesResult && attachedDatabasesResult.rows) {
+            // Direct result format from Tauri connection
+            attachedDatabases = attachedDatabasesResult.rows;
+          } else if (Array.isArray(attachedDatabasesResult)) {
+            // Already an array
+            attachedDatabases = attachedDatabasesResult;
+          } else {
+            // Fallback
+            attachedDatabases = [];
+          }
+
+          // Filter out system databases manually since attached databases might be marked as internal
+          const systemDatabases = ['system', 'temp'];
+          const dbNames = attachedDatabases
+            .map((row: any) => row.database_name)
+            .filter((name) => !systemDatabases.includes(name));
+
+          // For newly attached databases, we need to ensure metadata is loaded
+          // by querying the database schema
+          for (const dbName of dbNames) {
+            if (dbName !== 'memory' && dbName !== 'temp' && dbName !== 'system') {
+              try {
+                // Try to query the database to ensure metadata is loaded
+                const { toDuckDBIdentifier } = await import('@utils/duckdb/identifier');
+                const schemaQuery = `SELECT table_name FROM ${toDuckDBIdentifier(
+                  dbName,
+                )}.information_schema.tables LIMIT 1`;
+                await pool.query(schemaQuery).catch(() => {
+                  // If information_schema doesn't exist, try duckdb_tables
+                  return pool
+                    .query(
+                      `SELECT name FROM ${toDuckDBIdentifier(
+                        dbName,
+                      )}.sqlite_master WHERE type='table' LIMIT 1`,
+                    )
+                    .catch(() => {
+                      // Ignore errors - some databases might not have these views
+                    });
+                });
+              } catch (e) {
+                // Ignore errors
+              }
+            }
+          }
 
           // Refresh metadata for all attached databases
           const newMetadata = await getDatabaseModel(pool, dbNames);
@@ -297,9 +351,14 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             for (const statement of classifiedStatements) {
               if (statement.type === SQLStatement.ATTACH) {
                 // Parse ATTACH statement to extract URL and database name
-                const attachMatch = statement.code.match(/ATTACH\s+'([^']+)'\s+AS\s+(\w+)/i);
+                const attachMatch = statement.code.match(
+                  /ATTACH\s+'([^']+)'\s+AS\s+("[^"]+"|\w+)/i,
+                );
                 if (attachMatch) {
-                  const [, url, dbName] = attachMatch;
+                  let [, url, dbName] = attachMatch as any;
+                  if (dbName.startsWith('"') && dbName.endsWith('"')) {
+                    dbName = dbName.slice(1, -1).replace(/""/g, '"');
+                  }
 
                   // Check if this is a remote database (not a local file)
                   if (
@@ -329,19 +388,23 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
                       updatedDataSources.set(remoteDb.id, remoteDb);
 
-                      // Persist to IndexedDB
-                      const { _iDbConn } = useAppStore.getState();
-                      if (_iDbConn) {
-                        await persistPutDataSources(_iDbConn, [remoteDb]);
+                      // Persist (SQLite in Tauri or IndexedDB on web)
+                      const { _iDbConn, _persistenceAdapter } = useAppStore.getState();
+                      const store = (_persistenceAdapter as any) || _iDbConn;
+                      if (store) {
+                        await persistPutDataSources(store, [remoteDb]);
                       }
                     }
                   }
                 }
               } else if (statement.type === SQLStatement.DETACH) {
                 // Parse DETACH statement to extract database name
-                const detachMatch = statement.code.match(/DETACH\s+(?:DATABASE\s+)?(\w+)/i);
+                const detachMatch = statement.code.match(/DETACH\s+(?:DATABASE\s+)?("[^"]+"|\w+)/i);
                 if (detachMatch) {
-                  const [, dbName] = detachMatch;
+                  let [, dbName] = detachMatch as any;
+                  if (dbName.startsWith('"') && dbName.endsWith('"')) {
+                    dbName = dbName.slice(1, -1).replace(/""/g, '"');
+                  }
 
                   // Find and remove the database from dataSources
                   const dbToRemove = Array.from(updatedDataSources.entries()).find(
@@ -357,10 +420,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
                     // Remove from metadata
                     updatedMetadata.delete(dbName);
 
-                    // Remove from IndexedDB
-                    const { _iDbConn } = useAppStore.getState();
-                    if (_iDbConn) {
-                      await persistDeleteDataSource(_iDbConn, [dbId], []);
+                    // Remove from persistent store
+                    const { _iDbConn, _persistenceAdapter } = useAppStore.getState();
+                    const store = (_persistenceAdapter as any) || _iDbConn;
+                    if (store) {
+                      await persistDeleteDataSource(store, [dbId], []);
                     }
                   }
                 }
@@ -379,9 +443,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         }
       } finally {
         // Release the pooled connection
-        await conn.close();
+        await pool.release(conn);
       }
 
+      // Only set success state if there are no immediate errors
+      // Streaming errors will be caught by the useEffect hook
       setScriptExecutionState('success');
       clearTabExecutionError(tabId);
       incrementScriptVersion();

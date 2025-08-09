@@ -1,6 +1,10 @@
-import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
-
+// Stream reader interface that provides async iteration with cancellation support
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';
+
+export interface StreamReader<T> extends AsyncIterator<T> {
+  cancel: () => Promise<void>;
+  closed: boolean;
+}
 
 /**
  * A custom error class that represents a cancelled data adapter operation.
@@ -249,7 +253,7 @@ export interface DataAdapterQueries {
   getSortableReader?: (
     sort: ColumnSortSpecList,
     abortSignal: AbortSignal,
-  ) => Promise<AsyncDuckDBPooledStreamReader<any> | null>;
+  ) => Promise<StreamReader<any> | null>;
 
   /**
    * Returns a streaming reader.
@@ -259,7 +263,7 @@ export interface DataAdapterQueries {
    *
    * If both are missing it essentially means no data source exists.
    */
-  getReader?: (abortSignal: AbortSignal) => Promise<AsyncDuckDBPooledStreamReader<any> | null>;
+  getReader?: (abortSignal: AbortSignal) => Promise<StreamReader<any> | null>;
 
   /**
    * Returns column aggregate for the given column.

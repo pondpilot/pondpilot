@@ -1,13 +1,10 @@
 import { showError, showWarning } from '@components/app-notifications';
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import {
-  useDuckDBConnectionPool,
-  useDuckDBInitializer,
-} from '@features/duckdb-context/duckdb-context';
+import { ConnectionPool } from '@engines/types';
+import { useDatabaseConnectionPool, useDatabaseInitializer } from '@features/database-context';
 import { useAppStore, setAppLoadState } from '@store/app-store';
-import { restoreAppDataFromIDB } from '@store/restore';
+import { initializePersistence } from '@store/persistence-init';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry } from '@utils/connection-manager';
 import { isRemoteDatabase } from '@utils/data-source';
@@ -18,7 +15,7 @@ import { useEffect } from 'react';
 import { useShowPermsAlert } from './use-show-perm-alert';
 
 // Reconnect to remote databases after app initialization
-async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promise<void> {
+async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
   const { dataSources } = useAppStore.getState();
   const connectedDatabases: string[] = [];
 
@@ -27,28 +24,32 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
       try {
         updateRemoteDbConnectionState(id, 'connecting');
 
-        // First, re-attach the database with READ_ONLY flag for remote databases
+        // First, re-attach the database for remote databases
         try {
-          const attachQuery = buildAttachQuery(dataSource.url, dataSource.dbName, {
-            readOnly: true,
-          });
+          let attachQuery: string;
+          if (dataSource.url.trim().toLowerCase().startsWith('md:')) {
+            // MotherDuck direct DB attaches do not support alias; attach without AS
+            const { quote } = await import('@utils/helpers');
+            attachQuery = `ATTACH ${quote(dataSource.url.trim(), { single: true })}`;
+          } else {
+            attachQuery = buildAttachQuery(dataSource.url, dataSource.dbName, { readOnly: true });
+          }
 
-          // Use connection manager with retries and timeout
           await attachDatabaseWithRetry(conn, attachQuery, {
             maxRetries: 3,
-            timeout: 30000, // 30 seconds
-            retryDelay: 2000, // 2 seconds
+            timeout: 30000,
+            retryDelay: 2000,
             exponentialBackoff: true,
           });
 
-          // Re-attached remote database
           updateRemoteDbConnectionState(id, 'connected');
           connectedDatabases.push(dataSource.dbName);
         } catch (attachError: any) {
-          // If it's already attached, that's fine
-          if (attachError.message?.includes('already in use')) {
-            // Verify the existing connection
-            await conn.query('SELECT 1');
+          // If it's already attached or similar, treat as success
+          const msg = String(attachError?.message || attachError);
+          if (
+            /already in use|already attached|Unique file handle conflict|already exists/i.test(msg)
+          ) {
             updateRemoteDbConnectionState(id, 'connected');
             connectedDatabases.push(dataSource.dbName);
           } else {
@@ -104,14 +105,15 @@ export function useAppInitialization({
 }: UseAppInitializationProps) {
   const { showPermsAlert } = useShowPermsAlert();
 
-  const conn = useDuckDBConnectionPool();
-  const connectDuckDb = useDuckDBInitializer();
+  const conn = useDatabaseConnectionPool();
+  const connectDuckDb = useDatabaseInitializer();
+  const appLoadState = useAppStore((state) => state.appLoadState);
 
-  const initAppData = async (resolvedConn: AsyncDuckDBConnectionPool) => {
+  const initAppData = async (resolvedConn: ConnectionPool) => {
     // Init app db (state persistence)
     // TODO: handle errors, e.g. blocking on older version from other tab
     try {
-      const { discardedEntries, warnings } = await restoreAppDataFromIDB(resolvedConn, (_) =>
+      const { discardedEntries, warnings } = await initializePersistence(resolvedConn, (_) =>
         showPermsAlert(),
       );
 
@@ -183,11 +185,14 @@ export function useAppInitialization({
     // we are not initializing either in-memory DuckDB or the app data.
     if (!isFileAccessApiSupported || isMobileDevice) return;
 
+    // Only initialize if we haven't already (prevent re-initialization)
+    if (appLoadState !== 'init') return;
+
     // Start initialization of data when the database is ready
     if (conn) {
       initAppData(conn);
     } else {
       connectDuckDb();
     }
-  }, [conn]);
+  }, [conn, appLoadState, isFileAccessApiSupported, isMobileDevice, connectDuckDb]);
 }
