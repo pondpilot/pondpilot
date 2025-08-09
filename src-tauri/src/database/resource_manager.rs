@@ -124,12 +124,14 @@ impl ResourceManager {
                 return Err(crate::errors::DuckDBError::ResourceLimit {
                     resource: "memory".to_string(),
                     limit: format!("Failed to acquire {} permits: {}", permits_needed, e),
+                    current_usage: Some(format!("{} MB", self.used_memory.load(Ordering::Relaxed) / 1024 / 1024)),
                 })
             }
             Err(_) => {
                 return Err(crate::errors::DuckDBError::ResourceLimit {
                     resource: "memory".to_string(),
                     limit: format!("Timeout waiting for {} permits", permits_needed),
+                    current_usage: Some(format!("{} MB", self.used_memory.load(Ordering::Relaxed) / 1024 / 1024)),
                 })
             }
         };

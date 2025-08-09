@@ -253,6 +253,7 @@ pub async fn cancel_stream(
         .await
         .map_err(|e| DuckDBError::InvalidOperation {
             message: format!("Failed to cancel stream: {}", e),
+            operation: Some("cancel_stream".to_string()),
         })?;
     debug!("[STREAMING] Stream {} cancellation token triggered", stream_id);
     
@@ -268,6 +269,7 @@ pub async fn acknowledge_stream_batch(
     stream_manager.inner().acknowledge_batch(&stream_id).await
         .map_err(|e| DuckDBError::InvalidOperation {
             message: format!("Failed to acknowledge batch: {}", e),
+            operation: Some("acknowledge_batch".to_string()),
         })?;
     Ok(())
 }
@@ -372,10 +374,28 @@ fn convert_duckdb_datatype(dt: &duckdb::arrow::datatypes::DataType) -> arrow_sch
                 .collect();
             DataType::Struct(converted_fields.into())
         },
-        DuckDBDataType::Union(_fields, _mode) => {
-            // Convert union fields - for now, default to Utf8 as Union type handling is complex
-            debug!("[STREAMING] Warning: Union type not fully supported, defaulting to Utf8");
-            DataType::Utf8
+        DuckDBDataType::Union(fields, mode) => {
+            // Convert union fields properly
+            let converted_fields: Vec<(i8, StdArc<Field>)> = fields
+                .iter()
+                .enumerate()
+                .map(|(i, (_, field))| {
+                    let converted_field = Field::new(
+                        field.name(),
+                        convert_duckdb_datatype(field.data_type()),
+                        field.is_nullable()
+                    );
+                    (i as i8, StdArc::new(converted_field))
+                })
+                .collect();
+            
+            // Convert DuckDB UnionMode to Arrow UnionMode
+            let arrow_mode = match mode {
+                duckdb::arrow::datatypes::UnionMode::Sparse => arrow_schema::UnionMode::Sparse,
+                duckdb::arrow::datatypes::UnionMode::Dense => arrow_schema::UnionMode::Dense,
+            };
+            
+            DataType::Union(converted_fields.into_iter().collect(), arrow_mode)
         },
         DuckDBDataType::Dictionary(key_type, value_type) => {
             DataType::Dictionary(
@@ -393,8 +413,10 @@ fn convert_duckdb_datatype(dt: &duckdb::arrow::datatypes::DataType) -> arrow_sch
             DataType::Map(StdArc::new(inner_field), *sorted)
         },
         _ => {
-            debug!("[STREAMING] Warning: Unhandled DuckDB datatype: {:?}, defaulting to Utf8", dt);
-            DataType::Utf8
+            // Log warning with more context
+            debug!("[STREAMING] Warning: Unhandled DuckDB datatype: {:?}, using string representation", dt);
+            // Use LargeUtf8 for better compatibility with large data
+            DataType::LargeUtf8
         }
     }
 }

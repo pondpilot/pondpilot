@@ -15,6 +15,7 @@ use tokio::sync::{Mutex, mpsc, oneshot};
 use duckdb::Connection;
 use crate::errors::{Result, DuckDBError};
 use crate::database::sql_classifier::ClassifiedSqlStatement;
+use crate::database::sql_sanitizer;
 use crate::database::types::{QueryResult, ColumnInfo};
 use serde_json;
 use tracing::debug;
@@ -60,14 +61,23 @@ impl ConnectionHandler {
         }
     }
 
-    fn execute_sql(&mut self, sql: &str, params: &[serde_json::Value]) -> Result<QueryResult> {
-        // Ensure MotherDuck session settings are applied if token is present in the environment.
-        // We do this per execute to cover all connections; errors are ignored to avoid noise
-        // if the extension is not loaded or the setting is unknown.
+    /// Apply MotherDuck settings in a secure way
+    fn apply_motherduck_settings(&mut self) {
+        // Only apply settings if token is present
         if let Ok(token) = std::env::var("MOTHERDUCK_TOKEN") {
+            // Validate token format (basic check for obviously malicious content)
+            if token.len() > 1000 || token.contains('\0') {
+                debug!("Skipping MotherDuck token - suspicious format detected");
+                return;
+            }
+            
+            // Escape the token properly to prevent injection
             let escaped = token.replace('\'', "''");
+            
             // Try to load the extension (idempotent); ignore errors if not installed
             let _ = self.connection.execute("LOAD motherduck", []);
+            
+            // Set the token securely
             let _ = self
                 .connection
                 .execute(&format!("SET motherduck_token='{}'", escaped), []);
@@ -75,27 +85,35 @@ impl ConnectionHandler {
                 .connection
                 .execute(&format!("SET motherduck_secret='{}'", escaped), []);
         }
+    }
+
+    fn execute_sql(&mut self, sql: &str, params: &[serde_json::Value]) -> Result<QueryResult> {
+        // Ensure MotherDuck session settings are applied if token is present in the environment.
+        // We do this per execute to cover all connections; errors are ignored to avoid noise
+        // if the extension is not loaded or the setting is unknown.
+        self.apply_motherduck_settings();
+
+        // Build the final SQL with escaped parameters if any are provided
+        let final_sql = if !params.is_empty() {
+            sql_sanitizer::build_parameterized_query(sql, params)?
+        } else {
+            sql.to_string()
+        };
 
         // Classify the SQL statement
-        let classified = ClassifiedSqlStatement::classify(sql);
+        let classified = ClassifiedSqlStatement::classify(&final_sql);
         
         if !classified.returns_result_set {
             // For DDL/DML that don't return results
-            if params.is_empty() {
-                self.connection.execute(sql, []).map_err(|e| {
-                    crate::errors::DuckDBError::QueryError {
-                        message: e.to_string(),
-                        sql: Some(sql.to_string()),
-                    }
-                })?;
-            } else {
-                // For now, we don't support parameters in non-SELECT statements
-                // This is a limitation we should document
-                return Err(DuckDBError::QueryError {
-                    message: "Parameters are not yet supported for non-SELECT statements".to_string(),
-                    sql: Some(sql.to_string()),
-                });
-            }
+            // Note: final_sql already has parameters escaped
+            self.connection.execute(&final_sql, []).map_err(|e| {
+                crate::errors::DuckDBError::QueryError {
+                    message: e.to_string(),
+                    sql: Some(sql.to_string()), // Return original SQL for error reporting
+                    error_code: None,
+                    line_number: None,
+                }
+            })?;
             
             // Return empty result
             Ok(QueryResult {
@@ -109,20 +127,24 @@ impl ConnectionHandler {
             // Use prepare_arrow for Arrow interface
             use duckdb::arrow::array::Array;
             
-            let mut stmt = self.connection.prepare(sql).map_err(|e| {
+            // Note: final_sql already has parameters escaped
+            let mut stmt = self.connection.prepare(&final_sql).map_err(|e| {
                 crate::errors::DuckDBError::QueryError {
                     message: e.to_string(),
-                    sql: Some(sql.to_string()),
+                    sql: Some(sql.to_string()), // Return original SQL for error reporting
+                    error_code: None,
+                    line_number: None,
                 }
             })?;
             
             // Use query_arrow on the prepared statement
-            // Note: DuckDB's Rust bindings currently don't support parameterized queries with Arrow
-            // This is a known limitation - parameters would need to be sanitized at a higher level
+            // Parameters are already escaped in final_sql
             let arrow_result = stmt.query_arrow([]).map_err(|e| {
                 crate::errors::DuckDBError::QueryError {
                     message: e.to_string(),
-                    sql: Some(sql.to_string()),
+                    sql: Some(sql.to_string()), // Return original SQL for error reporting
+                    error_code: None,
+                    line_number: None,
                 }
             })?;
             
@@ -237,10 +259,12 @@ impl ConnectionHandle {
             response: response_tx,
         }).await.map_err(|_| DuckDBError::ConnectionError {
             message: "Connection thread has terminated".to_string(),
+            context: None,
         })?;
         
         response_rx.await.map_err(|_| DuckDBError::ConnectionError {
             message: "Failed to receive response from connection thread".to_string(),
+            context: None,
         })?
     }
     
@@ -258,10 +282,12 @@ impl ConnectionHandle {
             response: response_tx,
         }).await.map_err(|_| DuckDBError::ConnectionError {
             message: "Connection thread has already terminated".to_string(),
+            context: None,
         })?;
         
         response_rx.await.map_err(|_| DuckDBError::ConnectionError {
             message: "Failed to receive close confirmation".to_string(),
+            context: None,
         })?
     }
 }
@@ -337,6 +363,7 @@ impl ThreadSafeConnectionManager {
         if connections.contains_key(&connection_id) {
             return Err(DuckDBError::ConnectionError {
                 message: format!("Connection {} already exists", connection_id),
+                context: None,
             });
         }
         connections.insert(connection_id.clone(), handle);
@@ -360,6 +387,7 @@ impl ThreadSafeConnectionManager {
             .cloned()
             .ok_or_else(|| DuckDBError::ConnectionError {
                 message: format!("Connection {} not found", connection_id),
+                context: None,
             })
     }
 
@@ -369,6 +397,7 @@ impl ThreadSafeConnectionManager {
         let handle = connections.remove(connection_id)
             .ok_or_else(|| DuckDBError::ConnectionError {
                 message: format!("Connection {} not found", connection_id),
+                context: None,
             })?;
         
         drop(connections);
