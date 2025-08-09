@@ -1,3 +1,4 @@
+import { isTauriEnvironment } from '@utils/browser';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -24,6 +25,7 @@ interface ExtensionManagementState {
 }
 
 // Essential extensions that are always loaded and can't be disabled
+// Note: motherduck is only available in Tauri (desktop) and is excluded on web/wasm
 const REQUIRED_EXTENSIONS: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = [
   {
     name: 'parquet',
@@ -68,6 +70,20 @@ const REQUIRED_EXTENSIONS: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = [
     required: true,
   },
 ];
+
+// Conditionally include motherduck in required extensions for Tauri only
+const REQUIRED_EXTENSIONS_WITH_ENV: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = (() => {
+  const base = [...REQUIRED_EXTENSIONS];
+  if (isTauriEnvironment()) {
+    base.splice(4, 0, {
+      name: 'motherduck',
+      description: 'Essential for MotherDuck connections (md: URLs)',
+      type: 'core',
+      required: true,
+    });
+  }
+  return base;
+})();
 
 // Optional core extensions (from duckdb_extensions())
 const CORE_EXTENSIONS: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = [
@@ -124,11 +140,6 @@ const CORE_EXTENSIONS: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = [
   {
     name: 'jemalloc',
     description: 'Overwrites system allocator with JEMalloc',
-    type: 'core',
-  },
-  {
-    name: 'motherduck',
-    description: 'Enables motherduck integration with the system',
     type: 'core',
   },
   {
@@ -423,7 +434,7 @@ const COMMUNITY_EXTENSIONS: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = 
 const initialExtensions = [
   // Required extensions should be marked as installed by default
   // They will be installed on first actual use if not present
-  ...REQUIRED_EXTENSIONS.map((ext: Omit<DuckDBExtension, 'installed' | 'disabled'>) => ({
+  ...REQUIRED_EXTENSIONS_WITH_ENV.map((ext: Omit<DuckDBExtension, 'installed' | 'disabled'>) => ({
     ...ext,
     installed: true, // Changed back to true to fix race condition
     disabled: false,

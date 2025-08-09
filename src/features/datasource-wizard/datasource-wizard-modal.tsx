@@ -6,6 +6,7 @@ import { setDataTestId } from '@utils/test-id';
 import { useState, useMemo } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
+import { MotherDuckDatabaseConfig } from './components/motherduck-database-config';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
 
 interface DatasourceWizardModalProps {
@@ -16,7 +17,7 @@ interface DatasourceWizardModalProps {
   initialStep?: WizardStep;
 }
 
-export type WizardStep = 'selection' | 'remote-config';
+export type WizardStep = 'selection' | 'remote-config' | 'motherduck-config';
 
 export function DatasourceWizardModal({
   onClose,
@@ -29,6 +30,10 @@ export function DatasourceWizardModal({
 
   const handleRemoteDatabaseClick = () => {
     setStep('remote-config');
+  };
+
+  const handleMotherDuckClick = () => {
+    setStep('motherduck-config');
   };
 
   const handleBack = () => {
@@ -49,6 +54,7 @@ export function DatasourceWizardModal({
     return isTauriEnvironment() ? 'CSV, Excel, Parquet, SQLite, SAS…' : 'CSV, Excel, JSON, Parquet';
   }, []);
 
+  const tauri = isTauriEnvironment();
   const datasourceCards = [
     {
       type: 'file' as const,
@@ -89,9 +95,27 @@ export function DatasourceWizardModal({
         />
       ),
       title: 'Remote Database',
-      description: 'S3, GCS, Azure, HTTPS',
+      description: tauri ? 'S3, GCS, Azure, HTTPS, MotherDuck' : 'S3, GCS, Azure, HTTPS',
       testId: 'add-remote-database-card',
     },
+    ...(tauri
+      ? [
+          {
+            type: 'motherduck' as const,
+            onClick: handleMotherDuckClick,
+            icon: (
+              <IconDatabasePlus
+                size={48}
+                className="text-textSecondary-light dark:text-textSecondary-dark"
+                stroke={1.5}
+              />
+            ),
+            title: 'MotherDuck',
+            description: 'Browse and attach MotherDuck databases',
+            testId: 'add-motherduck-database-card',
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -111,7 +135,7 @@ export function DatasourceWizardModal({
               ADD DATA SOURCE
             </Text>
             <Text size="xs">/</Text>
-            <Text size="xs">REMOTE DATABASE</Text>
+            <Text size="xs">{step === 'remote-config' ? 'REMOTE DATABASE' : 'MOTHERDUCK'}</Text>
           </Group>
         )}
 
@@ -156,6 +180,9 @@ export function DatasourceWizardModal({
 
       {step === 'remote-config' && (
         <RemoteDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+      {step === 'motherduck-config' && (
+        <MotherDuckDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
     </Stack>
   );

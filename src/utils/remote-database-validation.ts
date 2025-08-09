@@ -7,12 +7,13 @@
 /**
  * Allowed protocols for remote databases
  */
-export const ALLOWED_REMOTE_PROTOCOLS = [
-  'https:', // HTTPS only (not HTTP for security)
-  's3:', // Amazon S3
-  'gcs:', // Google Cloud Storage
-  'azure:', // Azure Blob Storage
-] as const;
+import { isTauriEnvironment } from '@utils/browser';
+
+// Compute allowed protocols; 'md:' only in Tauri (desktop)
+export const ALLOWED_REMOTE_PROTOCOLS = ((): readonly string[] => {
+  const base = ['https:', 's3:', 'gcs:', 'azure:'] as const;
+  return isTauriEnvironment() ? [...base, 'md:'] : base;
+})();
 
 /**
  * Validates a remote database URL for security and format
@@ -80,6 +81,9 @@ export function validateRemoteDatabaseUrl(url: string): { isValid: boolean; erro
     return { isValid: false, error: 'Azure URLs must include a container and path' };
   }
 
+  // MotherDuck URLs (md:) are opaque and validated by DuckDB extension itself
+  // Allow any md: URL format here
+
   return { isValid: true };
 }
 
@@ -132,6 +136,8 @@ export function getRemoteDatabaseDisplayName(url: string): string {
     const parsedUrl = new URL(url);
 
     switch (parsedUrl.protocol) {
+      case 'md:':
+        return 'MotherDuck';
       case 's3:': {
         const s3Parts = parsedUrl.pathname.substring(1).split('/');
         return `S3: ${s3Parts[0]}`;
