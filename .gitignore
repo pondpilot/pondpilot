@@ -176,3 +176,6 @@ cobertura.xml
 # Backup files
 *.orig
 *.rej
+
+# Tauri generated schemas
+src-tauri/gen/schemas/
