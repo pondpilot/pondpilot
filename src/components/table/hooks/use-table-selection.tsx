@@ -119,27 +119,28 @@ export const useTableSelection = ({
       }
 
       if (isSelectRange && !multiple) {
-        if (Object.keys(selectedRows).length === 0) {
-          setSelectedRows({ [rowId]: true });
-          setLastSelectedRow(rowId);
-          return;
-        }
+        setSelectedRows((prev) => {
+          if (Object.keys(prev).length === 0) {
+            setLastSelectedRow(rowId);
+            return { [rowId]: true };
+          }
 
-        const start = parseInt(lastSelectedRow, 10);
-        const end = parseInt(rowId, 10);
-        const selectedRowsRange = Array.from({ length: Math.abs(end - start) + 1 }, (_, i) =>
-          (start < end ? start + i : start - i).toString(),
-        ).reduce(
-          (acc, id) => {
-            acc[id] = true;
-            return acc;
-          },
-          {} as Record<string, boolean>,
-        );
-        setSelectedRows(selectedRowsRange);
+          const start = parseInt(lastSelectedRow, 10);
+          const end = parseInt(rowId, 10);
+          const selectedRowsRange = Array.from({ length: Math.abs(end - start) + 1 }, (_, i) =>
+            (start < end ? start + i : start - i).toString(),
+          ).reduce(
+            (acc, id) => {
+              acc[id] = true;
+              return acc;
+            },
+            {} as Record<string, boolean>,
+          );
+          return selectedRowsRange;
+        });
       }
     },
-    [lastSelectedRow, onRowSelectChange, selectedRows],
+    [lastSelectedRow, onRowSelectChange],
   );
 
   const handleHeadCellClick = useCallback(
@@ -163,25 +164,26 @@ export const useTableSelection = ({
       }
 
       if (isSelectRange && !multiple) {
-        if (Object.keys(selectedCols).length === 0) {
-          setSelectedCols({ [columnId]: true });
-          setLastSelectedColumn(columnId);
-          return;
-        }
+        setSelectedCols((prev) => {
+          if (Object.keys(prev).length === 0) {
+            setLastSelectedColumn(columnId);
+            return { [columnId]: true };
+          }
 
-        const start = schema.findIndex((col) => col.id === lastSelectedColumn);
-        const end = schema.findIndex((col) => col.id === columnId);
-        const selectedCols2 = schema.slice(Math.min(start, end), Math.max(start, end) + 1).reduce(
-          (acc, col) => {
-            acc[col.id] = true;
-            return acc;
-          },
-          {} as Record<string, boolean>,
-        );
-        setSelectedCols(selectedCols2);
+          const start = schema.findIndex((col) => col.id === lastSelectedColumn);
+          const end = schema.findIndex((col) => col.id === columnId);
+          const selectedCols2 = schema.slice(Math.min(start, end), Math.max(start, end) + 1).reduce(
+            (acc, col) => {
+              acc[col.id] = true;
+              return acc;
+            },
+            {} as Record<string, boolean>,
+          );
+          return selectedCols2;
+        });
       }
     },
-    [lastSelectedColumn, schema, selectedCols],
+    [lastSelectedColumn, schema],
   );
 
   useDidUpdate(() => {
