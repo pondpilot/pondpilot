@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { handleError } from '@utils/error-handling';
 
 import { useAppStore } from '../store/app-store';
 
@@ -18,7 +19,11 @@ export async function exportSQLScripts(): Promise<Blob | null> {
     const zipBlob = await zip.generateAsync({ type: 'blob' });
     return zipBlob;
   } catch (error) {
-    console.error('Error while exporting query files: ', error);
+    handleError(error, {
+      operation: 'exportSQLScripts',
+      userAction: 'export SQL scripts',
+      details: { scriptCount: sqlScripts.size },
+    });
     return null;
   }
 }
