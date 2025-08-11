@@ -81,7 +81,26 @@ function mapTauriTypeToArrowType(typeName: string): DataType {
   return new Utf8();
 }
 
-// Helper to convert Tauri result to Arrow-like format
+/**
+ * Converts Tauri query results to an Apache Arrow-compatible table structure.
+ *
+ * RATIONALE: The frontend components (data grid, export features, etc.) were originally
+ * built to work with Apache Arrow tables from DuckDB-WASM. When we added the Tauri backend
+ * for native performance, we needed to maintain API compatibility so existing UI components
+ * would continue to work without modification.
+ *
+ * This function creates a "mock" Arrow table that implements the same interface as real
+ * Arrow tables, including:
+ * - getChild(columnName) to access column vectors
+ * - schema with field definitions
+ * - Iterator protocol for column data
+ *
+ * This allows us to use the same data visualization and manipulation code for both
+ * web (DuckDB-WASM with real Arrow) and desktop (Tauri with simulated Arrow) modes.
+ *
+ * @param result Raw query result from Tauri backend with { columns, rows } structure
+ * @returns Arrow-compatible table object that mimics apache-arrow Table API
+ */
 function convertTauriResultToArrowLike(result: any): any {
   // Debug log the raw result
   if (result && typeof result === 'object') {
@@ -104,7 +123,8 @@ function convertTauriResultToArrowLike(result: any): any {
   // console.log('[convertTauriResultToArrowLike] Columns:', columns);
   // console.log('[convertTauriResultToArrowLike] Rows count:', rows.length);
 
-  // Create a mock Arrow table object with getChild method
+  // Create a mock Arrow table object that implements the Apache Arrow Table interface
+  // This ensures compatibility with components expecting Arrow tables
   const table = {
     numRows: rows.length,
     rowCount: rows.length,
@@ -259,6 +279,7 @@ export class TauriConnectionPool implements ConnectionPool {
         conn.markExtensionsLoaded();
       } catch (error) {
         const logLevel = isNew ? 'error' : 'warn';
+        // eslint-disable-next-line no-console
         console[logLevel](
           `Failed to load extensions for ${isNew ? 'new' : 'reused'} connection:`,
           error,
@@ -275,6 +296,7 @@ export class TauriConnectionPool implements ConnectionPool {
         conn.markAttachedDbsLoaded();
       } catch (error) {
         const logLevel = isNew ? 'error' : 'warn';
+        // eslint-disable-next-line no-console
         console[logLevel](
           `Failed to attach local DBs for ${isNew ? 'new' : 'reused'} connection:`,
           error,
@@ -307,7 +329,7 @@ export class TauriConnectionPool implements ConnectionPool {
           // Connection is invalid, remove it
           this.removeConnection(conn);
           // Try again (but release lock first)
-          return this.acquire();
+          return await this.acquire();
         }
 
         await this.initializeConnection(conn);
@@ -426,14 +448,16 @@ export class TauriConnectionPool implements ConnectionPool {
     sql: string,
     signal: AbortSignal,
     stream?: boolean,
-    options?: { attach?: { dbName: string; url: string; readOnly?: boolean } },
+    options?: {
+      attach?: { dbName: string; url: string; readOnly?: boolean };
+    },
   ): Promise<T> {
     if (stream) {
-      // Use true Arrow streaming
+      // Use true Arrow streaming with binary IPC (no Base64 overhead!)
       const streamId = crypto.randomUUID();
       // console.log(`[TauriConnectionPool] Starting stream query with ID: ${streamId}`);
 
-      // Create Arrow reader FIRST to set up listeners
+      // Use optimized Tauri binary events reader
       const reader = new TauriArrowReader(streamId);
       // console.log('[TauriConnectionPool] TauriArrowReader created');
 
@@ -474,11 +498,17 @@ export class TauriConnectionPool implements ConnectionPool {
       }
 
       try {
-        await this.invoke('stream_query', {
+        // Always use the unified binary streaming command
+        const authInfo = (await this.invoke('stream_query', {
           sql,
           streamId,
           attach: attachSpec,
-        });
+        })) as { status: string };
+
+        // Streaming initiated successfully
+        if (authInfo && authInfo.status === 'streaming') {
+          // Streaming has been initiated
+        }
       } catch (err) {
         tauriLog('[TauriConnectionPool] stream_query invoke failed:', err);
         throw err;

@@ -17,7 +17,6 @@ import { ConnectionPool } from '@engines/types';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel, CSV_MAX_LINE_SIZE_MB } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
-import { handleError } from '@utils/error-handling';
 import {
   DataSourceLocalFile,
   ignoredFolders,
@@ -30,6 +29,7 @@ import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
 import { isTauriEnvironment } from '@utils/browser';
 import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
+import { handleError } from '@utils/error-handling';
 import { localEntryFromHandle } from '@utils/file-system';
 import { findUniqueName } from '@utils/helpers';
 import { makeSQLScriptId } from '@utils/sql-script';
@@ -147,15 +147,19 @@ export const addLocalFileOrFolders = async (
           errors.push(
             `Failed to attach database "${dbSource.dbName}" from file "${file.name}": ${errorMessage}`,
           );
-          handleError(error, {
-            operation: 'attachSourceFile',
-            userAction: `attach database from ${file.name}`,
-            details: { 
-              fileName: file.name,
-              fileType: file.fileType,
-              dbName: dbSource.dbName,
+          handleError(
+            error,
+            {
+              operation: 'attachSourceFile',
+              userAction: `attach database from ${file.name}`,
+              details: {
+                fileName: file.name,
+                fileType: file.fileType,
+                dbName: dbSource.dbName,
+              },
             },
-          }, { showNotification: false });
+            { showNotification: false },
+          );
           return false;
         }
 
@@ -207,15 +211,19 @@ export const addLocalFileOrFolders = async (
           errors.push(
             `Failed to attach database "${dbSource.dbName}" from file "${file.name}": ${errorMessage}`,
           );
-          handleError(error, {
-            operation: 'attachSourceFile',
-            userAction: `attach database from ${file.name}`,
-            details: { 
-              fileName: file.name,
-              fileType: file.fileType,
-              dbName: dbSource.dbName,
+          handleError(
+            error,
+            {
+              operation: 'attachSourceFile',
+              userAction: `attach database from ${file.name}`,
+              details: {
+                fileName: file.name,
+                fileType: file.fileType,
+                dbName: dbSource.dbName,
+              },
             },
-          }, { showNotification: false });
+            { showNotification: false },
+          );
           return false;
         }
 

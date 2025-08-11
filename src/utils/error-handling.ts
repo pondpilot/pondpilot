@@ -49,9 +49,7 @@ export function handleError(
 
   // Show user-friendly notification if requested
   if (showNotification) {
-    const userMessage = userAction
-      ? `Failed to ${userAction.toLowerCase()}`
-      : errorMessage;
+    const userMessage = userAction ? `Failed to ${userAction.toLowerCase()}` : errorMessage;
 
     if (recoveryAction) {
       showErrorWithAction({
@@ -76,11 +74,7 @@ export function createErrorHandler(
   defaultOptions?: { showNotification?: boolean; notificationTitle?: string },
 ) {
   return (error: unknown, additionalContext?: Partial<ErrorContext>) => {
-    handleError(
-      error,
-      { ...defaultContext, ...additionalContext },
-      defaultOptions,
-    );
+    handleError(error, { ...defaultContext, ...additionalContext }, defaultOptions);
   };
 }
 

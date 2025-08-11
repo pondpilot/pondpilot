@@ -39,21 +39,21 @@ export const ModifierProvider = ({ children }: { children: React.ReactNode }) =>
   // Subscribe on mount
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Using functional updates to avoid dependencies on state values
+      // Using functional updates to prevent multiple state updates when key is held down
       if (event.key === 'Alt') {
         setIsAltPressed((prev) => {
-          // Prevent multiple state updates when key is held down
-          return prev ? prev : true;
+          // Only update if not already pressed
+          return prev || true;
         });
       }
       if (event.key === 'Control') {
-        setIsCtrlPressed((prev) => (prev ? prev : true));
+        setIsCtrlPressed((prev) => prev || true);
       }
       if (event.key === 'Meta') {
-        setIsMetaPressed((prev) => (prev ? prev : true));
+        setIsMetaPressed((prev) => prev || true);
       }
       if (event.key === 'Shift') {
-        setIsShiftPressed((prev) => (prev ? prev : true));
+        setIsShiftPressed((prev) => prev || true);
       }
     };
 

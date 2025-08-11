@@ -20,9 +20,9 @@ import { convertArrowTable } from './arrow';
 import { classifySQLStatement, trimQuery } from './editor/sql';
 import { quote } from './helpers';
 
-// Initial batch size for table preview - 100K rows should be enough for initial view
-// while preventing full table scans on very large datasets
-const INITIAL_TABLE_PREVIEW_LIMIT = 100000;
+// Initial batch size for table preview - 10K rows provides a fast first paint
+// and keeps batch counts and backend work low on very large datasets
+const INITIAL_TABLE_PREVIEW_LIMIT = 10000;
 
 function getGetSortableReaderApiFromFQN(
   pool: ConnectionPool,

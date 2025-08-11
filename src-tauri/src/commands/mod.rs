@@ -90,6 +90,7 @@ pub async fn list_files(engine: EngineState<'_>) -> Result<Vec<FileInfo>> {
 pub async fn get_xlsx_sheet_names(
     engine: EngineState<'_>,
     file_path: Option<String>,
+    #[allow(non_snake_case)]
     filePath: Option<String>,
     
 ) -> Result<Vec<String>> {
