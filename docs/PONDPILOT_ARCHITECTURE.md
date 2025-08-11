@@ -35,10 +35,10 @@ PondPilot is a blazing-fast data exploration tool that runs identically as a web
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                          React UI Layer                              │   │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐  ┌──────────┐  │   │
-│  │  │ SQL Editor  │  │ Data Explorer│  │ Query Result│  │ Settings │  │   │
-│  │  └─────────────┘  └──────────────┘  └─────────────┘  └──────────┘  │   │
+│  │                          React UI Layer                             │   │
+│  │  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐  ┌──────────┐   │   │
+│  │  │ SQL Editor  │  │ Data Explorer│  │ Query Result│  │ Settings │   │   │
+│  │  └─────────────┘  └──────────────┘  └─────────────┘  └──────────┘   │   │
 │  └───────────────────────────────┬─────────────────────────────────────┘   │
 │                                  │                                          │
 │                    ┌─────────────▼─────────────────┐                        │
@@ -52,12 +52,12 @@ PondPilot is a blazing-fast data exploration tool that runs identically as a web
 │  │    Browser Environment    │       │      Tauri Environment          │   │
 │  ├───────────────────────────┤       ├─────────────────────────────────┤   │
 │  │ ┌─────────────────────┐   │       │ ┌─────────────────────────────┐ │   │
-│  │ │  DuckDB WASM Engine │   │       │ │  DuckDB Tauri Engine      │ │   │
+│  │ │  DuckDB WASM Engine │   │       │ │  DuckDB Tauri Engine        │ │   │
 │  │ ├─────────────────────┤   │       │ ├─────────────────────────────┤ │   │
-│  │ │ • Web Worker       │   │       │ │ • Rust IPC Bridge         │ │   │
-│  │ │ • WASM Binary      │   │       │ │ • Native DuckDB           │ │   │
-│  │ │ • IndexedDB        │   │       │ │ • SQLite Persistence      │ │   │
-│  │ │ • File System API  │   │       │ │ • Native File Access      │ │   │
+│  │ │ • Web Worker        │   │       │ │ • Rust IPC Bridge           │ │   │
+│  │ │ • WASM Binary       │   │       │ │ • Native DuckDB             │ │   │
+│  │ │ • IndexedDB         │   │       │ │ • SQLite Persistence        │ │   │
+│  │ │ • File System API   │   │       │ │ • Native File Access        │ │   │
 │  │ └─────────────────────┘   │       │ └─────────────────────────────┘ │   │
 │  └───────────────────────────┘       └─────────────────────────────────┘   │
 │                                                                             │
@@ -115,17 +115,17 @@ export interface DatabaseEngine {
 │ }                                                                │
 └────────────────────────────┬─────────────────────────────────────┘
                              │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-        ▼                    ▼                    ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│ DuckDBWasm    │   │ DuckDBTauri   │   │ Future SQLite │
-│ Engine        │   │ Engine        │   │ Engine        │
-├───────────────┤   ├───────────────┤   ├───────────────┤
-│ Web Worker    │   │ Tauri IPC     │   │ WASM/Native   │
-│ WASM Binary   │   │ Rust Backend  │   │ Lightweight   │
-│ Browser APIs  │   │ Native APIs   │   │ Mobile Ready  │
-└───────────────┘   └───────────────┘   └───────────────┘
+                ┌────────────┴────────────┐
+                │                         │
+                ▼                         ▼
+        ┌───────────────┐       ┌───────────────┐
+        │ DuckDBWasm    │       │ DuckDBTauri   │
+        │ Engine        │       │ Engine        │
+        ├───────────────┤       ├───────────────┤
+        │ Web Worker    │       │ Tauri IPC     │
+        │ WASM Binary   │       │ Rust Backend  │
+        │ Browser APIs  │       │ Native APIs   │
+        └───────────────┘       └───────────────┘
 ```
 
 ## Platform Detection and Engine Selection
@@ -232,7 +232,11 @@ Both platforms use different storage mechanisms but share the same interface:
 │  │               PersistenceAdapter Interface                │  │
 │  │  + get(table, key): Promise<T>                           │  │
 │  │  + put(table, value, key?): Promise<void>                │  │
+│  │  + delete(table, key): Promise<void>                     │  │
+│  │  + clear(table): Promise<void>                           │  │
 │  │  + getAll(table): Promise<T[]>                           │  │
+│  │  + putAll(table, items): Promise<void>                   │  │
+│  │  + deleteAll(table, keys): Promise<void>                 │  │
 │  └────────────────────┬─────────────────┬───────────────────┘  │
 │                       │                 │                       │
 │         Web Browser   │                 │   Tauri Desktop      │
@@ -242,7 +246,7 @@ Both platforms use different storage mechanisms but share the same interface:
 │  ├─────────────────────────┤   ├─────────────────────────┤    │
 │  │ Browser Storage:        │   │ Native Storage:         │    │
 │  │ ┌───────────────────┐   │   │ ┌───────────────────┐   │    │
-│  │ │ IndexedDB        │   │   │ │ SQLite Database  │   │    │
+│  │ │ IndexedDB        │   │   │ │ SQLite via IPC   │   │    │
 │  │ │ - data-source    │   │   │ │ - data_sources   │   │    │
 │  │ │ - local-entry    │   │   │ │ - local_entries  │   │    │
 │  │ │ - sql-script     │   │   │ │ - sql_scripts    │   │    │
@@ -322,7 +326,7 @@ Tauri Desktop:
 
 ### Overview
 
-Streaming is critical for handling large datasets without overwhelming memory. The Tauri implementation uses Apache Arrow IPC format for efficient data transfer.
+Streaming is critical for handling large datasets without overwhelming memory. The Tauri implementation uses Apache Arrow IPC format for efficient data transfer with a unified pool for connection management.
 
 ### Streaming Flow
 
@@ -365,10 +369,10 @@ Streaming is critical for handling large datasets without overwhelming memory. T
 
 ### Key Components
 
-1. **Stream Manager**: Tracks active streams with cancellation tokens
-2. **Streaming Semaphore**: Limits concurrent streams (max 4)
-3. **Connection Pool**: Provides reusable connections for streaming
-4. **Arrow Conversion**: Converts DuckDB results to Arrow format
+1. **ArrowStreamingExecutor**: Manages streaming query execution
+2. **Unified Pool**: Provides connection permits for streaming
+3. **Cancellation Tokens**: Allows stream cancellation mid-execution
+4. **Arrow IPC Format**: Binary format for efficient data transfer
 
 ### Streaming Optimizations
 
@@ -397,33 +401,33 @@ Desktop (Tauri):
 
 ### Architecture
 
-The Tauri backend uses a sophisticated connection pool to manage DuckDB connections efficiently:
+The Tauri backend uses a **Unified Connection Pool** with a permit-based system to manage DuckDB connections efficiently:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   Connection Pool Architecture                   │
+│                   Unified Pool Architecture                      │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │                    ConnectionPool                        │   │
+│  │                    UnifiedPool                           │   │
 │  ├─────────────────────────────────────────────────────────┤   │
+│  │ • permits: Semaphore(max_connections)                    │   │
 │  │ • max_connections: 10                                    │   │
-│  │ • pre_created: 5                                         │   │
-│  │ • available_connections: VecDeque<Connection>            │   │
-│  │ • query_semaphore: Semaphore(10)                        │   │
-│  │ • streaming_semaphore: Semaphore(4)                     │   │
+│  │ • min_connections: 2                                     │   │
+│  │ • acquire_timeout: 5s                                    │   │
+│  │ • resource_limits: (memory, threads)                     │   │
 │  └────────────────┬────────────────────────────────────────┘   │
 │                   │                                             │
 │         ┌─────────┴──────────┬──────────────┐                  │
 │         ▼                    ▼              ▼                  │
 │  ┌──────────────┐    ┌──────────────┐ ┌──────────────┐        │
-│  │ get_pooled_  │    │ execute_     │ │ return_      │        │
-│  │ connection() │    │ with_retry() │ │ connection() │        │
+│  │ acquire_     │    │ Connection   │ │ Resource     │        │
+│  │ permit()     │    │ Permit       │ │ Manager      │        │
 │  ├──────────────┤    ├──────────────┤ ├──────────────┤        │
-│  │ • Check pool │    │ • Get conn   │ │ • Add to     │        │
-│  │ • Create new │    │ • Run query  │ │   available  │        │
-│  │ • Wait if    │    │ • Return     │ │ • Notify     │        │
-│  │   exhausted  │    │   conn       │ │   waiters    │        │
+│  │ • Get permit │    │ • Create     │ │ • Memory     │        │
+│  │ • Return     │    │   connection │ │   limits     │        │
+│  │   permit     │    │   in thread  │ │ • Thread     │        │
+│  │ • Timeout    │    │ • Configure  │ │   limits     │        │
 │  └──────────────┘    └──────────────┘ └──────────────┘        │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -431,35 +435,41 @@ The Tauri backend uses a sophisticated connection pool to manage DuckDB connecti
 
 ### Connection Lifecycle
 
-1. **Pre-creation**: 5 connections created at startup
-2. **On-demand**: New connections created up to max (10)
-3. **Reuse**: Connections returned to pool after use
-4. **Recovery**: Attached databases and extensions replicated
+1. **Permit Acquisition**: Thread acquires a semaphore permit
+2. **Thread-Local Creation**: Connection created in the executing thread
+3. **Configuration**: Apply memory limits and thread settings
+4. **Use & Dispose**: Connection used and then dropped (not reused)
 
 ### Thread Safety
 
-**CRITICAL**: DuckDB connections are NOT thread-safe. Each connection can only be used by one thread at a time. Attempting to share connections across threads will cause panics and crashes. This is why the connection pool uses proper synchronization and ensures connections are only used by one operation at a time.
+**CRITICAL**: DuckDB connections are NOT thread-safe. Each connection must be created and used within the same thread. The unified pool ensures this by:
+1. Creating connections in the thread where they will be used
+2. Never sharing connections between threads
+3. Using permits to control concurrent access
+4. Dropping connections after use rather than reusing them
 
-### Key Improvements
+### Key Design Decisions
 
-1. **Lock-free Queries**: Engine lock released before query execution
-2. **Connection Return**: All operations return connections to pool
-3. **Proper Cleanup**: Connections returned even on error paths
-4. **Resource Limits**: Semaphores prevent resource exhaustion
+1. **Permit-based System**: Semaphore permits control connection creation
+2. **Thread-Local Connections**: Each connection created in its usage thread
+3. **No Connection Reuse**: Connections are created fresh for each operation
+4. **Resource Limits**: Dynamic limits based on system resources
 
-### Performance Impact
+### Performance Characteristics
 
 ```
-Before (Connection per Query):
-• Create connection: ~100-500ms for large DB files
-• Execute query: Variable
-• Total: Creation overhead + query time
+Unified Pool Model:
+• Permit acquisition: <1ms (unless at limit)
+• Connection creation: ~5-20ms (in-memory database)
+• Query execution: Variable
+• Connection disposal: Automatic on drop
+• Total: Creation + query time
 
-After (Connection Pool):
-• Get pooled connection: <1ms
-• Execute query: Variable
-• Return connection: <1ms
-• Total: Query time only
+Benefits:
+• Thread safety guaranteed
+• No connection state pollution
+• Simpler error recovery
+• Predictable resource usage
 ```
 
 ## Build and Deployment
@@ -472,26 +482,26 @@ After (Connection Pool):
                     │  TypeScript/React   │
                     └──────────┬──────────┘
                                │
-                ┌──────────────┼──────────────┐
-                │              │              │
-                ▼              ▼              ▼
-        ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-        │  Web Build   │ │ Tauri Build  │ │Future Mobile │
-        ├──────────────┤ ├──────────────┤ ├──────────────┤
-        │ yarn build   │ │ yarn tauri:  │ │ Capacitor/   │
-        │              │ │    build     │ │ React Native │
-        ├──────────────┤ ├──────────────┤ ├──────────────┤
-        │ Output:      │ │ Output:      │ │ Output:      │
-        │ - index.html │ │ - .app (Mac) │ │ - .apk       │
-        │ - .js/.css   │ │ - .exe (Win) │ │ - .ipa       │
-        │ - assets/    │ │ - .deb/.rpm  │ │              │
-        └──────────────┘ └──────────────┘ └──────────────┘
-                │              │
-                ▼              ▼
-         ┌────────────┐ ┌────────────┐
-         │  Web Host  │ │   Direct   │
-         │  (Vercel)  │ │  Install   │
-         └────────────┘ └────────────┘
+                    ┌──────────┴──────────┐
+                    │                     │
+                    ▼                     ▼
+            ┌──────────────┐     ┌──────────────┐
+            │  Web Build   │     │ Tauri Build  │
+            ├──────────────┤     ├──────────────┤
+            │ yarn build   │     │ yarn tauri:  │
+            │              │     │    build     │
+            ├──────────────┤     ├──────────────┤
+            │ Output:      │     │ Output:      │
+            │ - index.html │     │ - .app (Mac) │
+            │ - .js/.css   │     │ - .exe (Win) │
+            │ - assets/    │     │ - .deb/.rpm  │
+            └──────────────┘     └──────────────┘
+                    │                     │
+                    ▼                     ▼
+            ┌────────────┐       ┌────────────┐
+            │  Web Host  │       │   Direct   │
+            │  (Vercel)  │       │  Install   │
+            └────────────┘       └────────────┘
 ```
 
 ### Build Commands
@@ -676,9 +686,8 @@ PondPilot's two-headed architecture provides:
 2. **Platform Optimization**: Native performance where available
 3. **Consistent UX**: Same interface across all platforms
 4. **Progressive Enhancement**: Features adapt to platform capabilities
-5. **Future-Proof**: Easy to add new platforms (mobile, cloud)
-6. **Efficient Streaming**: Handle large datasets without memory issues
-7. **Connection Pooling**: Reuse connections for better performance
+5. **Efficient Streaming**: Handle large datasets without memory issues
+6. **Unified Connection Management**: Permit-based system ensures thread safety
 
 The abstraction layers ensure that platform-specific code is isolated, making the codebase maintainable and extensible. Whether running in a browser or as a desktop app, users get the best possible experience for their platform.
 
@@ -690,41 +699,44 @@ The abstraction layers ensure that platform-specific code is isolated, making th
    - DuckDB WASM Engine for web
    - DuckDB Tauri Engine for desktop with native performance
    - Unified interface across all engines
-   - Connection pooling with resource management
+   - Unified connection pool with permit-based system
 
 2. **Tauri Desktop Application**
    - Full native DuckDB integration via Rust
    - IPC bridge for TypeScript ↔ Rust communication
-   - Streaming support with Apache Arrow IPC format
+   - Arrow IPC streaming with cancellation support
    - Native file dialogs and system integration
+   - Security hardening with path validation and SQL sanitization
 
 3. **Persistence Layer**
-   - SQLite persistence for Tauri (mirrors IndexedDB for web)
+   - SQLite persistence for Tauri via IPC commands
+   - IndexedDB for web browser storage
    - Unified persistence adapter interface
    - Automatic platform detection and adapter selection
-   - Mock file handles for cross-platform compatibility
 
-4. **Platform Features**
-   - Browser compatibility bypass in Tauri
-   - Graceful startup with port and lock detection
-   - Connection pool optimization (5 pre-created, max 10)
-   - Resource semaphores (10 queries, 4 streams)
+4. **Security Features**
+   - Path traversal protection with validation
+   - SQL identifier sanitization
+   - Extension whitelisting (httpfs, parquet, json, etc.)
+   - Resource limits based on system capabilities
+   - MotherDuck token management
 
-### ⏳ In Progress
-
-1. **Unified Streaming Architecture**
-   - Simplifying to single connection pool
-   - Query hints system for optimization
-   - Memory-based admission control
-
-2. **Table Naming Migration**
-   - Migrating from hyphenated to underscored names
-   - Supporting both formats during transition
+5. **Resource Management**
+   - Dynamic resource limits calculation
+   - Thread-safe connection management
+   - Memory-aware query execution
+   - Permit-based connection control
 
 ### 🚀 Future Enhancements
 
-1. **Desktop Features**
+1. **Performance Optimizations**
+   - Connection pre-warming
+   - Idle connection cleanup
+   - Query result caching
+
+2. **Desktop Features**
    - System tray support
    - Auto-updater functionality
    - Native menu bar with shortcuts
    - macOS code signing and notarization
+
