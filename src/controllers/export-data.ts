@@ -1,5 +1,5 @@
-import JSZip from 'jszip';
 import { handleError } from '@utils/error-handling';
+import JSZip from 'jszip';
 
 import { useAppStore } from '../store/app-store';
 

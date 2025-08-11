@@ -128,6 +128,7 @@ impl UnifiedPool {
     }
 
     /// Get current pool statistics for monitoring
+    #[allow(dead_code)]
     pub fn get_pool_stats(&self) -> PoolStats {
         let available_permits = self.permits.available_permits();
         let total_permits = self.config.max_connections;
@@ -142,6 +143,7 @@ impl UnifiedPool {
     }
     
     /// Perform a health check on the pool
+    #[allow(dead_code)]
     pub async fn health_check(&self) -> Result<HealthCheckResult> {
         let stats = self.get_pool_stats();
         

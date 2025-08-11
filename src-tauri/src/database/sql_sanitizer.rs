@@ -93,6 +93,7 @@ fn contains_multiple_statements(s: &str) -> bool {
 
 /// Sanitize a SQL identifier (table name, column name, etc.)
 /// This is more restrictive than value escaping as identifiers have specific rules
+#[allow(dead_code)]
 pub fn sanitize_identifier(identifier: &str) -> Result<String> {
     // Check for empty identifier
     if identifier.is_empty() {

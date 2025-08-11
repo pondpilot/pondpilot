@@ -40,9 +40,14 @@ impl StreamManager {
     pub async fn acknowledge_batch(&self, stream_id: &str) -> Result<()> {
         let streams = self.active_streams.lock().await;
         if let Some(handle) = streams.get(stream_id) {
-            // Send acknowledgment - if buffer is full, this will wait
-            handle.ack_sender.send(()).await?;
-            tracing::trace!("[StreamManager] Batch acknowledged for stream {}", stream_id);
+            match handle.ack_sender.send(()).await {
+                Ok(_) => {
+                    tracing::trace!("[StreamManager] Batch acknowledged for stream {}", stream_id);
+                }
+                Err(_e) => {
+                    tracing::debug!("[StreamManager] ACK received after receiver closed for stream {} (ignoring)", stream_id);
+                }
+            }
         }
         Ok(())
     }
@@ -72,5 +77,3 @@ impl StreamManager {
         tracing::debug!("[StreamManager] Active streams after cleanup: {}", streams.len());
     }
 }
-
-

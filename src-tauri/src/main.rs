@@ -6,6 +6,7 @@ mod config;
 mod database;
 mod persistence;
 mod errors;
+mod platform;
 mod streaming;
 mod system_resources;
 mod startup_checks;

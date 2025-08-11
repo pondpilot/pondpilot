@@ -4,6 +4,7 @@ pub mod config;
 pub mod database;
 pub mod errors;
 pub mod persistence;
+pub mod platform;
 pub mod system_resources;
 
 // Re-export commonly used types
