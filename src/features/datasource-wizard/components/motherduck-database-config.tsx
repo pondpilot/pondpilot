@@ -2,16 +2,18 @@ import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { ConnectionPool } from '@engines/types';
-import { Alert, Button, Group, Loader, Stack, Text, Checkbox, ScrollArea } from '@mantine/core';
-import { useInputState } from '@mantine/hooks';
+import { Button, Group, Loader, Stack, Text, Checkbox, ScrollArea } from '@mantine/core';
+import { useInputState, useDisclosure } from '@mantine/hooks';
 import { RemoteDB } from '@models/data-source';
 import { useAppStore } from '@store/app-store';
-import { IconAlertCircle } from '@tabler/icons-react';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { quote } from '@utils/helpers';
 import { MOTHERDUCK_CONSTANTS } from '@utils/motherduck-helper';
 import { setDataTestId } from '@utils/test-id';
 import { useEffect, useMemo, useState } from 'react';
+
+import { MotherDuckSecretSelector } from './motherduck-secret-selector';
+import { SecretsAPI } from '../../../services/secrets-api';
 
 interface MotherDuckDatabaseConfigProps {
   pool: ConnectionPool | null;
@@ -26,6 +28,9 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
   const [attachLoading, setAttachLoading] = useState(false);
   const [_selectedDb, setSelectedDb] = useInputState('');
   const [readOnly, setReadOnly] = useState(true);
+  const [selectedSecretId, setSelectedSecretId] = useState<string | null>(null);
+  const [createTokenModalOpened, { open: openCreateToken, close: closeCreateToken }] =
+    useDisclosure(false);
   const connectedDbNames = useMemo(() => {
     const { dataSources } = useAppStore.getState();
     const names = new Set<string>();
@@ -36,8 +41,8 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
   }, []);
 
   const isAttachDisabled = useMemo(
-    () => selectedSet.size === 0 || attachLoading || loading,
-    [selectedSet, attachLoading, loading],
+    () => !selectedSecretId || selectedSet.size === 0 || attachLoading || loading,
+    [selectedSecretId, selectedSet, attachLoading, loading],
   );
 
   const loadMotherDuckList = async () => {
@@ -45,38 +50,54 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
       showError({ title: 'App not ready', message: 'Please wait for the app to initialize' });
       return;
     }
+
+    if (!selectedSecretId) {
+      showError({ title: 'No token selected', message: 'Please select a MotherDuck token first' });
+      return;
+    }
+
     setLoading(true);
     try {
+      // Apply the selected secret to set the token
+
+      // Apply the selected secret to set the token
+      await SecretsAPI.applySecretToConnection({
+        connection_id: 'motherduck_list', // Temporary connection ID for listing
+        secret_id: selectedSecretId,
+      });
+      // Secret applied successfully
+
       // Use a single connection for all steps to avoid per-connection ATTACH issues
       const conn = await pool.acquire();
+      // Connection acquired
       try {
         // Ensure extension is available on this connection
         try {
           await conn.execute('INSTALL motherduck');
         } catch (e) {
-          console.warn('[MotherDuck] Failed to install motherduck extension:', e);
+          // Failed to install motherduck extension - might already be installed
         }
         try {
           await conn.execute('LOAD motherduck');
         } catch (e) {
-          console.warn('[MotherDuck] Failed to load motherduck extension:', e);
+          // Failed to load motherduck extension - continue anyway
           // Continue anyway; subsequent statements will error with a clearer message if needed
         }
 
         // Attach default context first to populate md_information_schema
         try {
           await conn.execute("ATTACH 'md:'");
+          // Default context attached
         } catch (e) {
-          console.warn(
-            '[MotherDuck] Failed to attach default context, likely already attached:',
-            e,
-          );
+          // Failed to attach default context, likely already attached
           // Ignore duplicates / already attached errors
         }
 
+        // Querying database list
         const result = await conn.execute(
           'SELECT name FROM md_information_schema.databases ORDER BY name',
         );
+        // Query result received
         const options = result.rows.map((r: any) => r.name as string).filter(Boolean);
         setDbs(options);
         // Preselect those not already connected
@@ -88,6 +109,7 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
         await pool.release(conn);
       }
     } catch (error) {
+      // Failed to list databases
       const msg = error instanceof Error ? error.message : 'An unexpected error occurred';
       showError({ title: 'Failed to list MotherDuck databases', message: msg });
     } finally {
@@ -96,10 +118,12 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
   };
 
   useEffect(() => {
-    // Load on first mount
-    loadMotherDuckList();
+    // Load databases when a secret is selected
+    if (selectedSecretId) {
+      loadMotherDuckList();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedSecretId]);
 
   const handleAttach = async () => {
     if (!pool) {
@@ -107,8 +131,19 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
       return;
     }
     if (selectedSet.size === 0) return;
+
+    if (!selectedSecretId) {
+      showError({ title: 'No token selected', message: 'Please select a MotherDuck token first' });
+      return;
+    }
+
     setAttachLoading(true);
     try {
+      // Apply the selected secret to set the token
+      await SecretsAPI.applySecretToConnection({
+        connection_id: 'motherduck_attach',
+        secret_id: selectedSecretId,
+      });
       const namesToAttach = Array.from(selectedSet).filter((n) => !connectedDbNames.has(n));
       if (namesToAttach.length === 0) {
         showSuccess({ title: 'No action', message: 'Selected databases are already connected' });
@@ -125,13 +160,13 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
         try {
           await conn.execute('LOAD motherduck');
         } catch (e) {
-          console.warn('[MotherDuck] Failed to load extension in handleAttach:', e);
+          // Failed to load extension in handleAttach
         }
         // Ensure context attached for info schema (ignore if fails)
         try {
           await conn.execute(`ATTACH ${quote('md:', { single: true })}`);
         } catch (e) {
-          console.warn('[MotherDuck] Failed to attach default context in handleAttach:', e);
+          // Failed to attach default context in handleAttach
         }
         for (const dbName of namesToAttach) {
           const url = `md:${dbName}`;
@@ -204,7 +239,7 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
           'DatasourceWizard/addMotherDuckDatabases',
         );
       } catch (e) {
-        console.error('[MotherDuck] Failed to load database metadata:', e);
+        // Failed to load database metadata
         useAppStore.setState(
           { dataSources: newDataSources },
           false,
@@ -232,18 +267,20 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
   return (
     <Stack gap={16}>
       <Text size="sm" c="text-secondary" className="pl-4">
-        Sign in to MotherDuck via your environment token, then select a database to attach
+        Select a saved MotherDuck token, then choose databases to attach
       </Text>
 
-      <Alert
-        icon={<IconAlertCircle size={16} />}
-        color="background-accent"
-        className="text-sm"
-        classNames={{ icon: 'mr-1' }}
-      >
-        We will list databases from md_information_schema.databases. Make sure MOTHERDUCK_TOKEN is
-        set.
-      </Alert>
+      <MotherDuckSecretSelector
+        selectedSecretId={selectedSecretId}
+        onSecretSelect={setSelectedSecretId}
+        onCreateNew={() => {
+          // Navigate to secrets manager or open create token modal
+          showError({
+            title: 'Create token',
+            message: 'Please create a MotherDuck token in the Secrets Manager first',
+          });
+        }}
+      />
 
       <Stack gap={12}>
         <Group>
@@ -252,6 +289,7 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
             color="background-accent"
             onClick={loadMotherDuckList}
             loading={loading}
+            disabled={!selectedSecretId}
           >
             {loading ? 'Refreshing…' : 'Refresh list'}
           </Button>

@@ -21,6 +21,7 @@ import { useNavigate } from 'react-router-dom';
 import { AISettings } from './components/ai-settings';
 import { EditorSettings } from './components/editor-settings';
 import { ExtensionSettings } from './components/extension-settings';
+import { SecretsSettings } from './components/secrets-settings';
 import { ThemeSwitcher } from './components/theme-switcher';
 
 export const SettingsPage = () => {
@@ -94,6 +95,8 @@ export const SettingsPage = () => {
           <EditorSettings />
           <Divider />
           <ExtensionSettings />
+          <Divider />
+          <SecretsSettings />
           <Divider />
           <Stack className="gap-8">
             <Title c="text-primary" order={2}>

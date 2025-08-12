@@ -1,5 +1,6 @@
 import { DndOverlay } from '@components/dnd-overlay';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useMenuEvents } from '@hooks/use-menu-events';
 import { Stack, ActionIcon, Tooltip } from '@mantine/core';
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
@@ -15,6 +16,7 @@ interface TauriLayoutProps {
 
 export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
   const { handleFileDrop } = useAddLocalFilesOrFolders();
+  useMenuEvents(); // Handle menu events from Tauri
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     const stored = localStorage.getItem(LOCAL_STORAGE_KEYS.SIDEBAR_COLLAPSED);
     return stored ? JSON.parse(stored) : false;

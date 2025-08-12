@@ -7,12 +7,16 @@ mod database;
 mod persistence;
 mod errors;
 mod platform;
+mod secrets;
 mod streaming;
 mod system_resources;
 mod startup_checks;
+mod menu;
+mod windows;
 
 use database::{DuckDBEngine, EngineConfig};
 use persistence::PersistenceState;
+use secrets::SecretsManager;
 use streaming::StreamManager;
 use std::sync::Arc;
 use tauri::{Manager, Listener};
@@ -130,10 +134,35 @@ fn main() {
             // Create stream manager
             let stream_manager = Arc::new(StreamManager::new());
             
+            // Create secrets manager with graceful degradation
+            let secrets_manager = match SecretsManager::new() {
+                Ok(manager) => {
+                    tracing::info!("[STARTUP] Secrets manager initialized successfully");
+                    manager
+                },
+                Err(e) => {
+                    tracing::warn!("[STARTUP] Failed to initialize secrets manager: {}", e);
+                    tracing::warn!("[STARTUP] Application will continue with limited functionality");
+                    tracing::warn!("[STARTUP] Secrets management features will be unavailable");
+                    // Create a dummy manager that returns errors for all operations
+                    SecretsManager::new_disabled()
+                }
+            };
+            
             // Store all in app state
             app.manage(engine);
             app.manage(persistence);
             app.manage(stream_manager);
+            app.manage(secrets_manager);
+            
+            // Set up menu (macOS primarily)
+            let menu = menu::create_menu(&app.handle())
+                .expect("Failed to create menu");
+            app.set_menu(menu)
+                .expect("Failed to set menu");
+            
+            // Set up menu event handlers
+            menu::setup_menu_handlers(&app.handle());
             
             // Get the main window
             let window = app.get_webview_window("main").unwrap();
@@ -201,6 +230,21 @@ fn main() {
             persistence::sqlite_delete,
             persistence::sqlite_clear,
             persistence::sqlite_get_all,
+            // Secrets management commands
+            secrets::save_secret,
+            secrets::list_secrets,
+            secrets::get_secret,
+            secrets::delete_secret,
+            secrets::update_secret,
+            secrets::test_secret,
+            secrets::apply_secret_to_connection,
+            secrets::get_secret_types,
+            secrets::debug_secret,
+            secrets::cleanup_orphaned_secrets,
+            // Window management commands
+            windows::open_secrets_window,
+            windows::close_secrets_window,
+            windows::focus_main_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
