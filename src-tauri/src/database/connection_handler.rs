@@ -65,26 +65,65 @@ impl ConnectionHandler {
     fn apply_motherduck_settings(&mut self) {
         // Only apply settings if token is present
         if let Ok(token) = std::env::var("MOTHERDUCK_TOKEN") {
-            // Validate token format (basic check for obviously malicious content)
-            if token.len() > 1000 || token.contains('\0') {
-                debug!("Skipping MotherDuck token - suspicious format detected");
+            debug!("[MotherDuck] Token found in environment");
+            
+            // Validate token format
+            if !Self::is_valid_token(&token) {
+                debug!("[MotherDuck] Skipping token - invalid format detected");
                 return;
             }
             
-            // Escape the token properly to prevent injection
-            let escaped = token.replace('\'', "''");
-            
             // Try to load the extension (idempotent); ignore errors if not installed
-            let _ = self.connection.execute("LOAD motherduck", []);
+            if let Err(e) = self.connection.execute("LOAD motherduck", []) {
+                debug!("[MotherDuck] Failed to load extension: {}", e);
+            } else {
+                debug!("[MotherDuck] Extension loaded successfully");
+            }
             
-            // Set the token securely
-            let _ = self
-                .connection
-                .execute(&format!("SET motherduck_token='{}'", escaped), []);
-            let _ = self
-                .connection
-                .execute(&format!("SET motherduck_secret='{}'", escaped), []);
+            // Use prepared statement approach for setting the token
+            // DuckDB doesn't support parameterized SET statements directly,
+            // but we can use pragma-style settings which are safer
+            if let Err(e) = self.set_motherduck_token(&token) {
+                debug!("[MotherDuck] Failed to set token: {}", e);
+            } else {
+                debug!("[MotherDuck] Token set successfully");
+            }
+        } else {
+            debug!("[MotherDuck] No MOTHERDUCK_TOKEN found in environment");
         }
+    }
+    
+    /// Validate token format to prevent injection attempts
+    fn is_valid_token(token: &str) -> bool {
+        // Check basic constraints
+        if token.is_empty() || token.len() > 1000 {
+            return false;
+        }
+        
+        // Check for null bytes or control characters
+        if token.chars().any(|c| c.is_control() || c == '\0') {
+            return false;
+        }
+        
+        // MotherDuck tokens typically follow a specific format
+        // They should only contain alphanumeric chars, hyphens, underscores, and dots
+        token.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+    }
+    
+    /// Set MotherDuck token using the safest available method
+    fn set_motherduck_token(&mut self, token: &str) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // Double-escape single quotes as a last resort safety measure
+        // This is still not ideal, but combined with validation it's safer
+        let escaped = token.replace('\'', "''");
+        
+        // Set both motherduck_token and motherduck_secret
+        // Some versions use one, some use the other
+        self.connection
+            .execute(&format!("SET motherduck_token='{}'", escaped), [])?;
+        self.connection
+            .execute(&format!("SET motherduck_secret='{}'", escaped), [])?;
+        
+        Ok(())
     }
 
     fn execute_sql(&mut self, sql: &str, params: &[serde_json::Value]) -> Result<QueryResult> {

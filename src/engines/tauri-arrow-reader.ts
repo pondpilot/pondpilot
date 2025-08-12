@@ -125,12 +125,12 @@ export class TauriArrowReader {
 
     switch (event.message_type) {
       case 'schema':
-        console.log(`[TauriArrowReader] Received schema (${data.byteLength} bytes)`);
+        // Received schema
         this.schemaBuffer = data;
         break;
 
       case 'batch':
-        console.log(`[TauriArrowReader] Received batch (${data.byteLength} bytes)`);
+        // Received batch
         this.batches.push(data);
 
         // Process the batch if we have the schema
@@ -141,7 +141,8 @@ export class TauriArrowReader {
             const table = tableFromIPC(ipcBuffer);
 
             // Assign unique ID to this batch
-            const batchId = this.batchCounter++;
+            const batchId = this.batchCounter;
+            this.batchCounter += 1;
 
             // Queue for async iterator with ack metadata
             let ackedNow = false;
@@ -150,7 +151,7 @@ export class TauriArrowReader {
               if (!this.acknowledgedBatches.has(batchId)) {
                 invoke('acknowledge_stream_batch', {
                   streamId: this.streamId,
-                  batchIndex: this.batches.length,
+                  batchIndex: batchId,
                 }).catch((err) => {
                   console.warn('[TauriArrowReader] Failed to acknowledge batch:', err);
                 });
@@ -165,7 +166,7 @@ export class TauriArrowReader {
               if (!this.acknowledgedBatches.has(batchId)) {
                 invoke('acknowledge_stream_batch', {
                   streamId: this.streamId,
-                  batchIndex: this.batches.length,
+                  batchIndex: batchId,
                 }).catch((err) => {
                   console.warn('[TauriArrowReader] Failed to acknowledge batch:', err);
                 });
@@ -186,7 +187,7 @@ export class TauriArrowReader {
                 if (!nextItem.acked && !this.acknowledgedBatches.has(nextItem.batchId)) {
                   invoke('acknowledge_stream_batch', {
                     streamId: this.streamId,
-                    batchIndex: this.batches.length,
+                    batchIndex: nextItem.batchId,
                   }).catch((err) => {
                     console.warn('[TauriArrowReader] Failed to acknowledge consumed batch:', err);
                   });
@@ -222,14 +223,14 @@ export class TauriArrowReader {
         }
         break;
 
-      case 'complete':
+      case 'complete': {
         // Extract batch count from the data (little-endian)
         const batchCount =
           data.length >= 4
             ? new DataView(data.buffer, data.byteOffset, data.byteLength).getUint32(0, true)
             : this.batches.length;
 
-        console.log(`[TauriArrowReader] Stream complete with ${batchCount} batches`);
+        // Stream complete
         this.isComplete = true;
 
         // Resolve any waiting next() call only if queue is empty
@@ -244,10 +245,11 @@ export class TauriArrowReader {
         // Safe to clean up listeners; no more events will arrive
         this.cleanup();
         break;
+      }
 
-      case 'error':
+      case 'error': {
         const errorMessage = new TextDecoder().decode(data);
-        console.error(`[TauriArrowReader] Stream error: ${errorMessage}`);
+        // Stream error occurred
         this.error = new Error(errorMessage);
         this.isClosed = true;
 
@@ -262,6 +264,7 @@ export class TauriArrowReader {
         }
         this.cleanup();
         break;
+      }
     }
   }
 
@@ -311,14 +314,15 @@ export class TauriArrowReader {
     // Switch to unbounded prefetch to allow backend to stream to completion
     this.ackAllOnArrival = true;
     // Acknowledge any queued, unacknowledged batches immediately
-    for (const item of this.batchQueue) {
-      if (!item.acked) {
+    for (const [index, item] of this.batchQueue.entries()) {
+      if (!item.acked && !this.acknowledgedBatches.has(item.batchId)) {
         invoke('acknowledge_stream_batch', {
           streamId: this.streamId,
-          batchIndex,
+          batchIndex: item.batchId,
         }).catch((err) => {
           console.warn('[TauriArrowReader] Failed to acknowledge queued batch:', err);
         });
+        this.acknowledgedBatches.add(item.batchId);
         item.acked = true;
       }
     }
@@ -425,7 +429,7 @@ export class TauriArrowReader {
         // Acknowledge batch consumption to open a slot in the backend window
         invoke('acknowledge_stream_batch', {
           streamId: this.streamId,
-          batchIndex,
+          batchIndex: item.batchId,
         }).catch((err) => {
           console.warn('[TauriArrowReader] Failed to acknowledge consumed batch:', err);
         });

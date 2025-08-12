@@ -1,3 +1,4 @@
+import { isTauriEnvironment } from '@utils/browser';
 import { useEffect, useState } from 'react';
 import { v4 } from 'uuid';
 
@@ -11,12 +12,18 @@ interface TabCoordinationMessage {
 
 /**
  * Hook for coordinating tabs using BroadcastChannel API
+ * In Tauri, multiple windows are allowed as they share the same backend
  */
 export const useTabCoordination = (): boolean => {
   const [isTabBlocked, setIsTabBlocked] = useState(false);
   const [tabId] = useState(() => `tab-${v4()}`);
 
   useEffect(() => {
+    // In Tauri, multiple windows are allowed as they share the same Rust backend
+    if (isTauriEnvironment()) {
+      return;
+    }
+
     if (typeof BroadcastChannel === 'undefined') {
       return;
     }
