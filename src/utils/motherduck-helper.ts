@@ -2,6 +2,7 @@ import { ConnectionPool } from '@engines/types';
 import { RemoteDB } from '@models/data-source';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { quote } from '@utils/helpers';
+import { isMotherDuckUrl } from '@utils/url-helpers';
 
 /**
  * Common MotherDuck attachment logic
@@ -14,7 +15,7 @@ export async function attachMotherDuckDatabase(
   dbNameOrUrl: string,
 ): Promise<{ dbName: string; remoteDb: RemoteDB }> {
   // Determine if we have a full URL or just a database name
-  const isFullUrl = dbNameOrUrl.trim().toLowerCase().startsWith('md:');
+  const isFullUrl = isMotherDuckUrl(dbNameOrUrl);
   const url = isFullUrl ? dbNameOrUrl.trim() : `md:${dbNameOrUrl}`;
   const dbName = isFullUrl ? dbNameOrUrl.trim().slice(3) : dbNameOrUrl;
 
@@ -36,6 +37,9 @@ export async function attachMotherDuckDatabase(
     dbType: 'duckdb' as const,
     connectionState: 'connecting',
     attachedAt: Date.now(),
+    // For MotherDuck databases attached via direct URL, we don't have the secret name
+    // so we use 'default' to group them together
+    instanceName: 'default',
   };
 
   // For MotherDuck, we need to use the special syntax without an alias

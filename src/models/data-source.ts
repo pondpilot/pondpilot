@@ -148,6 +148,12 @@ export interface RemoteDB {
   dbName: string;
 
   /**
+   * Original database name before aliasing (for conflict resolution)
+   * Only set if the database had to be aliased due to naming conflicts
+   */
+  originalDbName?: string;
+
+  /**
    * Type of the database
    * Note: Remote databases only support DuckDB currently
    */
@@ -172,6 +178,19 @@ export interface RemoteDB {
    * Optional comment/description
    */
   comment?: string;
+
+  /**
+   * Instance name for grouping (e.g., credential name for MotherDuck)
+   * Used to distinguish between different instances of the same service
+   * This is the display name and may change when the secret is renamed
+   */
+  instanceName?: string;
+
+  /**
+   * Stable instance identifier (e.g., secret UUID for MotherDuck databases)
+   * Used for grouping and persistence, won't change even if secret is renamed
+   */
+  instanceId?: string;
 }
 
 export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB;

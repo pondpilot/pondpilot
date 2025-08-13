@@ -1,19 +1,16 @@
-import { showError, showSuccess } from '@components/app-notifications';
-import { persistPutDataSources } from '@controllers/data-source/persist';
-import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { showError } from '@components/app-notifications';
 import { ConnectionPool } from '@engines/types';
-import { Button, Group, Loader, Stack, Text, Checkbox, ScrollArea } from '@mantine/core';
+import { Button, Group, Loader, Stack, Text, ScrollArea, Checkbox, Alert } from '@mantine/core';
 import { useInputState, useDisclosure } from '@mantine/hooks';
-import { RemoteDB } from '@models/data-source';
 import { useAppStore } from '@store/app-store';
-import { makePersistentDataSourceId } from '@utils/data-source';
-import { quote } from '@utils/helpers';
-import { MOTHERDUCK_CONSTANTS } from '@utils/motherduck-helper';
+import { IconInfoCircle } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { useEffect, useMemo, useState } from 'react';
+import { isMotherDuckUrl } from '@utils/url-helpers';
+import { useMemo, useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 
 import { MotherDuckSecretSelector } from './motherduck-secret-selector';
-import { SecretsAPI } from '../../../services/secrets-api';
+import { useMotherDuckConfig } from '../hooks/use-motherduck-config';
 
 interface MotherDuckDatabaseConfigProps {
   pool: ConnectionPool | null;
@@ -21,248 +18,152 @@ interface MotherDuckDatabaseConfigProps {
   onClose: () => void;
 }
 
-export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDatabaseConfigProps) {
-  const [dbs, setDbs] = useState<string[]>([]);
-  const [selectedSet, setSelectedSet] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
-  const [attachLoading, setAttachLoading] = useState(false);
+function MotherDuckDatabaseConfigInner({ pool, onBack, onClose }: MotherDuckDatabaseConfigProps) {
+  const {
+    dbs,
+    selectedSet,
+    setSelectedSet,
+    loading,
+    attachLoading,
+    selectedSecretId,
+    setSelectedSecretId,
+    selectedSecretName,
+    setSelectedSecretName,
+    loadMotherDuckList,
+    handleAttach: handleAttachInternal,
+    getConnectedDbNamesForInstance,
+  } = useMotherDuckConfig(pool);
+
   const [_selectedDb, setSelectedDb] = useInputState('');
-  const [readOnly, setReadOnly] = useState(true);
-  const [selectedSecretId, setSelectedSecretId] = useState<string | null>(null);
   const [createTokenModalOpened, { open: openCreateToken, close: closeCreateToken }] =
     useDisclosure(false);
-  const connectedDbNames = useMemo(() => {
+
+  // Check if there's already a MotherDuck connection - do this immediately
+  const checkExistingMotherDuck = () => {
     const { dataSources } = useAppStore.getState();
-    const names = new Set<string>();
     for (const ds of dataSources.values()) {
-      if (ds.type === 'remote-db') names.add((ds as RemoteDB).dbName);
+      if (ds.type === 'remote-db' && isMotherDuckUrl(ds.url)) {
+        return { exists: true, name: ds.instanceName || 'MotherDuck' };
+      }
     }
-    return names;
-  }, []);
+    return { exists: false, name: '' };
+  };
+
+  const existingCheck = checkExistingMotherDuck();
+  const [hasExistingMotherDuck] = useState(existingCheck.exists);
+  const [existingInstanceName] = useState(existingCheck.name);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(existingCheck.exists);
+  const [isRestarting, setIsRestarting] = useState(false);
 
   const isAttachDisabled = useMemo(
     () => !selectedSecretId || selectedSet.size === 0 || attachLoading || loading,
     [selectedSecretId, selectedSet, attachLoading, loading],
   );
 
-  const loadMotherDuckList = async () => {
-    if (!pool) {
-      showError({ title: 'App not ready', message: 'Please wait for the app to initialize' });
-      return;
-    }
-
-    if (!selectedSecretId) {
-      showError({ title: 'No token selected', message: 'Please select a MotherDuck token first' });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Apply the selected secret to set the token
-
-      // Apply the selected secret to set the token
-      await SecretsAPI.applySecretToConnection({
-        connection_id: 'motherduck_list', // Temporary connection ID for listing
-        secret_id: selectedSecretId,
-      });
-      // Secret applied successfully
-
-      // Use a single connection for all steps to avoid per-connection ATTACH issues
-      const conn = await pool.acquire();
-      // Connection acquired
-      try {
-        // Ensure extension is available on this connection
-        try {
-          await conn.execute('INSTALL motherduck');
-        } catch (e) {
-          // Failed to install motherduck extension - might already be installed
-        }
-        try {
-          await conn.execute('LOAD motherduck');
-        } catch (e) {
-          // Failed to load motherduck extension - continue anyway
-          // Continue anyway; subsequent statements will error with a clearer message if needed
-        }
-
-        // Attach default context first to populate md_information_schema
-        try {
-          await conn.execute("ATTACH 'md:'");
-          // Default context attached
-        } catch (e) {
-          // Failed to attach default context, likely already attached
-          // Ignore duplicates / already attached errors
-        }
-
-        // Querying database list
-        const result = await conn.execute(
-          'SELECT name FROM md_information_schema.databases ORDER BY name',
-        );
-        // Query result received
-        const options = result.rows.map((r: any) => r.name as string).filter(Boolean);
-        setDbs(options);
-        // Preselect those not already connected
-        const initial = new Set<string>();
-        for (const name of options) if (!connectedDbNames.has(name)) initial.add(name);
-        setSelectedSet(initial);
-        if (options.length > 0) setSelectedDb(options[0]);
-      } finally {
-        await pool.release(conn);
-      }
-    } catch (error) {
-      // Failed to list databases
-      const msg = error instanceof Error ? error.message : 'An unexpected error occurred';
-      showError({ title: 'Failed to list MotherDuck databases', message: msg });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    // Load databases when a secret is selected
-    if (selectedSecretId) {
-      loadMotherDuckList();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSecretId]);
-
   const handleAttach = async () => {
-    if (!pool) {
-      showError({ title: 'App not ready', message: 'Please wait for the app to initialize' });
-      return;
-    }
-    if (selectedSet.size === 0) return;
-
-    if (!selectedSecretId) {
-      showError({ title: 'No token selected', message: 'Please select a MotherDuck token first' });
-      return;
-    }
-
-    setAttachLoading(true);
-    try {
-      // Apply the selected secret to set the token
-      await SecretsAPI.applySecretToConnection({
-        connection_id: 'motherduck_attach',
-        secret_id: selectedSecretId,
-      });
-      const namesToAttach = Array.from(selectedSet).filter((n) => !connectedDbNames.has(n));
-      if (namesToAttach.length === 0) {
-        showSuccess({ title: 'No action', message: 'Selected databases are already connected' });
-        return;
-      }
-
-      const { dataSources, databaseMetadata } = useAppStore.getState();
-      const newDataSources = new Map(dataSources);
-      const attachedNames: string[] = [];
-
-      // Use single connection for attach + verification
-      const conn = await pool.acquire();
-      try {
-        try {
-          await conn.execute('LOAD motherduck');
-        } catch (e) {
-          // Failed to load extension in handleAttach
-        }
-        // Ensure context attached for info schema (ignore if fails)
-        try {
-          await conn.execute(`ATTACH ${quote('md:', { single: true })}`);
-        } catch (e) {
-          // Failed to attach default context in handleAttach
-        }
-        for (const dbName of namesToAttach) {
-          const url = `md:${dbName}`;
-          // Skip attach if already present on this connection
-          const exists = await conn
-            .execute(
-              `SELECT database_name FROM duckdb_databases WHERE database_name = ${quote(dbName, { single: true })}`,
-            )
-            .then((r: any) => !!(r && (r.rowCount || r.rows?.length)))
-            .catch(() => false);
-          if (!exists) {
-            try {
-              await conn.execute(`ATTACH ${quote(url, { single: true })}`);
-            } catch (e: any) {
-              const msg = String(e?.message || e);
-              if (
-                !/already in use|already attached|Unique file handle conflict|already exists/i.test(
-                  msg,
-                )
-              ) {
-                throw e;
-              }
-            }
-          }
-          // Verify
-          let ok = false;
-          for (let i = 0; i < MOTHERDUCK_CONSTANTS.MAX_VERIFICATION_ATTEMPTS; i += 1) {
-            const r = await conn.execute(
-              `SELECT database_name FROM duckdb_databases WHERE database_name = ${quote(dbName, { single: true })}`,
-            );
-            if (r && (r.rowCount || r.rows?.length)) {
-              ok = true;
-              break;
-            }
-            await new Promise((res) =>
-              setTimeout(res, MOTHERDUCK_CONSTANTS.CATALOG_VERIFICATION_DELAY_MS),
-            );
-          }
-          if (!ok) throw new Error(`Attached database '${dbName}' not visible in catalog`);
-          attachedNames.push(dbName);
-        }
-      } finally {
-        await pool.release(conn);
-      }
-
-      // Update store and load metadata for all
-      const created: any[] = [];
-      for (const name of attachedNames) {
-        const rdb = {
-          type: 'remote-db' as const,
-          id: makePersistentDataSourceId(),
-          url: `md:${name}`,
-          dbName: name,
-          dbType: 'duckdb' as const,
-          connectionState: 'connected' as const,
-          attachedAt: Date.now(),
-        };
-        newDataSources.set(rdb.id, rdb);
-        created.push(rdb);
-      }
-      try {
-        const remoteMetadata = await getDatabaseModel(pool, attachedNames);
-        const newMetadata = new Map(databaseMetadata);
-        for (const [remoteDbName, dbModel] of remoteMetadata) {
-          newMetadata.set(remoteDbName, dbModel);
-        }
-        useAppStore.setState(
-          { dataSources: newDataSources, databaseMetadata: newMetadata },
-          false,
-          'DatasourceWizard/addMotherDuckDatabases',
-        );
-      } catch (e) {
-        // Failed to load database metadata
-        useAppStore.setState(
-          { dataSources: newDataSources },
-          false,
-          'DatasourceWizard/addMotherDuckDatabases',
-        );
-      }
-
-      const { _iDbConn, _persistenceAdapter } = useAppStore.getState();
-      const persistTarget = _persistenceAdapter || _iDbConn;
-      if (persistTarget && created.length) await persistPutDataSources(persistTarget, created);
-
-      showSuccess({
-        title: 'Databases added',
-        message: `Attached ${attachedNames.length} MotherDuck DB(s)`,
-      });
+    const success = await handleAttachInternal();
+    if (success) {
       onClose();
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'An unexpected error occurred';
-      showError({ title: 'Failed to attach database', message: msg });
-    } finally {
-      setAttachLoading(false);
     }
   };
+
+  const handleDisconnectAndRestart = async () => {
+    setIsRestarting(true);
+
+    // Remove all MotherDuck data sources
+    const { dataSources, _persistenceAdapter, _iDbConn } = useAppStore.getState();
+    const { persistDeleteDataSource } = await import('@controllers/data-source/persist');
+
+    const motherDuckIds: any[] = [];
+    for (const [id, ds] of dataSources) {
+      if (ds.type === 'remote-db' && isMotherDuckUrl(ds.url)) {
+        motherDuckIds.push(id);
+      }
+    }
+
+    // Remove from persistence
+    const persistTarget = _persistenceAdapter || _iDbConn;
+    if (persistTarget && motherDuckIds.length > 0) {
+      try {
+        await persistDeleteDataSource(persistTarget, motherDuckIds, []);
+      } catch (e) {
+        console.error('Failed to remove MotherDuck from persistence:', e);
+      }
+    }
+
+    // Remove from store
+    const newDataSources = new Map(dataSources);
+    for (const id of motherDuckIds) {
+      newDataSources.delete(id);
+    }
+    useAppStore.setState({ dataSources: newDataSources }, false, 'MotherDuck/disconnect');
+
+    // Reload the app to get a fresh start with clean DuckDB state
+    window.location.reload();
+  };
+
+  // If we're in the process of restarting, show a loading state
+  if (isRestarting) {
+    return (
+      <Stack gap={16} align="center" className="py-8">
+        <Loader size="lg" />
+        <Text size="sm" c="text-secondary">
+          Disconnecting existing MotherDuck connection and restarting...
+        </Text>
+      </Stack>
+    );
+  }
+
+  // If there's an existing connection, show the confirmation content inline
+  if (hasExistingMotherDuck && showConfirmDialog) {
+    return (
+      <Stack gap={16}>
+        <Alert icon={<IconInfoCircle size={16} />} color="blue">
+          <Text size="sm">
+            You currently have a MotherDuck connection active for{' '}
+            <strong>{existingInstanceName}</strong>.
+          </Text>
+        </Alert>
+
+        <Text size="sm">
+          Due to how DuckDB manages MotherDuck authentication, only one MotherDuck account can be
+          connected at a time. To connect to a different account, we need to:
+        </Text>
+
+        <Stack gap={8} className="pl-4">
+          <Text size="sm">1. Disconnect the current MotherDuck connection</Text>
+          <Text size="sm">2. Restart the application to clear the authentication state</Text>
+          <Text size="sm">3. Allow you to connect to the new account after restart</Text>
+        </Stack>
+
+        <Text size="sm" c="text-secondary">
+          This is a technical limitation that ensures your MotherDuck credentials are properly
+          isolated between accounts.
+        </Text>
+
+        <Group justify="end" mt="md">
+          <Button
+            variant="default"
+            onClick={() => {
+              setShowConfirmDialog(false);
+              onBack();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="blue"
+            onClick={() => {
+              setShowConfirmDialog(false);
+              handleDisconnectAndRestart();
+            }}
+          >
+            Continue and Restart
+          </Button>
+        </Group>
+      </Stack>
+    );
+  }
 
   return (
     <Stack gap={16}>
@@ -272,7 +173,10 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
 
       <MotherDuckSecretSelector
         selectedSecretId={selectedSecretId}
-        onSecretSelect={setSelectedSecretId}
+        onSecretSelect={(id, name) => {
+          setSelectedSecretId(id);
+          setSelectedSecretName(name);
+        }}
         onCreateNew={() => {
           // Navigate to secrets manager or open create token modal
           showError({
@@ -301,34 +205,33 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
         <ScrollArea h={200} offsetScrollbars>
           <Stack gap={6} className="pl-4 pr-2">
             {dbs.length === 0 && !loading && <Text size="sm">No databases found</Text>}
-            {dbs.map((name) => {
-              const disabled = connectedDbNames.has(name);
-              const checked = selectedSet.has(name) && !disabled;
-              return (
-                <Checkbox
-                  key={name}
-                  label={name}
-                  checked={checked}
-                  onChange={(e) => {
-                    const next = new Set(selectedSet);
-                    if (e.currentTarget.checked) next.add(name);
-                    else next.delete(name);
-                    setSelectedSet(next);
-                    setSelectedDb(name);
-                  }}
-                  disabled={disabled}
-                />
+            {(() => {
+              const connectedForThisInstance = getConnectedDbNamesForInstance(
+                selectedSecretId || undefined,
+                selectedSecretName,
               );
-            })}
+              return dbs.map((name) => {
+                const disabled = connectedForThisInstance.has(name);
+                const checked = selectedSet.has(name) && !disabled;
+                return (
+                  <Checkbox
+                    key={name}
+                    label={name}
+                    checked={checked}
+                    onChange={(e) => {
+                      const next = new Set(selectedSet);
+                      if (e.currentTarget.checked) next.add(name);
+                      else next.delete(name);
+                      setSelectedSet(next);
+                      setSelectedDb(name);
+                    }}
+                    disabled={disabled}
+                  />
+                );
+              });
+            })()}
           </Stack>
         </ScrollArea>
-
-        <Checkbox
-          label="Read-only access (Recommended)"
-          checked={readOnly}
-          onChange={(e) => setReadOnly(e.currentTarget.checked)}
-          className="pl-4"
-        />
       </Stack>
 
       <Group justify="end" className="mt-4">
@@ -346,5 +249,35 @@ export function MotherDuckDatabaseConfig({ pool, onBack, onClose }: MotherDuckDa
         </Button>
       </Group>
     </Stack>
+  );
+}
+
+function ErrorFallback({
+  error,
+  resetErrorBoundary,
+}: {
+  error: Error;
+  resetErrorBoundary: () => void;
+}) {
+  return (
+    <Stack gap={16} className="p-4">
+      <Text size="sm" c="red">
+        An error occurred while configuring MotherDuck databases
+      </Text>
+      <Text size="xs" c="text-secondary">
+        {error.message}
+      </Text>
+      <Button onClick={resetErrorBoundary} variant="light" size="sm">
+        Try Again
+      </Button>
+    </Stack>
+  );
+}
+
+export function MotherDuckDatabaseConfig(props: MotherDuckDatabaseConfigProps) {
+  return (
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <MotherDuckDatabaseConfigInner {...props} />
+    </ErrorBoundary>
   );
 }

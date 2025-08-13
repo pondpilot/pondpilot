@@ -432,6 +432,13 @@ impl DuckDBEngine {
             .close_connection(connection_id)
             .await
     }
+    
+    /// Reset all connections (useful for MotherDuck account switching)
+    pub async fn reset_all_connections(&self) -> Result<()> {
+        self.connection_manager
+            .reset_all_connections()
+            .await
+    }
 
     pub async fn get_catalog(&self) -> Result<CatalogInfo> {
         let databases = self.get_databases().await?;
