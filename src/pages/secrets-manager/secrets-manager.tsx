@@ -130,18 +130,28 @@ export function SecretsManager() {
     try {
       if (editingSecret) {
         await invoke('update_secret', {
-          secret_id: editingSecret.id,
-          name: formData.name,
-          fields: {
-            key_id: formData.key_id,
-            secret: formData.secret,
-            region: formData.region,
-            session_token: formData.session_token,
-            endpoint: formData.endpoint,
-            account_name: formData.account_name,
-            token: formData.token,
+          request: {
+            secret_id: editingSecret.id,
+            name: formData.name,
+            fields: {
+              key_id: formData.key_id,
+              secret: formData.secret,
+              region: formData.region,
+              session_token: formData.session_token,
+              endpoint: formData.endpoint,
+              account_name: formData.account_name,
+              token: formData.token,
+              host: formData.host,
+              port: formData.port,
+              database: formData.database,
+              username: formData.username,
+              password: formData.password,
+              bearer_token: formData.bearer_token,
+              basic_username: formData.basic_username,
+              basic_password: formData.basic_password,
+            },
+            tags: [],
           },
-          tags: [],
         });
         notifications.show({
           title: 'Success',

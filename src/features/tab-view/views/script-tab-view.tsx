@@ -350,50 +350,43 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             // Check for remote databases that were attached or detached
             for (const statement of classifiedStatements) {
               if (statement.type === SQLStatement.ATTACH) {
-                // Parse ATTACH statement to extract URL and database name
-                const attachMatch = statement.code.match(
-                  /ATTACH\s+'([^']+)'\s+AS\s+("[^"]+"|\w+)/i,
-                );
-                if (attachMatch) {
-                  let [, url, dbName] = attachMatch as any;
-                  if (dbName.startsWith('"') && dbName.endsWith('"')) {
-                    dbName = dbName.slice(1, -1).replace(/""/g, '"');
-                  }
+                // Parse ATTACH statement to extract URL and database name (safely)
+                const { parseAttachStatement } = await import('@utils/sql-attach');
+                const attachInfo = parseAttachStatement(statement.code);
 
-                  // Check if this is a remote database (not a local file)
-                  if (
-                    url.startsWith('https://') ||
-                    url.startsWith('s3://') ||
-                    url.startsWith('gcs://') ||
-                    url.startsWith('azure://')
-                  ) {
-                    // Check if this database is already registered
-                    const existingDb = Array.from(dataSources.values()).find(
-                      (ds) =>
-                        (ds.type === 'remote-db' && ds.dbName === dbName) ||
-                        (ds.type === 'attached-db' && ds.dbName === dbName),
-                    );
+                if (attachInfo) {
+                  const { url, dbName } = attachInfo;
+                  const { isMotherDuckUrl } = await import('@utils/url-helpers');
 
-                    if (!existingDb) {
-                      // Create RemoteDB entry
-                      const remoteDb: RemoteDB = {
-                        type: 'remote-db',
-                        id: makePersistentDataSourceId(),
-                        url,
-                        dbName,
-                        dbType: 'duckdb',
-                        connectionState: 'connected',
-                        attachedAt: Date.now(),
-                      };
+                  // Check if this database is already registered
+                  const existingDb = Array.from(dataSources.values()).find(
+                    (ds) =>
+                      (ds.type === 'remote-db' && ds.dbName === dbName) ||
+                      (ds.type === 'attached-db' && ds.dbName === dbName),
+                  );
 
-                      updatedDataSources.set(remoteDb.id, remoteDb);
+                  if (!existingDb) {
+                    // Create RemoteDB entry
+                    const remoteDb: RemoteDB = {
+                      type: 'remote-db',
+                      id: makePersistentDataSourceId(),
+                      url,
+                      dbName,
+                      dbType: 'duckdb',
+                      connectionState: 'connected',
+                      attachedAt: Date.now(),
+                      // For MotherDuck databases attached via SQL, we don't have the secret name
+                      // so we use 'default' to group them together
+                      instanceName: isMotherDuckUrl(url) ? 'default' : undefined,
+                    };
 
-                      // Persist (SQLite in Tauri or IndexedDB on web)
-                      const { _iDbConn, _persistenceAdapter } = useAppStore.getState();
-                      const store = (_persistenceAdapter as any) || _iDbConn;
-                      if (store) {
-                        await persistPutDataSources(store, [remoteDb]);
-                      }
+                    updatedDataSources.set(remoteDb.id, remoteDb);
+
+                    // Persist (SQLite in Tauri or IndexedDB on web)
+                    const { _iDbConn, _persistenceAdapter } = useAppStore.getState();
+                    const store = (_persistenceAdapter as any) || _iDbConn;
+                    if (store) {
+                      await persistPutDataSources(store, [remoteDb]);
                     }
                   }
                 }
