@@ -1,7 +1,7 @@
+import { ConnectionPool } from '@engines/types';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 
 import { getDatabaseModel } from '../controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '../features/duckdb-context/duckdb-connection-pool';
 import { DBTableOrView } from '../models/db';
 import {
   SchemaContext,
@@ -23,32 +23,19 @@ export class SchemaContextService {
    * Extract table/view names referenced in SQL statement using DuckDB's parser
    */
   private async extractReferencedTables(
-    conn: AsyncDuckDBConnectionPool,
+    conn: ConnectionPool,
     sqlStatement?: string,
   ): Promise<string[]> {
     if (!sqlStatement) return [];
 
     try {
-      // Use DuckDB's getTableNames API to get accurate table references
-      const pooledConn = await conn.getPooledConnection();
-      try {
-        const tableNames = await pooledConn.getTableNames(sqlStatement);
-
-        // If getTableNames returns empty, fall back to regex
-        if (tableNames.length === 0) {
-          const regexResult = this.extractReferencedTablesRegex(sqlStatement);
-          return regexResult;
-        }
-
-        const normalized = tableNames.map((name: string) => name.toLowerCase());
-        return normalized;
-      } finally {
-        await pooledConn.close();
-      }
-    } catch (error) {
-      // Fallback to regex-based extraction if getTableNames fails
+      // For now, just use regex-based extraction
+      // TODO: Implement getTableNames in connection pool if needed
       const regexResult = this.extractReferencedTablesRegex(sqlStatement);
       return regexResult;
+    } catch (error) {
+      // Fallback to empty array if extraction fails
+      return [];
     }
   }
 
@@ -239,7 +226,7 @@ export class SchemaContextService {
    * 3. Other tables using priority logic
    */
   async generateSchemaContext(
-    conn: AsyncDuckDBConnectionPool,
+    conn: ConnectionPool,
     sqlStatement?: string,
     mentionedTables?: string[],
   ): Promise<SchemaContext> {

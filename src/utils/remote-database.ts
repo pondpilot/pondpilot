@@ -13,6 +13,7 @@ import { useAppStore } from '@store/app-store';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { executeWithRetry } from '@utils/connection-manager';
 import { buildAttachQuery, buildDetachQuery } from '@utils/sql-builder';
+import { isMotherDuckUrl } from '@utils/url-helpers';
 
 // Re-export validation functions from the separate module
 export {
@@ -56,8 +57,22 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
   try {
     updateRemoteDbConnectionState(remoteDb.id, 'connecting');
 
-    // First, re-attach the database with READ_ONLY flag
-    const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly: true });
+    // First, re-attach the database (MotherDuck has special rules for md: URLs)
+    // Ensure MotherDuck extension is available if using md: URL
+    if (isMotherDuckUrl(remoteDb.url)) {
+      try {
+        const { ExtensionLoader } = await import('../services/extension-loader');
+        await ExtensionLoader.installAndLoadExtension(pool, 'motherduck', true);
+      } catch (e) {
+        console.warn('Failed to pre-load motherduck extension on reconnect:', e);
+      }
+    }
+
+    let attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly: true });
+    if (isMotherDuckUrl(remoteDb.url)) {
+      const { quote } = await import('@utils/helpers');
+      attachQuery = `ATTACH ${quote(remoteDb.url.trim(), { single: true })}`;
+    }
 
     try {
       await executeWithRetry(pool, attachQuery, {
@@ -100,6 +115,16 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
       } catch (error) {
         attempts += 1;
         if (attempts >= maxAttempts) {
+          // If attach failed because it's already attached, treat as connected
+          const errMsg = (error as any)?.message ? String((error as any).message) : String(error);
+          if (
+            /already in use|already attached|Unique file handle conflict|already exists/i.test(
+              errMsg,
+            )
+          ) {
+            dbFound = true;
+            break;
+          }
           throw new Error(
             `Database ${remoteDb.dbName} could not be verified after ${maxAttempts} attempts`,
           );

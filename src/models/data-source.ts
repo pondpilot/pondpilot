@@ -74,7 +74,42 @@ export interface XlsxSheetView extends FlatFileDataSource {
   sheetName: string;
 }
 
-export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView | JSONView;
+// Statistical file formats (Tauri-only)
+export interface SAS7BDATView extends FlatFileDataSource {
+  readonly type: 'sas7bdat';
+}
+
+export interface XPTView extends FlatFileDataSource {
+  readonly type: 'xpt';
+}
+
+export interface SAVView extends FlatFileDataSource {
+  readonly type: 'sav';
+}
+
+export interface ZSAVView extends FlatFileDataSource {
+  readonly type: 'zsav';
+}
+
+export interface PORView extends FlatFileDataSource {
+  readonly type: 'por';
+}
+
+export interface DTAView extends FlatFileDataSource {
+  readonly type: 'dta';
+}
+
+export type AnyFlatFileDataSource =
+  | CSVView
+  | ParquetView
+  | XlsxSheetView
+  | JSONView
+  | SAS7BDATView
+  | XPTView
+  | SAVView
+  | ZSAVView
+  | PORView
+  | DTAView;
 
 export interface LocalDB extends SingleFileDataSourceBase {
   readonly type: 'attached-db';
@@ -82,7 +117,7 @@ export interface LocalDB extends SingleFileDataSourceBase {
   /**
    * Type of the database.
    */
-  dbType: 'duckdb' | 'sqllite';
+  dbType: 'duckdb' | 'sqlite';
 
   /**
    * valid unique identifier used to attach db as
@@ -113,7 +148,14 @@ export interface RemoteDB {
   dbName: string;
 
   /**
-   * Type of the database (always duckdb for now)
+   * Original database name before aliasing (for conflict resolution)
+   * Only set if the database had to be aliased due to naming conflicts
+   */
+  originalDbName?: string;
+
+  /**
+   * Type of the database
+   * Note: Remote databases only support DuckDB currently
    */
   dbType: 'duckdb';
 
@@ -136,6 +178,19 @@ export interface RemoteDB {
    * Optional comment/description
    */
   comment?: string;
+
+  /**
+   * Instance name for grouping (e.g., credential name for MotherDuck)
+   * Used to distinguish between different instances of the same service
+   * This is the display name and may change when the secret is renamed
+   */
+  instanceName?: string;
+
+  /**
+   * Stable instance identifier (e.g., secret UUID for MotherDuck databases)
+   * Used for grouping and persistence, won't change even if secret is renamed
+   */
+  instanceId?: string;
 }
 
 export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB;

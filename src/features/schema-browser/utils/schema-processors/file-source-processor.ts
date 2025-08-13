@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { PersistentDataSourceId, AnyFlatFileDataSource } from '@models/data-source';
 import { SchemaBrowserTab } from '@models/tab';
 
@@ -10,7 +10,7 @@ import { SchemaGraph } from '../../model';
  */
 export async function processFileSource(
   tab: Omit<SchemaBrowserTab, 'dataViewStateCache'>,
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   flatFileSources: Map<PersistentDataSourceId, AnyFlatFileDataSource>,
   abortSignal: AbortSignal,
 ): Promise<SchemaGraph> {

@@ -18,7 +18,10 @@
     "node": ">=18"
   },
   "scripts": {
+    "predev": "node scripts/check-port.js",
     "dev": "vite",
+    "tauri:dev": "./scripts/tauri-dev-safe.sh",
+    "tauri:dev:unsafe": "tauri dev",
     "build": "tsc && vite build",
     "build:test": "yarn build --mode int-test-build",
     "test": "yarn build:test && playwright test",
@@ -34,7 +37,9 @@
     "lint:stylelint": "stylelint '**/*.css' --cache",
     "lint:stylelint:fix": "stylelint '**/*.css' --cache --fix",
     "prettier": "prettier --check \"**/*.{ts,tsx}\"",
-    "prettier:write": "prettier --write \"**/*.{ts,tsx}\""
+    "prettier:write": "prettier --write \"**/*.{ts,tsx}\"",
+    "tauri": "tauri",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@codemirror/lang-sql": "^6.8.0",
@@ -45,6 +50,7 @@
     "@duckdb/duckdb-wasm": "1.29.1-dev207.0",
     "@hello-pangea/dnd": "^17.0.0",
     "@mantine/core": "^7.17.0",
+    "@mantine/form": "^8.2.4",
     "@mantine/hooks": "^7.17.0",
     "@mantine/modals": "^7.17.4",
     "@mantine/notifications": "^7.17.0",
@@ -59,6 +65,7 @@
     "codemirror": "^6.0.1",
     "comlink": "^4.4.1",
     "dagre": "^0.8.5",
+    "date-fns": "^4.1.0",
     "fflate": "^0.8.2",
     "idb": "^8.0.0",
     "jszip": "^3.10.1",
@@ -80,6 +87,11 @@
   "devDependencies": {
     "@playwright/test": "^1.51.0",
     "@tanstack/eslint-plugin-query": "^5.68.0",
+    "@tauri-apps/api": "^2.7.0",
+    "@tauri-apps/cli": "^2.7.0",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-shell": "^2",
     "@types/dagre": "^0.7.52",
     "@types/node": "^22.13.9",
     "@types/react": "^19.0.0",

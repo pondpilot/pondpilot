@@ -1,4 +1,4 @@
-import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useDatabaseConnectionPool } from '@features/database-context';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
 import { modals } from '@mantine/modals';
 import { cn } from '@utils/ui/styles';
@@ -6,7 +6,7 @@ import { cn } from '@utils/ui/styles';
 import { DatasourceWizardModal, WizardStep } from './datasource-wizard-modal';
 
 export const useOpenDataWizardModal = () => {
-  const pool = useDuckDBConnectionPool();
+  const pool = useDatabaseConnectionPool();
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
 
   return {
