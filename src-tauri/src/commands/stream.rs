@@ -357,6 +357,22 @@ pub async fn acknowledge_stream_batch(
     Ok(())
 }
 
+// Helper macro to reduce timestamp conversion boilerplate
+macro_rules! convert_timestamp {
+    ($duckdb_arr:expr, $duck_type:ty, $arrow_type:ty, $tz:expr) => {{
+        if let Some(arr) = $duckdb_arr.as_any().downcast_ref::<$duck_type>() {
+            let values: Vec<Option<i64>> = (0..arr.len())
+                .map(|i| if arr.is_valid(i) { Some(arr.value(i)) } else { None })
+                .collect();
+            Arc::new(<$arrow_type>::from(values).with_timezone_opt($tz)) as ArrayRef
+        } else {
+            // Create array with all nulls
+            let values: Vec<Option<i64>> = vec![None; $duckdb_arr.len()];
+            Arc::new(<$arrow_type>::from(values).with_timezone_opt($tz)) as ArrayRef
+        }
+    }};
+}
+
 // Helper function to convert DuckDB schema to Arrow schema
 fn convert_duckdb_schema(duckdb_schema: &duckdb::arrow::datatypes::Schema) -> Arc<Schema> {
     use arrow_schema::{Field, DataType, TimeUnit};
@@ -635,53 +651,17 @@ fn convert_duckdb_batch(batch: &duckdb::arrow::record_batch::RecordBatch) -> Res
                         Arc::new(LargeStringArray::from(values)) as ArrayRef
                     }
                 }
-                arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Second, _) => {
-                    if let Some(arr) = duckdb_arr.as_any().downcast_ref::<duckdb_array::TimestampSecondArray>() {
-                        let values: Vec<Option<i64>> = (0..arr.len())
-                            .map(|i| if arr.is_valid(i) { Some(arr.value(i)) } else { None })
-                            .collect();
-                        Arc::new(TimestampSecondArray::from(values)) as ArrayRef
-                    } else {
-                        // Create a TimestampSecondArray with all nulls instead of NullArray
-                        let values: Vec<Option<i64>> = vec![None; duckdb_arr.len()];
-                        Arc::new(TimestampSecondArray::from(values)) as ArrayRef
-                    }
+                arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Second, tz) => {
+                    convert_timestamp!(duckdb_arr, duckdb_array::TimestampSecondArray, TimestampSecondArray, tz.clone())
                 }
-                arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, _) => {
-                    if let Some(arr) = duckdb_arr.as_any().downcast_ref::<duckdb_array::TimestampMillisecondArray>() {
-                        let values: Vec<Option<i64>> = (0..arr.len())
-                            .map(|i| if arr.is_valid(i) { Some(arr.value(i)) } else { None })
-                            .collect();
-                        Arc::new(TimestampMillisecondArray::from(values)) as ArrayRef
-                    } else {
-                        // Create a TimestampMillisecondArray with all nulls instead of NullArray
-                        let values: Vec<Option<i64>> = vec![None; duckdb_arr.len()];
-                        Arc::new(TimestampMillisecondArray::from(values)) as ArrayRef
-                    }
+                arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, tz) => {
+                    convert_timestamp!(duckdb_arr, duckdb_array::TimestampMillisecondArray, TimestampMillisecondArray, tz.clone())
                 }
-                arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Microsecond, _) => {
-                    if let Some(arr) = duckdb_arr.as_any().downcast_ref::<duckdb_array::TimestampMicrosecondArray>() {
-                        let values: Vec<Option<i64>> = (0..arr.len())
-                            .map(|i| if arr.is_valid(i) { Some(arr.value(i)) } else { None })
-                            .collect();
-                        Arc::new(TimestampMicrosecondArray::from(values)) as ArrayRef
-                    } else {
-                        // Create a TimestampMicrosecondArray with all nulls instead of NullArray
-                        let values: Vec<Option<i64>> = vec![None; duckdb_arr.len()];
-                        Arc::new(TimestampMicrosecondArray::from(values)) as ArrayRef
-                    }
+                arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Microsecond, tz) => {
+                    convert_timestamp!(duckdb_arr, duckdb_array::TimestampMicrosecondArray, TimestampMicrosecondArray, tz.clone())
                 }
-                arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, _) => {
-                    if let Some(arr) = duckdb_arr.as_any().downcast_ref::<duckdb_array::TimestampNanosecondArray>() {
-                        let values: Vec<Option<i64>> = (0..arr.len())
-                            .map(|i| if arr.is_valid(i) { Some(arr.value(i)) } else { None })
-                            .collect();
-                        Arc::new(TimestampNanosecondArray::from(values)) as ArrayRef
-                    } else {
-                        // Create a TimestampNanosecondArray with all nulls instead of NullArray
-                        let values: Vec<Option<i64>> = vec![None; duckdb_arr.len()];
-                        Arc::new(TimestampNanosecondArray::from(values)) as ArrayRef
-                    }
+                arrow_schema::DataType::Timestamp(arrow_schema::TimeUnit::Nanosecond, tz) => {
+                    convert_timestamp!(duckdb_arr, duckdb_array::TimestampNanosecondArray, TimestampNanosecondArray, tz.clone())
                 }
                 _ => {
                     // For unsupported types, create a null array

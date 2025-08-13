@@ -13,6 +13,7 @@ import { useAppStore } from '@store/app-store';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { executeWithRetry } from '@utils/connection-manager';
 import { buildAttachQuery, buildDetachQuery } from '@utils/sql-builder';
+import { isMotherDuckUrl } from '@utils/url-helpers';
 
 // Re-export validation functions from the separate module
 export {
@@ -58,7 +59,7 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
 
     // First, re-attach the database (MotherDuck has special rules for md: URLs)
     // Ensure MotherDuck extension is available if using md: URL
-    if (remoteDb.url.trim().toLowerCase().startsWith('md:')) {
+    if (isMotherDuckUrl(remoteDb.url)) {
       try {
         const { ExtensionLoader } = await import('../services/extension-loader');
         await ExtensionLoader.installAndLoadExtension(pool, 'motherduck', true);
@@ -68,7 +69,7 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
     }
 
     let attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly: true });
-    if (remoteDb.url.trim().toLowerCase().startsWith('md:')) {
+    if (isMotherDuckUrl(remoteDb.url)) {
       const { quote } = await import('@utils/helpers');
       attachQuery = `ATTACH ${quote(remoteDb.url.trim(), { single: true })}`;
     }

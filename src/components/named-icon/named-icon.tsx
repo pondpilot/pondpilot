@@ -31,6 +31,7 @@ export type IconType =
   | 'xlsx'
   | 'db'
   | 'duck' // PondPilot system database
+  | 'motherduck' // MotherDuck cloud instance
   // Database data sources
   | 'db-schema'
   | 'db-table'
@@ -87,6 +88,18 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
       return (
         <DuckIcon
           {...duckIconProps}
+          className={iconProps.className}
+          style={{ width: iconProps.size, height: iconProps.size }}
+        />
+      );
+    }
+    case 'motherduck': {
+      // Use the same duck icon but we could customize it differently if needed
+      // For now, using the duck icon to represent MotherDuck
+      const { stroke: _stroke, ...motherduckIconProps } = iconProps;
+      return (
+        <DuckIcon
+          {...motherduckIconProps}
           className={iconProps.className}
           style={{ width: iconProps.size, height: iconProps.size }}
         />

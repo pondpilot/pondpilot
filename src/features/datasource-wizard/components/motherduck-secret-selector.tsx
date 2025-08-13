@@ -8,7 +8,7 @@ import { SecretsAPI } from '../../../services/secrets-api';
 
 interface MotherDuckSecretSelectorProps {
   selectedSecretId: string | null;
-  onSecretSelect: (secretId: string | null) => void;
+  onSecretSelect: (secretId: string | null, secretName?: string) => void;
   onCreateNew: () => void;
 }
 
@@ -52,7 +52,10 @@ export function MotherDuckSecretSelector({
           placeholder={secrets.length === 0 ? 'No saved tokens' : 'Choose a saved token'}
           data={selectData}
           value={selectedSecretId}
-          onChange={onSecretSelect}
+          onChange={(value) => {
+            const secret = secrets.find((s) => s.id === value);
+            onSecretSelect(value, secret?.name);
+          }}
           leftSection={<IconKey size={16} />}
           disabled={loading || secrets.length === 0}
           searchable

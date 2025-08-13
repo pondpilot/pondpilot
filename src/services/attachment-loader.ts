@@ -3,6 +3,7 @@ import { getLogger } from '@engines/debug-logger';
 import { useAppStore } from '@store/app-store';
 import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
 import { buildAttachQuery, buildDetachQuery } from '@utils/sql-builder';
+import { isMotherDuckUrl } from '@utils/url-helpers';
 
 const logger = getLogger('attachment-loader');
 
@@ -42,7 +43,7 @@ export class AttachmentLoader {
           await connection.execute(detachSql).catch(() => {});
           // Special handling for MotherDuck: ATTACH 'md:<db>' does not support alias
           let attachSql: string;
-          if (typeof filePath === 'string' && filePath.toLowerCase().startsWith('md:')) {
+          if (typeof filePath === 'string' && isMotherDuckUrl(filePath)) {
             const { quote } = await import('@utils/helpers');
             attachSql = `ATTACH ${quote(filePath, { single: true })}`;
           } else {

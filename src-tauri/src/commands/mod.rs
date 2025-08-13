@@ -9,9 +9,6 @@ use uuid::Uuid;
 // Note: DuckDBEngine is now stored directly without Mutex since it's thread-safe internally
 pub type EngineState<'r> = State<'r, Arc<DuckDBEngine>>;
 
-// Store for active streaming sessions
-// type StreamingSessions = Arc<Mutex<HashMap<String, bool>>>;
-
 #[tauri::command]
 pub async fn initialize_duckdb(
     engine: EngineState<'_>,
@@ -190,41 +187,16 @@ pub async fn connection_close(
 }
 
 #[tauri::command]
+pub async fn reset_all_connections(
+    engine: EngineState<'_>,
+) -> Result<()> {
+    eprintln!("[RESET_CONNECTIONS] Resetting all connections for MotherDuck account switch");
+    engine.reset_all_connections().await
+}
+
+#[tauri::command]
 pub async fn shutdown_duckdb(_engine: EngineState<'_>) -> Result<()> {
     // DuckDB shutdown is handled automatically when the engine is dropped
-    Ok(())
-}
-
-
-#[tauri::command]
-pub async fn prepare_statement(
-    _engine: EngineState<'_>,
-    _sql: String,
-) -> Result<String> {
-    // Return a unique ID for the prepared statement
-    // In a real implementation, this would prepare the statement in DuckDB
-    Ok(Uuid::new_v4().to_string())
-}
-
-#[tauri::command]
-pub async fn prepared_statement_execute(
-    engine: EngineState<'_>,
-    _statement_id: String,
-    params: Vec<serde_json::Value>,
-) -> Result<QueryResult> {
-    // For now, just execute as a regular query
-    // In a real implementation, this would use the prepared statement
-    let sql = "SELECT 1"; // Placeholder
-    // No lock needed - execute_query is thread-safe
-    engine.execute_query(sql, params).await
-}
-
-#[tauri::command]
-pub async fn prepared_statement_close(
-    _engine: EngineState<'_>,
-    _statement_id: String,
-) -> Result<()> {
-    // In a real implementation, this would close the prepared statement
     Ok(())
 }
 
@@ -236,26 +208,6 @@ pub async fn checkpoint(_engine: EngineState<'_>) -> Result<()> {
 }
 
 #[tauri::command]
-pub async fn export_database(
-    _engine: EngineState<'_>,
-    _format: String,
-) -> Result<Vec<u8>> {
-    // For now, return empty data
-    // In a real implementation, this would export the database
-    Ok(Vec::new())
-}
-
-#[tauri::command]
-pub async fn import_database(
-    _engine: EngineState<'_>,
-    _data: Vec<u8>,
-    _format: String,
-) -> Result<()> {
-    // In a real implementation, this would import data into the database
-    Ok(())
-}
-
-#[tauri::command]
 pub async fn load_extension(
     engine: EngineState<'_>,
     name: String,
@@ -263,11 +215,4 @@ pub async fn load_extension(
 ) -> Result<()> {
     // No lock needed - load_extension is thread-safe
     engine.load_extension(&name).await
-}
-
-#[tauri::command]
-pub async fn list_extensions(_engine: EngineState<'_>) -> Result<Vec<String>> {
-    // Return list of loaded extensions
-    // In a real implementation, query DuckDB for loaded extensions
-    Ok(vec![])
 }

@@ -21,6 +21,7 @@ import {
 import { validateRemoteDatabaseUrl } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { setDataTestId } from '@utils/test-id';
+import { isMotherDuckUrl } from '@utils/url-helpers';
 import { useState } from 'react';
 
 interface RemoteDatabaseConfigProps {
@@ -72,7 +73,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
       let actualDbName = dbName;
 
       // Handle MotherDuck URLs specially
-      if (url.trim().toLowerCase().startsWith('md:')) {
+      if (isMotherDuckUrl(url)) {
         const { remoteDb } = await attachMotherDuckDatabase(pool, url);
         actualDbName = remoteDb.dbName;
         attachQuery = `ATTACH ${quote(url.trim(), { single: true })}`;
@@ -142,7 +143,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
       let attachQuery: string;
 
       // Handle MotherDuck URLs specially
-      if (url.trim().toLowerCase().startsWith('md:')) {
+      if (isMotherDuckUrl(url)) {
         const mdResult = await attachMotherDuckDatabase(pool, url);
         remoteDb = mdResult.remoteDb;
         attachQuery = `ATTACH ${quote(url.trim(), { single: true })}`;

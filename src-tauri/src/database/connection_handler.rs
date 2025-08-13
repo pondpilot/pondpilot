@@ -112,6 +112,10 @@ impl ConnectionHandler {
     
     /// Set MotherDuck token using the safest available method
     fn set_motherduck_token(&mut self, token: &str) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        // First, clear any existing token to ensure we're not using a cached value
+        let _ = self.connection.execute("RESET motherduck_token", []);
+        let _ = self.connection.execute("RESET motherduck_secret", []);
+        
         // Double-escape single quotes as a last resort safety measure
         // This is still not ideal, but combined with validation it's safer
         let escaped = token.replace('\'', "''");
@@ -441,5 +445,29 @@ impl ThreadSafeConnectionManager {
         
         drop(connections);
         handle.close().await
+    }
+    
+    /// Reset all connections (closes and removes all existing connections)
+    pub async fn reset_all_connections(&self) -> Result<()> {
+        let mut connections = self.connections.lock().await;
+        
+        // Collect all connection IDs and handles
+        let all_handles: Vec<(String, ConnectionHandle)> = connections
+            .drain()
+            .collect();
+        
+        drop(connections);
+        
+        // Close all connections
+        for (id, handle) in all_handles {
+            debug!("Closing connection {} during reset", id);
+            if let Err(e) = handle.close().await {
+                debug!("Failed to close connection {}: {:?}", id, e);
+                // Continue closing other connections even if one fails
+            }
+        }
+        
+        debug!("All connections have been reset");
+        Ok(())
     }
 }

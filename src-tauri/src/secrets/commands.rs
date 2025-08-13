@@ -89,9 +89,10 @@ pub async fn list_secrets(
     state: State<'_, SecretsManager>,
     secret_type: Option<SecretType>,
 ) -> Result<SecretListResponse, String> {
-    // Verify this command is called from the secrets window
-    if window.label() != "secrets" {
-        return Err("Unauthorized: secrets commands only available from secrets window".into());
+    // List secrets metadata is allowed from main and secrets windows
+    // We only return metadata (no actual secret values), so this is relatively safe
+    if window.label() != "secrets" && window.label() != "main" {
+        return Err("Unauthorized: list_secrets only available from main or secrets window".into());
     }
     println!("[Secrets] Listing secrets with type filter: {:?}", secret_type);
     
@@ -117,10 +118,12 @@ pub async fn get_secret(
     state: State<'_, SecretsManager>,
     secret_id: String,
 ) -> Result<SecretResponse, String> {
-    // Verify this command is called from the secrets window
-    if window.label() != "secrets" {
-        return Err("Unauthorized: secrets commands only available from secrets window".into());
+    // Get secret metadata is allowed from main and secrets windows
+    // NOTE: This only returns metadata, NOT the actual secret values
+    if window.label() != "secrets" && window.label() != "main" {
+        return Err("Unauthorized: get_secret only available from main or secrets window".into());
     }
+    
     let id = Uuid::parse_str(&secret_id)
         .map_err(|e| format!("Invalid secret ID: {}", e))?;
     
@@ -129,6 +132,7 @@ pub async fn get_secret(
         .await
         .map_err(|e| e.to_string())?;
     
+    // IMPORTANT: Only return metadata, never expose actual credentials to frontend
     Ok(SecretResponse { 
         metadata: secret.metadata.clone() 
     })
@@ -216,11 +220,21 @@ pub async fn apply_secret_to_connection(
     state: State<'_, SecretsManager>,
     request: ApplySecretRequest,
 ) -> Result<(), String> {
-    // Note: This command might be called from either main or secrets window
-    // Allow from both for now as it's needed for applying secrets to connections
-    if window.label() != "secrets" && window.label() != "main" {
-        return Err("Unauthorized: apply_secret_to_connection only available from main or secrets window".into());
+    // SECURITY: Restrict this command to only the main window
+    // This command can set environment variables with secret values,
+    // so we need to be careful about who can call it
+    if window.label() != "main" {
+        return Err("Unauthorized: apply_secret_to_connection only available from main window".into());
     }
+    
+    // Additional validation: Check that the connection_id starts with known safe prefixes
+    let allowed_prefixes = vec!["motherduck_list", "motherduck_attach", "motherduck_reconnect_"];
+    let is_allowed = allowed_prefixes.iter().any(|prefix| request.connection_id.starts_with(prefix));
+    if !is_allowed {
+        eprintln!("[Secrets] Invalid connection_id: {}", request.connection_id);
+        return Err("Invalid connection_id".into());
+    }
+    
     println!("[Secrets] Applying secret to connection: connection_id={}, secret_id={}", 
              request.connection_id, request.secret_id);
     
@@ -242,7 +256,11 @@ pub async fn apply_secret_to_connection(
     match secret.metadata.secret_type {
         SecretType::MotherDuck => {
             if let Some(token) = secret.credentials.get("token") {
-                println!("[Secrets] Setting MOTHERDUCK_TOKEN environment variable");
+                // Clear any existing token first to ensure DuckDB picks up the new one
+                println!("[Secrets] Clearing existing MOTHERDUCK_TOKEN environment variable");
+                std::env::remove_var("MOTHERDUCK_TOKEN");
+                
+                println!("[Secrets] Setting new MOTHERDUCK_TOKEN environment variable");
                 std::env::set_var("MOTHERDUCK_TOKEN", token.expose());
                 println!("[Secrets] MOTHERDUCK_TOKEN set successfully");
             } else {
@@ -260,6 +278,7 @@ pub async fn apply_secret_to_connection(
     
     Ok(())
 }
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SecretTypeInfo {
