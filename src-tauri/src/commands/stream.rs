@@ -128,17 +128,6 @@ async fn execute_streaming_query(
     // Ensure queries run against the main database for consistent view resolution
     setup_stmts.push("USE main".to_string());
 
-    // Always try to load core extensions commonly required
-    setup_stmts.push("LOAD parquet".to_string());
-    setup_stmts.push("LOAD json".to_string());
-    setup_stmts.push("LOAD excel".to_string());
-    setup_stmts.push("LOAD httpfs".to_string());
-    // MotherDuck support for md: URLs
-    setup_stmts.push("LOAD motherduck".to_string());
-    // Community/optional extensions that may be needed
-    setup_stmts.push("LOAD gsheets".to_string());
-    setup_stmts.push("LOAD read_stat".to_string());
-
     if let Some(ref spec) = attach {
         // Support single object or array of objects
         if spec.is_array() {

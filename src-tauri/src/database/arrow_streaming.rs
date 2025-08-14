@@ -47,8 +47,6 @@ impl ArrowStreamingExecutor {
         let sql = self.sql.clone();
         let query_id = self.query_id.clone();
         let cancel_token = self.cancel_token.clone();
-        let setup_sql = self.setup_sql.clone();
-        
         // Get connection permit
         let permit = self.pool.acquire_connection_permit().await?;
         
@@ -101,7 +99,7 @@ impl ArrowStreamingExecutor {
             }
 
             // Now run any provided setup statements
-            if let Some(setups) = setup_sql {
+            if let Some(setups) = self.setup_sql {
                 for stmt in setups {
                     let trimmed = stmt.trim();
                     if trimmed.is_empty() { continue; }
@@ -317,7 +315,7 @@ impl ArrowStreamingExecutor {
                         Err(e) => {
                             debug!("[ARROW_STREAMING] Failed to stream arrow results for {}: {}", query_id, e);
                             let _ = tx.blocking_send(ArrowStreamMessage::Error(
-                                format!("Failed to stream results: {}", e)
+                                format!("Failed to stream results: {:?}", e)
                             ));
                             Err(e)
                         }

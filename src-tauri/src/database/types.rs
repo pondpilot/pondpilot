@@ -2,12 +2,19 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtensionInfoForLoad {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub extension_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineConfig {
     #[serde(rename = "type")]
     pub engine_type: String,
     pub storage_type: Option<String>,
     pub storage_path: Option<String>,
-    pub extensions: Option<Vec<String>>,
+    pub extensions: Option<Vec<ExtensionInfoForLoad>>,
     pub options: Option<HashMap<String, serde_json::Value>>,
 }
 

@@ -54,6 +54,7 @@ pub struct UnifiedPool {
     db_path: PathBuf,
     resource_limits: ResourceLimits,
     connection_counter: Arc<AtomicUsize>,
+    extensions: Arc<tokio::sync::Mutex<Vec<super::types::ExtensionInfoForLoad>>>,
 }
 
 /// Permit to create a connection
@@ -62,6 +63,7 @@ pub struct ConnectionPermit {
     id: String,
     db_path: PathBuf,
     resource_limits: ResourceLimits,
+    extensions: Arc<tokio::sync::Mutex<Vec<super::types::ExtensionInfoForLoad>>>,
 }
 
 impl ConnectionPermit {
@@ -96,18 +98,33 @@ impl ConnectionPermit {
         );
         conn.execute_batch(&config).ok();
 
-        // Extension-related session settings are applied per-connection from the frontend
-        // to avoid initialization-time errors and keep policy centralized.
-
-        // Extensions are now loaded through the extension management system in TypeScript
-        // See src/services/extension-loader.ts
+        // Load extensions
+        let extensions = self.extensions.blocking_lock();
+        if !extensions.is_empty() {
+            let mut extension_config = String::new();
+            for ext in extensions.iter() {
+                let install_command = if ext.extension_type == "community" {
+                    format!("INSTALL {} FROM community;", ext.name)
+                } else {
+                    format!("INSTALL {};", ext.name)
+                };
+                extension_config.push_str(&install_command);
+                extension_config.push_str(&format!("LOAD {};", ext.name));
+            }
+            conn.execute_batch(&extension_config).map_err(|e| {
+                DuckDBError::ConnectionError {
+                    message: format!("Failed to load extensions: {}", e),
+                    context: None,
+                }
+            })?;
+        }
 
         Ok(conn)
     }
 }
 
 impl UnifiedPool {
-    pub fn new(db_path: PathBuf, config: PoolConfig) -> Result<Self> {
+    pub fn new(db_path: PathBuf, config: PoolConfig, extensions: Arc<tokio::sync::Mutex<Vec<super::types::ExtensionInfoForLoad>>>) -> Result<Self> {
         // Ensure the parent directory exists
         if let Some(parent) = db_path.parent() {
             fs::create_dir_all(parent)?;
@@ -122,6 +139,7 @@ impl UnifiedPool {
             db_path,
             resource_limits,
             connection_counter: Arc::new(AtomicUsize::new(0)),
+            extensions,
         };
 
         Ok(pool)
@@ -198,6 +216,7 @@ impl UnifiedPool {
                     id,
                     db_path: self.db_path.clone(),
                     resource_limits: self.resource_limits.clone(),
+                    extensions: self.extensions.clone(),
                 })
             }
             Ok(Err(_)) => Err(DuckDBError::ConnectionError {

@@ -205,12 +205,14 @@ pub struct DuckDBEngine {
     db_path: PathBuf,
     /// Manages persistent connections (each in their own thread)
     connection_manager: Arc<ThreadSafeConnectionManager>,
+    extensions: Arc<tokio::sync::Mutex<Vec<ExtensionInfoForLoad>>>,
 }
 
 impl DuckDBEngine {
     pub fn new(db_path: PathBuf) -> Result<Self> {
+        let extensions = Arc::new(tokio::sync::Mutex::new(Vec::new()));
         let pool_config = PoolConfig::default();
-        let pool = Arc::new(UnifiedPool::new(db_path.clone(), pool_config)?);
+        let pool = Arc::new(UnifiedPool::new(db_path.clone(), pool_config, extensions.clone())?);
 
         let total_memory = get_total_memory();
         let resources = Arc::new(ResourceManager::new(total_memory, 10)); // 10 max connections
@@ -221,15 +223,15 @@ impl DuckDBEngine {
             registered_files: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             db_path,
             connection_manager: Arc::new(ThreadSafeConnectionManager::new()),
+            extensions,
         })
     }
 
     pub async fn initialize(&self, config: EngineConfig) -> Result<()> {
         // Load extensions if specified
         if let Some(extensions) = config.extensions {
-            for ext in extensions {
-                self.load_extension(&ext).await?;
-            }
+            let mut ext_guard = self.extensions.lock().await;
+            *ext_guard = extensions;
         }
 
         Ok(())
