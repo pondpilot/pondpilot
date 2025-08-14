@@ -55,7 +55,7 @@ export const AppErrorFallback = () => {
             <Text c="text-secondary" size="sm" mt={4}>
               This may resolve temporary issues
             </Text>
-            <Button onClick={handleReload} mt="xs" variant="light" color="background-accent">
+            <Button onClick={handleReload} mt="xs" variant="light">
               Reload page
             </Button>
           </List.Item>
@@ -71,12 +71,7 @@ export const AppErrorFallback = () => {
             <Text c="text-secondary" size="sm" mt={4}>
               This will save all your SQL scripts as a ZIP archive
             </Text>
-            <Button
-              onClick={exportArchive}
-              mt="xs"
-              disabled={exportError}
-              color="background-accent"
-            >
+            <Button onClick={exportArchive} mt="xs" disabled={exportError}>
               Export SQL scripts
             </Button>
             {exportError && (

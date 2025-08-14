@@ -7,7 +7,7 @@ import {
 } from '@controllers/tab';
 import { useColumnSummary } from '@features/tab-view/hooks';
 import { copyTableColumns } from '@features/tab-view/utils';
-import { Center, Group, Loader, Stack, Text } from '@mantine/core';
+import { Button, Center, Group, Loader, Stack, Text } from '@mantine/core';
 import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
 import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
@@ -17,8 +17,6 @@ import { IconCancel, IconClipboardSmile } from '@tabler/icons-react';
 import { formatStringsAsMDList } from '@utils/pretty';
 import { setDataTestId } from '@utils/test-id';
 import { useCallback, useRef, useState } from 'react';
-
-import { DataViewRestartReadButton } from './components';
 
 interface DataViewProps {
   /**
@@ -323,7 +321,12 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
               <Text c="text-secondary">
                 You&apos;ve cancelled the data read operation. Click the button below to restart.
               </Text>
-              <DataViewRestartReadButton onClick={handleDataAdapterReset} />
+              <Button
+                onClick={handleDataAdapterReset}
+                data-testid={setDataTestId('data-view-reset-button')}
+              >
+                Restart
+              </Button>
             </Stack>
           </Center>
         </>
@@ -340,7 +343,12 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
               {formatStringsAsMDList(dataAdapter.dataSourceError)}
             </Text>
             <Group justify="center" mt="md">
-              <DataViewRestartReadButton onClick={handleDataAdapterReset} />
+              <Button
+                onClick={handleDataAdapterReset}
+                data-testid={setDataTestId('data-view-reset-button')}
+              >
+                Restart
+              </Button>
             </Group>
           </Stack>
         </>

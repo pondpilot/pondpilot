@@ -8,7 +8,6 @@ import { TabId, TabType } from '@models/tab';
 import { IconX, IconCopy, IconRefresh, IconChevronDown } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { assertNeverValueType } from '@utils/typing';
-import { cn } from '@utils/ui/styles';
 import { useMemo } from 'react';
 
 import { ColRowCount } from './components/col-row-count';
@@ -168,18 +167,6 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
               disabled={disableCopyAndExport}
               rightSection={<IconChevronDown size={14} />}
               data-testid={setDataTestId('export-table-button')}
-              classNames={{
-                root: cn(
-                  // TODO: use styles from theme. Issue: https://github.com/pondpilot/pondpilot/issues/96
-                  'rounded-full text-textPrimary-light dark:text-textPrimary-dark bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark',
-
-                  'data-[disabled=true]:bg-transparentBrandBlue-016 data-[disabled=true]:dark:bg-darkModeTransparentBrandBlue-016',
-
-                  'data-[disabled=true]:text-textTertiary-light data-[disabled=true]:dark:text-textTertiary-dark',
-
-                  'hover:bg-backgroundTertiary-light dark:hover:bg-backgroundTertiary-dark hover:text-textPrimary-light dark:hover:text-textPrimary-dark',
-                ),
-              }}
             >
               Export
             </Button>

@@ -37,7 +37,7 @@ import {
   MarkdownOptions,
   FormatSelector,
 } from './components';
-import { LARGE_DATASET_THRESHOLD, commonTextInputClassNames } from './constants';
+import { LARGE_DATASET_THRESHOLD } from './constants';
 import { validateExportOptions } from './validation';
 
 interface ExportOptionsModalProps {
@@ -350,10 +350,9 @@ export function ExportOptionsModal({
                 onChange={(e) => setExportFilename(e.currentTarget.value)}
                 data-testid={setDataTestId('export-filename')}
                 error={filenameError}
-                classNames={commonTextInputClassNames}
               />
 
-              <Text size="sm" c="text-secondary" mt={24} mb={16}>
+              <Text size="sm" c="text-secondary" mt={24} mb={16} ml={16}>
                 Choose a format and configure options to export your data.
               </Text>
 
@@ -381,18 +380,18 @@ export function ExportOptionsModal({
 
             <Group justify="flex-end" gap="sm">
               <Button
-                variant="subtle"
+                variant="transparent"
                 onClick={onClose}
-                color="text-secondary"
                 data-testid={setDataTestId('export-cancel')}
+                size="md"
                 px={24}
               >
                 Cancel
               </Button>
               <Button
+                size="md"
                 onClick={handleExport}
                 data-testid={setDataTestId('export-confirm')}
-                color="background-accent"
                 px={24}
               >
                 {isLargeDataset ? 'Export Anyway' : 'Export'}

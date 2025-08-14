@@ -8,15 +8,3 @@ export const formatOptions = [
   { label: 'XML', value: 'xml' },
   { label: 'Markdown', value: 'md' },
 ];
-
-export const commonTextInputClassNames = {
-  root: 'w-full',
-  label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark px-4',
-  input:
-    'border-borderPrimary-light dark:border-borderPrimary-dark rounded-full px-4 py-4 bg-transparent text-textPrimary-light dark:text-textPrimary-dark text-base',
-};
-
-export const commonCheckboxClassNames = {
-  root: 'flex items-center',
-  label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark',
-};

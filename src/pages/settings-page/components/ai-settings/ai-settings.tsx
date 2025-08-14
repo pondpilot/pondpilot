@@ -416,15 +416,10 @@ export const AISettings = () => {
 
         <Group justify="space-between" className="mt-2">
           <Group>
-            {hasChanges && (
-              <Button color="background-accent" onClick={handleSave}>
-                Save Changes
-              </Button>
-            )}
+            {hasChanges && <Button onClick={handleSave}>Save Changes</Button>}
             <Button
               onClick={handleTestConnection}
               variant="outline"
-              color="background-accent"
               loading={testStatus.testing}
               disabled={!config.apiKey || (config.provider === 'custom' && !config.customEndpoint)}
             >

@@ -25,11 +25,7 @@ export const OnboardingModalContent = ({ onClose }: { onClose: () => void }) => 
       />
     </Stack>
     <Group justify="end" mt={24}>
-      <Button
-        onClick={onClose}
-        color="background-accent"
-        data-testid={setDataTestId('onboarding-modal-submit-button')}
-      >
+      <Button onClick={onClose} data-testid={setDataTestId('onboarding-modal-submit-button')}>
         Got it!
       </Button>
     </Group>

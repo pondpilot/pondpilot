@@ -34,14 +34,8 @@ export const DataLoadingOverlay = ({ onCancel, visible, title }: DataLoadingOver
         <span className="text-textSecondary-light dark:text-textSecondary-dark font-medium">
           Press{' '}
           <Group align="center" className="inline-flex">
-            <Button
-              c="text-primary"
-              onClick={onCancel}
-              className="bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark hover:bg-backgroundTertiary-light dark:hover:bg-backgroundTertiary-dark"
-            >
-              Cancel
-            </Button>{' '}
-            or <HotkeyPill variant="secondary" value={[option, 'Q']} />
+            <Button onClick={onCancel}>Cancel</Button> or{' '}
+            <HotkeyPill variant="secondary" value={[option, 'Q']} />
           </Group>{' '}
           to abort processing
         </span>

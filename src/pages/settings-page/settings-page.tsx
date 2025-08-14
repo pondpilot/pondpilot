@@ -56,7 +56,7 @@ export const SettingsPage = () => {
           Are you sure you want to clear all app data? This action cannot be undone.
         </Text>
         <Group justify="flex-end">
-          <Button variant="default" onClick={onConfirmClose}>
+          <Button variant="transparent" onClick={onConfirmClose}>
             Cancel
           </Button>
           <Button color="text-error" onClick={handleClearData}>
@@ -103,12 +103,7 @@ export const SettingsPage = () => {
                 </Title>
                 <Stack>
                   <Text c="text-secondary">Export all queries to a single ZIP archive.</Text>
-                  <Button
-                    className="w-fit"
-                    onClick={downloadArchive}
-                    variant="outline"
-                    color="background-accent"
-                  >
+                  <Button className="w-fit" onClick={downloadArchive} variant="outline">
                     Export All
                   </Button>
                 </Stack>

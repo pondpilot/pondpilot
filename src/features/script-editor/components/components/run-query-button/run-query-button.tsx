@@ -31,8 +31,7 @@ export const RunQueryButton = ({ disabled, onRunClick }: RunQueryButtonProps) =>
     <Button.Group>
       <Button
         onClick={() => onRunClick(defaultOption)}
-        className="px-3 min-w-20 font-normal"
-        color="background-accent"
+        className="min-w-20"
         data-testid={setDataTestId('run-query-button')}
       >
         {buttonText}

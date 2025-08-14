@@ -32,7 +32,7 @@ export const TabErrorFallback = (props: FallbackProps) => {
             <Text c="text-secondary" size="sm" mt={4}>
               This may resolve temporary issues
             </Text>
-            <Button onClick={() => window.location.reload()} mt="xs" variant="light">
+            <Button onClick={() => window.location.reload()} mt="xs" variant="secondary">
               Reload page
             </Button>
           </List.Item>

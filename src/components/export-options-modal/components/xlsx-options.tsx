@@ -1,8 +1,6 @@
 import { Stack, TextInput, Checkbox } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
 
-import { commonTextInputClassNames, commonCheckboxClassNames } from '../constants';
-
 interface XlsxOptionsProps {
   includeHeader: boolean;
   setIncludeHeader: (value: boolean) => void;
@@ -26,7 +24,6 @@ export function XlsxOptions({
         onChange={(e) => setIncludeHeader(e.currentTarget.checked)}
         data-testid={setDataTestId('export-include-header')}
         color="background-accent"
-        classNames={commonCheckboxClassNames}
       />
       <TextInput
         label="Sheet Name"
@@ -34,7 +31,6 @@ export function XlsxOptions({
         onChange={(e) => setSheetName(e.currentTarget.value)}
         data-testid={setDataTestId('export-xlsx-sheet-name')}
         error={sheetNameError}
-        classNames={commonTextInputClassNames}
       />
     </Stack>
   );
