@@ -89,7 +89,18 @@ export const useDataAdapterQueries = ({
     // we need sourceVersion to be a dependency, because it allows us to re-create the queries
     // when the script is re-executed, even if the data source is "the same"
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, pool, dataSource, sourceFile, sourceVersion]);
+  }, [
+    tab.id,
+    tab.type,
+    tab.dataSourceId,
+    tab.lastExecutedQuery,
+    pool,
+    dataSource?.id,
+    dataSource?.type,
+    sourceFile?.id,
+    sourceFile?.kind,
+    sourceVersion,
+  ]);
 
   return ret;
 };
