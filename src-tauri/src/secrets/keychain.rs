@@ -160,7 +160,7 @@ impl KeychainProvider for NativeKeychainProvider {
         let payload = serde_json::to_string(&credentials)?;
         tracing::debug!("[Keychain] Serialized payload length: {} bytes", payload.len());
         
-        let entry = Entry::new(&self.service_name, &account)
+        let _entry = Entry::new(&self.service_name, &account)
             .map_err(|e| {
                 eprintln!("[Keychain] Failed to create Entry object: {}", e);
                 SecretError::KeychainError(e.to_string())

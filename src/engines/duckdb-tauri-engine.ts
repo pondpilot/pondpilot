@@ -52,6 +52,15 @@ export class DuckDBTauriEngine implements DatabaseEngine {
       this.listen = listen;
       logger.debug('Tauri API imported successfully');
 
+      // Get extensions to load from the store
+      const { useExtensionManagementStore, waitForExtensionStoreHydration } = await import(
+        '@store/extension-management'
+      );
+      await waitForExtensionStoreHydration();
+      const activeExtensions = useExtensionManagementStore.getState().getActiveExtensions();
+      const extensionsToLoad = activeExtensions.map((ext) => ({ name: ext.name, type: ext.type }));
+      config.extensions = extensionsToLoad;
+
       // Initialize DuckDB in Rust backend with proper storage configuration
       logger.debug('Calling initialize_duckdb', { config });
       await this.invoke('initialize_duckdb', { config });
