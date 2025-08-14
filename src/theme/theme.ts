@@ -25,7 +25,12 @@ import {
   SpotlightActionsList,
   SpotlightEmpty,
 } from '@mantine/spotlight';
-import { cn } from '@utils/ui/styles';
+
+import actionIconClasses from './ActionIcon.module.css';
+import buttonClasses from './Button.module.css';
+import passwordInputClasses from './PasswordInput.module.css';
+import selectClasses from './Select.module.css';
+import textInputClasses from './TextInput.module.css';
 
 export const theme = createTheme({
   breakpoints: {
@@ -63,14 +68,15 @@ export const theme = createTheme({
   colors: {
     'transparentWhite-004': colorsTuple('#FFFFFF0A'), // 4%
     'transparentWhite-008': colorsTuple('#FFFFFF14'), // 8%
-    'transparentWhite-012': colorsTuple('#FFFFFF1F'), // 12%
+    'transparentWhite-010': colorsTuple('#FFFFFF1A'), // 10%
     'transparentWhite-016': colorsTuple('#FFFFFF29'), // 16%
     'transparentWhite-020': colorsTuple('#FFFFFF33'), // 20%
-    'transparentWhite-032': colorsTuple('#FFFFFF52'), // 32%
+    'transparentWhite-030': colorsTuple('#FFFFFF4D'), // 30%
     'transparentWhite-072': colorsTuple('#FFFFFFB8'), // 72%
 
     'transparentGray-004': colorsTuple('#2123280A'), // 4%
     'transparentGray-008': colorsTuple('#21232814'), // 8%
+    'transparentGray-010': colorsTuple('#2123281A'), // 10%
     'transparentGray-012': colorsTuple('#2123281F'), // 12%
     'transparentGray-016': colorsTuple('#21232829'), // 16%
     'transparentGray-020': colorsTuple('#21232833'), // 20%
@@ -96,6 +102,7 @@ export const theme = createTheme({
     'brand-blue-900': colorsTuple('#131738'),
 
     'blue-grey-50': colorsTuple('#FFFFFF'),
+    white: colorsTuple('#FFFFFF'),
     'blue-grey-100': colorsTuple('#F2F4F8'),
     'blue-grey-200': colorsTuple('#E5E9F2'),
     'blue-grey-300': colorsTuple('#C8CED9'),
@@ -330,12 +337,12 @@ export const theme = createTheme({
     }),
     tertiaryHover: virtualColor({
       name: 'tertiaryHover',
-      dark: 'blue-grey-300',
+      dark: 'blue-grey-700',
       light: 'blue-grey-300',
     }),
     tertiaryActive: virtualColor({
       name: 'tertiaryActive',
-      dark: 'blue-grey-400',
+      dark: 'blue-grey-600',
       light: 'blue-grey-400',
     }),
     accentTransparentHover: virtualColor({
@@ -359,9 +366,9 @@ export const theme = createTheme({
       dark: 'transparentWhite-008',
       light: 'transparentGray-008',
     }),
-    transparent012: virtualColor({
-      name: 'transparent012',
-      dark: 'transparentWhite-012',
+    transparent010: virtualColor({
+      name: 'transparent010',
+      dark: 'transparentWhite-010',
       light: 'transparentGray-012',
     }),
     transparent016: virtualColor({
@@ -376,13 +383,41 @@ export const theme = createTheme({
     }),
     transparent032: virtualColor({
       name: 'transparent032',
-      dark: 'transparentWhite-032',
+      dark: 'transparentWhite-030',
       light: 'transparentGray-032',
     }),
     transparent072: virtualColor({
       name: 'transparent072',
       dark: 'transparentWhite-072',
       light: 'transparentGray-072',
+    }),
+
+    'transparent010-inverse': virtualColor({
+      name: 'transparent010-inverse',
+      dark: 'transparentWhite-010',
+      light: 'transparentWhite-010',
+    }),
+
+    // transparentBrandBlue_palette
+    'transparentBrandBlue_palette-008': virtualColor({
+      name: 'transparentBrandBlue_palette-008',
+      dark: 'darkModeTransparentBrandBlue-008',
+      light: 'transparentBrandBlue-008',
+    }),
+    'transparentBrandBlue_palette-012': virtualColor({
+      name: 'transparentBrandBlue_palette-012',
+      dark: 'darkModeTransparentBrandBlue-012',
+      light: 'transparentBrandBlue-012',
+    }),
+    'transparentBrandBlue_palette-016': virtualColor({
+      name: 'transparentBrandBlue_palette-016',
+      dark: 'white',
+      light: 'transparentBrandBlue-016',
+    }),
+    'transparentBrandBlue_palette-032': virtualColor({
+      name: 'transparentBrandBlue_palette-032',
+      dark: 'darkModeTransparentBrandBlue-032',
+      light: 'white',
     }),
 
     'brandBlue_palette-50': virtualColor({
@@ -472,7 +507,7 @@ export const theme = createTheme({
           exitDuration: 1,
         },
         overlayProps: {
-          className: 'bg-transparent012-light dark:bg-transparent004-dark',
+          className: 'bg-transparent010-light dark:bg-transparent004-dark',
           blur: 0,
         },
         classNames: {
@@ -484,33 +519,24 @@ export const theme = createTheme({
     }),
     Button: Button.extend({
       defaultProps: {
-        size: 'compact-sm',
-        px: '16px',
-        py: '4px',
-        fw: 'normal',
-        classNames: {
-          root: 'rounded-full',
-        },
+        size: 'sm',
+        variant: 'primary',
       },
+      classNames: buttonClasses,
     }),
-    Skeleton: Skeleton.extend({
-      defaultProps: {
-        color: 'background',
-      },
-    }),
+    Skeleton: Skeleton.extend({}),
     ActionIcon: ActionIcon.extend({
       defaultProps: {
         size: 'md',
-        variant: 'subtle',
-        color: 'icon-default',
-        className:
-          'hover:transparent008-light dark:hover:transparent008-dark data-[disabled=true]:bg-transparent ',
+        variant: 'transparent',
       },
+      classNames: actionIconClasses,
     }),
     Switch: Switch.extend({
       defaultProps: {
         size: 'xs',
         color: 'icon-accent',
+        withThumbIndicator: false,
       },
     }),
     Text: Text.extend({
@@ -527,15 +553,9 @@ export const theme = createTheme({
     Select: Select.extend({
       defaultProps: {
         size: 'xs',
-        classNames: {
-          input: cn(
-            'border-0 bg-backgroundSecondary-light placeholder-textSecondary-light',
-            'dark:bg-backgroundSecondary-dark dark:placeholder-textSecondary-dark',
-          ),
-          dropdown: cn('border-0 bg-backgroundSecondary-light', 'dark:bg-backgroundSecondary-dark'),
-          option: 'hover:bg-backgroundPrimary-light dark:hover:bg-backgroundPrimary-dark',
-        },
+        withCheckIcon: false,
       },
+      classNames: selectClasses,
     }),
     Pagination: Pagination.extend({
       defaultProps: {
@@ -543,35 +563,27 @@ export const theme = createTheme({
       },
     }),
     TextInput: TextInput.extend({
-      defaultProps: {
-        size: 'xs',
-        classNames: {
-          input: cn(
-            'bg-backgroundSecondary-light  border-0 placeholder-textSecondary-light',
-            'dark:bg-backgroundSecondary-dark dark:placeholder-textSecondary-dark',
-          ),
-        },
+      classNames: textInputClasses,
+      vars: (_, props) => {
+        if (!props.size || props.size === 'sm') {
+          return {
+            wrapper: {
+              '--input-height-sm': '35px',
+            },
+          };
+        }
+        return {};
       },
     }),
     PasswordInput: PasswordInput.extend({
-      defaultProps: {
-        size: 'xs',
-        classNames: {
-          input: cn(
-            'bg-backgroundSecondary-light  border-0 placeholder-textSecondary-light',
-            'dark:bg-backgroundSecondary-dark dark:placeholder-textSecondary-dark',
-          ),
-        },
-      },
+      classNames: passwordInputClasses,
     }),
     Menu: Menu.extend({
-      defaultProps: {
-        classNames: {
-          item: 'py-1 px-2 text-textContrast-light dark:text-textContrast-dark bg-backgroundInverse-light dark:bg-backgroundInverse-dark hover:bg-transparentWhite-012 dark:hover:bg-transparentWhite-012',
-          dropdown:
-            'min-w-32 border-0 bg-backgroundInverse-light dark:bg-backgroundInverse-dark px-0 rounded-lg',
-          divider: 'border-borderSecondary-light dark:border-borderSecondary-dark',
-        },
+      classNames: {
+        item: 'py-1 px-2 text-textContrast-light dark:text-textContrast-dark bg-backgroundInverse-light dark:bg-backgroundInverse-dark hover:bg-transparentWhite-012 dark:hover:bg-transparentWhite-012',
+        dropdown:
+          'min-w-32 border-0 bg-backgroundInverse-light dark:bg-backgroundInverse-dark px-0 rounded-lg',
+        divider: 'border-borderSecondary-light dark:border-borderSecondary-dark',
       },
     }),
     LoadingOverlay: LoadingOverlay.extend({
@@ -587,12 +599,19 @@ export const theme = createTheme({
       defaultProps: {
         size: 'xs',
         color: 'icon-accent',
-        classNames: {
-          input:
-            'dark:checked:bg-icon-accent-light checked:bg-icon-accent-dark bg-transparent border-borderPrimary-light dark:border-borderPrimary-dark checked:border-0',
-          label: 'text-sm',
-        },
       },
+      classNames: (_, props) => ({
+        input:
+          'bg-transparent border-borderPrimary-light dark:border-borderPrimary-dark checked:bg-iconAccent-light dark:checked:bg-iconAccent-dark checked:border-iconAccent-light dark:checked:border-iconAccent-dark disabled:bg-backgroundTertiary-light dark:disabled:bg-backgroundTertiary-dark disabled:border-borderPrimary-light dark:disabled:border-borderPrimary-dark disabled:checked:bg-backgroundTertiary-light dark:disabled:checked:bg-backgroundTertiary-dark',
+        label: `text-textPrimary-light dark:text-textPrimary-dark disabled:text-iconDisabled-light dark:disabled:text-iconDisabled-dark ${
+          props?.size === 'md'
+            ? 'text-base'
+            : props?.size === 'sm'
+              ? 'text-sm leading-[20px]'
+              : 'text-sm leading-[16px]'
+        }`,
+        icon: 'disabled:text-iconDisabled-light dark:disabled:text-iconDisabled-dark',
+      }),
     }),
     Modal: Modal.extend({
       defaultProps: {

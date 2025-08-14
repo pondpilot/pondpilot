@@ -1,8 +1,6 @@
 import { Stack, Checkbox, Text, Radio, Group } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
 
-import { commonCheckboxClassNames } from '../constants';
-
 interface MarkdownOptionsProps {
   includeHeader: boolean;
   setIncludeHeader: (value: boolean) => void;
@@ -28,7 +26,6 @@ export function MarkdownOptions({
         onChange={(e) => setIncludeHeader(e.currentTarget.checked)}
         data-testid={setDataTestId('export-include-header')}
         color="background-accent"
-        classNames={commonCheckboxClassNames}
       />
       <Stack gap={16}>
         <Stack gap={4}>
@@ -45,24 +42,8 @@ export function MarkdownOptions({
           onChange={(value) => setMdFormat(value as 'github' | 'standard')}
         >
           <Group gap="xl">
-            <Radio
-              value="github"
-              label="GitHub"
-              color="background-accent"
-              classNames={{
-                root: 'flex items-center',
-                label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark ml-2',
-              }}
-            />
-            <Radio
-              value="standard"
-              label="Standard"
-              color="background-accent"
-              classNames={{
-                root: 'flex items-center',
-                label: 'text-sm text-textPrimary-light dark:text-textPrimary-dark ml-2',
-              }}
-            />
+            <Radio value="github" label="GitHub" color="background-accent" />
+            <Radio value="standard" label="Standard" color="background-accent" />
           </Group>
         </Radio.Group>
       </Stack>
@@ -71,7 +52,6 @@ export function MarkdownOptions({
         checked={alignColumns}
         onChange={(e) => setAlignColumns(e.currentTarget.checked)}
         color="background-accent"
-        classNames={commonCheckboxClassNames}
       />
     </Stack>
   );

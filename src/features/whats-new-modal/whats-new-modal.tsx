@@ -98,11 +98,7 @@ export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
         className="sticky bottom-0 bg-backgroundPrimary-light py-6 px-4 dark:bg-backgroundPrimary-dark"
       >
         {!isLoading && (
-          <Button
-            onClick={onClose}
-            color="background-accent"
-            data-testid={setDataTestId('whats-new-modal-submit-button')}
-          >
+          <Button onClick={onClose} data-testid={setDataTestId('whats-new-modal-submit-button')}>
             Got it!
           </Button>
         )}

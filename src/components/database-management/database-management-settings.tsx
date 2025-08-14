@@ -113,7 +113,6 @@ export const DatabaseManagementSettings = () => {
           <Button
             onClick={handleExport}
             loading={isExporting}
-            color="background-accent"
             variant="outline"
             disabled={isClearing || isImporting || persistenceState.dbSize === 0}
             leftSection={<IconDownload size={16} />}
@@ -126,7 +125,6 @@ export const DatabaseManagementSettings = () => {
               <Button
                 {...props}
                 variant="outline"
-                color="background-accent"
                 leftSection={<IconUpload size={16} />}
                 loading={isImporting}
                 disabled={isExporting || isClearing}
@@ -138,7 +136,6 @@ export const DatabaseManagementSettings = () => {
         </Group> */}
         <Button
           leftSection={<IconTrash size={16} />}
-          color="text-error"
           variant="outline"
           onClick={handleClear}
           loading={isClearing}

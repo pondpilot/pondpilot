@@ -63,7 +63,6 @@ export const InitModals = () => {
               <Group justify="end" gap={0}>
                 <Button
                   variant="transparent"
-                  c="text-tertiary"
                   data-testid={setDataTestId('new-version-alert-cancel-button')}
                   onClick={() => {
                     notifications.hide(newVersionAlert);
@@ -72,7 +71,6 @@ export const InitModals = () => {
                   Cancel
                 </Button>
                 <Button
-                  color="background-accent"
                   data-testid={setDataTestId('new-version-alert-open-button')}
                   onClick={async () => {
                     notifications.hide(newVersionAlert);

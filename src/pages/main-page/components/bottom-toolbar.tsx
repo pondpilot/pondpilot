@@ -42,7 +42,6 @@ export const BottomToolbar = ({ onCollapse }: BottomToolbarProps) => {
             size="sm"
             data-testid={setDataTestId('collapse-sidebar-button')}
             onClick={onCollapse}
-            variant="subtle"
             className="flex-shrink-0"
           >
             <IconLayoutSidebarLeftCollapse size={20} />

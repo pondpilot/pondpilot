@@ -30,12 +30,10 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
     return (
       <Stack className="h-full bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark" gap={0}>
         {/* Create New Query button */}
-        <Box className="p-2 border-b border-borderPrimary-light dark:border-borderPrimary-dark">
+        <Box className="p-2 mx-auto border-b border-borderPrimary-light dark:border-borderPrimary-dark">
           <Tooltip label="Create new query" position="right" withArrow openDelay={500}>
             <ActionIcon
               size="lg"
-              variant="subtle"
-              className="w-full"
               data-testid={setDataTestId('collapsed-new-query-button')}
               onClick={() => {
                 const newEmptyScript = createSQLScript();
@@ -48,13 +46,11 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
         </Box>
 
         {/* Bottom toolbar */}
-        <Box className="mt-auto border-t border-borderPrimary-light dark:border-borderPrimary-dark p-2">
+        <Box className="mt-auto mx-auto border-t border-borderPrimary-light dark:border-borderPrimary-dark p-2">
           <Stack gap="xs">
             <Tooltip label="Settings" position="right" withArrow openDelay={500}>
               <ActionIcon
                 size="lg"
-                variant="subtle"
-                className="w-full"
                 data-testid={setDataTestId('settings-button')}
                 onClick={() => navigate('/settings')}
               >
@@ -64,8 +60,6 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
             <Tooltip label="GitHub" position="right" withArrow openDelay={500}>
               <ActionIcon
                 size="lg"
-                variant="subtle"
-                className="w-full"
                 component="a"
                 href={APP_GITHUB_URL}
                 target="_blank"
@@ -78,8 +72,6 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
               <Tooltip label="Expand sidebar" position="right" withArrow openDelay={500}>
                 <ActionIcon
                   size="lg"
-                  variant="subtle"
-                  className="w-full"
                   data-testid={setDataTestId('expand-sidebar-button')}
                   onClick={onCollapse}
                 >

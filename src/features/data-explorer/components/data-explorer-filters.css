@@ -8,11 +8,6 @@
   }
 }
 
-.search-input-grow {
-  animation: grow-from-right 200ms ease-out;
-  clip-path: inset(0 0 0 0);
-}
-
 .filter-buttons-container {
   display: flex;
   align-items: center;
@@ -32,13 +27,4 @@
   top: 50%;
   transform: translateY(-50%);
   z-index: 1;
-}
-
-.search-input {
-  width: 100%;
-}
-
-.search-toggle-button {
-  position: relative;
-  z-index: 2;
 }

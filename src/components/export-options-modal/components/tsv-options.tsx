@@ -1,8 +1,6 @@
 import { Stack, Checkbox } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
 
-import { commonCheckboxClassNames } from '../constants';
-
 interface TsvOptionsProps {
   includeHeader: boolean;
   setIncludeHeader: (value: boolean) => void;
@@ -17,7 +15,6 @@ export function TsvOptions({ includeHeader, setIncludeHeader }: TsvOptionsProps)
         onChange={(e) => setIncludeHeader(e.currentTarget.checked)}
         data-testid={setDataTestId('export-include-header')}
         color="background-accent"
-        classNames={commonCheckboxClassNames}
       />
     </Stack>
   );

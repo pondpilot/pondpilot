@@ -183,7 +183,6 @@ export const DataExplorerFilters = memo(
                       disabled={menuOpened}
                     >
                       <ActionIcon
-                        variant={activeFilter === 'files' ? 'light' : 'subtle'}
                         size={20}
                         color={activeFilter === 'files' ? 'background-accent' : undefined}
                         onClick={() => {
@@ -264,7 +263,6 @@ export const DataExplorerFilters = memo(
             return (
               <Tooltip key={button.type} label={button.tooltip} position="bottom" openDelay={500}>
                 <ActionIcon
-                  variant={activeFilter === button.type ? 'light' : 'subtle'}
                   size={20}
                   color={activeFilter === button.type ? 'background-accent' : undefined}
                   onClick={() => onFilterChange(button.type)}
@@ -297,10 +295,10 @@ export const DataExplorerFilters = memo(
                   setSearchExpanded(false);
                 }
               }}
-              className="search-input search-input-grow"
+              className="w-full"
               styles={{
                 input: {
-                  height: 20, // Match ActionIcon size
+                  height: 20,
                   minHeight: 20,
                 },
               }}
@@ -308,7 +306,6 @@ export const DataExplorerFilters = memo(
                 searchQuery && (
                   <ActionIcon
                     size="xs"
-                    variant="subtle"
                     onClick={() => onSearchChange?.('')}
                     aria-label="Clear search"
                   >
@@ -326,12 +323,10 @@ export const DataExplorerFilters = memo(
           openDelay={500}
         >
           <ActionIcon
-            variant={searchQuery ? 'light' : 'subtle'}
             size={20}
-            color={searchQuery ? 'background-accent' : undefined}
             onClick={handleSearchToggle}
             aria-label="Toggle search"
-            className="search-toggle-button"
+            className="relative z-10"
           >
             <IconSearch size={16} />
           </ActionIcon>

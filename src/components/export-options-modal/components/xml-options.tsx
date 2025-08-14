@@ -1,8 +1,6 @@
 import { Stack, TextInput, Checkbox } from '@mantine/core';
 import { setDataTestId } from '@utils/test-id';
 
-import { commonTextInputClassNames, commonCheckboxClassNames } from '../constants';
-
 interface XmlOptionsProps {
   includeHeader: boolean;
   setIncludeHeader: (value: boolean) => void;
@@ -32,7 +30,6 @@ export function XmlOptions({
         onChange={(e) => setIncludeHeader(e.currentTarget.checked)}
         data-testid={setDataTestId('export-include-header')}
         color="background-accent"
-        classNames={commonCheckboxClassNames}
       />
       <TextInput
         label="Root Element Name"
@@ -40,7 +37,6 @@ export function XmlOptions({
         onChange={(e) => setRootElement(e.currentTarget.value)}
         data-testid={setDataTestId('export-xml-root')}
         error={rootElementError}
-        classNames={commonTextInputClassNames}
       />
       <TextInput
         label="Row Element Name"
@@ -48,7 +44,6 @@ export function XmlOptions({
         onChange={(e) => setRowElement(e.currentTarget.value)}
         data-testid={setDataTestId('export-xml-row')}
         error={rowElementError}
-        classNames={commonTextInputClassNames}
       />
     </Stack>
   );

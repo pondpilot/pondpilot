@@ -22,7 +22,6 @@ export const useShowPermsAlert = () => {
               <Group justify="end">
                 <Button
                   variant="transparent"
-                  color="text-tertiary"
                   onClick={() => {
                     notifications.hide(alert);
                     resolve(false);
@@ -31,7 +30,6 @@ export const useShowPermsAlert = () => {
                   Cancel
                 </Button>
                 <Button
-                  color="background-accent"
                   onClick={() => {
                     notifications.hide(alert);
                     resolve(true);

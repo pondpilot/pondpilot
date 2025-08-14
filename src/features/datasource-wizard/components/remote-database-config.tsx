@@ -1,5 +1,4 @@
 import { showError, showSuccess } from '@components/app-notifications';
-import { commonTextInputClassNames } from '@components/export-options-modal/constants';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
@@ -232,7 +231,6 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
           onChange={setUrl}
           description="Enter the full URL to your remote database or file"
           required
-          classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
         />
 
         <TextInput
@@ -243,7 +241,6 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
           onChange={setDbName}
           description="Choose a name to reference this database in queries"
           required
-          classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
         />
 
         <Checkbox
@@ -255,12 +252,11 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
       </Stack>
 
       <Group justify="end" className="mt-4">
-        <Button variant="transparent" color="text-secondary" onClick={onBack}>
+        <Button variant="transparent" onClick={onBack}>
           Cancel
         </Button>
         <Button
-          variant="light"
-          color="background-accent"
+          variant="outline"
           onClick={handleTest}
           loading={isTesting}
           disabled={!url.trim() || !dbName.trim() || isLoading}
@@ -272,7 +268,6 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
           onClick={handleAdd}
           loading={isLoading}
           disabled={!url.trim() || !dbName.trim() || isTesting}
-          color="background-accent"
           data-testid={setDataTestId('add-remote-database-button')}
         >
           Add Database

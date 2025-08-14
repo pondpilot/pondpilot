@@ -91,12 +91,7 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
       />
 
       <Group justify="flex-end" gap={4}>
-        <Button
-          variant="transparent"
-          onClick={handleCancel}
-          className="rounded-full px-3"
-          c="text-secondary"
-        >
+        <Button variant="transparent" onClick={handleCancel} className="rounded-full px-3">
           Cancel
         </Button>
         <Button
@@ -104,8 +99,6 @@ export function ImportScriptModalContent({ onClose }: ImportScriptModalContentPr
           loading={isLoading}
           disabled={!url.trim().includes('/shared-script/')}
           data-testid={setDataTestId('import-script-url-submit-button')}
-          color="background-accent"
-          className="rounded-full px-3 disabled:bg-transparentBrandBlue-016 dark:disabled:bg-transparentBrandBlue-016 disabled:text-textTertiary-light dark:disabled:text-textTertiary-dark"
         >
           Import
         </Button>
