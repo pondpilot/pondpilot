@@ -164,18 +164,18 @@ export class DuckDBTauriEngine implements DatabaseEngine {
   }
 
   async prepare(sql: string): Promise<PreparedStatement> {
-    const stmtId = await this.invoke('prepare_statement', { sql });
+    const stmtId = await this.invokeWithErrorHandling<string>('prepare_statement', { sql });
 
     return {
       id: stmtId,
       query: async (params?: any[]) => {
-        return this.invoke('prepared_statement_execute', {
+        return this.invokeWithErrorHandling('prepared_statement_execute', {
           statementId: stmtId,
           params: params || [],
         });
       },
       close: async () => {
-        await this.invoke('prepared_statement_close', {
+        await this.invokeWithErrorHandling('prepared_statement_close', {
           statementId: stmtId,
         });
       },

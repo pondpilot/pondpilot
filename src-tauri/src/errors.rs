@@ -95,6 +95,18 @@ pub enum DuckDBError {
         #[serde(skip_serializing_if = "Option::is_none")]
         current_usage: Option<String>,
     },
+
+    #[error("Query execution failed: {message}")]
+    QueryExecution { 
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        query: Option<String>,
+    },
+
+    #[error("Parameter binding error: {message}")]
+    ParameterBinding { 
+        message: String,
+    },
 }
 
 impl From<duckdb::Error> for DuckDBError {
