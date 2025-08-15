@@ -219,6 +219,9 @@ fn main() {
             commands::reset_all_connections,
             commands::checkpoint,
             commands::load_extension,
+            commands::prepare_statement,
+            commands::prepared_statement_execute,
+            commands::prepared_statement_close,
             // Persistence commands
             persistence::sqlite_get,
             persistence::sqlite_put,

@@ -206,6 +206,8 @@ pub struct DuckDBEngine {
     /// Manages persistent connections (each in their own thread)
     connection_manager: Arc<ThreadSafeConnectionManager>,
     extensions: Arc<tokio::sync::Mutex<Vec<ExtensionInfoForLoad>>>,
+    /// Stores prepared statements by ID for reuse (mapping ID to SQL)
+    prepared_statements: Arc<tokio::sync::Mutex<HashMap<String, String>>>,
 }
 
 impl DuckDBEngine {
@@ -224,6 +226,7 @@ impl DuckDBEngine {
             db_path,
             connection_manager: Arc::new(ThreadSafeConnectionManager::new()),
             extensions,
+            prepared_statements: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         })
     }
 
@@ -752,5 +755,80 @@ impl DuckDBEngine {
         }
 
         Ok(sheet_names)
+    }
+
+    /// Prepare a SQL statement and store it for reuse
+    pub async fn prepare_statement(&self, sql: &str) -> Result<String> {
+        let statement_id = uuid::Uuid::new_v4().to_string();
+        
+        // Validate the SQL by trying to prepare it
+        let sql_owned = sql.to_string();
+        let permit = self.pool.acquire_connection_permit().await?;
+        
+        tokio::task::spawn_blocking(move || {
+            // Create connection in this thread
+            let conn = permit.create_connection()?;
+            
+            // Just validate that the SQL can be prepared
+            conn.prepare(&sql_owned).map_err(|e| {
+                crate::errors::DuckDBError::QueryExecution {
+                    message: format!("Failed to prepare statement: {}", e),
+                    query: Some(sql_owned.clone()),
+                }
+            })?;
+            
+            Ok::<(), crate::errors::DuckDBError>(())
+        }).await.map_err(|e| {
+            crate::errors::DuckDBError::QueryExecution {
+                message: format!("Task join error: {}", e),
+                query: Some(sql.to_string()),
+            }
+        })??;
+
+        // Store the SQL with the statement ID
+        let mut statements = self.prepared_statements.lock().await;
+        statements.insert(statement_id.clone(), sql.to_string());
+        
+        Ok(statement_id)
+    }
+
+    /// Execute a prepared statement with parameters
+    pub async fn execute_prepared_statement(
+        &self,
+        statement_id: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<super::types::QueryResult> {
+        // Get the stored SQL for this statement ID
+        let statements = self.prepared_statements.lock().await;
+        let sql = statements.get(statement_id).ok_or_else(|| {
+            crate::errors::DuckDBError::InvalidOperation {
+                message: format!("Prepared statement with ID '{}' not found", statement_id),
+                operation: Some("execute_prepared_statement".to_string()),
+            }
+        })?.clone();
+        drop(statements);
+
+        // For now, ignore parameters and just execute the SQL directly
+        // TODO: Implement proper parameter binding
+        if !params.is_empty() {
+            warn!("Parameters provided to prepared statement but parameter binding not yet implemented");
+        }
+        
+        // Execute using the existing query execution path
+        self.execute_query(&sql, params).await
+    }
+
+    /// Close and remove a prepared statement
+    pub async fn close_prepared_statement(&self, statement_id: &str) -> Result<()> {
+        let mut statements = self.prepared_statements.lock().await;
+        
+        statements.remove(statement_id).ok_or_else(|| {
+            crate::errors::DuckDBError::InvalidOperation {
+                message: format!("Prepared statement with ID '{}' not found", statement_id),
+                operation: Some("close_prepared_statement".to_string()),
+            }
+        })?;
+        
+        Ok(())
     }
 }
