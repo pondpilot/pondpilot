@@ -216,3 +216,28 @@ pub async fn load_extension(
     // No lock needed - load_extension is thread-safe
     engine.load_extension(&name).await
 }
+
+#[tauri::command]
+pub async fn prepare_statement(
+    engine: EngineState<'_>,
+    sql: String,
+) -> Result<String> {
+    engine.prepare_statement(&sql).await
+}
+
+#[tauri::command]
+pub async fn prepared_statement_execute(
+    engine: EngineState<'_>,
+    statement_id: String,
+    params: Vec<serde_json::Value>,
+) -> Result<QueryResult> {
+    engine.execute_prepared_statement(&statement_id, params).await
+}
+
+#[tauri::command]
+pub async fn prepared_statement_close(
+    engine: EngineState<'_>,
+    statement_id: String,
+) -> Result<()> {
+    engine.close_prepared_statement(&statement_id).await
+}
