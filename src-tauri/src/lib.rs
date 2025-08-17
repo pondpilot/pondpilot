@@ -1,6 +1,7 @@
 // Library root for exposing modules to tests
 
 pub mod config;
+pub mod connections;
 pub mod database;
 pub mod errors;
 pub mod persistence;

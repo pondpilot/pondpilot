@@ -137,6 +137,10 @@ async fn execute_streaming_query(
                         item.get("dbName").and_then(|v| v.as_str()),
                         item.get("url").and_then(|v| v.as_str()),
                     ) {
+                        // Skip empty URLs to prevent in-memory database errors
+                        if url.trim().is_empty() {
+                            continue;
+                        }
                         let read_only = item.get("readOnly").and_then(|v| v.as_bool()).unwrap_or(true);
                         let escaped_db_name = escape_identifier(db_name);
                         let escaped_url = escape_string_literal(url);
@@ -161,6 +165,10 @@ async fn execute_streaming_query(
                 spec.get("dbName").and_then(|v| v.as_str()),
                 spec.get("url").and_then(|v| v.as_str()),
             ) {
+                // Skip empty URLs to prevent in-memory database errors
+                if url.trim().is_empty() {
+                    return Ok(());
+                }
                 let read_only = spec.get("readOnly").and_then(|v| v.as_bool()).unwrap_or(true);
                 let escaped_db_name = escape_identifier(db_name);
                 let escaped_url = escape_string_literal(url);

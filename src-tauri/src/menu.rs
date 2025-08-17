@@ -146,7 +146,7 @@ pub fn create_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn std::err
 }
 
 pub fn setup_menu_handlers(app: &AppHandle) {
-    let app_handle = app.clone();
+    let _app_handle = app.clone();
     
     app.on_menu_event(move |app, event| {
         match event.id.as_ref() {

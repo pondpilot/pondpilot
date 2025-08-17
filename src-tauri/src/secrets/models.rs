@@ -134,7 +134,6 @@ pub struct SecretFields {
     pub host: Option<String>,
     pub port: Option<u16>,
     pub database: Option<String>,
-    pub user: Option<String>,
     pub username: Option<String>,
     pub password: Option<String>,
     
@@ -166,7 +165,6 @@ impl Default for SecretFields {
             host: None,
             port: None,
             database: None,
-            user: None,
             username: None,
             password: None,
             token: None,

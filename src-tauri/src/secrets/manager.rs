@@ -4,26 +4,22 @@ use chrono::Utc;
 
 use super::keychain::{KeychainProvider, NativeKeychainProvider, DisabledKeychainProvider};
 use super::validator::SecretValidator;
-use super::injector::DuckDBSecretInjector;
 use super::models::{SecretMetadata, SecretType, SecretFields, SecretCredentials};
 use super::errors::SecretError;
 
 pub struct SecretsManager {
     keychain: Arc<dyn KeychainProvider>,
     validator: Arc<SecretValidator>,
-    injector: Arc<DuckDBSecretInjector>,
 }
 
 impl SecretsManager {
     pub fn new() -> Result<Self, SecretError> {
         let keychain = Arc::new(NativeKeychainProvider::new()?);
         let validator = Arc::new(SecretValidator::new());
-        let injector = Arc::new(DuckDBSecretInjector::new());
         
         Ok(Self {
             keychain,
             validator,
-            injector,
         })
     }
     
@@ -32,12 +28,10 @@ impl SecretsManager {
     pub fn new_disabled() -> Self {
         let keychain = Arc::new(DisabledKeychainProvider);
         let validator = Arc::new(SecretValidator::new());
-        let injector = Arc::new(DuckDBSecretInjector::new());
         
         Self {
             keychain,
             validator,
-            injector,
         }
     }
     
@@ -117,21 +111,5 @@ impl SecretsManager {
     ) -> Result<bool, SecretError> {
         let secret = self.keychain.get_secret(&secret_id).await?;
         self.validator.test_connection(&secret).await
-    }
-    
-    pub async fn apply_secret_to_connection(
-        &self,
-        connection: &duckdb::Connection,
-        secret_id: Uuid,
-    ) -> Result<(), SecretError> {
-        let secret = self.keychain.get_secret(&secret_id).await?;
-        
-        self.injector.inject_secret(connection, &secret).await?;
-        
-        Ok(())
-    }
-    
-    pub fn get_injector(&self) -> Arc<DuckDBSecretInjector> {
-        self.injector.clone()
     }
 }
