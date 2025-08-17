@@ -151,7 +151,7 @@ export function buildDatabaseNode(
         {
           label: 'Copy URL',
           onClick: () => {
-            copyToClipboard((dataSource as RemoteDB).url, {
+            copyToClipboard((dataSource as RemoteDB).legacyUrl || 'Connection ID: ' + (dataSource as RemoteDB).connectionId, {
               showNotification: true,
               notificationTitle: 'URL Copied',
             });

@@ -3,6 +3,7 @@
 
 mod commands;
 mod config;
+mod connections;
 mod database;
 mod persistence;
 mod errors;
@@ -17,6 +18,7 @@ mod windows;
 use database::{DuckDBEngine, EngineConfig};
 use persistence::PersistenceState;
 use secrets::SecretsManager;
+use connections::ConnectionsManager;
 use streaming::StreamManager;
 use std::sync::Arc;
 use tauri::{Manager, Listener};
@@ -138,22 +140,38 @@ fn main() {
             let secrets_manager = match SecretsManager::new() {
                 Ok(manager) => {
                     tracing::info!("[STARTUP] Secrets manager initialized successfully");
-                    manager
+                    Arc::new(manager)
                 },
                 Err(e) => {
                     tracing::warn!("[STARTUP] Failed to initialize secrets manager: {}", e);
                     tracing::warn!("[STARTUP] Application will continue with limited functionality");
                     tracing::warn!("[STARTUP] Secrets management features will be unavailable");
                     // Create a dummy manager that returns errors for all operations
-                    SecretsManager::new_disabled()
+                    Arc::new(SecretsManager::new_disabled())
                 }
             };
+            
+            // Create connections manager
+            let mut connections_manager = match ConnectionsManager::new(secrets_manager.clone()) {
+                Ok(manager) => {
+                    tracing::info!("[STARTUP] Connections manager initialized successfully");
+                    manager
+                },
+                Err(e) => {
+                    tracing::warn!("[STARTUP] Failed to initialize connections manager: {}", e);
+                    return Err("Failed to create connections manager".into());
+                }
+            };
+            
+            // Set the DuckDB engine on the connections manager
+            connections_manager.set_duckdb_engine(engine.clone());
             
             // Store all in app state
             app.manage(engine);
             app.manage(persistence);
             app.manage(stream_manager);
             app.manage(secrets_manager);
+            app.manage(connections_manager);
             
             // Set up menu (macOS primarily)
             let menu = menu::create_menu(&app.handle())
@@ -239,6 +257,19 @@ fn main() {
             secrets::get_secret_types,
             secrets::debug_secret,
             secrets::cleanup_orphaned_secrets,
+            // Connection management commands
+            connections::save_connection,
+            connections::list_connections,
+            connections::get_connection,
+            connections::delete_connection,
+            connections::update_connection,
+            connections::test_database_connection,
+            connections::test_database_connection_config,
+            connections::get_connection_types,
+            connections::get_connection_with_credentials,
+            connections::get_attachment_sql,
+            connections::register_motherduck_attachment,
+            connections::attach_remote_database,
             // Window management commands
             windows::open_secrets_window,
             windows::close_secrets_window,

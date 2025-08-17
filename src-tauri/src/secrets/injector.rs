@@ -1,5 +1,3 @@
-use duckdb::Connection;
-
 use super::models::{SecretCredentials, SecretType};
 use super::errors::SecretError;
 
@@ -9,32 +7,8 @@ impl DuckDBSecretInjector {
     pub fn new() -> Self {
         Self
     }
-    
-    pub async fn inject_secret(
-        &self,
-        connection: &Connection,
-        secret: &SecretCredentials,
-    ) -> Result<(), SecretError> {
-        let sql = self.build_create_secret(secret)?;
-        
-        connection.execute(&sql, []).map_err(|e| {
-            SecretError::DuckDBInjection {
-                secret_type: format!("{:?}", secret.metadata.secret_type),
-                error: e.to_string(),
-            }
-        })?;
-        
-        Ok(())
-    }
-    
-    pub async fn clear_secrets(
-        &self,
-        _connection: &Connection,
-    ) -> Result<(), SecretError> {
-        Ok(())
-    }
 
-    fn build_create_secret(&self, secret: &SecretCredentials) -> Result<String, SecretError> {
+    pub fn build_create_secret(&self, secret: &SecretCredentials) -> Result<String, SecretError> {
         let secret_name = format!("secret_{}", secret.metadata.id.to_string().replace("-", "_"));
         let creds = &secret.credentials;
         
@@ -161,10 +135,10 @@ impl DuckDBSecretInjector {
                 if let Some(database) = creds.get("database") {
                     params.push(format!("DATABASE '{}'", escape_sql_string(database.expose())));
                 }
-                if let Some(user) = creds.get("user") {
-                    params.push(format!("USER '{}'", escape_sql_string(user.expose())));
+                if let Some(username) = creds.get("username") {
+                    params.push(format!("USER '{}'", escape_sql_string(username.expose())));
                 }
-                if let Some(password) = creds.get("secret") {
+                if let Some(password) = creds.get("password") {
                     params.push(format!("PASSWORD '{}'", escape_sql_string(password.expose())));
                 }
                 
@@ -189,10 +163,10 @@ impl DuckDBSecretInjector {
                 if let Some(database) = creds.get("database") {
                     params.push(format!("DATABASE '{}'", escape_sql_string(database.expose())));
                 }
-                if let Some(user) = creds.get("user") {
-                    params.push(format!("USER '{}'", escape_sql_string(user.expose())));
+                if let Some(username) = creds.get("username") {
+                    params.push(format!("USER '{}'", escape_sql_string(username.expose())));
                 }
-                if let Some(password) = creds.get("secret") {
+                if let Some(password) = creds.get("password") {
                     params.push(format!("PASSWORD '{}'", escape_sql_string(password.expose())));
                 }
                 

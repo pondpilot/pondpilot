@@ -27,10 +27,7 @@ export interface SecretFields {
   key_id?: string;
   secret?: string;
   token?: string; // For MotherDuck, HuggingFace, DuckLake
-  host?: string;
-  port?: number;
-  database?: string;
-  user?: string;
+  username?: string; // For database authentication
   region?: string;
   account_id?: string;
   tenant_id?: string;
@@ -111,7 +108,7 @@ export function getRequiredFields(secretType: SecretType): (keyof SecretFields)[
       return ['tenant_id', 'client_id', 'client_secret'];
     case SecretType.Postgres:
     case SecretType.MySQL:
-      return ['host', 'user', 'secret'];
+      return ['username', 'secret'];
     case SecretType.HTTP:
       return ['secret'];
     case SecretType.HuggingFace:
@@ -127,10 +124,7 @@ export function getFieldLabels(): Record<keyof SecretFields, string> {
     key_id: 'Access Key ID',
     secret: 'Secret / Password',
     token: 'Token',
-    host: 'Host',
-    port: 'Port',
-    database: 'Database',
-    user: 'Username',
+    username: 'Username',
     region: 'Region',
     account_id: 'Account ID',
     tenant_id: 'Tenant ID',

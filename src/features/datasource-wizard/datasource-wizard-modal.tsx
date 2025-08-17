@@ -7,6 +7,8 @@ import { useState, useMemo } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
 import { MotherDuckDatabaseConfig } from './components/motherduck-database-config';
+import { MySQLConfig } from './components/mysql-config';
+import { PostgresConfig } from './components/postgres-config';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
 
 interface DatasourceWizardModalProps {
@@ -17,7 +19,7 @@ interface DatasourceWizardModalProps {
   initialStep?: WizardStep;
 }
 
-export type WizardStep = 'selection' | 'remote-config' | 'motherduck-config';
+export type WizardStep = 'selection' | 'remote-config' | 'motherduck-config' | 'postgres-config' | 'mysql-config';
 
 export function DatasourceWizardModal({
   onClose,
@@ -34,6 +36,14 @@ export function DatasourceWizardModal({
 
   const handleMotherDuckClick = () => {
     setStep('motherduck-config');
+  };
+
+  const handlePostgresClick = () => {
+    setStep('postgres-config');
+  };
+
+  const handleMySQLClick = () => {
+    setStep('mysql-config');
   };
 
   const handleBack = () => {
@@ -114,6 +124,34 @@ export function DatasourceWizardModal({
             description: 'Browse and attach MotherDuck databases',
             testId: 'add-motherduck-database-card',
           },
+          {
+            type: 'postgres' as const,
+            onClick: handlePostgresClick,
+            icon: (
+              <IconDatabasePlus
+                size={48}
+                className="text-textSecondary-light dark:text-textSecondary-dark"
+                stroke={1.5}
+              />
+            ),
+            title: 'PostgreSQL',
+            description: 'Connect to PostgreSQL databases',
+            testId: 'add-postgres-database-card',
+          },
+          {
+            type: 'mysql' as const,
+            onClick: handleMySQLClick,
+            icon: (
+              <IconDatabasePlus
+                size={48}
+                className="text-textSecondary-light dark:text-textSecondary-dark"
+                stroke={1.5}
+              />
+            ),
+            title: 'MySQL',
+            description: 'Connect to MySQL databases',
+            testId: 'add-mysql-database-card',
+          },
         ]
       : []),
   ];
@@ -135,7 +173,12 @@ export function DatasourceWizardModal({
               ADD DATA SOURCE
             </Text>
             <Text size="xs">/</Text>
-            <Text size="xs">{step === 'remote-config' ? 'REMOTE DATABASE' : 'MOTHERDUCK'}</Text>
+            <Text size="xs">
+              {step === 'remote-config' && 'REMOTE DATABASE'}
+              {step === 'motherduck-config' && 'MOTHERDUCK'}
+              {step === 'postgres-config' && 'POSTGRESQL'}
+              {step === 'mysql-config' && 'MYSQL'}
+            </Text>
           </Group>
         )}
 
@@ -183,6 +226,12 @@ export function DatasourceWizardModal({
       )}
       {step === 'motherduck-config' && (
         <MotherDuckDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+      {step === 'postgres-config' && (
+        <PostgresConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+      {step === 'mysql-config' && (
+        <MySQLConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
     </Stack>
   );

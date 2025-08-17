@@ -1,6 +1,7 @@
 import { PERSISTENT_DB_NAME } from './db-persistence';
 import { LocalEntryId } from './file-system';
 import { NewId } from './new-id';
+import { EngineType } from '../engines/types';
 
 // We have two types of data view sources:
 // 1. Persistent - these are stored in app state to allow
@@ -14,6 +15,17 @@ import { NewId } from './new-id';
 //    in the tab state directly.
 
 export type PersistentDataSourceId = NewId<'PersistentDataSourceId'>;
+
+/**
+ * Types of remote database connections
+ */
+export type RemoteConnectionType = 
+  | 'url'        // Legacy direct URL connections
+  | 'postgres'   // PostgreSQL via connection system
+  | 'mysql'      // MySQL via connection system  
+  | 'motherduck' // MotherDuck cloud service
+  | 's3'         // S3/cloud storage
+  | 'http';      // HTTP/HTTPS endpoints
 
 /**
  * Every single file data source must have a unique id & and a reference to
@@ -126,8 +138,8 @@ export interface LocalDB extends SingleFileDataSourceBase {
 }
 
 /**
- * Remote database attached via URL (HTTPS, S3, etc.)
- * These databases are read-only and accessed over the network
+ * Remote database attached via URL or connection system
+ * These databases are accessed over the network through various protocols
  */
 export interface RemoteDB {
   readonly type: 'remote-db';
@@ -138,9 +150,21 @@ export interface RemoteDB {
   id: PersistentDataSourceId;
 
   /**
-   * URL of the remote database (e.g., https://..., s3://...)
+   * Type of remote connection (determines how to connect)
    */
-  url: string;
+  connectionType: RemoteConnectionType;
+
+  /**
+   * Legacy URL for direct connections (deprecated, use connectionId for new connections)
+   * Only used for backward compatibility with existing url-based connections
+   */
+  legacyUrl?: string;
+
+  /**
+   * Connection ID for new-style database connections using the connections system
+   * When present, this takes precedence over legacyUrl for reconnection
+   */
+  connectionId?: string;
 
   /**
    * Database name used in ATTACH statement
@@ -154,10 +178,19 @@ export interface RemoteDB {
   originalDbName?: string;
 
   /**
-   * Type of the database
-   * Note: Remote databases only support DuckDB currently
+   * Query engine type (DuckDB acts as client for all remote databases)
    */
-  dbType: 'duckdb';
+  queryEngineType: 'duckdb';
+
+  /**
+   * Platforms that support this connection type
+   */
+  supportedPlatforms: EngineType[];
+
+  /**
+   * Whether this connection requires a proxy to work in WASM
+   */
+  requiresProxy?: boolean;
 
   /**
    * Connection state for handling network issues
@@ -194,6 +227,154 @@ export interface RemoteDB {
 }
 
 export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB;
+
+/**
+ * Determines which platforms support a given connection type
+ */
+export function getSupportedPlatforms(connectionType: RemoteConnectionType): EngineType[] {
+  switch (connectionType) {
+    case 'url':
+    case 'motherduck':
+    case 's3':
+    case 'http':
+      return ['duckdb-wasm', 'duckdb-tauri'];
+    case 'postgres':
+    case 'mysql':
+      return ['duckdb-tauri']; // Browser cannot directly connect to databases
+    default:
+      return ['duckdb-tauri'];
+  }
+}
+
+/**
+ * Determines if a connection requires proxy support in WASM
+ */
+export function requiresProxy(connectionType: RemoteConnectionType): boolean {
+  switch (connectionType) {
+    case 'postgres':
+    case 'mysql':
+      return true; // Would need proxy to work in browser
+    default:
+      return false;
+  }
+}
+
+/**
+ * Migrates legacy RemoteDB with url field to new format
+ */
+export function migrateRemoteDB(legacyDb: any): RemoteDB {
+  // Safety check - if it's already a properly structured RemoteDB with all required fields
+  if (legacyDb && legacyDb.connectionType && legacyDb.supportedPlatforms && (legacyDb.legacyUrl || legacyDb.connectionId)) {
+    return legacyDb as RemoteDB;
+  }
+  
+  // If it has connectionType but missing supportedPlatforms, add them
+  if (legacyDb && legacyDb.connectionType && !legacyDb.supportedPlatforms) {
+    return {
+      ...legacyDb,
+      supportedPlatforms: getSupportedPlatforms(legacyDb.connectionType),
+      requiresProxy: requiresProxy(legacyDb.connectionType),
+      queryEngineType: legacyDb.queryEngineType || 'duckdb',
+    };
+  }
+  
+  // Handle backward compatibility for existing RemoteDB objects
+  if (legacyDb && legacyDb.url && !legacyDb.connectionType) {
+    const url = legacyDb.url as string;
+    let connectionType: RemoteConnectionType = 'url';
+    
+    // Infer connection type from URL
+    if (url.startsWith('md:')) {
+      connectionType = 'motherduck';
+    } else if (url.startsWith('s3://') || url.startsWith('gs://') || url.includes('amazonaws.com')) {
+      connectionType = 's3';
+    } else if (url.startsWith('http://') || url.startsWith('https://')) {
+      connectionType = 'http';
+    }
+    
+    return {
+      ...legacyDb,
+      connectionType,
+      legacyUrl: url,
+      queryEngineType: 'duckdb',
+      supportedPlatforms: getSupportedPlatforms(connectionType),
+      requiresProxy: requiresProxy(connectionType),
+      // Remove old fields for cleaner interface
+      url: undefined,
+      dbType: undefined,
+    };
+  }
+  
+  return legacyDb as RemoteDB;
+}
+
+/**
+ * Creates a new RemoteDB instance for connection-based databases (Postgres/MySQL)
+ */
+export function createConnectionBasedRemoteDB(
+  id: PersistentDataSourceId,
+  connectionId: string,
+  connectionType: 'postgres' | 'mysql',
+  dbName: string,
+  instanceName?: string,
+  instanceId?: string,
+  comment?: string
+): RemoteDB {
+  return {
+    type: 'remote-db',
+    id,
+    connectionType,
+    connectionId,
+    dbName,
+    queryEngineType: 'duckdb',
+    supportedPlatforms: getSupportedPlatforms(connectionType),
+    requiresProxy: requiresProxy(connectionType),
+    connectionState: 'connecting',
+    attachedAt: Date.now(),
+    comment,
+    instanceName,
+    instanceId,
+  };
+}
+
+/**
+ * Creates a new RemoteDB instance for URL-based databases (legacy)
+ */
+export function createUrlBasedRemoteDB(
+  id: PersistentDataSourceId,
+  url: string,
+  dbName: string,
+  comment?: string,
+  instanceName?: string,
+  instanceId?: string
+): RemoteDB {
+  let connectionType: RemoteConnectionType = 'url';
+  
+  // Infer connection type from URL
+  if (url.startsWith('md:')) {
+    connectionType = 'motherduck';
+  } else if (url.startsWith('s3://') || url.startsWith('gs://') || url.includes('amazonaws.com')) {
+    connectionType = 's3';
+  } else if (url.startsWith('http://') || url.startsWith('https://')) {
+    connectionType = 'http';
+  }
+  
+  return {
+    type: 'remote-db',
+    id,
+    connectionType,
+    legacyUrl: url,
+    dbName,
+    queryEngineType: 'duckdb',
+    supportedPlatforms: getSupportedPlatforms(connectionType),
+    requiresProxy: requiresProxy(connectionType),
+    connectionState: 'connecting',
+    attachedAt: Date.now(),
+    comment,
+    instanceName,
+    instanceId,
+  };
+}
 
 // Special constant for the system database
 export const SYSTEM_DATABASE_ID = 'pondpilot-system-db' as PersistentDataSourceId;

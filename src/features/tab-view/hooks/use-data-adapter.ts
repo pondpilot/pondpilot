@@ -387,13 +387,17 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       }
     } catch (error) {
       if (!(error instanceof ConnectionTimeoutError)) {
-        // Removed console statement
+        console.error('[DataAdapter] Row count fetch error:', error);
         if (error instanceof Error && error.message?.includes('Out of Memory Error')) {
           setAppendDataSourceReadError(
-            'Data source is too large to count rows. Try using a SQL query with specific columns.',
+            'File is too large to analyze (512MB web limit). Use the desktop app for large files.',
+          );
+        } else if (error instanceof Error && error.message?.includes('schema_name')) {
+          setAppendDataSourceReadError(
+            'Database metadata query failed. The file format may not be supported or the database is corrupted.',
           );
         } else {
-          setAppendDataSourceReadError('Failed to fetch row counts');
+          setAppendDataSourceReadError(`Failed to fetch row counts: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
     }
@@ -472,14 +476,24 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           // Removed console statement
           setAppendDataSourceReadError('Data source have been moved or deleted.');
         } else if (error.message?.includes('Out of Memory Error')) {
-          // Removed console statement
+          console.error('[DataAdapter] Out of Memory Error:', error);
           setAppendDataSourceReadError(
-            'The data source is too large to process in memory. Try using a SQL query to select specific columns or limit rows.',
+            'File is too large for web browser memory (512MB limit). For large files, use the desktop app or reduce file size by selecting specific columns/rows.',
+          );
+        } else if (error.message?.includes('registerFileHandle method not found')) {
+          console.error('[DataAdapter] File registration error:', error);
+          setAppendDataSourceReadError(
+            'File registration failed. This is likely an engine initialization issue. Please refresh and try again.',
+          );
+        } else if (error.message?.includes('WASM database not initialized')) {
+          console.error('[DataAdapter] WASM database not initialized:', error);
+          setAppendDataSourceReadError(
+            'Database engine not ready. Please wait for initialization to complete and try again.',
           );
         } else {
-          // Removed console statement
+          console.error('[DataAdapter] Reader creation error:', error);
           setAppendDataSourceReadError(
-            'Failed to create a reader for the data source. See console for technical details.',
+            `Failed to create a reader for the data source: ${error.message || 'Unknown error'}`,
           );
         }
       } finally {

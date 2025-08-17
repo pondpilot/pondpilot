@@ -24,7 +24,7 @@ interface MotherDuckTreeBuilderContext {
  * Detects if a RemoteDB is a MotherDuck instance based on its URL
  */
 export function isMotherDuckInstance(db: RemoteDB): boolean {
-  return isMotherDuckUrl(db.url);
+  return db.connectionType === 'motherduck' || isMotherDuckUrl(db.legacyUrl);
 }
 
 /**
@@ -157,8 +157,8 @@ export function buildMotherDuckInstanceNode(
 
   // Sort databases by name for consistent display
   const sortedDbs = [...motherduckDbs].sort((a, b) => {
-    const aName = extractMotherDuckDbName(a.url);
-    const bName = extractMotherDuckDbName(b.url);
+    const aName = extractMotherDuckDbName(a.legacyUrl);
+    const bName = extractMotherDuckDbName(b.legacyUrl);
     return aName.localeCompare(bName);
   });
 
@@ -179,7 +179,7 @@ export function buildMotherDuckInstanceNode(
 
     // Customize the label to show just the database name without the connection state
     // (since we show it at the instance level)
-    const dbName = extractMotherDuckDbName(db.url);
+    const dbName = extractMotherDuckDbName(db.legacyUrl);
     dbNode.label = dbName;
 
     // Use a database icon for individual databases

@@ -9,10 +9,13 @@ import { initializePersistence } from '@store/persistence-init';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry } from '@utils/connection-manager';
 import { isRemoteDatabase } from '@utils/data-source';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { isMotherDuckUrl } from '@utils/url-helpers';
 import { useEffect } from 'react';
+
+import { ConnectionsAPI } from '../../../services/connections-api';
 
 import { useShowPermsAlert } from './use-show-perm-alert';
 
@@ -183,7 +186,6 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
               try {
                 const detachConn = await conn.acquire();
                 try {
-                  const { toDuckDBIdentifier } = await import('@utils/duckdb/identifier');
                   await detachConn.execute(
                     `DETACH DATABASE ${toDuckDBIdentifier(dataSource.dbName)}`,
                   );
@@ -212,34 +214,58 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
           continue;
         }
 
-        // Prepare the attach query for non-MotherDuck databases
-        let attachQuery: string = '';
-
-        // First, re-attach the database for non-MotherDuck remote databases
-        try {
-          attachQuery = buildAttachQuery(dataSource.url, dataSource.dbName, { readOnly: true });
-
-          await attachDatabaseWithRetry(conn, attachQuery, {
-            maxRetries: 3,
-            timeout: 30000,
-            retryDelay: 2000,
-            exponentialBackoff: true,
-          });
-
-          updateRemoteDbConnectionState(id, 'connected');
-          connectedDatabases.push(dataSource.dbName);
-          attachedDbNames.add(dataSource.dbName);
-        } catch (attachError: any) {
-          // If it's already attached or similar, treat as success
-          const msg = String(attachError?.message || attachError);
-          if (
-            /already in use|already attached|Unique file handle conflict|already exists/i.test(msg)
-          ) {
+        // Check if this is a new-style connection with connectionId
+        if (dataSource.connectionId) {
+          // Use the new connections API for reconnection
+          const attachedDbName = toDuckDBIdentifier(dataSource.dbName);
+          try {
+            await ConnectionsAPI.attachRemoteDatabase(dataSource.connectionId, attachedDbName);
             updateRemoteDbConnectionState(id, 'connected');
-            connectedDatabases.push(dataSource.dbName);
+            connectedDatabases.push(attachedDbName);
             attachedDbNames.add(dataSource.dbName);
-          } else {
-            throw attachError;
+          } catch (attachError: any) {
+            // If it's already attached or similar, treat as success
+            const msg = String(attachError?.message || attachError);
+            if (
+              /already in use|already attached|Unique file handle conflict|already exists/i.test(msg)
+            ) {
+              updateRemoteDbConnectionState(id, 'connected');
+              connectedDatabases.push(attachedDbName);
+              attachedDbNames.add(dataSource.dbName);
+            } else {
+              throw attachError;
+            }
+          }
+        } else {
+          // Legacy URL-based reconnection for old remote databases
+          let attachQuery: string = '';
+          const attachedDbName = toDuckDBIdentifier(dataSource.dbName);
+
+          try {
+            attachQuery = buildAttachQuery(dataSource.url, dataSource.dbName, { readOnly: true });
+
+            await attachDatabaseWithRetry(conn, attachQuery, {
+              maxRetries: 3,
+              timeout: 30000,
+              retryDelay: 2000,
+              exponentialBackoff: true,
+            });
+
+            updateRemoteDbConnectionState(id, 'connected');
+            connectedDatabases.push(attachedDbName);
+            attachedDbNames.add(dataSource.dbName);
+          } catch (attachError: any) {
+            // If it's already attached or similar, treat as success
+            const msg = String(attachError?.message || attachError);
+            if (
+              /already in use|already attached|Unique file handle conflict|already exists/i.test(msg)
+            ) {
+              updateRemoteDbConnectionState(id, 'connected');
+              connectedDatabases.push(attachedDbName);
+              attachedDbNames.add(dataSource.dbName);
+            } else {
+              throw attachError;
+            }
           }
         }
       } catch (error) {
@@ -266,6 +292,7 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
   if (connectedDatabases.length > 0) {
     try {
       // Load metadata for remote databases
+      console.debug(`Loading metadata for ${connectedDatabases.length} connected databases:`, connectedDatabases);
       const remoteMetadata = await getDatabaseModel(conn, connectedDatabases);
 
       // Merge with existing metadata
@@ -277,8 +304,13 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
       }
 
       useAppStore.setState({ databaseMetadata: newMetadata }, false, 'RemoteDB/loadMetadata');
+      console.debug(`Successfully loaded metadata for ${remoteMetadata.size} databases`);
     } catch (error) {
-      console.error('Failed to load metadata for remote databases:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to load metadata for remote databases:', errorMessage);
+      
+      // Don't fail the entire initialization - just continue without metadata
+      console.warn('Continuing app initialization without remote database metadata');
     }
   }
 }
@@ -359,13 +391,23 @@ export function useAppInitialization({
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('Error restoring app data:', message);
-      showError({
-        title: 'App Initialization Error',
-        message: `Failed to restore app data. ${message}`,
-      });
+      
+      // Check if this is a database-related error that we can handle gracefully
+      if (message.includes('getChild') || message.includes('Arrow') || message.includes('metadata')) {
+        console.warn('Database metadata error during initialization - continuing with limited functionality');
+        showWarning({
+          title: 'Database Initialization Warning',
+          message: 'Some database features may not work correctly. Try refreshing the page if issues persist.',
+        });
+      } else {
+        showError({
+          title: 'App Initialization Error',
+          message: `Failed to restore app data. ${message}`,
+        });
+      }
     }
 
-    // Report we are ready
+    // Report we are ready even if there were non-critical errors
     setAppLoadState('ready');
   };
 

@@ -56,17 +56,13 @@ impl SecretValidator {
             },
             
             SecretType::Postgres | SecretType::MySQL => {
-                if fields.host.is_none() {
-                    return Err(SecretError::MissingCredential("host".to_string()));
-                }
+                // Simplified validation: only require username and password
+                // Connection details (host, port, database) are provided at connection time
                 if fields.username.is_none() {
                     return Err(SecretError::MissingCredential("username".to_string()));
                 }
                 if fields.password.is_none() {
                     return Err(SecretError::MissingCredential("password".to_string()));
-                }
-                if fields.database.is_none() {
-                    return Err(SecretError::MissingCredential("database".to_string()));
                 }
             },
             

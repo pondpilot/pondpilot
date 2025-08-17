@@ -55,11 +55,11 @@ export function getOptimalPoolConfig(engineType: EngineType): PoolConfig {
 
     case 'duckdb-wasm':
       return {
-        minSize: 5,
-        maxSize: 30, // Higher for WASM as connections are lighter
+        minSize: 5, // Back to original main branch value
+        maxSize: 30, // Back to original main branch value - Higher for WASM as connections are lighter
         acquireTimeout: 3000,
         idleTimeout: 60000,
-        maxWaitingClients: 50,
+        maxWaitingClients: 50, // Back to original main branch value
         validateOnAcquire: false,
         validationInterval: 120000,
       };

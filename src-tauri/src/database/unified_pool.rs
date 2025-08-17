@@ -9,6 +9,16 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
 
+/// Information about an attached database for re-attachment on new connections
+#[derive(Debug, Clone)]
+struct AttachedDatabase {
+    alias: String,
+    connection_string: String,
+    db_type: String,
+    secret_sql: String,
+    secret_name: Option<String>,  // Explicitly store the secret name (None for MotherDuck)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PoolStats {
     pub total_connections: usize,
@@ -55,6 +65,9 @@ pub struct UnifiedPool {
     resource_limits: ResourceLimits,
     connection_counter: Arc<AtomicUsize>,
     extensions: Arc<tokio::sync::Mutex<Vec<super::types::ExtensionInfoForLoad>>>,
+    // Store attached databases with explicit secret name for robust re-attachment
+    // (alias, connection_string, db_type, secret_sql, secret_name)
+    attached_databases: Arc<tokio::sync::Mutex<Vec<AttachedDatabase>>>,
 }
 
 /// Permit to create a connection
@@ -64,21 +77,22 @@ pub struct ConnectionPermit {
     db_path: PathBuf,
     resource_limits: ResourceLimits,
     extensions: Arc<tokio::sync::Mutex<Vec<super::types::ExtensionInfoForLoad>>>,
+    attached_databases: Arc<tokio::sync::Mutex<Vec<AttachedDatabase>>>,
 }
 
 impl ConnectionPermit {
     /// Create a connection in the current thread
     /// This MUST be called from the thread where the connection will be used
     pub fn create_connection(self) -> Result<Connection> {
-        eprintln!(
+        tracing::debug!(
             "[UNIFIED_POOL] Creating connection {} in thread {:?}",
             self.id,
             std::thread::current().id()
         );
-        eprintln!("[UNIFIED_POOL] Database path: {:?}", self.db_path);
-        eprintln!("[UNIFIED_POOL] Path exists: {}", self.db_path.exists());
+        tracing::debug!("[UNIFIED_POOL] Database path: {:?}", self.db_path);
+        tracing::debug!("[UNIFIED_POOL] Path exists: {}", self.db_path.exists());
         if let Some(parent) = self.db_path.parent() {
-            eprintln!(
+            tracing::debug!(
                 "[UNIFIED_POOL] Parent directory exists: {}",
                 parent.exists()
             );
@@ -119,6 +133,44 @@ impl ConnectionPermit {
             })?;
         }
 
+        // RE-ATTACH PREVIOUSLY ATTACHED DATABASES
+        let attached_dbs = self.attached_databases.blocking_lock();
+        for db_info in attached_dbs.iter() {
+            tracing::debug!("[UNIFIED_POOL] Re-attaching database: {}", db_info.alias);
+            
+            // Skip secret creation for MotherDuck (it has empty secret_sql)
+            if !db_info.secret_sql.is_empty() {
+                // Create secret for PostgreSQL/MySQL
+                if let Err(e) = conn.execute_batch(&db_info.secret_sql) {
+                    tracing::warn!("[UNIFIED_POOL] Failed to recreate secret for {}: {}", db_info.alias, e);
+                    // Continue with other attachments even if one fails
+                    continue;
+                }
+            }
+            
+            // Attach database using the explicitly stored secret name
+            let attach_sql = if db_info.db_type == "MOTHERDUCK" {
+                // MotherDuck uses special syntax without alias and without SECRET
+                format!("ATTACH '{}'", db_info.connection_string)
+            } else if let Some(secret_name) = &db_info.secret_name {
+                // PostgreSQL/MySQL use standard syntax with SECRET
+                format!(
+                    "ATTACH '{}' AS {} (TYPE {}, SECRET {})",
+                    db_info.connection_string, db_info.alias, db_info.db_type, secret_name
+                )
+            } else {
+                tracing::warn!("[UNIFIED_POOL] No secret name for non-MotherDuck database {}", db_info.alias);
+                continue;
+            };
+            
+            if let Err(e) = conn.execute(&attach_sql, []) {
+                tracing::warn!("[UNIFIED_POOL] Failed to re-attach {}: {}", db_info.alias, e);
+                // Continue with other attachments even if one fails
+            } else {
+                tracing::debug!("[UNIFIED_POOL] Successfully re-attached database: {}", db_info.alias);
+            }
+        }
+
         Ok(conn)
     }
 }
@@ -140,6 +192,7 @@ impl UnifiedPool {
             resource_limits,
             connection_counter: Arc::new(AtomicUsize::new(0)),
             extensions,
+            attached_databases: Arc::new(tokio::sync::Mutex::new(Vec::new())),
         };
 
         Ok(pool)
@@ -210,13 +263,14 @@ impl UnifiedPool {
                     "conn-{}",
                     self.connection_counter.fetch_add(1, Ordering::SeqCst)
                 );
-                eprintln!("[UNIFIED_POOL] Acquired permit for connection: {}", id);
+                tracing::debug!("[UNIFIED_POOL] Acquired permit for connection: {}", id);
                 Ok(ConnectionPermit {
                     _permit: permit,
                     id,
                     db_path: self.db_path.clone(),
                     resource_limits: self.resource_limits.clone(),
                     extensions: self.extensions.clone(),
+                    attached_databases: self.attached_databases.clone(),
                 })
             }
             Ok(Err(_)) => Err(DuckDBError::ConnectionError {
@@ -230,6 +284,28 @@ impl UnifiedPool {
                 ),
                 context: None,
             }),
+        }
+    }
+
+    /// Register an attached database so it can be re-attached on new connections
+    pub async fn register_attached_database(
+        &self,
+        alias: String,
+        connection_string: String,
+        db_type: String,
+        secret_sql: String,
+        secret_name: Option<String>,
+    ) {
+        let mut attached_dbs = self.attached_databases.lock().await;
+        // Check if this database is already attached
+        if !attached_dbs.iter().any(|db| db.alias == alias) {
+            attached_dbs.push(AttachedDatabase {
+                alias,
+                connection_string,
+                db_type,
+                secret_sql,
+                secret_name,
+            });
         }
     }
 }
