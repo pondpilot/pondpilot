@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use tauri::State;
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
@@ -43,7 +44,7 @@ pub struct SecretListResponse {
 #[tauri::command]
 pub async fn save_secret(
     window: tauri::Window,
-    state: State<'_, SecretsManager>,
+    state: State<'_, Arc<SecretsManager>>,
     request: SaveSecretRequest,
 ) -> Result<SecretResponse, String> {
     // Verify this command is called from the secrets window
@@ -86,7 +87,7 @@ pub async fn save_secret(
 #[tauri::command]
 pub async fn list_secrets(
     window: tauri::Window,
-    state: State<'_, SecretsManager>,
+    state: State<'_, Arc<SecretsManager>>,
     secret_type: Option<SecretType>,
 ) -> Result<SecretListResponse, String> {
     // List secrets metadata is allowed from main and secrets windows
@@ -115,7 +116,7 @@ pub async fn list_secrets(
 #[tauri::command]
 pub async fn get_secret(
     window: tauri::Window,
-    state: State<'_, SecretsManager>,
+    state: State<'_, Arc<SecretsManager>>,
     secret_id: String,
 ) -> Result<SecretResponse, String> {
     // Get secret metadata is allowed from main and secrets windows
@@ -141,7 +142,7 @@ pub async fn get_secret(
 #[tauri::command]
 pub async fn delete_secret(
     window: tauri::Window,
-    state: State<'_, SecretsManager>,
+    state: State<'_, Arc<SecretsManager>>,
     secret_id: String,
 ) -> Result<(), String> {
     // Verify this command is called from the secrets window
@@ -171,7 +172,7 @@ pub async fn delete_secret(
 #[tauri::command]
 pub async fn update_secret(
     window: tauri::Window,
-    state: State<'_, SecretsManager>,
+    state: State<'_, Arc<SecretsManager>>,
     request: UpdateSecretRequest,
 ) -> Result<SecretResponse, String> {
     // Verify this command is called from the secrets window
@@ -198,7 +199,7 @@ pub async fn update_secret(
 #[tauri::command]
 pub async fn test_secret(
     window: tauri::Window,
-    state: State<'_, SecretsManager>,
+    state: State<'_, Arc<SecretsManager>>,
     secret_id: String,
 ) -> Result<bool, String> {
     // Verify this command is called from the secrets window
@@ -217,7 +218,7 @@ pub async fn test_secret(
 #[tauri::command]
 pub async fn apply_secret_to_connection(
     window: tauri::Window,
-    state: State<'_, SecretsManager>,
+    state: State<'_, Arc<SecretsManager>>,
     request: ApplySecretRequest,
 ) -> Result<(), String> {
     // SECURITY: Restrict this command to only the main window
@@ -228,10 +229,13 @@ pub async fn apply_secret_to_connection(
     }
     
     // Additional validation: Check that the connection_id starts with known safe prefixes
-    let allowed_prefixes = vec!["motherduck_list", "motherduck_attach", "motherduck_reconnect_"];
+    let allowed_prefixes = vec!["motherduck_list", "motherduck_attach", "motherduck_reconnect_", "postgres_test_", "postgres_save_", "mysql_test_", "mysql_save_"];
     let is_allowed = allowed_prefixes.iter().any(|prefix| request.connection_id.starts_with(prefix));
     if !is_allowed {
-        eprintln!("[Secrets] Invalid connection_id: {}", request.connection_id);
+        // SECURITY AUDIT: Log denied secret access attempts for security monitoring
+        eprintln!("[SECURITY AUDIT] Denied secret access attempt - connection_id: {}, secret_id: {}, window: {}", 
+                 request.connection_id, request.secret_id, window.label());
+        println!("[SECURITY AUDIT] Secret access denied for connection_id: {}", request.connection_id);
         return Err("Invalid connection_id".into());
     }
     
@@ -268,6 +272,12 @@ pub async fn apply_secret_to_connection(
                 return Err("MotherDuck secret missing token field".to_string());
             }
         },
+        SecretType::Postgres | SecretType::MySQL => {
+            println!("[Secrets] Database secret type {:?} applied successfully for testing", 
+                     secret.metadata.secret_type);
+            // For database secrets, we don't set environment variables
+            // Instead, the connection testing will use CREATE SECRET + ATTACH pattern
+        },
         _ => {
             println!("[Secrets] Secret type {:?} not handled for direct connection application", 
                      secret.metadata.secret_type);
@@ -292,7 +302,7 @@ pub struct SecretTypeInfo {
 #[tauri::command]
 pub async fn cleanup_orphaned_secrets(
     window: tauri::Window,
-    state: State<'_, SecretsManager>,
+    state: State<'_, Arc<SecretsManager>>,
 ) -> Result<String, String> {
     // Verify this command is called from the secrets window
     if window.label() != "secrets" {
@@ -340,7 +350,7 @@ pub async fn cleanup_orphaned_secrets(
 #[tauri::command]
 pub async fn debug_secret(
     window: tauri::Window,
-    state: State<'_, SecretsManager>,
+    state: State<'_, Arc<SecretsManager>>,
     secret_id: String,
 ) -> Result<String, String> {
     // Verify this command is called from the secrets window
@@ -421,14 +431,14 @@ pub async fn get_secret_types(window: tauri::Window) -> Result<Vec<SecretTypeInf
             value: "Postgres".to_string(),
             label: "PostgreSQL".to_string(),
             category: "database".to_string(),
-            required_fields: vec!["name".to_string(), "host".to_string(), "port".to_string(), "database".to_string(), "username".to_string(), "password".to_string()],
+            required_fields: vec!["name".to_string(), "username".to_string(), "password".to_string()],
             optional_fields: vec![],
         },
         SecretTypeInfo {
             value: "MySQL".to_string(),
             label: "MySQL".to_string(),
             category: "database".to_string(),
-            required_fields: vec!["name".to_string(), "host".to_string(), "port".to_string(), "database".to_string(), "username".to_string(), "password".to_string()],
+            required_fields: vec!["name".to_string(), "username".to_string(), "password".to_string()],
             optional_fields: vec![],
         },
         SecretTypeInfo {

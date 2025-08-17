@@ -447,6 +447,12 @@ impl ThreadSafeConnectionManager {
         handle.close().await
     }
     
+    /// Get all connection handles (used for applying attachments to all connections)
+    pub async fn get_all_connections(&self) -> Vec<(String, ConnectionHandle)> {
+        let connections = self.connections.lock().await;
+        connections.iter().map(|(id, handle)| (id.clone(), handle.clone())).collect()
+    }
+    
     /// Reset all connections (closes and removes all existing connections)
     pub async fn reset_all_connections(&self) -> Result<()> {
         let mut connections = self.connections.lock().await;

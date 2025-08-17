@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, Emitter};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[tauri::command]
 pub async fn open_secrets_window(app: AppHandle) -> Result<(), String> {

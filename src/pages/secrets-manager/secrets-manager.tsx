@@ -15,6 +15,8 @@ import {
   Paper,
   Badge,
   Tabs,
+  Tooltip,
+  Loader,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -25,6 +27,7 @@ import {
   IconDatabase,
   IconCloud,
   IconAlertCircle,
+  IconRefresh,
 } from '@tabler/icons-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useState, useEffect } from 'react';
@@ -62,10 +65,7 @@ interface SecretCredentials {
   account_name?: string;
   // API token fields
   token?: string;
-  // Database fields
-  host?: string;
-  port?: number;
-  database?: string;
+  // Database fields - simplified for Postgres/MySQL to only store credentials
   username?: string;
   password?: string;
   // HTTP fields
@@ -94,6 +94,7 @@ export function SecretsManager() {
     secret_type: 'S3',
     use_ssl: true,
   });
+  const [cleaningUp, setCleaningUp] = useState(false);
 
   useEffect(() => {
     loadSecrets();
@@ -141,9 +142,6 @@ export function SecretsManager() {
               endpoint: formData.endpoint,
               account_name: formData.account_name,
               token: formData.token,
-              host: formData.host,
-              port: formData.port,
-              database: formData.database,
               username: formData.username,
               password: formData.password,
               bearer_token: formData.bearer_token,
@@ -179,9 +177,6 @@ export function SecretsManager() {
               endpoint: formData.endpoint,
               account_name: formData.account_name,
               token: formData.token,
-              host: formData.host,
-              port: formData.port,
-              database: formData.database,
               username: formData.username,
               password: formData.password,
               bearer_token: formData.bearer_token,
@@ -234,6 +229,31 @@ export function SecretsManager() {
         message: error.toString() || 'Failed to delete secret',
         color: 'red',
       });
+    }
+  };
+
+
+  const handleCleanupOrphaned = async () => {
+    try {
+      setCleaningUp(true);
+      const result = await invoke<string>('cleanup_orphaned_secrets');
+      
+      notifications.show({
+        title: 'Cleanup Complete',
+        message: result || 'No orphaned secrets found',
+        color: 'green',
+      });
+      
+      // Reload secrets to reflect any changes
+      loadSecrets();
+    } catch (error: any) {
+      notifications.show({
+        title: 'Cleanup Error',
+        message: `Failed to cleanup orphaned secrets: ${error.toString()}`,
+        color: 'red',
+      });
+    } finally {
+      setCleaningUp(false);
     }
   };
 
@@ -430,29 +450,12 @@ export function SecretsManager() {
         return (
           <>
             {commonFields}
-            <TextInput
-              label="Host"
-              placeholder="e.g., localhost or db.example.com"
-              required
-              value={formData.host || ''}
-              onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-            />
-            <TextInput
-              label="Port"
-              placeholder="5432"
-              required
-              value={formData.port || ''}
-              onChange={(e) =>
-                setFormData({ ...formData, port: parseInt(e.target.value) || undefined })
-              }
-            />
-            <TextInput
-              label="Database"
-              placeholder="Database name"
-              required
-              value={formData.database || ''}
-              onChange={(e) => setFormData({ ...formData, database: e.target.value })}
-            />
+            <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light" mb="sm">
+              <Text size="sm">
+                PostgreSQL secrets now only store authentication credentials. Connection details 
+                (host, port, database) are configured when creating database connections.
+              </Text>
+            </Alert>
             <TextInput
               label="Username"
               placeholder="Database username"
@@ -473,29 +476,12 @@ export function SecretsManager() {
         return (
           <>
             {commonFields}
-            <TextInput
-              label="Host"
-              placeholder="e.g., localhost or db.example.com"
-              required
-              value={formData.host || ''}
-              onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-            />
-            <TextInput
-              label="Port"
-              placeholder="3306"
-              required
-              value={formData.port || ''}
-              onChange={(e) =>
-                setFormData({ ...formData, port: parseInt(e.target.value) || undefined })
-              }
-            />
-            <TextInput
-              label="Database"
-              placeholder="Database name"
-              required
-              value={formData.database || ''}
-              onChange={(e) => setFormData({ ...formData, database: e.target.value })}
-            />
+            <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light" mb="sm">
+              <Text size="sm">
+                MySQL secrets now only store authentication credentials. Connection details 
+                (host, port, database) are configured when creating database connections.
+              </Text>
+            </Alert>
             <TextInput
               label="Username"
               placeholder="Database username"
@@ -589,19 +575,33 @@ export function SecretsManager() {
               Secrets Manager
             </Group>
           </Title>
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={() => {
-              setEditingSecret(null);
-              setFormData({
-                secret_type: 'S3',
-                use_ssl: true,
-              });
-              setModalOpen(true);
-            }}
-          >
-            Add Secret
-          </Button>
+          <Group gap="sm">
+            <Tooltip label="Remove secrets that are no longer in use">
+              <Button
+                variant="light"
+                color="orange"
+                leftSection={cleaningUp ? <Loader size={16} /> : <IconRefresh size={16} />}
+                onClick={handleCleanupOrphaned}
+                loading={cleaningUp}
+                disabled={cleaningUp}
+              >
+                Cleanup Orphaned
+              </Button>
+            </Tooltip>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => {
+                setEditingSecret(null);
+                setFormData({
+                  secret_type: 'S3',
+                  use_ssl: true,
+                });
+                setModalOpen(true);
+              }}
+            >
+              Add Secret
+            </Button>
+          </Group>
         </Group>
 
         <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light">
@@ -657,24 +657,28 @@ export function SecretsManager() {
                     <Table.Td>{new Date(secret.created_at).toLocaleDateString()}</Table.Td>
                     <Table.Td>
                       <Group gap="xs">
-                        <ActionIcon
-                          variant="subtle"
-                          color="blue"
-                          onClick={() => {
-                            setEditingSecret(secret);
-                            setFormData(secret as any);
-                            setModalOpen(true);
-                          }}
-                        >
-                          <IconEdit size={16} />
-                        </ActionIcon>
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          onClick={() => handleDelete(secret.id)}
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
+                        <Tooltip label="Edit secret">
+                          <ActionIcon
+                            variant="subtle"
+                            color="blue"
+                            onClick={() => {
+                              setEditingSecret(secret);
+                              setFormData(secret as any);
+                              setModalOpen(true);
+                            }}
+                          >
+                            <IconEdit size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Delete secret">
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            onClick={() => handleDelete(secret.id)}
+                          >
+                            <IconTrash size={16} />
+                          </ActionIcon>
+                        </Tooltip>
                       </Group>
                     </Table.Td>
                   </Table.Tr>

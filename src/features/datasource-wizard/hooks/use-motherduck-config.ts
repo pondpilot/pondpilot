@@ -25,7 +25,7 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
       for (const ds of dataSources.values()) {
         if (ds.type === 'remote-db') {
           const remoteDb = ds as RemoteDB;
-          if (isMotherDuckUrl(remoteDb.url)) {
+          if (isMotherDuckUrl(remoteDb.legacyUrl)) {
             // Prefer instanceId for matching (stable), fall back to instanceName
             if (instanceId && remoteDb.instanceId === instanceId) {
               names.add(remoteDb.dbName);
@@ -316,9 +316,12 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
         const rdb: RemoteDB = {
           type: 'remote-db',
           id: makePersistentDataSourceId(),
-          url: `md:${dbName}`,
+          legacyUrl: `md:${dbName}`, // Use legacyUrl for MotherDuck URL
           dbName,
-          dbType: 'duckdb',
+          connectionType: 'motherduck', // Set connectionType to identify as MotherDuck
+          queryEngineType: 'duckdb',
+          supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'], // MotherDuck works on both platforms
+          requiresProxy: false,
           connectionState: 'connected',
           attachedAt: Date.now(),
           instanceName: selectedSecretName,
@@ -326,6 +329,15 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
         };
         newDataSources.set(rdb.id, rdb);
         created.push(rdb);
+        
+        // Register with backend for re-attachment on all connections
+        try {
+          const { ConnectionsAPI } = await import('../../../services/connections-api');
+          await ConnectionsAPI.registerMotherDuckAttachment(`md:${dbName}`);
+          console.log(`[MotherDuck] Registered ${dbName} with backend for re-attachment`);
+        } catch (regError) {
+          console.error(`[MotherDuck] Failed to register ${dbName} with backend:`, regError);
+        }
       }
 
       try {

@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::HashMap;
 use tokio::sync::{RwLock, Semaphore};
 use std::time::Instant;
+use tracing;
 
 // Memory permit size is now configured via AppConfig
 
@@ -56,7 +57,7 @@ pub struct ResourceGuard {
 
 impl Drop for ResourceGuard {
     fn drop(&mut self) {
-        eprintln!("[RESOURCE_MANAGER] Releasing resources for query {}", self.query_id);
+        tracing::debug!("[RESOURCE_MANAGER] Releasing resources for query {}", self.query_id);
         
         // Remove from active queries
         let manager = self.manager.clone();
@@ -67,7 +68,7 @@ impl Drop for ResourceGuard {
             if let Some(metrics) = active.remove(&query_id) {
                 let used = metrics.actual_memory_used.load(Ordering::Relaxed);
                 manager.used_memory.fetch_sub(used, Ordering::Relaxed);
-                eprintln!("[RESOURCE_MANAGER] Released {}MB for query {}", 
+                tracing::debug!("[RESOURCE_MANAGER] Released {}MB for query {}", 
                          used / 1024 / 1024, query_id);
             }
         });
@@ -82,7 +83,7 @@ impl ResourceManager {
         let available_memory = (total_memory as f64 * 0.8) as usize; // Use 80% of total
         let permits = available_memory / config.memory_per_permit_bytes();
         
-        eprintln!("[RESOURCE_MANAGER] Initialized with {}MB memory ({} permits)", 
+        tracing::info!("[RESOURCE_MANAGER] Initialized with {}MB memory ({} permits)", 
                  available_memory / 1024 / 1024, permits);
         
         Self {
@@ -104,7 +105,7 @@ impl ResourceManager {
         let estimated_memory = hints.memory_limit
             .unwrap_or(self.default_query_memory());
         
-        eprintln!("[RESOURCE_MANAGER] Query {} requesting {}MB", 
+        tracing::debug!("[RESOURCE_MANAGER] Query {} requesting {}MB", 
                  query_id, estimated_memory / 1024 / 1024);
         
         // Calculate permits needed
@@ -148,7 +149,7 @@ impl ResourceManager {
         self.active_queries.write().await.insert(query_id.clone(), metrics);
         self.used_memory.fetch_add(estimated_memory, Ordering::Relaxed);
         
-        eprintln!("[RESOURCE_MANAGER] Granted {}MB to query {} ({}MB total in use)", 
+        tracing::debug!("[RESOURCE_MANAGER] Granted {}MB to query {} ({}MB total in use)", 
                  estimated_memory / 1024 / 1024, 
                  query_id,
                  self.used_memory.load(Ordering::Relaxed) / 1024 / 1024);

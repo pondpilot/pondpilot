@@ -10,7 +10,5 @@ pub mod errors;
 #[cfg(test)]
 mod tests;
 
-pub use models::*;
 pub use manager::SecretsManager;
-pub use errors::SecretError;
 pub use commands::*;

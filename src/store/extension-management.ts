@@ -69,6 +69,18 @@ const REQUIRED_EXTENSIONS: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = [
     type: 'core',
     required: true,
   },
+  {
+    name: 'postgres_scanner',
+    description: 'Adds support for connecting to a Postgres database',
+    type: 'core',
+    required: true,
+  },
+  {
+    name: 'mysql_scanner',
+    description: 'Adds support for connecting to a MySQL database',
+    type: 'core',
+    required: true,
+  },
 ];
 
 // Conditionally include motherduck in required extensions for Tauri only
@@ -140,16 +152,6 @@ const CORE_EXTENSIONS: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = [
   {
     name: 'jemalloc',
     description: 'Overwrites system allocator with JEMalloc',
-    type: 'core',
-  },
-  {
-    name: 'mysql_scanner',
-    description: 'Adds support for connecting to a MySQL database',
-    type: 'core',
-  },
-  {
-    name: 'postgres_scanner',
-    description: 'Adds support for connecting to a Postgres database',
     type: 'core',
   },
   {
@@ -474,8 +476,8 @@ export const useExtensionManagementStore = create<ExtensionManagementState>()(
           // Try to get the installed extensions from DuckDB
           try {
             const result = await pool.query(`
-              SELECT extension_name, loaded 
-              FROM duckdb_extensions() 
+              SELECT extension_name, loaded
+              FROM duckdb_extensions()
               WHERE installed = true
             `);
 

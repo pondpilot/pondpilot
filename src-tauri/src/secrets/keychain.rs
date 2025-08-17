@@ -100,9 +100,6 @@ impl KeychainProvider for NativeKeychainProvider {
         if let Some(ref v) = fields.database { 
             credentials.insert("database".to_string(), SecureString::new(v.clone())); 
         }
-        if let Some(ref v) = fields.user { 
-            credentials.insert("user".to_string(), SecureString::new(v.clone())); 
-        }
         if let Some(ref v) = fields.username { 
             credentials.insert("username".to_string(), SecureString::new(v.clone())); 
         }
@@ -347,8 +344,8 @@ impl KeychainProvider for NativeKeychainProvider {
             if let Some(ref v) = fields.database { 
                 credentials.insert("database".to_string(), SecureString::new(v.clone())); 
             }
-            if let Some(ref v) = fields.user { 
-                credentials.insert("user".to_string(), SecureString::new(v.clone())); 
+            if let Some(ref v) = fields.username { 
+                credentials.insert("username".to_string(), SecureString::new(v.clone())); 
             }
             if let Some(ref v) = fields.region { 
                 credentials.insert("region".to_string(), SecureString::new(v.clone())); 

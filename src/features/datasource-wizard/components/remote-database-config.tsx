@@ -148,16 +148,23 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         remoteDb = mdResult.remoteDb;
         attachQuery = `ATTACH ${quote(url.trim(), { single: true })}`;
       } else {
+        const trimmedUrl = url.trim();
+        const isMotherDuck = trimmedUrl.startsWith('md:');
+        const connectionType = isMotherDuck ? 'motherduck' : 'url';
+        
         remoteDb = {
           type: 'remote-db',
           id: makePersistentDataSourceId(),
-          url: url.trim(),
+          legacyUrl: trimmedUrl, // Use legacyUrl for URL-based connections
           dbName: dbName.trim(),
-          dbType: 'duckdb' as const,
+          connectionType, // Set proper connectionType
+          queryEngineType: 'duckdb',
+          supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'], // URL-based connections work on both
+          requiresProxy: false,
           connectionState: 'connecting',
           attachedAt: Date.now(),
         };
-        attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly });
+        attachQuery = buildAttachQuery(trimmedUrl, remoteDb.dbName, { readOnly });
       }
 
       const { dataSources, databaseMetadata } = useAppStore.getState();
