@@ -17,6 +17,7 @@ import {
   Switch,
   Text,
   TextInput,
+  Title,
   virtualColor,
 } from '@mantine/core';
 import {
@@ -35,6 +36,14 @@ import textInputClasses from './TextInput.module.css';
 export const theme = createTheme({
   breakpoints: {
     desktop: '64em',
+  },
+  fontSizes: {
+    body1: '16px',
+    body2: '14px',
+  },
+  lineHeights: {
+    body1: '1.0', // 100% = 16px
+    body2: '1.286', // 18px / 14px = 1.286
   },
   headings: {
     sizes: {
@@ -541,11 +550,11 @@ export const theme = createTheme({
     }),
     Text: Text.extend({
       defaultProps: {
-        size: 'sm',
+        size: 'body2',
         c: 'text-primary',
       },
     }),
-    Title: Text.extend({
+    Title: Title.extend({
       defaultProps: {
         c: 'text-primary',
       },

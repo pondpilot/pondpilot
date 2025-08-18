@@ -1,4 +1,9 @@
-import { DefaultMantineColor, MantineColorsTuple, ButtonVariant } from '@mantine/core';
+import {
+  DefaultMantineColor,
+  MantineColorsTuple,
+  ButtonVariant,
+  DefaultMantineSize,
+} from '@mantine/core';
 
 type ExtendedCustomColors =
   | 'transparentGray-004'
@@ -147,9 +152,14 @@ type ExtendedCustomColors =
 
 type ExtendedButtonVariant = ButtonVariant | 'primary' | 'secondary';
 
+type ExtendedCustomFontSize = 'body1' | 'body2' | DefaultMantineSize;
+
 declare module '@mantine/core' {
   export interface MantineThemeColorsOverride {
     colors: Record<ExtendedCustomColors, MantineColorsTuple>;
+  }
+  export interface MantineThemeSizesOverride {
+    fontSizes: Record<ExtendedCustomFontSize, string>;
   }
   export interface ButtonProps {
     variant?: ExtendedButtonVariant;
