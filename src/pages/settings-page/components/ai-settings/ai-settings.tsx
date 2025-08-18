@@ -8,7 +8,6 @@ import {
   Select,
   Stack,
   Text,
-  Title,
   Badge,
   TextInput,
   Radio,
@@ -250,198 +249,187 @@ export const AISettings = () => {
   };
 
   return (
-    <Stack>
-      <Box>
-        <Title c="text-primary" order={3}>
-          AI Assistant
-        </Title>
-        <Text c="text-secondary">
-          Configure AI assistance for SQL queries. Requires an API key from your chosen provider.
-        </Text>
-      </Box>
+    <Stack className="gap-4">
+      <Select
+        label="AI Provider"
+        description="Choose your AI service provider"
+        value={config.provider}
+        onChange={handleProviderChange}
+        data={AI_PROVIDERS.map((provider) => ({
+          value: provider.id,
+          label: provider.name,
+        }))}
+      />
 
-      <Stack className="gap-4">
-        <Select
-          label="AI Provider"
-          description="Choose your AI service provider"
-          value={config.provider}
-          onChange={handleProviderChange}
-          data={AI_PROVIDERS.map((provider) => ({
-            value: provider.id,
-            label: provider.name,
-          }))}
-        />
+      {currentProvider && config.provider === 'custom' ? (
+        <Stack gap="sm">
+          <TextInput
+            label="Endpoint URL"
+            description="The base URL for your OpenAI-compatible API (e.g., https://api.example.com/v1)"
+            placeholder="https://api.example.com/v1"
+            value={config.customEndpoint || ''}
+            onChange={(event) => handleCustomEndpointChange(event.currentTarget.value)}
+            required
+          />
 
-        {currentProvider && config.provider === 'custom' ? (
-          <Stack gap="sm">
-            <TextInput
-              label="Endpoint URL"
-              description="The base URL for your OpenAI-compatible API (e.g., https://api.example.com/v1)"
-              placeholder="https://api.example.com/v1"
-              value={config.customEndpoint || ''}
-              onChange={(event) => handleCustomEndpointChange(event.currentTarget.value)}
-              required
-            />
+          <Radio.Group
+            label="Authentication Type"
+            description="How the API expects the authentication token"
+            value={config.customAuthType || 'bearer'}
+            onChange={handleCustomAuthTypeChange}
+          >
+            <Group mt="xs">
+              <Radio value="bearer" label="Bearer Token (OpenAI style)" />
+              <Radio value="x-api-key" label="X-API-Key Header (Anthropic style)" />
+            </Group>
+          </Radio.Group>
 
-            <Radio.Group
-              label="Authentication Type"
-              description="How the API expects the authentication token"
-              value={config.customAuthType || 'bearer'}
-              onChange={handleCustomAuthTypeChange}
-            >
-              <Group mt="xs">
-                <Radio value="bearer" label="Bearer Token (OpenAI style)" />
-                <Radio value="x-api-key" label="X-API-Key Header (Anthropic style)" />
-              </Group>
-            </Radio.Group>
-
-            <CreatableSelect
-              label="Model"
-              description="Select an existing model or type to create a new one"
-              placeholder="Select or create a model..."
-              value={config.model}
-              onChange={handleModelChange}
-              onCreate={handleAddCustomModel}
-              data={(config.customModels || []).map((model) => ({
-                value: model.id,
-                label: model.name || model.id,
-              }))}
-              searchable
-              creatable
-              createLabel={(query) => `Create model "${query}"`}
-              nothingFoundMessage="No models found. Type to create a new one."
-            />
-
-            {config.customModels && config.customModels.length > 0 && (
-              <Box>
-                <Text size="sm" fw={500} mb="xs">
-                  Manage Models
-                </Text>
-                <Stack gap="xs">
-                  {config.customModels.map((model) => (
-                    <Group key={model.id} gap="xs" align="center">
-                      <Text size="sm" className="flex-1">
-                        {model.id}
-                      </Text>
-                      <ActionIcon
-                        color="text-error"
-                        variant="subtle"
-                        size="sm"
-                        onClick={() => {
-                          setConfig((prev) => {
-                            const customModels = (prev.customModels || []).filter(
-                              (m) => m.id !== model.id,
-                            );
-                            return {
-                              ...prev,
-                              customModels,
-                              model:
-                                prev.model === model.id && customModels.length > 0
-                                  ? customModels[0].id
-                                  : prev.model === model.id
-                                    ? ''
-                                    : prev.model,
-                            };
-                          });
-                          setHasChanges(true);
-                        }}
-                      >
-                        <IconTrash size={14} />
-                      </ActionIcon>
-                    </Group>
-                  ))}
-                </Stack>
-              </Box>
-            )}
-
-            <Checkbox
-              label="Supports function calling (tool use)"
-              description="Uncheck if your endpoint doesn't support OpenAI-style function calling"
-              checked={config.customSupportsTools !== false}
-              onChange={(event) => handleCustomSupportsToolsChange(event.currentTarget.checked)}
-            />
-          </Stack>
-        ) : currentProvider ? (
-          <Select
+          <CreatableSelect
             label="Model"
-            description={currentModel?.description || 'Choose a model for AI assistance'}
+            description="Select an existing model or type to create a new one"
+            placeholder="Select or create a model..."
             value={config.model}
             onChange={handleModelChange}
-            data={currentProvider.models.map((model) => ({
+            onCreate={handleAddCustomModel}
+            data={(config.customModels || []).map((model) => ({
               value: model.id,
-              label: model.name,
+              label: model.name || model.id,
             }))}
+            searchable
+            creatable
+            createLabel={(query) => `Create model "${query}"`}
+            nothingFoundMessage="No models found. Type to create a new one."
           />
-        ) : null}
 
-        <PasswordInput
-          label="API Key"
-          description={`Enter your ${currentProvider?.name || 'AI provider'} API key`}
-          placeholder="sk-..."
-          value={config.apiKey}
-          onChange={(event) => handleApiKeyChange(event.currentTarget.value)}
+          {config.customModels && config.customModels.length > 0 && (
+            <Box>
+              <Text size="sm" fw={500} mb="xs">
+                Manage Models
+              </Text>
+              <Stack gap="xs">
+                {config.customModels.map((model) => (
+                  <Group key={model.id} gap="xs" align="center">
+                    <Text size="sm" className="flex-1">
+                      {model.id}
+                    </Text>
+                    <ActionIcon
+                      color="text-error"
+                      variant="subtle"
+                      size="sm"
+                      onClick={() => {
+                        setConfig((prev) => {
+                          const customModels = (prev.customModels || []).filter(
+                            (m) => m.id !== model.id,
+                          );
+                          return {
+                            ...prev,
+                            customModels,
+                            model:
+                              prev.model === model.id && customModels.length > 0
+                                ? customModels[0].id
+                                : prev.model === model.id
+                                  ? ''
+                                  : prev.model,
+                          };
+                        });
+                        setHasChanges(true);
+                      }}
+                    >
+                      <IconTrash size={14} />
+                    </ActionIcon>
+                  </Group>
+                ))}
+              </Stack>
+            </Box>
+          )}
+
+          <Checkbox
+            label="Supports function calling (tool use)"
+            description="Uncheck if your endpoint doesn't support OpenAI-style function calling"
+            checked={config.customSupportsTools !== false}
+            onChange={(event) => handleCustomSupportsToolsChange(event.currentTarget.checked)}
+          />
+        </Stack>
+      ) : currentProvider ? (
+        <Select
+          label="Model"
+          description={currentModel?.description || 'Choose a model for AI assistance'}
+          value={config.model}
+          onChange={handleModelChange}
+          data={currentProvider.models.map((model) => ({
+            value: model.id,
+            label: model.name,
+          }))}
         />
+      ) : null}
 
-        <Box>
-          <Text size="sm" c="text-secondary" mb="xs">
-            Saved API Keys:
-          </Text>
-          {renderApiKeyStatus()}
-        </Box>
+      <PasswordInput
+        label="API Key"
+        description={`Enter your ${currentProvider?.name || 'AI provider'} API key`}
+        placeholder="sk-..."
+        value={config.apiKey}
+        onChange={(event) => handleApiKeyChange(event.currentTarget.value)}
+      />
 
-        <Alert icon={<IconShieldCheck size={16} />} color="background-accent" variant="light">
+      <Box>
+        <Text size="sm" c="text-secondary" mb="xs">
+          Saved API Keys:
+        </Text>
+        {renderApiKeyStatus()}
+      </Box>
+
+      <Alert icon={<IconShieldCheck size={16} />} color="background-accent" variant="light">
+        <Text size="sm">
+          <strong>Privacy Notice:</strong> When using AI assistance, your SQL queries and database
+          schema information are sent to {currentProvider?.name || 'the selected AI provider'}.
+          Ensure this complies with your organization&apos;s data privacy policies. API keys are
+          securely stored in your browser&apos;s cookies.
+        </Text>
+      </Alert>
+
+      {saveError && (
+        <Alert color="text-error" variant="light">
+          <Text size="sm">{saveError}</Text>
+        </Alert>
+      )}
+
+      {testStatus.result && (
+        <Alert
+          color={testStatus.result.success ? 'green' : 'red'}
+          variant="light"
+          icon={testStatus.result.success ? <IconCheck size={16} /> : <IconX size={16} />}
+        >
+          <Text size="sm">{testStatus.result.message}</Text>
+        </Alert>
+      )}
+
+      <Group justify="space-between" className="mt-2">
+        <Group>
+          {hasChanges && <Button onClick={handleSave}>Save Changes</Button>}
+          <Button
+            onClick={handleTestConnection}
+            variant="outline"
+            loading={testStatus.testing}
+            disabled={!config.apiKey || (config.provider === 'custom' && !config.customEndpoint)}
+          >
+            Test Connection
+          </Button>
+        </Group>
+        {hasChanges && (
+          <Button color="text-error" onClick={handleReset} variant="outline">
+            Reset
+          </Button>
+        )}
+      </Group>
+
+      {!config.apiKey && (
+        <Alert icon={<IconInfoCircle size={16} />} color="background-accent" variant="light">
           <Text size="sm">
-            <strong>Privacy Notice:</strong> When using AI assistance, your SQL queries and database
-            schema information are sent to {currentProvider?.name || 'the selected AI provider'}.
-            Ensure this complies with your organization&apos;s data privacy policies. API keys are
-            securely stored in your browser&apos;s cookies.
+            The AI assistant will be available once you configure an API key. You can obtain an API
+            key from your chosen AI provider&apos;s dashboard.
           </Text>
         </Alert>
-
-        {saveError && (
-          <Alert color="text-error" variant="light">
-            <Text size="sm">{saveError}</Text>
-          </Alert>
-        )}
-
-        {testStatus.result && (
-          <Alert
-            color={testStatus.result.success ? 'green' : 'red'}
-            variant="light"
-            icon={testStatus.result.success ? <IconCheck size={16} /> : <IconX size={16} />}
-          >
-            <Text size="sm">{testStatus.result.message}</Text>
-          </Alert>
-        )}
-
-        <Group justify="space-between" className="mt-2">
-          <Group>
-            {hasChanges && <Button onClick={handleSave}>Save Changes</Button>}
-            <Button
-              onClick={handleTestConnection}
-              variant="outline"
-              loading={testStatus.testing}
-              disabled={!config.apiKey || (config.provider === 'custom' && !config.customEndpoint)}
-            >
-              Test Connection
-            </Button>
-          </Group>
-          {hasChanges && (
-            <Button color="text-error" onClick={handleReset} variant="outline">
-              Reset
-            </Button>
-          )}
-        </Group>
-
-        {!config.apiKey && (
-          <Alert icon={<IconInfoCircle size={16} />} color="background-accent" variant="light">
-            <Text size="sm">
-              The AI assistant will be available once you configure an API key. You can obtain an
-              API key from your chosen AI provider&apos;s dashboard.
-            </Text>
-          </Alert>
-        )}
-      </Stack>
+      )}
     </Stack>
   );
 };

@@ -1,161 +1,83 @@
-import { DatabaseManagementSettings } from '@components/database-management';
-import { exportSQLScripts } from '@controllers/export-data';
-import {
-  ActionIcon,
-  Badge,
-  Box,
-  Button,
-  Divider,
-  Group,
-  Modal,
-  Stack,
-  Text,
-  Title,
-} from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { resetAppState } from '@store/app-store';
+import { useActiveSection } from '@hooks/use-active-section';
+import { ActionIcon, Divider, Stack } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
+import { Fragment, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { AISettings } from './components/ai-settings';
-import { EditorSettings } from './components/editor-settings';
-import { ThemeSwitcher } from './components/theme-switcher';
+import { SettingsBlock } from './components/settings-block';
+import { SettingsNavigation } from './components/settings-navigation';
+import { settingsConfig, getNavigationItems } from './settings.config';
 
 export const SettingsPage = () => {
   const navigate = useNavigate();
-  const [confirmOpened, { open: openConfirm, close: onConfirmClose }] = useDisclosure(false);
+  const navigationItems = getNavigationItems();
+  const sectionIds = navigationItems.map((item) => item.id);
+  const activeSection = useActiveSection({ sections: sectionIds });
 
-  const handleClearData = async () => {
-    await resetAppState();
-    onConfirmClose();
-  };
-
-  const downloadArchive = async () => {
-    const archiveBlob = await exportSQLScripts();
-    if (archiveBlob) {
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(archiveBlob);
-      link.download = 'queries.zip';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+  const scrollToSection = (sectionId: string) => {
+    window.location.hash = sectionId;
+    const element = document.getElementById(sectionId);
+    if (element) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
     }
   };
 
+  // Handle initial hash on page load
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    const validSectionIds = getNavigationItems().map((item) => item.id);
+    if (hash && validSectionIds.includes(hash)) {
+      // Small delay to ensure content is rendered
+      setTimeout(() => {
+        const element = document.getElementById(hash);
+        if (element) {
+          element.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+        }
+      }, 100);
+    }
+  }, []); // Empty dependency array - only run on mount
+
   return (
-    <>
-      <Modal
-        opened={confirmOpened}
-        onClose={onConfirmClose}
-        withCloseButton={false}
-        centered
-        keepMounted={false}
-      >
-        <Text size="sm" mb="md">
-          Are you sure you want to clear all app data? This action cannot be undone.
-        </Text>
-        <Group justify="flex-end">
-          <Button variant="transparent" onClick={onConfirmClose}>
-            Cancel
-          </Button>
-          <Button color="text-error" onClick={handleClearData}>
-            Confirm
-          </Button>
-        </Group>
-      </Modal>
-      <Group
-        align="start"
-        justify="center"
-        className="h-full p-4 overflow-auto"
-        data-testid={setDataTestId('settings-page')}
-      >
-        <Stack w={700} className="gap-8">
-          <Title c="text-primary" order={2}>
-            Appearance
-          </Title>
-          <Stack>
-            <Box>
-              <Title c="text-primary" order={3}>
-                Theme
-              </Title>
-              <Text c="text-secondary">
-                Customize how the app looks. Choose a theme or sync with your system.
-              </Text>
-            </Box>
+    <div
+      className="flex flex-1 justify-center overflow-y-auto"
+      data-testid={setDataTestId('settings-page')}
+    >
+      <div className="flex relative max-w-[1024px] w-full min-h-0">
+        <SettingsNavigation
+          navigationItems={navigationItems}
+          activeSection={activeSection}
+          onSectionClick={scrollToSection}
+        />
 
-            <ThemeSwitcher />
-          </Stack>
-
-          <Divider />
-          <AISettings />
-          <Divider />
-          <EditorSettings />
-          <Divider />
-          <Stack className="gap-8">
-            <Title c="text-primary" order={2}>
-              Saved data
-            </Title>
-            <Stack>
-              <Box>
-                <Title c="text-primary" order={3}>
-                  Export queries
-                </Title>
-                <Stack>
-                  <Text c="text-secondary">Export all queries to a single ZIP archive.</Text>
-                  <Button className="w-fit" onClick={downloadArchive} variant="outline">
-                    Export All
-                  </Button>
-                </Stack>
-              </Box>
+        <main className="flex-1 p-4 overflow-y-auto min-h-0 custom-scroll-hidden">
+          <div className="max-w-2xl mx-auto">
+            <Stack gap={32} className="pb-16">
+              {settingsConfig.blocks.map((block, index) => (
+                <Fragment key={block.id}>
+                  {index > 0 && <Divider />}
+                  <SettingsBlock {...block} />
+                </Fragment>
+              ))}
             </Stack>
-            <Stack>
-              <Box>
-                <Group>
-                  <Title c="text-primary" order={3}>
-                    Database Storage
-                  </Title>
-                  <Badge color="green" variant="light">
-                    Persistent
-                  </Badge>
-                </Group>
+          </div>
+        </main>
 
-                <DatabaseManagementSettings />
-              </Box>
-            </Stack>
-
-            <Stack>
-              <Box>
-                <Title c="text-primary" order={3}>
-                  Clear app data
-                </Title>
-                <Stack>
-                  <Text c="text-secondary">
-                    This action will permanently delete all saved queries and uploaded files. This
-                    cannot be undone.
-                  </Text>
-                  <Button
-                    className="w-fit"
-                    onClick={openConfirm}
-                    variant="outline"
-                    color="text-error"
-                  >
-                    Clear all
-                  </Button>
-                </Stack>
-              </Box>
-            </Stack>
-          </Stack>
-        </Stack>
-        <Stack>
-          <ActionIcon
-            data-testid={setDataTestId('settings-page-close-button')}
-            onClick={() => navigate('/')}
-          >
-            <IconX />
-          </ActionIcon>
-        </Stack>
-      </Group>
-    </>
+        <ActionIcon
+          className="absolute -right-12 top-4"
+          data-testid={setDataTestId('settings-page-close-button')}
+          onClick={() => navigate('/')}
+          visibleFrom="lg"
+        >
+          <IconX />
+        </ActionIcon>
+      </div>
+    </div>
   );
 };
