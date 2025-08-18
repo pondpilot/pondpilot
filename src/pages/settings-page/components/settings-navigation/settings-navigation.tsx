@@ -29,7 +29,7 @@ export const SettingsNavigation = ({
               'w-full px-3 py-2 text-left rounded-full transition-colors duration-200',
               activeSection === item.id
                 ? 'bg-backgroundAccent-light dark:bg-backgroundAccent-dark hover:bg-accentHover-light dark:hover:bg-accentHover-dark active:bg-accentActive-light dark:active:bg-accentActive-dark'
-                : 'hover:bg-backgroundTertiary-light dark:hover:bg-backgroundTertiary-dark'
+                : 'hover:bg-backgroundTertiary-light dark:hover:bg-backgroundTertiary-dark',
             )}
           >
             <Text c={activeSection === item.id ? 'text-contrast' : 'text-secondary'} size="sm">
