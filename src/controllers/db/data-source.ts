@@ -3,6 +3,7 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { dropFileWithRetry } from '@utils/duckdb-file-operations';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
 import { createXlsxSheetViewQuery } from '@utils/xlsx';
@@ -98,11 +99,7 @@ export async function dropViewAndUnregisterFile(
   }
 
   const db = conn.bindings;
-
-  /**
-   * Unregister file handle
-   */
-  await db.dropFile(fileName).catch(console.error);
+  await dropFileWithRetry(db, fileName, 'File');
 }
 
 /**
@@ -219,11 +216,7 @@ export async function detachAndUnregisterDatabase(
   }
 
   const db = conn.bindings;
-
-  /**
-   * Unregister file handle
-   */
-  await db.dropFile(fileName).catch(console.error);
+  await dropFileWithRetry(db, fileName, 'Database file');
 }
 
 /**

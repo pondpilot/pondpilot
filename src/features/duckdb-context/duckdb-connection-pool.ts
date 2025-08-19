@@ -1,5 +1,9 @@
 import type { AsyncDuckDB, AsyncDuckDBConnection } from '@duckdb/duckdb-wasm';
 import { toAbortablePromise } from '@utils/abort';
+import {
+  CONNECTION_IDLE_TIMEOUT_MS,
+  CONNECTION_RECREATION_TIMEOUT_MS,
+} from '@utils/duckdb-file-operations';
 import * as arrow from 'apache-arrow';
 
 import { AsyncDuckDBPooledConnection } from './duckdb-pooled-connection';
@@ -98,6 +102,104 @@ export class AsyncDuckDBConnectionPool {
       ...DEFAULT_CHECKPOINT_CONFIG,
       ...checkpointConfig,
     };
+  }
+
+  /**
+   * Wait for all connections to be idle (not in use).
+   * This is useful before operations that need exclusive access to files.
+   *
+   * @param timeout Maximum time to wait in milliseconds (default CONNECTION_IDLE_TIMEOUT_MS)
+   * @returns Promise that resolves when all connections are idle
+   * @throws Error if timeout is exceeded
+   */
+  public async waitForAllConnectionsIdle(
+    timeout: number = CONNECTION_IDLE_TIMEOUT_MS,
+  ): Promise<void> {
+    const startTime = Date.now();
+
+    while (this._inUse.size > 0) {
+      if (Date.now() - startTime > timeout) {
+        throw new Error(
+          `Timeout waiting for connections to be idle. ${this._inUse.size} connections still in use.`,
+        );
+      }
+
+      // Wait a bit before checking again
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+
+  /**
+   * Force cancel all active queries on all connections.
+   * This is a more aggressive approach that cancels pending queries on ALL connections,
+   * not just the ones marked as in use.
+   */
+  public async forceKillAllQueries(): Promise<void> {
+    const promises: Promise<void>[] = [];
+
+    // Cancel on all connections, not just in-use ones
+    for (const conn of this._connections) {
+      if (conn) {
+        promises.push(
+          conn
+            .cancelSent()
+            .then(() => {
+              /* Convert boolean to void */
+            })
+            .catch((error) => {
+              // Log but don't throw - we want to cancel as many as possible
+              console.warn('Error canceling query on connection:', error);
+            }),
+        );
+      }
+    }
+
+    await Promise.all(promises);
+  }
+
+  /**
+   * Close and recreate all connections in the pool.
+   * This is the most aggressive approach to ensure all file handles are released.
+   * Should only be used when file deletion is required.
+   */
+  public async recreateAllConnections(): Promise<void> {
+    // First, wait for all connections to be idle
+    await this.waitForAllConnectionsIdle(CONNECTION_RECREATION_TIMEOUT_MS).catch(() => {
+      // If timeout, continue anyway - we need to force close
+      console.warn('Timeout waiting for connections to be idle, forcing recreation');
+    });
+
+    // Store the current pool size
+    const poolSize = this._connections.length;
+
+    // Close all existing connections
+    const closePromises: Promise<void>[] = this._connections.map((conn) =>
+      conn.close().catch((error: unknown) => {
+        console.warn('Error closing connection during recreation:', error);
+        // Return void to satisfy TypeScript
+      }),
+    );
+    await Promise.all(closePromises);
+
+    // Clear the connections array and reset in-use tracking
+    this._connections.length = 0;
+    this._inUse.clear();
+
+    // Recreate the connections
+    for (let i = 0; i < poolSize; i += 1) {
+      try {
+        const newConn = await this._bindings.connect();
+        this._connections.push(newConn);
+      } catch (error) {
+        console.error('Error creating new connection:', error);
+        // Continue with fewer connections if needed
+      }
+    }
+
+    // If we couldn't recreate all connections, log a warning
+    if (this._connections.length < poolSize) {
+      console.warn(`Only able to recreate ${this._connections.length} of ${poolSize} connections`);
+    }
   }
 
   /**
