@@ -9,6 +9,7 @@ import {
   createXlsxSheetView,
   reCreateView,
   reCreateXlsxSheetView,
+  detachAndUnregisterDatabase,
 } from '@controllers/db/data-source';
 import { getLocalDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
@@ -47,6 +48,7 @@ export const addLocalFileOrFolders = async (
   skippedUnsupportedFiles: string[];
   skippedEmptyFolders: LocalFolder[];
   skippedEmptySheets: { fileName: string; sheets: string[] }[];
+  skippedEmptyDatabases: string[];
   newEntries: [LocalEntryId, LocalEntry][];
   newDataSources: [PersistentDataSourceId, AnyDataSource][];
   errors: string[];
@@ -77,9 +79,29 @@ export const addLocalFileOrFolders = async (
   const skippedUnsupportedFiles: string[] = [];
   const skippedEmptyFolders: LocalFolder[] = [];
   const skippedEmptySheets: { fileName: string; sheets: string[] }[] = [];
+  const skippedEmptyDatabases: string[] = [];
   const newEntries: [LocalEntryId, LocalEntry][] = [];
   const newRegisteredFiles: [LocalEntryId, File][] = [];
   const newDataSources: [PersistentDataSourceId, AnyDataSource][] = [];
+
+  /**
+   * Check if a database is empty (has no user tables or views)
+   */
+  const isDatabaseEmpty = async (dbName: string): Promise<boolean> => {
+    try {
+      const result = await conn.query(
+        `SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_catalog = '${dbName}' AND table_schema != 'information_schema'`,
+      );
+      const tableCount = result.getChild('table_count')?.get(0) ?? 0;
+      // Handle both BigInt (0n) and number (0) returned by DuckDB
+
+      return tableCount === 0n || tableCount === 0;
+    } catch (error) {
+      // If we can't check, assume it's not empty to avoid suppressing real errors
+      console.warn(`Could not check if database ${dbName} is empty:`, error);
+      return false;
+    }
+  };
 
   const addFile = async (file: DataSourceLocalFile): Promise<boolean> => {
     switch (file.ext) {
@@ -99,6 +121,21 @@ export const addLocalFileOrFolders = async (
           `${file.uniqueAlias}.${file.ext}`,
           dbSource.dbName,
         );
+
+        // Check if database is empty and skip it if it is
+        const isEmpty = await isDatabaseEmpty(dbSource.dbName);
+        if (isEmpty) {
+          // Track skipped empty database
+          skippedEmptyDatabases.push(file.name);
+          // Detach and unregister the empty database
+          await detachAndUnregisterDatabase(conn, dbSource.dbName, `${file.uniqueAlias}.${file.ext}`);
+          // Remove from reserved names
+          reservedDbs.delete(dbSource.dbName);
+          const idx = newDatabaseNames.indexOf(dbSource.dbName);
+          if (idx > -1) newDatabaseNames.splice(idx, 1);
+          // Don't add empty database to UI
+          return false;
+        }
 
         newRegisteredFiles.push([file.id, regFile]);
         newDataSources.push([dbSource.id, dbSource]);
@@ -307,9 +344,24 @@ export const addLocalFileOrFolders = async (
   let newDatabaseMetadata: Map<string, DataBaseModel> | null = null;
   if (newDatabaseNames.length > 0) {
     newDatabaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
-    if (newDatabaseMetadata.size === 0) {
+
+    // Check if any non-empty databases failed to get metadata
+    const failedDatabases: string[] = [];
+    for (const dbName of newDatabaseNames) {
+      const hasMetadata = newDatabaseMetadata.has(dbName);
+      if (!hasMetadata) {
+        // Check if database is empty before considering it an error
+        const isEmpty = await isDatabaseEmpty(dbName);
+        if (!isEmpty) {
+          // Database is not empty but we couldn't get metadata - this is a real error
+          failedDatabases.push(dbName);
+        }
+      }
+    }
+
+    if (failedDatabases.length > 0) {
       errors.push(
-        'Failed to read newly attached database metadata. Neither explorer not auto-complete will not show objects for them. You may try deleting and re-attaching the database(s).',
+        `Failed to read metadata for database(s): ${failedDatabases.join(', ')}. Neither explorer nor auto-complete will show objects for them. You may try deleting and re-attaching the database(s).`,
       );
     }
   }
@@ -360,6 +412,7 @@ export const addLocalFileOrFolders = async (
     skippedUnsupportedFiles,
     skippedEmptyFolders,
     skippedEmptySheets,
+    skippedEmptyDatabases,
     newEntries,
     newDataSources,
     errors,
