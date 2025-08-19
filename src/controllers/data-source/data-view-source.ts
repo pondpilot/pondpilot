@@ -126,11 +126,6 @@ export const deleteDataSources = async (
     // For large files that are still in use, we need to recreate all connections
     // This is the most aggressive approach but ensures file handles are released
     if (tabsToDelete.length > 0) {
-      // Log only in development mode
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.log('Recreating all DuckDB connections to ensure file handles are released');
-      }
       await conn.recreateAllConnections();
     }
   }
