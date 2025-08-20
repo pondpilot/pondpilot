@@ -128,7 +128,11 @@ export const addLocalFileOrFolders = async (
           // Track skipped empty database
           skippedEmptyDatabases.push(file.name);
           // Detach and unregister the empty database
-          await detachAndUnregisterDatabase(conn, dbSource.dbName, `${file.uniqueAlias}.${file.ext}`);
+          await detachAndUnregisterDatabase(
+            conn,
+            dbSource.dbName,
+            `${file.uniqueAlias}.${file.ext}`,
+          );
           // Remove from reserved names
           reservedDbs.delete(dbSource.dbName);
           const idx = newDatabaseNames.indexOf(dbSource.dbName);
