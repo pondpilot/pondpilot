@@ -5,10 +5,17 @@ import { expect, mergeTests } from '@playwright/test';
 
 import { test as dbExplorerTest } from '../fixtures/db-explorer';
 import { test as filePickerTest } from '../fixtures/file-picker';
+import { test as notificationTest } from '../fixtures/notifications';
 import { test as baseTest } from '../fixtures/page';
 import { test as schemaBrowserTest } from '../fixtures/schema-browser';
 
-const test = mergeTests(baseTest, filePickerTest, dbExplorerTest, schemaBrowserTest);
+const test = mergeTests(
+  baseTest,
+  filePickerTest,
+  dbExplorerTest,
+  schemaBrowserTest,
+  notificationTest,
+);
 
 test.describe('Schema Browser', () => {
   // eslint-disable-next-line playwright/expect-expect
@@ -347,10 +354,7 @@ test.describe('Schema Browser', () => {
     storage,
     filePicker,
     testTmp,
-    openDatabaseExplorer,
-    getDBNodeByName,
-    waitForSchemaLoaded,
-    page,
+    assertFileExplorerItems,
   }) => {
     // Create an empty database
     const dbPath = testTmp.join('empty.duckdb');
@@ -361,24 +365,8 @@ test.describe('Schema Browser', () => {
     await filePicker.selectFiles(['empty.duckdb']);
     await addFile();
 
-    // Open database explorer first
-    await openDatabaseExplorer();
-
-    // Right-click on the database and select Show Schema
-    const dbNode = await getDBNodeByName('empty');
-    await dbNode.click({ button: 'right' });
-    await page.locator('text=Show Schema').click();
-    await waitForSchemaLoaded();
-
-    // Should show the schema browser canvas but with no nodes
-    await expect(page.locator('[data-testid="schema-browser-canvas"]')).toBeVisible();
-
-    // Check that there are no table nodes
-    const tableNodes = page.locator('.react-flow__node');
-    await expect(tableNodes).toHaveCount(0);
-
-    // The title should show 0 tables
-    await expect(page.locator('text=/0 tables?/i')).toBeVisible();
+    // Verify the empty database is not in the file explorer
+    await assertFileExplorerItems([]);
   });
 
   // eslint-disable-next-line playwright/expect-expect

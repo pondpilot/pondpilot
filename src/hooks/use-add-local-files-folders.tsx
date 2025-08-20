@@ -38,8 +38,13 @@ export const useAddLocalFilesOrFolders = () => {
       return;
     }
 
-    const { skippedExistingEntries, skippedUnsupportedFiles, skippedEmptySheets, errors } =
-      await addLocalFileOrFoldersCompat(pool, handles, fallbackFiles);
+    const {
+      skippedExistingEntries,
+      skippedUnsupportedFiles,
+      skippedEmptySheets,
+      skippedEmptyDatabases,
+      errors,
+    } = await addLocalFileOrFoldersCompat(pool, handles, fallbackFiles);
 
     if (skippedExistingEntries.length) {
       showWarning({
@@ -60,6 +65,14 @@ export const useAddLocalFilesOrFolders = () => {
         showWarning({
           title: 'Warning',
           message: `Skipped empty sheets in ${fileName}: ${sheets.join(', ')}`,
+        });
+      });
+    }
+    if (skippedEmptyDatabases.length) {
+      skippedEmptyDatabases.forEach((fileName: string) => {
+        showAlert({
+          title: 'Info',
+          message: `Database ${fileName} was not added because it is empty`,
         });
       });
     }
@@ -119,6 +132,7 @@ export const useAddLocalFilesOrFolders = () => {
       skippedUnsupportedFiles,
       skippedEmptyFolders,
       skippedEmptySheets,
+      skippedEmptyDatabases,
       errors,
     } = handle
       ? await addLocalFileOrFoldersCompat(pool, [handle], fallbackFiles)
@@ -167,6 +181,14 @@ export const useAddLocalFilesOrFolders = () => {
         showWarning({
           title: 'Warning',
           message: `Skipped empty sheets in ${fileName}: ${sheets.join(', ')}`,
+        });
+      });
+    }
+    if (skippedEmptyDatabases.length) {
+      skippedEmptyDatabases.forEach((fileName: string) => {
+        showAlert({
+          title: 'Info',
+          message: `Database ${fileName} was not added because it is empty`,
         });
       });
     }
@@ -261,7 +283,7 @@ export const useAddLocalFilesOrFolders = () => {
           return;
         }
 
-        const { skippedExistingEntries, skippedUnsupportedFiles, errors } =
+        const { skippedExistingEntries, skippedUnsupportedFiles, skippedEmptyDatabases, errors } =
           await addLocalFileOrFoldersCompat(pool, handles, fallbackFiles);
 
         notifications.hide(notificationId);
@@ -275,6 +297,14 @@ export const useAddLocalFilesOrFolders = () => {
           showWarning({
             title: 'Warning',
             message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
+          });
+        }
+        if (skippedEmptyDatabases.length) {
+          skippedEmptyDatabases.forEach((fileName: string) => {
+            showAlert({
+              title: 'Info',
+              message: `Database ${fileName} was not added because it is empty`,
+            });
           });
         }
         if (errors.length) {
