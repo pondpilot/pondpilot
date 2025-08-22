@@ -1,428 +1,440 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PondPilot Cross-Browser File Handling Demo</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 1200px;
-            margin: 40px auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        .panel {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1, h2 {
-            color: #333;
-        }
-        .status {
-            padding: 10px;
-            border-radius: 4px;
-            margin: 10px 0;
-            font-family: monospace;
-            font-size: 14px;
-        }
-        .supported {
-            background: #d4edda;
-            color: #155724;
-        }
-        .unsupported {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        .partial {
-            background: #fff3cd;
-            color: #856404;
-        }
-        button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 5px;
-            font-size: 14px;
-        }
-        button:hover {
-            background: #0056b3;
-        }
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        .file-list {
-            margin-top: 20px;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 4px;
-        }
-        .file-item {
-            padding: 5px;
-            margin: 2px 0;
-            background: white;
-            border-radius: 3px;
-            font-size: 14px;
-        }
-        .drop-zone {
-            border: 2px dashed #007bff;
-            border-radius: 8px;
-            padding: 40px;
-            text-align: center;
-            margin-top: 20px;
-            transition: all 0.3s;
-        }
-        .drop-zone.drag-over {
-            background: #e3f2fd;
-            border-color: #1976d2;
-        }
-        .error {
-            color: #dc3545;
-            margin-top: 10px;
-        }
-        .success {
-            color: #28a745;
-            margin-top: 10px;
-        }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        max-width: 1200px;
+        margin: 40px auto;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+      .panel {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1,
+      h2 {
+        color: #333;
+      }
+      .status {
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-family: monospace;
+        font-size: 14px;
+      }
+      .supported {
+        background: #d4edda;
+        color: #155724;
+      }
+      .unsupported {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      .partial {
+        background: #fff3cd;
+        color: #856404;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+        font-size: 14px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .file-list {
+        margin-top: 20px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 4px;
+      }
+      .file-item {
+        padding: 5px;
+        margin: 2px 0;
+        background: white;
+        border-radius: 3px;
+        font-size: 14px;
+      }
+      .drop-zone {
+        border: 2px dashed #007bff;
+        border-radius: 8px;
+        padding: 40px;
+        text-align: center;
+        margin-top: 20px;
+        transition: all 0.3s;
+      }
+      .drop-zone.drag-over {
+        background: #e3f2fd;
+        border-color: #1976d2;
+      }
+      .error {
+        color: #dc3545;
+        margin-top: 10px;
+      }
+      .success {
+        color: #28a745;
+        margin-top: 10px;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <h1>PondPilot Cross-Browser File Handling Demo</h1>
-    
+
     <div class="container">
-        <div class="panel">
-            <h2>Browser Compatibility</h2>
-            <div id="browserInfo"></div>
-            <div id="apiSupport"></div>
+      <div class="panel">
+        <h2>Browser Compatibility</h2>
+        <div id="browserInfo"></div>
+        <div id="apiSupport"></div>
+      </div>
+
+      <div class="panel">
+        <h2>File Operations</h2>
+        <button onclick="testPickFiles()">Pick Files</button>
+        <button onclick="testPickFolder()">Pick Folder</button>
+        <button onclick="testPickDataFiles()">Pick Data Files (CSV, JSON, etc.)</button>
+
+        <div class="drop-zone" id="dropZone">
+          <p>Drag and drop files or folders here</p>
         </div>
-        
-        <div class="panel">
-            <h2>File Operations</h2>
-            <button onclick="testPickFiles()">Pick Files</button>
-            <button onclick="testPickFolder()">Pick Folder</button>
-            <button onclick="testPickDataFiles()">Pick Data Files (CSV, JSON, etc.)</button>
-            
-            <div class="drop-zone" id="dropZone">
-                <p>Drag and drop files or folders here</p>
-            </div>
-            
-            <div id="result"></div>
-        </div>
+
+        <div id="result"></div>
+      </div>
     </div>
-    
-    <div class="panel" style="margin-top: 20px;">
-        <h2>Selected Files</h2>
-        <div id="fileList" class="file-list">
-            <em>No files selected</em>
-        </div>
+
+    <div class="panel" style="margin-top: 20px">
+      <h2>Selected Files</h2>
+      <div id="fileList" class="file-list">
+        <em>No files selected</em>
+      </div>
     </div>
 
     <script>
-        // Browser detection and capability checking
-        function detectBrowser() {
-            const ua = navigator.userAgent;
-            let browserName = 'Unknown';
-            let browserVersion = '';
-            
-            if (ua.includes('Chrome/') && !ua.includes('Edg')) {
-                browserName = 'Chrome';
-                browserVersion = ua.match(/Chrome\/(\d+)/)?.[1] || '';
-            } else if (ua.includes('Safari/') && !ua.includes('Chrome')) {
-                browserName = 'Safari';
-                browserVersion = ua.match(/Version\/(\d+)/)?.[1] || '';
-            } else if (ua.includes('Firefox/')) {
-                browserName = 'Firefox';
-                browserVersion = ua.match(/Firefox\/(\d+)/)?.[1] || '';
-            } else if (ua.includes('Edg/')) {
-                browserName = 'Edge';
-                browserVersion = ua.match(/Edg\/(\d+)/)?.[1] || '';
-            }
-            
-            return { name: browserName, version: browserVersion };
+      // Browser detection and capability checking
+      function detectBrowser() {
+        const ua = navigator.userAgent;
+        let browserName = 'Unknown';
+        let browserVersion = '';
+
+        if (ua.includes('Chrome/') && !ua.includes('Edg')) {
+          browserName = 'Chrome';
+          browserVersion = ua.match(/Chrome\/(\d+)/)?.[1] || '';
+        } else if (ua.includes('Safari/') && !ua.includes('Chrome')) {
+          browserName = 'Safari';
+          browserVersion = ua.match(/Version\/(\d+)/)?.[1] || '';
+        } else if (ua.includes('Firefox/')) {
+          browserName = 'Firefox';
+          browserVersion = ua.match(/Firefox\/(\d+)/)?.[1] || '';
+        } else if (ua.includes('Edg/')) {
+          browserName = 'Edge';
+          browserVersion = ua.match(/Edg\/(\d+)/)?.[1] || '';
         }
-        
-        function checkAPISupport() {
-            const apis = {
-                'File System Access API': {
-                    'showOpenFilePicker': typeof window.showOpenFilePicker === 'function',
-                    'showDirectoryPicker': typeof window.showDirectoryPicker === 'function',
-                    'showSaveFilePicker': typeof window.showSaveFilePicker === 'function',
-                    'FileSystemHandle': typeof window.FileSystemHandle !== 'undefined',
-                },
-                'Fallback Support': {
-                    'input[type=file]': true,
-                    'webkitdirectory': 'webkitdirectory' in HTMLInputElement.prototype,
-                    'Drag and Drop': true,
-                },
-                'Storage APIs': {
-                    'OPFS': 'storage' in navigator && 'getDirectory' in navigator.storage,
-                    'IndexedDB': 'indexedDB' in window,
-                }
-            };
-            
-            return apis;
-        }
-        
-        // Display browser info
-        function displayBrowserInfo() {
-            const browser = detectBrowser();
-            const apis = checkAPISupport();
-            
-            document.getElementById('browserInfo').innerHTML = `
+
+        return { name: browserName, version: browserVersion };
+      }
+
+      function checkAPISupport() {
+        const apis = {
+          'File System Access API': {
+            showOpenFilePicker: typeof window.showOpenFilePicker === 'function',
+            showDirectoryPicker: typeof window.showDirectoryPicker === 'function',
+            showSaveFilePicker: typeof window.showSaveFilePicker === 'function',
+            FileSystemHandle: typeof window.FileSystemHandle !== 'undefined',
+          },
+          'Fallback Support': {
+            'input[type=file]': true,
+            webkitdirectory: 'webkitdirectory' in HTMLInputElement.prototype,
+            'Drag and Drop': true,
+          },
+          'Storage APIs': {
+            OPFS: 'storage' in navigator && 'getDirectory' in navigator.storage,
+            IndexedDB: 'indexedDB' in window,
+          },
+        };
+
+        return apis;
+      }
+
+      // Display browser info
+      function displayBrowserInfo() {
+        const browser = detectBrowser();
+        const apis = checkAPISupport();
+
+        document.getElementById('browserInfo').innerHTML = `
                 <div class="status ${browser.name === 'Chrome' || browser.name === 'Edge' ? 'supported' : 'partial'}">
                     Browser: ${browser.name} ${browser.version}
                 </div>
             `;
-            
-            let apiHtml = '';
-            for (const [category, checks] of Object.entries(apis)) {
-                apiHtml += `<h3>${category}</h3>`;
-                for (const [api, supported] of Object.entries(checks)) {
-                    apiHtml += `
+
+        let apiHtml = '';
+        for (const [category, checks] of Object.entries(apis)) {
+          apiHtml += `<h3>${category}</h3>`;
+          for (const [api, supported] of Object.entries(checks)) {
+            apiHtml += `
                         <div class="status ${supported ? 'supported' : 'unsupported'}">
                             ${api}: ${supported ? '✓ Supported' : '✗ Not Supported'}
                         </div>
                     `;
-                }
-            }
-            
-            document.getElementById('apiSupport').innerHTML = apiHtml;
+          }
         }
-        
-        // File picking functions
-        async function testPickFiles() {
-            const resultDiv = document.getElementById('result');
-            const fileListDiv = document.getElementById('fileList');
-            
-            try {
-                if ('showOpenFilePicker' in window) {
-                    // Chrome/Edge: Native File System Access API
-                    const handles = await window.showOpenFilePicker({
-                        multiple: true,
-                        excludeAcceptAllOption: false
-                    });
-                    
-                    resultDiv.innerHTML = '<div class="success">✓ Picked ' + handles.length + ' files using native API</div>';
-                    
-                    let fileHtml = '';
-                    for (const handle of handles) {
-                        const file = await handle.getFile();
-                        fileHtml += `<div class="file-item">📄 ${file.name} (${formatBytes(file.size)})</div>`;
-                    }
-                    fileListDiv.innerHTML = fileHtml || '<em>No files selected</em>';
-                } else {
-                    // Firefox/Safari: Fallback to input element
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.multiple = true;
-                    
-                    input.onchange = (e) => {
-                        const files = Array.from(e.target.files || []);
-                        resultDiv.innerHTML = '<div class="success">✓ Picked ' + files.length + ' files using fallback</div>';
-                        
-                        let fileHtml = '';
-                        for (const file of files) {
-                            fileHtml += `<div class="file-item">📄 ${file.name} (${formatBytes(file.size)})</div>`;
-                        }
-                        fileListDiv.innerHTML = fileHtml || '<em>No files selected</em>';
-                    };
-                    
-                    input.click();
-                }
-            } catch (error) {
-                if (error.name !== 'AbortError') {
-                    resultDiv.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
-                }
+
+        document.getElementById('apiSupport').innerHTML = apiHtml;
+      }
+
+      // File picking functions
+      async function testPickFiles() {
+        const resultDiv = document.getElementById('result');
+        const fileListDiv = document.getElementById('fileList');
+
+        try {
+          if ('showOpenFilePicker' in window) {
+            // Chrome/Edge: Native File System Access API
+            const handles = await window.showOpenFilePicker({
+              multiple: true,
+              excludeAcceptAllOption: false,
+            });
+
+            resultDiv.innerHTML =
+              '<div class="success">✓ Picked ' + handles.length + ' files using native API</div>';
+
+            let fileHtml = '';
+            for (const handle of handles) {
+              const file = await handle.getFile();
+              fileHtml += `<div class="file-item">📄 ${file.name} (${formatBytes(file.size)})</div>`;
             }
-        }
-        
-        async function testPickFolder() {
-            const resultDiv = document.getElementById('result');
-            const fileListDiv = document.getElementById('fileList');
-            
-            try {
-                if ('showDirectoryPicker' in window) {
-                    // Chrome/Edge: Native API
-                    const handle = await window.showDirectoryPicker();
-                    
-                    let fileCount = 0;
-                    let fileHtml = `<div class="file-item">📁 ${handle.name}/</div>`;
-                    
-                    for await (const entry of handle.values()) {
-                        if (entry.kind === 'file') {
-                            const file = await entry.getFile();
-                            fileHtml += `<div class="file-item" style="margin-left: 20px;">📄 ${file.name} (${formatBytes(file.size)})</div>`;
-                            fileCount++;
-                        }
-                    }
-                    
-                    resultDiv.innerHTML = `<div class="success">✓ Selected folder with ${fileCount} files using native API</div>`;
-                    fileListDiv.innerHTML = fileHtml;
-                } else if ('webkitdirectory' in HTMLInputElement.prototype) {
-                    // Firefox/Safari: webkitdirectory fallback
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.webkitdirectory = true;
-                    
-                    input.onchange = (e) => {
-                        const files = Array.from(e.target.files || []);
-                        resultDiv.innerHTML = `<div class="success">✓ Selected folder with ${files.length} files using webkitdirectory</div>`;
-                        
-                        let fileHtml = '';
-                        const folderName = files[0]?.webkitRelativePath?.split('/')[0] || 'folder';
-                        fileHtml += `<div class="file-item">📁 ${folderName}/</div>`;
-                        
-                        for (const file of files) {
-                            fileHtml += `<div class="file-item" style="margin-left: 20px;">📄 ${file.name} (${formatBytes(file.size)})</div>`;
-                        }
-                        fileListDiv.innerHTML = fileHtml;
-                    };
-                    
-                    input.click();
-                } else {
-                    resultDiv.innerHTML = '<div class="error">✗ Folder selection not supported in this browser</div>';
-                }
-            } catch (error) {
-                if (error.name !== 'AbortError') {
-                    resultDiv.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
-                }
-            }
-        }
-        
-        async function testPickDataFiles() {
-            const resultDiv = document.getElementById('result');
-            const fileListDiv = document.getElementById('fileList');
-            
-            const accept = {
-                'text/csv': ['.csv'],
-                'application/json': ['.json'],
-                'application/parquet': ['.parquet'],
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+            fileListDiv.innerHTML = fileHtml || '<em>No files selected</em>';
+          } else {
+            // Firefox/Safari: Fallback to input element
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+
+            input.onchange = (e) => {
+              const files = Array.from(e.target.files || []);
+              resultDiv.innerHTML =
+                '<div class="success">✓ Picked ' + files.length + ' files using fallback</div>';
+
+              let fileHtml = '';
+              for (const file of files) {
+                fileHtml += `<div class="file-item">📄 ${file.name} (${formatBytes(file.size)})</div>`;
+              }
+              fileListDiv.innerHTML = fileHtml || '<em>No files selected</em>';
             };
-            
-            try {
-                if ('showOpenFilePicker' in window) {
-                    const handles = await window.showOpenFilePicker({
-                        multiple: true,
-                        types: [{
-                            description: 'Data Files',
-                            accept: accept
-                        }]
-                    });
-                    
-                    resultDiv.innerHTML = '<div class="success">✓ Picked ' + handles.length + ' data files using native API</div>';
-                    
-                    let fileHtml = '';
-                    for (const handle of handles) {
-                        const file = await handle.getFile();
-                        fileHtml += `<div class="file-item">📊 ${file.name} (${formatBytes(file.size)})</div>`;
-                    }
-                    fileListDiv.innerHTML = fileHtml || '<em>No files selected</em>';
-                } else {
-                    // Fallback
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.multiple = true;
-                    input.accept = '.csv,.json,.parquet,.xlsx';
-                    
-                    input.onchange = (e) => {
-                        const files = Array.from(e.target.files || []);
-                        resultDiv.innerHTML = '<div class="success">✓ Picked ' + files.length + ' data files using fallback</div>';
-                        
-                        let fileHtml = '';
-                        for (const file of files) {
-                            fileHtml += `<div class="file-item">📊 ${file.name} (${formatBytes(file.size)})</div>`;
-                        }
-                        fileListDiv.innerHTML = fileHtml || '<em>No files selected</em>';
-                    };
-                    
-                    input.click();
-                }
-            } catch (error) {
-                if (error.name !== 'AbortError') {
-                    resultDiv.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
-                }
+
+            input.click();
+          }
+        } catch (error) {
+          if (error.name !== 'AbortError') {
+            resultDiv.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
+          }
+        }
+      }
+
+      async function testPickFolder() {
+        const resultDiv = document.getElementById('result');
+        const fileListDiv = document.getElementById('fileList');
+
+        try {
+          if ('showDirectoryPicker' in window) {
+            // Chrome/Edge: Native API
+            const handle = await window.showDirectoryPicker();
+
+            let fileCount = 0;
+            let fileHtml = `<div class="file-item">📁 ${handle.name}/</div>`;
+
+            for await (const entry of handle.values()) {
+              if (entry.kind === 'file') {
+                const file = await entry.getFile();
+                fileHtml += `<div class="file-item" style="margin-left: 20px;">📄 ${file.name} (${formatBytes(file.size)})</div>`;
+                fileCount++;
+              }
             }
+
+            resultDiv.innerHTML = `<div class="success">✓ Selected folder with ${fileCount} files using native API</div>`;
+            fileListDiv.innerHTML = fileHtml;
+          } else if ('webkitdirectory' in HTMLInputElement.prototype) {
+            // Firefox/Safari: webkitdirectory fallback
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.webkitdirectory = true;
+
+            input.onchange = (e) => {
+              const files = Array.from(e.target.files || []);
+              resultDiv.innerHTML = `<div class="success">✓ Selected folder with ${files.length} files using webkitdirectory</div>`;
+
+              let fileHtml = '';
+              const folderName = files[0]?.webkitRelativePath?.split('/')[0] || 'folder';
+              fileHtml += `<div class="file-item">📁 ${folderName}/</div>`;
+
+              for (const file of files) {
+                fileHtml += `<div class="file-item" style="margin-left: 20px;">📄 ${file.name} (${formatBytes(file.size)})</div>`;
+              }
+              fileListDiv.innerHTML = fileHtml;
+            };
+
+            input.click();
+          } else {
+            resultDiv.innerHTML =
+              '<div class="error">✗ Folder selection not supported in this browser</div>';
+          }
+        } catch (error) {
+          if (error.name !== 'AbortError') {
+            resultDiv.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
+          }
         }
-        
-        // Drag and drop
-        function setupDragAndDrop() {
-            const dropZone = document.getElementById('dropZone');
-            const resultDiv = document.getElementById('result');
-            const fileListDiv = document.getElementById('fileList');
-            
-            dropZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropZone.classList.add('drag-over');
+      }
+
+      async function testPickDataFiles() {
+        const resultDiv = document.getElementById('result');
+        const fileListDiv = document.getElementById('fileList');
+
+        const accept = {
+          'text/csv': ['.csv'],
+          'application/json': ['.json'],
+          'application/parquet': ['.parquet'],
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+        };
+
+        try {
+          if ('showOpenFilePicker' in window) {
+            const handles = await window.showOpenFilePicker({
+              multiple: true,
+              types: [
+                {
+                  description: 'Data Files',
+                  accept: accept,
+                },
+              ],
             });
-            
-            dropZone.addEventListener('dragleave', () => {
-                dropZone.classList.remove('drag-over');
-            });
-            
-            dropZone.addEventListener('drop', async (e) => {
-                e.preventDefault();
-                dropZone.classList.remove('drag-over');
-                
-                const items = [...e.dataTransfer.items];
-                let fileHtml = '';
-                let fileCount = 0;
-                
-                if ('getAsFileSystemHandle' in DataTransferItem.prototype) {
-                    // Chrome/Edge: Can get handles
-                    for (const item of items) {
-                        const handle = await item.getAsFileSystemHandle();
-                        if (handle.kind === 'file') {
-                            const file = await handle.getFile();
-                            fileHtml += `<div class="file-item">📄 ${file.name} (${formatBytes(file.size)})</div>`;
-                            fileCount++;
-                        } else {
-                            fileHtml += `<div class="file-item">📁 ${handle.name}/</div>`;
-                            fileCount++;
-                        }
-                    }
-                    resultDiv.innerHTML = `<div class="success">✓ Dropped ${fileCount} items using native API</div>`;
-                } else {
-                    // Firefox/Safari: Only get files
-                    for (const item of items) {
-                        if (item.kind === 'file') {
-                            const file = item.getAsFile();
-                            if (file) {
-                                fileHtml += `<div class="file-item">📄 ${file.name} (${formatBytes(file.size)})</div>`;
-                                fileCount++;
-                            }
-                        }
-                    }
-                    resultDiv.innerHTML = `<div class="success">✓ Dropped ${fileCount} files using fallback</div>`;
+
+            resultDiv.innerHTML =
+              '<div class="success">✓ Picked ' +
+              handles.length +
+              ' data files using native API</div>';
+
+            let fileHtml = '';
+            for (const handle of handles) {
+              const file = await handle.getFile();
+              fileHtml += `<div class="file-item">📊 ${file.name} (${formatBytes(file.size)})</div>`;
+            }
+            fileListDiv.innerHTML = fileHtml || '<em>No files selected</em>';
+          } else {
+            // Fallback
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.accept = '.csv,.json,.parquet,.xlsx';
+
+            input.onchange = (e) => {
+              const files = Array.from(e.target.files || []);
+              resultDiv.innerHTML =
+                '<div class="success">✓ Picked ' +
+                files.length +
+                ' data files using fallback</div>';
+
+              let fileHtml = '';
+              for (const file of files) {
+                fileHtml += `<div class="file-item">📊 ${file.name} (${formatBytes(file.size)})</div>`;
+              }
+              fileListDiv.innerHTML = fileHtml || '<em>No files selected</em>';
+            };
+
+            input.click();
+          }
+        } catch (error) {
+          if (error.name !== 'AbortError') {
+            resultDiv.innerHTML = `<div class="error">✗ Error: ${error.message}</div>`;
+          }
+        }
+      }
+
+      // Drag and drop
+      function setupDragAndDrop() {
+        const dropZone = document.getElementById('dropZone');
+        const resultDiv = document.getElementById('result');
+        const fileListDiv = document.getElementById('fileList');
+
+        dropZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+          dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('drag-over');
+
+          const items = [...e.dataTransfer.items];
+          let fileHtml = '';
+          let fileCount = 0;
+
+          if ('getAsFileSystemHandle' in DataTransferItem.prototype) {
+            // Chrome/Edge: Can get handles
+            for (const item of items) {
+              const handle = await item.getAsFileSystemHandle();
+              if (handle.kind === 'file') {
+                const file = await handle.getFile();
+                fileHtml += `<div class="file-item">📄 ${file.name} (${formatBytes(file.size)})</div>`;
+                fileCount++;
+              } else {
+                fileHtml += `<div class="file-item">📁 ${handle.name}/</div>`;
+                fileCount++;
+              }
+            }
+            resultDiv.innerHTML = `<div class="success">✓ Dropped ${fileCount} items using native API</div>`;
+          } else {
+            // Firefox/Safari: Only get files
+            for (const item of items) {
+              if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) {
+                  fileHtml += `<div class="file-item">📄 ${file.name} (${formatBytes(file.size)})</div>`;
+                  fileCount++;
                 }
-                
-                fileListDiv.innerHTML = fileHtml || '<em>No files dropped</em>';
-            });
-        }
-        
-        // Helper function
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-        
-        // Initialize
-        displayBrowserInfo();
-        setupDragAndDrop();
+              }
+            }
+            resultDiv.innerHTML = `<div class="success">✓ Dropped ${fileCount} files using fallback</div>`;
+          }
+
+          fileListDiv.innerHTML = fileHtml || '<em>No files dropped</em>';
+        });
+      }
+
+      // Helper function
+      function formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+
+      // Initialize
+      displayBrowserInfo();
+      setupDragAndDrop();
     </script>
-</body>
+  </body>
 </html>

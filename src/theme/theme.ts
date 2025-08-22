@@ -16,6 +16,7 @@ import {
   Slider,
   Switch,
   Text,
+  Textarea,
   TextInput,
   Title,
   virtualColor,
@@ -31,6 +32,7 @@ import actionIconClasses from './ActionIcon.module.css';
 import buttonClasses from './Button.module.css';
 import passwordInputClasses from './PasswordInput.module.css';
 import selectClasses from './Select.module.css';
+import textareaClasses from './Textarea.module.css';
 import textInputClasses from './TextInput.module.css';
 
 export const theme = createTheme({
@@ -583,6 +585,9 @@ export const theme = createTheme({
         }
         return {};
       },
+    }),
+    Textarea: Textarea.extend({
+      classNames: textareaClasses,
     }),
     PasswordInput: PasswordInput.extend({
       classNames: passwordInputClasses,
