@@ -1,401 +1,408 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Filesystem API Browser Compatibility Test</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px;
-            margin: 40px auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            background: white;
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-        .browser-info {
-            background: #e8f4f8;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 30px;
-            font-family: monospace;
-            font-size: 14px;
-        }
-        .api-section {
-            margin-bottom: 30px;
-        }
-        .api-section h2 {
-            color: #555;
-            font-size: 20px;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
-        }
-        .api-check {
-            display: flex;
-            align-items: center;
-            padding: 10px;
-            margin: 5px 0;
-            background: #f8f9fa;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        .api-name {
-            flex: 1;
-            font-family: 'Courier New', monospace;
-        }
-        .status {
-            font-weight: bold;
-            padding: 4px 12px;
-            border-radius: 3px;
-            font-size: 12px;
-        }
-        .supported {
-            background: #d4edda;
-            color: #155724;
-        }
-        .not-supported {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        .partial {
-            background: #fff3cd;
-            color: #856404;
-        }
-        .test-button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 5px;
-            font-size: 14px;
-        }
-        .test-button:hover {
-            background: #0056b3;
-        }
-        .test-button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        .test-result {
-            margin-top: 10px;
-            padding: 10px;
-            background: #f0f0f0;
-            border-radius: 4px;
-            font-size: 13px;
-            white-space: pre-wrap;
-            font-family: monospace;
-        }
-        .error {
-            color: #dc3545;
-        }
-        .success {
-            color: #28a745;
-        }
-        .summary {
-            margin-top: 30px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            border: 1px solid #dee2e6;
-        }
-        .summary h3 {
-            margin-top: 0;
-            color: #495057;
-        }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        max-width: 800px;
+        margin: 40px auto;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .container {
+        background: white;
+        border-radius: 8px;
+        padding: 30px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        margin-bottom: 10px;
+      }
+      .browser-info {
+        background: #e8f4f8;
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 30px;
+        font-family: monospace;
+        font-size: 14px;
+      }
+      .api-section {
+        margin-bottom: 30px;
+      }
+      .api-section h2 {
+        color: #555;
+        font-size: 20px;
+        margin-bottom: 15px;
+        border-bottom: 2px solid #eee;
+        padding-bottom: 10px;
+      }
+      .api-check {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        margin: 5px 0;
+        background: #f8f9fa;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      .api-name {
+        flex: 1;
+        font-family: 'Courier New', monospace;
+      }
+      .status {
+        font-weight: bold;
+        padding: 4px 12px;
+        border-radius: 3px;
+        font-size: 12px;
+      }
+      .supported {
+        background: #d4edda;
+        color: #155724;
+      }
+      .not-supported {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      .partial {
+        background: #fff3cd;
+        color: #856404;
+      }
+      .test-button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+        font-size: 14px;
+      }
+      .test-button:hover {
+        background: #0056b3;
+      }
+      .test-button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .test-result {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f0f0f0;
+        border-radius: 4px;
+        font-size: 13px;
+        white-space: pre-wrap;
+        font-family: monospace;
+      }
+      .error {
+        color: #dc3545;
+      }
+      .success {
+        color: #28a745;
+      }
+      .summary {
+        margin-top: 30px;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+      }
+      .summary h3 {
+        margin-top: 0;
+        color: #495057;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <h1>Filesystem API Browser Compatibility Test</h1>
-        
-        <div class="browser-info" id="browserInfo">
-            Detecting browser...
-        </div>
+      <h1>Filesystem API Browser Compatibility Test</h1>
 
-        <div class="api-section">
-            <h2>File System Access API</h2>
-            <div id="fsAccessChecks"></div>
-            <div style="margin-top: 20px;">
-                <button class="test-button" onclick="testFilePickerAPI()">Test File Picker</button>
-                <button class="test-button" onclick="testDirectoryPickerAPI()">Test Directory Picker</button>
-                <div id="fsaTestResult"></div>
-            </div>
-        </div>
+      <div class="browser-info" id="browserInfo">Detecting browser...</div>
 
-        <div class="api-section">
-            <h2>Origin Private File System (OPFS) API</h2>
-            <div id="opfsChecks"></div>
-            <div style="margin-top: 20px;">
-                <button class="test-button" onclick="testOPFS()">Test OPFS Operations</button>
-                <div id="opfsTestResult"></div>
-            </div>
+      <div class="api-section">
+        <h2>File System Access API</h2>
+        <div id="fsAccessChecks"></div>
+        <div style="margin-top: 20px">
+          <button class="test-button" onclick="testFilePickerAPI()">Test File Picker</button>
+          <button class="test-button" onclick="testDirectoryPickerAPI()">
+            Test Directory Picker
+          </button>
+          <div id="fsaTestResult"></div>
         </div>
+      </div>
 
-        <div class="summary" id="summary"></div>
+      <div class="api-section">
+        <h2>Origin Private File System (OPFS) API</h2>
+        <div id="opfsChecks"></div>
+        <div style="margin-top: 20px">
+          <button class="test-button" onclick="testOPFS()">Test OPFS Operations</button>
+          <div id="opfsTestResult"></div>
+        </div>
+      </div>
+
+      <div class="summary" id="summary"></div>
     </div>
 
     <script>
-        // Detect browser information
-        function detectBrowser() {
-            const ua = navigator.userAgent;
-            let browserName = 'Unknown';
-            let browserVersion = '';
-            
-            if (ua.includes('Chrome/') && !ua.includes('Edg')) {
-                browserName = 'Chrome';
-                browserVersion = ua.match(/Chrome\/(\d+)/)?.[1] || '';
-            } else if (ua.includes('Safari/') && !ua.includes('Chrome')) {
-                browserName = 'Safari';
-                browserVersion = ua.match(/Version\/(\d+)/)?.[1] || '';
-            } else if (ua.includes('Firefox/')) {
-                browserName = 'Firefox';
-                browserVersion = ua.match(/Firefox\/(\d+)/)?.[1] || '';
-            } else if (ua.includes('Edg/')) {
-                browserName = 'Edge';
-                browserVersion = ua.match(/Edg\/(\d+)/)?.[1] || '';
-            }
-            
-            const platform = navigator.platform || 'Unknown platform';
-            const fullUA = navigator.userAgent;
-            
-            return {
-                name: browserName,
-                version: browserVersion,
-                platform: platform,
-                userAgent: fullUA
-            };
+      // Detect browser information
+      function detectBrowser() {
+        const ua = navigator.userAgent;
+        let browserName = 'Unknown';
+        let browserVersion = '';
+
+        if (ua.includes('Chrome/') && !ua.includes('Edg')) {
+          browserName = 'Chrome';
+          browserVersion = ua.match(/Chrome\/(\d+)/)?.[1] || '';
+        } else if (ua.includes('Safari/') && !ua.includes('Chrome')) {
+          browserName = 'Safari';
+          browserVersion = ua.match(/Version\/(\d+)/)?.[1] || '';
+        } else if (ua.includes('Firefox/')) {
+          browserName = 'Firefox';
+          browserVersion = ua.match(/Firefox\/(\d+)/)?.[1] || '';
+        } else if (ua.includes('Edg/')) {
+          browserName = 'Edge';
+          browserVersion = ua.match(/Edg\/(\d+)/)?.[1] || '';
         }
 
-        // Check File System Access API support
-        function checkFileSystemAccessAPI() {
-            const checks = [
-                {
-                    name: 'window.showOpenFilePicker',
-                    supported: typeof window.showOpenFilePicker === 'function'
-                },
-                {
-                    name: 'window.showDirectoryPicker',
-                    supported: typeof window.showDirectoryPicker === 'function'
-                },
-                {
-                    name: 'window.showSaveFilePicker',
-                    supported: typeof window.showSaveFilePicker === 'function'
-                },
-                {
-                    name: 'FileSystemHandle',
-                    supported: typeof window.FileSystemHandle !== 'undefined'
-                },
-                {
-                    name: 'FileSystemFileHandle',
-                    supported: typeof window.FileSystemFileHandle !== 'undefined'
-                },
-                {
-                    name: 'FileSystemDirectoryHandle',
-                    supported: typeof window.FileSystemDirectoryHandle !== 'undefined'
-                }
-            ];
-            
-            return checks;
-        }
+        const platform = navigator.platform || 'Unknown platform';
+        const fullUA = navigator.userAgent;
 
-        // Check OPFS API support
-        function checkOPFSAPI() {
-            const checks = [
-                {
-                    name: 'navigator.storage',
-                    supported: 'storage' in navigator
-                },
-                {
-                    name: 'navigator.storage.getDirectory',
-                    supported: navigator.storage && typeof navigator.storage.getDirectory === 'function'
-                },
-                {
-                    name: 'createSyncAccessHandle',
-                    supported: false // Will be checked dynamically
-                },
-                {
-                    name: 'FileSystemWritableFileStream',
-                    supported: typeof window.FileSystemWritableFileStream !== 'undefined'
-                }
-            ];
-            
-            return checks;
-        }
+        return {
+          name: browserName,
+          version: browserVersion,
+          platform: platform,
+          userAgent: fullUA,
+        };
+      }
 
-        // Test File Picker API
-        async function testFilePickerAPI() {
-            const resultDiv = document.getElementById('fsaTestResult');
-            resultDiv.innerHTML = '';
-            
-            try {
-                const handles = await window.showOpenFilePicker({
-                    multiple: false,
-                    types: [{
-                        description: 'Text files',
-                        accept: { 'text/plain': ['.txt'] }
-                    }]
-                });
-                
-                if (handles.length > 0) {
-                    const file = await handles[0].getFile();
-                    resultDiv.innerHTML = `<div class="test-result success">✓ File picker worked!
+      // Check File System Access API support
+      function checkFileSystemAccessAPI() {
+        const checks = [
+          {
+            name: 'window.showOpenFilePicker',
+            supported: typeof window.showOpenFilePicker === 'function',
+          },
+          {
+            name: 'window.showDirectoryPicker',
+            supported: typeof window.showDirectoryPicker === 'function',
+          },
+          {
+            name: 'window.showSaveFilePicker',
+            supported: typeof window.showSaveFilePicker === 'function',
+          },
+          {
+            name: 'FileSystemHandle',
+            supported: typeof window.FileSystemHandle !== 'undefined',
+          },
+          {
+            name: 'FileSystemFileHandle',
+            supported: typeof window.FileSystemFileHandle !== 'undefined',
+          },
+          {
+            name: 'FileSystemDirectoryHandle',
+            supported: typeof window.FileSystemDirectoryHandle !== 'undefined',
+          },
+        ];
+
+        return checks;
+      }
+
+      // Check OPFS API support
+      function checkOPFSAPI() {
+        const checks = [
+          {
+            name: 'navigator.storage',
+            supported: 'storage' in navigator,
+          },
+          {
+            name: 'navigator.storage.getDirectory',
+            supported: navigator.storage && typeof navigator.storage.getDirectory === 'function',
+          },
+          {
+            name: 'createSyncAccessHandle',
+            supported: false, // Will be checked dynamically
+          },
+          {
+            name: 'FileSystemWritableFileStream',
+            supported: typeof window.FileSystemWritableFileStream !== 'undefined',
+          },
+        ];
+
+        return checks;
+      }
+
+      // Test File Picker API
+      async function testFilePickerAPI() {
+        const resultDiv = document.getElementById('fsaTestResult');
+        resultDiv.innerHTML = '';
+
+        try {
+          const handles = await window.showOpenFilePicker({
+            multiple: false,
+            types: [
+              {
+                description: 'Text files',
+                accept: { 'text/plain': ['.txt'] },
+              },
+            ],
+          });
+
+          if (handles.length > 0) {
+            const file = await handles[0].getFile();
+            resultDiv.innerHTML = `<div class="test-result success">✓ File picker worked!
 Selected file: ${file.name}
 Size: ${file.size} bytes
 Type: ${file.type || 'unknown'}
 Last modified: ${new Date(file.lastModified).toLocaleString()}</div>`;
-                }
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    resultDiv.innerHTML = '<div class="test-result">File picker cancelled by user</div>';
-                } else {
-                    resultDiv.innerHTML = `<div class="test-result error">✗ Error: ${error.name}: ${error.message}</div>`;
-                }
-            }
+          }
+        } catch (error) {
+          if (error.name === 'AbortError') {
+            resultDiv.innerHTML = '<div class="test-result">File picker cancelled by user</div>';
+          } else {
+            resultDiv.innerHTML = `<div class="test-result error">✗ Error: ${error.name}: ${error.message}</div>`;
+          }
         }
+      }
 
-        // Test Directory Picker API
-        async function testDirectoryPickerAPI() {
-            const resultDiv = document.getElementById('fsaTestResult');
-            resultDiv.innerHTML = '';
-            
-            try {
-                const dirHandle = await window.showDirectoryPicker({
-                    mode: 'read'
-                });
-                
-                // Count entries in directory
-                let count = 0;
-                for await (const entry of dirHandle.values()) {
-                    count++;
-                }
-                
-                resultDiv.innerHTML = `<div class="test-result success">✓ Directory picker worked!
+      // Test Directory Picker API
+      async function testDirectoryPickerAPI() {
+        const resultDiv = document.getElementById('fsaTestResult');
+        resultDiv.innerHTML = '';
+
+        try {
+          const dirHandle = await window.showDirectoryPicker({
+            mode: 'read',
+          });
+
+          // Count entries in directory
+          let count = 0;
+          for await (const entry of dirHandle.values()) {
+            count++;
+          }
+
+          resultDiv.innerHTML = `<div class="test-result success">✓ Directory picker worked!
 Selected directory: ${dirHandle.name}
 Number of entries: ${count}
 Kind: ${dirHandle.kind}</div>`;
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    resultDiv.innerHTML = '<div class="test-result">Directory picker cancelled by user</div>';
-                } else {
-                    resultDiv.innerHTML = `<div class="test-result error">✗ Error: ${error.name}: ${error.message}</div>`;
-                }
-            }
+        } catch (error) {
+          if (error.name === 'AbortError') {
+            resultDiv.innerHTML =
+              '<div class="test-result">Directory picker cancelled by user</div>';
+          } else {
+            resultDiv.innerHTML = `<div class="test-result error">✗ Error: ${error.name}: ${error.message}</div>`;
+          }
         }
+      }
 
-        // Test OPFS Operations
-        async function testOPFS() {
-            const resultDiv = document.getElementById('opfsTestResult');
-            resultDiv.innerHTML = '<div class="test-result">Testing OPFS...</div>';
-            
-            const results = [];
-            
-            try {
-                // Test 1: Get root directory
-                const root = await navigator.storage.getDirectory();
-                results.push('✓ Got OPFS root directory');
-                
-                // Test 2: Create a file
-                const fileHandle = await root.getFileHandle('test-file.txt', { create: true });
-                results.push('✓ Created file in OPFS');
-                
-                // Test 3: Write to file
-                const writable = await fileHandle.createWritable();
-                await writable.write('Hello from OPFS test!');
-                await writable.close();
-                results.push('✓ Wrote data to file');
-                
-                // Test 4: Read from file
-                const file = await fileHandle.getFile();
-                const content = await file.text();
-                results.push(`✓ Read data from file: "${content}"`);
-                
-                // Test 5: Try createSyncAccessHandle (may not be available)
-                try {
-                    if ('createSyncAccessHandle' in fileHandle) {
-                        const syncHandle = await fileHandle.createSyncAccessHandle();
-                        results.push('✓ createSyncAccessHandle is supported!');
-                        await syncHandle.close();
-                        
-                        // Update the OPFS checks
-                        const opfsChecks = checkOPFSAPI();
-                        opfsChecks[2].supported = true;
-                        renderChecks('opfsChecks', opfsChecks);
-                    } else {
-                        results.push('✗ createSyncAccessHandle not available');
-                    }
-                } catch (e) {
-                    results.push(`✗ createSyncAccessHandle error: ${e.message}`);
-                }
-                
-                // Test 6: Create directory
-                const dirHandle = await root.getDirectoryHandle('test-dir', { create: true });
-                results.push('✓ Created directory in OPFS');
-                
-                // Test 7: Delete file
-                await root.removeEntry('test-file.txt');
-                results.push('✓ Deleted file from OPFS');
-                
-                // Test 8: Delete directory
-                await root.removeEntry('test-dir');
-                results.push('✓ Deleted directory from OPFS');
-                
-                resultDiv.innerHTML = `<div class="test-result success">${results.join('\n')}</div>`;
-            } catch (error) {
-                results.push(`✗ Error: ${error.name}: ${error.message}`);
-                resultDiv.innerHTML = `<div class="test-result error">${results.join('\n')}</div>`;
+      // Test OPFS Operations
+      async function testOPFS() {
+        const resultDiv = document.getElementById('opfsTestResult');
+        resultDiv.innerHTML = '<div class="test-result">Testing OPFS...</div>';
+
+        const results = [];
+
+        try {
+          // Test 1: Get root directory
+          const root = await navigator.storage.getDirectory();
+          results.push('✓ Got OPFS root directory');
+
+          // Test 2: Create a file
+          const fileHandle = await root.getFileHandle('test-file.txt', { create: true });
+          results.push('✓ Created file in OPFS');
+
+          // Test 3: Write to file
+          const writable = await fileHandle.createWritable();
+          await writable.write('Hello from OPFS test!');
+          await writable.close();
+          results.push('✓ Wrote data to file');
+
+          // Test 4: Read from file
+          const file = await fileHandle.getFile();
+          const content = await file.text();
+          results.push(`✓ Read data from file: "${content}"`);
+
+          // Test 5: Try createSyncAccessHandle (may not be available)
+          try {
+            if ('createSyncAccessHandle' in fileHandle) {
+              const syncHandle = await fileHandle.createSyncAccessHandle();
+              results.push('✓ createSyncAccessHandle is supported!');
+              await syncHandle.close();
+
+              // Update the OPFS checks
+              const opfsChecks = checkOPFSAPI();
+              opfsChecks[2].supported = true;
+              renderChecks('opfsChecks', opfsChecks);
+            } else {
+              results.push('✗ createSyncAccessHandle not available');
             }
-        }
+          } catch (e) {
+            results.push(`✗ createSyncAccessHandle error: ${e.message}`);
+          }
 
-        // Render API checks
-        function renderChecks(elementId, checks) {
-            const container = document.getElementById(elementId);
-            container.innerHTML = checks.map(check => `
+          // Test 6: Create directory
+          const dirHandle = await root.getDirectoryHandle('test-dir', { create: true });
+          results.push('✓ Created directory in OPFS');
+
+          // Test 7: Delete file
+          await root.removeEntry('test-file.txt');
+          results.push('✓ Deleted file from OPFS');
+
+          // Test 8: Delete directory
+          await root.removeEntry('test-dir');
+          results.push('✓ Deleted directory from OPFS');
+
+          resultDiv.innerHTML = `<div class="test-result success">${results.join('\n')}</div>`;
+        } catch (error) {
+          results.push(`✗ Error: ${error.name}: ${error.message}`);
+          resultDiv.innerHTML = `<div class="test-result error">${results.join('\n')}</div>`;
+        }
+      }
+
+      // Render API checks
+      function renderChecks(elementId, checks) {
+        const container = document.getElementById(elementId);
+        container.innerHTML = checks
+          .map(
+            (check) => `
                 <div class="api-check">
                     <span class="api-name">${check.name}</span>
                     <span class="status ${check.supported ? 'supported' : 'not-supported'}">
                         ${check.supported ? 'Supported' : 'Not Supported'}
                     </span>
                 </div>
-            `).join('');
+            `,
+          )
+          .join('');
+      }
+
+      // Generate summary
+      function generateSummary() {
+        const fsaChecks = checkFileSystemAccessAPI();
+        const opfsChecks = checkOPFSAPI();
+
+        const fsaSupported = fsaChecks.filter((c) => c.supported).length;
+        const opfsSupported = opfsChecks.filter((c) => c.supported).length;
+
+        const totalSupported = fsaSupported + opfsSupported;
+        const totalChecks = fsaChecks.length + opfsChecks.length;
+
+        const browser = detectBrowser();
+
+        let compatibility = 'Not Compatible';
+        let compatibilityClass = 'error';
+
+        if (fsaSupported === fsaChecks.length && opfsSupported >= 2) {
+          compatibility = 'Fully Compatible';
+          compatibilityClass = 'success';
+        } else if (fsaSupported > 0 || opfsSupported > 0) {
+          compatibility = 'Partially Compatible';
+          compatibilityClass = '';
         }
 
-        // Generate summary
-        function generateSummary() {
-            const fsaChecks = checkFileSystemAccessAPI();
-            const opfsChecks = checkOPFSAPI();
-            
-            const fsaSupported = fsaChecks.filter(c => c.supported).length;
-            const opfsSupported = opfsChecks.filter(c => c.supported).length;
-            
-            const totalSupported = fsaSupported + opfsSupported;
-            const totalChecks = fsaChecks.length + opfsChecks.length;
-            
-            const browser = detectBrowser();
-            
-            let compatibility = 'Not Compatible';
-            let compatibilityClass = 'error';
-            
-            if (fsaSupported === fsaChecks.length && opfsSupported >= 2) {
-                compatibility = 'Fully Compatible';
-                compatibilityClass = 'success';
-            } else if (fsaSupported > 0 || opfsSupported > 0) {
-                compatibility = 'Partially Compatible';
-                compatibilityClass = '';
-            }
-            
-            document.getElementById('summary').innerHTML = `
+        document.getElementById('summary').innerHTML = `
                 <h3>Summary</h3>
                 <p><strong>Browser:</strong> ${browser.name} ${browser.version}</p>
                 <p><strong>PondPilot Compatibility:</strong> <span class="${compatibilityClass}">${compatibility}</span></p>
@@ -409,25 +416,25 @@ Kind: ${dirHandle.kind}</div>`;
                     Currently, these APIs are fully supported in Chromium-based browsers (Chrome, Edge) version 86+.
                 </p>
             `;
-        }
+      }
 
-        // Initialize on page load
-        window.addEventListener('DOMContentLoaded', () => {
-            // Show browser info
-            const browser = detectBrowser();
-            document.getElementById('browserInfo').innerHTML = `
+      // Initialize on page load
+      window.addEventListener('DOMContentLoaded', () => {
+        // Show browser info
+        const browser = detectBrowser();
+        document.getElementById('browserInfo').innerHTML = `
                 <strong>Browser:</strong> ${browser.name} ${browser.version}<br>
                 <strong>Platform:</strong> ${browser.platform}<br>
                 <strong>User Agent:</strong> ${browser.userAgent}
             `;
-            
-            // Check APIs
-            renderChecks('fsAccessChecks', checkFileSystemAccessAPI());
-            renderChecks('opfsChecks', checkOPFSAPI());
-            
-            // Generate summary
-            generateSummary();
-        });
+
+        // Check APIs
+        renderChecks('fsAccessChecks', checkFileSystemAccessAPI());
+        renderChecks('opfsChecks', checkOPFSAPI());
+
+        // Generate summary
+        generateSummary();
+      });
     </script>
-</body>
+  </body>
 </html>
