@@ -56,6 +56,30 @@ The PondPilot source code is organized as follows:
 
 When adding new code, please follow the existing patterns and place files in appropriate directories based on their functionality.
 
+## Styling and Component Guidelines
+
+PondPilot uses a hybrid approach combining Mantine components with Tailwind CSS, with the theme system serving as the single source of truth.
+
+### Key Principles
+
+1. **Theme-first approach**: Use predefined component variants and sizes from `src/theme/theme.ts`
+2. **Semantic colors**: Use semantic color tokens (`text-primary`, `background-accent`) instead of hardcoded values
+3. **Figma synchronization**: All component variants must exist in the Figma UIKit before being used in code
+4. **Avoid**: Using Mantine variants not defined in our UIKit (e.g., `variant="subtle"` if not in theme), hardcoded color values (e.g., `bg-red-500` instead of `bg-background-error`), or overriding base component styles with custom CSS classes unless explicitly required by design
+
+### Usage Guidelines
+
+Use theme-defined variants and semantic colors. Tailwind is acceptable for layout, positioning, and custom effects when specified in design:
+
+```tsx
+<Button variant="primary" size="sm">Submit</Button>
+<div className="bg-background-primary text-text-primary">Content</div>
+```
+
+### Adding New Variants
+
+When adding new component variants, ensure they exist in Figma UIKit first, then update `src/theme/theme.ts`, corresponding CSS modules, and TypeScript definitions.
+
 Thank you for contributing to make PondPilot better!
 
 ## Dev Environment Setup
