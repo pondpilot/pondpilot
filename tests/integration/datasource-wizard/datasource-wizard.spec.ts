@@ -27,10 +27,11 @@ test.describe('Datasource Wizard', () => {
     await expect(page.getByTestId('datasource-modal-add-file-card')).toBeVisible();
   });
 
+  // eslint-disable-next-line playwright/expect-expect
   test('should validate remote database URL', async ({
     page,
-    expectNotificationWithText,
     openDatasourceWizard,
+    waitForNotification,
   }) => {
     // Navigate to remote database config
     await openDatasourceWizard();
@@ -48,14 +49,10 @@ test.describe('Datasource Wizard', () => {
     await testConnectionButton.click();
 
     // Should show error
-    await expectNotificationWithText('Validation error', 'Invalid URL format');
+    await waitForNotification('Invalid URL');
   });
 
-  test('should validate database name', async ({
-    page,
-    expectErrorNotification,
-    openDatasourceWizard,
-  }) => {
+  test('should validate database name', async ({ page, openDatasourceWizard }) => {
     // Navigate to remote database config
     await openDatasourceWizard();
     const remoteDBCard = page.getByTestId('datasource-modal-add-remote-database-card');

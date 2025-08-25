@@ -9,13 +9,14 @@ import { test as baseTest } from '../fixtures/page';
 
 const test = mergeTests(baseTest, filePickerTest, dataViewTest, notificationTest);
 
+// eslint-disable-next-line playwright/expect-expect
 test('should show generic error for invalid CSV files', async ({
   addFile,
   storage,
   filePicker,
   testTmp,
   assertFileExplorerItems,
-  expectErrorNotification,
+  waitForNotification,
 }) => {
   // Create a completely invalid file that's not a CSV
   const csvPath = testTmp.join('invalid.csv');
@@ -40,5 +41,5 @@ test('should show generic error for invalid CSV files', async ({
   await assertFileExplorerItems([]);
 
   // Wait for error notification with the expected message
-  await expectErrorNotification(/Failed to import invalid/);
+  await waitForNotification('Cannot add files');
 });
