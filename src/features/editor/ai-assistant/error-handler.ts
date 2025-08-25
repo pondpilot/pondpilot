@@ -76,7 +76,7 @@ export function displayError(error: unknown, options: ErrorDisplayOptions): void
   // Only show toast notification, don't update the textarea
   if (showToast) {
     const notificationData: ExtendedNotificationData = {
-      title: 'AI Assistant Error',
+      title: 'AI Assistant failed',
       message: categorizedError.userMessage,
       autoClose: categorizedError.retryable
         ? false
@@ -142,7 +142,7 @@ export function handleCriticalError(
   if (options?.showToast) {
     const categorizedError = categorizeError(error);
     const notificationData: ExtendedNotificationData = {
-      title: 'AI Assistant Error',
+      title: 'AI Assistant failed',
       message: categorizedError.userMessage,
       autoClose: categorizedError.retryable
         ? 5000
@@ -405,7 +405,7 @@ export function handleSchemaContextError(error: unknown): void {
   // Only show user notification for severe errors that might affect the user experience
   if (categorizedError.type === 'auth' || categorizedError.type === 'config') {
     showWarning({
-      title: 'Database Schema Warning',
+      title: 'Database schema unavailable',
       message: 'Could not load database schema context. AI responses may be less accurate.',
       autoClose: AI_ASSISTANT_TIMINGS.ERROR_NOTIFICATION_DURATION,
     });

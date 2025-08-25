@@ -81,7 +81,7 @@ export function buildFileColumnTreeNode(
             onClick: () => {
               copyToClipboard(toDuckDBIdentifier(columnName), {
                 showNotification: true,
-                notificationTitle: 'Copied',
+                notificationTitle: 'Column name copied',
               });
             },
           },

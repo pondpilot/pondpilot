@@ -43,7 +43,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
     if (!urlValidation.isValid) {
       notifications.clean();
       showError({
-        title: 'Validation error',
+        title: 'Invalid URL',
         message: urlValidation.error || 'Please enter a valid URL',
         autoClose: false,
       });
@@ -52,7 +52,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
 
     if (!dbName.trim()) {
       showError({
-        title: 'Database name error',
+        title: 'Missing database name',
         message: 'Please enter a name for the database',
         autoClose: false,
       });
