@@ -1,4 +1,4 @@
-import { showError, showSuccess, showWarning } from '@components/app-notifications';
+import { showError, showSuccess } from '@components/app-notifications';
 import { notifications } from '@mantine/notifications';
 import { CancelledOperation, DataAdapterApi } from '@models/data-adapter';
 import {
@@ -63,7 +63,6 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
       const message = error instanceof Error ? error.message : 'Unknown error';
 
       if (autoCancelled) {
-        showWarning({ title: 'Cancelled', message });
         return;
       }
 
@@ -107,7 +106,6 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
       const message = error instanceof Error ? error.message : 'Unknown error';
 
       if (autoCancelled) {
-        showWarning({ title: 'Cancelled', message });
         return;
       }
 
@@ -163,7 +161,6 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
         const message = error instanceof Error ? error.message : 'Unknown error';
 
         if (autoCancelled) {
-          showWarning({ title: 'Cancelled', message });
           return {
             success: false,
             error: {

@@ -27,7 +27,7 @@ export async function formatAndApplySQLScript(sqlScript: SQLScript): Promise<boo
     return true;
   }
   showError({
-    title: 'Failed to format SQL',
+    title: 'SQL formatting failed',
     message: formatResult.error,
     autoClose: 3000,
     id: 'sql-format-error',
@@ -83,7 +83,7 @@ export function formatSQLInEditor(view: EditorView): boolean {
     return true;
   }
   showError({
-    title: 'Failed to format SQL',
+    title: 'SQL formatting failed',
     message: formatResult.error,
     autoClose: 3000,
     id: 'sql-format-error',

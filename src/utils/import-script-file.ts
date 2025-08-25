@@ -30,7 +30,7 @@ export const importSQLFiles = async (): Promise<void> => {
   } catch (error) {
     console.error('Error importing SQL files: ', error);
     showError({
-      title: 'Import Error',
+      title: 'Cannot import script',
       message: 'Failed to import SQL files',
     });
   }

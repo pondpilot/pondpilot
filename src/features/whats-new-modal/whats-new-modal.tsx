@@ -32,7 +32,7 @@ export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
         console.error(error);
         const message = error instanceof Error ? error.message : 'Unknown error';
         showError({
-          title: 'Error fetching release notes',
+          title: 'Cannot load release notes',
           message,
           autoClose: 5000,
         });

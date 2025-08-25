@@ -159,7 +159,7 @@ export function useAppInitialization({
         const totalDiscarded = totalErrors + totalDenied + totalRemoved;
 
         showWarning({
-          title: 'Warning',
+          title: 'Some files unavailable',
           message: `A total of ${totalDiscarded} file handles were discarded.
           ${totalErrors} couldn't be read, ${totalDenied} were denied by user, and
           ${totalRemoved} were removed from disk.`,
@@ -169,7 +169,7 @@ export function useAppInitialization({
       const message = error instanceof Error ? error.message : String(error);
       console.error('Error restoring app data:', message);
       showError({
-        title: 'App Initialization Error',
+        title: 'Cannot restore app data',
         message: `Failed to restore app data. ${message}`,
       });
     }

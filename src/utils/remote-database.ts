@@ -191,7 +191,7 @@ export function handleRemoteDatabaseError(dbId: PersistentDataSourceId, error: E
     updateRemoteDbConnectionState(dbId, 'error', errorMessage);
 
     showError({
-      title: 'Database Error',
+      title: 'Cannot access database',
       message: `Error accessing remote database: ${errorMessage}`,
     });
   }

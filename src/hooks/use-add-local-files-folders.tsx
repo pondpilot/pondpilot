@@ -34,7 +34,6 @@ export const useAddLocalFilesOrFolders = () => {
     }
 
     if (!handles.length && !fallbackFiles?.length) {
-      showAlert({ title: 'Adding files', message: 'No files selected' });
       return;
     }
 
@@ -43,14 +42,14 @@ export const useAddLocalFilesOrFolders = () => {
 
     if (skippedExistingEntries.length) {
       showWarning({
-        title: 'Warning',
+        title: 'Files already exist',
         message: `${skippedExistingEntries.length} files were not added because they already exist.`,
       });
     }
 
     if (skippedUnsupportedFiles.length) {
       showWarning({
-        title: 'Warning',
+        title: 'Unsupported files',
         message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
       });
     }
@@ -58,14 +57,14 @@ export const useAddLocalFilesOrFolders = () => {
     if (skippedEmptySheets.length) {
       skippedEmptySheets.forEach(({ fileName, sheets }) => {
         showWarning({
-          title: 'Warning',
+          title: 'Empty sheets skipped',
           message: `Skipped empty sheets in ${fileName}: ${sheets.join(', ')}`,
         });
       });
     }
     errors.forEach((errorMessage) => {
       showError({
-        title: 'Error',
+        title: 'Cannot add files',
         message: errorMessage,
       });
     });
@@ -102,7 +101,6 @@ export const useAddLocalFilesOrFolders = () => {
     }
 
     if (!handle && !fallbackFiles?.length) {
-      showAlert({ title: 'Adding folder', message: 'No folder selected' });
       return;
     }
 
@@ -137,35 +135,35 @@ export const useAddLocalFilesOrFolders = () => {
 
     if (skippedExistingFolders.length) {
       showWarning({
-        title: 'Warning',
+        title: 'Folders already exist',
         message: `${skippedExistingFolders.length} folders were not added because they already exist.`,
       });
     }
 
     if (skippedExistingFiles.length) {
       showWarning({
-        title: 'Warning',
+        title: 'Files already exist',
         message: `${skippedExistingFiles.length} files were not added because they already exist.`,
       });
     }
 
     if (skippedUnsupportedFiles.length) {
       showWarning({
-        title: 'Warning',
+        title: 'Unsupported files',
         message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
       });
     }
 
     if (skippedEmptyFolders.length) {
       showWarning({
-        title: 'Warning',
+        title: 'Empty folders skipped',
         message: `${skippedEmptyFolders.length} folders were not added because no supported files were found.`,
       });
     }
     if (skippedEmptySheets.length) {
       skippedEmptySheets.forEach(({ fileName, sheets }) => {
         showWarning({
-          title: 'Warning',
+          title: 'Empty sheets skipped',
           message: `Skipped empty sheets in ${fileName}: ${sheets.join(', ')}`,
         });
       });
@@ -173,7 +171,7 @@ export const useAddLocalFilesOrFolders = () => {
 
     errors.forEach((errorMessage) => {
       showError({
-        title: 'Error',
+        title: 'Cannot add folder',
         message: errorMessage,
       });
     });
@@ -267,20 +265,20 @@ export const useAddLocalFilesOrFolders = () => {
         notifications.hide(notificationId);
         if (skippedExistingEntries.length) {
           showWarning({
-            title: 'Warning',
+            title: 'Files already exist',
             message: `${skippedExistingEntries.length} files were not added because they already exist.`,
           });
         }
         if (skippedUnsupportedFiles.length) {
           showWarning({
-            title: 'Warning',
+            title: 'Unsupported files',
             message: `${skippedUnsupportedFiles.length} files were not added because they are not supported.`,
           });
         }
         if (errors.length) {
           errors.forEach((errorMessage) => {
             showError({
-              title: 'Error',
+              title: 'Cannot process items',
               message: errorMessage,
             });
           });
@@ -288,7 +286,7 @@ export const useAddLocalFilesOrFolders = () => {
       } catch (error) {
         notifications.hide(notificationId);
         showError({
-          title: 'Error processing dropped items',
+          title: 'Cannot process dropped items',
           message: error instanceof Error ? error.message : String(error),
         });
       }
