@@ -15,14 +15,20 @@ test.describe('Clipboard Import', () => {
         writable: true,
         configurable: true,
       });
-      // Mock permissions API to return granted state
-      if (navigator.permissions) {
-        Object.defineProperty(navigator.permissions, 'query', {
-          value: async () => ({ state: 'granted' }),
+      // Create permissions object if it doesn't exist and mock permissions API
+      if (!navigator.permissions) {
+        Object.defineProperty(navigator, 'permissions', {
+          value: {},
           writable: true,
           configurable: true,
         });
       }
+      // Mock the query method to return granted state
+      Object.defineProperty(navigator.permissions, 'query', {
+        value: async () => ({ state: 'granted' }),
+        writable: true,
+        configurable: true,
+      });
     }, csvData);
 
     // 2. Open datasource wizard
@@ -93,6 +99,20 @@ test.describe('Clipboard Import', () => {
         writable: true,
         configurable: true,
       });
+      // Create permissions object if it doesn't exist and mock permissions API
+      if (!navigator.permissions) {
+        Object.defineProperty(navigator, 'permissions', {
+          value: {},
+          writable: true,
+          configurable: true,
+        });
+      }
+      // Mock the query method to return granted state
+      Object.defineProperty(navigator.permissions, 'query', {
+        value: async () => ({ state: 'granted' }),
+        writable: true,
+        configurable: true,
+      });
     }, jsonData);
 
     // 2. Open datasource wizard
@@ -156,14 +176,20 @@ test.describe('Clipboard Import', () => {
         writable: true,
         configurable: true,
       });
-      // Mock permissions API to return granted state
-      if (navigator.permissions) {
-        Object.defineProperty(navigator.permissions, 'query', {
-          value: async () => ({ state: 'granted' }),
+      // Create permissions object if it doesn't exist and mock permissions API
+      if (!navigator.permissions) {
+        Object.defineProperty(navigator, 'permissions', {
+          value: {},
           writable: true,
           configurable: true,
         });
       }
+      // Mock the query method to return granted state
+      Object.defineProperty(navigator.permissions, 'query', {
+        value: async () => ({ state: 'granted' }),
+        writable: true,
+        configurable: true,
+      });
     }, csvData);
 
     // 2. Open datasource wizard
@@ -231,6 +257,20 @@ test.describe('Clipboard Import', () => {
         writable: true,
         configurable: true,
       });
+      // Create permissions object if it doesn't exist and mock permissions API
+      if (!navigator.permissions) {
+        Object.defineProperty(navigator, 'permissions', {
+          value: {},
+          writable: true,
+          configurable: true,
+        });
+      }
+      // Mock the query method to return granted state
+      Object.defineProperty(navigator.permissions, 'query', {
+        value: async () => ({ state: 'granted' }),
+        writable: true,
+        configurable: true,
+      });
     }, tsvData);
 
     // 2. Open datasource wizard
@@ -290,14 +330,20 @@ test.describe('Clipboard Import', () => {
   }) => {
     // 1. Mock clipboard API with unknown permission state
     await page.evaluate(() => {
-      // Mock permissions API to return unknown state
-      if (navigator.permissions) {
-        Object.defineProperty(navigator.permissions, 'query', {
-          value: async () => ({ state: 'prompt' }),
+      // Create permissions object if it doesn't exist and mock permissions API
+      if (!navigator.permissions) {
+        Object.defineProperty(navigator, 'permissions', {
+          value: {},
           writable: true,
           configurable: true,
         });
       }
+      // Mock the query method to return prompt state (unknown)
+      Object.defineProperty(navigator.permissions, 'query', {
+        value: async () => ({ state: 'prompt' }),
+        writable: true,
+        configurable: true,
+      });
     });
 
     // 2. Open datasource wizard
@@ -336,14 +382,20 @@ test.describe('Clipboard Import', () => {
         configurable: true,
       });
 
-      // Mock permissions API to return denied state
-      if (navigator.permissions) {
-        Object.defineProperty(navigator.permissions, 'query', {
-          value: async () => ({ state: 'denied' }),
+      // Create permissions object if it doesn't exist and mock permissions API
+      if (!navigator.permissions) {
+        Object.defineProperty(navigator, 'permissions', {
+          value: {},
           writable: true,
           configurable: true,
         });
       }
+      // Mock the query method to return denied state
+      Object.defineProperty(navigator.permissions, 'query', {
+        value: async () => ({ state: 'denied' }),
+        writable: true,
+        configurable: true,
+      });
     });
 
     // 2. Open datasource wizard
@@ -356,7 +408,7 @@ test.describe('Clipboard Import', () => {
     // 3. Should NOT show clipboard check banner or clipboard data alert
     const clipboardCheckBanner = page.getByTestId('clipboard-check-banner');
     await expect(clipboardCheckBanner).toBeHidden();
-    
+
     const clipboardAlert = page.getByTestId('clipboard-alert');
     await expect(clipboardAlert).toBeHidden();
 
