@@ -30,6 +30,7 @@ export const addLocalFileOrFoldersCompat = async (
   skippedUnsupportedFiles: string[];
   skippedEmptyFolders: LocalFolder[];
   skippedEmptySheets: { fileName: string; sheets: string[] }[];
+  skippedEmptyDatabases: string[];
   newEntries: [LocalEntryId, LocalEntry][];
   newDataSources: [PersistentDataSourceId, AnyDataSource][];
   errors: string[];
