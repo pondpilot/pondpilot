@@ -26,8 +26,6 @@ interface DatasourceWizardModalProps {
 
 export type WizardStep = 'selection' | 'remote-config' | 'clipboard-csv' | 'clipboard-json';
 
-const CLIPBOARD_PERMISSION_DISMISSED_KEY = 'clipboard-permission-dismissed';
-
 const getStepTitle = (step: WizardStep): string => {
   switch (step) {
     case 'remote-config':
@@ -55,9 +53,7 @@ export function DatasourceWizardModal({
   const [clipboardPermissionState, setClipboardPermissionState] = useState<
     'unknown' | 'granted' | 'denied' | 'prompt'
   >('unknown');
-  const [clipboardPermissionDismissed, setClipboardPermissionDismissed] = useState(() => {
-    return localStorage.getItem(CLIPBOARD_PERMISSION_DISMISSED_KEY) === 'true';
-  });
+
   const [hasUserCheckedClipboard, setHasUserCheckedClipboard] = useState(false);
 
   // Check clipboard permission state using Permissions API
@@ -111,11 +107,6 @@ export function DatasourceWizardModal({
       }
     }
   }, []);
-
-  const handleDismissClipboardWarning = () => {
-    setClipboardPermissionDismissed(true);
-    localStorage.setItem(CLIPBOARD_PERMISSION_DISMISSED_KEY, 'true');
-  };
 
   const handleCheckClipboard = async () => {
     setHasUserCheckedClipboard(true);
@@ -337,7 +328,7 @@ export function DatasourceWizardModal({
           )}
 
           {/* Show blocked access notification only if denied and not dismissed */}
-          {clipboardPermissionState === 'denied' && !clipboardPermissionDismissed && (
+          {clipboardPermissionState === 'denied' && (
             <Alert icon={<IconClipboard size={20} />} color="background-accent" variant="light">
               <Stack gap={12} w="100%">
                 <Stack gap={4}>
@@ -349,11 +340,6 @@ export function DatasourceWizardModal({
                     address bar and allow clipboard access.
                   </Text>
                 </Stack>
-                <Group justify="flex-end" gap={8}>
-                  <Button size="xs" variant="default" onClick={handleDismissClipboardWarning}>
-                    Don&apos;t Show Again
-                  </Button>
-                </Group>
               </Stack>
             </Alert>
           )}

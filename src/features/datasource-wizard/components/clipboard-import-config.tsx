@@ -58,6 +58,15 @@ export function ClipboardImportConfig({
   // Show preview of clipboard content
   const previewContent = content.length > 200 ? `${content.substring(0, 200)}...` : content;
 
+  // Count CSV rows for conditional display
+  const rowCount =
+    format === 'csv'
+      ? content
+          .trim()
+          .split('\n')
+          .filter((line) => line.trim() !== '').length
+      : 0;
+
   // Validate table name
   const sanitizedTableName = tableName.replace(/[^a-zA-Z0-9-_]/g, '_').toLowerCase();
   const isValidName = sanitizedTableName.length > 0 && sanitizedTableName.length <= 50;
@@ -97,7 +106,7 @@ export function ClipboardImportConfig({
         )}
       </Stack>
 
-      {format === 'csv' && (
+      {format === 'csv' && rowCount > 1 && (
         <Checkbox
           label="First row contains headers"
           data-testid={setDataTestId('clipboard-has-headers')}
