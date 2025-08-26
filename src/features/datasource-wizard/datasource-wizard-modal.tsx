@@ -1,11 +1,20 @@
+import { showError } from '@components/app-notifications';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { Group, Stack, Title, ActionIcon, Text, Divider } from '@mantine/core';
-import { IconDatabasePlus, IconFilePlus, IconFolderPlus, IconX } from '@tabler/icons-react';
+import { Group, Stack, Title, ActionIcon, Text, Button, Alert } from '@mantine/core';
+import {
+  IconDatabasePlus,
+  IconFilePlus,
+  IconFolderPlus,
+  IconX,
+  IconClipboard,
+} from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
+import { ClipboardImportConfig } from './components/clipboard-import-config';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
+import { validateJSON, validateCSV } from './utils/clipboard-import';
 
 interface DatasourceWizardModalProps {
   onClose: () => void;
@@ -15,7 +24,20 @@ interface DatasourceWizardModalProps {
   initialStep?: WizardStep;
 }
 
-export type WizardStep = 'selection' | 'remote-config';
+export type WizardStep = 'selection' | 'remote-config' | 'clipboard-csv' | 'clipboard-json';
+
+const getStepTitle = (step: WizardStep): string => {
+  switch (step) {
+    case 'remote-config':
+      return 'REMOTE DATABASE';
+    case 'clipboard-csv':
+      return 'IMPORT CSV FROM CLIPBOARD';
+    case 'clipboard-json':
+      return 'IMPORT JSON FROM CLIPBOARD';
+    default:
+      return '';
+  }
+};
 
 export function DatasourceWizardModal({
   onClose,
@@ -25,6 +47,86 @@ export function DatasourceWizardModal({
   handleAddFile,
 }: DatasourceWizardModalProps) {
   const [step, setStep] = useState<WizardStep>(initialStep);
+  const [hasClipboardContent, setHasClipboardContent] = useState(false);
+  const [clipboardContent, setClipboardContent] = useState('');
+  const [clipboardFormat, setClipboardFormat] = useState<'csv' | 'json'>('csv');
+  const [clipboardPermissionState, setClipboardPermissionState] = useState<
+    'unknown' | 'granted' | 'denied' | 'prompt'
+  >('unknown');
+
+  const [hasUserCheckedClipboard, setHasUserCheckedClipboard] = useState(false);
+
+  // Check clipboard permission state using Permissions API
+  const checkClipboardPermission = async () => {
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        const result = await navigator.permissions.query({
+          name: 'clipboard-read' as PermissionName,
+        });
+        setClipboardPermissionState(result.state);
+        return result.state;
+      }
+    } catch (error) {
+      setClipboardPermissionState('unknown');
+      return 'unknown';
+    }
+    return 'unknown';
+  };
+
+  // Check clipboard content on mount and when window gets focus
+  const checkClipboard = useCallback(async () => {
+    // First check permission state
+    const permissionState = await checkClipboardPermission();
+    if (permissionState === 'denied') {
+      // Access blocked - don't attempt to read
+      setHasClipboardContent(false);
+      return;
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        // Always attempt to request clipboard access when opening modal
+        // This gives users a second chance if they previously denied access
+        const text = await navigator.clipboard.readText();
+        setHasClipboardContent(!!text && text.trim().length > 0);
+
+        // Save clipboard content for later use if it exists
+        if (text && text.trim().length > 0) {
+          setClipboardContent(text);
+        }
+
+        // Update permission state after successful read
+        setClipboardPermissionState('granted');
+      }
+    } catch (error) {
+      setHasClipboardContent(false);
+
+      // If access error, mark as denied
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        setClipboardPermissionState('denied');
+      }
+    }
+  }, []);
+
+  const handleCheckClipboard = async () => {
+    setHasUserCheckedClipboard(true);
+    await checkClipboard();
+  };
+
+  // Check clipboard permissions and auto-check content if already granted
+  useEffect(() => {
+    const initializeClipboard = async () => {
+      const permissionState = await checkClipboardPermission();
+      // If permission already granted, automatically check clipboard content
+      // Also check if permission state is unknown (fallback for environments without Permissions API)
+      if (permissionState === 'granted' || permissionState === 'unknown') {
+        setHasUserCheckedClipboard(true);
+        await checkClipboard();
+      }
+    };
+
+    initializeClipboard();
+  }, [checkClipboard]);
 
   const handleRemoteDatabaseClick = () => {
     setStep('remote-config');
@@ -41,6 +143,61 @@ export function DatasourceWizardModal({
       handleAddFolder();
     }
     onClose();
+  };
+
+  const handlePasteAs = async (format: 'csv' | 'json') => {
+    if (!pool) {
+      showError({
+        title: 'App is not ready',
+        message: 'Please wait for app to load before importing data',
+      });
+      return;
+    }
+
+    try {
+      // Read clipboard content
+      const clipboardText = await navigator.clipboard.readText();
+
+      if (!clipboardText.trim()) {
+        showError({
+          title: 'Empty clipboard',
+          message: 'No text found in clipboard',
+        });
+        return;
+      }
+
+      // Validate format
+      if (format === 'json') {
+        const validation = validateJSON(clipboardText);
+        if (!validation.isValid) {
+          showError({
+            title: 'Invalid JSON',
+            message: validation.error || 'The clipboard content is not valid JSON',
+          });
+          return;
+        }
+      } else if (format === 'csv') {
+        const validation = validateCSV(clipboardText);
+        if (!validation.isValid) {
+          showError({
+            title: 'Invalid CSV',
+            message: validation.error || 'The clipboard content does not appear to be valid CSV',
+          });
+          return;
+        }
+      }
+
+      // Store clipboard content and navigate to import step
+      setClipboardContent(clipboardText);
+      setClipboardFormat(format);
+      setStep(format === 'csv' ? 'clipboard-csv' : 'clipboard-json');
+    } catch (error) {
+      console.error('Clipboard access error:', error);
+      showError({
+        title: 'Cannot access clipboard',
+        message: 'Failed to read clipboard content. Please check browser permissions.',
+      });
+    }
   };
 
   const datasourceCards = [
@@ -105,51 +262,117 @@ export function DatasourceWizardModal({
               ADD DATA SOURCE
             </Text>
             <Text size="xs">/</Text>
-            <Text size="xs">REMOTE DATABASE</Text>
+            <Text size="xs">{getStepTitle(step)}</Text>
           </Group>
         )}
 
-        <ActionIcon size={24} onClick={onClose} variant="subtle">
+        <ActionIcon size={24} onClick={onClose}>
           <IconX size={20} />
         </ActionIcon>
       </Group>
 
       {step === 'selection' && (
-        <Group>
-          <Group gap="md" className="justify-center md:justify-start">
-            {datasourceCards.map((card) => (
-              <BaseActionCard
-                key={card.type}
-                onClick={card.onClick}
-                icon={card.icon}
-                title={card.title}
-                description={card.description}
-                testId={card.testId}
-              />
-            ))}
+        <Stack gap={16}>
+          {/* Show "Check clipboard" button only if permission is not granted and not denied */}
+          {!hasUserCheckedClipboard &&
+            clipboardPermissionState !== 'denied' &&
+            clipboardPermissionState !== 'granted' && (
+              <Alert
+                icon={<IconClipboard size={20} />}
+                color="background-accent"
+                data-testid={setDataTestId('clipboard-check-banner')}
+              >
+                <Group justify="space-between" align="center">
+                  <Text size="sm">You can import data from your clipboard</Text>
+                  <Button
+                    size="xs"
+                    onClick={handleCheckClipboard}
+                    data-testid={setDataTestId('check-clipboard-button')}
+                  >
+                    Check clipboard
+                  </Button>
+                </Group>
+              </Alert>
+            )}
+
+          {/* Show CSV/JSON buttons only if clipboard has content */}
+          {hasClipboardContent && (
+            <Alert
+              icon={<IconClipboard size={20} />}
+              color="background-accent"
+              variant="light"
+              data-testid={setDataTestId('clipboard-alert')}
+            >
+              <Group justify="space-between" align="center">
+                <Text size="sm" fw={500}>
+                  Paste data from clipboard
+                </Text>
+                <Group gap={8}>
+                  <Button
+                    size="xs"
+                    onClick={() => handlePasteAs('csv')}
+                    data-testid={setDataTestId('paste-as-csv')}
+                  >
+                    CSV
+                  </Button>
+                  <Button
+                    size="xs"
+                    onClick={() => handlePasteAs('json')}
+                    data-testid={setDataTestId('paste-as-json')}
+                  >
+                    JSON
+                  </Button>
+                </Group>
+              </Group>
+            </Alert>
+          )}
+
+          {/* Show blocked access notification only if denied and not dismissed */}
+          {clipboardPermissionState === 'denied' && (
+            <Alert icon={<IconClipboard size={20} />} color="background-accent" variant="light">
+              <Stack gap={12} w="100%">
+                <Stack gap={4}>
+                  <Text size="sm" fw={500}>
+                    Clipboard access blocked
+                  </Text>
+                  <Text size="xs" c="text-secondary">
+                    To import data from clipboard, please click the 🔒 icon in your browser&apos;s
+                    address bar and allow clipboard access.
+                  </Text>
+                </Stack>
+              </Stack>
+            </Alert>
+          )}
+
+          <Group>
+            <Group gap="md" className="justify-center md:justify-start">
+              {datasourceCards.map((card) => (
+                <BaseActionCard
+                  key={card.type}
+                  onClick={card.onClick}
+                  icon={card.icon}
+                  title={card.title}
+                  description={card.description}
+                  testId={card.testId}
+                />
+              ))}
+            </Group>
           </Group>
-
-          <Divider orientation="vertical" visibleFrom="md" />
-
-          <Stack w={200} visibleFrom="md">
-            <Text size="xs" c="text-secondary">
-              💡 Tips:
-            </Text>
-            <Text size="xs" className="pl-3" c="text-secondary">
-              • Drag and drop files or folders directly into the app
-            </Text>
-            <Text size="xs" className="pl-3" c="text-secondary">
-              • Use SQL ATTACH statement for advanced database connections
-            </Text>
-            <Text size="xs" className="pl-3" c="text-secondary">
-              • Supported formats: CSV, Parquet, JSON, Excel, DuckDB, and more
-            </Text>
-          </Stack>
-        </Group>
+        </Stack>
       )}
 
       {step === 'remote-config' && (
         <RemoteDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+
+      {(step === 'clipboard-csv' || step === 'clipboard-json') && (
+        <ClipboardImportConfig
+          content={clipboardContent}
+          format={clipboardFormat}
+          pool={pool}
+          onBack={handleBack}
+          onClose={onClose}
+        />
       )}
     </Stack>
   );

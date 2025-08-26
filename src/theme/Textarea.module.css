@@ -16,11 +16,11 @@
 }
 
 .input {
-  border-radius: 360px;
+  border-radius: 8px;
   border: 1px solid;
   transition: all 0.2s ease;
 
-  padding: 0 45px 0 15px;
+  padding: 10px 12px;
 
   font-family:
     'Helvetica Neue',
@@ -32,9 +32,9 @@
   font-weight: 400;
   letter-spacing: 0%;
 
-  background-color: var(--mantine-color-background-primary-filled);
+  background-color: var(--mantine-color-background-secondary-filled);
   color: var(--mantine-color-text-primary-text);
-  border-color: var(--mantine-color-border-primary-filled);
+  border-color: var(--mantine-color-background-secondary-filled);
 }
 
 .input::placeholder {
@@ -48,14 +48,14 @@
 .input:focus,
 .input:focus-visible {
   outline: none;
-  border-color: var(--mantine-color-brandBlue_neon-700-filled);
+  border-color: var(--mantine-color-text-accent-filled);
 }
 
 .input[data-error],
 .input[data-error]:hover,
 .input[data-error]:focus {
   color: var(--mantine-color-text-error-text);
-  border-color: var(--mantine-color-border-error-filled);
+  border-color: var(--mantine-color-text-error-filled);
 }
 
 .input[data-error]::placeholder {
@@ -75,34 +75,6 @@
   color: var(--mantine-color-text-tertiary-text);
 }
 
-.innerInput {
-  border: none;
-  padding: 0 45px 0 15px;
-
-  font-family:
-    'Helvetica Neue',
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
-  font-size: 16px;
-  line-height: 100%;
-  font-weight: 400;
-  letter-spacing: 0%;
-
-  background-color: transparent;
-  color: inherit;
-  outline: none;
-}
-
-.innerInput::placeholder {
-  color: var(--mantine-color-text-tertiary-text);
-}
-
-.innerInput:disabled,
-.innerInput[data-disabled] {
-  cursor: not-allowed;
-}
-
 .description {
   padding-left: 16px;
   font-size: 12px;
@@ -116,15 +88,4 @@
 
   font-size: 12px;
   margin-top: 4px;
-}
-
-.visibilityToggle {
-  width: 28px !important;
-  height: 28px !important;
-  padding: 4px !important;
-}
-
-.visibilityToggle .icon {
-  width: 20px !important;
-  height: 20px !important;
 }
