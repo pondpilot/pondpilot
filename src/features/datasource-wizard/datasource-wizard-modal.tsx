@@ -58,6 +58,7 @@ export function DatasourceWizardModal({
   const [clipboardPermissionDismissed, setClipboardPermissionDismissed] = useState(() => {
     return localStorage.getItem(CLIPBOARD_PERMISSION_DISMISSED_KEY) === 'true';
   });
+  const [hasUserCheckedClipboard, setHasUserCheckedClipboard] = useState(false);
 
   // Check clipboard permission state using Permissions API
   const checkClipboardPermission = async () => {
@@ -116,15 +117,24 @@ export function DatasourceWizardModal({
     localStorage.setItem(CLIPBOARD_PERMISSION_DISMISSED_KEY, 'true');
   };
 
-  useEffect(() => {
-    checkClipboard();
+  const handleCheckClipboard = async () => {
+    setHasUserCheckedClipboard(true);
+    await checkClipboard();
+  };
 
-    const handleFocus = () => {
-      checkClipboard();
+  // Check clipboard permissions and auto-check content if already granted
+  useEffect(() => {
+    const initializeClipboard = async () => {
+      const permissionState = await checkClipboardPermission();
+      // If permission already granted, automatically check clipboard content
+      // Also check if permission state is unknown (fallback for environments without Permissions API)
+      if (permissionState === 'granted' || permissionState === 'unknown') {
+        setHasUserCheckedClipboard(true);
+        await checkClipboard();
+      }
     };
 
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    initializeClipboard();
   }, [checkClipboard]);
 
   const handleRemoteDatabaseClick = () => {
@@ -272,6 +282,29 @@ export function DatasourceWizardModal({
 
       {step === 'selection' && (
         <Stack gap={16}>
+          {/* Show "Check clipboard" button only if permission is not granted and not denied */}
+          {!hasUserCheckedClipboard &&
+            clipboardPermissionState !== 'denied' &&
+            clipboardPermissionState !== 'granted' && (
+              <Alert
+                icon={<IconClipboard size={20} />}
+                color="background-accent"
+                data-testid={setDataTestId('clipboard-check-banner')}
+              >
+                <Group justify="space-between" align="center">
+                  <Text size="sm">You can import data from your clipboard</Text>
+                  <Button
+                    size="xs"
+                    onClick={handleCheckClipboard}
+                    data-testid={setDataTestId('check-clipboard-button')}
+                  >
+                    Check clipboard
+                  </Button>
+                </Group>
+              </Alert>
+            )}
+
+          {/* Show CSV/JSON buttons only if clipboard has content */}
           {hasClipboardContent && (
             <Alert
               icon={<IconClipboard size={20} />}
@@ -303,8 +336,9 @@ export function DatasourceWizardModal({
             </Alert>
           )}
 
+          {/* Show blocked access notification only if denied and not dismissed */}
           {clipboardPermissionState === 'denied' && !clipboardPermissionDismissed && (
-            <Alert icon={<IconClipboard size={20} />} color="gray" variant="light">
+            <Alert icon={<IconClipboard size={20} />} color="background-accent" variant="light">
               <Stack gap={12} w="100%">
                 <Stack gap={4}>
                   <Text size="sm" fw={500}>

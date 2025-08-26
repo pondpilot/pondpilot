@@ -62,28 +62,15 @@ export function validateCSV(text: string): { isValid: boolean; error?: string } 
 /**
  * Formats content for the specified format
  */
-export function formatContent(text: string, format: 'json' | 'csv', hasHeaders?: boolean): string {
+export function formatContent(text: string, format: 'json' | 'csv'): string {
   if (format === 'json') {
     // Pretty format JSON
     const parsed = JSON.parse(text);
     return JSON.stringify(parsed, null, 2);
   }
 
-  // For CSV, handle headers
-  if (format === 'csv' && hasHeaders === false) {
-    const lines = text.trim().split('\n');
-    if (lines.length > 0) {
-      const firstLine = lines[0];
-      // Determine delimiter (tab or comma)
-      const delimiter = firstLine.includes('\t') ? '\t' : ',';
-      // Count columns in first line
-      const columnCount = firstLine.split(delimiter).length;
-      // Generate headers col_1, col_2, ...
-      const headers = Array.from({ length: columnCount }, (_, i) => `col_${i + 1}`).join(delimiter);
-      // Return CSV with generated headers
-      return `${headers}\n${text.trim()}\n`;
-    }
-  }
+  // For CSV, when hasHeaders is false, let DuckDB handle column naming
+  // No need to add generated headers - DuckDB will use column0, column1, etc.
 
   // For CSV with headers or fallback, return as-is but ensure it ends with a newline
   return `${text.trim()}\n`;
@@ -96,7 +83,6 @@ export async function importClipboardAsFile(
   clipboardText: string,
   fileName: string,
   format: 'json' | 'csv',
-  hasHeaders?: boolean,
 ): Promise<FileSystemFileHandle> {
   try {
     // Validate content based on format
@@ -117,7 +103,7 @@ export async function importClipboardAsFile(
     }
 
     // Format the content
-    const formattedContent = formatContent(clipboardText, format, hasHeaders);
+    const formattedContent = formatContent(clipboardText, format);
 
     // Create OPFS file
     const opfsUtil = new OPFSUtil();
@@ -179,7 +165,7 @@ export async function importClipboardAsTable(
     }
 
     // Format the content
-    const formattedContent = formatContent(clipboardText, format, hasHeaders);
+    const formattedContent = formatContent(clipboardText, format);
 
     // Create temporary file name
     const tempFileName = `temp_clipboard_${Date.now()}.${format}`;
