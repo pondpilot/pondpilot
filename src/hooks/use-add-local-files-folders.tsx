@@ -8,6 +8,7 @@ import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context
 import { notifications } from '@mantine/notifications';
 import { LocalEntry, WebkitFile } from '@models/file-system';
 import { fileSystemService } from '@utils/file-system-adapter';
+import { createFileHandleWrapper } from '@utils/file-system-adapter/handle-converter';
 import { useCallback } from 'react';
 
 export const useAddLocalFilesOrFolders = () => {
@@ -208,7 +209,7 @@ export const useAddLocalFilesOrFolders = () => {
           handles.push(handle as FileSystemFileHandle | FileSystemDirectoryHandle);
         }
       } else {
-        // Firefox/Safari: Use File objects
+        // Firefox/Safari: Use File objects and create wrapped handles
         const items = [...e.dataTransfer.items];
 
         for (const item of items) {
@@ -216,6 +217,15 @@ export const useAddLocalFilesOrFolders = () => {
             const file = item.getAsFile();
             if (file) {
               fallbackFiles.push(file);
+
+              // Create wrapped handle from File object (same approach as pickFilesForPondPilot)
+              const handle = {
+                kind: 'file' as const,
+                name: file.name,
+                getFile: async () => file,
+              };
+              const wrappedHandle = createFileHandleWrapper(handle);
+              handles.push(wrappedHandle);
             }
           }
         }
@@ -225,6 +235,7 @@ export const useAddLocalFilesOrFolders = () => {
         // We'll treat all drops as file drops and let the user know about limitations
         if (fallbackFiles.length > 0) {
           const capabilities = fileSystemService.getBrowserCapabilities();
+
           if (!capabilities.hasDragAndDropDirectory) {
             // Check if it looks like folder content (multiple files with path separators)
             const hasPathInfo = fallbackFiles.some(
@@ -284,10 +295,11 @@ export const useAddLocalFilesOrFolders = () => {
           });
         }
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         notifications.hide(notificationId);
         showError({
           title: 'Cannot process dropped items',
-          message: error instanceof Error ? error.message : String(error),
+          message: errorMessage,
         });
       }
     },
