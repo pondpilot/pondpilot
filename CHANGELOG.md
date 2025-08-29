@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- next-header -->
+## ✨ Highlights
+
+This release makes PondPilot more accessible and user-friendly than ever! The biggest news is **full cross-browser support** - you can now use PondPilot in Firefox and Safari, not just Chrome and Edge. We've also added incredibly convenient **clipboard data import** for quick ad-hoc analysis, and improved the overall user experience with better notifications and file exploration.
+
+- **🌐 Universal Browser Support**: PondPilot now works seamlessly across all major browsers including Firefox, Safari, Chrome, and Edge. Non-Chromium browsers get a gracefully degraded experience with session-based file handling and clear compatibility notifications.
+
+- **📋 Clipboard Data Import**: Transform your workflow with instant data import from clipboard. Simply copy CSV or JSON data and paste it directly into PondPilot with configurable header detection for CSV files - perfect for quick ad-hoc analysis.
+
+- **👁️ File Column Preview**: Explore your data more efficiently with Alt+Click (Option+Click on Mac) to expand and view table columns directly in the Files panel without opening each file individually.
+
+- **💬 Enhanced Notifications**: Experience clearer, more actionable error messages that guide you toward solutions instead of just describing problems. Error titles no longer duplicate type information, and copy operations show specific context.
+
+## 🎯 What's Next
+
+We're continuing to focus on making data analysis more intuitive and accessible:
+
+- Enhanced query editor with intelligent suggestions
+- Improved data visualization capabilities  
+- Performance optimizations for large datasets
+- More export format options
+
+## 📋 Changelog
+
+### 🚀 New
+- [UX]: Import CSV and JSON data directly from clipboard [#214](https://github.com/pondpilot/pondpilot/pull/214)
+- [Feature]: Show columns of File on Files panel [#205](https://github.com/pondpilot/pondpilot/pull/205) 
+- [Feature]: Add non-Chromium based browser support [#203](https://github.com/pondpilot/pondpilot/pull/203)
+
+### 🐛 Fixed
+- [Bug]: Fix empty database handling to show info instead of error (#158) [#213](https://github.com/pondpilot/pondpilot/pull/213)
+- [Bug]: Fix drag-and-drop file upload for non-Chromium browsers [#212](https://github.com/pondpilot/pondpilot/pull/212)
+
+### 💅 Improved
+- [UX]: Improve notification messages for better user experience [#216](https://github.com/pondpilot/pondpilot/pull/216)
+
+**Full Changelog**: [v0.5.0...v0.6.0](https://github.com/pondpilot/pondpilot/compare/v0.5.0...v0.6.0)
+
 
 ## ✨ Highlights
 
