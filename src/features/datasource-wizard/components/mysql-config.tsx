@@ -1,6 +1,6 @@
 import { ConnectionPool } from '@engines/types';
-import { SecretType } from '@models/secrets';
 import { Text } from '@mantine/core';
+import { SecretType } from '@models/secrets';
 
 import { DatabaseConnectionForm } from './shared/database-connection-form';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { 
+import {
   migrateRemoteDB,
   createConnectionBasedRemoteDB,
   createUrlBasedRemoteDB,

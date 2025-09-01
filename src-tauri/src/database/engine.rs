@@ -343,6 +343,42 @@ impl DuckDBEngine {
         self.execute_and_collect(sql).await
     }
 
+    /// Execute a query with proper parameter binding
+    pub async fn execute_query_with_params(
+        &self,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+    ) -> Result<super::types::QueryResult> {
+        // Try to get an existing connection first
+        let existing_connections = self.connection_manager.get_all_connections().await;
+        
+        if let Some((_conn_id, handle)) = existing_connections.into_iter().next() {
+            // Use an existing connection with parameters
+            let result = handle.execute(sql.to_string(), params).await?;
+            Ok(result)
+        } else {
+            // Create a new connection and execute
+            let connection_id = format!("query_{}", uuid::Uuid::new_v4());
+            self.create_connection(connection_id.clone()).await?;
+            
+            // Get the connection we just created
+            let connections = self.connection_manager.get_all_connections().await;
+            if let Some((_, handle)) = connections.into_iter().find(|(id, _)| id == &connection_id) {
+                let result = handle.execute(sql.to_string(), params).await?;
+                
+                // Clean up the temporary connection
+                self.connection_manager.close_connection(&connection_id).await?;
+                
+                Ok(result)
+            } else {
+                Err(crate::errors::DuckDBError::ConnectionError {
+                    message: "Failed to create temporary connection for parameterized query".to_string(),
+                    context: None,
+                })
+            }
+        }
+    }
+
     /// Create a new persistent connection with the given ID
     pub async fn create_connection(&self, connection_id: String) -> Result<()> {
         // Get a permit from the pool
@@ -514,8 +550,6 @@ impl DuckDBEngine {
                     Err(e) => {
                         tracing::warn!("[DuckDBEngine] Failed to attach database '{}' to connection '{}': {}", 
                                       sanitized_alias, conn_id, e);
-                        tracing::warn!("[DuckDBEngine] Failed to attach database '{}' to connection '{}': {}", 
-                                      sanitized_alias, conn_id, e);
                         // Continue with other connections even if one fails
                     }
                 }
@@ -616,7 +650,6 @@ impl DuckDBEngine {
                     },
                     Err(e) => {
                         tracing::warn!("[DuckDBEngine] Failed to attach MotherDuck to connection '{}': {}", conn_id, e);
-                        tracing::warn!("[DuckDBEngine] Failed to attach MotherDuck to connection '{}': {}", conn_id, e);
                         // Continue with other connections even if one fails
                     }
                 }
@@ -661,20 +694,13 @@ impl DuckDBEngine {
     }
 
     pub async fn get_tables(&self, database: &str) -> Result<Vec<TableInfo>> {
-        // Sanitize database name to prevent SQL injection
-        let sanitized_database = sanitize_identifier(database)?;
-        // SECURITY FIX: Always use parameterized queries or proper quoting for string literals
-        let sql = format!(
-            "SELECT table_name, estimated_size, column_count
-             FROM duckdb_tables
-             WHERE database_name = '{}'",
-            sanitized_database.replace('\'', "''")  // Escape single quotes for SQL string literal
-        );
+        // Use parameterized query to prevent SQL injection
+        let sql = "SELECT table_name, estimated_size, column_count
+                   FROM duckdb_tables
+                   WHERE database_name = ?";
 
         let result = self
-            .query(&sql)
-            .hint(QueryHints::catalog())
-            .execute_simple()
+            .execute_query_with_params(sql, vec![serde_json::Value::String(database.to_string())])
             .await?;
 
         let mut tables = Vec::new();
@@ -701,20 +727,21 @@ impl DuckDBEngine {
         database: &str,
         table: &str,
     ) -> Result<Vec<super::types::ColumnInfo>> {
-        // Sanitize inputs to prevent SQL injection
-        let sanitized_database = sanitize_identifier(database)?;
-        let sanitized_table = sanitize_identifier(table)?;
-        // SECURITY FIX: Always use proper quoting for string literals in WHERE clause
-        let sql = format!(
-            "SELECT column_name, data_type, is_nullable
-             FROM duckdb_columns
-             WHERE database_name = '{}' AND table_name = '{}'
-             ORDER BY column_index",
-            sanitized_database.replace('\'', "''"),  // Escape single quotes for SQL string literal
-            sanitized_table.replace('\'', "''")      // Escape single quotes for SQL string literal
-        );
+        // Use parameterized query to prevent SQL injection
+        let sql = "SELECT column_name, data_type, is_nullable
+                   FROM duckdb_columns
+                   WHERE database_name = ? AND table_name = ?
+                   ORDER BY column_index";
 
-        let result = self.execute_and_collect(&sql).await?;
+        let result = self
+            .execute_query_with_params(
+                sql,
+                vec![
+                    serde_json::Value::String(database.to_string()),
+                    serde_json::Value::String(table.to_string()),
+                ]
+            )
+            .await?;
 
         let mut columns = Vec::new();
         for row in &result.rows {

@@ -19,13 +19,13 @@ export type PersistentDataSourceId = NewId<'PersistentDataSourceId'>;
 /**
  * Types of remote database connections
  */
-export type RemoteConnectionType = 
-  | 'url'        // Legacy direct URL connections
-  | 'postgres'   // PostgreSQL via connection system
-  | 'mysql'      // MySQL via connection system  
+export type RemoteConnectionType =
+  | 'url' // Legacy direct URL connections
+  | 'postgres' // PostgreSQL via connection system
+  | 'mysql' // MySQL via connection system
   | 'motherduck' // MotherDuck cloud service
-  | 's3'         // S3/cloud storage
-  | 'http';      // HTTP/HTTPS endpoints
+  | 's3' // S3/cloud storage
+  | 'http'; // HTTP/HTTPS endpoints
 
 /**
  * Every single file data source must have a unique id & and a reference to
@@ -267,7 +267,7 @@ export function migrateRemoteDB(legacyDb: any): RemoteDB {
   if (legacyDb && legacyDb.connectionType && legacyDb.supportedPlatforms && (legacyDb.legacyUrl || legacyDb.connectionId)) {
     return legacyDb as RemoteDB;
   }
-  
+
   // If it has connectionType but missing supportedPlatforms, add them
   if (legacyDb && legacyDb.connectionType && !legacyDb.supportedPlatforms) {
     return {
@@ -277,12 +277,12 @@ export function migrateRemoteDB(legacyDb: any): RemoteDB {
       queryEngineType: legacyDb.queryEngineType || 'duckdb',
     };
   }
-  
+
   // Handle backward compatibility for existing RemoteDB objects
   if (legacyDb && legacyDb.url && !legacyDb.connectionType) {
     const url = legacyDb.url as string;
     let connectionType: RemoteConnectionType = 'url';
-    
+
     // Infer connection type from URL
     if (url.startsWith('md:')) {
       connectionType = 'motherduck';
@@ -291,7 +291,7 @@ export function migrateRemoteDB(legacyDb: any): RemoteDB {
     } else if (url.startsWith('http://') || url.startsWith('https://')) {
       connectionType = 'http';
     }
-    
+
     return {
       ...legacyDb,
       connectionType,
@@ -304,7 +304,7 @@ export function migrateRemoteDB(legacyDb: any): RemoteDB {
       dbType: undefined,
     };
   }
-  
+
   return legacyDb as RemoteDB;
 }
 
@@ -349,7 +349,7 @@ export function createUrlBasedRemoteDB(
   instanceId?: string
 ): RemoteDB {
   let connectionType: RemoteConnectionType = 'url';
-  
+
   // Infer connection type from URL
   if (url.startsWith('md:')) {
     connectionType = 'motherduck';
@@ -358,7 +358,7 @@ export function createUrlBasedRemoteDB(
   } else if (url.startsWith('http://') || url.startsWith('https://')) {
     connectionType = 'http';
   }
-  
+
   return {
     type: 'remote-db',
     id,

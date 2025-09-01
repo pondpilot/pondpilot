@@ -6,7 +6,7 @@ import { isTauriEnvironment } from '@utils/browser';
  */
 export class BrowserCredentialStore {
   private static STORAGE_KEY = 'pondpilot_credentials';
-  
+
   /**
    * Save credentials for a connection
    * @param connectionId - The connection ID
@@ -16,17 +16,17 @@ export class BrowserCredentialStore {
     if (isTauriEnvironment()) {
       throw new Error('Use backend credential storage in Tauri environment');
     }
-    
+
     const stored = this.getAll();
     stored[connectionId] = {
       ...credentials,
       // Encrypt sensitive fields before storing
       password: await this.encrypt(credentials.password),
     };
-    
+
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(stored));
   }
-  
+
   /**
    * Get credentials for a connection
    * @param connectionId - The connection ID
@@ -36,18 +36,18 @@ export class BrowserCredentialStore {
     if (isTauriEnvironment()) {
       throw new Error('Use backend credential storage in Tauri environment');
     }
-    
+
     const stored = this.getAll();
     const creds = stored[connectionId];
-    
+
     if (!creds) return null;
-    
+
     return {
       ...creds,
       password: await this.decrypt(creds.password),
     };
   }
-  
+
   /**
    * Delete credentials for a connection
    * @param connectionId - The connection ID
@@ -56,13 +56,13 @@ export class BrowserCredentialStore {
     if (isTauriEnvironment()) {
       throw new Error('Use backend credential storage in Tauri environment');
     }
-    
+
     const stored = this.getAll();
     delete stored[connectionId];
-    
+
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(stored));
   }
-  
+
   /**
    * Clear all stored credentials
    */
@@ -70,10 +70,10 @@ export class BrowserCredentialStore {
     if (isTauriEnvironment()) {
       throw new Error('Use backend credential storage in Tauri environment');
     }
-    
+
     localStorage.removeItem(this.STORAGE_KEY);
   }
-  
+
   /**
    * Get all stored credentials
    * @returns All stored credentials
@@ -82,7 +82,7 @@ export class BrowserCredentialStore {
     const stored = localStorage.getItem(this.STORAGE_KEY);
     return stored ? JSON.parse(stored) : {};
   }
-  
+
   /**
    * Encrypt a value using basic base64 encoding
    * TODO: Implement proper encryption using SubtleCrypto API
@@ -94,7 +94,7 @@ export class BrowserCredentialStore {
     // In production, use SubtleCrypto API for proper encryption
     return btoa(value);
   }
-  
+
   /**
    * Decrypt a value
    * TODO: Implement proper decryption using SubtleCrypto API

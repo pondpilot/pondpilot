@@ -1,14 +1,15 @@
+import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { getFileReferenceForDuckDB } from '@controllers/file-system/file-helpers';
 import { getLogger } from '@engines/debug-logger';
 import { useAppStore } from '@store/app-store';
+import { isTauriEnvironment } from '@utils/browser';
 import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { buildAttachQuery, buildDetachQuery } from '@utils/sql-builder';
 import { isMotherDuckUrl } from '@utils/url-helpers';
-import { ConnectionsAPI } from './connections-api';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
-import { isTauriEnvironment } from '@utils/browser';
+
 import { BrowserCredentialStore } from './browser-credential-store';
-import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { ConnectionsAPI } from './connections-api';
 
 const logger = getLogger('attachment-loader');
 
@@ -18,7 +19,7 @@ export class AttachmentLoader {
    */
   private static buildSecretSql(db: any, credentials: any): string {
     const secretName = `secret_${db.connectionId.replace(/-/g, '_')}`;
-    
+
     if (db.connectionType === 'postgres' || db.connectionType === 'postgresql') {
       return `CREATE TEMPORARY SECRET IF NOT EXISTS ${secretName} (
         TYPE POSTGRES,
@@ -27,7 +28,7 @@ export class AttachmentLoader {
         USER '${credentials.username}',
         PASSWORD '${credentials.password}'
       )`;
-    } else if (db.connectionType === 'mysql') {
+    } if (db.connectionType === 'mysql') {
       return `CREATE TEMPORARY SECRET IF NOT EXISTS ${secretName} (
         TYPE MYSQL,
         HOST '${credentials.host}',
@@ -36,10 +37,10 @@ export class AttachmentLoader {
         PASSWORD '${credentials.password}'
       )`;
     }
-    
+
     throw new Error(`Unsupported database type: ${db.connectionType}`);
   }
-  
+
   /**
    * Build ATTACH SQL for WASM environment
    */
@@ -47,12 +48,12 @@ export class AttachmentLoader {
     const secretName = `secret_${db.connectionId.replace(/-/g, '_')}`;
     const dbType = (db.connectionType === 'postgres' || db.connectionType === 'postgresql') ? 'POSTGRES' : 'MYSQL';
     const dbParam = dbType === 'POSTGRES' ? 'dbname' : 'database';
-    
+
     return `ATTACH 'host=${credentials.host} port=${credentials.port} ${dbParam}=${credentials.database}' 
             AS ${databaseAlias} 
             (TYPE ${dbType}, SECRET ${secretName})`;
   }
-  
+
   /**
    * Attach all LocalDB data sources to the given connection.
    * Idempotent per-connection via conn-level flag handled by the caller.
@@ -75,7 +76,7 @@ export class AttachmentLoader {
           if (isRemoteDatabase(db) && (db.connectionId || db.connectionType === 'motherduck')) {
             try {
               const attachedDbName = toDuckDBIdentifier(db.dbName);
-              
+
               if (isTauriEnvironment()) {
                 // Special handling for MotherDuck
                 if (db.connectionType === 'motherduck') {
@@ -84,11 +85,11 @@ export class AttachmentLoader {
                     const { quote } = await import('@utils/helpers');
                     const attachSql = `ATTACH ${quote(db.legacyUrl, { single: true })}`;
                     await connection.execute(attachSql);
-                    
+
                     // Register with pool for re-attachment
                     await ConnectionsAPI.registerMotherDuckAttachment(db.legacyUrl);
                     logger.info(`Attached and registered MotherDuck database '${db.dbName}'`);
-                    
+
                     // Fetch metadata for the attached MotherDuck database
                     try {
                       // Extract the actual database name from the URL (md:database_name)
@@ -103,7 +104,7 @@ export class AttachmentLoader {
                       useAppStore.setState({ databaseMetadata: updatedMetadata });
                       logger.info(`Fetched metadata for MotherDuck database '${actualDbName}'`);
                     } catch (metadataError) {
-                      logger.warn(`Failed to fetch metadata for MotherDuck:`, metadataError);
+                      logger.warn('Failed to fetch metadata for MotherDuck:', metadataError);
                     }
                   }
                 } else if (db.connectionId) {
@@ -111,20 +112,20 @@ export class AttachmentLoader {
                   // 1. Get attachment SQL from backend (includes CREATE SECRET and ATTACH)
                   // 2. Execute on current connection
                   // 3. Register with backend for other connections
-                  
+
                   try {
                     // Get the attachment SQL from backend
                     const attachmentSql = await ConnectionsAPI.getAttachmentSql(db.connectionId, attachedDbName);
-                    
+
                     // Execute CREATE SECRET and ATTACH on the current connection
                     await connection.execute(attachmentSql.secret_sql);
                     await connection.execute(attachmentSql.attach_sql);
-                    
+
                     // Now also attach to all other backend connections
                     await ConnectionsAPI.attachRemoteDatabase(db.connectionId, attachedDbName);
-                    
+
                     logger.info(`Attached connection-based DB '${db.dbName}' on all connections`);
-                    
+
                     // Fetch metadata for the attached database
                     try {
                       const metadata = await getDatabaseModel(connection, [attachedDbName]);
@@ -154,16 +155,16 @@ export class AttachmentLoader {
                   logger.warn(`No credentials found for connection ${db.connectionId}`);
                   continue;
                 }
-                
+
                 const secretSql = this.buildSecretSql(db, credentials);
                 const attachSql = this.buildAttachSql(db, credentials, attachedDbName);
-                
+
                 // Execute on the connection (same for both environments)
                 await connection.execute(secretSql);
                 await connection.execute(attachSql);
-                
+
                 logger.info(`Attached connection-based DB '${db.dbName}' using WASM browser storage`);
-                
+
                 // Fetch metadata for the attached database
                 try {
                   const metadata = await getDatabaseModel(connection, [attachedDbName]);
@@ -198,7 +199,7 @@ export class AttachmentLoader {
           if (!filePath) continue;
           const detachSql = buildDetachQuery(db.dbName, true);
           await connection.execute(detachSql).catch(() => {});
-          
+
           // Attach local database file
           const attachSql = buildAttachQuery(filePath, db.dbName, { readOnly: true });
           await connection.execute(attachSql);

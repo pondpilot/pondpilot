@@ -1,6 +1,6 @@
 /**
  * Platform Capability Detection
- * 
+ *
  * Utilities for detecting platform capabilities and determining what features
  * are available in the current environment (WASM vs Tauri)
  */
@@ -14,13 +14,13 @@ import { RemoteConnectionType } from '@models/data-source';
 export interface PlatformContext {
   /** Current engine type */
   engineType: EngineType;
-  
+
   /** Platform capabilities */
   capabilities: EngineCapabilities;
-  
+
   /** Whether we're running in Tauri */
   isTauri: boolean;
-  
+
   /** Whether we're running in a browser */
   isBrowser: boolean;
 }
@@ -31,13 +31,13 @@ export interface PlatformContext {
 export interface ConnectionCapability {
   /** Whether this connection type is supported */
   supported: boolean;
-  
+
   /** Human-readable reason if not supported */
   reason?: string;
-  
+
   /** Alternative suggestions */
   alternatives?: string[];
-  
+
   /** Requirements or limitations */
   requirements?: string[];
 }
@@ -48,10 +48,10 @@ export interface ConnectionCapability {
 export function getPlatformContext(): PlatformContext {
   const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
   const isBrowser = typeof window !== 'undefined' && !isTauri;
-  
+
   // Default to WASM if we can't determine, but this should ideally come from the engine
   const engineType: EngineType = isTauri ? 'duckdb-tauri' : 'duckdb-wasm';
-  
+
   // Basic capabilities - these should ideally come from the actual engine instance
   const capabilities: EngineCapabilities = {
     supportsStreaming: true,
@@ -64,7 +64,7 @@ export function getPlatformContext(): PlatformContext {
     supportedFileFormats: isTauri ? ['all'] : ['csv', 'parquet', 'json', 'xlsx'],
     supportedExtensions: isTauri ? ['all'] : ['httpfs', 'postgres_scanner'],
   };
-  
+
   return {
     engineType,
     capabilities,
@@ -81,34 +81,34 @@ export function getConnectionCapability(
   context?: PlatformContext
 ): ConnectionCapability {
   const platformContext = context || getPlatformContext();
-  
+
   switch (connectionType) {
     case 'url':
     case 'http':
       return {
         supported: true,
-        requirements: platformContext.isBrowser 
+        requirements: platformContext.isBrowser
           ? ['Requires HTTPS for secure connections', 'May require CORS headers from server']
-          : ['Server must be accessible from this machine']
+          : ['Server must be accessible from this machine'],
       };
-      
+
     case 'motherduck':
       return {
         supported: true,
         requirements: [
           'Requires MotherDuck token/credentials',
-          'Uses DuckDB\'s MotherDuck extension'
-        ]
+          'Uses DuckDB\'s MotherDuck extension',
+        ],
       };
-      
+
     case 's3':
       return {
         supported: true,
         requirements: platformContext.isBrowser
           ? ['Requires proper CORS configuration', 'May require public read access or presigned URLs']
-          : ['Requires valid AWS credentials or bucket permissions']
+          : ['Requires valid AWS credentials or bucket permissions'],
       };
-      
+
     case 'postgres':
       if (platformContext.isBrowser) {
         return {
@@ -117,8 +117,8 @@ export function getConnectionCapability(
           alternatives: [
             'Use the desktop app for full PostgreSQL support',
             'Set up a REST API or GraphQL endpoint as a proxy',
-            'Use a cloud database service with HTTP API'
-          ]
+            'Use a cloud database service with HTTP API',
+          ],
         };
       }
       return {
@@ -126,10 +126,10 @@ export function getConnectionCapability(
         requirements: [
           'Requires PostgreSQL server accessible from this machine',
           'Uses DuckDB\'s postgres_scanner extension',
-          'Requires valid database credentials'
-        ]
+          'Requires valid database credentials',
+        ],
       };
-      
+
     case 'mysql':
       if (platformContext.isBrowser) {
         return {
@@ -138,8 +138,8 @@ export function getConnectionCapability(
           alternatives: [
             'Use the desktop app for full MySQL support',
             'Set up a REST API or GraphQL endpoint as a proxy',
-            'Use a cloud database service with HTTP API'
-          ]
+            'Use a cloud database service with HTTP API',
+          ],
         };
       }
       return {
@@ -147,14 +147,14 @@ export function getConnectionCapability(
         requirements: [
           'Requires MySQL server accessible from this machine',
           'Uses DuckDB\'s mysql_scanner extension',
-          'Requires valid database credentials'
-        ]
+          'Requires valid database credentials',
+        ],
       };
-      
+
     default:
       return {
         supported: false,
-        reason: `Unknown connection type: ${connectionType}`
+        reason: `Unknown connection type: ${connectionType}`,
       };
   }
 }
@@ -165,7 +165,7 @@ export function getConnectionCapability(
 export function getSupportedConnectionTypes(context?: PlatformContext): RemoteConnectionType[] {
   const platformContext = context || getPlatformContext();
   const allTypes: RemoteConnectionType[] = ['url', 'http', 'motherduck', 's3', 'postgres', 'mysql'];
-  
+
   return allTypes.filter(type => getConnectionCapability(type, platformContext).supported);
 }
 
@@ -177,7 +177,7 @@ export function getUnsupportedConnectionTypes(
 ): Array<{ type: RemoteConnectionType; capability: ConnectionCapability }> {
   const platformContext = context || getPlatformContext();
   const allTypes: RemoteConnectionType[] = ['url', 'http', 'motherduck', 's3', 'postgres', 'mysql'];
-  
+
   return allTypes
     .map(type => ({ type, capability: getConnectionCapability(type, platformContext) }))
     .filter(({ capability }) => !capability.supported);
@@ -194,26 +194,26 @@ export function checkMinimumCapabilities(requirements: {
 }): { supported: boolean; missingFeatures: string[] } {
   const context = getPlatformContext();
   const missing: string[] = [];
-  
+
   if (requirements.directFileAccess && !context.capabilities.supportsDirectFileAccess) {
     missing.push('Direct file access');
   }
-  
+
   if (requirements.remoteFiles && !context.capabilities.supportsRemoteFiles) {
     missing.push('Remote file access');
   }
-  
+
   if (requirements.extensions && !context.capabilities.supportsExtensions) {
     missing.push('Extension support');
   }
-  
+
   if (requirements.persistence && !context.capabilities.supportsPersistence) {
     missing.push('Data persistence');
   }
-  
+
   return {
     supported: missing.length === 0,
-    missingFeatures: missing
+    missingFeatures: missing,
   };
 }
 
@@ -222,7 +222,7 @@ export function checkMinimumCapabilities(requirements: {
  */
 export function getPlatformInfo(): Record<string, any> {
   const context = getPlatformContext();
-  
+
   return {
     platform: context.isTauri ? 'Desktop (Tauri)' : 'Browser (WASM)',
     engineType: context.engineType,

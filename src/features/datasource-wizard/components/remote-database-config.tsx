@@ -151,7 +151,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         const trimmedUrl = url.trim();
         const isMotherDuck = trimmedUrl.startsWith('md:');
         const connectionType = isMotherDuck ? 'motherduck' : 'url';
-        
+
         remoteDb = {
           type: 'remote-db',
           id: makePersistentDataSourceId(),

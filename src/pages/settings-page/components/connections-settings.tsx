@@ -18,7 +18,7 @@ export const ConnectionsSettings = () => {
     return (
       <Stack className="gap-8">
         <Button
-          variant="subtle" 
+          variant="subtle"
           onClick={() => setShowConnectionsManager(false)}
           size="sm"
           style={{ alignSelf: 'flex-start' }}

@@ -9,8 +9,8 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { getPlatformContext, getConnectionCapability } from '@utils/platform-capabilities';
 import { useCallback, useState } from 'react';
 
-import { ConnectionsAPI } from '../../../services/connections-api';
 import { ConnectionType, SslMode } from '../../../models/connections';
+import { ConnectionsAPI } from '../../../services/connections-api';
 
 interface DatabaseConnectionConfig {
   name: string;
@@ -49,7 +49,7 @@ export function useDatabaseConnection(
       const platformContext = getPlatformContext();
       const connectionType = databaseType === 'postgres' ? 'postgres' : 'mysql';
       const capability = getConnectionCapability(connectionType, platformContext);
-      
+
       if (!capability.supported) {
         showError({
           title: 'Connection not supported',
@@ -70,7 +70,7 @@ export function useDatabaseConnection(
       setIsTesting(true);
       try {
         // Convert string ssl_mode to SslMode enum
-        let sslMode: SslMode | undefined = undefined;
+        let sslMode: SslMode | undefined;
         if (config.sslMode) {
           switch (config.sslMode) {
             case 'disable': sslMode = SslMode.Disable; break;
@@ -102,17 +102,16 @@ export function useDatabaseConnection(
             message: `Successfully connected to ${databaseType === 'postgres' ? 'PostgreSQL' : 'MySQL'} database`,
           });
           return true;
-        } else {
+        }
           showError({
             title: 'Connection failed',
             message: 'Could not establish connection to the database',
           });
           return false;
-        }
       } catch (error) {
-        console.error(`Database connection test error:`, error);
+        console.error('Database connection test error:', error);
         let message = 'An unexpected error occurred';
-        
+
         if (error instanceof Error) {
           message = error.message;
         } else if (typeof error === 'string') {
@@ -120,7 +119,7 @@ export function useDatabaseConnection(
         } else if (error && typeof error === 'object' && 'message' in error) {
           message = String(error.message);
         }
-        
+
         showError({
           title: 'Connection failed',
           message: `Failed to connect to ${databaseType === 'postgres' ? 'PostgreSQL' : 'MySQL'}: ${message}`,
@@ -152,7 +151,7 @@ export function useDatabaseConnection(
       const platformContext = getPlatformContext();
       const connectionType = databaseType === 'postgres' ? 'postgres' : 'mysql';
       const capability = getConnectionCapability(connectionType, platformContext);
-      
+
       if (!capability.supported) {
         showError({
           title: 'Connection not supported',
@@ -181,7 +180,7 @@ export function useDatabaseConnection(
           database: config.database,
           secret_id: state.secretId,
           read_only: undefined,
-          ssl_mode: config.sslMode ? 
+          ssl_mode: config.sslMode ?
             (config.sslMode === 'disable' ? SslMode.Disable :
              config.sslMode === 'allow' ? SslMode.Allow :
              config.sslMode === 'prefer' ? SslMode.Prefer :
@@ -214,12 +213,12 @@ export function useDatabaseConnection(
 
         // Use the new backend command to attach the database with proper secrets
         const attachedDbName = toDuckDBIdentifier(remoteDb.dbName);
-        
+
         // First, get the attachment SQL and execute it on the current connection
         // This ensures the database is immediately available
         try {
           const attachmentSql = await ConnectionsAPI.getAttachmentSql(savedConnection.id, attachedDbName);
-          
+
           // Get a connection from the pool and execute the attachment
           const conn = await pool.acquire();
           try {
@@ -232,7 +231,7 @@ export function useDatabaseConnection(
         } catch (attachError) {
           console.error('Failed to attach database to current connection:', attachError);
         }
-        
+
         // Also register with backend for all other connections
         await ConnectionsAPI.attachRemoteDatabase(savedConnection.id, attachedDbName);
 
@@ -275,9 +274,9 @@ export function useDatabaseConnection(
         });
         return true;
       } catch (error) {
-        console.error(`Database save error:`, error);
+        console.error('Database save error:', error);
         let message = 'An unexpected error occurred';
-        
+
         if (error instanceof Error) {
           message = error.message;
         } else if (typeof error === 'string') {
@@ -285,7 +284,7 @@ export function useDatabaseConnection(
         } else if (error && typeof error === 'object' && 'message' in error) {
           message = String(error.message);
         }
-        
+
         showError({
           title: 'Failed to add database',
           message: `Error connecting to ${databaseType === 'postgres' ? 'PostgreSQL' : 'MySQL'}: ${message}`,
