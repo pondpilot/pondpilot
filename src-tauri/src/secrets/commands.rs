@@ -233,14 +233,15 @@ pub async fn apply_secret_to_connection(
     let is_allowed = allowed_prefixes.iter().any(|prefix| request.connection_id.starts_with(prefix));
     if !is_allowed {
         // SECURITY AUDIT: Log denied secret access attempts for security monitoring
-        eprintln!("[SECURITY AUDIT] Denied secret access attempt - connection_id: {}, secret_id: {}, window: {}", 
-                 request.connection_id, request.secret_id, window.label());
-        println!("[SECURITY AUDIT] Secret access denied for connection_id: {}", request.connection_id);
+        // Redact sensitive IDs to prevent information disclosure in logs
+        let connection_prefix = request.connection_id.chars().take(10).collect::<String>();
+        eprintln!("[SECURITY AUDIT] Denied secret access attempt - connection_prefix: {}..., window: {}", 
+                 connection_prefix, window.label());
+        tracing::warn!("[SECURITY AUDIT] Secret access denied for connection pattern check");
         return Err("Invalid connection_id".into());
     }
     
-    println!("[Secrets] Applying secret to connection: connection_id={}, secret_id={}", 
-             request.connection_id, request.secret_id);
+    tracing::debug!("[Secrets] Applying secret to connection");
     
     let secret_id = Uuid::parse_str(&request.secret_id)
         .map_err(|e| format!("Invalid secret ID: {}", e))?;

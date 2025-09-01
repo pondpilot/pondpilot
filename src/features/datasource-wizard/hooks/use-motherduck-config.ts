@@ -329,7 +329,7 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
         };
         newDataSources.set(rdb.id, rdb);
         created.push(rdb);
-        
+
         // Register with backend for re-attachment on all connections
         try {
           const { ConnectionsAPI } = await import('../../../services/connections-api');

@@ -232,18 +232,17 @@ export function SecretsManager() {
     }
   };
 
-
   const handleCleanupOrphaned = async () => {
     try {
       setCleaningUp(true);
       const result = await invoke<string>('cleanup_orphaned_secrets');
-      
+
       notifications.show({
         title: 'Cleanup Complete',
         message: result || 'No orphaned secrets found',
         color: 'green',
       });
-      
+
       // Reload secrets to reflect any changes
       loadSecrets();
     } catch (error: any) {
@@ -452,7 +451,7 @@ export function SecretsManager() {
             {commonFields}
             <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light" mb="sm">
               <Text size="sm">
-                PostgreSQL secrets now only store authentication credentials. Connection details 
+                PostgreSQL secrets now only store authentication credentials. Connection details
                 (host, port, database) are configured when creating database connections.
               </Text>
             </Alert>
@@ -478,7 +477,7 @@ export function SecretsManager() {
             {commonFields}
             <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light" mb="sm">
               <Text size="sm">
-                MySQL secrets now only store authentication credentials. Connection details 
+                MySQL secrets now only store authentication credentials. Connection details
                 (host, port, database) are configured when creating database connections.
               </Text>
             </Alert>

@@ -1,12 +1,13 @@
 /**
  * Connection Factory for Remote Databases
- * 
+ *
  * Provides platform-aware connection handling for different database types.
  * Abstracts the differences between WASM and Tauri capabilities.
  */
 
 import { ConnectionPool, EngineType } from '@engines/types';
 import { RemoteDB } from '@models/data-source';
+
 import { buildAttachQuery } from './sql-attach';
 import { isMotherDuckUrl } from './url-helpers';
 import { ConnectionsAPI } from '../services/connections-api';
@@ -18,23 +19,23 @@ export interface ConnectionFactory {
   /**
    * Check if this factory can handle the given remote database
    */
-  canConnect(db: RemoteDB): boolean;
+  canConnect: (db: RemoteDB) => boolean;
 
   /**
    * Create a connection string/URL for the database
    * This may involve fetching credentials from the backend
    */
-  createConnectionString(db: RemoteDB): Promise<string>;
+  createConnectionString: (db: RemoteDB) => Promise<string>;
 
   /**
    * Attach the database to the DuckDB connection pool
    */
-  attachDatabase(pool: ConnectionPool, db: RemoteDB): Promise<void>;
+  attachDatabase: (pool: ConnectionPool, db: RemoteDB) => Promise<void>;
 
   /**
    * Get a list of limitations or requirements for this connection type
    */
-  getConnectionRequirements(db: RemoteDB): string[];
+  getConnectionRequirements: (db: RemoteDB) => string[];
 }
 
 /**
@@ -71,9 +72,9 @@ export class WASMConnectionFactory implements ConnectionFactory {
 
   async attachDatabase(pool: ConnectionPool, db: RemoteDB): Promise<void> {
     const connectionString = await this.createConnectionString(db);
-    
+
     let attachQuery = buildAttachQuery(connectionString, db.dbName, { readOnly: true });
-    
+
     // Special handling for MotherDuck
     if (isMotherDuckUrl(connectionString)) {
       const { quote } = await import('@utils/helpers');

@@ -23,8 +23,8 @@ import {
 import { useState, useEffect } from 'react';
 
 import { ConnectionConfig, ConnectionType } from '../../models/connections';
-import { ConnectionsAPI } from '../../services/connections-api';
 import { SecretMetadata } from '../../models/secrets';
+import { ConnectionsAPI } from '../../services/connections-api';
 import { SecretsAPI } from '../../services/secrets-api';
 
 export function ConnectionsManager() {
@@ -92,11 +92,11 @@ export function ConnectionsManager() {
     try {
       setTestingConnections((prev) => new Set(prev).add(connectionId));
       const result = await ConnectionsAPI.testDatabaseConnection(connectionId);
-      
+
       notifications.show({
         title: result ? 'Test Successful' : 'Test Failed',
-        message: result 
-          ? 'Connection is working correctly' 
+        message: result
+          ? 'Connection is working correctly'
           : 'Connection test failed',
         color: result ? 'green' : 'red',
       });
@@ -179,7 +179,7 @@ export function ConnectionsManager() {
                   {!loading && filteredConnections.map((connection) => {
                     const secret = secrets.get(connection.secret_id);
                     const isTestingThis = testingConnections.has(connection.id);
-                    
+
                     return (
                       <Table.Tr key={connection.id}>
                         <Table.Td>

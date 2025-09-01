@@ -5,12 +5,12 @@ import { Stack, TextInput, Text, Button, Group, Alert, NumberInput, Select } fro
 import { useInputState } from '@mantine/hooks';
 import { SecretType } from '@models/secrets';
 import { IconAlertCircle, IconDatabase, IconInfoCircle, IconX } from '@tabler/icons-react';
+import { getPlatformContext, getConnectionCapability } from '@utils/platform-capabilities';
 import { setDataTestId } from '@utils/test-id';
 import { useState, ReactNode, useMemo } from 'react';
 
-import { DatabaseSecretSelector } from '../database-secret-selector';
 import { useDatabaseConnection } from '../../hooks/use-database-connection';
-import { getPlatformContext, getConnectionCapability } from '@utils/platform-capabilities';
+import { DatabaseSecretSelector } from '../database-secret-selector';
 
 export interface DatabaseConfig {
   name: string;
@@ -195,7 +195,7 @@ export function DatabaseConnectionForm({
           >
             {alertMessage}
           </Alert>
-          
+
           {platformCapability.requirements && platformCapability.requirements.length > 0 && (
             <Alert
               icon={<IconInfoCircle size={16} />}

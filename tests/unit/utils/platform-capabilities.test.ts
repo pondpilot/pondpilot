@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { 
+import { describe, it, expect, afterEach } from '@jest/globals';
+import {
   getPlatformContext,
   getConnectionCapability,
   getSupportedConnectionTypes,
   getUnsupportedConnectionTypes,
   checkMinimumCapabilities,
-  getPlatformInfo
+  getPlatformInfo,
 } from '@utils/platform-capabilities';
 
 // Mock window object
@@ -80,7 +80,7 @@ describe('Platform Capabilities', () => {
     it('should not support PostgreSQL in browser', () => {
       (global as any).window = {};
       const capability = getConnectionCapability('postgres');
-      
+
       expect(capability.supported).toBe(false);
       expect(capability.reason).toContain('Browser security prevents direct database connections');
       expect(capability.alternatives).toBeDefined();
@@ -90,7 +90,7 @@ describe('Platform Capabilities', () => {
     it('should support PostgreSQL in Tauri', () => {
       (global as any).window = { __TAURI__: {} };
       const capability = getConnectionCapability('postgres');
-      
+
       expect(capability.supported).toBe(true);
       expect(capability.requirements).toContain('Uses DuckDB\'s postgres_scanner extension');
     });
@@ -98,7 +98,7 @@ describe('Platform Capabilities', () => {
     it('should not support MySQL in browser', () => {
       (global as any).window = {};
       const capability = getConnectionCapability('mysql');
-      
+
       expect(capability.supported).toBe(false);
       expect(capability.reason).toContain('Browser security prevents direct database connections');
     });
@@ -106,7 +106,7 @@ describe('Platform Capabilities', () => {
     it('should support MySQL in Tauri', () => {
       (global as any).window = { __TAURI__: {} };
       const capability = getConnectionCapability('mysql');
-      
+
       expect(capability.supported).toBe(true);
       expect(capability.requirements).toContain('Uses DuckDB\'s mysql_scanner extension');
     });
@@ -128,7 +128,7 @@ describe('Platform Capabilities', () => {
     it('should return limited types for browser', () => {
       (global as any).window = {};
       const supported = getSupportedConnectionTypes();
-      
+
       expect(supported).toContain('url');
       expect(supported).toContain('http');
       expect(supported).toContain('motherduck');
@@ -140,7 +140,7 @@ describe('Platform Capabilities', () => {
     it('should return all types for Tauri', () => {
       (global as any).window = { __TAURI__: {} };
       const supported = getSupportedConnectionTypes();
-      
+
       expect(supported).toContain('url');
       expect(supported).toContain('http');
       expect(supported).toContain('motherduck');
@@ -154,7 +154,7 @@ describe('Platform Capabilities', () => {
     it('should return PostgreSQL and MySQL as unsupported in browser', () => {
       (global as any).window = {};
       const unsupported = getUnsupportedConnectionTypes();
-      
+
       const unsupportedTypes = unsupported.map(u => u.type);
       expect(unsupportedTypes).toContain('postgres');
       expect(unsupportedTypes).toContain('mysql');
@@ -163,7 +163,7 @@ describe('Platform Capabilities', () => {
     it('should return no unsupported types for Tauri', () => {
       (global as any).window = { __TAURI__: {} };
       const unsupported = getUnsupportedConnectionTypes();
-      
+
       expect(unsupported).toHaveLength(0);
     });
   });
@@ -173,7 +173,7 @@ describe('Platform Capabilities', () => {
       // Mock without file access
       (global as any).window = {};
       const result = checkMinimumCapabilities({ directFileAccess: true });
-      
+
       expect(result.supported).toBe(false);
       expect(result.missingFeatures).toContain('Direct file access');
     });
@@ -186,7 +186,7 @@ describe('Platform Capabilities', () => {
         extensions: true,
         persistence: true,
       });
-      
+
       expect(result.supported).toBe(true);
       expect(result.missingFeatures).toHaveLength(0);
     });
@@ -197,9 +197,9 @@ describe('Platform Capabilities', () => {
       (global as any).window = {
         __TAURI__: {},
       };
-      
+
       const info = getPlatformInfo();
-      
+
       expect(info.platform).toBe('Desktop (Tauri)');
       expect(info.engineType).toBe('duckdb-tauri');
       expect(info.capabilities).toBeDefined();
@@ -216,9 +216,9 @@ describe('Platform Capabilities', () => {
         },
       };
       global.navigator = (global as any).window.navigator;
-      
+
       const info = getPlatformInfo();
-      
+
       expect(info.platform).toBe('Browser (WASM)');
       expect(info.engineType).toBe('duckdb-wasm');
       expect(info.browserFeatures).toBeDefined();

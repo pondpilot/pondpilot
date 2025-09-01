@@ -7,15 +7,14 @@
 import { showError, showWarning, showSuccess } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { deleteTab } from '@controllers/tab';
+import { EngineType } from '@engines/types';
 import { RemoteDB, PersistentDataSourceId, migrateRemoteDB } from '@models/data-source';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
-import { executeWithRetry } from '@utils/connection-manager';
-import { buildDetachQuery } from '@utils/sql-builder';
 import { createConnectionFactory } from '@utils/connection-factory';
 import { getPlatformContext, getConnectionCapability } from '@utils/platform-capabilities';
-import { EngineType } from '@engines/types';
+import { buildDetachQuery } from '@utils/sql-builder';
 
 // Re-export validation functions from the separate module
 export {
@@ -61,7 +60,7 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB, eng
 
     // Migrate legacy database if needed
     const migratedDb = migrateRemoteDB(remoteDb);
-    
+
     // Get platform context
     const platformContext = getPlatformContext();
     const currentEngineType = engineType || platformContext.engineType;
@@ -74,7 +73,7 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB, eng
 
     // Create appropriate connection factory
     const connectionFactory = createConnectionFactory(currentEngineType);
-    
+
     if (!connectionFactory.canConnect(migratedDb)) {
       throw new Error(`Connection type ${migratedDb.connectionType} not supported by ${currentEngineType} engine`);
     }

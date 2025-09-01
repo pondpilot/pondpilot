@@ -1,12 +1,12 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { 
-  WASMConnectionFactory, 
-  TauriConnectionFactory, 
+import { createConnectionBasedRemoteDB, createUrlBasedRemoteDB } from '@models/data-source';
+import {
+  WASMConnectionFactory,
+  TauriConnectionFactory,
   createConnectionFactory,
   isDatabaseSupportedOnPlatform,
-  getUnsupportedDatabaseMessage 
+  getUnsupportedDatabaseMessage,
 } from '@utils/connection-factory';
-import { RemoteDB, createConnectionBasedRemoteDB, createUrlBasedRemoteDB } from '@models/data-source';
 import { makePersistentDataSourceId } from '@utils/data-source';
 
 // Mock the dependencies
@@ -17,7 +17,7 @@ jest.mock('../../../services/connections-api');
 
 describe('ConnectionFactory', () => {
   let mockPool: any;
-  
+
   beforeEach(() => {
     mockPool = {
       query: jest.fn(),
@@ -37,7 +37,7 @@ describe('ConnectionFactory', () => {
         'https://example.com/db.duckdb',
         'test_db'
       );
-      
+
       expect(factory.canConnect(urlDb)).toBe(true);
     });
 
@@ -48,7 +48,7 @@ describe('ConnectionFactory', () => {
         'postgres',
         'test_db'
       );
-      
+
       expect(factory.canConnect(pgDb)).toBe(false);
     });
 
@@ -59,7 +59,7 @@ describe('ConnectionFactory', () => {
         'mysql',
         'test_db'
       );
-      
+
       expect(factory.canConnect(mysqlDb)).toBe(false);
     });
 
@@ -70,7 +70,7 @@ describe('ConnectionFactory', () => {
         'postgres',
         'test_db'
       );
-      
+
       await expect(factory.createConnectionString(pgDb)).rejects.toThrow(
         'Direct postgres connections are not supported in browser environment'
       );
@@ -82,7 +82,7 @@ describe('ConnectionFactory', () => {
         's3://bucket/db.duckdb',
         'test_db'
       );
-      
+
       const requirements = factory.getConnectionRequirements(s3Db);
       expect(requirements).toContain('Requires proper CORS configuration on S3 bucket');
     });
@@ -102,14 +102,14 @@ describe('ConnectionFactory', () => {
         'postgres',
         'test_db'
       );
-      
+
       const mysqlDb = createConnectionBasedRemoteDB(
         makePersistentDataSourceId(),
         'conn_456',
         'mysql',
         'test_db'
       );
-      
+
       const urlDb = createUrlBasedRemoteDB(
         makePersistentDataSourceId(),
         'https://example.com/db.duckdb',
@@ -128,7 +128,7 @@ describe('ConnectionFactory', () => {
         'postgres',
         'test_db'
       );
-      
+
       const requirements = factory.getConnectionRequirements(pgDb);
       expect(requirements).toContain('Uses DuckDB\'s postgres_scanner extension');
       expect(requirements).toContain('Requires PostgreSQL server to be accessible from this machine');
@@ -160,7 +160,7 @@ describe('ConnectionFactory', () => {
         'https://example.com/db.duckdb',
         'test_db'
       );
-      
+
       expect(isDatabaseSupportedOnPlatform(urlDb, 'duckdb-wasm')).toBe(true);
     });
 
@@ -171,7 +171,7 @@ describe('ConnectionFactory', () => {
         'postgres',
         'test_db'
       );
-      
+
       expect(isDatabaseSupportedOnPlatform(pgDb, 'duckdb-wasm')).toBe(false);
     });
 
@@ -182,7 +182,7 @@ describe('ConnectionFactory', () => {
         'postgres',
         'test_db'
       );
-      
+
       expect(isDatabaseSupportedOnPlatform(pgDb, 'duckdb-tauri')).toBe(true);
     });
   });
@@ -195,7 +195,7 @@ describe('ConnectionFactory', () => {
         'postgres',
         'test_db'
       );
-      
+
       const message = getUnsupportedDatabaseMessage(pgDb, 'duckdb-wasm');
       expect(message).toContain('PostgreSQL databases require the desktop app');
       expect(message).toContain('Browser security prevents direct database connections');
@@ -208,7 +208,7 @@ describe('ConnectionFactory', () => {
         'mysql',
         'test_db'
       );
-      
+
       const message = getUnsupportedDatabaseMessage(mysqlDb, 'duckdb-wasm');
       expect(message).toContain('MySQL databases require the desktop app');
     });
