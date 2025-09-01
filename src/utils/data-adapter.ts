@@ -14,6 +14,7 @@ import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { isTauriEnvironment } from '@utils/browser';
+import type { Table } from 'apache-arrow';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 import { convertArrowTable } from './arrow';
@@ -41,16 +42,53 @@ function getGetSortableReaderApiFromFQN(
       // When sorting, we need to wrap the limited query in a subquery
       baseQuery = `SELECT * FROM (SELECT * FROM ${fqn} LIMIT ${INITIAL_TABLE_PREVIEW_LIMIT}) ORDER BY ${orderBy}`;
     }
-    if (!pool.sendAbortable) {
-      throw new Error('Connection pool does not support sendAbortable');
+    // WASM vs Tauri have different optimal paths:
+    // - Tauri (native): use Arrow streaming via sendAbortable
+    // - WASM (browser): use non-streaming query and wrap result in a simple reader
+    if (isTauriEnvironment()) {
+      if (!pool.sendAbortable) {
+        throw new Error('Connection pool does not support sendAbortable');
+      }
+      const reader = await pool.sendAbortable(
+        baseQuery,
+        abortSignal,
+        true,
+        attach ? { attach } : undefined,
+      );
+      return reader;
     }
-    const reader = await pool.sendAbortable(
-      baseQuery,
-      abortSignal,
-      true,
-      attach ? { attach } : undefined,
-    );
-    return reader;
+
+    if (!pool.queryAbortable) {
+      throw new Error('Connection pool does not support queryAbortable');
+    }
+
+    const { value, aborted } = await pool.queryAbortable<Table>(baseQuery, abortSignal);
+    if (aborted) {
+      return null;
+    }
+
+    // Wrap the single Arrow Table in a minimal async reader expected by the UI
+    let yielded = false;
+    let closed = false;
+    const singleBatchReader = {
+      async next() {
+        if (closed) return { done: true, value: undefined };
+        if (!yielded) {
+          yielded = true;
+          return { done: false, value };
+        }
+        closed = true;
+        return { done: true, value: undefined };
+      },
+      async cancel() {
+        closed = true;
+      },
+      get closed() {
+        return closed;
+      },
+    } as unknown as ReturnType<NonNullable<DataAdapterQueries['getSortableReader']>>;
+
+    return singleBatchReader;
   };
 }
 
@@ -401,20 +439,86 @@ export function getScriptAdapterQueries({
                 .join(', ');
               queryToRun = `SELECT * FROM (${trimmedQuery}) ORDER BY ${orderBy}`;
             }
-            if (!pool.sendAbortable) {
-              throw new Error('Connection pool does not support sendAbortable');
+
+            if (isTauriEnvironment()) {
+              if (!pool.sendAbortable) {
+                throw new Error('Connection pool does not support sendAbortable');
+              }
+              const reader = await pool.sendAbortable(queryToRun, abortSignal, true);
+              return reader;
             }
-            const reader = await pool.sendAbortable(queryToRun, abortSignal, true);
-            return reader;
+
+            if (!pool.queryAbortable) {
+              throw new Error('Connection pool does not support queryAbortable');
+            }
+            const { value, aborted } = await pool.queryAbortable<Table>(queryToRun, abortSignal);
+            if (aborted) return null;
+
+            // Wrap into a single-batch reader for WASM
+            let yielded = false;
+            let closed = false;
+            const singleBatchReader = {
+              async next() {
+                if (closed) return { done: true, value: undefined };
+                if (!yielded) {
+                  yielded = true;
+                  return { done: false, value };
+                }
+                closed = true;
+                return { done: true, value: undefined };
+              },
+              async cancel() {
+                closed = true;
+              },
+              get closed() {
+                return closed;
+              },
+            } as unknown as ReturnType<NonNullable<DataAdapterQueries['getSortableReader']>>;
+
+            return singleBatchReader;
           }
         : undefined,
       getReader: !classifiedStmt.isAllowedInSubquery
         ? async (abortSignal) => {
-            if (!pool.sendAbortable) {
-              throw new Error('Connection pool does not support sendAbortable');
+            if (isTauriEnvironment()) {
+              if (!pool.sendAbortable) {
+                throw new Error('Connection pool does not support sendAbortable');
+              }
+              const reader = await pool.sendAbortable(trimmedQuery, abortSignal, true);
+              return reader;
             }
-            const reader = await pool.sendAbortable(trimmedQuery, abortSignal, true);
-            return reader;
+
+            if (!pool.queryAbortable) {
+              throw new Error('Connection pool does not support queryAbortable');
+            }
+            const { value, aborted } = await pool.queryAbortable<Table>(
+              trimmedQuery,
+              abortSignal,
+            );
+            if (aborted) return null;
+
+            // WASM: wrap in single-batch reader
+            let yielded = false;
+            let closed = false;
+            const singleBatchReader = {
+              async next() {
+                if (closed) return { done: true, value: undefined };
+                if (!yielded) {
+                  yielded = true;
+                  return { done: false, value };
+                }
+                closed = true;
+                return { done: true, value: undefined };
+              },
+              async cancel() {
+                closed = true;
+              },
+              get closed() {
+                return closed;
+              },
+            } as unknown as ReturnType<NonNullable<DataAdapterQueries['getReader']>>;
+
+            return singleBatchReader;
           }
         : undefined,
       getColumnAggregate: classifiedStmt.isAllowedInSubquery
