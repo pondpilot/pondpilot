@@ -18,7 +18,7 @@ export class MotherDuckManager {
    * This involves detaching the currently attached one and attaching the new one
    */
   static async switchToInstance(pool: ConnectionPool, targetDataSource: RemoteDB): Promise<void> {
-    if (!isMotherDuckUrl(targetDataSource.url)) {
+    if (!isMotherDuckUrl(targetDataSource.legacyUrl || '')) {
       throw new Error('Not a MotherDuck database');
     }
 
@@ -27,7 +27,7 @@ export class MotherDuckManager {
 
     // Find all MotherDuck databases with the same name
     const conflictingDbs = Array.from(dataSources.values()).filter(
-      (ds) => ds.type === 'remote-db' && isMotherDuckUrl(ds.url) && ds.dbName === dbName,
+      (ds) => ds.type === 'remote-db' && isMotherDuckUrl(ds.legacyUrl || '') && ds.dbName === dbName,
     ) as RemoteDB[];
 
     // First, detach any currently attached database with this name
@@ -89,7 +89,7 @@ export class MotherDuckManager {
    * Disconnects a MotherDuck database
    */
   static async disconnect(pool: ConnectionPool, dataSource: RemoteDB): Promise<void> {
-    if (!isMotherDuckUrl(dataSource.url)) {
+    if (!isMotherDuckUrl(dataSource.legacyUrl || '')) {
       throw new Error('Not a MotherDuck database');
     }
 

@@ -197,12 +197,12 @@ export function ConnectionsManager() {
                             </Badge>
                           </Table.Td>
                           <Table.Td>
-                            <Text size="sm" family="monospace">
+                            <Text size="sm" ff="monospace">
                               {connection.host}:{connection.port}
                             </Text>
                           </Table.Td>
                           <Table.Td>
-                            <Text size="sm" family="monospace">
+                            <Text size="sm" ff="monospace">
                               {connection.database}
                             </Text>
                           </Table.Td>

@@ -370,9 +370,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
                     const remoteDb: RemoteDB = {
                       type: 'remote-db',
                       id: makePersistentDataSourceId(),
-                      url,
+                      legacyUrl: url,
+                      connectionType: url.startsWith('md:') ? 'motherduck' : 'url',
                       dbName,
-                      dbType: 'duckdb',
+                      queryEngineType: 'duckdb',
+                      supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
                       connectionState: 'connected',
                       attachedAt: Date.now(),
                       // For MotherDuck databases attached via SQL, we don't have the secret name

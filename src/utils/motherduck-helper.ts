@@ -32,9 +32,11 @@ export async function attachMotherDuckDatabase(
   const remoteDb: RemoteDB = {
     type: 'remote-db',
     id: makePersistentDataSourceId(),
-    url,
+    legacyUrl: url,
+    connectionType: 'motherduck',
     dbName,
-    dbType: 'duckdb' as const,
+    queryEngineType: 'duckdb',
+    supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
     connectionState: 'connecting',
     attachedAt: Date.now(),
     // For MotherDuck databases attached via direct URL, we don't have the secret name

@@ -42,7 +42,7 @@ function MotherDuckDatabaseConfigInner({ pool, onBack, onClose }: MotherDuckData
   const checkExistingMotherDuck = () => {
     const { dataSources } = useAppStore.getState();
     for (const ds of dataSources.values()) {
-      if (ds.type === 'remote-db' && isMotherDuckUrl(ds.url)) {
+      if (ds.type === 'remote-db' && isMotherDuckUrl(ds.legacyUrl || '')) {
         return { exists: true, name: ds.instanceName || 'MotherDuck' };
       }
     }
@@ -76,7 +76,7 @@ function MotherDuckDatabaseConfigInner({ pool, onBack, onClose }: MotherDuckData
 
     const motherDuckIds: any[] = [];
     for (const [id, ds] of dataSources) {
-      if (ds.type === 'remote-db' && isMotherDuckUrl(ds.url)) {
+      if (ds.type === 'remote-db' && isMotherDuckUrl(ds.legacyUrl || '')) {
         motherDuckIds.push(id);
       }
     }
