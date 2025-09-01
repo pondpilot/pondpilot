@@ -1,6 +1,6 @@
 import { showError, showSuccess } from '@components/app-notifications';
-import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
 import { ConnectionPool } from '@engines/types';
+import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
 import { Button, Group, Stack, Text, TextInput, Textarea, Checkbox } from '@mantine/core';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { setDataTestId } from '@utils/test-id';
