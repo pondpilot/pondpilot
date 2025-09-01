@@ -213,7 +213,9 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
 
         // First, re-attach the database for non-MotherDuck remote databases
         try {
-          attachQuery = buildAttachQuery(dataSource.legacyUrl || '', dataSource.dbName, { readOnly: true });
+          attachQuery = buildAttachQuery(dataSource.legacyUrl || '', dataSource.dbName, {
+            readOnly: true,
+          });
 
           await attachDatabaseWithRetry(conn, attachQuery, {
             maxRetries: 3,

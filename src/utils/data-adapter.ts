@@ -205,7 +205,7 @@ function getDatabaseDataAdapterApi(
   return {
     adapter: {
       getEstimatedRowCount:
-        (dataSource.type === 'attached-db' && dataSource.dbType === 'duckdb')
+        dataSource.type === 'attached-db' && dataSource.dbType === 'duckdb'
           ? tab.objectType === 'table'
             ? async (abortSignal: AbortSignal) => {
                 if (!pool.queryAbortable) {
