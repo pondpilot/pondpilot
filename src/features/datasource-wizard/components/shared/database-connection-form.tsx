@@ -1,5 +1,4 @@
 import { showError } from '@components/app-notifications';
-import { commonTextInputClassNames } from '@components/export-options-modal/constants';
 import { ConnectionPool } from '@engines/types';
 import { Stack, TextInput, Text, Button, Group, Alert, NumberInput, Select } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
@@ -173,7 +172,7 @@ export function DatabaseConnectionForm({
             <Text size="sm">{platformCapability.reason}</Text>
             {platformCapability.alternatives && platformCapability.alternatives.length > 0 && (
               <Stack gap={4}>
-                <Text size="sm" weight={500}>
+                <Text size="sm" fw={500}>
                   Alternatives:
                 </Text>
                 <ul className="ml-4 space-y-1">
@@ -235,7 +234,7 @@ export function DatabaseConnectionForm({
           onChange={setName}
           description="A friendly name to identify this connection"
           required
-          classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
+          classNames={{ description: 'pl-4 text-sm' }}
         />
 
         <Group grow>
@@ -247,7 +246,7 @@ export function DatabaseConnectionForm({
             onChange={setHost}
             description={`${displayName} server hostname or IP address`}
             required
-            classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
+            classNames={{ description: 'pl-4 text-sm' }}
           />
 
           <NumberInput
@@ -259,7 +258,7 @@ export function DatabaseConnectionForm({
             description={`${displayName} server port`}
             min={1}
             max={65535}
-            classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
+            classNames={{ description: 'pl-4 text-sm' }}
           />
         </Group>
 
@@ -271,7 +270,7 @@ export function DatabaseConnectionForm({
           onChange={setDatabase}
           description="Name of the database to connect to"
           required
-          classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
+          classNames={{ description: 'pl-4 text-sm' }}
         />
 
         {sslModes && (
@@ -282,7 +281,7 @@ export function DatabaseConnectionForm({
             value={sslMode}
             onChange={(value) => setSslMode(value || sslModes[0]?.value || '')}
             description="SSL connection mode for secure connections"
-            classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
+            classNames={{ description: 'pl-4 text-sm' }}
             leftSection={<IconDatabase size={16} />}
           />
         )}

@@ -163,7 +163,7 @@ export const deleteDataSources = async (
   for (const dataSource of deletedDataSources) {
     if (dataSource.type === 'remote-db') {
       // For remote databases, just detach
-      detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.url);
+      detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.legacyUrl || '');
       continue;
     }
 

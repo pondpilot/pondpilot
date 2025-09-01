@@ -487,8 +487,8 @@ export class TauriConnectionPool implements ConnectionPool {
             } else if (ds.type === 'remote-db') {
               // Only attach remote databases that have a valid URL (legacy style)
               // Skip databases using connectionId (new style) - they're handled differently
-              if (ds.url && ds.url.trim() !== '') {
-                attaches.push({ dbName: ds.dbName, url: ds.url, readOnly: true });
+              if (ds.legacyUrl && ds.legacyUrl.trim() !== '') {
+                attaches.push({ dbName: ds.dbName, url: ds.legacyUrl, readOnly: true });
               }
             }
           }

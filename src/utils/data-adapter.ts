@@ -170,7 +170,7 @@ function getDatabaseDataAdapterApi(
     if ((dataSource as RemoteDB).type === 'remote-db') {
       return {
         dbName: (dataSource as RemoteDB).dbName,
-        url: (dataSource as RemoteDB).url,
+        url: (dataSource as RemoteDB).legacyUrl || '',
         readOnly: true,
       };
     }
@@ -205,7 +205,7 @@ function getDatabaseDataAdapterApi(
   return {
     adapter: {
       getEstimatedRowCount:
-        dataSource.dbType === 'duckdb'
+        (dataSource.type === 'attached-db' && dataSource.dbType === 'duckdb')
           ? tab.objectType === 'table'
             ? async (abortSignal: AbortSignal) => {
                 if (!pool.queryAbortable) {

@@ -249,9 +249,11 @@ describe('buildDatabaseNode', () => {
       const remoteDb: RemoteDB = {
         id: 'remote-db' as PersistentDataSourceId,
         type: 'remote-db',
-        dbType: 'duckdb',
+        connectionType: 'url',
+        queryEngineType: 'duckdb',
+        supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
         dbName: 'remote_database',
-        url: 'https://example.com/db.duckdb',
+        legacyUrl: 'https://example.com/db.duckdb',
         connectionState: 'connected',
         attachedAt: Date.now(),
       };
@@ -276,9 +278,11 @@ describe('buildDatabaseNode', () => {
         const remoteDb: RemoteDB = {
           id: 'remote-db' as PersistentDataSourceId,
           type: 'remote-db',
-          dbType: 'duckdb',
+          connectionType: 'url',
+        queryEngineType: 'duckdb',
+        supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
           dbName: 'remote_database',
-          url: 'https://example.com/db.duckdb',
+          legacyUrl: 'https://example.com/db.duckdb',
           connectionState: state,
           attachedAt: Date.now(),
         };
@@ -292,9 +296,11 @@ describe('buildDatabaseNode', () => {
       const remoteDb: RemoteDB = {
         id: 'remote-db' as PersistentDataSourceId,
         type: 'remote-db',
-        dbType: 'duckdb',
+        connectionType: 'url',
+        queryEngineType: 'duckdb',
+        supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
         dbName: 'remote_database',
-        url: 'https://example.com/db.duckdb',
+        legacyUrl: 'https://example.com/db.duckdb',
         connectionState: 'connected',
         attachedAt: Date.now(),
       };
@@ -318,9 +324,11 @@ describe('buildDatabaseNode', () => {
       const remoteDb: RemoteDB = {
         id: 'remote-db' as PersistentDataSourceId,
         type: 'remote-db',
-        dbType: 'duckdb',
+        connectionType: 'url',
+        queryEngineType: 'duckdb',
+        supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
         dbName: 'remote_database',
-        url: 'https://example.com/db.duckdb',
+        legacyUrl: 'https://example.com/db.duckdb',
         connectionState: 'connected',
         attachedAt: Date.now(),
       };
@@ -340,9 +348,11 @@ describe('buildDatabaseNode', () => {
       const remoteDb: RemoteDB = {
         id: 'remote-db' as PersistentDataSourceId,
         type: 'remote-db',
-        dbType: 'duckdb',
+        connectionType: 'url',
+        queryEngineType: 'duckdb',
+        supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
         dbName: 'remote_database',
-        url: 'https://example.com/db.duckdb',
+        legacyUrl: 'https://example.com/db.duckdb',
         connectionState: 'disconnected',
         attachedAt: Date.now(),
       };
@@ -362,9 +372,11 @@ describe('buildDatabaseNode', () => {
       const remoteDb: RemoteDB = {
         id: 'remote-db' as PersistentDataSourceId,
         type: 'remote-db',
-        dbType: 'duckdb',
+        connectionType: 'url',
+        queryEngineType: 'duckdb',
+        supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
         dbName: 'remote_database',
-        url: 'https://example.com/db.duckdb',
+        legacyUrl: 'https://example.com/db.duckdb',
         connectionState: 'connected',
         attachedAt: Date.now(),
       };

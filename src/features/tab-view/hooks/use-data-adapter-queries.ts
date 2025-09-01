@@ -92,8 +92,8 @@ export const useDataAdapterQueries = ({
   }, [
     tab.id,
     tab.type,
-    tab.dataSourceId,
-    tab.lastExecutedQuery,
+    'dataSourceId' in tab ? tab.dataSourceId : undefined,
+    'lastExecutedQuery' in tab ? tab.lastExecutedQuery : undefined,
     pool,
     dataSource?.id,
     dataSource?.type,

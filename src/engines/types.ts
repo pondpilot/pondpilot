@@ -89,7 +89,7 @@ export interface EngineConfig {
   storagePath?: string;
   workerUrl?: string;
   wasmUrl?: string;
-  extensions?: string[];
+  extensions?: string[] | Array<{ name: string; type: 'core' | 'community' }>;
   options?: Record<string, any>;
   poolSize?: number;
 }

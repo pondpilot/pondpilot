@@ -45,7 +45,7 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
   const motherDuckInstancesMap = new Map<string, Array<{ id: string; dataSource: any }>>();
 
   for (const [id, dataSource] of dataSources) {
-    if (isRemoteDatabase(dataSource) && isMotherDuckUrl(dataSource.url)) {
+    if (isRemoteDatabase(dataSource) && isMotherDuckUrl(dataSource.legacyUrl || '')) {
       const instanceId = dataSource.instanceId || 'default';
       if (!motherDuckInstancesMap.has(instanceId)) {
         motherDuckInstancesMap.set(instanceId, []);
@@ -157,7 +157,7 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
         // Check if this database is already attached
         if (attachedDbNames.has(dataSource.dbName)) {
           // For MotherDuck databases, check if it's the right instance
-          if (isMotherDuckUrl(dataSource.url)) {
+          if (isMotherDuckUrl(dataSource.legacyUrl || '')) {
             // Verify it's actually accessible (the right instance)
             try {
               const testConn = await conn.acquire();
@@ -203,7 +203,7 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
         }
 
         // Skip MotherDuck databases here - they've been handled above
-        if (isMotherDuckUrl(dataSource.url)) {
+        if (isMotherDuckUrl(dataSource.legacyUrl || '')) {
           // MotherDuck databases are handled separately after authentication
           continue;
         }
@@ -213,7 +213,7 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
 
         // First, re-attach the database for non-MotherDuck remote databases
         try {
-          attachQuery = buildAttachQuery(dataSource.url, dataSource.dbName, { readOnly: true });
+          attachQuery = buildAttachQuery(dataSource.legacyUrl || '', dataSource.dbName, { readOnly: true });
 
           await attachDatabaseWithRetry(conn, attachQuery, {
             maxRetries: 3,

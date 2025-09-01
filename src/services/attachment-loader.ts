@@ -157,7 +157,7 @@ export class AttachmentLoader {
                 }
               } else {
                 // WASM: Build SQL from browser-stored credentials
-                const credentials = await BrowserCredentialStore.get(db.connectionId);
+                const credentials = await BrowserCredentialStore.get(db.connectionId || '');
                 if (!credentials) {
                   logger.warn(`No credentials found for connection ${db.connectionId}`);
                   continue;

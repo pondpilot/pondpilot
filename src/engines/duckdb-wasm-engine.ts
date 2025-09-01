@@ -86,7 +86,9 @@ export class DuckDBWasmEngine implements DatabaseEngine {
 
       // Load extensions if specified
       for (const ext of config.extensions || []) {
-        await this.loadExtension(ext);
+        // Handle both string and object formats
+        const extensionName = typeof ext === 'string' ? ext : ext.name;
+        await this.loadExtension(extensionName);
       }
 
       this.ready = true;
