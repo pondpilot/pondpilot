@@ -27,7 +27,8 @@ export class MotherDuckManager {
 
     // Find all MotherDuck databases with the same name
     const conflictingDbs = Array.from(dataSources.values()).filter(
-      (ds) => ds.type === 'remote-db' && isMotherDuckUrl(ds.legacyUrl || '') && ds.dbName === dbName,
+      (ds) =>
+        ds.type === 'remote-db' && isMotherDuckUrl(ds.legacyUrl || '') && ds.dbName === dbName,
     ) as RemoteDB[];
 
     // First, detach any currently attached database with this name
