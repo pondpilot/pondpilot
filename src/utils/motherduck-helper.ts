@@ -63,7 +63,7 @@ export async function verifyDatabaseAttached(
 ): Promise<boolean> {
   const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = ${quote(dbName, { single: true })}`;
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       const result = await pool.query(checkQuery);
       if (result && result.numRows > 0) {

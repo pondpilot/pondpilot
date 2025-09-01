@@ -172,7 +172,7 @@ describe('Data Source Migration and Utilities', () => {
         'my_db',
         'My PostgreSQL',
         'secret_456',
-        'PostgreSQL database on server'
+        'PostgreSQL database on server',
       );
 
       expect(db.type).toBe('remote-db');
@@ -192,12 +192,7 @@ describe('Data Source Migration and Utilities', () => {
 
     it('should create MySQL database correctly', () => {
       const id = makePersistentDataSourceId();
-      const db = createConnectionBasedRemoteDB(
-        id,
-        'conn_789',
-        'mysql',
-        'my_mysql_db'
-      );
+      const db = createConnectionBasedRemoteDB(id, 'conn_789', 'mysql', 'my_mysql_db');
 
       expect(db.connectionType).toBe('mysql');
       expect(db.connectionId).toBe('conn_789');
@@ -214,7 +209,7 @@ describe('Data Source Migration and Utilities', () => {
         id,
         'md:my_motherduck_db',
         'motherduck_db',
-        'MotherDuck cloud database'
+        'MotherDuck cloud database',
       );
 
       expect(db.type).toBe('remote-db');
@@ -231,11 +226,7 @@ describe('Data Source Migration and Utilities', () => {
 
     it('should create S3 database correctly', () => {
       const id = makePersistentDataSourceId();
-      const db = createUrlBasedRemoteDB(
-        id,
-        's3://my-bucket/data.duckdb',
-        's3_db'
-      );
+      const db = createUrlBasedRemoteDB(id, 's3://my-bucket/data.duckdb', 's3_db');
 
       expect(db.connectionType).toBe('s3');
       expect(db.legacyUrl).toBe('s3://my-bucket/data.duckdb');
@@ -245,11 +236,7 @@ describe('Data Source Migration and Utilities', () => {
 
     it('should create HTTPS database correctly', () => {
       const id = makePersistentDataSourceId();
-      const db = createUrlBasedRemoteDB(
-        id,
-        'https://example.com/db.duckdb',
-        'https_db'
-      );
+      const db = createUrlBasedRemoteDB(id, 'https://example.com/db.duckdb', 'https_db');
 
       expect(db.connectionType).toBe('http');
       expect(db.legacyUrl).toBe('https://example.com/db.duckdb');
@@ -257,11 +244,7 @@ describe('Data Source Migration and Utilities', () => {
 
     it('should default to url type for generic URLs', () => {
       const id = makePersistentDataSourceId();
-      const db = createUrlBasedRemoteDB(
-        id,
-        'ftp://example.com/db.duckdb',
-        'ftp_db'
-      );
+      const db = createUrlBasedRemoteDB(id, 'ftp://example.com/db.duckdb', 'ftp_db');
 
       expect(db.connectionType).toBe('url');
       expect(db.legacyUrl).toBe('ftp://example.com/db.duckdb');

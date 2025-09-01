@@ -54,7 +54,11 @@ export function updateRemoteDbConnectionState(
 /**
  * Attempts to reconnect a remote database using the new connection system
  */
-export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB, engineType?: EngineType): Promise<boolean> {
+export async function reconnectRemoteDatabase(
+  pool: any,
+  remoteDb: RemoteDB,
+  engineType?: EngineType,
+): Promise<boolean> {
   try {
     updateRemoteDbConnectionState(remoteDb.id, 'connecting');
 
@@ -68,14 +72,19 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB, eng
     // Check if this connection type is supported on current platform
     const capability = getConnectionCapability(migratedDb.connectionType, platformContext);
     if (!capability.supported) {
-      throw new Error(capability.reason || `${migratedDb.connectionType} connections not supported on this platform`);
+      throw new Error(
+        capability.reason ||
+          `${migratedDb.connectionType} connections not supported on this platform`,
+      );
     }
 
     // Create appropriate connection factory
     const connectionFactory = createConnectionFactory(currentEngineType);
 
     if (!connectionFactory.canConnect(migratedDb)) {
-      throw new Error(`Connection type ${migratedDb.connectionType} not supported by ${currentEngineType} engine`);
+      throw new Error(
+        `Connection type ${migratedDb.connectionType} not supported by ${currentEngineType} engine`,
+      );
     }
 
     // Ensure required extensions are loaded
@@ -183,7 +192,11 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB, eng
       const currentDataSources = useAppStore.getState().dataSources;
       const newDataSources = new Map(currentDataSources);
       newDataSources.set(migratedDb.id, migratedDb);
-      useAppStore.setState({ dataSources: newDataSources }, false, 'RemoteDB/updateMigratedDatabase');
+      useAppStore.setState(
+        { dataSources: newDataSources },
+        false,
+        'RemoteDB/updateMigratedDatabase',
+      );
     }
 
     showSuccess({

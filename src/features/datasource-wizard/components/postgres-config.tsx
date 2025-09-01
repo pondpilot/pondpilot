@@ -33,8 +33,8 @@ export function PostgresConfig({ pool, onBack, onClose }: PostgresConfigProps) {
       onClose={onClose}
       alertMessage={
         <Text size="sm">
-          PostgreSQL connections use DuckDB&apos;s postgres_scanner extension to query external databases.
-          Requires desktop app for direct database connections.
+          PostgreSQL connections use DuckDB&apos;s postgres_scanner extension to query external
+          databases. Requires desktop app for direct database connections.
         </Text>
       }
     />

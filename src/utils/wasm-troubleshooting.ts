@@ -24,7 +24,7 @@ export function checkWasmEnvironment(): {
 
   // Check memory limitations
   if (typeof window !== 'undefined' && 'performance' in window && 'memory' in window.performance) {
-    const { memory } = (window.performance as any);
+    const { memory } = window.performance as any;
     if (memory.usedJSHeapSize > memory.totalJSHeapSize * 0.8) {
       checks.memoryLimitations.push('High memory usage detected');
     }
@@ -52,7 +52,7 @@ export function checkWasmEnvironment(): {
 export async function attemptFileRecovery(
   engine: any,
   fileName: string,
-  originalError: Error
+  originalError: Error,
 ): Promise<{ recovered: boolean; message: string }> {
   try {
     // Force garbage collection if available
@@ -64,7 +64,6 @@ export async function attemptFileRecovery(
     if (engine && engine.db) {
       // Close any existing connections
       const connections = await engine.db.connectionsCount();
-      console.log(`Active connections: ${connections}`);
 
       // Try to force a checkpoint
       try {
@@ -100,7 +99,9 @@ export function getFileReadingRecommendations(fileSize: number, fileType: string
   if (fileSize > 2 * GB) {
     recommendations.push('File exceeds 2GB browser limit - use desktop app for better performance');
   } else if (fileSize > 500 * MB) {
-    recommendations.push('Large file detected - consider using the desktop app for better performance');
+    recommendations.push(
+      'Large file detected - consider using the desktop app for better performance',
+    );
     recommendations.push('Ensure sufficient memory is available');
   } else if (fileSize > 100 * MB) {
     recommendations.push('Medium-large file - monitor memory usage during processing');
@@ -111,7 +112,9 @@ export function getFileReadingRecommendations(fileSize: number, fileType: string
   }
 
   if (fileType === 'xlsx') {
-    recommendations.push('Excel files are converted to CSV internally - this may take time for large files');
+    recommendations.push(
+      'Excel files are converted to CSV internally - this may take time for large files',
+    );
   }
 
   return recommendations;
@@ -120,11 +123,14 @@ export function getFileReadingRecommendations(fileSize: number, fileType: string
 /**
  * Enhanced error reporting for WASM issues
  */
-export function enhanceWasmError(originalError: Error, context: {
-  operation: string;
-  fileName?: string;
-  fileSize?: number;
-}): Error {
+export function enhanceWasmError(
+  originalError: Error,
+  context: {
+    operation: string;
+    fileName?: string;
+    fileSize?: number;
+  },
+): Error {
   const environmentInfo = checkWasmEnvironment();
 
   let enhancedMessage = `${originalError.message}\n\n`;
@@ -145,20 +151,23 @@ export function enhanceWasmError(originalError: Error, context: {
 
   if (environmentInfo.memoryLimitations.length > 0) {
     enhancedMessage += '\nMemory Issues:\n';
-    environmentInfo.memoryLimitations.forEach(limitation => {
+    environmentInfo.memoryLimitations.forEach((limitation) => {
       enhancedMessage += `- ${limitation}\n`;
     });
   }
 
   if (environmentInfo.recommendations.length > 0) {
     enhancedMessage += '\nRecommendations:\n';
-    environmentInfo.recommendations.forEach(rec => {
+    environmentInfo.recommendations.forEach((rec) => {
       enhancedMessage += `- ${rec}\n`;
     });
   }
 
   // Check if this looks like the specific metadata reading error
-  if (originalError.message.includes('Expected to read') && originalError.message.includes('metadata bytes')) {
+  if (
+    originalError.message.includes('Expected to read') &&
+    originalError.message.includes('metadata bytes')
+  ) {
     enhancedMessage += '\nThis appears to be a file metadata reading issue. Try:\n';
     enhancedMessage += '- Refreshing the page and trying again\n';
     enhancedMessage += '- Using a smaller file to test\n';

@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 import { UnifiedFileHandle, UnifiedDirectoryHandle } from './types';
 
 export class TauriFileHandle implements UnifiedFileHandle {

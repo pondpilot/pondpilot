@@ -92,7 +92,7 @@ describe('Platform Capabilities', () => {
       const capability = getConnectionCapability('postgres');
 
       expect(capability.supported).toBe(true);
-      expect(capability.requirements).toContain('Uses DuckDB\'s postgres_scanner extension');
+      expect(capability.requirements).toContain("Uses DuckDB's postgres_scanner extension");
     });
 
     it('should not support MySQL in browser', () => {
@@ -108,7 +108,7 @@ describe('Platform Capabilities', () => {
       const capability = getConnectionCapability('mysql');
 
       expect(capability.supported).toBe(true);
-      expect(capability.requirements).toContain('Uses DuckDB\'s mysql_scanner extension');
+      expect(capability.requirements).toContain("Uses DuckDB's mysql_scanner extension");
     });
 
     it('should provide S3 requirements for browser vs desktop', () => {
@@ -155,7 +155,7 @@ describe('Platform Capabilities', () => {
       (global as any).window = {};
       const unsupported = getUnsupportedConnectionTypes();
 
-      const unsupportedTypes = unsupported.map(u => u.type);
+      const unsupportedTypes = unsupported.map((u) => u.type);
       expect(unsupportedTypes).toContain('postgres');
       expect(unsupportedTypes).toContain('mysql');
     });

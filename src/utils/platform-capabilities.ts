@@ -78,7 +78,7 @@ export function getPlatformContext(): PlatformContext {
  */
 export function getConnectionCapability(
   connectionType: RemoteConnectionType,
-  context?: PlatformContext
+  context?: PlatformContext,
 ): ConnectionCapability {
   const platformContext = context || getPlatformContext();
 
@@ -97,7 +97,7 @@ export function getConnectionCapability(
         supported: true,
         requirements: [
           'Requires MotherDuck token/credentials',
-          'Uses DuckDB\'s MotherDuck extension',
+          "Uses DuckDB's MotherDuck extension",
         ],
       };
 
@@ -105,7 +105,10 @@ export function getConnectionCapability(
       return {
         supported: true,
         requirements: platformContext.isBrowser
-          ? ['Requires proper CORS configuration', 'May require public read access or presigned URLs']
+          ? [
+              'Requires proper CORS configuration',
+              'May require public read access or presigned URLs',
+            ]
           : ['Requires valid AWS credentials or bucket permissions'],
       };
 
@@ -125,7 +128,7 @@ export function getConnectionCapability(
         supported: true,
         requirements: [
           'Requires PostgreSQL server accessible from this machine',
-          'Uses DuckDB\'s postgres_scanner extension',
+          "Uses DuckDB's postgres_scanner extension",
           'Requires valid database credentials',
         ],
       };
@@ -146,7 +149,7 @@ export function getConnectionCapability(
         supported: true,
         requirements: [
           'Requires MySQL server accessible from this machine',
-          'Uses DuckDB\'s mysql_scanner extension',
+          "Uses DuckDB's mysql_scanner extension",
           'Requires valid database credentials',
         ],
       };
@@ -166,20 +169,20 @@ export function getSupportedConnectionTypes(context?: PlatformContext): RemoteCo
   const platformContext = context || getPlatformContext();
   const allTypes: RemoteConnectionType[] = ['url', 'http', 'motherduck', 's3', 'postgres', 'mysql'];
 
-  return allTypes.filter(type => getConnectionCapability(type, platformContext).supported);
+  return allTypes.filter((type) => getConnectionCapability(type, platformContext).supported);
 }
 
 /**
  * Get unsupported connection types with reasons
  */
 export function getUnsupportedConnectionTypes(
-  context?: PlatformContext
+  context?: PlatformContext,
 ): Array<{ type: RemoteConnectionType; capability: ConnectionCapability }> {
   const platformContext = context || getPlatformContext();
   const allTypes: RemoteConnectionType[] = ['url', 'http', 'motherduck', 's3', 'postgres', 'mysql'];
 
   return allTypes
-    .map(type => ({ type, capability: getConnectionCapability(type, platformContext) }))
+    .map((type) => ({ type, capability: getConnectionCapability(type, platformContext) }))
     .filter(({ capability }) => !capability.supported);
 }
 
@@ -236,10 +239,12 @@ export function getPlatformInfo(): Record<string, any> {
     },
     supportedConnections: getSupportedConnectionTypes(context),
     unsupportedConnections: getUnsupportedConnectionTypes(context).map(({ type }) => type),
-    browserFeatures: context.isBrowser ? {
-      crossOriginIsolated: window.crossOriginIsolated,
-      showOpenFilePicker: 'showOpenFilePicker' in window,
-      userAgent: navigator.userAgent,
-    } : null,
+    browserFeatures: context.isBrowser
+      ? {
+          crossOriginIsolated: window.crossOriginIsolated,
+          showOpenFilePicker: 'showOpenFilePicker' in window,
+          userAgent: navigator.userAgent,
+        }
+      : null,
   };
 }

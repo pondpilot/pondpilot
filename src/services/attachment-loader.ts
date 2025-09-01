@@ -28,7 +28,8 @@ export class AttachmentLoader {
         USER '${credentials.username}',
         PASSWORD '${credentials.password}'
       )`;
-    } if (db.connectionType === 'mysql') {
+    }
+    if (db.connectionType === 'mysql') {
       return `CREATE TEMPORARY SECRET IF NOT EXISTS ${secretName} (
         TYPE MYSQL,
         HOST '${credentials.host}',
@@ -46,7 +47,8 @@ export class AttachmentLoader {
    */
   private static buildAttachSql(db: any, credentials: any, databaseAlias: string): string {
     const secretName = `secret_${db.connectionId.replace(/-/g, '_')}`;
-    const dbType = (db.connectionType === 'postgres' || db.connectionType === 'postgresql') ? 'POSTGRES' : 'MYSQL';
+    const dbType =
+      db.connectionType === 'postgres' || db.connectionType === 'postgresql' ? 'POSTGRES' : 'MYSQL';
     const dbParam = dbType === 'POSTGRES' ? 'dbname' : 'database';
 
     return `ATTACH 'host=${credentials.host} port=${credentials.port} ${dbParam}=${credentials.database}' 
@@ -115,7 +117,10 @@ export class AttachmentLoader {
 
                   try {
                     // Get the attachment SQL from backend
-                    const attachmentSql = await ConnectionsAPI.getAttachmentSql(db.connectionId, attachedDbName);
+                    const attachmentSql = await ConnectionsAPI.getAttachmentSql(
+                      db.connectionId,
+                      attachedDbName,
+                    );
 
                     // Execute CREATE SECRET and ATTACH on the current connection
                     await connection.execute(attachmentSql.secret_sql);
@@ -138,7 +143,9 @@ export class AttachmentLoader {
                         updatedMetadata.set(db.dbName, dbModel as any);
                       }
                       useAppStore.setState({ databaseMetadata: updatedMetadata });
-                      logger.info(`Fetched metadata for attached database '${db.dbName}' (attached as '${attachedDbName}')`);
+                      logger.info(
+                        `Fetched metadata for attached database '${db.dbName}' (attached as '${attachedDbName}')`,
+                      );
                     } catch (metadataError) {
                       logger.warn(`Failed to fetch metadata for '${db.dbName}':`, metadataError);
                     }
@@ -163,7 +170,9 @@ export class AttachmentLoader {
                 await connection.execute(secretSql);
                 await connection.execute(attachSql);
 
-                logger.info(`Attached connection-based DB '${db.dbName}' using WASM browser storage`);
+                logger.info(
+                  `Attached connection-based DB '${db.dbName}' using WASM browser storage`,
+                );
 
                 // Fetch metadata for the attached database
                 try {

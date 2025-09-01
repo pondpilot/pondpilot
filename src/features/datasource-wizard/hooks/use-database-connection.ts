@@ -41,7 +41,10 @@ export function useDatabaseConnection(
       }
 
       if (!state.secretId) {
-        showError({ title: 'No credentials selected', message: 'Please select database credentials first' });
+        showError({
+          title: 'No credentials selected',
+          message: 'Please select database credentials first',
+        });
         return false;
       }
 
@@ -53,7 +56,9 @@ export function useDatabaseConnection(
       if (!capability.supported) {
         showError({
           title: 'Connection not supported',
-          message: capability.reason || `${databaseType === 'postgres' ? 'PostgreSQL' : 'MySQL'} connections are not supported on this platform`,
+          message:
+            capability.reason ||
+            `${databaseType === 'postgres' ? 'PostgreSQL' : 'MySQL'} connections are not supported on this platform`,
         });
         return false;
       }
@@ -73,20 +78,35 @@ export function useDatabaseConnection(
         let sslMode: SslMode | undefined;
         if (config.sslMode) {
           switch (config.sslMode) {
-            case 'disable': sslMode = SslMode.Disable; break;
-            case 'allow': sslMode = SslMode.Allow; break;
-            case 'prefer': sslMode = SslMode.Prefer; break;
-            case 'require': sslMode = SslMode.Require; break;
-            case 'verify-ca': sslMode = SslMode.VerifyCa; break;
-            case 'verify-full': sslMode = SslMode.VerifyFull; break;
-            default: sslMode = SslMode.Prefer; break;
+            case 'disable':
+              sslMode = SslMode.Disable;
+              break;
+            case 'allow':
+              sslMode = SslMode.Allow;
+              break;
+            case 'prefer':
+              sslMode = SslMode.Prefer;
+              break;
+            case 'require':
+              sslMode = SslMode.Require;
+              break;
+            case 'verify-ca':
+              sslMode = SslMode.VerifyCa;
+              break;
+            case 'verify-full':
+              sslMode = SslMode.VerifyFull;
+              break;
+            default:
+              sslMode = SslMode.Prefer;
+              break;
           }
         }
 
         // Use the backend API to test the connection with the secret
         const connectionTestConfig = {
           name: config.name,
-          connection_type: databaseType === 'postgres' ? ConnectionType.Postgres : ConnectionType.MySQL,
+          connection_type:
+            databaseType === 'postgres' ? ConnectionType.Postgres : ConnectionType.MySQL,
           host: config.host,
           port: config.port,
           database: config.database,
@@ -94,7 +114,10 @@ export function useDatabaseConnection(
           ssl_mode: sslMode,
         };
 
-        const success = await ConnectionsAPI.testDatabaseConnectionConfig(connectionTestConfig, state.secretId);
+        const success = await ConnectionsAPI.testDatabaseConnectionConfig(
+          connectionTestConfig,
+          state.secretId,
+        );
 
         if (success) {
           showSuccess({
@@ -103,11 +126,11 @@ export function useDatabaseConnection(
           });
           return true;
         }
-          showError({
-            title: 'Connection failed',
-            message: 'Could not establish connection to the database',
-          });
-          return false;
+        showError({
+          title: 'Connection failed',
+          message: 'Could not establish connection to the database',
+        });
+        return false;
       } catch (error) {
         console.error('Database connection test error:', error);
         let message = 'An unexpected error occurred';
@@ -155,7 +178,9 @@ export function useDatabaseConnection(
       if (!capability.supported) {
         showError({
           title: 'Connection not supported',
-          message: capability.reason || `${databaseType === 'postgres' ? 'PostgreSQL' : 'MySQL'} connections are not supported on this platform`,
+          message:
+            capability.reason ||
+            `${databaseType === 'postgres' ? 'PostgreSQL' : 'MySQL'} connections are not supported on this platform`,
         });
         return false;
       }
@@ -174,20 +199,28 @@ export function useDatabaseConnection(
         // Save the connection configuration first
         const savedConnection = await ConnectionsAPI.saveConnection({
           name: config.name.trim(),
-          connection_type: databaseType === 'postgres' ? ConnectionType.Postgres : ConnectionType.MySQL,
+          connection_type:
+            databaseType === 'postgres' ? ConnectionType.Postgres : ConnectionType.MySQL,
           host: config.host,
           port: config.port,
           database: config.database,
           secret_id: state.secretId,
           read_only: undefined,
-          ssl_mode: config.sslMode ?
-            (config.sslMode === 'disable' ? SslMode.Disable :
-             config.sslMode === 'allow' ? SslMode.Allow :
-             config.sslMode === 'prefer' ? SslMode.Prefer :
-             config.sslMode === 'require' ? SslMode.Require :
-             config.sslMode === 'verify-ca' ? SslMode.VerifyCa :
-             config.sslMode === 'verify-full' ? SslMode.VerifyFull :
-             SslMode.Prefer) : undefined,
+          ssl_mode: config.sslMode
+            ? config.sslMode === 'disable'
+              ? SslMode.Disable
+              : config.sslMode === 'allow'
+                ? SslMode.Allow
+                : config.sslMode === 'prefer'
+                  ? SslMode.Prefer
+                  : config.sslMode === 'require'
+                    ? SslMode.Require
+                    : config.sslMode === 'verify-ca'
+                      ? SslMode.VerifyCa
+                      : config.sslMode === 'verify-full'
+                        ? SslMode.VerifyFull
+                        : SslMode.Prefer
+            : undefined,
           connect_timeout: undefined,
           query_timeout: undefined,
           max_connections: undefined,
@@ -204,7 +237,7 @@ export function useDatabaseConnection(
           config.name.trim(),
           state.secretName,
           state.secretId,
-          `${databaseType === 'postgres' ? 'PostgreSQL' : 'MySQL'} database at ${config.host}:${config.port}`
+          `${databaseType === 'postgres' ? 'PostgreSQL' : 'MySQL'} database at ${config.host}:${config.port}`,
         );
 
         const { dataSources, databaseMetadata } = useAppStore.getState();
@@ -217,14 +250,16 @@ export function useDatabaseConnection(
         // First, get the attachment SQL and execute it on the current connection
         // This ensures the database is immediately available
         try {
-          const attachmentSql = await ConnectionsAPI.getAttachmentSql(savedConnection.id, attachedDbName);
+          const attachmentSql = await ConnectionsAPI.getAttachmentSql(
+            savedConnection.id,
+            attachedDbName,
+          );
 
           // Get a connection from the pool and execute the attachment
           const conn = await pool.acquire();
           try {
             await conn.execute(attachmentSql.secret_sql);
             await conn.execute(attachmentSql.attach_sql);
-            console.log(`Attached database '${remoteDb.dbName}' to current connection`);
           } finally {
             await pool.release(conn);
           }
@@ -242,7 +277,7 @@ export function useDatabaseConnection(
         try {
           const remoteMetadata = await getDatabaseModel(pool, [attachedDbName]);
           const newMetadata = new Map(databaseMetadata);
-          for (const [remoteDbName, dbModel] of remoteMetadata) {
+          for (const [_remoteDbName, dbModel] of remoteMetadata) {
             // IMPORTANT: Store metadata with the original dbName, not the quoted identifier
             // The tree builder looks for metadata using remoteDb.dbName (raw name)
             newMetadata.set(remoteDb.dbName, dbModel);

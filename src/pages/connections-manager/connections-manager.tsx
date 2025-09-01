@@ -95,9 +95,7 @@ export function ConnectionsManager() {
 
       notifications.show({
         title: result ? 'Test Successful' : 'Test Failed',
-        message: result
-          ? 'Connection is working correctly'
-          : 'Connection test failed',
+        message: result ? 'Connection is working correctly' : 'Connection test failed',
         color: result ? 'green' : 'red',
       });
     } catch (error) {
@@ -140,7 +138,8 @@ export function ConnectionsManager() {
         </Group>
 
         <Text size="sm" c="dimmed">
-          Manage your saved database connections. Use the datasource wizard to create new connections.
+          Manage your saved database connections. Use the datasource wizard to create new
+          connections.
         </Text>
 
         <Tabs value={activeTab} onChange={(value) => setActiveTab(value || 'all')}>
@@ -176,85 +175,91 @@ export function ConnectionsManager() {
                       </Table.Td>
                     </Table.Tr>
                   )}
-                  {!loading && filteredConnections.map((connection) => {
-                    const secret = secrets.get(connection.secret_id);
-                    const isTestingThis = testingConnections.has(connection.id);
+                  {!loading &&
+                    filteredConnections.map((connection) => {
+                      const secret = secrets.get(connection.secret_id);
+                      const isTestingThis = testingConnections.has(connection.id);
 
-                    return (
-                      <Table.Tr key={connection.id}>
-                        <Table.Td>
-                          <Group gap="xs">
-                            <IconDatabase size={16} />
-                            <Text fw={500}>{connection.name}</Text>
-                          </Group>
-                        </Table.Td>
-                        <Table.Td>
-                          <Badge color={getConnectionTypeColor(connection.connection_type)} size="sm">
-                            {getConnectionTypeLabel(connection.connection_type)}
-                          </Badge>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" family="monospace">
-                            {connection.host}:{connection.port}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" family="monospace">
-                            {connection.database}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          {secret ? (
-                            <Text size="sm" c="dimmed">
-                              {secret.name}
-                            </Text>
-                          ) : (
+                      return (
+                        <Table.Tr key={connection.id}>
+                          <Table.Td>
                             <Group gap="xs">
-                              <IconAlertCircle size={14} color="orange" />
-                              <Text size="sm" c="orange">
-                                Secret not found
-                              </Text>
+                              <IconDatabase size={16} />
+                              <Text fw={500}>{connection.name}</Text>
                             </Group>
-                          )}
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" c="dimmed">
-                            {new Date(connection.created_at).toLocaleDateString()}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Group gap="xs">
-                            <ActionIcon
-                              variant="subtle"
-                              color="green"
-                              onClick={() => handleTestConnection(connection.id)}
-                              loading={isTestingThis}
-                              disabled={isTestingThis || !secret}
-                              title={!secret ? 'Cannot test: secret not found' : 'Test connection'}
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge
+                              color={getConnectionTypeColor(connection.connection_type)}
+                              size="sm"
                             >
-                              <IconTestPipe size={16} />
-                            </ActionIcon>
-                            <ActionIcon
-                              variant="subtle"
-                              color="blue"
-                              disabled
-                              title="Edit connection (coming soon)"
-                            >
-                              <IconEdit size={16} />
-                            </ActionIcon>
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              onClick={() => handleDelete(connection.id)}
-                              title="Delete connection"
-                            >
-                              <IconTrash size={16} />
-                            </ActionIcon>
-                          </Group>
-                        </Table.Td>
-                      </Table.Tr>
-                    );
-                  })}
+                              {getConnectionTypeLabel(connection.connection_type)}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="sm" family="monospace">
+                              {connection.host}:{connection.port}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="sm" family="monospace">
+                              {connection.database}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            {secret ? (
+                              <Text size="sm" c="dimmed">
+                                {secret.name}
+                              </Text>
+                            ) : (
+                              <Group gap="xs">
+                                <IconAlertCircle size={14} color="orange" />
+                                <Text size="sm" c="orange">
+                                  Secret not found
+                                </Text>
+                              </Group>
+                            )}
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="sm" c="dimmed">
+                              {new Date(connection.created_at).toLocaleDateString()}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Group gap="xs">
+                              <ActionIcon
+                                variant="subtle"
+                                color="green"
+                                onClick={() => handleTestConnection(connection.id)}
+                                loading={isTestingThis}
+                                disabled={isTestingThis || !secret}
+                                title={
+                                  !secret ? 'Cannot test: secret not found' : 'Test connection'
+                                }
+                              >
+                                <IconTestPipe size={16} />
+                              </ActionIcon>
+                              <ActionIcon
+                                variant="subtle"
+                                color="blue"
+                                disabled
+                                title="Edit connection (coming soon)"
+                              >
+                                <IconEdit size={16} />
+                              </ActionIcon>
+                              <ActionIcon
+                                variant="subtle"
+                                color="red"
+                                onClick={() => handleDelete(connection.id)}
+                                title="Delete connection"
+                              >
+                                <IconTrash size={16} />
+                              </ActionIcon>
+                            </Group>
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    })}
                   {!loading && filteredConnections.length === 0 && (
                     <Table.Tr>
                       <Table.Td colSpan={7} style={{ textAlign: 'center' }}>

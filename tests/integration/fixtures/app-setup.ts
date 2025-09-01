@@ -1,10 +1,9 @@
 import { Page } from '@playwright/test';
 
 export async function setupApp(page: Page) {
-  // Add any app-specific setup here
-  await page.goto('http://localhost:5173');
+  // App is automatically opened by the custom page fixture
   // Wait for app to load
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 }
 
 export async function teardownApp(page: Page) {

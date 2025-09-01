@@ -225,7 +225,7 @@ export class TauriArrowReader {
 
       case 'complete': {
         // Extract batch count from the data (little-endian)
-        const batchCount =
+        const _batchCount =
           data.length >= 4
             ? new DataView(data.buffer, data.byteOffset, data.byteLength).getUint32(0, true)
             : this.batches.length;
@@ -314,7 +314,7 @@ export class TauriArrowReader {
     // Switch to unbounded prefetch to allow backend to stream to completion
     this.ackAllOnArrival = true;
     // Acknowledge any queued, unacknowledged batches immediately
-    for (const [index, item] of this.batchQueue.entries()) {
+    for (const [_index, item] of this.batchQueue.entries()) {
       if (!item.acked && !this.acknowledgedBatches.has(item.batchId)) {
         invoke('acknowledge_stream_batch', {
           streamId: this.streamId,

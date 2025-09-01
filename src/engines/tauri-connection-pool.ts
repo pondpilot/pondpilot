@@ -256,7 +256,7 @@ export class TauriConnectionPool implements ConnectionPool {
       const { waitForExtensionStoreHydration } = await import('../store/extension-management');
       await waitForExtensionStoreHydration();
     } catch (error) {
-      console.warn('Failed to initialize extension store:', error);
+      // Ignore extension store initialization errors
     }
   }
 
@@ -497,7 +497,6 @@ export class TauriConnectionPool implements ConnectionPool {
           }
         } catch (e) {
           // Log the error for debugging but continue - stream may still run without auto-attachments
-          console.warn('Failed to auto-build attachments for streaming query:', e);
         }
       }
 

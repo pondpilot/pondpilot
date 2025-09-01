@@ -90,9 +90,6 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
               console.warn('[MotherDuck] Could not delete data sources from persistence:', e);
             }
           }
-          console.log(
-            `[MotherDuck] Removed ${databases.length} databases from old instance: ${instanceId}`,
-          );
         }
       }
     }
@@ -130,7 +127,6 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
             updateRemoteDbConnectionState(id as any, 'connected');
             connectedDatabases.push(dataSource.dbName);
             attachedDbNames.add(dataSource.dbName);
-            console.log(`[MotherDuck] Successfully attached database: ${dataSource.dbName}`);
           } catch (attachError: any) {
             const msg = String(attachError?.message || attachError);
             if (/already attached|already in use/i.test(msg)) {
@@ -144,7 +140,7 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
           }
         }
       } catch (e) {
-        console.log('[MotherDuck] MotherDuck authentication might already be established:', e);
+        // Ignore MotherDuck authentication errors
       } finally {
         await conn.release(authConn);
       }

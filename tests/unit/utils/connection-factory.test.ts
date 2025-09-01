@@ -35,7 +35,7 @@ describe('ConnectionFactory', () => {
       const urlDb = createUrlBasedRemoteDB(
         makePersistentDataSourceId(),
         'https://example.com/db.duckdb',
-        'test_db'
+        'test_db',
       );
 
       expect(factory.canConnect(urlDb)).toBe(true);
@@ -46,7 +46,7 @@ describe('ConnectionFactory', () => {
         makePersistentDataSourceId(),
         'conn_123',
         'postgres',
-        'test_db'
+        'test_db',
       );
 
       expect(factory.canConnect(pgDb)).toBe(false);
@@ -57,7 +57,7 @@ describe('ConnectionFactory', () => {
         makePersistentDataSourceId(),
         'conn_123',
         'mysql',
-        'test_db'
+        'test_db',
       );
 
       expect(factory.canConnect(mysqlDb)).toBe(false);
@@ -68,11 +68,11 @@ describe('ConnectionFactory', () => {
         makePersistentDataSourceId(),
         'conn_123',
         'postgres',
-        'test_db'
+        'test_db',
       );
 
       await expect(factory.createConnectionString(pgDb)).rejects.toThrow(
-        'Direct postgres connections are not supported in browser environment'
+        'Direct postgres connections are not supported in browser environment',
       );
     });
 
@@ -80,7 +80,7 @@ describe('ConnectionFactory', () => {
       const s3Db = createUrlBasedRemoteDB(
         makePersistentDataSourceId(),
         's3://bucket/db.duckdb',
-        'test_db'
+        'test_db',
       );
 
       const requirements = factory.getConnectionRequirements(s3Db);
@@ -100,20 +100,20 @@ describe('ConnectionFactory', () => {
         makePersistentDataSourceId(),
         'conn_123',
         'postgres',
-        'test_db'
+        'test_db',
       );
 
       const mysqlDb = createConnectionBasedRemoteDB(
         makePersistentDataSourceId(),
         'conn_456',
         'mysql',
-        'test_db'
+        'test_db',
       );
 
       const urlDb = createUrlBasedRemoteDB(
         makePersistentDataSourceId(),
         'https://example.com/db.duckdb',
-        'test_db'
+        'test_db',
       );
 
       expect(factory.canConnect(pgDb)).toBe(true);
@@ -126,12 +126,14 @@ describe('ConnectionFactory', () => {
         makePersistentDataSourceId(),
         'conn_123',
         'postgres',
-        'test_db'
+        'test_db',
       );
 
       const requirements = factory.getConnectionRequirements(pgDb);
-      expect(requirements).toContain('Uses DuckDB\'s postgres_scanner extension');
-      expect(requirements).toContain('Requires PostgreSQL server to be accessible from this machine');
+      expect(requirements).toContain("Uses DuckDB's postgres_scanner extension");
+      expect(requirements).toContain(
+        'Requires PostgreSQL server to be accessible from this machine',
+      );
     });
   });
 
@@ -148,7 +150,7 @@ describe('ConnectionFactory', () => {
 
     it('should throw error for unknown engine type', () => {
       expect(() => createConnectionFactory('unknown' as any)).toThrow(
-        'Unsupported engine type: unknown'
+        'Unsupported engine type: unknown',
       );
     });
   });
@@ -158,7 +160,7 @@ describe('ConnectionFactory', () => {
       const urlDb = createUrlBasedRemoteDB(
         makePersistentDataSourceId(),
         'https://example.com/db.duckdb',
-        'test_db'
+        'test_db',
       );
 
       expect(isDatabaseSupportedOnPlatform(urlDb, 'duckdb-wasm')).toBe(true);
@@ -169,7 +171,7 @@ describe('ConnectionFactory', () => {
         makePersistentDataSourceId(),
         'conn_123',
         'postgres',
-        'test_db'
+        'test_db',
       );
 
       expect(isDatabaseSupportedOnPlatform(pgDb, 'duckdb-wasm')).toBe(false);
@@ -180,7 +182,7 @@ describe('ConnectionFactory', () => {
         makePersistentDataSourceId(),
         'conn_123',
         'postgres',
-        'test_db'
+        'test_db',
       );
 
       expect(isDatabaseSupportedOnPlatform(pgDb, 'duckdb-tauri')).toBe(true);
@@ -193,7 +195,7 @@ describe('ConnectionFactory', () => {
         makePersistentDataSourceId(),
         'conn_123',
         'postgres',
-        'test_db'
+        'test_db',
       );
 
       const message = getUnsupportedDatabaseMessage(pgDb, 'duckdb-wasm');
@@ -206,7 +208,7 @@ describe('ConnectionFactory', () => {
         makePersistentDataSourceId(),
         'conn_123',
         'mysql',
-        'test_db'
+        'test_db',
       );
 
       const message = getUnsupportedDatabaseMessage(mysqlDb, 'duckdb-wasm');

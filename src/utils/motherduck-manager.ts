@@ -41,7 +41,6 @@ export class MotherDuckManager {
       if (checkResult && checkResult.rows && checkResult.rows.length > 0) {
         // Detach the current database
         await conn.execute(`DETACH DATABASE ${toDuckDBIdentifier(dbName)}`);
-        console.log(`Detached database ${dbName} to switch instances`);
 
         // Mark the previously connected one as disconnected
         for (const db of conflictingDbs) {
@@ -63,7 +62,6 @@ export class MotherDuckManager {
             connection_id: `motherduck_reconnect_${targetDataSource.instanceId}`,
             secret_id: targetDataSource.instanceId,
           });
-          console.log('Applied MotherDuck secret to environment');
         } catch (secretError) {
           console.warn('Failed to apply MotherDuck secret:', secretError);
         }
@@ -73,20 +71,15 @@ export class MotherDuckManager {
       try {
         const attachQuery = `ATTACH 'md:${dbName}'`;
         await conn.execute(attachQuery);
-        console.log(`Attached MotherDuck database ${dbName}`);
       } catch (attachError: any) {
         const msg = String(attachError?.message || attachError);
         if (!/already attached|already in use/i.test(msg)) {
           throw attachError;
         }
-        console.log(`MotherDuck database ${dbName} already attached`);
       }
 
       // Mark the new one as connected
       updateRemoteDbConnectionState(targetDataSource.id, 'connected');
-      console.log(
-        `Switched to MotherDuck instance ${targetDataSource.instanceName || 'default'} for database ${dbName}`,
-      );
     } finally {
       await pool.release(conn);
     }
@@ -104,7 +97,6 @@ export class MotherDuckManager {
     try {
       await conn.execute(`DETACH DATABASE ${toDuckDBIdentifier(dataSource.dbName)}`);
       updateRemoteDbConnectionState(dataSource.id, 'disconnected');
-      console.log(`Disconnected MotherDuck database ${dataSource.dbName}`);
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       // If already detached, still mark as disconnected

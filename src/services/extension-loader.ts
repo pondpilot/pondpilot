@@ -44,19 +44,25 @@ export class ExtensionLoader {
             const v = (import.meta as any).env.VITE_ALLOW_COMMUNITY_EXTENSIONS;
             if (typeof v === 'string') return v === 'true';
           }
-        } catch {}
+        } catch {
+          // Ignore import.meta access errors
+        }
         try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
           const { isTauriEnvironment } = require('@utils/browser');
           if (isTauriEnvironment && typeof isTauriEnvironment === 'function') {
             // Allow on desktop by default
             // eslint-disable-next-line @typescript-eslint/no-unsafe-call
             if (isTauriEnvironment()) return true;
           }
-        } catch {}
+        } catch {
+          // Ignore Tauri environment check errors
+        }
         try {
           return (import.meta as any).env?.DEV === true;
-        } catch {}
+        } catch {
+          // Ignore dev environment check errors
+        }
         return false;
       })();
 
@@ -249,11 +255,15 @@ export class ExtensionLoader {
             const v = (import.meta as any).env.VITE_ALLOW_COMMUNITY_EXTENSIONS;
             if (typeof v === 'string') return v === 'true';
           }
-        } catch {}
+        } catch {
+          // Ignore environment check errors
+        }
         try {
           const { isTauriEnvironment } = await import('@utils/browser');
           if (isTauriEnvironment()) return true;
-        } catch {}
+        } catch {
+          // Ignore environment check errors
+        }
         return (import.meta as any).env?.DEV === true;
       })();
 
