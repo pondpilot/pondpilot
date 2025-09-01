@@ -163,13 +163,11 @@ export function localEntryFromHandle(
     unifiedHandle = convertLegacyHandle(handle);
   } else if ('getNativeHandle' in handle) {
     unifiedHandle = handle as UnifiedHandle;
-  } else {
+  } else if (handle.kind === 'file') {
     // It's a native FileSystemHandle
-    if (handle.kind === 'file') {
-      unifiedHandle = convertLegacyHandle(handle);
-    } else {
-      unifiedHandle = convertLegacyHandle(handle);
-    }
+    unifiedHandle = convertLegacyHandle(handle);
+  } else {
+    unifiedHandle = convertLegacyHandle(handle);
   }
 
   if (!unifiedHandle) return null;

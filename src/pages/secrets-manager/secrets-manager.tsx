@@ -86,7 +86,7 @@ interface SecretTypeInfo {
 export function SecretsManager() {
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [secretTypes, setSecretTypes] = useState<SecretTypeInfo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSecret, setEditingSecret] = useState<Secret | null>(null);
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -157,15 +157,7 @@ export function SecretsManager() {
           color: 'green',
         });
       } else {
-        console.log('[Secrets UI] Creating new secret:', {
-          type: formData.secret_type,
-          name: formData.name,
-          hasToken: !!formData.token,
-          hasKeyId: !!formData.key_id,
-          hasSecret: !!formData.secret,
-        });
-
-        const response = await invoke('save_secret', {
+        const _response = await invoke('save_secret', {
           request: {
             secret_type: formData.secret_type,
             name: formData.name || '',
@@ -188,8 +180,6 @@ export function SecretsManager() {
             description: null,
           },
         });
-
-        console.log('[Secrets UI] Secret created successfully:', response);
 
         notifications.show({
           title: 'Success',
@@ -477,8 +467,8 @@ export function SecretsManager() {
             {commonFields}
             <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light" mb="sm">
               <Text size="sm">
-                MySQL secrets now only store authentication credentials. Connection details
-                (host, port, database) are configured when creating database connections.
+                MySQL secrets now only store authentication credentials. Connection details (host,
+                port, database) are configured when creating database connections.
               </Text>
             </Alert>
             <TextInput
@@ -605,8 +595,8 @@ export function SecretsManager() {
 
         <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light">
           <Text size="sm">
-            Secrets are stored securely in your system's keychain and automatically injected into
-            DuckDB connections. They enable seamless access to cloud storage and remote data
+            Secrets are stored securely in your system&apos;s keychain and automatically injected
+            into DuckDB connections. They enable seamless access to cloud storage and remote data
             sources.
           </Text>
         </Alert>

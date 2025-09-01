@@ -397,7 +397,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             'Database metadata query failed. The file format may not be supported or the database is corrupted.',
           );
         } else {
-          setAppendDataSourceReadError(`Failed to fetch row counts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          setAppendDataSourceReadError(
+            `Failed to fetch row counts: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          );
         }
       }
     }

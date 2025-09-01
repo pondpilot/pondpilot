@@ -13,7 +13,11 @@ test.describe('Secrets Management', () => {
 
   test('should load secrets management page', async ({ page }) => {
     // Navigate to secrets management (you'll need to add this route to your app)
-    await page.goto('http://localhost:5173/#/secrets');
+    // App is automatically opened, just navigate to secrets route
+    await page.evaluate(() => {
+      window.location.hash = '#/secrets';
+    });
+    await page.waitForURL('**/secrets');
 
     // Check that the page loads
     await expect(page.locator('text=Secrets Management')).toBeVisible();
@@ -21,7 +25,11 @@ test.describe('Secrets Management', () => {
   });
 
   test('should open add secret modal', async ({ page }) => {
-    await page.goto('http://localhost:5173/#/secrets');
+    // App is automatically opened, just navigate to secrets route
+    await page.evaluate(() => {
+      window.location.hash = '#/secrets';
+    });
+    await page.waitForURL('**/secrets');
 
     // Click add secret button
     await page.click('button:has-text("Add Secret")');
@@ -32,7 +40,11 @@ test.describe('Secrets Management', () => {
   });
 
   test('should create a new S3 secret', async ({ page }) => {
-    await page.goto('http://localhost:5173/#/secrets');
+    // App is automatically opened, just navigate to secrets route
+    await page.evaluate(() => {
+      window.location.hash = '#/secrets';
+    });
+    await page.waitForURL('**/secrets');
 
     // Open add secret modal
     await page.click('button:has-text("Add Secret")');
@@ -61,7 +73,11 @@ test.describe('Secrets Management', () => {
   });
 
   test('should filter secrets by type', async ({ page }) => {
-    await page.goto('http://localhost:5173/#/secrets');
+    // App is automatically opened, just navigate to secrets route
+    await page.evaluate(() => {
+      window.location.hash = '#/secrets';
+    });
+    await page.waitForURL('**/secrets');
 
     // Create an S3 secret first
     await page.click('button:has-text("Add Secret")');
@@ -96,7 +112,11 @@ test.describe('Secrets Management', () => {
   });
 
   test('should delete a secret', async ({ page }) => {
-    await page.goto('http://localhost:5173/#/secrets');
+    // App is automatically opened, just navigate to secrets route
+    await page.evaluate(() => {
+      window.location.hash = '#/secrets';
+    });
+    await page.waitForURL('**/secrets');
 
     // Create a secret to delete
     await page.click('button:has-text("Add Secret")');
@@ -117,7 +137,11 @@ test.describe('Secrets Management', () => {
   });
 
   test('should search secrets', async ({ page }) => {
-    await page.goto('http://localhost:5173/#/secrets');
+    // App is automatically opened, just navigate to secrets route
+    await page.evaluate(() => {
+      window.location.hash = '#/secrets';
+    });
+    await page.waitForURL('**/secrets');
 
     // Create multiple secrets
     for (const name of ['Alpha Secret', 'Beta Secret', 'Gamma Secret']) {

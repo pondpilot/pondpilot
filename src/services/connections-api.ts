@@ -47,7 +47,10 @@ export class ConnectionsAPI {
     return await invoke<boolean>('test_database_connection', { connectionId });
   }
 
-  static async testDatabaseConnectionConfig(config: ConnectionTestConfig, secretId: string): Promise<boolean> {
+  static async testDatabaseConnectionConfig(
+    config: ConnectionTestConfig,
+    secretId: string,
+  ): Promise<boolean> {
     return await invoke<boolean>('test_database_connection_config', { config, secretId });
   }
 
@@ -59,7 +62,10 @@ export class ConnectionsAPI {
     return await invoke<string>('get_connection_with_credentials', { connectionId });
   }
 
-  static async getAttachmentSql(connectionId: string, databaseAlias: string): Promise<AttachmentSql> {
+  static async getAttachmentSql(
+    connectionId: string,
+    databaseAlias: string,
+  ): Promise<AttachmentSql> {
     return await invoke<AttachmentSql>('get_attachment_sql', { connectionId, databaseAlias });
   }
 

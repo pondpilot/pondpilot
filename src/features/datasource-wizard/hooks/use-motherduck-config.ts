@@ -48,14 +48,9 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
   // Simplified - we don't need complex detachment logic since we'll restart the app
   const detachAllMotherDuckDatabases = useCallback(async () => {
     // This function is no longer used since we handle disconnection and restart in the component
-    console.log('[MotherDuck] Detach function called - app will restart for clean connection');
   }, []);
 
   const loadMotherDuckList = useCallback(async () => {
-    console.log('[MotherDuck] loadMotherDuckList called');
-    console.log('[MotherDuck] Pool available:', !!pool);
-    console.log('[MotherDuck] Selected secret ID:', selectedSecretId);
-
     if (!pool) {
       showError({ title: 'App not ready', message: 'Please wait for the app to initialize' });
       return;
@@ -70,29 +65,22 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
     try {
       // IMPORTANT: Apply the secret BEFORE loading the extension
       // This ensures the extension uses the correct token
-      console.log('[MotherDuck] Applying secret to set environment variable');
       await SecretsAPI.applySecretToConnection({
         connection_id: `motherduck_list_${Date.now()}`, // Use unique ID to force fresh application
         secret_id: selectedSecretId,
       });
-      console.log('[MotherDuck] Environment variable set');
 
       const conn = await pool.acquire();
-      console.log('[MotherDuck] Acquired connection for listing');
       try {
         try {
-          console.log('[MotherDuck] Installing motherduck extension');
           await conn.execute('INSTALL motherduck');
-          console.log('[MotherDuck] Extension installed');
         } catch (e) {
-          console.log('[MotherDuck] Extension might already be installed:', e);
+          // Extension might already be installed
         }
         try {
-          console.log('[MotherDuck] Loading motherduck extension');
           await conn.execute('LOAD motherduck');
-          console.log('[MotherDuck] Extension loaded');
         } catch (e) {
-          console.log('[MotherDuck] Extension loading issue:', e);
+          // Extension loading issue
         }
 
         // No need to attach here - we'll query using md_information_schema directly
@@ -103,7 +91,6 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
         const tryAttachForCatalog = async (dbName: string) => {
           try {
             await conn.execute(`ATTACH 'md:${dbName}'`);
-            console.log(`[MotherDuck] Attached ${dbName} for catalog access`);
             catalogDbName = dbName;
             return true;
           } catch (e) {
@@ -120,26 +107,22 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
           (await tryAttachForCatalog('test'));
 
         if (!catalogAttached) {
-          console.log('[MotherDuck] Could not attach any database for catalog access');
           throw new Error(
             'Unable to list MotherDuck databases. Please ensure you have at least one database in your MotherDuck account.',
           );
         }
 
-        console.log('[MotherDuck] Querying databases from md_information_schema');
         let result;
         try {
           result = await conn.execute(
             'SELECT name FROM md_information_schema.databases ORDER BY name',
           );
-          console.log('[MotherDuck] Query result:', result);
         } catch (queryError) {
           console.error('[MotherDuck] Failed to query databases:', queryError);
           throw new Error(`Failed to list MotherDuck databases: ${queryError}`);
         }
 
         const options = result.rows.map((r: any) => r.name as string).filter(Boolean);
-        console.log('[MotherDuck] Found databases:', options);
         setDbs(options);
 
         // Detach the catalog database if it was only for listing
@@ -152,9 +135,8 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
           try {
             const { toDuckDBIdentifier } = await import('@utils/duckdb/identifier');
             await conn.execute(`DETACH DATABASE ${toDuckDBIdentifier(catalogDbName)}`);
-            console.log(`[MotherDuck] Detached catalog database ${catalogDbName}`);
           } catch (e) {
-            console.log(`[MotherDuck] Could not detach catalog database ${catalogDbName}:`, e);
+            // Could not detach catalog database
           }
         }
 
@@ -187,11 +169,6 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
   ]);
 
   const handleAttach = useCallback(async () => {
-    console.log('[MotherDuck] handleAttach called');
-    console.log('[MotherDuck] Selected databases:', Array.from(selectedSet));
-    console.log('[MotherDuck] Selected secret ID:', selectedSecretId);
-    console.log('[MotherDuck] Selected secret name:', selectedSecretName);
-
     if (!pool) {
       showError({ title: 'App not ready', message: 'Please wait for the app to initialize' });
       return;
@@ -241,12 +218,10 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
       }
 
       // IMPORTANT: Apply the secret BEFORE loading the extension
-      console.log('[MotherDuck] Applying secret to set environment variable');
       await SecretsAPI.applySecretToConnection({
         connection_id: `motherduck_attach_${Date.now()}`, // Use unique ID to force fresh application
         secret_id: selectedSecretId,
       });
-      console.log('[MotherDuck] Environment variable set');
 
       const conn = await pool.acquire();
       try {
@@ -266,7 +241,6 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
         for (const dbName of namesToAttach) {
           // Skip if already attached
           if (currentlyAttached.has(dbName)) {
-            console.log(`[MotherDuck] Database ${dbName} is already attached`);
             attachedNames.push(dbName);
             attachedDbNames.add(dbName);
             continue;
@@ -276,22 +250,18 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
 
           try {
             const attachQuery = `ATTACH '${dbUrl}'`;
-            console.log(`[MotherDuck] Attaching database ${dbName}`);
             await conn.execute(attachQuery);
-            console.log(`[MotherDuck] Successfully attached ${dbName}`);
 
             // Verify we can see tables in this database
             try {
               const { toDuckDBIdentifier } = await import('@utils/duckdb/identifier');
               const verifyQuery = `SELECT COUNT(*) as table_count FROM ${toDuckDBIdentifier(dbName)}.information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog')`;
               const verifyResult = await conn.execute(verifyQuery);
-              const tableCount = verifyResult.rows[0]?.table_count || 0;
-              console.log(`[MotherDuck] Database ${dbName} has ${tableCount} tables`);
+              const _tableCount = verifyResult.rows[0]?.table_count || 0;
 
               attachedNames.push(dbName);
               attachedDbNames.add(dbName);
             } catch (verifyError) {
-              console.warn(`[MotherDuck] Could not verify tables in ${dbName}:`, verifyError);
               // Still add it as attached
               attachedNames.push(dbName);
               attachedDbNames.add(dbName);
@@ -299,7 +269,6 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
           } catch (e: any) {
             const msg = String(e?.message || e);
             if (/already attached|already in use/i.test(msg)) {
-              console.log(`[MotherDuck] Database ${dbName} already attached`);
               attachedNames.push(dbName);
               attachedDbNames.add(dbName);
             } else {
@@ -334,7 +303,6 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
         try {
           const { ConnectionsAPI } = await import('../../../services/connections-api');
           await ConnectionsAPI.registerMotherDuckAttachment(`md:${dbName}`);
-          console.log(`[MotherDuck] Registered ${dbName} with backend for re-attachment`);
         } catch (regError) {
           console.error(`[MotherDuck] Failed to register ${dbName} with backend:`, regError);
         }

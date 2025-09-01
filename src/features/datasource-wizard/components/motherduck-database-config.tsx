@@ -35,7 +35,7 @@ function MotherDuckDatabaseConfigInner({ pool, onBack, onClose }: MotherDuckData
   } = useMotherDuckConfig(pool);
 
   const [_selectedDb, setSelectedDb] = useInputState('');
-  const [createTokenModalOpened, { open: openCreateToken, close: closeCreateToken }] =
+  const [_createTokenModalOpened, { open: _openCreateToken, close: _closeCreateToken }] =
     useDisclosure(false);
 
   // Check if there's already a MotherDuck connection - do this immediately

@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 /**
  * Connection Factory for Remote Databases
  *
@@ -52,7 +53,7 @@ export class WASMConnectionFactory implements ConnectionFactory {
     if (db.connectionType === 'postgres' || db.connectionType === 'mysql') {
       throw new Error(
         `Direct ${db.connectionType} connections are not supported in browser environment. ` +
-        'Please use the desktop app or configure a proxy server.'
+          'Please use the desktop app or configure a proxy server.',
       );
     }
 
@@ -63,11 +64,13 @@ export class WASMConnectionFactory implements ConnectionFactory {
     if (db.connectionId) {
       throw new Error(
         'Connection ID based databases require the desktop app. ' +
-        'Please use the desktop version for full database connectivity.'
+          'Please use the desktop version for full database connectivity.',
       );
     }
 
-    throw new Error('No valid connection method available for this database in browser environment');
+    throw new Error(
+      'No valid connection method available for this database in browser environment',
+    );
   }
 
   async attachDatabase(pool: ConnectionPool, db: RemoteDB): Promise<void> {
@@ -123,7 +126,9 @@ export class TauriConnectionFactory implements ConnectionFactory {
         return await ConnectionsAPI.getConnectionWithCredentials(db.connectionId);
       } catch (error) {
         console.error('Failed to get connection with credentials:', error);
-        throw new Error(`Failed to resolve connection credentials: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(
+          `Failed to resolve connection credentials: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
 
@@ -164,17 +169,17 @@ export class TauriConnectionFactory implements ConnectionFactory {
 
     if (db.connectionType === 'postgres') {
       requirements.push('Requires PostgreSQL server to be accessible from this machine');
-      requirements.push('Uses DuckDB\'s postgres_scanner extension');
+      requirements.push("Uses DuckDB's postgres_scanner extension");
     }
 
     if (db.connectionType === 'mysql') {
       requirements.push('Requires MySQL server to be accessible from this machine');
-      requirements.push('Uses DuckDB\'s mysql_scanner extension');
+      requirements.push("Uses DuckDB's mysql_scanner extension");
     }
 
     if (db.connectionType === 's3') {
       requirements.push('Requires valid AWS credentials or bucket permissions');
-      requirements.push('Uses DuckDB\'s httpfs extension for S3 access');
+      requirements.push("Uses DuckDB's httpfs extension for S3 access");
     }
 
     return requirements;

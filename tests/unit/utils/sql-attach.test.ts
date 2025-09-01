@@ -120,7 +120,7 @@ describe('sql-attach', () => {
     });
 
     it('should return null for invalid database names', () => {
-      const result = parseAttachStatement("ATTACH 'https://example.com/db' AS \"db; DROP TABLE\"");
+      const result = parseAttachStatement('ATTACH \'https://example.com/db\' AS "db; DROP TABLE"');
       expect(result).toBeNull();
     });
 
@@ -139,7 +139,9 @@ describe('sql-attach', () => {
     });
 
     it('should handle Azure URLs', () => {
-      const result = parseAttachStatement("ATTACH 'azure://container/path/data.parquet' AS azure_data");
+      const result = parseAttachStatement(
+        "ATTACH 'azure://container/path/data.parquet' AS azure_data",
+      );
       expect(result).toEqual({
         url: 'azure://container/path/data.parquet',
         dbName: 'azure_data',

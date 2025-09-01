@@ -264,7 +264,12 @@ export function requiresProxy(connectionType: RemoteConnectionType): boolean {
  */
 export function migrateRemoteDB(legacyDb: any): RemoteDB {
   // Safety check - if it's already a properly structured RemoteDB with all required fields
-  if (legacyDb && legacyDb.connectionType && legacyDb.supportedPlatforms && (legacyDb.legacyUrl || legacyDb.connectionId)) {
+  if (
+    legacyDb &&
+    legacyDb.connectionType &&
+    legacyDb.supportedPlatforms &&
+    (legacyDb.legacyUrl || legacyDb.connectionId)
+  ) {
     return legacyDb as RemoteDB;
   }
 
@@ -286,7 +291,11 @@ export function migrateRemoteDB(legacyDb: any): RemoteDB {
     // Infer connection type from URL
     if (url.startsWith('md:')) {
       connectionType = 'motherduck';
-    } else if (url.startsWith('s3://') || url.startsWith('gs://') || url.includes('amazonaws.com')) {
+    } else if (
+      url.startsWith('s3://') ||
+      url.startsWith('gs://') ||
+      url.includes('amazonaws.com')
+    ) {
       connectionType = 's3';
     } else if (url.startsWith('http://') || url.startsWith('https://')) {
       connectionType = 'http';
@@ -318,7 +327,7 @@ export function createConnectionBasedRemoteDB(
   dbName: string,
   instanceName?: string,
   instanceId?: string,
-  comment?: string
+  comment?: string,
 ): RemoteDB {
   return {
     type: 'remote-db',
@@ -346,7 +355,7 @@ export function createUrlBasedRemoteDB(
   dbName: string,
   comment?: string,
   instanceName?: string,
-  instanceId?: string
+  instanceId?: string,
 ): RemoteDB {
   let connectionType: RemoteConnectionType = 'url';
 

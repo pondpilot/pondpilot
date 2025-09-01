@@ -173,7 +173,9 @@ export function DatabaseConnectionForm({
             <Text size="sm">{platformCapability.reason}</Text>
             {platformCapability.alternatives && platformCapability.alternatives.length > 0 && (
               <Stack gap={4}>
-                <Text size="sm" weight={500}>Alternatives:</Text>
+                <Text size="sm" weight={500}>
+                  Alternatives:
+                </Text>
                 <ul className="ml-4 space-y-1">
                   {platformCapability.alternatives.map((alt, index) => (
                     <li key={index}>

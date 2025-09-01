@@ -57,7 +57,9 @@ export function DatabaseSecretSelector({
           flex={1}
           label={label || defaultLabel}
           placeholder={
-            secrets.length === 0 ? `No saved ${secretTypeName} credentials` : 'Choose saved credentials'
+            secrets.length === 0
+              ? `No saved ${secretTypeName} credentials`
+              : 'Choose saved credentials'
           }
           data={selectData}
           value={selectedSecretId}
