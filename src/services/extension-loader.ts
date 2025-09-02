@@ -19,6 +19,25 @@ export class ExtensionLoader {
       }
     }
   }
+
+  /**
+   * Tauri-only: push the current active extension set to the backend and reset connections.
+   * No-op on web environments.
+   */
+  static async applyActiveExtensionsToBackend(): Promise<void> {
+    try {
+      const { isTauriEnvironment } = await import('@utils/browser');
+      if (!isTauriEnvironment()) return;
+      const { invoke } = await import('@tauri-apps/api/core');
+      const store = useExtensionManagementStore.getState();
+      const active = store.getActiveExtensions();
+      const payload = active.map((e) => ({ name: e.name, type: e.type }));
+      await invoke('set_extensions', { extensions: payload });
+      logger.info('Applied active extensions to Tauri backend');
+    } catch (error) {
+      logger.error('Failed to apply extensions to backend:', error);
+    }
+  }
   /**
    * Load active extensions for a new database session
    */

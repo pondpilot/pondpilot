@@ -241,3 +241,14 @@ pub async fn prepared_statement_close(
 ) -> Result<()> {
     engine.close_prepared_statement(&statement_id).await
 }
+
+#[tauri::command]
+pub async fn set_extensions(
+    engine: EngineState<'_>,
+    extensions: Vec<crate::database::types::ExtensionInfoForLoad>,
+) -> Result<()> {
+    // Update the extension set and reset connections so new config applies everywhere
+    engine.set_extensions(extensions).await?;
+    engine.reset_all_connections().await?;
+    Ok(())
+}

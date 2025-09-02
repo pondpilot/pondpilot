@@ -10,7 +10,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
-use tracing::warn;
 
 // Whitelist of allowed DuckDB extensions for security
 const ALLOWED_EXTENSIONS: &[&str] = &[
@@ -237,6 +236,13 @@ impl DuckDBEngine {
             *ext_guard = extensions;
         }
 
+        Ok(())
+    }
+
+    /// Replace the configured extension list at runtime
+    pub async fn set_extensions(&self, extensions: Vec<super::types::ExtensionInfoForLoad>) -> Result<()> {
+        let mut ext_guard = self.extensions.lock().await;
+        *ext_guard = extensions;
         Ok(())
     }
 

@@ -55,18 +55,26 @@ export class SQLiteAdapter implements PersistenceAdapter {
   }
 
   async putAll<T>(table: string, items: Array<{ key: string; value: T }>): Promise<void> {
-    // For now, implement as sequential puts
-    // Could be optimized with a batch operation in the future
-    for (const { key, value } of items) {
-      await this.put(table, value, key);
+    try {
+      await invoke('sqlite_put_all', { table, items });
+    } catch (error) {
+      console.error(`SQLiteAdapter.putAll error for ${table}:`, error);
+      // Fallback: sequential puts
+      for (const { key, value } of items) {
+        await this.put(table, value, key);
+      }
     }
   }
 
   async deleteAll(table: string, keys: string[]): Promise<void> {
-    // For now, implement as sequential deletes
-    // Could be optimized with a batch operation in the future
-    for (const key of keys) {
-      await this.delete(table, key);
+    try {
+      await invoke('sqlite_delete_all', { table, keys });
+    } catch (error) {
+      console.error(`SQLiteAdapter.deleteAll error for ${table}:`, error);
+      // Fallback: sequential deletes
+      for (const key of keys) {
+        await this.delete(table, key);
+      }
     }
   }
 }
