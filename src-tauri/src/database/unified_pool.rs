@@ -112,11 +112,38 @@ impl ConnectionPermit {
         );
         conn.execute_batch(&config).ok();
 
-        // Load extensions
+        // Load extensions with backend allowlist enforcement
+        // Minimal duplication of allowlist here for security and clarity
+        const ALLOWED_EXTENSIONS: &[&str] = &[
+            "httpfs",
+            "parquet",
+            "json",
+            "excel",
+            "spatial",
+            "sqlite_scanner",
+            "postgres_scanner",
+            "mysql_scanner",
+            "arrow",
+            "aws",
+            "azure",
+            "gsheets",
+            "read_stat",
+            "motherduck",
+            "iceberg",
+            "delta",
+        ];
+
         let extensions = self.extensions.blocking_lock();
         if !extensions.is_empty() {
             let mut extension_config = String::new();
             for ext in extensions.iter() {
+                if !ALLOWED_EXTENSIONS.contains(&ext.name.as_str()) {
+                    tracing::warn!(
+                        "[UNIFIED_POOL] Skipping disallowed extension '{}'; not in allowlist",
+                        ext.name
+                    );
+                    continue;
+                }
                 let install_command = if ext.extension_type == "community" {
                     format!("INSTALL {} FROM community;", ext.name)
                 } else {
@@ -125,12 +152,14 @@ impl ConnectionPermit {
                 extension_config.push_str(&install_command);
                 extension_config.push_str(&format!("LOAD {};", ext.name));
             }
-            conn.execute_batch(&extension_config).map_err(|e| {
-                DuckDBError::ConnectionError {
-                    message: format!("Failed to load extensions: {}", e),
-                    context: None,
-                }
-            })?;
+            if !extension_config.is_empty() {
+                conn.execute_batch(&extension_config).map_err(|e| {
+                    DuckDBError::ConnectionError {
+                        message: format!("Failed to load extensions: {}", e),
+                        context: None,
+                    }
+                })?;
+            }
         }
 
         // RE-ATTACH PREVIOUSLY ATTACHED DATABASES

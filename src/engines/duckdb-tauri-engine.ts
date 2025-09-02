@@ -131,35 +131,25 @@ export class DuckDBTauriEngine implements DatabaseEngine {
     return this.invokeWithErrorHandling<QueryResult>('execute_query', { sql, params });
   }
 
-  async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
+  async *stream(sql: string, _params?: any[]): AsyncGenerator<any> {
+    // Use unified binary streaming with Arrow IPC
     const streamId = crypto.randomUUID();
-    const buffer: any[] = [];
-    let done = false;
+    const { TauriArrowReader } = await import('./tauri-arrow-reader');
 
-    // Set up listener first
-    const unlisten = await this.listen(`stream-${streamId}`, (event: any) => {
-      buffer.push(event.payload);
-    });
+    const reader = new TauriArrowReader(streamId);
+    await reader.waitForInit();
+    await this.invoke('stream_query', { streamId, sql });
 
-    const unlistenEnd = await this.listen(`stream-${streamId}-end`, () => {
-      done = true;
-    });
-
-    // Start streaming
-    await this.invoke('stream_query', { streamId, sql, params: params || [] });
-
-    // Yield results as they come
     try {
-      while (!done || buffer.length > 0) {
-        if (buffer.length > 0) {
-          yield buffer.shift();
-        } else {
-          await new Promise((resolve) => setTimeout(resolve, 10));
-        }
+      // Forward batches as they arrive
+      for await (const batch of reader) {
+        yield batch;
       }
     } finally {
-      unlisten();
-      unlistenEnd();
+      // Ensure we cancel/cleanup if consumer stops early
+      if (!reader.closed && !reader.done) {
+        await reader.cancel().catch(() => undefined);
+      }
     }
   }
 
@@ -224,6 +214,25 @@ export class DuckDBTauriEngine implements DatabaseEngine {
   }
 
   getCapabilities(): EngineCapabilities {
+    // Mirror the backend allowlist to guide the UI (keep in sync if changed)
+    const allowed = [
+      'httpfs',
+      'parquet',
+      'json',
+      'excel',
+      'spatial',
+      'sqlite_scanner',
+      'postgres_scanner',
+      'mysql_scanner',
+      'arrow',
+      'aws',
+      'azure',
+      'gsheets',
+      'read_stat',
+      'motherduck',
+      'iceberg',
+      'delta',
+    ] as const;
     return {
       supportsStreaming: true,
       supportsMultiThreading: true,
@@ -232,8 +241,8 @@ export class DuckDBTauriEngine implements DatabaseEngine {
       supportsPersistence: true,
       supportsRemoteFiles: true,
       maxFileSize: undefined,
-      supportedFileFormats: ['all'],
-      supportedExtensions: ['all'],
+      supportedFileFormats: ['csv', 'parquet', 'json', 'xlsx', 'arrow'],
+      supportedExtensions: allowed,
     };
   }
 }
