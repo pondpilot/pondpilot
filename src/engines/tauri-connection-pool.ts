@@ -271,22 +271,9 @@ export class TauriConnectionPool implements ConnectionPool {
    * Initialize a connection with extensions and attachments
    */
   private async initializeConnection(conn: TauriConnection, isNew: boolean = false): Promise<void> {
-    // Load extensions if not already loaded
-    if (!conn.hasExtensionsLoaded()) {
-      try {
-        const { ExtensionLoader } = await import('../services/extension-loader');
-        await ExtensionLoader.loadExtensionsForConnection(conn);
-        conn.markExtensionsLoaded();
-      } catch (error) {
-        const logLevel = isNew ? 'error' : 'warn';
-        // eslint-disable-next-line no-console
-        console[logLevel](
-          `Failed to load extensions for ${isNew ? 'new' : 'reused'} connection:`,
-          error,
-        );
-        // Continue anyway - connection is still usable for basic queries
-      }
-    }
+    // Extension loading is handled centrally on the Tauri backend per-connection
+    // to enforce security policy (allowlist) and avoid duplication. No-op here.
+    conn.markExtensionsLoaded();
 
     // Load local DB attachments if not already loaded
     if (!conn.hasAttachedDbsLoaded()) {

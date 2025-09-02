@@ -407,11 +407,11 @@ impl DuckDBEngine {
         sql: &str,
         params: Vec<serde_json::Value>,
     ) -> Result<super::types::QueryResult> {
-        // Validate that we're not trying to use parameters (temporary limitation)
+        // Explicitly reject parameters for now to avoid silent misuse
         if !params.is_empty() {
-            warn!("Parameters provided but not supported in connection execution mode");
-            // For now, we'll proceed without parameters but log the warning
-            // In production, you might want to return an error here
+            return Err(crate::errors::DuckDBError::ParameterBinding {
+                message: "Parameter binding is not supported on desktop yet".to_string(),
+            });
         }
 
         // Get the connection handle from the manager
@@ -1019,10 +1019,11 @@ impl DuckDBEngine {
         })?.clone();
         drop(statements);
 
-        // For now, ignore parameters and just execute the SQL directly
-        // TODO: Implement proper parameter binding
+        // Explicitly reject parameters until proper parameter binding is implemented
         if !params.is_empty() {
-            warn!("Parameters provided to prepared statement but parameter binding not yet implemented");
+            return Err(crate::errors::DuckDBError::ParameterBinding {
+                message: "Parameter binding is not supported on desktop yet".to_string(),
+            });
         }
         
         // Execute using the existing query execution path
