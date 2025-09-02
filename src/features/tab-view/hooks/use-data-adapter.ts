@@ -648,7 +648,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           try {
             // eslint-disable-next-line no-console
             console.log('[STREAM][fetch] reader.next()...');
-          } catch {}
+          } catch {
+            // Intentionally empty - ignore console errors
+          }
           const { done, value } = await Promise.race([
             mainDataReaderRef.current.next(),
             new Promise<never>((_, reject) => {
@@ -667,7 +669,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             try {
               // eslint-disable-next-line no-console
               console.log('[STREAM][fetch] reader done');
-            } catch {}
+            } catch {
+              // Intentionally empty - ignore console errors
+            }
             readAll = true;
             break;
           }
@@ -681,7 +685,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           try {
             // eslint-disable-next-line no-console
             console.log('[STREAM][fetch] batch rows:', newTableData.length);
-          } catch {}
+          } catch {
+            // Intentionally empty - ignore console errors
+          }
 
           actualData.current.push(...newTableData);
 
@@ -714,7 +720,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             try {
               // eslint-disable-next-line no-console
               console.log('[STREAM][fetch] reader error after closed:', error);
-            } catch {}
+            } catch {
+              // Intentionally empty - ignore console errors
+            }
             // Handle the error like other streaming errors
             if (isSqlExecutionError(error)) {
               // This is a SQL error, not a file access error
@@ -731,7 +739,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         try {
           // eslint-disable-next-line no-console
           console.log('[STREAM][fetch] caught error:', error);
-        } catch {}
+        } catch {
+          // Intentionally empty - ignore console errors
+        }
         if (error.message?.includes('NotReadableError')) {
           if (options.retry_with_file_sync) {
             // First try to sync files, that may re-create a working handle
@@ -893,7 +903,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             have: actualData.current.length,
             need: fetchTo.current,
           });
-        } catch {}
+        } catch {
+          // Intentionally empty - ignore console errors
+        }
         return;
       }
 
