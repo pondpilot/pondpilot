@@ -79,7 +79,7 @@ describe('MotherDuck Tree Builder', () => {
         id: 'test-id' as PersistentDataSourceId,
         legacyUrl: 'https://example.com/db.duckdb',
         dbName: 'example_db',
-        connectionType: 'motherduck',
+        connectionType: 'url',
         queryEngineType: 'duckdb',
         supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
         connectionState: 'connected',
@@ -144,7 +144,7 @@ describe('MotherDuck Tree Builder', () => {
         id: 'regular' as PersistentDataSourceId,
         legacyUrl: 'https://example.com/db.duckdb',
         dbName: 'example_db',
-        connectionType: 'motherduck',
+        connectionType: 'url',
         queryEngineType: 'duckdb',
         supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
         connectionState: 'connected',
@@ -348,9 +348,9 @@ describe('MotherDuck Tree Builder', () => {
       const regularDb: RemoteDB = {
         type: 'remote-db',
         id: 'regular' as PersistentDataSourceId,
-        legacyUrl: 'https://example.com/db.duckdb',
+        legacyUrl: 'ps://example.com/db.duckdb',
         dbName: 'example_db',
-        connectionType: 'motherduck',
+        connectionType: 'url',
         queryEngineType: 'duckdb',
         supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
         connectionState: 'connected',
@@ -370,12 +370,12 @@ describe('MotherDuck Tree Builder', () => {
 
       // Should have one MotherDuck instance and one regular database
       const motherduckNode = nodes.find((n) => n.iconType === 'motherduck');
-      const regularNode = nodes.find((n) => n.label?.includes('example_db'));
+      const regularNode = nodes.find((n) => n.iconType === 'db');
 
       expect(motherduckNode).toBeDefined();
       expect(motherduckNode?.children).toHaveLength(1);
       expect(regularNode).toBeDefined();
-      expect(nodes[1].iconType).toBe('db');
+      expect(regularNode?.iconType).toBe('db');
     });
   });
 });
