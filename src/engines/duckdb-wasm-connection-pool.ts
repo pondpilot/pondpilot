@@ -175,7 +175,12 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
     }
   }
 
-  async sendAbortable<T = any>(sql: string, signal: AbortSignal, stream?: boolean): Promise<T> {
+  async sendAbortable<T = any>(
+    sql: string,
+    signal: AbortSignal,
+    stream?: boolean,
+    _options?: any,
+  ): Promise<T> {
     // Use the engine's db directly for compatibility with DuckDB WASM
     const { db } = this.engine;
     if (!db) {
@@ -183,78 +188,129 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
     }
 
     const conn = await db.connect();
-    let stmt: any = null;
+    try {
+      // eslint-disable-next-line no-console
+      console.log('[WASM][sendAbortable] Connected', {
+        streamRequested: !!stream,
+        sqlLen: sql.length,
+      });
+    } catch {}
     let aborted = false;
 
     // Set up abort handler
     const abortHandler = async () => {
       aborted = true;
-      if (stmt) {
-        try {
-          await stmt.close();
-        } catch {
-          // Ignore close errors
-        }
+      try {
+        // Cancel any in-flight streaming query
+        await conn.cancelSent();
+      } catch {
+        // Ignore cancel errors
       }
-      conn.close().catch(() => {
+      try {
+        await conn.close();
+      } catch {
         // Ignore close errors on abort
-      });
+      }
+      try {
+        // eslint-disable-next-line no-console
+        console.log('[WASM][sendAbortable] Abort handled: cancelSent + close');
+      } catch {}
     };
 
     signal.addEventListener('abort', abortHandler);
 
     try {
       if (stream) {
-        stmt = await conn.prepare(sql);
-        const reader = await stmt.send();
+        try {
+          // eslint-disable-next-line no-console
+          console.log('[WASM][sendAbortable] Starting stream via conn.send');
+        } catch {}
+        const reader = await conn.send(sql, true);
 
-        // We need to keep the statement and connection alive
-        // They will be closed when the reader is cancelled
+        // We need to keep the connection alive for the lifetime of the reader
         signal.removeEventListener('abort', abortHandler);
 
-        // Wrap the reader to handle cleanup
+        // Wrap the reader to handle cleanup and parity with main
+        let doneReached = false;
+        let batchCount = 0;
         const wrappedReader = {
           async next() {
-            if (aborted) {
+            if (aborted || doneReached) {
               return { done: true, value: undefined };
             }
             try {
-              return reader.next();
+              // eslint-disable-next-line no-console
+              console.log('[WASM][sendAbortable] reader.next() ...');
+              const res = await reader.next();
+              batchCount += res.done ? 0 : 1;
+              if (res.done || !res.value) {
+                doneReached = true;
+                try {
+                  await conn.cancelSent();
+                } catch {}
+                try {
+                  await conn.close();
+                } catch {}
+                try {
+                  // eslint-disable-next-line no-console
+                  console.log('[WASM][sendAbortable] reader done; batches read:', batchCount);
+                } catch {}
+                return { done: true, value: undefined };
+              }
+              try {
+                // eslint-disable-next-line no-console
+                console.log('[WASM][sendAbortable] batch received');
+              } catch {}
+              return res;
             } catch (error) {
               if (aborted) {
                 return { done: true, value: undefined };
               }
+              try {
+                // eslint-disable-next-line no-console
+                console.log('[WASM][sendAbortable] reader.next() error:', error);
+              } catch {}
               throw error;
             }
           },
           async cancel() {
             aborted = true;
-            if (stmt) {
-              try {
-                await stmt.close();
-              } catch {
-                // Ignore errors
-              }
-            }
+            try {
+              await conn.cancelSent();
+            } catch {}
             try {
               await conn.close();
-            } catch {
-              // Ignore errors
-            }
+            } catch {}
+            try {
+              // eslint-disable-next-line no-console
+              console.debug('[WASM][sendAbortable] Reader cancelled');
+            } catch {}
           },
           get closed() {
-            return aborted || reader.closed;
+            return aborted || doneReached || reader.closed;
           },
         };
 
         return wrappedReader as T;
       }
       const result = await conn.query(sql);
+      try {
+        // eslint-disable-next-line no-console
+        console.log('[WASM][sendAbortable] Non-stream query completed');
+      } catch {}
       return result as T;
     } catch (error) {
       if (aborted) {
+        try {
+          // eslint-disable-next-line no-console
+          console.log('[WASM][sendAbortable] Query aborted error passthrough');
+        } catch {}
         throw new Error('Query aborted');
       }
+      try {
+        // eslint-disable-next-line no-console
+        console.log('[WASM][sendAbortable] Error:', error);
+      } catch {}
       throw error;
     } finally {
       // Only clean up if not streaming or if there was an error
@@ -264,6 +320,10 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
           await stmt.close();
         }
         await conn.close();
+        try {
+          // eslint-disable-next-line no-console
+          console.log('[WASM][sendAbortable] Connection closed in finally');
+        } catch {}
       }
     }
   }
