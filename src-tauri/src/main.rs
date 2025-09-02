@@ -240,12 +240,15 @@ fn main() {
             commands::prepare_statement,
             commands::prepared_statement_execute,
             commands::prepared_statement_close,
+            commands::set_extensions,
             // Persistence commands
             persistence::sqlite_get,
             persistence::sqlite_put,
             persistence::sqlite_delete,
             persistence::sqlite_clear,
             persistence::sqlite_get_all,
+            persistence::sqlite_put_all,
+            persistence::sqlite_delete_all,
             // Secrets management commands
             secrets::save_secret,
             secrets::list_secrets,
