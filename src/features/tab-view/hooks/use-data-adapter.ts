@@ -213,6 +213,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
   // Holds the data read from the data source. We use ref to allow efficient
   // appends instead of re-writing, what can be a huge array every time.
   const actualData = useRef<DataTable>([]);
+  // Prevent concurrent fetch loops that could reenter reader.next()
+  const fetchLockRef = useRef<boolean>(false);
 
   // We need a non-reactive ref to be able to handle multiple
   // parallel fetch calls, such that to the end user it seems that
@@ -642,6 +644,11 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         ) {
           // Removed console statement
           // Run an abortable read
+          // Debug: trace before next()
+          try {
+            // eslint-disable-next-line no-console
+            console.log('[STREAM][fetch] reader.next()...');
+          } catch {}
           const { done, value } = await Promise.race([
             mainDataReaderRef.current.next(),
             new Promise<never>((_, reject) => {
@@ -657,6 +664,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           ]);
 
           if (done) {
+            try {
+              // eslint-disable-next-line no-console
+              console.log('[STREAM][fetch] reader done');
+            } catch {}
             readAll = true;
             break;
           }
@@ -667,6 +678,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           }
 
           const newTableData = convertArrowTable(value, inferredSchema);
+          try {
+            // eslint-disable-next-line no-console
+            console.log('[STREAM][fetch] batch rows:', newTableData.length);
+          } catch {}
 
           actualData.current.push(...newTableData);
 
@@ -696,6 +711,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           try {
             await mainDataReaderRef.current.next();
           } catch (error: any) {
+            try {
+              // eslint-disable-next-line no-console
+              console.log('[STREAM][fetch] reader error after closed:', error);
+            } catch {}
             // Handle the error like other streaming errors
             if (isSqlExecutionError(error)) {
               // This is a SQL error, not a file access error
@@ -709,6 +728,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           }
         }
       } catch (error: any) {
+        try {
+          // eslint-disable-next-line no-console
+          console.log('[STREAM][fetch] caught error:', error);
+        } catch {}
         if (error.message?.includes('NotReadableError')) {
           if (options.retry_with_file_sync) {
             // First try to sync files, that may re-create a working handle
@@ -858,10 +881,19 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // Now exit early if already fetching or have enough
       // Removed console statement
       if (
+        fetchLockRef.current ||
         isFetchingData ||
         (fetchTo.current !== null && actualData.current.length >= fetchTo.current)
       ) {
-        // Removed console statement
+        try {
+          // eslint-disable-next-line no-console
+          console.log('[STREAM][fetch] Skipping fetch: locked or already fetching or enough data', {
+            locked: fetchLockRef.current,
+            isFetchingData,
+            have: actualData.current.length,
+            need: fetchTo.current,
+          });
+        } catch {}
         return;
       }
 
@@ -870,6 +902,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       try {
         // Update the state to show that we are fetching data.
+        fetchLockRef.current = true;
         setIsFetchingData(true);
 
         // Wait for an actual fetch to finish
@@ -879,6 +912,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // first fetch after sort change.
         setLastSortSafe(curSort);
         setIsFetchingData(false);
+        fetchLockRef.current = false;
       }
     },
     [

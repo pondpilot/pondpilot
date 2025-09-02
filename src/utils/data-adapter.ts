@@ -14,16 +14,11 @@ import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { isTauriEnvironment } from '@utils/browser';
-import type { Table } from 'apache-arrow';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 import { convertArrowTable } from './arrow';
 import { classifySQLStatement, trimQuery } from './editor/sql';
 import { quote } from './helpers';
-
-// Initial batch size for table preview - 10K rows provides a fast first paint
-// and keeps batch counts and backend work low on very large datasets
-const INITIAL_TABLE_PREVIEW_LIMIT = 10000;
 
 function getGetSortableReaderApiFromFQN(
   pool: ConnectionPool,
@@ -31,64 +26,41 @@ function getGetSortableReaderApiFromFQN(
   attach?: { dbName: string; url: string; readOnly?: boolean },
 ): DataAdapterQueries['getSortableReader'] {
   return async (sort, abortSignal) => {
-    // For initial table preview, add a reasonable LIMIT to prevent scanning entire large tables
-    // This is especially important for CSV files which require full scans
-    let baseQuery = `SELECT * FROM ${fqn} LIMIT ${INITIAL_TABLE_PREVIEW_LIMIT}`;
-
+    // NON-NEGOTIABLE: Main-parity behavior
+    // Always use Arrow streaming without a hard LIMIT for both WASM and Tauri.
+    // This matches main and is required to avoid regressions in pagination/scrolling.
+    let baseQuery = `SELECT * FROM ${fqn}`;
     if (sort.length > 0) {
       const orderBy = sort
         .map((s) => `${toDuckDBIdentifier(s.column)} ${s.order || 'asc'}`)
         .join(', ');
-      // When sorting, we need to wrap the limited query in a subquery
-      baseQuery = `SELECT * FROM (SELECT * FROM ${fqn} LIMIT ${INITIAL_TABLE_PREVIEW_LIMIT}) ORDER BY ${orderBy}`;
+      baseQuery += ` ORDER BY ${orderBy}`;
     }
-    // WASM vs Tauri have different optimal paths:
-    // - Tauri (native): use Arrow streaming via sendAbortable
-    // - WASM (browser): use non-streaming query and wrap result in a simple reader
-    if (isTauriEnvironment()) {
-      if (!pool.sendAbortable) {
-        throw new Error('Connection pool does not support sendAbortable');
-      }
-      const reader = await pool.sendAbortable(
-        baseQuery,
-        abortSignal,
-        true,
-        attach ? { attach } : undefined,
-      );
-      return reader;
+    if (!pool.sendAbortable) {
+      throw new Error('Connection pool does not support sendAbortable');
     }
-
-    if (!pool.queryAbortable) {
-      throw new Error('Connection pool does not support queryAbortable');
-    }
-
-    const { value, aborted } = await pool.queryAbortable<Table>(baseQuery, abortSignal);
-    if (aborted) {
-      return null;
-    }
-
-    // Wrap the single Arrow Table in a minimal async reader expected by the UI
-    let yielded = false;
-    let closed = false;
-    const singleBatchReader = {
-      async next() {
-        if (closed) return { done: true, value: undefined };
-        if (!yielded) {
-          yielded = true;
-          return { done: false, value };
-        }
-        closed = true;
-        return { done: true, value: undefined };
-      },
-      async cancel() {
-        closed = true;
-      },
-      get closed() {
-        return closed;
-      },
-    } as unknown as ReturnType<NonNullable<DataAdapterQueries['getSortableReader']>>;
-
-    return singleBatchReader;
+    // Debug: trace streaming query creation
+    try {
+      // eslint-disable-next-line no-console
+      console.log('[STREAM][getSortableReaderApiFromFQN] Creating reader', {
+        fqn,
+        orderBy: sort.map((s) => `${s.column} ${s.order || 'asc'}`).join(', '),
+        querySnippet: baseQuery.slice(0, 200),
+      });
+    } catch {}
+    const reader = await pool.sendAbortable(
+      baseQuery,
+      abortSignal,
+      true,
+      attach ? { attach } : undefined,
+    );
+    try {
+      // eslint-disable-next-line no-console
+      console.log('[STREAM][getSortableReaderApiFromFQN] Reader created', {
+        closed: (reader as any)?.closed,
+      });
+    } catch {}
+    return reader;
   };
 }
 
@@ -136,12 +108,10 @@ function getFlatFileDataAdapterQueries(
   dataSource: AnyFlatFileDataSource,
   sourceFile: LocalFile,
 ): DataAdapterQueries {
-  // Use FQN appropriate to environment:
-  // - Tauri (native DuckDB): use unqualified <view> to avoid cross-database/schema mismatches
-  // - Web/WASM (OPFS persistent DB named 'pondpilot'): use pondpilot.main.<view>
-  const fqn = isTauriEnvironment()
-    ? `${toDuckDBIdentifier(dataSource.viewName)}`
-    : `${toDuckDBIdentifier(SYSTEM_DATABASE_NAME)}.main.${toDuckDBIdentifier(dataSource.viewName)}`;
+  // NON-NEGOTIABLE: Main-parity behavior for flat files
+  // Views for flat files are created in the default catalog, schema `main`
+  // See controllers/db/data-source.ts where views are built as `main.<viewName>`
+  const fqn = `main.${toDuckDBIdentifier(dataSource.viewName)}`;
 
   const baseAttrs: Partial<DataAdapterQueries> = {
     getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn),
@@ -429,6 +399,8 @@ export function getScriptAdapterQueries({
     adapter: {
       // As of today we do not allow runnig even an estimated row count on
       // arbitrary queries, so we do no create these functions
+      // NON-NEGOTIABLE: Main-parity behavior
+      // Use Arrow streaming for script results irrespective of environment.
       getSortableReader: classifiedStmt.isAllowedInSubquery
         ? async (sort, abortSignal) => {
             let queryToRun = trimmedQuery;
@@ -439,86 +411,20 @@ export function getScriptAdapterQueries({
                 .join(', ');
               queryToRun = `SELECT * FROM (${trimmedQuery}) ORDER BY ${orderBy}`;
             }
-
-            if (isTauriEnvironment()) {
-              if (!pool.sendAbortable) {
-                throw new Error('Connection pool does not support sendAbortable');
-              }
-              const reader = await pool.sendAbortable(queryToRun, abortSignal, true);
-              return reader;
+            if (!pool.sendAbortable) {
+              throw new Error('Connection pool does not support sendAbortable');
             }
-
-            if (!pool.queryAbortable) {
-              throw new Error('Connection pool does not support queryAbortable');
-            }
-            const { value, aborted } = await pool.queryAbortable<Table>(queryToRun, abortSignal);
-            if (aborted) return null;
-
-            // Wrap into a single-batch reader for WASM
-            let yielded = false;
-            let closed = false;
-            const singleBatchReader = {
-              async next() {
-                if (closed) return { done: true, value: undefined };
-                if (!yielded) {
-                  yielded = true;
-                  return { done: false, value };
-                }
-                closed = true;
-                return { done: true, value: undefined };
-              },
-              async cancel() {
-                closed = true;
-              },
-              get closed() {
-                return closed;
-              },
-            } as unknown as ReturnType<NonNullable<DataAdapterQueries['getSortableReader']>>;
-
-            return singleBatchReader;
+            const reader = await pool.sendAbortable(queryToRun, abortSignal, true);
+            return reader;
           }
         : undefined,
       getReader: !classifiedStmt.isAllowedInSubquery
         ? async (abortSignal) => {
-            if (isTauriEnvironment()) {
-              if (!pool.sendAbortable) {
-                throw new Error('Connection pool does not support sendAbortable');
-              }
-              const reader = await pool.sendAbortable(trimmedQuery, abortSignal, true);
-              return reader;
+            if (!pool.sendAbortable) {
+              throw new Error('Connection pool does not support sendAbortable');
             }
-
-            if (!pool.queryAbortable) {
-              throw new Error('Connection pool does not support queryAbortable');
-            }
-            const { value, aborted } = await pool.queryAbortable<Table>(
-              trimmedQuery,
-              abortSignal,
-            );
-            if (aborted) return null;
-
-            // WASM: wrap in single-batch reader
-            let yielded = false;
-            let closed = false;
-            const singleBatchReader = {
-              async next() {
-                if (closed) return { done: true, value: undefined };
-                if (!yielded) {
-                  yielded = true;
-                  return { done: false, value };
-                }
-                closed = true;
-                return { done: true, value: undefined };
-              },
-              async cancel() {
-                closed = true;
-              },
-              get closed() {
-                return closed;
-              },
-            } as unknown as ReturnType<NonNullable<DataAdapterQueries['getReader']>>;
-
-            return singleBatchReader;
+            const reader = await pool.sendAbortable(trimmedQuery, abortSignal, true);
+            return reader;
           }
         : undefined,
       getColumnAggregate: classifiedStmt.isAllowedInSubquery
