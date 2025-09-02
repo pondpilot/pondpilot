@@ -120,7 +120,9 @@ describe('Platform Capabilities', () => {
       // Tauri requirements
       (global as any).window = { __TAURI__: {} };
       const tauriCapability = getConnectionCapability('s3');
-      expect(tauriCapability.requirements).toContain('Requires valid AWS credentials');
+      expect(tauriCapability.requirements).toContain(
+        'Requires valid AWS credentials or bucket permissions',
+      );
     });
   });
 

@@ -13,13 +13,13 @@ import { makePersistentDataSourceId } from '@utils/data-source';
 jest.mock('@utils/sql-attach');
 jest.mock('@utils/url-helpers');
 jest.mock('@utils/helpers');
-jest.mock('../../../services/connections-api');
+jest.mock('../../../src/services/connections-api');
 
 describe('ConnectionFactory', () => {
-  let mockPool: any;
+  let _mockPool: any;
 
   beforeEach(() => {
-    mockPool = {
+    _mockPool = {
       query: jest.fn(),
     };
   });
