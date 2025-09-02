@@ -47,7 +47,9 @@ function getGetSortableReaderApiFromFQN(
         orderBy: sort.map((s) => `${s.column} ${s.order || 'asc'}`).join(', '),
         querySnippet: baseQuery.slice(0, 200),
       });
-    } catch {}
+    } catch {
+      // Intentionally empty - ignore console errors
+    }
     const reader = await pool.sendAbortable(
       baseQuery,
       abortSignal,
@@ -59,7 +61,9 @@ function getGetSortableReaderApiFromFQN(
       console.log('[STREAM][getSortableReaderApiFromFQN] Reader created', {
         closed: (reader as any)?.closed,
       });
-    } catch {}
+    } catch {
+      // Intentionally empty - ignore console errors
+    }
     return reader;
   };
 }
