@@ -1,5 +1,5 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { OPFSUtil } from '@utils/opfs';
 
@@ -140,7 +140,7 @@ export async function importClipboardAsFile(
  * Creates a table in DuckDB from clipboard content
  */
 export async function importClipboardAsTable(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   clipboardText: string,
   tableName: string,
   format: 'json' | 'csv',

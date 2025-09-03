@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 
 import { escapeStringLiteral } from './sql-escape';
 import { vectorToArray } from './vector-extraction';
@@ -19,7 +19,7 @@ export interface BatchConstraintInfo {
  * @returns Map of table names to their constraint information
  */
 export async function getBatchTableConstraints(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   database: string,
   schema: string,
   tables: string[],

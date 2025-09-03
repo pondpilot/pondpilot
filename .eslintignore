@@ -5,3 +5,4 @@
 *.d.mts
 vite.config.ts
 playwright-report
+src-tauri/target/

@@ -4,6 +4,8 @@ import { useFilterNodes } from '@features/data-explorer/hooks/use-filter-nodes';
 import { filterTreeNodes } from '@features/data-explorer/utils';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
+import { getTestFileTypeFilter } from '../test-helpers';
+
 // Mock React hooks
 jest.mock('react', () => ({
   useMemo: jest.fn((fn: any) => fn()),
@@ -53,12 +55,7 @@ describe('useFilterNodes', () => {
     localDbNodes: [createDbNode('db1', 'local.db')],
     remoteDatabaseNodes: [createDbNode('remote1', 'cloud.db')],
     activeFilter: 'all' as DataExplorerFilterType,
-    fileTypeFilter: {
-      csv: true,
-      json: true,
-      parquet: true,
-      xlsx: true,
-    },
+    fileTypeFilter: getTestFileTypeFilter(),
     searchQuery: '',
     localEntriesValues: new Map([
       ['file1', { kind: 'file', fileType: 'data-source', ext: 'csv' }],
