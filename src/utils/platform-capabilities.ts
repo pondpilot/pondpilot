@@ -7,6 +7,7 @@
 
 import { EngineType, EngineCapabilities } from '@engines/types';
 import { RemoteConnectionType } from '@models/data-source';
+import { isTauriEnvironment } from '@utils/browser';
 
 /**
  * Current platform context
@@ -46,7 +47,7 @@ export interface ConnectionCapability {
  * Get current platform context
  */
 export function getPlatformContext(): PlatformContext {
-  const isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
+  const isTauri = isTauriEnvironment();
   const isBrowser = typeof window !== 'undefined' && !isTauri;
 
   // Default to WASM if we can't determine, but this should ideally come from the engine

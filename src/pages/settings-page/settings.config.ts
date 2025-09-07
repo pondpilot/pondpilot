@@ -2,6 +2,7 @@ import { DatabaseManagementSettings } from '@components/database-management/data
 
 import { AISettings } from './components/ai-settings';
 import { EditorSettings } from './components/editor-settings';
+import { QueryTimeoutSettings } from './components/query-settings/query-timeout-settings';
 import { ClearDataSection } from './components/sections/clear-data-section';
 import { ExportQueriesSection } from './components/sections/export-queries-section';
 import { ThemeSwitcher } from './components/theme-switcher';
@@ -65,6 +66,18 @@ export const settingsConfig: SettingsConfig = {
           description:
             'This action will permanently delete all saved queries and uploaded files. This cannot be undone.',
           component: ClearDataSection,
+        },
+      ],
+    },
+    {
+      id: 'performance',
+      title: 'Performance',
+      sections: [
+        {
+          id: 'query-timeout',
+          title: 'Query timeout',
+          description: 'Control how long PondPilot waits for a query before timing out.',
+          component: QueryTimeoutSettings,
         },
       ],
     },

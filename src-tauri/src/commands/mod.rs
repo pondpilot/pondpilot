@@ -24,7 +24,7 @@ pub async fn execute_query(
     sql: String,
     params: Vec<serde_json::Value>,
 ) -> Result<QueryResult> {
-    tracing::debug!("[COMMAND] execute_query called with SQL: {}", sql);
+    tracing::debug!("[COMMAND] execute_query called (sql_len={} chars)", sql.len());
     // No lock needed - execute_query is thread-safe via the pool
     engine.execute_query(&sql, params).await
 }
@@ -107,6 +107,7 @@ pub async fn create_connection(engine: EngineState<'_>) -> Result<String> {
     // Create and store the connection
     engine.create_connection(connection_id.clone()).await?;
     
+    #[cfg(debug_assertions)]
     eprintln!("[CREATE_CONNECTION] Created persistent connection: {}", connection_id);
     Ok(connection_id)
 }
@@ -119,8 +120,14 @@ pub async fn connection_execute(
     params: Vec<serde_json::Value>,
 ) -> Result<QueryResult> {
     // Use the specific connection to execute the query
-    eprintln!("[CONNECTION_EXECUTE] Using connection {} for SQL: {}", connection_id, sql);
+    #[cfg(debug_assertions)]
+    eprintln!(
+        "[CONNECTION_EXECUTE] Using connection {} for SQL (len={} chars)",
+        connection_id,
+        sql.len()
+    );
     // Debug: If this is an ATTACH statement, log file diagnostics to help troubleshoot crashes
+    #[cfg(debug_assertions)]
     if sql.trim_start().to_uppercase().starts_with("ATTACH ") {
         // Simple parse to extract the path between single quotes: ATTACH 'path' AS name
         if let Some(start_idx) = sql.find('\'') {
@@ -182,6 +189,7 @@ pub async fn connection_close(
     connection_id: String,
 ) -> Result<()> {
     // Close and remove the connection from the manager
+    #[cfg(debug_assertions)]
     eprintln!("[CONNECTION_CLOSE] Closing connection: {}", connection_id);
     engine.close_connection(&connection_id).await
 }
@@ -190,6 +198,7 @@ pub async fn connection_close(
 pub async fn reset_all_connections(
     engine: EngineState<'_>,
 ) -> Result<()> {
+    #[cfg(debug_assertions)]
     eprintln!("[RESET_CONNECTIONS] Resetting all connections for MotherDuck account switch");
     engine.reset_all_connections().await
 }

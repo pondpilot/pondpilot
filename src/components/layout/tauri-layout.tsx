@@ -4,6 +4,7 @@ import { useMenuEvents } from '@hooks/use-menu-events';
 import { Stack, ActionIcon, Tooltip } from '@mantine/core';
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
+import { detectPlatform } from '@utils/browser';
 import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 
@@ -32,30 +33,16 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
 
   // Add padding for macOS traffic lights when using overlay titlebar
   // Default to 'darwin' if we're in Tauri since we're likely on macOS during development
-  const [platform, setPlatform] = useState<string>(() => {
-    if (typeof window !== 'undefined' && window.__TAURI__) {
-      return 'darwin'; // Default to macOS when in Tauri
-    }
-    return '';
-  });
+  const [platform, setPlatform] = useState<string>('');
 
   useEffect(() => {
     // Detect platform for proper titlebar spacing
-    const detectPlatform = async () => {
-      try {
-        // Dynamically import Tauri modules only when in Tauri environment
-        if (window.__TAURI__) {
-          const { os } = window.__TAURI__;
-          if (os && os.platform) {
-            const actualPlatform = await os.platform();
-            setPlatform(actualPlatform);
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to detect platform:', err);
-      }
-    };
-    detectPlatform();
+    try {
+      const p = detectPlatform();
+      setPlatform(p);
+    } catch (err) {
+      console.warn('Failed to detect platform:', err);
+    }
   }, []);
 
   const isMacOS = platform === 'darwin';

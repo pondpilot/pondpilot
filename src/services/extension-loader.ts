@@ -1,10 +1,25 @@
 import { getLogger } from '@engines/debug-logger';
+import { getQueryTimeoutMs } from '@models/app-config';
 import { useExtensionManagementStore } from '@store/extension-management';
 import { tauriLog } from '@utils/tauri-logger';
 
 const logger = getLogger('extension-loader');
 
 export class ExtensionLoader {
+  private static async queryWithTimeout<T = any>(
+    poolOrConn: any,
+    sql: string,
+    timeoutMs?: number,
+  ): Promise<T> {
+    const timeout = timeoutMs ?? getQueryTimeoutMs();
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Extension query timeout after ${timeout}ms`)), timeout),
+    );
+    const exec = typeof poolOrConn.query === 'function'
+      ? poolOrConn.query(sql)
+      : poolOrConn.execute(sql);
+    return Promise.race([exec, timeoutPromise]) as Promise<T>;
+  }
   private static errorToMessage(err: any): string {
     try {
       if (!err) return '';
@@ -66,17 +81,7 @@ export class ExtensionLoader {
         } catch {
           // Ignore import.meta access errors
         }
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
-          const { isTauriEnvironment } = require('@utils/browser');
-          if (isTauriEnvironment && typeof isTauriEnvironment === 'function') {
-            // Allow on desktop by default
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-            if (isTauriEnvironment()) return true;
-          }
-        } catch {
-          // Ignore Tauri environment check errors
-        }
+        // Only allow auto-install in DEV if not explicitly enabled
         try {
           return (import.meta as any).env?.DEV === true;
         } catch {
@@ -100,7 +105,7 @@ export class ExtensionLoader {
 
           // Attempt to load first
           try {
-            await connectionPool.query(`LOAD ${extension.name}`);
+            await ExtensionLoader.queryWithTimeout(connectionPool, `LOAD ${extension.name}`);
             logger.info(`Successfully loaded extension: ${extension.name}`);
             continue;
           } catch (loadErr: any) {
@@ -125,7 +130,7 @@ export class ExtensionLoader {
               ? `INSTALL ${extension.name}`
               : `INSTALL ${extension.name} FROM community`;
           try {
-            await connectionPool.query(installCommand);
+            await ExtensionLoader.queryWithTimeout(connectionPool, installCommand);
             logger.debug(`Installed extension: ${extension.name}`);
           } catch (installErr: any) {
             const msg = ExtensionLoader.errorToMessage(installErr);
@@ -134,7 +139,7 @@ export class ExtensionLoader {
           }
 
           try {
-            await connectionPool.query(`LOAD ${extension.name}`);
+            await ExtensionLoader.queryWithTimeout(connectionPool, `LOAD ${extension.name}`);
             logger.info(`Successfully loaded extension after install: ${extension.name}`);
           } catch (secondLoadErr: any) {
             const msg = ExtensionLoader.errorToMessage(secondLoadErr);
@@ -277,19 +282,14 @@ export class ExtensionLoader {
         } catch {
           // Ignore environment check errors
         }
-        try {
-          const { isTauriEnvironment } = await import('@utils/browser');
-          if (isTauriEnvironment()) return true;
-        } catch {
-          // Ignore environment check errors
-        }
+        // Only allow auto-install in DEV if not explicitly enabled
         return (import.meta as any).env?.DEV === true;
       })();
 
       for (const extension of requiredExtensions) {
         try {
           // First try to load the extension
-          await connection.execute(`LOAD ${extension.name}`);
+          await ExtensionLoader.queryWithTimeout(connection, `LOAD ${extension.name}`);
           logger.debug(`Loaded extension ${extension.name} for connection`);
         } catch (loadError: any) {
           // If loading fails, decide whether to install first then load
@@ -319,14 +319,14 @@ export class ExtensionLoader {
             if ((import.meta as any).env?.DEV) {
               tauriLog(`[ExtensionLoader] Running: ${installCommand}`);
             }
-            await connection.execute(installCommand);
+            await ExtensionLoader.queryWithTimeout(connection, installCommand);
             logger.debug(`Installed extension ${extension.name}`);
 
             // Now try to load again
             if ((import.meta as any).env?.DEV) {
               tauriLog(`[ExtensionLoader] Loading: LOAD ${extension.name}`);
             }
-            await connection.execute(`LOAD ${extension.name}`);
+            await ExtensionLoader.queryWithTimeout(connection, `LOAD ${extension.name}`);
             logger.debug(`Successfully loaded extension ${extension.name} after installation`);
             if ((import.meta as any).env?.DEV) {
               tauriLog(`[ExtensionLoader] Successfully installed and loaded '${extension.name}'`);

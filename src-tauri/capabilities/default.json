@@ -17,6 +17,11 @@
     "dialog:allow-message",
     "dialog:allow-ask",
     "dialog:allow-confirm",
-    "fs:default"
+    { "identifier": "fs:allow-read-dir", "allow": [ {"path": "$APPDATA/io.pondpilot/**"}, {"path": "$DOWNLOAD/**"}, {"path": "$DOCUMENT/**"} ] },
+    { "identifier": "fs:allow-read-file", "allow": [ {"path": "$APPDATA/io.pondpilot/**"}, {"path": "$DOWNLOAD/**"}, {"path": "$DOCUMENT/**"} ] },
+    { "identifier": "fs:allow-write-file", "allow": [ {"path": "$APPDATA/io.pondpilot/**"}, {"path": "$TEMP/io.pondpilot/**"} ] },
+    { "identifier": "fs:allow-stat", "allow": [ {"path": "$APPDATA/io.pondpilot/**"}, {"path": "$DOWNLOAD/**"}, {"path": "$DOCUMENT/**"}, {"path": "$TEMP/io.pondpilot/**"} ] },
+    { "identifier": "fs:allow-exists", "allow": [ {"path": "$APPDATA/io.pondpilot/**"}, {"path": "$DOWNLOAD/**"}, {"path": "$DOCUMENT/**"}, {"path": "$TEMP/io.pondpilot/**"} ] },
+    { "identifier": "fs:create-app-specific-dirs" }
   ]
 }

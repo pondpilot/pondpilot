@@ -14,8 +14,7 @@ use crate::errors::{Result, DuckDBError};
 pub fn escape_sql_value(value: &Value) -> Result<String> {
     match value {
         Value::String(s) => {
-            // Escape single quotes by doubling them (SQL standard)
-            // Also check for null bytes and other dangerous characters
+            // Validate for dangerous characters and patterns first
             if s.contains('\0') {
                 return Err(DuckDBError::InvalidQuery {
                     message: "Null bytes not allowed in SQL parameters".to_string(),
@@ -24,8 +23,9 @@ pub fn escape_sql_value(value: &Value) -> Result<String> {
                 });
             }
             
-            // Additional validation for suspicious patterns
-            if contains_sql_comment(s) || contains_multiple_statements(s) {
+            // Check for SQL metacharacters that could be used for injection
+            // Even with escaping, some patterns are too dangerous to allow
+            if contains_sql_comment(s) || contains_multiple_statements(s) || contains_sql_metacharacters(s) {
                 return Err(DuckDBError::InvalidQuery {
                     message: "Suspicious SQL patterns detected in parameter".to_string(),
                     sql: None,
@@ -33,7 +33,10 @@ pub fn escape_sql_value(value: &Value) -> Result<String> {
                 });
             }
             
-            Ok(format!("'{}'", s.replace('\'', "''")))
+            // Escape single quotes by doubling them (SQL standard)
+            // Also escape backslashes to prevent escape sequence attacks
+            let escaped = s.replace('\\', "\\\\").replace('\'', "''");
+            Ok(format!("'{}'", escaped))
         }
         Value::Number(n) => {
             // Numbers are safe to use directly, but validate they're finite
@@ -84,11 +87,27 @@ fn contains_multiple_statements(s: &str) -> bool {
        normalized.contains("; create") ||
        normalized.contains("; alter") ||
        normalized.contains("; exec") ||
-       normalized.contains("; execute") {
+       normalized.contains("; execute") ||
+       normalized.contains(";drop") ||
+       normalized.contains(";delete") ||
+       normalized.contains(";update") ||
+       normalized.contains(";insert") {
         return true;
     }
     
     false
+}
+
+/// Check for SQL metacharacters that could be dangerous even with escaping
+fn contains_sql_metacharacters(s: &str) -> bool {
+    // Check for various SQL metacharacters and escape sequences
+    // that could be used in advanced injection techniques
+    s.contains('\x00') || // Null byte
+    s.contains('\x1a') || // Substitute character
+    s.contains('\x08') || // Backspace
+    s.contains('\x09') || // Tab (can be used to bypass filters)
+    s.contains('\x0d') || // Carriage return
+    s.contains('\x0a')    // Line feed
 }
 
 /// Sanitize a SQL identifier (table name, column name, etc.)
@@ -194,10 +213,8 @@ mod tests {
             escape_sql_value(&json!("it's")).unwrap(),
             "'it''s'"
         );
-        assert_eq!(
-            escape_sql_value(&json!("'; DROP TABLE users; --")).unwrap(),
-            "'''; DROP TABLE users; --'"
-        );
+        // Suspicious patterns should be rejected, not escaped
+        assert!(escape_sql_value(&json!("'; DROP TABLE users; --")).is_err());
     }
 
     #[test]
