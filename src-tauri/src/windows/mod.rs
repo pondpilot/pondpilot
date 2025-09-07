@@ -14,7 +14,8 @@ pub async fn open_secrets_window(app: AppHandle) -> Result<(), String> {
     let window = WebviewWindowBuilder::new(
         &app,
         "secrets",
-        WebviewUrl::App("index.html".into())
+        // Navigate to secrets via query param to avoid eval
+        WebviewUrl::App("index.html?window=secrets".into())
     )
     .title("Secrets Manager")
     .inner_size(900.0, 700.0)
@@ -28,14 +29,6 @@ pub async fn open_secrets_window(app: AppHandle) -> Result<(), String> {
     {
         window.open_devtools();
     }
-    
-    // Wait a moment for the window to load, then navigate to secrets
-    let window_clone = window.clone();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        let _ = window_clone.eval("window.location.pathname = '/secrets'");
-    });
-
     Ok(())
 }
 

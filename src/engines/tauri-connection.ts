@@ -1,3 +1,5 @@
+import { getQueryTimeoutMs } from '@models/app-config';
+
 import { getLogger } from './debug-logger';
 import { DatabaseConnection, QueryResult, PreparedStatement } from './types';
 
@@ -13,6 +15,49 @@ export class TauriConnection implements DatabaseConnection {
   constructor(invoke: any, id: string) {
     this.invoke = invoke;
     this.id = id;
+  }
+
+  private static toError(err: any): Error {
+    // Normalize various Tauri/IPC error shapes to a proper Error with readable message
+    try {
+      if (!err) return new Error('Unknown error');
+      if (err instanceof Error) return err;
+      if (typeof err === 'string') return new Error(err);
+      // Tauri often returns objects with a message or nested error
+      const messageCandidates: any[] = [
+        err.message,
+        err.error?.message,
+        err.code ? `${err.code}: ${err.message || ''}`.trim() : undefined,
+      ];
+      for (const m of messageCandidates) {
+        if (!m) continue;
+        if (typeof m === 'string' && m.length > 0) {
+          // Some messages are JSON-encoded strings
+          try {
+            const parsed = JSON.parse(m);
+            if (parsed && typeof parsed === 'object') {
+              const inner = parsed.details?.message || parsed.message || m;
+              return new Error(String(inner));
+            }
+          } catch {
+            // not JSON -> use as-is
+          }
+          return new Error(m);
+        }
+        try {
+          return new Error(JSON.stringify(m));
+        } catch {
+          // ignore and continue
+        }
+      }
+      try {
+        return new Error(JSON.stringify(err));
+      } catch {
+        return new Error(String(err));
+      }
+    } catch {
+      return new Error(String(err));
+    }
   }
 
   hasExtensionsLoaded(): boolean {
@@ -48,8 +93,12 @@ export class TauriConnection implements DatabaseConnection {
       // );
 
       // Add a timeout to detect hanging queries
+      const timeoutMs = getQueryTimeoutMs();
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Query execution timeout after 30 seconds')), 30000);
+        setTimeout(
+          () => reject(new Error(`Query execution timeout after ${timeoutMs} milliseconds`)),
+          timeoutMs,
+        );
       });
 
       const executePromise = this.invoke('connection_execute', {
@@ -76,8 +125,9 @@ export class TauriConnection implements DatabaseConnection {
         queryTime: result.execution_time_ms,
       };
     } catch (error) {
-      logger.error('TauriConnection.execute() failed', error);
-      throw error;
+      const normalized = TauriConnection.toError(error);
+      logger.error('TauriConnection.execute() failed', normalized);
+      throw normalized;
     }
   }
 
@@ -101,22 +151,22 @@ export class TauriConnection implements DatabaseConnection {
       throw new Error('Connection is closed');
     }
 
-    const stmtId = await this.invoke('prepare_statement', {
-      sql,
-    });
+    // Validate on THIS connection so attached catalogs are visible.
+    // Use a real connection-level prepared statement to avoid executing the query.
+    const prepName = `pp_${crypto.randomUUID().replace(/-/g, '_')}`;
+
+    // Prepare on this connection; DuckDB syntax supports PREPARE name AS <sql>
+    await this.execute(`PREPARE ${prepName} AS ${sql}`);
 
     return {
-      id: stmtId,
-      query: async (params?: any[]) => {
-        return this.invoke('prepared_statement_execute', {
-          statementId: stmtId,
-          params: params || [],
-        });
+      id: prepName,
+      query: async (_params?: any[]) => {
+        // Execute the prepared statement on this same connection
+        return this.execute(`EXECUTE ${prepName}`);
       },
       close: async () => {
-        await this.invoke('prepared_statement_close', {
-          statementId: stmtId,
-        });
+        // Clean up the prepared statement on this connection
+        await this.execute(`DEALLOCATE PREPARE ${prepName}`);
       },
     };
   }

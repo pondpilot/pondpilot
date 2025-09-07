@@ -35,6 +35,7 @@ fn test_connection() -> Result<String, String> {
 
 #[tauri::command]
 fn log_message(message: String) {
+    #[cfg(debug_assertions)]
     println!("[JS] {}", message);
 }
 
@@ -51,6 +52,15 @@ fn main() {
         .expect("Failed to build tokio runtime");
     
     runtime.block_on(async {
+    // Initialize tracing subscriber with sensible defaults
+    #[cfg(debug_assertions)]
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::new("debug"))
+        .try_init();
+    #[cfg(not(debug_assertions))]
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::new("warn"))
+        .try_init();
     // Set up panic hook to catch and log panics
     std::panic::set_hook(Box::new(|panic_info| {
         eprintln!("PANIC occurred: {}", panic_info);
@@ -75,14 +85,18 @@ fn main() {
             if !app_data_dir.exists() {
                 std::fs::create_dir_all(&app_data_dir)
                     .expect("Failed to create app data directory");
+                #[cfg(debug_assertions)]
                 println!("Created app data directory: {:?}", app_data_dir);
             }
             
             // Create database paths in app data directory
             let duckdb_path = app_data_dir.join("pondpilot.db");
             let sqlite_path = app_data_dir.join("pondpilot_state.db");
-            println!("DuckDB path: {:?}", duckdb_path);
-            println!("SQLite path: {:?}", sqlite_path);
+            #[cfg(debug_assertions)]
+            {
+                println!("DuckDB path: {:?}", duckdb_path);
+                println!("SQLite path: {:?}", sqlite_path);
+            }
             
             // Check for database lock before trying to create engine
             if let Err(e) = startup_checks::check_database_lock(&duckdb_path) {
@@ -113,6 +127,7 @@ fn main() {
             // Schedule engine initialization after setup completes
             let engine_clone = engine.clone();
             tauri::async_runtime::spawn(async move {
+                #[cfg(debug_assertions)]
                 eprintln!("[STARTUP] Initializing DuckDB engine...");
                 let config = EngineConfig {
                     engine_type: "duckdb".to_string(),
@@ -124,7 +139,10 @@ fn main() {
                     options: None,
                 };
                 match engine_clone.initialize(config).await {
-                    Ok(_) => eprintln!("[STARTUP] DuckDB engine initialized successfully"),
+                    Ok(_) => {
+                        #[cfg(debug_assertions)]
+                        eprintln!("[STARTUP] DuckDB engine initialized successfully")
+                    },
                     Err(e) => eprintln!("[STARTUP ERROR] Failed to initialize DuckDB engine: {}", e),
                 }
             });
@@ -191,24 +209,24 @@ fn main() {
                 window.open_devtools();
             }
             
-            // Log current configuration
-            eprintln!("[WEBVIEW] Debug mode: {}", cfg!(debug_assertions));
-            
-            // Check what URL is being loaded
-            if let Ok(current_url) = window.url() {
-                eprintln!("[WEBVIEW] Initial URL: {}", current_url);
+            // Log current configuration (debug only)
+            #[cfg(debug_assertions)]
+            {
+                eprintln!("[WEBVIEW] Debug mode: {}", cfg!(debug_assertions));
+                // Check what URL is being loaded
+                if let Ok(current_url) = window.url() {
+                    eprintln!("[WEBVIEW] Initial URL: {}", current_url);
+                }
+                // Listen for navigation events
+                window.listen("tauri://navigate", |event| {
+                    eprintln!("[WEBVIEW] Navigation event: {:?}", event.payload());
+                });
+                // Listen for error events
+                let window_error = window.clone();
+                window_error.listen("tauri://error", move |event| {
+                    eprintln!("[WEBVIEW] Error event: {:?}", event.payload());
+                });
             }
-            
-            // Listen for navigation events
-            window.listen("tauri://navigate", |event| {
-                eprintln!("[WEBVIEW] Navigation event: {:?}", event.payload());
-            });
-            
-            // Listen for error events
-            let window_error = window.clone();
-            window_error.listen("tauri://error", move |event| {
-                eprintln!("[WEBVIEW] Error event: {:?}", event.payload());
-            });
             
             
             Ok(())

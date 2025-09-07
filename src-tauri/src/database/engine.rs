@@ -413,13 +413,6 @@ impl DuckDBEngine {
         sql: &str,
         params: Vec<serde_json::Value>,
     ) -> Result<super::types::QueryResult> {
-        // Explicitly reject parameters for now to avoid silent misuse
-        if !params.is_empty() {
-            return Err(crate::errors::DuckDBError::ParameterBinding {
-                message: "Parameter binding is not supported on desktop yet".to_string(),
-            });
-        }
-
         // Get the connection handle from the manager
         let handle = self
             .connection_manager
@@ -427,7 +420,7 @@ impl DuckDBEngine {
             .await?;
 
         // Execute on the connection's dedicated thread
-        // Note: Parameters are passed but currently ignored due to DuckDB Rust binding limitations
+        // Parameters are handled by the connection handler via SQL sanitizer
         handle.execute(sql.to_string(), params).await
     }
 
@@ -517,12 +510,20 @@ impl DuckDBEngine {
         
         // Build the ATTACH query with the SECRET parameter
         // Use the sanitized alias which will be properly quoted if needed
+        // Escape single quotes in the connection string for SQL literal
+        let connection_string_sql = connection_string.replace('\'', "''");
+        
+        // Properly quote the secret name as an identifier to prevent SQL injection
+        // DuckDB uses double quotes for identifiers
+        // SECURITY FIX: Correctly escape double quotes by doubling them
+        let secret_name_quoted = format!("\"{}\"", secret_name.replace('"', "\"\""));
+        
         let attach_query = format!(
             "ATTACH '{}' AS {} (TYPE {}, SECRET {})",
-            connection_string,
+            connection_string_sql,
             sanitized_alias,
             db_type_upper,
-            secret_name
+            secret_name_quoted
         );
         
         // Combine CREATE SECRET and ATTACH in a single batch to run on same connection

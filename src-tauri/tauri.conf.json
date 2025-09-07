@@ -10,7 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "windows": [
       {
         "title": "PondPilot",
@@ -32,13 +32,12 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' customprotocol: asset: https://asset.localhost blob: data: filesystem: ws: wss: http: https: tauri: 'unsafe-eval' 'unsafe-inline' 'self'; img-src 'self' asset: https://asset.localhost protocol: https://tauri.localhost https://asset.localhost blob: data: 'unsafe-inline'",
+      "csp": "default-src 'self' tauri: asset:; img-src 'self' asset: data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.groq.com https://generativelanguage.googleapis.com http://localhost:5173 ws://localhost:5173",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$RESOURCE/**", "$APP/**", "**"]
+        "scope": ["$RESOURCE/**", "$APP/**"]
       }
-    },
-    "withGlobalTauri": true
+    }
   },
   "bundle": {
     "active": true,

@@ -27,3 +27,21 @@ export function getBrowserSupportedFeatures(): BrowserSupportedFeatures {
     isMobileDevice: isMobileDevice(),
   };
 }
+
+/**
+ * Best-effort platform detection without Tauri API.
+ * Returns a Node.js-like platform string: 'darwin' | 'win32' | 'linux'.
+ */
+export function detectPlatform(): 'darwin' | 'win32' | 'linux' {
+  if (typeof navigator === 'undefined') return 'linux';
+  const ua = (navigator.userAgent || '').toLowerCase();
+  const platform = (navigator.platform || '').toLowerCase();
+
+  if (platform.includes('mac') || ua.includes('mac os') || ua.includes('macintosh')) {
+    return 'darwin';
+  }
+  if (platform.includes('win') || ua.includes('windows')) {
+    return 'win32';
+  }
+  return 'linux';
+}

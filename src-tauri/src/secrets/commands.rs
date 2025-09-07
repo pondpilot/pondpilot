@@ -26,9 +26,23 @@ pub struct UpdateSecretRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SecretApplyOperation {
+    MotherduckList,
+    MotherduckAttach,
+    MotherduckReconnect,
+    PostgresTest,
+    PostgresSave,
+    MysqlTest,
+    MysqlSave,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ApplySecretRequest {
     pub connection_id: String,
     pub secret_id: String,
+    #[serde(default)]
+    pub operation: Option<SecretApplyOperation>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,18 +65,24 @@ pub async fn save_secret(
     if window.label() != "secrets" {
         return Err("Unauthorized: secrets commands only available from secrets window".into());
     }
-    println!("[Secrets] Save secret request received:");
-    println!("[Secrets]   - Type: {:?}", request.secret_type);
-    println!("[Secrets]   - Name: {}", request.name);
-    println!("[Secrets]   - Tags: {:?}", request.tags);
-    println!("[Secrets]   - Fields provided:");
+    #[cfg(debug_assertions)]
+    {
+        println!("[Secrets] Save secret request received:");
+        println!("[Secrets]   - Type: {:?}", request.secret_type);
+        println!("[Secrets]   - Name: {}", request.name);
+        println!("[Secrets]   - Tags: {:?}", request.tags);
+        println!("[Secrets]   - Fields provided:");
+    }
     
     // Log which fields are provided (without values for security)
-    if request.fields.token.is_some() { println!("[Secrets]     - token: [PROVIDED]"); }
-    if request.fields.key_id.is_some() { println!("[Secrets]     - key_id: [PROVIDED]"); }
-    if request.fields.secret.is_some() { println!("[Secrets]     - secret: [PROVIDED]"); }
-    if request.fields.host.is_some() { println!("[Secrets]     - host: [PROVIDED]"); }
-    if request.fields.password.is_some() { println!("[Secrets]     - password: [PROVIDED]"); }
+    #[cfg(debug_assertions)]
+    {
+        if request.fields.token.is_some() { println!("[Secrets]     - token: [PROVIDED]"); }
+        if request.fields.key_id.is_some() { println!("[Secrets]     - key_id: [PROVIDED]"); }
+        if request.fields.secret.is_some() { println!("[Secrets]     - secret: [PROVIDED]"); }
+        if request.fields.host.is_some() { println!("[Secrets]     - host: [PROVIDED]"); }
+        if request.fields.password.is_some() { println!("[Secrets]     - password: [PROVIDED]"); }
+    }
     
     let metadata = state
         .save_secret(
@@ -79,6 +99,7 @@ pub async fn save_secret(
             e.to_string()
         })?;
     
+    #[cfg(debug_assertions)]
     println!("[Secrets] Secret saved successfully with ID: {}", metadata.id);
     
     Ok(SecretResponse { metadata })
@@ -95,6 +116,7 @@ pub async fn list_secrets(
     if window.label() != "secrets" && window.label() != "main" {
         return Err("Unauthorized: list_secrets only available from main or secrets window".into());
     }
+    #[cfg(debug_assertions)]
     println!("[Secrets] Listing secrets with type filter: {:?}", secret_type);
     
     let secrets = state
@@ -105,9 +127,12 @@ pub async fn list_secrets(
             e.to_string()
         })?;
     
-    println!("[Secrets] Found {} secrets", secrets.len());
-    for secret in &secrets {
-        println!("[Secrets]   - {} ({:?}): {}", secret.name, secret.secret_type, secret.id);
+    #[cfg(debug_assertions)]
+    {
+        println!("[Secrets] Found {} secrets", secrets.len());
+        for secret in &secrets {
+            println!("[Secrets]   - {} ({:?}): {}", secret.name, secret.secret_type, secret.id);
+        }
     }
     
     Ok(SecretListResponse { secrets })
@@ -149,6 +174,7 @@ pub async fn delete_secret(
     if window.label() != "secrets" {
         return Err("Unauthorized: secrets commands only available from secrets window".into());
     }
+    #[cfg(debug_assertions)]
     println!("[Secrets] Delete request for secret: {}", secret_id);
     
     let id = Uuid::parse_str(&secret_id)
@@ -161,10 +187,12 @@ pub async fn delete_secret(
         .delete_secret(id)
         .await
         .map_err(|e| {
+            #[cfg(debug_assertions)]
             eprintln!("[Secrets] Failed to delete secret {}: {}", secret_id, e);
             e.to_string()
         })?;
     
+    #[cfg(debug_assertions)]
     println!("[Secrets] Secret {} deleted successfully", secret_id);
     Ok(())
 }
@@ -228,15 +256,43 @@ pub async fn apply_secret_to_connection(
         return Err("Unauthorized: apply_secret_to_connection only available from main window".into());
     }
     
-    // Additional validation: Check that the connection_id starts with known safe prefixes
-    let allowed_prefixes = vec!["motherduck_list", "motherduck_attach", "motherduck_reconnect_", "postgres_test_", "postgres_save_", "mysql_test_", "mysql_save_"];
-    let is_allowed = allowed_prefixes.iter().any(|prefix| request.connection_id.starts_with(prefix));
+    // Preferred validation path: explicit operation enum
+    let is_allowed = if let Some(op) = &request.operation {
+        matches!(
+            op,
+            SecretApplyOperation::MotherduckList
+                | SecretApplyOperation::MotherduckAttach
+                | SecretApplyOperation::MotherduckReconnect
+                | SecretApplyOperation::PostgresTest
+                | SecretApplyOperation::PostgresSave
+                | SecretApplyOperation::MysqlTest
+                | SecretApplyOperation::MysqlSave
+        )
+    } else {
+        // Backward compatibility: prefix-based whitelist of connection_id
+        let allowed_prefixes = vec![
+            "motherduck_list",
+            "motherduck_attach",
+            "motherduck_reconnect_",
+            "postgres_test_",
+            "postgres_save_",
+            "mysql_test_",
+            "mysql_save_",
+        ];
+        allowed_prefixes
+            .iter()
+            .any(|prefix| request.connection_id.starts_with(prefix))
+    };
     if !is_allowed {
         // SECURITY AUDIT: Log denied secret access attempts for security monitoring
         // Redact sensitive IDs to prevent information disclosure in logs
         let connection_prefix = request.connection_id.chars().take(10).collect::<String>();
-        eprintln!("[SECURITY AUDIT] Denied secret access attempt - connection_prefix: {}..., window: {}", 
-                 connection_prefix, window.label());
+        #[cfg(debug_assertions)]
+        eprintln!(
+            "[SECURITY AUDIT] Denied secret access attempt - connection_prefix: {}..., window: {}",
+            connection_prefix,
+            window.label()
+        );
         tracing::warn!("[SECURITY AUDIT] Secret access denied for connection pattern check");
         return Err("Invalid connection_id".into());
     }
@@ -254,6 +310,7 @@ pub async fn apply_secret_to_connection(
             e.to_string()
         })?;
     
+    #[cfg(debug_assertions)]
     println!("[Secrets] Retrieved secret type: {:?}", secret.metadata.secret_type);
     
     // For MotherDuck, we need to set the environment variable for now
@@ -262,11 +319,14 @@ pub async fn apply_secret_to_connection(
         SecretType::MotherDuck => {
             if let Some(token) = secret.credentials.get("token") {
                 // Clear any existing token first to ensure DuckDB picks up the new one
+                #[cfg(debug_assertions)]
                 println!("[Secrets] Clearing existing MOTHERDUCK_TOKEN environment variable");
                 std::env::remove_var("MOTHERDUCK_TOKEN");
                 
+                #[cfg(debug_assertions)]
                 println!("[Secrets] Setting new MOTHERDUCK_TOKEN environment variable");
                 std::env::set_var("MOTHERDUCK_TOKEN", token.expose());
+                #[cfg(debug_assertions)]
                 println!("[Secrets] MOTHERDUCK_TOKEN set successfully");
             } else {
                 eprintln!("[Secrets] No token field found in MotherDuck secret");
@@ -274,14 +334,20 @@ pub async fn apply_secret_to_connection(
             }
         },
         SecretType::Postgres | SecretType::MySQL => {
-            println!("[Secrets] Database secret type {:?} applied successfully for testing", 
-                     secret.metadata.secret_type);
+            #[cfg(debug_assertions)]
+            println!(
+                "[Secrets] Database secret type {:?} applied successfully for testing",
+                secret.metadata.secret_type
+            );
             // For database secrets, we don't set environment variables
             // Instead, the connection testing will use CREATE SECRET + ATTACH pattern
         },
         _ => {
-            println!("[Secrets] Secret type {:?} not handled for direct connection application", 
-                     secret.metadata.secret_type);
+            #[cfg(debug_assertions)]
+            println!(
+                "[Secrets] Secret type {:?} not handled for direct connection application",
+                secret.metadata.secret_type
+            );
             // Other secret types would be injected directly into connections
             // This will be handled by the connection creation/execution logic
         }
@@ -309,6 +375,7 @@ pub async fn cleanup_orphaned_secrets(
     if window.label() != "secrets" {
         return Err("Unauthorized: secrets commands only available from secrets window".into());
     }
+    #[cfg(debug_assertions)]
     println!("[Secrets] Starting cleanup of orphaned secrets");
     
     let all_secrets = state
@@ -324,19 +391,23 @@ pub async fn cleanup_orphaned_secrets(
         match state.get_secret(secret.id).await {
             Ok(_) => {
                 // Secret is valid, skip
+                #[cfg(debug_assertions)]
                 println!("[Secrets] Secret {} is valid", secret.id);
             },
             Err(_) => {
                 // Secret is orphaned (metadata exists but keychain doesn't)
+                #[cfg(debug_assertions)]
                 println!("[Secrets] Found orphaned secret: {} ({})", secret.name, secret.id);
                 
                 // Try to delete it
                 match state.delete_secret(secret.id).await {
                     Ok(_) => {
+                        #[cfg(debug_assertions)]
                         println!("[Secrets] Successfully cleaned up orphaned secret: {}", secret.id);
                         cleaned += 1;
                     },
                     Err(e) => {
+                        #[cfg(debug_assertions)]
                         eprintln!("[Secrets] Failed to clean up orphaned secret {}: {}", secret.id, e);
                         failed += 1;
                     }
@@ -358,6 +429,7 @@ pub async fn debug_secret(
     if window.label() != "secrets" {
         return Err("Unauthorized: secrets commands only available from secrets window".into());
     }
+    #[cfg(debug_assertions)]
     println!("[Secrets Debug] Checking secret: {}", secret_id);
     
     let id = Uuid::parse_str(&secret_id)
