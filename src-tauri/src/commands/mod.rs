@@ -2,6 +2,8 @@ pub mod stream;
 
 use crate::database::{DuckDBEngine, EngineConfig, QueryResult, CatalogInfo, DatabaseInfo, TableInfo, ColumnInfo, FileRegistration, FileInfo};
 use crate::errors::Result;
+use serde::Serialize;
+use crate::database::extensions::ALLOWED_EXTENSIONS;
 use std::sync::Arc;
 use tauri::State;
 use uuid::Uuid;
@@ -118,6 +120,7 @@ pub async fn connection_execute(
     connection_id: String,
     sql: String,
     params: Vec<serde_json::Value>,
+    #[allow(non_snake_case)] timeoutMs: Option<u64>,
 ) -> Result<QueryResult> {
     // Use the specific connection to execute the query
     #[cfg(debug_assertions)]
@@ -180,7 +183,34 @@ pub async fn connection_execute(
             }
         }
     }
-    engine.execute_on_connection(&connection_id, &sql, params).await
+    // Execute with optional timeout to allow backend to interrupt
+    let result = engine.execute_on_connection_with_timeout(&connection_id, &sql, params, timeoutMs).await;
+    // If ATTACH succeeded, register it for future connections
+    if result.is_ok() {
+        let upper = sql.trim_start().to_uppercase();
+        if upper.starts_with("ATTACH ") {
+            // Try to extract alias and read-only
+            // Pattern: ATTACH 'url' AS alias (READ_ONLY)
+            let alias = sql.split_whitespace()
+                .skip_while(|s| s.to_uppercase() != "AS")
+                .nth(1)
+                .map(|s| s.trim_matches(|c: char| c == '"' || c == '\'' || c == ';'))
+                .map(|s| s.to_string());
+            let read_only = sql.to_uppercase().contains("READ_ONLY");
+            if let Some(alias) = alias {
+                // Extract URL/path between first quotes
+                if let Some(s) = sql.find('\'') {
+                    if let Some(e_rel) = sql[s+1..].find('\'') {
+                        let e = s + 1 + e_rel;
+                        let url = sql[s+1..e].to_string();
+                    // Register as PLAIN attach for future connections
+                        engine.register_plain_attachment(alias, url, read_only).await;
+                    }
+                }
+            }
+        }
+    }
+    result
 }
 
 #[tauri::command]
@@ -261,3 +291,33 @@ pub async fn set_extensions(
     engine.reset_all_connections().await?;
     Ok(())
 }
+
+#[derive(Debug, Serialize)]
+pub struct ExtensionInfo {
+    pub name: String,
+    pub loaded: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    pub installed: bool,
+}
+
+#[tauri::command]
+pub async fn list_extensions(engine: EngineState<'_>) -> Result<Vec<ExtensionInfo>> {
+    let sql = "SELECT extension_name, loaded, installed, extension_version FROM duckdb_extensions()";
+    let result = engine.execute_query(sql, vec![]).await?;
+    let mut out = Vec::new();
+    for row in result.rows {
+        let name = row.get("extension_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        // Filter to allowed extensions only
+        if !ALLOWED_EXTENSIONS.contains(&name.as_str()) {
+            continue;
+        }
+        let loaded = row.get("loaded").and_then(|v| v.as_bool()).unwrap_or(false);
+        let installed = row.get("installed").and_then(|v| v.as_bool()).unwrap_or(false);
+        let version = row.get("extension_version").and_then(|v| v.as_str()).map(|s| s.to_string());
+        out.push(ExtensionInfo { name, loaded, version, installed });
+    }
+    Ok(out)
+}
+
+// Note: export/import database API intentionally not exposed.

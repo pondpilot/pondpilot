@@ -15,9 +15,8 @@ export class ExtensionLoader {
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`Extension query timeout after ${timeout}ms`)), timeout),
     );
-    const exec = typeof poolOrConn.query === 'function'
-      ? poolOrConn.query(sql)
-      : poolOrConn.execute(sql);
+    const exec =
+      typeof poolOrConn.query === 'function' ? poolOrConn.query(sql) : poolOrConn.execute(sql);
     return Promise.race([exec, timeoutPromise]) as Promise<T>;
   }
   private static errorToMessage(err: any): string {

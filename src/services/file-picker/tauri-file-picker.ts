@@ -34,7 +34,11 @@ export class TauriFilePicker implements IFilePicker {
       // Preload path module for default paths
       try {
         await import('@tauri-apps/api/path');
-      } catch {}
+      } catch (e) {
+        // Log for troubleshooting but do not fail
+        // eslint-disable-next-line no-console
+        console.debug('[TauriFilePicker] Failed to preload @tauri-apps/api/path', e);
+      }
       // console.log('Tauri dialog module loaded:', this.dialogModule);
     } catch (error) {
       // console.error('Failed to load Tauri dialog API:', error);
@@ -69,7 +73,10 @@ export class TauriFilePicker implements IFilePicker {
       try {
         const path = await import('@tauri-apps/api/path');
         defaultPath = (await path.downloadDir()) || (await path.homeDir());
-      } catch {}
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.debug('[TauriFilePicker] Failed to resolve default path', e);
+      }
 
       // Convert extensions to Tauri format
       const filters =
@@ -145,7 +152,9 @@ export class TauriFilePicker implements IFilePicker {
       try {
         const path = await import('@tauri-apps/api/path');
         defaultPath = (await path.homeDir()) || (await path.downloadDir());
-      } catch {}
+      } catch {
+        // Ignore errors when resolving default path
+      }
 
       const result = await this.dialogModule.open({
         multiple: false,

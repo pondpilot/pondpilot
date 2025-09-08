@@ -50,6 +50,8 @@ struct ConnectionHandler {
 }
 
 impl ConnectionHandler {
+    const MIN_QUERY_TIMEOUT_MS: u64 = 50;
+    const MAX_QUERY_TIMEOUT_MS: u64 = 10 * 60 * 1000; // 10 minutes
     fn new(connection: Connection, receiver: mpsc::Receiver<ConnectionCommand>) -> Self {
         Self { connection, receiver }
     }
@@ -75,30 +77,59 @@ impl ConnectionHandler {
         }
     }
     
-    /// Execute SQL with a timeout using a separate thread
+    /// Execute SQL with a timeout using DuckDB's interrupt mechanism without blocking if query finishes early
     fn execute_sql_with_timeout(&mut self, sql: &str, params: &[serde_json::Value], timeout_ms: u64) -> Result<QueryResult> {
-        use std::time::Duration;
-        
-        // Clone what we need for the thread
-        let sql_owned = sql.to_string();
-        let params_owned = params.to_vec();
-        
-        // We can't move the connection to another thread, so we need to execute inline
-        // and use a timeout on receiving the result. This is a limitation of DuckDB's
-        // connection not being Send.
-        
-        // For now, we'll execute synchronously but with a warning if it takes too long
-        let start = std::time::Instant::now();
-        let result = self.execute_sql(&sql_owned, &params_owned);
+        use std::sync::{Arc, mpsc};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::time::{Duration, Instant};
+
+        // Clamp timeout to safe bounds
+        let clamped = timeout_ms
+            .max(Self::MIN_QUERY_TIMEOUT_MS)
+            .min(Self::MAX_QUERY_TIMEOUT_MS);
+
+        // Prepare interrupt and coordination primitives
+        let interrupt_handle = self.connection.interrupt_handle();
+        let timed_out = Arc::new(AtomicBool::new(false));
+        let timed_out_cl = Arc::clone(&timed_out);
+        let (tx, rx) = mpsc::channel::<()>();
+        let timeout = Duration::from_millis(clamped);
+
+        // Timer thread: either receives completion signal or times out and interrupts
+        let timer = std::thread::spawn(move || {
+            if rx.recv_timeout(timeout).is_err() {
+                // Timeout reached without completion signal
+                interrupt_handle.interrupt();
+                timed_out_cl.store(true, Ordering::SeqCst);
+            }
+        });
+
+        // Execute the query
+        let start = Instant::now();
+        let result = self.execute_sql(sql, params);
         let elapsed = start.elapsed();
-        
-        if elapsed > Duration::from_millis(timeout_ms) {
-            debug!("[ConnectionHandler] Query exceeded timeout of {}ms (took {}ms) but couldn't be cancelled", 
-                   timeout_ms, elapsed.as_millis());
-            // In the future, we could integrate with DuckDB's interrupt mechanism
-            // For now, we return the result even if it took too long
+
+        // Signal completion to timer thread and join
+        let _ = tx.send(());
+        let _ = timer.join();
+
+        if timed_out.load(Ordering::SeqCst) {
+            debug!(
+                "[ConnectionHandler] Query exceeded timeout ({}ms), elapsed: {}ms",
+                clamped,
+                elapsed.as_millis()
+            );
+            // If the query failed due to interrupt, surface a timeout error
+            if result.is_err() {
+                return Err(crate::errors::DuckDBError::QueryError {
+                    message: format!("Query execution timeout after {} milliseconds", clamped),
+                    sql: Some(sql.to_string()),
+                    error_code: Some("TIMEOUT".to_string()),
+                    line_number: None,
+                });
+            }
         }
-        
+
         result
     }
 
@@ -131,9 +162,11 @@ impl ConnectionHandler {
     }
     
     /// Validate token format to prevent injection attempts
+    const MAX_MOTHERDUCK_TOKEN_LEN: usize = 1024;
+
     fn is_valid_token(token: &str) -> bool {
         // Check basic constraints
-        if token.is_empty() || token.len() > 1000 {
+        if token.is_empty() || token.len() > Self::MAX_MOTHERDUCK_TOKEN_LEN {
             return false;
         }
         

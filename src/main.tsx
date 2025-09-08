@@ -6,8 +6,7 @@ import { SecretsApp } from './secrets-app';
 
 // Check if this is the secrets window
 const url = new URL(window.location.href);
-const isSecretsWindow =
-  url.pathname === '/secrets' || url.searchParams.get('window') === 'secrets';
+const isSecretsWindow = url.pathname === '/secrets' || url.searchParams.get('window') === 'secrets';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <StrictMode>{isSecretsWindow ? <SecretsApp /> : <App />}</StrictMode>,
