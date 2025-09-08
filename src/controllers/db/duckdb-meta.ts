@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { DataBaseModel, DBColumn, DBFunctionsMetadata, DBTableOrView } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { getTableColumnId } from '@utils/db';
@@ -7,7 +7,7 @@ import { quote } from '@utils/helpers';
 import * as arrow from 'apache-arrow';
 
 async function queryOneColumn<VT extends arrow.DataType>(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   sql: string,
   columnName: string,
 ): Promise<arrow.Vector<VT>['TValue'][] | null> {
@@ -34,7 +34,7 @@ async function queryOneColumn<VT extends arrow.DataType>(
  * @returns Array of database names or null in case of errors.
  */
 export async function getLocalDBs(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   excludeSystem: boolean = true,
 ): Promise<string[] | null> {
   const sql = `
@@ -43,7 +43,9 @@ export async function getLocalDBs(
     ${excludeSystem ? 'WHERE NOT internal' : ''}
   `;
 
-  return queryOneColumn<arrow.Utf8>(conn, sql, 'database_name');
+  const result = await queryOneColumn<arrow.Utf8>(conn, sql, 'database_name');
+  // // console.log('[getLocalDBs] Found databases:', result);
+  return result;
 }
 
 /**
@@ -55,7 +57,7 @@ export async function getLocalDBs(
  * @returns Array of view names or null in case of errors.
  */
 export async function getViews(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   databaseName: string = PERSISTENT_DB_NAME,
   schemaName: string = 'main',
 ): Promise<string[] | null> {
@@ -80,6 +82,11 @@ function buildColumnsQueryWithFilters(
   const filterByDBName = quotedDatabaseNames && quotedDatabaseNames.length > 0;
   const filterBySchemaName = quotedSchemaNames && quotedSchemaNames.length > 0;
   const filterByObjectName = quotedObjectNames && quotedObjectNames.length > 0;
+
+  // For attached databases, we may need to query information_schema directly
+  // as duckdb_columns might not be populated in Tauri
+  // Let's add logging to see what's happening
+  // console.log('[buildColumnsQueryWithFilters] Building query for databases:', databaseNames);
 
   return `
     SELECT 
@@ -133,13 +140,77 @@ type ColumnsQueryReturnType = {
  * @returns Table and column metadata
  */
 async function getTablesAndColumns(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   databaseNames?: string[],
   schemaNames?: string[],
   objectNames?: string[],
 ): Promise<ColumnsQueryReturnType[]> {
   const sql = buildColumnsQueryWithFilters(databaseNames, schemaNames, objectNames);
+  // console.log('[getTablesAndColumns] Executing SQL:', sql);
+  // console.log('[getTablesAndColumns] Database names:', databaseNames);
+
+  // For Tauri, try to ensure metadata is fresh by querying system tables first
+  if (databaseNames && databaseNames.length > 0) {
+    try {
+      // Query duckdb_databases to verify the database is attached
+      const dbCheckQuery = `SELECT database_name, path FROM duckdb_databases WHERE database_name IN (${databaseNames.map((name) => `'${name}'`).join(',')})`;
+      const _dbCheckResult = await conn.query(dbCheckQuery);
+      // console.log('[getTablesAndColumns] Database check result:', _dbCheckResult);
+
+      // Try to force metadata refresh by querying PRAGMA
+      for (const dbName of databaseNames) {
+        if (dbName !== 'memory' && dbName !== 'temp' && dbName !== 'system') {
+          try {
+            // Try PRAGMA database_list to see if it helps
+            await conn.query('PRAGMA database_list');
+
+            // Try querying the tables directly using information_schema
+            const tablesQuery = `
+              SELECT 
+                '${dbName}' as database_name,
+                schema_name,
+                table_name,
+                table_type
+              FROM information_schema.tables
+              WHERE table_catalog = '${dbName}'
+                AND schema_name NOT IN ('information_schema', 'pg_catalog')
+            `;
+            const _tablesResult = await conn.query(tablesQuery);
+            // console.log(`[getTablesAndColumns] Tables in ${dbName}:`, _tablesResult);
+          } catch (e) {
+            // console.log(
+            //   `[getTablesAndColumns] Could not query information_schema for ${dbName}:`,
+            //   e,
+            // );
+          }
+        }
+      }
+    } catch (e) {
+      // console.log('[getTablesAndColumns] Error checking databases:', e);
+    }
+  }
+
   const res = await conn.query<ColumnsQueryArrowType>(sql);
+
+  // console.log('[getTablesAndColumns] Query result:', res);
+  // console.log('[getTablesAndColumns] numRows:', res.numRows);
+  // console.log('[getTablesAndColumns] Result type:', typeof res);
+  // console.log('[getTablesAndColumns] Has getChild method:', typeof res.getChild === 'function');
+
+  // Handle Arrow table format
+  const ret: ColumnsQueryReturnType[] = [];
+  const numRows = res.numRows || res.rowCount || 0;
+
+  if (numRows === 0) {
+    // console.log('[getTablesAndColumns] No rows returned from metadata query');
+    return ret;
+  }
+
+  // Get column vectors from the Arrow table
+  // console.log(
+  //   '[getTablesAndColumns] Available columns:',
+  //   res.getColumnNames ? res.getColumnNames() : 'getColumnNames not available',
+  // );
 
   const columns = {
     database_name: res.getChild('database_name'),
@@ -152,8 +223,12 @@ async function getTablesAndColumns(
     is_nullable: res.getChild('is_nullable'),
   };
 
-  const ret: ColumnsQueryReturnType[] = [];
-  for (let i = 0; i < res.numRows; i += 1) {
+  // console.log(
+  //   '[getTablesAndColumns] Column vectors retrieved:',
+  //   Object.keys(columns).map((k) => `${k}: ${(columns as any)[k] ? 'found' : 'null'}`),
+  // );
+
+  for (let i = 0; i < numRows; i += 1) {
     const database_name_value = columns.database_name?.get(i);
     const schema_name_value = columns.schema_name?.get(i);
     const table_name = columns.table_name?.get(i);
@@ -202,7 +277,7 @@ async function getTablesAndColumns(
  * @returns Table and column metadata
  */
 export async function getDatabaseModel(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   databaseNames?: string[],
   schemaNames?: string[],
 ): Promise<Map<string, DataBaseModel>> {
@@ -264,7 +339,7 @@ export async function getDatabaseModel(
  * @returns Table and column metadata
  */
 export async function getObjectModels(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   databaseName: string,
   schemaName: string,
   objectNames: string[],
@@ -309,57 +384,50 @@ export async function getObjectModels(
  * @param pool - DuckDB connection pool
  * @returns Array of function metadata
  */
-export async function getDuckDBFunctions(
-  pool: AsyncDuckDBConnectionPool,
-): Promise<DBFunctionsMetadata[]> {
-  const conn = await pool.getPooledConnection();
-  try {
-    const sql =
-      'SELECT DISTINCT ON(function_name) function_name, description, parameters, examples, internal FROM duckdb_functions()';
-    const res = await conn.query<any>(sql);
+export async function getDuckDBFunctions(pool: ConnectionPool): Promise<DBFunctionsMetadata[]> {
+  const sql =
+    'SELECT DISTINCT ON(function_name) function_name, description, parameters, examples, internal FROM duckdb_functions()';
+  const res = await pool.query(sql);
 
-    const columns = {
-      function_name: res.getChild('function_name'),
-      description: res.getChild('description'),
-      parameters: res.getChild('parameters'),
-      examples: res.getChild('examples'),
-      internal: res.getChild('internal'),
-    };
+  const columns = {
+    function_name: res.getChild('function_name'),
+    description: res.getChild('description'),
+    parameters: res.getChild('parameters'),
+    examples: res.getChild('examples'),
+    internal: res.getChild('internal'),
+  };
 
-    const result: DBFunctionsMetadata[] = [];
-    for (let i = 0; i < res.numRows; i += 1) {
-      const parametersValue = columns.parameters?.get(i);
-      let parameters: string[];
-      if (
-        parametersValue &&
-        typeof parametersValue === 'object' &&
-        typeof parametersValue.toArray === 'function'
-      ) {
-        parameters = parametersValue.toArray();
-      } else {
-        parameters = [];
-      }
-
-      const examplesValue = columns.examples?.get(i);
-      let examples: string[] | null = null;
-      if (
-        examplesValue &&
-        typeof examplesValue === 'object' &&
-        typeof examplesValue.toArray === 'function'
-      ) {
-        examples = examplesValue.toArray();
-      }
-
-      result.push({
-        function_name: columns.function_name?.get(i) ?? '',
-        description: columns.description?.get(i) || null,
-        parameters,
-        examples,
-        internal: columns.internal?.get(i) ?? false,
-      });
+  const result: DBFunctionsMetadata[] = [];
+  for (let i = 0; i < res.numRows; i += 1) {
+    const parametersValue = columns.parameters?.get(i);
+    let parameters: string[];
+    if (
+      parametersValue &&
+      typeof parametersValue === 'object' &&
+      typeof parametersValue.toArray === 'function'
+    ) {
+      parameters = parametersValue.toArray();
+    } else {
+      parameters = [];
     }
-    return result;
-  } finally {
-    await conn.close();
+
+    const examplesValue = columns.examples?.get(i);
+    let examples: string[] | null = null;
+    if (
+      examplesValue &&
+      typeof examplesValue === 'object' &&
+      typeof examplesValue.toArray === 'function'
+    ) {
+      examples = examplesValue.toArray();
+    }
+
+    result.push({
+      function_name: columns.function_name?.get(i) ?? '',
+      description: columns.description?.get(i) || null,
+      parameters,
+      examples,
+      internal: columns.internal?.get(i) ?? false,
+    });
   }
+  return result;
 }

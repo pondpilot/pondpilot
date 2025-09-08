@@ -25,5 +25,6 @@ module.exports = {
     '^@controllers/(.*)$': '<rootDir>/src/controllers/$1',
     '^@store/(.*)$': '<rootDir>/src/store/$1',
     '^@features/(.*)$': '<rootDir>/src/features/$1',
+    '^@engines/(.*)$': '<rootDir>/src/engines/$1',
   },
 };

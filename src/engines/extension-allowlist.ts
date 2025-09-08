@@ -1,0 +1,22 @@
+// Centralized list to avoid drift with backend allowlist
+export const TAURI_ALLOWED_EXTENSIONS = [
+  'httpfs',
+  'parquet',
+  'json',
+  'excel',
+  'spatial',
+  'arrow',
+  'aws',
+  'azure',
+  'gsheets',
+  'read_stat',
+  'motherduck',
+  'iceberg',
+  'delta',
+  'sqlite',
+  'sqlite_scanner',
+  'postgres',
+  'postgres_scanner',
+  'mysql',
+  'mysql_scanner',
+] as const;

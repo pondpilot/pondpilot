@@ -288,7 +288,7 @@ describe('remote-database-validation', () => {
   });
 
   describe('ALLOWED_REMOTE_PROTOCOLS', () => {
-    it('should contain expected protocols', () => {
+    it('should contain expected protocols (md excluded on non-Tauri)', () => {
       expect(ALLOWED_REMOTE_PROTOCOLS).toEqual(['https:', 's3:', 'gcs:', 'azure:']);
     });
 

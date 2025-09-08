@@ -12,7 +12,8 @@ import {
   detachAndUnregisterDatabase,
 } from '@controllers/db/data-source';
 import { getLocalDBs, getDatabaseModel, getViews } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { isSameFile } from '@controllers/db/file-access';
+import { ConnectionPool } from '@engines/types';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { DataBaseModel, CSV_MAX_LINE_SIZE_MB } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -26,12 +27,19 @@ import {
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
+import { isTauriEnvironment } from '@utils/browser';
 import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
+import { handleError } from '@utils/error-handling';
 import { localEntryFromHandle } from '@utils/file-system';
 import { findUniqueName } from '@utils/helpers';
 import { makeSQLScriptId } from '@utils/sql-script';
 import { getXlsxSheetNames } from '@utils/xlsx';
 
+import {
+  getFileReferenceForDuckDB,
+  getFileContentSafe,
+  isConservativeSafePath,
+} from './file-helpers';
 import { persistAddLocalEntry, persistDeleteLocalEntry } from './persist';
 
 /**
@@ -41,7 +49,7 @@ import { persistAddLocalEntry, persistDeleteLocalEntry } from './persist';
  */
 
 export const addLocalFileOrFolders = async (
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   handles: (FileSystemDirectoryHandle | FileSystemFileHandle)[],
 ): Promise<{
   skippedExistingEntries: LocalEntry[];
@@ -55,6 +63,7 @@ export const addLocalFileOrFolders = async (
 }> => {
   const {
     _iDbConn: iDbConn,
+    _persistenceAdapter: persistenceAdapter,
     localEntries,
     registeredFiles,
     dataSources,
@@ -114,13 +123,109 @@ export const addLocalFileOrFolders = async (
         // And save to new dbs as we'll need it later to get new metadata
         newDatabaseNames.push(dbSource.dbName);
 
-        // TODO: currently we assume this works, add proper error handling
-        const regFile = await registerAndAttachDatabase(
-          conn,
-          file.handle,
-          `${file.uniqueAlias}.${file.ext}`,
-          dbSource.dbName,
-        );
+        const fileReference = getFileReferenceForDuckDB(file);
+
+        // Preflight: check for dangerous path patterns
+        if (!isConservativeSafePath(fileReference)) {
+          errors.push(
+            `Cannot attach database from path: "${fileReference}". ` +
+              'The path contains potentially dangerous characters or patterns.',
+          );
+          return false;
+        }
+
+        let regFile: File | null = null;
+        try {
+          regFile = await registerAndAttachDatabase(
+            conn,
+            file.handle,
+            fileReference,
+            dbSource.dbName,
+          );
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errors.push(
+            `Failed to attach database "${dbSource.dbName}" from file "${file.name}": ${errorMessage}`,
+          );
+          handleError(
+            error,
+            {
+              operation: 'attachSourceFile',
+              userAction: `attach database from ${file.name}`,
+              details: {
+                fileName: file.name,
+                fileType: file.fileType,
+                dbName: dbSource.dbName,
+              },
+            },
+            { showNotification: false },
+          );
+          return false;
+        }
+
+        if (regFile) {
+          newRegisteredFiles.push([file.id, regFile]);
+        }
+        newDataSources.push([dbSource.id, dbSource]);
+        return true;
+      }
+      case 'db': {
+        // SQLite support is only available in Tauri
+        if (!isTauriEnvironment()) {
+          errors.push(
+            'SQLite database files (.db) are only supported in the desktop version. ' +
+              'Please download PondPilot Desktop to work with SQLite databases.',
+          );
+          return false;
+        }
+
+        const dbSource = addLocalDB(file, reservedDbs);
+
+        // Assume it will be added, so reserve the name
+        reservedDbs.add(dbSource.dbName);
+
+        // And save to new dbs as we'll need it later to get new metadata
+        newDatabaseNames.push(dbSource.dbName);
+
+        const fileReference = getFileReferenceForDuckDB(file);
+
+        // Preflight: check for dangerous path patterns
+        if (!isConservativeSafePath(fileReference)) {
+          errors.push(
+            `Cannot attach database from path: "${fileReference}". ` +
+              'The path contains potentially dangerous characters or patterns.',
+          );
+          return false;
+        }
+
+        let regFile: File | null = null;
+        try {
+          regFile = await registerAndAttachDatabase(
+            conn,
+            file.handle,
+            fileReference,
+            dbSource.dbName,
+          );
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          errors.push(
+            `Failed to attach database "${dbSource.dbName}" from file "${file.name}": ${errorMessage}`,
+          );
+          handleError(
+            error,
+            {
+              operation: 'attachSourceFile',
+              userAction: `attach database from ${file.name}`,
+              details: {
+                fileName: file.name,
+                fileType: file.fileType,
+                dbName: dbSource.dbName,
+              },
+            },
+            { showNotification: false },
+          );
+          return false;
+        }
 
         // Check if database is empty and skip it if it is
         const isEmpty = await isDatabaseEmpty(dbSource.dbName);
@@ -141,33 +246,103 @@ export const addLocalFileOrFolders = async (
           return false;
         }
 
-        newRegisteredFiles.push([file.id, regFile]);
+        if (regFile) {
+          newRegisteredFiles.push([file.id, regFile]);
+        }
         newDataSources.push([dbSource.id, dbSource]);
         return true;
       }
       case 'xlsx': {
         // Excel file: only add if at least one sheet has data
-        const xlsxFile = await file.handle.getFile();
-        const sheetNames = await getXlsxSheetNames(xlsxFile);
+        let sheetNames: string[] = [];
+
+        const xlsxFile = await getFileContentSafe(file.handle);
+        if (xlsxFile) {
+          // Web environment: can read file directly
+          sheetNames = await getXlsxSheetNames(xlsxFile);
+        } else {
+          // Tauri environment: use native engine to get sheet names
+          try {
+            if (isTauriEnvironment()) {
+              const { invoke } = await import('@tauri-apps/api/core');
+              const fileReference = getFileReferenceForDuckDB(file);
+              sheetNames = await invoke<string[]>('get_xlsx_sheet_names', {
+                file_path: fileReference,
+                filePath: fileReference,
+              });
+            }
+          } catch (error: any) {
+            // Robustly extract a meaningful error message
+            const extract = (e: any): string => {
+              try {
+                if (!e) return 'Unknown error';
+                if (typeof e === 'string') return e;
+                if (e.message) {
+                  if (typeof e.message === 'string') {
+                    // Try JSON.parse if it's a serialized object
+                    try {
+                      const parsed = JSON.parse(e.message);
+                      if (parsed && typeof parsed === 'object') {
+                        return parsed.details?.message || parsed.message || e.message;
+                      }
+                    } catch {
+                      // not JSON, use as-is
+                      return e.message;
+                    }
+                    return e.message;
+                  }
+                  // message is an object
+                  try {
+                    return JSON.stringify(e.message);
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                try {
+                  return JSON.stringify(e);
+                } catch {
+                  return String(e);
+                }
+              } catch {
+                return String(e);
+              }
+            };
+
+            const errMsg = extract(error);
+            throw new Error(
+              `Failed to read sheet names from Excel file "${file.name}". ` +
+                'The file may be corrupted or in an unsupported format. ' +
+                `Error: ${errMsg}`,
+            );
+          }
+        }
 
         if (sheetNames.length === 0) {
           errors.push(`XLSX file ${file.name} has no sheets.`);
           return false;
         }
-        const fileName = `${file.uniqueAlias}.${file.ext}`;
+
+        // Get proper file reference for DuckDB
+        const fileReference = getFileReferenceForDuckDB(file);
         const succeededSheets: string[] = [];
         const skippedSheets: string[] = [];
         let regFile: File | null = null;
         for (const sheetName of sheetNames) {
           try {
             if (!regFile) {
-              regFile = await registerFileHandle(conn, file.handle, fileName);
-              newRegisteredFiles.push([file.id, regFile]);
+              regFile = await registerFileHandle(
+                conn,
+                file.handle,
+                `${file.uniqueAlias}.${file.ext}`,
+              );
+              if (regFile) {
+                newRegisteredFiles.push([file.id, regFile]);
+              }
             }
             const sheetDataSource = addXlsxSheetDataSource(file, sheetName, reservedViews);
             reservedViews.add(sheetDataSource.viewName);
             newManagedViews.push(sheetDataSource.viewName);
-            await createXlsxSheetView(conn, fileName, sheetName, sheetDataSource.viewName);
+            await createXlsxSheetView(conn, fileReference, sheetName, sheetDataSource.viewName);
             newDataSources.push([sheetDataSource.id, sheetDataSource]);
             succeededSheets.push(sheetName);
           } catch (err) {
@@ -199,15 +374,18 @@ export const addLocalFileOrFolders = async (
 
         // Then register the file source and create the view.
         try {
+          const fileReference = getFileReferenceForDuckDB(file);
           const regFile = await registerFileSourceAndCreateView(
             conn,
             file.handle,
             file.ext,
-            `${file.uniqueAlias}.${file.ext}`,
+            fileReference,
             dataSource.viewName,
           );
 
-          newRegisteredFiles.push([file.id, regFile]);
+          if (regFile) {
+            newRegisteredFiles.push([file.id, regFile]);
+          }
           newDataSources.push([dataSource.id, dataSource]);
           return true;
         } catch (err) {
@@ -293,7 +471,7 @@ export const addLocalFileOrFolders = async (
     // when a folder is being added that brings in a previously existing file.
     // The full proper reocnciliation is not implemented yet.
     for (const entry of localEntries.values()) {
-      if (await entry.handle.isSameEntry(localEntry.handle)) {
+      if (await isSameFile(entry, localEntry)) {
         skippedExistingEntries.push(localEntry);
         alreadyExists = true;
         break;
@@ -347,25 +525,27 @@ export const addLocalFileOrFolders = async (
   // Read the metadata for the newly attached databases
   let newDatabaseMetadata: Map<string, DataBaseModel> | null = null;
   if (newDatabaseNames.length > 0) {
-    newDatabaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
+    // console.log(
+    //   '[processHandles] Reading metadata for newly attached databases:',
+    //   newDatabaseNames,
+    // );
+    try {
+      newDatabaseMetadata = await getDatabaseModel(conn, newDatabaseNames);
+      // console.log('[processHandles] Metadata retrieved, size:', newDatabaseMetadata.size);
+      // console.log(
+      //   '[processHandles] Database names in metadata:',
+      //   Array.from(newDatabaseMetadata.keys()),
+      // );
 
-    // Check if any non-empty databases failed to get metadata
-    const failedDatabases: string[] = [];
-    for (const dbName of newDatabaseNames) {
-      const hasMetadata = newDatabaseMetadata.has(dbName);
-      if (!hasMetadata) {
-        // Check if database is empty before considering it an error
-        const isEmpty = await isDatabaseEmpty(dbName);
-        if (!isEmpty) {
-          // Database is not empty but we couldn't get metadata - this is a real error
-          failedDatabases.push(dbName);
-        }
+      if (newDatabaseMetadata.size === 0) {
+        errors.push(
+          'Failed to read newly attached database metadata. Neither explorer not auto-complete will not show objects for them. You may try deleting and re-attaching the database(s).',
+        );
       }
-    }
-
-    if (failedDatabases.length > 0) {
+    } catch (error) {
+      // console.error('[processHandles] Error reading database metadata:', error);
       errors.push(
-        `Failed to read metadata for database(s): ${failedDatabases.join(', ')}. Neither explorer nor auto-complete will show objects for them. You may try deleting and re-attaching the database(s).`,
+        `Error reading database metadata: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -405,9 +585,10 @@ export const addLocalFileOrFolders = async (
   // Update the store
   useAppStore.setState(newState, undefined, 'AppStore/addLocalFileOrFolders');
 
-  // If we have an IndexedDB connection, persist the new local entry
-  if (iDbConn) {
-    persistAddLocalEntry(iDbConn, newEntries, newDataSources);
+  // Persist the new local entry using the appropriate adapter
+  const persistenceStore = persistenceAdapter || iDbConn;
+  if (persistenceStore) {
+    persistAddLocalEntry(persistenceStore, newEntries, newDataSources);
   }
 
   // Return the new local entry and data source
@@ -424,7 +605,11 @@ export const addLocalFileOrFolders = async (
 };
 
 export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHandle[]) => {
-  const { _iDbConn: iDbConn, sqlScripts } = useAppStore.getState();
+  const {
+    _iDbConn: iDbConn,
+    _persistenceAdapter: persistenceAdapter,
+    sqlScripts,
+  } = useAppStore.getState();
 
   const newScripts: [SQLScriptId, SQLScript][] = [];
 
@@ -453,10 +638,15 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
   // Update the store
   useAppStore.setState(newState, undefined, 'AppStore/importSQLFiles');
 
-  // If we have an IndexedDB connection, persist the new SQL scripts
-  if (iDbConn) {
+  // Persist the new SQL scripts using the appropriate adapter
+  const persistenceStore = persistenceAdapter || iDbConn;
+  if (persistenceStore) {
     for (const [id, script] of newScripts) {
-      iDbConn.put(SQL_SCRIPT_TABLE_NAME, script, id);
+      if (persistenceAdapter) {
+        await persistenceAdapter.put(SQL_SCRIPT_TABLE_NAME, script, id);
+      } else if (iDbConn) {
+        await iDbConn.put(SQL_SCRIPT_TABLE_NAME, script, id);
+      }
     }
   }
 };
@@ -479,8 +669,13 @@ export const importSQLFilesAndCreateScripts = async (handles: FileSystemFileHand
  * ------------------------------------------------------------
  */
 
-export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: LocalEntryId[]) => {
-  const { dataSources, localEntries, _iDbConn: iDbConn } = useAppStore.getState();
+export const deleteLocalFileOrFolders = (conn: ConnectionPool, ids: LocalEntryId[]) => {
+  const {
+    dataSources,
+    localEntries,
+    _iDbConn: iDbConn,
+    _persistenceAdapter: persistenceAdapter,
+  } = useAppStore.getState();
 
   const folderChildren = new Map<LocalEntryId, LocalEntry[]>();
   for (const [_, entry] of localEntries) {
@@ -561,9 +756,10 @@ export const deleteLocalFileOrFolders = (conn: AsyncDuckDBConnectionPool, ids: L
     deleteDataSources(conn, dataSourceIdsToDelete);
   }
 
-  // Delete folder entries from IDB
-  if (iDbConn) {
-    persistDeleteLocalEntry(iDbConn, folderIdsToDelete);
+  // Delete folder entries from persistence store
+  const persistenceStore = persistenceAdapter || iDbConn;
+  if (persistenceStore) {
+    persistDeleteLocalEntry(persistenceStore, folderIdsToDelete);
   }
 };
 
@@ -588,7 +784,7 @@ const checkFileReadability = async (
   return 'notReadable';
 };
 
-export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
+export const syncFiles = async (conn: ConnectionPool) => {
   const { localEntries, registeredFiles, dataSources } = useAppStore.getState();
 
   const localFiles = Array.from(localEntries.values()).filter(
@@ -613,6 +809,9 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
           source.handle,
           `${source.uniqueAlias}.${source.ext}`,
         );
+        if (!regFile) {
+          throw new Error(`Failed to register file handle for ${source.uniqueAlias}.${source.ext}`);
+        }
         newRegisteredFiles.set(source.id, regFile);
 
         // Find and recreate all views associated with this file
@@ -649,7 +848,7 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
           }
         }
       } catch (e) {
-        console.error(`Failed to register file handle ${source.handle.name}:`, e);
+        // console.error(`Failed to register file handle ${source.handle.name}:`, e);
         localFileToDelete.push(source);
       }
     } else {
