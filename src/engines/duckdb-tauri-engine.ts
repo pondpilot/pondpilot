@@ -1,5 +1,6 @@
 import { getLogger } from './debug-logger';
 import { InitializationError, parseTauriError } from './errors';
+import { TAURI_ALLOWED_EXTENSIONS } from './extension-allowlist';
 import { TauriConnectionPool } from './tauri-connection-pool';
 import {
   DatabaseEngine,
@@ -15,7 +16,6 @@ import {
   DatabaseInfo,
   TableInfo,
   ColumnInfo,
-  ExportFormat,
   ExtensionOptions,
   ExtensionInfo,
 } from './types';
@@ -192,13 +192,7 @@ export class DuckDBTauriEngine implements DatabaseEngine {
     await this.invokeWithErrorHandling<void>('checkpoint');
   }
 
-  async export(format: ExportFormat): Promise<ArrayBuffer | string> {
-    return this.invoke('export_database', { format });
-  }
-
-  async import(data: ArrayBuffer | string, format: ExportFormat): Promise<void> {
-    await this.invoke('import_database', { data, format });
-  }
+  // Database import/export is not exposed in desktop API
 
   async loadExtension(name: string, _options?: ExtensionOptions): Promise<void> {
     await this.invoke('load_extension', { name, options: _options });
@@ -214,25 +208,7 @@ export class DuckDBTauriEngine implements DatabaseEngine {
   }
 
   getCapabilities(): EngineCapabilities {
-    // Mirror the backend allowlist to guide the UI (keep in sync if changed)
-    const allowed = [
-      'httpfs',
-      'parquet',
-      'json',
-      'excel',
-      'spatial',
-      'sqlite_scanner',
-      'postgres_scanner',
-      'mysql_scanner',
-      'arrow',
-      'aws',
-      'azure',
-      'gsheets',
-      'read_stat',
-      'motherduck',
-      'iceberg',
-      'delta',
-    ] as const;
+    const allowed = TAURI_ALLOWED_EXTENSIONS;
     return {
       supportsStreaming: true,
       supportsMultiThreading: true,

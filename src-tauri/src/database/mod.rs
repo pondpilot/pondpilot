@@ -7,6 +7,8 @@ pub mod sql_classifier;
 pub mod sql_sanitizer;
 pub mod arrow_streaming;
 pub mod connection_handler;
+pub mod extensions;
+pub mod sql_utils;
 
 pub use engine::DuckDBEngine;
 pub use types::*;

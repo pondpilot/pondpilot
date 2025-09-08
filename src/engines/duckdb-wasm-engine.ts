@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { DuckDBWasmConnection } from './duckdb-wasm-connection';
 import { DuckDBWasmConnectionPool } from './duckdb-wasm-connection-pool';
-import { InitializationError, QueryExecutionError, FileOperationError } from './errors';
+import { InitializationError, FileOperationError } from './errors';
 import {
   DatabaseEngine,
   DatabaseConnection,
@@ -18,7 +18,6 @@ import {
   DatabaseInfo,
   TableInfo,
   ColumnInfo,
-  ExportFormat,
   ExtensionOptions,
   ExtensionInfo,
 } from './types';
@@ -262,24 +261,6 @@ export class DuckDBWasmEngine implements DatabaseEngine {
 
   async checkpoint(): Promise<void> {
     await this.execute('CHECKPOINT');
-  }
-
-  async export(format: ExportFormat): Promise<ArrayBuffer | string> {
-    if (!this._db) {
-      throw new InitializationError('Database not initialized');
-    }
-
-    switch (format) {
-      case 'arrow':
-        // Export via query for now
-        throw new QueryExecutionError('Arrow export not yet implemented');
-      default:
-        throw new QueryExecutionError(`Export format ${format} not supported in WASM mode`);
-    }
-  }
-
-  async import(_data: ArrayBuffer | string, _format: ExportFormat): Promise<void> {
-    throw new FileOperationError('Import not yet implemented for DuckDB WASM');
   }
 
   async loadExtension(name: string, _options?: ExtensionOptions): Promise<void> {

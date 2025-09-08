@@ -270,26 +270,15 @@ export class TauriConnectionPool implements ConnectionPool {
   /**
    * Initialize a connection with extensions and attachments
    */
-  private async initializeConnection(conn: TauriConnection, isNew: boolean = false): Promise<void> {
+  private async initializeConnection(
+    conn: TauriConnection,
+    _isNew: boolean = false,
+  ): Promise<void> {
     // Extension loading is handled centrally on the Tauri backend per-connection
     // to enforce security policy (allowlist) and avoid duplication. No-op here.
     conn.markExtensionsLoaded();
-
-    // Load local DB attachments if not already loaded
-    if (!conn.hasAttachedDbsLoaded()) {
-      try {
-        const { AttachmentLoader } = await import('../services/attachment-loader');
-        await AttachmentLoader.loadLocalDBsForConnection(conn);
-        conn.markAttachedDbsLoaded();
-      } catch (error) {
-        const logLevel = isNew ? 'error' : 'warn';
-        // eslint-disable-next-line no-console
-        console[logLevel](
-          `Failed to attach local DBs for ${isNew ? 'new' : 'reused'} connection:`,
-          error,
-        );
-      }
-    }
+    // Attachments are applied just-in-time before PREPARE/execute to ensure
+    // both local and remote DBs are present consistently.
   }
 
   async acquire(): Promise<DatabaseConnection> {
@@ -304,34 +293,40 @@ export class TauriConnectionPool implements ConnectionPool {
     });
 
     try {
-      // If we have available connections, return one
-      if (this.availableConnections.length > 0) {
-        const conn = this.availableConnections.pop()!;
+      // Loop to avoid recursion when skipping invalid connections
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        // If we have available connections, attempt to use one
+        if (this.availableConnections.length > 0) {
+          const conn = this.availableConnections.pop()!;
 
-        if (this.config.validateOnAcquire) {
-          if (await this.validateConnection(conn)) {
-            await this.initializeConnection(conn);
-            return conn;
+          if (this.config.validateOnAcquire) {
+            if (await this.validateConnection(conn)) {
+              await this.initializeConnection(conn);
+              return conn;
+            }
+            // Invalid connection: remove and continue loop
+            this.removeConnection(conn);
+            continue;
           }
-          // Connection is invalid, remove it
-          this.removeConnection(conn);
-          // Try again (but release lock first)
-          return await this.acquire();
+
+          await this.initializeConnection(conn);
+          return conn;
         }
 
-        await this.initializeConnection(conn);
-        return conn;
-      }
+        // If we haven't reached max pool size, create a new connection
+        if (this.connections.length < this.config.maxSize) {
+          const connId = await this.invoke('create_connection');
+          const conn = new TauriConnection(this.invoke, connId);
+          this.connections.push(conn);
+          this.stats.connectionsCreated += 1;
 
-      // If we haven't reached max pool size, create a new connection
-      if (this.connections.length < this.config.maxSize) {
-        const connId = await this.invoke('create_connection');
-        const conn = new TauriConnection(this.invoke, connId);
-        this.connections.push(conn);
-        this.stats.connectionsCreated += 1;
+          await this.initializeConnection(conn, true);
+          return conn;
+        }
 
-        await this.initializeConnection(conn, true);
-        return conn;
+        // No available connections and at max size -> break to wait queue setup
+        break;
       }
     } finally {
       // Release the lock
@@ -518,6 +513,28 @@ export class TauriConnectionPool implements ConnectionPool {
     const conn = await this.acquire();
 
     try {
+      // Ensure attachments (mirrors streaming setup)
+      let attachSpec: any = options?.attach;
+      if (!attachSpec) {
+        try {
+          const { buildAttachSpec } = await import('./tauri-attach');
+          const spec = await buildAttachSpec();
+          if (spec.length > 0) attachSpec = spec;
+        } catch (e) {
+          tauriLog('[TauriConnectionPool] Failed to build attach spec for non-stream', e);
+        }
+      }
+
+      if (attachSpec) {
+        const { buildAttachStatements } = await import('./tauri-attach');
+        const toArray = Array.isArray(attachSpec) ? attachSpec : [attachSpec];
+        const stmts: string[] = buildAttachStatements(toArray);
+        if (stmts.length > 0) {
+          tauriLog('[TauriConnectionPool] Applying non-stream ATTACH setup');
+          await conn.execute(stmts.join(';\n'));
+        }
+      }
+
       tauriLog('[TauriConnectionPool] Executing SQL via non-stream:', sql);
       const result = await conn.execute(sql);
       // Convert to Arrow-like format for compatibility

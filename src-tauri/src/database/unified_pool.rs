@@ -1,4 +1,5 @@
 use crate::errors::{DuckDBError, Result};
+use super::extensions::ALLOWED_EXTENSIONS;
 use crate::system_resources::{calculate_resource_limits, ResourceLimits};
 use duckdb::Connection;
 use serde::{Serialize, Deserialize};
@@ -17,6 +18,7 @@ struct AttachedDatabase {
     db_type: String,
     secret_sql: String,
     secret_name: Option<String>,  // Explicitly store the secret name (None for MotherDuck)
+    read_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,24 +116,7 @@ impl ConnectionPermit {
 
         // Load extensions with backend allowlist enforcement
         // Minimal duplication of allowlist here for security and clarity
-        const ALLOWED_EXTENSIONS: &[&str] = &[
-            "httpfs",
-            "parquet",
-            "json",
-            "excel",
-            "spatial",
-            "sqlite_scanner",
-            "postgres_scanner",
-            "mysql_scanner",
-            "arrow",
-            "aws",
-            "azure",
-            "gsheets",
-            "read_stat",
-            "motherduck",
-            "iceberg",
-            "delta",
-        ];
+        // Use centralized allowlist
 
         let extensions = self.extensions.blocking_lock();
         if !extensions.is_empty() {
@@ -177,10 +162,17 @@ impl ConnectionPermit {
                 }
             }
             
-            // Attach database using the explicitly stored secret name
+            // Attach database based on type and available metadata
             let attach_sql = if db_info.db_type == "MOTHERDUCK" {
                 // MotherDuck uses special syntax without alias and without SECRET
                 format!("ATTACH '{}'", db_info.connection_string)
+            } else if db_info.db_type == "PLAIN" {
+                // Plain URL/file attach
+                if db_info.read_only {
+                    format!("ATTACH '{}' AS {} (READ_ONLY)", db_info.connection_string, db_info.alias)
+                } else {
+                    format!("ATTACH '{}' AS {}", db_info.connection_string, db_info.alias)
+                }
             } else if let Some(secret_name) = &db_info.secret_name {
                 // PostgreSQL/MySQL use standard syntax with SECRET
                 format!(
@@ -324,6 +316,7 @@ impl UnifiedPool {
         db_type: String,
         secret_sql: String,
         secret_name: Option<String>,
+        read_only: bool,
     ) {
         let mut attached_dbs = self.attached_databases.lock().await;
         // Check if this database is already attached
@@ -334,6 +327,7 @@ impl UnifiedPool {
                 db_type,
                 secret_sql,
                 secret_name,
+                read_only,
             });
         }
     }

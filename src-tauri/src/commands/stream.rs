@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tracing::debug;
 use serde::Serialize;
+use crate::database::sql_utils::{escape_identifier, escape_string_literal, AttachItem, build_attach_statements};
 use arrow_ipc::writer::StreamWriter;
 use arrow_schema::Schema;
 use arrow_array::RecordBatch;
@@ -26,17 +27,6 @@ pub struct BinaryStreamEvent {
     pub batch_index: Option<usize>,
 }
 
-/// Escape a SQL identifier (table name, column name, etc.) for DuckDB
-fn escape_identifier(name: &str) -> String {
-    // DuckDB uses double quotes for identifiers
-    format!("\"{}\"", name.replace('"', "\"\""))
-}
-
-/// Escape a string literal for use in SQL statements
-fn escape_string_literal(value: &str) -> String {
-    // DuckDB uses single quotes for string literals
-    format!("'{}'", value.replace('\'', "''"))
-}
 
 #[tauri::command]
 pub async fn stream_query(
@@ -129,35 +119,16 @@ async fn execute_streaming_query(
     setup_stmts.push("USE main".to_string());
 
     if let Some(ref spec) = attach {
-        // Support single object or array of objects
-        if spec.is_array() {
-            if let Some(arr) = spec.as_array() {
-                for item in arr {
-                    if let (Some(db_name), Some(url)) = (
-                        item.get("dbName").and_then(|v| v.as_str()),
-                        item.get("url").and_then(|v| v.as_str()),
-                    ) {
-                        // Skip empty URLs to prevent in-memory database errors
-                        if url.trim().is_empty() {
-                            continue;
-                        }
-                        let read_only = item.get("readOnly").and_then(|v| v.as_bool()).unwrap_or(true);
-                        let escaped_db_name = escape_identifier(db_name);
-                        let escaped_url = escape_string_literal(url);
-                        // Special handling for MotherDuck: ATTACH 'md:db' does not support alias
-                        if url.starts_with("md:") {
-                            setup_stmts.push(format!("DETACH DATABASE IF EXISTS {}", escaped_db_name));
-                            setup_stmts.push(format!("ATTACH {}", escaped_url));
-                        } else {
-                            setup_stmts.push(format!("DETACH DATABASE IF EXISTS {}", escaped_db_name));
-                            let attach_sql = if read_only {
-                                format!("ATTACH {} AS {} (READ_ONLY)", escaped_url, escaped_db_name)
-                            } else {
-                                format!("ATTACH {} AS {}", escaped_url, escaped_db_name)
-                            };
-                            setup_stmts.push(attach_sql);
-                        }
-                    }
+        // Normalize attach spec into AttachItem list
+        let mut items: Vec<AttachItem> = Vec::new();
+        if let Some(arr) = spec.as_array() {
+            for item in arr {
+                if let (Some(db_name), Some(url)) = (
+                    item.get("dbName").and_then(|v| v.as_str()),
+                    item.get("url").and_then(|v| v.as_str()),
+                ) {
+                    let read_only = item.get("readOnly").and_then(|v| v.as_bool()).unwrap_or(true);
+                    items.push(AttachItem { db_name: db_name.to_string(), url: url.to_string(), read_only });
                 }
             }
         } else {
@@ -165,27 +136,14 @@ async fn execute_streaming_query(
                 spec.get("dbName").and_then(|v| v.as_str()),
                 spec.get("url").and_then(|v| v.as_str()),
             ) {
-                // Skip empty URLs to prevent in-memory database errors
-                if url.trim().is_empty() {
-                    return Ok(());
-                }
                 let read_only = spec.get("readOnly").and_then(|v| v.as_bool()).unwrap_or(true);
-                let escaped_db_name = escape_identifier(db_name);
-                let escaped_url = escape_string_literal(url);
-                if url.starts_with("md:") {
-                    setup_stmts.push(format!("DETACH DATABASE IF EXISTS {}", escaped_db_name));
-                    setup_stmts.push(format!("ATTACH {}", escaped_url));
-                } else {
-                    setup_stmts.push(format!("DETACH DATABASE IF EXISTS {}", escaped_db_name));
-                    let attach_sql = if read_only {
-                        format!("ATTACH {} AS {} (READ_ONLY)", escaped_url, escaped_db_name)
-                    } else {
-                        format!("ATTACH {} AS {}", escaped_url, escaped_db_name)
-                    };
-                    setup_stmts.push(attach_sql);
-                }
+                items.push(AttachItem { db_name: db_name.to_string(), url: url.to_string(), read_only });
             }
         }
+
+        // Build statements from normalized items
+        let attach_sqls = build_attach_statements(&items);
+        setup_stmts.extend(attach_sqls);
     }
 
     let mut arrow_stream = match engine.execute_arrow_streaming(

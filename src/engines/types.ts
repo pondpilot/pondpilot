@@ -50,8 +50,6 @@ export interface PreparedStatement {
   close: () => Promise<void>;
 }
 
-export type ExportFormat = 'parquet' | 'csv' | 'json' | 'arrow';
-
 // Strict engine type enum
 export type EngineType = 'duckdb-wasm' | 'duckdb-tauri';
 
@@ -101,6 +99,10 @@ export interface DatabaseConnection {
   prepare: (sql: string) => Promise<PreparedStatement>;
   close: () => Promise<void>;
   isOpen: () => boolean;
+  hasAttachedDbsLoaded?: () => boolean;
+  markAttachedDbsLoaded?: () => void;
+  hasExtensionsLoaded?: () => boolean;
+  markExtensionsLoaded?: () => void;
 }
 
 export interface PoolStats {
@@ -173,8 +175,6 @@ export interface DatabaseEngine {
 
   // Persistence
   checkpoint: () => Promise<void>;
-  export: (format: ExportFormat) => Promise<ArrayBuffer | string>;
-  import: (data: ArrayBuffer | string, format: ExportFormat) => Promise<void>;
 
   // Extensions
   loadExtension: (name: string, options?: ExtensionOptions) => Promise<void>;

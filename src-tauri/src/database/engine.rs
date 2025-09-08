@@ -4,6 +4,7 @@ use super::query_builder::{QueryBuilder, QueryHints};
 use super::resource_manager::ResourceManager;
 use super::types::*;
 use super::unified_pool::{PoolConfig, UnifiedPool};
+use super::extensions::ALLOWED_EXTENSIONS;
 use crate::errors::Result;
 use crate::system_resources::get_total_memory;
 use std::collections::HashMap;
@@ -11,25 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-// Whitelist of allowed DuckDB extensions for security
-const ALLOWED_EXTENSIONS: &[&str] = &[
-    "httpfs",
-    "parquet",
-    "json",
-    "excel",
-    "spatial",
-    "sqlite",
-    "postgres",
-    "mysql",
-    "arrow",
-    "aws",
-    "azure",
-    "gsheets",
-    "read_stat",
-    "motherduck",
-    "iceberg",
-    "delta",
-];
+// Extension allowlist is centralized in extensions.rs
 
 /// Validates and canonicalizes a file path for security
 fn validate_file_path(path: &str) -> Result<PathBuf> {
@@ -424,6 +407,21 @@ impl DuckDBEngine {
         handle.execute(sql.to_string(), params).await
     }
 
+    /// Execute a query on a specific connection with optional timeout (ms)
+    pub async fn execute_on_connection_with_timeout(
+        &self,
+        connection_id: &str,
+        sql: &str,
+        params: Vec<serde_json::Value>,
+        timeout_ms: Option<u64>,
+    ) -> Result<super::types::QueryResult> {
+        let handle = self
+            .connection_manager
+            .get_connection(connection_id)
+            .await?;
+        handle.execute_with_timeout(sql.to_string(), params, timeout_ms).await
+    }
+
     /// Close a specific connection
     pub async fn close_connection(&self, connection_id: &str) -> Result<()> {
         self.connection_manager
@@ -597,6 +595,7 @@ impl DuckDBEngine {
             db_type_clone,
             secret_sql_clone,
             Some(secret_name),
+            false,
         ).await;
         
         tracing::info!("[DuckDBEngine] Successfully attached remote database: {}", sanitized_alias);
@@ -629,7 +628,12 @@ impl DuckDBEngine {
             None
         };
         
-        self.pool.register_attached_database(alias, connection_string, db_type, secret_sql, secret_name).await;
+        self.pool.register_attached_database(alias, connection_string, db_type, secret_sql, secret_name, false).await;
+    }
+
+    /// Register a plain URL/file attachment (e.g., HTTPFS or local file) for re-attachment
+    pub async fn register_plain_attachment(&self, alias: String, connection_string: String, read_only: bool) {
+        self.pool.register_attached_database(alias, connection_string, "PLAIN".to_string(), String::new(), None, read_only).await;
     }
     
     /// Attach MotherDuck database to all existing connections
@@ -1026,15 +1030,13 @@ impl DuckDBEngine {
         })?.clone();
         drop(statements);
 
-        // Explicitly reject parameters until proper parameter binding is implemented
+        // If parameters are provided, use the parameterized execution path
         if !params.is_empty() {
-            return Err(crate::errors::DuckDBError::ParameterBinding {
-                message: "Parameter binding is not supported on desktop yet".to_string(),
-            });
+            return self.execute_query_with_params(&sql, params).await;
         }
-        
-        // Execute using the existing query execution path
-        self.execute_query(&sql, params).await
+
+        // Execute using the existing query execution path (no params)
+        self.execute_query(&sql, vec![]).await
     }
 
     /// Close and remove a prepared statement
