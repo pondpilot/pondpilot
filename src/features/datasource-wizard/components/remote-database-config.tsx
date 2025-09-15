@@ -51,7 +51,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
     if (!urlValidation.isValid) {
       notifications.clean();
       showError({
-        title: 'Invalid URL',
+        title: 'Validation error',
         message: urlValidation.error || 'Please enter a valid URL',
         autoClose: false,
       });
@@ -123,7 +123,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
     const urlValidation = validateRemoteDatabaseUrl(url);
     if (!urlValidation.isValid) {
       showError({
-        title: 'Invalid URL',
+        title: 'Validation error',
         message: urlValidation.error || 'Please enter a valid URL',
       });
       return;
