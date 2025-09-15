@@ -237,8 +237,7 @@ export class TauriConnection implements DatabaseConnection {
                           await ConnectionsAPI.attachRemoteDatabase(r.connectionId, r.dbName);
                         } catch (attachErr) {
                           logger.debug(
-                            '[TauriConnection] attachRemoteDatabase failed for',
-                            r.dbName,
+                            `[TauriConnection] attachRemoteDatabase failed for ${r.dbName}`,
                             attachErr,
                           );
                         }
