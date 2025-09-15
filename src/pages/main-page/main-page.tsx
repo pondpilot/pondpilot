@@ -34,7 +34,7 @@ export const MainPage = () => {
   // Get sidebar state from Tauri layout context if available
   // Always call the hook to maintain consistent hook order
   const outletContext = useOutletContext<
-    { sidebarCollapsed: boolean; toggleSidebar: () => void } | undefined
+    { sidebarCollapsed: boolean; toggleSidebar:() => void } | undefined
   >();
   const tauriContext = isTauri ? outletContext : undefined;
 
