@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use uuid::Uuid;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -31,7 +31,8 @@ impl SecretType {
             SecretType::HTTP => "http",
             SecretType::HuggingFace => "huggingface",
             SecretType::DuckLake => "ducklake",
-        }.to_string()
+        }
+        .to_string()
     }
 
     pub fn from_string(s: &str) -> Option<Self> {
@@ -89,7 +90,7 @@ impl SecureString {
             data: value.into().into_bytes(),
         }
     }
-    
+
     pub fn expose(&self) -> &str {
         std::str::from_utf8(&self.data).unwrap_or_default()
     }
@@ -122,29 +123,29 @@ pub struct SecretFields {
     pub region: Option<String>,
     pub session_token: Option<String>,
     pub endpoint: Option<String>,
-    
+
     // Azure fields
     pub account_name: Option<String>,
     pub account_id: Option<String>,
     pub tenant_id: Option<String>,
     pub client_id: Option<String>,
     pub client_secret: Option<String>,
-    
+
     // Database fields
     pub host: Option<String>,
     pub port: Option<u16>,
     pub database: Option<String>,
     pub username: Option<String>,
     pub password: Option<String>,
-    
+
     // API token fields
     pub token: Option<String>,
-    
+
     // HTTP auth fields
     pub bearer_token: Option<String>,
     pub basic_username: Option<String>,
     pub basic_password: Option<String>,
-    
+
     // Other
     pub scope: Option<String>,
 }

@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 /// Supported database connection types for external database integration
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -17,7 +17,8 @@ impl ConnectionType {
         match self {
             ConnectionType::Postgres => "postgres",
             ConnectionType::MySQL => "mysql",
-        }.to_string()
+        }
+        .to_string()
     }
 
     /// Parse a connection type from its string representation
@@ -56,7 +57,8 @@ impl SslMode {
             SslMode::Require => "require",
             SslMode::VerifyCa => "verify-ca",
             SslMode::VerifyFull => "verify-full",
-        }.to_string()
+        }
+        .to_string()
     }
 
     pub fn from_string(s: &str) -> Option<Self> {
@@ -271,10 +273,12 @@ impl ConnectionConfig {
     pub fn get_connection_string_template(&self) -> String {
         match self.connection_type {
             ConnectionType::Postgres => {
-                let ssl_mode = self.ssl_mode.as_ref()
+                let ssl_mode = self
+                    .ssl_mode
+                    .as_ref()
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| "prefer".to_string());
-                
+
                 let mut conn_str = format!(
                     "postgresql://{{username}}:{{password}}@{}:{}/{}?sslmode={}",
                     self.host, self.port, self.database, ssl_mode
@@ -289,7 +293,7 @@ impl ConnectionConfig {
                 }
 
                 conn_str
-            },
+            }
             ConnectionType::MySQL => {
                 let mut conn_str = format!(
                     "mysql://{{username}}:{{password}}@{}:{}/{}",
@@ -301,7 +305,7 @@ impl ConnectionConfig {
                 }
 
                 conn_str
-            },
+            }
         }
     }
 }

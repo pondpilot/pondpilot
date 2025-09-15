@@ -6,7 +6,7 @@ pub const MIN_CONNECTIONS: usize = 2;
 pub const DEFAULT_MIN_CONNECTIONS: usize = 1;
 pub const DEFAULT_MAX_CONNECTIONS: usize = 10;
 
-// Thread pool limits  
+// Thread pool limits
 pub const MAX_WORKER_THREADS: usize = 256;
 pub const MIN_WORKER_THREADS: usize = 1;
 pub const DEFAULT_WORKER_THREADS: usize = 4;

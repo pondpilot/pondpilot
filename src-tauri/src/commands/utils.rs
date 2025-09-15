@@ -8,10 +8,12 @@ pub fn coalesce_param_opt<T>(
     param_name: &str,
     operation: &str,
 ) -> crate::errors::Result<T> {
-    snake.or(camel).ok_or_else(|| crate::errors::DuckDBError::InvalidOperation {
-        message: format!("Missing required parameter '{}'", param_name),
-        operation: Some(operation.to_string()),
-    })
+    snake
+        .or(camel)
+        .ok_or_else(|| crate::errors::DuckDBError::InvalidOperation {
+            message: format!("Missing required parameter '{}'", param_name),
+            operation: Some(operation.to_string()),
+        })
 }
 
 #[cfg(test)]
@@ -26,7 +28,8 @@ mod tests {
 
     #[test]
     fn coalesce_uses_camel_when_snake_missing() {
-        let v: String = coalesce_param_opt::<String>(None, Some("camel".to_string()), "id", "op").unwrap();
+        let v: String =
+            coalesce_param_opt::<String>(None, Some("camel".to_string()), "id", "op").unwrap();
         assert_eq!(v, "camel");
     }
 
@@ -37,4 +40,3 @@ mod tests {
         assert!(msg.contains("Missing required parameter 'id'"));
     }
 }
-

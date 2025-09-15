@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use tauri::State;
 use uuid::Uuid;
-use serde::{Deserialize, Serialize};
 
 use super::manager::ConnectionsManager;
 use super::models::{ConnectionConfig, ConnectionType, SslMode};
@@ -59,12 +59,6 @@ pub struct ConnectionTypeInfo {
     pub supported_ssl_modes: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct AttachmentSql {
-    pub secret_sql: String,
-    pub attach_sql: String,
-}
-
 #[tauri::command]
 pub async fn save_connection(
     window: tauri::Window,
@@ -84,8 +78,8 @@ pub async fn save_connection(
     tracing::info!("[Connections]   - Database: {}", request.database);
     tracing::info!("[Connections]   - Secret ID: {}", request.secret_id);
 
-    let secret_id = Uuid::parse_str(&request.secret_id)
-        .map_err(|e| format!("Invalid secret ID: {}", e))?;
+    let secret_id =
+        Uuid::parse_str(&request.secret_id).map_err(|e| format!("Invalid secret ID: {}", e))?;
 
     let mut config = ConnectionConfig::new(
         request.name,
@@ -106,15 +100,15 @@ pub async fn save_connection(
     config.tags = request.tags;
     config.description = request.description;
 
-    let connection = state
-        .save_connection(config)
-        .await
-        .map_err(|e| {
-            tracing::error!("[Connections] Failed to save connection: {}", e);
-            e.to_string()
-        })?;
+    let connection = state.save_connection(config).await.map_err(|e| {
+        tracing::error!("[Connections] Failed to save connection: {}", e);
+        e.to_string()
+    })?;
 
-    tracing::info!("[Connections] Connection saved successfully with ID: {}", connection.id);
+    tracing::info!(
+        "[Connections] Connection saved successfully with ID: {}",
+        connection.id
+    );
 
     Ok(ConnectionResponse { connection })
 }
@@ -130,20 +124,24 @@ pub async fn list_connections(
         return Err("Unauthorized: list_connections only available from main window".into());
     }
 
-    tracing::info!("[Connections] Listing connections with type filter: {:?}", connection_type);
+    tracing::info!(
+        "[Connections] Listing connections with type filter: {:?}",
+        connection_type
+    );
 
-    let connections = state
-        .list_connections(connection_type)
-        .await
-        .map_err(|e| {
-            tracing::error!("[Connections] Failed to list connections: {}", e);
-            e.to_string()
-        })?;
+    let connections = state.list_connections(connection_type).await.map_err(|e| {
+        tracing::error!("[Connections] Failed to list connections: {}", e);
+        e.to_string()
+    })?;
 
     tracing::info!("[Connections] Found {} connections", connections.len());
     for connection in &connections {
-        tracing::info!("[Connections]   - {} ({:?}): {}", 
-                 connection.name, connection.connection_type, connection.id);
+        tracing::info!(
+            "[Connections]   - {} ({:?}): {}",
+            connection.name,
+            connection.connection_type,
+            connection.id
+        );
     }
 
     Ok(ConnectionListResponse { connections })
@@ -160,16 +158,17 @@ pub async fn get_connection(
         return Err("Unauthorized: get_connection only available from main window".into());
     }
 
-    let id = Uuid::parse_str(&connection_id)
-        .map_err(|e| format!("Invalid connection ID: {}", e))?;
+    let id =
+        Uuid::parse_str(&connection_id).map_err(|e| format!("Invalid connection ID: {}", e))?;
 
-    let connection = state
-        .get_connection(id)
-        .await
-        .map_err(|e| {
-            tracing::error!("[Connections] Failed to get connection {}: {}", connection_id, e);
-            e.to_string()
-        })?;
+    let connection = state.get_connection(id).await.map_err(|e| {
+        tracing::error!(
+            "[Connections] Failed to get connection {}: {}",
+            connection_id,
+            e
+        );
+        e.to_string()
+    })?;
 
     Ok(ConnectionResponse { connection })
 }
@@ -185,23 +184,29 @@ pub async fn delete_connection(
         return Err("Unauthorized: connection commands only available from main window".into());
     }
 
-    tracing::info!("[Connections] Delete request for connection: {}", connection_id);
+    tracing::info!(
+        "[Connections] Delete request for connection: {}",
+        connection_id
+    );
 
-    let id = Uuid::parse_str(&connection_id)
-        .map_err(|e| {
-            tracing::error!("[Connections] Invalid connection ID format: {}", e);
-            format!("Invalid connection ID: {}", e)
-        })?;
+    let id = Uuid::parse_str(&connection_id).map_err(|e| {
+        tracing::error!("[Connections] Invalid connection ID format: {}", e);
+        format!("Invalid connection ID: {}", e)
+    })?;
 
-    state
-        .delete_connection(id)
-        .await
-        .map_err(|e| {
-            tracing::error!("[Connections] Failed to delete connection {}: {}", connection_id, e);
-            e.to_string()
-        })?;
+    state.delete_connection(id).await.map_err(|e| {
+        tracing::error!(
+            "[Connections] Failed to delete connection {}: {}",
+            connection_id,
+            e
+        );
+        e.to_string()
+    })?;
 
-    tracing::info!("[Connections] Connection {} deleted successfully", connection_id);
+    tracing::info!(
+        "[Connections] Connection {} deleted successfully",
+        connection_id
+    );
     Ok(())
 }
 
@@ -216,12 +221,16 @@ pub async fn update_connection(
         return Err("Unauthorized: connection commands only available from main window".into());
     }
 
-    tracing::info!("[Connections] Update request for connection: {}", request.connection_id);
+    tracing::info!(
+        "[Connections] Update request for connection: {}",
+        request.connection_id
+    );
 
     let id = Uuid::parse_str(&request.connection_id)
         .map_err(|e| format!("Invalid connection ID: {}", e))?;
 
-    let secret_id = request.secret_id
+    let secret_id = request
+        .secret_id
         .map(|s| Uuid::parse_str(&s))
         .transpose()
         .map_err(|e| format!("Invalid secret ID: {}", e))?;
@@ -245,11 +254,18 @@ pub async fn update_connection(
         )
         .await
         .map_err(|e| {
-            tracing::error!("[Connections] Failed to update connection {}: {}", request.connection_id, e);
+            tracing::error!(
+                "[Connections] Failed to update connection {}: {}",
+                request.connection_id,
+                e
+            );
             e.to_string()
         })?;
 
-    tracing::info!("[Connections] Connection {} updated successfully", request.connection_id);
+    tracing::info!(
+        "[Connections] Connection {} updated successfully",
+        request.connection_id
+    );
 
     Ok(ConnectionResponse { connection })
 }
@@ -265,18 +281,22 @@ pub async fn test_database_connection(
         return Err("Unauthorized: connection commands only available from main window".into());
     }
 
-    tracing::info!("[Connections] Test request for connection: {}", connection_id);
+    tracing::info!(
+        "[Connections] Test request for connection: {}",
+        connection_id
+    );
 
-    let id = Uuid::parse_str(&connection_id)
-        .map_err(|e| format!("Invalid connection ID: {}", e))?;
+    let id =
+        Uuid::parse_str(&connection_id).map_err(|e| format!("Invalid connection ID: {}", e))?;
 
-    let is_successful = state
-        .test_connection(id)
-        .await
-        .map_err(|e| {
-            tracing::error!("[Connections] Failed to test connection {}: {}", connection_id, e);
-            e.to_string()
-        })?;
+    let is_successful = state.test_connection(id).await.map_err(|e| {
+        tracing::error!(
+            "[Connections] Failed to test connection {}: {}",
+            connection_id,
+            e
+        );
+        e.to_string()
+    })?;
 
     if is_successful {
         tracing::info!("[Connections] Connection {} test successful", connection_id);
@@ -299,10 +319,13 @@ pub async fn test_database_connection_config(
         return Err("Unauthorized: connection commands only available from main window".into());
     }
 
-    tracing::info!("[Connections] Test request for connection config with secret: {}", secret_id);
+    tracing::info!(
+        "[Connections] Test request for connection config with secret: {}",
+        secret_id
+    );
 
-    let secret_uuid = Uuid::parse_str(&secret_id)
-        .map_err(|e| format!("Invalid secret ID: {}", e))?;
+    let secret_uuid =
+        Uuid::parse_str(&secret_id).map_err(|e| format!("Invalid secret ID: {}", e))?;
 
     let is_successful = state
         .test_connection_config(config, secret_uuid)
@@ -322,7 +345,9 @@ pub async fn test_database_connection_config(
 }
 
 #[tauri::command]
-pub async fn get_connection_types(window: tauri::Window) -> Result<Vec<ConnectionTypeInfo>, String> {
+pub async fn get_connection_types(
+    window: tauri::Window,
+) -> Result<Vec<ConnectionTypeInfo>, String> {
     // This is a read-only metadata command, allow from main window
     if window.label() != "main" {
         return Err("Unauthorized: get_connection_types only available from main window".into());
@@ -346,10 +371,7 @@ pub async fn get_connection_types(window: tauri::Window) -> Result<Vec<Connectio
             value: "mysql".to_string(),
             label: "MySQL".to_string(),
             default_port: 3306,
-            supported_ssl_modes: vec![
-                "disable".to_string(),
-                "require".to_string(),
-            ],
+            supported_ssl_modes: vec!["disable".to_string(), "require".to_string()],
         },
     ];
 
@@ -365,51 +387,40 @@ pub async fn get_connection_with_credentials(
     // SECURITY: This is a sensitive command that returns credentials
     // Restrict to main window only and log access
     if window.label() != "main" {
-        return Err("Unauthorized: get_connection_with_credentials only available from main window".into());
+        return Err(
+            "Unauthorized: get_connection_with_credentials only available from main window".into(),
+        );
     }
 
-    tracing::info!("[Connections] Get credentials request for connection: {}", connection_id);
+    tracing::info!(
+        "[Connections] Get credentials request for connection: {}",
+        connection_id
+    );
 
-    let id = Uuid::parse_str(&connection_id)
-        .map_err(|e| format!("Invalid connection ID: {}", e))?;
+    let id =
+        Uuid::parse_str(&connection_id).map_err(|e| format!("Invalid connection ID: {}", e))?;
 
     let connection_with_creds = state
         .get_connection_with_credentials(id)
         .await
         .map_err(|e| {
-            tracing::error!("[Connections] Failed to get connection with credentials {}: {}", connection_id, e);
+            tracing::error!(
+                "[Connections] Failed to get connection with credentials {}: {}",
+                connection_id,
+                e
+            );
             e.to_string()
         })?;
 
-    // Return the connection string with credentials
-    // WARNING: This contains sensitive information
-    let connection_string = connection_with_creds.get_connection_string();
-    
-    tracing::info!("[Connections] Connection string generated for {}", connection_id);
-    tracing::info!("[Connections] Safe connection string: {}", connection_with_creds.get_safe_connection_string());
+    // Return a redacted connection string to avoid exposing secrets to the renderer
+    let safe_connection_string = connection_with_creds.get_safe_connection_string();
 
-    Ok(connection_string)
-}
+    tracing::info!(
+        "[Connections] Safe connection string generated for {}",
+        connection_id
+    );
 
-#[tauri::command]
-pub async fn get_attachment_sql(
-    window: tauri::Window,
-    state: State<'_, ConnectionsManager>,
-    connection_id: String,
-    database_alias: String,
-) -> Result<AttachmentSql, String> {
-    // Security check
-    if window.label() != "main" {
-        return Err("Unauthorized: get_attachment_sql only available from main window".into());
-    }
-    
-    let id = Uuid::parse_str(&connection_id)
-        .map_err(|e| format!("Invalid connection ID: {}", e))?;
-    
-    state
-        .get_attachment_sql(id, database_alias)
-        .await
-        .map_err(|e| e.to_string())
+    Ok(safe_connection_string)
 }
 
 #[tauri::command]
@@ -420,14 +431,16 @@ pub async fn register_motherduck_attachment(
 ) -> Result<(), String> {
     // Security check
     if window.label() != "main" {
-        return Err("Unauthorized: register_motherduck_attachment only available from main window".into());
+        return Err(
+            "Unauthorized: register_motherduck_attachment only available from main window".into(),
+        );
     }
-    
+
     // Validate it's a MotherDuck URL
     if !database_url.starts_with("md:") {
         return Err("Invalid MotherDuck URL: must start with 'md:'".into());
     }
-    
+
     state
         .register_motherduck_attachment(database_url)
         .await

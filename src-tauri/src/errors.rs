@@ -4,14 +4,14 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", content = "details")]
 pub enum DuckDBError {
     #[error("Connection error: {message}")]
-    ConnectionError { 
+    ConnectionError {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         context: Option<String>,
     },
 
     #[error("Query execution failed: {message}")]
-    QueryError { 
+    QueryError {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         sql: Option<String>,
@@ -22,28 +22,28 @@ pub enum DuckDBError {
     },
 
     #[error("File not found: {path}")]
-    FileNotFound { 
+    FileNotFound {
         path: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         context: Option<String>,
     },
 
     #[error("Invalid operation: {message}")]
-    InvalidOperation { 
+    InvalidOperation {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         operation: Option<String>,
     },
 
     #[error("File access error: {message}")]
-    FileAccess { 
+    FileAccess {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         path: Option<String>,
     },
 
     #[error("Invalid query: {message}")]
-    InvalidQuery { 
+    InvalidQuery {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         sql: Option<String>,
@@ -52,14 +52,14 @@ pub enum DuckDBError {
     },
 
     #[error("Persistence error: {message}")]
-    PersistenceError { 
+    PersistenceError {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         operation: Option<String>,
     },
 
     #[error("Pool exhausted: {message}")]
-    PoolExhausted { 
+    PoolExhausted {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         current_size: Option<usize>,
@@ -68,68 +68,64 @@ pub enum DuckDBError {
     },
 
     #[error("Initialization error: {message}")]
-    InitializationError { 
+    InitializationError {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         component: Option<String>,
     },
 
     #[error("Serialization error: {message}")]
-    SerializationError { 
+    SerializationError {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         data_type: Option<String>,
     },
 
     #[error("Unsupported extension: {extension}")]
-    UnsupportedExtension { 
+    UnsupportedExtension {
         extension: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
 
     #[error("Resource limit exceeded: {resource} - {limit}")]
-    ResourceLimit { 
-        resource: String, 
+    ResourceLimit {
+        resource: String,
         limit: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         current_usage: Option<String>,
     },
 
     #[error("Query execution failed: {message}")]
-    QueryExecution { 
+    QueryExecution {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         query: Option<String>,
     },
 
     #[error("Parameter binding error: {message}")]
-    ParameterBinding { 
-        message: String,
-    },
+    ParameterBinding { message: String },
 }
 
 impl From<duckdb::Error> for DuckDBError {
     fn from(err: duckdb::Error) -> Self {
         // Provide more context based on error string content
         let err_string = err.to_string();
-        
+
         // Extract error code if available
         let error_code = match &err {
             duckdb::Error::DuckDBFailure(_, msg) => msg.clone(),
             _ => None,
         };
-        
+
         // Parse line number from error message if present
-        let line_number = err_string
-            .find("line ")
-            .and_then(|pos| {
-                let rest = &err_string[pos + 5..];
-                rest.split_whitespace()
-                    .next()
-                    .and_then(|s| s.parse::<usize>().ok())
-            });
-        
+        let line_number = err_string.find("line ").and_then(|pos| {
+            let rest = &err_string[pos + 5..];
+            rest.split_whitespace()
+                .next()
+                .and_then(|s| s.parse::<usize>().ok())
+        });
+
         let message = if err_string.contains("no rows") {
             "Query returned no rows when at least one was expected".to_string()
         } else if err_string.contains("constraint") {
@@ -143,7 +139,7 @@ impl From<duckdb::Error> for DuckDBError {
         } else {
             format!("Database error: {}", err_string)
         };
-        
+
         DuckDBError::QueryError {
             message,
             sql: None,
@@ -161,7 +157,7 @@ impl From<rusqlite::Error> for DuckDBError {
             rusqlite::Error::InvalidColumnName(_) => Some("column_access".to_string()),
             _ => None,
         };
-        
+
         DuckDBError::PersistenceError {
             message: err.to_string(),
             operation,
@@ -201,7 +197,7 @@ impl From<serde_json::Error> for DuckDBError {
         } else {
             None
         };
-        
+
         DuckDBError::SerializationError {
             message: err.to_string(),
             data_type,

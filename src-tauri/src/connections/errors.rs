@@ -1,35 +1,35 @@
-use thiserror::Error;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum ConnectionError {
     #[error("Connection not found: {id}")]
     ConnectionNotFound { id: String },
-    
+
     #[error("Secret not found: {secret_id}")]
     SecretNotFound { secret_id: String },
-    
+
     #[error("Invalid connection configuration: {error}")]
     InvalidConfiguration { error: String },
-    
+
     #[error("Connection test failed: {error}")]
     ConnectionTestFailed { error: String },
-    
+
     #[error("Database error: {0}")]
     DatabaseError(String),
-    
+
     #[error("Serialization error: {0}")]
     SerializationError(String),
-    
+
     #[error("Secret error: {0}")]
     SecretError(String),
-    
+
     #[error("Connection type not supported: {connection_type}")]
     UnsupportedConnectionType { connection_type: String },
-    
+
     #[error("Missing required field: {field}")]
     MissingRequiredField { field: String },
-    
+
     #[error("Storage error: {0}")]
     StorageError(String),
 }

@@ -1,8 +1,8 @@
 use crate::errors::Result;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
-use serde::{Serialize, Deserialize};
 
 #[derive(Clone)]
 pub struct QueryBuilder {
@@ -56,7 +56,7 @@ impl QueryHints {
             expected_rows: Some(1000),
         }
     }
-    
+
     /// User data queries - high memory, cancellable
     pub fn streaming() -> Self {
         Self {
@@ -68,7 +68,7 @@ impl QueryHints {
             expected_rows: None,
         }
     }
-    
+
     /// Background tasks - low priority, limited memory
     // TODO: Implement background query execution
     #[allow(dead_code)]
@@ -85,7 +85,10 @@ impl QueryHints {
 }
 
 impl QueryBuilder {
-    pub fn new(engine: Arc<tokio::sync::Mutex<crate::database::DuckDBEngine>>, sql: String) -> Self {
+    pub fn new(
+        engine: Arc<tokio::sync::Mutex<crate::database::DuckDBEngine>>,
+        sql: String,
+    ) -> Self {
         Self {
             engine,
             sql,
@@ -98,29 +101,31 @@ impl QueryBuilder {
         self.hints = hints;
         self
     }
-    
+
     // TODO: Wire up cancellation token to query execution
     #[allow(dead_code)]
     pub fn with_cancel(mut self, token: CancellationToken) -> Self {
         self.cancel_token = Some(token);
         self
     }
-    
+
     /// Execute the query and return a streaming result
     // TODO: Implement streaming execution path
     #[allow(dead_code)]
-    pub async fn execute_streaming(self) -> Result<tokio::sync::mpsc::Receiver<super::arrow_streaming::ArrowStreamMessage>> {
+    pub async fn execute_streaming(
+        self,
+    ) -> Result<tokio::sync::mpsc::Receiver<super::arrow_streaming::ArrowStreamMessage>> {
         let engine = self.engine.lock().await;
-        
+
         engine
             .execute_arrow_streaming(self.sql, self.hints, self.cancel_token, None)
             .await
     }
-    
+
     /// Execute the query and collect all results into a simple structure
     pub async fn execute_simple(self) -> Result<super::types::QueryResult> {
         let engine = self.engine.lock().await;
-        
+
         // For simple execution, use the execute_and_collect helper
         engine.execute_query(&self.sql, vec![]).await
     }

@@ -1,5 +1,5 @@
-use std::path::Path;
 use crate::platform;
+use std::path::Path;
 
 pub struct StartupError {
     pub title: String,
@@ -18,7 +18,6 @@ impl StartupError {
         }
     }
 }
-
 
 pub fn check_database_lock(db_path: &Path) -> Result<(), StartupError> {
     // DuckDB commonly uses <basename>.wal, but early versions/tools might produce <basename>.db.wal

@@ -1,6 +1,6 @@
+use crate::constants::*;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use crate::constants::*;
 
 /// Configuration for the Tauri application
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,19 +127,23 @@ impl AppConfig {
     /// Load configuration from environment variables or use defaults
     pub fn from_env() -> Self {
         let mut config = Self::default();
-        
+
         // Override with environment variables if present
         if let Ok(val) = std::env::var("PONDPILOT_WORKER_THREADS") {
             if let Ok(threads) = val.parse::<usize>() {
                 if threads >= MIN_WORKER_THREADS && threads <= MAX_WORKER_THREADS {
                     config.runtime.worker_threads = threads;
                 } else {
-                    tracing::warn!("Invalid PONDPILOT_WORKER_THREADS value: {}, must be between {} and {}", 
-                        threads, MIN_WORKER_THREADS, MAX_WORKER_THREADS);
+                    tracing::warn!(
+                        "Invalid PONDPILOT_WORKER_THREADS value: {}, must be between {} and {}",
+                        threads,
+                        MIN_WORKER_THREADS,
+                        MAX_WORKER_THREADS
+                    );
                 }
             }
         }
-        
+
         if let Ok(val) = std::env::var("PONDPILOT_MAX_BLOCKING_THREADS") {
             if let Ok(threads) = val.parse::<usize>() {
                 if threads >= MIN_BLOCKING_THREADS && threads <= MAX_BLOCKING_THREADS {
@@ -150,7 +154,7 @@ impl AppConfig {
                 }
             }
         }
-        
+
         if let Ok(val) = std::env::var("PONDPILOT_MAX_CONNECTIONS") {
             if let Ok(connections) = val.parse::<usize>() {
                 if connections > 0 && connections <= MAX_CONNECTIONS {
@@ -160,15 +164,19 @@ impl AppConfig {
                         config.database.min_connections = connections.min(MIN_CONNECTIONS);
                     }
                 } else {
-                    tracing::warn!("Invalid PONDPILOT_MAX_CONNECTIONS value: {}, must be between 1 and {}", 
-                        connections, MAX_CONNECTIONS);
+                    tracing::warn!(
+                        "Invalid PONDPILOT_MAX_CONNECTIONS value: {}, must be between 1 and {}",
+                        connections,
+                        MAX_CONNECTIONS
+                    );
                 }
             }
         }
-        
+
         if let Ok(val) = std::env::var("PONDPILOT_MAX_QUERY_MEMORY_MB") {
             if let Ok(memory) = val.parse::<usize>() {
-                if memory >= 10 && memory <= 32768 { // 10MB to 32GB
+                if memory >= 10 && memory <= 32768 {
+                    // 10MB to 32GB
                     config.resource.max_query_memory_mb = memory;
                     // Ensure default doesn't exceed max
                     if config.resource.default_query_memory_mb > memory {
@@ -179,102 +187,119 @@ impl AppConfig {
                 }
             }
         }
-        
+
         // Validate the final configuration
         config.validate();
         config
     }
-    
+
     /// Validate configuration values and fix any inconsistencies
     pub fn validate(&mut self) {
         // Ensure min_connections <= max_connections
         if self.database.min_connections > self.database.max_connections {
-            tracing::warn!("min_connections {} > max_connections {}, adjusting", 
-                     self.database.min_connections, self.database.max_connections);
+            tracing::warn!(
+                "min_connections {} > max_connections {}, adjusting",
+                self.database.min_connections,
+                self.database.max_connections
+            );
             self.database.min_connections = self.database.max_connections;
         }
-        
+
         // Ensure max_streaming_connections doesn't exceed max_connections
         if self.database.max_streaming_connections > self.database.max_connections {
-            tracing::warn!("max_streaming_connections {} > max_connections {}, adjusting",
-                     self.database.max_streaming_connections, self.database.max_connections);
+            tracing::warn!(
+                "max_streaming_connections {} > max_connections {}, adjusting",
+                self.database.max_streaming_connections,
+                self.database.max_connections
+            );
             self.database.max_streaming_connections = self.database.max_connections;
         }
-        
+
         // Ensure memory limits are sensible
         if self.resource.default_query_memory_mb > self.resource.max_query_memory_mb {
-            tracing::warn!("default_query_memory_mb {} > max_query_memory_mb {}, adjusting",
-                     self.resource.default_query_memory_mb, self.resource.max_query_memory_mb);
+            tracing::warn!(
+                "default_query_memory_mb {} > max_query_memory_mb {}, adjusting",
+                self.resource.default_query_memory_mb,
+                self.resource.max_query_memory_mb
+            );
             self.resource.default_query_memory_mb = self.resource.max_query_memory_mb;
         }
-        
+
         // Ensure pool memory percentage is valid
-        if self.resource.pool_memory_percentage <= 0.0 || self.resource.pool_memory_percentage > 1.0 {
-            tracing::warn!("Warning: Invalid pool_memory_percentage {}, setting to 0.1", 
-                     self.resource.pool_memory_percentage);
+        if self.resource.pool_memory_percentage <= 0.0 || self.resource.pool_memory_percentage > 1.0
+        {
+            tracing::warn!(
+                "Warning: Invalid pool_memory_percentage {}, setting to 0.1",
+                self.resource.pool_memory_percentage
+            );
             self.resource.pool_memory_percentage = 0.1;
         }
-        
+
         // Ensure timeouts are reasonable (at least 1 second)
         if self.database.idle_timeout_secs < 1 {
             self.database.idle_timeout_secs = 300; // Default to 5 minutes
         }
-        
+
         if self.security.high_priority_timeout_secs < 1 {
             self.security.high_priority_timeout_secs = 30;
         }
-        
+
         if self.security.normal_priority_timeout_secs < 1 {
             self.security.normal_priority_timeout_secs = 10;
         }
-        
+
         if self.security.low_priority_timeout_secs < 1 {
             self.security.low_priority_timeout_secs = 5;
         }
     }
-    
+
     /// Get memory per permit in bytes
     pub fn memory_per_permit_bytes(&self) -> usize {
         self.resource.memory_per_permit_mb * 1024 * 1024
     }
-    
+
     /// Get default query memory in bytes
     // TODO: Wire up resource management to use these configuration methods
     #[allow(dead_code)]
     pub fn default_query_memory_bytes(&self) -> usize {
         self.resource.default_query_memory_mb * 1024 * 1024
     }
-    
+
     /// Get catalog query memory in bytes
     // TODO: Wire up resource management to use these configuration methods
     #[allow(dead_code)]
     pub fn catalog_query_memory_bytes(&self) -> usize {
         self.resource.catalog_query_memory_mb * 1024 * 1024
     }
-    
+
     /// Get analytics query memory in bytes
     // TODO: Wire up resource management to use these configuration methods
     #[allow(dead_code)]
     pub fn analytics_query_memory_bytes(&self) -> usize {
         self.resource.analytics_query_memory_mb * 1024 * 1024
     }
-    
+
     /// Get idle timeout as Duration
     // TODO: Implement connection idle timeout handling
     #[allow(dead_code)]
     pub fn idle_timeout(&self) -> Duration {
         Duration::from_secs(self.database.idle_timeout_secs)
     }
-    
+
     /// Get priority timeout as Duration
     // TODO: Implement priority-based query timeouts
     #[allow(dead_code)]
-    pub fn priority_timeout(&self, priority: crate::database::query_builder::QueryPriority) -> Duration {
+    pub fn priority_timeout(
+        &self,
+        priority: crate::database::query_builder::QueryPriority,
+    ) -> Duration {
         use crate::database::query_builder::QueryPriority;
-        
+
         match priority {
             QueryPriority::High => Duration::from_secs(self.security.high_priority_timeout_secs),
-            QueryPriority::Normal => Duration::from_secs(self.security.normal_priority_timeout_secs),
+            QueryPriority::Normal => {
+                Duration::from_secs(self.security.normal_priority_timeout_secs)
+            }
             QueryPriority::Low => Duration::from_secs(self.security.low_priority_timeout_secs),
         }
     }

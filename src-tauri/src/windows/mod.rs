@@ -15,7 +15,7 @@ pub async fn open_secrets_window(app: AppHandle) -> Result<(), String> {
         &app,
         "secrets",
         // Navigate to secrets via query param to avoid eval
-        WebviewUrl::App("index.html?window=secrets".into())
+        WebviewUrl::App("index.html?window=secrets".into()),
     )
     .title("Secrets Manager")
     .inner_size(900.0, 700.0)

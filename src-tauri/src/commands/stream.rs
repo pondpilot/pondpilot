@@ -5,20 +5,20 @@
 // This contract is documented here and is tested end-to-end via integration
 // tests. In the future, we may switch to a single continuous writer per
 // stream_id if needed across Arrow versions.
-use crate::database::{DuckDBEngine, QueryHints};
-use crate::database::arrow_streaming::ArrowStreamMessage;
-use crate::streaming::StreamManager;
-use crate::errors::Result as DuckDBResult;
 use super::EngineState;
+use crate::database::arrow_streaming::ArrowStreamMessage;
+use crate::database::sql_utils::{build_attach_statements, AttachItem};
+use crate::database::{DuckDBEngine, QueryHints};
+use crate::errors::Result as DuckDBResult;
+use crate::streaming::StreamManager;
 use anyhow::Result;
+use arrow_array::RecordBatch;
+use arrow_ipc::writer::StreamWriter;
+use arrow_schema::Schema;
+use serde::Serialize;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tracing::debug;
-use serde::Serialize;
-use crate::database::sql_utils::{AttachItem, build_attach_statements};
-use arrow_ipc::writer::StreamWriter;
-use arrow_schema::Schema;
-use arrow_array::RecordBatch;
 
 /// Binary event payload for streaming with optimized binary transmission
 #[derive(Clone, Serialize)]
@@ -34,7 +34,6 @@ pub struct BinaryStreamEvent {
     pub batch_index: Option<usize>,
 }
 
-
 #[tauri::command]
 pub async fn stream_query(
     app: AppHandle,
@@ -47,25 +46,45 @@ pub async fn stream_query(
     attach: Option<serde_json::Value>,
 ) -> DuckDBResult<serde_json::Value> {
     // Coalesce parameter name variants
-    let stream_id = crate::commands::utils::coalesce_param_opt(stream_id, streamId, "stream_id", "stream_query")?;
-    
+    let stream_id = crate::commands::utils::coalesce_param_opt(
+        stream_id,
+        streamId,
+        "stream_id",
+        "stream_query",
+    )?;
+
     // Validate stream ID format
     crate::security::validate_stream_id(&stream_id)?;
-    
-    debug!("[COMMAND] stream_query called for stream {} with SQL: {}", stream_id, sql);
+
+    debug!(
+        "[COMMAND] stream_query called for stream {} with SQL: {}",
+        stream_id, sql
+    );
     let engine_arc = engine.inner().clone();
     let stream_manager = stream_manager.inner().clone();
-    
+
     // Execute streaming in a separate task
     let app_clone = app.clone();
     let app_clone2 = app.clone();
     let stream_id_clone = stream_id.clone();
     let attach_spec = attach.clone();
-    
+
     tokio::spawn(async move {
-        match execute_streaming_query(app_clone, engine_arc, stream_manager.clone(), sql, stream_id_clone.clone(), attach_spec).await {
+        match execute_streaming_query(
+            app_clone,
+            engine_arc,
+            stream_manager.clone(),
+            sql,
+            stream_id_clone.clone(),
+            attach_spec,
+        )
+        .await
+        {
             Ok(_) => {
-                debug!("[STREAMING] Stream {} completed successfully", stream_id_clone);
+                debug!(
+                    "[STREAMING] Stream {} completed successfully",
+                    stream_id_clone
+                );
             }
             Err(e) => {
                 debug!("[STREAMING] Stream {} failed: {}", stream_id_clone, e);
@@ -80,7 +99,7 @@ pub async fn stream_query(
             }
         }
     });
-    
+
     // Return success immediately
     Ok(serde_json::json!({
         "status": "streaming"
@@ -96,24 +115,27 @@ async fn execute_streaming_query(
     attach: Option<serde_json::Value>,
 ) -> Result<()> {
     debug!("[STREAMING] ===== STARTING STREAM {} =====", stream_id);
-    debug!("[STREAMING] Starting streaming query for stream {}", stream_id);
+    debug!(
+        "[STREAMING] Starting streaming query for stream {}",
+        stream_id
+    );
     debug!("[STREAMING] SQL: {}", sql);
-    
+
     // Register the stream with backpressure support
     let (cancel_token, mut ack_rx) = stream_manager.register_stream(stream_id.clone()).await;
     debug!("[STREAMING] Stream registered with cancellation token and backpressure");
-    
+
     // Create a cleanup guard to ensure resources are always cleaned up
     struct CleanupGuard {
         stream_id: String,
         stream_manager: Arc<StreamManager>,
     }
-    
+
     impl Drop for CleanupGuard {
         fn drop(&mut self) {
             let stream_id = self.stream_id.clone();
             let stream_manager = self.stream_manager.clone();
-            
+
             // Spawn cleanup task since Drop can't be async
             tokio::spawn(async move {
                 debug!("[STREAMING] CleanupGuard dropping for stream {}", stream_id);
@@ -121,12 +143,12 @@ async fn execute_streaming_query(
             });
         }
     }
-    
+
     let _cleanup_guard = CleanupGuard {
         stream_id: stream_id.clone(),
         stream_manager: stream_manager.clone(),
     };
-    
+
     // Build setup statements: load essential extensions and perform ATTACH if provided
     let mut setup_stmts: Vec<String> = Vec::new();
 
@@ -142,8 +164,15 @@ async fn execute_streaming_query(
                     item.get("dbName").and_then(|v| v.as_str()),
                     item.get("url").and_then(|v| v.as_str()),
                 ) {
-                    let read_only = item.get("readOnly").and_then(|v| v.as_bool()).unwrap_or(true);
-                    items.push(AttachItem { db_name: db_name.to_string(), url: url.to_string(), read_only });
+                    let read_only = item
+                        .get("readOnly")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true);
+                    items.push(AttachItem {
+                        db_name: db_name.to_string(),
+                        url: url.to_string(),
+                        read_only,
+                    });
                 }
             }
         } else {
@@ -151,8 +180,15 @@ async fn execute_streaming_query(
                 spec.get("dbName").and_then(|v| v.as_str()),
                 spec.get("url").and_then(|v| v.as_str()),
             ) {
-                let read_only = spec.get("readOnly").and_then(|v| v.as_bool()).unwrap_or(true);
-                items.push(AttachItem { db_name: db_name.to_string(), url: url.to_string(), read_only });
+                let read_only = spec
+                    .get("readOnly")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+                items.push(AttachItem {
+                    db_name: db_name.to_string(),
+                    url: url.to_string(),
+                    read_only,
+                });
             }
         }
 
@@ -161,23 +197,26 @@ async fn execute_streaming_query(
         setup_stmts.extend(attach_sqls);
     }
 
-    let mut arrow_stream = match engine.execute_arrow_streaming(
-        sql.clone(),
-        QueryHints::streaming(),
-        Some(cancel_token.clone()),
-        Some(setup_stmts),
-    ).await {
+    let mut arrow_stream = match engine
+        .execute_arrow_streaming(
+            sql.clone(),
+            QueryHints::streaming(),
+            Some(cancel_token.clone()),
+            Some(setup_stmts),
+        )
+        .await
+    {
         Ok(stream) => stream,
         Err(e) => {
             // CleanupGuard will handle cleanup automatically
             return Err(e.into());
         }
     };
-    
+
     let mut batch_count = 0;
     let mut unacked_batches = 0;
     const MAX_UNACKED_BATCHES: usize = 3; // Small prefetch window for responsiveness vs. waste
-    
+
     // Process arrow stream messages
     while let Some(msg) = arrow_stream.recv().await {
         // Check cancellation
@@ -185,17 +224,20 @@ async fn execute_streaming_query(
             debug!("[STREAMING] Stream {} cancelled", stream_id);
             break;
         }
-        
+
         match msg {
             ArrowStreamMessage::Schema(duckdb_schema) => {
                 debug!("[STREAMING] Received schema for stream {}", stream_id);
-                
+
                 // Check cancellation before processing
                 if cancel_token.is_cancelled() {
-                    debug!("[STREAMING] Stream {} cancelled during schema processing", stream_id);
+                    debug!(
+                        "[STREAMING] Stream {} cancelled during schema processing",
+                        stream_id
+                    );
                     break;
                 }
-                
+
                 // Convert DuckDB schema to Arrow schema and serialize to IPC format
                 let arrow_schema = convert_duckdb_schema(&duckdb_schema);
                 let mut schema_buffer = Vec::new();
@@ -203,7 +245,7 @@ async fn execute_streaming_query(
                     let mut writer = StreamWriter::try_new(&mut schema_buffer, &arrow_schema)?;
                     writer.finish()?;
                 }
-                
+
                 // Emit schema via Tauri events with optimized binary serialization
                 let event = BinaryStreamEvent {
                     data: schema_buffer,
@@ -213,16 +255,23 @@ async fn execute_streaming_query(
                 };
                 let _ = app.emit(&format!("stream-binary-{}", stream_id), &event);
             }
-            
+
             ArrowStreamMessage::Batch(duckdb_batch) => {
                 batch_count += 1;
-                debug!("[STREAMING] Received batch {} for stream {} ({} rows)", 
-                         batch_count, stream_id, duckdb_batch.num_rows());
-                
+                debug!(
+                    "[STREAMING] Received batch {} for stream {} ({} rows)",
+                    batch_count,
+                    stream_id,
+                    duckdb_batch.num_rows()
+                );
+
                 // Implement proper backpressure - block when window is full
                 while unacked_batches >= MAX_UNACKED_BATCHES {
-                    debug!("[STREAMING] Waiting for acknowledgment (unacked: {})", unacked_batches);
-                    
+                    debug!(
+                        "[STREAMING] Waiting for acknowledgment (unacked: {})",
+                        unacked_batches
+                    );
+
                     // Wait for acknowledgment or cancellation
                     tokio::select! {
                         ack = ack_rx.recv() => {
@@ -243,13 +292,16 @@ async fn execute_streaming_query(
                         }
                     }
                 }
-                
+
                 // Check cancellation before processing
                 if cancel_token.is_cancelled() {
-                    debug!("[STREAMING] Stream {} cancelled during batch processing", stream_id);
+                    debug!(
+                        "[STREAMING] Stream {} cancelled during batch processing",
+                        stream_id
+                    );
                     break;
                 }
-                
+
                 // Convert DuckDB batch to Arrow batch and serialize to IPC format
                 let arrow_batch = convert_duckdb_batch(&duckdb_batch)?;
                 let mut batch_buffer = Vec::new();
@@ -259,7 +311,7 @@ async fn execute_streaming_query(
                     writer.write(&arrow_batch)?;
                     writer.finish()?;
                 }
-                
+
                 // Emit batch via Tauri events with optimized binary serialization
                 let event = BinaryStreamEvent {
                     data: batch_buffer,
@@ -268,13 +320,16 @@ async fn execute_streaming_query(
                     batch_index: Some(batch_count),
                 };
                 let _ = app.emit(&format!("stream-binary-{}", stream_id), &event);
-                
+
                 unacked_batches += 1;
             }
-            
+
             ArrowStreamMessage::Complete(total_batches) => {
-                debug!("[STREAMING] Stream {} complete, sent {} batches (total: {})", stream_id, batch_count, total_batches);
-                
+                debug!(
+                    "[STREAMING] Stream {} complete, sent {} batches (total: {})",
+                    stream_id, batch_count, total_batches
+                );
+
                 // Send completion event
                 let event = BinaryStreamEvent {
                     data: Vec::new(),
@@ -285,10 +340,10 @@ async fn execute_streaming_query(
                 let _ = app.emit(&format!("stream-binary-{}", stream_id), &event);
                 break;
             }
-            
+
             ArrowStreamMessage::Error(e) => {
                 debug!("[STREAMING] Stream {} error: {}", stream_id, e);
-                
+
                 // Send error event
                 let event = BinaryStreamEvent {
                     data: e.to_string().into_bytes(),
@@ -301,7 +356,7 @@ async fn execute_streaming_query(
             }
         }
     }
-    
+
     debug!("[STREAMING] ===== STREAM {} COMPLETE =====", stream_id);
     Ok(())
 }
@@ -313,13 +368,18 @@ pub async fn cancel_stream(
     stream_id: Option<String>,
     #[allow(non_snake_case)] streamId: Option<String>,
 ) -> DuckDBResult<()> {
-    let stream_id = crate::commands::utils::coalesce_param_opt(stream_id, streamId, "stream_id", "cancel_stream")?;
-    
+    let stream_id = crate::commands::utils::coalesce_param_opt(
+        stream_id,
+        streamId,
+        "stream_id",
+        "cancel_stream",
+    )?;
+
     // Validate stream ID format
     crate::security::validate_stream_id(&stream_id)?;
-    
+
     debug!("[COMMAND] cancel_stream called for stream {}", stream_id);
-    
+
     // Handle cancellation errors properly
     if let Err(e) = stream_manager.cancel_stream(&stream_id).await {
         tracing::warn!("Failed to cancel stream {}: {}", stream_id, e);
@@ -336,19 +396,31 @@ pub async fn acknowledge_stream_batch(
     _batch_index: Option<usize>,
     #[allow(non_snake_case)] batchIndex: Option<usize>,
 ) -> DuckDBResult<()> {
-    let stream_id = crate::commands::utils::coalesce_param_opt(stream_id, streamId, "stream_id", "acknowledge_stream_batch")?;
-    
+    let stream_id = crate::commands::utils::coalesce_param_opt(
+        stream_id,
+        streamId,
+        "stream_id",
+        "acknowledge_stream_batch",
+    )?;
+
     // Validate stream ID format
     crate::security::validate_stream_id(&stream_id)?;
-    
+
     // Note: batch index isn't used server-side for now; accept both names for compatibility
     let _batch_index = _batch_index.or(batchIndex);
-    
-    debug!("[COMMAND] acknowledge_stream_batch called for stream {}", stream_id);
-    
+
+    debug!(
+        "[COMMAND] acknowledge_stream_batch called for stream {}",
+        stream_id
+    );
+
     // Handle acknowledgment errors properly
     if let Err(e) = stream_manager.acknowledge_batch(&stream_id).await {
-        tracing::warn!("Failed to acknowledge batch for stream {}: {}", stream_id, e);
+        tracing::warn!(
+            "Failed to acknowledge batch for stream {}: {}",
+            stream_id,
+            e
+        );
     }
     Ok(())
 }
@@ -358,7 +430,13 @@ macro_rules! convert_timestamp {
     ($duckdb_arr:expr, $duck_type:ty, $arrow_type:ty, $tz:expr) => {{
         if let Some(arr) = $duckdb_arr.as_any().downcast_ref::<$duck_type>() {
             let values: Vec<Option<i64>> = (0..arr.len())
-                .map(|i| if arr.is_valid(i) { Some(arr.value(i)) } else { None })
+                .map(|i| {
+                    if arr.is_valid(i) {
+                        Some(arr.value(i))
+                    } else {
+                        None
+                    }
+                })
                 .collect();
             Arc::new(<$arrow_type>::from(values).with_timezone_opt($tz)) as ArrayRef
         } else {
@@ -371,9 +449,9 @@ macro_rules! convert_timestamp {
 
 // Helper function to convert DuckDB schema to Arrow schema
 fn convert_duckdb_schema(duckdb_schema: &duckdb::arrow::datatypes::Schema) -> Arc<Schema> {
-    use arrow_schema::{Field, DataType, TimeUnit};
+    use arrow_schema::{DataType, Field, TimeUnit};
     use duckdb::arrow::datatypes::{DataType as DuckDBType, TimeUnit as DuckDBTimeUnit};
-    
+
     let fields: Vec<Field> = duckdb_schema
         .fields()
         .iter()
@@ -414,24 +492,24 @@ fn convert_duckdb_schema(duckdb_schema: &duckdb::arrow::datatypes::Schema) -> Ar
             Field::new(f.name(), arrow_type, f.is_nullable())
         })
         .collect();
-    
+
     Arc::new(Schema::new(fields))
 }
 
 // Helper function to convert DuckDB batch to Arrow batch
 fn convert_duckdb_batch(batch: &duckdb::arrow::record_batch::RecordBatch) -> Result<RecordBatch> {
     use arrow_array::{
-        ArrayRef, BooleanArray, Int8Array, Int16Array, Int32Array, Int64Array,
-        UInt8Array, UInt16Array, UInt32Array, UInt64Array,
-        Float32Array, Float64Array, StringArray, NullArray,
-        Date32Array, Date64Array, BinaryArray, LargeBinaryArray, LargeStringArray,
-        TimestampSecondArray, TimestampMillisecondArray, TimestampMicrosecondArray, TimestampNanosecondArray
+        ArrayRef, BinaryArray, BooleanArray, Date32Array, Date64Array, Float32Array, Float64Array,
+        Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray, LargeStringArray,
+        NullArray, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+        TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
+        UInt8Array,
     };
     use duckdb::arrow::array as duckdb_array;
     use duckdb::arrow::array::Array;
-    
+
     let arrow_schema = convert_duckdb_schema(batch.schema().as_ref());
-    
+
     // Convert columns - simplified version focusing on common types
     let arrow_columns: Vec<ArrayRef> = batch
         .columns()
@@ -440,7 +518,7 @@ fn convert_duckdb_batch(batch: &duckdb::arrow::record_batch::RecordBatch) -> Res
         .map(|(i, col)| {
             let duckdb_arr = col.as_ref();
             let field = &arrow_schema.fields()[i];
-            
+
             // Try to convert based on the expected data type
             match field.data_type() {
                 arrow_schema::DataType::Boolean => {
@@ -671,7 +749,7 @@ fn convert_duckdb_batch(batch: &duckdb::arrow::record_batch::RecordBatch) -> Res
             }
         })
         .collect();
-    
+
     RecordBatch::try_new(arrow_schema, arrow_columns)
         .map_err(|e| anyhow::anyhow!("Failed to create Arrow RecordBatch: {}", e))
 }

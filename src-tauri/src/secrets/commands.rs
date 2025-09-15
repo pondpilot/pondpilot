@@ -1,10 +1,10 @@
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
 use uuid::Uuid;
-use serde::{Deserialize, Serialize};
 
 use super::manager::SecretsManager;
-use super::models::{SecretMetadata, SecretType, SecretFields};
+use super::models::{SecretFields, SecretMetadata, SecretType};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SaveSecretRequest {
@@ -73,17 +73,27 @@ pub async fn save_secret(
         println!("[Secrets]   - Tags: {:?}", request.tags);
         println!("[Secrets]   - Fields provided:");
     }
-    
+
     // Log which fields are provided (without values for security)
     #[cfg(debug_assertions)]
     {
-        if request.fields.token.is_some() { println!("[Secrets]     - token: [PROVIDED]"); }
-        if request.fields.key_id.is_some() { println!("[Secrets]     - key_id: [PROVIDED]"); }
-        if request.fields.secret.is_some() { println!("[Secrets]     - secret: [PROVIDED]"); }
-        if request.fields.host.is_some() { println!("[Secrets]     - host: [PROVIDED]"); }
-        if request.fields.password.is_some() { println!("[Secrets]     - password: [PROVIDED]"); }
+        if request.fields.token.is_some() {
+            println!("[Secrets]     - token: [PROVIDED]");
+        }
+        if request.fields.key_id.is_some() {
+            println!("[Secrets]     - key_id: [PROVIDED]");
+        }
+        if request.fields.secret.is_some() {
+            println!("[Secrets]     - secret: [PROVIDED]");
+        }
+        if request.fields.host.is_some() {
+            println!("[Secrets]     - host: [PROVIDED]");
+        }
+        if request.fields.password.is_some() {
+            println!("[Secrets]     - password: [PROVIDED]");
+        }
     }
-    
+
     let metadata = state
         .save_secret(
             request.secret_type,
@@ -98,10 +108,13 @@ pub async fn save_secret(
             eprintln!("[Secrets] Failed to save secret: {}", e);
             e.to_string()
         })?;
-    
+
     #[cfg(debug_assertions)]
-    println!("[Secrets] Secret saved successfully with ID: {}", metadata.id);
-    
+    println!(
+        "[Secrets] Secret saved successfully with ID: {}",
+        metadata.id
+    );
+
     Ok(SecretResponse { metadata })
 }
 
@@ -117,24 +130,27 @@ pub async fn list_secrets(
         return Err("Unauthorized: list_secrets only available from main or secrets window".into());
     }
     #[cfg(debug_assertions)]
-    println!("[Secrets] Listing secrets with type filter: {:?}", secret_type);
-    
-    let secrets = state
-        .list_secrets(secret_type)
-        .await
-        .map_err(|e| {
-            eprintln!("[Secrets] Failed to list secrets: {}", e);
-            e.to_string()
-        })?;
-    
+    println!(
+        "[Secrets] Listing secrets with type filter: {:?}",
+        secret_type
+    );
+
+    let secrets = state.list_secrets(secret_type).await.map_err(|e| {
+        eprintln!("[Secrets] Failed to list secrets: {}", e);
+        e.to_string()
+    })?;
+
     #[cfg(debug_assertions)]
     {
         println!("[Secrets] Found {} secrets", secrets.len());
         for secret in &secrets {
-            println!("[Secrets]   - {} ({:?}): {}", secret.name, secret.secret_type, secret.id);
+            println!(
+                "[Secrets]   - {} ({:?}): {}",
+                secret.name, secret.secret_type, secret.id
+            );
         }
     }
-    
+
     Ok(SecretListResponse { secrets })
 }
 
@@ -149,18 +165,14 @@ pub async fn get_secret(
     if window.label() != "secrets" && window.label() != "main" {
         return Err("Unauthorized: get_secret only available from main or secrets window".into());
     }
-    
-    let id = Uuid::parse_str(&secret_id)
-        .map_err(|e| format!("Invalid secret ID: {}", e))?;
-    
-    let secret = state
-        .get_secret(id)
-        .await
-        .map_err(|e| e.to_string())?;
-    
+
+    let id = Uuid::parse_str(&secret_id).map_err(|e| format!("Invalid secret ID: {}", e))?;
+
+    let secret = state.get_secret(id).await.map_err(|e| e.to_string())?;
+
     // IMPORTANT: Only return metadata, never expose actual credentials to frontend
-    Ok(SecretResponse { 
-        metadata: secret.metadata.clone() 
+    Ok(SecretResponse {
+        metadata: secret.metadata.clone(),
     })
 }
 
@@ -176,22 +188,18 @@ pub async fn delete_secret(
     }
     #[cfg(debug_assertions)]
     println!("[Secrets] Delete request for secret: {}", secret_id);
-    
-    let id = Uuid::parse_str(&secret_id)
-        .map_err(|e| {
-            eprintln!("[Secrets] Invalid secret ID format: {}", e);
-            format!("Invalid secret ID: {}", e)
-        })?;
-    
-    state
-        .delete_secret(id)
-        .await
-        .map_err(|e| {
-            #[cfg(debug_assertions)]
-            eprintln!("[Secrets] Failed to delete secret {}: {}", secret_id, e);
-            e.to_string()
-        })?;
-    
+
+    let id = Uuid::parse_str(&secret_id).map_err(|e| {
+        eprintln!("[Secrets] Invalid secret ID format: {}", e);
+        format!("Invalid secret ID: {}", e)
+    })?;
+
+    state.delete_secret(id).await.map_err(|e| {
+        #[cfg(debug_assertions)]
+        eprintln!("[Secrets] Failed to delete secret {}: {}", secret_id, e);
+        e.to_string()
+    })?;
+
     #[cfg(debug_assertions)]
     println!("[Secrets] Secret {} deleted successfully", secret_id);
     Ok(())
@@ -207,9 +215,9 @@ pub async fn update_secret(
     if window.label() != "secrets" {
         return Err("Unauthorized: secrets commands only available from secrets window".into());
     }
-    let id = Uuid::parse_str(&request.secret_id)
-        .map_err(|e| format!("Invalid secret ID: {}", e))?;
-    
+    let id =
+        Uuid::parse_str(&request.secret_id).map_err(|e| format!("Invalid secret ID: {}", e))?;
+
     let metadata = state
         .update_secret(
             id,
@@ -220,7 +228,7 @@ pub async fn update_secret(
         )
         .await
         .map_err(|e| e.to_string())?;
-    
+
     Ok(SecretResponse { metadata })
 }
 
@@ -234,13 +242,9 @@ pub async fn test_secret(
     if window.label() != "secrets" {
         return Err("Unauthorized: secrets commands only available from secrets window".into());
     }
-    let id = Uuid::parse_str(&secret_id)
-        .map_err(|e| format!("Invalid secret ID: {}", e))?;
-    
-    state
-        .test_secret(id)
-        .await
-        .map_err(|e| e.to_string())
+    let id = Uuid::parse_str(&secret_id).map_err(|e| format!("Invalid secret ID: {}", e))?;
+
+    state.test_secret(id).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -253,9 +257,11 @@ pub async fn apply_secret_to_connection(
     // This command can set environment variables with secret values,
     // so we need to be careful about who can call it
     if window.label() != "main" {
-        return Err("Unauthorized: apply_secret_to_connection only available from main window".into());
+        return Err(
+            "Unauthorized: apply_secret_to_connection only available from main window".into(),
+        );
     }
-    
+
     // Preferred validation path: explicit operation enum
     let is_allowed = if let Some(op) = &request.operation {
         matches!(
@@ -296,23 +302,23 @@ pub async fn apply_secret_to_connection(
         tracing::warn!("[SECURITY AUDIT] Secret access denied for connection pattern check");
         return Err("Invalid connection_id".into());
     }
-    
+
     tracing::debug!("[Secrets] Applying secret to connection");
-    
-    let secret_id = Uuid::parse_str(&request.secret_id)
-        .map_err(|e| format!("Invalid secret ID: {}", e))?;
-    
-    let secret = state
-        .get_secret(secret_id)
-        .await
-        .map_err(|e| {
-            eprintln!("[Secrets] Failed to get secret: {}", e);
-            e.to_string()
-        })?;
-    
+
+    let secret_id =
+        Uuid::parse_str(&request.secret_id).map_err(|e| format!("Invalid secret ID: {}", e))?;
+
+    let secret = state.get_secret(secret_id).await.map_err(|e| {
+        eprintln!("[Secrets] Failed to get secret: {}", e);
+        e.to_string()
+    })?;
+
     #[cfg(debug_assertions)]
-    println!("[Secrets] Retrieved secret type: {:?}", secret.metadata.secret_type);
-    
+    println!(
+        "[Secrets] Retrieved secret type: {:?}",
+        secret.metadata.secret_type
+    );
+
     // For MotherDuck, we need to set the environment variable for now
     // since DuckDB's MotherDuck extension reads from environment
     match secret.metadata.secret_type {
@@ -322,7 +328,7 @@ pub async fn apply_secret_to_connection(
                 #[cfg(debug_assertions)]
                 println!("[Secrets] Clearing existing MOTHERDUCK_TOKEN environment variable");
                 std::env::remove_var("MOTHERDUCK_TOKEN");
-                
+
                 #[cfg(debug_assertions)]
                 println!("[Secrets] Setting new MOTHERDUCK_TOKEN environment variable");
                 std::env::set_var("MOTHERDUCK_TOKEN", token.expose());
@@ -332,7 +338,7 @@ pub async fn apply_secret_to_connection(
                 eprintln!("[Secrets] No token field found in MotherDuck secret");
                 return Err("MotherDuck secret missing token field".to_string());
             }
-        },
+        }
         SecretType::Postgres | SecretType::MySQL => {
             #[cfg(debug_assertions)]
             println!(
@@ -341,7 +347,7 @@ pub async fn apply_secret_to_connection(
             );
             // For database secrets, we don't set environment variables
             // Instead, the connection testing will use CREATE SECRET + ATTACH pattern
-        },
+        }
         _ => {
             #[cfg(debug_assertions)]
             println!(
@@ -352,10 +358,9 @@ pub async fn apply_secret_to_connection(
             // This will be handled by the connection creation/execution logic
         }
     }
-    
+
     Ok(())
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SecretTypeInfo {
@@ -377,15 +382,12 @@ pub async fn cleanup_orphaned_secrets(
     }
     #[cfg(debug_assertions)]
     println!("[Secrets] Starting cleanup of orphaned secrets");
-    
-    let all_secrets = state
-        .list_secrets(None)
-        .await
-        .map_err(|e| e.to_string())?;
-    
+
+    let all_secrets = state.list_secrets(None).await.map_err(|e| e.to_string())?;
+
     let mut cleaned = 0;
     let mut failed = 0;
-    
+
     for secret in all_secrets {
         // Try to get the full secret (which includes keychain data)
         match state.get_secret(secret.id).await {
@@ -393,30 +395,42 @@ pub async fn cleanup_orphaned_secrets(
                 // Secret is valid, skip
                 #[cfg(debug_assertions)]
                 println!("[Secrets] Secret {} is valid", secret.id);
-            },
+            }
             Err(_) => {
                 // Secret is orphaned (metadata exists but keychain doesn't)
                 #[cfg(debug_assertions)]
-                println!("[Secrets] Found orphaned secret: {} ({})", secret.name, secret.id);
-                
+                println!(
+                    "[Secrets] Found orphaned secret: {} ({})",
+                    secret.name, secret.id
+                );
+
                 // Try to delete it
                 match state.delete_secret(secret.id).await {
                     Ok(_) => {
                         #[cfg(debug_assertions)]
-                        println!("[Secrets] Successfully cleaned up orphaned secret: {}", secret.id);
+                        println!(
+                            "[Secrets] Successfully cleaned up orphaned secret: {}",
+                            secret.id
+                        );
                         cleaned += 1;
-                    },
+                    }
                     Err(e) => {
                         #[cfg(debug_assertions)]
-                        eprintln!("[Secrets] Failed to clean up orphaned secret {}: {}", secret.id, e);
+                        eprintln!(
+                            "[Secrets] Failed to clean up orphaned secret {}: {}",
+                            secret.id, e
+                        );
                         failed += 1;
                     }
                 }
             }
         }
     }
-    
-    Ok(format!("Cleanup complete: {} orphaned secrets removed, {} failed", cleaned, failed))
+
+    Ok(format!(
+        "Cleanup complete: {} orphaned secrets removed, {} failed",
+        cleaned, failed
+    ))
 }
 
 #[tauri::command]
@@ -431,23 +445,22 @@ pub async fn debug_secret(
     }
     #[cfg(debug_assertions)]
     println!("[Secrets Debug] Checking secret: {}", secret_id);
-    
-    let id = Uuid::parse_str(&secret_id)
-        .map_err(|e| format!("Invalid secret ID: {}", e))?;
-    
+
+    let id = Uuid::parse_str(&secret_id).map_err(|e| format!("Invalid secret ID: {}", e))?;
+
     // Try to get the full secret
     match state.get_secret(id).await {
         Ok(secret) => {
             let mut debug_info = format!("Secret found!\n");
             debug_info.push_str(&format!("Name: {}\n", secret.metadata.name));
             debug_info.push_str(&format!("Type: {:?}\n", secret.metadata.secret_type));
-            debug_info.push_str(&format!("Credential fields: {:?}\n", 
-                secret.credentials.keys().collect::<Vec<_>>()));
+            debug_info.push_str(&format!(
+                "Credential fields: {:?}\n",
+                secret.credentials.keys().collect::<Vec<_>>()
+            ));
             Ok(debug_info)
         }
-        Err(e) => {
-            Err(format!("Failed to get secret: {}", e))
-        }
+        Err(e) => Err(format!("Failed to get secret: {}", e)),
     }
 }
 
@@ -455,35 +468,57 @@ pub async fn debug_secret(
 pub async fn get_secret_types(window: tauri::Window) -> Result<Vec<SecretTypeInfo>, String> {
     // This is a read-only metadata command, allow from both windows
     if window.label() != "secrets" && window.label() != "main" {
-        return Err("Unauthorized: get_secret_types only available from main or secrets window".into());
+        return Err(
+            "Unauthorized: get_secret_types only available from main or secrets window".into(),
+        );
     }
     let types = vec![
         SecretTypeInfo {
             value: "S3".to_string(),
             label: "Amazon S3".to_string(),
             category: "cloud".to_string(),
-            required_fields: vec!["name".to_string(), "key_id".to_string(), "secret".to_string()],
-            optional_fields: vec!["region".to_string(), "session_token".to_string(), "endpoint".to_string()],
+            required_fields: vec![
+                "name".to_string(),
+                "key_id".to_string(),
+                "secret".to_string(),
+            ],
+            optional_fields: vec![
+                "region".to_string(),
+                "session_token".to_string(),
+                "endpoint".to_string(),
+            ],
         },
         SecretTypeInfo {
             value: "R2".to_string(),
             label: "Cloudflare R2".to_string(),
             category: "cloud".to_string(),
-            required_fields: vec!["name".to_string(), "key_id".to_string(), "secret".to_string()],
+            required_fields: vec![
+                "name".to_string(),
+                "key_id".to_string(),
+                "secret".to_string(),
+            ],
             optional_fields: vec!["endpoint".to_string()],
         },
         SecretTypeInfo {
             value: "Azure".to_string(),
             label: "Azure Blob Storage".to_string(),
             category: "cloud".to_string(),
-            required_fields: vec!["name".to_string(), "account_name".to_string(), "secret".to_string()],
+            required_fields: vec![
+                "name".to_string(),
+                "account_name".to_string(),
+                "secret".to_string(),
+            ],
             optional_fields: vec![],
         },
         SecretTypeInfo {
             value: "GCS".to_string(),
             label: "Google Cloud Storage".to_string(),
             category: "cloud".to_string(),
-            required_fields: vec!["name".to_string(), "key_id".to_string(), "secret".to_string()],
+            required_fields: vec![
+                "name".to_string(),
+                "key_id".to_string(),
+                "secret".to_string(),
+            ],
             optional_fields: vec![],
         },
         SecretTypeInfo {
@@ -504,14 +539,22 @@ pub async fn get_secret_types(window: tauri::Window) -> Result<Vec<SecretTypeInf
             value: "Postgres".to_string(),
             label: "PostgreSQL".to_string(),
             category: "database".to_string(),
-            required_fields: vec!["name".to_string(), "username".to_string(), "password".to_string()],
+            required_fields: vec![
+                "name".to_string(),
+                "username".to_string(),
+                "password".to_string(),
+            ],
             optional_fields: vec![],
         },
         SecretTypeInfo {
             value: "MySQL".to_string(),
             label: "MySQL".to_string(),
             category: "database".to_string(),
-            required_fields: vec!["name".to_string(), "username".to_string(), "password".to_string()],
+            required_fields: vec![
+                "name".to_string(),
+                "username".to_string(),
+                "password".to_string(),
+            ],
             optional_fields: vec![],
         },
         SecretTypeInfo {
@@ -519,7 +562,11 @@ pub async fn get_secret_types(window: tauri::Window) -> Result<Vec<SecretTypeInf
             label: "HTTP Bearer/Basic Auth".to_string(),
             category: "api".to_string(),
             required_fields: vec!["name".to_string()],
-            optional_fields: vec!["bearer_token".to_string(), "basic_username".to_string(), "basic_password".to_string()],
+            optional_fields: vec![
+                "bearer_token".to_string(),
+                "basic_username".to_string(),
+                "basic_password".to_string(),
+            ],
         },
         SecretTypeInfo {
             value: "HuggingFace".to_string(),
@@ -529,6 +576,6 @@ pub async fn get_secret_types(window: tauri::Window) -> Result<Vec<SecretTypeInf
             optional_fields: vec![],
         },
     ];
-    
+
     Ok(types)
 }

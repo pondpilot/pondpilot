@@ -7,8 +7,8 @@
 // SECURITY: This is a defense-in-depth measure. Primary protection should still come from
 // proper input validation and query construction practices.
 
+use crate::errors::{DuckDBError, Result};
 use serde_json::Value;
-use crate::errors::{Result, DuckDBError};
 
 /// Escape a SQL value to prevent injection attacks
 pub fn escape_sql_value(value: &Value) -> Result<String> {
@@ -22,17 +22,20 @@ pub fn escape_sql_value(value: &Value) -> Result<String> {
                     position: None,
                 });
             }
-            
+
             // Check for SQL metacharacters that could be used for injection
             // Even with escaping, some patterns are too dangerous to allow
-            if contains_sql_comment(s) || contains_multiple_statements(s) || contains_sql_metacharacters(s) {
+            if contains_sql_comment(s)
+                || contains_multiple_statements(s)
+                || contains_sql_metacharacters(s)
+            {
                 return Err(DuckDBError::InvalidQuery {
                     message: "Suspicious SQL patterns detected in parameter".to_string(),
                     sql: None,
                     position: None,
                 });
             }
-            
+
             // Escape single quotes by doubling them (SQL standard)
             // Also escape backslashes to prevent escape sequence attacks
             let escaped = s.replace('\\', "\\\\").replace('\'', "''");
@@ -56,12 +59,11 @@ pub fn escape_sql_value(value: &Value) -> Result<String> {
         Value::Array(_) | Value::Object(_) => {
             // Complex types need special handling
             // For now, serialize to JSON string
-            let json_str = serde_json::to_string(value)
-                .map_err(|e| DuckDBError::InvalidQuery {
-                    message: format!("Failed to serialize parameter: {}", e),
-                    sql: None,
-                    position: None,
-                })?;
+            let json_str = serde_json::to_string(value).map_err(|e| DuckDBError::InvalidQuery {
+                message: format!("Failed to serialize parameter: {}", e),
+                sql: None,
+                position: None,
+            })?;
             // Recursively escape the JSON string
             escape_sql_value(&Value::String(json_str))
         }
@@ -78,23 +80,24 @@ fn contains_multiple_statements(s: &str) -> bool {
     // Simple heuristic: check for semicolons that might indicate multiple statements
     // This is conservative and might flag legitimate data containing semicolons
     let normalized = s.to_lowercase();
-    
+
     // Check for common SQL injection patterns
-    if normalized.contains("; drop") || 
-       normalized.contains("; delete") || 
-       normalized.contains("; update") ||
-       normalized.contains("; insert") ||
-       normalized.contains("; create") ||
-       normalized.contains("; alter") ||
-       normalized.contains("; exec") ||
-       normalized.contains("; execute") ||
-       normalized.contains(";drop") ||
-       normalized.contains(";delete") ||
-       normalized.contains(";update") ||
-       normalized.contains(";insert") {
+    if normalized.contains("; drop")
+        || normalized.contains("; delete")
+        || normalized.contains("; update")
+        || normalized.contains("; insert")
+        || normalized.contains("; create")
+        || normalized.contains("; alter")
+        || normalized.contains("; exec")
+        || normalized.contains("; execute")
+        || normalized.contains(";drop")
+        || normalized.contains(";delete")
+        || normalized.contains(";update")
+        || normalized.contains(";insert")
+    {
         return true;
     }
-    
+
     false
 }
 
@@ -107,7 +110,7 @@ fn contains_sql_metacharacters(s: &str) -> bool {
     s.contains('\x08') || // Backspace
     s.contains('\x09') || // Tab (can be used to bypass filters)
     s.contains('\x0d') || // Carriage return
-    s.contains('\x0a')    // Line feed
+    s.contains('\x0a') // Line feed
 }
 
 /// Sanitize a SQL identifier (table name, column name, etc.)
@@ -122,7 +125,7 @@ pub fn sanitize_identifier(identifier: &str) -> Result<String> {
             position: None,
         });
     }
-    
+
     // Check length limit (reasonable limit to prevent DoS)
     if identifier.len() > 128 {
         return Err(DuckDBError::InvalidQuery {
@@ -131,10 +134,13 @@ pub fn sanitize_identifier(identifier: &str) -> Result<String> {
             position: None,
         });
     }
-    
+
     // Validate identifier contains only safe characters
     // Allow alphanumeric, underscore, and dollar sign (common in many SQL dialects)
-    if !identifier.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$') {
+    if !identifier
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+    {
         // If it contains other characters, quote it
         // DuckDB uses double quotes for identifiers
         Ok(format!("\"{}\"", identifier.replace('"', "\"\"")))
@@ -151,7 +157,7 @@ pub fn build_parameterized_query(sql: &str, params: &[Value]) -> Result<String> 
     let mut chars = sql.chars().peekable();
     let mut in_string = false;
     let mut string_delimiter = ' ';
-    
+
     while let Some(ch) = chars.next() {
         match ch {
             '\'' | '"' if !in_string => {
@@ -173,8 +179,11 @@ pub fn build_parameterized_query(sql: &str, params: &[Value]) -> Result<String> 
                 // Replace placeholder with escaped parameter
                 if param_index >= params.len() {
                     return Err(DuckDBError::InvalidQuery {
-                        message: format!("Not enough parameters: expected at least {}, got {}", 
-                                       param_index + 1, params.len()),
+                        message: format!(
+                            "Not enough parameters: expected at least {}, got {}",
+                            param_index + 1,
+                            params.len()
+                        ),
                         sql: Some(sql.to_string()),
                         position: Some(ch as usize),
                     });
@@ -185,16 +194,19 @@ pub fn build_parameterized_query(sql: &str, params: &[Value]) -> Result<String> 
             _ => result.push(ch),
         }
     }
-    
+
     if param_index < params.len() {
         return Err(DuckDBError::InvalidQuery {
-            message: format!("Too many parameters: expected {}, got {}", 
-                           param_index, params.len()),
+            message: format!(
+                "Too many parameters: expected {}, got {}",
+                param_index,
+                params.len()
+            ),
             sql: Some(sql.to_string()),
             position: None,
         });
     }
-    
+
     Ok(result)
 }
 
@@ -205,14 +217,8 @@ mod tests {
 
     #[test]
     fn test_escape_string() {
-        assert_eq!(
-            escape_sql_value(&json!("hello")).unwrap(),
-            "'hello'"
-        );
-        assert_eq!(
-            escape_sql_value(&json!("it's")).unwrap(),
-            "'it''s'"
-        );
+        assert_eq!(escape_sql_value(&json!("hello")).unwrap(), "'hello'");
+        assert_eq!(escape_sql_value(&json!("it's")).unwrap(), "'it''s'");
         // Suspicious patterns should be rejected, not escaped
         assert!(escape_sql_value(&json!("'; DROP TABLE users; --")).is_err());
     }
@@ -244,7 +250,10 @@ mod tests {
         assert_eq!(sanitize_identifier("users").unwrap(), "users");
         assert_eq!(sanitize_identifier("user_name").unwrap(), "user_name");
         assert_eq!(sanitize_identifier("table-name").unwrap(), "\"table-name\"");
-        assert_eq!(sanitize_identifier("table\"name").unwrap(), "\"table\"\"name\"");
+        assert_eq!(
+            sanitize_identifier("table\"name").unwrap(),
+            "\"table\"\"name\""
+        );
         assert!(sanitize_identifier("").is_err());
     }
 
@@ -253,22 +262,28 @@ mod tests {
         let sql = "SELECT * FROM users WHERE name = ? AND age > ?";
         let params = vec![json!("Alice"), json!(25)];
         let result = build_parameterized_query(sql, &params).unwrap();
-        assert_eq!(result, "SELECT * FROM users WHERE name = 'Alice' AND age > 25");
-        
+        assert_eq!(
+            result,
+            "SELECT * FROM users WHERE name = 'Alice' AND age > 25"
+        );
+
         // Test with quotes in SQL
         let sql2 = "SELECT * FROM users WHERE status = '?' AND name = ?";
         let params2 = vec![json!("Bob")];
         let result2 = build_parameterized_query(sql2, &params2).unwrap();
-        assert_eq!(result2, "SELECT * FROM users WHERE status = '?' AND name = 'Bob'");
+        assert_eq!(
+            result2,
+            "SELECT * FROM users WHERE status = '?' AND name = 'Bob'"
+        );
     }
 
     #[test]
     fn test_parameter_count_validation() {
         let sql = "SELECT * FROM users WHERE name = ?";
-        
+
         // Too few parameters
         assert!(build_parameterized_query(sql, &[]).is_err());
-        
+
         // Too many parameters
         let params = vec![json!("Alice"), json!("Bob")];
         assert!(build_parameterized_query(sql, &params).is_err());
