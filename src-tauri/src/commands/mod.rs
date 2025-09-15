@@ -1,4 +1,5 @@
 pub mod stream;
+pub mod utils;
 
 use crate::database::{DuckDBEngine, EngineConfig, QueryResult, CatalogInfo, DatabaseInfo, TableInfo, ColumnInfo, FileRegistration, FileInfo};
 use crate::errors::Result;
@@ -129,54 +130,63 @@ pub async fn connection_execute(
         connection_id,
         sql.len()
     );
-    // Debug: If this is an ATTACH statement, log file diagnostics to help troubleshoot crashes
+    // Debug: If this is an ATTACH statement, validate and log file diagnostics to help troubleshoot crashes
     #[cfg(debug_assertions)]
     if sql.trim_start().to_uppercase().starts_with("ATTACH ") {
-        // Simple parse to extract the path between single quotes: ATTACH 'path' AS name
-        if let Some(start_idx) = sql.find('\'') {
-            if let Some(end_idx) = sql[start_idx + 1..].find('\'') {
-                let path_str = &sql[start_idx + 1..start_idx + 1 + end_idx];
-                eprintln!("[ATTACH_DEBUG] Requested path: {}", path_str);
+        // Best-effort parse to extract the path between quotes: ATTACH 'path' AS name or ATTACH "path" AS name
+        let (quote, start_idx) = if let Some(idx) = sql.find('\'') { ('\'', idx) } else if let Some(idx) = sql.find('"') { ('"', idx) } else { ('\'', usize::MAX) };
+        if start_idx != usize::MAX {
+            if let Some(end_rel) = sql[start_idx + 1..].find(quote) {
+                let end_idx = start_idx + 1 + end_rel;
+                let path_str = &sql[start_idx + 1..end_idx];
+                
+                // Validate the path for security
+                if let Err(e) = crate::security::validate_attach_path(path_str) {
+                    tracing::warn!("[ATTACH_DEBUG] Path validation failed: {}", e);
+                    // In debug mode, just warn but continue (production would reject)
+                }
+                
+                tracing::debug!("[ATTACH_DEBUG] Requested path: {}", path_str);
                 // Try to canonicalize and fetch metadata
                 match std::fs::canonicalize(path_str) {
                     Ok(canon) => {
-                        eprintln!("[ATTACH_DEBUG] Canonical path: {:?}", canon);
+                        tracing::debug!("[ATTACH_DEBUG] Canonical path: {:?}", canon);
                         match std::fs::metadata(&canon) {
                             Ok(meta) => {
-                                eprintln!(
+                                tracing::debug!(
                                     "[ATTACH_DEBUG] File size: {} bytes, readonly: {}",
                                     meta.len(),
                                     meta.permissions().readonly()
                                 );
                             }
                             Err(e) => {
-                                eprintln!("[ATTACH_DEBUG] Failed to get metadata: {}", e);
+                                tracing::debug!("[ATTACH_DEBUG] Failed to get metadata: {}", e);
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("[ATTACH_DEBUG] Canonicalize failed: {}", e);
+                        tracing::debug!("[ATTACH_DEBUG] Canonicalize failed: {}", e);
                     }
                 }
 
                 // Additional MotherDuck diagnostics
                 if path_str.starts_with("md:") {
                     let token_present = std::env::var("MOTHERDUCK_TOKEN").ok().map(|t| !t.is_empty()).unwrap_or(false);
-                    eprintln!("[ATTACH_DEBUG] MotherDuck URL detected; env token present: {}", token_present);
+                    tracing::debug!("[ATTACH_DEBUG] MotherDuck URL detected; env token present: {}", token_present);
                     // Try to check extension load state on this connection
                     match engine.execute_on_connection(&connection_id, "SELECT extension_name, loaded, installed FROM duckdb_extensions() WHERE extension_name='motherduck'", vec![]).await {
                         Ok(info) => {
                             if info.rows.is_empty() {
-                                eprintln!("[ATTACH_DEBUG] motherduck extension not reported by duckdb_extensions()");
+                                tracing::debug!("[ATTACH_DEBUG] motherduck extension not reported by duckdb_extensions()");
                             } else {
                                 let row = &info.rows[0];
                                 let loaded = row.get("loaded").and_then(|v| v.as_bool()).unwrap_or(false);
                                 let installed = row.get("installed").and_then(|v| v.as_bool()).unwrap_or(false);
-                                eprintln!("[ATTACH_DEBUG] motherduck extension status - loaded: {}, installed: {}", loaded, installed);
+                                tracing::debug!("[ATTACH_DEBUG] motherduck extension status - loaded: {}, installed: {}", loaded, installed);
                             }
                         }
                         Err(e) => {
-                            eprintln!("[ATTACH_DEBUG] Failed to read duckdb_extensions(): {}", e);
+                            tracing::debug!("[ATTACH_DEBUG] Failed to read duckdb_extensions(): {}", e);
                         }
                     }
                 }
@@ -220,7 +230,7 @@ pub async fn connection_close(
 ) -> Result<()> {
     // Close and remove the connection from the manager
     #[cfg(debug_assertions)]
-    eprintln!("[CONNECTION_CLOSE] Closing connection: {}", connection_id);
+    tracing::debug!("[CONNECTION_CLOSE] Closing connection: {}", connection_id);
     engine.close_connection(&connection_id).await
 }
 
@@ -229,7 +239,7 @@ pub async fn reset_all_connections(
     engine: EngineState<'_>,
 ) -> Result<()> {
     #[cfg(debug_assertions)]
-    eprintln!("[RESET_CONNECTIONS] Resetting all connections for MotherDuck account switch");
+    tracing::debug!("[RESET_CONNECTIONS] Resetting all connections for MotherDuck account switch");
     engine.reset_all_connections().await
 }
 
@@ -267,17 +277,23 @@ pub async fn prepare_statement(
 #[tauri::command]
 pub async fn prepared_statement_execute(
     engine: EngineState<'_>,
-    statement_id: String,
+    // Support both snake_case and camelCase arg names for compatibility
+    statement_id: Option<String>,
+    #[allow(non_snake_case)] statementId: Option<String>,
     params: Vec<serde_json::Value>,
 ) -> Result<QueryResult> {
+    let statement_id = crate::commands::utils::coalesce_param_opt(statement_id, statementId, "statement_id", "prepared_statement_execute")?;
     engine.execute_prepared_statement(&statement_id, params).await
 }
 
 #[tauri::command]
 pub async fn prepared_statement_close(
     engine: EngineState<'_>,
-    statement_id: String,
+    // Support both snake_case and camelCase arg names for compatibility
+    statement_id: Option<String>,
+    #[allow(non_snake_case)] statementId: Option<String>,
 ) -> Result<()> {
+    let statement_id = crate::commands::utils::coalesce_param_opt(statement_id, statementId, "statement_id", "prepared_statement_close")?;
     engine.close_prepared_statement(&statement_id).await
 }
 

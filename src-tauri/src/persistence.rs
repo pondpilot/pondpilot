@@ -20,12 +20,12 @@ impl PersistenceState {
                     message: format!("Failed to create persistence directory: {}", e),
                     path: Some(parent.to_string_lossy().to_string()),
                 })?;
-                println!("Created persistence directory: {:?}", parent);
+                tracing::info!("[Persistence] Created persistence directory: {:?}", parent);
             }
         }
 
         // Use the provided path directly
-        println!("SQLite persistence path: {:?}", db_path);
+        tracing::info!("[Persistence] SQLite persistence path: {:?}", db_path);
 
         let conn = Connection::open(&db_path)?;
 

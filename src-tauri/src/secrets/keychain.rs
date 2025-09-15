@@ -159,7 +159,7 @@ impl KeychainProvider for NativeKeychainProvider {
         
         let _entry = Entry::new(&self.service_name, &account)
             .map_err(|e| {
-                eprintln!("[Keychain] Failed to create Entry object: {}", e);
+                tracing::error!("[Keychain] Failed to create Entry object: {}", e);
                 SecretError::KeychainError(e.to_string())
             })?;
         
@@ -176,7 +176,7 @@ impl KeychainProvider for NativeKeychainProvider {
         .map_err(|e| SecretError::KeychainError(format!("Task join error: {}", e)))?;
         
         result.map_err(|e| {
-            eprintln!("[Keychain] Failed to store password in keychain: {}", e);
+            tracing::error!("[Keychain] Failed to store password in keychain: {}", e);
             SecretError::KeychainError(format!("Failed to store in keychain: {}", e))
         })?;
         
@@ -200,12 +200,12 @@ impl KeychainProvider for NativeKeychainProvider {
             Ok(retrieved) => {
                 tracing::debug!("[Keychain] ✓ Verification successful - secret can be retrieved");
                 if retrieved != payload {
-                    eprintln!("[Keychain] WARNING: Retrieved payload differs from original!");
+                    tracing::warn!("[Keychain] WARNING: Retrieved payload differs from original!");
                 }
             },
             Err(e) => {
-                eprintln!("[Keychain] ✗ Verification failed: {}", e);
-                eprintln!("[Keychain] Secret may still be accessible later");
+                tracing::error!("[Keychain] ✗ Verification failed: {}", e);
+                tracing::warn!("[Keychain] Secret may still be accessible later");
             }
         }
         
@@ -230,7 +230,7 @@ impl KeychainProvider for NativeKeychainProvider {
         }).await
         .map_err(|e| SecretError::KeychainError(format!("Task join error: {}", e)))?
         .map_err(|e| {
-            eprintln!("[Keychain] Failed to get password from keychain: {}", e);
+            tracing::error!("[Keychain] Failed to get password from keychain: {}", e);
             SecretError::KeychainError(format!("Failed to retrieve secret from keychain: {}", e))
         })?;
         
@@ -271,15 +271,15 @@ impl KeychainProvider for NativeKeychainProvider {
             }).await;
             
             match delete_result {
-                Ok(Ok(_)) => println!("[Keychain] Keychain entry deleted successfully"),
+                Ok(Ok(_)) => tracing::info!("[Keychain] Keychain entry deleted successfully"),
                 Ok(Err(keyring::Error::NoEntry)) => {
                     tracing::debug!("[Keychain] Keychain entry not found (already deleted or never created)");
                 },
                 Ok(Err(e)) => {
-                    eprintln!("[Keychain] Error deleting keychain entry: {}", e);
+                    tracing::error!("[Keychain] Error deleting keychain entry: {}", e);
                 },
                 Err(e) => {
-                    eprintln!("[Keychain] Task error deleting keychain entry: {}", e);
+                    tracing::error!("[Keychain] Task error deleting keychain entry: {}", e);
                 }
             }
         } else {
@@ -288,9 +288,9 @@ impl KeychainProvider for NativeKeychainProvider {
         
         // Always try to delete metadata, even if keychain deletion failed
         match self.metadata_store.delete_metadata(secret_id).await {
-            Ok(_) => println!("[Keychain] Metadata deleted successfully"),
+            Ok(_) => tracing::info!("[Keychain] Metadata deleted successfully"),
             Err(e) => {
-                eprintln!("[Keychain] Failed to delete metadata: {:?}", e);
+                tracing::error!("[Keychain] Failed to delete metadata: {:?}", e);
                 return Err(e);
             }
         }
