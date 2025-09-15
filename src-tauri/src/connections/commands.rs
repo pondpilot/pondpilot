@@ -76,13 +76,13 @@ pub async fn save_connection(
         return Err("Unauthorized: connection commands only available from main window".into());
     }
 
-    println!("[Connections] Save connection request received:");
-    println!("[Connections]   - Name: {}", request.name);
-    println!("[Connections]   - Type: {:?}", request.connection_type);
-    println!("[Connections]   - Host: {}", request.host);
-    println!("[Connections]   - Port: {}", request.port);
-    println!("[Connections]   - Database: {}", request.database);
-    println!("[Connections]   - Secret ID: {}", request.secret_id);
+    tracing::info!("[Connections] Save connection request received");
+    tracing::info!("[Connections]   - Name: {}", request.name);
+    tracing::info!("[Connections]   - Type: {:?}", request.connection_type);
+    tracing::info!("[Connections]   - Host: {}", request.host);
+    tracing::info!("[Connections]   - Port: {}", request.port);
+    tracing::info!("[Connections]   - Database: {}", request.database);
+    tracing::info!("[Connections]   - Secret ID: {}", request.secret_id);
 
     let secret_id = Uuid::parse_str(&request.secret_id)
         .map_err(|e| format!("Invalid secret ID: {}", e))?;
@@ -110,11 +110,11 @@ pub async fn save_connection(
         .save_connection(config)
         .await
         .map_err(|e| {
-            eprintln!("[Connections] Failed to save connection: {}", e);
+            tracing::error!("[Connections] Failed to save connection: {}", e);
             e.to_string()
         })?;
 
-    println!("[Connections] Connection saved successfully with ID: {}", connection.id);
+    tracing::info!("[Connections] Connection saved successfully with ID: {}", connection.id);
 
     Ok(ConnectionResponse { connection })
 }
@@ -130,19 +130,19 @@ pub async fn list_connections(
         return Err("Unauthorized: list_connections only available from main window".into());
     }
 
-    println!("[Connections] Listing connections with type filter: {:?}", connection_type);
+    tracing::info!("[Connections] Listing connections with type filter: {:?}", connection_type);
 
     let connections = state
         .list_connections(connection_type)
         .await
         .map_err(|e| {
-            eprintln!("[Connections] Failed to list connections: {}", e);
+            tracing::error!("[Connections] Failed to list connections: {}", e);
             e.to_string()
         })?;
 
-    println!("[Connections] Found {} connections", connections.len());
+    tracing::info!("[Connections] Found {} connections", connections.len());
     for connection in &connections {
-        println!("[Connections]   - {} ({:?}): {}", 
+        tracing::info!("[Connections]   - {} ({:?}): {}", 
                  connection.name, connection.connection_type, connection.id);
     }
 
@@ -167,7 +167,7 @@ pub async fn get_connection(
         .get_connection(id)
         .await
         .map_err(|e| {
-            eprintln!("[Connections] Failed to get connection {}: {}", connection_id, e);
+            tracing::error!("[Connections] Failed to get connection {}: {}", connection_id, e);
             e.to_string()
         })?;
 
@@ -185,11 +185,11 @@ pub async fn delete_connection(
         return Err("Unauthorized: connection commands only available from main window".into());
     }
 
-    println!("[Connections] Delete request for connection: {}", connection_id);
+    tracing::info!("[Connections] Delete request for connection: {}", connection_id);
 
     let id = Uuid::parse_str(&connection_id)
         .map_err(|e| {
-            eprintln!("[Connections] Invalid connection ID format: {}", e);
+            tracing::error!("[Connections] Invalid connection ID format: {}", e);
             format!("Invalid connection ID: {}", e)
         })?;
 
@@ -197,11 +197,11 @@ pub async fn delete_connection(
         .delete_connection(id)
         .await
         .map_err(|e| {
-            eprintln!("[Connections] Failed to delete connection {}: {}", connection_id, e);
+            tracing::error!("[Connections] Failed to delete connection {}: {}", connection_id, e);
             e.to_string()
         })?;
 
-    println!("[Connections] Connection {} deleted successfully", connection_id);
+    tracing::info!("[Connections] Connection {} deleted successfully", connection_id);
     Ok(())
 }
 
@@ -216,7 +216,7 @@ pub async fn update_connection(
         return Err("Unauthorized: connection commands only available from main window".into());
     }
 
-    println!("[Connections] Update request for connection: {}", request.connection_id);
+    tracing::info!("[Connections] Update request for connection: {}", request.connection_id);
 
     let id = Uuid::parse_str(&request.connection_id)
         .map_err(|e| format!("Invalid connection ID: {}", e))?;
@@ -245,11 +245,11 @@ pub async fn update_connection(
         )
         .await
         .map_err(|e| {
-            eprintln!("[Connections] Failed to update connection {}: {}", request.connection_id, e);
+            tracing::error!("[Connections] Failed to update connection {}: {}", request.connection_id, e);
             e.to_string()
         })?;
 
-    println!("[Connections] Connection {} updated successfully", request.connection_id);
+    tracing::info!("[Connections] Connection {} updated successfully", request.connection_id);
 
     Ok(ConnectionResponse { connection })
 }
@@ -265,7 +265,7 @@ pub async fn test_database_connection(
         return Err("Unauthorized: connection commands only available from main window".into());
     }
 
-    println!("[Connections] Test request for connection: {}", connection_id);
+    tracing::info!("[Connections] Test request for connection: {}", connection_id);
 
     let id = Uuid::parse_str(&connection_id)
         .map_err(|e| format!("Invalid connection ID: {}", e))?;
@@ -274,14 +274,14 @@ pub async fn test_database_connection(
         .test_connection(id)
         .await
         .map_err(|e| {
-            eprintln!("[Connections] Failed to test connection {}: {}", connection_id, e);
+            tracing::error!("[Connections] Failed to test connection {}: {}", connection_id, e);
             e.to_string()
         })?;
 
     if is_successful {
-        println!("[Connections] Connection {} test successful", connection_id);
+        tracing::info!("[Connections] Connection {} test successful", connection_id);
     } else {
-        println!("[Connections] Connection {} test failed", connection_id);
+        tracing::info!("[Connections] Connection {} test failed", connection_id);
     }
 
     Ok(is_successful)
@@ -299,7 +299,7 @@ pub async fn test_database_connection_config(
         return Err("Unauthorized: connection commands only available from main window".into());
     }
 
-    println!("[Connections] Test request for connection config with secret: {}", secret_id);
+    tracing::info!("[Connections] Test request for connection config with secret: {}", secret_id);
 
     let secret_uuid = Uuid::parse_str(&secret_id)
         .map_err(|e| format!("Invalid secret ID: {}", e))?;
@@ -308,14 +308,14 @@ pub async fn test_database_connection_config(
         .test_connection_config(config, secret_uuid)
         .await
         .map_err(|e| {
-            eprintln!("[Connections] Failed to test connection config: {}", e);
+            tracing::error!("[Connections] Failed to test connection config: {}", e);
             e.to_string()
         })?;
 
     if is_successful {
-        println!("[Connections] Connection config test successful");
+        tracing::info!("[Connections] Connection config test successful");
     } else {
-        println!("[Connections] Connection config test failed");
+        tracing::info!("[Connections] Connection config test failed");
     }
 
     Ok(is_successful)
@@ -368,7 +368,7 @@ pub async fn get_connection_with_credentials(
         return Err("Unauthorized: get_connection_with_credentials only available from main window".into());
     }
 
-    println!("[Connections] Get credentials request for connection: {}", connection_id);
+    tracing::info!("[Connections] Get credentials request for connection: {}", connection_id);
 
     let id = Uuid::parse_str(&connection_id)
         .map_err(|e| format!("Invalid connection ID: {}", e))?;
@@ -377,7 +377,7 @@ pub async fn get_connection_with_credentials(
         .get_connection_with_credentials(id)
         .await
         .map_err(|e| {
-            eprintln!("[Connections] Failed to get connection with credentials {}: {}", connection_id, e);
+            tracing::error!("[Connections] Failed to get connection with credentials {}: {}", connection_id, e);
             e.to_string()
         })?;
 
@@ -385,8 +385,8 @@ pub async fn get_connection_with_credentials(
     // WARNING: This contains sensitive information
     let connection_string = connection_with_creds.get_connection_string();
     
-    println!("[Connections] Connection string generated for {}", connection_id);
-    println!("[Connections] Safe connection string: {}", connection_with_creds.get_safe_connection_string());
+    tracing::info!("[Connections] Connection string generated for {}", connection_id);
+    tracing::info!("[Connections] Safe connection string: {}", connection_with_creds.get_safe_connection_string());
 
     Ok(connection_string)
 }

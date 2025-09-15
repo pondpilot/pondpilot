@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use crate::constants::*;
 
 /// Configuration for the Tauri application
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,8 +79,8 @@ impl Default for AppConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            worker_threads: 4,
-            max_blocking_threads: 128,
+            worker_threads: DEFAULT_WORKER_THREADS,
+            max_blocking_threads: DEFAULT_BLOCKING_THREADS,
         }
     }
 }
@@ -87,8 +88,8 @@ impl Default for RuntimeConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            min_connections: 2,
-            max_connections: 10,
+            min_connections: MIN_CONNECTIONS,
+            max_connections: DEFAULT_MAX_CONNECTIONS,
             max_streaming_connections: 4,
             idle_timeout_secs: 300, // 5 minutes
             max_identifier_length: 128,
@@ -130,34 +131,37 @@ impl AppConfig {
         // Override with environment variables if present
         if let Ok(val) = std::env::var("PONDPILOT_WORKER_THREADS") {
             if let Ok(threads) = val.parse::<usize>() {
-                if threads > 0 && threads <= 256 {
+                if threads >= MIN_WORKER_THREADS && threads <= MAX_WORKER_THREADS {
                     config.runtime.worker_threads = threads;
                 } else {
-                    eprintln!("Warning: Invalid PONDPILOT_WORKER_THREADS value: {}, must be between 1 and 256", threads);
+                    tracing::warn!("Invalid PONDPILOT_WORKER_THREADS value: {}, must be between {} and {}", 
+                        threads, MIN_WORKER_THREADS, MAX_WORKER_THREADS);
                 }
             }
         }
         
         if let Ok(val) = std::env::var("PONDPILOT_MAX_BLOCKING_THREADS") {
             if let Ok(threads) = val.parse::<usize>() {
-                if threads > 0 && threads <= 1024 {
+                if threads >= MIN_BLOCKING_THREADS && threads <= MAX_BLOCKING_THREADS {
                     config.runtime.max_blocking_threads = threads;
                 } else {
-                    eprintln!("Warning: Invalid PONDPILOT_MAX_BLOCKING_THREADS value: {}, must be between 1 and 1024", threads);
+                    tracing::warn!("Invalid PONDPILOT_MAX_BLOCKING_THREADS value: {}, must be between {} and {}", 
+                        threads, MIN_BLOCKING_THREADS, MAX_BLOCKING_THREADS);
                 }
             }
         }
         
         if let Ok(val) = std::env::var("PONDPILOT_MAX_CONNECTIONS") {
             if let Ok(connections) = val.parse::<usize>() {
-                if connections > 0 && connections <= 100 {
+                if connections > 0 && connections <= MAX_CONNECTIONS {
                     config.database.max_connections = connections;
                     // Ensure min_connections doesn't exceed max_connections
                     if config.database.min_connections > connections {
-                        config.database.min_connections = connections.min(2);
+                        config.database.min_connections = connections.min(MIN_CONNECTIONS);
                     }
                 } else {
-                    eprintln!("Warning: Invalid PONDPILOT_MAX_CONNECTIONS value: {}, must be between 1 and 100", connections);
+                    tracing::warn!("Invalid PONDPILOT_MAX_CONNECTIONS value: {}, must be between 1 and {}", 
+                        connections, MAX_CONNECTIONS);
                 }
             }
         }
@@ -171,7 +175,7 @@ impl AppConfig {
                         config.resource.default_query_memory_mb = memory.min(100);
                     }
                 } else {
-                    eprintln!("Warning: Invalid PONDPILOT_MAX_QUERY_MEMORY_MB value: {}, must be between 10 and 32768", memory);
+                    tracing::warn!("Invalid PONDPILOT_MAX_QUERY_MEMORY_MB value: {}, must be between 10 and 32768", memory);
                 }
             }
         }
@@ -185,28 +189,28 @@ impl AppConfig {
     pub fn validate(&mut self) {
         // Ensure min_connections <= max_connections
         if self.database.min_connections > self.database.max_connections {
-            eprintln!("Warning: min_connections {} > max_connections {}, adjusting", 
+            tracing::warn!("min_connections {} > max_connections {}, adjusting", 
                      self.database.min_connections, self.database.max_connections);
             self.database.min_connections = self.database.max_connections;
         }
         
         // Ensure max_streaming_connections doesn't exceed max_connections
         if self.database.max_streaming_connections > self.database.max_connections {
-            eprintln!("Warning: max_streaming_connections {} > max_connections {}, adjusting",
+            tracing::warn!("max_streaming_connections {} > max_connections {}, adjusting",
                      self.database.max_streaming_connections, self.database.max_connections);
             self.database.max_streaming_connections = self.database.max_connections;
         }
         
         // Ensure memory limits are sensible
         if self.resource.default_query_memory_mb > self.resource.max_query_memory_mb {
-            eprintln!("Warning: default_query_memory_mb {} > max_query_memory_mb {}, adjusting",
+            tracing::warn!("default_query_memory_mb {} > max_query_memory_mb {}, adjusting",
                      self.resource.default_query_memory_mb, self.resource.max_query_memory_mb);
             self.resource.default_query_memory_mb = self.resource.max_query_memory_mb;
         }
         
         // Ensure pool memory percentage is valid
         if self.resource.pool_memory_percentage <= 0.0 || self.resource.pool_memory_percentage > 1.0 {
-            eprintln!("Warning: Invalid pool_memory_percentage {}, setting to 0.1", 
+            tracing::warn!("Warning: Invalid pool_memory_percentage {}, setting to 0.1", 
                      self.resource.pool_memory_percentage);
             self.resource.pool_memory_percentage = 0.1;
         }

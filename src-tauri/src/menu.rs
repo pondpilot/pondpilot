@@ -154,7 +154,7 @@ pub fn setup_menu_handlers(app: &AppHandle) {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
                     if let Err(e) = crate::windows::open_secrets_window(app).await {
-                        eprintln!("Failed to open secrets window: {}", e);
+                        tracing::error!("Failed to open secrets window: {}", e);
                     }
                 });
             }

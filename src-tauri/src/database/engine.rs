@@ -980,10 +980,20 @@ impl DuckDBEngine {
     }
 
     /// Prepare a SQL statement and store it for reuse
+    ///
+    /// Note: This backend implementation validates the SQL can be prepared and
+    /// stores the SQL string keyed by a generated statement_id. It does NOT hold
+    /// a server-side compiled statement or bound parameters across calls.
+    /// Parameters provided at execution time are applied then. This provides
+    /// semantic parity with the frontend PREPARE/EXECUTE flow while keeping
+    /// backend changes minimal and safe.
     pub async fn prepare_statement(&self, sql: &str) -> Result<String> {
+        // Validate SQL safety before preparing
+        crate::security::validate_sql_safety(sql)?;
+        
         let statement_id = uuid::Uuid::new_v4().to_string();
         
-        // Validate the SQL by trying to prepare it
+        // Validate the SQL by trying to prepare it with DuckDB
         let sql_owned = sql.to_string();
         let permit = self.pool.acquire_connection_permit().await?;
         
@@ -1015,11 +1025,17 @@ impl DuckDBEngine {
     }
 
     /// Execute a prepared statement with parameters
+    ///
+    /// See note on prepare_statement: this resolves the stored SQL by id and
+    /// executes it, optionally with parameters supplied per-call.
     pub async fn execute_prepared_statement(
         &self,
         statement_id: &str,
         params: Vec<serde_json::Value>,
     ) -> Result<super::types::QueryResult> {
+        // Validate statement ID format
+        crate::security::validate_statement_id(statement_id)?;
+        
         // Get the stored SQL for this statement ID
         let statements = self.prepared_statements.lock().await;
         let sql = statements.get(statement_id).ok_or_else(|| {
@@ -1040,6 +1056,9 @@ impl DuckDBEngine {
     }
 
     /// Close and remove a prepared statement
+    ///
+    /// This frees the alias mapping for the statement_id. No server-side
+    /// prepared resource is retained by the backend beyond the stored SQL.
     pub async fn close_prepared_statement(&self, statement_id: &str) -> Result<()> {
         let mut statements = self.prepared_statements.lock().await;
         

@@ -1,3 +1,10 @@
+// NOTE: Streaming IPC contract
+// We currently emit one Arrow IPC stream for the schema (no batches), and
+// separate one-batch IPC streams for each data batch. The frontend concatenates
+// the schema IPC bytes with the subsequent batch IPC bytes for decoding.
+// This contract is documented here and is tested end-to-end via integration
+// tests. In the future, we may switch to a single continuous writer per
+// stream_id if needed across Arrow versions.
 use crate::database::{DuckDBEngine, QueryHints};
 use crate::database::arrow_streaming::ArrowStreamMessage;
 use crate::streaming::StreamManager;
@@ -8,7 +15,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tracing::debug;
 use serde::Serialize;
-use crate::database::sql_utils::{escape_identifier, escape_string_literal, AttachItem, build_attach_statements};
+use crate::database::sql_utils::{AttachItem, build_attach_statements};
 use arrow_ipc::writer::StreamWriter;
 use arrow_schema::Schema;
 use arrow_array::RecordBatch;
@@ -34,9 +41,17 @@ pub async fn stream_query(
     engine: EngineState<'_>,
     stream_manager: tauri::State<'_, Arc<StreamManager>>,
     sql: String,
-    stream_id: String,
+    // Support both snake_case and camelCase arg names for compatibility
+    stream_id: Option<String>,
+    #[allow(non_snake_case)] streamId: Option<String>,
     attach: Option<serde_json::Value>,
 ) -> DuckDBResult<serde_json::Value> {
+    // Coalesce parameter name variants
+    let stream_id = crate::commands::utils::coalesce_param_opt(stream_id, streamId, "stream_id", "stream_query")?;
+    
+    // Validate stream ID format
+    crate::security::validate_stream_id(&stream_id)?;
+    
     debug!("[COMMAND] stream_query called for stream {} with SQL: {}", stream_id, sql);
     let engine_arc = engine.inner().clone();
     let stream_manager = stream_manager.inner().clone();
@@ -294,21 +309,47 @@ async fn execute_streaming_query(
 #[tauri::command]
 pub async fn cancel_stream(
     stream_manager: tauri::State<'_, Arc<StreamManager>>,
-    stream_id: String,
+    // Support both snake_case and camelCase arg names for compatibility
+    stream_id: Option<String>,
+    #[allow(non_snake_case)] streamId: Option<String>,
 ) -> DuckDBResult<()> {
+    let stream_id = crate::commands::utils::coalesce_param_opt(stream_id, streamId, "stream_id", "cancel_stream")?;
+    
+    // Validate stream ID format
+    crate::security::validate_stream_id(&stream_id)?;
+    
     debug!("[COMMAND] cancel_stream called for stream {}", stream_id);
-    let _ = stream_manager.cancel_stream(&stream_id).await;
+    
+    // Handle cancellation errors properly
+    if let Err(e) = stream_manager.cancel_stream(&stream_id).await {
+        tracing::warn!("Failed to cancel stream {}: {}", stream_id, e);
+    }
     Ok(())
 }
 
 #[tauri::command]
 pub async fn acknowledge_stream_batch(
     stream_manager: tauri::State<'_, Arc<StreamManager>>,
-    stream_id: String,
-    _batch_index: usize,
+    // Support both snake_case and camelCase arg names for compatibility
+    stream_id: Option<String>,
+    #[allow(non_snake_case)] streamId: Option<String>,
+    _batch_index: Option<usize>,
+    #[allow(non_snake_case)] batchIndex: Option<usize>,
 ) -> DuckDBResult<()> {
+    let stream_id = crate::commands::utils::coalesce_param_opt(stream_id, streamId, "stream_id", "acknowledge_stream_batch")?;
+    
+    // Validate stream ID format
+    crate::security::validate_stream_id(&stream_id)?;
+    
+    // Note: batch index isn't used server-side for now; accept both names for compatibility
+    let _batch_index = _batch_index.or(batchIndex);
+    
     debug!("[COMMAND] acknowledge_stream_batch called for stream {}", stream_id);
-    let _ = stream_manager.acknowledge_batch(&stream_id).await;
+    
+    // Handle acknowledgment errors properly
+    if let Err(e) = stream_manager.acknowledge_batch(&stream_id).await {
+        tracing::warn!("Failed to acknowledge batch for stream {}: {}", stream_id, e);
+    }
     Ok(())
 }
 
@@ -619,7 +660,12 @@ fn convert_duckdb_batch(batch: &duckdb::arrow::record_batch::RecordBatch) -> Res
                     convert_timestamp!(duckdb_arr, duckdb_array::TimestampNanosecondArray, TimestampNanosecondArray, tz.clone())
                 }
                 _ => {
-                    // For unsupported types, create a null array
+                    // For unsupported types, create a null array and log at debug level
+                    tracing::debug!(
+                        "[ARROW_CONVERT] Unsupported data type for field '{}', falling back to NullArray (len={})",
+                        field.name(),
+                        duckdb_arr.len()
+                    );
                     Arc::new(NullArray::new(duckdb_arr.len())) as ArrayRef
                 }
             }
