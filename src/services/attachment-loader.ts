@@ -101,7 +101,7 @@ export class AttachmentLoader {
                       const currentMetadata = useAppStore.getState().databaseMetadata;
                       const updatedMetadata = new Map(currentMetadata);
                       for (const [_dbName, dbModel] of Object.entries(metadata)) {
-                        updatedMetadata.set(dbName, dbModel as any);
+                        updatedMetadata.set(_dbName, dbModel as any);
                       }
                       useAppStore.setState({ databaseMetadata: updatedMetadata });
                       logger.info(`Fetched metadata for MotherDuck database '${actualDbName}'`);
