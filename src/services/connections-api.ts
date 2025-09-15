@@ -11,11 +11,6 @@ import {
   ConnectionTypeInfo,
 } from '../models/connections';
 
-export interface AttachmentSql {
-  secret_sql: string;
-  attach_sql: string;
-}
-
 export class ConnectionsAPI {
   static async saveConnection(request: SaveConnectionRequest): Promise<ConnectionConfig> {
     const response = await invoke<ConnectionResponse>('save_connection', { request });
@@ -60,13 +55,6 @@ export class ConnectionsAPI {
 
   static async getConnectionWithCredentials(connectionId: string): Promise<string> {
     return await invoke<string>('get_connection_with_credentials', { connectionId });
-  }
-
-  static async getAttachmentSql(
-    connectionId: string,
-    databaseAlias: string,
-  ): Promise<AttachmentSql> {
-    return await invoke<AttachmentSql>('get_attachment_sql', { connectionId, databaseAlias });
   }
 
   static async registerMotherDuckAttachment(databaseUrl: string): Promise<void> {

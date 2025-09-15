@@ -44,10 +44,10 @@ pub enum SqlStatement {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SqlStatementType {
-    DDL,     // Data Definition Language
-    DML,     // Data Manipulation Language
-    TCL,     // Transaction Control Language
-    UTL,     // Utility Commands
+    DDL, // Data Definition Language
+    DML, // Data Manipulation Language
+    TCL, // Transaction Control Language
+    UTL, // Utility Commands
     Unknown,
 }
 
@@ -55,9 +55,10 @@ impl SqlStatement {
     /// Get the SQL statement type category
     pub fn statement_type(&self) -> SqlStatementType {
         match self {
-            SqlStatement::Alter | SqlStatement::Create | SqlStatement::Drop | SqlStatement::CommentOn => {
-                SqlStatementType::DDL
-            }
+            SqlStatement::Alter
+            | SqlStatement::Create
+            | SqlStatement::Drop
+            | SqlStatement::CommentOn => SqlStatementType::DDL,
             SqlStatement::Call
             | SqlStatement::Delete
             | SqlStatement::Truncate
@@ -113,7 +114,7 @@ impl SqlStatement {
     /// Parse the beginning of a SQL statement to classify it
     pub fn from_sql(sql: &str) -> Self {
         let trimmed = sql.trim().to_uppercase();
-        
+
         // Handle multi-word statements first
         if trimmed.starts_with("FORCE CHECKPOINT") {
             return SqlStatement::ForceCheckpoint;
@@ -133,7 +134,7 @@ impl SqlStatement {
 
         // Get first word
         let first_word = trimmed.split_whitespace().next().unwrap_or("");
-        
+
         match first_word {
             "ANALYZE" => SqlStatement::Analyze,
             "ALTER" => SqlStatement::Alter,
@@ -187,7 +188,7 @@ impl ClassifiedSqlStatement {
         let statement_type = SqlStatement::from_sql(sql);
         let sql_type = statement_type.statement_type();
         let returns_result_set = statement_type.returns_result_set();
-        
+
         Self {
             code: sql.to_string(),
             statement_type,
@@ -209,7 +210,11 @@ mod tests {
             ("CREATE TABLE foo (id INT)", SqlStatement::Create, false),
             ("INSTALL httpfs", SqlStatement::Install, false),
             ("LOAD httpfs", SqlStatement::Load, false),
-            ("WITH cte AS (SELECT 1) SELECT * FROM cte", SqlStatement::With, true),
+            (
+                "WITH cte AS (SELECT 1) SELECT * FROM cte",
+                SqlStatement::With,
+                true,
+            ),
             ("DESCRIBE TABLE users", SqlStatement::Describe, true),
         ];
 

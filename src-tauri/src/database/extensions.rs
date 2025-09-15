@@ -23,4 +23,3 @@ pub const ALLOWED_EXTENSIONS: &[&str] = &[
     "sqlite",
     "sqlite_scanner",
 ];
-

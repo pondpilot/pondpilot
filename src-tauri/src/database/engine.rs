@@ -1,10 +1,10 @@
 use super::arrow_streaming::ArrowStreamingExecutor;
 use super::connection_handler::ThreadSafeConnectionManager;
+use super::extensions::ALLOWED_EXTENSIONS;
 use super::query_builder::{QueryBuilder, QueryHints};
 use super::resource_manager::ResourceManager;
 use super::types::*;
 use super::unified_pool::{PoolConfig, UnifiedPool};
-use super::extensions::ALLOWED_EXTENSIONS;
 use crate::errors::Result;
 use crate::system_resources::get_total_memory;
 use std::collections::HashMap;
@@ -17,11 +17,11 @@ use tokio_util::sync::CancellationToken;
 /// Validates and canonicalizes a file path for security
 fn validate_file_path(path: &str) -> Result<PathBuf> {
     let path_obj = Path::new(path);
-    
+
     // SECURITY: Check for path traversal attempts BEFORE canonicalization
     // This prevents bypassing validation via symlinks or other tricks
     let path_str = path_obj.to_string_lossy();
-    
+
     // Check for obvious path traversal patterns
     if path_str.contains("..") || path_str.contains("~") {
         return Err(crate::errors::DuckDBError::FileAccess {
@@ -29,7 +29,7 @@ fn validate_file_path(path: &str) -> Result<PathBuf> {
             path: Some(path.to_string()),
         });
     }
-    
+
     // Check for null bytes which could be used for path truncation attacks
     if path.contains('\0') {
         return Err(crate::errors::DuckDBError::FileAccess {
@@ -37,17 +37,17 @@ fn validate_file_path(path: &str) -> Result<PathBuf> {
             path: Some(path.to_string()),
         });
     }
-    
+
     // Check for suspicious patterns that might indicate attacks
     let suspicious_patterns = [
-        "//", // Double slashes
-        "/./", // Current directory references
-        "/../", // Parent directory references  
+        "//",     // Double slashes
+        "/./",    // Current directory references
+        "/../",   // Parent directory references
         "%2e%2e", // URL encoded traversal
-        "..%2f", // Mixed encoding
-        "%252e", // Double encoded
+        "..%2f",  // Mixed encoding
+        "%252e",  // Double encoded
     ];
-    
+
     let path_lower = path_str.to_lowercase();
     for pattern in &suspicious_patterns {
         if path_lower.contains(pattern) {
@@ -59,22 +59,24 @@ fn validate_file_path(path: &str) -> Result<PathBuf> {
     }
 
     // Now canonicalize to resolve the actual path
-    let canonical = path_obj
-        .canonicalize()
-        .map_err(|e| crate::errors::DuckDBError::FileAccess {
-            message: format!("Invalid path: {}", e),
-            path: Some(path.to_string()),
-        })?;
-        
+    let canonical =
+        path_obj
+            .canonicalize()
+            .map_err(|e| crate::errors::DuckDBError::FileAccess {
+                message: format!("Invalid path: {}", e),
+                path: Some(path.to_string()),
+            })?;
+
     // Verify the canonicalized path doesn't contain symlink tricks
     // by checking if it still resolves to the same location
-    let re_canonical = canonical
-        .canonicalize()
-        .map_err(|e| crate::errors::DuckDBError::FileAccess {
-            message: format!("Path validation failed: {}", e),
-            path: Some(path.to_string()),
-        })?;
-        
+    let re_canonical =
+        canonical
+            .canonicalize()
+            .map_err(|e| crate::errors::DuckDBError::FileAccess {
+                message: format!("Path validation failed: {}", e),
+                path: Some(path.to_string()),
+            })?;
+
     if canonical != re_canonical {
         return Err(crate::errors::DuckDBError::FileAccess {
             message: "Path contains unstable symlinks".to_string(),
@@ -196,7 +198,11 @@ impl DuckDBEngine {
     pub fn new(db_path: PathBuf) -> Result<Self> {
         let extensions = Arc::new(tokio::sync::Mutex::new(Vec::new()));
         let pool_config = PoolConfig::default();
-        let pool = Arc::new(UnifiedPool::new(db_path.clone(), pool_config, extensions.clone())?);
+        let pool = Arc::new(UnifiedPool::new(
+            db_path.clone(),
+            pool_config,
+            extensions.clone(),
+        )?);
 
         let total_memory = get_total_memory();
         let resources = Arc::new(ResourceManager::new(total_memory, 10)); // 10 max connections
@@ -223,7 +229,10 @@ impl DuckDBEngine {
     }
 
     /// Replace the configured extension list at runtime
-    pub async fn set_extensions(&self, extensions: Vec<super::types::ExtensionInfoForLoad>) -> Result<()> {
+    pub async fn set_extensions(
+        &self,
+        extensions: Vec<super::types::ExtensionInfoForLoad>,
+    ) -> Result<()> {
         let mut ext_guard = self.extensions.lock().await;
         *ext_guard = extensions;
         Ok(())
@@ -340,7 +349,7 @@ impl DuckDBEngine {
     ) -> Result<super::types::QueryResult> {
         // Try to get an existing connection first
         let existing_connections = self.connection_manager.get_all_connections().await;
-        
+
         if let Some((_conn_id, handle)) = existing_connections.into_iter().next() {
             // Use an existing connection with parameters
             let result = handle.execute(sql.to_string(), params).await?;
@@ -349,19 +358,23 @@ impl DuckDBEngine {
             // Create a new connection and execute
             let connection_id = format!("query_{}", uuid::Uuid::new_v4());
             self.create_connection(connection_id.clone()).await?;
-            
+
             // Get the connection we just created
             let connections = self.connection_manager.get_all_connections().await;
-            if let Some((_, handle)) = connections.into_iter().find(|(id, _)| id == &connection_id) {
+            if let Some((_, handle)) = connections.into_iter().find(|(id, _)| id == &connection_id)
+            {
                 let result = handle.execute(sql.to_string(), params).await?;
-                
+
                 // Clean up the temporary connection
-                self.connection_manager.close_connection(&connection_id).await?;
-                
+                self.connection_manager
+                    .close_connection(&connection_id)
+                    .await?;
+
                 Ok(result)
             } else {
                 Err(crate::errors::DuckDBError::ConnectionError {
-                    message: "Failed to create temporary connection for parameterized query".to_string(),
+                    message: "Failed to create temporary connection for parameterized query"
+                        .to_string(),
                     context: None,
                 })
             }
@@ -419,7 +432,9 @@ impl DuckDBEngine {
             .connection_manager
             .get_connection(connection_id)
             .await?;
-        handle.execute_with_timeout(sql.to_string(), params, timeout_ms).await
+        handle
+            .execute_with_timeout(sql.to_string(), params, timeout_ms)
+            .await
     }
 
     /// Close a specific connection
@@ -428,12 +443,10 @@ impl DuckDBEngine {
             .close_connection(connection_id)
             .await
     }
-    
+
     /// Reset all connections (useful for MotherDuck account switching)
     pub async fn reset_all_connections(&self) -> Result<()> {
-        self.connection_manager
-            .reset_all_connections()
-            .await
+        self.connection_manager.reset_all_connections().await
     }
 
     pub async fn get_catalog(&self) -> Result<CatalogInfo> {
@@ -487,98 +500,119 @@ impl DuckDBEngine {
                 position: None,
             });
         }
-        
+
         // SECURITY FIX: Always sanitize the database alias on the backend
         // Remove any existing quotes first to prevent double-quoting
         let clean_alias = database_alias.trim_matches('"').trim_matches('\'');
-        
+
         // Now properly sanitize the identifier
         let sanitized_alias = sanitize_identifier(clean_alias)?;
-        
+
         // Validate the database type is one of the allowed types
         let valid_db_types = ["POSTGRES", "MYSQL", "SQLITE"];
         let db_type_upper = database_type.to_uppercase();
         if !valid_db_types.contains(&db_type_upper.as_str()) {
             return Err(crate::errors::DuckDBError::InvalidQuery {
-                message: format!("Invalid database type '{}': must be one of {:?}", database_type, valid_db_types),
+                message: format!(
+                    "Invalid database type '{}': must be one of {:?}",
+                    database_type, valid_db_types
+                ),
                 sql: None,
                 position: None,
             });
         }
-        
+
         // Build the ATTACH query with the SECRET parameter
         // Use the sanitized alias which will be properly quoted if needed
         // Escape single quotes in the connection string for SQL literal
         let connection_string_sql = connection_string.replace('\'', "''");
-        
+
         // Properly quote the secret name as an identifier to prevent SQL injection
         // DuckDB uses double quotes for identifiers
         // SECURITY FIX: Correctly escape double quotes by doubling them
         let secret_name_quoted = format!("\"{}\"", secret_name.replace('"', "\"\""));
-        
+
         let attach_query = format!(
             "ATTACH '{}' AS {} (TYPE {}, SECRET {})",
-            connection_string_sql,
-            sanitized_alias,
-            db_type_upper,
-            secret_name_quoted
+            connection_string_sql, sanitized_alias, db_type_upper, secret_name_quoted
         );
-        
+
         // Combine CREATE SECRET and ATTACH in a single batch to run on same connection
         let combined_sql = format!("{};\n{}", secret_sql, attach_query);
-        
+
         // Clone values we need for registration
         let alias_clone = sanitized_alias.clone();
         let connection_string_clone = connection_string.clone();
         let db_type_clone = db_type_upper.clone();
         let secret_sql_clone = secret_sql.clone();
-        
+
         // IMPORTANT: Apply the attachment to ALL existing persistent connections
         // This ensures that databases appear in duckdb_databases immediately
         let existing_connections = self.connection_manager.get_all_connections().await;
-        
-        tracing::debug!("[DuckDBEngine] Found {} existing connections to attach to", existing_connections.len());
-        
+
+        tracing::debug!(
+            "[DuckDBEngine] Found {} existing connections to attach to",
+            existing_connections.len()
+        );
+
         if !existing_connections.is_empty() {
-            tracing::info!("[DuckDBEngine] Applying attachment to {} existing connections", existing_connections.len());
-            
+            tracing::info!(
+                "[DuckDBEngine] Applying attachment to {} existing connections",
+                existing_connections.len()
+            );
+
             for (conn_id, handle) in existing_connections {
-                tracing::debug!("[DuckDBEngine] Attaching '{}' to connection '{}'", sanitized_alias, conn_id);
+                tracing::debug!(
+                    "[DuckDBEngine] Attaching '{}' to connection '{}'",
+                    sanitized_alias,
+                    conn_id
+                );
                 // Execute the combined SQL on this connection
                 match handle.execute(combined_sql.clone(), vec![]).await {
                     Ok(_) => {
                         tracing::debug!("[DuckDBEngine] ✓ Successfully attached database '{}' to connection '{}'", 
                                       sanitized_alias, conn_id);
-                        tracing::info!("[DuckDBEngine] Successfully attached database '{}' to connection '{}'", 
-                                      sanitized_alias, conn_id);
-                    },
+                        tracing::info!(
+                            "[DuckDBEngine] Successfully attached database '{}' to connection '{}'",
+                            sanitized_alias,
+                            conn_id
+                        );
+                    }
                     Err(e) => {
-                        tracing::warn!("[DuckDBEngine] Failed to attach database '{}' to connection '{}': {}", 
-                                      sanitized_alias, conn_id, e);
+                        tracing::warn!(
+                            "[DuckDBEngine] Failed to attach database '{}' to connection '{}': {}",
+                            sanitized_alias,
+                            conn_id,
+                            e
+                        );
                         // Continue with other connections even if one fails
                     }
                 }
             }
         } else {
-            tracing::warn!("[DuckDBEngine] No existing connections found when attaching '{}'", sanitized_alias);
+            tracing::warn!(
+                "[DuckDBEngine] No existing connections found when attaching '{}'",
+                sanitized_alias
+            );
         }
-        
+
         // Also create a new connection to validate the attachment works
         let permit = self.pool.acquire_connection_permit().await?;
-        
+
         tokio::task::spawn_blocking(move || {
             // Create connection in this thread
             let conn = permit.create_connection()?;
-            
+
             // Execute both statements on the same connection
-            conn.execute_batch(&combined_sql)
-                .map_err(|e| crate::errors::DuckDBError::QueryError {
+            conn.execute_batch(&combined_sql).map_err(|e| {
+                crate::errors::DuckDBError::QueryError {
                     message: format!("Failed to attach remote database: {}", e),
                     sql: Some(combined_sql.clone()),
                     error_code: None,
                     line_number: None,
-                })?;
-            
+                }
+            })?;
+
             Ok::<(), crate::errors::DuckDBError>(())
         })
         .await
@@ -586,20 +620,25 @@ impl DuckDBEngine {
             message: format!("Task join error: {}", e),
             context: None,
         })??;
-        
+
         // Register this attachment with the pool so it's re-applied to new connections
         // Pass the secret name explicitly for robust re-attachment
-        self.pool.register_attached_database(
-            alias_clone,
-            connection_string_clone,
-            db_type_clone,
-            secret_sql_clone,
-            Some(secret_name),
-            false,
-        ).await;
-        
-        tracing::info!("[DuckDBEngine] Successfully attached remote database: {}", sanitized_alias);
-        
+        self.pool
+            .register_attached_database(
+                alias_clone,
+                connection_string_clone,
+                db_type_clone,
+                secret_sql_clone,
+                Some(secret_name),
+                false,
+            )
+            .await;
+
+        tracing::info!(
+            "[DuckDBEngine] Successfully attached remote database: {}",
+            sanitized_alias
+        );
+
         Ok(())
     }
 
@@ -617,55 +656,104 @@ impl DuckDBEngine {
             // Try to extract secret name from SQL
             if let Some(start) = secret_sql.find("SECRET IF NOT EXISTS ") {
                 let start = start + "SECRET IF NOT EXISTS ".len();
-                secret_sql[start..].split_whitespace().next().map(|s| s.to_string())
+                secret_sql[start..]
+                    .split_whitespace()
+                    .next()
+                    .map(|s| s.to_string())
             } else if let Some(start) = secret_sql.find("SECRET ") {
                 let start = start + "SECRET ".len();
-                secret_sql[start..].split_whitespace().next().map(|s| s.to_string())
+                secret_sql[start..]
+                    .split_whitespace()
+                    .next()
+                    .map(|s| s.to_string())
             } else {
                 None
             }
         } else {
             None
         };
-        
-        self.pool.register_attached_database(alias, connection_string, db_type, secret_sql, secret_name, false).await;
+
+        self.pool
+            .register_attached_database(
+                alias,
+                connection_string,
+                db_type,
+                secret_sql,
+                secret_name,
+                false,
+            )
+            .await;
     }
 
     /// Register a plain URL/file attachment (e.g., HTTPFS or local file) for re-attachment
-    pub async fn register_plain_attachment(&self, alias: String, connection_string: String, read_only: bool) {
-        self.pool.register_attached_database(alias, connection_string, "PLAIN".to_string(), String::new(), None, read_only).await;
+    pub async fn register_plain_attachment(
+        &self,
+        alias: String,
+        connection_string: String,
+        read_only: bool,
+    ) {
+        self.pool
+            .register_attached_database(
+                alias,
+                connection_string,
+                "PLAIN".to_string(),
+                String::new(),
+                None,
+                read_only,
+            )
+            .await;
     }
-    
+
     /// Attach MotherDuck database to all existing connections
     pub async fn attach_motherduck_to_all_connections(&self, database_url: String) -> Result<()> {
         // Build the MotherDuck ATTACH SQL
         let attach_sql = format!("ATTACH '{}'", database_url);
-        
+
         // Apply the attachment to ALL existing persistent connections
         let existing_connections = self.connection_manager.get_all_connections().await;
-        
-        tracing::debug!("[DuckDBEngine] Found {} existing connections for MotherDuck attachment", existing_connections.len());
-        
+
+        tracing::debug!(
+            "[DuckDBEngine] Found {} existing connections for MotherDuck attachment",
+            existing_connections.len()
+        );
+
         if !existing_connections.is_empty() {
-            tracing::info!("[DuckDBEngine] Applying MotherDuck attachment to {} existing connections", existing_connections.len());
-            
+            tracing::info!(
+                "[DuckDBEngine] Applying MotherDuck attachment to {} existing connections",
+                existing_connections.len()
+            );
+
             let mut any_success = false;
             for (conn_id, handle) in existing_connections {
-                tracing::debug!("[DuckDBEngine] Attaching MotherDuck '{}' to connection '{}'", database_url, conn_id);
+                tracing::debug!(
+                    "[DuckDBEngine] Attaching MotherDuck '{}' to connection '{}'",
+                    database_url,
+                    conn_id
+                );
                 // Execute the ATTACH SQL on this connection
                 match handle.execute(attach_sql.clone(), vec![]).await {
                     Ok(_) => {
-                        tracing::debug!("[DuckDBEngine] ✓ Successfully attached MotherDuck to connection '{}'", conn_id);
-                        tracing::info!("[DuckDBEngine] Successfully attached MotherDuck to connection '{}'", conn_id);
+                        tracing::debug!(
+                            "[DuckDBEngine] ✓ Successfully attached MotherDuck to connection '{}'",
+                            conn_id
+                        );
+                        tracing::info!(
+                            "[DuckDBEngine] Successfully attached MotherDuck to connection '{}'",
+                            conn_id
+                        );
                         any_success = true;
-                    },
+                    }
                     Err(e) => {
-                        tracing::warn!("[DuckDBEngine] Failed to attach MotherDuck to connection '{}': {}", conn_id, e);
+                        tracing::warn!(
+                            "[DuckDBEngine] Failed to attach MotherDuck to connection '{}': {}",
+                            conn_id,
+                            e
+                        );
                         // Continue with other connections even if one fails
                     }
                 }
             }
-            
+
             if !any_success {
                 return Err(crate::errors::DuckDBError::QueryError {
                     message: "Failed to attach MotherDuck to any existing connection".to_string(),
@@ -675,24 +763,25 @@ impl DuckDBEngine {
                 });
             }
         }
-        
+
         // Also validate on a new connection
         let permit = self.pool.acquire_connection_permit().await?;
-        
+
         let attach_sql_clone = attach_sql.clone();
         tokio::task::spawn_blocking(move || {
             // Create connection in this thread
             let conn = permit.create_connection()?;
-            
+
             // Execute the ATTACH statement
-            conn.execute(&attach_sql_clone, [])
-                .map_err(|e| crate::errors::DuckDBError::QueryError {
+            conn.execute(&attach_sql_clone, []).map_err(|e| {
+                crate::errors::DuckDBError::QueryError {
                     message: format!("Failed to attach MotherDuck database: {}", e),
                     sql: Some(attach_sql_clone.clone()),
                     error_code: None,
                     line_number: None,
-                })?;
-            
+                }
+            })?;
+
             Ok::<(), crate::errors::DuckDBError>(())
         })
         .await
@@ -700,7 +789,7 @@ impl DuckDBEngine {
             message: format!("Task join error: {}", e),
             context: None,
         })??;
-        
+
         Ok(())
     }
 
@@ -750,7 +839,7 @@ impl DuckDBEngine {
                 vec![
                     serde_json::Value::String(database.to_string()),
                     serde_json::Value::String(table.to_string()),
-                ]
+                ],
             )
             .await?;
 
@@ -796,7 +885,7 @@ impl DuckDBEngine {
 
         // Sanitize extension name even though it's whitelisted for defense in depth
         let sanitized_extension = sanitize_identifier(extension_name)?;
-        
+
         // Determine if it's a community extension that needs special handling
         let community_extensions = ["gsheets", "read_stat"];
         let install_cmd = if community_extensions.contains(&extension_name) {
@@ -804,7 +893,7 @@ impl DuckDBEngine {
         } else {
             format!("INSTALL {}", sanitized_extension)
         };
-        
+
         // Install and load the extension
         let sql = format!("{}; LOAD {};", install_cmd, sanitized_extension);
         self.execute_and_collect(&sql).await?;
@@ -951,7 +1040,8 @@ impl DuckDBEngine {
         );
 
         // Use the Arrow streaming executor (no extra ATTACH to avoid conflicts)
-        let executor = ArrowStreamingExecutor::new(self.pool.clone(), sql, query_id, cancel_token, setup_sql);
+        let executor =
+            ArrowStreamingExecutor::new(self.pool.clone(), sql, query_id, cancel_token, setup_sql);
 
         executor.execute_arrow_streaming().await
     }
@@ -990,37 +1080,36 @@ impl DuckDBEngine {
     pub async fn prepare_statement(&self, sql: &str) -> Result<String> {
         // Validate SQL safety before preparing
         crate::security::validate_sql_safety(sql)?;
-        
+
         let statement_id = uuid::Uuid::new_v4().to_string();
-        
+
         // Validate the SQL by trying to prepare it with DuckDB
         let sql_owned = sql.to_string();
         let permit = self.pool.acquire_connection_permit().await?;
-        
+
         tokio::task::spawn_blocking(move || {
             // Create connection in this thread
             let conn = permit.create_connection()?;
-            
+
             // Just validate that the SQL can be prepared
-            conn.prepare(&sql_owned).map_err(|e| {
-                crate::errors::DuckDBError::QueryExecution {
+            conn.prepare(&sql_owned)
+                .map_err(|e| crate::errors::DuckDBError::QueryExecution {
                     message: format!("Failed to prepare statement: {}", e),
                     query: Some(sql_owned.clone()),
-                }
-            })?;
-            
+                })?;
+
             Ok::<(), crate::errors::DuckDBError>(())
-        }).await.map_err(|e| {
-            crate::errors::DuckDBError::QueryExecution {
-                message: format!("Task join error: {}", e),
-                query: Some(sql.to_string()),
-            }
+        })
+        .await
+        .map_err(|e| crate::errors::DuckDBError::QueryExecution {
+            message: format!("Task join error: {}", e),
+            query: Some(sql.to_string()),
         })??;
 
         // Store the SQL with the statement ID
         let mut statements = self.prepared_statements.lock().await;
         statements.insert(statement_id.clone(), sql.to_string());
-        
+
         Ok(statement_id)
     }
 
@@ -1035,15 +1124,16 @@ impl DuckDBEngine {
     ) -> Result<super::types::QueryResult> {
         // Validate statement ID format
         crate::security::validate_statement_id(statement_id)?;
-        
+
         // Get the stored SQL for this statement ID
         let statements = self.prepared_statements.lock().await;
-        let sql = statements.get(statement_id).ok_or_else(|| {
-            crate::errors::DuckDBError::InvalidOperation {
+        let sql = statements
+            .get(statement_id)
+            .ok_or_else(|| crate::errors::DuckDBError::InvalidOperation {
                 message: format!("Prepared statement with ID '{}' not found", statement_id),
                 operation: Some("execute_prepared_statement".to_string()),
-            }
-        })?.clone();
+            })?
+            .clone();
         drop(statements);
 
         // If parameters are provided, use the parameterized execution path
@@ -1061,14 +1151,14 @@ impl DuckDBEngine {
     /// prepared resource is retained by the backend beyond the stored SQL.
     pub async fn close_prepared_statement(&self, statement_id: &str) -> Result<()> {
         let mut statements = self.prepared_statements.lock().await;
-        
+
         statements.remove(statement_id).ok_or_else(|| {
             crate::errors::DuckDBError::InvalidOperation {
                 message: format!("Prepared statement with ID '{}' not found", statement_id),
                 operation: Some("close_prepared_statement".to_string()),
             }
         })?;
-        
+
         Ok(())
     }
 }

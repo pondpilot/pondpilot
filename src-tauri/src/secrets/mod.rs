@@ -1,14 +1,14 @@
-pub mod models;
-pub mod keychain;
-pub mod metadata_store;
-pub mod injector;
-pub mod validator;
-pub mod manager;
 pub mod commands;
 pub mod errors;
+pub mod injector;
+pub mod keychain;
+pub mod manager;
+pub mod metadata_store;
+pub mod models;
+pub mod validator;
 
 #[cfg(test)]
 mod tests;
 
-pub use manager::SecretsManager;
 pub use commands::*;
+pub use manager::SecretsManager;

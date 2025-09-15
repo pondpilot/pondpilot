@@ -244,30 +244,8 @@ export function useDatabaseConnection(
         const newDataSources = new Map(dataSources);
         newDataSources.set(remoteDb.id, remoteDb);
 
-        // Use the new backend command to attach the database with proper secrets
+        // Use the backend command to attach the database with proper secrets
         const attachedDbName = toDuckDBIdentifier(remoteDb.dbName);
-
-        // First, get the attachment SQL and execute it on the current connection
-        // This ensures the database is immediately available
-        try {
-          const attachmentSql = await ConnectionsAPI.getAttachmentSql(
-            savedConnection.id,
-            attachedDbName,
-          );
-
-          // Get a connection from the pool and execute the attachment
-          const conn = await pool.acquire();
-          try {
-            await conn.execute(attachmentSql.secret_sql);
-            await conn.execute(attachmentSql.attach_sql);
-          } finally {
-            await pool.release(conn);
-          }
-        } catch (attachError) {
-          console.error('Failed to attach database to current connection:', attachError);
-        }
-
-        // Also register with backend for all other connections
         await ConnectionsAPI.attachRemoteDatabase(savedConnection.id, attachedDbName);
 
         remoteDb.connectionState = 'connected';

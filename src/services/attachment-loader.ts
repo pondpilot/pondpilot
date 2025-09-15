@@ -100,7 +100,7 @@ export class AttachmentLoader {
                       // Update the global metadata store
                       const currentMetadata = useAppStore.getState().databaseMetadata;
                       const updatedMetadata = new Map(currentMetadata);
-                      for (const [dbName, dbModel] of Object.entries(metadata)) {
+                      for (const [_dbName, dbModel] of Object.entries(metadata)) {
                         updatedMetadata.set(dbName, dbModel as any);
                       }
                       useAppStore.setState({ databaseMetadata: updatedMetadata });
@@ -110,23 +110,9 @@ export class AttachmentLoader {
                     }
                   }
                 } else if (db.connectionId) {
-                  // PostgreSQL/MySQL: Follow unified architecture
-                  // 1. Get attachment SQL from backend (includes CREATE SECRET and ATTACH)
-                  // 2. Execute on current connection
-                  // 3. Register with backend for other connections
+                  // PostgreSQL/MySQL: ask backend to handle attachment + secret creation
 
                   try {
-                    // Get the attachment SQL from backend
-                    const attachmentSql = await ConnectionsAPI.getAttachmentSql(
-                      db.connectionId,
-                      attachedDbName,
-                    );
-
-                    // Execute CREATE SECRET and ATTACH on the current connection
-                    await connection.execute(attachmentSql.secret_sql);
-                    await connection.execute(attachmentSql.attach_sql);
-
-                    // Now also attach to all other backend connections
                     await ConnectionsAPI.attachRemoteDatabase(db.connectionId, attachedDbName);
 
                     logger.info(`Attached connection-based DB '${db.dbName}' on all connections`);
@@ -137,7 +123,7 @@ export class AttachmentLoader {
                       // Update the global metadata store
                       const currentMetadata = useAppStore.getState().databaseMetadata;
                       const updatedMetadata = new Map(currentMetadata);
-                      for (const [dbName, dbModel] of Object.entries(metadata)) {
+                      for (const [_dbName, dbModel] of Object.entries(metadata)) {
                         // IMPORTANT: Store metadata with the original dbName, not the quoted identifier
                         // The tree builder looks for metadata using db.dbName (raw name)
                         updatedMetadata.set(db.dbName, dbModel as any);
@@ -151,8 +137,6 @@ export class AttachmentLoader {
                     }
                   } catch (attachError) {
                     logger.error(`Failed to attach database '${db.dbName}':`, attachError);
-                    // Try fallback to just backend attachment
-                    await ConnectionsAPI.attachRemoteDatabase(db.connectionId, attachedDbName);
                   }
                 }
               } else {

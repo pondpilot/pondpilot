@@ -13,7 +13,6 @@ export async function buildAttachSpec(): Promise<AttachSpecItem[]> {
   try {
     const { useAppStore } = await import('../store/app-store');
     const { getFileReferenceForDuckDB } = await import('../controllers/file-system/file-helpers');
-    const { ConnectionsAPI } = await import('../services/connections-api');
     const state = useAppStore.getState();
     const attaches: AttachSpecItem[] = [];
     for (const ds of state.dataSources.values()) {
@@ -27,17 +26,13 @@ export async function buildAttachSpec(): Promise<AttachSpecItem[]> {
         if (ds.legacyUrl && ds.legacyUrl.trim() !== '') {
           attaches.push({ dbName: ds.dbName, url: ds.legacyUrl, readOnly: true });
         } else if ((ds as any).connectionId) {
-          try {
-            const res = await ConnectionsAPI.getAttachmentSql((ds as any).connectionId, ds.dbName);
-            const rawSql: string[] = [];
-            if ((res as any).secret_sql && (res as any).secret_sql.trim() !== '') rawSql.push((res as any).secret_sql);
-            if ((res as any).attach_sql && (res as any).attach_sql.trim() !== '') rawSql.push((res as any).attach_sql);
-            if (rawSql.length > 0) {
-              attaches.push({ dbName: ds.dbName, readOnly: true, rawSql });
-            }
-          } catch (e) {
-            logger.debug('[tauri-attach] Failed to get attachment SQL for connection', ds, e);
-          }
+          // Connection-backed databases are attached natively by the backend.
+          // We intentionally avoid reconstructing the attachment SQL in the renderer
+          // to keep credentials inside the Rust process.
+          logger.trace(
+            '[tauri-attach] Skipping inline attachment SQL for connection-backed database',
+            ds,
+          );
         }
       }
     }

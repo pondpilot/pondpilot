@@ -1,8 +1,8 @@
-use crate::errors::{DuckDBError, Result};
 use super::extensions::ALLOWED_EXTENSIONS;
+use crate::errors::{DuckDBError, Result};
 use crate::system_resources::{calculate_resource_limits, ResourceLimits};
 use duckdb::Connection;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -17,7 +17,7 @@ struct AttachedDatabase {
     connection_string: String,
     db_type: String,
     secret_sql: String,
-    secret_name: Option<String>,  // Explicitly store the secret name (None for MotherDuck)
+    secret_name: Option<String>, // Explicitly store the secret name (None for MotherDuck)
     read_only: bool,
 }
 
@@ -151,17 +151,21 @@ impl ConnectionPermit {
         let attached_dbs = self.attached_databases.blocking_lock();
         for db_info in attached_dbs.iter() {
             tracing::debug!("[UNIFIED_POOL] Re-attaching database: {}", db_info.alias);
-            
+
             // Skip secret creation for MotherDuck (it has empty secret_sql)
             if !db_info.secret_sql.is_empty() {
                 // Create secret for PostgreSQL/MySQL
                 if let Err(e) = conn.execute_batch(&db_info.secret_sql) {
-                    tracing::warn!("[UNIFIED_POOL] Failed to recreate secret for {}: {}", db_info.alias, e);
+                    tracing::warn!(
+                        "[UNIFIED_POOL] Failed to recreate secret for {}: {}",
+                        db_info.alias,
+                        e
+                    );
                     // Continue with other attachments even if one fails
                     continue;
                 }
             }
-            
+
             // Attach database based on type and available metadata
             let attach_sql = if db_info.db_type == "MOTHERDUCK" {
                 // MotherDuck uses special syntax without alias and without SECRET
@@ -169,9 +173,15 @@ impl ConnectionPermit {
             } else if db_info.db_type == "PLAIN" {
                 // Plain URL/file attach
                 if db_info.read_only {
-                    format!("ATTACH '{}' AS {} (READ_ONLY)", db_info.connection_string, db_info.alias)
+                    format!(
+                        "ATTACH '{}' AS {} (READ_ONLY)",
+                        db_info.connection_string, db_info.alias
+                    )
                 } else {
-                    format!("ATTACH '{}' AS {}", db_info.connection_string, db_info.alias)
+                    format!(
+                        "ATTACH '{}' AS {}",
+                        db_info.connection_string, db_info.alias
+                    )
                 }
             } else if let Some(secret_name) = &db_info.secret_name {
                 // PostgreSQL/MySQL use standard syntax with SECRET
@@ -180,15 +190,25 @@ impl ConnectionPermit {
                     db_info.connection_string, db_info.alias, db_info.db_type, secret_name
                 )
             } else {
-                tracing::warn!("[UNIFIED_POOL] No secret name for non-MotherDuck database {}", db_info.alias);
+                tracing::warn!(
+                    "[UNIFIED_POOL] No secret name for non-MotherDuck database {}",
+                    db_info.alias
+                );
                 continue;
             };
-            
+
             if let Err(e) = conn.execute(&attach_sql, []) {
-                tracing::warn!("[UNIFIED_POOL] Failed to re-attach {}: {}", db_info.alias, e);
+                tracing::warn!(
+                    "[UNIFIED_POOL] Failed to re-attach {}: {}",
+                    db_info.alias,
+                    e
+                );
                 // Continue with other attachments even if one fails
             } else {
-                tracing::debug!("[UNIFIED_POOL] Successfully re-attached database: {}", db_info.alias);
+                tracing::debug!(
+                    "[UNIFIED_POOL] Successfully re-attached database: {}",
+                    db_info.alias
+                );
             }
         }
 
@@ -197,7 +217,11 @@ impl ConnectionPermit {
 }
 
 impl UnifiedPool {
-    pub fn new(db_path: PathBuf, config: PoolConfig, extensions: Arc<tokio::sync::Mutex<Vec<super::types::ExtensionInfoForLoad>>>) -> Result<Self> {
+    pub fn new(
+        db_path: PathBuf,
+        config: PoolConfig,
+        extensions: Arc<tokio::sync::Mutex<Vec<super::types::ExtensionInfoForLoad>>>,
+    ) -> Result<Self> {
         // Ensure the parent directory exists
         if let Some(parent) = db_path.parent() {
             fs::create_dir_all(parent)?;
@@ -225,7 +249,7 @@ impl UnifiedPool {
         let available_permits = self.permits.available_permits();
         let total_permits = self.config.max_connections;
         let used_permits = total_permits - available_permits;
-        
+
         PoolStats {
             total_connections: total_permits,
             used_connections: used_permits,
@@ -233,12 +257,12 @@ impl UnifiedPool {
             connection_counter: self.connection_counter.load(Ordering::Relaxed),
         }
     }
-    
+
     /// Perform a health check on the pool
     #[allow(dead_code)]
     pub async fn health_check(&self) -> Result<HealthCheckResult> {
         let stats = self.get_pool_stats();
-        
+
         // Try to acquire a permit with a short timeout to test availability
         let can_acquire = match tokio::time::timeout(
             Duration::from_millis(100),
@@ -253,7 +277,7 @@ impl UnifiedPool {
             }
             _ => false,
         };
-        
+
         let is_healthy = can_acquire || stats.used_connections < stats.total_connections;
         let message = if can_acquire {
             "Pool is healthy and has available connections".to_string()
@@ -262,7 +286,7 @@ impl UnifiedPool {
         } else {
             "Pool is healthy but busy".to_string()
         };
-        
+
         Ok(HealthCheckResult {
             is_healthy,
             stats,

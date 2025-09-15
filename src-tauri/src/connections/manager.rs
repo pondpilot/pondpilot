@@ -1,14 +1,14 @@
-use std::sync::Arc;
-use std::path::PathBuf;
-use uuid::Uuid;
 use chrono::Utc;
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
+use std::path::PathBuf;
+use std::sync::Arc;
+use uuid::Uuid;
 
+use super::errors::ConnectionError;
+use super::models::{ConnectionConfig, ConnectionType, ConnectionWithCredentials};
 use crate::database::DuckDBEngine;
 use crate::secrets::manager::SecretsManager;
 use crate::secrets::models::SecretCredentials;
-use super::models::{ConnectionConfig, ConnectionType, ConnectionWithCredentials};
-use super::errors::ConnectionError;
 
 /// Manages database connections configuration and storage
 /// Handles CRUD operations for connection metadata and integrates with the secrets manager
@@ -23,20 +23,23 @@ impl ConnectionsManager {
     /// Initializes the local database for storing connection metadata
     pub fn new(secrets_manager: Arc<SecretsManager>) -> Result<Self, ConnectionError> {
         let app_dir = dirs::config_dir()
-            .ok_or_else(|| ConnectionError::StorageError("Could not find config directory".to_string()))?
+            .ok_or_else(|| {
+                ConnectionError::StorageError("Could not find config directory".to_string())
+            })?
             .join("pondpilot");
-        
-        std::fs::create_dir_all(&app_dir)
-            .map_err(|e| ConnectionError::StorageError(format!("Failed to create app directory: {}", e)))?;
-        
+
+        std::fs::create_dir_all(&app_dir).map_err(|e| {
+            ConnectionError::StorageError(format!("Failed to create app directory: {}", e))
+        })?;
+
         let db_path = app_dir.join("connections.db");
-        
+
         let manager = Self {
             db_path,
             secrets_manager,
             duckdb_engine: None,
         };
-        
+
         manager.init_database()?;
         Ok(manager)
     }
@@ -48,7 +51,7 @@ impl ConnectionsManager {
 
     fn init_database(&self) -> Result<(), ConnectionError> {
         let conn = Connection::open(&self.db_path)?;
-        
+
         conn.execute(
             r#"
             CREATE TABLE IF NOT EXISTS connections (
@@ -91,22 +94,27 @@ impl ConnectionsManager {
         Ok(())
     }
 
-    pub async fn save_connection(&self, mut config: ConnectionConfig) -> Result<ConnectionConfig, ConnectionError> {
+    pub async fn save_connection(
+        &self,
+        mut config: ConnectionConfig,
+    ) -> Result<ConnectionConfig, ConnectionError> {
         config.validate()?;
-        
+
         // Verify the secret exists
         self.secrets_manager.get_secret(config.secret_id).await?;
-        
+
         config.updated_at = Utc::now();
-        
+
         let conn = Connection::open(&self.db_path)?;
-        
-        let options_json = config.options.as_ref()
+
+        let options_json = config
+            .options
+            .as_ref()
             .map(|opts| serde_json::to_string(opts))
             .transpose()?;
-        
+
         let tags_json = serde_json::to_string(&config.tags)?;
-        
+
         conn.execute(
             r#"
             INSERT OR REPLACE INTO connections (
@@ -139,16 +147,20 @@ impl ConnectionsManager {
                 config.description,
             ],
         )?;
-        
+
         Ok(config)
     }
 
-    pub async fn list_connections(&self, connection_type: Option<ConnectionType>) -> Result<Vec<ConnectionConfig>, ConnectionError> {
+    pub async fn list_connections(
+        &self,
+        connection_type: Option<ConnectionType>,
+    ) -> Result<Vec<ConnectionConfig>, ConnectionError> {
         let conn = Connection::open(&self.db_path)?;
-        
+
         let (query, params): (String, Vec<Box<dyn rusqlite::ToSql>>) = match connection_type {
             Some(conn_type) => (
-                "SELECT * FROM connections WHERE connection_type = ?1 ORDER BY updated_at DESC".to_string(),
+                "SELECT * FROM connections WHERE connection_type = ?1 ORDER BY updated_at DESC"
+                    .to_string(),
                 vec![Box::new(conn_type.to_string())],
             ),
             None => (
@@ -156,41 +168,47 @@ impl ConnectionsManager {
                 vec![],
             ),
         };
-        
+
         let mut stmt = conn.prepare(&query)?;
         let rows = stmt.query_map(rusqlite::params_from_iter(params), |row| {
             self.row_to_connection_config(row)
         })?;
-        
+
         let mut connections = Vec::new();
         for row in rows {
             connections.push(row?);
         }
-        
+
         Ok(connections)
     }
 
-    pub async fn get_connection(&self, connection_id: Uuid) -> Result<ConnectionConfig, ConnectionError> {
+    pub async fn get_connection(
+        &self,
+        connection_id: Uuid,
+    ) -> Result<ConnectionConfig, ConnectionError> {
         let conn = Connection::open(&self.db_path)?;
-        
+
         let mut stmt = conn.prepare("SELECT * FROM connections WHERE id = ?1")?;
         let config = stmt.query_row([connection_id.to_string()], |row| {
             self.row_to_connection_config(row)
         })?;
-        
+
         Ok(config)
     }
 
-    pub async fn get_connection_with_credentials(&self, connection_id: Uuid) -> Result<ConnectionWithCredentials, ConnectionError> {
+    pub async fn get_connection_with_credentials(
+        &self,
+        connection_id: Uuid,
+    ) -> Result<ConnectionWithCredentials, ConnectionError> {
         let config = self.get_connection(connection_id).await?;
         let secret = self.secrets_manager.get_secret(config.secret_id).await?;
-        
+
         let username = self.extract_username(&secret)?;
         let password = self.extract_password(&secret)?;
-        
+
         // Update last_used timestamp
         self.update_last_used(connection_id).await?;
-        
+
         Ok(ConnectionWithCredentials {
             config,
             username,
@@ -200,18 +218,18 @@ impl ConnectionsManager {
 
     pub async fn delete_connection(&self, connection_id: Uuid) -> Result<(), ConnectionError> {
         let conn = Connection::open(&self.db_path)?;
-        
+
         let rows_affected = conn.execute(
             "DELETE FROM connections WHERE id = ?1",
             [connection_id.to_string()],
         )?;
-        
+
         if rows_affected == 0 {
             return Err(ConnectionError::ConnectionNotFound {
                 id: connection_id.to_string(),
             });
         }
-        
+
         Ok(())
     }
 
@@ -233,7 +251,7 @@ impl ConnectionsManager {
         description: Option<Option<String>>,
     ) -> Result<ConnectionConfig, ConnectionError> {
         let mut config = self.get_connection(connection_id).await?;
-        
+
         // Update fields if provided
         if let Some(name) = name {
             config.name = name;
@@ -276,134 +294,170 @@ impl ConnectionsManager {
         if let Some(description) = description {
             config.description = description;
         }
-        
+
         self.save_connection(config).await
     }
 
     pub async fn test_connection(&self, connection_id: Uuid) -> Result<bool, ConnectionError> {
         let connection_with_creds = self.get_connection_with_credentials(connection_id).await?;
-        
+
         match connection_with_creds.config.connection_type {
-            ConnectionType::Postgres => {
-                self.test_postgres_connection(&connection_with_creds).await
-            },
-            ConnectionType::MySQL => {
-                self.test_mysql_connection(&connection_with_creds).await
-            },
+            ConnectionType::Postgres => self.test_postgres_connection(&connection_with_creds).await,
+            ConnectionType::MySQL => self.test_mysql_connection(&connection_with_creds).await,
         }
     }
 
-    pub async fn test_connection_config(&self, test_config: super::models::ConnectionTestConfig, secret_id: Uuid) -> Result<bool, ConnectionError> {
+    pub async fn test_connection_config(
+        &self,
+        test_config: super::models::ConnectionTestConfig,
+        secret_id: Uuid,
+    ) -> Result<bool, ConnectionError> {
         // Validate the connection config
         test_config.validate()?;
-        
+
         // Convert to full ConnectionConfig for testing
         let config = test_config.to_connection_config(secret_id);
-        
+
         // Get the secret credentials
-        let secret_credentials = self.secrets_manager
+        let secret_credentials = self
+            .secrets_manager
             .get_secret(secret_id)
             .await
-            .map_err(|e| ConnectionError::SecretError(
-                format!("Failed to get secret: {}", e)
-            ))?;
-        
+            .map_err(|e| ConnectionError::SecretError(format!("Failed to get secret: {}", e)))?;
+
         // Extract username and password from credentials
-        let username = secret_credentials.credentials.get("username")
+        let username = secret_credentials
+            .credentials
+            .get("username")
             .ok_or_else(|| ConnectionError::ConnectionTestFailed {
-                error: "Secret missing username".to_string()
+                error: "Secret missing username".to_string(),
             })?;
-        
-        let password = secret_credentials.credentials.get("password")
+
+        let password = secret_credentials
+            .credentials
+            .get("password")
             .ok_or_else(|| ConnectionError::ConnectionTestFailed {
-                error: "Secret missing password".to_string()
+                error: "Secret missing password".to_string(),
             })?;
-        
+
         // Create ConnectionWithCredentials for testing
         let connection_with_creds = ConnectionWithCredentials {
             config,
             username: username.expose().to_string(),
             password: password.expose().to_string(),
         };
-        
+
         // Test the connection
         match connection_with_creds.config.connection_type {
-            ConnectionType::Postgres => {
-                self.test_postgres_connection(&connection_with_creds).await
-            },
-            ConnectionType::MySQL => {
-                self.test_mysql_connection(&connection_with_creds).await
-            },
+            ConnectionType::Postgres => self.test_postgres_connection(&connection_with_creds).await,
+            ConnectionType::MySQL => self.test_mysql_connection(&connection_with_creds).await,
         }
     }
 
-    async fn test_postgres_connection(&self, connection: &ConnectionWithCredentials) -> Result<bool, ConnectionError> {
+    async fn test_remote_db_connection(
+        &self,
+        connection: &ConnectionWithCredentials,
+        db_type: &str,
+        extension_name: &str,
+        secret_type: crate::secrets::models::SecretType,
+    ) -> Result<bool, ConnectionError> {
         // Validate credentials
         if connection.username.is_empty() || connection.password.is_empty() {
             return Err(ConnectionError::ConnectionTestFailed {
                 error: "Missing username or password".to_string(),
             });
         }
-        
-        tracing::info!("[Connections] Testing PostgreSQL connection to {}:{}", 
-                      connection.config.host, connection.config.port);
-        
+
+        tracing::info!(
+            "[Connections] Testing {} connection to {}:{}",
+            db_type,
+            connection.config.host,
+            connection.config.port
+        );
+
         // Create an in-memory DuckDB connection for testing
-        let duckdb_conn = duckdb::Connection::open_in_memory()
-            .map_err(|e| ConnectionError::ConnectionTestFailed {
+        let duckdb_conn = duckdb::Connection::open_in_memory().map_err(|e| {
+            ConnectionError::ConnectionTestFailed {
                 error: format!("Failed to create test DuckDB connection: {}", e),
-            })?;
-        
-        // Install and load the postgres extension
-        if let Err(e) = duckdb_conn.execute_batch("INSTALL postgres; LOAD postgres;") {
-            tracing::warn!("[Connections] Failed to install/load postgres extension: {}", e);
+            }
+        })?;
+
+        // Install and load the extension
+        let install_cmd = format!("INSTALL {}; LOAD {};", extension_name, extension_name);
+        if let Err(e) = duckdb_conn.execute_batch(&install_cmd) {
+            tracing::warn!(
+                "[Connections] Failed to install/load {} extension: {}",
+                extension_name,
+                e
+            );
             return Err(ConnectionError::ConnectionTestFailed {
-                error: format!("PostgreSQL extension not available: {}", e),
+                error: format!("{} extension not available: {}", db_type, e),
             });
         }
-        
-        
+
         // Create a unique database alias for testing
-        let test_alias = format!("test_pg_{}", uuid::Uuid::new_v4().simple());
-        
-        // Get the existing secret name by getting the secret from the secrets manager
-        let existing_secret = self.secrets_manager
+        let test_alias = format!(
+            "test_{}_{}",
+            extension_name,
+            uuid::Uuid::new_v4().simple()
+        );
+
+        // Get the existing secret from the secrets manager
+        let existing_secret = self
+            .secrets_manager
             .get_secret(connection.config.secret_id)
             .await
             .map_err(|e| ConnectionError::ConnectionTestFailed {
                 error: format!("Failed to get existing secret: {}", e),
             })?;
-        
+
         // Build connection string with parameters (but not credentials)
         let mut connection_params = vec![
             format!("host={}", connection.config.host),
             format!("port={}", connection.config.port),
-            format!("dbname={}", connection.config.database),
         ];
-        
-        // Add SSL mode if specified
-        if let Some(ssl_mode) = &connection.config.ssl_mode {
-            connection_params.push(format!("sslmode={}", ssl_mode.to_string()));
+
+        // Use appropriate database parameter name based on type
+        if db_type == "POSTGRES" {
+            connection_params.push(format!("dbname={}", connection.config.database));
+        } else {
+            connection_params.push(format!("database={}", connection.config.database));
         }
-        
+
+        // Add SSL mode if specified (PostgreSQL only)
+        if db_type == "POSTGRES" {
+            if let Some(ssl_mode) = &connection.config.ssl_mode {
+                connection_params.push(format!("sslmode={}", ssl_mode.to_string()));
+            }
+        }
+
         let connection_string = connection_params.join(" ");
-        
+
         // Get the secret name from the existing secret metadata
-        let secret_name = format!("secret_{}", existing_secret.metadata.id.to_string().replace("-", "_"));
-        
-        // First, create a temporary secret with only the authentication credentials from the existing secret
+        let secret_name = format!(
+            "secret_{}",
+            existing_secret.metadata.id.to_string().replace("-", "_")
+        );
+
+        // Create a temporary secret with only the authentication credentials
         let mut temp_credentials = std::collections::HashMap::new();
         if let Some(username) = existing_secret.credentials.get("username") {
-            temp_credentials.insert("username".to_string(), crate::secrets::models::SecureString::new(username.expose()));
+            temp_credentials.insert(
+                "username".to_string(),
+                crate::secrets::models::SecureString::new(username.expose()),
+            );
         }
         if let Some(password) = existing_secret.credentials.get("password") {
-            temp_credentials.insert("password".to_string(), crate::secrets::models::SecureString::new(password.expose()));
+            temp_credentials.insert(
+                "password".to_string(),
+                crate::secrets::models::SecureString::new(password.expose()),
+            );
         }
-        
+
         let temp_secret_metadata = crate::secrets::models::SecretMetadata {
-            id: existing_secret.metadata.id, // Use the same ID as the existing secret
+            id: existing_secret.metadata.id,
             name: secret_name.clone(),
-            secret_type: crate::secrets::models::SecretType::Postgres,
+            secret_type,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             last_used: None,
@@ -411,212 +465,119 @@ impl ConnectionsManager {
             description: Some("Temporary secret for connection testing".to_string()),
             scope: None,
         };
-        
+
         let temp_secret_credentials = crate::secrets::models::SecretCredentials {
             metadata: temp_secret_metadata,
             credentials: temp_credentials,
         };
-        
-        // Create the secret injector and build the CREATE SECRET SQL (only with auth credentials)
+
+        // Create the secret injector and build the CREATE SECRET SQL
         let injector = crate::secrets::injector::DuckDBSecretInjector::new();
         let create_secret_sql = match injector.build_create_secret(&temp_secret_credentials) {
             Ok(sql) => sql,
             Err(e) => {
-                tracing::warn!("[Connections] Failed to build PostgreSQL secret SQL: {}", e);
+                tracing::warn!(
+                    "[Connections] Failed to build {} secret SQL: {}",
+                    db_type,
+                    e
+                );
                 return Err(ConnectionError::ConnectionTestFailed {
-                    error: format!("Failed to create PostgreSQL secret: {}", e),
+                    error: format!("Failed to create {} secret: {}", db_type, e),
                 });
             }
         };
-        
+
         // Execute the CREATE SECRET command
         if let Err(e) = duckdb_conn.execute(&create_secret_sql, []) {
             tracing::warn!("[Connections] Failed to execute CREATE SECRET: {}", e);
             return Err(ConnectionError::ConnectionTestFailed {
-                error: format!("Failed to create PostgreSQL secret: {}", e),
+                error: format!("Failed to create {} secret: {}", db_type, e),
             });
         }
-        
+
         // Use ATTACH with the secret and connection parameters
-        let attach_query = format!("ATTACH '{}' AS {} (TYPE POSTGRES, SECRET {})", connection_string, test_alias, secret_name);
-        
+        let attach_query = format!(
+            "ATTACH '{}' AS {} (TYPE {}, SECRET {})",
+            connection_string, test_alias, db_type, secret_name
+        );
+
         match duckdb_conn.execute(&attach_query, []) {
             Ok(_) => {
                 // Test connectivity with a simple query
-                let test_query = format!("SELECT 1 FROM {}.information_schema.tables LIMIT 1", test_alias);
+                let test_query = format!(
+                    "SELECT 1 FROM {}.information_schema.tables LIMIT 1",
+                    test_alias
+                );
                 match duckdb_conn.execute(&test_query, []) {
                     Ok(_) => {
                         // Clean up: detach the database and drop the secret
                         let _ = duckdb_conn.execute(&format!("DETACH {}", test_alias), []);
                         let _ = duckdb_conn.execute(&format!("DROP SECRET {}", secret_name), []);
-                        tracing::info!("[Connections] PostgreSQL connection test successful");
+                        tracing::info!("[Connections] {} connection test successful", db_type);
                         Ok(true)
-                    },
+                    }
                     Err(e) => {
                         let _ = duckdb_conn.execute(&format!("DETACH {}", test_alias), []);
                         let _ = duckdb_conn.execute(&format!("DROP SECRET {}", secret_name), []);
-                        tracing::warn!("[Connections] PostgreSQL query test failed: {}", e);
+                        tracing::warn!("[Connections] {} query test failed: {}", db_type, e);
                         Err(ConnectionError::ConnectionTestFailed {
                             error: format!("Database query failed: {}", e),
                         })
                     }
                 }
-            },
+            }
             Err(e) => {
                 // Clean up the secret even if attach failed
                 let _ = duckdb_conn.execute(&format!("DROP SECRET {}", secret_name), []);
-                tracing::warn!("[Connections] PostgreSQL attach failed: {}", e);
+                tracing::warn!("[Connections] {} attach failed: {}", db_type, e);
                 Err(ConnectionError::ConnectionTestFailed {
-                    error: format!("Failed to connect to PostgreSQL: {}", e),
+                    error: format!("Failed to connect to {}: {}", db_type, e),
                 })
             }
         }
     }
 
-    async fn test_mysql_connection(&self, connection: &ConnectionWithCredentials) -> Result<bool, ConnectionError> {
-        // Validate credentials
-        if connection.username.is_empty() || connection.password.is_empty() {
-            return Err(ConnectionError::ConnectionTestFailed {
-                error: "Missing username or password".to_string(),
-            });
-        }
-        
-        tracing::info!("[Connections] Testing MySQL connection to {}:{}", 
-                      connection.config.host, connection.config.port);
-        
-        // Create an in-memory DuckDB connection for testing
-        let duckdb_conn = duckdb::Connection::open_in_memory()
-            .map_err(|e| ConnectionError::ConnectionTestFailed {
-                error: format!("Failed to create test DuckDB connection: {}", e),
-            })?;
-        
-        // Install and load the mysql extension
-        if let Err(e) = duckdb_conn.execute_batch("INSTALL mysql; LOAD mysql;") {
-            tracing::warn!("[Connections] Failed to install/load mysql extension: {}", e);
-            return Err(ConnectionError::ConnectionTestFailed {
-                error: format!("MySQL extension not available: {}", e),
-            });
-        }
-        
-        
-        // Create a unique database alias for testing
-        let test_alias = format!("test_mysql_{}", uuid::Uuid::new_v4().simple());
-        
-        // Get the existing secret name by getting the secret from the secrets manager
-        let existing_secret = self.secrets_manager
-            .get_secret(connection.config.secret_id)
-            .await
-            .map_err(|e| ConnectionError::ConnectionTestFailed {
-                error: format!("Failed to get existing secret: {}", e),
-            })?;
-        
-        // Build connection string with parameters (but not credentials)
-        let connection_params = vec![
-            format!("host={}", connection.config.host),
-            format!("port={}", connection.config.port),
-            format!("database={}", connection.config.database),
-        ];
-        
-        let connection_string = connection_params.join(" ");
-        
-        // Get the secret name from the existing secret metadata
-        let secret_name = format!("secret_{}", existing_secret.metadata.id.to_string().replace("-", "_"));
-        
-        // First, create a temporary secret with only the authentication credentials from the existing secret
-        let mut temp_credentials = std::collections::HashMap::new();
-        if let Some(username) = existing_secret.credentials.get("username") {
-            temp_credentials.insert("username".to_string(), crate::secrets::models::SecureString::new(username.expose()));
-        }
-        if let Some(password) = existing_secret.credentials.get("password") {
-            temp_credentials.insert("password".to_string(), crate::secrets::models::SecureString::new(password.expose()));
-        }
-        
-        let temp_secret_metadata = crate::secrets::models::SecretMetadata {
-            id: existing_secret.metadata.id, // Use the same ID as the existing secret
-            name: secret_name.clone(),
-            secret_type: crate::secrets::models::SecretType::MySQL,
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            last_used: None,
-            tags: vec![],
-            description: Some("Temporary secret for connection testing".to_string()),
-            scope: None,
-        };
-        
-        let temp_secret_credentials = crate::secrets::models::SecretCredentials {
-            metadata: temp_secret_metadata,
-            credentials: temp_credentials,
-        };
-        
-        // Create the secret injector and build the CREATE SECRET SQL (only with auth credentials)
-        let injector = crate::secrets::injector::DuckDBSecretInjector::new();
-        let create_secret_sql = match injector.build_create_secret(&temp_secret_credentials) {
-            Ok(sql) => sql,
-            Err(e) => {
-                tracing::warn!("[Connections] Failed to build MySQL secret SQL: {}", e);
-                return Err(ConnectionError::ConnectionTestFailed {
-                    error: format!("Failed to create MySQL secret: {}", e),
-                });
-            }
-        };
-        
-        // Execute the CREATE SECRET command
-        if let Err(e) = duckdb_conn.execute(&create_secret_sql, []) {
-            tracing::warn!("[Connections] Failed to execute CREATE SECRET: {}", e);
-            return Err(ConnectionError::ConnectionTestFailed {
-                error: format!("Failed to create MySQL secret: {}", e),
-            });
-        }
-        
-        // Use ATTACH with the secret and connection parameters
-        let attach_query = format!("ATTACH '{}' AS {} (TYPE MYSQL, SECRET {})", connection_string, test_alias, secret_name);
-        
-        match duckdb_conn.execute(&attach_query, []) {
-            Ok(_) => {
-                // Test connectivity with a simple query
-                let test_query = format!("SELECT 1 FROM {}.information_schema.tables LIMIT 1", test_alias);
-                match duckdb_conn.execute(&test_query, []) {
-                    Ok(_) => {
-                        // Clean up: detach the database and drop the secret
-                        let _ = duckdb_conn.execute(&format!("DETACH {}", test_alias), []);
-                        let _ = duckdb_conn.execute(&format!("DROP SECRET {}", secret_name), []);
-                        tracing::info!("[Connections] MySQL connection test successful");
-                        Ok(true)
-                    },
-                    Err(e) => {
-                        let _ = duckdb_conn.execute(&format!("DETACH {}", test_alias), []);
-                        let _ = duckdb_conn.execute(&format!("DROP SECRET {}", secret_name), []);
-                        tracing::warn!("[Connections] MySQL query test failed: {}", e);
-                        Err(ConnectionError::ConnectionTestFailed {
-                            error: format!("Database query failed: {}", e),
-                        })
-                    }
-                }
-            },
-            Err(e) => {
-                // Clean up the secret even if attach failed
-                let _ = duckdb_conn.execute(&format!("DROP SECRET {}", secret_name), []);
-                tracing::warn!("[Connections] MySQL attach failed: {}", e);
-                Err(ConnectionError::ConnectionTestFailed {
-                    error: format!("Failed to connect to MySQL: {}", e),
-                })
-            }
-        }
+    async fn test_postgres_connection(
+        &self,
+        connection: &ConnectionWithCredentials,
+    ) -> Result<bool, ConnectionError> {
+        self.test_remote_db_connection(
+            connection,
+            "POSTGRES",
+            "postgres",
+            crate::secrets::models::SecretType::Postgres,
+        )
+        .await
+    }
+
+    async fn test_mysql_connection(
+        &self,
+        connection: &ConnectionWithCredentials,
+    ) -> Result<bool, ConnectionError> {
+        self.test_remote_db_connection(
+            connection,
+            "MYSQL",
+            "mysql",
+            crate::secrets::models::SecretType::MySQL,
+        )
+        .await
     }
 
     async fn update_last_used(&self, connection_id: Uuid) -> Result<(), ConnectionError> {
         let conn = Connection::open(&self.db_path)?;
-        
+
         conn.execute(
             "UPDATE connections SET last_used = ?1 WHERE id = ?2",
             [Utc::now().to_rfc3339(), connection_id.to_string()],
         )?;
-        
+
         Ok(())
     }
 
     fn extract_username(&self, secret: &SecretCredentials) -> Result<String, ConnectionError> {
-        secret.credentials.get("username")
+        secret
+            .credentials
+            .get("username")
             .or_else(|| secret.credentials.get("user"))
             .map(|s| s.expose().to_string())
             .ok_or_else(|| ConnectionError::MissingRequiredField {
@@ -625,7 +586,9 @@ impl ConnectionsManager {
     }
 
     fn extract_password(&self, secret: &SecretCredentials) -> Result<String, ConnectionError> {
-        secret.credentials.get("password")
+        secret
+            .credentials
+            .get("password")
             .map(|s| s.expose().to_string())
             .ok_or_else(|| ConnectionError::MissingRequiredField {
                 field: "password".to_string(),
@@ -637,78 +600,116 @@ impl ConnectionsManager {
         let options = options_json
             .map(|json| serde_json::from_str(&json))
             .transpose()
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                0, rusqlite::types::Type::Text, Box::new(e)
-            ))?;
+            .map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?;
 
         let tags_json: String = row.get("tags")?;
-        let tags: Vec<String> = serde_json::from_str(&tags_json)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                0, rusqlite::types::Type::Text, Box::new(e)
-            ))?;
+        let tags: Vec<String> = serde_json::from_str(&tags_json).map_err(|e| {
+            rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
+        })?;
 
         let connection_type_str: String = row.get("connection_type")?;
-        let connection_type = ConnectionType::from_string(&connection_type_str)
-            .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(
-                0, rusqlite::types::Type::Text, 
-                Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid connection type"))
-            ))?;
+        let connection_type =
+            ConnectionType::from_string(&connection_type_str).ok_or_else(|| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalid connection type",
+                    )),
+                )
+            })?;
 
         let ssl_mode_str: Option<String> = row.get("ssl_mode")?;
         let ssl_mode = match ssl_mode_str {
-            Some(s) => Some(super::models::SslMode::from_string(&s)
-                .ok_or_else(|| rusqlite::Error::FromSqlConversionFailure(
-                    0, rusqlite::types::Type::Text,
-                    Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid SSL mode"))
-                ))?),
+            Some(s) => Some(super::models::SslMode::from_string(&s).ok_or_else(|| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalid SSL mode",
+                    )),
+                )
+            })?),
             None => None,
         };
 
         let created_at_str: String = row.get("created_at")?;
         let created_at = chrono::DateTime::parse_from_rfc3339(&created_at_str)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                0, rusqlite::types::Type::Text, Box::new(e)
-            ))?
+            .map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?
             .with_timezone(&chrono::Utc);
 
         let updated_at_str: String = row.get("updated_at")?;
         let updated_at = chrono::DateTime::parse_from_rfc3339(&updated_at_str)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                0, rusqlite::types::Type::Text, Box::new(e)
-            ))?
+            .map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?
             .with_timezone(&chrono::Utc);
 
         let last_used_str: Option<String> = row.get("last_used")?;
         let last_used = last_used_str
             .map(|s| chrono::DateTime::parse_from_rfc3339(&s))
             .transpose()
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                0, rusqlite::types::Type::Text, Box::new(e)
-            ))?
+            .map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?
             .map(|dt| dt.with_timezone(&chrono::Utc));
 
         let read_only_int: Option<i64> = row.get("read_only")?;
         let read_only = read_only_int.map(|i| i != 0);
 
         Ok(ConnectionConfig {
-            id: Uuid::parse_str(&row.get::<_, String>("id")?)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                    0, rusqlite::types::Type::Text, Box::new(e)
-                ))?,
+            id: Uuid::parse_str(&row.get::<_, String>("id")?).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?,
             name: row.get("name")?,
             connection_type,
             host: row.get("host")?,
             port: row.get::<_, i64>("port")? as u16,
             database: row.get("database_name")?,
-            secret_id: Uuid::parse_str(&row.get::<_, String>("secret_id")?)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(
-                    0, rusqlite::types::Type::Text, Box::new(e)
-                ))?,
+            secret_id: Uuid::parse_str(&row.get::<_, String>("secret_id")?).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?,
             read_only,
             ssl_mode,
-            connect_timeout: row.get::<_, Option<i64>>("connect_timeout")?.map(|i| i as u32),
-            query_timeout: row.get::<_, Option<i64>>("query_timeout")?.map(|i| i as u32),
-            max_connections: row.get::<_, Option<i64>>("max_connections")?.map(|i| i as u32),
+            connect_timeout: row
+                .get::<_, Option<i64>>("connect_timeout")?
+                .map(|i| i as u32),
+            query_timeout: row
+                .get::<_, Option<i64>>("query_timeout")?
+                .map(|i| i as u32),
+            max_connections: row
+                .get::<_, Option<i64>>("max_connections")?
+                .map(|i| i as u32),
             schema: row.get("schema_name")?,
             options,
             created_at,
@@ -719,202 +720,124 @@ impl ConnectionsManager {
         })
     }
 
-    pub async fn get_attachment_sql(&self, connection_id: Uuid, database_alias: String) -> Result<super::commands::AttachmentSql, ConnectionError> {
-        tracing::info!("[Connections] Getting attachment SQL for: connection_id={}, alias={}", connection_id, database_alias);
-        
-        // Get the connection configuration
-        let connection_config = self.get_connection(connection_id).await?;
-        
-        // Get the secret credentials
-        let secret_credentials = self.secrets_manager
-            .get_secret(connection_config.secret_id)
-            .await
-            .map_err(|e| ConnectionError::SecretError(
-                format!("Failed to get secret: {}", e)
-            ))?;
-        
-        // Validate that credentials exist
-        if !secret_credentials.credentials.contains_key("username") {
-            return Err(ConnectionError::ConnectionTestFailed {
-                error: "Secret missing username".to_string()
-            });
-        }
-        
-        if !secret_credentials.credentials.contains_key("password") {
-            return Err(ConnectionError::ConnectionTestFailed {
-                error: "Secret missing password".to_string()
-            });
-        }
-        
-        // Get the secret name from the existing secret metadata
-        let secret_name = format!("secret_{}", secret_credentials.metadata.id.to_string().replace("-", "_"));
-        
-        // Create a temporary secret with only the authentication credentials from the existing secret
-        let mut temp_credentials = std::collections::HashMap::new();
-        if let Some(username) = secret_credentials.credentials.get("username") {
-            temp_credentials.insert("username".to_string(), crate::secrets::models::SecureString::new(username.expose()));
-        }
-        if let Some(password) = secret_credentials.credentials.get("password") {
-            temp_credentials.insert("password".to_string(), crate::secrets::models::SecureString::new(password.expose()));
-        }
-        
-        let temp_secret_metadata = crate::secrets::models::SecretMetadata {
-            id: secret_credentials.metadata.id, // Use the same ID as the existing secret
-            name: secret_name.clone(),
-            secret_type: match connection_config.connection_type {
-                ConnectionType::Postgres => crate::secrets::models::SecretType::Postgres,
-                ConnectionType::MySQL => crate::secrets::models::SecretType::MySQL,
-            },
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            last_used: None,
-            tags: vec![],
-            description: Some("Temporary secret for remote database attachment".to_string()),
-            scope: None,
-        };
-        
-        let temp_secret_credentials = crate::secrets::models::SecretCredentials {
-            metadata: temp_secret_metadata,
-            credentials: temp_credentials,
-        };
-        
-        // Create the secret injector and build the CREATE SECRET SQL (only with auth credentials)
-        let injector = crate::secrets::injector::DuckDBSecretInjector::new();
-        let secret_sql = injector.build_create_secret(&temp_secret_credentials)
-            .map_err(|e| ConnectionError::ConnectionTestFailed {
-                error: format!("Failed to create secret SQL: {}", e),
-            })?;
-        
-        // Build connection string with parameters (but NOT credentials or secret)
-        let connection_string = match connection_config.connection_type {
-            ConnectionType::Postgres => {
-                let mut params = vec![
-                    format!("host={}", connection_config.host),
-                    format!("port={}", connection_config.port),
-                    format!("dbname={}", connection_config.database),
-                ];
-                
-                // Add SSL mode if specified
-                if let Some(ssl_mode) = &connection_config.ssl_mode {
-                    params.push(format!("sslmode={}", ssl_mode.to_string()));
-                }
-                
-                params.join(" ")
-            },
-            ConnectionType::MySQL => {
-                vec![
-                    format!("host={}", connection_config.host),
-                    format!("port={}", connection_config.port),
-                    format!("database={}", connection_config.database),
-                ].join(" ")
-            }
-        };
-        
-        // Build ATTACH SQL
-        let database_type = match connection_config.connection_type {
-            ConnectionType::Postgres => "POSTGRES",
-            ConnectionType::MySQL => "MYSQL",
-        };
-        
-        let attach_sql = format!(
-            "ATTACH '{}' AS {} (TYPE {}, SECRET {})",
-            connection_string,
-            database_alias,
-            database_type,
-            secret_name
+    pub async fn register_motherduck_attachment(
+        &self,
+        database_url: String,
+    ) -> Result<(), ConnectionError> {
+        tracing::info!(
+            "[Connections] Registering MotherDuck attachment: url={}",
+            database_url
         );
-        
-        Ok(super::commands::AttachmentSql {
-            secret_sql,
-            attach_sql,
-        })
-    }
 
-    pub async fn register_motherduck_attachment(&self, database_url: String) -> Result<(), ConnectionError> {
-        tracing::info!("[Connections] Registering MotherDuck attachment: url={}", database_url);
-        
         // Check if DuckDB engine is available
-        let engine = self.duckdb_engine.as_ref()
-            .ok_or_else(|| ConnectionError::ConnectionTestFailed {
-                error: "DuckDB engine not initialized".to_string()
-            })?;
-        
+        let engine =
+            self.duckdb_engine
+                .as_ref()
+                .ok_or_else(|| ConnectionError::ConnectionTestFailed {
+                    error: "DuckDB engine not initialized".to_string(),
+                })?;
+
         // Extract database name from URL (md:database_name)
         let db_name = if database_url.starts_with("md:") {
             database_url[3..].to_string()
         } else {
             return Err(ConnectionError::ConnectionTestFailed {
-                error: "Invalid MotherDuck URL format".to_string()
+                error: "Invalid MotherDuck URL format".to_string(),
             });
         };
-        
+
         // MotherDuck doesn't use secrets
         // IMPORTANT: Apply the attachment to all existing connections
         // This ensures MotherDuck databases appear in duckdb_databases across all connections
-        engine.attach_motherduck_to_all_connections(database_url.clone()).await
+        engine
+            .attach_motherduck_to_all_connections(database_url.clone())
+            .await
             .map_err(|e| ConnectionError::ConnectionTestFailed {
-                error: format!("Failed to attach MotherDuck database: {}", e)
+                error: format!("Failed to attach MotherDuck database: {}", e),
             })?;
-        
+
         // Register with the pool for re-attachment on new connections
         // MotherDuck doesn't need a secret, so we pass empty string for secret_sql
-        engine.register_database_attachment(
-            db_name.clone(),
-            database_url.clone(),
-            "MOTHERDUCK".to_string(),
-            String::new(), // No secret SQL for MotherDuck
-        ).await;
-        
-        tracing::info!("[Connections] Attached and registered MotherDuck database '{}' for all connections", db_name);
-        
+        engine
+            .register_database_attachment(
+                db_name.clone(),
+                database_url.clone(),
+                "MOTHERDUCK".to_string(),
+                String::new(), // No secret SQL for MotherDuck
+            )
+            .await;
+
+        tracing::info!(
+            "[Connections] Attached and registered MotherDuck database '{}' for all connections",
+            db_name
+        );
+
         Ok(())
     }
 
-    pub async fn attach_remote_database(&self, connection_id: Uuid, database_alias: String) -> Result<(), ConnectionError> {
-        tracing::info!("[Connections] Attaching remote database: connection_id={}, alias={}", connection_id, database_alias);
-        
+    pub async fn attach_remote_database(
+        &self,
+        connection_id: Uuid,
+        database_alias: String,
+    ) -> Result<(), ConnectionError> {
+        tracing::info!(
+            "[Connections] Attaching remote database: connection_id={}, alias={}",
+            connection_id,
+            database_alias
+        );
+
         // Check if DuckDB engine is available
-        let engine = self.duckdb_engine.as_ref()
-            .ok_or_else(|| ConnectionError::ConnectionTestFailed {
-                error: "DuckDB engine not initialized".to_string()
-            })?;
-        
+        let engine =
+            self.duckdb_engine
+                .as_ref()
+                .ok_or_else(|| ConnectionError::ConnectionTestFailed {
+                    error: "DuckDB engine not initialized".to_string(),
+                })?;
+
         // Get the connection configuration
         let connection_config = self.get_connection(connection_id).await?;
-        
+
         // Get the secret credentials
-        let secret_credentials = self.secrets_manager
+        let secret_credentials = self
+            .secrets_manager
             .get_secret(connection_config.secret_id)
             .await
-            .map_err(|e| ConnectionError::SecretError(
-                format!("Failed to get secret: {}", e)
-            ))?;
-        
+            .map_err(|e| ConnectionError::SecretError(format!("Failed to get secret: {}", e)))?;
+
         // Validate that credentials exist
         if !secret_credentials.credentials.contains_key("username") {
             return Err(ConnectionError::ConnectionTestFailed {
-                error: "Secret missing username".to_string()
+                error: "Secret missing username".to_string(),
             });
         }
-        
+
         if !secret_credentials.credentials.contains_key("password") {
             return Err(ConnectionError::ConnectionTestFailed {
-                error: "Secret missing password".to_string()
+                error: "Secret missing password".to_string(),
             });
         }
-        
+
         // Get the secret name from the existing secret metadata
-        let secret_name = format!("secret_{}", secret_credentials.metadata.id.to_string().replace("-", "_"));
-        
+        let secret_name = format!(
+            "secret_{}",
+            secret_credentials.metadata.id.to_string().replace("-", "_")
+        );
+
         // Create a temporary secret with only the authentication credentials from the existing secret
         let mut temp_credentials = std::collections::HashMap::new();
         if let Some(username) = secret_credentials.credentials.get("username") {
-            temp_credentials.insert("username".to_string(), crate::secrets::models::SecureString::new(username.expose()));
+            temp_credentials.insert(
+                "username".to_string(),
+                crate::secrets::models::SecureString::new(username.expose()),
+            );
         }
         if let Some(password) = secret_credentials.credentials.get("password") {
-            temp_credentials.insert("password".to_string(), crate::secrets::models::SecureString::new(password.expose()));
+            temp_credentials.insert(
+                "password".to_string(),
+                crate::secrets::models::SecureString::new(password.expose()),
+            );
         }
-        
+
         let temp_secret_metadata = crate::secrets::models::SecretMetadata {
             id: secret_credentials.metadata.id, // Use the same ID as the existing secret
             name: secret_name.clone(),
@@ -929,12 +852,12 @@ impl ConnectionsManager {
             description: Some("Temporary secret for remote database attachment".to_string()),
             scope: None,
         };
-        
+
         let temp_secret_credentials = crate::secrets::models::SecretCredentials {
             metadata: temp_secret_metadata,
             credentials: temp_credentials,
         };
-        
+
         // Create the secret injector and build the CREATE SECRET SQL (only with auth credentials)
         let injector = crate::secrets::injector::DuckDBSecretInjector::new();
         let create_secret_sql = match injector.build_create_secret(&temp_secret_credentials) {
@@ -946,7 +869,7 @@ impl ConnectionsManager {
                 });
             }
         };
-        
+
         // Build connection string with parameters (but NOT credentials or secret)
         let connection_string = match connection_config.connection_type {
             ConnectionType::Postgres => {
@@ -955,45 +878,49 @@ impl ConnectionsManager {
                     format!("port={}", connection_config.port),
                     format!("dbname={}", connection_config.database),
                 ];
-                
+
                 // Add SSL mode if specified
                 if let Some(ssl_mode) = &connection_config.ssl_mode {
                     params.push(format!("sslmode={}", ssl_mode.to_string()));
                 }
-                
+
                 params.join(" ")
-            },
-            ConnectionType::MySQL => {
-                vec![
-                    format!("host={}", connection_config.host),
-                    format!("port={}", connection_config.port),
-                    format!("database={}", connection_config.database),
-                ].join(" ")
             }
+            ConnectionType::MySQL => vec![
+                format!("host={}", connection_config.host),
+                format!("port={}", connection_config.port),
+                format!("database={}", connection_config.database),
+            ]
+            .join(" "),
         };
-        
+
         // Use the DuckDB engine to attach the database with the secret
         let database_type = match connection_config.connection_type {
             ConnectionType::Postgres => "POSTGRES",
             ConnectionType::MySQL => "MYSQL",
         };
-        
-        engine.attach_remote_database(
-            database_alias.clone(),
-            connection_string,
-            database_type.to_string(),
-            create_secret_sql,
-            secret_name,
-        ).await
-        .map_err(|e| ConnectionError::ConnectionTestFailed {
-            error: format!("Failed to attach remote database: {}", e),
-        })?;
-        
-        tracing::info!("[Connections] Remote database attached successfully: {}", database_alias);
-        
+
+        engine
+            .attach_remote_database(
+                database_alias.clone(),
+                connection_string,
+                database_type.to_string(),
+                create_secret_sql,
+                secret_name,
+            )
+            .await
+            .map_err(|e| ConnectionError::ConnectionTestFailed {
+                error: format!("Failed to attach remote database: {}", e),
+            })?;
+
+        tracing::info!(
+            "[Connections] Remote database attached successfully: {}",
+            database_alias
+        );
+
         // Update the last used timestamp for the connection
         self.update_last_used(connection_id).await?;
-        
+
         Ok(())
     }
 }

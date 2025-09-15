@@ -36,22 +36,34 @@ mod sql_injection_tests {
     fn test_reject_sql_comments() {
         let result = escape_sql_value(&json!("test -- comment"));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Suspicious SQL patterns"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Suspicious SQL patterns"));
 
         let result = escape_sql_value(&json!("test /* comment */"));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Suspicious SQL patterns"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Suspicious SQL patterns"));
     }
 
     #[test]
     fn test_reject_multiple_statements() {
         let result = escape_sql_value(&json!("test; DROP TABLE users"));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Suspicious SQL patterns"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Suspicious SQL patterns"));
 
         let result = escape_sql_value(&json!("test; DELETE FROM data"));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Suspicious SQL patterns"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Suspicious SQL patterns"));
     }
 
     #[test]
@@ -59,23 +71,32 @@ mod sql_injection_tests {
         let sql = "SELECT * FROM users WHERE name = ? AND age > ?";
         let params = vec![json!("Alice"), json!(25)];
         let result = build_parameterized_query(sql, &params).unwrap();
-        assert_eq!(result, "SELECT * FROM users WHERE name = 'Alice' AND age > 25");
+        assert_eq!(
+            result,
+            "SELECT * FROM users WHERE name = 'Alice' AND age > 25"
+        );
     }
 
     #[test]
     fn test_parameter_count_validation() {
         let sql = "SELECT * FROM users WHERE name = ?";
-        
+
         // Too few parameters
         let result = build_parameterized_query(sql, &[]);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Not enough parameters"));
-        
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Not enough parameters"));
+
         // Too many parameters
         let params = vec![json!("Alice"), json!("Bob")];
         let result = build_parameterized_query(sql, &params);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Too many parameters"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Too many parameters"));
     }
 
     // Note: sanitize_identifier is not exposed in the public API
@@ -85,9 +106,9 @@ mod sql_injection_tests {
 
 #[cfg(test)]
 mod path_traversal_tests {
-    use std::path::PathBuf;
-    use std::fs;
     use std::env;
+    use std::fs;
+    use std::path::PathBuf;
 
     // Note: validate_file_path is not public, so we'll test via the public API
     // that uses it (engine.register_file)
@@ -135,17 +156,19 @@ mod path_traversal_tests {
         ];
 
         for path in suspicious {
-            assert!(path.contains("//") || 
-                   path.contains("/./") || 
-                   path.contains("/../") ||
-                   path.contains("%25"));
+            assert!(
+                path.contains("//")
+                    || path.contains("/./")
+                    || path.contains("/../")
+                    || path.contains("%25")
+            );
         }
     }
 }
 
 #[cfg(test)]
 mod connection_pool_tests {
-    use pondpilot_desktop::database::unified_pool::{UnifiedPool, PoolConfig};
+    use pondpilot_desktop::database::unified_pool::{PoolConfig, UnifiedPool};
     use std::path::PathBuf;
     use std::time::Duration;
 
@@ -157,7 +180,7 @@ mod connection_pool_tests {
             idle_timeout: Duration::from_secs(60),
             acquire_timeout: Duration::from_secs(1),
         };
-        
+
         let db_path = PathBuf::from(":memory:");
         let pool = UnifiedPool::new(db_path, config);
         assert!(pool.is_ok());
@@ -168,10 +191,13 @@ mod connection_pool_tests {
         let config = PoolConfig::default();
         let db_path = PathBuf::from(":memory:");
         let pool = UnifiedPool::new(db_path, config).unwrap();
-        
+
         let health = pool.health_check().await.unwrap();
         assert!(health.is_healthy);
-        assert_eq!(health.stats.available_connections, health.stats.total_connections);
+        assert_eq!(
+            health.stats.available_connections,
+            health.stats.total_connections
+        );
     }
 
     #[tokio::test]
@@ -179,7 +205,7 @@ mod connection_pool_tests {
         let config = PoolConfig::default();
         let db_path = PathBuf::from(":memory:");
         let pool = UnifiedPool::new(db_path, config).unwrap();
-        
+
         let stats = pool.get_pool_stats();
         assert_eq!(stats.used_connections, 0);
         assert!(stats.available_connections > 0);
@@ -193,18 +219,18 @@ mod connection_pool_tests {
             idle_timeout: Duration::from_secs(60),
             acquire_timeout: Duration::from_secs(1),
         };
-        
+
         let db_path = PathBuf::from(":memory:");
         let pool = UnifiedPool::new(db_path, config).unwrap();
-        
+
         // Acquire first permit
         let permit1 = pool.acquire_connection_permit().await;
         assert!(permit1.is_ok());
-        
+
         // Acquire second permit
         let permit2 = pool.acquire_connection_permit().await;
         assert!(permit2.is_ok());
-        
+
         // Third should timeout since max is 2
         let start = std::time::Instant::now();
         let permit3 = pool.acquire_connection_permit().await;
@@ -226,7 +252,7 @@ mod error_handling_tests {
             error_code: Some("E001".to_string()),
             line_number: Some(42),
         };
-        
+
         let json_error = json!(error);
         assert_eq!(json_error["type"], "QueryError");
         assert_eq!(json_error["details"]["message"], "Test error");
@@ -241,11 +267,14 @@ mod error_handling_tests {
             message: "Connection failed".to_string(),
             context: Some("During pool initialization".to_string()),
         };
-        
+
         let json_error = json!(error);
         assert_eq!(json_error["type"], "ConnectionError");
         assert_eq!(json_error["details"]["message"], "Connection failed");
-        assert_eq!(json_error["details"]["context"], "During pool initialization");
+        assert_eq!(
+            json_error["details"]["context"],
+            "During pool initialization"
+        );
     }
 
     #[test]
@@ -254,7 +283,7 @@ mod error_handling_tests {
             message: "Permission denied".to_string(),
             path: Some("/restricted/file.csv".to_string()),
         };
-        
+
         let json_error = json!(error);
         assert_eq!(json_error["type"], "FileAccess");
         assert_eq!(json_error["details"]["message"], "Permission denied");
@@ -269,7 +298,7 @@ mod configuration_tests {
     #[test]
     fn test_config_validation() {
         let mut config = AppConfig::default();
-        
+
         // Set invalid values
         config.database.min_connections = 10;
         config.database.max_connections = 5;
@@ -277,14 +306,17 @@ mod configuration_tests {
         config.resource.default_query_memory_mb = 5000;
         config.resource.max_query_memory_mb = 1000;
         config.resource.pool_memory_percentage = 2.0;
-        
+
         // Validate should fix these
         config.validate();
-        
+
         assert!(config.database.min_connections <= config.database.max_connections);
         assert!(config.database.max_streaming_connections <= config.database.max_connections);
         assert!(config.resource.default_query_memory_mb <= config.resource.max_query_memory_mb);
-        assert!(config.resource.pool_memory_percentage > 0.0 && config.resource.pool_memory_percentage <= 1.0);
+        assert!(
+            config.resource.pool_memory_percentage > 0.0
+                && config.resource.pool_memory_percentage <= 1.0
+        );
     }
 
     #[test]
@@ -293,18 +325,18 @@ mod configuration_tests {
         std::env::remove_var("PONDPILOT_WORKER_THREADS");
         std::env::remove_var("PONDPILOT_MAX_CONNECTIONS");
         std::env::remove_var("PONDPILOT_MAX_QUERY_MEMORY_MB");
-        
+
         // Set some environment variables
         std::env::set_var("PONDPILOT_WORKER_THREADS", "8");
         std::env::set_var("PONDPILOT_MAX_CONNECTIONS", "20");
         std::env::set_var("PONDPILOT_MAX_QUERY_MEMORY_MB", "4096");
-        
+
         let config = AppConfig::from_env();
-        
+
         assert_eq!(config.runtime.worker_threads, 8);
         assert_eq!(config.database.max_connections, 20);
         assert_eq!(config.resource.max_query_memory_mb, 4096);
-        
+
         // Clean up
         std::env::remove_var("PONDPILOT_WORKER_THREADS");
         std::env::remove_var("PONDPILOT_MAX_CONNECTIONS");
@@ -317,14 +349,14 @@ mod configuration_tests {
         std::env::set_var("PONDPILOT_WORKER_THREADS", "999999");
         std::env::set_var("PONDPILOT_MAX_CONNECTIONS", "0");
         std::env::set_var("PONDPILOT_MAX_QUERY_MEMORY_MB", "5");
-        
+
         let config = AppConfig::from_env();
-        
+
         // Should use defaults for invalid values
         assert_ne!(config.runtime.worker_threads, 999999);
         assert_ne!(config.database.max_connections, 0);
         assert_ne!(config.resource.max_query_memory_mb, 5);
-        
+
         // Clean up
         std::env::remove_var("PONDPILOT_WORKER_THREADS");
         std::env::remove_var("PONDPILOT_MAX_CONNECTIONS");

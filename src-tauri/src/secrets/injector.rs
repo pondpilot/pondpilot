@@ -1,5 +1,5 @@
-use super::models::{SecretCredentials, SecretType};
 use super::errors::SecretError;
+use super::models::{SecretCredentials, SecretType};
 
 pub struct DuckDBSecretInjector;
 
@@ -9,14 +9,18 @@ impl DuckDBSecretInjector {
     }
 
     pub fn build_create_secret(&self, secret: &SecretCredentials) -> Result<String, SecretError> {
-        let secret_name = format!("secret_{}", secret.metadata.id.to_string().replace("-", "_"));
+        let secret_name = format!(
+            "secret_{}",
+            secret.metadata.id.to_string().replace("-", "_")
+        );
         let creds = &secret.credentials;
-        
+
         let sql = match secret.metadata.secret_type {
             SecretType::MotherDuck => {
-                let token = creds.get("token")
+                let token = creds
+                    .get("token")
                     .ok_or(SecretError::MissingCredential("token".to_string()))?;
-                
+
                 format!(
                     "CREATE TEMPORARY SECRET IF NOT EXISTS {} (
                         TYPE MOTHERDUCK,
@@ -25,13 +29,13 @@ impl DuckDBSecretInjector {
                     secret_name,
                     escape_sql_string(token.expose())
                 )
-            },
-            
+            }
+
             SecretType::S3 => {
                 let mut params = vec![];
-                
+
                 params.push(format!("TYPE S3"));
-                
+
                 if let Some(key_id) = creds.get("key_id") {
                     params.push(format!("KEY_ID '{}'", escape_sql_string(key_id.expose())));
                 }
@@ -42,12 +46,18 @@ impl DuckDBSecretInjector {
                     params.push(format!("REGION '{}'", escape_sql_string(region.expose())));
                 }
                 if let Some(session_token) = creds.get("session_token") {
-                    params.push(format!("SESSION_TOKEN '{}'", escape_sql_string(session_token.expose())));
+                    params.push(format!(
+                        "SESSION_TOKEN '{}'",
+                        escape_sql_string(session_token.expose())
+                    ));
                 }
                 if let Some(endpoint) = creds.get("endpoint") {
-                    params.push(format!("ENDPOINT '{}'", escape_sql_string(endpoint.expose())));
+                    params.push(format!(
+                        "ENDPOINT '{}'",
+                        escape_sql_string(endpoint.expose())
+                    ));
                 }
-                
+
                 format!(
                     "CREATE TEMPORARY SECRET IF NOT EXISTS {} (
                         {}
@@ -55,13 +65,16 @@ impl DuckDBSecretInjector {
                     secret_name,
                     params.join(",\n        ")
                 )
-            },
-            
+            }
+
             SecretType::R2 => {
                 let mut params = vec![format!("TYPE R2")];
-                
+
                 if let Some(account_id) = creds.get("account_id") {
-                    params.push(format!("ACCOUNT_ID '{}'", escape_sql_string(account_id.expose())));
+                    params.push(format!(
+                        "ACCOUNT_ID '{}'",
+                        escape_sql_string(account_id.expose())
+                    ));
                 }
                 if let Some(key_id) = creds.get("key_id") {
                     params.push(format!("KEY_ID '{}'", escape_sql_string(key_id.expose())));
@@ -69,7 +82,7 @@ impl DuckDBSecretInjector {
                 if let Some(secret) = creds.get("secret") {
                     params.push(format!("SECRET '{}'", escape_sql_string(secret.expose())));
                 }
-                
+
                 format!(
                     "CREATE TEMPORARY SECRET IF NOT EXISTS {} (
                         {}
@@ -77,18 +90,18 @@ impl DuckDBSecretInjector {
                     secret_name,
                     params.join(",\n        ")
                 )
-            },
-            
+            }
+
             SecretType::GCS => {
                 let mut params = vec![format!("TYPE GCS")];
-                
+
                 if let Some(key_id) = creds.get("key_id") {
                     params.push(format!("KEY_ID '{}'", escape_sql_string(key_id.expose())));
                 }
                 if let Some(secret) = creds.get("secret") {
                     params.push(format!("SECRET '{}'", escape_sql_string(secret.expose())));
                 }
-                
+
                 format!(
                     "CREATE TEMPORARY SECRET IF NOT EXISTS {} (
                         {}
@@ -96,24 +109,36 @@ impl DuckDBSecretInjector {
                     secret_name,
                     params.join(",\n        ")
                 )
-            },
-            
+            }
+
             SecretType::Azure => {
                 let mut params = vec![format!("TYPE AZURE")];
-                
+
                 if let Some(tenant_id) = creds.get("tenant_id") {
-                    params.push(format!("TENANT_ID '{}'", escape_sql_string(tenant_id.expose())));
+                    params.push(format!(
+                        "TENANT_ID '{}'",
+                        escape_sql_string(tenant_id.expose())
+                    ));
                 }
                 if let Some(client_id) = creds.get("client_id") {
-                    params.push(format!("CLIENT_ID '{}'", escape_sql_string(client_id.expose())));
+                    params.push(format!(
+                        "CLIENT_ID '{}'",
+                        escape_sql_string(client_id.expose())
+                    ));
                 }
                 if let Some(client_secret) = creds.get("client_secret") {
-                    params.push(format!("CLIENT_SECRET '{}'", escape_sql_string(client_secret.expose())));
+                    params.push(format!(
+                        "CLIENT_SECRET '{}'",
+                        escape_sql_string(client_secret.expose())
+                    ));
                 }
                 if let Some(account_id) = creds.get("account_id") {
-                    params.push(format!("ACCOUNT_ID '{}'", escape_sql_string(account_id.expose())));
+                    params.push(format!(
+                        "ACCOUNT_ID '{}'",
+                        escape_sql_string(account_id.expose())
+                    ));
                 }
-                
+
                 format!(
                     "CREATE TEMPORARY SECRET IF NOT EXISTS {} (
                         {}
@@ -121,11 +146,11 @@ impl DuckDBSecretInjector {
                     secret_name,
                     params.join(",\n        ")
                 )
-            },
-            
+            }
+
             SecretType::Postgres => {
                 let mut params = vec![format!("TYPE POSTGRES")];
-                
+
                 if let Some(host) = creds.get("host") {
                     params.push(format!("HOST '{}'", escape_sql_string(host.expose())));
                 }
@@ -133,15 +158,21 @@ impl DuckDBSecretInjector {
                     params.push(format!("PORT {}", port.expose()));
                 }
                 if let Some(database) = creds.get("database") {
-                    params.push(format!("DATABASE '{}'", escape_sql_string(database.expose())));
+                    params.push(format!(
+                        "DATABASE '{}'",
+                        escape_sql_string(database.expose())
+                    ));
                 }
                 if let Some(username) = creds.get("username") {
                     params.push(format!("USER '{}'", escape_sql_string(username.expose())));
                 }
                 if let Some(password) = creds.get("password") {
-                    params.push(format!("PASSWORD '{}'", escape_sql_string(password.expose())));
+                    params.push(format!(
+                        "PASSWORD '{}'",
+                        escape_sql_string(password.expose())
+                    ));
                 }
-                
+
                 format!(
                     "CREATE TEMPORARY SECRET IF NOT EXISTS {} (
                         {}
@@ -149,11 +180,11 @@ impl DuckDBSecretInjector {
                     secret_name,
                     params.join(",\n        ")
                 )
-            },
-            
+            }
+
             SecretType::MySQL => {
                 let mut params = vec![format!("TYPE MYSQL")];
-                
+
                 if let Some(host) = creds.get("host") {
                     params.push(format!("HOST '{}'", escape_sql_string(host.expose())));
                 }
@@ -161,15 +192,21 @@ impl DuckDBSecretInjector {
                     params.push(format!("PORT {}", port.expose()));
                 }
                 if let Some(database) = creds.get("database") {
-                    params.push(format!("DATABASE '{}'", escape_sql_string(database.expose())));
+                    params.push(format!(
+                        "DATABASE '{}'",
+                        escape_sql_string(database.expose())
+                    ));
                 }
                 if let Some(username) = creds.get("username") {
                     params.push(format!("USER '{}'", escape_sql_string(username.expose())));
                 }
                 if let Some(password) = creds.get("password") {
-                    params.push(format!("PASSWORD '{}'", escape_sql_string(password.expose())));
+                    params.push(format!(
+                        "PASSWORD '{}'",
+                        escape_sql_string(password.expose())
+                    ));
                 }
-                
+
                 format!(
                     "CREATE TEMPORARY SECRET IF NOT EXISTS {} (
                         {}
@@ -177,15 +214,18 @@ impl DuckDBSecretInjector {
                     secret_name,
                     params.join(",\n        ")
                 )
-            },
-            
+            }
+
             SecretType::HTTP => {
                 let mut params = vec![format!("TYPE HTTP")];
-                
+
                 if let Some(token) = creds.get("token") {
-                    params.push(format!("BEARER_TOKEN '{}'", escape_sql_string(token.expose())));
+                    params.push(format!(
+                        "BEARER_TOKEN '{}'",
+                        escape_sql_string(token.expose())
+                    ));
                 }
-                
+
                 format!(
                     "CREATE TEMPORARY SECRET IF NOT EXISTS {} (
                         {}
@@ -193,15 +233,15 @@ impl DuckDBSecretInjector {
                     secret_name,
                     params.join(",\n        ")
                 )
-            },
-            
+            }
+
             SecretType::HuggingFace => {
                 let mut params = vec![format!("TYPE HUGGINGFACE")];
-                
+
                 if let Some(token) = creds.get("token") {
                     params.push(format!("TOKEN '{}'", escape_sql_string(token.expose())));
                 }
-                
+
                 format!(
                     "CREATE TEMPORARY SECRET IF NOT EXISTS {} (
                         {}
@@ -209,15 +249,15 @@ impl DuckDBSecretInjector {
                     secret_name,
                     params.join(",\n        ")
                 )
-            },
-            
+            }
+
             SecretType::DuckLake => {
                 let mut params = vec![format!("TYPE DUCKLAKE")];
-                
+
                 if let Some(token) = creds.get("token") {
                     params.push(format!("TOKEN '{}'", escape_sql_string(token.expose())));
                 }
-                
+
                 format!(
                     "CREATE TEMPORARY SECRET IF NOT EXISTS {} (
                         {}
@@ -225,11 +265,12 @@ impl DuckDBSecretInjector {
                     secret_name,
                     params.join(",\n        ")
                 )
-            },
+            }
         };
-        
+
         if let Some(scope) = &secret.metadata.scope {
-            Ok(format!("{}, SCOPE '{}')", 
+            Ok(format!(
+                "{}, SCOPE '{}')",
                 sql.trim_end_matches(')'),
                 escape_sql_string(scope)
             ))

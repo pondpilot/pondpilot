@@ -23,7 +23,9 @@ pub struct AttachItem {
 pub fn build_attach_statements(items: &[AttachItem]) -> Vec<String> {
     let mut stmts = Vec::new();
     for item in items {
-        if item.url.trim().is_empty() { continue; }
+        if item.url.trim().is_empty() {
+            continue;
+        }
         let db_ident = escape_identifier(&item.db_name);
         let url_lit = escape_string_literal(&item.url);
         // Always detach first to ensure clean attach
@@ -39,4 +41,3 @@ pub fn build_attach_statements(items: &[AttachItem]) -> Vec<String> {
     }
     stmts
 }
-

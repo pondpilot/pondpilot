@@ -169,15 +169,18 @@ pub struct DeleteAllRequest {
 }
 
 // Helper function to map from hyphenated to underscore table names
-fn map_table_name(table: &str) -> &'static str {
+fn map_table_name(table: &str) -> Result<&'static str, DuckDBError> {
     match table {
-        "data-source" => "data_sources",
-        "local-entry" => "local_entries",
-        "sql-script" => "sql_scripts",
-        "tab" => "tabs",
-        "content-view" => "content_view",
-        "duckdb-session" => "duckdb_session",
-        _ => panic!("Unknown table name: {}", table),
+        "data-source" => Ok("data_sources"),
+        "local-entry" => Ok("local_entries"),
+        "sql-script" => Ok("sql_scripts"),
+        "tab" => Ok("tabs"),
+        "content-view" => Ok("content_view"),
+        "duckdb-session" => Ok("duckdb_session"),
+        _ => Err(DuckDBError::InvalidOperation {
+            message: format!("Unknown persistence table: {}", table),
+            operation: Some("map_table_name".to_string()),
+        }),
     }
 }
 
@@ -213,7 +216,7 @@ pub async fn sqlite_get(
         })?;
 
     // Map hyphenated table name to underscore version
-    let mapped_table = map_table_name(&table);
+    let mapped_table = map_table_name(&table)?;
     let query = format!("SELECT data FROM {} WHERE id = ?1", mapped_table);
 
     let result: Result<String, _> = conn.query_row(&query, params![key], |row| row.get(0));
@@ -247,7 +250,7 @@ pub async fn sqlite_put(
     let data = serde_json::to_string(&value)?;
 
     // Map hyphenated table name to underscore version
-    let mapped_table = map_table_name(&table);
+    let mapped_table = map_table_name(&table)?;
     let query = format!(
         "INSERT OR REPLACE INTO {} (id, data) VALUES (?1, ?2)",
         mapped_table
@@ -273,7 +276,7 @@ pub async fn sqlite_delete(
         })?;
 
     // Map hyphenated table name to underscore version
-    let mapped_table = map_table_name(&table);
+    let mapped_table = map_table_name(&table)?;
     let query = format!("DELETE FROM {} WHERE id = ?1", mapped_table);
 
     conn.execute(&query, params![key])?;
@@ -295,7 +298,7 @@ pub async fn sqlite_clear(
         })?;
 
     // Map hyphenated table name to underscore version
-    let mapped_table = map_table_name(&table);
+    let mapped_table = map_table_name(&table)?;
     let query = format!("DELETE FROM {}", mapped_table);
 
     conn.execute(&query, [])?;
@@ -317,7 +320,7 @@ pub async fn sqlite_get_all(
         })?;
 
     // Map hyphenated table name to underscore version
-    let mapped_table = map_table_name(&table);
+    let mapped_table = map_table_name(&table)?;
     let query = format!("SELECT data FROM {}", mapped_table);
 
     let mut stmt = conn.prepare(&query)?;
@@ -352,7 +355,7 @@ pub async fn sqlite_put_all(
             operation: None,
         })?;
 
-    let mapped_table = map_table_name(&table);
+    let mapped_table = map_table_name(&table)?;
     let tx = conn.transaction()?;
     let sql = format!(
         "INSERT OR REPLACE INTO {} (id, data) VALUES (?1, ?2)",
@@ -383,7 +386,7 @@ pub async fn sqlite_delete_all(
             operation: None,
         })?;
 
-    let mapped_table = map_table_name(&table);
+    let mapped_table = map_table_name(&table)?;
     let tx = conn.transaction()?;
     let sql = format!("DELETE FROM {} WHERE id = ?1", mapped_table);
     {
