@@ -3,21 +3,12 @@ import { BrowserSupportedFeatures } from '@models/browser';
 import { isMobileDevice } from './is-mobile-device';
 
 export function isTauriEnvironment(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  const userAgent =
-    typeof window.navigator === 'object' && typeof window.navigator.userAgent === 'string'
-      ? window.navigator.userAgent
-      : '';
-
-  // Check multiple indicators for Tauri environment
   return (
-    '__TAURI__' in window ||
-    userAgent.includes('Tauri') ||
-    // Also check for Tauri-specific globals that might be available
-    '__TAURI_INTERNALS__' in window
+    typeof window !== 'undefined' &&
+    ('__TAURI__' in window ||
+      (window.navigator?.userAgent ?? '').includes('Tauri') ||
+      // Also check for Tauri-specific globals that might be available
+      '__TAURI_INTERNALS__' in window)
   );
 }
 
