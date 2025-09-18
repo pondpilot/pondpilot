@@ -5,7 +5,7 @@ import { test } from '../fixtures/page';
 test.describe('Multi-Engine Database Support', () => {
   test('should execute basic queries', async ({ page }) => {
     // Open SQL editor
-    await page.getByTestId('spotlight-trigger').click();
+    await page.getByTestId('spotlight-trigger-input').click();
     await page.getByTestId('spotlight-input').fill('New SQL');
     await page.getByTestId('spotlight-item-New SQL Script').click();
 
@@ -66,7 +66,7 @@ test.describe('Multi-Engine Database Support', () => {
     await page.getByTestId('add-files-button').click();
 
     // Query the file
-    await page.getByTestId('spotlight-trigger').click();
+    await page.getByTestId('spotlight-trigger-input').click();
     await page.getByTestId('spotlight-input').fill('New SQL');
     await page.getByTestId('spotlight-item-New SQL Script').click();
 
@@ -83,7 +83,7 @@ test.describe('Multi-Engine Database Support', () => {
 
   test('should handle transactions', async ({ page }) => {
     // Open SQL editor
-    await page.getByTestId('spotlight-trigger').click();
+    await page.getByTestId('spotlight-trigger-input').click();
     await page.getByTestId('spotlight-input').fill('New SQL');
     await page.getByTestId('spotlight-item-New SQL Script').click();
 
