@@ -6,8 +6,8 @@ test.describe('Multi-Engine Database Support', () => {
   test('should execute basic queries', async ({ page }) => {
     // Open SQL editor
     await page.getByTestId('spotlight-trigger-input').click();
-    await page.getByTestId('spotlight-input').fill('New SQL');
-    await page.getByTestId('spotlight-item-New SQL Script').click();
+    await page.getByTestId('spotlight-search').fill('New SQL');
+    await page.getByTestId('spotlight-action-create-new').click();
 
     // Create test data
     const editor = page.locator('.cm-content');
@@ -67,7 +67,7 @@ test.describe('Multi-Engine Database Support', () => {
 
     // Query the file
     await page.getByTestId('spotlight-trigger-input').click();
-    await page.getByTestId('spotlight-input').fill('New SQL');
+    await page.getByTestId('spotlight-search').fill('New SQL');
     await page.getByTestId('spotlight-item-New SQL Script').click();
 
     const editor = page.locator('.cm-content');
@@ -84,7 +84,7 @@ test.describe('Multi-Engine Database Support', () => {
   test('should handle transactions', async ({ page }) => {
     // Open SQL editor
     await page.getByTestId('spotlight-trigger-input').click();
-    await page.getByTestId('spotlight-input').fill('New SQL');
+    await page.getByTestId('spotlight-search').fill('New SQL');
     await page.getByTestId('spotlight-item-New SQL Script').click();
 
     const editor = page.locator('.cm-content');
