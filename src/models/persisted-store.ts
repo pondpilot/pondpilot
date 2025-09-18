@@ -1,6 +1,7 @@
 import { ContentViewPersistence } from '@models/content-view';
 import { PersistentDataSourceId, AnyDataSource } from '@models/data-source';
 import { LocalEntryId, LocalEntryPersistence } from '@models/file-system';
+import { LEGACY_TABLE_NAMES } from '@models/persistence-tables';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab, TabId } from '@models/tab';
 import { DBSchema } from 'idb';
@@ -8,12 +9,13 @@ import { DBSchema } from 'idb';
 export const APP_DB_NAME = 'app-data';
 export const DB_VERSION = 1;
 
-// Stores
-export const TAB_TABLE_NAME = 'tab';
-export const SQL_SCRIPT_TABLE_NAME = 'sql-script';
-export const CONTENT_VIEW_TABLE_NAME = 'content-view';
-export const LOCAL_ENTRY_TABLE_NAME = 'local-entry';
-export const DATA_SOURCE_TABLE_NAME = 'data-source';
+// Stores - Using hyphenated names for IndexedDB (web) compatibility
+// Note: Tauri/SQLite backend uses underscore names (data_sources, etc.) with automatic mapping
+export const TAB_TABLE_NAME = LEGACY_TABLE_NAMES.TABS; // 'tab'
+export const SQL_SCRIPT_TABLE_NAME = LEGACY_TABLE_NAMES.SQL_SCRIPTS; // 'sql-script'
+export const CONTENT_VIEW_TABLE_NAME = LEGACY_TABLE_NAMES.CONTENT_VIEW; // 'content-view'
+export const LOCAL_ENTRY_TABLE_NAME = LEGACY_TABLE_NAMES.LOCAL_ENTRIES; // 'local-entry'
+export const DATA_SOURCE_TABLE_NAME = LEGACY_TABLE_NAMES.DATA_SOURCES; // 'data-source'
 
 export const ALL_TABLE_NAMES = [
   CONTENT_VIEW_TABLE_NAME,

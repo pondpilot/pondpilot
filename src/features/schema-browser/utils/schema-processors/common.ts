@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { PersistentDataSourceId, AnyFlatFileDataSource } from '@models/data-source';
 
 import { DEFAULT_NODE_POSITION } from '../../constants';
@@ -12,7 +12,7 @@ import { extractFlatFileSchema, createSchemaNode } from '../schema-extraction';
  */
 export async function processSingleFileSource(
   source: AnyFlatFileDataSource,
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   abortSignal: AbortSignal,
   position: { x: number; y: number } = DEFAULT_NODE_POSITION,
 ): Promise<{ node: ReturnType<typeof createSchemaNode> | null; nodeData: SchemaNodeData | null }> {
@@ -38,7 +38,7 @@ export async function processSingleFileSource(
 export async function processMultipleFileSources(
   sources: (PersistentDataSourceId | string)[],
   flatFileSources: Map<PersistentDataSourceId, AnyFlatFileDataSource>,
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   abortSignal: AbortSignal,
   layoutStrategy: 'vertical' | 'circle' = 'vertical',
 ): Promise<SchemaGraph> {

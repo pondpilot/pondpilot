@@ -4,6 +4,7 @@
  */
 
 import { Facet, EditorState } from '@codemirror/state';
+import { ConnectionPool } from '@engines/types';
 
 import { SQLScript } from '../../../models/sql-script';
 import { getAIConfig } from '../../../utils/ai-config';
@@ -12,12 +13,11 @@ import {
   SchemaContextService,
   getSchemaContextService,
 } from '../../../utils/schema-context-service';
-import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
 
 export interface AIAssistantServices {
   aiService: AIService;
   schemaContextService: SchemaContextService;
-  connectionPool: AsyncDuckDBConnectionPool | null;
+  connectionPool: ConnectionPool | null;
   sqlScripts?: Map<string, SQLScript>;
 }
 
@@ -34,7 +34,7 @@ export const aiAssistantServicesFacet = Facet.define<AIAssistantServices, AIAssi
  * Creates AI Assistant services based on current configuration
  */
 export function createAIAssistantServices(
-  connectionPool?: AsyncDuckDBConnectionPool | null,
+  connectionPool?: ConnectionPool | null,
   customConfig?: AIServiceConfig,
   sqlScripts?: Map<string, SQLScript>,
 ): AIAssistantServices {
@@ -54,7 +54,7 @@ export function createAIAssistantServices(
  * Creates a facet extension with services for an editor
  */
 export function aiAssistantServicesExtension(
-  connectionPool?: AsyncDuckDBConnectionPool | null,
+  connectionPool?: ConnectionPool | null,
   services?: AIAssistantServices,
   sqlScripts?: Map<string, SQLScript>,
 ) {
