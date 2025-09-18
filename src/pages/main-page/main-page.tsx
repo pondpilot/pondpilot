@@ -20,6 +20,11 @@ import { useOutletContext } from 'react-router-dom';
 import { AccordionNavbar } from './components';
 import './main-page.css';
 
+interface OutletContext {
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
+}
+
 export const MainPage = () => {
   /**
    * Common hooks
@@ -33,9 +38,7 @@ export const MainPage = () => {
 
   // Get sidebar state from Tauri layout context if available
   // Always call the hook to maintain consistent hook order
-  const outletContext = useOutletContext<
-    { sidebarCollapsed: boolean; toggleSidebar: () => void } | undefined
-  >();
+  const outletContext = useOutletContext<OutletContext | undefined>();
   const tauriContext = isTauri ? outletContext : undefined;
 
   const [localSidebarCollapsed, setLocalSidebarCollapsed] = useState<boolean>(() => {
