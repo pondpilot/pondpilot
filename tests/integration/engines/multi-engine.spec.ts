@@ -7,7 +7,7 @@ test.describe('Multi-Engine Database Support', () => {
     // Open SQL editor
     await page.getByTestId('spotlight-trigger-input').click();
     await page.getByTestId('spotlight-search').fill('New SQL');
-    await page.getByTestId('spotlight-action-create-new').click();
+    await page.getByTestId('spotlight-action-create-new-script').click();
 
     // Create test data
     const editor = page.locator('.cm-content');
@@ -63,12 +63,16 @@ test.describe('Multi-Engine Database Support', () => {
     }, csvContent);
 
     // Add file through UI
-    await page.getByTestId('add-files-button').click();
+    await page.getByTestId('navbar-add-datasource-button').click();
+    const addFileCard = page.getByTestId('datasource-modal-add-file-card');
+    await expect(addFileCard).toBeVisible();
+    await addFileCard.click();
+    await expect(addFileCard).toBeHidden();
 
     // Query the file
     await page.getByTestId('spotlight-trigger-input').click();
     await page.getByTestId('spotlight-search').fill('New SQL');
-    await page.getByTestId('spotlight-item-New SQL Script').click();
+    await page.getByTestId('spotlight-action-create-new-script').click();
 
     const editor = page.locator('.cm-content');
     await editor.click();
@@ -85,7 +89,7 @@ test.describe('Multi-Engine Database Support', () => {
     // Open SQL editor
     await page.getByTestId('spotlight-trigger-input').click();
     await page.getByTestId('spotlight-search').fill('New SQL');
-    await page.getByTestId('spotlight-item-New SQL Script').click();
+    await page.getByTestId('spotlight-action-create-new-script').click();
 
     const editor = page.locator('.cm-content');
 
