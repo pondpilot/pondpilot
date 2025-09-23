@@ -26,6 +26,7 @@ import {
   SQLStatement,
   SQLStatementType,
 } from '@utils/editor/sql';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { formatSQLSafe } from '@utils/sql-formatter';
 import { Allotment } from 'allotment';
 import { memo, useCallback, useState, useEffect } from 'react';
@@ -37,6 +38,9 @@ interface ScriptTabViewProps {
   tabId: TabId;
   active: boolean;
 }
+
+const getScriptResultTableName = (tabId: TabId): string =>
+  `pondpilot_script_result_${tabId.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
 export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
   // Get the reactive portion of tab state
@@ -127,6 +131,12 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
       // Get a connection from the pool for the entire operation
       const conn = await pool.acquire();
+      const scriptResultTableName = getScriptResultTableName(tabId);
+      const qualifiedScriptResultTable = `main.${toDuckDBIdentifier(scriptResultTableName)}`;
+
+      const dropPreviousResult = async () => {
+        await conn.execute(`DROP TABLE IF EXISTS ${qualifiedScriptResultTable}`);
+      };
 
       const runQueryWithFileSyncAndRetry = async (code: string) => {
         try {
@@ -153,8 +163,37 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         }
       };
 
+      const createResultTableWithRetry = async (code: string) => {
+        try {
+          await conn.execute(`CREATE TABLE ${qualifiedScriptResultTable} AS ${code}`);
+        } catch (error: any) {
+          if (error.message?.includes('NotReadableError')) {
+            await syncFiles(pool);
+            await conn.execute(`CREATE TABLE ${qualifiedScriptResultTable} AS ${code}`);
+          } else {
+            throw error;
+          }
+        }
+      };
+
       try {
         // No need transaction if there is only one statement
+        try {
+          await dropPreviousResult();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          setScriptExecutionState('error');
+          setTabExecutionError(tabId, {
+            errorMessage: message,
+            timestamp: Date.now(),
+          });
+          showError({
+            title: 'Failed to clear previous query results',
+            message,
+          });
+          return;
+        }
+
         const needsTransaction =
           classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
 
@@ -199,7 +238,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
         const lastStatement = classifiedStatements[classifiedStatements.length - 1];
         if (SelectableStatements.includes(lastStatement.type)) {
-          // Validate last SELECT statement via prepare
+          // Validate last statement via prepare before materializing results
           try {
             const preparedStatement = await prepQueryWithFileSyncAndRetry(lastStatement.code);
             await preparedStatement.close();
@@ -209,7 +248,6 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             if (needsTransaction) {
               await conn.execute('ROLLBACK');
             }
-            // Creation of a prepared statement for the last SELECT statement failed - user is notified
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
               errorMessage: message,
@@ -222,7 +260,6 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
               action: {
                 label: 'Fix with AI',
                 onClick: () => {
-                  // Dispatch custom event to trigger AI Assistant
                   const event = new CustomEvent('trigger-ai-assistant', {
                     detail: { tabId },
                   });
@@ -232,7 +269,44 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             });
             return;
           }
-          lastExecutedQuery = lastStatement.code;
+
+          if (
+            lastStatement.type === SQLStatement.SELECT ||
+            lastStatement.type === SQLStatement.WITH
+          ) {
+            try {
+              await createResultTableWithRetry(lastStatement.code);
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+
+              if (needsTransaction) {
+                await conn.execute('ROLLBACK');
+              }
+              setScriptExecutionState('error');
+              setTabExecutionError(tabId, {
+                errorMessage: message,
+                statementType: lastStatement.type,
+                timestamp: Date.now(),
+              });
+              showErrorWithAction({
+                title: 'Error executing SQL statement',
+                message: `Error in ${lastStatement.type} statement: ${message}`,
+                action: {
+                  label: 'Fix with AI',
+                  onClick: () => {
+                    const event = new CustomEvent('trigger-ai-assistant', {
+                      detail: { tabId },
+                    });
+                    window.dispatchEvent(event);
+                  },
+                },
+              });
+              return;
+            }
+            lastExecutedQuery = `SELECT * FROM ${qualifiedScriptResultTable}`;
+          } else {
+            lastExecutedQuery = lastStatement.code;
+          }
         } else {
           // The last statement is not a SELECT statement
           // Execute it immediately

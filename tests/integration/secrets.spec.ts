@@ -2,7 +2,11 @@ import { test, expect } from '@playwright/test';
 
 import { setupApp, teardownApp } from './fixtures/app-setup';
 
+const isDesktopTestRun = process.env.TAURI_TESTS === 'true';
+
 test.describe('Secrets Management', () => {
+  test.skip(!isDesktopTestRun, 'Secrets management is only available in the desktop app.');
+
   test.beforeEach(async ({ page }) => {
     await setupApp(page);
   });
