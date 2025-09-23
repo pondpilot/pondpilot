@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { AnyFlatFileDataSource } from '@models/data-source';
 import { DescribeResult } from '@utils/duckdb/models';
 import { Node } from 'reactflow';
@@ -18,7 +18,7 @@ import { SchemaNodeData, SchemaColumnData } from '../model';
  */
 export async function extractFlatFileSchema(
   source: AnyFlatFileDataSource,
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   abortSignal?: AbortSignal,
   timeout = QUERY_TIMEOUT_DESCRIBE,
 ): Promise<SchemaNodeData | null> {
@@ -26,30 +26,25 @@ export async function extractFlatFileSchema(
 
   try {
     // Query the schema information with timeout
-    const pooledConn = await pool.getPooledConnection();
-    try {
-      // Set up query with timeout
-      const queryPromise = pooledConn.query(`
-        DESCRIBE ${escapeIdentifier('main')}.${escapeIdentifier(source.viewName)};
-      `);
+    // Set up query with timeout
+    const queryPromise = pool.query(`
+      DESCRIBE ${escapeIdentifier('main')}.${escapeIdentifier(source.viewName)};
+    `);
 
-      const timeoutPromise = new Promise((_, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new Error('Query timeout: Operation took too long'));
-        }, timeout);
+    const timeoutPromise = new Promise((_, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Query timeout: Operation took too long'));
+      }, timeout);
 
-        if (abortSignal) {
-          abortSignal.addEventListener('abort', () => {
-            clearTimeout(timeoutId);
-            reject(new Error('Query cancelled by user'));
-          });
-        }
-      });
+      if (abortSignal) {
+        abortSignal.addEventListener('abort', () => {
+          clearTimeout(timeoutId);
+          reject(new Error('Query cancelled by user'));
+        });
+      }
+    });
 
-      tableInfoResult = await Promise.race([queryPromise, timeoutPromise]);
-    } finally {
-      await pooledConn.close();
-    }
+    tableInfoResult = await Promise.race([queryPromise, timeoutPromise]);
 
     if (!tableInfoResult) {
       return null;
