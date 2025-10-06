@@ -62,26 +62,31 @@ export function Router() {
     ];
   };
 
-  const router = createBrowserRouter([
+  const router = createBrowserRouter(
+    [
+      {
+        path: '/',
+        element: (
+          <GlobalNavigationHandler>
+            <Layout isFileAccessApiSupported={canUseApp} isMobileDevice={isMobileDevice} />
+          </GlobalNavigationHandler>
+        ),
+        errorElement: <AppErrorFallback />,
+        children: [
+          ...getAppRoutes(),
+          // Add dev-only routes
+          ...devOnlyRoutes,
+          {
+            path: '*',
+            element: <Navigate to="/" replace />,
+          },
+        ],
+      },
+    ],
     {
-      path: '/',
-      element: (
-        <GlobalNavigationHandler>
-          <Layout isFileAccessApiSupported={canUseApp} isMobileDevice={isMobileDevice} />
-        </GlobalNavigationHandler>
-      ),
-      errorElement: <AppErrorFallback />,
-      children: [
-        ...getAppRoutes(),
-        // Add dev-only routes
-        ...devOnlyRoutes,
-        {
-          path: '*',
-          element: <Navigate to="/" replace />,
-        },
-      ],
+      basename: import.meta.env.BASE_URL,
     },
-  ]);
+  );
 
   return <RouterProvider router={router} />;
 }
