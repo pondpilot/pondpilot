@@ -95,6 +95,14 @@ Visit `http://localhost:4173` in your browser to access the app.
 
 > **Note:** PWA and offline mode is disabled for the Docker version to avoid conflicts with other apps serving on localhost.
 
+##### Subdirectory Deployment
+
+PondPilot supports deployment in subdirectories alongside other services. See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on:
+
+- Building with custom base paths (e.g., `/custompath/`, `/pondpilot/`)
+- Configuring nginx reverse proxy
+- Docker Compose examples
+
 #### Using Yarn
 
 Alternatively, you can build & run PondPilot using Yarn:
