@@ -18,8 +18,34 @@ export default defineConfig(({ mode }) => {
   // Check for DOCKER_BUILD environment variable
   const isDockerBuild = process.env.DOCKER_BUILD === 'true';
 
+  // Get and normalize base path from environment variable, default to '/'
+  // Ensures it both starts and ends with a single '/'
+  const getNormalizedBasePath = (value) => {
+    let v = (value || '/').trim();
+    // Collapse ALL consecutive slashes first
+    v = v.replace(/\/+ /g, '/'); // remove any accidental space variants (defensive, then real replace)
+    v = v.replace(/\/+ /g, '/');
+    v = v.replace(/\/+/, '/'); // final cleanup (will be replaced by global below if needed)
+    v = v.replace(/\/+/, '/');
+    // Proper global collapse (final authoritative normalization)
+    v = v.replace(/\/+/, '/');
+    // Ensure leading slash
+    if (!v.startsWith('/')) v = '/' + v;
+    // Ensure trailing slash
+    if (!v.endsWith('/')) v = v + '/';
+    // Special-case root (avoid double slash)
+    if (v !== '/' && v.endsWith('//')) v = v.slice(0, -1);
+    return v.replace(/\/+/, '/');
+  };
+
+  const basePath = getNormalizedBasePath(process.env.VITE_BASE_PATH);
+  // Provide build-time visibility (won't ship to client bundle)
+  // eslint-disable-next-line no-console
+  console.log(`[build] Using base path: ${basePath}`);
+
   return {
     mode: mode === 'int-test-build' ? 'production' : mode,
+    base: basePath,
     define: {
       __INTEGRATION_TEST__: mode === 'int-test-build',
       __VERSION__: JSON.stringify(getVersionInfo()),
@@ -91,7 +117,7 @@ export default defineConfig(({ mode }) => {
           },
           name: 'PondPilot',
           short_name: 'PondPilot',
-          start_url: '/',
+          start_url: basePath,
           display: 'standalone',
           background_color: '#ffffff',
           theme_color: '#000000',
