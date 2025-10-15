@@ -887,7 +887,7 @@ impl DuckDBEngine {
         let sanitized_extension = sanitize_identifier(extension_name)?;
 
         // Determine if it's a community extension that needs special handling
-        let community_extensions = ["gsheets", "read_stat"];
+        let community_extensions = ["read_stat"];
         let install_cmd = if community_extensions.contains(&extension_name) {
             format!("INSTALL {} FROM community", sanitized_extension)
         } else {

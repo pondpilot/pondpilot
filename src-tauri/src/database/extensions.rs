@@ -10,7 +10,6 @@ pub const ALLOWED_EXTENSIONS: &[&str] = &[
     "arrow",
     "aws",
     "azure",
-    "gsheets",
     "read_stat",
     "motherduck",
     "iceberg",

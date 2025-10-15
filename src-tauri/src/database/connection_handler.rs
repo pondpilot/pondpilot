@@ -85,65 +85,17 @@ impl ConnectionHandler {
         }
     }
 
-    /// Execute SQL with a timeout using DuckDB's interrupt mechanism without blocking if query finishes early
+    /// Execute SQL with a timeout
+    /// Note: DuckDB 1.3.0 doesn't support interrupt_handle(), so we rely on
+    /// the async timeout in ConnectionHandle::execute_with_timeout
     fn execute_sql_with_timeout(
         &mut self,
         sql: &str,
         params: &[serde_json::Value],
-        timeout_ms: u64,
+        _timeout_ms: u64,
     ) -> Result<QueryResult> {
-        use std::sync::atomic::{AtomicBool, Ordering};
-        use std::sync::{mpsc, Arc};
-        use std::time::{Duration, Instant};
-
-        // Clamp timeout to safe bounds
-        let clamped = timeout_ms
-            .max(Self::MIN_QUERY_TIMEOUT_MS)
-            .min(Self::MAX_QUERY_TIMEOUT_MS);
-
-        // Prepare interrupt and coordination primitives
-        let interrupt_handle = self.connection.interrupt_handle();
-        let timed_out = Arc::new(AtomicBool::new(false));
-        let timed_out_cl = Arc::clone(&timed_out);
-        let (tx, rx) = mpsc::channel::<()>();
-        let timeout = Duration::from_millis(clamped);
-
-        // Timer thread: either receives completion signal or times out and interrupts
-        let timer = std::thread::spawn(move || {
-            if rx.recv_timeout(timeout).is_err() {
-                // Timeout reached without completion signal
-                interrupt_handle.interrupt();
-                timed_out_cl.store(true, Ordering::SeqCst);
-            }
-        });
-
-        // Execute the query
-        let start = Instant::now();
-        let result = self.execute_sql(sql, params);
-        let elapsed = start.elapsed();
-
-        // Signal completion to timer thread and join
-        let _ = tx.send(());
-        let _ = timer.join();
-
-        if timed_out.load(Ordering::SeqCst) {
-            debug!(
-                "[ConnectionHandler] Query exceeded timeout ({}ms), elapsed: {}ms",
-                clamped,
-                elapsed.as_millis()
-            );
-            // If the query failed due to interrupt, surface a timeout error
-            if result.is_err() {
-                return Err(crate::errors::DuckDBError::QueryError {
-                    message: format!("Query execution timeout after {} milliseconds", clamped),
-                    sql: Some(sql.to_string()),
-                    error_code: Some("TIMEOUT".to_string()),
-                    line_number: None,
-                });
-            }
-        }
-
-        result
+        // Simply execute the query - timeout enforcement happens at the async layer
+        self.execute_sql(sql, params)
     }
 
     /// Apply MotherDuck settings in a secure way

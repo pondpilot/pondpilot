@@ -52,12 +52,6 @@ const REQUIRED_EXTENSIONS: Omit<DuckDBExtension, 'installed' | 'disabled'>[] = [
     required: true,
   },
   {
-    name: 'gsheets',
-    description: 'Essential for reading and writing Google Sheets',
-    type: 'community',
-    required: true,
-  },
-  {
     name: 'read_stat',
     description: 'Essential for reading SAS, Stata, and SPSS statistical data files',
     type: 'community',

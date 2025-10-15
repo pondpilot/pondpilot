@@ -123,7 +123,7 @@ impl ArrowStreamingExecutor {
                                     || emsg.contains("Extension")
                                     || emsg.contains("unknown")
                                 {
-                                    let community_exts = ["gsheets", "read_stat"];
+                                    let community_exts = ["read_stat"];
                                     let install_stmt = if community_exts.contains(&ext) {
                                         format!("INSTALL {} FROM community", ext)
                                     } else {

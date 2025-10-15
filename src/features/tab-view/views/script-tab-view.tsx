@@ -18,6 +18,7 @@ import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
 import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
 import { makePersistentDataSourceId } from '@utils/data-source';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import {
   splitSQLByStats,
   classifySQLStatements,
@@ -26,7 +27,6 @@ import {
   SQLStatement,
   SQLStatementType,
 } from '@utils/editor/sql';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { formatSQLSafe } from '@utils/sql-formatter';
 import { Allotment } from 'allotment';
 import { memo, useCallback, useState, useEffect } from 'react';
