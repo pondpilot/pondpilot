@@ -332,9 +332,11 @@ export class ExtensionLoader {
             }
 
             // Update store to reflect installation
-            store.extensions = store.extensions.map((ext) =>
-              ext.name === extension.name ? { ...ext, installed: true } : ext,
-            );
+            useExtensionManagementStore.setState((state) => ({
+              extensions: state.extensions.map((ext) =>
+                ext.name === extension.name ? { ...ext, installed: true } : ext,
+              ),
+            }));
           } catch (installError: any) {
             logger.error(`Failed to install and load extension ${extension.name}:`, installError);
             if ((import.meta as any).env?.DEV) {
