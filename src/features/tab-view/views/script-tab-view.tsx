@@ -179,6 +179,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       try {
         // No need transaction if there is only one statement
         try {
+          // Cancel any active data operations before dropping the result table
+          // This prevents race conditions where streams are still reading from the table
+          dataAdapter.cancelAllDataOperations();
           await dropPreviousResult();
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -524,7 +527,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // update the state and trigger re-render.
       updateScriptTabLastExecutedQuery({ tabId, lastExecutedQuery, force: true });
     },
-    [pool, protectedViews, tabId, incrementScriptVersion, preferences, tab.sqlScriptId],
+    [pool, protectedViews, tabId, incrementScriptVersion, preferences, tab.sqlScriptId, dataAdapter],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {
