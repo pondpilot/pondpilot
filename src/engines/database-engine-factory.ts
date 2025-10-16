@@ -13,8 +13,20 @@ export class DatabaseEngineFactory {
     // Check if we have a cached engine for this config
     const cacheKey = this.getCacheKey(config);
     const cached = this.engineCache.get(cacheKey);
-    if (cached && cached.isReady()) {
-      return cached;
+
+    // FIX: Clean up stale engines before creating new one
+    if (cached) {
+      if (cached.isReady()) {
+        return cached; // Reuse ready engine
+      }
+      // Shutdown stale engine before replacing
+      try {
+        logger.debug('Shutting down stale engine', { cacheKey });
+        await cached.shutdown();
+      } catch (err) {
+        logger.warn('Failed to shutdown stale engine', { error: err });
+      }
+      this.engineCache.delete(cacheKey);
     }
 
     let engine: DatabaseEngine;
@@ -99,7 +111,32 @@ export class DatabaseEngineFactory {
   }
 
   private static getCacheKey(config: EngineConfig): string {
-    return `${config.type}-${config.storageType || 'memory'}-${config.storagePath || 'default'}`;
+    // FIX: Include extensions and options in cache key to prevent config mismatch
+    // Two configs differing only in extensions/options should not share cached engine
+    const baseKey = `${config.type}-${config.storageType || 'memory'}-${config.storagePath || 'default'}`;
+
+    // Hash extensions if present
+    const extHash = config.extensions
+      ? this.hashObject(config.extensions.sort()) // Sort for consistency
+      : 'no-ext';
+
+    // Hash options if present
+    const optsHash = config.options ? this.hashObject(config.options) : 'no-opts';
+
+    return `${baseKey}-${extHash}-${optsHash}`;
+  }
+
+  private static hashObject(obj: any): string {
+    // Simple hash using JSON.stringify
+    // For production, consider crypto.subtle.digest for better performance
+    const str = JSON.stringify(obj);
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(36); // Base 36 for shorter strings
   }
 
   private static supportsOPFS(): boolean {
