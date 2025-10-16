@@ -43,10 +43,30 @@ export class ConnectionWithTimeout implements DatabaseConnection {
   }
 
   private async withTimeout<T>(operation: () => Promise<T>, _timeoutMessage: string): Promise<T> {
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new ConnectionTimeoutError(this.timeoutMs)), this.timeoutMs);
-    });
+    // FIX: Clear timeout timer to prevent resource leaks and unhandled rejections
+    let timerId: ReturnType<typeof setTimeout> | undefined;
 
-    return Promise.race([operation(), timeoutPromise]);
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timerId = setTimeout(() => {
+          reject(new ConnectionTimeoutError(this.timeoutMs));
+        }, this.timeoutMs);
+      });
+
+      const result = await Promise.race([operation(), timeoutPromise]);
+      return result;
+    } finally {
+      // Always clear timeout to prevent timer leak
+      if (timerId !== undefined) {
+        clearTimeout(timerId);
+      }
+    }
+
+    // NOTE: This only detects timeouts, it does NOT cancel the underlying operation
+    // DuckDB operations continue running after timeout until completion
+    // True cancellation would require:
+    // 1. AbortSignal support in DatabaseConnection interface
+    // 2. DuckDB interrupt handles (not available in DuckDB 1.3.0)
+    // For now, this prevents timer leaks and provides timeout detection
   }
 }
