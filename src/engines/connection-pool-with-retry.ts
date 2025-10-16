@@ -111,12 +111,25 @@ export function createResilientConnectionPool(
 
   // If timeout is specified, wrap connections with timeout logic
   if (options?.timeoutMs) {
+    // FIX: Use WeakMap to track wrapper-to-original connection mappings
+    // This preserves pool invariants by unwrapping before passing to pool.release()
+    const wrapperMap = new WeakMap<DatabaseConnection, DatabaseConnection>();
+
     return {
       acquire: async () => {
-        const connection = await poolWithRetry.acquire();
-        return new ConnectionWithTimeout(connection, options.timeoutMs);
+        const original = await poolWithRetry.acquire();
+        const wrapper = new ConnectionWithTimeout(original, options.timeoutMs);
+        // Track the mapping so we can unwrap on release
+        wrapperMap.set(wrapper, original);
+        return wrapper;
       },
-      release: (connection: DatabaseConnection) => poolWithRetry.release(connection),
+      release: (connection: DatabaseConnection) => {
+        // FIX: Unwrap the connection before passing to pool
+        // This ensures the pool receives the original connection object it knows about
+        const original = wrapperMap.get(connection) ?? connection;
+        wrapperMap.delete(connection);
+        return poolWithRetry.release(original);
+      },
       query: (sql: string) => poolWithRetry.query(sql),
       close: () => poolWithRetry.close(),
       getStats: () => poolWithRetry.getStats(),

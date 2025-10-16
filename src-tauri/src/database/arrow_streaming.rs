@@ -70,8 +70,9 @@ impl ArrowStreamingExecutor {
             }
 
             // Create connection in this thread
-            let conn = match permit.create_connection() {
-                Ok(c) => c,
+            // The connection and permit will be dropped when the task completes
+            let (conn, _permit) = match permit.create_connection() {
+                Ok(result) => result,
                 Err(e) => {
                     debug!(
                         "[ARROW_STREAMING] Failed to create connection for {}: {}",

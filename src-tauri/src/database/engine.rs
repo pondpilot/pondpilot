@@ -382,23 +382,19 @@ impl DuckDBEngine {
     }
 
     /// Create a new persistent connection with the given ID
+    /// FIX: Pass the permit to the connection manager so connection is created in the dedicated thread
+    /// This fixes both:
+    /// 1. Permit lifetime bug - permit is now held for the connection's entire lifetime
+    /// 2. Thread-affinity bug - connection is created in the same thread it will be used in
     pub async fn create_connection(&self, connection_id: String) -> Result<()> {
         // Get a permit from the pool
         let permit = self.pool.acquire_connection_permit().await?;
 
-        // Create the connection in a blocking task
-        let conn = tokio::task::spawn_blocking(move || permit.create_connection())
-            .await
-            .map_err(|e| crate::errors::DuckDBError::ConnectionError {
-                message: format!("Task join error: {}", e),
-                context: None,
-            })??;
-
-        // Extension-related session settings are applied from the frontend per connection
-
-        // Store it in the connection manager
+        // FIX: Pass the permit to the connection manager
+        // The connection will be created inside the dedicated thread (fixes thread-affinity)
+        // The permit will be held by ConnectionHandler (fixes pool limit enforcement)
         self.connection_manager
-            .create_connection(connection_id, conn)
+            .create_connection(connection_id, permit)
             .await
     }
 
@@ -601,7 +597,7 @@ impl DuckDBEngine {
 
         tokio::task::spawn_blocking(move || {
             // Create connection in this thread
-            let conn = permit.create_connection()?;
+            let (conn, _permit) = permit.create_connection()?;
 
             // Execute both statements on the same connection
             conn.execute_batch(&combined_sql).map_err(|e| {
@@ -770,7 +766,7 @@ impl DuckDBEngine {
         let attach_sql_clone = attach_sql.clone();
         tokio::task::spawn_blocking(move || {
             // Create connection in this thread
-            let conn = permit.create_connection()?;
+            let (conn, _permit) = permit.create_connection()?;
 
             // Execute the ATTACH statement
             conn.execute(&attach_sql_clone, []).map_err(|e| {
@@ -1089,7 +1085,7 @@ impl DuckDBEngine {
 
         tokio::task::spawn_blocking(move || {
             // Create connection in this thread
-            let conn = permit.create_connection()?;
+            let (conn, _permit) = permit.create_connection()?;
 
             // Just validate that the SQL can be prepared
             conn.prepare(&sql_owned)

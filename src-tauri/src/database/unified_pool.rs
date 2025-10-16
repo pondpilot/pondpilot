@@ -85,23 +85,34 @@ pub struct ConnectionPermit {
 impl ConnectionPermit {
     /// Create a connection in the current thread
     /// This MUST be called from the thread where the connection will be used
-    pub fn create_connection(self) -> Result<Connection> {
+    /// Returns both the connection and the semaphore permit to ensure pool limits are enforced
+    pub fn create_connection(self) -> Result<(Connection, tokio::sync::OwnedSemaphorePermit)> {
+        // Destructure self to extract all fields including the permit
+        let ConnectionPermit {
+            _permit,
+            id,
+            db_path,
+            resource_limits,
+            extensions,
+            attached_databases,
+        } = self;
+
         tracing::debug!(
             "[UNIFIED_POOL] Creating connection {} in thread {:?}",
-            self.id,
+            id,
             std::thread::current().id()
         );
-        tracing::debug!("[UNIFIED_POOL] Database path: {:?}", self.db_path);
-        tracing::debug!("[UNIFIED_POOL] Path exists: {}", self.db_path.exists());
-        if let Some(parent) = self.db_path.parent() {
+        tracing::debug!("[UNIFIED_POOL] Database path: {:?}", db_path);
+        tracing::debug!("[UNIFIED_POOL] Path exists: {}", db_path.exists());
+        if let Some(parent) = db_path.parent() {
             tracing::debug!(
                 "[UNIFIED_POOL] Parent directory exists: {}",
                 parent.exists()
             );
         }
 
-        let conn = Connection::open(&self.db_path).map_err(|e| DuckDBError::ConnectionError {
-            message: format!("Failed to create connection to {:?}: {}", self.db_path, e),
+        let conn = Connection::open(&db_path).map_err(|e| DuckDBError::ConnectionError {
+            message: format!("Failed to create connection to {:?}: {}", db_path, e),
             context: None,
         })?;
 
@@ -110,7 +121,7 @@ impl ConnectionPermit {
             "PRAGMA threads={};
             PRAGMA memory_limit='{}';
             PRAGMA enable_progress_bar=true;",
-            self.resource_limits.pool_threads, self.resource_limits.pool_memory
+            resource_limits.pool_threads, resource_limits.pool_memory
         );
         conn.execute_batch(&config).ok();
 
@@ -118,7 +129,7 @@ impl ConnectionPermit {
         // Minimal duplication of allowlist here for security and clarity
         // Use centralized allowlist
 
-        let extensions = self.extensions.blocking_lock();
+        let extensions = extensions.blocking_lock();
         if !extensions.is_empty() {
             let mut extension_config = String::new();
             for ext in extensions.iter() {
@@ -148,7 +159,7 @@ impl ConnectionPermit {
         }
 
         // RE-ATTACH PREVIOUSLY ATTACHED DATABASES
-        let attached_dbs = self.attached_databases.blocking_lock();
+        let attached_dbs = attached_databases.blocking_lock();
         for db_info in attached_dbs.iter() {
             tracing::debug!("[UNIFIED_POOL] Re-attaching database: {}", db_info.alias);
 
@@ -212,7 +223,9 @@ impl ConnectionPermit {
             }
         }
 
-        Ok(conn)
+        // Return both the connection and the permit
+        // The permit will be held by ConnectionHandler to enforce pool limits
+        Ok((conn, _permit))
     }
 }
 

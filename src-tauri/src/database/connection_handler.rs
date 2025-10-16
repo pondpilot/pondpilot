@@ -47,15 +47,22 @@ enum ConnectionCommand {
 struct ConnectionHandler {
     receiver: mpsc::Receiver<ConnectionCommand>,
     connection: Connection,
+    /// Semaphore permit held for the lifetime of this connection to enforce pool limits
+    _permit: tokio::sync::OwnedSemaphorePermit,
 }
 
 impl ConnectionHandler {
     const MIN_QUERY_TIMEOUT_MS: u64 = 50;
     const MAX_QUERY_TIMEOUT_MS: u64 = 10 * 60 * 1000; // 10 minutes
-    fn new(connection: Connection, receiver: mpsc::Receiver<ConnectionCommand>) -> Self {
+    fn new(
+        connection: Connection,
+        receiver: mpsc::Receiver<ConnectionCommand>,
+        permit: tokio::sync::OwnedSemaphorePermit,
+    ) -> Self {
         Self {
             connection,
             receiver,
+            _permit: permit,
         }
     }
 
@@ -792,7 +799,12 @@ impl ThreadSafeConnectionManager {
     }
 
     /// Create a new connection with the given ID, running in its own thread
-    pub async fn create_connection(&self, connection_id: String, conn: Connection) -> Result<()> {
+    /// The connection will be created inside the dedicated thread to ensure thread-affinity
+    pub async fn create_connection(
+        &self,
+        connection_id: String,
+        permit: crate::database::unified_pool::ConnectionPermit,
+    ) -> Result<()> {
         let (tx, rx) = mpsc::channel(10);
         let handle = ConnectionHandle {
             sender: tx,
@@ -813,7 +825,23 @@ impl ThreadSafeConnectionManager {
         // Spawn a dedicated thread for this connection
         std::thread::spawn(move || {
             debug!("Starting thread for connection {}", connection_id);
-            let handler = ConnectionHandler::new(conn, rx);
+
+            // FIX: Create the connection IN THIS THREAD (the one it will be used in)
+            // This ensures thread-affinity and allows us to hold the permit
+            let (conn, owned_permit) = match permit.create_connection() {
+                Ok(result) => result,
+                Err(e) => {
+                    debug!(
+                        "Failed to create connection {} in dedicated thread: {:?}",
+                        connection_id, e
+                    );
+                    return;
+                }
+            };
+
+            // FIX: Pass the permit to ConnectionHandler to hold it for the connection's lifetime
+            // This ensures the pool limit is enforced for the entire connection lifetime
+            let handler = ConnectionHandler::new(conn, rx, owned_permit);
             handler.run();
             debug!("Thread for connection {} terminated", connection_id);
         });
