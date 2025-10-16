@@ -112,20 +112,7 @@ async function restoreAppDataFromSQLite(
   const previewTabId = null;
   const tabOrder: TabId[] = [];
 
-  // Store the adapter in app state
-  useAppStore.setState({ _persistenceAdapter: adapter });
-
-  // Update app state (but don't set dataSources yet, we'll update it after ensuring system DB exists)
-  useAppStore.setState({
-    localEntries,
-    sqlScripts,
-    tabs,
-    activeTabId,
-    previewTabId,
-    tabOrder,
-  });
-
-  // Always ensure the system database exists in data sources
+  // Always ensure the system database exists in data sources BEFORE any state updates
   let systemDbAdded = false;
   if (!dataSources.has(SYSTEM_DATABASE_ID)) {
     const systemDb: LocalDB = {
@@ -142,8 +129,18 @@ async function restoreAppDataFromSQLite(
     await adapter.put(DATA_SOURCE_TABLE_NAME, systemDb, systemDb.id);
   }
 
-  // Initial state update (without database metadata yet)
-  useAppStore.setState({ dataSources });
+  // FIX: Batch initial state updates to avoid multiple re-renders
+  // Store adapter, local entries, data sources, scripts, tabs all at once
+  useAppStore.setState({
+    _persistenceAdapter: adapter,
+    localEntries,
+    dataSources,
+    sqlScripts,
+    tabs,
+    activeTabId,
+    previewTabId,
+    tabOrder,
+  });
 
   // Register files and create views for data sources
   const registeredFiles = new Map<LocalEntryId, File>();
