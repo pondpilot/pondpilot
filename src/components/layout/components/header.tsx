@@ -77,6 +77,7 @@ export const Header = memo(() => {
         <TextInput
           flex={isTauri ? undefined : 1}
           data-testid={setDataTestId('spotlight-trigger-input')}
+          data-tauri-drag-region="no-drag"
           className={cn('cursor-pointer', isTauri ? 'w-[340px]' : 'max-w-[400px] min-w-[300px]')}
           classNames={{
             input: cn(
