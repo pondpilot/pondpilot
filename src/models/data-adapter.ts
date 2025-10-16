@@ -221,6 +221,13 @@ export interface DataAdapterApi {
   cancelDataRead: () => void;
 
   /**
+   * Cancels all pending data operations including fetches,
+   * user tasks, and background tasks. This is a comprehensive
+   * cancellation that aborts all data-related operations.
+   */
+  cancelAllDataOperations: () => void;
+
+  /**
    * Resets the data read cancelled state. This is used to
    * acknowledge that the downstream code also reacted to
    * the cancellation and wants to be able to start a new read.

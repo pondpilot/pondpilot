@@ -1254,6 +1254,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     toggleColumnSort,
     getColumnAggregate,
     cancelDataRead,
+    cancelAllDataOperations,
     ackDataReadCancelled,
   };
 };
