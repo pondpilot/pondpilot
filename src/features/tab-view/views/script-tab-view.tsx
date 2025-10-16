@@ -277,36 +277,46 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             lastStatement.type === SQLStatement.SELECT ||
             lastStatement.type === SQLStatement.WITH
           ) {
-            try {
-              await createResultTableWithRetry(lastStatement.code);
-            } catch (error) {
-              const message = error instanceof Error ? error.message : String(error);
+            // For single-statement scripts, stream directly without materializing
+            // Only use temp table for multi-statement scripts where we need isolation
+            const isSingleStatementScript = classifiedStatements.length === 1;
 
-              if (needsTransaction) {
-                await conn.execute('ROLLBACK');
-              }
-              setScriptExecutionState('error');
-              setTabExecutionError(tabId, {
-                errorMessage: message,
-                statementType: lastStatement.type,
-                timestamp: Date.now(),
-              });
-              showErrorWithAction({
-                title: 'Error executing SQL statement',
-                message: `Error in ${lastStatement.type} statement: ${message}`,
-                action: {
-                  label: 'Fix with AI',
-                  onClick: () => {
-                    const event = new CustomEvent('trigger-ai-assistant', {
-                      detail: { tabId },
-                    });
-                    window.dispatchEvent(event);
+            if (isSingleStatementScript) {
+              // Stream directly from the query - no temp table needed
+              lastExecutedQuery = lastStatement.code;
+            } else {
+              // Multi-statement script: create temp table to isolate final result
+              try {
+                await createResultTableWithRetry(lastStatement.code);
+              } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+
+                if (needsTransaction) {
+                  await conn.execute('ROLLBACK');
+                }
+                setScriptExecutionState('error');
+                setTabExecutionError(tabId, {
+                  errorMessage: message,
+                  statementType: lastStatement.type,
+                  timestamp: Date.now(),
+                });
+                showErrorWithAction({
+                  title: 'Error executing SQL statement',
+                  message: `Error in ${lastStatement.type} statement: ${message}`,
+                  action: {
+                    label: 'Fix with AI',
+                    onClick: () => {
+                      const event = new CustomEvent('trigger-ai-assistant', {
+                        detail: { tabId },
+                      });
+                      window.dispatchEvent(event);
+                    },
                   },
-                },
-              });
-              return;
+                });
+                return;
+              }
+              lastExecutedQuery = `SELECT * FROM ${qualifiedScriptResultTable}`;
             }
-            lastExecutedQuery = `SELECT * FROM ${qualifiedScriptResultTable}`;
           } else {
             lastExecutedQuery = lastStatement.code;
           }
