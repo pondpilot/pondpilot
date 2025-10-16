@@ -177,24 +177,16 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       };
 
       try {
-        // No need transaction if there is only one statement
+        // Cancel any active data operations before running new script
+        // This ensures clean state for the new execution
+        dataAdapter.cancelAllDataOperations();
+
+        // Clean up old temp table if it exists (from legacy executions)
+        // This is a no-op for most cases since we no longer create temp tables
         try {
-          // Cancel any active data operations before dropping the result table
-          // This prevents race conditions where streams are still reading from the table
-          dataAdapter.cancelAllDataOperations();
           await dropPreviousResult();
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          setScriptExecutionState('error');
-          setTabExecutionError(tabId, {
-            errorMessage: message,
-            timestamp: Date.now(),
-          });
-          showError({
-            title: 'Failed to clear previous query results',
-            message,
-          });
-          return;
+          // Ignore errors - table might not exist
         }
 
         const needsTransaction =
@@ -273,53 +265,10 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             return;
           }
 
-          if (
-            lastStatement.type === SQLStatement.SELECT ||
-            lastStatement.type === SQLStatement.WITH
-          ) {
-            // For single-statement scripts, stream directly without materializing
-            // Only use temp table for multi-statement scripts where we need isolation
-            const isSingleStatementScript = classifiedStatements.length === 1;
-
-            if (isSingleStatementScript) {
-              // Stream directly from the query - no temp table needed
-              lastExecutedQuery = lastStatement.code;
-            } else {
-              // Multi-statement script: create temp table to isolate final result
-              try {
-                await createResultTableWithRetry(lastStatement.code);
-              } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-
-                if (needsTransaction) {
-                  await conn.execute('ROLLBACK');
-                }
-                setScriptExecutionState('error');
-                setTabExecutionError(tabId, {
-                  errorMessage: message,
-                  statementType: lastStatement.type,
-                  timestamp: Date.now(),
-                });
-                showErrorWithAction({
-                  title: 'Error executing SQL statement',
-                  message: `Error in ${lastStatement.type} statement: ${message}`,
-                  action: {
-                    label: 'Fix with AI',
-                    onClick: () => {
-                      const event = new CustomEvent('trigger-ai-assistant', {
-                        detail: { tabId },
-                      });
-                      window.dispatchEvent(event);
-                    },
-                  },
-                });
-                return;
-              }
-              lastExecutedQuery = `SELECT * FROM ${qualifiedScriptResultTable}`;
-            }
-          } else {
-            lastExecutedQuery = lastStatement.code;
-          }
+          // For SELECT/WITH statements, stream results directly
+          // For other selectable statements (DESCRIBE, SHOW, etc.), also use directly
+          // The data adapter handles all paging/streaming efficiently - no materialization needed
+          lastExecutedQuery = lastStatement.code;
         } else {
           // The last statement is not a SELECT statement
           // Execute it immediately
