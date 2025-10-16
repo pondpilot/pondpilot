@@ -454,6 +454,18 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
     });
   }
 
+  async registerFile(options: import('./types').FileRegistration): Promise<void> {
+    await this.engine.registerFile(options);
+  }
+
+  async dropFile(name: string): Promise<void> {
+    await this.engine.dropFile(name);
+  }
+
+  getCapabilities(): import('./types').EngineCapabilities {
+    return this.engine.getCapabilities();
+  }
+
   size(): number {
     return this.connections.length;
   }

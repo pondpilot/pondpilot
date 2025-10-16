@@ -590,6 +590,31 @@ export class TauriConnectionPool implements ConnectionPool {
     };
   }
 
+  async registerFile(_options: import('./types').FileRegistration): Promise<void> {
+    // Tauri doesn't need file registration - it uses native file paths
+    // This is a no-op for compatibility with the ConnectionPool interface
+  }
+
+  async dropFile(_name: string): Promise<void> {
+    // Tauri doesn't need to drop files - it uses native file paths
+    // This is a no-op for compatibility with the ConnectionPool interface
+  }
+
+  getCapabilities(): import('./types').EngineCapabilities {
+    // Return capabilities for Tauri engine
+    return {
+      supportsStreaming: true,
+      supportsMultiThreading: true,
+      supportsDirectFileAccess: true,
+      supportsExtensions: true,
+      supportsPersistence: true,
+      supportsRemoteFiles: true,
+      maxFileSize: undefined, // No practical limit in native environment
+      supportedFileFormats: ['csv', 'parquet', 'json', 'xlsx', 'duckdb', 'db'],
+      supportedExtensions: [], // Extensions managed by backend
+    };
+  }
+
   private async validateConnection(conn: TauriConnection): Promise<boolean> {
     try {
       // Simple validation query

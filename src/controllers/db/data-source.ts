@@ -1,4 +1,3 @@
-import { DuckDBDataProtocol } from '@duckdb/duckdb-wasm';
 import { ConnectionPool } from '@engines/types';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
 import {
@@ -161,13 +160,11 @@ export async function dropViewAndUnregisterFile(
     return;
   }
 
-  const db = conn.bindings;
-
   /**
-   * Unregister file handle (web only)
+   * Unregister file handle (web only) using abstracted method
    */
-  if (db && typeof db.dropFile === 'function') {
-    await db.dropFile(fileName).catch(() => {
+  if (conn.dropFile) {
+    await conn.dropFile(fileName).catch(() => {
       /* ignore */
     });
   }
@@ -251,18 +248,23 @@ export async function registerAndAttachDatabase(
   });
 
   if (needsFileRegistration()) {
-    // Web environment: register file handle
+    // Web environment: register file handle using abstracted method
     if (!handle) throw new Error('FileSystemFileHandle is required for web environment');
-    const file = await handle.getFile();
 
-    const db = conn.bindings;
-    if (db && typeof db.registerFileHandle === 'function') {
-      await db.dropFile(fileName).catch(() => {
-        /* ignore */
+    if (conn.registerFile) {
+      // Drop the file first if it exists
+      if (conn.dropFile) {
+        await conn.dropFile(fileName).catch(() => {
+          /* ignore */
+        });
+      }
+
+      // Register the file using the abstracted interface
+      await conn.registerFile({
+        name: fileName,
+        type: 'file-handle',
+        handle,
       });
-      // Use BROWSER_FILEREADER protocol
-      // Pass the File object obtained from the FileSystemFileHandle
-      await db.registerFileHandle(fileName, file, DuckDBDataProtocol.BROWSER_FILEREADER, true);
     }
   }
 
@@ -348,13 +350,11 @@ export async function detachAndUnregisterDatabase(
     return;
   }
 
-  const db = conn.bindings;
-
   /**
-   * Unregister file handle (web only)
+   * Unregister file handle (web only) using abstracted method
    */
-  if (db && typeof db.dropFile === 'function') {
-    await db.dropFile(fileName).catch(() => {
+  if (conn.dropFile) {
+    await conn.dropFile(fileName).catch(() => {
       /* ignore */
     });
   }
@@ -424,22 +424,24 @@ export async function registerFileHandle(
   if (!handle) throw new Error('FileSystemFileHandle is required for web environment');
   const file = await handle.getFile();
 
-  // For web/WASM, the conn.bindings should have the file registration methods
-  // This will only work for WASM engine, which is fine since needsFileRegistration()
-  // returns false for Tauri
-  const db = conn.bindings;
-
-  if (db && typeof db.registerFileHandle === 'function') {
-    if (typeof db.dropFile === 'function') {
-      await db.dropFile(fileName).catch(() => {
+  // Use the abstracted registerFile method on the connection pool
+  // This delegates to the engine's file registration implementation
+  if (conn.registerFile) {
+    // Drop the file first if it exists
+    if (conn.dropFile) {
+      await conn.dropFile(fileName).catch(() => {
         /* ignore */
       });
     }
-    // Use BROWSER_FILEREADER protocol
-    // Pass the File object obtained from the FileSystemFileHandle
-    await db.registerFileHandle(fileName, file, DuckDBDataProtocol.BROWSER_FILEREADER, true);
+
+    // Register the file using the abstracted interface
+    await conn.registerFile({
+      name: fileName,
+      type: 'file-handle',
+      handle,
+    });
   } else {
-    throw new Error('registerFileHandle method not found on connection pool bindings');
+    throw new Error('registerFile method not available on connection pool');
   }
 
   return file;
@@ -457,11 +459,9 @@ export async function dropFile(conn: ConnectionPool, fileName: string): Promise<
     return;
   }
 
-  const db = conn.bindings;
-
-  // Drop file if it already exists (web only)
-  if (db && typeof db.dropFile === 'function') {
-    await db.dropFile(fileName).catch(() => {
+  // Use the abstracted dropFile method on the connection pool
+  if (conn.dropFile) {
+    await conn.dropFile(fileName).catch(() => {
       /* ignore */
     });
   }

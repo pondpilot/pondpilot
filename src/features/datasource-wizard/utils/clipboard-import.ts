@@ -1,4 +1,3 @@
-import * as duckdb from '@duckdb/duckdb-wasm';
 import { ConnectionPool } from '@engines/types';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { OPFSUtil } from '@utils/opfs';
@@ -186,15 +185,17 @@ export async function importClipboardAsTable(
     let fileHandle: FileSystemFileHandle;
     try {
       fileHandle = await opfsUtil.getFileHandle(tempFileName, false);
-      const file = await fileHandle.getFile();
 
-      // Register the file handle with DuckDB
-      await conn.bindings.registerFileHandle(
-        tempFileName,
-        file,
-        duckdb.DuckDBDataProtocol.BROWSER_FILEREADER,
-        true,
-      );
+      // Register the file handle with DuckDB using abstracted method
+      if (conn.registerFile) {
+        await conn.registerFile({
+          name: tempFileName,
+          type: 'file-handle',
+          handle: fileHandle,
+        });
+      } else {
+        throw new Error('registerFile method not available on connection pool');
+      }
     } catch (error) {
       // Cleanup OPFS file if registration fails
       await opfsUtil.deleteFile(tempFileName).catch(console.error);
@@ -220,17 +221,21 @@ export async function importClipboardAsTable(
 
       await conn.query(createQuery);
     } catch (error) {
-      // Cleanup on table creation failure
-      await conn.bindings.dropFile(tempFileName).catch(console.error);
+      // Cleanup on table creation failure using abstracted method
+      if (conn.dropFile) {
+        await conn.dropFile(tempFileName).catch(console.error);
+      }
       await opfsUtil.deleteFile(tempFileName).catch(console.error);
       const tableError = new Error(`Failed to create table: ${error}`) as ClipboardImportError;
       tableError.code = 'DUCKDB_ERROR';
       throw tableError;
     }
 
-    // Cleanup: remove temporary file
+    // Cleanup: remove temporary file using abstracted method
     try {
-      await conn.bindings.dropFile(tempFileName);
+      if (conn.dropFile) {
+        await conn.dropFile(tempFileName);
+      }
       await opfsUtil.deleteFile(tempFileName);
     } catch (error) {
       // Log cleanup errors but don't fail the import

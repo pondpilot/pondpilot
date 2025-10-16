@@ -143,7 +143,15 @@ export interface ConnectionPool {
   // Force checkpoint for persistence
   forceCheckpoint?: () => Promise<boolean>;
 
+  // Abstracted file operations (works across engines)
+  registerFile?: (options: FileRegistration) => Promise<void>;
+  dropFile?: (name: string) => Promise<void>;
+
+  // Engine capabilities
+  getCapabilities?: () => EngineCapabilities;
+
   // Access to underlying bindings (for WASM-specific operations)
+  // Deprecated: Use registerFile/dropFile instead
   bindings?: any;
 }
 
