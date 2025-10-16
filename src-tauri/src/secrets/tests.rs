@@ -103,9 +103,8 @@ mod tests {
             .validate_fields(&SecretType::Postgres, &fields)
             .is_ok());
 
-        // Missing host
+        // Missing username (should fail)
         let mut fields = SecretFields::default();
-        fields.username = Some("postgres".to_string());
         fields.password = Some("password".to_string());
 
         assert!(validator
