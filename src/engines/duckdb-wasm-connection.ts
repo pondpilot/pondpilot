@@ -6,6 +6,9 @@ import type { DuckDBWasmEngine } from './duckdb-wasm-engine';
 import { DatabaseConnection, PreparedStatement, QueryResult } from './types';
 
 export class DuckDBWasmConnection implements DatabaseConnection {
+  // FIX: Track connection state to properly report isOpen()
+  private closed = false;
+
   constructor(
     public readonly id: string,
     private conn: duckdb.AsyncDuckDBConnection,
@@ -63,12 +66,13 @@ export class DuckDBWasmConnection implements DatabaseConnection {
   }
 
   async close(): Promise<void> {
+    // FIX: Mark as closed to properly report state
+    this.closed = true;
     await this.conn.close();
   }
 
   isOpen(): boolean {
-    // DuckDB-WASM doesn't expose connection state directly
-    // We'll track this internally if needed
-    return true;
+    // FIX: Return actual connection state instead of always true
+    return !this.closed;
   }
 }
