@@ -130,11 +130,14 @@ export const DatabaseConnectionPoolProvider = ({
         // );
         // console.log('Window.__TAURI__:', (window as any).__TAURI__);
 
-        const config: EngineConfig = engineConfig || {
-          ...detectedEngine,
-          storagePath: persistenceState.dbPath,
-          poolSize: normalizedPoolSize,
-        };
+        // Clone config to avoid mutating the original
+        let config: EngineConfig = engineConfig
+          ? { ...engineConfig }
+          : {
+              ...detectedEngine,
+              storagePath: persistenceState.dbPath,
+              poolSize: normalizedPoolSize,
+            };
 
         // console.log('Final database engine config:', config);
         // console.log('Engine config type:', config.type);
@@ -160,10 +163,10 @@ export const DatabaseConnectionPoolProvider = ({
               );
             }
 
-            config.storagePath = dbPath;
+            config = { ...config, storagePath: dbPath };
           } else if (config.type === 'duckdb-tauri') {
             // For Tauri, use a local file path instead of OPFS
-            config.storagePath = 'pondpilot.db';
+            config = { ...config, storagePath: 'pondpilot.db' };
           }
         }
 
