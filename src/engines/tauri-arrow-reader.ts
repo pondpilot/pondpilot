@@ -144,19 +144,24 @@ export class TauriArrowReader {
             const batchId = this.batchCounter;
             this.batchCounter += 1;
 
+            // FIX: Atomic ACK - add to set immediately to claim ownership
             // Queue for async iterator with ack metadata
             let ackedNow = false;
             if (this.ackAllOnArrival) {
               // Unbounded prefetch mode (e.g., full-table operations)
               if (!this.acknowledgedBatches.has(batchId)) {
+                // Add to set immediately to claim ownership (prevents race condition)
+                this.acknowledgedBatches.add(batchId);
+                ackedNow = true;
+
                 invoke('acknowledge_stream_batch', {
                   streamId: this.streamId,
                   batchIndex: batchId,
                 }).catch((err) => {
                   console.warn('[TauriArrowReader] Failed to acknowledge batch:', err);
+                  // On error, remove from set to allow retry
+                  this.acknowledgedBatches.delete(batchId);
                 });
-                this.acknowledgedBatches.add(batchId);
-                ackedNow = true;
               }
             } else if (
               !this.iteratorMode &&
@@ -164,34 +169,43 @@ export class TauriArrowReader {
             ) {
               // Acknowledge on arrival up to the prefetch window
               if (!this.acknowledgedBatches.has(batchId)) {
+                // Add to set immediately to claim ownership (prevents race condition)
+                this.acknowledgedBatches.add(batchId);
+                this.prefetchAcknowledged += 1;
+                ackedNow = true;
+
                 invoke('acknowledge_stream_batch', {
                   streamId: this.streamId,
                   batchIndex: batchId,
                 }).catch((err) => {
                   console.warn('[TauriArrowReader] Failed to acknowledge batch:', err);
+                  // On error, remove from set and decrement counter to allow retry
+                  this.acknowledgedBatches.delete(batchId);
+                  this.prefetchAcknowledged = Math.max(0, this.prefetchAcknowledged - 1);
                 });
-                this.acknowledgedBatches.add(batchId);
-                this.prefetchAcknowledged += 1;
-                ackedNow = true;
               }
             }
             this.batchQueue.push({ value: table, acked: ackedNow, batchId });
 
             // Note: additional unconditional acknowledgments removed to avoid double-ACK.
 
-            // Resolve any waiting next() call
+            // FIX: Atomic ACK - resolve any waiting next() call
             if (this.batchResolver) {
               const nextItem = this.batchQueue.shift();
               if (nextItem) {
                 // If not previously acknowledged, acknowledge on consumption
                 if (!nextItem.acked && !this.acknowledgedBatches.has(nextItem.batchId)) {
+                  // Add to set immediately to claim ownership (prevents race condition)
+                  this.acknowledgedBatches.add(nextItem.batchId);
+
                   invoke('acknowledge_stream_batch', {
                     streamId: this.streamId,
                     batchIndex: nextItem.batchId,
                   }).catch((err) => {
                     console.warn('[TauriArrowReader] Failed to acknowledge consumed batch:', err);
+                    // On error, remove from set to allow retry
+                    this.acknowledgedBatches.delete(nextItem.batchId);
                   });
-                  this.acknowledgedBatches.add(nextItem.batchId);
                 } else if (nextItem.acked) {
                   // This batch was part of prefetch; reduce the counter on consumption
                   this.prefetchAcknowledged = Math.max(0, this.prefetchAcknowledged - 1);
@@ -313,17 +327,22 @@ export class TauriArrowReader {
   async getTable(): Promise<any> {
     // Switch to unbounded prefetch to allow backend to stream to completion
     this.ackAllOnArrival = true;
-    // Acknowledge any queued, unacknowledged batches immediately
+    // FIX: Atomic ACK - acknowledge any queued, unacknowledged batches immediately
     for (const [_index, item] of this.batchQueue.entries()) {
       if (!item.acked && !this.acknowledgedBatches.has(item.batchId)) {
+        // Add to set immediately to claim ownership (prevents race condition)
+        this.acknowledgedBatches.add(item.batchId);
+        item.acked = true;
+
         invoke('acknowledge_stream_batch', {
           streamId: this.streamId,
           batchIndex: item.batchId,
         }).catch((err) => {
           console.warn('[TauriArrowReader] Failed to acknowledge queued batch:', err);
+          // On error, remove from set to allow retry
+          this.acknowledgedBatches.delete(item.batchId);
+          item.acked = false;
         });
-        this.acknowledgedBatches.add(item.batchId);
-        item.acked = true;
       }
     }
 
@@ -422,18 +441,22 @@ export class TauriArrowReader {
   async next(): Promise<IteratorResult<any>> {
     // Enter iterator mode: acknowledge on consumption rather than arrival
     this.iteratorMode = true;
-    // If we have batches queued, return the next one
+    // FIX: Atomic ACK - if we have batches queued, return the next one
     if (this.batchQueue.length > 0) {
       const item = this.batchQueue.shift()!;
       if (!item.acked && !this.acknowledgedBatches.has(item.batchId)) {
+        // Add to set immediately to claim ownership (prevents race condition)
+        this.acknowledgedBatches.add(item.batchId);
+
         // Acknowledge batch consumption to open a slot in the backend window
         invoke('acknowledge_stream_batch', {
           streamId: this.streamId,
           batchIndex: item.batchId,
         }).catch((err) => {
           console.warn('[TauriArrowReader] Failed to acknowledge consumed batch:', err);
+          // On error, remove from set to allow retry
+          this.acknowledgedBatches.delete(item.batchId);
         });
-        this.acknowledgedBatches.add(item.batchId);
       } else if (item.acked) {
         // This batch was part of prefetch; reduce the counter on consumption
         this.prefetchAcknowledged = Math.max(0, this.prefetchAcknowledged - 1);
