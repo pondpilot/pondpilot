@@ -162,7 +162,7 @@ export class TauriConnection implements DatabaseConnection {
         },
         close: async () => {
           // Clean up the prepared statement using backend command
-          await this.invoke('close_prepared_statement', { statementId });
+          await this.invoke('prepared_statement_close', { statementId });
         },
       };
     } catch (error) {
