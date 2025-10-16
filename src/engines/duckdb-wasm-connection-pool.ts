@@ -132,13 +132,19 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
   }
 
   async query<T = any>(sql: string): Promise<T> {
-    // Use the pool to ensure fairness and proper resource management
-    const conn = await this.acquire();
+    // Use the engine's db directly to return raw Arrow tables
+    // (needed for compatibility with duckdb-meta.ts and other code expecting Arrow API)
+    const { db } = this.engine;
+    if (!db) {
+      throw new Error('Database not initialized');
+    }
+    const conn = await db.connect();
     try {
-      const result = await conn.execute(sql);
+      const result = await conn.query(sql);
+      // For compatibility, return the arrow table directly
       return result as T;
     } finally {
-      await this.release(conn);
+      await conn.close();
     }
   }
 
