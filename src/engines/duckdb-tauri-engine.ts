@@ -133,6 +133,11 @@ export class DuckDBTauriEngine implements DatabaseEngine {
 
   async *stream(sql: string, _params?: any[]): AsyncGenerator<any> {
     // Use unified binary streaming with Arrow IPC
+    //
+    // NOTE: Behavioral difference from WASM:
+    // - Tauri: Yields multiple Arrow Tables (batches as they arrive from backend)
+    // - WASM: Yields a single Arrow Table (all results at once)
+    // Both are type-compatible (AsyncGenerator<ArrowTable>), consumers just see N vs 1 yields
     const streamId = crypto.randomUUID();
     const { TauriArrowReader } = await import('./tauri-arrow-reader');
 
@@ -141,9 +146,9 @@ export class DuckDBTauriEngine implements DatabaseEngine {
     await this.invoke('stream_query', { streamId, sql });
 
     try {
-      // Forward batches as they arrive
+      // Forward Arrow Table batches as they arrive
       for await (const batch of reader) {
-        yield batch;
+        yield batch; // Yield Arrow Table batch
       }
     } finally {
       // Ensure we cancel/cleanup if consumer stops early

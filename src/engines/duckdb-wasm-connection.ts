@@ -27,9 +27,23 @@ export class DuckDBWasmConnection implements DatabaseConnection {
   }
 
   async *stream(sql: string, params?: any[]): AsyncGenerator<any> {
-    const result = await this.execute(sql, params);
-    for (const row of result.rows) {
-      yield row;
+    // FIX: Yield Arrow Table directly instead of converting to rows
+    // This standardizes stream() to return Arrow Tables across all engines (WASM and Tauri)
+    //
+    // NOTE: Behavioral difference from Tauri:
+    // - WASM: Yields a single Arrow Table (all results at once)
+    // - Tauri: Yields multiple Arrow Tables (batches as they arrive)
+    // Both are type-compatible (AsyncGenerator<ArrowTable>), consumers just see 1 vs N yields
+    const wrappedSql = wrapQueryWithLimit(sql);
+
+    if (params && params.length > 0) {
+      const stmt = await this.conn.prepare(wrappedSql);
+      const table = await stmt.query(...params);
+      stmt.close();
+      yield table; // Yield single Arrow Table with all results
+    } else {
+      const table = await this.conn.query(wrappedSql);
+      yield table; // Yield single Arrow Table with all results
     }
   }
 
