@@ -6,6 +6,7 @@ import 'allotment/dist/style.css';
 import './index.css';
 import './styles/tauri-native.css';
 
+import { ErrorBoundary } from '@components/error-boundary';
 import { ModifierProvider } from '@components/modifier-context/modifier-context';
 import { AppContextProvider } from '@features/app-context';
 import { AppState } from '@features/app-state';
@@ -59,7 +60,9 @@ export default function App() {
               <AppContextProvider>
                 <Notifications />
                 <AppState />
-                <Router />
+                <ErrorBoundary>
+                  <Router />
+                </ErrorBoundary>
                 <InitModals />
               </AppContextProvider>
             </PersistenceConnector>

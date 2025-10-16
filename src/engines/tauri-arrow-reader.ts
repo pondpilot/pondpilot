@@ -371,6 +371,10 @@ export class TauriArrowReader {
         combined = combined ? (combined as any).concat(table) : table;
       }
 
+      // Free memory - clear buffers after table construction
+      this.batches = [];
+      this.schemaBuffer = null;
+
       return combined;
     } catch (error) {
       console.error('[TauriArrowReader] Failed to construct table:', error);

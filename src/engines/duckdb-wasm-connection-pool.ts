@@ -22,6 +22,9 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
     releaseCount: 0,
     timeoutCount: 0,
   };
+  // Lock mechanism to prevent race conditions on pool operations
+  private lockQueue: Array<() => void> = [];
+  private lockHeld = false;
 
   constructor(
     private engine: DuckDBWasmEngine,
@@ -53,90 +56,89 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
   }
 
   async acquire(): Promise<DatabaseConnection> {
-    this.stats.acquireCount += 1;
+    return this.withLock(async () => {
+      this.stats.acquireCount += 1;
 
-    // Clean up any timed out waiters
-    this.cleanupTimedOutWaiters();
+      // Clean up any timed out waiters
+      this.cleanupTimedOutWaiters();
 
-    // If we have available connections, validate and return one
-    while (this.availableConnections.length > 0) {
-      const conn = this.availableConnections.pop()!;
+      // If we have available connections, validate and return one
+      while (this.availableConnections.length > 0) {
+        const conn = this.availableConnections.pop()!;
 
-      if (this.config.validateOnAcquire) {
-        if (await this.validateConnection(conn)) {
-          return conn;
+        if (this.config.validateOnAcquire) {
+          if (await this.validateConnection(conn)) {
+            return conn;
+          }
+          // Connection is invalid, remove it
+          this.removeConnection(conn);
+          continue;
         }
-        // Connection is invalid, remove it
-        this.removeConnection(conn);
-        continue;
+
+        return conn;
       }
 
-      return conn;
-    }
+      // If we haven't reached max size, create a new connection
+      if (this.connections.length < this.config.maxSize) {
+        const conn = await this.engine.createConnection();
+        this.connections.push(conn as DuckDBWasmConnection);
+        this.stats.connectionsCreated += 1;
+        return conn;
+      }
 
-    // If we haven't reached max size, create a new connection
-    if (this.connections.length < this.config.maxSize) {
-      const conn = await this.engine.createConnection();
-      this.connections.push(conn as DuckDBWasmConnection);
-      this.stats.connectionsCreated += 1;
-      return conn;
-    }
+      // Check if we've exceeded max waiting clients
+      if (this.waitQueue.length >= this.config.maxWaitingClients) {
+        throw new PoolExhaustedError(this.config.maxSize, { connectionId: 'pool-exhausted' });
+      }
 
-    // Check if we've exceeded max waiting clients
-    if (this.waitQueue.length >= this.config.maxWaitingClients) {
-      throw new PoolExhaustedError(this.config.maxSize, { connectionId: 'pool-exhausted' });
-    }
+      // Otherwise, wait for a connection to be released
+      return new Promise((resolve, reject) => {
+        const waiter = {
+          resolve,
+          reject,
+          timestamp: Date.now(),
+        };
 
-    // Otherwise, wait for a connection to be released
-    return new Promise((resolve, reject) => {
-      const waiter = {
-        resolve,
-        reject,
-        timestamp: Date.now(),
-      };
+        this.waitQueue.push(waiter);
 
-      this.waitQueue.push(waiter);
-
-      // Set up timeout
-      setTimeout(() => {
-        const index = this.waitQueue.indexOf(waiter);
-        if (index !== -1) {
-          this.waitQueue.splice(index, 1);
-          this.stats.timeoutCount += 1;
-          reject(new ConnectionTimeoutError(this.config.acquireTimeout));
-        }
-      }, this.config.acquireTimeout);
+        // Set up timeout
+        setTimeout(() => {
+          const index = this.waitQueue.indexOf(waiter);
+          if (index !== -1) {
+            this.waitQueue.splice(index, 1);
+            this.stats.timeoutCount += 1;
+            reject(new ConnectionTimeoutError(this.config.acquireTimeout));
+          }
+        }, this.config.acquireTimeout);
+      });
     });
   }
 
   async release(connection: DatabaseConnection): Promise<void> {
-    const conn = connection as DuckDBWasmConnection;
+    return this.withLock(async () => {
+      const conn = connection as DuckDBWasmConnection;
 
-    this.stats.releaseCount += 1;
+      this.stats.releaseCount += 1;
 
-    // If someone is waiting, give them the connection
-    if (this.waitQueue.length > 0) {
-      const waiter = this.waitQueue.shift()!;
-      waiter.resolve(conn);
-    } else {
-      // Otherwise, add it back to available pool
-      this.availableConnections.push(conn);
-    }
+      // If someone is waiting, give them the connection
+      if (this.waitQueue.length > 0) {
+        const waiter = this.waitQueue.shift()!;
+        waiter.resolve(conn);
+      } else {
+        // Otherwise, add it back to available pool
+        this.availableConnections.push(conn);
+      }
+    });
   }
 
   async query<T = any>(sql: string): Promise<T> {
-    // Use the engine's db directly for compatibility with DuckDB WASM
-    const { db } = this.engine;
-    if (!db) {
-      throw new Error('Database not initialized');
-    }
-    const conn = await db.connect();
+    // Use the pool to ensure fairness and proper resource management
+    const conn = await this.acquire();
     try {
-      const result = await conn.query(sql);
-      // For compatibility, return the arrow table directly
+      const result = await conn.execute(sql);
       return result as T;
     } finally {
-      await conn.close();
+      await this.release(conn);
     }
   }
 
@@ -452,5 +454,34 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
 
   available(): number {
     return this.availableConnections.length;
+  }
+
+  /**
+   * Async lock mechanism to prevent race conditions on pool operations
+   */
+  private async withLock<T>(fn: () => Promise<T>): Promise<T> {
+    if (!this.lockHeld) {
+      this.lockHeld = true;
+      try {
+        return await fn();
+      } finally {
+        this.releaseLock();
+      }
+    }
+
+    // Wait for lock to be released
+    await new Promise<void>((resolve) => this.lockQueue.push(resolve));
+    return this.withLock(fn);
+  }
+
+  private releaseLock(): void {
+    const next = this.lockQueue.shift();
+    if (next) {
+      // Release lock to next waiter
+      next();
+    } else {
+      // No more waiters, mark lock as available
+      this.lockHeld = false;
+    }
   }
 }

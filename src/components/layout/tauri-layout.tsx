@@ -19,8 +19,12 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
   const { handleFileDrop } = useAddLocalFilesOrFolders();
   useMenuEvents(); // Handle menu events from Tauri
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
-    const stored = localStorage.getItem(LOCAL_STORAGE_KEYS.SIDEBAR_COLLAPSED);
-    return stored ? JSON.parse(stored) : false;
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEYS.SIDEBAR_COLLAPSED);
+      return stored ? JSON.parse(stored) : false;
+    } catch {
+      return false; // Safe default on parse error
+    }
   });
 
   const toggleSidebar = () => {
@@ -32,19 +36,17 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
   };
 
   // Add padding for macOS traffic lights when using overlay titlebar
-  // Default to 'darwin' if we're in Tauri since we're likely on macOS during development
-  const [platform, setPlatform] = useState<string>('');
-
-  useEffect(() => {
-    // Detect platform for proper titlebar spacing
+  // Detect platform synchronously to avoid wrong initial render
+  const getPlatformSync = (): string => {
     try {
-      const p = detectPlatform();
-      setPlatform(p);
+      return detectPlatform();
     } catch (err) {
       console.warn('Failed to detect platform:', err);
+      return '';
     }
-  }, []);
+  };
 
+  const [platform] = useState<string>(getPlatformSync);
   const isMacOS = platform === 'darwin';
 
   return isFileAccessApiSupported ? (
@@ -68,7 +70,13 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
                   position="bottom"
                   openDelay={500}
                 >
-                  <ActionIcon size={28} variant="subtle" onClick={toggleSidebar} className="mr-4">
+                  <ActionIcon
+                    size={28}
+                    variant="subtle"
+                    onClick={toggleSidebar}
+                    className="mr-4"
+                    data-tauri-drag-region="no-drag"
+                  >
                     {sidebarCollapsed ? (
                       <IconLayoutSidebarLeftExpand size={18} />
                     ) : (
@@ -84,7 +92,12 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
                   position="bottom"
                   openDelay={500}
                 >
-                  <ActionIcon size={28} variant="subtle" onClick={toggleSidebar}>
+                  <ActionIcon
+                    size={28}
+                    variant="subtle"
+                    onClick={toggleSidebar}
+                    data-tauri-drag-region="no-drag"
+                  >
                     {sidebarCollapsed ? (
                       <IconLayoutSidebarLeftExpand size={18} />
                     ) : (
@@ -96,7 +109,7 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
             )}
 
             {/* Center container for search bar */}
-            <div className="flex-1 flex items-center justify-center px-4">
+            <div className="flex-1 flex items-center justify-center px-4" data-tauri-drag-region="no-drag">
               <Header />
             </div>
 

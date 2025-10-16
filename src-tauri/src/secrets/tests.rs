@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use super::super::*;
     use crate::secrets::models::{SecretFields, SecretMetadata, SecretType, SecureString};
     use chrono::Utc;
     use uuid::Uuid;
