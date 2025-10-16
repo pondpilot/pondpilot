@@ -95,8 +95,8 @@ mod tests {
         // Valid Postgres credentials
         let mut fields = SecretFields::default();
         fields.host = Some("localhost".to_string());
-        fields.user = Some("postgres".to_string());
-        fields.secret = Some("password".to_string());
+        fields.username = Some("postgres".to_string());
+        fields.password = Some("password".to_string());
 
         assert!(validator
             .validate_fields(&SecretType::Postgres, &fields)
@@ -104,8 +104,8 @@ mod tests {
 
         // Missing host
         let mut fields = SecretFields::default();
-        fields.user = Some("postgres".to_string());
-        fields.secret = Some("password".to_string());
+        fields.username = Some("postgres".to_string());
+        fields.password = Some("password".to_string());
 
         assert!(validator
             .validate_fields(&SecretType::Postgres, &fields)
