@@ -15,27 +15,38 @@ const logger = getLogger('attachment-loader');
 
 export class AttachmentLoader {
   /**
+   * FIX: Escape single quotes in SQL string literals to prevent injection
+   * SQL standard: single quotes are escaped by doubling them
+   */
+  private static escapeString(str: string | number): string {
+    const stringValue = String(str);
+    return stringValue.replace(/'/g, "''");
+  }
+
+  /**
    * Build CREATE SECRET SQL for WASM environment
    */
   private static buildSecretSql(db: any, credentials: any): string {
     const secretName = `secret_${db.connectionId.replace(/-/g, '_')}`;
 
     if (db.connectionType === 'postgres' || db.connectionType === 'postgresql') {
+      // FIX: Escape all credential fields to prevent SQL injection
       return `CREATE TEMPORARY SECRET IF NOT EXISTS ${secretName} (
         TYPE POSTGRES,
-        HOST '${credentials.host}',
+        HOST '${this.escapeString(credentials.host)}',
         PORT ${credentials.port},
-        USER '${credentials.username}',
-        PASSWORD '${credentials.password}'
+        USER '${this.escapeString(credentials.username)}',
+        PASSWORD '${this.escapeString(credentials.password)}'
       )`;
     }
     if (db.connectionType === 'mysql') {
+      // FIX: Escape all credential fields to prevent SQL injection
       return `CREATE TEMPORARY SECRET IF NOT EXISTS ${secretName} (
         TYPE MYSQL,
-        HOST '${credentials.host}',
+        HOST '${this.escapeString(credentials.host)}',
         PORT ${credentials.port},
-        USER '${credentials.username}',
-        PASSWORD '${credentials.password}'
+        USER '${this.escapeString(credentials.username)}',
+        PASSWORD '${this.escapeString(credentials.password)}'
       )`;
     }
 
@@ -51,8 +62,13 @@ export class AttachmentLoader {
       db.connectionType === 'postgres' || db.connectionType === 'postgresql' ? 'POSTGRES' : 'MYSQL';
     const dbParam = dbType === 'POSTGRES' ? 'dbname' : 'database';
 
-    return `ATTACH 'host=${credentials.host} port=${credentials.port} ${dbParam}=${credentials.database}' 
-            AS ${databaseAlias} 
+    // FIX: Escape credentials in connection string to prevent SQL injection
+    // Note: The entire connection string is wrapped in single quotes, so we escape internal quotes
+    const escapedHost = this.escapeString(credentials.host);
+    const escapedDatabase = this.escapeString(credentials.database);
+
+    return `ATTACH 'host=${escapedHost} port=${credentials.port} ${dbParam}=${escapedDatabase}'
+            AS ${databaseAlias}
             (TYPE ${dbType}, SECRET ${secretName})`;
   }
 
