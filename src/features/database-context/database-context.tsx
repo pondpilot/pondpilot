@@ -87,10 +87,6 @@ export const DatabaseConnectionPoolProvider = ({
   useEffect(() => {
     // Store the previous engine before updating
     const previousEngine = engineRef.current;
-    console.log('[DB-CONTEXT] Engine effect running', {
-      previousEngine: previousEngine ? 'exists' : 'null',
-      currentEngine: engine ? 'exists' : 'null',
-    });
 
     // Update ref with current engine
     engineRef.current = engine;
@@ -98,13 +94,7 @@ export const DatabaseConnectionPoolProvider = ({
     // Cleanup: only shut down the PREVIOUS engine when engine changes
     // Do NOT shut down the current engine!
     return () => {
-      console.log('[DB-CONTEXT] Engine cleanup running', {
-        previousEngine: previousEngine ? 'exists' : 'null',
-        currentEngine: engine ? 'exists' : 'null',
-        willShutdown: !!(previousEngine && previousEngine !== engine),
-      });
       if (previousEngine && previousEngine !== engine) {
-        console.log('[DB-CONTEXT] Shutting down PREVIOUS engine');
         previousEngine.shutdown();
       }
     };
@@ -113,7 +103,6 @@ export const DatabaseConnectionPoolProvider = ({
   // FIX: Cleanup on unmount - shut down current engine
   useEffect(() => {
     return () => {
-      console.log('[DB-CONTEXT] Component unmounting, shutting down current engine');
       if (engineRef.current) {
         engineRef.current.shutdown();
       }

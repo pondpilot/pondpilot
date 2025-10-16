@@ -41,17 +41,13 @@ export class DuckDBWasmEngine implements DatabaseEngine {
   }
 
   async initialize(config: EngineConfig): Promise<void> {
-    console.log('[WASM-ENGINE] initialize() called', config);
     this.config = config;
 
     try {
       // Select bundle
-      console.log('[WASM-ENGINE] Selecting bundle...');
       const bundle = await duckdb.selectBundle(this.bundles);
-      console.log('[WASM-ENGINE] Bundle selected:', bundle);
 
       // Create worker
-      console.log('[WASM-ENGINE] Creating worker...');
       const workerUrl =
         config.workerUrl ||
         URL.createObjectURL(
@@ -60,12 +56,9 @@ export class DuckDBWasmEngine implements DatabaseEngine {
 
       this.worker = new Worker(workerUrl);
       this._db = new duckdb.AsyncDuckDB(this.logger, this.worker);
-      console.log('[WASM-ENGINE] Worker created, AsyncDuckDB instantiated');
 
       // Instantiate DuckDB
-      console.log('[WASM-ENGINE] Calling db.instantiate()...');
       await this._db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-      console.log('[WASM-ENGINE] db.instantiate() completed');
 
       // Open database
       const dbConfig: duckdb.DuckDBConfig = {
@@ -79,30 +72,24 @@ export class DuckDBWasmEngine implements DatabaseEngine {
         dbConfig.accessMode = duckdb.DuckDBAccessMode.READ_WRITE;
       }
 
-      console.log('[WASM-ENGINE] Opening database with config:', dbConfig);
       await this._db.open(dbConfig);
-      console.log('[WASM-ENGINE] Database opened');
 
       // Workaround for OPFS write mode issue
       if (config.storageType === 'persistent') {
-        console.log('[WASM-ENGINE] Running OPFS workaround...');
         const conn = await this._db.connect();
         const tempTable = `temp_${uuidv4().replace(/-/g, '_')}`;
         await conn.query(`CREATE OR REPLACE TABLE ${tempTable} AS SELECT 1;`);
         await conn.query(`DROP TABLE ${tempTable};`);
         await conn.close();
-        console.log('[WASM-ENGINE] OPFS workaround completed');
       }
 
       // Load extensions if specified
       for (const ext of config.extensions || []) {
         // Handle both string and object formats
         const extensionName = typeof ext === 'string' ? ext : ext.name;
-        console.log('[WASM-ENGINE] Loading extension:', extensionName);
         await this.loadExtension(extensionName);
       }
 
-      console.log('[WASM-ENGINE] Initialization complete, marking ready');
       this.ready = true;
     } catch (error) {
       throw new InitializationError(
@@ -113,14 +100,12 @@ export class DuckDBWasmEngine implements DatabaseEngine {
   }
 
   async shutdown(): Promise<void> {
-    console.log('[WASM-ENGINE] shutdown() called');
     if (this.worker) {
       this.worker.terminate();
       this.worker = null;
     }
     this._db = null;
     this.ready = false;
-    console.log('[WASM-ENGINE] shutdown() completed');
   }
 
   isReady(): boolean {
