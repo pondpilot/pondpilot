@@ -251,6 +251,7 @@ pub async fn test_secret(
 pub async fn apply_secret_to_connection(
     window: tauri::Window,
     state: State<'_, Arc<SecretsManager>>,
+    engine: tauri::State<'_, Arc<crate::database::DuckDBEngine>>,
     request: ApplySecretRequest,
 ) -> Result<(), String> {
     // SECURITY: Restrict this command to only the main window
@@ -334,6 +335,28 @@ pub async fn apply_secret_to_connection(
                 std::env::set_var("MOTHERDUCK_TOKEN", token.expose());
                 #[cfg(debug_assertions)]
                 println!("[Secrets] MOTHERDUCK_TOKEN set successfully");
+
+                // Also set the token in DuckDB engine
+                // This ensures the token is picked up even if the motherduck extension was already loaded
+                let token_value = token.expose();
+                let sql = format!("SET motherduck_token = '{}';", token_value);
+
+                #[cfg(debug_assertions)]
+                println!("[Secrets] Executing SQL to set motherduck_token in DuckDB engine");
+
+                match engine.execute_query(&sql, vec![]).await {
+                    Ok(_) => {
+                        #[cfg(debug_assertions)]
+                        println!("[Secrets] Successfully set motherduck_token in DuckDB");
+                    }
+                    Err(e) => {
+                        // Log warning but don't fail - the env var approach might still work
+                        tracing::warn!(
+                            "Failed to set motherduck_token via SQL (env var is still set): {}",
+                            e
+                        );
+                    }
+                }
             } else {
                 eprintln!("[Secrets] No token field found in MotherDuck secret");
                 return Err("MotherDuck secret missing token field".to_string());
