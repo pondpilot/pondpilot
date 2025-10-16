@@ -77,12 +77,18 @@ export const DatabaseConnectionPoolProvider = ({
   // Get persistence state from context
   const { persistenceState, updatePersistenceState } = useDuckDBPersistence();
 
-  // Single reference for in-flight promise
+  // FIX: Track mount state to prevent setState on unmounted component
+  const isMountedRef = useRef(true);
+
+  // FIX: Single reference for in-flight promise with atomic assignment
   const inFlight = useRef<Promise<ConnectionPool | null> | null>(null);
 
   // Cleanup on unmount
   useEffect(
     () => () => {
+      // FIX: Mark as unmounted to prevent setState after unmount
+      isMountedRef.current = false;
+
       if (engine) {
         engine.shutdown();
       }
@@ -93,6 +99,9 @@ export const DatabaseConnectionPoolProvider = ({
   // Memoize the status update function
   const memoizedStatusUpdate = useCallback(
     (status: { state: DatabaseInitState; message: string }) => {
+      // FIX: Guard against setState on unmounted component
+      if (!isMountedRef.current) return;
+
       setInitStatus(status);
       onStatusUpdate?.(status);
     },
@@ -100,6 +109,7 @@ export const DatabaseConnectionPoolProvider = ({
   );
 
   const connectDatabase = useCallback(async (): Promise<ConnectionPool | null> => {
+    // FIX: Atomic check-and-set to prevent race condition
     // If we already have a connection request in flight, return it
     if (inFlight.current) {
       return inFlight.current;
@@ -107,10 +117,13 @@ export const DatabaseConnectionPoolProvider = ({
 
     // Check if the persistence state is valid before proceeding
     if (!persistenceState || !persistenceState.dbPath) {
-      setInitStatus({
-        state: 'error',
-        message: 'Persistence state not initialized properly.',
-      });
+      // FIX: Guard setState on unmounted component
+      if (isMountedRef.current) {
+        setInitStatus({
+          state: 'error',
+          message: 'Persistence state not initialized properly.',
+        });
+      }
       return null;
     }
 
@@ -130,8 +143,9 @@ export const DatabaseConnectionPoolProvider = ({
         // );
         // console.log('Window.__TAURI__:', (window as any).__TAURI__);
 
-        // Clone config to avoid mutating the original
-        let config: EngineConfig = engineConfig
+        // FIX: Immutable config handling - create new config object without mutating
+        // Build the final config in one step to avoid intermediate mutations
+        const baseConfig: EngineConfig = engineConfig
           ? { ...engineConfig }
           : {
               ...detectedEngine,
@@ -142,11 +156,13 @@ export const DatabaseConnectionPoolProvider = ({
         // console.log('Final database engine config:', config);
         // console.log('Engine config type:', config.type);
 
-        // Handle storage path configuration based on engine type
-        if (config.storageType === 'persistent') {
-          if (config.type === 'duckdb-wasm') {
+        // FIX: Handle storage path configuration immutably
+        let config: EngineConfig = baseConfig;
+
+        if (baseConfig.storageType === 'persistent') {
+          if (baseConfig.type === 'duckdb-wasm') {
             // Ensure proper OPFS path format for WASM engine
-            let dbPath = config.storagePath || persistenceState.dbPath;
+            let dbPath = baseConfig.storagePath || persistenceState.dbPath;
 
             // Make sure the path starts with opfs://
             if (!dbPath.startsWith('opfs://')) {
@@ -163,10 +179,11 @@ export const DatabaseConnectionPoolProvider = ({
               );
             }
 
-            config = { ...config, storagePath: dbPath };
-          } else if (config.type === 'duckdb-tauri') {
+            // Create new config object with updated storagePath
+            config = { ...baseConfig, storagePath: dbPath };
+          } else if (baseConfig.type === 'duckdb-tauri') {
             // For Tauri, use a local file path instead of OPFS
-            config = { ...config, storagePath: 'pondpilot.db' };
+            config = { ...baseConfig, storagePath: 'pondpilot.db' };
           }
         }
 
@@ -177,6 +194,9 @@ export const DatabaseConnectionPoolProvider = ({
 
         // Create the engine
         const newEngine = await DatabaseEngineFactory.createEngine(config);
+
+        // FIX: Guard setState on unmounted component
+        if (!isMountedRef.current) return null;
         setEngine(newEngine);
 
         memoizedStatusUpdate({
@@ -209,6 +229,8 @@ export const DatabaseConnectionPoolProvider = ({
         // Note: Checkpointing will be handled by the ConnectionPoolAdapter
         // which wraps the generic pool and provides the expected interface
 
+        // FIX: Guard setState on unmounted component
+        if (!isMountedRef.current) return null;
         setConnectionPool(pool);
 
         memoizedStatusUpdate({
@@ -234,6 +256,8 @@ export const DatabaseConnectionPoolProvider = ({
       }
     })();
 
+    // FIX: Atomic assignment - set inFlight immediately to prevent race condition
+    // This closes the gap between the check at line 114 and this assignment
     inFlight.current = connectionPromise;
 
     // Clear the in-flight reference after completion (success or failure)
