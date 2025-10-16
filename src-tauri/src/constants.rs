@@ -22,4 +22,3 @@ pub const MAX_ARRAY_SIZE: usize = 100_000_000; // 100M elements
 
 // Timeout defaults (in milliseconds)
 pub const DEFAULT_QUERY_TIMEOUT_MS: u64 = 120_000; // 2 minutes
-pub const MAX_QUERY_TIMEOUT_MS: u64 = 600_000; // 10 minutes

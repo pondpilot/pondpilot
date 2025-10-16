@@ -52,8 +52,6 @@ struct ConnectionHandler {
 }
 
 impl ConnectionHandler {
-    const MIN_QUERY_TIMEOUT_MS: u64 = 50;
-    const MAX_QUERY_TIMEOUT_MS: u64 = 10 * 60 * 1000; // 10 minutes
     fn new(
         connection: Connection,
         receiver: mpsc::Receiver<ConnectionCommand>,
@@ -152,27 +150,6 @@ impl ConnectionHandler {
         token
             .chars()
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
-    }
-
-    /// Set MotherDuck token using the safest available method
-    fn set_motherduck_token(
-        &mut self,
-        token: &str,
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        // First, clear any existing token to ensure we're not using a cached value
-        let _ = self.connection.execute("RESET motherduck_token", []);
-
-        // Double-escape single quotes as a last resort safety measure
-        // This is still not ideal, but combined with validation it's safer
-        let escaped = token.replace('\'', "''");
-
-        // Modern MotherDuck extension uses `motherduck_token`.
-        // Older aliases like `motherduck_secret` may not exist; avoid setting them to prevent errors.
-        // If setting fails (unexpected), return an error so caller can log debug info.
-        self.connection
-            .execute(&format!("SET motherduck_token='{}'", escaped), [])?;
-
-        Ok(())
     }
 
     fn execute_sql(&mut self, sql: &str, params: &[serde_json::Value]) -> Result<QueryResult> {
@@ -552,16 +529,15 @@ fn format_date_from_days(days_since_epoch: i32) -> String {
 
 fn format_date_from_millis(ms_since_epoch: i64) -> String {
     // Compute date portion from milliseconds since epoch (UTC)
-    if let Some(ndt) = NaiveDateTime::from_timestamp_millis(ms_since_epoch) {
-        ndt.date().format("%Y-%m-%d").to_string()
+    if let Some(dt) = chrono::DateTime::from_timestamp_millis(ms_since_epoch) {
+        dt.format("%Y-%m-%d").to_string()
     } else {
         "1970-01-01".to_string()
     }
 }
 
 fn format_timestamp_millis(ms_since_epoch: i64) -> String {
-    if let Some(ndt) = NaiveDateTime::from_timestamp_millis(ms_since_epoch) {
-        let dt = Utc.from_utc_datetime(&ndt);
+    if let Some(dt) = chrono::DateTime::from_timestamp_millis(ms_since_epoch) {
         dt.format("%Y-%m-%dT%H:%M:%S%.fZ").to_string()
     } else {
         "1970-01-01T00:00:00Z".to_string()
@@ -574,8 +550,7 @@ fn format_timestamp_micros(us_since_epoch: i64) -> String {
     // Ensure micros is positive before conversion
     let abs_micros = micros.abs() as u32;
     let nanos = abs_micros * 1_000; // convert to ns
-    if let Some(ndt) = NaiveDateTime::from_timestamp_opt(secs, nanos) {
-        let dt = Utc.from_utc_datetime(&ndt);
+    if let Some(dt) = chrono::DateTime::from_timestamp(secs, nanos) {
         dt.format("%Y-%m-%dT%H:%M:%S%.fZ").to_string()
     } else {
         "1970-01-01T00:00:00Z".to_string()
@@ -587,8 +562,7 @@ fn format_timestamp_nanos(ns_since_epoch: i64) -> String {
     let nanos = ns_since_epoch % 1_000_000_000;
     // Ensure nanos is positive (must be in range [0, 999_999_999])
     let abs_nanos = nanos.abs() as u32;
-    if let Some(ndt) = NaiveDateTime::from_timestamp_opt(secs, abs_nanos) {
-        let dt = Utc.from_utc_datetime(&ndt);
+    if let Some(dt) = chrono::DateTime::from_timestamp(secs, abs_nanos) {
         dt.format("%Y-%m-%dT%H:%M:%S%.fZ").to_string()
     } else {
         "1970-01-01T00:00:00Z".to_string()

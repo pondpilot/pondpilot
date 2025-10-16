@@ -163,19 +163,6 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         }
       };
 
-      const createResultTableWithRetry = async (code: string) => {
-        try {
-          await conn.execute(`CREATE TABLE ${qualifiedScriptResultTable} AS ${code}`);
-        } catch (error: any) {
-          if (error.message?.includes('NotReadableError')) {
-            await syncFiles(pool);
-            await conn.execute(`CREATE TABLE ${qualifiedScriptResultTable} AS ${code}`);
-          } else {
-            throw error;
-          }
-        }
-      };
-
       try {
         // Cancel any active data operations before running new script
         // This ensures clean state for the new execution
