@@ -164,7 +164,7 @@ export class DuckDBTauriEngine implements DatabaseEngine {
     return {
       id: stmtId,
       query: async (params?: any[]) => {
-        return this.invokeWithErrorHandling('prepared_statement_execute', {
+        return await this.invokeWithErrorHandling('prepared_statement_execute', {
           statementId: stmtId,
           params: params || [],
         });
