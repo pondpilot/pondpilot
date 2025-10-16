@@ -77,4 +77,28 @@ export class SQLiteAdapter implements PersistenceAdapter {
       }
     }
   }
+
+  async transaction<T>(fn: (adapter: PersistenceAdapter) => Promise<T>): Promise<T> {
+    try {
+      // Begin transaction
+      await invoke('sqlite_begin_transaction');
+
+      // Execute the function
+      const result = await fn(this);
+
+      // Commit transaction
+      await invoke('sqlite_commit_transaction');
+
+      return result;
+    } catch (error) {
+      // Rollback transaction on error
+      try {
+        await invoke('sqlite_rollback_transaction');
+      } catch (rollbackError) {
+        console.error('SQLiteAdapter.transaction rollback error:', rollbackError);
+      }
+      console.error('SQLiteAdapter.transaction error:', error);
+      throw error;
+    }
+  }
 }

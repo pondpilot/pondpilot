@@ -12,6 +12,9 @@ export interface PersistenceAdapter {
   getAll: <T>(table: string) => Promise<T[]>;
   putAll: <T>(table: string, items: Array<{ key: string; value: T }>) => Promise<void>;
   deleteAll: (table: string, keys: string[]) => Promise<void>;
+
+  // Transactions - ensures atomic operations
+  transaction: <T>(fn: (adapter: PersistenceAdapter) => Promise<T>) => Promise<T>;
 }
 
 // Table names used in persistence (underscore format for backend consistency)

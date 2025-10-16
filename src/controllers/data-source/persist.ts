@@ -25,9 +25,12 @@ export const persistPutDataSources = async (
 ) => {
   if (isTauriEnvironment()) {
     const adapter = iDbOrAdapter as PersistenceAdapter;
-    for (const ds of dataSources) {
-      await adapter.put(DATA_SOURCE_TABLE_NAME, ds, ds.id);
-    }
+    // Use transaction to ensure atomicity
+    await adapter.transaction(async (txAdapter) => {
+      for (const ds of dataSources) {
+        await txAdapter.put(DATA_SOURCE_TABLE_NAME, ds, ds.id);
+      }
+    });
   } else {
     const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;
     const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME], 'readwrite');
@@ -70,15 +73,18 @@ export const persistDeleteDataSource = async (
     // Using persistence adapter (Tauri/SQLite)
     const adapter = iDbOrAdapter as PersistenceAdapter;
 
-    // Delete each data source
-    for (const id of deletedDataSourceIds) {
-      await adapter.delete(DATA_SOURCE_TABLE_NAME, id);
-    }
+    // Use transaction to ensure atomicity across multiple tables
+    await adapter.transaction(async (txAdapter) => {
+      // Delete each data source
+      for (const id of deletedDataSourceIds) {
+        await txAdapter.delete(DATA_SOURCE_TABLE_NAME, id);
+      }
 
-    // Delete each local entry
-    for (const id of entryIdsToDelete) {
-      await adapter.delete(LOCAL_ENTRY_TABLE_NAME, id);
-    }
+      // Delete each local entry
+      for (const id of entryIdsToDelete) {
+        await txAdapter.delete(LOCAL_ENTRY_TABLE_NAME, id);
+      }
+    });
   } else {
     // Using IndexedDB directly (web)
     const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;

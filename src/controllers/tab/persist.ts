@@ -57,15 +57,18 @@ export const persistDeleteTab = async (
     // Using persistence adapter (Tauri/SQLite)
     const adapter = iDbOrAdapter as PersistenceAdapter;
 
-    // Delete each tab
-    for (const tabId of deletedTabIds) {
-      await adapter.delete(TAB_TABLE_NAME, tabId);
-    }
+    // Use transaction to ensure atomicity across multiple tables
+    await adapter.transaction(async (txAdapter) => {
+      // Delete each tab
+      for (const tabId of deletedTabIds) {
+        await txAdapter.delete(TAB_TABLE_NAME, tabId);
+      }
 
-    // Update the content view data
-    await adapter.put(CONTENT_VIEW_TABLE_NAME, newTabOrder, 'tabOrder');
-    await adapter.put(CONTENT_VIEW_TABLE_NAME, newActiveTabId, 'activeTabId');
-    await adapter.put(CONTENT_VIEW_TABLE_NAME, newPreviewTabId, 'previewTabId');
+      // Update the content view data
+      await txAdapter.put(CONTENT_VIEW_TABLE_NAME, newTabOrder, 'tabOrder');
+      await txAdapter.put(CONTENT_VIEW_TABLE_NAME, newActiveTabId, 'activeTabId');
+      await txAdapter.put(CONTENT_VIEW_TABLE_NAME, newPreviewTabId, 'previewTabId');
+    });
   } else {
     // Using IndexedDB directly (web)
     const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;

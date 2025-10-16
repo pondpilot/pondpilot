@@ -29,33 +29,36 @@ export const persistAddLocalEntry = async (
 
   if (adapter) {
     // Using persistence adapter (Tauri/SQLite)
-    // Process entries
-    for (const [id, newLocalEntry] of newEntries) {
-      // Get path from unified handle or legacy properties
-      let path: string | null = null;
+    // Use transaction to ensure atomicity across multiple tables
+    await adapter.transaction(async (txAdapter) => {
+      // Process entries
+      for (const [id, newLocalEntry] of newEntries) {
+        // Get path from unified handle or legacy properties
+        let path: string | null = null;
 
-      if (newLocalEntry.handle) {
-        const unifiedHandle = convertLegacyHandle(newLocalEntry.handle);
-        path = unifiedHandle?.getPath() || null;
+        if (newLocalEntry.handle) {
+          const unifiedHandle = convertLegacyHandle(newLocalEntry.handle);
+          path = unifiedHandle?.getPath() || null;
+        }
+
+        // Fallback to legacy properties if no unified handle
+        if (!path) {
+          path = (newLocalEntry as any).filePath || (newLocalEntry as any).directoryPath || null;
+        }
+
+        const persistenceEntry = {
+          ...newLocalEntry,
+          handle: null, // Don't store mock handles
+          tauriPath: path,
+        };
+        await txAdapter.put(LOCAL_ENTRY_TABLE_NAME, persistenceEntry, id);
       }
 
-      // Fallback to legacy properties if no unified handle
-      if (!path) {
-        path = (newLocalEntry as any).filePath || (newLocalEntry as any).directoryPath || null;
+      // Process data sources
+      for (const [id, newDataSource] of newDataSources) {
+        await txAdapter.put(DATA_SOURCE_TABLE_NAME, newDataSource, id);
       }
-
-      const persistenceEntry = {
-        ...newLocalEntry,
-        handle: null, // Don't store mock handles
-        tauriPath: path,
-      };
-      await adapter.put(LOCAL_ENTRY_TABLE_NAME, persistenceEntry, id);
-    }
-
-    // Process data sources
-    for (const [id, newDataSource] of newDataSources) {
-      await adapter.put(DATA_SOURCE_TABLE_NAME, newDataSource, id);
-    }
+    });
   } else {
     // Using IndexedDB directly (web)
     const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;
@@ -134,9 +137,12 @@ export const persistDeleteLocalEntry = async (
 
   if (adapter) {
     // Using persistence adapter (Tauri/SQLite)
-    for (const id of entryIdsToDelete) {
-      await adapter.delete(LOCAL_ENTRY_TABLE_NAME, id);
-    }
+    // Use transaction to ensure atomicity
+    await adapter.transaction(async (txAdapter) => {
+      for (const id of entryIdsToDelete) {
+        await txAdapter.delete(LOCAL_ENTRY_TABLE_NAME, id);
+      }
+    });
   } else {
     // Using IndexedDB directly (web)
     const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;

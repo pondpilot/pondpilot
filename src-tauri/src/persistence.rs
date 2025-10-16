@@ -398,3 +398,48 @@ pub async fn sqlite_delete_all(
     tx.commit()?;
     Ok(())
 }
+
+#[tauri::command]
+pub async fn sqlite_begin_transaction(
+    state: State<'_, PersistenceState>,
+) -> Result<(), DuckDBError> {
+    let conn = state
+        .connection
+        .lock()
+        .map_err(|_| DuckDBError::PersistenceError {
+            message: "Failed to acquire connection lock".to_string(),
+            operation: None,
+        })?;
+    conn.execute("BEGIN IMMEDIATE TRANSACTION", [])?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn sqlite_commit_transaction(
+    state: State<'_, PersistenceState>,
+) -> Result<(), DuckDBError> {
+    let conn = state
+        .connection
+        .lock()
+        .map_err(|_| DuckDBError::PersistenceError {
+            message: "Failed to acquire connection lock".to_string(),
+            operation: None,
+        })?;
+    conn.execute("COMMIT", [])?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn sqlite_rollback_transaction(
+    state: State<'_, PersistenceState>,
+) -> Result<(), DuckDBError> {
+    let conn = state
+        .connection
+        .lock()
+        .map_err(|_| DuckDBError::PersistenceError {
+            message: "Failed to acquire connection lock".to_string(),
+            operation: None,
+        })?;
+    conn.execute("ROLLBACK", [])?;
+    Ok(())
+}

@@ -275,6 +275,9 @@ fn main() {
                 persistence::sqlite_get_all,
                 persistence::sqlite_put_all,
                 persistence::sqlite_delete_all,
+                persistence::sqlite_begin_transaction,
+                persistence::sqlite_commit_transaction,
+                persistence::sqlite_rollback_transaction,
                 // Secrets management commands
                 secrets::save_secret,
                 secrets::list_secrets,
