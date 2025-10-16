@@ -3412,6 +3412,7 @@ dependencies = [
  "anyhow",
  "arrow-array",
  "arrow-buffer",
+ "arrow-data",
  "arrow-format",
  "arrow-ipc",
  "arrow-schema",

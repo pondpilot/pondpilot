@@ -36,6 +36,7 @@ arrow-buffer = "55.2.0"
 arrow-schema = "55.2.0"
 arrow-array = "55.2.0"
 arrow-ipc = "55.2.0"
+arrow-data = "55.2.0"
 bytes = "1.5"
 base64 = "0.22"
 tokio = { version = "1", features = ["full"] }
