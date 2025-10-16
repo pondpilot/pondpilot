@@ -83,21 +83,32 @@ export const DatabaseConnectionPoolProvider = ({
   // FIX: Single reference for in-flight promise with atomic assignment
   const inFlight = useRef<Promise<ConnectionPool | null> | null>(null);
 
-  // FIX: Cleanup engine when it changes or on unmount
+  // FIX: Track current engine to prevent shutting down newly created engine
+  const engineRef = useRef<DatabaseEngine | null>(null);
+
+  // FIX: Cleanup PREVIOUS engine when engine changes
   useEffect(() => {
-    // Effect body runs when engine changes (to set up any needed tracking)
-    // Cleanup runs when engine changes (before new effect) AND on unmount
+    // Store the previous engine before updating
+    const previousEngine = engineRef.current;
+
+    // Update ref with current engine
+    engineRef.current = engine;
+
+    // Cleanup: only shut down the PREVIOUS engine when engine changes
+    // Do NOT shut down the current engine!
     return () => {
-      if (engine) {
-        engine.shutdown();
+      if (previousEngine && previousEngine !== engine) {
+        previousEngine.shutdown();
       }
     };
   }, [engine]);
 
-  // FIX: Separate effect for unmount tracking
+  // FIX: Cleanup on unmount - shut down current engine and mark as unmounted
   useEffect(() => {
     return () => {
-      // Only mark as unmounted on component unmount (no dependencies)
+      if (engineRef.current) {
+        engineRef.current.shutdown();
+      }
       isMountedRef.current = false;
     };
   }, []);
