@@ -14,6 +14,7 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
   }> = [];
   private config: PoolConfig;
   private lastValidation: number = Date.now();
+  private cleanupIntervalHandle?: NodeJS.Timeout;
   private stats = {
     connectionsCreated: 0,
     connectionsDestroyed: 0,
@@ -44,7 +45,10 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
 
     // Start idle connection cleanup timer
     if (this.config.idleTimeout > 0) {
-      setInterval(() => this.cleanupIdleConnections(), this.config.idleTimeout / 2);
+      this.cleanupIntervalHandle = setInterval(
+        () => this.cleanupIdleConnections(),
+        this.config.idleTimeout / 2,
+      );
     }
   }
 
@@ -356,6 +360,12 @@ export class DuckDBWasmConnectionPool implements ConnectionPool {
   }
 
   async close(): Promise<void> {
+    // Clear cleanup interval
+    if (this.cleanupIntervalHandle) {
+      clearInterval(this.cleanupIntervalHandle);
+      this.cleanupIntervalHandle = undefined;
+    }
+
     // Close all connections
     const closePromises = this.connections.map((conn) => conn.close());
     await Promise.all(closePromises);
