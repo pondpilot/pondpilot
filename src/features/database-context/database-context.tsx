@@ -236,7 +236,8 @@ export const DatabaseConnectionPoolProvider = ({
 
     inFlight.current = connectionPromise;
 
-    connectionPromise.catch(() => {
+    // Clear the in-flight reference after completion (success or failure)
+    connectionPromise.finally(() => {
       inFlight.current = null;
     });
 
