@@ -105,6 +105,13 @@ pub enum DuckDBError {
 
     #[error("Parameter binding error: {message}")]
     ParameterBinding { message: String },
+
+    #[error("Security validation failed: {message}")]
+    SecurityViolation {
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        violation_type: Option<String>,
+    },
 }
 
 impl From<duckdb::Error> for DuckDBError {

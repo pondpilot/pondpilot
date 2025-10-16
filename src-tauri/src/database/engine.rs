@@ -250,14 +250,8 @@ impl DuckDBEngine {
     async fn execute_and_collect(&self, sql: &str) -> Result<super::types::QueryResult> {
         use super::arrow_streaming::ArrowStreamMessage;
 
-        let query_id = format!(
-            "C{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-                % 100000
-        );
+        // Use UUID for query ID to prevent collisions and improve security
+        let query_id = format!("C-{}", uuid::Uuid::new_v4());
 
         let executor =
             ArrowStreamingExecutor::new(self.pool.clone(), sql.to_string(), query_id, None, None);
@@ -1026,14 +1020,27 @@ impl DuckDBEngine {
         cancel_token: Option<CancellationToken>,
         setup_sql: Option<Vec<String>>,
     ) -> Result<tokio::sync::mpsc::Receiver<super::arrow_streaming::ArrowStreamMessage>> {
-        let query_id = format!(
-            "A{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-                % 100000
-        );
+        // Validate setup SQL statements for security
+        if let Some(ref statements) = setup_sql {
+            for (idx, stmt) in statements.iter().enumerate() {
+                let trimmed = stmt.trim();
+                if !trimmed.is_empty() {
+                    if let Err(e) = crate::security::validate_sql_safety(trimmed) {
+                        // Log security validation failure for setup SQL
+                        tracing::warn!(
+                            "[SECURITY] Setup SQL validation failed: {} (statement {}, length: {} chars)",
+                            e,
+                            idx + 1,
+                            trimmed.len()
+                        );
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        // Use UUID for query ID to prevent collisions and improve security
+        let query_id = format!("A-{}", uuid::Uuid::new_v4());
 
         // Use the Arrow streaming executor (no extra ATTACH to avoid conflicts)
         let executor =

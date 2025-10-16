@@ -56,6 +56,18 @@ pub async fn stream_query(
     // Validate stream ID format
     crate::security::validate_stream_id(&stream_id)?;
 
+    // Validate SQL safety before execution
+    if let Err(e) = crate::security::validate_sql_safety(&sql) {
+        // Log security validation failure with sanitized details
+        tracing::warn!(
+            "[SECURITY] SQL validation failed in stream_query: {} (stream: {}, SQL length: {} chars)",
+            e,
+            stream_id,
+            sql.len()
+        );
+        return Err(e);
+    }
+
     debug!(
         "[COMMAND] stream_query called for stream {} with SQL: {}",
         stream_id, sql

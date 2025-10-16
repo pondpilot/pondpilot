@@ -31,6 +31,18 @@ pub async fn execute_query(
         "[COMMAND] execute_query called (sql_len={} chars)",
         sql.len()
     );
+
+    // Validate SQL safety before execution
+    if let Err(e) = crate::security::validate_sql_safety(&sql) {
+        // Log security validation failure with sanitized details
+        tracing::warn!(
+            "[SECURITY] SQL validation failed in execute_query: {} (SQL length: {} chars)",
+            e,
+            sql.len()
+        );
+        return Err(e);
+    }
+
     // No lock needed - execute_query is thread-safe via the pool
     engine.execute_query(&sql, params).await
 }
@@ -124,6 +136,18 @@ pub async fn connection_execute(
     params: Vec<serde_json::Value>,
     #[allow(non_snake_case)] timeoutMs: Option<u64>,
 ) -> Result<QueryResult> {
+    // Validate SQL safety before execution
+    if let Err(e) = crate::security::validate_sql_safety(&sql) {
+        // Log security validation failure with sanitized details
+        tracing::warn!(
+            "[SECURITY] SQL validation failed in connection_execute: {} (connection: {}, SQL length: {} chars)",
+            e,
+            connection_id,
+            sql.len()
+        );
+        return Err(e);
+    }
+
     // Use the specific connection to execute the query
     #[cfg(debug_assertions)]
     eprintln!(
