@@ -1,6 +1,7 @@
 import { getQueryTimeoutMs } from '@models/app-config';
 
 import { getLogger } from './debug-logger';
+import { parseTauriError } from './errors';
 import { DatabaseConnection, QueryResult, PreparedStatement } from './types';
 
 const logger = getLogger('database:tauri-connection');
@@ -17,41 +18,6 @@ export class TauriConnection implements DatabaseConnection {
   constructor(invoke: any, id: string) {
     this.invoke = invoke;
     this.id = id;
-  }
-
-  private static toError(err: any): Error {
-    // Normalize various Tauri/IPC error shapes to a proper Error with readable message
-    if (!err) return new Error('Unknown error');
-    if (err instanceof Error) return err;
-    if (typeof err === 'string') return new Error(err);
-
-    // Check common error message locations in order of preference
-    const message =
-      err.message ||
-      err.error?.message ||
-      (err.code ? `${err.code}: ${err.message || ''}`.trim() : null);
-
-    if (message && typeof message === 'string') {
-      // Try to parse JSON-encoded error messages
-      if (message.startsWith('{') || message.startsWith('[')) {
-        try {
-          const parsed = JSON.parse(message);
-          if (parsed?.details?.message || parsed?.message) {
-            return new Error(parsed.details?.message || parsed.message);
-          }
-        } catch {
-          // Not valid JSON, use as-is
-        }
-      }
-      return new Error(message);
-    }
-
-    // Fallback to stringifying the error object
-    try {
-      return new Error(JSON.stringify(err));
-    } catch {
-      return new Error(String(err));
-    }
   }
 
   hasExtensionsLoaded(): boolean {
@@ -138,7 +104,9 @@ export class TauriConnection implements DatabaseConnection {
         queryTime: result.execution_time_ms,
       };
     } catch (error) {
-      const normalized = TauriConnection.toError(error);
+      // FIX: Use parseTauriError to return DatabaseEngineError subclasses
+      // This enables proper error classification and retry logic
+      const normalized = parseTauriError(error);
       logger.error('TauriConnection.execute() failed', normalized);
       throw normalized;
     }
@@ -198,7 +166,8 @@ export class TauriConnection implements DatabaseConnection {
         },
       };
     } catch (error) {
-      const normalized = TauriConnection.toError(error);
+      // FIX: Use parseTauriError to return DatabaseEngineError subclasses
+      const normalized = parseTauriError(error);
       logger.error('TauriConnection.prepare() failed', normalized);
       throw normalized;
     }
