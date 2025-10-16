@@ -239,9 +239,10 @@ export class TauriConnectionPool implements ConnectionPool {
     releaseCount: 0,
     timeoutCount: 0,
   };
-  // Mutex to prevent race conditions during connection acquisition
-  private acquireLock: Promise<void> = Promise.resolve();
-  private acquireLockResolver: (() => void) | null = null;
+  // FIX: Proper async lock to prevent race conditions during connection acquisition
+  // Queue-based lock ensures FIFO ordering and prevents race conditions
+  private acquireLockQueue: Array<() => void> = [];
+  private acquireLockHeld = false;
 
   constructor(invoke: any, config?: Partial<PoolConfig>) {
     this.invoke = invoke;
@@ -281,16 +282,41 @@ export class TauriConnectionPool implements ConnectionPool {
     // both local and remote DBs are present consistently.
   }
 
+  /**
+   * FIX: Proper queue-based async lock implementation
+   * Acquires the lock, blocking until it's available
+   */
+  private async acquireLock(): Promise<() => void> {
+    if (!this.acquireLockHeld) {
+      this.acquireLockHeld = true;
+      return () => this.releaseLock();
+    }
+
+    // Lock is held, queue up and wait
+    return new Promise<() => void>((resolve) => {
+      this.acquireLockQueue.push(() => {
+        resolve(() => this.releaseLock());
+      });
+    });
+  }
+
+  /**
+   * FIX: Release the lock and wake up next waiter
+   */
+  private releaseLock(): void {
+    const next = this.acquireLockQueue.shift();
+    if (next) {
+      next(); // Wake up next waiter
+    } else {
+      this.acquireLockHeld = false; // No waiters, release lock
+    }
+  }
+
   async acquire(): Promise<DatabaseConnection> {
     this.stats.acquireCount += 1;
 
-    // Wait for any ongoing acquire operations to complete
-    await this.acquireLock;
-
-    // Create a new lock for this acquire operation
-    this.acquireLock = new Promise((resolve) => {
-      this.acquireLockResolver = resolve;
-    });
+    // FIX: Use proper queue-based lock
+    const unlock = await this.acquireLock();
 
     try {
       // Loop to avoid recursion when skipping invalid connections
@@ -329,11 +355,8 @@ export class TauriConnectionPool implements ConnectionPool {
         break;
       }
     } finally {
-      // Release the lock
-      if (this.acquireLockResolver) {
-        this.acquireLockResolver();
-        this.acquireLockResolver = null;
-      }
+      // FIX: Always release lock
+      unlock();
     }
 
     // Check if we've exceeded max waiting clients
