@@ -679,6 +679,68 @@ impl ConnectionsManager {
         let read_only_int: Option<i64> = row.get("read_only")?;
         let read_only = read_only_int.map(|i| i != 0);
 
+        // FIX: Validate port number range (0-65535) to prevent silent truncation
+        let port_i64 = row.get::<_, i64>("port")?;
+        let port = u16::try_from(port_i64).map_err(|_| {
+            rusqlite::Error::FromSqlConversionFailure(
+                0,
+                rusqlite::types::Type::Integer,
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Port {} out of valid range 0-65535", port_i64),
+                )),
+            )
+        })?;
+
+        // FIX: Validate timeout values to prevent silent truncation
+        let connect_timeout = row
+            .get::<_, Option<i64>>("connect_timeout")?
+            .map(|i| {
+                u32::try_from(i).map_err(|_| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Integer,
+                        Box::new(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!("connect_timeout {} out of valid range", i),
+                        )),
+                    )
+                })
+            })
+            .transpose()?;
+
+        let query_timeout = row
+            .get::<_, Option<i64>>("query_timeout")?
+            .map(|i| {
+                u32::try_from(i).map_err(|_| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Integer,
+                        Box::new(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!("query_timeout {} out of valid range", i),
+                        )),
+                    )
+                })
+            })
+            .transpose()?;
+
+        let max_connections = row
+            .get::<_, Option<i64>>("max_connections")?
+            .map(|i| {
+                u32::try_from(i).map_err(|_| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Integer,
+                        Box::new(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!("max_connections {} out of valid range", i),
+                        )),
+                    )
+                })
+            })
+            .transpose()?;
+
         Ok(ConnectionConfig {
             id: Uuid::parse_str(&row.get::<_, String>("id")?).map_err(|e| {
                 rusqlite::Error::FromSqlConversionFailure(
@@ -690,7 +752,7 @@ impl ConnectionsManager {
             name: row.get("name")?,
             connection_type,
             host: row.get("host")?,
-            port: row.get::<_, i64>("port")? as u16,
+            port,
             database: row.get("database_name")?,
             secret_id: Uuid::parse_str(&row.get::<_, String>("secret_id")?).map_err(|e| {
                 rusqlite::Error::FromSqlConversionFailure(
@@ -701,15 +763,9 @@ impl ConnectionsManager {
             })?,
             read_only,
             ssl_mode,
-            connect_timeout: row
-                .get::<_, Option<i64>>("connect_timeout")?
-                .map(|i| i as u32),
-            query_timeout: row
-                .get::<_, Option<i64>>("query_timeout")?
-                .map(|i| i as u32),
-            max_connections: row
-                .get::<_, Option<i64>>("max_connections")?
-                .map(|i| i as u32),
+            connect_timeout,
+            query_timeout,
+            max_connections,
             schema: row.get("schema_name")?,
             options,
             created_at,
