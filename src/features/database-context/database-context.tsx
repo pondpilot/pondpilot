@@ -77,9 +77,6 @@ export const DatabaseConnectionPoolProvider = ({
   // Get persistence state from context
   const { persistenceState, updatePersistenceState } = useDuckDBPersistence();
 
-  // FIX: Track mount state to prevent setState on unmounted component
-  const isMountedRef = useRef(true);
-
   // FIX: Single reference for in-flight promise with atomic assignment
   const inFlight = useRef<Promise<ConnectionPool | null> | null>(null);
 
@@ -90,6 +87,10 @@ export const DatabaseConnectionPoolProvider = ({
   useEffect(() => {
     // Store the previous engine before updating
     const previousEngine = engineRef.current;
+    console.log('[DB-CONTEXT] Engine effect running', {
+      previousEngine: previousEngine ? 'exists' : 'null',
+      currentEngine: engine ? 'exists' : 'null',
+    });
 
     // Update ref with current engine
     engineRef.current = engine;
@@ -97,28 +98,31 @@ export const DatabaseConnectionPoolProvider = ({
     // Cleanup: only shut down the PREVIOUS engine when engine changes
     // Do NOT shut down the current engine!
     return () => {
+      console.log('[DB-CONTEXT] Engine cleanup running', {
+        previousEngine: previousEngine ? 'exists' : 'null',
+        currentEngine: engine ? 'exists' : 'null',
+        willShutdown: !!(previousEngine && previousEngine !== engine),
+      });
       if (previousEngine && previousEngine !== engine) {
+        console.log('[DB-CONTEXT] Shutting down PREVIOUS engine');
         previousEngine.shutdown();
       }
     };
   }, [engine]);
 
-  // FIX: Cleanup on unmount - shut down current engine and mark as unmounted
+  // FIX: Cleanup on unmount - shut down current engine
   useEffect(() => {
     return () => {
+      console.log('[DB-CONTEXT] Component unmounting, shutting down current engine');
       if (engineRef.current) {
         engineRef.current.shutdown();
       }
-      isMountedRef.current = false;
     };
   }, []);
 
   // Memoize the status update function
   const memoizedStatusUpdate = useCallback(
     (status: { state: DatabaseInitState; message: string }) => {
-      // FIX: Guard against setState on unmounted component
-      if (!isMountedRef.current) return;
-
       setInitStatus(status);
       onStatusUpdate?.(status);
     },
@@ -134,13 +138,10 @@ export const DatabaseConnectionPoolProvider = ({
 
     // Check if the persistence state is valid before proceeding
     if (!persistenceState || !persistenceState.dbPath) {
-      // FIX: Guard setState on unmounted component
-      if (isMountedRef.current) {
-        setInitStatus({
-          state: 'error',
-          message: 'Persistence state not initialized properly.',
-        });
-      }
+      setInitStatus({
+        state: 'error',
+        message: 'Persistence state not initialized properly.',
+      });
       return null;
     }
 
@@ -211,9 +212,6 @@ export const DatabaseConnectionPoolProvider = ({
 
         // Create the engine
         const newEngine = await DatabaseEngineFactory.createEngine(config);
-
-        // FIX: Guard setState on unmounted component
-        if (!isMountedRef.current) return null;
         setEngine(newEngine);
 
         memoizedStatusUpdate({
@@ -245,9 +243,6 @@ export const DatabaseConnectionPoolProvider = ({
 
         // Note: Checkpointing will be handled by the ConnectionPoolAdapter
         // which wraps the generic pool and provides the expected interface
-
-        // FIX: Guard setState on unmounted component
-        if (!isMountedRef.current) return null;
         setConnectionPool(pool);
 
         memoizedStatusUpdate({
