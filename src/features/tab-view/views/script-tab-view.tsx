@@ -384,7 +384,6 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             if (dbName !== 'memory' && dbName !== 'temp' && dbName !== 'system') {
               try {
                 // Try to query the database to ensure metadata is loaded
-                const { toDuckDBIdentifier } = await import('@utils/duckdb/identifier');
                 const schemaQuery = `SELECT table_name FROM ${toDuckDBIdentifier(
                   dbName,
                 )}.information_schema.tables LIMIT 1`;
