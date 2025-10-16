@@ -55,8 +55,6 @@ pub struct ResourceConfig {
 pub struct SecurityConfig {
     /// Channel buffer size for streaming
     pub streaming_channel_buffer: usize,
-    /// Query ID hash modulo for unique ID generation
-    pub query_id_modulo: u128,
     /// High priority query timeout in seconds
     pub high_priority_timeout_secs: u64,
     /// Normal priority query timeout in seconds
@@ -115,7 +113,6 @@ impl Default for SecurityConfig {
     fn default() -> Self {
         Self {
             streaming_channel_buffer: 10,
-            query_id_modulo: 100000,
             high_priority_timeout_secs: 30,
             normal_priority_timeout_secs: 10,
             low_priority_timeout_secs: 5,
