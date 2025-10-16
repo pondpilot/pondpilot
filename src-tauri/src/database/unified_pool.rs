@@ -196,9 +196,11 @@ impl ConnectionPermit {
                 }
             } else if let Some(secret_name) = &db_info.secret_name {
                 // PostgreSQL/MySQL use standard syntax with SECRET
+                // FIX: Quote secret name defensively (SQL identifier escaping)
+                let quoted_secret = format!("\"{}\"", secret_name.replace('"', "\"\""));
                 format!(
                     "ATTACH '{}' AS {} (TYPE {}, SECRET {})",
-                    db_info.connection_string, db_info.alias, db_info.db_type, secret_name
+                    db_info.connection_string, db_info.alias, db_info.db_type, quoted_secret
                 )
             } else {
                 tracing::warn!(
