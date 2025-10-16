@@ -5,6 +5,7 @@
  * are available in the current environment (WASM vs Tauri)
  */
 
+import { TAURI_ALLOWED_EXTENSIONS } from '@engines/extension-allowlist';
 import { EngineType, EngineCapabilities } from '@engines/types';
 import { RemoteConnectionType } from '@models/data-source';
 import { isTauriEnvironment } from '@utils/browser';
@@ -63,7 +64,9 @@ export function getPlatformContext(): PlatformContext {
     supportsRemoteFiles: true,
     maxFileSize: isBrowser ? 2 * 1024 * 1024 * 1024 : undefined, // 2GB browser limit
     supportedFileFormats: isTauri ? ['all'] : ['csv', 'parquet', 'json', 'xlsx'],
-    supportedExtensions: isTauri ? ['all'] : ['httpfs', 'postgres_scanner'],
+    // FIX: Only include WASM-compatible extensions for browser
+    // postgres_scanner, mysql_scanner, and most extensions are not available in WASM
+    supportedExtensions: isTauri ? TAURI_ALLOWED_EXTENSIONS : ['httpfs'],
   };
 
   return {
