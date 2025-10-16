@@ -83,18 +83,24 @@ export const DatabaseConnectionPoolProvider = ({
   // FIX: Single reference for in-flight promise with atomic assignment
   const inFlight = useRef<Promise<ConnectionPool | null> | null>(null);
 
-  // Cleanup on unmount
-  useEffect(
-    () => () => {
-      // FIX: Mark as unmounted to prevent setState after unmount
-      isMountedRef.current = false;
-
+  // FIX: Cleanup engine when it changes or on unmount
+  useEffect(() => {
+    // Effect body runs when engine changes (to set up any needed tracking)
+    // Cleanup runs when engine changes (before new effect) AND on unmount
+    return () => {
       if (engine) {
         engine.shutdown();
       }
-    },
-    [engine],
-  );
+    };
+  }, [engine]);
+
+  // FIX: Separate effect for unmount tracking
+  useEffect(() => {
+    return () => {
+      // Only mark as unmounted on component unmount (no dependencies)
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Memoize the status update function
   const memoizedStatusUpdate = useCallback(

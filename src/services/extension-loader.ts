@@ -12,12 +12,29 @@ export class ExtensionLoader {
     timeoutMs?: number,
   ): Promise<T> {
     const timeout = timeoutMs ?? getQueryTimeoutMs();
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Extension query timeout after ${timeout}ms`)), timeout),
-    );
-    const exec =
-      typeof poolOrConn.query === 'function' ? poolOrConn.query(sql) : poolOrConn.execute(sql);
-    return Promise.race([exec, timeoutPromise]) as Promise<T>;
+
+    // FIX: Clear timeout timer to prevent resource leaks and unhandled rejections
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timerId = setTimeout(
+          () => reject(new Error(`Extension query timeout after ${timeout}ms`)),
+          timeout,
+        );
+      });
+
+      const exec =
+        typeof poolOrConn.query === 'function' ? poolOrConn.query(sql) : poolOrConn.execute(sql);
+
+      const result = await Promise.race([exec, timeoutPromise]);
+      return result as T;
+    } finally {
+      // Always clear timeout to prevent timer leak
+      if (timerId !== undefined) {
+        clearTimeout(timerId);
+      }
+    }
   }
   private static errorToMessage(err: any): string {
     try {
