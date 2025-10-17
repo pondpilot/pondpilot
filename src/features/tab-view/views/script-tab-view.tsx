@@ -473,7 +473,15 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // update the state and trigger re-render.
       updateScriptTabLastExecutedQuery({ tabId, lastExecutedQuery, force: true });
     },
-    [pool, protectedViews, tabId, incrementScriptVersion, preferences, tab.sqlScriptId, dataAdapter],
+    [
+      pool,
+      protectedViews,
+      tabId,
+      incrementScriptVersion,
+      preferences,
+      tab.sqlScriptId,
+      dataAdapter,
+    ],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {

@@ -5,7 +5,7 @@ import { Stack, ActionIcon, Tooltip } from '@mantine/core';
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
 import { detectPlatform } from '@utils/browser';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { Header } from './components/header';
@@ -109,7 +109,10 @@ export function TauriLayout({ isFileAccessApiSupported }: TauriLayoutProps) {
             )}
 
             {/* Center container for search bar */}
-            <div className="flex-1 flex items-center justify-center px-4" data-tauri-drag-region="no-drag">
+            <div
+              className="flex-1 flex items-center justify-center px-4"
+              data-tauri-drag-region="no-drag"
+            >
               <Header />
             </div>
 

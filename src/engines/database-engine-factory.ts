@@ -131,10 +131,10 @@ export class DatabaseEngineFactory {
     // For production, consider crypto.subtle.digest for better performance
     const str = JSON.stringify(obj);
     let hash = 0;
-    for (let i = 0; i < str.length; i++) {
+    for (let i = 0; i < str.length; i += 1) {
       const char = str.charCodeAt(i);
       hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32-bit integer
+      hash &= hash; // Convert to 32-bit integer
     }
     return Math.abs(hash).toString(36); // Base 36 for shorter strings
   }

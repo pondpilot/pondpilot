@@ -37,7 +37,8 @@ export class DuckDBTauriEngine implements DatabaseEngine {
    */
   private async invokeWithErrorHandling<T>(command: string, args?: any): Promise<T> {
     try {
-      return await this.invoke(command, args);
+      const result = await this.invoke(command, args);
+      return result;
     } catch (error) {
       throw parseTauriError(error);
     }

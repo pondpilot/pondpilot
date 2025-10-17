@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 import { IDBPDatabase, IDBPTransaction } from 'idb';
 
 import { PersistenceAdapter, PERSISTENCE_TABLES } from './types';

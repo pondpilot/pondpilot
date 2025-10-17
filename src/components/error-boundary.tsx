@@ -1,5 +1,5 @@
-import { Component, type ReactNode } from 'react';
 import { Button, Container, Stack, Text, Title } from '@mantine/core';
+import { Component, type ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -38,9 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <Container size="sm" mt="xl">
           <Stack gap="md">
             <Title order={2}>Something went wrong</Title>
-            <Text c="dimmed">
-              An unexpected error occurred. Please try refreshing the page.
-            </Text>
+            <Text c="dimmed">An unexpected error occurred. Please try refreshing the page.</Text>
             {this.state.error && (
               <Text size="sm" c="red" ff="monospace">
                 {this.state.error.message}
