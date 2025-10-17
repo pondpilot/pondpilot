@@ -4,7 +4,7 @@ import {
   pickDataSourceFilesCompat,
   pickFolderCompat,
 } from '@controllers/file-system/cross-browser-file-system-controller';
-import { useDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useDatabaseConnectionPool } from '@features/database-context';
 import { notifications } from '@mantine/notifications';
 import { LocalEntry, WebkitFile } from '@models/file-system';
 import { fileSystemService } from '@utils/file-system-adapter';
@@ -12,7 +12,7 @@ import { createFileHandleWrapper } from '@utils/file-system-adapter/handle-conve
 import { useCallback } from 'react';
 
 export const useAddLocalFilesOrFolders = () => {
-  const pool = useDuckDBConnectionPool();
+  const pool = useDatabaseConnectionPool();
 
   const handleAddFile = useCallback(async () => {
     // TODO: we should see if we ca avoid calling this hook in uninitialized

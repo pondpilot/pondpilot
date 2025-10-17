@@ -87,13 +87,20 @@ export function getLocalEntryIcon(entry: LocalEntry): IconType {
     ? 'folder'
     : entry.fileType === 'code-file'
       ? 'code-file'
-      : entry.ext === 'duckdb'
+      : entry.ext === 'duckdb' || entry.ext === 'db'
         ? 'db'
         : entry.ext === 'parquet'
           ? 'db-table'
           : entry.ext === 'xlsx'
             ? 'xlsx'
-            : entry.ext;
+            : entry.ext === 'sas7bdat' ||
+                entry.ext === 'xpt' ||
+                entry.ext === 'sav' ||
+                entry.ext === 'zsav' ||
+                entry.ext === 'por' ||
+                entry.ext === 'dta'
+              ? 'db-table'
+              : entry.ext;
 }
 
 /**

@@ -1,5 +1,6 @@
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
+import { useIsTauri } from '@hooks/use-is-tauri';
 import { ActionIcon, Stack, Tooltip, Box } from '@mantine/core';
 import { APP_GITHUB_URL } from '@models/app-urls';
 import {
@@ -24,6 +25,7 @@ interface NavbarProps {
  */
 export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) => {
   const navigate = useNavigate();
+  const isTauri = useIsTauri();
 
   // Render compact view when collapsed
   if (collapsed) {
@@ -68,7 +70,8 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
                 <IconBrandGithub size={20} />
               </ActionIcon>
             </Tooltip>
-            {onCollapse && (
+            {/* Show expand button in web only */}
+            {!isTauri && onCollapse && (
               <Tooltip label="Expand sidebar" position="right" withArrow openDelay={500}>
                 <ActionIcon
                   size="lg"
