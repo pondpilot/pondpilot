@@ -32,6 +32,7 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
         try {
           const attachQuery = buildAttachQuery(dataSource.url, dataSource.dbName, {
             readOnly: true,
+            useCorsProxy: dataSource.useCorsProxy ?? true, // Default to true for backwards compatibility
           });
 
           // Use connection manager with retries and timeout

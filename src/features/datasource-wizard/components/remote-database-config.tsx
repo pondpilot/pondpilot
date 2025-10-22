@@ -122,6 +122,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         dbType: 'duckdb',
         connectionState: 'connecting',
         attachedAt: Date.now(),
+        useCorsProxy,
       };
 
       const { dataSources, databaseMetadata } = useAppStore.getState();
