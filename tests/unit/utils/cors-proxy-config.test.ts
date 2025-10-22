@@ -3,6 +3,7 @@ import {
   shouldUseProxyFor,
   wrapWithCorsProxy,
   isRemoteUrl,
+  isCloudStorageUrl,
   CORS_PROXY_BEHAVIORS,
   PROXY_PREFIX,
   REMOTE_PROTOCOLS,
@@ -45,6 +46,94 @@ describe('cors-proxy-config', () => {
 
     it('should return false for file:// protocol', () => {
       expect(isRemoteUrl('file:///path/to/file.csv')).toBe(false);
+    });
+  });
+
+  describe('isCloudStorageUrl', () => {
+    describe('S3 URLs', () => {
+      it('should return true for s3:// protocol URLs', () => {
+        expect(isCloudStorageUrl('s3://bucket/path/to/file.parquet')).toBe(true);
+      });
+
+      it('should return true for bucket.s3.region.amazonaws.com', () => {
+        expect(isCloudStorageUrl('https://mybucket.s3.us-east-1.amazonaws.com/data.csv')).toBe(
+          true,
+        );
+      });
+
+      it('should return true for bucket.s3.amazonaws.com (legacy)', () => {
+        expect(isCloudStorageUrl('https://mybucket.s3.amazonaws.com/data.csv')).toBe(true);
+      });
+
+      it('should return true for s3.region.amazonaws.com/bucket', () => {
+        expect(isCloudStorageUrl('https://s3.us-west-2.amazonaws.com/bucket/file.json')).toBe(
+          true,
+        );
+      });
+
+      it('should return true for the actual pondpilot S3 URL', () => {
+        expect(
+          isCloudStorageUrl('https://pondpilot.s3.us-east-2.amazonaws.com/chinook.duckdb'),
+        ).toBe(true);
+      });
+
+      it('should return true for http S3 URLs', () => {
+        expect(isCloudStorageUrl('http://mybucket.s3.us-east-1.amazonaws.com/data.csv')).toBe(
+          true,
+        );
+      });
+    });
+
+    describe('GCS URLs', () => {
+      it('should return true for gcs:// protocol URLs', () => {
+        expect(isCloudStorageUrl('gcs://bucket/path/to/file.parquet')).toBe(true);
+      });
+
+      it('should return true for storage.googleapis.com', () => {
+        expect(isCloudStorageUrl('https://storage.googleapis.com/bucket/data.csv')).toBe(true);
+      });
+
+      it('should return true for storage.cloud.google.com', () => {
+        expect(isCloudStorageUrl('https://storage.cloud.google.com/bucket/data.csv')).toBe(true);
+      });
+    });
+
+    describe('Azure Blob Storage URLs', () => {
+      it('should return true for azure:// protocol URLs', () => {
+        expect(isCloudStorageUrl('azure://container/path/to/file.parquet')).toBe(true);
+      });
+
+      it('should return true for accountname.blob.core.windows.net', () => {
+        expect(
+          isCloudStorageUrl('https://myaccount.blob.core.windows.net/container/data.csv'),
+        ).toBe(true);
+      });
+    });
+
+    describe('Non-cloud storage URLs', () => {
+      it('should return false for regular http URLs', () => {
+        expect(isCloudStorageUrl('http://example.com/data.csv')).toBe(false);
+      });
+
+      it('should return false for regular https URLs', () => {
+        expect(isCloudStorageUrl('https://example.com/data.csv')).toBe(false);
+      });
+
+      it('should return false for local file paths', () => {
+        expect(isCloudStorageUrl('/local/path/data.csv')).toBe(false);
+      });
+
+      it('should return false for invalid URLs', () => {
+        expect(isCloudStorageUrl('not a url')).toBe(false);
+      });
+
+      it('should return false for URLs with "s3" in domain but not AWS', () => {
+        expect(isCloudStorageUrl('https://s3-backup.example.com/data.csv')).toBe(false);
+      });
+
+      it('should return false for URLs with "storage" in domain but not GCS', () => {
+        expect(isCloudStorageUrl('https://storage.example.com/data.csv')).toBe(false);
+      });
     });
   });
 
@@ -161,6 +250,33 @@ describe('cors-proxy-config', () => {
         expect(result).toBe(false);
       });
 
+      it('should not use proxy for S3 HTTPS URLs even with prefix', () => {
+        const result = shouldUseProxyFor(
+          'https://mybucket.s3.us-east-1.amazonaws.com/data.csv',
+          true,
+          behavior,
+        );
+        expect(result).toBe(false);
+      });
+
+      it('should not use proxy for GCS HTTPS URLs even with prefix', () => {
+        const result = shouldUseProxyFor(
+          'https://storage.googleapis.com/bucket/data.csv',
+          true,
+          behavior,
+        );
+        expect(result).toBe(false);
+      });
+
+      it('should not use proxy for Azure HTTPS URLs even with prefix', () => {
+        const result = shouldUseProxyFor(
+          'https://myaccount.blob.core.windows.net/container/data.csv',
+          true,
+          behavior,
+        );
+        expect(result).toBe(false);
+      });
+
       it('should not use proxy for local paths', () => {
         const result = shouldUseProxyFor('/local/path/data.csv', true, behavior);
         expect(result).toBe(false);
@@ -202,6 +318,36 @@ describe('cors-proxy-config', () => {
 
       it('should not use proxy for azure even with CORS error', () => {
         const result = shouldUseProxyFor('azure://container/data.parquet', false, behavior, true);
+        expect(result).toBe(false);
+      });
+
+      it('should not use proxy for S3 HTTPS URLs even with CORS error', () => {
+        const result = shouldUseProxyFor(
+          'https://pondpilot.s3.us-east-2.amazonaws.com/chinook.duckdb',
+          false,
+          behavior,
+          true,
+        );
+        expect(result).toBe(false);
+      });
+
+      it('should not use proxy for GCS HTTPS URLs even with CORS error', () => {
+        const result = shouldUseProxyFor(
+          'https://storage.googleapis.com/bucket/data.csv',
+          false,
+          behavior,
+          true,
+        );
+        expect(result).toBe(false);
+      });
+
+      it('should not use proxy for Azure HTTPS URLs even with CORS error', () => {
+        const result = shouldUseProxyFor(
+          'https://myaccount.blob.core.windows.net/container/data.csv',
+          false,
+          behavior,
+          true,
+        );
         expect(result).toBe(false);
       });
 

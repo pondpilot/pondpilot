@@ -12,6 +12,7 @@
 
 import { getJSONCookie, deleteCookie } from './cookies';
 import { LOCAL_STORAGE_KEYS } from '../models/local-storage';
+import { getViteEnv } from '@utils/env';
 
 const OFFICIAL_PROXY_URL = 'https://cors-proxy.pondpilot.io';
 const DEV_PROXY_URL = 'http://localhost:3000';
@@ -124,31 +125,7 @@ export function saveCorsProxySettings(settings: CorsProxySettings): void {
  * @internal
  */
 function getEnv(): { VITE_CORS_PROXY_URL: string | undefined; DEV: boolean } {
-  // In Jest tests, use the global mock
-  if (typeof global !== 'undefined' && (global as any).import?.meta?.env) {
-    const env = (global as any).import.meta.env;
-    return {
-      VITE_CORS_PROXY_URL: env.VITE_CORS_PROXY_URL as string | undefined,
-      DEV: env.DEV as boolean,
-    };
-  }
-
-  // In browser/Vite, use import.meta.env
-  // Access via Function constructor to prevent Jest parse errors with import.meta
-  try {
-    const getImportMeta = new Function('return import.meta');
-    const importMeta = getImportMeta();
-    return {
-      VITE_CORS_PROXY_URL: importMeta.env.VITE_CORS_PROXY_URL as string | undefined,
-      DEV: importMeta.env.DEV as boolean,
-    };
-  } catch {
-    // Fallback if import.meta is not available
-    return {
-      VITE_CORS_PROXY_URL: undefined,
-      DEV: false,
-    };
-  }
+  return getViteEnv();
 }
 
 /**
@@ -229,6 +206,58 @@ export function isRemoteUrl(url: string): boolean {
 }
 
 /**
+ * Check if a URL points to cloud storage (S3, GCS, or Azure Blob Storage)
+ * These are handled by DuckDB's httpfs extension, not the CORS proxy
+ */
+export function isCloudStorageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+
+    // Direct cloud storage protocols
+    if (parsed.protocol === 's3:' || parsed.protocol === 'gcs:' || parsed.protocol === 'azure:') {
+      return true;
+    }
+
+    // HTTPS URLs with cloud storage hostnames
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+      const hostname = parsed.hostname.toLowerCase();
+
+      // S3 patterns:
+      // - bucket.s3.region.amazonaws.com
+      // - s3.region.amazonaws.com/bucket
+      // - bucket.s3.amazonaws.com (legacy)
+      // - s3.amazonaws.com
+      if (
+        (hostname.includes('.s3.') || hostname.includes('.s3-') || hostname.startsWith('s3.') || hostname.startsWith('s3-')) &&
+        hostname.includes('amazonaws.com')
+      ) {
+        return true;
+      }
+      if (hostname === 's3.amazonaws.com') {
+        return true;
+      }
+
+      // GCS patterns:
+      // - storage.googleapis.com
+      // - storage.cloud.google.com
+      if (hostname === 'storage.googleapis.com' || hostname === 'storage.cloud.google.com') {
+        return true;
+      }
+
+      // Azure Blob Storage patterns:
+      // - accountname.blob.core.windows.net
+      if (hostname.endsWith('.blob.core.windows.net')) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Determine if a URL should use the CORS proxy based on behavior settings
  *
  * This centralizes the decision logic for when to use the proxy, ensuring
@@ -251,13 +280,8 @@ export function shouldUseProxyFor(
     return false;
   }
 
-  // Cloud storage protocols are handled by DuckDB httpfs, not the CORS proxy
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol === 's3:' || parsed.protocol === 'gcs:' || parsed.protocol === 'azure:') {
-      return false;
-    }
-  } catch {
+  // Cloud storage URLs are handled by DuckDB httpfs, not the CORS proxy
+  if (isCloudStorageUrl(url)) {
     return false;
   }
 
