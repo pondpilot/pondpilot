@@ -2,7 +2,7 @@ import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { Stack, TextInput, Text, Button, Group, Checkbox, Alert } from '@mantine/core';
+import { Stack, TextInput, Text, Button, Group, Checkbox, Alert, Tooltip } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { RemoteDB } from '@models/data-source';
@@ -26,6 +26,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
   const [url, setUrl] = useInputState('');
   const [dbName, setDbName] = useInputState('');
   const [readOnly, setReadOnly] = useState(true);
+  const [useCorsProxy, setUseCorsProxy] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
@@ -61,7 +62,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
 
     setIsTesting(true);
     try {
-      const attachQuery = buildAttachQuery(url, dbName, { readOnly });
+      const attachQuery = buildAttachQuery(url, dbName, { readOnly, useCorsProxy });
       await executeWithRetry(pool, attachQuery, {
         maxRetries: 1,
         timeout: 10000,
@@ -127,7 +128,10 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
       const newDataSources = new Map(dataSources);
       newDataSources.set(remoteDb.id, remoteDb);
 
-      const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly });
+      const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, {
+        readOnly,
+        useCorsProxy,
+      });
       await executeWithRetry(pool, attachQuery, {
         maxRetries: 3,
         timeout: 30000,
@@ -249,6 +253,21 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
           onChange={(event) => setReadOnly(event.currentTarget.checked)}
           className="pl-4"
         />
+
+        <Tooltip
+          label="Uses a CORS proxy to access databases without CORS headers. The proxy forwards requests transparently without logging or storing data."
+          multiline
+          w={300}
+          withArrow
+          position="right"
+        >
+          <Checkbox
+            label="Use CORS proxy"
+            checked={useCorsProxy}
+            onChange={(event) => setUseCorsProxy(event.currentTarget.checked)}
+            className="pl-4"
+          />
+        </Tooltip>
       </Stack>
 
       <Group justify="end" className="mt-4">

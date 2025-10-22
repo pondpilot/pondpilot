@@ -1,5 +1,6 @@
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
+import { wrapWithCorsProxy, isRemoteUrl } from '@utils/cors-proxy-config';
 
 /**
  * Safely build an ATTACH DATABASE query with proper escaping
@@ -11,9 +12,15 @@ import { quote } from '@utils/helpers';
 export function buildAttachQuery(
   filePath: string,
   dbName: string,
-  options?: { readOnly?: boolean },
+  options?: { readOnly?: boolean; useCorsProxy?: boolean },
 ): string {
-  const escapedPath = quote(filePath, { single: true });
+  // Wrap with CORS proxy if it's a remote URL and proxy is enabled
+  let finalPath = filePath;
+  if (options?.useCorsProxy !== false && isRemoteUrl(filePath)) {
+    finalPath = wrapWithCorsProxy(filePath);
+  }
+
+  const escapedPath = quote(finalPath, { single: true });
   const escapedDbName = toDuckDBIdentifier(dbName);
   const readOnlyClause = options?.readOnly ? ' (READ_ONLY)' : '';
 
