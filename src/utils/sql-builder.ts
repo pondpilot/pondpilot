@@ -1,4 +1,8 @@
-import { wrapWithCorsProxy, isRemoteUrl } from '@utils/cors-proxy-config';
+import {
+  wrapWithCorsProxy,
+  isRemoteUrl,
+  convertS3ToHttps,
+} from '@utils/cors-proxy-config';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 
@@ -21,7 +25,10 @@ export function buildAttachQuery(
   // Wrap with CORS proxy only if explicitly enabled
   let finalPath = filePath;
   if (options?.useCorsProxy === true && isRemoteUrl(filePath)) {
-    finalPath = wrapWithCorsProxy(filePath);
+    // Convert S3 URLs to HTTPS before wrapping with proxy
+    // The proxy can't handle s3:// protocol directly
+    const httpsUrl = convertS3ToHttps(filePath);
+    finalPath = wrapWithCorsProxy(httpsUrl || filePath);
   }
 
   const escapedPath = quote(finalPath, { single: true });
