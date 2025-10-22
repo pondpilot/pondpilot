@@ -1,8 +1,4 @@
-import {
-  wrapWithCorsProxy,
-  isRemoteUrl,
-  convertS3ToHttps,
-} from '@utils/cors-proxy-config';
+import { wrapWithCorsProxy, isRemoteUrl, convertS3ToHttps } from '@utils/cors-proxy-config';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 
