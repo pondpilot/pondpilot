@@ -250,31 +250,31 @@ describe('cors-proxy-config', () => {
         expect(result).toBe(false);
       });
 
-      it('should not use proxy for S3 HTTPS URLs even with prefix', () => {
+      it('should use proxy for S3 HTTPS URLs with prefix', () => {
         const result = shouldUseProxyFor(
           'https://mybucket.s3.us-east-1.amazonaws.com/data.csv',
           true,
           behavior,
         );
-        expect(result).toBe(false);
+        expect(result).toBe(true);
       });
 
-      it('should not use proxy for GCS HTTPS URLs even with prefix', () => {
+      it('should use proxy for GCS HTTPS URLs with prefix', () => {
         const result = shouldUseProxyFor(
           'https://storage.googleapis.com/bucket/data.csv',
           true,
           behavior,
         );
-        expect(result).toBe(false);
+        expect(result).toBe(true);
       });
 
-      it('should not use proxy for Azure HTTPS URLs even with prefix', () => {
+      it('should use proxy for Azure HTTPS URLs with prefix', () => {
         const result = shouldUseProxyFor(
           'https://myaccount.blob.core.windows.net/container/data.csv',
           true,
           behavior,
         );
-        expect(result).toBe(false);
+        expect(result).toBe(true);
       });
 
       it('should not use proxy for local paths', () => {
@@ -321,34 +321,34 @@ describe('cors-proxy-config', () => {
         expect(result).toBe(false);
       });
 
-      it('should not use proxy for S3 HTTPS URLs even with CORS error', () => {
+      it('should use proxy for S3 HTTPS URLs with CORS error', () => {
         const result = shouldUseProxyFor(
           'https://pondpilot.s3.us-east-2.amazonaws.com/chinook.duckdb',
           false,
           behavior,
           true,
         );
-        expect(result).toBe(false);
+        expect(result).toBe(true);
       });
 
-      it('should not use proxy for GCS HTTPS URLs even with CORS error', () => {
+      it('should use proxy for GCS HTTPS URLs with CORS error', () => {
         const result = shouldUseProxyFor(
           'https://storage.googleapis.com/bucket/data.csv',
           false,
           behavior,
           true,
         );
-        expect(result).toBe(false);
+        expect(result).toBe(true);
       });
 
-      it('should not use proxy for Azure HTTPS URLs even with CORS error', () => {
+      it('should use proxy for Azure HTTPS URLs with CORS error', () => {
         const result = shouldUseProxyFor(
           'https://myaccount.blob.core.windows.net/container/data.csv',
           false,
           behavior,
           true,
         );
-        expect(result).toBe(false);
+        expect(result).toBe(true);
       });
 
       it('should not use proxy for local paths', () => {

@@ -263,6 +263,10 @@ export function isCloudStorageUrl(url: string): boolean {
  * This centralizes the decision logic for when to use the proxy, ensuring
  * consistent behavior across the application.
  *
+ * Note: Users can access cloud storage via two methods:
+ * - Native protocols (s3://, gcs://, azure://) → Always use DuckDB httpfs
+ * - HTTPS URLs (https://bucket.s3.amazonaws.com/...) → Can use proxy if needed
+ *
  * @param url - The URL to check
  * @param hadProxyPrefix - Whether the URL had an explicit proxy: prefix
  * @param behavior - The CORS proxy behavior setting
@@ -280,8 +284,14 @@ export function shouldUseProxyFor(
     return false;
   }
 
-  // Cloud storage URLs are handled by DuckDB httpfs, not the CORS proxy
-  if (isCloudStorageUrl(url)) {
+  // Native cloud storage protocols must use DuckDB httpfs extension
+  // (they're not HTTP URLs, so proxy can't handle them)
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 's3:' || parsed.protocol === 'gcs:' || parsed.protocol === 'azure:') {
+      return false;
+    }
+  } catch {
     return false;
   }
 
