@@ -346,6 +346,60 @@ export function normalizeRemoteUrl(rawUrl: string): {
 }
 
 /**
+ * Convert an S3 URL to an HTTPS URL
+ *
+ * Converts s3://bucket/path to an appropriate HTTPS URL.
+ * Handles dotted bucket names and preserves query strings.
+ *
+ * For buckets with dots (e.g., my.bucket), uses path-style URLs to avoid
+ * TLS certificate validation issues. For buckets without dots, uses
+ * virtual-hosted-style URLs.
+ *
+ * @param s3Url - The S3 URL (s3://bucket/path?query)
+ * @returns HTTPS URL, or null if invalid S3 URL
+ *
+ * @example
+ * convertS3ToHttps('s3://pondpilot/chinook.duckdb')
+ * // Returns: 'https://pondpilot.s3.amazonaws.com/chinook.duckdb'
+ *
+ * @example
+ * convertS3ToHttps('s3://my.dotted.bucket/data.csv?versionId=abc123')
+ * // Returns: 'https://s3.amazonaws.com/my.dotted.bucket/data.csv?versionId=abc123'
+ */
+export function convertS3ToHttps(s3Url: string): string | null {
+  try {
+    const parsed = new URL(s3Url);
+
+    // Only handle s3:// protocol
+    if (parsed.protocol !== 's3:') {
+      return null;
+    }
+
+    // Extract components
+    const bucket = parsed.hostname;
+    const path = parsed.pathname; // includes leading /
+    const search = parsed.search; // includes leading ? if present
+
+    if (!bucket) {
+      return null;
+    }
+
+    // Buckets with dots in the name cause TLS wildcard mismatch with
+    // virtual-hosted-style URLs (https://my.bucket.s3.amazonaws.com)
+    // Use path-style instead: https://s3.amazonaws.com/my.bucket/path
+    if (bucket.includes('.')) {
+      return `https://s3.amazonaws.com/${bucket}${path}${search}`;
+    }
+
+    // For buckets without dots, use virtual-hosted-style
+    // This will auto-redirect to the correct region
+    return `https://${bucket}.s3.amazonaws.com${path}${search}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Test if the CORS proxy is reachable
  */
 export async function testCorsProxy(): Promise<boolean> {

@@ -4,6 +4,10 @@ import { wrapWithCorsProxy, isRemoteUrl } from '@utils/cors-proxy-config';
 
 /**
  * Safely build an ATTACH DATABASE query with proper escaping
+ *
+ * Note: CORS proxy wrapping is disabled by default. Use the retry mechanism
+ * in query-with-cors-retry.ts which automatically handles CORS errors.
+ *
  * @param filePath - The file path or URL to attach
  * @param dbName - The database alias name
  * @param options - Additional options for the ATTACH statement
@@ -14,9 +18,9 @@ export function buildAttachQuery(
   dbName: string,
   options?: { readOnly?: boolean; useCorsProxy?: boolean },
 ): string {
-  // Wrap with CORS proxy if it's a remote URL and proxy is enabled
+  // Wrap with CORS proxy only if explicitly enabled
   let finalPath = filePath;
-  if (options?.useCorsProxy !== false && isRemoteUrl(filePath)) {
+  if (options?.useCorsProxy === true && isRemoteUrl(filePath)) {
     finalPath = wrapWithCorsProxy(filePath);
   }
 

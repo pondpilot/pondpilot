@@ -1,4 +1,5 @@
 import { showError, showWarning } from '@components/app-notifications';
+import { installCorsProxyMacros } from '@controllers/db/cors-proxy-macros-controller';
 import { loadDuckDBFunctions } from '@controllers/db/duckdb-functions-controller';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
@@ -117,6 +118,19 @@ export function useAppInitialization({
 
       // Load DuckDB functions into the store
       await loadDuckDBFunctions(resolvedConn);
+
+      // Install CORS proxy macros
+      try {
+        await installCorsProxyMacros(resolvedConn);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn('Failed to install CORS proxy macros:', message);
+        showWarning({
+          title: 'CORS Proxy Initialization Warning',
+          message:
+            'CORS proxy macros could not be installed. Remote databases may require manual configuration.',
+        });
+      }
 
       // Reconnect to remote databases
       await reconnectRemoteDatabases(resolvedConn);

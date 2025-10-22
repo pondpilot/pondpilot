@@ -4,6 +4,7 @@ import {
   wrapWithCorsProxy,
   isRemoteUrl,
   isCloudStorageUrl,
+  convertS3ToHttps,
   CORS_PROXY_BEHAVIORS,
   PROXY_PREFIX,
   REMOTE_PROTOCOLS,
@@ -469,6 +470,79 @@ describe('cors-proxy-config', () => {
 
     it('should have exactly 5 protocols', () => {
       expect(REMOTE_PROTOCOLS).toHaveLength(5);
+    });
+  });
+
+  describe('convertS3ToHttps', () => {
+    it('should convert basic S3 URL to virtual-hosted-style HTTPS', () => {
+      const result = convertS3ToHttps('s3://mybucket/path/to/file.duckdb');
+      expect(result).toBe('https://mybucket.s3.amazonaws.com/path/to/file.duckdb');
+    });
+
+    it('should handle S3 URL with dotted bucket name using path-style', () => {
+      const result = convertS3ToHttps('s3://my.dotted.bucket/data.csv');
+      expect(result).toBe('https://s3.amazonaws.com/my.dotted.bucket/data.csv');
+    });
+
+    it('should preserve query strings', () => {
+      const result = convertS3ToHttps('s3://mybucket/file.csv?versionId=abc123');
+      expect(result).toBe('https://mybucket.s3.amazonaws.com/file.csv?versionId=abc123');
+    });
+
+    it('should preserve query strings with dotted buckets', () => {
+      const result = convertS3ToHttps('s3://my.bucket/file.csv?versionId=xyz');
+      expect(result).toBe('https://s3.amazonaws.com/my.bucket/file.csv?versionId=xyz');
+    });
+
+    it('should handle S3 URLs with no path', () => {
+      const result = convertS3ToHttps('s3://mybucket/');
+      expect(result).toBe('https://mybucket.s3.amazonaws.com/');
+    });
+
+    it('should handle S3 URLs with complex paths', () => {
+      const result = convertS3ToHttps('s3://mybucket/folder1/folder2/file.parquet');
+      expect(result).toBe('https://mybucket.s3.amazonaws.com/folder1/folder2/file.parquet');
+    });
+
+    it('should return null for non-S3 URLs', () => {
+      expect(convertS3ToHttps('https://example.com/file.csv')).toBeNull();
+      expect(convertS3ToHttps('gcs://bucket/file.csv')).toBeNull();
+      expect(convertS3ToHttps('file:///local/file.csv')).toBeNull();
+    });
+
+    it('should return null for invalid URLs', () => {
+      expect(convertS3ToHttps('not a url')).toBeNull();
+      expect(convertS3ToHttps('')).toBeNull();
+    });
+
+    it('should return null for S3 URLs with missing bucket', () => {
+      expect(convertS3ToHttps('s3://')).toBeNull();
+      expect(convertS3ToHttps('s3:///path/to/file')).toBeNull();
+    });
+
+    it('should handle multiple query parameters', () => {
+      const result = convertS3ToHttps('s3://mybucket/file.csv?key1=value1&key2=value2');
+      expect(result).toBe('https://mybucket.s3.amazonaws.com/file.csv?key1=value1&key2=value2');
+    });
+
+    it('should handle URL-encoded characters in path', () => {
+      const result = convertS3ToHttps('s3://mybucket/path%20with%20spaces/file.csv');
+      expect(result).toBe('https://mybucket.s3.amazonaws.com/path%20with%20spaces/file.csv');
+    });
+
+    it('should use path-style for bucket with single dot', () => {
+      const result = convertS3ToHttps('s3://my.bucket/file.csv');
+      expect(result).toBe('https://s3.amazonaws.com/my.bucket/file.csv');
+    });
+
+    it('should use path-style for bucket with multiple dots', () => {
+      const result = convertS3ToHttps('s3://my.dotted.bucket.name/file.csv');
+      expect(result).toBe('https://s3.amazonaws.com/my.dotted.bucket.name/file.csv');
+    });
+
+    it('should use virtual-hosted-style for bucket without dots', () => {
+      const result = convertS3ToHttps('s3://mybucket123/file.csv');
+      expect(result).toBe('https://mybucket123.s3.amazonaws.com/file.csv');
     });
   });
 });
