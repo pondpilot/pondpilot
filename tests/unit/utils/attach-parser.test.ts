@@ -1,4 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
+
 import {
   parseAttachStatement,
   parseDetachStatement,
@@ -59,11 +60,11 @@ describe('attach-parser', () => {
     });
 
     it('should parse ATTACH with double quotes for database name', () => {
-      const result = parseAttachStatement("ATTACH 'https://example.com/db.duckdb' AS \"mydb\"");
+      const result = parseAttachStatement('ATTACH \'https://example.com/db.duckdb\' AS "mydb"');
       expect(result).toEqual({
         rawUrl: 'https://example.com/db.duckdb',
         dbName: 'mydb',
-        statement: "ATTACH 'https://example.com/db.duckdb' AS \"mydb\"",
+        statement: 'ATTACH \'https://example.com/db.duckdb\' AS "mydb"',
       });
     });
 

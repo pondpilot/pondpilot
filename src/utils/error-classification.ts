@@ -49,7 +49,8 @@ export function isCorsError(error: unknown): boolean {
     (message.includes('opening file') &&
       message.includes('failed') &&
       (message.includes('http') || message.includes('s3://'))) ||
-    (message.includes('cannot open file') && (message.includes('http') || message.includes('s3://')))
+    (message.includes('cannot open file') &&
+      (message.includes('http') || message.includes('s3://')))
   );
 }
 

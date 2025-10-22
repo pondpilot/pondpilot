@@ -10,9 +10,10 @@
  * 3. cors-proxy.pondpilot.io in production (default)
  */
 
+import { getViteEnv } from '@utils/env';
+
 import { getJSONCookie, deleteCookie } from './cookies';
 import { LOCAL_STORAGE_KEYS } from '../models/local-storage';
-import { getViteEnv } from '@utils/env';
 
 const OFFICIAL_PROXY_URL = 'https://cors-proxy.pondpilot.io';
 const DEV_PROXY_URL = 'http://localhost:3000';
@@ -164,7 +165,7 @@ function checkMixedContent(proxyUrl: string): void {
   ) {
     console.warn(
       `[CORS Proxy] Mixed content warning: Using HTTP proxy (${proxyUrl}) with HTTPS app. ` +
-        `Requests may be blocked by the browser. Consider using an HTTPS proxy.`,
+        'Requests may be blocked by the browser. Consider using an HTTPS proxy.',
     );
   }
 }
@@ -228,7 +229,10 @@ export function isCloudStorageUrl(url: string): boolean {
       // - bucket.s3.amazonaws.com (legacy)
       // - s3.amazonaws.com
       if (
-        (hostname.includes('.s3.') || hostname.includes('.s3-') || hostname.startsWith('s3.') || hostname.startsWith('s3-')) &&
+        (hostname.includes('.s3.') ||
+          hostname.includes('.s3-') ||
+          hostname.startsWith('s3.') ||
+          hostname.startsWith('s3-')) &&
         hostname.includes('amazonaws.com')
       ) {
         return true;
@@ -378,7 +382,7 @@ export function convertS3ToHttps(s3Url: string): string | null {
     // Extract components
     const bucket = parsed.hostname;
     const path = parsed.pathname; // includes leading /
-    const search = parsed.search; // includes leading ? if present
+    const { search } = parsed; // includes leading ? if present
 
     if (!bucket) {
       return null;

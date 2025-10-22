@@ -17,6 +17,8 @@ import { RemoteDB } from '@models/data-source';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
 import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
+import { parseAttachStatement, parseDetachStatement } from '@utils/attach-parser';
+import { normalizeRemoteUrl } from '@utils/cors-proxy-config';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import {
   splitSQLByStats,
@@ -26,10 +28,8 @@ import {
   SQLStatement,
   SQLStatementType,
 } from '@utils/editor/sql';
-import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
-import { normalizeRemoteUrl } from '@utils/cors-proxy-config';
 import { isNotReadableError, getErrorMessage } from '@utils/error-classification';
-import { parseAttachStatement, parseDetachStatement } from '@utils/attach-parser';
+import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
 import { formatSQLSafe } from '@utils/sql-formatter';
 import { Allotment } from 'allotment';
 import { memo, useCallback, useState } from 'react';
@@ -342,7 +342,6 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
                 // Parse DETACH statement to extract database name
                 const dbName = parseDetachStatement(statement.code);
                 if (dbName) {
-
                   // Find and remove the database from dataSources
                   const dbToRemove = Array.from(updatedDataSources.entries()).find(
                     ([, ds]) =>

@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach } from '@jest/globals';
 import {
   normalizeRemoteUrl,
   shouldUseProxyFor,
@@ -9,7 +10,6 @@ import {
   PROXY_PREFIX,
   REMOTE_PROTOCOLS,
 } from '@utils/cors-proxy-config';
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 
 describe('cors-proxy-config', () => {
   describe('isRemoteUrl', () => {
@@ -67,9 +67,7 @@ describe('cors-proxy-config', () => {
       });
 
       it('should return true for s3.region.amazonaws.com/bucket', () => {
-        expect(isCloudStorageUrl('https://s3.us-west-2.amazonaws.com/bucket/file.json')).toBe(
-          true,
-        );
+        expect(isCloudStorageUrl('https://s3.us-west-2.amazonaws.com/bucket/file.json')).toBe(true);
       });
 
       it('should return true for the actual pondpilot S3 URL', () => {
@@ -79,9 +77,7 @@ describe('cors-proxy-config', () => {
       });
 
       it('should return true for http S3 URLs', () => {
-        expect(isCloudStorageUrl('http://mybucket.s3.us-east-1.amazonaws.com/data.csv')).toBe(
-          true,
-        );
+        expect(isCloudStorageUrl('http://mybucket.s3.us-east-1.amazonaws.com/data.csv')).toBe(true);
       });
     });
 

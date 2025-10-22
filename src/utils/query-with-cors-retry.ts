@@ -5,10 +5,11 @@
  * ATTACH statements with CORS proxy on failure.
  */
 
+import { showAlert } from '@components/app-notifications';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
-import { showAlert } from '@components/app-notifications';
 import * as arrow from 'apache-arrow';
+
 import { rewriteAttachUrl, isAttachStatement } from './attach-cors-rewriter';
 import { getCorsProxySettings, PROXY_PREFIX } from './cors-proxy-config';
 import { isCorsError } from './error-classification';

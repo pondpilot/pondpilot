@@ -1,6 +1,6 @@
+import { wrapWithCorsProxy, isRemoteUrl } from '@utils/cors-proxy-config';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
-import { wrapWithCorsProxy, isRemoteUrl } from '@utils/cors-proxy-config';
 
 /**
  * Safely build an ATTACH DATABASE query with proper escaping

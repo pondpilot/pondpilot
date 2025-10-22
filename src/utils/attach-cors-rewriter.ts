@@ -8,7 +8,6 @@
 import {
   wrapWithCorsProxy,
   isRemoteUrl,
-  getCorsProxySettings,
   PROXY_PREFIX,
   PROXY_PREFIX_LENGTH,
   convertS3ToHttps,

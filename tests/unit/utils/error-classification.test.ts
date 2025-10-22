@@ -1,4 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
+
 import {
   isCorsError,
   isNotReadableError,
@@ -26,9 +27,7 @@ describe('error-classification', () => {
     });
 
     it('should return true for file opening errors with remote URLs', () => {
-      expect(isCorsError(new Error('Failed opening file https://example.com/data.csv'))).toBe(
-        true,
-      );
+      expect(isCorsError(new Error('Failed opening file https://example.com/data.csv'))).toBe(true);
       expect(isCorsError(new Error('Cannot open file s3://bucket/data.parquet'))).toBe(true);
     });
 

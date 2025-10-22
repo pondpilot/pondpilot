@@ -36,7 +36,7 @@ describe('ATTACH_STATEMENT_REGEX', () => {
     });
 
     it('should match ATTACH with quoted database name', () => {
-      const sql = "ATTACH 'https://example.com/db.duckdb' AS \"mydb\"";
+      const sql = 'ATTACH \'https://example.com/db.duckdb\' AS "mydb"';
       const match = sql.match(ATTACH_STATEMENT_REGEX);
 
       expect(match).not.toBeNull();
@@ -76,7 +76,7 @@ describe('ATTACH_STATEMENT_REGEX', () => {
     });
 
     it('should match ATTACH DATABASE with quoted db name', () => {
-      const sql = "ATTACH DATABASE 'https://example.com/db.duckdb' AS \"my-db\"";
+      const sql = 'ATTACH DATABASE \'https://example.com/db.duckdb\' AS "my-db"';
       const match = sql.match(ATTACH_STATEMENT_REGEX);
 
       expect(match).not.toBeNull();
@@ -105,7 +105,7 @@ describe('ATTACH_STATEMENT_REGEX', () => {
     });
 
     it('should match with IF NOT EXISTS and quoted db name', () => {
-      const sql = "ATTACH IF NOT EXISTS 'https://example.com/db.duckdb' AS \"my-db\"";
+      const sql = 'ATTACH IF NOT EXISTS \'https://example.com/db.duckdb\' AS "my-db"';
       const match = sql.match(ATTACH_STATEMENT_REGEX);
 
       expect(match).not.toBeNull();
@@ -259,7 +259,7 @@ describe('ATTACH_STATEMENT_REGEX', () => {
     });
 
     it('should match quoted database names with hyphens', () => {
-      const sql = "ATTACH 'https://example.com/db.duckdb' AS \"my-db\"";
+      const sql = 'ATTACH \'https://example.com/db.duckdb\' AS "my-db"';
       const match = sql.match(ATTACH_STATEMENT_REGEX);
 
       expect(match).not.toBeNull();
@@ -269,7 +269,7 @@ describe('ATTACH_STATEMENT_REGEX', () => {
     it('should not match database names with unquoted spaces', () => {
       // Database names with spaces must be quoted
       // The regex pattern [^'"\s]+ means it won't match spaces in the db name
-      const sql = "ATTACH 'https://example.com/db.duckdb' AS \"my db\"";
+      const sql = 'ATTACH \'https://example.com/db.duckdb\' AS "my db"';
       const match = sql.match(ATTACH_STATEMENT_REGEX);
 
       // This will fail because [^'"\s]+ stops at the space
@@ -277,7 +277,7 @@ describe('ATTACH_STATEMENT_REGEX', () => {
     });
 
     it('should match quoted database names with dots', () => {
-      const sql = "ATTACH 'https://example.com/db.duckdb' AS \"my.db\"";
+      const sql = 'ATTACH \'https://example.com/db.duckdb\' AS "my.db"';
       const match = sql.match(ATTACH_STATEMENT_REGEX);
 
       expect(match).not.toBeNull();
@@ -334,7 +334,7 @@ describe('ATTACH_STATEMENT_REGEX', () => {
   describe('quote consistency validation', () => {
     it('should use backreference to match quote pairs', () => {
       // The regex uses \2 to ensure opening and closing quotes match
-      const sql1 = "ATTACH 'https://example.com/db.duckdb' AS \"mydb\"";
+      const sql1 = 'ATTACH \'https://example.com/db.duckdb\' AS "mydb"';
       const match1 = sql1.match(ATTACH_STATEMENT_REGEX);
       expect(match1).not.toBeNull();
 
@@ -447,7 +447,7 @@ describe('ATTACH_STATEMENT_REGEX', () => {
     });
 
     it('should match GCS database with special naming', () => {
-      const sql = "ATTACH 'gcs://analytics-prod/dbs/customer-360.duckdb' AS \"customer-360\"";
+      const sql = 'ATTACH \'gcs://analytics-prod/dbs/customer-360.duckdb\' AS "customer-360"';
       const match = sql.match(ATTACH_STATEMENT_REGEX);
 
       expect(match).not.toBeNull();

@@ -18,7 +18,7 @@ export async function installCorsProxyMacros(conn: AsyncDuckDBConnectionPool): P
       await conn.query(macro);
     }
 
-    console.log('CORS proxy macros installed successfully');
+    // Successfully installed - no logging needed in production
   } catch (error) {
     console.error('Failed to install CORS proxy macros:', error);
     // Don't throw - this is not critical for app functionality

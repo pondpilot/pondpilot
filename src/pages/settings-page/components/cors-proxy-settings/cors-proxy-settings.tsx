@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Stack, Switch, Button, Group, Text, Alert } from '@mantine/core';
 import { IconInfoCircle } from '@tabler/icons-react';
 import {
@@ -8,6 +7,7 @@ import {
   CorsProxyBehavior,
   CorsProxySettings as CorsProxySettingsType,
 } from '@utils/cors-proxy-config';
+import { useState } from 'react';
 
 export const CorsProxySettings = () => {
   const [settings, setSettings] = useState(getCorsProxySettings());
@@ -76,10 +76,14 @@ export const CorsProxySettings = () => {
         <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
           <Stack gap="xs">
             <Text size="sm">
-              In manual mode, use the <Text span className="font-mono" c="dimmed">proxy:</Text> prefix to force proxy usage:
+              In manual mode, use the{' '}
+              <Text span className="font-mono" c="dimmed">
+                proxy:
+              </Text>{' '}
+              prefix to force proxy usage:
             </Text>
             <Text size="xs" c="dimmed" className="font-mono">
-              ATTACH 'proxy:https://example.com/db.duckdb' AS mydb
+              ATTACH &apos;proxy:https://example.com/db.duckdb&apos; AS mydb
             </Text>
           </Stack>
         </Alert>
