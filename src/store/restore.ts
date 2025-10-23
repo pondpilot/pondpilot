@@ -61,7 +61,7 @@ import { IDBPDatabase, openDB } from 'idb';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
-    upgrade(newDb, oldVersion, newVersion, transaction) {
+    upgrade(newDb, _oldVersion, _newVersion, _transaction) {
       // Create object stores that don't exist yet
       for (const storeName of ALL_TABLE_NAMES) {
         if (!newDb.objectStoreNames.contains(storeName)) {
@@ -465,7 +465,7 @@ export const restoreAppDataFromIDB = async (
 
   const sqlScripts = new Map(
     sqlScriptsArray.map((script) => {
-      const { lastUsed, ...scriptWithoutLastUsed } = script as LegacySQLScript;
+      const { lastUsed: _lastUsed, ...scriptWithoutLastUsed } = script as LegacySQLScript;
       return [script.id, scriptWithoutLastUsed];
     }),
   );
@@ -482,7 +482,7 @@ export const restoreAppDataFromIDB = async (
   // Migration: Extract lastUsed from data sources and move to separate access time table
   let dataSources = new Map(
     dataSourcesArray.map((dv) => {
-      const { lastUsed, ...dataSourceWithoutLastUsed } = dv as LegacyDataSource;
+      const { lastUsed: _lastUsed, ...dataSourceWithoutLastUsed } = dv as LegacyDataSource;
       return [dv.id, dataSourceWithoutLastUsed];
     }),
   );
@@ -503,8 +503,10 @@ export const restoreAppDataFromIDB = async (
     // Table doesn't exist yet (migration from v2), extract from old lastUsed properties
     // This is expected during migration from database version 2 to 3
     if (error instanceof DOMException && error.name === 'NotFoundError') {
+      // eslint-disable-next-line no-console
       console.info('Migrating data source access times from legacy lastUsed properties');
     } else {
+      // eslint-disable-next-line no-console
       console.warn('Error loading data source access times, falling back to migration:', error);
     }
     dataSourcesArray.forEach((dv, index) => {
@@ -526,8 +528,10 @@ export const restoreAppDataFromIDB = async (
     // Table doesn't exist yet (migration from v2), extract from old lastUsed properties
     // This is expected during migration from database version 2 to 3
     if (error instanceof DOMException && error.name === 'NotFoundError') {
+      // eslint-disable-next-line no-console
       console.info('Migrating script access times from legacy lastUsed properties');
     } else {
+      // eslint-disable-next-line no-console
       console.warn('Error loading script access times, falling back to migration:', error);
     }
     sqlScriptsArray.forEach((script, index) => {
@@ -547,8 +551,10 @@ export const restoreAppDataFromIDB = async (
     // Table doesn't exist yet - this is a new table in v3
     // Table-level tracking is optional, so an empty map is fine
     if (error instanceof DOMException && error.name === 'NotFoundError') {
+      // eslint-disable-next-line no-console
       console.info('Table access times store not found - initializing empty map');
     } else {
+      // eslint-disable-next-line no-console
       console.warn('Error loading table access times, starting with empty map:', error);
     }
   }

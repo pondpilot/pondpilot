@@ -28,7 +28,7 @@ describe('LRU Migration Logic', () => {
           script.id,
           {
             ...script,
-            lastUsed: (script as any).lastUsed ?? (mockNow - sqlScriptsArray.length + index),
+            lastUsed: (script as any).lastUsed ?? mockNow - sqlScriptsArray.length + index,
           },
         ]),
       );
@@ -60,7 +60,7 @@ describe('LRU Migration Logic', () => {
           script.id,
           {
             ...script,
-            lastUsed: script.lastUsed ?? (mockNow - sqlScriptsArray.length + index),
+            lastUsed: script.lastUsed ?? mockNow - sqlScriptsArray.length + index,
           },
         ]),
       );
@@ -85,14 +85,14 @@ describe('LRU Migration Logic', () => {
           script.id,
           {
             ...script,
-            lastUsed: (script as any).lastUsed ?? (mockNow - sqlScriptsArray.length + index),
+            lastUsed: (script as any).lastUsed ?? mockNow - sqlScriptsArray.length + index,
           },
         ]),
       );
 
       // Verify all timestamps are unique and in order
       const timestamps = Array.from(sqlScripts.values()).map((s) => s.lastUsed!);
-      for (let i = 0; i < timestamps.length - 1; i++) {
+      for (let i = 0; i < timestamps.length - 1; i += 1) {
         expect(timestamps[i]).toBeLessThan(timestamps[i + 1]);
       }
     });
@@ -160,14 +160,22 @@ describe('LRU Migration Logic', () => {
 
       // Local DB should get a backfilled timestamp
       expect(dataSources.get('local1')?.lastUsed).toBeDefined();
-      expect(dataSources.get('local1')?.lastUsed).toBeGreaterThan(mockNow - dataSourcesArray.length);
+      expect(dataSources.get('local1')?.lastUsed).toBeGreaterThan(
+        mockNow - dataSourcesArray.length,
+      );
     });
 
     it('should preserve existing lastUsed over attachedAt for RemoteDB', () => {
       const attachedAt = mockNow - 50000;
       const existingLastUsed = mockNow - 10000;
       const dataSourcesArray = [
-        { id: 'remote1', type: 'remote-db', dbName: 'remote', attachedAt, lastUsed: existingLastUsed },
+        {
+          id: 'remote1',
+          type: 'remote-db',
+          dbName: 'remote',
+          attachedAt,
+          lastUsed: existingLastUsed,
+        },
       ];
 
       const dataSources = new Map(
@@ -197,7 +205,7 @@ describe('LRU Migration Logic', () => {
           script.id,
           {
             ...script,
-            lastUsed: script.lastUsed ?? (mockNow - sqlScriptsArray.length + index),
+            lastUsed: script.lastUsed ?? mockNow - sqlScriptsArray.length + index,
           },
         ]),
       );
@@ -213,7 +221,7 @@ describe('LRU Migration Logic', () => {
           script.id,
           {
             ...script,
-            lastUsed: (script as any).lastUsed ?? (mockNow - sqlScriptsArray.length + index),
+            lastUsed: (script as any).lastUsed ?? mockNow - sqlScriptsArray.length + index,
           },
         ]),
       );
@@ -232,7 +240,7 @@ describe('LRU Migration Logic', () => {
           script.id,
           {
             ...script,
-            lastUsed: script.lastUsed ?? (mockNow - sqlScriptsArray.length + index),
+            lastUsed: script.lastUsed ?? mockNow - sqlScriptsArray.length + index,
           },
         ]),
       );
