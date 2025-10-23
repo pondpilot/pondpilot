@@ -93,6 +93,25 @@ type AppStore = {
    * and should be cleared on app reload.
    */
   tabExecutionErrors: Map<TabId, TabExecutionError>;
+
+  /**
+   * A mapping of data source identifiers to their last access times.
+   * Separated from the data source model to avoid cloning entire objects on access.
+   */
+  dataSourceAccessTimes: Map<PersistentDataSourceId, number>;
+
+  /**
+   * A mapping of SQL script identifiers to their last access times.
+   * Separated from the script model to avoid cloning entire objects on access.
+   */
+  scriptAccessTimes: Map<SQLScriptId, number>;
+
+  /**
+   * A mapping of database table/view identifiers to their last access times.
+   * Key format: `${dbName}.${schemaName}.${tableName}`
+   * This allows tracking individual table/view access for LRU sorting in spotlight.
+   */
+  tableAccessTimes: Map<string, number>;
 } & ContentViewState;
 
 const initialState: AppStore = {
@@ -106,6 +125,9 @@ const initialState: AppStore = {
   databaseMetadata: new Map(),
   duckDBFunctions: [],
   tabExecutionErrors: new Map(),
+  dataSourceAccessTimes: new Map(),
+  scriptAccessTimes: new Map(),
+  tableAccessTimes: new Map(),
   // From ContentViewState
   activeTabId: null,
   previewTabId: null,

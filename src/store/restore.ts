@@ -34,13 +34,17 @@ import {
   ALL_TABLE_NAMES,
   APP_DB_NAME,
   CONTENT_VIEW_TABLE_NAME,
+  DATA_SOURCE_ACCESS_TIME_TABLE_NAME,
   DATA_SOURCE_TABLE_NAME,
   DB_VERSION,
   LOCAL_ENTRY_TABLE_NAME,
+  SCRIPT_ACCESS_TIME_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
   TAB_TABLE_NAME,
+  TABLE_ACCESS_TIME_TABLE_NAME,
   AppIdbSchema,
 } from '@models/persisted-store';
+import { SQLScriptId } from '@models/sql-script';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
@@ -57,9 +61,12 @@ import { IDBPDatabase, openDB } from 'idb';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
-    upgrade(newDb) {
+    upgrade(newDb, oldVersion, newVersion, transaction) {
+      // Create object stores that don't exist yet
       for (const storeName of ALL_TABLE_NAMES) {
-        newDb.createObjectStore(storeName);
+        if (!newDb.objectStoreNames.contains(storeName)) {
+          newDb.createObjectStore(storeName);
+        }
       }
     },
   });
@@ -449,19 +456,102 @@ export const restoreAppDataFromIDB = async (
 
   // Read & Convert data to the appropriate types
   const sqlScriptsArray = await tx.objectStore(SQL_SCRIPT_TABLE_NAME).getAll();
-  const sqlScripts = new Map(sqlScriptsArray.map((script) => [script.id, script]));
+  // Migration: Extract lastUsed from scripts and move to separate access time table
+  // Use incremental offsets to preserve relative ordering of legacy items
+  const now = Date.now();
+
+  // Legacy type for migration - old SQLScript may have lastUsed property
+  type LegacySQLScript = { lastUsed?: number; [key: string]: any };
+
+  const sqlScripts = new Map(
+    sqlScriptsArray.map((script) => {
+      const { lastUsed, ...scriptWithoutLastUsed } = script as LegacySQLScript;
+      return [script.id, scriptWithoutLastUsed];
+    }),
+  );
 
   const tabsArray = await tx.objectStore(TAB_TABLE_NAME).getAll();
   const tabs = new Map(tabsArray.map((tab) => [tab.id, tab]));
 
   const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
   const dataSourcesArray = await dataSourceStore.getAll();
-  let dataSources = new Map(dataSourcesArray.map((dv) => [dv.id, dv]));
+
+  // Legacy type for migration - old DataSource may have lastUsed property
+  type LegacyDataSource = { lastUsed?: number; [key: string]: any };
+
+  // Migration: Extract lastUsed from data sources and move to separate access time table
+  let dataSources = new Map(
+    dataSourcesArray.map((dv) => {
+      const { lastUsed, ...dataSourceWithoutLastUsed } = dv as LegacyDataSource;
+      return [dv.id, dataSourceWithoutLastUsed];
+    }),
+  );
   const dataSourceByLocalEntryId = new Map<LocalEntryId, AnyDataSource>(
     dataSourcesArray
       .filter((dv) => 'fileSourceId' in dv)
       .map((dv) => [(dv as any).fileSourceId, dv]),
   );
+
+  // Load access time tables with migration from old lastUsed properties
+  const dataSourceAccessTimes = new Map<PersistentDataSourceId, number>();
+  try {
+    const dataSourceAccessTimeStore = tx.objectStore(DATA_SOURCE_ACCESS_TIME_TABLE_NAME);
+    const values = await dataSourceAccessTimeStore.getAll();
+    const keys = await dataSourceAccessTimeStore.getAllKeys();
+    keys.forEach((key, index) => dataSourceAccessTimes.set(key, values[index]));
+  } catch (error) {
+    // Table doesn't exist yet (migration from v2), extract from old lastUsed properties
+    // This is expected during migration from database version 2 to 3
+    if (error instanceof DOMException && error.name === 'NotFoundError') {
+      console.info('Migrating data source access times from legacy lastUsed properties');
+    } else {
+      console.warn('Error loading data source access times, falling back to migration:', error);
+    }
+    dataSourcesArray.forEach((dv, index) => {
+      const legacyDs = dv as LegacyDataSource;
+      const lastUsed =
+        legacyDs.lastUsed ??
+        (dv.type === 'remote-db' ? dv.attachedAt : now - dataSourcesArray.length + index);
+      dataSourceAccessTimes.set(dv.id, lastUsed);
+    });
+  }
+
+  const scriptAccessTimes = new Map<SQLScriptId, number>();
+  try {
+    const scriptAccessTimeStore = tx.objectStore(SCRIPT_ACCESS_TIME_TABLE_NAME);
+    const values = await scriptAccessTimeStore.getAll();
+    const keys = await scriptAccessTimeStore.getAllKeys();
+    keys.forEach((key, index) => scriptAccessTimes.set(key, values[index]));
+  } catch (error) {
+    // Table doesn't exist yet (migration from v2), extract from old lastUsed properties
+    // This is expected during migration from database version 2 to 3
+    if (error instanceof DOMException && error.name === 'NotFoundError') {
+      console.info('Migrating script access times from legacy lastUsed properties');
+    } else {
+      console.warn('Error loading script access times, falling back to migration:', error);
+    }
+    sqlScriptsArray.forEach((script, index) => {
+      const legacyScript = script as LegacySQLScript;
+      const lastUsed = legacyScript.lastUsed ?? now - sqlScriptsArray.length + index;
+      scriptAccessTimes.set(script.id, lastUsed);
+    });
+  }
+
+  const tableAccessTimes = new Map<string, number>();
+  try {
+    const tableAccessTimesStore = tx.objectStore(TABLE_ACCESS_TIME_TABLE_NAME);
+    const values = await tableAccessTimesStore.getAll();
+    const keys = await tableAccessTimesStore.getAllKeys();
+    keys.forEach((key, index) => tableAccessTimes.set(key, values[index]));
+  } catch (error) {
+    // Table doesn't exist yet - this is a new table in v3
+    // Table-level tracking is optional, so an empty map is fine
+    if (error instanceof DOMException && error.name === 'NotFoundError') {
+      console.info('Table access times store not found - initializing empty map');
+    } else {
+      console.warn('Error loading table access times, starting with empty map:', error);
+    }
+  }
 
   await tx.done;
 
@@ -870,6 +960,9 @@ export const restoreAppDataFromIDB = async (
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,
       previewTabId: newPreviewTabId,
+      dataSourceAccessTimes,
+      scriptAccessTimes,
+      tableAccessTimes,
     },
     undefined,
     'AppStore/restoreAppDataFromIDB',

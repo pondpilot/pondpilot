@@ -8,6 +8,7 @@ import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { findUniqueName } from '@utils/helpers';
+import { createPersistenceCatchHandler } from '@utils/persistence-logger';
 import { ensureScript, makeSQLScriptId } from '@utils/sql-script';
 
 import { persistDeleteSqlScript } from './persist';
@@ -43,7 +44,9 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
   // Persist the new SQL script to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(SQL_SCRIPT_TABLE_NAME, sqlScript, sqlScriptId);
+    iDb.put(SQL_SCRIPT_TABLE_NAME, sqlScript, sqlScriptId).catch(
+      createPersistenceCatchHandler('persist new SQL script')
+    );
   }
 
   return sqlScript;
@@ -92,7 +95,9 @@ export const updateSQLScriptContent = (
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id);
+    iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id).catch(
+      createPersistenceCatchHandler('persist SQL script content update')
+    );
   }
 };
 
@@ -133,7 +138,9 @@ export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName:
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id);
+    iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id).catch(
+      createPersistenceCatchHandler('persist SQL script rename')
+    );
   }
 };
 
@@ -152,6 +159,7 @@ export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName:
 export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
   const {
     sqlScripts,
+    scriptAccessTimes,
     tabs,
     tabOrder,
     activeTabId,
@@ -193,9 +201,15 @@ export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
     newPreviewTabId = result.newPreviewTabId;
   }
 
+  // Create the updated state for access times (clean up orphaned entries)
+  const newScriptAccessTimes = new Map(
+    Array.from(scriptAccessTimes).filter(([id, _]) => !sqlScriptIdsToDeleteSet.has(id)),
+  );
+
   useAppStore.setState(
     {
       sqlScripts: newSqlScripts,
+      scriptAccessTimes: newScriptAccessTimes,
       tabs: newTabs,
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,

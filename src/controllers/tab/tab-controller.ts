@@ -20,6 +20,12 @@ import {
 } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { ensureDatabaseDataSource, ensureFlatFileDataSource } from '@utils/data-source';
+import {
+  updateDataSourceLastUsed,
+  updateSQLScriptLastUsed,
+  updateTableAccessTime,
+} from '@utils/lru-tracker';
+import { createPersistenceCatchHandler } from '@utils/persistence-logger';
 import { ensureScript } from '@utils/sql-script';
 import { ensureTab, makeTabId } from '@utils/tab';
 import { shallow } from 'zustand/shallow';
@@ -138,8 +144,8 @@ export const getOrCreateTabFromLocalDBObject = (
 
   // No need to create a new tab if one already exists
   if (existingTab) {
-    // Since we didn't change any state, we can reuse existing action directly
     if (setActive) {
+      // setActiveTabId will handle updating lastUsed timestamps
       setActiveTabId(existingTab.id);
     }
     return existingTab;
@@ -161,11 +167,9 @@ export const getOrCreateTabFromLocalDBObject = (
   // Add the new tab to the store
   const newTabs = new Map(state.tabs).set(tabId, tab);
   const newTabOrder = [...state.tabOrder, tabId];
-  const newActiveTabId = setActive ? tabId : state.activeTabId;
 
   useAppStore.setState(
     (_) => ({
-      activeTabId: newActiveTabId,
       tabs: newTabs,
       tabOrder: newTabOrder,
     }),
@@ -176,7 +180,13 @@ export const getOrCreateTabFromLocalDBObject = (
   // Persist the new tab to IndexedDB
   const iDb = state._iDbConn;
   if (iDb) {
+    const newActiveTabId = setActive ? tabId : state.activeTabId;
     persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
+  }
+
+  // Set as active after creating the tab (this also updates lastUsed timestamps)
+  if (setActive) {
+    setActiveTabId(tabId);
   }
 
   return tab;
@@ -206,8 +216,8 @@ export const getOrCreateTabFromFlatFileDataSource = (
 
   // No need to create a new tab if one already exists
   if (existingTab) {
-    // Since we didn't change any state, we can reuse existing action directly
     if (setActive) {
+      // setActiveTabId will handle updating lastUsed timestamp
       setActiveTabId(existingTab.id);
     }
     return existingTab;
@@ -226,11 +236,9 @@ export const getOrCreateTabFromFlatFileDataSource = (
   // Add the new tab to the store
   const newTabs = new Map(state.tabs).set(tabId, tab);
   const newTabOrder = [...state.tabOrder, tabId];
-  const newActiveTabId = setActive ? tabId : state.activeTabId;
 
   useAppStore.setState(
     (_) => ({
-      activeTabId: newActiveTabId,
       tabs: newTabs,
       tabOrder: newTabOrder,
     }),
@@ -241,7 +249,13 @@ export const getOrCreateTabFromFlatFileDataSource = (
   // Persist the new tab to IndexedDB
   const iDb = state._iDbConn;
   if (iDb) {
+    const newActiveTabId = setActive ? tabId : state.activeTabId;
     persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
+  }
+
+  // Set as active after creating the tab (this also updates lastUsed)
+  if (setActive) {
+    setActiveTabId(tabId);
   }
 
   return tab;
@@ -271,8 +285,8 @@ export const getOrCreateTabFromScript = (
 
   // No need to create a new tab if one already exists
   if (existingTab) {
-    // Since we didn't change any state, we can reuse existing action directly
     if (setActive) {
+      // setActiveTabId will handle updating lastUsed timestamp
       setActiveTabId(existingTab.id);
     }
 
@@ -294,11 +308,9 @@ export const getOrCreateTabFromScript = (
   // Add the new tab to the store
   const newTabs = new Map(state.tabs).set(tabId, tab);
   const newTabOrder = [...state.tabOrder, tabId];
-  const newActiveTabId = setActive ? tabId : state.activeTabId;
 
   useAppStore.setState(
     (_) => ({
-      activeTabId: newActiveTabId,
       tabs: newTabs,
       tabOrder: newTabOrder,
     }),
@@ -309,7 +321,13 @@ export const getOrCreateTabFromScript = (
   // Persist the new tab to IndexedDB
   const iDb = state._iDbConn;
   if (iDb) {
+    const newActiveTabId = setActive ? tabId : state.activeTabId;
     persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
+  }
+
+  // Set as active after creating the tab (this also updates lastUsed)
+  if (setActive) {
+    setActiveTabId(tabId);
   }
 
   return tab;
@@ -504,7 +522,9 @@ export const updateTabDataViewStaleDataCache = (
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id).catch(
+      createPersistenceCatchHandler('persist tab stale data cache update')
+    );
   }
 };
 
@@ -555,7 +575,9 @@ export const updateTabDataViewColumnSizesCache = (
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id).catch(
+      createPersistenceCatchHandler('persist tab column sizes cache update')
+    );
   }
 };
 
@@ -603,7 +625,9 @@ export const updateTabDataViewDataPageCache = (tabId: TabId, newDataPage: number
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id).catch(
+      createPersistenceCatchHandler('persist tab data page cache update')
+    );
   }
 };
 
@@ -664,7 +688,9 @@ export const updateScriptTabLastExecutedQuery = ({
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id).catch(
+      createPersistenceCatchHandler('persist script tab last executed query')
+    );
   }
 };
 
@@ -713,26 +739,66 @@ export const updateScriptTabLayout = (
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id).catch(
+      createPersistenceCatchHandler('persist script tab layout')
+    );
   }
 };
 
 /**
+ * Helper function to update LRU timestamps for a tab and its associated resources.
+ * Handles the complexity of determining what needs to be updated based on tab type.
+ *
+ * @param tabId - The ID of the tab to update LRU tracking for
+ */
+function updateTabLRUTracking(tabId: TabId): void {
+  const { tabs, dataSources } = useAppStore.getState();
+  const tab = tabs.get(tabId);
+
+  if (!tab) return;
+
+  // Update based on tab type
+  if (tab.type === 'script') {
+    updateSQLScriptLastUsed(tab.sqlScriptId);
+  } else if (tab.type === 'data-source') {
+    updateDataSourceLastUsed(tab.dataSourceId);
+
+    // For database object tabs, also update table-specific access time
+    if (tab.dataSourceType === 'db') {
+      const dataSource = dataSources.get(tab.dataSourceId);
+      if (dataSource && (dataSource.type === 'attached-db' || dataSource.type === 'remote-db')) {
+        updateTableAccessTime(dataSource.dbName, tab.schemaName, tab.objectName);
+      }
+    }
+  }
+}
+
+/**
  * Sets/resets the active tab id.
  *
- * Idempotent, if the tab is already active, it does nothing.
+ * Always updates LRU tracking for the tab, even if already active.
+ * If the tab is already active, skips state update and persistence.
  */
 export const setActiveTabId = (tabId: TabId | null) => {
   const { activeTabId } = useAppStore.getState();
 
-  // If the tab is already active, do nothing
+  // Update LRU tracking for the tab (even if already active)
+  // This ensures clicking on an already-active tab refreshes its LRU timestamp
+  if (tabId) {
+    updateTabLRUTracking(tabId);
+  }
+
+  // If the tab is already active, skip state update and persistence
   if (activeTabId === tabId) return;
 
   useAppStore.setState({ activeTabId: tabId }, undefined, 'AppStore/setActiveTabId');
 
+  // Persist the active tab ID
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(CONTENT_VIEW_TABLE_NAME, tabId, 'activeTabId');
+    iDb.put(CONTENT_VIEW_TABLE_NAME, tabId, 'activeTabId').catch(
+      createPersistenceCatchHandler('persist active tab ID'),
+    );
   }
 };
 
@@ -793,7 +859,9 @@ export const setPreviewTabId = (tabId: TabId | null) => {
   useAppStore.setState({ previewTabId: tabId }, undefined, 'AppStore/setPreviewTabId');
 
   if (iDbConn) {
-    iDbConn.put(CONTENT_VIEW_TABLE_NAME, tabId, 'previewTabId');
+    iDbConn.put(CONTENT_VIEW_TABLE_NAME, tabId, 'previewTabId').catch(
+      createPersistenceCatchHandler('persist preview tab ID')
+    );
   }
 };
 
@@ -802,7 +870,9 @@ export const setTabOrder = (tabOrder: TabId[]) => {
 
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(CONTENT_VIEW_TABLE_NAME, tabOrder, 'tabOrder');
+    iDb.put(CONTENT_VIEW_TABLE_NAME, tabOrder, 'tabOrder').catch(
+      createPersistenceCatchHandler('persist tab order')
+    );
   }
 };
 

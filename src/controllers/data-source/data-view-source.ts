@@ -53,6 +53,7 @@ export const deleteDataSources = async (
 ) => {
   const {
     dataSources,
+    dataSourceAccessTimes,
     tabs,
     tabOrder,
     activeTabId,
@@ -123,10 +124,16 @@ export const deleteDataSources = async (
     Array.from(registeredFiles).filter(([id, _]) => !entryIdsToDelete.has(id)),
   );
 
+  // Create the updated state for access times (clean up orphaned entries)
+  const newDataSourceAccessTimes = new Map(
+    Array.from(dataSourceAccessTimes).filter(([id, _]) => !dataSourceIdsToDelete.has(id)),
+  );
+
   // Update the store with the new state
   useAppStore.setState(
     {
       dataSources: newDataSources,
+      dataSourceAccessTimes: newDataSourceAccessTimes,
       localEntries: newLocalEntires,
       registeredFiles: newRegisteredFiles,
       tabs: newTabs,
