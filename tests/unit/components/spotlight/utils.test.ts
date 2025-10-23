@@ -126,10 +126,7 @@ describe('sortActionsByLRU', () => {
     ];
 
     // Custom tie-breaker that sorts by priority
-    const sorted = sortActionsByLRU(
-      actions,
-      (a, b) => (a as any).priority - (b as any).priority,
-    );
+    const sorted = sortActionsByLRU(actions, (a, b) => (a as any).priority - (b as any).priority);
 
     // All have same lastUsed, so should be sorted by priority
     expect(sorted[0].id).toBe('2'); // priority 1

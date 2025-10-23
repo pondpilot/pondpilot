@@ -1,6 +1,6 @@
-import { makeTableAccessKey, parseTableAccessKey, getTableAccessTime } from '@utils/table-access';
-import { useAppStore } from '@store/app-store';
 import { describe, expect, it, beforeEach } from '@jest/globals';
+import { useAppStore } from '@store/app-store';
+import { makeTableAccessKey, parseTableAccessKey, getTableAccessTime } from '@utils/table-access';
 
 describe('Table Access Utilities', () => {
   describe('makeTableAccessKey', () => {

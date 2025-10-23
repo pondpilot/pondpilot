@@ -522,9 +522,9 @@ export const updateTabDataViewStaleDataCache = (
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id).catch(
-      createPersistenceCatchHandler('persist tab stale data cache update')
-    );
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist tab stale data cache update'));
   }
 };
 
@@ -575,9 +575,9 @@ export const updateTabDataViewColumnSizesCache = (
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id).catch(
-      createPersistenceCatchHandler('persist tab column sizes cache update')
-    );
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist tab column sizes cache update'));
   }
 };
 
@@ -625,9 +625,9 @@ export const updateTabDataViewDataPageCache = (tabId: TabId, newDataPage: number
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id).catch(
-      createPersistenceCatchHandler('persist tab data page cache update')
-    );
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist tab data page cache update'));
   }
 };
 
@@ -688,9 +688,9 @@ export const updateScriptTabLastExecutedQuery = ({
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id).catch(
-      createPersistenceCatchHandler('persist script tab last executed query')
-    );
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist script tab last executed query'));
   }
 };
 
@@ -739,9 +739,9 @@ export const updateScriptTabLayout = (
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id).catch(
-      createPersistenceCatchHandler('persist script tab layout')
-    );
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist script tab layout'));
   }
 };
 
@@ -796,9 +796,9 @@ export const setActiveTabId = (tabId: TabId | null) => {
   // Persist the active tab ID
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(CONTENT_VIEW_TABLE_NAME, tabId, 'activeTabId').catch(
-      createPersistenceCatchHandler('persist active tab ID'),
-    );
+    iDb
+      .put(CONTENT_VIEW_TABLE_NAME, tabId, 'activeTabId')
+      .catch(createPersistenceCatchHandler('persist active tab ID'));
   }
 };
 
@@ -859,9 +859,9 @@ export const setPreviewTabId = (tabId: TabId | null) => {
   useAppStore.setState({ previewTabId: tabId }, undefined, 'AppStore/setPreviewTabId');
 
   if (iDbConn) {
-    iDbConn.put(CONTENT_VIEW_TABLE_NAME, tabId, 'previewTabId').catch(
-      createPersistenceCatchHandler('persist preview tab ID')
-    );
+    iDbConn
+      .put(CONTENT_VIEW_TABLE_NAME, tabId, 'previewTabId')
+      .catch(createPersistenceCatchHandler('persist preview tab ID'));
   }
 };
 
@@ -870,9 +870,9 @@ export const setTabOrder = (tabOrder: TabId[]) => {
 
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(CONTENT_VIEW_TABLE_NAME, tabOrder, 'tabOrder').catch(
-      createPersistenceCatchHandler('persist tab order')
-    );
+    iDb
+      .put(CONTENT_VIEW_TABLE_NAME, tabOrder, 'tabOrder')
+      .catch(createPersistenceCatchHandler('persist tab order'));
   }
 };
 

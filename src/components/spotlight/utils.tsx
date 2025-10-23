@@ -79,8 +79,12 @@ export const sortActionsByLRU = <T extends { metadata?: { lastUsed?: number }; l
     const rawALastUsed = a.metadata?.lastUsed;
     const rawBLastUsed = b.metadata?.lastUsed;
 
-    const aLastUsed: number = Number.isFinite(rawALastUsed) ? (rawALastUsed as number) : DEFAULT_LAST_USED;
-    const bLastUsed: number = Number.isFinite(rawBLastUsed) ? (rawBLastUsed as number) : DEFAULT_LAST_USED;
+    const aLastUsed: number = Number.isFinite(rawALastUsed)
+      ? (rawALastUsed as number)
+      : DEFAULT_LAST_USED;
+    const bLastUsed: number = Number.isFinite(rawBLastUsed)
+      ? (rawBLastUsed as number)
+      : DEFAULT_LAST_USED;
 
     // Sort in descending order (most recent first)
     const timeDiff = bLastUsed - aLastUsed;

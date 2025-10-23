@@ -44,9 +44,9 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
   // Persist the new SQL script to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(SQL_SCRIPT_TABLE_NAME, sqlScript, sqlScriptId).catch(
-      createPersistenceCatchHandler('persist new SQL script')
-    );
+    iDb
+      .put(SQL_SCRIPT_TABLE_NAME, sqlScript, sqlScriptId)
+      .catch(createPersistenceCatchHandler('persist new SQL script'));
   }
 
   return sqlScript;
@@ -95,9 +95,9 @@ export const updateSQLScriptContent = (
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id).catch(
-      createPersistenceCatchHandler('persist SQL script content update')
-    );
+    iDb
+      .put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id)
+      .catch(createPersistenceCatchHandler('persist SQL script content update'));
   }
 };
 
@@ -138,9 +138,9 @@ export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName:
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id).catch(
-      createPersistenceCatchHandler('persist SQL script rename')
-    );
+    iDb
+      .put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id)
+      .catch(createPersistenceCatchHandler('persist SQL script rename'));
   }
 };
 

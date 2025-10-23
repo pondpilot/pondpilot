@@ -28,11 +28,7 @@ import { lastUsedWriter } from '@utils/idb-debounce';
  * @param tableName - Table or view name
  * @returns Unique key string
  */
-export function makeTableAccessKey(
-  dbName: string,
-  schemaName: string,
-  tableName: string,
-): string {
+export function makeTableAccessKey(dbName: string, schemaName: string, tableName: string): string {
   return JSON.stringify([dbName, schemaName, tableName]);
 }
 
@@ -42,9 +38,7 @@ export function makeTableAccessKey(
  * @param key - Table access key (JSON array format)
  * @returns Tuple with [dbName, schemaName, tableName], or null if invalid format
  */
-export function parseTableAccessKey(
-  key: string,
-): [string, string, string] | null {
+export function parseTableAccessKey(key: string): [string, string, string] | null {
   try {
     const parsed = JSON.parse(key);
     if (
@@ -69,11 +63,7 @@ export function parseTableAccessKey(
  * @param tableName - Table or view name
  * @returns Last access timestamp, or 0 if never accessed
  */
-export function getTableAccessTime(
-  dbName: string,
-  schemaName: string,
-  tableName: string,
-): number {
+export function getTableAccessTime(dbName: string, schemaName: string, tableName: string): number {
   const key = makeTableAccessKey(dbName, schemaName, tableName);
   const { tableAccessTimes } = useAppStore.getState();
   return tableAccessTimes.get(key) ?? 0;
@@ -87,11 +77,7 @@ export function getTableAccessTime(
  * @param schemaName - Schema name
  * @param tableName - Table or view name
  */
-export function updateTableAccessTime(
-  dbName: string,
-  schemaName: string,
-  tableName: string,
-): void {
+export function updateTableAccessTime(dbName: string, schemaName: string, tableName: string): void {
   // Input validation
   if (!dbName || typeof dbName !== 'string') {
     console.warn('updateTableAccessTime: Invalid dbName provided');
@@ -194,11 +180,7 @@ export function updateScriptAccessTime(scriptId: SQLScriptId): void {
   const newAccessTimes = new Map(scriptAccessTimes);
   newAccessTimes.set(scriptId, now);
 
-  useAppStore.setState(
-    { scriptAccessTimes: newAccessTimes },
-    undefined,
-    'updateScriptAccessTime',
-  );
+  useAppStore.setState({ scriptAccessTimes: newAccessTimes }, undefined, 'updateScriptAccessTime');
 
   // Persist to IndexedDB (debounced)
   if (_iDbConn) {
