@@ -44,7 +44,7 @@ import {
   TABLE_ACCESS_TIME_TABLE_NAME,
   AppIdbSchema,
 } from '@models/persisted-store';
-import { SQLScriptId } from '@models/sql-script';
+import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
@@ -466,7 +466,7 @@ export const restoreAppDataFromIDB = async (
   const sqlScripts = new Map(
     sqlScriptsArray.map((script) => {
       const { lastUsed: _lastUsed, ...scriptWithoutLastUsed } = script as LegacySQLScript;
-      return [script.id, scriptWithoutLastUsed];
+      return [script.id, scriptWithoutLastUsed as SQLScript];
     }),
   );
 
@@ -483,7 +483,7 @@ export const restoreAppDataFromIDB = async (
   let dataSources = new Map(
     dataSourcesArray.map((dv) => {
       const { lastUsed: _lastUsed, ...dataSourceWithoutLastUsed } = dv as LegacyDataSource;
-      return [dv.id, dataSourceWithoutLastUsed];
+      return [dv.id, dataSourceWithoutLastUsed as AnyDataSource];
     }),
   );
   const dataSourceByLocalEntryId = new Map<LocalEntryId, AnyDataSource>(
