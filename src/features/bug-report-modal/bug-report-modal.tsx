@@ -10,7 +10,10 @@ import {
   Group,
   Alert,
   Box,
+  Text,
+  Anchor,
 } from '@mantine/core';
+import { APP_OPEN_ISSUES_URL } from '@models/app-urls';
 import type { BugReportFormData, BugReportCategory } from '@models/bug-report';
 import { sendBugReportToSlack, isSlackIntegrationConfigured } from '@services/slack-bug-report';
 import { IconAlertCircle } from '@tabler/icons-react';
@@ -171,6 +174,14 @@ export function BugReportModal({ onClose, featureContext }: BugReportModalProps)
           data-testid={setDataTestId('bug-report-include-context-checkbox')}
           description="Browser info, app version, and error details (no personal data)"
         />
+
+        <Text size="xs" c="dimmed">
+          For issues with images or videos, please{' '}
+          <Anchor href={APP_OPEN_ISSUES_URL} target="_blank" rel="noopener noreferrer" size="xs">
+            create a GitHub issue
+          </Anchor>
+          .
+        </Text>
 
         <Group justify="flex-end" mt="md">
           <Button
