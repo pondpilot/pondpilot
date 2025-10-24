@@ -17,6 +17,8 @@ import { RemoteDB } from '@models/data-source';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
 import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
+import { parseAttachStatement, parseDetachStatement } from '@utils/attach-parser';
+import { normalizeRemoteUrl } from '@utils/cors-proxy-config';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import {
   splitSQLByStats,
@@ -26,6 +28,8 @@ import {
   SQLStatement,
   SQLStatementType,
 } from '@utils/editor/sql';
+import { isNotReadableError, getErrorMessage } from '@utils/error-classification';
+import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
 import { formatSQLSafe } from '@utils/sql-formatter';
 import { Allotment } from 'allotment';
 import { memo, useCallback, useState } from 'react';
@@ -115,11 +119,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
       const runQueryWithFileSyncAndRetry = async (code: string) => {
         try {
-          await conn.query(code);
-        } catch (error: any) {
-          if (error.message?.includes('NotReadableError')) {
+          await pooledConnectionQueryWithCorsRetry(conn, code);
+        } catch (error: unknown) {
+          if (isNotReadableError(error)) {
             await syncFiles(pool);
-            await conn.query(code);
+            await pooledConnectionQueryWithCorsRetry(conn, code);
           } else {
             throw error;
           }
@@ -131,8 +135,8 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       ): Promise<AsyncDuckDBPooledPreparedStatement<any>> => {
         try {
           return await conn.prepare(code);
-        } catch (error: any) {
-          if (error.message?.includes('NotReadableError')) {
+        } catch (error: unknown) {
+          if (isNotReadableError(error)) {
             await syncFiles(pool);
             return conn.prepare(code);
           }
@@ -155,7 +159,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           try {
             await runQueryWithFileSyncAndRetry(statement.code);
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = getErrorMessage(error);
             if (needsTransaction) {
               await conn.query('ROLLBACK');
             }
@@ -191,7 +195,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             const preparedStatement = await prepQueryWithFileSyncAndRetry(lastStatement.code);
             await preparedStatement.close();
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = getErrorMessage(error);
 
             if (needsTransaction) {
               await conn.query('ROLLBACK');
@@ -229,7 +233,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           try {
             await runQueryWithFileSyncAndRetry(lastStatement.code);
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = getErrorMessage(error);
             if (needsTransaction) {
               await conn.query('ROLLBACK');
             }
@@ -297,17 +301,14 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             for (const statement of classifiedStatements) {
               if (statement.type === SQLStatement.ATTACH) {
                 // Parse ATTACH statement to extract URL and database name
-                const attachMatch = statement.code.match(/ATTACH\s+'([^']+)'\s+AS\s+(\w+)/i);
-                if (attachMatch) {
-                  const [, url, dbName] = attachMatch;
+                const parsed = parseAttachStatement(statement.code);
+                if (parsed) {
+                  const { rawUrl, dbName } = parsed;
 
-                  // Check if this is a remote database (not a local file)
-                  if (
-                    url.startsWith('https://') ||
-                    url.startsWith('s3://') ||
-                    url.startsWith('gcs://') ||
-                    url.startsWith('azure://')
-                  ) {
+                  // Normalize the URL and check if it's remote
+                  const { url, isRemote } = normalizeRemoteUrl(rawUrl);
+
+                  if (isRemote) {
                     // Check if this database is already registered
                     const existingDb = Array.from(dataSources.values()).find(
                       (ds) =>
@@ -339,10 +340,8 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
                 }
               } else if (statement.type === SQLStatement.DETACH) {
                 // Parse DETACH statement to extract database name
-                const detachMatch = statement.code.match(/DETACH\s+(?:DATABASE\s+)?(\w+)/i);
-                if (detachMatch) {
-                  const [, dbName] = detachMatch;
-
+                const dbName = parseDetachStatement(statement.code);
+                if (dbName) {
                   // Find and remove the database from dataSources
                   const dbToRemove = Array.from(updatedDataSources.entries()).find(
                     ([, ds]) =>
