@@ -102,7 +102,7 @@ describe('error-classification', () => {
     });
 
     it('should handle objects without Error type', () => {
-      expect(getErrorMessage({ message: 'custom error' })).toBe('[object Object]');
+      expect(getErrorMessage({ message: 'custom error' })).toBe('custom error');
     });
   });
 });
