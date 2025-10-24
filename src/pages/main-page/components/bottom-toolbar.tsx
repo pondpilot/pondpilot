@@ -43,7 +43,7 @@ export const BottomToolbar = ({ onCollapse }: BottomToolbarProps) => {
             target="_blank"
             rel="noopener noreferrer"
             className="flex-shrink-0"
-            aria-label="GitHub"
+            aria-label="Visit GitHub repository"
           >
             <IconBrandGithub size={20} />
           </ActionIcon>

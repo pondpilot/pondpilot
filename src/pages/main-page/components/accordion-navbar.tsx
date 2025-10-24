@@ -68,7 +68,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
                 href={APP_GITHUB_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="GitHub"
+                aria-label="Visit GitHub repository"
               >
                 <IconBrandGithub size={20} />
               </ActionIcon>
