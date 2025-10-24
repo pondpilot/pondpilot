@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from '@jest/globals';
 import {
   normalizeRemoteUrl,
   shouldUseProxyFor,
-  wrapWithCorsProxy,
+  wrapWithCorsProxyPathBased,
   isRemoteUrl,
   isCloudStorageUrl,
   convertS3ToHttps,
@@ -372,7 +372,7 @@ describe('cors-proxy-config', () => {
     });
   });
 
-  describe('wrapWithCorsProxy', () => {
+  describe('wrapWithCorsProxyPathBased', () => {
     beforeEach(() => {
       // Reset global mock environment before each test
       if (typeof global !== 'undefined' && (global as any).import?.meta?.env) {
@@ -382,60 +382,76 @@ describe('cors-proxy-config', () => {
     });
 
     it('should wrap URL with production proxy by default', () => {
-      const result = wrapWithCorsProxy('https://example.com/data.csv');
-      expect(result).toBe(
-        'https://cors-proxy.pondpilot.io/proxy?url=https%3A%2F%2Fexample.com%2Fdata.csv',
-      );
+      const result = wrapWithCorsProxyPathBased('https://example.com/data.csv');
+      expect(result).toBe('https://cors-proxy.pondpilot.io/proxy-path/https/example.com/data.csv');
     });
 
     it('should wrap URL with dev proxy in development mode', () => {
       if (typeof global !== 'undefined' && (global as any).import?.meta?.env) {
         (global as any).import.meta.env.DEV = true;
       }
-      const result = wrapWithCorsProxy('https://example.com/data.csv');
-      expect(result).toBe('http://localhost:3000/proxy?url=https%3A%2F%2Fexample.com%2Fdata.csv');
+      const result = wrapWithCorsProxyPathBased('https://example.com/data.csv');
+      expect(result).toBe('http://localhost:3000/proxy-path/https/example.com/data.csv');
     });
 
     it('should use custom proxy URL from environment variable', () => {
       if (typeof global !== 'undefined' && (global as any).import?.meta?.env) {
         (global as any).import.meta.env.VITE_CORS_PROXY_URL = 'https://custom-proxy.example.com';
       }
-      const result = wrapWithCorsProxy('https://example.com/data.csv');
+      const result = wrapWithCorsProxyPathBased('https://example.com/data.csv');
+      expect(result).toBe('https://custom-proxy.example.com/proxy-path/https/example.com/data.csv');
+    });
+
+    it('should properly handle URL with query parameters', () => {
+      const result = wrapWithCorsProxyPathBased('https://example.com/data?foo=bar&baz=qux');
       expect(result).toBe(
-        'https://custom-proxy.example.com/proxy?url=https%3A%2F%2Fexample.com%2Fdata.csv',
+        'https://cors-proxy.pondpilot.io/proxy-path/https/example.com/data?foo=bar&baz=qux',
       );
     });
 
-    it('should properly encode URL with special characters', () => {
-      const result = wrapWithCorsProxy('https://example.com/data?foo=bar&baz=qux');
-      expect(result).toContain('url=https%3A%2F%2Fexample.com%2Fdata%3Ffoo%3Dbar%26baz%3Dqux');
+    it('should handle URL with spaces in path', () => {
+      const result = wrapWithCorsProxyPathBased('https://example.com/my data.csv');
+      expect(result).toBe('https://cors-proxy.pondpilot.io/proxy-path/https/example.com/my data.csv');
     });
 
-    it('should encode URL with spaces', () => {
-      const result = wrapWithCorsProxy('https://example.com/my data.csv');
-      expect(result).toContain('url=https%3A%2F%2Fexample.com%2Fmy%20data.csv');
+    it('should strip hash fragment from URL', () => {
+      const result = wrapWithCorsProxyPathBased('https://example.com/data.csv#section');
+      expect(result).toBe('https://cors-proxy.pondpilot.io/proxy-path/https/example.com/data.csv');
     });
 
-    it('should handle URL with hash fragment', () => {
-      const result = wrapWithCorsProxy('https://example.com/data.csv#section');
-      expect(result).toContain('url=https%3A%2F%2Fexample.com%2Fdata.csv%23section');
-    });
-
-    it('should handle URL with authentication', () => {
-      const result = wrapWithCorsProxy('https://user:pass@example.com/data.csv');
-      expect(result).toContain('url=https%3A%2F%2Fuser%3Apass%40example.com%2Fdata.csv');
+    it('should handle URL with authentication in hostname', () => {
+      const result = wrapWithCorsProxyPathBased('https://user:pass@example.com/data.csv');
+      expect(result).toBe(
+        'https://cors-proxy.pondpilot.io/proxy-path/https/example.com/data.csv',
+      );
     });
 
     it('should handle URL with port number', () => {
-      const result = wrapWithCorsProxy('https://example.com:8080/data.csv');
-      expect(result).toContain('url=https%3A%2F%2Fexample.com%3A8080%2Fdata.csv');
+      const result = wrapWithCorsProxyPathBased('https://example.com:8080/data.csv');
+      expect(result).toBe(
+        'https://cors-proxy.pondpilot.io/proxy-path/https/example.com:8080/data.csv',
+      );
     });
 
     it('should handle very long URLs', () => {
       const longPath = 'a'.repeat(1000);
-      const result = wrapWithCorsProxy(`https://example.com/${longPath}/data.csv`);
-      expect(result).toContain('proxy?url=');
+      const result = wrapWithCorsProxyPathBased(`https://example.com/${longPath}/data.csv`);
+      expect(result).toContain('/proxy-path/https/example.com/');
       expect(result.length).toBeGreaterThan(1000);
+    });
+
+    it('should handle HTTP (not HTTPS) URLs', () => {
+      const result = wrapWithCorsProxyPathBased('http://example.com/data.csv');
+      expect(result).toBe('https://cors-proxy.pondpilot.io/proxy-path/http/example.com/data.csv');
+    });
+
+    it('should handle S3 HTTPS URLs', () => {
+      const result = wrapWithCorsProxyPathBased(
+        'https://mybucket.s3.us-east-1.amazonaws.com/path/to/file.duckdb',
+      );
+      expect(result).toBe(
+        'https://cors-proxy.pondpilot.io/proxy-path/https/mybucket.s3.us-east-1.amazonaws.com/path/to/file.duckdb',
+      );
     });
   });
 
