@@ -8,32 +8,50 @@
 /**
  * Check if an error is a CORS-related error
  *
- * This is intentionally conservative. It checks for explicit CORS messages
- * or specific file access errors over HTTP/S3 that behave like CORS issues.
+ * This is intentionally conservative to avoid retrying non-CORS errors.
+ * We only retry when we're confident it's a pre-execution CORS/network error.
  *
  * @param error - The error to check
  * @returns true if the error is CORS-related
+ *
+ * @example
+ * try {
+ *   await fetch('https://example.com/data');
+ * } catch (error) {
+ *   if (isCorsError(error)) {
+ *     // Retry with CORS proxy
+ *   }
+ * }
  */
 export function isCorsError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
   }
+
   const message = error.message.toLowerCase();
 
-  // Explicit CORS errors
-  const isExplicitCors = message.includes('cors') || message.includes('cross-origin');
-
-  // DuckDB httpfs specific CORS/network errors
-  const isFileAccessError =
+  // Specific CORS and network-related errors that occur BEFORE execution
+  return (
+    // Explicit CORS errors
+    message.includes('cors') ||
+    message.includes('cross-origin') ||
+    // Network errors (pre-execution)
+    message.includes('failed to fetch') ||
+    message.includes('failed to load') ||
+    message.includes('networkerror') ||
+    message.includes('network error') ||
+    // XMLHttpRequest errors (common with S3 and HTTPS URLs)
+    message.includes('failed to execute') ||
+    // DuckDB httpfs specific CORS/network errors
     (message.includes('http') && message.includes('error code')) ||
     (message.includes('unable to connect') && message.includes('http')) ||
+    // File access errors related to remote resources (http/https/s3)
     (message.includes('opening file') &&
       message.includes('failed') &&
       (message.includes('http') || message.includes('s3://'))) ||
     (message.includes('cannot open file') &&
-      (message.includes('http') || message.includes('s3://')));
-
-  return isExplicitCors || isFileAccessError;
+      (message.includes('http') || message.includes('s3://')))
+  );
 }
 
 /**
