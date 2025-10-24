@@ -4,7 +4,7 @@ import { isPersistenceSupported } from '@utils/duckdb-persistence';
 import { fileSystemService } from '@utils/file-system-adapter';
 import React, { createContext, useContext, useMemo } from 'react';
 
-interface FeatureContextType {
+export type FeatureContextType = {
   // Legacy flag (kept for backward compatibility)
   isFileAccessApiSupported: boolean;
 
@@ -21,7 +21,7 @@ interface FeatureContextType {
   isMobileDevice: boolean;
   isOPFSSupported: boolean;
   isTabBlocked: boolean;
-}
+};
 
 const FeatureContext = createContext<FeatureContextType | null>(null);
 
