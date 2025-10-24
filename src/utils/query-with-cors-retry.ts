@@ -87,6 +87,7 @@ async function executeWithCorsRetry<TResult>(
             proxyErrorMsg.includes('already attached') ||
             proxyErrorMsg.includes('Unique file handle conflict')
           ) {
+            // eslint-disable-next-line no-console
             console.info('Database already attached via CORS proxy, continuing...');
             // Return an empty Arrow Table since ATTACH doesn't return data
             // This matches the expected return type for query operations
