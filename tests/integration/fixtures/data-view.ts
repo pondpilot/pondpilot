@@ -497,7 +497,9 @@ export const test = base.extend<DataViewFixtures>({
           }
         }
         if (mdFormat !== undefined) {
-          const mdFormatRadio = page.getByLabel(mdFormat === 'github' ? 'GitHub' : 'Standard');
+          const mdFormatRadio = page.getByRole('radio', {
+            name: mdFormat === 'github' ? 'GitHub' : 'Standard',
+          });
           await mdFormatRadio.check();
         }
         if (alignColumns !== undefined) {
