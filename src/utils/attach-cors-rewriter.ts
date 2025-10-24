@@ -6,7 +6,7 @@
  */
 
 import {
-  wrapWithCorsProxy,
+  wrapWithCorsProxyPathBased,
   isRemoteUrl,
   PROXY_PREFIX,
   PROXY_PREFIX_LENGTH,
@@ -70,7 +70,8 @@ export function rewriteAttachUrl(
       if (cleanUrl.startsWith('s3://') && (isExplicitProxy || forceWrap)) {
         const httpsUrl = convertS3ToHttps(cleanUrl);
         if (httpsUrl) {
-          const proxiedUrl = wrapWithCorsProxy(httpsUrl);
+          // Use path-based proxy for .duckdb files to allow DuckDB to construct URLs for related files
+          const proxiedUrl = wrapWithCorsProxyPathBased(httpsUrl);
           wasRewritten = true;
           return `ATTACH ${quote}${proxiedUrl}${quote}`;
         }
@@ -99,7 +100,8 @@ export function rewriteAttachUrl(
         }
 
         if (isExplicitProxy || forceWrap) {
-          const proxiedUrl = wrapWithCorsProxy(cleanUrl);
+          // Use path-based proxy for database files to allow DuckDB to construct URLs for related files
+          const proxiedUrl = wrapWithCorsProxyPathBased(cleanUrl);
           wasRewritten = true;
           return `ATTACH ${quote}${proxiedUrl}${quote}`;
         }
