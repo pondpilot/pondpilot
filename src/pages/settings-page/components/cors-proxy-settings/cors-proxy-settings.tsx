@@ -57,7 +57,7 @@ export const CorsProxySettings = () => {
       />
 
       <Group>
-        <Button onClick={handleTest} loading={testing} size="xs" variant="light">
+        <Button onClick={handleTest} loading={testing} size="xs" variant="outline">
           Test Proxy Connection
         </Button>
         {testResult === 'success' && (
@@ -73,7 +73,7 @@ export const CorsProxySettings = () => {
       </Group>
 
       {isManualMode && (
-        <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
+        <Alert icon={<IconInfoCircle size={16} />} variant="outline">
           <Stack gap="xs">
             <Text size="sm">
               In manual mode, use the{' '}
