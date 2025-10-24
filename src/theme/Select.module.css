@@ -1,5 +1,6 @@
 .wrapper {
   position: relative;
+  margin-top: 2px;
 }
 
 .label {
@@ -20,29 +21,26 @@
 }
 
 .input {
-  border-radius: 8px;
+  border-radius: 360px;
   border: 1px solid;
   transition: all 0.2s ease;
+  height: 34px;
 
   padding: 0 15px;
-  height: 30px;
-  min-height: 30px;
 
   font-family:
     'Helvetica Neue',
     -apple-system,
     BlinkMacSystemFont,
     sans-serif;
-  font-size: 14px;
-  line-height: 18px;
+  font-size: 16px;
+  line-height: 100%;
   font-weight: 400;
   letter-spacing: 0%;
 
   background-color: var(--mantine-color-background-primary-filled);
   color: var(--mantine-color-text-primary-text);
   border-color: var(--mantine-color-border-primary-filled);
-
-  cursor: pointer;
 }
 
 .input::placeholder {

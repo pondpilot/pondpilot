@@ -1,5 +1,4 @@
 import { showError, showSuccess } from '@components/app-notifications';
-import { commonTextInputClassNames } from '@components/export-options-modal/constants';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Alert, Button, Group, Select, Stack, Text, TextInput, PasswordInput } from '@mantine/core';
@@ -309,7 +308,6 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
             onChange={setHost}
             description="Hostname or IP address"
             required
-            classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
           />
           <TextInput
             label="Port"
@@ -319,7 +317,6 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
             onChange={setPort}
             description="Server port number"
             required
-            classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
           />
         </Group>
 
@@ -352,7 +349,6 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
               onChange={setUsername}
               description="Username for basic authentication"
               required
-              classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
             />
             <PasswordInput
               label="Password"
@@ -398,7 +394,6 @@ export function HttpServerConfig({ onBack, onClose, pool }: HttpServerConfigProp
           onChange={setDatabaseName}
           description="Choose a name to reference this database in queries"
           required
-          classNames={{ ...commonTextInputClassNames, description: 'pl-4 text-sm' }}
         />
       </Stack>
 
