@@ -171,15 +171,33 @@ function checkMixedContent(proxyUrl: string): void {
 }
 
 /**
- * Wrap a URL with the CORS proxy
+ * Wrap a URL with the path-based CORS proxy
+ * Use for DuckDB database files (.duckdb) to allow DuckDB to properly construct
+ * URLs for related files (.wal, locks, etc.)
+ *
+ * Converts: https://bucket.s3.amazonaws.com/file.duckdb
+ * To: http://localhost:3000/proxy-path/https/bucket.s3.amazonaws.com/file.duckdb
+ *
+ * This allows DuckDB to append .wal correctly:
+ * http://localhost:3000/proxy-path/https/bucket.s3.amazonaws.com/file.duckdb.wal
  */
-export function wrapWithCorsProxy(url: string): string {
+export function wrapWithCorsProxyPathBased(url: string): string {
   try {
     const proxyUrl = getProxyUrl();
     checkMixedContent(proxyUrl);
-    return `${proxyUrl}/proxy?url=${encodeURIComponent(url)}`;
+
+    // Parse the URL
+    const parsed = new URL(url);
+    const protocol = parsed.protocol.replace(':', ''); // Remove trailing colon
+    const { host } = parsed; // Use host (includes port) instead of hostname
+    const path = parsed.pathname + parsed.search; // Include query string if present
+
+    // Remove leading slash from path
+    const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+
+    return `${proxyUrl}/proxy-path/${protocol}/${host}/${cleanPath}`;
   } catch (error) {
-    console.warn('Failed to wrap URL with CORS proxy, using direct URL:', error);
+    console.warn('Failed to wrap URL with path-based CORS proxy, using direct URL:', error);
     return url;
   }
 }
