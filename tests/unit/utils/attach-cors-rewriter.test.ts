@@ -25,7 +25,7 @@ describe('attach-cors-rewriter', () => {
 
         // Should contain the HTTPS URL wrapped with proxy
         expect(result.rewritten).toContain('pondpilot.s3.amazonaws.com');
-        expect(result.rewritten).toContain('/proxy?url=');
+        expect(result.rewritten).toContain('/proxy-path/');
       });
 
       it('should convert S3 URL to HTTPS with explicit proxy: prefix', () => {
@@ -41,7 +41,7 @@ describe('attach-cors-rewriter', () => {
 
         // Should contain the HTTPS URL wrapped with proxy
         expect(result.rewritten).toContain('pondpilot.s3.amazonaws.com');
-        expect(result.rewritten).toContain('/proxy?url=');
+        expect(result.rewritten).toContain('/proxy-path/');
       });
 
       it('should not wrap S3 URL when forceWrap is false and no proxy prefix', () => {
@@ -116,7 +116,7 @@ describe('attach-cors-rewriter', () => {
         const result = rewriteAttachUrl(query, true);
 
         expect(result.wasRewritten).toBe(true);
-        expect(result.rewritten).toContain('/proxy?url=');
+        expect(result.rewritten).toContain('/proxy-path/');
         expect(result.rewritten).toContain('example.com');
       });
 
@@ -125,7 +125,7 @@ describe('attach-cors-rewriter', () => {
         const result = rewriteAttachUrl(query, false);
 
         expect(result.wasRewritten).toBe(true);
-        expect(result.rewritten).toContain('/proxy?url=');
+        expect(result.rewritten).toContain('/proxy-path/');
       });
 
       it('should not wrap HTTPS URL when forceWrap is false and no proxy prefix', () => {
@@ -207,7 +207,7 @@ describe('attach-cors-rewriter', () => {
         const result = rewriteAttachUrl(query, true);
 
         expect(result.wasRewritten).toBe(true);
-        expect(result.rewritten).toContain('/proxy?url=');
+        expect(result.rewritten).toContain('/proxy-path/');
       });
 
       it('should wrap S3 HTTPS URLs with proxy prefix', () => {
@@ -216,7 +216,7 @@ describe('attach-cors-rewriter', () => {
         const result = rewriteAttachUrl(query, false);
 
         expect(result.wasRewritten).toBe(true);
-        expect(result.rewritten).toContain('/proxy?url=');
+        expect(result.rewritten).toContain('/proxy-path/');
       });
     });
   });

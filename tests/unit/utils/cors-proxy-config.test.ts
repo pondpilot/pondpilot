@@ -412,7 +412,7 @@ describe('cors-proxy-config', () => {
     it('should handle URL with spaces in path', () => {
       const result = wrapWithCorsProxyPathBased('https://example.com/my data.csv');
       expect(result).toBe(
-        'https://cors-proxy.pondpilot.io/proxy-path/https/example.com/my data.csv',
+        'https://cors-proxy.pondpilot.io/proxy-path/https/example.com/my%20data.csv',
       );
     });
 

@@ -189,7 +189,7 @@ export function wrapWithCorsProxyPathBased(url: string): string {
     // Parse the URL
     const parsed = new URL(url);
     const protocol = parsed.protocol.replace(':', ''); // Remove trailing colon
-    const host = parsed.hostname;
+    const { host } = parsed; // Use host (includes port) instead of hostname
     const path = parsed.pathname + parsed.search; // Include query string if present
 
     // Remove leading slash from path
