@@ -411,7 +411,9 @@ describe('cors-proxy-config', () => {
 
     it('should handle URL with spaces in path', () => {
       const result = wrapWithCorsProxyPathBased('https://example.com/my data.csv');
-      expect(result).toBe('https://cors-proxy.pondpilot.io/proxy-path/https/example.com/my data.csv');
+      expect(result).toBe(
+        'https://cors-proxy.pondpilot.io/proxy-path/https/example.com/my data.csv',
+      );
     });
 
     it('should strip hash fragment from URL', () => {
@@ -421,9 +423,7 @@ describe('cors-proxy-config', () => {
 
     it('should handle URL with authentication in hostname', () => {
       const result = wrapWithCorsProxyPathBased('https://user:pass@example.com/data.csv');
-      expect(result).toBe(
-        'https://cors-proxy.pondpilot.io/proxy-path/https/example.com/data.csv',
-      );
+      expect(result).toBe('https://cors-proxy.pondpilot.io/proxy-path/https/example.com/data.csv');
     });
 
     it('should handle URL with port number', () => {
