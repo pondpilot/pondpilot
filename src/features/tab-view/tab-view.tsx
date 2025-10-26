@@ -1,4 +1,5 @@
 import { deleteTab } from '@controllers/tab';
+import { ComparisonTabView } from '@features/comparison';
 import { Stack } from '@mantine/core';
 import { useAppStore, useTabTypeMap } from '@store/app-store';
 import { useEffect } from 'react';
@@ -45,6 +46,7 @@ export const TabView = () => {
                   <FileDataSourceTabView tabId={tabId} active={isActive} />
                 )}
                 {tabType === 'schema-browser' && <SchemaTabView tabId={tabId} active={isActive} />}
+                {tabType === 'comparison' && <ComparisonTabView tabId={tabId} active={isActive} />}
               </ErrorBoundary>
             </div>
           );

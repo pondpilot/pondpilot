@@ -153,6 +153,13 @@ export function useIsSqlScriptIdOnActiveTab(id: SQLScriptId | null): boolean {
   });
 }
 
+export function useIsActiveTabId(tabId: TabId | null): boolean {
+  return useAppStore((state) => {
+    if (!tabId) return false;
+    return state.activeTabId === tabId;
+  });
+}
+
 export function useIsLocalDBElementOnActiveTab(
   id: PersistentDataSourceId | null | undefined,
   schemaName: string | null | undefined,

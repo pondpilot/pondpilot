@@ -27,6 +27,11 @@ export function getTabName(
     return getSchemaBrowserTabTitle(tab, dataSources, localEntries);
   }
 
+  // Comparison tab
+  if (tab.type === 'comparison') {
+    return tab.name;
+  }
+
   // Data source tabs
   const dataSource = dataSources.get(tab.dataSourceId);
 
@@ -63,6 +68,10 @@ export function getTabIcon(
 
   if (tab.type === 'schema-browser') {
     return 'db-schema';
+  }
+
+  if (tab.type === 'comparison') {
+    return 'comparison';
   }
 
   if (tab.type === 'data-source' && tab.dataSourceType === 'file') {

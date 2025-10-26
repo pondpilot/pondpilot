@@ -62,6 +62,9 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, any>, Extra
   /**
    * Common hooks
    */
+  // Note: useTree returns a stable reference that doesn't change between renders.
+  // The tree object's methods (expand, collapse, clearSelected, etc.) are stable
+  // references, which is why it's safe to exclude from effect dependency arrays.
   const tree = useTree({
     initialExpandedState: initialExpandedState || getTreeExpandedState(nodes, '*'),
   });
@@ -165,7 +168,14 @@ export const ExplorerTree = <NTypeToIdTypeMap extends Record<string, any>, Extra
         searchExpandedNodesRef.current.clear();
       }
     }
-  }, [initialExpandedState, tree]);
+    // This effect is intentionally dependent only on initialExpandedState changes to manage
+    // search-based node expansion/collapse. The 'tree' object is excluded because:
+    // 1. It's a stable reference from the tree library that doesn't change meaningfully
+    // 2. Including it would cause unwanted re-runs on every render
+    // 3. We only want to expand/collapse nodes when the search state (initialExpandedState) changes
+    // This prevents the user's manually expanded nodes from being unexpectedly collapsed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialExpandedState]);
 
   return (
     <Stack

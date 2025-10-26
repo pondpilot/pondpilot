@@ -1,11 +1,11 @@
 import { createSQLScript } from '@controllers/sql-script';
-import { getOrCreateTabFromScript } from '@controllers/tab';
+import { getOrCreateTabFromScript, createComparisonTab } from '@controllers/tab';
 import { DataExplorer } from '@features/data-explorer';
 import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import { ScriptExplorer } from '@features/script-explorer';
 import { ActionIcon, Group, Skeleton, Stack, Text, Box } from '@mantine/core';
 import { useAppStore } from '@store/app-store';
-import { IconPlus, IconChevronDown } from '@tabler/icons-react';
+import { IconPlus, IconChevronDown, IconScale } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -311,20 +311,36 @@ export const AccordionContent = () => {
             </Text>
           </Group>
           {appReady && (
-            <ActionIcon
-              data-testid={setDataTestId('script-explorer-add-script-button')}
-              onClick={(e) => {
-                e.stopPropagation();
-                const newEmptyScript = createSQLScript();
-                getOrCreateTabFromScript(newEmptyScript, true);
-                if (!sectionStates.queries) {
-                  setSectionStates((prev) => ({ ...prev, queries: true }));
-                }
-              }}
-              size={16}
-            >
-              <IconPlus />
-            </ActionIcon>
+            <Group gap={4}>
+              <ActionIcon
+                data-testid={setDataTestId('script-explorer-add-script-button')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newEmptyScript = createSQLScript();
+                  getOrCreateTabFromScript(newEmptyScript, true);
+                  if (!sectionStates.queries) {
+                    setSectionStates((prev) => ({ ...prev, queries: true }));
+                  }
+                }}
+                size={16}
+                title="New Script"
+                aria-label="Create new script"
+              >
+                <IconPlus />
+              </ActionIcon>
+              <ActionIcon
+                data-testid={setDataTestId('create-comparison-tab-button')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  createComparisonTab({ setActive: true });
+                }}
+                size={16}
+                title="Compare Datasets"
+                aria-label="Create comparison tab"
+              >
+                <IconScale />
+              </ActionIcon>
+            </Group>
           )}
         </Group>
 
