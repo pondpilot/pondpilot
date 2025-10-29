@@ -19,13 +19,21 @@ export const buildSourceSQL = (source: ComparisonSource): string => {
 };
 
 /**
+ * Gets the Source B column name for a given Source A column, considering mappings
+ */
+const getMappedColumnB = (colA: string, columnMappings: Record<string, string>): string => {
+  return columnMappings[colA] || colA;
+};
+
+/**
  * Generates the comparison SQL query
  */
 export const generateComparisonSQL = (
   config: ComparisonConfig,
   schemaComparison: SchemaComparisonResult,
 ): string => {
-  const { sourceA, sourceB, joinColumns, compareColumns, showOnlyDifferences } = config;
+  const { sourceA, sourceB, joinColumns, compareColumns, showOnlyDifferences, columnMappings } =
+    config;
 
   // Validate that both sources are selected
   if (!sourceA || !sourceB) {
@@ -66,9 +74,10 @@ export const generateComparisonSQL = (
   sql += '    SELECT\n';
 
   // Add join key columns with COALESCE
-  const keySelects = joinColumns.map(
-    (key) => `      COALESCE(a.${quote(key)}, b.${quote(key)}) as ${quote(`_key_${key}`)}`,
-  );
+  const keySelects = joinColumns.map((key) => {
+    const mappedKeyB = getMappedColumnB(key, columnMappings);
+    return `      COALESCE(a.${quote(key)}, b.${quote(mappedKeyB)}) as ${quote(`_key_${key}`)}`;
+  });
   sql += `${keySelects.join(',\n')},\n`;
 
   // Add compared column pairs and status columns
@@ -76,28 +85,37 @@ export const generateComparisonSQL = (
   const statusConditions: string[] = [];
 
   columnsToCompare.forEach((colName) => {
-    const quotedCol = quote(colName);
-    columnSelects.push(`      a.${quotedCol} as ${quote(`${colName}_a`)}`);
-    columnSelects.push(`      b.${quotedCol} as ${quote(`${colName}_b`)}`);
+    const quotedColA = quote(colName);
+    const mappedColB = getMappedColumnB(colName, columnMappings);
+    const quotedColB = quote(mappedColB);
+
+    columnSelects.push(`      a.${quotedColA} as ${quote(`${colName}_a`)}`);
+    columnSelects.push(`      b.${quotedColB} as ${quote(`${colName}_b`)}`);
 
     // Status column for this field
+    const firstJoinKey = joinColumns[0];
+    const mappedFirstJoinKey = getMappedColumnB(firstJoinKey, columnMappings);
+
     columnSelects.push(`      CASE
-        WHEN a.${quote(joinColumns[0])} IS NULL THEN 'added'
-        WHEN b.${quote(joinColumns[0])} IS NULL THEN 'removed'
-        WHEN a.${quotedCol} IS DISTINCT FROM b.${quotedCol} THEN 'modified'
+        WHEN a.${quote(firstJoinKey)} IS NULL THEN 'added'
+        WHEN b.${quote(mappedFirstJoinKey)} IS NULL THEN 'removed'
+        WHEN a.${quotedColA} IS DISTINCT FROM b.${quotedColB} THEN 'modified'
         ELSE 'same'
       END as ${quote(`${colName}_status`)}`);
 
     // Add to status conditions for overall row status
-    statusConditions.push(`a.${quotedCol} IS DISTINCT FROM b.${quotedCol}`);
+    statusConditions.push(`a.${quotedColA} IS DISTINCT FROM b.${quotedColB}`);
   });
 
   sql += `${columnSelects.join(',\n')},\n`;
 
   // Overall row status
+  const firstJoinKey = joinColumns[0];
+  const mappedFirstJoinKey = getMappedColumnB(firstJoinKey, columnMappings);
+
   sql += '      CASE\n';
-  sql += `        WHEN a.${quote(joinColumns[0])} IS NULL THEN 'added'\n`;
-  sql += `        WHEN b.${quote(joinColumns[0])} IS NULL THEN 'removed'\n`;
+  sql += `        WHEN a.${quote(firstJoinKey)} IS NULL THEN 'added'\n`;
+  sql += `        WHEN b.${quote(mappedFirstJoinKey)} IS NULL THEN 'removed'\n`;
   if (statusConditions.length > 0) {
     sql += `        WHEN ${statusConditions.join(' OR ')} THEN 'modified'\n`;
   }
@@ -108,8 +126,11 @@ export const generateComparisonSQL = (
   sql += '    FROM source_a_filtered a\n';
   sql += '    FULL OUTER JOIN source_b_filtered b\n';
 
-  // ON clause using all join columns
-  const joinConditions = joinColumns.map((key) => `a.${quote(key)} = b.${quote(key)}`);
+  // ON clause using all join columns (with mappings)
+  const joinConditions = joinColumns.map((key) => {
+    const mappedKeyB = getMappedColumnB(key, columnMappings);
+    return `a.${quote(key)} = b.${quote(mappedKeyB)}`;
+  });
   sql += `      ON ${joinConditions.join(' AND ')}\n`;
   sql += '  )\n';
 

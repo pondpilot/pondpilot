@@ -154,6 +154,18 @@ export interface ComparisonConfig {
   joinColumns: string[];
 
   /**
+   * Custom column mappings from Source A to Source B.
+   * Maps Source A column names to Source B column names when they differ.
+   * Format: { sourceAColumn: sourceBColumn }
+   *
+   * Example: { "user_id": "id", "created_at": "creation_date" }
+   *
+   * This allows comparing columns with different names across sources.
+   * Columns not in this map are assumed to have the same name in both sources.
+   */
+  columnMappings: Record<string, string>;
+
+  /**
    * Filter mode: 'common' applies same filter to both sources, 'separate' uses filterA/filterB
    */
   filterMode: 'common' | 'separate';

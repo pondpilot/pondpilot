@@ -116,6 +116,7 @@ export const updateComparisonConfig = (tabId: TabId, config: Partial<ComparisonC
     sourceA: null,
     sourceB: null,
     joinColumns: [],
+    columnMappings: {},
     filterMode: 'common',
     commonFilter: null,
     filterA: null,
@@ -175,12 +176,10 @@ export const updateSchemaComparison = (
   tabId: TabId,
   schemaComparison: SchemaComparisonResult | null,
 ): void => {
-  console.log('[DEBUG] updateSchemaComparison called:', { tabId, hasResult: !!schemaComparison, schemaComparison });
   const state = useAppStore.getState();
   const tab = state.tabs.get(tabId);
 
   if (!tab || tab.type !== 'comparison') {
-    console.log('[DEBUG] Tab not found or wrong type');
     return;
   }
 
@@ -189,7 +188,6 @@ export const updateSchemaComparison = (
     schemaComparison,
   };
 
-  console.log('[DEBUG] Setting state');
   const newTabs = new Map(state.tabs).set(tabId, updatedTab);
 
   useAppStore.setState({ tabs: newTabs }, undefined, 'AppStore/updateSchemaComparison');
@@ -199,7 +197,6 @@ export const updateSchemaComparison = (
   if (iDb) {
     iDb.put(TAB_TABLE_NAME, updatedTab, tabId);
   }
-  console.log('[DEBUG] updateSchemaComparison completed');
 };
 
 /**

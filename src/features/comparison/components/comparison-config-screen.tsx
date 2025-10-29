@@ -34,6 +34,8 @@ import {
   getThemeColorValue,
 } from '../utils/theme';
 
+import { ColumnMapper } from './column-mapper';
+
 // Constants
 const SCROLL_COLLAPSE_THRESHOLD = 100;
 
@@ -198,11 +200,9 @@ export const ComparisonConfigScreen = ({
 
   // Auto-trigger schema analysis when both sources are selected
   useEffect(() => {
-    console.log('[DEBUG] Effect running, sources:', { sourceA: !!config?.sourceA, sourceB: !!config?.sourceB });
     if (!config?.sourceA || !config?.sourceB) {
       // Clear analysis flag if sources are incomplete
       analysisTriggeredRef.current = null;
-      console.log('[DEBUG] Sources incomplete, clearing flag');
       return;
     }
 
@@ -223,13 +223,11 @@ export const ComparisonConfigScreen = ({
 
     // Skip if we've already triggered analysis for these exact sources
     if (analysisTriggeredRef.current === sourceKey) {
-      console.log('[DEBUG] Analysis already triggered for this source key');
       return;
     }
 
     // Skip if we already have results for these sources
     if (schemaComparison) {
-      console.log('[DEBUG] Already have schema comparison results');
       analysisTriggeredRef.current = sourceKey;
       return;
     }
@@ -240,20 +238,14 @@ export const ComparisonConfigScreen = ({
     // Use a cancellation flag to prevent race conditions
     let cancelled = false;
 
-    console.log('[DEBUG] Triggering analysis for:', sourceKey);
     onAnalyzeSchemas(config.sourceA, config.sourceB).then((result) => {
-      console.log('[DEBUG] Promise resolved:', { result, cancelled, sourceKey, currentKey: analysisTriggeredRef.current });
       // Only update if this analysis is still relevant (sources haven't changed)
       if (!cancelled && result && analysisTriggeredRef.current === sourceKey) {
-        console.log('[DEBUG] Calling updateSchemaComparison');
         updateSchemaComparison(tabId, result);
-      } else {
-        console.log('[DEBUG] Skipping update:', { cancelled, hasResult: !!result, keyMatch: analysisTriggeredRef.current === sourceKey });
       }
     });
 
     return () => {
-      console.log('[DEBUG] Effect cleanup, cancelling analysis');
       cancelled = true;
     };
   }, [config?.sourceA, config?.sourceB, onAnalyzeSchemas, tabId]);
@@ -714,6 +706,13 @@ export const ComparisonConfigScreen = ({
                     </Box>
                   )}
                 </Paper>
+
+                {/* Column Mapping Section */}
+                <ColumnMapper
+                  schemaComparison={schemaComparison}
+                  columnMappings={config?.columnMappings || {}}
+                  onMappingsChange={(mappings) => onConfigChange({ columnMappings: mappings })}
+                />
 
                 {/* Filter Section */}
                 <Paper p="md" withBorder>
