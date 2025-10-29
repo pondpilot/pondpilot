@@ -26,13 +26,51 @@ const getMappedColumnB = (colA: string, columnMappings: Record<string, string>):
 };
 
 /**
+ * Gets the list of columns to compare based on mappings (auto + custom)
+ */
+export const getColumnsToCompare = (
+  config: ComparisonConfig,
+  schemaComparison: SchemaComparisonResult,
+): string[] => {
+  const { joinColumns, joinKeyMappings, columnMappings } = config;
+
+  // Get join key B columns (mapped or same name)
+  const joinKeyBColumns = joinColumns.map((keyA) => joinKeyMappings[keyA] || keyA);
+
+  // Build lists of columns from Source A (excluding join keys)
+  const allColumnsA = [
+    ...schemaComparison.commonColumns.map((c) => c.name),
+    ...schemaComparison.onlyInA.map((c) => c.name),
+  ].filter((col) => !joinColumns.includes(col));
+
+  // Build lists of columns from Source B (excluding join keys)
+  const allColumnsB = [
+    ...schemaComparison.commonColumns.map((c) => c.name),
+    ...schemaComparison.onlyInB.map((c) => c.name),
+  ].filter((col) => !joinKeyBColumns.includes(col));
+
+  // Determine which columns to compare: only columns that have a mapping (auto or custom)
+  return allColumnsA.filter((colA) => {
+    // Has custom mapping
+    if (columnMappings[colA]) {
+      return true;
+    }
+    // Has auto mapping (same name exists in B)
+    if (allColumnsB.includes(colA)) {
+      return true;
+    }
+    return false;
+  });
+};
+
+/**
  * Generates the comparison SQL query
  */
 export const generateComparisonSQL = (
   config: ComparisonConfig,
   schemaComparison: SchemaComparisonResult,
 ): string => {
-  const { sourceA, sourceB, joinColumns, compareColumns, showOnlyDifferences, columnMappings } =
+  const { sourceA, sourceB, joinColumns, joinKeyMappings, showOnlyDifferences, columnMappings } =
     config;
 
   // Validate that both sources are selected
@@ -44,8 +82,8 @@ export const generateComparisonSQL = (
   const filterA = config.filterMode === 'common' ? config.commonFilter : config.filterA;
   const filterB = config.filterMode === 'common' ? config.commonFilter : config.filterB;
 
-  // Determine which columns to compare
-  const columnsToCompare = compareColumns || schemaComparison.commonColumns.map((c) => c.name);
+  // Get columns to compare based on mappings (auto + custom)
+  const columnsToCompare = getColumnsToCompare(config, schemaComparison);
 
   // Build CTEs for filtered sources
   const sourceASQL = buildSourceSQL(sourceA);
@@ -75,10 +113,10 @@ export const generateComparisonSQL = (
 
   // Add join key columns with COALESCE
   const keySelects = joinColumns.map((key) => {
-    const mappedKeyB = getMappedColumnB(key, columnMappings);
+    const mappedKeyB = getMappedColumnB(key, joinKeyMappings);
     return `      COALESCE(a.${quote(key)}, b.${quote(mappedKeyB)}) as ${quote(`_key_${key}`)}`;
   });
-  sql += `${keySelects.join(',\n')},\n`;
+  sql += keySelects.join(',\n');
 
   // Add compared column pairs and status columns
   const columnSelects: string[] = [];
@@ -94,7 +132,7 @@ export const generateComparisonSQL = (
 
     // Status column for this field
     const firstJoinKey = joinColumns[0];
-    const mappedFirstJoinKey = getMappedColumnB(firstJoinKey, columnMappings);
+    const mappedFirstJoinKey = getMappedColumnB(firstJoinKey, joinKeyMappings);
 
     columnSelects.push(`      CASE
         WHEN a.${quote(firstJoinKey)} IS NULL THEN 'added'
@@ -107,11 +145,17 @@ export const generateComparisonSQL = (
     statusConditions.push(`a.${quotedColA} IS DISTINCT FROM b.${quotedColB}`);
   });
 
-  sql += `${columnSelects.join(',\n')},\n`;
+  // Add comma and column selects only if there are columns to compare
+  if (columnSelects.length > 0) {
+    sql += ',\n';
+    sql += `${columnSelects.join(',\n')},\n`;
+  } else {
+    sql += ',\n';
+  }
 
   // Overall row status
   const firstJoinKey = joinColumns[0];
-  const mappedFirstJoinKey = getMappedColumnB(firstJoinKey, columnMappings);
+  const mappedFirstJoinKey = getMappedColumnB(firstJoinKey, joinKeyMappings);
 
   sql += '      CASE\n';
   sql += `        WHEN a.${quote(firstJoinKey)} IS NULL THEN 'added'\n`;
@@ -128,7 +172,7 @@ export const generateComparisonSQL = (
 
   // ON clause using all join columns (with mappings)
   const joinConditions = joinColumns.map((key) => {
-    const mappedKeyB = getMappedColumnB(key, columnMappings);
+    const mappedKeyB = getMappedColumnB(key, joinKeyMappings);
     return `a.${quote(key)} = b.${quote(mappedKeyB)}`;
   });
   sql += `      ON ${joinConditions.join(' AND ')}\n`;
@@ -160,30 +204,8 @@ export const validateComparisonConfig = (
     return 'At least one join key must be selected';
   }
 
-  // compareColumns can be null (meaning "all columns") or an array
-  // Only fail if it's explicitly an empty array
-  if (config.compareColumns !== null && config.compareColumns.length === 0) {
-    return 'At least one column must be selected for comparison';
-  }
-
-  // Validate join columns exist in schema (if schema provided)
-  if (schemaComparison) {
-    const commonColumnNames = schemaComparison.commonColumns.map((c) => c.name);
-    for (const joinCol of config.joinColumns) {
-      if (!commonColumnNames.includes(joinCol)) {
-        return `Join column "${joinCol}" not found in both schemas`;
-      }
-    }
-
-    // Validate compare columns exist in schema (if explicitly set)
-    if (config.compareColumns !== null) {
-      for (const compareCol of config.compareColumns) {
-        if (!commonColumnNames.includes(compareCol)) {
-          return `Compare column "${compareCol}" not found in both schemas`;
-        }
-      }
-    }
-  }
+  // Note: We no longer validate compareColumns since comparison columns
+  // are now determined by mappings (auto + custom)
 
   // Validate filter expressions for potentially dangerous patterns
   const filterA = config.filterMode === 'common' ? config.commonFilter : config.filterA;
