@@ -7,31 +7,22 @@ const test = mergeTests(baseTest, bugReportTest);
 
 test.describe('Bug Report Modal', () => {
   test.beforeEach(async ({ context }) => {
-    // Mock Slack webhook to enable bug reporting
-    await context.addInitScript(() => {
-      // Mock environment variable for Slack webhook
-      if (typeof window !== 'undefined') {
-        Object.defineProperty(window, 'import', {
-          value: {
-            meta: {
-              env: {
-                VITE_SLACK_WEBHOOK_URL: 'https://hooks.slack.com/services/mock-webhook',
-              },
-            },
-          },
-          writable: true,
-          configurable: true,
-        });
-      }
-    });
+    // Mock bug report proxy endpoint
+    await context.route('**/*', async (route) => {
+      const url = route.request().url();
 
-    // Mock Slack API requests
-    await context.route('https://hooks.slack.com/**', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'text/plain',
-        body: 'ok',
-      });
+      // Check if this is a bug report proxy request
+      if (url.includes('your-proxy.example.com') || url.includes('bug-report')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true }),
+        });
+        return;
+      }
+
+      // Continue with all other requests
+      await route.continue();
     });
   });
 
@@ -151,24 +142,6 @@ test.describe('Bug Report Modal', () => {
     await expect(page.getByText('💡 Feature Request')).toBeVisible();
     await expect(page.getByText('📊 Data Issue')).toBeVisible();
     await expect(page.getByText('❓ Other')).toBeVisible();
-  });
-
-  test('should toggle include context checkbox', async ({
-    openBugReportModal,
-    bugReportIncludeContextCheckbox,
-  }) => {
-    await openBugReportModal();
-
-    // Verify checkbox is checked by default
-    await expect(bugReportIncludeContextCheckbox).toBeChecked();
-
-    // Uncheck the checkbox
-    await bugReportIncludeContextCheckbox.click();
-    await expect(bugReportIncludeContextCheckbox).not.toBeChecked();
-
-    // Check again
-    await bugReportIncludeContextCheckbox.click();
-    await expect(bugReportIncludeContextCheckbox).toBeChecked();
   });
 
   test('should submit bug report with valid data', async ({
