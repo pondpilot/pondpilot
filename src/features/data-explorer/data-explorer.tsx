@@ -48,7 +48,8 @@ export const DataExplorer = memo(() => {
   } = useDataExplorerData();
 
   // Separate databases by type
-  const { systemDatabase, localDatabases, remoteDatabases } = useDatabaseSeparation(allDataSources);
+  const { systemDatabase, localDatabases, remoteDatabases, httpServerDatabases } =
+    useDatabaseSeparation(allDataSources);
 
   // Build file system tree
   const fileSystemNodes = useFileSystemTreeBuilder({
@@ -85,30 +86,42 @@ export const DataExplorer = memo(() => {
     const hasFiles = fileSystemNodes.length > 0;
     const hasLocalDbs = localDatabases.length > 0;
     const hasRemoteDbs = remoteDatabases.length > 0;
+    const hasHttpServerDbs = httpServerDatabases.length > 0;
 
     return {
       files: hasFiles,
       databases: hasLocalDbs,
       remote: hasRemoteDbs,
+      httpServer: hasHttpServerDbs,
     };
-  }, [fileSystemNodes.length, localDatabases.length, remoteDatabases.length]);
+  }, [
+    fileSystemNodes.length,
+    localDatabases.length,
+    remoteDatabases.length,
+    httpServerDatabases.length,
+  ]);
 
   // Build database nodes
-  const { localDbNodes, remoteDatabaseNodes, systemDbNode, systemDbNodeForDisplay } = useBuildNodes(
-    {
-      systemDatabase,
-      localDatabases,
-      remoteDatabases,
-      nodeMap,
-      anyNodeIdToNodeTypeMap,
-      conn,
-      localDBLocalEntriesMap,
-      databaseMetadata,
-      fileViewNames,
-      initialExpandedState,
-      flatFileSources,
-    },
-  );
+  const {
+    localDbNodes,
+    remoteDatabaseNodes,
+    httpServerDbNodes,
+    systemDbNode,
+    systemDbNodeForDisplay,
+  } = useBuildNodes({
+    systemDatabase,
+    localDatabases,
+    remoteDatabases,
+    httpServerDatabases,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    localDBLocalEntriesMap,
+    databaseMetadata,
+    fileViewNames,
+    initialExpandedState,
+    flatFileSources,
+  });
 
   // Create unified tree for context
   const unifiedTree = [
@@ -116,6 +129,7 @@ export const DataExplorer = memo(() => {
     ...fileSystemNodes,
     ...localDbNodes,
     ...remoteDatabaseNodes,
+    ...httpServerDbNodes,
   ];
 
   // Actions
@@ -148,6 +162,7 @@ export const DataExplorer = memo(() => {
     fileSystemNodes,
     localDbNodes,
     remoteDatabaseNodes,
+    httpServerDbNodes,
     activeFilter,
     fileTypeFilter,
     searchQuery,
@@ -175,6 +190,8 @@ export const DataExplorer = memo(() => {
         localDbNodes={filteredSections.filteredLocalDbNodes}
         showRemoteDbs={filteredSections.showRemoteDbs}
         remoteDbNodes={filteredSections.filteredRemoteDbNodes}
+        showHttpServerDbs={filteredSections.showHttpServerDbs}
+        httpServerDbNodes={filteredSections.filteredHttpServerDbNodes}
         initialExpandedState={initialExpandedState}
         searchExpandedState={searchExpandedState}
         extraData={enhancedExtraData}

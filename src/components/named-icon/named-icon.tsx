@@ -6,6 +6,7 @@ import {
   IconTable,
   IconSchema,
   IconDatabase,
+  IconServer,
   IconFolder,
   IconFileTypeCsv,
   IconTableAlias,
@@ -34,6 +35,8 @@ export type IconType =
   | 'db-schema'
   | 'db-table'
   | 'db-view'
+  // Remote database types
+  | 'httpserver-db'
   // Local files that act as data sources
   | 'csv'
   | 'json'
@@ -91,6 +94,8 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
       return <IconTable {...iconProps} />;
     case 'db-view':
       return <IconTableAlias {...iconProps} />;
+    case 'httpserver-db':
+      return <IconServer {...iconProps} />;
     case 'column-float':
     case 'column-decimal':
     case 'column-integer':

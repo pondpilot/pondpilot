@@ -52,6 +52,7 @@ describe('useFilterNodes', () => {
     fileSystemNodes: [createFileNode('file1', 'data.csv'), createFileNode('file2', 'report.json')],
     localDbNodes: [createDbNode('db1', 'local.db')],
     remoteDatabaseNodes: [createDbNode('remote1', 'cloud.db')],
+    httpServerDbNodes: [createDbNode('httpserver1', 'httpserver.db')],
     activeFilter: 'all' as DataExplorerFilterType,
     fileTypeFilter: {
       csv: true,

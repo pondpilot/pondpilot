@@ -1,3 +1,4 @@
+import { showError, showSuccess } from '@components/app-notifications';
 import { DataLoadingOverlay } from '@components/data-loading-overlay';
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { Table } from '@components/table/table';
@@ -10,10 +11,17 @@ import { copyTableColumns } from '@features/tab-view/utils';
 import { Button, Center, Group, Loader, Stack, Text } from '@mantine/core';
 import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
 import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@models/data-adapter';
+import { HTTPServerDB } from '@models/data-source';
 import { DBColumn } from '@models/db';
 import { MAX_DATA_VIEW_PAGE_SIZE, TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { IconCancel, IconClipboardSmile } from '@tabler/icons-react';
+import { createHttpClient } from '@utils/duckdb-http-client';
+import { getCredentialsForServer } from '@utils/httpserver-credentials';
+import {
+  clearHTTPServerErrorState,
+  updateHTTPServerDbConnectionState,
+} from '@utils/httpserver-database';
 import { formatStringsAsMDList } from '@utils/pretty';
 import { setDataTestId } from '@utils/test-id';
 import { useCallback, useRef, useState } from 'react';
@@ -30,6 +38,19 @@ interface DataViewProps {
 }
 
 export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps) => {
+  // Get the tab and data source information
+  const tabState = useAppStore((state) => state.tabs.get(tabId));
+  const dataSources = useAppStore((state) => state.dataSources);
+  const dataSource =
+    tabState?.type === 'data-source' && tabState.dataSourceType === 'db'
+      ? dataSources.get(tabState.dataSourceId)
+      : undefined;
+
+  // Determine if this is an HTTP Server database
+  const isHTTPServerDB = dataSource?.type === 'httpserver-db';
+
+  // Determine button text based on data source type
+  const restartButtonText = isHTTPServerDB ? 'Reconnect' : 'Restart';
   /**
    * Helpful hooks
    */
@@ -223,7 +244,54 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
     // Reset the requested page to 0
     setAndCacheDataPage(0);
 
-    await dataAdapter.reset();
+    try {
+      // For HTTP Server databases, test the connection before showing success
+      if (isHTTPServerDB && dataSource) {
+        // Clear error state to allow reconnection
+        clearHTTPServerErrorState(dataSource.id);
+
+        // Test actual connection with authentication
+        const httpServerDB = dataSource as HTTPServerDB;
+        const credentials = getCredentialsForServer(httpServerDB.id);
+
+        const client = createHttpClient({
+          host: httpServerDB.host,
+          port: httpServerDB.port,
+          protocol: 'http',
+          authType: httpServerDB.authType,
+          username: credentials?.username,
+          password: credentials?.password,
+          token: credentials?.token,
+        });
+
+        const connectionResult = await client.testConnection();
+        if (!connectionResult) {
+          throw new Error('Connection test failed - server is not reachable');
+        }
+
+        // Update connection state to connected after successful test
+        updateHTTPServerDbConnectionState(dataSource.id, 'connected');
+      }
+
+      await dataAdapter.reset();
+
+      // Show success notification for HTTP Server reconnection
+      if (isHTTPServerDB && dataSource) {
+        showSuccess({
+          title: 'Reconnected',
+          message: `Successfully reconnected to HTTP server '${dataSource.dbName}'`,
+        });
+      }
+    } catch (error) {
+      // Show error notification for HTTP Server reconnection failure
+      if (isHTTPServerDB && dataSource) {
+        showError({
+          title: 'Reconnection Failed',
+          message: `Failed to reconnect to HTTP server '${dataSource.dbName}'. Please check the server.`,
+        });
+      }
+      console.error('Data adapter reset failed:', error);
+    }
   };
 
   const onColumnResizeChange = useCallback(
@@ -325,7 +393,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
                 onClick={handleDataAdapterReset}
                 data-testid={setDataTestId('data-view-reset-button')}
               >
-                Restart
+                {restartButtonText}
               </Button>
             </Stack>
           </Center>
@@ -347,7 +415,7 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
                 onClick={handleDataAdapterReset}
                 data-testid={setDataTestId('data-view-reset-button')}
               >
-                Restart
+                {restartButtonText}
               </Button>
             </Group>
           </Stack>

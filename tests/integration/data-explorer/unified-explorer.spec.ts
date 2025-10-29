@@ -55,8 +55,8 @@ test.describe('Unified Explorer', () => {
 
     await waitForFilesToBeProcessed();
 
-    // Check that the "Local Files" section header is visible
-    await expect(page.getByText('Local Files')).toBeVisible();
+    // Check that the "Local" section header is visible using data-testid
+    await expect(page.getByTestId('data-explorer-section-data-explorer-fs')).toBeVisible();
 
     // Check that both files are visible in the explorer using the working assertion helper
     await assertFileExplorerItems(['data', 'report']);
@@ -82,14 +82,14 @@ test.describe('Unified Explorer', () => {
 
     await waitForFilesToBeProcessed();
 
-    // Local Files section should be visible
-    await expect(page.getByText('Local Files')).toBeVisible();
+    // Local section should be visible
+    await expect(page.getByTestId('data-explorer-section-data-explorer-fs')).toBeVisible();
 
-    // Local Databases section should not be visible (no databases added)
-    await expect(page.getByText('Local Databases')).toBeHidden();
+    // Local Databases section should not exist (no databases added)
+    await expect(page.getByTestId('data-explorer-section-data-explorer-local')).not.toBeAttached();
 
-    // Remote Databases section should not be visible (no remote databases)
-    await expect(page.getByText('Remote Databases')).toBeHidden();
+    // Remote Databases section should not exist (no remote databases)
+    await expect(page.getByTestId('data-explorer-section-data-explorer-remote')).not.toBeAttached();
   });
 
   test('should handle file operations correctly', async ({
@@ -161,8 +161,8 @@ test.describe('Unified Explorer', () => {
     // Test basic selection by clicking on a file using the working helper
     await clickFileByName('file1');
 
-    // Verify the Local Files section header is still visible after interaction
-    await expect(page.getByText('Local Files')).toBeVisible();
+    // Verify the Local section header is still visible after interaction
+    await expect(page.getByTestId('data-explorer-section-data-explorer-fs')).toBeVisible();
   });
 
   // eslint-disable-next-line playwright/expect-expect
@@ -227,7 +227,7 @@ test.describe('Unified Explorer', () => {
     await waitForFilesToBeProcessed();
 
     // Verify files are organized under the correct section
-    await expect(page.getByText('Local Files')).toBeVisible();
+    await expect(page.getByTestId('data-explorer-section-data-explorer-fs')).toBeVisible();
 
     // Use the working assertion helper to verify both files are present
     // Files may appear in alphabetical order
@@ -243,8 +243,8 @@ test.describe('Unified Explorer', () => {
     filePicker,
     assertFileExplorerItems,
   }) => {
-    // Start with no files - should not show Local Files section
-    await expect(page.getByText('Local Files')).toBeHidden();
+    // Start with no files - should not show Local section (element should not exist)
+    await expect(page.getByTestId('data-explorer-section-data-explorer-fs')).not.toBeAttached();
 
     // Add a file
     await storage.uploadFile(testTmp.join('data.csv'), 'data.csv');
@@ -258,13 +258,13 @@ test.describe('Unified Explorer', () => {
 
     await waitForFilesToBeProcessed();
 
-    // Now Local Files section should be visible
-    await expect(page.getByText('Local Files')).toBeVisible();
+    // Now Local section should be visible
+    await expect(page.getByTestId('data-explorer-section-data-explorer-fs')).toBeVisible();
     await assertFileExplorerItems(['data']);
 
     // The section header should remain a text element (not collapsible button)
     // This tests that the current implementation shows section headers as static text
-    const localFilesHeader = page.getByText('Local Files');
+    const localFilesHeader = page.getByTestId('data-explorer-section-data-explorer-fs');
     await expect(localFilesHeader).toBeVisible();
 
     // Verify the header is a Text component, not a Button

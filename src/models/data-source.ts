@@ -143,7 +143,60 @@ export interface RemoteDB {
   useCorsProxy?: boolean;
 }
 
-export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB;
+/**
+ * DuckDB HTTP Server database
+ * Accessed via HTTP API, creates local views for remote tables
+ */
+export interface HTTPServerDB {
+  readonly type: 'httpserver-db';
+
+  /**
+   * Unique identifier for the HTTP server database
+   */
+  id: PersistentDataSourceId;
+
+  /**
+   * Server hostname or IP address
+   */
+  host: string;
+
+  /**
+   * Server port number
+   */
+  port: number;
+
+  /**
+   * Database name used for identification
+   */
+  dbName: string;
+
+  /**
+   * Authentication type for the HTTP server
+   */
+  authType: 'none' | 'basic' | 'token';
+
+  /**
+   * Connection state for handling network issues
+   */
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting';
+
+  /**
+   * Error message if connection failed
+   */
+  connectionError?: string;
+
+  /**
+   * Timestamp of when this database was connected
+   */
+  attachedAt: number;
+
+  /**
+   * Optional comment/description
+   */
+  comment?: string;
+}
+
+export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB | HTTPServerDB;
 
 // Special constant for the system database
 export const SYSTEM_DATABASE_ID = 'pondpilot-system-db' as PersistentDataSourceId;
