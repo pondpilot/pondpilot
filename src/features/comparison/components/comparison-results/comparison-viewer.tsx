@@ -79,60 +79,6 @@ export const ComparisonViewer = ({
   const [showModified, setShowModified] = useState(true);
   const [showUnchanged, setShowUnchanged] = useState(false);
 
-  const handleExport = useCallback(() => {
-    if (!results) return;
-
-    try {
-      setIsExporting(true);
-      const compareColumns =
-        config.compareColumns || schemaComparison.commonColumns.map((c) => c.name);
-
-      downloadComparisonCsv(
-        results.rows,
-        results.keyColumns,
-        compareColumns,
-        `comparison-${Date.now()}.csv`,
-      );
-
-      notifications.show({
-        title: 'Export Successful',
-        message: 'Comparison results exported to CSV',
-        color: COMPARISON_STATUS_THEME.added.accentColorKey,
-      });
-    } catch (err) {
-      notifications.show({
-        title: 'Export Failed',
-        message: err instanceof Error ? err.message : 'Unknown error',
-        color: COMPARISON_STATUS_THEME.removed.accentColorKey,
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  }, [results, config.compareColumns, schemaComparison.commonColumns]);
-
-  const handleCopy = useCallback(async () => {
-    if (!results) return;
-
-    try {
-      const compareColumns =
-        config.compareColumns || schemaComparison.commonColumns.map((c) => c.name);
-
-      await copyComparisonToClipboard(results.rows, results.keyColumns, compareColumns);
-
-      notifications.show({
-        title: 'Copied to Clipboard',
-        message: 'Comparison results copied as tab-separated values',
-        color: COMPARISON_STATUS_THEME.added.accentColorKey,
-      });
-    } catch (err) {
-      notifications.show({
-        title: 'Copy Failed',
-        message: err instanceof Error ? err.message : 'Unknown error',
-        color: COMPARISON_STATUS_THEME.removed.accentColorKey,
-      });
-    }
-  }, [results, config.compareColumns, schemaComparison.commonColumns]);
-
   // Get the columns being compared - do this before early returns
   const compareColumns = config.compareColumns || schemaComparison.commonColumns.map((c) => c.name);
 
@@ -182,6 +128,60 @@ export const ComparisonViewer = ({
       return true;
     });
   }, [results, showAdded, showRemoved, showModified, showUnchanged]);
+
+  const handleExport = useCallback(() => {
+    if (!results) return;
+
+    try {
+      setIsExporting(true);
+      const exportCompareColumns =
+        config.compareColumns || schemaComparison.commonColumns.map((c) => c.name);
+
+      downloadComparisonCsv(
+        filteredRows,
+        results.keyColumns,
+        exportCompareColumns,
+        `comparison-${Date.now()}.csv`,
+      );
+
+      notifications.show({
+        title: 'Export Successful',
+        message: 'Comparison results exported to CSV',
+        color: COMPARISON_STATUS_THEME.added.accentColorKey,
+      });
+    } catch (err) {
+      notifications.show({
+        title: 'Export Failed',
+        message: err instanceof Error ? err.message : 'Unknown error',
+        color: COMPARISON_STATUS_THEME.removed.accentColorKey,
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [results, filteredRows, config.compareColumns, schemaComparison.commonColumns]);
+
+  const handleCopy = useCallback(async () => {
+    if (!results) return;
+
+    try {
+      const copyCompareColumns =
+        config.compareColumns || schemaComparison.commonColumns.map((c) => c.name);
+
+      await copyComparisonToClipboard(filteredRows, results.keyColumns, copyCompareColumns);
+
+      notifications.show({
+        title: 'Copied to Clipboard',
+        message: 'Comparison results copied as tab-separated values',
+        color: COMPARISON_STATUS_THEME.added.accentColorKey,
+      });
+    } catch (err) {
+      notifications.show({
+        title: 'Copy Failed',
+        message: err instanceof Error ? err.message : 'Unknown error',
+        color: COMPARISON_STATUS_THEME.removed.accentColorKey,
+      });
+    }
+  }, [results, filteredRows, config.compareColumns, schemaComparison.commonColumns]);
 
   // Early returns AFTER all hooks
   if (error) {

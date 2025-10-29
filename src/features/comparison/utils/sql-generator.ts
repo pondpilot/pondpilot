@@ -1,5 +1,6 @@
 import { ComparisonConfig, ComparisonSource, SchemaComparisonResult } from '@models/tab';
 import { quote } from '@utils/helpers';
+import { validateFilterExpression } from '@utils/sql-security';
 
 /**
  * Builds the source SQL for a comparison source
@@ -130,7 +131,10 @@ export const generateComparisonSQL = (
 /**
  * Validates the comparison configuration
  */
-export const validateComparisonConfig = (config: ComparisonConfig): string | null => {
+export const validateComparisonConfig = (
+  config: ComparisonConfig,
+  schemaComparison?: SchemaComparisonResult,
+): string | null => {
   if (config.joinColumns.length === 0) {
     return 'At least one join key must be selected';
   }
@@ -139,6 +143,37 @@ export const validateComparisonConfig = (config: ComparisonConfig): string | nul
   // Only fail if it's explicitly an empty array
   if (config.compareColumns !== null && config.compareColumns.length === 0) {
     return 'At least one column must be selected for comparison';
+  }
+
+  // Validate join columns exist in schema (if schema provided)
+  if (schemaComparison) {
+    const commonColumnNames = schemaComparison.commonColumns.map((c) => c.name);
+    for (const joinCol of config.joinColumns) {
+      if (!commonColumnNames.includes(joinCol)) {
+        return `Join column "${joinCol}" not found in both schemas`;
+      }
+    }
+
+    // Validate compare columns exist in schema (if explicitly set)
+    if (config.compareColumns !== null) {
+      for (const compareCol of config.compareColumns) {
+        if (!commonColumnNames.includes(compareCol)) {
+          return `Compare column "${compareCol}" not found in both schemas`;
+        }
+      }
+    }
+  }
+
+  // Validate filter expressions for potentially dangerous patterns
+  const filterA = config.filterMode === 'common' ? config.commonFilter : config.filterA;
+  const filterB = config.filterMode === 'common' ? config.commonFilter : config.filterB;
+
+  if (filterA && !validateFilterExpression(filterA)) {
+    return 'Filter A contains potentially dangerous SQL patterns. Please use simple filter expressions without SQL keywords like DROP, DELETE, UNION, etc.';
+  }
+
+  if (filterB && !validateFilterExpression(filterB)) {
+    return 'Filter B contains potentially dangerous SQL patterns. Please use simple filter expressions without SQL keywords like DROP, DELETE, UNION, etc.';
   }
 
   return null;

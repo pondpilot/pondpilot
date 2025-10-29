@@ -133,6 +133,10 @@ export const SpotlightMenu = () => {
   const resetSpotlight = () => {
     setSpotlightView('home');
     Spotlight.close();
+    // Clear comparison source selection callback if it exists
+    if (comparisonSourceSelectionCallback) {
+      useAppStore.setState({ comparisonSourceSelectionCallback: null });
+    }
   };
 
   const ensureHome = () => {

@@ -42,20 +42,20 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
   const handleRefreshComparison = useCallback(async () => {
     if (!tab.config || !tab.schemaComparison) return;
 
-    const result = await executeComparison(tab.config, tab.schemaComparison);
+    const executionResult = await executeComparison(tab.config, tab.schemaComparison);
 
-    if (result) {
-      setComparisonExecutionTime(tabId, Date.now());
+    if (executionResult) {
+      setComparisonExecutionTime(tabId, executionResult.durationSeconds);
     }
   }, [tabId, tab.config, tab.schemaComparison, executeComparison]);
 
   const handleExecuteComparison = useCallback(async () => {
     if (!tab.config || !tab.schemaComparison) return;
 
-    const result = await executeComparison(tab.config, tab.schemaComparison);
+    const executionResult = await executeComparison(tab.config, tab.schemaComparison);
 
-    if (result) {
-      setComparisonExecutionTime(tabId, Date.now());
+    if (executionResult) {
+      setComparisonExecutionTime(tabId, executionResult.durationSeconds);
       setComparisonViewingResults(tabId, true);
     }
   }, [tabId, tab.config, tab.schemaComparison, executeComparison]);

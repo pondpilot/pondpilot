@@ -16,10 +16,11 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
     async (config: ComparisonConfig, schemaComparison: SchemaComparisonResult) => {
       setIsExecuting(true);
       setError(null);
+      const startTime = performance.now();
 
       try {
         // Validate configuration
-        const validationError = validateComparisonConfig(config);
+        const validationError = validateComparisonConfig(config, schemaComparison);
         if (validationError) {
           setError(validationError);
           return null;
@@ -31,8 +32,10 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
 
         // Execute query
         const result = await pool.query(sql);
+        const endTime = performance.now();
+        const durationSeconds = (endTime - startTime) / 1000;
 
-        return result;
+        return { result, durationSeconds };
       } catch (err) {
         let message = err instanceof Error ? err.message : 'Unknown error';
 
