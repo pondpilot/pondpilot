@@ -11,7 +11,7 @@ export const BUG_REPORT_CATEGORY_META: Record<BugReportCategory, { label: string
   {
     crash: { label: 'Crash / Error', emoji: '💥' },
     'data-issue': { label: 'Data Issue', emoji: '📊' },
-    'ui-bug': { label: 'UI Bug', emoji: '🎨' },
+    'ui-bug': { label: 'UI Bug', emoji: '🐛' },
     performance: { label: 'Performance', emoji: '⚡' },
     'feature-request': { label: 'Feature Request', emoji: '💡' },
     other: { label: 'Other', emoji: '❓' },
