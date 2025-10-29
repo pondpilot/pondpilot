@@ -4,7 +4,7 @@ import { quote } from '@utils/helpers';
 /**
  * Builds the source SQL for a comparison source
  */
-const buildSourceSQL = (source: ComparisonSource): string => {
+export const buildSourceSQL = (source: ComparisonSource): string => {
   if (source.type === 'table') {
     const parts = [];
     if (source.databaseName) {
@@ -24,16 +24,16 @@ export const generateComparisonSQL = (
   config: ComparisonConfig,
   schemaComparison: SchemaComparisonResult,
 ): string => {
-  const {
-    sourceA,
-    sourceB,
-    joinColumns,
-    filterA,
-    filterB,
-    compareColumns,
-    showOnlyDifferences,
-    showSchemaOnlyColumns,
-  } = config;
+  const { sourceA, sourceB, joinColumns, compareColumns, showOnlyDifferences } = config;
+
+  // Validate that both sources are selected
+  if (!sourceA || !sourceB) {
+    throw new Error('Both sourceA and sourceB must be selected to generate comparison SQL');
+  }
+
+  // Handle filter mode
+  const filterA = config.filterMode === 'common' ? config.commonFilter : config.filterA;
+  const filterB = config.filterMode === 'common' ? config.commonFilter : config.filterB;
 
   // Determine which columns to compare
   const columnsToCompare = compareColumns || schemaComparison.commonColumns.map((c) => c.name);
@@ -92,19 +92,6 @@ export const generateComparisonSQL = (
   });
 
   sql += `${columnSelects.join(',\n')},\n`;
-
-  // Add schema-only columns if requested
-  if (showSchemaOnlyColumns) {
-    schemaComparison.onlyInA.forEach((col) => {
-      sql += `      a.${quote(col.name)} as ${quote(`${col.name}_a`)},\n`;
-      sql += `      NULL as ${quote(`${col.name}_b`)},\n`;
-    });
-
-    schemaComparison.onlyInB.forEach((col) => {
-      sql += `      NULL as ${quote(`${col.name}_a`)},\n`;
-      sql += `      b.${quote(col.name)} as ${quote(`${col.name}_b`)},\n`;
-    });
-  }
 
   // Overall row status
   sql += '      CASE\n';

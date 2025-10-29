@@ -21,7 +21,7 @@ export const ComparisonToolbar = ({
       <Tooltip label="Reconfigure comparison">
         <ActionIcon
           variant="subtle"
-          color="gray"
+          color="icon-default"
           size="lg"
           onClick={onReconfigure}
           disabled={isRefreshing}
@@ -33,7 +33,7 @@ export const ComparisonToolbar = ({
       <Tooltip label="Refresh comparison">
         <ActionIcon
           variant="subtle"
-          color="blue"
+          color="icon-accent"
           size="lg"
           onClick={onRefresh}
           loading={isRefreshing}
@@ -44,6 +44,7 @@ export const ComparisonToolbar = ({
 
       <Button
         variant="light"
+        color="background-accent"
         leftSection={<IconCopy size={16} />}
         onClick={onCopy}
         disabled={isRefreshing}
@@ -53,6 +54,7 @@ export const ComparisonToolbar = ({
 
       <Button
         variant="light"
+        color="background-accent"
         leftSection={<IconDownload size={16} />}
         onClick={onExport}
         disabled={isRefreshing}

@@ -132,19 +132,19 @@ export type ComparisonSource =
  * Comparison configuration for dataset comparison operations.
  *
  * SECURITY WARNING: All user-provided string values in this configuration
- * (filterA, filterB, joinColumns, and sql in ComparisonSource) must be
+ * (filterA, filterB, commonFilter, joinColumns, and sql in ComparisonSource) must be
  * properly sanitized before being used in SQL query construction.
  *
  * @important When executing comparisons:
- * - NEVER concatenate filterA/filterB directly into SQL queries
+ * - NEVER concatenate filterA/filterB/commonFilter directly into SQL queries
  * - ALWAYS use parameterized queries or validate against safe subsets
  * - ALWAYS validate joinColumns exist in schemaComparison before use
  * - ALWAYS properly quote/escape column identifiers from joinColumns
  * - For compareMode 'coerce', ensure safe type coercion operations
  */
 export interface ComparisonConfig {
-  sourceA: ComparisonSource;
-  sourceB: ComparisonSource;
+  sourceA: ComparisonSource | null;
+  sourceB: ComparisonSource | null;
 
   /**
    * User-specified join columns (REQUIRED before execution).
@@ -154,9 +154,23 @@ export interface ComparisonConfig {
   joinColumns: string[];
 
   /**
+   * Filter mode: 'common' applies same filter to both sources, 'separate' uses filterA/filterB
+   */
+  filterMode: 'common' | 'separate';
+
+  /**
+   * Common WHERE clause filter applied to both sources (user-provided SQL expression).
+   * SECURITY CRITICAL: This is a raw SQL fragment that must be validated/sanitized.
+   * Only used when filterMode is 'common'.
+   */
+  commonFilter: string | null;
+
+  /**
    * Optional WHERE clause filters for each source (user-provided SQL expressions).
    * SECURITY CRITICAL: These are raw SQL fragments that must be validated/sanitized.
    * Consider restricting to safe subsets or using a query builder with parameters.
+   * Used when filterMode is 'separate'. Values are preserved even when filterMode is 'common'
+   * to avoid data loss when switching modes.
    */
   filterA: string | null;
   filterB: string | null;
@@ -164,9 +178,9 @@ export interface ComparisonConfig {
   // Columns to compare (default: all common columns)
   compareColumns: string[] | null; // null = all common
 
-  // Display options
+  // Result filtering (affects SQL query for performance)
+  // Default: true (recommended for large datasets)
   showOnlyDifferences: boolean;
-  showSchemaOnlyColumns: boolean; // columns that exist in only one table
 
   // Comparison mode
   compareMode: 'strict' | 'coerce'; // strict = exact match, coerce = type conversion
@@ -184,8 +198,8 @@ export interface ComparisonTab extends TabBase {
   // Schema analysis (cached after first analysis)
   schemaComparison: SchemaComparisonResult | null;
 
-  // UI state
-  wizardStep: 'select-sources' | 'analyze-schema' | 'configure' | 'results';
+  // UI state - true when viewing results, false when configuring
+  viewingResults: boolean;
 
   // Last execution timestamp (for refresh detection)
   lastExecutionTime: number | null;

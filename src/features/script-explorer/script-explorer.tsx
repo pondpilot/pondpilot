@@ -19,7 +19,6 @@ import { copyToClipboard } from '@utils/clipboard';
 import { exportSingleScript } from '@utils/script-export';
 import { createShareableScriptUrl } from '@utils/script-sharing';
 import { memo, useMemo } from 'react';
-import { useShallow } from 'zustand/react/shallow';
 
 import { ScriptExplorerContext, ScriptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
@@ -151,17 +150,25 @@ const handleExportScript = (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>): void
 // Custom hook to get comparison tabs with proper memoization
 // Returns an array of [id, name] tuples - only changes when tabs are added/removed/renamed
 function useComparisonTabs(): ReadonlyArray<readonly [TabId, string]> {
-  return useAppStore(
-    useShallow((state) => {
-      const result: Array<readonly [TabId, string]> = [];
-      for (const tab of state.tabs.values()) {
-        if (tab.type === 'comparison') {
-          result.push([tab.id, tab.name]);
-        }
+  // Get a serialized key representing the comparison tabs
+  const comparisonTabsKey = useAppStore((state) => {
+    const tabs: string[] = [];
+    for (const tab of state.tabs.values()) {
+      if (tab.type === 'comparison') {
+        tabs.push(`${tab.id}:${tab.name}`);
       }
-      return result;
-    }),
-  );
+    }
+    return tabs.join('|');
+  });
+
+  // Memoize the actual array based on the serialized key
+  return useMemo(() => {
+    if (!comparisonTabsKey) return [];
+    return comparisonTabsKey.split('|').map((entry) => {
+      const [id, name] = entry.split(':');
+      return [id as TabId, name] as const;
+    });
+  }, [comparisonTabsKey]);
 }
 
 export const ScriptExplorer = memo(() => {

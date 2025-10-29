@@ -16,7 +16,8 @@ import { Group, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { Spotlight } from '@mantine/spotlight';
 import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from '@models/app-urls';
-import { useAppStore } from '@store/app-store';
+import { SYSTEM_DATABASE_NAME } from '@models/data-source';
+import { useAppStore, useProtectedViews } from '@store/app-store';
 import {
   IconDatabase,
   IconCode,
@@ -108,6 +109,8 @@ export const SpotlightMenu = () => {
   const dataSources = useAppStore.use.dataSources();
   const databaseMetadata = useAppStore.use.databaseMetadata();
   const localEntries = useAppStore.use.localEntries();
+  const comparisonSourceSelectionCallback = useAppStore.use.comparisonSourceSelectionCallback();
+  const protectedViews = useProtectedViews();
 
   /**
    * Local state
@@ -115,6 +118,17 @@ export const SpotlightMenu = () => {
   const [searchValue, setSearchValue] = useState('');
   const [spotlightView, setSpotlightView] = useState<SpotlightView>('home');
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Subscribe to spotlightInitialView changes from app store
+  // This allows comparison feature to request opening in a specific view
+  const spotlightInitialView = useAppStore.use.spotlightInitialView();
+  useEffect(() => {
+    if (spotlightInitialView) {
+      setSpotlightView(spotlightInitialView);
+      // Clear it immediately so it doesn't affect future opens
+      useAppStore.setState({ spotlightInitialView: null });
+    }
+  }, [spotlightInitialView]);
 
   const resetSpotlight = () => {
     setSpotlightView('home');
@@ -159,6 +173,8 @@ export const SpotlightMenu = () => {
     if (isLocalDatabase(dataSource) || isRemoteDatabase(dataSource)) {
       // For databases we need to read all tables and views from metadata
       const dbMetadata = databaseMetadata.get(dataSource.dbName);
+      const isSystemDatabase =
+        isLocalDatabase(dataSource) && dataSource.dbName === SYSTEM_DATABASE_NAME;
 
       if (!dbMetadata) {
         continue;
@@ -166,6 +182,14 @@ export const SpotlightMenu = () => {
 
       dbMetadata.schemas.forEach((schema) => {
         schema.objects.forEach((tableOrView) => {
+          if (
+            isSystemDatabase &&
+            tableOrView.type === 'view' &&
+            protectedViews.has(tableOrView.name)
+          ) {
+            return;
+          }
+
           dataSourceActions.push({
             id: `open-data-source-${dataSource.id}-${tableOrView.name}`,
             label: tableOrView.label,
@@ -177,15 +201,22 @@ export const SpotlightMenu = () => {
               />
             ),
             handler: () => {
-              getOrCreateTabFromLocalDBObject(
-                dataSource,
-                schema.name,
-                tableOrView.name,
-                tableOrView.type,
-                true,
-              );
-              Spotlight.close();
-              ensureHome();
+              // Check if we're in comparison source selection mode
+              if (comparisonSourceSelectionCallback) {
+                comparisonSourceSelectionCallback(dataSource, schema.name, tableOrView.name);
+                Spotlight.close();
+              } else {
+                // Normal mode - open a tab
+                getOrCreateTabFromLocalDBObject(
+                  dataSource,
+                  schema.name,
+                  tableOrView.name,
+                  tableOrView.type,
+                  true,
+                );
+                Spotlight.close();
+                ensureHome();
+              }
             },
           });
         });
@@ -200,9 +231,16 @@ export const SpotlightMenu = () => {
       label: getFlatFileDataSourceName(dataSource, localEntries),
       icon: <NamedIcon iconType={dataSource.type} size={20} className={ICON_CLASSES} />,
       handler: () => {
-        getOrCreateTabFromFlatFileDataSource(dataSource, true);
-        Spotlight.close();
-        ensureHome();
+        // Check if we're in comparison source selection mode
+        if (comparisonSourceSelectionCallback) {
+          comparisonSourceSelectionCallback(dataSource);
+          Spotlight.close();
+        } else {
+          // Normal mode - open a tab
+          getOrCreateTabFromFlatFileDataSource(dataSource, true);
+          Spotlight.close();
+          ensureHome();
+        }
       },
     });
   }

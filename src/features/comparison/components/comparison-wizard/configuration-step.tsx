@@ -8,10 +8,14 @@ import {
   Group,
   Alert,
   Badge,
+  useMantineTheme,
 } from '@mantine/core';
 import { ComparisonConfig, TabReactiveState, ComparisonTab } from '@models/tab';
 import { IconInfoCircle } from '@tabler/icons-react';
 import { useState, useEffect } from 'react';
+
+import { ICON_CLASSES } from '../../constants/color-classes';
+import { getStatusAccentColor, getStatusSurfaceColor } from '../../utils/theme';
 
 interface ConfigurationStepProps {
   tab: TabReactiveState<ComparisonTab>;
@@ -19,6 +23,7 @@ interface ConfigurationStepProps {
 }
 
 export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProps) => {
+  const theme = useMantineTheme();
   const { schemaComparison, config } = tab;
 
   // Initialize all hooks before any early returns (Rules of Hooks)
@@ -31,10 +36,7 @@ export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProp
     config?.compareColumns || schemaComparison?.commonColumns.map((c) => c.name) || [],
   );
   const [showOnlyDifferences, setShowOnlyDifferences] = useState<boolean>(
-    config?.showOnlyDifferences || false,
-  );
-  const [showSchemaOnlyColumns, setShowSchemaOnlyColumns] = useState<boolean>(
-    config?.showSchemaOnlyColumns || false,
+    config?.showOnlyDifferences !== undefined ? config.showOnlyDifferences : true,
   );
 
   // Update parent when config changes
@@ -42,12 +44,14 @@ export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProp
     if (!schemaComparison) return;
     onConfigChange({
       joinColumns: selectedJoinKeys,
+      filterMode: 'common',
+      commonFilter: null,
       filterA: filterA.trim() || null,
       filterB: filterB.trim() || null,
       compareColumns:
         selectedColumns.length === schemaComparison.commonColumns.length ? null : selectedColumns,
       showOnlyDifferences,
-      showSchemaOnlyColumns,
+      compareMode: 'strict',
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -56,7 +60,6 @@ export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProp
     filterB,
     selectedColumns,
     showOnlyDifferences,
-    showSchemaOnlyColumns,
     onConfigChange,
     // schemaComparison itself is checked inside the effect
   ]);
@@ -64,7 +67,11 @@ export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProp
   // Check if configuration is available (after all hooks)
   if (!schemaComparison || !config) {
     return (
-      <Alert icon={<IconInfoCircle size={16} />} title="Configuration not available" color="yellow">
+      <Alert
+        icon={<IconInfoCircle size={16} className={ICON_CLASSES.warning} />}
+        title="Configuration not available"
+        color="background-warning"
+      >
         Please go back and complete schema analysis first.
       </Alert>
     );
@@ -102,7 +109,14 @@ export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProp
                 Join Keys (Required)
               </Text>
               {schemaComparison.suggestedKeys.length > 0 && (
-                <Badge size="sm" color="green" variant="light">
+                <Badge
+                  size="sm"
+                  variant="light"
+                  style={{
+                    backgroundColor: getStatusSurfaceColor(theme, 'added'),
+                    color: getStatusAccentColor(theme, 'added'),
+                  }}
+                >
                   Auto-detected
                 </Badge>
               )}
@@ -152,7 +166,11 @@ export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProp
           />
 
           {hasTypeMismatches && (
-            <Alert icon={<IconInfoCircle size={16} />} color="orange" variant="light">
+            <Alert
+              icon={<IconInfoCircle size={16} className={ICON_CLASSES.warning} />}
+              color="background-warning"
+              variant="light"
+            >
               Some columns have type mismatches. Comparison will attempt type coercion where
               possible.
             </Alert>
@@ -209,16 +227,9 @@ export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProp
 
           <Checkbox
             label="Show only rows with differences"
-            description="Hide rows where all compared columns are identical"
+            description="Hide rows where all compared columns are identical (recommended for large datasets)"
             checked={showOnlyDifferences}
             onChange={(e) => setShowOnlyDifferences(e.currentTarget.checked)}
-          />
-
-          <Checkbox
-            label="Include schema-only columns"
-            description={`Show columns that exist in only one source (${schemaComparison.onlyInA.length + schemaComparison.onlyInB.length} columns)`}
-            checked={showSchemaOnlyColumns}
-            onChange={(e) => setShowSchemaOnlyColumns(e.currentTarget.checked)}
           />
         </Stack>
       </Paper>

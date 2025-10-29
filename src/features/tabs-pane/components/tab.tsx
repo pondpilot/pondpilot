@@ -76,7 +76,7 @@ export const Tab = ({
           'text-textPrimary-light dark:text-textPrimary-dark',
           'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
           active &&
-            'bg-backgroundPrimary-light hover:bg-white dark:bg-backgroundPrimary-dark z-20 dark:hover:bg-backgroundPrimary-dark',
+            'bg-backgroundPrimary-light hover:bg-white dark:bg-backgroundPrimary-dark dark:hover:bg-backgroundPrimary-dark',
           isLast && 'border-r',
         )}
       >

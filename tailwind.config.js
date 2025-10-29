@@ -31,9 +31,18 @@ module.exports = {
           light: '#4957C1',
           dark: '#4C61FF',
         },
-        borderSuccess: '#4CAE4F',
-        borderWarning: '#F4A462',
-        borderError: '#EF486F',
+        borderSuccess: {
+          light: '#4CAE4F',
+          dark: '#4CAE4F',
+        },
+        borderWarning: {
+          light: '#F4A462',
+          dark: '#F4A462',
+        },
+        borderError: {
+          light: '#EF486F',
+          dark: '#EF486F',
+        },
 
         backgroundPrimary: {
           light: '#FDFDFD',
@@ -47,9 +56,18 @@ module.exports = {
           light: '#E5E9F2',
           dark: '#5B6B86',
         },
-        backgroundSuccess: '#E6F4E6',
-        backgroundWarning: '#FDF2E9',
-        backgroundError: '#FDE5EB',
+        backgroundSuccess: {
+          light: '#E6F4E6',
+          dark: '#2B612C',
+        },
+        backgroundWarning: {
+          light: '#FDF2E9',
+          dark: '#A8520C',
+        },
+        backgroundError: {
+          light: '#FDE5EB',
+          dark: '#990D2E',
+        },
         backgroundAccent: {
           light: '#4957C1',
           dark: '#4C61FF',
@@ -65,9 +83,18 @@ module.exports = {
           dark: '#C8CED9',
         },
         iconDisabled: '#AEB2BB',
-        iconSuccess: '#4CAE4F',
-        iconWarning: '#F4A462',
-        iconError: '#EF486F',
+        iconSuccess: {
+          light: '#4CAE4F',
+          dark: '#75C277',
+        },
+        iconWarning: {
+          light: '#F4A462',
+          dark: '#F7B987',
+        },
+        iconError: {
+          light: '#EF486F',
+          dark: '#F37391',
+        },
         iconAccent: {
           light: '#4957C1',
           dark: '#4C61FF',
@@ -89,15 +116,15 @@ module.exports = {
         },
         textSuccess: {
           light: '#4CAE4F',
-          dark: '#4CAE4F',
+          dark: '#75C277',
         },
         textWarning: {
           light: '#F4A462',
-          dark: '#F4A462',
+          dark: '#F7B987',
         },
         textError: {
           light: '#EF486F',
-          dark: '#EF486F',
+          dark: '#F37391',
         },
         textAccent: {
           light: '#4957C1',

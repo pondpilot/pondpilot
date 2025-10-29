@@ -21,7 +21,9 @@ import { useShallow } from 'zustand/react/shallow';
 
 import { resetAppData } from './restore';
 import { createSelectors } from './utils';
+import { SpotlightView } from '../components/spotlight/model';
 import { TabExecutionError } from '../controllers/tab/tab-controller';
+import { SourceSelectionCallback } from '../features/comparison/hooks/use-comparison-source-selection';
 
 type AppLoadState = 'init' | 'ready' | 'error';
 
@@ -93,6 +95,25 @@ type AppStore = {
    * and should be cleared on app reload.
    */
   tabExecutionErrors: Map<TabId, TabExecutionError>;
+
+  /**
+   * Callback function for comparison source selection.
+   * When this is set, spotlight will use it to handle data source selections
+   * instead of opening tabs. This allows the comparison feature to capture
+   * source selections.
+   *
+   * This is not persisted as it's only active during comparison configuration.
+   */
+  comparisonSourceSelectionCallback: SourceSelectionCallback | null;
+
+  /**
+   * The initial view to show when spotlight opens. Used to open spotlight
+   * directly to a specific view (e.g., 'dataSources' for comparison source selection).
+   *
+   * This is not persisted as it's only relevant for the next spotlight open.
+   * Set to null after spotlight reads the value.
+   */
+  spotlightInitialView: SpotlightView | null;
 } & ContentViewState;
 
 const initialState: AppStore = {
@@ -106,6 +127,8 @@ const initialState: AppStore = {
   databaseMetadata: new Map(),
   duckDBFunctions: [],
   tabExecutionErrors: new Map(),
+  comparisonSourceSelectionCallback: null,
+  spotlightInitialView: null,
   // From ContentViewState
   activeTabId: null,
   previewTabId: null,

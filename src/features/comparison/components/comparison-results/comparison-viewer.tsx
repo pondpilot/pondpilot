@@ -1,4 +1,5 @@
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useAppTheme } from '@hooks/use-app-theme';
 import {
   Stack,
   Alert,
@@ -9,6 +10,7 @@ import {
   Badge,
   RingProgress,
   Chip,
+  useMantineTheme,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { ComparisonConfig, SchemaComparisonResult, TabId } from '@models/tab';
@@ -16,8 +18,15 @@ import { IconInfoCircle, IconPlus, IconMinus, IconPencil, IconCheck } from '@tab
 import { useState, useCallback, useMemo } from 'react';
 
 import { ComparisonTable } from './comparison-table';
+import { ICON_CLASSES } from '../../constants/color-classes';
 import { useComparisonResults } from '../../hooks/use-comparison-results';
 import { downloadComparisonCsv, copyComparisonToClipboard } from '../../utils/comparison-export';
+import {
+  COMPARISON_STATUS_THEME,
+  getStatusAccentColor,
+  getStatusSurfaceColor,
+  getThemeColorValue,
+} from '../../utils/theme';
 import { ComparisonToolbar } from '../comparison-toolbar';
 
 interface ComparisonViewerProps {
@@ -38,6 +47,24 @@ export const ComparisonViewer = ({
   onRefresh,
 }: ComparisonViewerProps) => {
   const pool = useInitializedDuckDBConnectionPool();
+  const theme = useMantineTheme();
+  const colorScheme = useAppTheme();
+  const baseAlertText = getThemeColorValue(theme, 'text-primary', colorScheme === 'dark' ? 0 : 9);
+  const accentAlertTitle = getThemeColorValue(theme, 'text-accent', colorScheme === 'dark' ? 2 : 6);
+
+  const getAlertStyles = (tone: 'error' | 'accent') => {
+    const titleColor =
+      tone === 'error' ? getStatusAccentColor(theme, 'removed', colorScheme) : accentAlertTitle;
+    return {
+      title: {
+        color: titleColor,
+        fontWeight: 600,
+      },
+      message: {
+        color: baseAlertText,
+      },
+    };
+  };
   const { results, isLoading, error } = useComparisonResults(
     pool,
     config,
@@ -70,13 +97,13 @@ export const ComparisonViewer = ({
       notifications.show({
         title: 'Export Successful',
         message: 'Comparison results exported to CSV',
-        color: 'green',
+        color: COMPARISON_STATUS_THEME.added.accentColorKey,
       });
     } catch (err) {
       notifications.show({
         title: 'Export Failed',
         message: err instanceof Error ? err.message : 'Unknown error',
-        color: 'red',
+        color: COMPARISON_STATUS_THEME.removed.accentColorKey,
       });
     } finally {
       setIsExporting(false);
@@ -95,13 +122,13 @@ export const ComparisonViewer = ({
       notifications.show({
         title: 'Copied to Clipboard',
         message: 'Comparison results copied as tab-separated values',
-        color: 'green',
+        color: COMPARISON_STATUS_THEME.added.accentColorKey,
       });
     } catch (err) {
       notifications.show({
         title: 'Copy Failed',
         message: err instanceof Error ? err.message : 'Unknown error',
-        color: 'red',
+        color: COMPARISON_STATUS_THEME.removed.accentColorKey,
       });
     }
   }, [results, config.compareColumns, schemaComparison.commonColumns]);
@@ -114,18 +141,30 @@ export const ComparisonViewer = ({
 
   // Calculate ring progress sections - must be before early returns (Rules of Hooks)
   const ringProgressSections = useMemo(() => {
-    const sections = [];
+    const sections: { value: number; color: string }[] = [];
     if (stats.added > 0) {
-      sections.push({ value: (stats.added / stats.total) * 100, color: 'green' });
+      sections.push({
+        value: (stats.added / stats.total) * 100,
+        color: COMPARISON_STATUS_THEME.added.accentColorKey,
+      });
     }
     if (stats.removed > 0) {
-      sections.push({ value: (stats.removed / stats.total) * 100, color: 'red' });
+      sections.push({
+        value: (stats.removed / stats.total) * 100,
+        color: COMPARISON_STATUS_THEME.removed.accentColorKey,
+      });
     }
     if (stats.modified > 0) {
-      sections.push({ value: (stats.modified / stats.total) * 100, color: 'yellow' });
+      sections.push({
+        value: (stats.modified / stats.total) * 100,
+        color: COMPARISON_STATUS_THEME.modified.accentColorKey,
+      });
     }
     if (stats.same > 0) {
-      sections.push({ value: (stats.same / stats.total) * 100, color: 'gray' });
+      sections.push({
+        value: (stats.same / stats.total) * 100,
+        color: COMPARISON_STATUS_THEME.same.accentColorKey,
+      });
     }
     return sections;
   }, [stats]);
@@ -147,7 +186,12 @@ export const ComparisonViewer = ({
   // Early returns AFTER all hooks
   if (error) {
     return (
-      <Alert icon={<IconInfoCircle size={16} />} title="Error Loading Results" color="red">
+      <Alert
+        icon={<IconInfoCircle size={16} className={ICON_CLASSES.error} />}
+        title="Error Loading Results"
+        color="background-error"
+        styles={getAlertStyles('error')}
+      >
         {error}
       </Alert>
     );
@@ -172,7 +216,12 @@ export const ComparisonViewer = ({
           onCopy={handleCopy}
           isRefreshing={isLoading || isExporting}
         />
-        <Alert icon={<IconInfoCircle size={16} />} title="No Results" color="blue">
+        <Alert
+          icon={<IconInfoCircle size={16} className={ICON_CLASSES.accent} />}
+          title="No Results"
+          color="background-accent"
+          styles={getAlertStyles('accent')}
+        >
           The comparison returned no results. This could mean:
           <ul style={{ marginTop: '8px', marginLeft: '20px' }}>
             <li>Both sources have no matching rows based on the join keys</li>
@@ -208,7 +257,15 @@ export const ComparisonViewer = ({
                 Join Keys:
               </Text>
               {config.joinColumns.map((key) => (
-                <Badge key={key} size="sm" variant="light">
+                <Badge
+                  key={key}
+                  size="sm"
+                  variant="light"
+                  style={{
+                    backgroundColor: getStatusSurfaceColor(theme, 'added', colorScheme),
+                    color: getStatusAccentColor(theme, 'added', colorScheme),
+                  }}
+                >
                   {key}
                 </Badge>
               ))}
@@ -241,8 +298,11 @@ export const ComparisonViewer = ({
             </Text>
             <Group gap="md" wrap="wrap">
               <Group gap="xs">
-                <IconPlus size={14} color="green" />
-                <Text size="sm" fw={600} c="green">
+                <IconPlus
+                  size={14}
+                  style={{ color: getStatusAccentColor(theme, 'added', colorScheme) }}
+                />
+                <Text size="sm" fw={600} c={COMPARISON_STATUS_THEME.added.textColor}>
                   {stats.added} ADDED
                 </Text>
                 <Text size="xs" c="dimmed">
@@ -251,8 +311,11 @@ export const ComparisonViewer = ({
               </Group>
 
               <Group gap="xs">
-                <IconMinus size={14} color="red" />
-                <Text size="sm" fw={600} c="red">
+                <IconMinus
+                  size={14}
+                  style={{ color: getStatusAccentColor(theme, 'removed', colorScheme) }}
+                />
+                <Text size="sm" fw={600} c={COMPARISON_STATUS_THEME.removed.textColor}>
                   {stats.removed} REMOVED
                 </Text>
                 <Text size="xs" c="dimmed">
@@ -261,8 +324,11 @@ export const ComparisonViewer = ({
               </Group>
 
               <Group gap="xs">
-                <IconPencil size={14} color="orange" />
-                <Text size="sm" fw={600} c="yellow">
+                <IconPencil
+                  size={14}
+                  style={{ color: getStatusAccentColor(theme, 'modified', colorScheme) }}
+                />
+                <Text size="sm" fw={600} c={COMPARISON_STATUS_THEME.modified.textColor}>
                   {stats.modified} MODIFIED
                 </Text>
                 <Text size="xs" c="dimmed">
@@ -271,8 +337,11 @@ export const ComparisonViewer = ({
               </Group>
 
               <Group gap="xs">
-                <IconCheck size={14} color="gray" />
-                <Text size="sm" fw={600} c="gray">
+                <IconCheck
+                  size={14}
+                  style={{ color: getStatusAccentColor(theme, 'same', colorScheme) }}
+                />
+                <Text size="sm" fw={600} c={COMPARISON_STATUS_THEME.same.textColor}>
                   {stats.same} UNCHANGED
                 </Text>
                 <Text size="xs" c="dimmed">
@@ -295,8 +364,13 @@ export const ComparisonViewer = ({
               <Chip
                 checked={showAdded}
                 onChange={() => setShowAdded(!showAdded)}
-                color="green"
-                variant="filled"
+                variant="light"
+                styles={{
+                  label: {
+                    backgroundColor: getStatusSurfaceColor(theme, 'added', colorScheme),
+                    color: getStatusAccentColor(theme, 'added', colorScheme),
+                  },
+                }}
               >
                 <Group gap={4}>
                   <IconPlus size={12} />
@@ -306,8 +380,13 @@ export const ComparisonViewer = ({
               <Chip
                 checked={showRemoved}
                 onChange={() => setShowRemoved(!showRemoved)}
-                color="red"
-                variant="filled"
+                variant="light"
+                styles={{
+                  label: {
+                    backgroundColor: getStatusSurfaceColor(theme, 'removed', colorScheme),
+                    color: getStatusAccentColor(theme, 'removed', colorScheme),
+                  },
+                }}
               >
                 <Group gap={4}>
                   <IconMinus size={12} />
@@ -317,8 +396,13 @@ export const ComparisonViewer = ({
               <Chip
                 checked={showModified}
                 onChange={() => setShowModified(!showModified)}
-                color="yellow"
-                variant="filled"
+                variant="light"
+                styles={{
+                  label: {
+                    backgroundColor: getStatusSurfaceColor(theme, 'modified', colorScheme),
+                    color: getStatusAccentColor(theme, 'modified', colorScheme),
+                  },
+                }}
               >
                 <Group gap={4}>
                   <IconPencil size={12} />
@@ -328,8 +412,13 @@ export const ComparisonViewer = ({
               <Chip
                 checked={showUnchanged}
                 onChange={() => setShowUnchanged(!showUnchanged)}
-                color="gray"
-                variant="filled"
+                variant="light"
+                styles={{
+                  label: {
+                    backgroundColor: getStatusSurfaceColor(theme, 'same', colorScheme),
+                    color: getStatusAccentColor(theme, 'same', colorScheme),
+                  },
+                }}
               >
                 <Group gap={4}>
                   <IconCheck size={12} />
@@ -343,7 +432,12 @@ export const ComparisonViewer = ({
 
       {/* Schema Differences (if any) */}
       {(schemaComparison.onlyInA.length > 0 || schemaComparison.onlyInB.length > 0) && (
-        <Alert icon={<IconInfoCircle size={16} />} color="blue" variant="light">
+        <Alert
+          icon={<IconInfoCircle size={16} className={ICON_CLASSES.accent} />}
+          color="background-accent"
+          variant="light"
+          styles={getAlertStyles('accent')}
+        >
           <Text size="sm" fw={500}>
             Schema Differences Detected
           </Text>

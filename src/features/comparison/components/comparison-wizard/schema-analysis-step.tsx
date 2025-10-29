@@ -1,19 +1,65 @@
-import { Stack, Text, Paper, Badge, Group, Alert, Collapse, Button } from '@mantine/core';
+import { useAppTheme } from '@hooks/use-app-theme';
+import {
+  Stack,
+  Text,
+  Paper,
+  Badge,
+  Group,
+  Alert,
+  Collapse,
+  Button,
+  useMantineTheme,
+} from '@mantine/core';
 import { ComparisonTab, TabReactiveState } from '@models/tab';
 import { IconAlertCircle, IconCheck, IconChevronDown } from '@tabler/icons-react';
 import { useState } from 'react';
+
+import { ICON_CLASSES } from '../../constants/color-classes';
+import {
+  ComparisonRowStatus,
+  getStatusAccentColor,
+  getStatusSurfaceColor,
+  getThemeColorValue,
+} from '../../utils/theme';
 
 interface SchemaAnalysisStepProps {
   tab: TabReactiveState<ComparisonTab>;
 }
 
 export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
+  const theme = useMantineTheme();
+  const colorScheme = useAppTheme();
+  const baseTextColor = getThemeColorValue(theme, 'text-primary', colorScheme === 'dark' ? 0 : 9);
+  const accentTitleColor = getThemeColorValue(theme, 'text-accent', colorScheme === 'dark' ? 2 : 6);
+
+  const getAlertStyles = (tone: 'error' | 'warning' | 'accent') => {
+    const titleColorMap = {
+      error: getStatusAccentColor(theme, 'removed', colorScheme),
+      warning: getStatusAccentColor(theme, 'modified', colorScheme),
+      accent: accentTitleColor,
+    } as const;
+
+    return {
+      title: {
+        color: titleColorMap[tone],
+        fontWeight: 600,
+      },
+      message: {
+        color: baseTextColor,
+      },
+    };
+  };
   const [showOnlyInA, setShowOnlyInA] = useState(true);
   const [showOnlyInB, setShowOnlyInB] = useState(true);
 
   if (!tab.schemaComparison) {
     return (
-      <Alert icon={<IconAlertCircle size={16} />} title="No schema analysis" color="yellow">
+      <Alert
+        icon={<IconAlertCircle size={16} className={ICON_CLASSES.warning} />}
+        title="No schema analysis"
+        color="background-warning"
+        styles={getAlertStyles('warning')}
+      >
         Schema comparison data is not available. Please go back and select sources.
       </Alert>
     );
@@ -36,7 +82,12 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
 
       {/* Error: No common columns */}
       {hasNoCommonColumns && (
-        <Alert icon={<IconAlertCircle size={16} />} title="No Common Columns" color="red">
+        <Alert
+          icon={<IconAlertCircle size={16} className={ICON_CLASSES.error} />}
+          title="No Common Columns"
+          color="background-error"
+          styles={getAlertStyles('error')}
+        >
           The two data sources have no columns with matching names. Comparison requires at least one
           common column to use as a join key. Please select different sources or ensure the sources
           have matching column names.
@@ -45,7 +96,12 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
 
       {/* Warning: No suggested keys */}
       {!hasNoCommonColumns && suggestedKeys.length === 0 && (
-        <Alert icon={<IconAlertCircle size={16} />} title="No Join Keys Detected" color="yellow">
+        <Alert
+          icon={<IconAlertCircle size={16} className={ICON_CLASSES.warning} />}
+          title="No Join Keys Detected"
+          color="background-warning"
+          styles={getAlertStyles('warning')}
+        >
           No primary key columns were detected. You will need to manually select join key(s) in the
           next step. Make sure to choose column(s) that uniquely identify rows in both sources.
         </Alert>
@@ -55,7 +111,7 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
       <Paper p="md" withBorder>
         <Stack gap="sm">
           <Group gap="xs">
-            <IconCheck size={16} color="green" />
+            <IconCheck size={16} className={ICON_CLASSES.success} />
             <Text size="sm" fw={500}>
               {commonColumns.length} common columns
             </Text>
@@ -63,8 +119,8 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
 
           {hasTypeMismatches && (
             <Group gap="xs">
-              <IconAlertCircle size={16} color="orange" />
-              <Text size="sm" c="orange">
+              <IconAlertCircle size={16} className={ICON_CLASSES.warning} />
+              <Text size="sm" c="text-warning">
                 {commonColumns.filter((col) => !col.typesMatch).length} type mismatches detected
               </Text>
             </Group>
@@ -72,8 +128,8 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
 
           {onlyInA.length > 0 && (
             <Group gap="xs">
-              <IconAlertCircle size={16} color="blue" />
-              <Text size="sm" c="blue">
+              <IconAlertCircle size={16} className={ICON_CLASSES.accent} />
+              <Text size="sm" c="text-accent">
                 {onlyInA.length} columns only in Source A
               </Text>
             </Group>
@@ -81,8 +137,8 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
 
           {onlyInB.length > 0 && (
             <Group gap="xs">
-              <IconAlertCircle size={16} color="blue" />
-              <Text size="sm" c="blue">
+              <IconAlertCircle size={16} className={ICON_CLASSES.accent} />
+              <Text size="sm" c="text-accent">
                 {onlyInB.length} columns only in Source B
               </Text>
             </Group>
@@ -95,7 +151,14 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
               </Text>
               <Group gap="xs">
                 {suggestedKeys.map((key) => (
-                  <Badge key={key} color="green" variant="light">
+                  <Badge
+                    key={key}
+                    variant="light"
+                    style={{
+                      backgroundColor: getStatusSurfaceColor(theme, 'added', colorScheme),
+                      color: getStatusAccentColor(theme, 'added', colorScheme),
+                    }}
+                  >
                     {key}
                   </Badge>
                 ))}
@@ -111,24 +174,36 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
           Common Columns ({commonColumns.length})
         </Text>
         <Stack gap="xs">
-          {commonColumns.map((col) => (
-            <Group key={col.name} justify="space-between">
-              <Text size="sm" fw={500}>
-                {col.name}
-              </Text>
-              <Group gap="xs">
-                <Badge size="sm" variant="light" color={col.typesMatch ? 'green' : 'orange'}>
-                  A: {col.typeA}
-                </Badge>
-                <Badge size="sm" variant="light" color={col.typesMatch ? 'green' : 'orange'}>
-                  B: {col.typeB}
-                </Badge>
-                {!col.typesMatch && (
-                  <IconAlertCircle size={14} color="orange" title="Type mismatch" />
-                )}
+          {commonColumns.map((col) => {
+            const badgeStatus: ComparisonRowStatus = col.typesMatch ? 'added' : 'modified';
+            const badgeStyles = {
+              backgroundColor: getStatusSurfaceColor(theme, badgeStatus, colorScheme),
+              color: getStatusAccentColor(theme, badgeStatus, colorScheme),
+            } as const;
+
+            return (
+              <Group key={col.name} justify="space-between">
+                <Text size="sm" fw={500}>
+                  {col.name}
+                </Text>
+                <Group gap="xs">
+                  <Badge size="sm" variant="light" style={badgeStyles}>
+                    A: {col.typeA}
+                  </Badge>
+                  <Badge size="sm" variant="light" style={badgeStyles}>
+                    B: {col.typeB}
+                  </Badge>
+                  {!col.typesMatch && (
+                    <IconAlertCircle
+                      size={14}
+                      className={ICON_CLASSES.warning}
+                      title="Type mismatch"
+                    />
+                  )}
+                </Group>
               </Group>
-            </Group>
-          ))}
+            );
+          })}
           {commonColumns.length === 0 && (
             <Text size="sm" c="dimmed" fs="italic">
               No common columns found
@@ -168,7 +243,12 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
                   <Text size="sm" fw={500}>
                     {col.name}
                   </Text>
-                  <Badge size="sm" variant="light" color="blue">
+                  <Badge
+                    size="sm"
+                    variant="filled"
+                    color="background-accent"
+                    className="text-textContrast-light dark:text-textContrast-dark"
+                  >
                     {col.type}
                   </Badge>
                 </Group>
@@ -209,7 +289,12 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
                   <Text size="sm" fw={500}>
                     {col.name}
                   </Text>
-                  <Badge size="sm" variant="light" color="blue">
+                  <Badge
+                    size="sm"
+                    variant="filled"
+                    color="background-accent"
+                    className="text-textContrast-light dark:text-textContrast-dark"
+                  >
                     {col.type}
                   </Badge>
                 </Group>

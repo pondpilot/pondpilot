@@ -42,7 +42,7 @@ export const createComparisonTab = (options?: { setActive?: boolean }): Comparis
         name,
         config: null,
         schemaComparison: null,
-        wizardStep: 'select-sources',
+        viewingResults: false,
         lastExecutionTime: null,
         dataViewStateCache: null,
       };
@@ -74,12 +74,9 @@ export const createComparisonTab = (options?: { setActive?: boolean }): Comparis
 };
 
 /**
- * Updates the wizard step for a comparison tab
+ * Sets whether the comparison tab is viewing results or configuration
  */
-export const updateComparisonWizardStep = (
-  tabId: TabId,
-  wizardStep: ComparisonTab['wizardStep'],
-): void => {
+export const setComparisonViewingResults = (tabId: TabId, viewingResults: boolean): void => {
   const state = useAppStore.getState();
   const tab = state.tabs.get(tabId);
 
@@ -89,12 +86,12 @@ export const updateComparisonWizardStep = (
 
   const updatedTab: ComparisonTab = {
     ...tab,
-    wizardStep,
+    viewingResults,
   };
 
   const newTabs = new Map(state.tabs).set(tabId, updatedTab);
 
-  useAppStore.setState({ tabs: newTabs }, undefined, 'AppStore/updateComparisonWizardStep');
+  useAppStore.setState({ tabs: newTabs }, undefined, 'AppStore/setComparisonViewingResults');
 
   // Persist the changes to IndexedDB
   const iDb = state._iDbConn;
@@ -114,9 +111,23 @@ export const updateComparisonConfig = (tabId: TabId, config: Partial<ComparisonC
     return;
   }
 
+  // If config is null, create a new one with defaults
+  const baseConfig: ComparisonConfig = tab.config || {
+    sourceA: null,
+    sourceB: null,
+    joinColumns: [],
+    filterMode: 'common',
+    commonFilter: null,
+    filterA: null,
+    filterB: null,
+    compareColumns: null,
+    showOnlyDifferences: true,
+    compareMode: 'strict',
+  };
+
   const updatedTab: ComparisonTab = {
     ...tab,
-    config: tab.config ? { ...tab.config, ...config } : null,
+    config: { ...baseConfig, ...config },
   };
 
   const newTabs = new Map(state.tabs).set(tabId, updatedTab);
@@ -162,7 +173,7 @@ export const setComparisonConfig = (tabId: TabId, config: ComparisonConfig): voi
  */
 export const updateSchemaComparison = (
   tabId: TabId,
-  schemaComparison: SchemaComparisonResult,
+  schemaComparison: SchemaComparisonResult | null,
 ): void => {
   const state = useAppStore.getState();
   const tab = state.tabs.get(tabId);
