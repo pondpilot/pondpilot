@@ -2,6 +2,7 @@ import {
   setComparisonViewingResults,
   updateComparisonConfig,
   setComparisonExecutionTime,
+  setComparisonResultsTable,
 } from '@controllers/tab/comparison-tab-controller';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { Stack, LoadingOverlay, Alert } from '@mantine/core';
@@ -42,20 +43,22 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
   const handleRefreshComparison = useCallback(async () => {
     if (!tab.config || !tab.schemaComparison) return;
 
-    const executionResult = await executeComparison(tab.config, tab.schemaComparison);
+    const executionResult = await executeComparison(tabId, tab.config, tab.schemaComparison);
 
     if (executionResult) {
       setComparisonExecutionTime(tabId, executionResult.durationSeconds);
+      setComparisonResultsTable(tabId, executionResult.tableName);
     }
   }, [tabId, tab.config, tab.schemaComparison, executeComparison]);
 
   const handleExecuteComparison = useCallback(async () => {
     if (!tab.config || !tab.schemaComparison) return;
 
-    const executionResult = await executeComparison(tab.config, tab.schemaComparison);
+    const executionResult = await executeComparison(tabId, tab.config, tab.schemaComparison);
 
     if (executionResult) {
       setComparisonExecutionTime(tabId, executionResult.durationSeconds);
+      setComparisonResultsTable(tabId, executionResult.tableName);
       setComparisonViewingResults(tabId, true);
     }
   }, [tabId, tab.config, tab.schemaComparison, executeComparison]);
@@ -111,16 +114,21 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
           />
         )}
 
-        {tab.viewingResults && tab.config && tab.schemaComparison && tab.lastExecutionTime && (
-          <ComparisonViewer
-            tabId={tabId}
-            config={tab.config}
-            schemaComparison={tab.schemaComparison}
-            executionTime={tab.lastExecutionTime}
-            onReconfigure={handleBackToConfiguration}
-            onRefresh={handleRefreshComparison}
-          />
-        )}
+        {tab.viewingResults &&
+          tab.config &&
+          tab.schemaComparison &&
+          tab.comparisonResultsTable &&
+          tab.lastExecutionTime && (
+            <ComparisonViewer
+              tabId={tabId}
+              config={tab.config}
+              schemaComparison={tab.schemaComparison}
+              tableName={tab.comparisonResultsTable}
+              executionTime={tab.lastExecutionTime}
+              onReconfigure={handleBackToConfiguration}
+              onRefresh={handleRefreshComparison}
+            />
+          )}
       </Stack>
     </div>
   );

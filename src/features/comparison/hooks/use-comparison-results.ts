@@ -2,7 +2,7 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
 import { useState, useEffect } from 'react';
 
-import { generateComparisonSQL } from '../utils/sql-generator';
+import { getColumnsToCompare } from '../utils/sql-generator';
 
 export interface ComparisonResultRow {
   [key: string]: any;
@@ -23,12 +23,13 @@ export interface ComparisonResults {
 }
 
 /**
- * Hook to fetch and process comparison results
+ * Hook to fetch and process comparison results from materialized temp table
  */
 export const useComparisonResults = (
   pool: AsyncDuckDBConnectionPool,
   config: ComparisonConfig | null,
   schemaComparison: SchemaComparisonResult | null,
+  tableName: string | null,
   executionTime: number | null,
 ) => {
   const [results, setResults] = useState<ComparisonResults | null>(null);
@@ -36,7 +37,7 @@ export const useComparisonResults = (
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!config || !schemaComparison || !executionTime) {
+    if (!config || !schemaComparison || !tableName || !executionTime) {
       setResults(null);
       return;
     }
@@ -46,7 +47,8 @@ export const useComparisonResults = (
       setError(null);
 
       try {
-        const sql = generateComparisonSQL(config, schemaComparison);
+        // Query the materialized temp table
+        const sql = `SELECT * FROM ${tableName}`;
         const result = await pool.query(sql);
 
         // Extract column names
@@ -104,7 +106,7 @@ export const useComparisonResults = (
     };
 
     fetchResults();
-  }, [pool, config, schemaComparison, executionTime]);
+  }, [pool, config, schemaComparison, tableName, executionTime]);
 
   return { results, isLoading, error };
 };

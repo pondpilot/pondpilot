@@ -1,5 +1,5 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
+import { ComparisonConfig, SchemaComparisonResult, TabId } from '@models/tab';
 import { useState, useCallback } from 'react';
 
 import { generateComparisonSQL, validateComparisonConfig } from '../utils/sql-generator';
@@ -13,7 +13,11 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
   const [generatedSQL, setGeneratedSQL] = useState<string | null>(null);
 
   const executeComparison = useCallback(
-    async (config: ComparisonConfig, schemaComparison: SchemaComparisonResult) => {
+    async (
+      tabId: TabId,
+      config: ComparisonConfig,
+      schemaComparison: SchemaComparisonResult,
+    ) => {
       setIsExecuting(true);
       setError(null);
       const startTime = performance.now();
@@ -26,16 +30,23 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
           return null;
         }
 
-        // Generate SQL
-        const sql = generateComparisonSQL(config, schemaComparison);
+        // Generate table name for materialized results
+        const tableName = `comparison_results_${tabId}`;
+
+        // Generate SQL to materialize results into temp table
+        const sql = generateComparisonSQL(config, schemaComparison, {
+          materialize: true,
+          tableName,
+        });
         setGeneratedSQL(sql);
 
-        // Execute query
-        const result = await pool.query(sql);
+        // Execute query to create temp table
+        await pool.query(sql);
+
         const endTime = performance.now();
         const durationSeconds = (endTime - startTime) / 1000;
 
-        return { result, durationSeconds };
+        return { tableName, durationSeconds };
       } catch (err) {
         let message = err instanceof Error ? err.message : 'Unknown error';
 

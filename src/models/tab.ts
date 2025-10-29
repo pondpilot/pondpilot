@@ -225,6 +225,9 @@ export interface ComparisonTab extends TabBase {
 
   // Last execution timestamp (for refresh detection)
   lastExecutionTime: number | null;
+
+  // Materialized comparison results table name
+  comparisonResultsTable: string | null;
 }
 
 export type AnyFileSourceTab = FlatFileDataSourceTab | LocalDBDataTab;

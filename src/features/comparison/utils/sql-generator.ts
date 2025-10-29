@@ -69,6 +69,7 @@ export const getColumnsToCompare = (
 export const generateComparisonSQL = (
   config: ComparisonConfig,
   schemaComparison: SchemaComparisonResult,
+  options?: { materialize?: boolean; tableName?: string },
 ): string => {
   const { sourceA, sourceB, joinColumns, joinKeyMappings, showOnlyDifferences, columnMappings } =
     config;
@@ -89,7 +90,14 @@ export const generateComparisonSQL = (
   const sourceASQL = buildSourceSQL(sourceA);
   const sourceBSQL = buildSourceSQL(sourceB);
 
-  let sql = 'WITH\n';
+  let sql = '';
+
+  // If materializing, add CREATE TABLE AS prefix
+  if (options?.materialize && options?.tableName) {
+    sql += `CREATE OR REPLACE TEMP TABLE ${options.tableName} AS\n`;
+  }
+
+  sql += 'WITH\n';
 
   // Source A CTE
   sql += '  source_a_filtered AS (\n';

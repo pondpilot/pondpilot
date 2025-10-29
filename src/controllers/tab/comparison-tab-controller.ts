@@ -44,6 +44,7 @@ export const createComparisonTab = (options?: { setActive?: boolean }): Comparis
         schemaComparison: null,
         viewingResults: false,
         lastExecutionTime: null,
+        comparisonResultsTable: null,
         dataViewStateCache: null,
       };
 
@@ -245,6 +246,36 @@ export const setComparisonExecutionTime = (tabId: TabId, timestamp: number): voi
   const newTabs = new Map(state.tabs).set(tabId, updatedTab);
 
   useAppStore.setState({ tabs: newTabs }, undefined, 'AppStore/setComparisonExecutionTime');
+
+  // Persist the changes to IndexedDB
+  const iDb = state._iDbConn;
+  if (iDb) {
+    iDb.put(TAB_TABLE_NAME, updatedTab, tabId);
+  }
+};
+
+/**
+ * Sets the comparison results table name (materialized comparison results)
+ */
+export const setComparisonResultsTable = (
+  tabId: TabId,
+  comparisonResultsTable: string | null,
+): void => {
+  const state = useAppStore.getState();
+  const tab = state.tabs.get(tabId);
+
+  if (!tab || tab.type !== 'comparison') {
+    return;
+  }
+
+  const updatedTab: ComparisonTab = {
+    ...tab,
+    comparisonResultsTable,
+  };
+
+  const newTabs = new Map(state.tabs).set(tabId, updatedTab);
+
+  useAppStore.setState({ tabs: newTabs }, undefined, 'AppStore/setComparisonResultsTable');
 
   // Persist the changes to IndexedDB
   const iDb = state._iDbConn;

@@ -1,4 +1,4 @@
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { Table } from '@components/table/table';
 import { useAppTheme } from '@hooks/use-app-theme';
 import {
   Stack,
@@ -12,15 +12,13 @@ import {
   Chip,
   useMantineTheme,
 } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { ComparisonConfig, SchemaComparisonResult, TabId } from '@models/tab';
 import { IconInfoCircle, IconPlus, IconMinus, IconPencil, IconCheck } from '@tabler/icons-react';
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 
-import { ComparisonTable } from './comparison-table';
+import { ComparisonToolbar } from '../comparison-toolbar';
 import { ICON_CLASSES } from '../../constants/color-classes';
-import { useComparisonResults } from '../../hooks/use-comparison-results';
-import { downloadComparisonCsv, copyComparisonToClipboard } from '../../utils/comparison-export';
+import { useComparisonResultsSimple } from '../../hooks/use-comparison-results-simple';
 import { getColumnsToCompare } from '../../utils/sql-generator';
 import {
   COMPARISON_STATUS_THEME,
@@ -28,26 +26,26 @@ import {
   getStatusSurfaceColor,
   getThemeColorValue,
 } from '../../utils/theme';
-import { ComparisonToolbar } from '../comparison-toolbar';
 
 interface ComparisonViewerProps {
   tabId: TabId;
   config: ComparisonConfig;
   schemaComparison: SchemaComparisonResult;
+  tableName: string;
   executionTime: number;
   onReconfigure: () => void;
   onRefresh: () => void;
 }
 
 export const ComparisonViewer = ({
-  tabId: _tabId,
+  tabId,
   config,
   schemaComparison,
+  tableName,
   executionTime,
   onReconfigure,
   onRefresh,
 }: ComparisonViewerProps) => {
-  const pool = useInitializedDuckDBConnectionPool();
   const theme = useMantineTheme();
   const colorScheme = useAppTheme();
   const baseAlertText = getThemeColorValue(theme, 'text-primary', colorScheme === 'dark' ? 0 : 9);
@@ -66,13 +64,18 @@ export const ComparisonViewer = ({
       },
     };
   };
-  const { results, isLoading, error } = useComparisonResults(
-    pool,
+
+  // Sorting state
+  const [sort, setSort] = useState<any[]>([]);
+
+  // Fetch results with sorting
+  const { results, isLoading, error } = useComparisonResultsSimple(
+    tableName,
     config,
     schemaComparison,
     executionTime,
+    sort,
   );
-  const [isExporting, setIsExporting] = useState(false);
 
   // Filter state - default to showing only differences
   const [showAdded, setShowAdded] = useState(true);
@@ -80,16 +83,36 @@ export const ComparisonViewer = ({
   const [showModified, setShowModified] = useState(true);
   const [showUnchanged, setShowUnchanged] = useState(false);
 
-  // Get the columns being compared - do this before early returns
+  // Get the columns being compared
   const compareColumns = useMemo(
     () => getColumnsToCompare(config, schemaComparison),
     [config, schemaComparison],
   );
 
-  // Get stats - provide default if results not loaded yet
-  const stats = results?.stats || { total: 0, added: 0, removed: 0, modified: 0, same: 0 };
+  // Filter rows based on status toggles
+  const filteredRows = useMemo(() => {
+    if (!results) return [];
 
-  // Calculate ring progress sections - must be before early returns (Rules of Hooks)
+    return results.rows.filter((row) => {
+      const status = (row as any)._row_status as string;
+      if (status === 'added' && !showAdded) return false;
+      if (status === 'removed' && !showRemoved) return false;
+      if (status === 'modified' && !showModified) return false;
+      if (status === 'same' && !showUnchanged) return false;
+      return true;
+    });
+  }, [results, showAdded, showRemoved, showModified, showUnchanged]);
+
+  // Calculate stats
+  const stats = results?.stats || {
+    total: 0,
+    added: 0,
+    removed: 0,
+    modified: 0,
+    same: 0,
+  };
+
+  // Calculate ring progress sections
   const ringProgressSections = useMemo(() => {
     const sections: { value: number; color: string }[] = [];
     if (stats.added > 0) {
@@ -119,70 +142,30 @@ export const ComparisonViewer = ({
     return sections;
   }, [stats]);
 
-  // Filter rows based on status toggles - must be before early returns (Rules of Hooks)
-  const filteredRows = useMemo(() => {
-    if (!results) return [];
-
-    return results.rows.filter((row) => {
-      const status = row._row_status as string;
-      if (status === 'added' && !showAdded) return false;
-      if (status === 'removed' && !showRemoved) return false;
-      if (status === 'modified' && !showModified) return false;
-      if (status === 'same' && !showUnchanged) return false;
-      return true;
+  // Handle sort
+  const handleSort = useCallback((columnId: string) => {
+    setSort((prevSort) => {
+      const existing = prevSort.find((s) => s.column === columnId);
+      if (existing) {
+        // Toggle between asc, desc, none
+        if (existing.order === 'asc') {
+          return [{ column: columnId, order: 'desc' }];
+        }
+        return [];
+      }
+      return [{ column: columnId, order: 'asc' }];
     });
-  }, [results, showAdded, showRemoved, showModified, showUnchanged]);
+  }, []);
 
-  const handleExport = useCallback(() => {
-    if (!results) return;
+  // Prepare data slice for Table component
+  const dataSlice = useMemo(() => {
+    return {
+      data: filteredRows,
+      rowOffset: 0,
+    };
+  }, [filteredRows]);
 
-    try {
-      setIsExporting(true);
-
-      downloadComparisonCsv(
-        filteredRows,
-        results.keyColumns,
-        compareColumns,
-        `comparison-${Date.now()}.csv`,
-      );
-
-      notifications.show({
-        title: 'Export Successful',
-        message: 'Comparison results exported to CSV',
-        color: COMPARISON_STATUS_THEME.added.accentColorKey,
-      });
-    } catch (err) {
-      notifications.show({
-        title: 'Export Failed',
-        message: err instanceof Error ? err.message : 'Unknown error',
-        color: COMPARISON_STATUS_THEME.removed.accentColorKey,
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  }, [results, filteredRows, compareColumns]);
-
-  const handleCopy = useCallback(async () => {
-    if (!results) return;
-
-    try {
-      await copyComparisonToClipboard(filteredRows, results.keyColumns, compareColumns);
-
-      notifications.show({
-        title: 'Copied to Clipboard',
-        message: 'Comparison results copied as tab-separated values',
-        color: COMPARISON_STATUS_THEME.added.accentColorKey,
-      });
-    } catch (err) {
-      notifications.show({
-        title: 'Copy Failed',
-        message: err instanceof Error ? err.message : 'Unknown error',
-        color: COMPARISON_STATUS_THEME.removed.accentColorKey,
-      });
-    }
-  }, [results, filteredRows, compareColumns]);
-
-  // Early returns AFTER all hooks
+  // Handle errors
   if (error) {
     return (
       <Alert
@@ -205,15 +188,15 @@ export const ComparisonViewer = ({
   }
 
   // Handle empty results
-  if (results && results.stats.total === 0) {
+  if (stats.total === 0) {
     return (
       <Stack gap="lg">
         <ComparisonToolbar
           onReconfigure={onReconfigure}
           onRefresh={onRefresh}
-          onExport={handleExport}
-          onCopy={handleCopy}
-          isRefreshing={isLoading || isExporting}
+          onExport={() => {}}
+          onCopy={async () => {}}
+          isRefreshing={false}
         />
         <Alert
           icon={<IconInfoCircle size={16} className={ICON_CLASSES.accent} />}
@@ -238,9 +221,9 @@ export const ComparisonViewer = ({
       <ComparisonToolbar
         onReconfigure={onReconfigure}
         onRefresh={onRefresh}
-        onExport={handleExport}
-        onCopy={handleCopy}
-        isRefreshing={isLoading || isExporting}
+        onExport={() => {}}
+        onCopy={async () => {}}
+        isRefreshing={isLoading}
       />
 
       {/* Compact Header - Configuration + Chart + Summary */}
@@ -305,7 +288,7 @@ export const ComparisonViewer = ({
                   {stats.added} ADDED
                 </Text>
                 <Text size="xs" c="dimmed">
-                  ({((stats.added / stats.total) * 100).toFixed(1)}%)
+                  ({stats.total > 0 ? ((stats.added / stats.total) * 100).toFixed(1) : 0}%)
                 </Text>
               </Group>
 
@@ -318,7 +301,7 @@ export const ComparisonViewer = ({
                   {stats.removed} REMOVED
                 </Text>
                 <Text size="xs" c="dimmed">
-                  ({((stats.removed / stats.total) * 100).toFixed(1)}%)
+                  ({stats.total > 0 ? ((stats.removed / stats.total) * 100).toFixed(1) : 0}%)
                 </Text>
               </Group>
 
@@ -331,7 +314,7 @@ export const ComparisonViewer = ({
                   {stats.modified} MODIFIED
                 </Text>
                 <Text size="xs" c="dimmed">
-                  ({((stats.modified / stats.total) * 100).toFixed(1)}%)
+                  ({stats.total > 0 ? ((stats.modified / stats.total) * 100).toFixed(1) : 0}%)
                 </Text>
               </Group>
 
@@ -344,7 +327,7 @@ export const ComparisonViewer = ({
                   {stats.same} UNCHANGED
                 </Text>
                 <Text size="xs" c="dimmed">
-                  ({((stats.same / stats.total) * 100).toFixed(1)}%)
+                  ({stats.total > 0 ? ((stats.same / stats.total) * 100).toFixed(1) : 0}%)
                 </Text>
               </Group>
             </Group>
@@ -455,17 +438,20 @@ export const ComparisonViewer = ({
         </Alert>
       )}
 
-      {/* Comparison Table */}
+      {/* Comparison Results Table */}
       <Paper p="md" withBorder>
         <Text size="sm" fw={600} mb="md">
-          Comparison Results ({filteredRows.length} of {results.stats.total} rows)
+          Comparison Results ({filteredRows.length} of {stats.total} rows)
         </Text>
-        <ComparisonTable
-          rows={filteredRows}
-          columns={results.columns}
-          statusColumns={results.statusColumns}
-          keyColumns={results.keyColumns}
-          compareColumns={compareColumns}
+        <Table
+          dataSlice={dataSlice}
+          schema={results.schema}
+          sort={sort}
+          visible={true}
+          onSort={handleSort}
+          onRowSelectChange={() => {}}
+          onCellSelectChange={() => {}}
+          onColumnSelectChange={() => {}}
         />
       </Paper>
     </Stack>
