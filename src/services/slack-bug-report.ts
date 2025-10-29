@@ -78,20 +78,11 @@ async function _uploadScreenshotToSlack(
 /**
  * Sends a bug report to Slack via CORS proxy
  * @param payload The bug report payload
- * @param webhookUrl The Slack webhook URL
  * @returns Promise resolving to success status
  */
 export async function sendBugReportToSlack(
   payload: BugReportPayload,
-  webhookUrl: string,
 ): Promise<{ success: boolean; error?: string }> {
-  if (!webhookUrl) {
-    return {
-      success: false,
-      error: 'Slack webhook URL not configured',
-    };
-  }
-
   const proxyUrl = getProxyUrl();
   if (!proxyUrl) {
     return {
@@ -110,7 +101,6 @@ export async function sendBugReportToSlack(
       },
       body: JSON.stringify({
         slackPayload: slackMessage,
-        webhookUrl,
       }),
     });
 
@@ -138,15 +128,8 @@ function getProxyUrl(): string | null {
 }
 
 /**
- * Gets the Slack webhook URL from environment variables
- */
-export function getSlackWebhookUrl(): string | null {
-  return import.meta.env.VITE_SLACK_WEBHOOK_URL || null;
-}
-
-/**
- * Checks if Slack integration is configured
+ * Checks if bug report integration is configured
  */
 export function isSlackIntegrationConfigured(): boolean {
-  return !!getSlackWebhookUrl() && !!getProxyUrl();
+  return !!getProxyUrl();
 }

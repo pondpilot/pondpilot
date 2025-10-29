@@ -83,7 +83,7 @@ export function BugReportModal({ onClose, featureContext }: BugReportModalProps)
     if (!isConfigured) {
       showError({
         title: 'Bug reporting not configured',
-        message: 'Slack webhook URL is not configured. Please check your environment settings.',
+        message: 'Bug report proxy is not configured. Please check your environment settings.',
       });
       return;
     }
@@ -93,13 +93,10 @@ export function BugReportModal({ onClose, featureContext }: BugReportModalProps)
     try {
       const context = formData.includeContext ? captureBugReportContext(featureContext) : undefined;
 
-      const result = await sendBugReportToSlack(
-        {
-          formData,
-          context,
-        },
-        import.meta.env.VITE_SLACK_WEBHOOK_URL,
-      );
+      const result = await sendBugReportToSlack({
+        formData,
+        context,
+      });
 
       if (result.success) {
         showSuccess({
@@ -128,7 +125,7 @@ export function BugReportModal({ onClose, featureContext }: BugReportModalProps)
           icon={<IconAlertCircle size={16} />}
           data-testid={setDataTestId('bug-report-not-configured-alert')}
         >
-          Bug reporting is not configured. Please add VITE_SLACK_WEBHOOK_URL to your environment
+          Bug reporting is not configured. Please add VITE_BUG_REPORT_PROXY_URL to your environment
           variables.
         </Alert>
       )}
