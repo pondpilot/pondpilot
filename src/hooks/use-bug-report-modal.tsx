@@ -1,7 +1,6 @@
 import { BugReportModal } from '@features/bug-report-modal';
 import { useFeatureContext } from '@features/feature-context';
 import { modals } from '@mantine/modals';
-import { isSlackIntegrationConfigured } from '@services/slack-bug-report';
 import { useCallback } from 'react';
 
 /**
@@ -10,7 +9,6 @@ import { useCallback } from 'react';
  */
 export function useBugReportModal() {
   const featureContext = useFeatureContext();
-  const isConfigured = isSlackIntegrationConfigured();
 
   const openBugReportModal = useCallback(() => {
     const modalId = modals.open({
@@ -25,5 +23,5 @@ export function useBugReportModal() {
     });
   }, [featureContext]);
 
-  return { openBugReportModal, isConfigured };
+  return { openBugReportModal };
 }

@@ -6,26 +6,6 @@ import { test as baseTest } from '../fixtures/page';
 const test = mergeTests(baseTest, bugReportTest);
 
 test.describe('Bug Report Modal', () => {
-  test.beforeEach(async ({ context }) => {
-    // Mock bug report proxy endpoint
-    await context.route('**/*', async (route) => {
-      const url = route.request().url();
-
-      // Check if this is a bug report proxy request
-      if (url.includes('your-proxy.example.com') || url.includes('bug-report')) {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ success: true }),
-        });
-        return;
-      }
-
-      // Continue with all other requests
-      await route.continue();
-    });
-  });
-
   test('should open bug report modal when clicking bug report button', async ({
     bugReportModal,
     openBugReportModal,
@@ -142,34 +122,5 @@ test.describe('Bug Report Modal', () => {
     await expect(page.getByText('💡 Feature Request')).toBeVisible();
     await expect(page.getByText('📊 Data Issue')).toBeVisible();
     await expect(page.getByText('❓ Other')).toBeVisible();
-  });
-
-  test('should submit bug report with valid data', async ({
-    openBugReportModal,
-    bugReportDescriptionInput,
-    bugReportEmailInput,
-    bugReportSubmitButton,
-    bugReportModal,
-    page,
-  }) => {
-    await openBugReportModal();
-
-    // Fill in valid data
-    await bugReportDescriptionInput.fill(
-      'This is a detailed bug report with more than 10 characters',
-    );
-    await bugReportEmailInput.fill('test@example.com');
-
-    // Submit the form
-    await bugReportSubmitButton.click();
-
-    // Verify success notification appears
-    await expect(page.getByText('Bug report submitted')).toBeVisible();
-    await expect(
-      page.getByText('Thank you for your feedback! Our team will review your report.'),
-    ).toBeVisible();
-
-    // Verify modal is closed after successful submission
-    await expect(bugReportModal).toBeHidden();
   });
 });

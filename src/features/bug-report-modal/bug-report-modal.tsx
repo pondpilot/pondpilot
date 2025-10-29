@@ -10,11 +10,13 @@ import {
   Group,
   Text,
   Anchor,
+  Alert,
 } from '@mantine/core';
 import { APP_OPEN_ISSUES_URL } from '@models/app-urls';
 import type { BugReportFormData, BugReportCategory } from '@models/bug-report';
 import { BUG_REPORT_CATEGORY_OPTIONS, BUG_REPORT_CATEGORY_META } from '@models/bug-report';
 import { sendBugReportToSlack, isSlackIntegrationConfigured } from '@services/slack-bug-report';
+import { IconAlertCircle } from '@tabler/icons-react';
 import { captureBugReportContext } from '@utils/bug-report-context';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
@@ -121,6 +123,16 @@ export function BugReportModal({ onClose, featureContext }: BugReportModalProps)
 
   return (
     <Stack gap="md" data-testid={setDataTestId('bug-report-modal')}>
+      {!isConfigured && (
+        <Alert
+          icon={<IconAlertCircle size={16} />}
+          data-testid={setDataTestId('bug-report-not-configured-alert')}
+        >
+          Bug reporting is not configured. Please add VITE_SLACK_WEBHOOK_URL to your environment
+          variables.
+        </Alert>
+      )}
+
       <Select
         label="Category"
         placeholder="Select a category"
@@ -187,7 +199,6 @@ export function BugReportModal({ onClose, featureContext }: BugReportModalProps)
         <Button
           onClick={handleSubmit}
           loading={isSubmitting}
-          disabled={!isConfigured}
           data-testid={setDataTestId('bug-report-submit-button')}
         >
           Submit Bug Report
