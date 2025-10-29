@@ -116,12 +116,12 @@ export const updateComparisonConfig = (tabId: TabId, config: Partial<ComparisonC
     sourceA: null,
     sourceB: null,
     joinColumns: [],
+    joinKeyMappings: {},
     columnMappings: {},
     filterMode: 'common',
     commonFilter: null,
     filterA: null,
     filterB: null,
-    compareColumns: null,
     showOnlyDifferences: true,
     compareMode: 'strict',
   };

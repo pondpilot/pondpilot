@@ -147,21 +147,34 @@ export interface ComparisonConfig {
   sourceB: ComparisonSource | null;
 
   /**
-   * User-specified join columns (REQUIRED before execution).
-   * SECURITY: Validate these exist in schemaComparison.commonColumns before use.
-   * Always properly quote/escape as SQL identifiers.
+   * User-specified join columns from Source A (REQUIRED before execution).
+   * These are the Source A column names used as join keys.
+   * SECURITY: Always properly quote/escape as SQL identifiers.
    */
   joinColumns: string[];
 
   /**
-   * Custom column mappings from Source A to Source B.
+   * Join key mappings from Source A to Source B.
+   * Maps Source A join key names to Source B join key names when they differ.
+   * Format: { sourceAJoinKey: sourceBJoinKey }
+   *
+   * Example: { "user_id": "id", "created_at": "creation_time" }
+   *
+   * Auto-detected when columns have matching names. Must be explicitly set
+   * when join key names differ between sources.
+   */
+  joinKeyMappings: Record<string, string>;
+
+  /**
+   * Custom column mappings from Source A to Source B for comparison columns.
    * Maps Source A column names to Source B column names when they differ.
    * Format: { sourceAColumn: sourceBColumn }
    *
-   * Example: { "user_id": "id", "created_at": "creation_date" }
+   * Example: { "email": "email_address", "created_at": "creation_date" }
    *
    * This allows comparing columns with different names across sources.
    * Columns not in this map are assumed to have the same name in both sources.
+   * Note: Join key columns are handled separately via joinKeyMappings.
    */
   columnMappings: Record<string, string>;
 
@@ -186,9 +199,6 @@ export interface ComparisonConfig {
    */
   filterA: string | null;
   filterB: string | null;
-
-  // Columns to compare (default: all common columns)
-  compareColumns: string[] | null; // null = all common
 
   // Result filtering (affects SQL query for performance)
   // Default: true (recommended for large datasets)

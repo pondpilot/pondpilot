@@ -32,9 +32,6 @@ export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProp
   );
   const [filterA, setFilterA] = useState<string>(config?.filterA || '');
   const [filterB, setFilterB] = useState<string>(config?.filterB || '');
-  const [selectedColumns, setSelectedColumns] = useState<string[]>(
-    config?.compareColumns || schemaComparison?.commonColumns.map((c) => c.name) || [],
-  );
   const [showOnlyDifferences, setShowOnlyDifferences] = useState<boolean>(
     config?.showOnlyDifferences !== undefined ? config.showOnlyDifferences : true,
   );
@@ -48,8 +45,6 @@ export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProp
       commonFilter: null,
       filterA: filterA.trim() || null,
       filterB: filterB.trim() || null,
-      compareColumns:
-        selectedColumns.length === schemaComparison.commonColumns.length ? null : selectedColumns,
       showOnlyDifferences,
       compareMode: 'strict',
     });
@@ -58,7 +53,6 @@ export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProp
     selectedJoinKeys,
     filterA,
     filterB,
-    selectedColumns,
     showOnlyDifferences,
     onConfigChange,
     // schemaComparison itself is checked inside the effect
@@ -144,39 +138,16 @@ export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProp
         </Stack>
       </Paper>
 
-      {/* Column Selection */}
-      <Paper p="md" withBorder>
-        <Stack gap="md">
-          <div>
-            <Text size="sm" fw={600} mb="xs">
-              Columns to Compare
-            </Text>
-            <Text size="xs" c="dimmed">
-              Select which columns to include in the comparison (all selected by default)
-            </Text>
-          </div>
-
-          <MultiSelect
-            data={commonColumnOptions}
-            value={selectedColumns}
-            onChange={setSelectedColumns}
-            placeholder="Select columns to compare"
-            searchable
-            clearable={false}
-          />
-
-          {hasTypeMismatches && (
-            <Alert
-              icon={<IconInfoCircle size={16} className={ICON_CLASSES.warning} />}
-              color="background-warning"
-              variant="light"
-            >
-              Some columns have type mismatches. Comparison will attempt type coercion where
-              possible.
-            </Alert>
-          )}
-        </Stack>
-      </Paper>
+      {/* Type Mismatch Warning */}
+      {hasTypeMismatches && (
+        <Alert
+          icon={<IconInfoCircle size={16} className={ICON_CLASSES.warning} />}
+          color="background-warning"
+          variant="light"
+        >
+          Some columns have type mismatches. Comparison will attempt type coercion where possible.
+        </Alert>
+      )}
 
       {/* Filter Criteria */}
       <Paper p="md" withBorder>

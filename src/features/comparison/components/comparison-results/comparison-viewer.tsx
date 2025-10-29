@@ -21,6 +21,7 @@ import { ComparisonTable } from './comparison-table';
 import { ICON_CLASSES } from '../../constants/color-classes';
 import { useComparisonResults } from '../../hooks/use-comparison-results';
 import { downloadComparisonCsv, copyComparisonToClipboard } from '../../utils/comparison-export';
+import { getColumnsToCompare } from '../../utils/sql-generator';
 import {
   COMPARISON_STATUS_THEME,
   getStatusAccentColor,
@@ -80,7 +81,10 @@ export const ComparisonViewer = ({
   const [showUnchanged, setShowUnchanged] = useState(false);
 
   // Get the columns being compared - do this before early returns
-  const compareColumns = config.compareColumns || schemaComparison.commonColumns.map((c) => c.name);
+  const compareColumns = useMemo(
+    () => getColumnsToCompare(config, schemaComparison),
+    [config, schemaComparison],
+  );
 
   // Get stats - provide default if results not loaded yet
   const stats = results?.stats || { total: 0, added: 0, removed: 0, modified: 0, same: 0 };
@@ -134,13 +138,11 @@ export const ComparisonViewer = ({
 
     try {
       setIsExporting(true);
-      const exportCompareColumns =
-        config.compareColumns || schemaComparison.commonColumns.map((c) => c.name);
 
       downloadComparisonCsv(
         filteredRows,
         results.keyColumns,
-        exportCompareColumns,
+        compareColumns,
         `comparison-${Date.now()}.csv`,
       );
 
@@ -158,16 +160,13 @@ export const ComparisonViewer = ({
     } finally {
       setIsExporting(false);
     }
-  }, [results, filteredRows, config.compareColumns, schemaComparison.commonColumns]);
+  }, [results, filteredRows, compareColumns]);
 
   const handleCopy = useCallback(async () => {
     if (!results) return;
 
     try {
-      const copyCompareColumns =
-        config.compareColumns || schemaComparison.commonColumns.map((c) => c.name);
-
-      await copyComparisonToClipboard(filteredRows, results.keyColumns, copyCompareColumns);
+      await copyComparisonToClipboard(filteredRows, results.keyColumns, compareColumns);
 
       notifications.show({
         title: 'Copied to Clipboard',
@@ -181,7 +180,7 @@ export const ComparisonViewer = ({
         color: COMPARISON_STATUS_THEME.removed.accentColorKey,
       });
     }
-  }, [results, filteredRows, config.compareColumns, schemaComparison.commonColumns]);
+  }, [results, filteredRows, compareColumns]);
 
   // Early returns AFTER all hooks
   if (error) {
