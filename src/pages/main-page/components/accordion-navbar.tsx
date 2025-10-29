@@ -1,5 +1,6 @@
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
+import { useBugReportModal } from '@hooks/use-bug-report-modal';
 import { ActionIcon, Stack, Tooltip, Box } from '@mantine/core';
 import { APP_GITHUB_URL } from '@models/app-urls';
 import {
@@ -7,6 +8,7 @@ import {
   IconPlus,
   IconSettings,
   IconLayoutSidebarRightCollapse,
+  IconBug,
 } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { useNavigate } from 'react-router-dom';
@@ -24,7 +26,7 @@ interface NavbarProps {
  */
 export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) => {
   const navigate = useNavigate();
-
+  const { openBugReportModal } = useBugReportModal();
   // Render compact view when collapsed
   if (collapsed) {
     return (
@@ -53,6 +55,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
                 size="lg"
                 data-testid={setDataTestId('settings-button')}
                 onClick={() => navigate('/settings')}
+                aria-label="Settings"
               >
                 <IconSettings size={20} />
               </ActionIcon>
@@ -64,8 +67,19 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
                 href={APP_GITHUB_URL}
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="Visit GitHub repository"
               >
                 <IconBrandGithub size={20} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Report a Bug" position="right" withArrow openDelay={500}>
+              <ActionIcon
+                size="lg"
+                data-testid={setDataTestId('collapsed-bug-report-button')}
+                onClick={openBugReportModal}
+                aria-label="Report a Bug"
+              >
+                <IconBug size={20} />
               </ActionIcon>
             </Tooltip>
             {onCollapse && (
@@ -74,6 +88,7 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
                   size="lg"
                   data-testid={setDataTestId('expand-sidebar-button')}
                   onClick={onCollapse}
+                  aria-label="Expand sidebar"
                 >
                   <IconLayoutSidebarRightCollapse size={20} />
                 </ActionIcon>
