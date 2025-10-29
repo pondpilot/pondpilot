@@ -1,38 +1,17 @@
-import type { BugReportPayload } from '@models/bug-report';
+import type { BugReportPayload, BugReportCategory } from '@models/bug-report';
+import { BUG_REPORT_CATEGORY_META } from '@models/bug-report';
 import { formatContextForSlack } from '@utils/bug-report-context';
 
-interface SlackWebhookResponse {
-  ok: boolean;
-  error?: string;
-}
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  crash: '💥',
-  'data-issue': '📊',
-  'ui-bug': '🎨',
-  performance: '⚡',
-  'feature-request': '💡',
-  other: '❓',
-};
-
-const CATEGORY_OPTIONS = [
-  { value: 'crash', label: 'Crash / Error' },
-  { value: 'data-issue', label: 'Data Issue' },
-  { value: 'ui-bug', label: 'UI Bug' },
-  { value: 'performance', label: 'Performance' },
-  { value: 'feature-request', label: 'Feature Request' },
-  { value: 'other', label: 'Other' },
-];
+// Derive emoji and label from centralized metadata
 
 /**
  * Formats the bug report as Slack blocks for rich formatting
  */
 function formatSlackMessage(payload: BugReportPayload) {
   const { formData, context } = payload;
-  const emoji = CATEGORY_EMOJI[formData.category] || '🐛';
-
-  const categoryLabel =
-    CATEGORY_OPTIONS.find((opt) => opt.value === formData.category)?.label || formData.category;
+  const meta = BUG_REPORT_CATEGORY_META[formData.category as BugReportCategory];
+  const emoji = meta?.emoji || '🐛';
+  const categoryLabel = meta?.label || formData.category;
 
   const blocks: any[] = [
     {
@@ -88,10 +67,11 @@ function formatSlackMessage(payload: BugReportPayload) {
  * Note: This requires Slack API token and file upload endpoint, which is more complex
  * For webhook-only integration, we'll include the screenshot as a data URL in context
  */
-async function uploadScreenshotToSlack(
-  screenshot: string,
-  webhookUrl: string,
+async function _uploadScreenshotToSlack(
+  _screenshot: string,
+  _webhookUrl: string,
 ): Promise<string | null> {
+  // Placeholder for future enhancement (Slack file upload API integration)
   return null;
 }
 

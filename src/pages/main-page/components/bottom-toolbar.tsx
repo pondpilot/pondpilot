@@ -19,7 +19,7 @@ interface BottomToolbarProps {
  */
 export const BottomToolbar = ({ onCollapse }: BottomToolbarProps) => {
   const navigate = useNavigate();
-  const { openBugReportModal } = useBugReportModal();
+  const { openBugReportModal, isConfigured } = useBugReportModal();
 
   return (
     <Box className="flex-shrink-0 h-[34px] px-3 flex items-center justify-between border-t border-borderPrimary-light dark:border-borderPrimary-dark">
@@ -48,11 +48,21 @@ export const BottomToolbar = ({ onCollapse }: BottomToolbarProps) => {
             <IconBrandGithub size={20} />
           </ActionIcon>
         </Tooltip>
-        <Tooltip label="Report a Bug" position="top" withArrow openDelay={500}>
+        <Tooltip
+          label={
+            isConfigured
+              ? 'Report a Bug'
+              : 'Bug reporting is not configured. Please add VITE_SLACK_WEBHOOK_URL to your environment variables.'
+          }
+          position="top"
+          withArrow
+          openDelay={500}
+        >
           <ActionIcon
             size="sm"
             data-testid={setDataTestId('expanded-bug-report-button')}
             onClick={openBugReportModal}
+            disabled={!isConfigured}
             className="flex-shrink-0"
             aria-label="Report a Bug"
           >

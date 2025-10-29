@@ -8,15 +8,13 @@ import {
   Checkbox,
   Button,
   Group,
-  Alert,
-  Box,
   Text,
   Anchor,
 } from '@mantine/core';
 import { APP_OPEN_ISSUES_URL } from '@models/app-urls';
 import type { BugReportFormData, BugReportCategory } from '@models/bug-report';
+import { BUG_REPORT_CATEGORY_OPTIONS, BUG_REPORT_CATEGORY_META } from '@models/bug-report';
 import { sendBugReportToSlack, isSlackIntegrationConfigured } from '@services/slack-bug-report';
-import { IconAlertCircle } from '@tabler/icons-react';
 import { captureBugReportContext } from '@utils/bug-report-context';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
@@ -26,14 +24,10 @@ interface BugReportModalProps {
   featureContext: FeatureContextType;
 }
 
-const CATEGORY_OPTIONS: Array<{ value: BugReportCategory; label: string }> = [
-  { value: 'crash', label: '💥 Crash / Error' },
-  { value: 'data-issue', label: '📊 Data Issue' },
-  { value: 'ui-bug', label: '🎨 UI Bug' },
-  { value: 'performance', label: '⚡ Performance' },
-  { value: 'feature-request', label: '💡 Feature Request' },
-  { value: 'other', label: '❓ Other' },
-];
+const CATEGORY_OPTIONS = BUG_REPORT_CATEGORY_OPTIONS.map((opt) => ({
+  value: opt.value,
+  label: `${BUG_REPORT_CATEGORY_META[opt.value].emoji} ${opt.label}`,
+}));
 
 export function BugReportModal({ onClose, featureContext }: BugReportModalProps) {
   const [formData, setFormData] = useState<BugReportFormData>({
@@ -126,83 +120,80 @@ export function BugReportModal({ onClose, featureContext }: BugReportModalProps)
   };
 
   return (
-    <Box p="lg">
-      <Stack gap="md" data-testid={setDataTestId('bug-report-modal')}>
-        {!isConfigured && (
-          <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
-            Bug reporting is not configured. Please add VITE_SLACK_WEBHOOK_URL to your environment
-            variables.
-          </Alert>
-        )}
+    <Stack gap="md" data-testid={setDataTestId('bug-report-modal')}>
+      <Select
+        label="Category"
+        placeholder="Select a category"
+        data={CATEGORY_OPTIONS}
+        value={formData.category}
+        onChange={(value) => updateField('category', value as BugReportCategory)}
+        data-testid={setDataTestId('bug-report-category-select')}
+        required
+      />
 
-        <Select
-          label="Category"
-          placeholder="Select a category"
-          data={CATEGORY_OPTIONS}
-          value={formData.category}
-          onChange={(value) => updateField('category', value as BugReportCategory)}
-          data-testid={setDataTestId('bug-report-category-select')}
-          required
-        />
+      <Textarea
+        label="Description"
+        placeholder="Describe the issue or feature request in detail"
+        value={formData.description}
+        onChange={(e) => updateField('description', e.currentTarget.value)}
+        error={errors.description}
+        data-testid={setDataTestId('bug-report-description-input')}
+        minRows={6}
+        autosize
+        required
+      />
 
-        <Textarea
-          label="Description"
-          placeholder="Describe the issue or feature request in detail"
-          value={formData.description}
-          onChange={(e) => updateField('description', e.currentTarget.value)}
-          error={errors.description}
-          data-testid={setDataTestId('bug-report-description-input')}
-          minRows={6}
-          autosize
-          required
-        />
+      <TextInput
+        label="Email (optional)"
+        placeholder="your.email@example.com"
+        value={formData.email}
+        onChange={(e) => updateField('email', e.currentTarget.value)}
+        error={errors.email}
+        data-testid={setDataTestId('bug-report-email-input')}
+        description="If you'd like us to follow up with you"
+      />
 
-        <TextInput
-          label="Email (optional)"
-          placeholder="your.email@example.com"
-          value={formData.email}
-          onChange={(e) => updateField('email', e.currentTarget.value)}
-          error={errors.email}
-          data-testid={setDataTestId('bug-report-email-input')}
-          description="If you'd like us to follow up with you"
-        />
+      <Checkbox
+        label="Include technical context"
+        checked={formData.includeContext}
+        onChange={(e) => updateField('includeContext', e.currentTarget.checked)}
+        data-testid={setDataTestId('bug-report-include-context-checkbox')}
+        description="Browser info, app version, and error details (no personal data)"
+      />
 
-        <Checkbox
-          label="Include technical context"
-          checked={formData.includeContext}
-          onChange={(e) => updateField('includeContext', e.currentTarget.checked)}
-          data-testid={setDataTestId('bug-report-include-context-checkbox')}
-          description="Browser info, app version, and error details (no personal data)"
-        />
+      <Text size="xs" c="dimmed">
+        For issues with images or videos, please{' '}
+        <Anchor
+          href={APP_OPEN_ISSUES_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          size="xs"
+          c="text-accent"
+        >
+          create a GitHub issue
+        </Anchor>
+        .
+      </Text>
 
-        <Text size="xs" c="dimmed">
-          For issues with images or videos, please{' '}
-          <Anchor href={APP_OPEN_ISSUES_URL} target="_blank" rel="noopener noreferrer" size="xs">
-            create a GitHub issue
-          </Anchor>
-          .
-        </Text>
-
-        <Group justify="flex-end" mt="md">
-          <Button
-            variant="subtle"
-            onClick={onClose}
-            disabled={isSubmitting}
-            data-testid={setDataTestId('bug-report-cancel-button')}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            loading={isSubmitting}
-            disabled={!isConfigured}
-            data-testid={setDataTestId('bug-report-submit-button')}
-          >
-            Submit Bug Report
-          </Button>
-        </Group>
-      </Stack>
-    </Box>
+      <Group justify="flex-end" mt="md">
+        <Button
+          variant="transparent"
+          onClick={onClose}
+          disabled={isSubmitting}
+          data-testid={setDataTestId('bug-report-cancel-button')}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          loading={isSubmitting}
+          disabled={!isConfigured}
+          data-testid={setDataTestId('bug-report-submit-button')}
+        >
+          Submit Bug Report
+        </Button>
+      </Group>
+    </Stack>
   );
 }
 

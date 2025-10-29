@@ -26,8 +26,7 @@ interface NavbarProps {
  */
 export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) => {
   const navigate = useNavigate();
-  const { openBugReportModal } = useBugReportModal();
-
+  const { openBugReportModal, isConfigured } = useBugReportModal();
   // Render compact view when collapsed
   if (collapsed) {
     return (
@@ -73,11 +72,22 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
                 <IconBrandGithub size={20} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label="Report a Bug" position="right" withArrow openDelay={500}>
+            <Tooltip
+              label={
+                isConfigured
+                  ? 'Report a Bug'
+                  : 'Bug reporting is not configured. Please add VITE_SLACK_WEBHOOK_URL to your environment variables.'
+              }
+              position="right"
+              withArrow
+              multiline
+              w={220}
+            >
               <ActionIcon
                 size="lg"
                 data-testid={setDataTestId('collapsed-bug-report-button')}
                 onClick={openBugReportModal}
+                disabled={!isConfigured}
                 aria-label="Report a Bug"
               >
                 <IconBug size={20} />
