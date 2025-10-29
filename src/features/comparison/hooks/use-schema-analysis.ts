@@ -125,12 +125,14 @@ export const useSchemaAnalysis = (pool: AsyncDuckDBConnectionPool) => {
           commonColumns.map((c) => c.name),
         );
 
-        return {
+        const result = {
           commonColumns,
           onlyInA,
           onlyInB,
           suggestedKeys,
         };
+        console.log('[DEBUG] Schema analysis completed:', result);
+        return result;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         setError(message);
