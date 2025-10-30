@@ -31,6 +31,7 @@ import {
   SelectableStatements,
   SQLStatement,
   SQLStatementType,
+  ClassifiedSQLStatement,
 } from '@utils/editor/sql';
 import { isNotReadableError, getErrorMessage } from '@utils/error-classification';
 import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
@@ -45,6 +46,22 @@ interface ScriptTabViewProps {
   tabId: TabId;
   active: boolean;
 }
+
+const SECRET_STATEMENT_PATTERN = /\b(ALTER|CREATE)\s+(?:OR\s+REPLACE\s+)?SECRET\b/i;
+
+const redactSensitiveLastQuery = (
+  statement: ClassifiedSQLStatement,
+  fallback: string | null,
+): string | null => {
+  if (
+    (statement.type === SQLStatement.CREATE || statement.type === SQLStatement.ALTER) &&
+    SECRET_STATEMENT_PATTERN.test(statement.code)
+  ) {
+    return null;
+  }
+
+  return fallback;
+};
 
 export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
   // Get the reactive portion of tab state
@@ -292,7 +309,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             });
             return;
           }
-          lastExecutedQuery = lastStatement.code;
+          lastExecutedQuery = redactSensitiveLastQuery(lastStatement, lastStatement.code);
         } else {
           // The last statement is not a SELECT statement
           // Execute it immediately
@@ -329,7 +346,10 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             });
             return;
           }
-          lastExecutedQuery = "SELECT 'All statements executed successfully' as Result";
+          lastExecutedQuery = redactSensitiveLastQuery(
+            lastStatement,
+            "SELECT 'All statements executed successfully' as Result",
+          );
         }
 
         // All statements executed successfully
