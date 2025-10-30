@@ -3,6 +3,7 @@ import { getOrCreateTabFromScript } from '@controllers/tab';
 import { useBugReportModal } from '@hooks/use-bug-report-modal';
 import { ActionIcon, Stack, Tooltip, Box } from '@mantine/core';
 import { APP_GITHUB_URL } from '@models/app-urls';
+import { isSlackIntegrationConfigured } from '@services/slack-bug-report';
 import {
   IconBrandGithub,
   IconPlus,
@@ -72,16 +73,18 @@ export const AccordionNavbar = ({ onCollapse, collapsed = false }: NavbarProps) 
                 <IconBrandGithub size={20} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label="Report a Bug" position="right" withArrow openDelay={500}>
-              <ActionIcon
-                size="lg"
-                data-testid={setDataTestId('collapsed-bug-report-button')}
-                onClick={openBugReportModal}
-                aria-label="Report a Bug"
-              >
-                <IconBug size={20} />
-              </ActionIcon>
-            </Tooltip>
+            {isSlackIntegrationConfigured() && (
+              <Tooltip label="Report a Bug" position="right" withArrow openDelay={500}>
+                <ActionIcon
+                  size="lg"
+                  data-testid={setDataTestId('collapsed-bug-report-button')}
+                  onClick={openBugReportModal}
+                  aria-label="Report a Bug"
+                >
+                  <IconBug size={20} />
+                </ActionIcon>
+              </Tooltip>
+            )}
             {onCollapse && (
               <Tooltip label="Expand sidebar" position="right" withArrow openDelay={500}>
                 <ActionIcon
