@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { v4 } from 'uuid';
 
 import { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
+import { LOCAL_DUCKDB_BUNDLES, hasLocalDuckDBBundles } from './duckdb-local-bundles';
 
 // Context used to provide progress of duckdb initialization
 type duckDBInitState = 'none' | 'loading' | 'ready' | 'error';
@@ -78,9 +79,6 @@ export const DuckDBConnectionPoolProvider = ({
   // Get persistence state from context
   const { persistenceState, updatePersistenceState } = useDuckDBPersistence();
 
-  // Use static cdn hosted bundles
-  const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
-
   // create a logger
   const logger = new duckdb.ConsoleLogger(
     import.meta.env.DEV ? duckdb.LogLevel.INFO : duckdb.LogLevel.WARNING,
@@ -146,12 +144,52 @@ export const DuckDBConnectionPoolProvider = ({
           message: 'Starting DuckDB worker...',
         });
 
-        // Resolve bundle
-        const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+        // Resolve bundle, prefer locally hosted assets so the browser can cache them aggressively
+        let bundle: duckdb.DuckDBBundle;
+        try {
+          if (!hasLocalDuckDBBundles) {
+            throw new Error('Local DuckDB bundle assets are missing');
+          }
+          bundle = await duckdb.selectBundle(LOCAL_DUCKDB_BUNDLES);
+        } catch (localBundleError) {
+          console.warn('Falling back to jsDelivr DuckDB bundle', localBundleError);
+          bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+        }
+
+        const resolveBundleUrl = (url: string | null): string | null => {
+          if (!url) {
+            return null;
+          }
+
+          const base =
+            (typeof window !== 'undefined' && window.location?.href) ||
+            (typeof globalThis !== 'undefined' && globalThis.location?.href) ||
+            undefined;
+
+          try {
+            return base ? new URL(url, base).toString() : url;
+          } catch (resolutionError) {
+            console.warn('Failed to normalize DuckDB bundle URL, using as-is', url, resolutionError);
+            return url;
+          }
+        };
+
+        const normalizedBundle: duckdb.DuckDBBundle = {
+          mainModule: resolveBundleUrl(bundle.mainModule)!,
+          mainWorker: resolveBundleUrl(bundle.mainWorker),
+          pthreadWorker: resolveBundleUrl(bundle.pthreadWorker),
+        };
+
+        if (!normalizedBundle.mainWorker) {
+          throw new Error('DuckDB bundle is missing worker script URL.');
+        }
+        if (!normalizedBundle.mainModule) {
+          throw new Error('DuckDB bundle is missing module URL.');
+        }
 
         // Create a blob URL for the worker script
         const worker_url = URL.createObjectURL(
-          new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' }),
+          new Blob([`importScripts("${normalizedBundle.mainWorker}");`], { type: 'text/javascript' }),
         );
 
         // Store the URL in the ref for cleanup on unmount
@@ -179,8 +217,8 @@ export const DuckDBConnectionPoolProvider = ({
         // Instantiate DuckDB
         try {
           await newDb.instantiate(
-            bundle.mainModule,
-            bundle.pthreadWorker,
+            normalizedBundle.mainModule,
+            normalizedBundle.pthreadWorker,
             (p: duckdb.InstantiationProgress) => {
               if (p.bytesLoaded > 0) {
                 // Do not ask why * 10.0... taken from duckdb-wasm-shell, looks like either of the two
