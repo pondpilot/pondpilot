@@ -101,7 +101,7 @@ jobs:
       - name: Build for integration tests
         run: yarn build --mode int-test-build
         env:
-          VITE_BUG_REPORT_PROXY_URL: ${{ secrets.VITE_BUG_REPORT_PROXY_URL }}
+          VITE_BUG_REPORT_PROXY_URL: ${{ vars.VITE_BUG_REPORT_PROXY_URL }}
 
       - name: Run Playwright tests
         run: |
@@ -119,7 +119,7 @@ jobs:
       - name: Build for production
         run: yarn build
         env:
-          VITE_BUG_REPORT_PROXY_URL: ${{ secrets.VITE_BUG_REPORT_PROXY_URL }}
+          VITE_BUG_REPORT_PROXY_URL: ${{ vars.VITE_BUG_REPORT_PROXY_URL }}
 
       - name: Upload Build
         uses: actions/upload-artifact@v4
