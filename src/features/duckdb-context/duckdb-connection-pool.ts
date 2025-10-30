@@ -67,11 +67,41 @@ export class AsyncDuckDBConnectionPool {
   /** Optional callback to update persistence state after operations */
   protected readonly _updateStateCallback?: UpdateStateFn;
   protected readonly _checkpointConfig: CheckpointConfig;
+  /** Optional initializer executed for each newly created connection */
+  protected readonly _connectionInitializer?: (conn: AsyncDuckDBConnection) => Promise<void>;
+  /** Track initialization promises for each connection */
+  private readonly _connectionInitPromises: WeakMap<AsyncDuckDBConnection, Promise<void>> =
+    new WeakMap();
 
   // State for checkpoint throttling
   private _lastCheckpointTime: number = 0;
   private _changesSinceLastCheckpoint: number = 0;
   private _checkpointInProgress: boolean = false;
+
+  private async _ensureConnectionInitialized(conn: AsyncDuckDBConnection): Promise<void> {
+    if (!this._connectionInitializer) {
+      return;
+    }
+
+    const existingPromise = this._connectionInitPromises.get(conn);
+    if (existingPromise) {
+      await existingPromise;
+      return;
+    }
+
+    const initPromise = (async () => {
+      await this._connectionInitializer!(conn);
+    })();
+
+    this._connectionInitPromises.set(conn, initPromise);
+
+    try {
+      await initPromise;
+    } catch (error) {
+      this._connectionInitPromises.delete(conn);
+      throw error;
+    }
+  }
 
   /**
    * Creates a new DuckDB connection pool
@@ -86,6 +116,7 @@ export class AsyncDuckDBConnectionPool {
     maxSize: number,
     updateStateCallback?: UpdateStateFn,
     checkpointConfig?: Partial<CheckpointConfig>,
+    connectionInitializer?: (conn: AsyncDuckDBConnection) => Promise<void>,
   ) {
     this._bindings = bindings;
     this._maxSize = maxSize;
@@ -98,6 +129,7 @@ export class AsyncDuckDBConnectionPool {
       ...DEFAULT_CHECKPOINT_CONFIG,
       ...checkpointConfig,
     };
+    this._connectionInitializer = connectionInitializer;
   }
 
   /**
@@ -135,6 +167,7 @@ export class AsyncDuckDBConnectionPool {
     const available = this._claimConnection();
 
     if (available) {
+      await this._ensureConnectionInitialized(available.conn);
       return available;
     }
 
@@ -142,6 +175,16 @@ export class AsyncDuckDBConnectionPool {
     // have space in the pool, claim and return it
     if (this._connections.length < this._maxSize) {
       const conn = await this._bindings.connect();
+      try {
+        await this._ensureConnectionInitialized(conn);
+      } catch (error) {
+        try {
+          await conn.close();
+        } catch (closeError) {
+          console.warn('Failed to close connection after initializer error:', closeError);
+        }
+        throw error;
+      }
       this._connections.push(conn);
 
       const index = this._connections.length - 1;
@@ -158,6 +201,12 @@ export class AsyncDuckDBConnectionPool {
     while (Date.now() - startTime < GET_CONNECTION_TIMEOUT) {
       const availableConn = this._claimConnection();
       if (availableConn) {
+        try {
+          await this._ensureConnectionInitialized(availableConn.conn);
+        } catch (error) {
+          this._releaseConnection(availableConn.index);
+          throw error;
+        }
         return availableConn;
       }
       // Wait for 100ms before trying again

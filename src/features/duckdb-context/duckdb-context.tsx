@@ -1,3 +1,4 @@
+import { configureConnectionForHttpfs } from '@controllers/db/httpfs-extension-controller';
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
 import { useTabCoordinationContext } from '@features/tab-coordination-context';
@@ -372,7 +373,9 @@ export const DuckDBConnectionPoolProvider = ({
               // Only log checkpoints in development mode
               logCheckpoints: import.meta.env.DEV,
             },
+            configureConnectionForHttpfs,
           );
+
           /**
            * WORKAROUND: Addresses an issue with OPFS (Origin Private File System) and write mode
            * after a page reload in DuckDB-WASM.
