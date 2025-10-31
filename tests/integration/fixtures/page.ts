@@ -13,22 +13,25 @@ export const test = base.extend<PageFixtures>({
     // ---------- BEFORE EACH TEST ----------
 
     // Reset storage from previous runs to keep tests deterministic
-    await page.addInitScript(({ dbName }: { dbName: string }) => {
-      const deleteDatabase = (name: string) => {
-        try {
-          const request = indexedDB.deleteDatabase(name);
-          request.onsuccess = () => undefined;
-          request.onerror = () => undefined;
-          request.onblocked = () => undefined;
-        } catch {
-          // ignore cleanup errors
-        }
-      };
+    await page.addInitScript(
+      ({ dbName }: { dbName: string }) => {
+        const deleteDatabase = (name: string) => {
+          try {
+            const request = indexedDB.deleteDatabase(name);
+            request.onsuccess = () => undefined;
+            request.onerror = () => undefined;
+            request.onblocked = () => undefined;
+          } catch {
+            // ignore cleanup errors
+          }
+        };
 
-      deleteDatabase(dbName);
-      window.localStorage.clear();
-      window.sessionStorage.clear();
-    }, { dbName: APP_DB_NAME });
+        deleteDatabase(dbName);
+        window.localStorage.clear();
+        window.sessionStorage.clear();
+      },
+      { dbName: APP_DB_NAME },
+    );
 
     // Set up File Access API mocks before loading the app
     await page.evaluate(() => {
