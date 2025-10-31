@@ -1,6 +1,7 @@
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
+import { deleteComparisons, renameComparison } from '@controllers/comparison';
 import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import {
   deleteTabByScriptId,
@@ -10,15 +11,19 @@ import {
   setPreviewTabId,
   deleteTab,
 } from '@controllers/tab';
-import { renameComparisonTab } from '@controllers/tab/comparison-tab-controller';
+import {
+  findTabFromComparison,
+  getOrCreateTabFromComparison,
+} from '@controllers/tab/comparison-tab-controller';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { RenderTreeNodePayload as MantineRenderTreeNodePayload } from '@mantine/core';
+import { ComparisonId } from '@models/comparison';
 import { SQLScriptId } from '@models/sql-script';
-import { TabId } from '@models/tab';
 import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
 import { exportSingleScript } from '@utils/script-export';
 import { createShareableScriptUrl } from '@utils/script-sharing';
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 
 import { ScriptExplorerContext, ScriptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
@@ -26,7 +31,10 @@ import { ScriptExplorerNode } from './script-explorer-node';
 // Type guards for better type safety
 const isComparisonNode = (
   node: TreeNodeData<ScriptNodeTypeToIdTypeMap>,
-): node is TreeNodeData<ScriptNodeTypeToIdTypeMap> & { nodeType: 'comparison'; value: TabId } => {
+): node is TreeNodeData<ScriptNodeTypeToIdTypeMap> & {
+  nodeType: 'comparison';
+  value: ComparisonId;
+} => {
   return node.nodeType === 'comparison';
 };
 
@@ -52,8 +60,11 @@ const onNodeClick = (
   }
 
   if (isComparisonNode(node)) {
-    // For comparison tabs, just activate it
-    setActiveTabId(node.value);
+    const existingTab = findTabFromComparison(node.value);
+    const tab = getOrCreateTabFromComparison(node.value, true);
+    if (!existingTab) {
+      setPreviewTabId(tab.id);
+    }
     return;
   }
 
@@ -76,17 +87,12 @@ const onNodeClick = (
 
 const onCloseItemClick = (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>): void => {
   if (isComparisonNode(node)) {
-    deleteTab([node.value]);
+    const tab = findTabFromComparison(node.value);
+    if (tab) {
+      deleteTab([tab.id]);
+    }
   } else if (isScriptNode(node)) {
     deleteTabByScriptId(node.value);
-  }
-};
-
-const onDelete = (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>): void => {
-  if (isComparisonNode(node)) {
-    deleteTab([node.value]);
-  } else if (isScriptNode(node)) {
-    deleteSqlScripts([node.value]);
   }
 };
 
@@ -147,28 +153,16 @@ const handleExportScript = (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>): void
   exportSingleScript(script);
 };
 
-// Custom hook to get comparison tabs with proper memoization
-// Returns an array of [id, name] tuples - only changes when tabs are added/removed/renamed
-function useComparisonTabs(): ReadonlyArray<readonly [TabId, string]> {
-  // Get a serialized key representing the comparison tabs
-  const comparisonTabsKey = useAppStore((state) => {
-    const tabs: string[] = [];
-    for (const tab of state.tabs.values()) {
-      if (tab.type === 'comparison') {
-        tabs.push(`${tab.id}:${tab.name}`);
-      }
-    }
-    return tabs.join('|');
-  });
+// Custom hook to get comparisons with proper memoization
+// Returns an array of [id, name] tuples - only changes when comparisons are added/removed/renamed
+function useComparisonsList(): ReadonlyArray<readonly [ComparisonId, string]> {
+  const comparisons = useAppStore((state) => state.comparisons);
 
-  // Memoize the actual array based on the serialized key
-  return useMemo(() => {
-    if (!comparisonTabsKey) return [];
-    return comparisonTabsKey.split('|').map((entry) => {
-      const [id, name] = entry.split(':');
-      return [id as TabId, name] as const;
-    });
-  }, [comparisonTabsKey]);
+  return useMemo(
+    () =>
+      Array.from(comparisons.entries()).map(([id, comparison]) => [id, comparison.name] as const),
+    [comparisons],
+  );
 }
 
 export const ScriptExplorer = memo(() => {
@@ -176,7 +170,8 @@ export const ScriptExplorer = memo(() => {
    * Global state
    */
   const sqlScripts = useSqlScriptNameMap();
-  const comparisonTabs = useComparisonTabs();
+  const comparisons = useComparisonsList();
+  const pool = useInitializedDuckDBConnectionPool();
 
   const hasActiveElement = useAppStore((state) => {
     const activeTab = state.activeTabId && state.tabs.get(state.activeTabId);
@@ -196,10 +191,10 @@ export const ScriptExplorer = memo(() => {
 
   const comparisonsArray = useMemo(
     () =>
-      Array.from(comparisonTabs).sort(([, leftName], [, rightName]) =>
+      Array.from(comparisons).sort(([, leftName], [, rightName]) =>
         leftName.localeCompare(rightName),
       ),
-    [comparisonTabs],
+    [comparisons],
   );
 
   // Get all names for validation (excluding current node's name in validateRename)
@@ -252,6 +247,19 @@ export const ScriptExplorer = memo(() => {
     [],
   );
 
+  const handleNodeDelete = useCallback(
+    (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>) => {
+      if (isComparisonNode(node)) {
+        deleteComparisons([node.value], pool).catch(() => {
+          // Ignored: error handling happens via global notifications
+        });
+      } else if (isScriptNode(node)) {
+        deleteSqlScripts([node.value]);
+      }
+    },
+    [pool],
+  );
+
   const comparisonContextMenu: TreeNodeMenuType<TreeNodeData<ScriptNodeTypeToIdTypeMap>> = useMemo(
     () => [
       {
@@ -287,7 +295,7 @@ export const ScriptExplorer = memo(() => {
       validateRename: createValidateRename(getAllNamesExcept),
       onRenameSubmit: (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>, newName: string) => {
         if (isComparisonNode(node)) {
-          renameComparisonTab(node.value, newName);
+          renameComparison(node.value, newName);
         }
       },
       prepareRenameValue,
@@ -308,35 +316,35 @@ export const ScriptExplorer = memo(() => {
             isSelectable: true,
             onNodeClick,
             renameCallbacks: scriptRenameCallbacks,
-            onDelete,
+            onDelete: handleNodeDelete,
             onCloseItemClick,
             contextMenu: scriptContextMenu,
             // no children
           }) as TreeNodeData<ScriptNodeTypeToIdTypeMap>,
       ),
-    [scriptsArray, scriptRenameCallbacks, scriptContextMenu],
+    [scriptsArray, scriptRenameCallbacks, scriptContextMenu, handleNodeDelete],
   );
 
   const comparisonTree: TreeNodeData<ScriptNodeTypeToIdTypeMap>[] = useMemo(
     () =>
       comparisonsArray.map(
-        ([tabId, comparisonName]) =>
+        ([comparisonId, comparisonName]) =>
           ({
             nodeType: 'comparison',
-            value: tabId,
+            value: comparisonId,
             label: comparisonName,
             iconType: 'comparison',
             isDisabled: false,
             isSelectable: true,
             onNodeClick,
             renameCallbacks: comparisonRenameCallbacks,
-            onDelete,
+            onDelete: handleNodeDelete,
             onCloseItemClick,
             contextMenu: comparisonContextMenu,
             // no children
           }) as TreeNodeData<ScriptNodeTypeToIdTypeMap>,
       ),
-    [comparisonsArray, comparisonRenameCallbacks, comparisonContextMenu],
+    [comparisonsArray, comparisonRenameCallbacks, comparisonContextMenu, handleNodeDelete],
   );
 
   // Combine and sort all nodes alphabetically
@@ -354,16 +362,16 @@ export const ScriptExplorer = memo(() => {
 
   // Memoize the delete handler to prevent unnecessary re-renders
   const handleDeleteSelected = useMemo(
-    () => (ids: (SQLScriptId | TabId)[]) => {
+    () => (ids: (SQLScriptId | ComparisonId)[]) => {
       const scriptIds: SQLScriptId[] = [];
-      const comparisonIds: TabId[] = [];
+      const comparisonIds: ComparisonId[] = [];
 
       // Use Set lookups for O(1) performance instead of O(n) array.some()
       ids.forEach((id) => {
         if (scriptIdsSet.has(id as SQLScriptId)) {
           scriptIds.push(id as SQLScriptId);
-        } else if (comparisonIdsSet.has(id as TabId)) {
-          comparisonIds.push(id as TabId);
+        } else if (comparisonIdsSet.has(id as ComparisonId)) {
+          comparisonIds.push(id as ComparisonId);
         }
       });
 
@@ -371,10 +379,12 @@ export const ScriptExplorer = memo(() => {
         deleteSqlScripts(scriptIds);
       }
       if (comparisonIds.length > 0) {
-        deleteTab(comparisonIds);
+        deleteComparisons(comparisonIds, pool).catch(() => {
+          // Ignored: error handling happens via global notifications
+        });
       }
     },
-    [scriptIdsSet, comparisonIdsSet],
+    [scriptIdsSet, comparisonIdsSet, pool],
   );
 
   // Use the common explorer context hook

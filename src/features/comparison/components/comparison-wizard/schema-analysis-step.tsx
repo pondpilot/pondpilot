@@ -10,7 +10,7 @@ import {
   Button,
   useMantineTheme,
 } from '@mantine/core';
-import { ComparisonTab, TabReactiveState } from '@models/tab';
+import { Comparison } from '@models/comparison';
 import { IconAlertCircle, IconCheck, IconChevronDown } from '@tabler/icons-react';
 import { useState } from 'react';
 
@@ -23,10 +23,10 @@ import {
 } from '../../utils/theme';
 
 interface SchemaAnalysisStepProps {
-  tab: TabReactiveState<ComparisonTab>;
+  comparison: Comparison;
 }
 
-export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
+export const SchemaAnalysisStep = ({ comparison }: SchemaAnalysisStepProps) => {
   const theme = useMantineTheme();
   const colorScheme = useAppTheme();
   const baseTextColor = getThemeColorValue(theme, 'text-primary', colorScheme === 'dark' ? 0 : 9);
@@ -52,7 +52,7 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
   const [showOnlyInA, setShowOnlyInA] = useState(true);
   const [showOnlyInB, setShowOnlyInB] = useState(true);
 
-  if (!tab.schemaComparison) {
+  if (!comparison.schemaComparison) {
     return (
       <Alert
         icon={<IconAlertCircle size={16} className={ICON_CLASSES.warning} />}
@@ -65,7 +65,7 @@ export const SchemaAnalysisStep = ({ tab }: SchemaAnalysisStepProps) => {
     );
   }
 
-  const { commonColumns, onlyInA, onlyInB, suggestedKeys } = tab.schemaComparison;
+  const { commonColumns, onlyInA, onlyInB, suggestedKeys } = comparison.schemaComparison;
   const hasTypeMismatches = commonColumns.some((col) => !col.typesMatch);
   const hasNoCommonColumns = commonColumns.length === 0;
 

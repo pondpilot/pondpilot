@@ -1,5 +1,6 @@
 import { TreeNodeData } from '@components/explorer-tree/model';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { Comparison } from '@models/comparison';
 import { LocalDB, SYSTEM_DATABASE_ID } from '@models/data-source';
 
 import { buildDatabaseNode } from '../builders/database-tree-builder';
@@ -15,6 +16,8 @@ type UseSystemDbNodeProps = {
   fileViewNames: Set<string>;
   initialExpandedState: Record<string, boolean>;
   flatFileSources: Map<string, any>;
+  comparisonTableNames: Set<string>;
+  comparisonByTableName: Map<string, Comparison>;
 };
 
 export const useSystemDbNode = ({
@@ -27,6 +30,8 @@ export const useSystemDbNode = ({
   fileViewNames,
   initialExpandedState,
   flatFileSources,
+  comparisonTableNames,
+  comparisonByTableName,
 }: UseSystemDbNodeProps) => {
   // Build system database node if it exists
   const systemDbNode = systemDatabase
@@ -40,6 +45,8 @@ export const useSystemDbNode = ({
         fileViewNames,
         initialExpandedState,
         flatFileSources,
+        comparisonTableNames,
+        comparisonByTableName,
       })
     : null;
 

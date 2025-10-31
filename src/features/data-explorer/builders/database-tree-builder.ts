@@ -3,6 +3,7 @@ import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { Comparison } from '@models/comparison';
 import { LocalDB, RemoteDB } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -26,6 +27,8 @@ interface DatabaseTreeBuilderContext {
   fileViewNames?: Set<string>;
   initialExpandedState: Record<string, boolean>;
   flatFileSources?: Map<string, any>;
+  comparisonTableNames?: Set<string>;
+  comparisonByTableName?: Map<string, Comparison>;
 }
 
 /**
@@ -69,6 +72,8 @@ export function buildDatabaseNode(
     databaseMetadata,
     fileViewNames,
     initialExpandedState,
+    comparisonTableNames,
+    comparisonByTableName,
   } = context;
 
   // This should always exist unless state is broken, but we are playing safe here
@@ -227,11 +232,14 @@ export function buildDatabaseNode(
         dbName,
         schema,
         fileViewNames: isSystemDb ? fileViewNames : undefined,
+        comparisonTableNames: isSystemDb ? comparisonTableNames : undefined,
         conn: isSystemDb ? conn : undefined,
         context: {
           nodeMap,
           anyNodeIdToNodeTypeMap,
           flatFileSources: context.flatFileSources,
+          comparisonByTableName,
+          comparisonTableNames,
         },
         initialExpandedState,
       }),

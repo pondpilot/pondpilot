@@ -1,10 +1,10 @@
 import { TreeNodeData, TreeNodeMenuType } from '@components/explorer-tree/model';
+import { ComparisonId } from '@models/comparison';
 import { SQLScriptId } from '@models/sql-script';
-import { TabId } from '@models/tab';
 
 export type ScriptNodeTypeToIdTypeMap = {
   script: SQLScriptId;
-  comparison: TabId;
+  comparison: ComparisonId;
 };
 
 // Context type for script explorer
@@ -12,6 +12,7 @@ export type ScriptExplorerContext = {
   getOverrideContextMenu: (
     selectedState: string[],
   ) => TreeNodeMenuType<TreeNodeData<ScriptNodeTypeToIdTypeMap>> | null;
-  flattenedNodeIds: (SQLScriptId | TabId)[];
-  selectedDeleteableNodeIds: (SQLScriptId | TabId)[];
+  flattenedNodes: TreeNodeData<ScriptNodeTypeToIdTypeMap>[];
+  flattenedNodeIds: (SQLScriptId | ComparisonId)[];
+  selectedDeleteableNodeIds: (SQLScriptId | ComparisonId)[];
 };

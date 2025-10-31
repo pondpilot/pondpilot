@@ -75,10 +75,15 @@ export function TreeNodeContent<NTypeToIdTypeMap extends Record<string, any>>({
       )}
 
       <Text
-        c={label === 'File Views' || label.startsWith('[DB] ') ? 'dimmed' : 'text-primary'}
+        c={
+          label === 'File Views' || label === 'Comparisons' || label.startsWith('[DB] ')
+            ? 'dimmed'
+            : 'text-primary'
+        }
         className={cn(
           'text-sm px-1',
-          (label === 'File Views' || label.startsWith('[DB] ')) && 'italic',
+          (label === 'File Views' || label === 'Comparisons' || label.startsWith('[DB] ')) &&
+            'italic',
         )}
         lh="18px"
         truncate

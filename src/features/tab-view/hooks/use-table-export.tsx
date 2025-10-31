@@ -28,7 +28,14 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
   const [exportModalOpen, setExportModalOpen] = useState(false);
 
   const tabName = useAppStore((state) =>
-    getTabNameFromStore(tabId, state.tabs, state.sqlScripts, state.dataSources, state.localEntries),
+    getTabNameFromStore(
+      tabId,
+      state.tabs,
+      state.sqlScripts,
+      state.dataSources,
+      state.localEntries,
+      state.comparisons,
+    ),
   );
 
   const copyTableToClipboard = useCallback(async () => {

@@ -93,8 +93,9 @@ export const generateComparisonSQL = (
   let sql = '';
 
   // If materializing, add CREATE TABLE AS prefix
+  // We create regular tables (not TEMP) in the system database so they persist across browser restarts
   if (options?.materialize && options?.tableName) {
-    sql += `CREATE OR REPLACE TEMP TABLE ${options.tableName} AS\n`;
+    sql += `CREATE OR REPLACE TABLE pondpilot.main.${quote(options.tableName)} AS\n`;
   }
 
   sql += 'WITH\n';

@@ -322,7 +322,7 @@ export const validateStatements = (
 
       if (protectedViewNames.includes(tableName.toLowerCase())) {
         errors.push(
-          `Cannot drop view \`${tableName}\` as it is an app managed view providing access to a source file.`,
+          `Cannot drop object \`${tableName}\` as it is managed by PondPilot (file views and comparison tables are protected).`,
         );
       }
     }

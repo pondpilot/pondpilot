@@ -5,15 +5,16 @@ import {
   setComparisonResultsTable,
 } from '@controllers/tab/comparison-tab-controller';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { Stack, LoadingOverlay, Alert } from '@mantine/core';
-import { ComparisonTab, TabId, ComparisonConfig } from '@models/tab';
-import { useTabReactiveState } from '@store/app-store';
+import { Stack, LoadingOverlay, Alert, Text } from '@mantine/core';
+import { modals } from '@mantine/modals';
+import { TabId, ComparisonConfig } from '@models/tab';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { memo, useCallback, useRef } from 'react';
 
 import { ComparisonConfigScreen } from './components/comparison-config-screen';
 import { ComparisonViewer } from './components/comparison-results/comparison-viewer';
 import { ICON_CLASSES } from './constants/color-classes';
+import { useComparison } from './hooks/use-comparison';
 import { useComparisonExecution } from './hooks/use-comparison-execution';
 import { useSchemaAnalysis } from './hooks/use-schema-analysis';
 
@@ -23,11 +24,20 @@ interface ComparisonTabViewProps {
 }
 
 export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps) => {
-  const tab = useTabReactiveState<ComparisonTab>(tabId, 'comparison');
+  const data = useComparison(tabId);
   const pool = useInitializedDuckDBConnectionPool();
   const { analyzeSchemas, isAnalyzing, error: analysisError } = useSchemaAnalysis(pool);
   const { executeComparison, isExecuting, error: executionError } = useComparisonExecution(pool);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const tab = data?.tab;
+  const comparison = data?.comparison;
+  const comparisonId = comparison?.id;
+  const comparisonConfig = comparison?.config ?? null;
+  const schemaComparison = comparison?.schemaComparison ?? null;
+  const viewingResults = tab?.viewingResults ?? false;
+  const resultsTableName = tab?.comparisonResultsTable || comparison?.resultsTableName || null;
+  const lastExecutionTime = tab?.lastExecutionTime || comparison?.lastExecutionTime || null;
 
   const handleConfigChange = useCallback(
     (configChanges: Partial<ComparisonConfig>) => {
@@ -40,35 +50,73 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
     setComparisonViewingResults(tabId, false);
   }, [tabId]);
 
+  const runComparison = useCallback(
+    async (activateResults: boolean) => {
+      if (!comparisonId || !comparisonConfig || !schemaComparison) return;
+
+      const executionResult = await executeComparison(
+        comparisonId,
+        comparisonConfig,
+        schemaComparison,
+      );
+
+      if (executionResult) {
+        setComparisonExecutionTime(tabId, executionResult.durationSeconds);
+        setComparisonResultsTable(tabId, executionResult.tableName);
+        if (activateResults) {
+          setComparisonViewingResults(tabId, true);
+        }
+      }
+    },
+    [tabId, comparisonId, comparisonConfig, schemaComparison, executeComparison],
+  );
+
   const handleRefreshComparison = useCallback(async () => {
-    if (!tab.config || !tab.schemaComparison) return;
+    await runComparison(false);
+  }, [runComparison]);
 
-    const executionResult = await executeComparison(tabId, tab.config, tab.schemaComparison);
+  const handleExecuteComparison = useCallback(() => {
+    if (!comparisonConfig || !schemaComparison) return;
 
-    if (executionResult) {
-      setComparisonExecutionTime(tabId, executionResult.durationSeconds);
-      setComparisonResultsTable(tabId, executionResult.tableName);
+    const hasFilters =
+      comparisonConfig.filterMode === 'common'
+        ? Boolean(comparisonConfig.commonFilter?.trim())
+        : Boolean(comparisonConfig.filterA?.trim()) || Boolean(comparisonConfig.filterB?.trim());
+
+    if (!hasFilters) {
+      modals.openConfirmModal({
+        title: 'Run comparison without filters?',
+        children: (
+          <Text size="sm">
+            This will compare the entire datasets. Large tables may take longer to process.
+          </Text>
+        ),
+        labels: { confirm: 'Run comparison', cancel: 'Cancel' },
+        confirmProps: { color: 'red' },
+        onConfirm: () => {
+          runComparison(true).catch(() => {
+            // Ignored: errors surfaced via executionError state
+          });
+        },
+      });
+      return;
     }
-  }, [tabId, tab.config, tab.schemaComparison, executeComparison]);
 
-  const handleExecuteComparison = useCallback(async () => {
-    if (!tab.config || !tab.schemaComparison) return;
-
-    const executionResult = await executeComparison(tabId, tab.config, tab.schemaComparison);
-
-    if (executionResult) {
-      setComparisonExecutionTime(tabId, executionResult.durationSeconds);
-      setComparisonResultsTable(tabId, executionResult.tableName);
-      setComparisonViewingResults(tabId, true);
-    }
-  }, [tabId, tab.config, tab.schemaComparison, executeComparison]);
+    runComparison(true).catch(() => {
+      // Ignored: errors surfaced via executionError state
+    });
+  }, [comparisonConfig, schemaComparison, runComparison]);
 
   // Compute canRun for the header
   const canRun =
-    !!tab.config?.sourceA &&
-    !!tab.config?.sourceB &&
-    !!tab.schemaComparison &&
-    (tab.config?.joinColumns || []).length > 0;
+    !!comparisonConfig?.sourceA &&
+    !!comparisonConfig?.sourceB &&
+    !!schemaComparison &&
+    (comparisonConfig?.joinColumns || []).length > 0;
+
+  if (!data) {
+    return null;
+  }
 
   if (!active) {
     return null;
@@ -99,11 +147,11 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
           </Alert>
         )}
 
-        {!tab.viewingResults && (
+        {!viewingResults && (
           <ComparisonConfigScreen
             tabId={tabId}
-            config={tab.config}
-            schemaComparison={tab.schemaComparison}
+            config={comparisonConfig}
+            schemaComparison={schemaComparison}
             onConfigChange={handleConfigChange}
             onAnalyzeSchemas={analyzeSchemas}
             isAnalyzing={isAnalyzing}
@@ -114,17 +162,20 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
           />
         )}
 
-        {tab.viewingResults &&
-          tab.config &&
-          tab.schemaComparison &&
-          tab.comparisonResultsTable &&
-          tab.lastExecutionTime && (
+        {viewingResults &&
+          comparisonId &&
+          comparisonConfig &&
+          schemaComparison &&
+          resultsTableName &&
+          lastExecutionTime && (
             <ComparisonViewer
               tabId={tabId}
-              config={tab.config}
-              schemaComparison={tab.schemaComparison}
-              tableName={tab.comparisonResultsTable}
-              executionTime={tab.lastExecutionTime}
+              comparisonId={comparisonId}
+              config={comparisonConfig}
+              schemaComparison={schemaComparison}
+              tableName={resultsTableName}
+              executionTime={lastExecutionTime}
+              lastRunAt={comparison?.lastRunAt ?? null}
               onReconfigure={handleBackToConfiguration}
               onRefresh={handleRefreshComparison}
             />

@@ -10,7 +10,8 @@ import {
   Badge,
   useMantineTheme,
 } from '@mantine/core';
-import { ComparisonConfig, TabReactiveState, ComparisonTab } from '@models/tab';
+import { Comparison } from '@models/comparison';
+import { ComparisonConfig } from '@models/tab';
 import { IconInfoCircle } from '@tabler/icons-react';
 import { useState, useEffect } from 'react';
 
@@ -18,13 +19,13 @@ import { ICON_CLASSES } from '../../constants/color-classes';
 import { getStatusAccentColor, getStatusSurfaceColor } from '../../utils/theme';
 
 interface ConfigurationStepProps {
-  tab: TabReactiveState<ComparisonTab>;
+  comparison: Comparison;
   onConfigChange: (config: Partial<ComparisonConfig>) => void;
 }
 
-export const ConfigurationStep = ({ tab, onConfigChange }: ConfigurationStepProps) => {
+export const ConfigurationStep = ({ comparison, onConfigChange }: ConfigurationStepProps) => {
   const theme = useMantineTheme();
-  const { schemaComparison, config } = tab;
+  const { schemaComparison, config } = comparison;
 
   // Initialize all hooks before any early returns (Rules of Hooks)
   const [selectedJoinKeys, setSelectedJoinKeys] = useState<string[]>(

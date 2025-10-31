@@ -1,10 +1,25 @@
 import { MemoizedBaseTreeNode } from '@components/explorer-tree/components/tree-node';
 import { RenderTreeNodePayload } from '@components/explorer-tree/model';
+import { ComparisonId } from '@models/comparison';
 import { SQLScriptId } from '@models/sql-script';
-import { TabId } from '@models/tab';
-import { useIsActiveTabId, useIsSqlScriptIdOnActiveTab } from '@store/app-store';
+import { useAppStore, useIsSqlScriptIdOnActiveTab } from '@store/app-store';
+import { useShallow } from 'zustand/react/shallow';
 
 import { ScriptExplorerContext, ScriptNodeTypeToIdTypeMap } from './model';
+
+function useIsComparisonActive(comparisonId: ComparisonId | null): boolean {
+  return useAppStore(
+    useShallow((state) => {
+      if (!comparisonId) return false;
+
+      const { activeTabId } = state;
+      if (!activeTabId) return false;
+
+      const activeTab = state.tabs.get(activeTabId);
+      return activeTab?.type === 'comparison' && activeTab.comparisonId === comparisonId;
+    }),
+  );
+}
 
 export const ScriptExplorerNode = (
   props: RenderTreeNodePayload<ScriptNodeTypeToIdTypeMap, ScriptExplorerContext>,
@@ -12,28 +27,52 @@ export const ScriptExplorerNode = (
   const { node, tree, extraData } = props;
   const { nodeType } = node;
 
+  const { flattenedNodes } = extraData;
+
+  const currentIndex = flattenedNodes.findIndex(
+    (flattenedNode) =>
+      flattenedNode.value === node.value && flattenedNode.nodeType === node.nodeType,
+  );
+
+  const prevNode = currentIndex > 0 ? flattenedNodes[currentIndex - 1] : null;
+  const nextNode =
+    currentIndex >= 0 && currentIndex < flattenedNodes.length - 1
+      ? flattenedNodes[currentIndex + 1]
+      : null;
+
   // Check active state based on node type
-  // TypeScript can't narrow node.value based on nodeType, so we use explicit type assertions
-  // Call both hooks unconditionally to satisfy Rules of Hooks
-  const isScriptActive = useIsSqlScriptIdOnActiveTab(node.value as SQLScriptId);
-  const isTabActive = useIsActiveTabId(node.value as TabId);
-  const isActive = nodeType === 'script' ? isScriptActive : isTabActive;
+  const isScriptActive = useIsSqlScriptIdOnActiveTab(
+    nodeType === 'script' ? (node.value as SQLScriptId) : null,
+  );
+  const isComparisonActive = useIsComparisonActive(
+    nodeType === 'comparison' ? (node.value as ComparisonId) : null,
+  );
+  const isActive = nodeType === 'script' ? isScriptActive : isComparisonActive;
 
   // Compute adjacent active states for styling
-  const { flattenedNodeIds } = extraData;
-  const currentIndex = flattenedNodeIds.indexOf(node.value);
-  const prevId = currentIndex > 0 ? flattenedNodeIds[currentIndex - 1] : null;
-  const nextId =
-    currentIndex < flattenedNodeIds.length - 1 ? flattenedNodeIds[currentIndex + 1] : null;
+  const isPrevScriptActive = useIsSqlScriptIdOnActiveTab(
+    prevNode?.nodeType === 'script' ? (prevNode.value as SQLScriptId) : null,
+  );
+  const isPrevComparisonActive = useIsComparisonActive(
+    prevNode?.nodeType === 'comparison' ? (prevNode.value as ComparisonId) : null,
+  );
+  const isPrevActive = prevNode
+    ? prevNode.nodeType === 'script'
+      ? isPrevScriptActive
+      : isPrevComparisonActive
+    : false;
 
-  // Check if adjacent nodes are active (try both script and tab checks)
-  const isPrevScriptActive = useIsSqlScriptIdOnActiveTab((prevId ?? '') as SQLScriptId);
-  const isPrevTabActive = useIsActiveTabId((prevId ?? '') as TabId);
-  const isPrevActive = prevId !== null && (isPrevScriptActive || isPrevTabActive);
-
-  const isNextScriptActive = useIsSqlScriptIdOnActiveTab((nextId ?? '') as SQLScriptId);
-  const isNextTabActive = useIsActiveTabId((nextId ?? '') as TabId);
-  const isNextActive = nextId !== null && (isNextScriptActive || isNextTabActive);
+  const isNextScriptActive = useIsSqlScriptIdOnActiveTab(
+    nextNode?.nodeType === 'script' ? (nextNode.value as SQLScriptId) : null,
+  );
+  const isNextComparisonActive = useIsComparisonActive(
+    nextNode?.nodeType === 'comparison' ? (nextNode.value as ComparisonId) : null,
+  );
+  const isNextActive = nextNode
+    ? nextNode.nodeType === 'script'
+      ? isNextScriptActive
+      : isNextComparisonActive
+    : false;
 
   // Get override context menu from extraData if it exists
   const overrideContextMenu =

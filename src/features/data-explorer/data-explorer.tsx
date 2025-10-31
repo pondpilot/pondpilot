@@ -45,6 +45,8 @@ export const DataExplorer = memo(() => {
     nodeMap,
     anyNodeIdToNodeTypeMap,
     initialExpandedState,
+    comparisonTableNames,
+    comparisonByTableName,
   } = useDataExplorerData();
 
   // Separate databases by type
@@ -107,6 +109,8 @@ export const DataExplorer = memo(() => {
       fileViewNames,
       initialExpandedState,
       flatFileSources,
+      comparisonTableNames,
+      comparisonByTableName,
     },
   );
 

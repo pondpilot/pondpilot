@@ -2,8 +2,6 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
 import { useState, useEffect } from 'react';
 
-import { getColumnsToCompare } from '../utils/sql-generator';
-
 export interface ComparisonResultRow {
   [key: string]: any;
 }

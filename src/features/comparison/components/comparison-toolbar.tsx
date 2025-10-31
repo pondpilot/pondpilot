@@ -1,5 +1,5 @@
 import { Group, Button, ActionIcon, Tooltip } from '@mantine/core';
-import { IconRefresh, IconSettings, IconDownload, IconCopy } from '@tabler/icons-react';
+import { IconRefresh, IconSettings, IconDownload, IconCopy, IconTrash } from '@tabler/icons-react';
 
 interface ComparisonToolbarProps {
   onReconfigure: () => void;
@@ -7,6 +7,8 @@ interface ComparisonToolbarProps {
   onExport: () => void;
   onCopy: () => void;
   isRefreshing?: boolean;
+  onClearResults?: () => void;
+  isClearing?: boolean;
 }
 
 export const ComparisonToolbar = ({
@@ -15,6 +17,8 @@ export const ComparisonToolbar = ({
   onExport,
   onCopy,
   isRefreshing = false,
+  onClearResults,
+  isClearing = false,
 }: ComparisonToolbarProps) => {
   return (
     <Group gap="sm" justify="flex-end">
@@ -41,6 +45,19 @@ export const ComparisonToolbar = ({
           <IconRefresh size={18} />
         </ActionIcon>
       </Tooltip>
+
+      {onClearResults && (
+        <Button
+          variant="light"
+          color="error"
+          leftSection={<IconTrash size={16} />}
+          onClick={onClearResults}
+          loading={isClearing}
+          disabled={isRefreshing || isClearing}
+        >
+          Clear Results
+        </Button>
+      )}
 
       <Button
         variant="light"

@@ -1,4 +1,5 @@
 import { IconType } from '@components/named-icon';
+import { Comparison, ComparisonId } from '@models/comparison';
 import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
@@ -64,6 +65,11 @@ type AppStore = {
   sqlScripts: Map<SQLScriptId, SQLScript>;
 
   /**
+   * A mapping of comparison identifiers to their corresponding Comparison objects.
+   */
+  comparisons: Map<ComparisonId, Comparison>;
+
+  /**
    * A mapping of tab identifiers to their corresponding Tab objects.
    */
   tabs: Map<TabId, AnyTab>;
@@ -123,6 +129,7 @@ const initialState: AppStore = {
   localEntries: new Map(),
   registeredFiles: new Map(),
   sqlScripts: new Map(),
+  comparisons: new Map(),
   tabs: new Map(),
   databaseMetadata: new Map(),
   duckDBFunctions: [],
@@ -275,13 +282,16 @@ export function useProtectedViews(): Set<string> {
   return useAppStore(
     useShallow(
       (state) =>
-        new Set(
-          Array.from(state.dataSources.values())
+        new Set([
+          ...Array.from(state.dataSources.values())
             .filter(
               (dataSource) => dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db',
             )
             .map((dataSource): string => (dataSource as AnyFlatFileDataSource).viewName),
-        ),
+          ...Array.from(state.comparisons.values())
+            .map((comparison) => comparison.resultsTableName)
+            .filter((name): name is string => Boolean(name)),
+        ]),
     ),
   );
 }
@@ -446,7 +456,13 @@ export function useTabNameMap(): Map<TabId, string> {
         new Map(
           Array.from(state.tabs).map(([id, tab]): [TabId, string] => [
             id,
-            getTabName(tab, state.sqlScripts, state.dataSources, state.localEntries),
+            getTabName(
+              tab,
+              state.sqlScripts,
+              state.dataSources,
+              state.localEntries,
+              state.comparisons,
+            ),
           ]),
         ),
     ),

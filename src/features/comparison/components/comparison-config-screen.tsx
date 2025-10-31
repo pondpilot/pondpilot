@@ -27,14 +27,24 @@ import { JoinKeyMapper } from './join-key-mapper';
 import { ICON_CLASSES } from '../constants/color-classes';
 import { useComparisonSourceSelection } from '../hooks/use-comparison-source-selection';
 import { useFilterValidation } from '../hooks/use-filter-validation';
-import {
-  getStatusAccentColor,
-  getStatusSurfaceColor,
-  getThemeColorValue,
-} from '../utils/theme';
+import { getStatusAccentColor, getStatusSurfaceColor, getThemeColorValue } from '../utils/theme';
 
 // Constants
 const SCROLL_COLLAPSE_THRESHOLD = 100;
+const SCROLL_EXPAND_THRESHOLD = 40;
+const MIN_SCROLLABLE_DISTANCE = 160;
+
+const createSourceKey = (sourceA: ComparisonSource, sourceB: ComparisonSource): string => {
+  const keyA =
+    sourceA.type === 'table'
+      ? `table:${sourceA.databaseName}:${sourceA.schemaName}:${sourceA.tableName}`
+      : `query:${sourceA.alias}`;
+  const keyB =
+    sourceB.type === 'table'
+      ? `table:${sourceB.databaseName}:${sourceB.schemaName}:${sourceB.tableName}`
+      : `query:${sourceB.alias}`;
+  return `${keyA}|${keyB}`;
+};
 
 interface ComparisonConfigScreenProps {
   tabId: TabId;
@@ -92,6 +102,7 @@ export const ComparisonConfigScreen = ({
 
   // Track if we've triggered analysis for the current sources
   const analysisTriggeredRef = useRef<string | null>(null);
+  const autoJoinInitializedRef = useRef<string | null>(null);
 
   // Get DuckDB pool for filter validation
   const pool = useInitializedDuckDBConnectionPool();
@@ -135,6 +146,37 @@ export const ComparisonConfigScreen = ({
   const filterBValidation = useFilterValidation(pool, config?.filterB || '', filterBContexts);
 
   // Detect scroll to auto-collapse header
+  const evaluateCollapseState = useCallback(
+    (
+      prev: boolean,
+      metrics: { scrollTop: number; scrollHeight: number; clientHeight: number },
+    ): boolean => {
+      const { scrollTop, scrollHeight, clientHeight } = metrics;
+      const canCollapse = scrollHeight - clientHeight > MIN_SCROLLABLE_DISTANCE;
+
+      if (prev) {
+        if (scrollTop < SCROLL_EXPAND_THRESHOLD) {
+          return false;
+        }
+        if (!canCollapse && scrollTop < SCROLL_COLLAPSE_THRESHOLD) {
+          return false;
+        }
+        return true;
+      }
+
+      if (!canCollapse) {
+        return false;
+      }
+
+      if (scrollTop > SCROLL_COLLAPSE_THRESHOLD) {
+        return true;
+      }
+
+      return false;
+    },
+    [],
+  );
+
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -144,18 +186,33 @@ export const ComparisonConfigScreen = ({
     const handleScroll = () => {
       if (!ticking) {
         window.requestAnimationFrame(() => {
-          const { scrollTop } = container;
-          setIsCollapsed(scrollTop > SCROLL_COLLAPSE_THRESHOLD);
+          const metrics = {
+            scrollTop: container.scrollTop,
+            scrollHeight: container.scrollHeight,
+            clientHeight: container.clientHeight,
+          };
+          setIsCollapsed((prev) => evaluateCollapseState(prev, metrics));
           ticking = false;
         });
         ticking = true;
       }
     };
 
+    // Initialize collapse state
+    const initializeState = () => {
+      const metrics = {
+        scrollTop: container.scrollTop,
+        scrollHeight: container.scrollHeight,
+        clientHeight: container.clientHeight,
+      };
+      setIsCollapsed((prev) => evaluateCollapseState(prev, metrics));
+    };
+
     container.addEventListener('scroll', handleScroll, { passive: true });
+    initializeState();
 
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [scrollContainerRef]);
+  }, [evaluateCollapseState, scrollContainerRef]);
 
   // Source selection hook
   const { selectSourceA, selectSourceB } = useComparisonSourceSelection(
@@ -201,19 +258,6 @@ export const ComparisonConfigScreen = ({
       return;
     }
 
-    // Create a stable unique key for these sources to prevent duplicate analysis
-    const createSourceKey = (sourceA: ComparisonSource, sourceB: ComparisonSource): string => {
-      const keyA =
-        sourceA.type === 'table'
-          ? `table:${sourceA.databaseName}:${sourceA.schemaName}:${sourceA.tableName}`
-          : `query:${sourceA.alias}`;
-      const keyB =
-        sourceB.type === 'table'
-          ? `table:${sourceB.databaseName}:${sourceB.schemaName}:${sourceB.tableName}`
-          : `query:${sourceB.alias}`;
-      return `${keyA}|${keyB}`;
-    };
-
     const sourceKey = createSourceKey(config.sourceA, config.sourceB);
 
     // Skip if we've already triggered analysis for these exact sources
@@ -244,6 +288,44 @@ export const ComparisonConfigScreen = ({
       cancelled = true;
     };
   }, [config?.sourceA, config?.sourceB, onAnalyzeSchemas, tabId]);
+
+  useEffect(() => {
+    if (!config?.sourceA || !config?.sourceB || !schemaComparison) {
+      autoJoinInitializedRef.current = null;
+      return;
+    }
+
+    const suggestionsSignature = `${createSourceKey(config.sourceA, config.sourceB)}|${JSON.stringify(schemaComparison.suggestedKeys)}`;
+
+    if (autoJoinInitializedRef.current === suggestionsSignature) {
+      return;
+    }
+
+    if ((config.joinColumns?.length ?? 0) > 0 || schemaComparison.suggestedKeys.length === 0) {
+      autoJoinInitializedRef.current = suggestionsSignature;
+      return;
+    }
+
+    const cleanedMappings = Object.fromEntries(
+      Object.entries(config?.joinKeyMappings || {}).filter(([key]) =>
+        schemaComparison.suggestedKeys.includes(key),
+      ),
+    );
+
+    onConfigChange({
+      joinColumns: schemaComparison.suggestedKeys,
+      joinKeyMappings: cleanedMappings,
+    });
+
+    autoJoinInitializedRef.current = suggestionsSignature;
+  }, [
+    config?.sourceA,
+    config?.sourceB,
+    config?.joinColumns,
+    config?.joinKeyMappings,
+    schemaComparison,
+    onConfigChange,
+  ]);
 
   // Handle filter mode change
   const handleFilterModeChange = (mode: 'common' | 'separate') => {
