@@ -54,6 +54,7 @@ export type DataExplorerContext = {
   getOverrideContextMenu: (
     selectedState: string[],
   ) => TreeNodeMenuType<TreeNodeData<DataExplorerNodeTypeMap>> | null;
+  flattenedNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   flattenedNodeIds: string[];
   selectedDeleteableNodeIds: string[];
 };

@@ -33,6 +33,7 @@ interface THeadTitleProps
   isIndex: boolean;
   isNumber: boolean;
   iconType: IconType;
+  sortKey: string;
 }
 
 const THeadTitle = ({
@@ -43,6 +44,7 @@ const THeadTitle = ({
   iconType,
   sort,
   onSort,
+  sortKey,
 }: THeadTitleProps) => {
   const { name: columnName } = header.column.columnDef.meta as ColumnMeta;
 
@@ -71,16 +73,16 @@ const THeadTitle = ({
           data-testid={setDataTestId(`data-table-header-cell-sort-${columnName}`)}
           onMouseDown={(e) => {
             e.stopPropagation();
-            onSort?.(columnName);
+            onSort?.(sortKey);
           }}
         >
           <IconTriangleInvertedFilled
             size={8}
             className={cn(
               'opacity-0 text-iconDefault-light dark:text-iconDefault-dark',
-              sort?.column === columnName && 'opacity-100',
+              sort?.column === sortKey && 'opacity-100',
               'group-hover:opacity-100',
-              sort?.order === 'asc' && sort?.column === columnName && 'rotate-180',
+              sort?.order === 'asc' && sort?.column === sortKey && 'rotate-180',
               (isSelected || !onSort) && 'text-iconDisabled',
             )}
           />
@@ -107,6 +109,8 @@ export const TableHeadCell = memo(
     // This will be missing for index column
     const columnMeta = header.column.columnDef.meta as ColumnMeta | undefined;
     const type = columnMeta?.type || 'other';
+    const columnName = columnMeta?.name ?? header.column.id;
+    const sortKey = columnMeta?.sortColumnName ?? columnName;
     const iconType = getIconTypeForSQLType(type);
     const isNumber = isNumberType(type);
     const headStyles = {
@@ -117,6 +121,32 @@ export const TableHeadCell = memo(
     const handleMouseEvent = (e: React.MouseEvent) => {
       isIndexColumn ? null : onHeadCellClick(header.column.id, e);
     };
+
+    const defaultContent = (
+      <THeadTitle
+        header={header}
+        isIndex={isIndexColumn}
+        isNumber={isNumber}
+        isSelected={isSelected}
+        iconType={iconType}
+        sort={sort}
+        onSort={onSort}
+        sortKey={sortKey}
+      />
+    );
+
+    const renderedContent = columnMeta?.headerRenderer
+      ? columnMeta.headerRenderer({
+          header,
+          isSelected,
+          sort: sort ?? null,
+          onSort,
+          iconType,
+          isIndex: isIndexColumn,
+          isNumber,
+          defaultNode: defaultContent,
+        })
+      : defaultContent;
 
     return (
       <div
@@ -137,15 +167,7 @@ export const TableHeadCell = memo(
         style={headStyles}
         onMouseDown={handleMouseEvent}
       >
-        <THeadTitle
-          header={header}
-          isIndex={isIndexColumn}
-          isNumber={isNumber}
-          isSelected={isSelected}
-          iconType={iconType}
-          sort={sort}
-          onSort={onSort}
-        />
+        {renderedContent}
         <div
           {...{
             onDoubleClick: () => header.column.resetSize(),

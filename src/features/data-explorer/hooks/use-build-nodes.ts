@@ -1,4 +1,5 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { Comparison } from '@models/comparison';
 import { LocalDB, RemoteDB } from '@models/data-source';
 
 import { DataExplorerNodeMap } from '../model';
@@ -18,6 +19,8 @@ type UseBuildNodesProps = {
   fileViewNames: Set<string>;
   initialExpandedState: Record<string, boolean>;
   flatFileSources: Map<string, any>;
+  comparisonTableNames: Set<string>;
+  comparisonByTableName: Map<string, Comparison>;
 };
 
 /**
@@ -37,6 +40,8 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     fileViewNames,
     initialExpandedState,
     flatFileSources,
+    comparisonTableNames,
+    comparisonByTableName,
   } = props;
 
   // Build local database nodes
@@ -50,6 +55,8 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     fileViewNames,
     initialExpandedState,
     flatFileSources,
+    comparisonTableNames,
+    comparisonByTableName,
   });
 
   // Build remote database nodes
@@ -61,6 +68,8 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     databaseMetadata,
     initialExpandedState,
     flatFileSources,
+    comparisonTableNames,
+    comparisonByTableName,
   });
 
   // Build system database node
@@ -74,6 +83,8 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     fileViewNames,
     initialExpandedState,
     flatFileSources,
+    comparisonTableNames,
+    comparisonByTableName,
   });
 
   return {

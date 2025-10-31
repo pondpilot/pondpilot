@@ -86,13 +86,25 @@ export const TableRegularCell = memo(
       </Box>
     );
 
-    return isTruncated ? (
+    const defaultNode = isTruncated ? (
       <Tooltip withinPortal label={formattedValue}>
         {cellElement}
       </Tooltip>
     ) : (
       cellElement
     );
+
+    if (columnMeta?.cellRenderer) {
+      return columnMeta.cellRenderer({
+        cell,
+        formattedValue,
+        isCellSelected,
+        isColumnSelected,
+        defaultNode,
+      });
+    }
+
+    return defaultNode;
   },
 );
 TableRegularCell.displayName = 'TableRegularCell';

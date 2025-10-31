@@ -67,6 +67,7 @@ export function useExplorerContext<
   return {
     ...extraData,
     getOverrideContextMenu,
+    flattenedNodes,
     flattenedNodeIds,
     selectedDeleteableNodeIds,
   };

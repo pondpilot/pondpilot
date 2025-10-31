@@ -1,6 +1,6 @@
-import { Table as TableType, Cell } from '@tanstack/react-table';
+import { Table as TableType, Cell, Row } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
-import { memo } from 'react';
+import { memo, CSSProperties } from 'react';
 
 import { TableIndexCell, TableRegularCell } from './components';
 
@@ -9,28 +9,51 @@ export const TableBody = ({
   selectedCellId,
   onCellSelect,
   selectedCols,
+  getRowClassName,
 }: {
   table: TableType<any>;
   selectedCellId: string | null;
   onCellSelect: (cell: Cell<any, any>) => void;
   selectedCols: Record<string, boolean>;
+  getRowClassName?: (
+    row: Row<any>,
+    rowIndex: number,
+  ) =>
+    | string
+    | string[]
+    | {
+        className?: string | string[];
+        style?: CSSProperties;
+      }
+    | undefined;
 }) => (
   <div>
     {table.getRowModel().rows.map((row, rowIndex) => {
       const oddRow = rowIndex % 2 !== 0;
       const isSelected = row.getIsSelected();
 
+      const customRowConfig = getRowClassName?.(row, rowIndex);
+      const customRowStyle =
+        customRowConfig && typeof customRowConfig === 'object' && !Array.isArray(customRowConfig)
+          ? customRowConfig.style
+          : undefined;
+      const customRowClass =
+        typeof customRowConfig === 'string' || Array.isArray(customRowConfig)
+          ? customRowConfig
+          : customRowConfig?.className;
       const lastRow = rowIndex === table.getRowModel().rows.length - 1;
       return (
         <div
           key={row.id}
           className={cn(
             'flex border-borderLight-light dark:border-borderLight-dark  border-b',
-            oddRow && 'bg-transparent004-light dark:bg-transparent004-dark',
+            !customRowClass && oddRow && 'bg-transparent004-light dark:bg-transparent004-dark',
             lastRow && 'rounded-bl-xl rounded-br-xl border-b',
             isSelected &&
               'bg-transparentBrandBlue-012 dark:bg-darkModeTransparentBrandBlue-032   outline outline-borderAccent-light outline-offset-[-1px]',
+            customRowClass,
           )}
+          style={customRowStyle}
         >
           {row
             .getVisibleCells()
@@ -64,5 +87,7 @@ export const TableBody = ({
 
 export const MemoizedTableBody = memo(
   TableBody,
-  (prev, next) => prev.table.options.data === next.table.options.data,
+  (prev, next) =>
+    prev.table.options.data === next.table.options.data &&
+    prev.getRowClassName === next.getRowClassName,
 ) as typeof TableBody;

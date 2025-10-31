@@ -89,6 +89,14 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
           );
         }
 
+        case 'comparison': {
+          return (
+            <Text {...textDefaultProps} c="text-error">
+              Comparison failed. Check your configuration and sources.
+            </Text>
+          );
+        }
+
         default:
           assertNeverValueType(tabType);
           break;
