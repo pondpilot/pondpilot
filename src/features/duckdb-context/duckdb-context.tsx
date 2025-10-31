@@ -169,7 +169,11 @@ export const DuckDBConnectionPoolProvider = ({
           try {
             return base ? new URL(url, base).toString() : url;
           } catch (resolutionError) {
-            console.warn('Failed to normalize DuckDB bundle URL, using as-is', url, resolutionError);
+            console.warn(
+              'Failed to normalize DuckDB bundle URL, using as-is',
+              url,
+              resolutionError,
+            );
             return url;
           }
         };
@@ -189,7 +193,9 @@ export const DuckDBConnectionPoolProvider = ({
 
         // Create a blob URL for the worker script
         const worker_url = URL.createObjectURL(
-          new Blob([`importScripts("${normalizedBundle.mainWorker}");`], { type: 'text/javascript' }),
+          new Blob([`importScripts("${normalizedBundle.mainWorker}");`], {
+            type: 'text/javascript',
+          }),
         );
 
         // Store the URL in the ref for cleanup on unmount

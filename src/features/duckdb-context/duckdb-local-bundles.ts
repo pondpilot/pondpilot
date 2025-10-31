@@ -1,12 +1,11 @@
 import type { DuckDBBundles } from '@duckdb/duckdb-wasm';
-
 import duckdbCoiPThreadWorkerUrl from '@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url';
-import duckdbCoiWasmUrl from '@duckdb/duckdb-wasm/dist/duckdb-coi.wasm?url';
 import duckdbCoiWorkerUrl from '@duckdb/duckdb-wasm/dist/duckdb-browser-coi.worker.js?url';
-import duckdbEHWasmUrl from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url';
 import duckdbEHWasmWorkerUrl from '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url';
-import duckdbMvpWasmUrl from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
 import duckdbMvpWorkerUrl from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url';
+import duckdbCoiWasmUrl from '@duckdb/duckdb-wasm/dist/duckdb-coi.wasm?url';
+import duckdbEHWasmUrl from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url';
+import duckdbMvpWasmUrl from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url';
 
 /**
  * DuckDB WASM bundles served from the application's origin instead of the jsDelivr CDN.
