@@ -126,7 +126,7 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
     <div ref={scrollContainerRef} className="h-full overflow-auto relative">
       <LoadingOverlay visible={isAnalyzing || isExecuting} overlayProps={{ blur: 2 }} />
 
-      <Stack gap="xl" p={tab.viewingResults ? 'xl' : 0}>
+      <Stack gap="xl" p={viewingResults ? 'xl' : 0}>
         {analysisError && (
           <Alert
             icon={<IconAlertCircle size={16} className={ICON_CLASSES.error} />}

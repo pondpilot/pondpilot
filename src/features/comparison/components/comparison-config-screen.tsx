@@ -17,6 +17,7 @@ import {
   Text,
   Textarea,
   useMantineTheme,
+  rgba,
 } from '@mantine/core';
 import { ComparisonConfig, ComparisonSource, SchemaComparisonResult, TabId } from '@models/tab';
 import { IconAlertCircle, IconCheck, IconChevronDown, IconTable } from '@tabler/icons-react';
@@ -359,18 +360,17 @@ export const ComparisonConfigScreen = ({
           top: 0,
           zIndex: 10,
           transition: 'all 200ms ease-in-out',
-          // Extend full width when collapsed
           ...(isCollapsed
             ? {
                 borderRadius: 0,
                 borderTop: 'none',
                 borderLeft: 'none',
                 borderRight: 'none',
-                paddingLeft: '1.5rem',
-                paddingRight: '1.5rem',
+                paddingLeft: theme.spacing.xl,
+                paddingRight: theme.spacing.xl,
               }
             : {
-                margin: '1.5rem',
+                margin: theme.spacing.xl,
               }),
         }}
       >
@@ -515,8 +515,8 @@ export const ComparisonConfigScreen = ({
                       style={{
                         backgroundColor:
                           colorScheme === 'dark'
-                            ? 'rgba(255, 255, 255, 0.02)'
-                            : 'rgba(0, 0, 0, 0.02)',
+                            ? rgba(theme.white, 0.02)
+                            : rgba(theme.black, 0.02),
                         borderRadius: theme.radius.sm,
                       }}
                     >
@@ -589,8 +589,8 @@ export const ComparisonConfigScreen = ({
                       style={{
                         backgroundColor:
                           colorScheme === 'dark'
-                            ? 'rgba(255, 255, 255, 0.02)'
-                            : 'rgba(0, 0, 0, 0.02)',
+                            ? rgba(theme.white, 0.02)
+                            : rgba(theme.black, 0.02),
                         borderRadius: theme.radius.sm,
                       }}
                     >
@@ -669,8 +669,8 @@ export const ComparisonConfigScreen = ({
                       style={{
                         backgroundColor:
                           colorScheme === 'dark'
-                            ? 'rgba(255, 255, 255, 0.02)'
-                            : 'rgba(0, 0, 0, 0.02)',
+                            ? rgba(theme.white, 0.02)
+                            : rgba(theme.black, 0.02),
                         borderRadius: theme.radius.sm,
                       }}
                     >

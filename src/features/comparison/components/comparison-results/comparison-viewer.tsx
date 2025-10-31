@@ -20,6 +20,7 @@ import {
   Checkbox,
   ScrollArea,
   ActionIcon,
+  List,
   useMantineTheme,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
@@ -36,6 +37,7 @@ import {
   IconX,
   IconLayoutColumns,
 } from '@tabler/icons-react';
+import { cn } from '@utils/ui/styles';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 
 import {
@@ -89,6 +91,9 @@ export const ComparisonViewer = ({
   const colorScheme = useAppTheme();
   const baseAlertText = getThemeColorValue(theme, 'text-primary', colorScheme === 'dark' ? 0 : 9);
   const accentAlertTitle = getThemeColorValue(theme, 'text-accent', colorScheme === 'dark' ? 2 : 6);
+  const inverseTextColor =
+    getThemeColorValue(theme, 'text-contrast', colorScheme === 'dark' ? 0 : 5) ??
+    (colorScheme === 'dark' ? theme.white : theme.black);
   const dataSources = useAppStore.use.dataSources();
   const databaseMetadata = useAppStore.use.databaseMetadata();
   const pool = useInitializedDuckDBConnectionPool();
@@ -725,11 +730,11 @@ export const ComparisonViewer = ({
           styles={getAlertStyles('accent')}
         >
           The comparison returned no results. This could mean:
-          <ul style={{ marginTop: '8px', marginLeft: '20px' }}>
-            <li>Both sources have no matching rows based on the join keys</li>
-            <li>The filters excluded all rows</li>
-            <li>One or both data sources are empty</li>
-          </ul>
+          <List spacing="xs" size="sm" mt="xs" pl="md">
+            <List.Item>Both sources have no matching rows based on the join keys</List.Item>
+            <List.Item>The filters excluded all rows</List.Item>
+            <List.Item>One or both data sources are empty</List.Item>
+          </List>
         </Alert>
       </Stack>
     );
@@ -1085,14 +1090,14 @@ export const ComparisonViewer = ({
             <Popover
               opened={columnsPopoverOpened}
               onChange={setColumnsPopoverOpened}
-              withArrow
               shadow="md"
               trapFocus
               position="bottom-end"
+              middlewares={{ flip: true, shift: true }}
             >
               <Popover.Target>
                 <Button
-                  variant="light"
+                  variant="secondary"
                   size="xs"
                   leftSection={<IconLayoutColumns size={14} />}
                   onClick={() => setColumnsPopoverOpened((open) => !open)}
@@ -1100,33 +1105,63 @@ export const ComparisonViewer = ({
                   Select Columns
                 </Button>
               </Popover.Target>
-              <Popover.Dropdown maw={320} p="sm">
+              <Popover.Dropdown
+                maw={320}
+                p="sm"
+                className={cn(
+                  'min-w-32 border-0 bg-backgroundInverse-light dark:bg-backgroundInverse-dark rounded-lg',
+                )}
+                style={{
+                  boxShadow:
+                    colorScheme === 'dark'
+                      ? '0px 18px 34px rgba(0, 0, 0, 0.45)'
+                      : '0px 18px 34px rgba(14, 22, 33, 0.16)',
+                }}
+              >
                 <Stack gap="xs">
                   <TextInput
                     size="xs"
                     placeholder="Search columns..."
                     value={columnSearchQuery}
                     onChange={(event) => setColumnSearchQuery(event.currentTarget.value)}
+                    variant="default"
+                    classNames={{
+                      input: cn(
+                        'bg-backgroundInverse-light dark:bg-backgroundInverse-dark',
+                        'text-textContrast-light dark:text-textContrast-dark',
+                        'placeholder:text-iconDisabled-light dark:placeholder:text-iconDisabled-dark',
+                        'border border-borderSecondary-light dark:border-borderSecondary-dark',
+                        'focus:border-iconAccent-light dark:focus:border-iconAccent-dark',
+                      ),
+                    }}
                   />
                   <Group gap="xs">
-                    <Button size="xs" variant="subtle" onClick={() => handleSelectAllColumns(true)}>
+                    <Button
+                      size="xs"
+                      variant="transparent"
+                      color="text-contrast"
+                      className="hover:bg-transparentWhite-012 dark:hover:bg-transparentWhite-012"
+                      onClick={() => handleSelectAllColumns(true)}
+                    >
                       Select All
                     </Button>
                     <Button
                       size="xs"
-                      variant="subtle"
+                      variant="transparent"
+                      color="text-contrast"
+                      className="hover:bg-transparentWhite-012 dark:hover:bg-transparentWhite-012"
                       onClick={() => handleSelectAllColumns(false)}
                     >
                       Deselect All
                     </Button>
                   </Group>
-                  <Text size="xs" fw={600} c="dimmed">
+                  <Text size="xs" fw={600} c="text-contrast">
                     Join Columns
                   </Text>
                   <ScrollArea.Autosize mah={120} type="auto">
                     <Stack gap={4}>
                       {filteredJoinColumnOptions.length === 0 ? (
-                        <Text size="xs" c="dimmed">
+                        <Text size="xs" c="text-contrast">
                           No columns
                         </Text>
                       ) : (
@@ -1134,7 +1169,13 @@ export const ComparisonViewer = ({
                           <Checkbox
                             key={option.id}
                             size="xs"
+                            color="icon-accent"
                             label={option.label}
+                            styles={{
+                              label: {
+                                color: inverseTextColor,
+                              },
+                            }}
                             checked={visibleJoinColumns[option.id] !== false}
                             onChange={(event) =>
                               handleJoinColumnVisibilityChange(
@@ -1147,13 +1188,13 @@ export const ComparisonViewer = ({
                       )}
                     </Stack>
                   </ScrollArea.Autosize>
-                  <Text size="xs" fw={600} c="dimmed">
+                  <Text size="xs" fw={600} c="text-contrast">
                     Comparison Columns
                   </Text>
                   <ScrollArea.Autosize mah={150} type="auto">
                     <Stack gap={4}>
                       {filteredValueColumnOptions.length === 0 ? (
-                        <Text size="xs" c="dimmed">
+                        <Text size="xs" c="text-contrast">
                           No columns
                         </Text>
                       ) : (
@@ -1161,7 +1202,13 @@ export const ComparisonViewer = ({
                           <Checkbox
                             key={option.id}
                             size="xs"
+                            color="icon-accent"
                             label={option.label}
+                            styles={{
+                              label: {
+                                color: inverseTextColor,
+                              },
+                            }}
                             checked={visibleValueColumns[option.id] !== false}
                             onChange={(event) =>
                               handleValueColumnVisibilityChange(
