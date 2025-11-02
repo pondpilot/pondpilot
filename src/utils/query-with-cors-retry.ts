@@ -79,10 +79,25 @@ async function executeWithCorsRetry<TResult>(
         try {
           return await retryExecutor(rewritten);
         } catch (proxyError) {
+          const proxyErrorMsg = getErrorMessage(proxyError);
+
+          // Check if database is already attached - this is actually a success case
+          // (database was attached via proxy in a previous attempt)
+          if (
+            proxyErrorMsg.includes('already attached') ||
+            proxyErrorMsg.includes('Unique file handle conflict')
+          ) {
+            // eslint-disable-next-line no-console
+            console.info('Database already attached via CORS proxy, continuing...');
+            // Return an empty Arrow Table since ATTACH doesn't return data
+            // This matches the expected return type for query operations
+            return new arrow.Table([]) as TResult;
+          }
+
           console.error('CORS proxy retry failed:', proxyError);
           throw new Error(
             `Failed to connect via CORS proxy. Original error: ${getErrorMessage(error)}. ` +
-              `Proxy error: ${getErrorMessage(proxyError)}`,
+              `Proxy error: ${proxyErrorMsg}`,
           );
         }
       }

@@ -1,4 +1,8 @@
-import { wrapWithCorsProxy, isRemoteUrl, convertS3ToHttps } from '@utils/cors-proxy-config';
+import {
+  wrapWithCorsProxyPathBased,
+  isRemoteUrl,
+  convertS3ToHttps,
+} from '@utils/cors-proxy-config';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 
@@ -24,7 +28,8 @@ export function buildAttachQuery(
     // Convert S3 URLs to HTTPS before wrapping with proxy
     // The proxy can't handle s3:// protocol directly
     const httpsUrl = convertS3ToHttps(filePath);
-    finalPath = wrapWithCorsProxy(httpsUrl || filePath);
+    // Use path-based proxy for database files to allow DuckDB to construct URLs for related files
+    finalPath = wrapWithCorsProxyPathBased(httpsUrl || filePath);
   }
 
   const escapedPath = quote(finalPath, { single: true });

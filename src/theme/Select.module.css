@@ -20,7 +20,7 @@
 }
 
 .input {
-  border-radius: 8px;
+  border-radius: 16px;
   border: 1px solid;
   transition: all 0.2s ease;
 
@@ -57,7 +57,7 @@
 .input:focus-visible,
 .input[data-expanded='true'] {
   outline: none;
-  border-color: var(--mantine-color-brandBlue_neon-700-filled);
+  border-color: var(--mantine-color-border-accent-filled);
 }
 
 .input:disabled,
@@ -87,12 +87,6 @@
   border: 1px solid var(--mantine-color-border-primary-filled);
   border-radius: 2px;
   padding: 4px;
-}
-
-.options {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .option {

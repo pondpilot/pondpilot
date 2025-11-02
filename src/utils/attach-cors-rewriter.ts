@@ -6,7 +6,7 @@
  */
 
 import {
-  wrapWithCorsProxy,
+  wrapWithCorsProxyPathBased,
   isRemoteUrl,
   PROXY_PREFIX,
   PROXY_PREFIX_LENGTH,
@@ -51,9 +51,9 @@ export function rewriteAttachUrl(
   let wasRewritten = false;
 
   // Match ATTACH 'url' pattern (handles both single and double quotes)
-  // Updated regex to also match s3:// URLs
+  // Matches http://, https://, s3://, gcs://, and azure:// URLs with optional proxy: prefix
   const rewritten = query.replace(
-    /ATTACH\s+(['"])((?:proxy:)?(?:https?|s3):\/\/[^'"]+)\1/gi,
+    /ATTACH\s+(['"])((?:proxy:)?(?:https?|s3|gcs|azure):\/\/[^'"]+)\1/gi,
     (match, quote, url) => {
       // Check if it's an explicit proxy: request
       const isExplicitProxy = url.startsWith(PROXY_PREFIX);
@@ -65,23 +65,43 @@ export function rewriteAttachUrl(
         return `ATTACH ${quote}${cleanUrl}${quote}`;
       }
 
-      // Handle S3 URLs when forceWrap is true (CORS retry scenario)
-      if (forceWrap && cleanUrl.startsWith('s3://')) {
+      // Handle S3 URLs - convert to HTTPS before wrapping
+      // This handles both forceWrap (auto-retry) and explicit proxy: prefix scenarios
+      if (cleanUrl.startsWith('s3://') && (isExplicitProxy || forceWrap)) {
         const httpsUrl = convertS3ToHttps(cleanUrl);
         if (httpsUrl) {
-          const proxiedUrl = wrapWithCorsProxy(httpsUrl);
+          // Use path-based proxy for .duckdb files to allow DuckDB to construct URLs for related files
+          const proxiedUrl = wrapWithCorsProxyPathBased(httpsUrl);
           wasRewritten = true;
           return `ATTACH ${quote}${proxiedUrl}${quote}`;
         }
         // If conversion failed, fall through to return original URL
+        // (this will attempt native s3:// access via DuckDB's httpfs extension)
       }
 
-      // Only wrap if it's a remote URL AND one of these conditions:
+      // Only wrap if it's a remote HTTP(S) URL AND one of these conditions:
       // 1. Explicit proxy: prefix
       // 2. forceWrap is true (auto-retry after CORS error)
+      // Note: S3/GCS/Azure native protocols are handled above or use DuckDB's httpfs
       if (isRemoteUrl(cleanUrl)) {
+        // Don't wrap native cloud storage protocols - they can't be proxied
+        try {
+          const parsed = new URL(cleanUrl);
+          if (
+            parsed.protocol === 's3:' ||
+            parsed.protocol === 'gcs:' ||
+            parsed.protocol === 'azure:'
+          ) {
+            // Return original URL - will use DuckDB's httpfs extension
+            return `ATTACH ${quote}${cleanUrl}${quote}`;
+          }
+        } catch {
+          // Invalid URL, fall through to return original
+        }
+
         if (isExplicitProxy || forceWrap) {
-          const proxiedUrl = wrapWithCorsProxy(cleanUrl);
+          // Use path-based proxy for database files to allow DuckDB to construct URLs for related files
+          const proxiedUrl = wrapWithCorsProxyPathBased(cleanUrl);
           wasRewritten = true;
           return `ATTACH ${quote}${proxiedUrl}${quote}`;
         }

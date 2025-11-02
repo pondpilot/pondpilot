@@ -29,7 +29,8 @@
       "@consts/*": ["consts/*"],
       "@controllers/*": ["controllers/*"],
       "@models/*": ["models/*"],
-      "@assets/*": ["assets/*"]
+      "@assets/*": ["assets/*"],
+      "@services/*": ["services/*"]
     }
   },
   "include": ["src", "tests", "playwright.config.ts"]
