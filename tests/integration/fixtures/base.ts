@@ -1,9 +1,19 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { test as base } from '@playwright/test';
+import { test as base, BrowserContext } from '@playwright/test';
 
-export const test = base.extend<{ forEachTest: void }>({
+export const test = base.extend<{ context: BrowserContext; forEachTest: void }>({
+  // Override context to create a fresh browser context for EACH TEST with isolated storage
+  // This ensures that IndexedDB and other storage is isolated between tests
+  context: async ({ browser }, use) => {
+    const context = await browser.newContext({
+      // Each test gets a completely fresh context with no stored state
+      storageState: undefined,
+    });
+    await use(context);
+    await context.close();
+  },
   forEachTest: [
     async ({ context }, use, testInfo) => {
       const isDebugMode = !!process.env.PLAYWRIGHT_DEBUG_TESTS;
