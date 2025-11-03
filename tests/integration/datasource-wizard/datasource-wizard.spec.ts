@@ -14,7 +14,7 @@ test.describe('Datasource Wizard', () => {
 
     // Click on Remote Database
     // await page.getByTestId('add-remote-database-card')
-    const remoteDatabaseCard = page.getByTestId('datasource-modal-add-remote-database-card');
+    const remoteDatabaseCard = page.getByTestId('add-remote-database-card');
     await remoteDatabaseCard.click();
 
     // Should show remote database config
@@ -24,7 +24,7 @@ test.describe('Datasource Wizard', () => {
     await page.getByTestId('back-to-selection').click();
 
     // Should be back at selection screen
-    await expect(page.getByTestId('datasource-modal-add-file-card')).toBeVisible();
+    await expect(page.getByTestId('add-file-card')).toBeVisible();
   });
 
   // eslint-disable-next-line playwright/expect-expect
@@ -36,7 +36,7 @@ test.describe('Datasource Wizard', () => {
     // Navigate to remote database config
     await openDatasourceWizard();
 
-    const remoteDBCard = page.getByTestId('datasource-modal-add-remote-database-card');
+    const remoteDBCard = page.getByTestId('add-remote-database-card');
     const remoteDBURLInput = page.getByTestId('remote-database-url-input');
     const remoteDBNameInput = page.getByTestId('remote-database-name-input');
     const testConnectionButton = page.getByTestId('test-remote-database-connection-button');
@@ -55,7 +55,7 @@ test.describe('Datasource Wizard', () => {
   test('should validate database name', async ({ page, openDatasourceWizard }) => {
     // Navigate to remote database config
     await openDatasourceWizard();
-    const remoteDBCard = page.getByTestId('datasource-modal-add-remote-database-card');
+    const remoteDBCard = page.getByTestId('add-remote-database-card');
     const remoteDBURLInput = page.getByTestId('remote-database-url-input');
     const remoteDBNameInput = page.getByTestId('remote-database-name-input');
     const testConnectionButton = page.getByTestId('test-remote-database-connection-button');
@@ -71,7 +71,7 @@ test.describe('Datasource Wizard', () => {
   test('should disable buttons during connection test', async ({ page, openDatasourceWizard }) => {
     // Navigate to remote database config
     await openDatasourceWizard();
-    const remoteDBCard = page.getByTestId('datasource-modal-add-remote-database-card');
+    const remoteDBCard = page.getByTestId('add-remote-database-card');
     const remoteDBURLInput = page.getByTestId('remote-database-url-input');
     const remoteDBNameInput = page.getByTestId('remote-database-name-input');
     const testConnectionButton = page.getByTestId('test-remote-database-connection-button');

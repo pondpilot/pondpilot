@@ -347,11 +347,24 @@ export const ScriptExplorer = memo(() => {
     [comparisonsArray, comparisonRenameCallbacks, comparisonContextMenu, handleNodeDelete],
   );
 
-  // Combine and sort all nodes alphabetically
-  const allNodes = useMemo(
-    () => [...sqlScriptTree, ...comparisonTree].sort((a, b) => a.label.localeCompare(b.label)),
-    [sqlScriptTree, comparisonTree],
+  const collator = useMemo(
+    () => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }),
+    [],
   );
+
+  const allNodes = useMemo(() => {
+    const getSortKey = (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>) => {
+      if (node.nodeType === 'script') {
+        return node.label.replace(/\.sql$/, '').toLowerCase();
+      }
+      return node.label.toLowerCase();
+    };
+
+    return [...sqlScriptTree, ...comparisonTree].sort((a, b) => {
+      const order = collator.compare(getSortKey(a), getSortKey(b));
+      return order !== 0 ? order : collator.compare(a.label.toLowerCase(), b.label.toLowerCase());
+    });
+  }, [sqlScriptTree, comparisonTree, collator]);
 
   // Create Sets for efficient O(1) lookup instead of O(n) array search
   const scriptIdsSet = useMemo(() => new Set(scriptsArray.map(([id]) => id)), [scriptsArray]);

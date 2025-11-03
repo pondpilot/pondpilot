@@ -80,11 +80,11 @@ export const test = base.extend<FileSystemExplorerFixtures>({
   },
 
   addFileButton: async ({ page }, use) => {
-    await use(page.getByTestId('datasource-modal-add-file-card'));
+    await use(page.getByTestId('add-file-card'));
   },
 
   addFolderButton: async ({ page }, use) => {
-    await use(page.getByTestId('datasource-modal-add-folder-button'));
+    await use(page.getByTestId('add-folder-card'));
   },
 
   openFileFromExplorer: async ({ getFileNodeByName }, use) => {
@@ -217,7 +217,7 @@ export const test = base.extend<FileSystemExplorerFixtures>({
   addFile: async ({ page }, use) => {
     await use(async () => {
       await page.getByTestId('navbar-add-datasource-button').click();
-      const addFileButton = page.getByTestId('datasource-modal-add-file-card');
+      const addFileButton = page.getByTestId('add-file-card');
       await expect(addFileButton).toBeVisible();
       await addFileButton.click();
     });
@@ -226,7 +226,7 @@ export const test = base.extend<FileSystemExplorerFixtures>({
   addFolder: async ({ page }, use) => {
     await use(async () => {
       await page.getByTestId('navbar-add-datasource-button').click();
-      const addFolderButton = page.getByTestId('datasource-modal-add-folder-card');
+      const addFolderButton = page.getByTestId('add-folder-card');
       await expect(addFolderButton).toBeVisible();
       await addFolderButton.click();
     });
