@@ -66,9 +66,7 @@ const getDatasourceCardLocator = (
   primaryTestId: string,
   fallbackTestId: string,
 ): Locator => {
-  return page.locator(
-    `[data-testid="${primaryTestId}"], [data-testid="${fallbackTestId}"]`,
-  );
+  return page.locator(`[data-testid="${primaryTestId}"], [data-testid="${fallbackTestId}"]`);
 };
 
 export const test = base.extend<FileSystemExplorerFixtures>({
@@ -94,7 +92,9 @@ export const test = base.extend<FileSystemExplorerFixtures>({
   },
 
   addFolderButton: async ({ page }, use) => {
-    await use(getDatasourceCardLocator(page, 'add-folder-card', 'datasource-modal-add-folder-card'));
+    await use(
+      getDatasourceCardLocator(page, 'add-folder-card', 'datasource-modal-add-folder-card'),
+    );
   },
 
   openFileFromExplorer: async ({ getFileNodeByName }, use) => {
