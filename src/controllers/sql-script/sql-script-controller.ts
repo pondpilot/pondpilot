@@ -23,7 +23,7 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
   const { sqlScripts, comparisons } = useAppStore.getState();
 
   // Generate unique name checking both SQL scripts and comparisons
-  // This ensures script names don't conflict with comparison names
+  // This ensures script names don't conflict with comparison names (parity with createComparison)
   const existingScriptNames = Array.from(sqlScripts.values()).map((script) => script.name);
   const existingComparisonNames = Array.from(comparisons.values()).map((comp) => comp.name);
   const allExistingNames = new Set([...existingScriptNames, ...existingComparisonNames]);
@@ -108,7 +108,7 @@ export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName:
   const sqlScript = ensureScript(sqlScriptOrId, sqlScripts);
 
   // Make sure the name is unique among other scripts and comparisons
-  // This ensures renamed scripts don't conflict with comparison names
+  // This ensures renamed scripts don't conflict with comparison names (parity with renameComparison)
   const existingScriptNames = Array.from(sqlScripts.values())
     .filter((script) => script.id !== sqlScript.id)
     .map((script) => script.name);
