@@ -20,10 +20,15 @@ import { deleteSqlScriptImpl } from './pure';
  */
 
 export const createSQLScript = (name: string = 'query', content: string = ''): SQLScript => {
-  const { sqlScripts } = useAppStore.getState();
-  const allNames = new Set(Array.from(sqlScripts.values()).map((script) => script.name));
+  const { sqlScripts, comparisons } = useAppStore.getState();
 
-  const fileName = findUniqueName(name, (value) => allNames.has(value));
+  // Generate unique name checking both SQL scripts and comparisons
+  // This ensures script names don't conflict with comparison names
+  const existingScriptNames = Array.from(sqlScripts.values()).map((script) => script.name);
+  const existingComparisonNames = Array.from(comparisons.values()).map((comp) => comp.name);
+  const allExistingNames = new Set([...existingScriptNames, ...existingComparisonNames]);
+
+  const fileName = findUniqueName(name, (value) => allExistingNames.has(value));
   const sqlScriptId = makeSQLScriptId();
   const sqlScript: SQLScript = {
     id: sqlScriptId,
@@ -97,19 +102,20 @@ export const updateSQLScriptContent = (
 };
 
 export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName: string): void => {
-  const { sqlScripts } = useAppStore.getState();
+  const { sqlScripts, comparisons } = useAppStore.getState();
 
   // Check if the script exists
   const sqlScript = ensureScript(sqlScriptOrId, sqlScripts);
 
-  // Make sure the name is unique among other scripts
-  const allNames = new Set(
-    Array.from(sqlScripts.values())
-      .filter((script) => script.id !== sqlScript.id)
-      .map((script) => script.name),
-  );
+  // Make sure the name is unique among other scripts and comparisons
+  // This ensures renamed scripts don't conflict with comparison names
+  const existingScriptNames = Array.from(sqlScripts.values())
+    .filter((script) => script.id !== sqlScript.id)
+    .map((script) => script.name);
+  const existingComparisonNames = Array.from(comparisons.values()).map((comp) => comp.name);
+  const allExistingNames = new Set([...existingScriptNames, ...existingComparisonNames]);
 
-  const uniqueName = findUniqueName(newName, (value) => allNames.has(value));
+  const uniqueName = findUniqueName(newName, (value) => allExistingNames.has(value));
 
   // Create updated script
   const updatedScript: SQLScript = {
