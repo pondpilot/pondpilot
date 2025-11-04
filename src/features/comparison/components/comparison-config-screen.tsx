@@ -334,7 +334,7 @@ export const ComparisonConfigScreen = ({
   };
 
   // Get column options for MultiSelect
-  const getColumnOptions = (): { value: string; label: string }[] => {
+  const _getColumnOptions = (): { value: string; label: string }[] => {
     if (!schemaComparison) return [];
     return schemaComparison.commonColumns.map((col) => ({
       value: col.name,

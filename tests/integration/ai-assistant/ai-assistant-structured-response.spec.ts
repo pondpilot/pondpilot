@@ -62,7 +62,7 @@ test.describe('AI Assistant Structured Response', () => {
 
     // eslint-disable-next-line playwright/expect-expect, unused-imports/no-unused-vars
     test.skip('should navigate between action cards with arrow keys', async ({
-      scriptEditorContent,
+      scriptEditorContent: _scriptEditorContent,
     }) => {
       // This would test arrow key navigation between different SQL actions
       // TODO: Add assertions when AI service mocking is available

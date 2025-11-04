@@ -48,7 +48,13 @@ export const ColumnMapper = ({
   const [searchB, setSearchB] = useState('');
 
   // Memoize derived column lists to prevent unnecessary recalculations
-  const { joinKeyBColumns, columnsA, columnsB, mappedColumns, unmappedColumns } = useMemo(() => {
+  const {
+    joinKeyBColumns: _joinKeyBColumns,
+    columnsA,
+    columnsB,
+    mappedColumns,
+    unmappedColumns,
+  } = useMemo(() => {
     // Get join key B columns (mapped or same name)
     const joinKeyBCols = joinColumns.map((keyA) => joinKeyMappings[keyA] || keyA);
 

@@ -25,8 +25,8 @@ export const SourceSelectionStep = ({
 
   const [queryA, setQueryA] = useState<string>('');
   const [queryB, setQueryB] = useState<string>('');
-  const [queryAliasA, setQueryAliasA] = useState<string>('source_a');
-  const [queryAliasB, setQueryAliasB] = useState<string>('source_b');
+  const [queryAliasA, _setQueryAliasA] = useState<string>('source_a');
+  const [queryAliasB, _setQueryAliasB] = useState<string>('source_b');
 
   // Build source from current state
   useEffect(() => {

@@ -207,7 +207,7 @@ export const generateComparisonSQL = (
  */
 export const validateComparisonConfig = (
   config: ComparisonConfig,
-  schemaComparison?: SchemaComparisonResult,
+  _schemaComparison?: SchemaComparisonResult,
 ): string | null => {
   if (config.joinColumns.length === 0) {
     return 'At least one join key must be selected';

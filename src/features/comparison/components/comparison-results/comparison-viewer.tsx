@@ -1,4 +1,4 @@
-import { showWarningWithAction, showSuccess } from '@components/app-notifications';
+import { showWarningWithAction, showSuccess, showError } from '@components/app-notifications';
 import { clearComparisonResults } from '@controllers/comparison';
 import { getOrCreateTabFromLocalDBObject } from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
@@ -25,6 +25,7 @@ import {
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { ComparisonId } from '@models/comparison';
+import { SYSTEM_DATABASE_ID } from '@models/data-source';
 import { ColumnSortSpecList, DBColumn } from '@models/db';
 import { ComparisonConfig, SchemaComparisonResult, TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
@@ -47,7 +48,13 @@ import {
   ComparisonValueColumn,
 } from './comparison-table';
 import { ICON_CLASSES } from '../../constants/color-classes';
+import { COMPARISON_STATUS_ORDER } from '../../constants/statuses';
 import { useComparisonResultsSimple } from '../../hooks/use-comparison-results-simple';
+import type { ComparisonResultRow } from '../../hooks/use-comparison-results-simple';
+import {
+  downloadComparisonHtmlReport,
+  ComparisonHtmlReportColumnDiff,
+} from '../../utils/comparison-export';
 import { getColumnsToCompare } from '../../utils/sql-generator';
 import {
   COMPARISON_STATUS_THEME,
@@ -64,6 +71,129 @@ type TableConfig = {
   rowStatusColumn: DBColumn | null;
 };
 
+type ExportValueColumn = {
+  key: string;
+  label: string;
+  column: ComparisonValueColumn;
+};
+
+const FILE_NAME_MAX_LENGTH = 100;
+
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHAR_REGEX = /[\u0000-\u001F]/g;
+
+const sanitizeFileName = (name: string): string => {
+  const sanitized = name
+    .replace(/[<>:"/\\|?*]/g, '')
+    .replace(CONTROL_CHAR_REGEX, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, FILE_NAME_MAX_LENGTH);
+
+  return sanitized || 'comparison-report';
+};
+
+const sanitizeIdentifier = (value: string, fallback: string): string => {
+  const sanitized = value
+    .replace(/[^A-Za-z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+  return sanitized || fallback;
+};
+
+const createExportValueColumns = (valueColumns: ComparisonValueColumn[]): ExportValueColumn[] => {
+  const usedKeys = new Set<string>();
+
+  return valueColumns.map((column) => {
+    const baseKey = sanitizeIdentifier(column.displayName, `column_${column.statusColumn.id}`);
+    let key = baseKey;
+    let suffix = 1;
+    while (usedKeys.has(key)) {
+      key = `${baseKey}_${suffix}`;
+      suffix += 1;
+    }
+    usedKeys.add(key);
+
+    return {
+      key,
+      label: column.displayName,
+      column,
+    };
+  });
+};
+
+const buildExportRows = (
+  tableConfig: TableConfig,
+  rows: ComparisonResultRow[],
+  valueColumns: ExportValueColumn[],
+): ComparisonResultRow[] => {
+  const rowStatusId = tableConfig.rowStatusColumn?.id ?? null;
+
+  return rows.map((row) => {
+    const exportRow: ComparisonResultRow = {};
+
+    if (rowStatusId) {
+      const rowStatusKey = String(rowStatusId);
+      exportRow._row_status = rowStatusKey in row ? row[rowStatusKey] : undefined;
+    }
+
+    tableConfig.joinColumns.forEach(({ column }) => {
+      const sourceKey = String(column.id);
+      exportRow[`_key_${column.name}`] = sourceKey in row ? row[sourceKey] : undefined;
+    });
+
+    valueColumns.forEach(({ key, column }) => {
+      const columnAKey = String(column.columnA.id);
+      const columnBKey = String(column.columnB.id);
+      const statusKey = String(column.statusColumn.id);
+
+      exportRow[`${key}_a`] = columnAKey in row ? row[columnAKey] : undefined;
+      exportRow[`${key}_b`] = columnBKey in row ? row[columnBKey] : undefined;
+      exportRow[`${key}_status`] = statusKey in row ? row[statusKey] : undefined;
+    });
+
+    return exportRow;
+  });
+};
+
+const summarizeColumnDiffs = (
+  valueColumns: ExportValueColumn[],
+  rows: ComparisonResultRow[],
+): ComparisonHtmlReportColumnDiff[] => {
+  return valueColumns.map(({ key, label }) => {
+    const stats: ComparisonHtmlReportColumnDiff = {
+      key,
+      label,
+      total: rows.length,
+      added: 0,
+      removed: 0,
+      modified: 0,
+      same: 0,
+    };
+
+    const statusKey = `${key}_status`;
+    rows.forEach((row) => {
+      const status = row[statusKey] as string | undefined;
+      switch (status) {
+        case 'added':
+          stats.added += 1;
+          break;
+        case 'removed':
+          stats.removed += 1;
+          break;
+        case 'modified':
+          stats.modified += 1;
+          break;
+        default:
+          stats.same += 1;
+      }
+    });
+
+    return stats;
+  });
+};
+
 interface ComparisonViewerProps {
   tabId: TabId;
   comparisonId: ComparisonId;
@@ -77,7 +207,7 @@ interface ComparisonViewerProps {
 }
 
 export const ComparisonViewer = ({
-  tabId,
+  tabId: _tabId,
   comparisonId,
   config,
   schemaComparison,
@@ -96,6 +226,8 @@ export const ComparisonViewer = ({
     (colorScheme === 'dark' ? theme.white : theme.black);
   const dataSources = useAppStore.use.dataSources();
   const databaseMetadata = useAppStore.use.databaseMetadata();
+  const comparisons = useAppStore.use.comparisons();
+  const comparisonName = comparisons.get(comparisonId)?.name ?? 'Comparison';
   const pool = useInitializedDuckDBConnectionPool();
   const handledMissingTableRef = useRef(false);
   const [isClearing, setIsClearing] = useState(false);
@@ -356,7 +488,7 @@ export const ComparisonViewer = ({
     setColumnFilters({});
   }, []);
 
-  const handleResetColumns = useCallback(() => {
+  const _handleResetColumns = useCallback(() => {
     setVisibleJoinColumns({});
     setVisibleValueColumns({});
     setColumnFilters({});
@@ -636,6 +768,78 @@ export const ComparisonViewer = ({
     });
   }, []);
 
+  const handleExportReport = useCallback(async () => {
+    if (!results || !tableConfig) {
+      showWarningWithAction({
+        title: 'Export unavailable',
+        message: 'Comparison results are still loading. Please try again once the data is ready.',
+      });
+      return;
+    }
+
+    try {
+      const exportValueColumns = createExportValueColumns(tableConfig.valueColumns);
+      const exportRows = buildExportRows(tableConfig, displayedRows, exportValueColumns);
+      const exportColumnFilters = activeColumnFilters.map(({ label, value }) => ({ label, value }));
+      const columnDiffs = summarizeColumnDiffs(exportValueColumns, exportRows);
+
+      const exportStatuses =
+        activeStatuses.length > 0
+          ? activeStatuses
+          : (COMPARISON_STATUS_ORDER as ComparisonRowStatus[]);
+
+      const fileName = `${sanitizeFileName(`${comparisonName || 'comparison'}-comparison-report`)}.html`;
+
+      downloadComparisonHtmlReport(
+        {
+          comparisonName,
+          tableName,
+          generatedAt: new Date(),
+          lastRunAt,
+          executionTimeSeconds: executionTime,
+          statusTotals,
+          totalRowCount: statusTotals.total,
+          filteredRowCount: results.filteredRowCount,
+          rowLimit: RESULTS_ROW_LIMIT,
+          activeStatuses: exportStatuses,
+          keyColumns: config.joinColumns,
+          compareColumns: exportValueColumns.map(({ key, label }) => ({ key, label })),
+          columnDiffs,
+          rows: exportRows,
+          config,
+          schemaComparison,
+          columnFilters: exportColumnFilters,
+        },
+        fileName,
+      );
+
+      showSuccess({
+        title: 'Report exported',
+        message: 'The HTML comparison report has been downloaded.',
+        autoClose: 2500,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      showError({
+        title: 'Export failed',
+        message,
+      });
+    }
+  }, [
+    results,
+    tableConfig,
+    comparisonName,
+    tableName,
+    lastRunAt,
+    executionTime,
+    statusTotals,
+    activeStatuses,
+    config.joinColumns,
+    displayedRows,
+    schemaComparison,
+    activeColumnFilters,
+  ]);
+
   // Handle clicking on source A badge - opens the table/view in a new tab
   const handleSourceAClick = useCallback(() => {
     const { sourceA } = config;
@@ -683,6 +887,18 @@ export const ComparisonViewer = ({
       getOrCreateTabFromLocalDBObject(dataSource, schemaName, sourceB.tableName, objectType, true);
     }
   }, [config.sourceB, dataSources, databaseMetadata]);
+
+  const handleOpenTableView = useCallback(() => {
+    try {
+      getOrCreateTabFromLocalDBObject(SYSTEM_DATABASE_ID, 'main', tableName, 'table', true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      showWarningWithAction({
+        title: 'Unable to open comparison table',
+        message,
+      });
+    }
+  }, [tableName]);
   // Handle errors
   if (error && !handledMissingTableRef.current) {
     return (
@@ -717,8 +933,8 @@ export const ComparisonViewer = ({
         <ComparisonToolbar
           onReconfigure={onReconfigure}
           onRefresh={onRefresh}
-          onExport={() => {}}
-          onCopy={async () => {}}
+          onExportReport={handleExportReport}
+          onOpenTableView={handleOpenTableView}
           isRefreshing={false}
           onClearResults={handleClearResults}
           isClearing={isClearing}
@@ -747,8 +963,8 @@ export const ComparisonViewer = ({
       <ComparisonToolbar
         onReconfigure={onReconfigure}
         onRefresh={onRefresh}
-        onExport={() => {}}
-        onCopy={async () => {}}
+        onExportReport={handleExportReport}
+        onOpenTableView={handleOpenTableView}
         isRefreshing={isLoading}
         onClearResults={handleClearResults}
         isClearing={isClearing}

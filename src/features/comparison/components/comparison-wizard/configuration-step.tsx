@@ -72,7 +72,7 @@ export const ConfigurationStep = ({ comparison, onConfigChange }: ConfigurationS
     );
   }
 
-  const commonColumnOptions = schemaComparison.commonColumns.map((col) => ({
+  const _commonColumnOptions = schemaComparison.commonColumns.map((col) => ({
     value: col.name,
     label: col.name,
   }));

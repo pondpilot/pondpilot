@@ -188,7 +188,7 @@ export const ComparisonResultsTable = ({
     if (column.diffStats.total === 0) {
       return [{ value: 100, color: 'transparent' }];
     }
-    const { added, removed, modified, same, total } = column.diffStats;
+    const { added, removed, modified, same: _same, total } = column.diffStats;
     const toPercent = (value: number) => Math.round((value / total) * 100);
     const segments: Array<{ value: number; color: string | undefined }> = [];
     if (added > 0) {
