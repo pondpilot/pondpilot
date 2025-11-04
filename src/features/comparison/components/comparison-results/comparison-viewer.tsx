@@ -1138,70 +1138,78 @@ export const ComparisonViewer = ({
         <Stack gap="xs">
           <Chip.Group>
             <Group gap="xs">
-              <Chip
-                checked={showAdded}
-                onChange={() => setShowAdded(!showAdded)}
-                variant="light"
-                styles={{
-                  label: {
-                    backgroundColor: getStatusSurfaceColor(theme, 'added', colorScheme),
-                    color: getStatusAccentColor(theme, 'added', colorScheme),
-                  },
-                }}
-              >
-                <Group gap={4}>
-                  <IconPlus size={12} />
-                  Added ({statusTotals.added})
-                </Group>
-              </Chip>
-              <Chip
-                checked={showRemoved}
-                onChange={() => setShowRemoved(!showRemoved)}
-                variant="light"
-                styles={{
-                  label: {
-                    backgroundColor: getStatusSurfaceColor(theme, 'removed', colorScheme),
-                    color: getStatusAccentColor(theme, 'removed', colorScheme),
-                  },
-                }}
-              >
-                <Group gap={4}>
-                  <IconMinus size={12} />
-                  Removed ({statusTotals.removed})
-                </Group>
-              </Chip>
-              <Chip
-                checked={showModified}
-                onChange={() => setShowModified(!showModified)}
-                variant="light"
-                styles={{
-                  label: {
-                    backgroundColor: getStatusSurfaceColor(theme, 'modified', colorScheme),
-                    color: getStatusAccentColor(theme, 'modified', colorScheme),
-                  },
-                }}
-              >
-                <Group gap={4}>
-                  <IconPencil size={12} />
-                  Modified ({statusTotals.modified})
-                </Group>
-              </Chip>
-              <Chip
-                checked={showUnchanged}
-                onChange={() => setShowUnchanged(!showUnchanged)}
-                variant="light"
-                styles={{
-                  label: {
-                    backgroundColor: getStatusSurfaceColor(theme, 'same', colorScheme),
-                    color: getStatusAccentColor(theme, 'same', colorScheme),
-                  },
-                }}
-              >
-                <Group gap={4}>
-                  <IconCheck size={12} />
-                  Unchanged ({statusTotals.same})
-                </Group>
-              </Chip>
+              {statusTotals.added > 0 && (
+                <Chip
+                  checked={showAdded}
+                  onChange={() => setShowAdded(!showAdded)}
+                  variant="light"
+                  styles={{
+                    label: {
+                      backgroundColor: getStatusSurfaceColor(theme, 'added', colorScheme),
+                      color: getStatusAccentColor(theme, 'added', colorScheme),
+                    },
+                  }}
+                >
+                  <Group gap={4}>
+                    <IconPlus size={12} />
+                    Added ({statusTotals.added})
+                  </Group>
+                </Chip>
+              )}
+              {statusTotals.removed > 0 && (
+                <Chip
+                  checked={showRemoved}
+                  onChange={() => setShowRemoved(!showRemoved)}
+                  variant="light"
+                  styles={{
+                    label: {
+                      backgroundColor: getStatusSurfaceColor(theme, 'removed', colorScheme),
+                      color: getStatusAccentColor(theme, 'removed', colorScheme),
+                    },
+                  }}
+                >
+                  <Group gap={4}>
+                    <IconMinus size={12} />
+                    Removed ({statusTotals.removed})
+                  </Group>
+                </Chip>
+              )}
+              {statusTotals.modified > 0 && (
+                <Chip
+                  checked={showModified}
+                  onChange={() => setShowModified(!showModified)}
+                  variant="light"
+                  styles={{
+                    label: {
+                      backgroundColor: getStatusSurfaceColor(theme, 'modified', colorScheme),
+                      color: getStatusAccentColor(theme, 'modified', colorScheme),
+                    },
+                  }}
+                >
+                  <Group gap={4}>
+                    <IconPencil size={12} />
+                    Modified ({statusTotals.modified})
+                  </Group>
+                </Chip>
+              )}
+              {statusTotals.same > 0 && (
+                <Chip
+                  checked={showUnchanged}
+                  onChange={() => setShowUnchanged(!showUnchanged)}
+                  variant="light"
+                  styles={{
+                    label: {
+                      backgroundColor: getStatusSurfaceColor(theme, 'same', colorScheme),
+                      color: getStatusAccentColor(theme, 'same', colorScheme),
+                    },
+                  }}
+                >
+                  <Group gap={4}>
+                    <IconCheck size={12} />
+                    Unchanged ({statusTotals.same})
+                  </Group>
+                </Chip>
+              )}
             </Group>
           </Chip.Group>
           {(activeColumnFilters.length > 0 || hasStatusFilter) && (
