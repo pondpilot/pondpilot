@@ -22,20 +22,23 @@ export default defineConfig(({ mode }) => {
   // Ensures it both starts and ends with a single '/'
   const getNormalizedBasePath = (value) => {
     let v = (value || '/').trim();
-    // Collapse ALL consecutive slashes first
-    v = v.replace(/\/+ /g, '/'); // remove any accidental space variants (defensive, then real replace)
-    v = v.replace(/\/+ /g, '/');
-    v = v.replace(/\/+/, '/'); // final cleanup (will be replaced by global below if needed)
-    v = v.replace(/\/+/, '/');
-    // Proper global collapse (final authoritative normalization)
-    v = v.replace(/\/+/, '/');
-    // Ensure leading slash
-    if (!v.startsWith('/')) v = '/' + v;
-    // Ensure trailing slash
-    if (!v.endsWith('/')) v = v + '/';
-    // Special-case root (avoid double slash)
-    if (v !== '/' && v.endsWith('//')) v = v.slice(0, -1);
-    return v.replace(/\/+/, '/');
+
+    if (v === '') {
+      return '/';
+    }
+
+    // Collapse any sequence of slashes down to a single slash
+    v = v.replace(/\/+/g, '/');
+
+    if (!v.startsWith('/')) {
+      v = `/${v}`;
+    }
+
+    if (!v.endsWith('/')) {
+      v = `${v}/`;
+    }
+
+    return v.replace(/\/+/g, '/');
   };
 
   const basePath = getNormalizedBasePath(process.env.VITE_BASE_PATH);

@@ -195,6 +195,8 @@ describe('file-system-node-builder', () => {
         entryId: 'folder-123',
         isSheet: false,
         sheetName: null,
+        dataSourceId: null,
+        viewName: null,
       });
       expect(mockContext.anyNodeIdToNodeTypeMap.get('folder-123')).toBe('folder');
     });
@@ -596,6 +598,8 @@ describe('file-system-node-builder', () => {
         entryId: 'db-123',
         isSheet: false,
         sheetName: null,
+        dataSourceId: null,
+        viewName: null,
       });
       expect(mockContext.anyNodeIdToNodeTypeMap.get('db-123')).toBe('file');
     });
