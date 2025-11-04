@@ -123,20 +123,26 @@ export const DataExplorer = memo(() => {
   ];
 
   // Actions
-  const { handleDeleteSelected, handleShowSchema, getShowSchemaHandlerForNodes } =
-    useDataExplorerActions({
-      unifiedTree,
-      nodeMap,
-      anyNodeIdToNodeTypeMap,
-      conn,
-      flatFileSources,
-    });
+  const {
+    handleDeleteSelected,
+    handleShowSchema,
+    getShowSchemaHandlerForNodes,
+    buildComparisonMenuSections,
+  } = useDataExplorerActions({
+    unifiedTree,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    flatFileSources,
+    dataSources: allDataSources,
+  });
 
   // Use the common explorer context hook
   const contextResult = useExplorerContext<DataExplorerNodeTypeMap>({
     nodes: unifiedTree,
     handleDeleteSelected,
     getShowSchemaHandler: getShowSchemaHandlerForNodes,
+    buildMultiSelectMenu: ({ selectedNodes }) => buildComparisonMenuSections(selectedNodes),
   });
 
   // Create the enhanced extra data

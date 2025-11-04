@@ -1,5 +1,5 @@
 import { showWarning } from '@components/app-notifications';
-import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
+import { TreeNodeData, TreeNodeMenuItemType, TreeNodeMenuType } from '@components/explorer-tree';
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import { clearComparisonResults } from '@controllers/comparison';
@@ -18,6 +18,10 @@ import {
   findTabFromComparison,
   getOrCreateTabFromComparison,
 } from '@controllers/tab/comparison-tab-controller';
+import {
+  buildComparisonMenuItemsForSource,
+  getComparisonSourceDragProps,
+} from '@features/comparison/utils/comparison-integration';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
 import { PersistentDataSourceId } from '@models/data-source';
@@ -72,6 +76,7 @@ export function buildColumnTreeNode({
     schemaName,
     objectName,
     columnName,
+    objectType: 'other',
   });
   context.anyNodeIdToNodeTypeMap.set(columnNodeId, 'column');
 
@@ -145,6 +150,7 @@ export function buildObjectTreeNode({
     schemaName,
     objectName,
     columnName: null,
+    objectType: object.type === 'table' ? 'table' : object.type === 'view' ? 'view' : 'other',
   });
   context.anyNodeIdToNodeTypeMap.set(objectNodeId, 'object');
 
@@ -172,6 +178,16 @@ export function buildObjectTreeNode({
       ? context.comparisonByTableName?.get(objectName)
       : undefined;
 
+  const isComparableObject = object.type === 'table' || object.type === 'view';
+  const comparisonSource = isComparableObject
+    ? {
+        type: 'table' as const,
+        tableName: objectName,
+        schemaName,
+        databaseName: dbName,
+      }
+    : null;
+
   const label = objectName;
 
   // Check if this is a file view in the system database
@@ -187,6 +203,60 @@ export function buildObjectTreeNode({
 
   // Allow dropping objects in system database, except file views
   const canDrop = dbName === PERSISTENT_DB_NAME && !isFileView && !isComparisonTable;
+
+  const baseMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [
+    {
+      label: 'Copy Full Name',
+      onClick: () => {
+        copyToClipboard(fqn, {
+          showNotification: true,
+        });
+      },
+      onAlt: {
+        label: 'Copy Name',
+        onClick: () => {
+          copyToClipboard(toDuckDBIdentifier(objectName), {
+            showNotification: true,
+          });
+        },
+      },
+    },
+    {
+      label: 'Create a Query',
+      onClick: () => {
+        const query = `SELECT * FROM ${fqn};`;
+
+        const newScript = createSQLScript(`${objectName}_query`, query);
+        getOrCreateTabFromScript(newScript, true);
+      },
+    },
+    {
+      label: 'Show Schema',
+      onClick: () => {
+        getOrCreateSchemaBrowserTab({
+          sourceId: dbId,
+          sourceType: 'db',
+          schemaName,
+          objectNames: [objectName],
+          setActive: true,
+        });
+      },
+    },
+    ...devMenuItems,
+  ];
+
+  const contextMenuSections: TreeNodeMenuType<TreeNodeData<DataExplorerNodeTypeMap>> = [
+    {
+      children: baseMenuItems,
+    },
+  ];
+
+  if (comparisonSource) {
+    const comparisonMenuItems = buildComparisonMenuItemsForSource(comparisonSource);
+    if (comparisonMenuItems.length > 0) {
+      contextMenuSections.push({ children: comparisonMenuItems });
+    }
+  }
 
   return {
     nodeType: 'object',
@@ -269,50 +339,10 @@ export function buildObjectTreeNode({
       // Then set as & preview
       setPreviewTabId(tab.id);
     },
-    contextMenu: [
-      {
-        children: [
-          {
-            label: 'Copy Full Name',
-            onClick: () => {
-              copyToClipboard(fqn, {
-                showNotification: true,
-              });
-            },
-            onAlt: {
-              label: 'Copy Name',
-              onClick: () => {
-                copyToClipboard(toDuckDBIdentifier(objectName), {
-                  showNotification: true,
-                });
-              },
-            },
-          },
-          {
-            label: 'Create a Query',
-            onClick: () => {
-              const query = `SELECT * FROM ${fqn};`;
-
-              const newScript = createSQLScript(`${objectName}_query`, query);
-              getOrCreateTabFromScript(newScript, true);
-            },
-          },
-          {
-            label: 'Show Schema',
-            onClick: () => {
-              getOrCreateSchemaBrowserTab({
-                sourceId: dbId,
-                sourceType: 'db',
-                schemaName,
-                objectNames: [objectName],
-                setActive: true,
-              });
-            },
-          },
-          ...devMenuItems,
-        ],
-      },
-    ],
+    contextMenu: contextMenuSections,
+    elementProps: comparisonSource
+      ? getComparisonSourceDragProps(comparisonSource, { preventDrop: true })
+      : undefined,
     children: sortedColumns.map((column) =>
       buildColumnTreeNode({
         dbId,
@@ -369,6 +399,7 @@ export function buildSchemaTreeNode({
     schemaName,
     objectName: null,
     columnName: null,
+    objectType: 'other',
   });
   context.anyNodeIdToNodeTypeMap.set(schemaNodeId, 'schema');
 
@@ -422,6 +453,7 @@ export function buildSchemaTreeNode({
         schemaName,
         objectName: null,
         columnName: null,
+        objectType: 'other',
       });
       context.anyNodeIdToNodeTypeMap.set(fileViewsSectionId, 'section');
 
@@ -461,6 +493,7 @@ export function buildSchemaTreeNode({
         schemaName,
         objectName: null,
         columnName: null,
+        objectType: 'other',
       });
       context.anyNodeIdToNodeTypeMap.set(comparisonSectionId, 'section');
 

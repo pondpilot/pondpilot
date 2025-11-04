@@ -1,3 +1,4 @@
+import { updateComparisonLastRunSql } from '@controllers/comparison';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { ComparisonId } from '@models/comparison';
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
@@ -48,6 +49,7 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
 
         // Execute query to create the table
         await pool.query(sql);
+        updateComparisonLastRunSql(comparisonId, sql);
 
         const { comparisons } = useAppStore.getState();
         const existingComparison = comparisons.get(comparisonId);

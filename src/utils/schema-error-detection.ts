@@ -24,8 +24,24 @@ export function isSchemaError(error: Error): boolean {
   // Check for various schema-related error patterns
   return (
     errorMessage.includes('Binder Error') ||
-    errorMessage.includes('does not exist') ||
     errorMessage.includes('Invalid column') ||
     errorMessage.includes('Contents of view were altered')
+  );
+}
+
+/**
+ * Detects errors where the underlying table/view is missing.
+ */
+export function isMissingRelationError(error: Error): boolean {
+  if (!error.message) {
+    return false;
+  }
+
+  const msg = error.message.toLowerCase();
+  return (
+    msg.includes('does not exist') ||
+    msg.includes('table with name') ||
+    msg.includes('not found') ||
+    (msg.includes('catalog error') && msg.includes('does not exist'))
   );
 }

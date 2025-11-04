@@ -472,17 +472,20 @@ export const restoreAppDataFromIDB = async (
     const lastExecutionTime = (comparisonData as Partial<Comparison>).lastExecutionTime ?? null;
     const resultsTableName = (comparisonData as Partial<Comparison>).resultsTableName ?? null;
     const lastRunAt = (comparisonData as Partial<Comparison>).lastRunAt ?? null;
+    const lastRunSql = (comparisonData as Partial<Comparison>).lastRunSql ?? null;
 
     if (
       comparisonData.lastExecutionTime !== lastExecutionTime ||
       comparisonData.resultsTableName !== resultsTableName ||
-      (comparisonData as Partial<Comparison>).lastRunAt !== lastRunAt
+      (comparisonData as Partial<Comparison>).lastRunAt !== lastRunAt ||
+      (comparisonData as Partial<Comparison>).lastRunSql !== lastRunSql
     ) {
       const normalizedComparison: Comparison = {
         ...comparisonData,
         lastExecutionTime,
         lastRunAt,
         resultsTableName,
+        lastRunSql,
       };
 
       comparisons.set(comparisonId, normalizedComparison);
@@ -519,6 +522,7 @@ export const restoreAppDataFromIDB = async (
           lastExecutionTime: comparisonTab.lastExecutionTime ?? null,
           lastRunAt: comparisonTab.lastExecutionTime ? new Date().toISOString() : null,
           resultsTableName: comparisonTab.comparisonResultsTable ?? null,
+          lastRunSql: null,
         };
 
         comparisons.set(stubComparison.id, stubComparison);
@@ -545,6 +549,7 @@ export const restoreAppDataFromIDB = async (
       lastExecutionTime: comparisonTab.lastExecutionTime ?? null,
       lastRunAt: comparisonTab.lastExecutionTime ? new Date().toISOString() : null,
       resultsTableName: comparisonTab.comparisonResultsTable ?? null,
+      lastRunSql: null,
     };
 
     existingComparisonNames.add(uniqueName);

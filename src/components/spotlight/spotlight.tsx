@@ -39,7 +39,7 @@ import { fileSystemService } from '@utils/file-system-adapter';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 import { setDataTestId } from '@utils/test-id';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { SpotlightBreadcrumbs } from './components';
@@ -174,79 +174,99 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const dataSourceActions: Action[] = [];
+  // Memoize data source actions to prevent recreating on every render
+  // The Set is cleared and recreated when dataSources or related data changes
+  const dataSourceActions: Action[] = useMemo(() => {
+    const actions: Action[] = [];
+    const usedActionIds = new Set<string>();
+    const pushAction = (action: Action) => {
+      if (usedActionIds.has(action.id)) {
+        return;
+      }
+      usedActionIds.add(action.id);
+      actions.push(action);
+    };
 
-  for (const dataSource of dataSources.values()) {
-    if (isLocalDatabase(dataSource) || isRemoteDatabase(dataSource)) {
-      // For databases we need to read all tables and views from metadata
-      const dbMetadata = databaseMetadata.get(dataSource.dbName);
-      const isSystemDatabase =
-        isLocalDatabase(dataSource) && dataSource.dbName === SYSTEM_DATABASE_NAME;
+    for (const dataSource of dataSources.values()) {
+      if (isLocalDatabase(dataSource) || isRemoteDatabase(dataSource)) {
+        // For databases we need to read all tables and views from metadata
+        const dbMetadata = databaseMetadata.get(dataSource.dbName);
+        const isSystemDatabase =
+          isLocalDatabase(dataSource) && dataSource.dbName === SYSTEM_DATABASE_NAME;
 
-      if (!dbMetadata) {
+        if (!dbMetadata) {
+          continue;
+        }
+
+        dbMetadata.schemas.forEach((schema) => {
+          schema.objects.forEach((tableOrView) => {
+            if (isSystemDatabase && protectedViews.has(tableOrView.name)) {
+              return;
+            }
+
+            pushAction({
+              id: `open-data-source-${dataSource.id}-${schema.name}-${tableOrView.type}-${tableOrView.name}`,
+              label: tableOrView.label,
+              icon: (
+                <NamedIcon
+                  iconType={tableOrView.type === 'table' ? 'db-table' : 'db-view'}
+                  size={20}
+                  className={ICON_CLASSES}
+                />
+              ),
+              handler: () => {
+                // Check if we're in comparison source selection mode
+                if (comparisonSourceSelectionCallback) {
+                  comparisonSourceSelectionCallback(dataSource, schema.name, tableOrView.name);
+                  Spotlight.close();
+                } else {
+                  // Normal mode - open a tab
+                  getOrCreateTabFromLocalDBObject(
+                    dataSource,
+                    schema.name,
+                    tableOrView.name,
+                    tableOrView.type,
+                    true,
+                  );
+                  Spotlight.close();
+                  ensureHome();
+                }
+              },
+            });
+          });
+        });
+
         continue;
       }
 
-      dbMetadata.schemas.forEach((schema) => {
-        schema.objects.forEach((tableOrView) => {
-          if (isSystemDatabase && protectedViews.has(tableOrView.name)) {
-            return;
+      // Flat file data sources
+      pushAction({
+        id: `open-data-source-${dataSource.id}`,
+        label: getFlatFileDataSourceName(dataSource, localEntries),
+        icon: <NamedIcon iconType={dataSource.type} size={20} className={ICON_CLASSES} />,
+        handler: () => {
+          // Check if we're in comparison source selection mode
+          if (comparisonSourceSelectionCallback) {
+            comparisonSourceSelectionCallback(dataSource);
+            Spotlight.close();
+          } else {
+            // Normal mode - open a tab
+            getOrCreateTabFromFlatFileDataSource(dataSource, true);
+            Spotlight.close();
+            ensureHome();
           }
-
-          dataSourceActions.push({
-            id: `open-data-source-${dataSource.id}-${tableOrView.name}`,
-            label: tableOrView.label,
-            icon: (
-              <NamedIcon
-                iconType={tableOrView.type === 'table' ? 'db-table' : 'db-view'}
-                size={20}
-                className={ICON_CLASSES}
-              />
-            ),
-            handler: () => {
-              // Check if we're in comparison source selection mode
-              if (comparisonSourceSelectionCallback) {
-                comparisonSourceSelectionCallback(dataSource, schema.name, tableOrView.name);
-                Spotlight.close();
-              } else {
-                // Normal mode - open a tab
-                getOrCreateTabFromLocalDBObject(
-                  dataSource,
-                  schema.name,
-                  tableOrView.name,
-                  tableOrView.type,
-                  true,
-                );
-                Spotlight.close();
-                ensureHome();
-              }
-            },
-          });
-        });
+        },
       });
-
-      continue;
     }
 
-    // Flat file data sources
-    dataSourceActions.push({
-      id: `open-data-source-${dataSource.id}`,
-      label: getFlatFileDataSourceName(dataSource, localEntries),
-      icon: <NamedIcon iconType={dataSource.type} size={20} className={ICON_CLASSES} />,
-      handler: () => {
-        // Check if we're in comparison source selection mode
-        if (comparisonSourceSelectionCallback) {
-          comparisonSourceSelectionCallback(dataSource);
-          Spotlight.close();
-        } else {
-          // Normal mode - open a tab
-          getOrCreateTabFromFlatFileDataSource(dataSource, true);
-          Spotlight.close();
-          ensureHome();
-        }
-      },
-    });
-  }
+    return actions;
+  }, [
+    dataSources,
+    databaseMetadata,
+    protectedViews,
+    localEntries,
+    comparisonSourceSelectionCallback,
+  ]);
 
   const scriptActions = Array.from(sqlScripts.values()).map((script) => ({
     id: `open-data-source-${script.id}`,
@@ -277,8 +297,16 @@ export const SpotlightMenu = () => {
       label: 'Add File',
       icon: <IconFilePlus size={20} className={ICON_CLASSES} />,
       hotkey: [control, 'F'],
-      handler: () => {
-        handleAddFile();
+      handler: async () => {
+        const result = await handleAddFile();
+        const { comparisonSourceSelectionCallback: currentCallback } = useAppStore.getState();
+
+        if (currentCallback && result && result.newDataSources.length > 0) {
+          const [, dataSource] = result.newDataSources[result.newDataSources.length - 1];
+          currentCallback(dataSource);
+          useAppStore.setState({ comparisonSourceSelectionCallback: null });
+        }
+
         resetSpotlight();
         ensureHome();
       },

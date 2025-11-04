@@ -1,4 +1,4 @@
-import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
+import { TreeNodeData, TreeNodeMenuItemType, TreeNodeMenuType } from '@components/explorer-tree';
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
 import { deleteDataSources } from '@controllers/data-source';
@@ -14,6 +14,11 @@ import {
   setPreviewTabId,
   deleteTabByDataSourceId,
 } from '@controllers/tab';
+import {
+  buildComparisonMenuItemsForSource,
+  getComparisonSourceDragProps,
+} from '@features/comparison/utils/comparison-integration';
+import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyFlatFileDataSource, XlsxSheetView } from '@models/data-source';
 import { DBColumn, DataBaseModel } from '@models/db';
@@ -63,6 +68,8 @@ export function buildFileColumnTreeNode(
     entryId: fileId,
     isSheet: false,
     sheetName: null,
+    dataSourceId: null,
+    viewName: null,
   });
   context.anyNodeIdToNodeTypeMap.set(columnNodeId, 'column');
 
@@ -118,7 +125,13 @@ export function buildFolderNode(
     throw new Error('Entry must be a folder');
   }
 
-  nodeMap.set(entry.id, { entryId: entry.id, isSheet: false, sheetName: null });
+  nodeMap.set(entry.id, {
+    entryId: entry.id,
+    isSheet: false,
+    sheetName: null,
+    dataSourceId: null,
+    viewName: null,
+  });
   anyNodeIdToNodeTypeMap.set(entry.id, 'folder');
 
   return {
@@ -167,8 +180,15 @@ function buildXlsxSheetNode(
   const sheetLabel = sheet.sheetName;
   const sheetId = `${entry.id}::${sheet.sheetName}`;
   const fqn = `main.${toDuckDBIdentifier(sheet.viewName)}`;
+  const comparisonSource = dataSourceToComparisonSource(sheet);
 
-  nodeMap.set(sheetId, { entryId: entry.id, isSheet: true, sheetName: sheet.sheetName });
+  nodeMap.set(sheetId, {
+    entryId: entry.id,
+    isSheet: true,
+    sheetName: sheet.sheetName,
+    dataSourceId: sheet.id,
+    viewName: sheet.viewName,
+  });
   anyNodeIdToNodeTypeMap.set(sheetId, 'sheet');
 
   return {
@@ -191,34 +211,50 @@ function buildXlsxSheetNode(
     onCloseItemClick: (): void => {
       deleteTabByDataSourceId(sheet.id);
     },
-    contextMenu: [
-      {
-        children: [
-          {
-            label: 'Copy Full Name',
+    contextMenu: (() => {
+      const baseItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [
+        {
+          label: 'Copy Full Name',
+          onClick: () => {
+            copyToClipboard(fqn, { showNotification: true });
+          },
+          onAlt: {
+            label: 'Copy Name',
             onClick: () => {
-              copyToClipboard(fqn, { showNotification: true });
-            },
-            onAlt: {
-              label: 'Copy Name',
-              onClick: () => {
-                copyToClipboard(toDuckDBIdentifier(sheet.viewName), {
-                  showNotification: true,
-                });
-              },
+              copyToClipboard(toDuckDBIdentifier(sheet.viewName), {
+                showNotification: true,
+              });
             },
           },
-          {
-            label: 'Create a Query',
-            onClick: () => {
-              const query = `SELECT * FROM ${fqn};`;
-              const newScript = createSQLScript(`${sheet.sheetName}_query`, query);
-              getOrCreateTabFromScript(newScript, true);
-            },
+        },
+        {
+          label: 'Create a Query',
+          onClick: () => {
+            const query = `SELECT * FROM ${fqn};`;
+            const newScript = createSQLScript(`${sheet.sheetName}_query`, query);
+            getOrCreateTabFromScript(newScript, true);
           },
-        ],
-      },
-    ],
+        },
+      ];
+
+      const sections: TreeNodeMenuType<TreeNodeData<DataExplorerNodeTypeMap>> = [
+        {
+          children: baseItems,
+        },
+      ];
+
+      if (comparisonSource) {
+        const comparisonItems = buildComparisonMenuItemsForSource(comparisonSource);
+        if (comparisonItems.length > 0) {
+          sections.push({ children: comparisonItems });
+        }
+      }
+
+      return sections;
+    })(),
+    elementProps: comparisonSource
+      ? getComparisonSourceDragProps(comparisonSource, { preventDrop: true })
+      : undefined,
   };
 }
 
@@ -264,7 +300,13 @@ export function buildXlsxFileNode(
   // Sort sheets alphabetically for consistent display
   sheets.sort((a, b) => a.sheetName.localeCompare(b.sheetName));
 
-  nodeMap.set(entry.id, { entryId: entry.id, isSheet: false, sheetName: null });
+  nodeMap.set(entry.id, {
+    entryId: entry.id,
+    isSheet: false,
+    sheetName: null,
+    dataSourceId: null,
+    viewName: null,
+  });
   anyNodeIdToNodeTypeMap.set(entry.id, 'file');
 
   return {
@@ -347,6 +389,7 @@ export function buildFileNode(
   const iconType = getFlatFileDataSourceIcon(relatedSource);
   const value = entry.id;
   const fqn = `main.${toDuckDBIdentifier(relatedSource.viewName)}`;
+  const comparisonSource = dataSourceToComparisonSource(relatedSource);
 
   // Get columns metadata if enabled
   const getFileColumns = (
@@ -378,7 +421,13 @@ export function buildFileNode(
       .map((column) => buildFileColumnTreeNode(column, entry.id, context));
   }
 
-  nodeMap.set(value, { entryId: entry.id, isSheet: false, sheetName: null });
+  nodeMap.set(value, {
+    entryId: entry.id,
+    isSheet: false,
+    sheetName: null,
+    dataSourceId: relatedSource.id,
+    viewName: relatedSource.viewName,
+  });
   anyNodeIdToNodeTypeMap.set(value, 'file');
 
   // Build context menu items
@@ -425,6 +474,22 @@ export function buildFileNode(
     });
   }
 
+  const comparisonMenuItems = comparisonSource
+    ? buildComparisonMenuItemsForSource(comparisonSource)
+    : [];
+
+  const contextMenuSections: TreeNodeMenuType<TreeNodeData<DataExplorerNodeTypeMap>> = [
+    {
+      children: contextMenuItems,
+    },
+  ];
+
+  if (comparisonMenuItems.length > 0) {
+    contextMenuSections.push({
+      children: comparisonMenuItems,
+    });
+  }
+
   return {
     nodeType: 'file',
     value,
@@ -462,11 +527,8 @@ export function buildFileNode(
       deleteTabByDataSourceId(relatedSource.id);
     },
     children,
-    contextMenu: [
-      {
-        children: contextMenuItems,
-      },
-    ],
+    contextMenu: contextMenuSections,
+    elementProps: comparisonSource ? getComparisonSourceDragProps(comparisonSource) : undefined,
   };
 }
 
@@ -494,7 +556,13 @@ export function buildDatabaseFileNode(
     throw new Error('Entry must be a file');
   }
 
-  nodeMap.set(entry.id, { entryId: entry.id, isSheet: false, sheetName: null });
+  nodeMap.set(entry.id, {
+    entryId: entry.id,
+    isSheet: false,
+    sheetName: null,
+    dataSourceId: null,
+    viewName: null,
+  });
   anyNodeIdToNodeTypeMap.set(entry.id, 'file');
 
   return {

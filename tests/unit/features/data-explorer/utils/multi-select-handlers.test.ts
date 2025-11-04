@@ -87,12 +87,15 @@ describe('multi-select-handlers', () => {
         entryId,
         isSheet: false,
         sheetName: null,
+        dataSourceId: dsId,
+        viewName: 'data_view',
       });
       mockContext.anyNodeIdToNodeTypeMap.set(nodeValue, 'file');
       mockContext.flatFileSources.set(dsId, {
         fileSourceId: entryId,
         type: 'csv',
-      });
+        viewName: 'data_view',
+      } as any);
 
       const nodes = [createNode(nodeValue, 'data.csv', 'file')];
 
@@ -113,13 +116,16 @@ describe('multi-select-handlers', () => {
         entryId,
         isSheet: true,
         sheetName,
+        dataSourceId: dsId,
+        viewName: sheetName,
       });
       mockContext.anyNodeIdToNodeTypeMap.set(nodeValue, 'sheet');
       mockContext.flatFileSources.set(dsId, {
         fileSourceId: entryId,
         type: 'xlsx-sheet',
         sheetName,
-      });
+        viewName: sheetName,
+      } as any);
 
       const nodes = [createNode(nodeValue, sheetName, 'sheet')];
 
@@ -138,6 +144,8 @@ describe('multi-select-handlers', () => {
         entryId,
         isSheet: false,
         sheetName: null,
+        dataSourceId: null,
+        viewName: null,
       });
       mockContext.anyNodeIdToNodeTypeMap.set(nodeValue, 'folder');
 
@@ -159,11 +167,14 @@ describe('multi-select-handlers', () => {
         schemaName: null,
         objectName: null,
         columnName: null,
+        objectType: 'other',
       });
       mockContext.nodeMap.set('folder-node', {
         entryId: folderId,
         isSheet: false,
         sheetName: null,
+        dataSourceId: null,
+        viewName: null,
       });
       mockContext.anyNodeIdToNodeTypeMap.set('db-node', 'db');
       mockContext.anyNodeIdToNodeTypeMap.set('folder-node', 'folder');
@@ -207,12 +218,14 @@ describe('multi-select-handlers', () => {
         schemaName,
         objectName: 'users',
         columnName: null,
+        objectType: 'table',
       });
       mockContext.nodeMap.set('table2', {
         db: dbId,
         schemaName,
         objectName: 'orders',
         columnName: null,
+        objectType: 'table',
       });
       mockContext.anyNodeIdToNodeTypeMap.set('table1', 'object');
       mockContext.anyNodeIdToNodeTypeMap.set('table2', 'object');
@@ -238,12 +251,14 @@ describe('multi-select-handlers', () => {
         schemaName: 'public',
         objectName: 'users',
         columnName: null,
+        objectType: 'table',
       });
       mockContext.nodeMap.set('table2', {
         db: dbId,
         schemaName: 'private',
         objectName: 'secrets',
         columnName: null,
+        objectType: 'table',
       });
       mockContext.anyNodeIdToNodeTypeMap.set('table1', 'object');
       mockContext.anyNodeIdToNodeTypeMap.set('table2', 'object');
@@ -268,11 +283,15 @@ describe('multi-select-handlers', () => {
         entryId: entryId1,
         isSheet: false,
         sheetName: null,
+        dataSourceId: null,
+        viewName: null,
       });
       mockContext.nodeMap.set('file2', {
         entryId: entryId2,
         isSheet: false,
         sheetName: null,
+        dataSourceId: null,
+        viewName: null,
       });
       mockContext.anyNodeIdToNodeTypeMap.set('file1', 'file');
       mockContext.anyNodeIdToNodeTypeMap.set('file2', 'file');
@@ -280,10 +299,12 @@ describe('multi-select-handlers', () => {
       mockContext.flatFileSources.set(dsId1, {
         fileSourceId: entryId1,
         type: 'csv',
+        viewName: 'file1',
       });
       mockContext.flatFileSources.set(dsId2, {
         fileSourceId: entryId2,
         type: 'json',
+        viewName: 'file2',
       });
 
       handleMultiSelectShowSchema(['file1', 'file2'], mockContext);
@@ -307,6 +328,8 @@ describe('multi-select-handlers', () => {
         entryId,
         isSheet: true,
         sheetName,
+        dataSourceId: null,
+        viewName: sheetName,
       });
       mockContext.anyNodeIdToNodeTypeMap.set(nodeId, 'sheet');
 
@@ -314,6 +337,7 @@ describe('multi-select-handlers', () => {
         fileSourceId: entryId,
         type: 'xlsx-sheet',
         sheetName,
+        viewName: sheetName,
       });
 
       handleMultiSelectShowSchema([nodeId], mockContext);
@@ -334,6 +358,8 @@ describe('multi-select-handlers', () => {
         entryId,
         isSheet: false,
         sheetName: null,
+        dataSourceId: null,
+        viewName: null,
       });
       mockContext.anyNodeIdToNodeTypeMap.set('folder1', 'folder');
 
@@ -352,11 +378,15 @@ describe('multi-select-handlers', () => {
         entryId: 'folder-1' as LocalEntryId,
         isSheet: false,
         sheetName: null,
+        dataSourceId: null,
+        viewName: null,
       });
       mockContext.nodeMap.set('folder2', {
         entryId: 'folder-2' as LocalEntryId,
         isSheet: false,
         sheetName: null,
+        dataSourceId: null,
+        viewName: null,
       });
       mockContext.anyNodeIdToNodeTypeMap.set('folder1', 'folder');
       mockContext.anyNodeIdToNodeTypeMap.set('folder2', 'folder');
@@ -377,11 +407,14 @@ describe('multi-select-handlers', () => {
         schemaName: 'public',
         objectName: 'users',
         columnName: null,
+        objectType: 'table',
       });
       mockContext.nodeMap.set('file-node', {
         entryId: 'file-123' as LocalEntryId,
         isSheet: false,
         sheetName: null,
+        dataSourceId: null,
+        viewName: null,
       });
       mockContext.anyNodeIdToNodeTypeMap.set('db-node', 'object');
       mockContext.anyNodeIdToNodeTypeMap.set('file-node', 'file');
@@ -408,6 +441,8 @@ describe('multi-select-handlers', () => {
         entryId: 'file-123' as LocalEntryId,
         isSheet: false,
         sheetName: null,
+        dataSourceId: null,
+        viewName: null,
       });
       mockContext.anyNodeIdToNodeTypeMap.set('valid-node', 'file');
       mockContext.flatFileSources.set('ds-123' as PersistentDataSourceId, {

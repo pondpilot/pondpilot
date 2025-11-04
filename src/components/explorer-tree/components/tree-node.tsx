@@ -5,6 +5,7 @@ import { shallow } from 'zustand/shallow';
 
 import { BaseTreeNodeProps } from '../model';
 import { getNodeDataTestIdPrefix } from '../utils/node-test-id';
+import { sanitizeHTMLProps } from '../utils/sanitize-props';
 import {
   TreeNodeRenameInput,
   TreeNodeContextMenu,
@@ -180,13 +181,40 @@ const BaseTreeNode = <NTypeToIdTypeMap extends Record<string, any>>({
     setIsUserSelection(false);
   }, [isActive, isUserSelection, itemId, selected, tree]);
 
+  // Sanitize node.elementProps to prevent XSS from untrusted props
+  const sanitizedNodeProps = sanitizeHTMLProps(node.elementProps ?? {});
+  const mergedElementProps = {
+    ...elementProps,
+    ...sanitizedNodeProps,
+  };
+  const {
+    className: elementClassName,
+    draggable,
+    onDragStart,
+    onDragEnd,
+    onDragOver,
+    onDragLeave,
+    onDrop,
+    onDragEnter,
+    ...restElementProps
+  } = mergedElementProps;
+
+  const normalizedDraggable = typeof draggable === 'string' ? draggable === 'true' : draggable;
+
   return (
     <div
-      {...elementProps}
+      {...restElementProps}
+      draggable={normalizedDraggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnter={onDragEnter}
       data-testid={setDataTestId(`${treeNodeDataTestIdPrefix}-container`)}
       data-selected={selected}
       className={cn(
-        elementProps.className,
+        elementClassName,
         ITEM_CLASSES.base,
         isDisabled ? ITEM_CLASSES.disabled : ITEM_CLASSES.hover.default,
         (isActive || selected) && [ITEM_CLASSES.transparent008, ITEM_CLASSES.hover.active],

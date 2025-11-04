@@ -1,4 +1,10 @@
 import { TreeNodeData } from '@components/explorer-tree';
+import {
+  buildComparisonMenuSectionForSources,
+  getComparisonSourceFromNode,
+} from '@features/comparison/utils/comparison-integration';
+import { ComparisonSource } from '@models/comparison';
+import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 
 import { DataExplorerNodeTypeMap } from '../model';
 import {
@@ -12,7 +18,8 @@ type UseDataExplorerActionsProps = {
   nodeMap: any;
   anyNodeIdToNodeTypeMap: any;
   conn: any;
-  flatFileSources: any;
+  flatFileSources: Map<PersistentDataSourceId, AnyFlatFileDataSource>;
+  dataSources: Map<PersistentDataSourceId, AnyDataSource>;
 };
 
 /**
@@ -24,6 +31,7 @@ export const useDataExplorerActions = ({
   anyNodeIdToNodeTypeMap,
   conn,
   flatFileSources,
+  dataSources,
 }: UseDataExplorerActionsProps) => {
   // Handle multi-select delete
   const handleDeleteSelected = (nodeIds: string[]) => {
@@ -74,9 +82,29 @@ export const useDataExplorerActions = ({
     });
   };
 
+  const buildComparisonMenuSections = (selectedNodes: TreeNodeData<DataExplorerNodeTypeMap>[]) => {
+    const sources: ComparisonSource[] = selectedNodes
+      .map((node) =>
+        getComparisonSourceFromNode(node, {
+          nodeMap,
+          flatFileSources,
+          dataSources,
+        }),
+      )
+      .filter((value): value is ComparisonSource => value !== null);
+
+    if (sources.length !== 2) {
+      return null;
+    }
+
+    const sections = buildComparisonMenuSectionForSources(sources);
+    return sections.length > 0 ? sections : null;
+  };
+
   return {
     handleDeleteSelected,
     handleShowSchema,
     getShowSchemaHandlerForNodes,
+    buildComparisonMenuSections,
   };
 };

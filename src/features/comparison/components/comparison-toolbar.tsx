@@ -1,11 +1,20 @@
 import { Group, Button, ActionIcon, Tooltip } from '@mantine/core';
-import { IconRefresh, IconSettings, IconDownload, IconTrash, IconTable } from '@tabler/icons-react';
+import {
+  IconRefresh,
+  IconSettings,
+  IconDownload,
+  IconTrash,
+  IconTable,
+  IconFileCode,
+} from '@tabler/icons-react';
 
 interface ComparisonToolbarProps {
   onReconfigure: () => void;
   onRefresh: () => void;
   onExportReport: () => void;
   onOpenTableView: () => void;
+  onViewSql: () => void;
+  canViewSql: boolean;
   isRefreshing?: boolean;
   onClearResults?: () => void;
   isClearing?: boolean;
@@ -16,6 +25,8 @@ export const ComparisonToolbar = ({
   onRefresh,
   onExportReport,
   onOpenTableView,
+  onViewSql,
+  canViewSql,
   isRefreshing = false,
   onClearResults,
   isClearing = false,
@@ -67,6 +78,16 @@ export const ComparisonToolbar = ({
         disabled={isRefreshing}
       >
         Open Table View
+      </Button>
+
+      <Button
+        variant="light"
+        color="background-accent"
+        leftSection={<IconFileCode size={16} />}
+        onClick={onViewSql}
+        disabled={isRefreshing || !canViewSql}
+      >
+        View SQL
       </Button>
 
       <Button

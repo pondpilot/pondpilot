@@ -22,7 +22,7 @@ import {
   isTheSameSortSpec,
   toggleMultiColumnSort,
 } from '@utils/db';
-import { isSchemaError } from '@utils/schema-error-detection';
+import { isSchemaError, isMissingRelationError } from '@utils/schema-error-detection';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useDataAdapterQueries } from './use-data-adapter-queries';
@@ -416,6 +416,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           setAppendDataSourceReadError(
             'Too many tabs open or operations running. Please wait and re-open this tab.',
           );
+        } else if (isMissingRelationError(error)) {
+          console.error('Data source have been moved or deleted:', error);
+          setAppendDataSourceReadError('Data source have been moved or deleted.');
         } else if (error.message?.includes('NotReadableError')) {
           if (options.retry_with_file_sync) {
             await syncFiles(pool);
@@ -631,7 +634,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           setDataVersion((prev) => prev + 1);
         }
       } catch (error: any) {
-        if (error.message?.includes('NotReadableError')) {
+        if (isMissingRelationError(error)) {
+          console.error('Data source have been moved or deleted:', error);
+          setAppendDataSourceReadError('Data source have been moved or deleted.');
+        } else if (error.message?.includes('NotReadableError')) {
           if (options.retry_with_file_sync) {
             // First try to sync files, that may re-create a working handle
             await syncFiles(pool);

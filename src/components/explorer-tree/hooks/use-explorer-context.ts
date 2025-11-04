@@ -15,6 +15,10 @@ interface UseExplorerContextOptions<
     selectedNodes: TreeNodeData<NTypeToIdTypeMap>[],
   ) => ((ids: NTypeToIdTypeMap[keyof NTypeToIdTypeMap][]) => void) | undefined;
   extraData?: ExtraData;
+  buildMultiSelectMenu?: (params: {
+    selectedNodes: TreeNodeData<NTypeToIdTypeMap>[];
+    selectedState: string[];
+  }) => TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> | null | undefined;
 }
 
 export function useExplorerContext<
@@ -25,6 +29,7 @@ export function useExplorerContext<
     nodes,
     handleDeleteSelected,
     getShowSchemaHandler,
+    buildMultiSelectMenu,
     extraData = {} as ExtraData,
   } = options;
 
@@ -52,12 +57,30 @@ export function useExplorerContext<
         selectedNodes as TreeNodeData<NTypeToIdTypeMap>[],
       );
 
-      return createMultiSelectContextMenu<NTypeToIdTypeMap>(selectedState, flattenedNodes, {
-        onDeleteSelected: handleDeleteSelected,
-        onShowSchemaSelected: showSchemaHandler,
-      }) as TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> | null;
+      const multiSelectMenu = createMultiSelectContextMenu<NTypeToIdTypeMap>(
+        selectedState,
+        flattenedNodes,
+        {
+          onDeleteSelected: handleDeleteSelected,
+          onShowSchemaSelected: showSchemaHandler,
+        },
+      ) as TreeNodeMenuType<TreeNodeData<NTypeToIdTypeMap>> | null;
+
+      const customMenu = buildMultiSelectMenu?.({
+        selectedNodes: selectedNodes as TreeNodeData<NTypeToIdTypeMap>[],
+        selectedState,
+      });
+
+      if (customMenu && customMenu.length > 0) {
+        if (!multiSelectMenu) {
+          return customMenu;
+        }
+        return [...multiSelectMenu, ...customMenu];
+      }
+
+      return multiSelectMenu;
     },
-    [flattenedNodes, handleDeleteSelected, getShowSchemaHandler],
+    [flattenedNodes, handleDeleteSelected, getShowSchemaHandler, buildMultiSelectMenu],
   );
 
   // Set up delete hotkey

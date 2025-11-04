@@ -21,13 +21,20 @@ import {
 } from '@mantine/core';
 import { ComparisonConfig, ComparisonSource, SchemaComparisonResult, TabId } from '@models/tab';
 import { IconAlertCircle, IconCheck, IconChevronDown, IconTable } from '@tabler/icons-react';
-import { useCallback, useEffect, useRef, useState, RefObject, useMemo } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, RefObject } from 'react';
 
 import { ColumnMapper } from './column-mapper';
 import { JoinKeyMapper } from './join-key-mapper';
 import { ICON_CLASSES } from '../constants/color-classes';
 import { useComparisonSourceSelection } from '../hooks/use-comparison-source-selection';
 import { useFilterValidation } from '../hooks/use-filter-validation';
+import {
+  COMPARISON_ANALYSIS_EVENT,
+  hasComparisonDragData,
+  parseComparisonDragData,
+  requestComparisonAnalysis,
+} from '../utils/comparison-integration';
 import { getStatusAccentColor, getStatusSurfaceColor, getThemeColorValue } from '../utils/theme';
 
 // Constants
@@ -100,9 +107,12 @@ export const ComparisonConfigScreen = ({
   // Local UI state
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [dragTarget, setDragTarget] = useState<'A' | 'B' | null>(null);
+  const [analysisRequestToken, setAnalysisRequestToken] = useState(0);
 
   // Track if we've triggered analysis for the current sources
   const analysisTriggeredRef = useRef<string | null>(null);
+  const analysisRunIdRef = useRef<symbol | null>(null);
   const autoJoinInitializedRef = useRef<string | null>(null);
 
   // Get DuckDB pool for filter validation
@@ -252,43 +262,66 @@ export const ComparisonConfigScreen = ({
   };
 
   // Auto-trigger schema analysis when both sources are selected
+  // This effect orchestrates schema analysis based on source changes:
+  // 1. Creates a `sourceKey` to uniquely identify the current pair of sources
+  // 2. Uses `analysisTriggeredRef` to prevent re-running analysis for the same source pair
+  // 3. Uses `analysisRunIdRef` with a unique Symbol to track the latest analysis run
+  // 4. Handles race conditions: if sources change or a new analysis is requested via
+  //    COMPARISON_ANALYSIS_EVENT before the old one completes, only the latest result is applied
+  // 5. Skips analysis if:
+  //    - Either source is missing (clears refs)
+  //    - Analysis results already exist for this source pair
+  //    - Analysis is already in progress
+  //    - Analysis was already triggered for this exact source pair
   useEffect(() => {
     if (!config?.sourceA || !config?.sourceB) {
-      // Clear analysis flag if sources are incomplete
       analysisTriggeredRef.current = null;
-      return;
+      analysisRunIdRef.current = null;
+      return undefined;
     }
 
     const sourceKey = createSourceKey(config.sourceA, config.sourceB);
 
-    // Skip if we've already triggered analysis for these exact sources
-    if (analysisTriggeredRef.current === sourceKey) {
-      return;
-    }
-
-    // Skip if we already have results for these sources
     if (schemaComparison) {
       analysisTriggeredRef.current = sourceKey;
-      return;
+      return undefined;
+    }
+
+    if (isAnalyzing) {
+      return undefined;
+    }
+
+    if (analysisTriggeredRef.current === sourceKey) {
+      return undefined;
     }
 
     // Trigger analysis and mark as triggered
     analysisTriggeredRef.current = sourceKey;
-
-    // Use a cancellation flag to prevent race conditions
-    let cancelled = false;
+    const runId = Symbol('comparison-analysis-run');
+    analysisRunIdRef.current = runId;
 
     onAnalyzeSchemas(config.sourceA, config.sourceB).then((result) => {
-      // Only update if this analysis is still relevant (sources haven't changed)
-      if (!cancelled && result && analysisTriggeredRef.current === sourceKey) {
+      if (!result) {
+        return;
+      }
+      const isLatestRun = analysisRunIdRef.current === runId;
+      const isSameSources = analysisTriggeredRef.current === sourceKey;
+
+      if (isLatestRun && isSameSources) {
         updateSchemaComparison(tabId, result);
       }
     });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [config?.sourceA, config?.sourceB, onAnalyzeSchemas, tabId]);
+    return undefined;
+  }, [
+    analysisRequestToken,
+    config?.sourceA,
+    config?.sourceB,
+    onAnalyzeSchemas,
+    schemaComparison,
+    isAnalyzing,
+    tabId,
+  ]);
 
   useEffect(() => {
     if (!config?.sourceA || !config?.sourceB || !schemaComparison) {
@@ -332,6 +365,103 @@ export const ComparisonConfigScreen = ({
   const handleFilterModeChange = (mode: 'common' | 'separate') => {
     onConfigChange({ filterMode: mode });
   };
+
+  const applySourceFromDrag = useCallback(
+    (slot: 'A' | 'B', source: ComparisonSource) => {
+      const currentSource = slot === 'A' ? config?.sourceA : config?.sourceB;
+      const update: Partial<ComparisonConfig> =
+        slot === 'A' ? { sourceA: source } : { sourceB: source };
+
+      if (currentSource) {
+        update.joinColumns = [];
+        update.joinKeyMappings = {};
+        update.columnMappings = {};
+        update.excludedColumns = [];
+      }
+
+      onConfigChange(update);
+      analysisTriggeredRef.current = null;
+      updateSchemaComparison(tabId, null);
+
+      const nextSourceA = slot === 'A' ? source : config?.sourceA;
+      const nextSourceB = slot === 'B' ? source : config?.sourceB;
+      if (nextSourceA && nextSourceB) {
+        requestComparisonAnalysis(tabId);
+      }
+    },
+    [config?.sourceA, config?.sourceB, onConfigChange, tabId],
+  );
+
+  const handleDragEnter = useCallback(
+    (slot: 'A' | 'B') => (event: React.DragEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      if (hasComparisonDragData(event.dataTransfer)) {
+        setDragTarget(slot);
+      }
+    },
+    [],
+  );
+
+  const handleDragOver = useCallback(
+    (slot: 'A' | 'B') => (event: React.DragEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      if (!hasComparisonDragData(event.dataTransfer)) {
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+      if (dragTarget !== slot) {
+        setDragTarget(slot);
+      }
+    },
+    [dragTarget],
+  );
+
+  const handleDragLeave = useCallback((event: React.DragEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    const related = event.relatedTarget as Node | null;
+    if (related && event.currentTarget.contains(related)) {
+      return;
+    }
+    setDragTarget(null);
+  }, []);
+
+  const handleDrop = useCallback(
+    (slot: 'A' | 'B') => (event: React.DragEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      const source = parseComparisonDragData(event.dataTransfer);
+      setDragTarget(null);
+      if (!source) {
+        return;
+      }
+      event.preventDefault();
+      applySourceFromDrag(slot, source);
+    },
+    [applySourceFromDrag],
+  );
+
+  // Memoize bound handlers for Source A to prevent creating new functions on every render
+  const handleDragEnterA = useMemo(() => handleDragEnter('A'), [handleDragEnter]);
+  const handleDragOverA = useMemo(() => handleDragOver('A'), [handleDragOver]);
+  const handleDropA = useMemo(() => handleDrop('A'), [handleDrop]);
+
+  // Memoize bound handlers for Source B to prevent creating new functions on every render
+  const handleDragEnterB = useMemo(() => handleDragEnter('B'), [handleDragEnter]);
+  const handleDragOverB = useMemo(() => handleDragOver('B'), [handleDragOver]);
+  const handleDropB = useMemo(() => handleDrop('B'), [handleDrop]);
+
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tabId: TabId }>;
+      if (customEvent.detail?.tabId === tabId) {
+        analysisTriggeredRef.current = null;
+        setAnalysisRequestToken((token) => token + 1);
+      }
+    };
+
+    window.addEventListener(COMPARISON_ANALYSIS_EVENT, listener as EventListener);
+    return () => window.removeEventListener(COMPARISON_ANALYSIS_EVENT, listener as EventListener);
+  }, [tabId]);
 
   // Get column options for MultiSelect
   const _getColumnOptions = (): { value: string; label: string }[] => {
@@ -414,6 +544,19 @@ export const ComparisonConfigScreen = ({
                   leftSection={<IconTable size={16} />}
                   onClick={selectSourceA}
                   fullWidth
+                  onDragEnter={handleDragEnterA}
+                  onDragOver={handleDragOverA}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDropA}
+                  style={
+                    dragTarget === 'A'
+                      ? {
+                          borderColor: getStatusAccentColor(theme, 'added', colorScheme),
+                          borderWidth: 2,
+                          borderStyle: 'solid',
+                        }
+                      : undefined
+                  }
                 >
                   {getSourceDisplayName(config?.sourceA || null)}
                 </Button>
@@ -429,6 +572,19 @@ export const ComparisonConfigScreen = ({
                   leftSection={<IconTable size={16} />}
                   onClick={selectSourceB}
                   fullWidth
+                  onDragEnter={handleDragEnterB}
+                  onDragOver={handleDragOverB}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDropB}
+                  style={
+                    dragTarget === 'B'
+                      ? {
+                          borderColor: getStatusAccentColor(theme, 'added', colorScheme),
+                          borderWidth: 2,
+                          borderStyle: 'solid',
+                        }
+                      : undefined
+                  }
                 >
                   {getSourceDisplayName(config?.sourceB || null)}
                 </Button>

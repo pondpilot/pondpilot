@@ -23,6 +23,7 @@ type DBNodeInfo = {
   schemaName: string | null;
   objectName: string | null;
   columnName: string | null;
+  objectType?: 'table' | 'view' | 'other';
 };
 
 // Node info for file system items
@@ -30,6 +31,8 @@ type FileNodeInfo = {
   entryId: LocalEntryId | null;
   isSheet: boolean;
   sheetName: string | null;
+  dataSourceId: PersistentDataSourceId | null;
+  viewName: string | null;
 };
 
 // Combined node info

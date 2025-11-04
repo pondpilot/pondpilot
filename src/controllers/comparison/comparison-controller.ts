@@ -49,6 +49,7 @@ export const createComparison = (
     lastExecutionTime: null,
     lastRunAt: null,
     resultsTableName: null,
+    lastRunSql: null,
   };
 
   // Add the new comparison to the store
@@ -134,6 +135,7 @@ export const clearComparisonResults = async (
     resultsTableName: null,
     lastExecutionTime: null,
     lastRunAt: null,
+    lastRunSql: null,
   };
 
   const newComparisons = new Map(comparisons);
@@ -332,6 +334,36 @@ export const updateComparisonResultsTable = (
   );
 
   // Persist the changes to IndexedDB
+  const iDb = useAppStore.getState()._iDbConn;
+  if (iDb) {
+    iDb.put(COMPARISON_TABLE_NAME, updatedComparison, comparison.id);
+  }
+};
+
+export const updateComparisonLastRunSql = (
+  comparisonOrId: Comparison | ComparisonId,
+  sql: string | null,
+): void => {
+  const { comparisons } = useAppStore.getState();
+
+  const comparison = ensureComparison(comparisonOrId, comparisons);
+
+  const updatedComparison: Comparison = {
+    ...comparison,
+    lastRunSql: sql,
+  };
+
+  const newComparisons = new Map(comparisons);
+  newComparisons.set(comparison.id, updatedComparison);
+
+  useAppStore.setState(
+    {
+      comparisons: newComparisons,
+    },
+    undefined,
+    'AppStore/updateComparisonLastRunSql',
+  );
+
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(COMPARISON_TABLE_NAME, updatedComparison, comparison.id);

@@ -1,6 +1,7 @@
 import { showWarningWithAction, showSuccess, showError } from '@components/app-notifications';
 import { clearComparisonResults } from '@controllers/comparison';
-import { getOrCreateTabFromLocalDBObject } from '@controllers/tab';
+import { createSQLScript } from '@controllers/sql-script';
+import { getOrCreateTabFromLocalDBObject, getOrCreateTabFromScript } from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { useAppTheme } from '@hooks/use-app-theme';
 import {
@@ -37,6 +38,7 @@ import {
   IconCheck,
   IconX,
   IconLayoutColumns,
+  IconCircleCheckFilled,
 } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -48,6 +50,7 @@ import {
   ComparisonValueColumn,
 } from './comparison-table';
 import { ICON_CLASSES } from '../../constants/color-classes';
+import { COMPARISON_RESULTS_ROW_LIMIT } from '../../constants/limits';
 import { COMPARISON_STATUS_ORDER } from '../../constants/statuses';
 import { useComparisonResultsSimple } from '../../hooks/use-comparison-results-simple';
 import type { ComparisonResultRow } from '../../hooks/use-comparison-results-simple';
@@ -204,6 +207,7 @@ interface ComparisonViewerProps {
   lastRunAt: string | null;
   onReconfigure: () => void;
   onRefresh: () => void;
+  onResultsLoaded?: () => void;
 }
 
 export const ComparisonViewer = ({
@@ -216,6 +220,7 @@ export const ComparisonViewer = ({
   lastRunAt,
   onReconfigure,
   onRefresh,
+  onResultsLoaded,
 }: ComparisonViewerProps) => {
   const theme = useMantineTheme();
   const colorScheme = useAppTheme();
@@ -227,7 +232,9 @@ export const ComparisonViewer = ({
   const dataSources = useAppStore.use.dataSources();
   const databaseMetadata = useAppStore.use.databaseMetadata();
   const comparisons = useAppStore.use.comparisons();
-  const comparisonName = comparisons.get(comparisonId)?.name ?? 'Comparison';
+  const comparisonRecord = comparisons.get(comparisonId);
+  const comparisonName = comparisonRecord?.name ?? 'Comparison';
+  const lastRunSql = comparisonRecord?.lastRunSql ?? null;
   const pool = useInitializedDuckDBConnectionPool();
   const handledMissingTableRef = useRef(false);
   const [isClearing, setIsClearing] = useState(false);
@@ -259,6 +266,7 @@ export const ComparisonViewer = ({
   const [visibleValueColumns, setVisibleValueColumns] = useState<Record<string, boolean>>({});
   const [columnsPopoverOpened, setColumnsPopoverOpened] = useState(false);
   const [columnSearchQuery, setColumnSearchQuery] = useState('');
+  const canViewSql = Boolean(lastRunSql);
 
   const activeStatuses = useMemo<ComparisonRowStatus[]>(() => {
     const statuses: ComparisonRowStatus[] = [];
@@ -320,6 +328,29 @@ export const ComparisonViewer = ({
     activeStatuses,
   );
 
+  const hasNotifiedLoadRef = useRef(false);
+
+  useEffect(() => {
+    hasNotifiedLoadRef.current = false;
+  }, [tableName, executionTime]);
+
+  useEffect(() => {
+    if (!onResultsLoaded) {
+      return;
+    }
+    if (isLoading) {
+      hasNotifiedLoadRef.current = false;
+      return;
+    }
+    if (hasNotifiedLoadRef.current) {
+      return;
+    }
+    if (results || error) {
+      hasNotifiedLoadRef.current = true;
+      onResultsLoaded();
+    }
+  }, [isLoading, results, error, onResultsLoaded]);
+
   useEffect(() => {
     if (!results) {
       return;
@@ -371,8 +402,6 @@ export const ComparisonViewer = ({
     });
   }, [compareColumns]);
 
-  const RESULTS_ROW_LIMIT = 1000;
-
   const statusTotals = results?.statusTotals ?? {
     total: 0,
     added: 0,
@@ -380,6 +409,14 @@ export const ComparisonViewer = ({
     modified: 0,
     same: 0,
   };
+  const viewingDifferencesOnly = config.showOnlyDifferences !== false;
+  const hasAddedRows = statusTotals.added > 0;
+  const hasRemovedRows = statusTotals.removed > 0;
+  const hasModifiedRows = statusTotals.modified > 0;
+  const hasUnchangedRows = statusTotals.same > 0;
+  const allRowsUnchanged = hasUnchangedRows && !hasAddedRows && !hasRemovedRows && !hasModifiedRows;
+  const shouldShowSameBanner =
+    allRowsUnchanged || (viewingDifferencesOnly && statusTotals.total === 0);
 
   const statusFilteredRows = results?.rows ?? [];
   const filteredRows = useMemo(() => {
@@ -407,7 +444,7 @@ export const ComparisonViewer = ({
   const displayedRows = filteredRows;
   const isTruncated =
     results?.filteredRowCount !== undefined &&
-    results.filteredRowCount >= RESULTS_ROW_LIMIT &&
+    results.filteredRowCount >= COMPARISON_RESULTS_ROW_LIMIT &&
     statusTotals.total > results.filteredRowCount;
 
   const joinColumnOptions = useMemo(() => {
@@ -477,7 +514,11 @@ export const ComparisonViewer = ({
     return filters;
   }, [columnFilters, columnIdToLabel]);
 
-  const hasStatusFilter = !showAdded || !showRemoved || !showModified || showUnchanged;
+  const hasStatusFilter =
+    (hasAddedRows && !showAdded) ||
+    (hasRemovedRows && !showRemoved) ||
+    (hasModifiedRows && !showModified) ||
+    (hasUnchangedRows && showUnchanged);
   const canResetFilters = hasStatusFilter || activeColumnFilters.length > 0;
 
   const handleResetFilters = useCallback(() => {
@@ -557,8 +598,8 @@ export const ComparisonViewer = ({
     const normalizedError = error.toLowerCase();
     if (
       normalizedError.includes('does not exist') ||
-      normalizedError.includes('not found') ||
-      normalizedError.includes('catalog error')
+      normalizedError.includes('table with name') ||
+      normalizedError.includes('not found')
     ) {
       handledMissingTableRef.current = true;
       const clearMissingTable = async () => {
@@ -800,7 +841,7 @@ export const ComparisonViewer = ({
           statusTotals,
           totalRowCount: statusTotals.total,
           filteredRowCount: results.filteredRowCount,
-          rowLimit: RESULTS_ROW_LIMIT,
+          rowLimit: COMPARISON_RESULTS_ROW_LIMIT,
           activeStatuses: exportStatuses,
           keyColumns: config.joinColumns,
           compareColumns: exportValueColumns.map(({ key, label }) => ({ key, label })),
@@ -899,6 +940,28 @@ export const ComparisonViewer = ({
       });
     }
   }, [tableName]);
+
+  const handleViewSql = useCallback(() => {
+    if (!lastRunSql?.trim()) {
+      showWarningWithAction({
+        title: 'SQL unavailable',
+        message: 'Run the comparison again to regenerate the SQL before viewing it.',
+      });
+      return;
+    }
+    try {
+      const scriptName = `${comparisonName} comparison SQL`;
+      const script = createSQLScript(scriptName, `${lastRunSql}\n`);
+      getOrCreateTabFromScript(script, true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error occurred';
+      console.error('Failed to view SQL:', err);
+      showError({
+        title: 'Unable to open SQL',
+        message: `Failed to create SQL script: ${message}`,
+      });
+    }
+  }, [comparisonName, lastRunSql]);
   // Handle errors
   if (error && !handledMissingTableRef.current) {
     return (
@@ -926,6 +989,48 @@ export const ComparisonViewer = ({
   }
 
   // Handle empty results
+  if (shouldShowSameBanner) {
+    const sameBanner = (
+      <Paper
+        p="xl"
+        radius="lg"
+        shadow="xs"
+        style={{
+          textAlign: 'center',
+          backgroundColor: getStatusSurfaceColor(theme, 'same', colorScheme),
+        }}
+      >
+        <Stack gap="sm" align="center">
+          <IconCircleCheckFilled
+            size={56}
+            color={getStatusAccentColor(theme, 'same', colorScheme)}
+          />
+          <Text size="lg" fw={700}>
+            The datasets are the same!
+          </Text>
+        </Stack>
+      </Paper>
+    );
+
+    return (
+      <Stack gap="lg" style={{ position: 'relative' }}>
+        <LoadingOverlay visible={isLoading} overlayProps={{ blur: 2 }} />
+        <ComparisonToolbar
+          onReconfigure={onReconfigure}
+          onRefresh={onRefresh}
+          onExportReport={handleExportReport}
+          onOpenTableView={handleOpenTableView}
+          onViewSql={handleViewSql}
+          canViewSql={canViewSql}
+          isRefreshing={isLoading}
+          onClearResults={handleClearResults}
+          isClearing={isClearing}
+        />
+        {sameBanner}
+      </Stack>
+    );
+  }
+
   if (statusTotals.total === 0) {
     return (
       <Stack gap="lg" style={{ position: 'relative' }}>
@@ -935,7 +1040,9 @@ export const ComparisonViewer = ({
           onRefresh={onRefresh}
           onExportReport={handleExportReport}
           onOpenTableView={handleOpenTableView}
-          isRefreshing={false}
+          onViewSql={handleViewSql}
+          canViewSql={canViewSql}
+          isRefreshing={isLoading}
           onClearResults={handleClearResults}
           isClearing={isClearing}
         />
@@ -945,10 +1052,10 @@ export const ComparisonViewer = ({
           color="background-accent"
           styles={getAlertStyles('accent')}
         >
-          The comparison returned no results. This could mean:
+          <Text size="sm">The comparison returned no rows. This can happen when:</Text>
           <List spacing="xs" size="sm" mt="xs" pl="md">
-            <List.Item>Both sources have no matching rows based on the join keys</List.Item>
-            <List.Item>The filters excluded all rows</List.Item>
+            <List.Item>The join keys don&apos;t match between Source A and Source B</List.Item>
+            <List.Item>The filters excluded every row from one or both sources</List.Item>
             <List.Item>One or both data sources are empty</List.Item>
           </List>
         </Alert>
@@ -965,6 +1072,8 @@ export const ComparisonViewer = ({
         onRefresh={onRefresh}
         onExportReport={handleExportReport}
         onOpenTableView={handleOpenTableView}
+        onViewSql={handleViewSql}
+        canViewSql={canViewSql}
         isRefreshing={isLoading}
         onClearResults={handleClearResults}
         isClearing={isClearing}
@@ -1136,74 +1245,84 @@ export const ComparisonViewer = ({
         <Divider my="md" label="Show" labelPosition="left" />
 
         <Stack gap="xs">
-          <Chip.Group>
-            <Group gap="xs">
-              <Chip
-                checked={showAdded}
-                onChange={() => setShowAdded(!showAdded)}
-                variant="light"
-                styles={{
-                  label: {
-                    backgroundColor: getStatusSurfaceColor(theme, 'added', colorScheme),
-                    color: getStatusAccentColor(theme, 'added', colorScheme),
-                  },
-                }}
-              >
-                <Group gap={4}>
-                  <IconPlus size={12} />
-                  Added ({statusTotals.added})
-                </Group>
-              </Chip>
-              <Chip
-                checked={showRemoved}
-                onChange={() => setShowRemoved(!showRemoved)}
-                variant="light"
-                styles={{
-                  label: {
-                    backgroundColor: getStatusSurfaceColor(theme, 'removed', colorScheme),
-                    color: getStatusAccentColor(theme, 'removed', colorScheme),
-                  },
-                }}
-              >
-                <Group gap={4}>
-                  <IconMinus size={12} />
-                  Removed ({statusTotals.removed})
-                </Group>
-              </Chip>
-              <Chip
-                checked={showModified}
-                onChange={() => setShowModified(!showModified)}
-                variant="light"
-                styles={{
-                  label: {
-                    backgroundColor: getStatusSurfaceColor(theme, 'modified', colorScheme),
-                    color: getStatusAccentColor(theme, 'modified', colorScheme),
-                  },
-                }}
-              >
-                <Group gap={4}>
-                  <IconPencil size={12} />
-                  Modified ({statusTotals.modified})
-                </Group>
-              </Chip>
-              <Chip
-                checked={showUnchanged}
-                onChange={() => setShowUnchanged(!showUnchanged)}
-                variant="light"
-                styles={{
-                  label: {
-                    backgroundColor: getStatusSurfaceColor(theme, 'same', colorScheme),
-                    color: getStatusAccentColor(theme, 'same', colorScheme),
-                  },
-                }}
-              >
-                <Group gap={4}>
-                  <IconCheck size={12} />
-                  Unchanged ({statusTotals.same})
-                </Group>
-              </Chip>
-            </Group>
-          </Chip.Group>
+          {(hasAddedRows || hasRemovedRows || hasModifiedRows || hasUnchangedRows) && (
+            <Chip.Group>
+              <Group gap="xs">
+                {hasAddedRows && (
+                  <Chip
+                    checked={showAdded}
+                    onChange={() => setShowAdded(!showAdded)}
+                    variant="light"
+                    styles={{
+                      label: {
+                        backgroundColor: getStatusSurfaceColor(theme, 'added', colorScheme),
+                        color: getStatusAccentColor(theme, 'added', colorScheme),
+                      },
+                    }}
+                  >
+                    <Group gap={4}>
+                      <IconPlus size={12} />
+                      Added ({statusTotals.added})
+                    </Group>
+                  </Chip>
+                )}
+                {hasRemovedRows && (
+                  <Chip
+                    checked={showRemoved}
+                    onChange={() => setShowRemoved(!showRemoved)}
+                    variant="light"
+                    styles={{
+                      label: {
+                        backgroundColor: getStatusSurfaceColor(theme, 'removed', colorScheme),
+                        color: getStatusAccentColor(theme, 'removed', colorScheme),
+                      },
+                    }}
+                  >
+                    <Group gap={4}>
+                      <IconMinus size={12} />
+                      Removed ({statusTotals.removed})
+                    </Group>
+                  </Chip>
+                )}
+                {hasModifiedRows && (
+                  <Chip
+                    checked={showModified}
+                    onChange={() => setShowModified(!showModified)}
+                    variant="light"
+                    styles={{
+                      label: {
+                        backgroundColor: getStatusSurfaceColor(theme, 'modified', colorScheme),
+                        color: getStatusAccentColor(theme, 'modified', colorScheme),
+                      },
+                    }}
+                  >
+                    <Group gap={4}>
+                      <IconPencil size={12} />
+                      Modified ({statusTotals.modified})
+                    </Group>
+                  </Chip>
+                )}
+                {hasUnchangedRows && (
+                  <Chip
+                    checked={showUnchanged}
+                    onChange={() => setShowUnchanged(!showUnchanged)}
+                    variant="light"
+                    styles={{
+                      label: {
+                        backgroundColor: getStatusSurfaceColor(theme, 'same', colorScheme),
+                        color: getStatusAccentColor(theme, 'same', colorScheme),
+                      },
+                    }}
+                  >
+                    <Group gap={4}>
+                      <IconCheck size={12} />
+                      Unchanged ({statusTotals.same})
+                    </Group>
+                  </Chip>
+                )}
+              </Group>
+            </Chip.Group>
+          )}
           {(activeColumnFilters.length > 0 || hasStatusFilter) && (
             <Group gap="xs" wrap="wrap">
               {hasStatusFilter && (
@@ -1292,8 +1411,8 @@ export const ComparisonViewer = ({
             </Text>
             {isTruncated && (
               <Text size="xs" c="dimmed">
-                Showing the first {RESULTS_ROW_LIMIT.toLocaleString()} rows. Narrow filters to see
-                more.
+                Showing the first {COMPARISON_RESULTS_ROW_LIMIT.toLocaleString()} rows. Narrow
+                filters to see more.
               </Text>
             )}
           </Stack>

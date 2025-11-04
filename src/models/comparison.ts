@@ -143,4 +143,6 @@ export type Comparison = {
   // Format: __pondpilot_comparison_{sanitized_comparison_id}
   // This persists across browser restarts unlike temp tables
   resultsTableName: string | null;
+  // Last generated SQL statement used to produce the persisted results
+  lastRunSql: string | null;
 };

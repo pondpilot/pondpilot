@@ -5,6 +5,7 @@ import { convertArrowTable, getArrowTableSchema } from '@utils/arrow';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { useState, useEffect, useCallback } from 'react';
 
+import { COMPARISON_RESULTS_ROW_LIMIT } from '../constants/limits';
 import { getColumnsToCompare } from '../utils/sql-generator';
 import { ComparisonRowStatus } from '../utils/theme';
 
@@ -124,7 +125,7 @@ export const useComparisonResultsSimple = (
         sql += ` ORDER BY ${orderByClauses.join(', ')}`;
       }
 
-      sql += ' LIMIT 1000';
+      sql += ` LIMIT ${COMPARISON_RESULTS_ROW_LIMIT}`;
 
       const result = await pool.query(sql);
 

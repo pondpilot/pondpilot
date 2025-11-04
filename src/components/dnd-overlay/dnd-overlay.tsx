@@ -11,12 +11,21 @@ interface DndOverlayProps extends PropsWithChildren {
 export const DndOverlay = ({ children, handleFileDrop }: DndOverlayProps) => {
   const [isDragging, setIsDragging] = useState(false);
 
+  const isFileTransfer = (e: React.DragEvent<HTMLDivElement>): boolean =>
+    Array.from(e.dataTransfer?.types ?? []).includes('Files');
+
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!isFileTransfer(e)) {
+      return;
+    }
     e.preventDefault();
     setIsDragging(true);
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!isFileTransfer(e)) {
+      return;
+    }
     e.preventDefault();
     if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       setIsDragging(false);
@@ -24,6 +33,9 @@ export const DndOverlay = ({ children, handleFileDrop }: DndOverlayProps) => {
   }, []);
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isFileTransfer(e)) {
+      return;
+    }
     e.preventDefault();
     setIsDragging(false);
     handleFileDrop(e);

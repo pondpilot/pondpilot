@@ -3,6 +3,7 @@ import {
   RenderTreeNodePayload as MantineRenderTreeNodePayload,
   TreeNodeData as MantineTreeNodeData,
 } from '@mantine/core';
+import type { HTMLAttributes } from 'react';
 
 type TreeNodeRenameCallbacks<NType> = {
   /**
@@ -132,6 +133,11 @@ export type TreeNodeData<NTypeToIdTypeMap extends Record<string, any>> =
            */
           tooltip?: string;
 
+          /**
+           * Props applied to the underlying tree node element.
+           */
+          elementProps?: HTMLAttributes<HTMLDivElement>;
+
           children?: TreeNodeData<NTypeToIdTypeMap>[];
         } & MantineTreeNodeData
       : never
@@ -193,6 +199,7 @@ export type TreeNodeMenuItemType<NType> = {
   label: string;
   isDisabled?: boolean;
   onClick: (node: NType, tree: MantineRenderTreeNodePayload['tree']) => void;
+  children?: TreeNodeMenuItemType<NType>[];
   onAlt?: {
     label: string;
     onClick: (node: NType, tree: MantineRenderTreeNodePayload['tree']) => void;

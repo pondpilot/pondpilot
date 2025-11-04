@@ -27,7 +27,9 @@ export const useOpenDataWizardModal = () => {
             pool={pool}
             onClose={() => modals.close(modalId)}
             initialStep={step}
-            handleAddFile={handleAddFile}
+            handleAddFile={async () => {
+              await handleAddFile();
+            }}
             handleAddFolder={handleAddFolder}
           />
         ),

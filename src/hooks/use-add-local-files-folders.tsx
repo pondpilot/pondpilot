@@ -11,10 +11,12 @@ import { fileSystemService } from '@utils/file-system-adapter';
 import { createFileHandleWrapper } from '@utils/file-system-adapter/handle-converter';
 import { useCallback } from 'react';
 
+type AddLocalFileResult = Awaited<ReturnType<typeof addLocalFileOrFoldersCompat>>;
+
 export const useAddLocalFilesOrFolders = () => {
   const pool = useDuckDBConnectionPool();
 
-  const handleAddFile = useCallback(async () => {
+  const handleAddFile = useCallback(async (): Promise<AddLocalFileResult | null> => {
     // TODO: we should see if we ca avoid calling this hook in uninitialized
     // state, and instead of this check, use `useInitializedDuckDBConnection`
     // to get the non-null connection
@@ -23,7 +25,7 @@ export const useAddLocalFilesOrFolders = () => {
         title: 'App is not ready',
         message: 'Please wait for app to load before adding files',
       });
-      return;
+      return null;
     }
 
     // Use cross-browser compatible file picker
@@ -31,12 +33,14 @@ export const useAddLocalFilesOrFolders = () => {
 
     if (error) {
       showError({ title: 'Failed to add files', message: error });
-      return;
+      return null;
     }
 
     if (!handles.length && !fallbackFiles?.length) {
-      return;
+      return null;
     }
+
+    const result = await addLocalFileOrFoldersCompat(pool, handles, fallbackFiles);
 
     const {
       skippedExistingEntries,
@@ -44,7 +48,7 @@ export const useAddLocalFilesOrFolders = () => {
       skippedEmptySheets,
       skippedEmptyDatabases,
       errors,
-    } = await addLocalFileOrFoldersCompat(pool, handles, fallbackFiles);
+    } = result;
 
     if (skippedExistingEntries.length) {
       showWarning({
@@ -82,9 +86,11 @@ export const useAddLocalFilesOrFolders = () => {
         message: errorMessage,
       });
     });
+
+    return result;
   }, [pool]);
 
-  const handleAddFolder = useCallback(async () => {
+  const handleAddFolder = useCallback(async (): Promise<void> => {
     // TODO: we should see if we ca avoid calling this hook in uninitialized
     // state, and instead of this check, use `useInitializedDuckDBConnection`
     // to get the non-null connection
@@ -126,6 +132,10 @@ export const useAddLocalFilesOrFolders = () => {
       color: 'text-accent',
     });
 
+    const result = handle
+      ? await addLocalFileOrFoldersCompat(pool, [handle], fallbackFiles)
+      : await addLocalFileOrFoldersCompat(pool, [], fallbackFiles);
+
     const {
       skippedExistingEntries,
       skippedUnsupportedFiles,
@@ -133,9 +143,7 @@ export const useAddLocalFilesOrFolders = () => {
       skippedEmptySheets,
       skippedEmptyDatabases,
       errors,
-    } = handle
-      ? await addLocalFileOrFoldersCompat(pool, [handle], fallbackFiles)
-      : await addLocalFileOrFoldersCompat(pool, [], fallbackFiles);
+    } = result;
     notifications.hide(notificationId);
 
     const skippedExistingFolders: LocalEntry[] = [];
