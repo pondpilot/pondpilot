@@ -32,7 +32,8 @@ export const getColumnsToCompare = (
   config: ComparisonConfig,
   schemaComparison: SchemaComparisonResult,
 ): string[] => {
-  const { joinColumns, joinKeyMappings, columnMappings } = config;
+  const { joinColumns, joinKeyMappings, columnMappings, excludedColumns = [] } = config;
+  const excludedSet = new Set(excludedColumns);
 
   // Get join key B columns (mapped or same name)
   const joinKeyBColumns = joinColumns.map((keyA) => joinKeyMappings[keyA] || keyA);
@@ -43,6 +44,8 @@ export const getColumnsToCompare = (
     ...schemaComparison.onlyInA.map((c) => c.name),
   ].filter((col) => !joinColumns.includes(col));
 
+  const candidateColumnsA = allColumnsA.filter((col) => !excludedSet.has(col));
+
   // Build lists of columns from Source B (excluding join keys)
   const allColumnsB = [
     ...schemaComparison.commonColumns.map((c) => c.name),
@@ -50,7 +53,7 @@ export const getColumnsToCompare = (
   ].filter((col) => !joinKeyBColumns.includes(col));
 
   // Determine which columns to compare: only columns that have a mapping (auto or custom)
-  return allColumnsA.filter((colA) => {
+  return candidateColumnsA.filter((colA) => {
     // Has custom mapping
     if (columnMappings[colA]) {
       return true;

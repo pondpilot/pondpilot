@@ -24,6 +24,8 @@ interface ColumnMapperProps {
   joinColumns: string[]; // Exclude these from the mapper
   joinKeyMappings: Record<string, string>; // Need this to exclude mapped B columns
   onMappingsChange: (mappings: Record<string, string>) => void;
+  excludedColumns: string[];
+  onExcludedColumnsChange: (columns: string[]) => void;
 }
 
 export const ColumnMapper = ({
@@ -32,6 +34,8 @@ export const ColumnMapper = ({
   joinColumns,
   joinKeyMappings,
   onMappingsChange,
+  excludedColumns,
+  onExcludedColumnsChange,
 }: ColumnMapperProps) => {
   const theme = useMantineTheme();
   const colorScheme = useAppTheme();
@@ -47,6 +51,8 @@ export const ColumnMapper = ({
   const [searchA, setSearchA] = useState('');
   const [searchB, setSearchB] = useState('');
 
+  const excludedColumnsSet = useMemo(() => new Set(excludedColumns), [excludedColumns]);
+
   // Memoize derived column lists to prevent unnecessary recalculations
   const {
     joinKeyBColumns: _joinKeyBColumns,
@@ -54,6 +60,7 @@ export const ColumnMapper = ({
     columnsB,
     mappedColumns,
     unmappedColumns,
+    excludedCount,
   } = useMemo(() => {
     // Get join key B columns (mapped or same name)
     const joinKeyBCols = joinColumns.map((keyA) => joinKeyMappings[keyA] || keyA);
@@ -69,12 +76,19 @@ export const ColumnMapper = ({
       ...schemaComparison.onlyInB.map((c) => c.name),
     ].filter((col) => !joinKeyBCols.includes(col));
 
+    const excludedSet = new Set(excludedColumns);
+
     // Separate columns into mapped and unmapped
     // Mapped = has custom mapping OR auto mapping (same name in both)
-    const mapped = allColumnsA.filter((colA) => columnMappings[colA] || allColumnsB.includes(colA));
-    const unmapped = allColumnsA.filter(
+    const candidateColumnsA = allColumnsA.filter((col) => !excludedSet.has(col));
+    const mapped = candidateColumnsA.filter(
+      (colA) => columnMappings[colA] || allColumnsB.includes(colA),
+    );
+    const unmapped = candidateColumnsA.filter(
       (colA) => !columnMappings[colA] && !allColumnsB.includes(colA),
     );
+
+    const activeExcludedCount = allColumnsA.filter((col) => excludedSet.has(col)).length;
 
     return {
       joinKeyBColumns: joinKeyBCols,
@@ -82,8 +96,9 @@ export const ColumnMapper = ({
       columnsB: allColumnsB,
       mappedColumns: mapped,
       unmappedColumns: unmapped,
+      excludedCount: activeExcludedCount,
     };
-  }, [schemaComparison, joinColumns, joinKeyMappings, columnMappings]);
+  }, [schemaComparison, joinColumns, joinKeyMappings, columnMappings, excludedColumns]);
 
   // Filter columns based on search
   const filteredColumnsA = columnsA.filter((col) =>
@@ -104,6 +119,9 @@ export const ColumnMapper = ({
 
   // Get the target B column for a Source A column (if mapped)
   const getTargetColumn = (colA: string): string | null => {
+    if (excludedColumnsSet.has(colA)) {
+      return null;
+    }
     // Check custom mapping first
     if (columnMappings[colA]) {
       return columnMappings[colA];
@@ -117,6 +135,9 @@ export const ColumnMapper = ({
 
   // Handle clicking on a Source A column
   const handleSourceAClick = (colA: string) => {
+    if (excludedColumnsSet.has(colA)) {
+      return;
+    }
     if (selectedSourceA === colA) {
       // Deselect if clicking the same column
       setSelectedSourceA(null);
@@ -127,7 +148,7 @@ export const ColumnMapper = ({
 
   // Handle clicking on a Source B column
   const handleSourceBClick = (colB: string) => {
-    if (!selectedSourceA) return;
+    if (!selectedSourceA || excludedColumnsSet.has(selectedSourceA)) return;
 
     const newMappings = { ...columnMappings };
 
@@ -156,6 +177,38 @@ export const ColumnMapper = ({
     onMappingsChange(newMappings);
   };
 
+  const handleExcludeToggle = (colA: string, shouldExclude: boolean) => {
+    const nextExcluded = new Set(excludedColumns);
+    let excludedChanged = false;
+    let mappingsChanged = false;
+    const newMappings = { ...columnMappings };
+
+    if (shouldExclude) {
+      if (!nextExcluded.has(colA)) {
+        nextExcluded.add(colA);
+        excludedChanged = true;
+      }
+
+      if (selectedSourceA === colA) {
+        setSelectedSourceA(null);
+      }
+
+      if (newMappings[colA]) {
+        delete newMappings[colA];
+        mappingsChanged = true;
+      }
+    } else if (nextExcluded.delete(colA)) {
+      excludedChanged = true;
+    }
+
+    if (mappingsChanged) {
+      onMappingsChange(newMappings);
+    }
+
+    if (excludedChanged) {
+      onExcludedColumnsChange(Array.from(nextExcluded).sort());
+    }
+  };
   // Render a column item
   const renderColumnItem = (
     col: string,
@@ -163,8 +216,9 @@ export const ColumnMapper = ({
     onClick: () => void,
     isSelected: boolean,
     isMapped: boolean,
+    isDisabled: boolean,
   ) => {
-    const isClickable = side === 'A' || selectedSourceA !== null;
+    const isClickable = !isDisabled && (side === 'A' || selectedSourceA !== null);
     const backgroundColor = isSelected
       ? getStatusSurfaceColor(theme, 'added', colorScheme)
       : isMapped
@@ -187,8 +241,10 @@ export const ColumnMapper = ({
           backgroundColor,
           borderColor: isSelected ? getStatusAccentColor(theme, 'added', colorScheme) : undefined,
           borderWidth: isSelected ? 2 : 1,
+          opacity: isDisabled ? 0.5 : 1,
         }}
         onClick={isClickable ? onClick : undefined}
+        title={isDisabled ? 'Column excluded from comparison' : undefined}
       >
         <Text size="sm" style={{ color: textColor }}>
           {col}
@@ -233,6 +289,12 @@ export const ColumnMapper = ({
                 </Text>
               </Alert>
             )}
+
+            {excludedCount > 0 && (
+              <Text size="sm" c="dimmed">
+                {excludedCount} column{excludedCount > 1 ? 's' : ''} excluded
+              </Text>
+            )}
           </Group>
         </Collapse>
 
@@ -258,19 +320,41 @@ export const ColumnMapper = ({
                   />
                   <Stack gap="xs" style={{ maxHeight: 400, overflowY: 'auto' }}>
                     {filteredColumnsA.map((col) => {
-                      const targetCol = getTargetColumn(col);
+                      const isExcluded = excludedColumnsSet.has(col);
+                      const targetCol = isExcluded ? null : getTargetColumn(col);
                       const isSelected = selectedSourceA === col;
-                      const isMapped = targetCol !== null;
-                      const hasCustomMapping = !!columnMappings[col];
+                      const isMapped = !isExcluded && targetCol !== null;
+                      const hasCustomMapping = !isExcluded && !!columnMappings[col];
 
                       return (
-                        <Group key={col} gap="xs" wrap="nowrap">
+                        <Group key={col} gap="xs" wrap="nowrap" align="center">
+                          <Checkbox
+                            size="xs"
+                            checked={isExcluded}
+                            onChange={(event) =>
+                              handleExcludeToggle(col, event.currentTarget.checked)
+                            }
+                            title={
+                              isExcluded
+                                ? 'Include column in comparison'
+                                : 'Exclude column from comparison'
+                            }
+                            aria-label={
+                              isExcluded
+                                ? 'Include column in comparison'
+                                : 'Exclude column from comparison'
+                            }
+                            styles={{
+                              body: { alignItems: 'center' },
+                            }}
+                          />
                           {renderColumnItem(
                             col,
                             'A',
                             () => handleSourceAClick(col),
                             isSelected,
                             isMapped,
+                            isExcluded,
                           )}
                           {isMapped && (
                             <Group gap={4} wrap="nowrap">
@@ -298,6 +382,11 @@ export const ColumnMapper = ({
                                 />
                               )}
                             </Group>
+                          )}
+                          {isExcluded && (
+                            <Text size="xs" c="dimmed">
+                              Excluded
+                            </Text>
                           )}
                         </Group>
                       );
@@ -330,6 +419,7 @@ export const ColumnMapper = ({
                         () => handleSourceBClick(col),
                         isSelected,
                         isMapped,
+                        false,
                       );
                     })}
                   </Stack>
@@ -361,6 +451,12 @@ export const ColumnMapper = ({
                 />
                 <Text size="xs" c="dimmed">
                   Mapped
+                </Text>
+              </Group>
+              <Group gap={4}>
+                <Checkbox size="xs" checked disabled aria-hidden />
+                <Text size="xs" c="dimmed">
+                  Excluded
                 </Text>
               </Group>
             </Group>

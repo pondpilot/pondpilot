@@ -62,12 +62,13 @@ export const updateComparisonConfig = (tabId: TabId, config: Partial<ComparisonC
   }
 
   // Get the base config
-  const baseConfig: ComparisonConfig = comparison.config || {
+  const defaultConfig: ComparisonConfig = {
     sourceA: null,
     sourceB: null,
     joinColumns: [],
     joinKeyMappings: {},
     columnMappings: {},
+    excludedColumns: [],
     filterMode: 'common',
     commonFilter: null,
     filterA: null,
@@ -75,6 +76,9 @@ export const updateComparisonConfig = (tabId: TabId, config: Partial<ComparisonC
     showOnlyDifferences: true,
     compareMode: 'strict',
   };
+  const baseConfig: ComparisonConfig = comparison.config
+    ? { ...defaultConfig, ...comparison.config }
+    : defaultConfig;
 
   // Update the comparison in the store
   updateComparisonConfigInternal(comparison.id, { ...baseConfig, ...config });

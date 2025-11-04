@@ -826,6 +826,8 @@ export const ComparisonConfigScreen = ({
                 joinColumns={config?.joinColumns || []}
                 joinKeyMappings={config?.joinKeyMappings || {}}
                 onMappingsChange={(mappings) => onConfigChange({ columnMappings: mappings })}
+                excludedColumns={config?.excludedColumns || []}
+                onExcludedColumnsChange={(columns) => onConfigChange({ excludedColumns: columns })}
               />
             )}
 

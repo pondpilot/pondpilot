@@ -58,6 +58,13 @@ export interface ComparisonConfig {
   columnMappings: Record<string, string>;
 
   /**
+   * Columns from Source A to exclude from comparison.
+   * These identifiers are evaluated after join keys are removed. Any mapped columns
+   * represented here should be skipped when generating comparison SQL.
+   */
+  excludedColumns: string[];
+
+  /**
    * Filter mode: 'common' applies same filter to both sources, 'separate' uses filterA/filterB
    */
   filterMode: 'common' | 'separate';
