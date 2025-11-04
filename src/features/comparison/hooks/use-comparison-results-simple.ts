@@ -124,7 +124,7 @@ export const useComparisonResultsSimple = (
         sql += ` ORDER BY ${orderByClauses.join(', ')}`;
       }
 
-      sql += ' LIMIT 1000';
+      sql += ' LIMIT 100';
 
       const result = await pool.query(sql);
 

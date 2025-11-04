@@ -371,7 +371,7 @@ export const ComparisonViewer = ({
     });
   }, [compareColumns]);
 
-  const RESULTS_ROW_LIMIT = 1000;
+  const RESULTS_ROW_LIMIT = 100;
 
   const statusTotals = results?.statusTotals ?? {
     total: 0,
