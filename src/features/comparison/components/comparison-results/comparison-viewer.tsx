@@ -1,3 +1,5 @@
+import duckDark from '@assets/duck-dark.svg';
+import duck from '@assets/duck.svg';
 import { showWarningWithAction, showSuccess, showError } from '@components/app-notifications';
 import { clearComparisonResults } from '@controllers/comparison';
 import { getOrCreateTabFromLocalDBObject } from '@controllers/tab';
@@ -480,6 +482,12 @@ export const ComparisonViewer = ({
   const hasStatusFilter = !showAdded || !showRemoved || !showModified || showUnchanged;
   const canResetFilters = hasStatusFilter || activeColumnFilters.length > 0;
 
+  const datasetsAreIdentical =
+    (statusTotals.total === 0 ||
+      (statusTotals.added === 0 &&
+        statusTotals.removed === 0 &&
+        statusTotals.modified === 0));
+
   const handleResetFilters = useCallback(() => {
     setShowAdded(true);
     setShowRemoved(true);
@@ -925,7 +933,7 @@ export const ComparisonViewer = ({
     );
   }
 
-  // Handle empty results
+  // Handle empty results - datasets are identical (no differences found)
   if (statusTotals.total === 0) {
     return (
       <Stack gap="lg" style={{ position: 'relative' }}>
@@ -939,19 +947,189 @@ export const ComparisonViewer = ({
           onClearResults={handleClearResults}
           isClearing={isClearing}
         />
-        <Alert
-          icon={<IconInfoCircle size={16} className={ICON_CLASSES.accent} />}
-          title="No Results"
-          color="background-accent"
-          styles={getAlertStyles('accent')}
-        >
-          The comparison returned no results. This could mean:
-          <List spacing="xs" size="sm" mt="xs" pl="md">
-            <List.Item>Both sources have no matching rows based on the join keys</List.Item>
-            <List.Item>The filters excluded all rows</List.Item>
-            <List.Item>One or both data sources are empty</List.Item>
-          </List>
-        </Alert>
+
+        <Paper p="md" withBorder>
+          <Group align="flex-start" gap="xl">
+            {/* Configuration Info */}
+            <Stack gap="xs" style={{ flex: 1 }}>
+              <Text size="sm" fw={600}>
+                Configuration
+              </Text>
+              <Group gap="xs">
+                <Text size="xs" c="dimmed">
+                  Source A:
+                </Text>
+                <Badge
+                  size="sm"
+                  variant="light"
+                  color="blue"
+                  style={{ cursor: 'pointer' }}
+                  onClick={handleSourceAClick}
+                >
+                  {config.sourceA?.type === 'table'
+                    ? config.sourceA.tableName
+                    : config.sourceA?.type === 'query'
+                      ? config.sourceA.alias
+                      : 'Unknown'}
+                </Badge>
+              </Group>
+              <Group gap="xs">
+                <Text size="xs" c="dimmed">
+                  Source B:
+                </Text>
+                <Badge
+                  size="sm"
+                  variant="light"
+                  color="violet"
+                  style={{ cursor: 'pointer' }}
+                  onClick={handleSourceBClick}
+                >
+                  {config.sourceB?.type === 'table'
+                    ? config.sourceB.tableName
+                    : config.sourceB?.type === 'query'
+                      ? config.sourceB.alias
+                      : 'Unknown'}
+                </Badge>
+              </Group>
+              <Group gap="xs">
+                <Text size="xs" c="dimmed">
+                  Join Keys:
+                </Text>
+                {config.joinColumns.map((key) => (
+                  <Badge
+                    key={key}
+                    size="sm"
+                    variant="light"
+                    style={{
+                      backgroundColor: getStatusSurfaceColor(theme, 'added', colorScheme),
+                      color: getStatusAccentColor(theme, 'added', colorScheme),
+                    }}
+                  >
+                    {key}
+                  </Badge>
+                ))}
+              </Group>
+              <Text size="xs" c="dimmed">
+                Comparing {compareColumns.length} columns
+              </Text>
+              <Text size="xs" c="dimmed">
+                Last run: {lastRunAt ? new Date(lastRunAt).toLocaleString() : 'Unknown'} (
+                {executionTime.toFixed(1)}s)
+              </Text>
+            </Stack>
+
+            {/* Ring Progress Chart */}
+            <RingProgress
+              size={100}
+              thickness={10}
+              sections={ringProgressSections}
+              label={
+                <Text size="xs" ta="center" fw={700} component="div">
+                  {statusTotals.total}
+                  <br />
+                  <Text size="xs" c="dimmed" fw={400} component="span">
+                    rows
+                  </Text>
+                </Text>
+              }
+            />
+
+            {/* Summary Stats */}
+            <Stack gap="xs" style={{ flex: 1 }}>
+              <Text size="sm" fw={600}>
+                Comparison Summary
+              </Text>
+              <Group gap="md" wrap="wrap">
+                <Group gap="xs">
+                  <IconPlus
+                    size={14}
+                    style={{ color: getStatusAccentColor(theme, 'added', colorScheme) }}
+                  />
+                  <Text size="sm" fw={600} c={COMPARISON_STATUS_THEME.added.textColor}>
+                    {statusTotals.added} ADDED
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    (
+                    {statusTotals.total > 0
+                      ? ((statusTotals.added / statusTotals.total) * 100).toFixed(1)
+                      : 0}
+                    %)
+                  </Text>
+                </Group>
+
+                <Group gap="xs">
+                  <IconMinus
+                    size={14}
+                    style={{ color: getStatusAccentColor(theme, 'removed', colorScheme) }}
+                  />
+                  <Text size="sm" fw={600} c={COMPARISON_STATUS_THEME.removed.textColor}>
+                    {statusTotals.removed} REMOVED
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    (
+                    {statusTotals.total > 0
+                      ? ((statusTotals.removed / statusTotals.total) * 100).toFixed(1)
+                      : 0}
+                    %)
+                  </Text>
+                </Group>
+
+                <Group gap="xs">
+                  <IconPencil
+                    size={14}
+                    style={{ color: getStatusAccentColor(theme, 'modified', colorScheme) }}
+                  />
+                  <Text size="sm" fw={600} c={COMPARISON_STATUS_THEME.modified.textColor}>
+                    {statusTotals.modified} MODIFIED
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    (
+                    {statusTotals.total > 0
+                      ? ((statusTotals.modified / statusTotals.total) * 100).toFixed(1)
+                      : 0}
+                    %)
+                  </Text>
+                </Group>
+
+                <Group gap="xs">
+                  <IconCheck
+                    size={14}
+                    style={{ color: getStatusAccentColor(theme, 'same', colorScheme) }}
+                  />
+                  <Text size="sm" fw={600} c={COMPARISON_STATUS_THEME.same.textColor}>
+                    {statusTotals.same} UNCHANGED
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    (
+                    {statusTotals.total > 0
+                      ? ((statusTotals.same / statusTotals.total) * 100).toFixed(1)
+                      : 0}
+                    %)
+                  </Text>
+                </Group>
+              </Group>
+            </Stack>
+          </Group>
+        </Paper>
+
+        <Paper p="xl" withBorder>
+          <Stack align="center" gap="lg">
+            <IconCheck
+              size={64}
+              style={{
+                color: getStatusAccentColor(theme, 'same', colorScheme),
+              }}
+            />
+            <Text size="xl" fw={600} ta="center">
+              The datasets are the same
+            </Text>
+            <img
+              src={colorScheme === 'dark' ? duckDark : duck}
+              alt="Polly the duck"
+              style={{ width: '120px', height: '120px' }}
+            />
+          </Stack>
+        </Paper>
       </Stack>
     );
   }
@@ -1287,8 +1465,29 @@ export const ComparisonViewer = ({
         </Alert>
       )}
 
-      {/* Comparison Results Table */}
-      <Paper p="md" withBorder>
+      {/* Datasets are identical message */}
+      {datasetsAreIdentical ? (
+        <Paper p="xl" withBorder>
+          <Stack align="center" gap="lg">
+            <IconCheck
+              size={64}
+              style={{
+                color: getStatusAccentColor(theme, 'same', colorScheme),
+              }}
+            />
+            <Text size="xl" fw={600} ta="center">
+              The datasets are the same
+            </Text>
+            <img
+              src={colorScheme === 'dark' ? duckDark : duck}
+              alt="Polly the duck"
+              style={{ width: '120px', height: '120px' }}
+            />
+          </Stack>
+        </Paper>
+      ) : (
+        /* Comparison Results Table */
+        <Paper p="md" withBorder>
         <Group justify="space-between" align="flex-start" mb="sm">
           <Stack gap={4}>
             <Text size="sm" fw={600}>
@@ -1465,6 +1664,7 @@ export const ComparisonViewer = ({
           />
         ) : null}
       </Paper>
+      )}
     </Stack>
   );
 };
