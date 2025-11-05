@@ -26,7 +26,9 @@ import { useCallback, useEffect, useRef, useState, RefObject, useMemo } from 're
 import { ColumnMapper } from './column-mapper';
 import { JoinKeyMapper } from './join-key-mapper';
 import { ICON_CLASSES } from '../constants/color-classes';
+import { getDragOverStyle } from '../constants/dnd-styles';
 import { useComparisonSourceSelection } from '../hooks/use-comparison-source-selection';
+import { useDatasetDropTarget } from '../hooks/use-dataset-drop-target';
 import { useFilterValidation } from '../hooks/use-filter-validation';
 import { getStatusAccentColor, getStatusSurfaceColor, getThemeColorValue } from '../utils/theme';
 
@@ -215,31 +217,50 @@ export const ComparisonConfigScreen = ({
     return () => container.removeEventListener('scroll', handleScroll);
   }, [evaluateCollapseState, scrollContainerRef]);
 
+  const handleSourceAChange = useCallback(
+    (source: ComparisonSource | null) => {
+      if (!source) return;
+      onConfigChange({ sourceA: source });
+      analysisTriggeredRef.current = null;
+      updateSchemaComparison(tabId, null);
+    },
+    [onConfigChange, tabId],
+  );
+
+  const handleSourceBChange = useCallback(
+    (source: ComparisonSource | null) => {
+      if (!source) return;
+      onConfigChange({ sourceB: source });
+      analysisTriggeredRef.current = null;
+      updateSchemaComparison(tabId, null);
+    },
+    [onConfigChange, tabId],
+  );
+
   // Source selection hook
   const { selectSourceA, selectSourceB } = useComparisonSourceSelection(
-    useCallback(
-      (source: ComparisonSource | null) => {
-        if (source) {
-          onConfigChange({ sourceA: source });
-          // Clear analysis results and flag when sources change
-          analysisTriggeredRef.current = null;
-          updateSchemaComparison(tabId, null);
-        }
-      },
-      [onConfigChange, tabId],
-    ),
-    useCallback(
-      (source: ComparisonSource | null) => {
-        if (source) {
-          onConfigChange({ sourceB: source });
-          // Clear analysis results and flag when sources change
-          analysisTriggeredRef.current = null;
-          updateSchemaComparison(tabId, null);
-        }
-      },
-      [onConfigChange, tabId],
-    ),
+    handleSourceAChange,
+    handleSourceBChange,
   );
+
+  // Drag-and-drop hooks for source selection
+  const {
+    isDragOver: isSourceADragOver,
+    dropHandlers: sourceADropHandlers,
+  } = useDatasetDropTarget({
+    onDrop: handleSourceAChange,
+    acceptFilter: (source) => source.type === 'table',
+    errorMessage: 'Only table sources can be used for comparison',
+  });
+
+  const {
+    isDragOver: isSourceBDragOver,
+    dropHandlers: sourceBDropHandlers,
+  } = useDatasetDropTarget({
+    onDrop: handleSourceBChange,
+    acceptFilter: (source) => source.type === 'table',
+    errorMessage: 'Only table sources can be used for comparison',
+  });
 
   // Helper to format source display name
   const getSourceDisplayName = (source: ComparisonSource | null): string => {
@@ -413,6 +434,8 @@ export const ComparisonConfigScreen = ({
                   variant={config?.sourceA ? 'light' : 'default'}
                   leftSection={<IconTable size={16} />}
                   onClick={selectSourceA}
+                  {...sourceADropHandlers}
+                  style={isSourceADragOver ? getDragOverStyle(theme, colorScheme) : undefined}
                   fullWidth
                 >
                   {getSourceDisplayName(config?.sourceA || null)}
@@ -428,6 +451,8 @@ export const ComparisonConfigScreen = ({
                   variant={config?.sourceB ? 'light' : 'default'}
                   leftSection={<IconTable size={16} />}
                   onClick={selectSourceB}
+                  {...sourceBDropHandlers}
+                  style={isSourceBDragOver ? getDragOverStyle(theme, colorScheme) : undefined}
                   fullWidth
                 >
                   {getSourceDisplayName(config?.sourceB || null)}

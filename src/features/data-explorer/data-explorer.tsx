@@ -1,7 +1,9 @@
 import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
-import { memo, useMemo } from 'react';
+import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
+import { AnyFlatFileDataSource } from '@models/data-source';
+import { LocalEntryId, supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import { memo, useMemo, useCallback } from 'react';
 
 import { DataExplorerFilters, DataExplorerContent } from './components';
 import { useFileSystemTreeBuilder } from './components/file-system-tree-builder';
@@ -139,11 +141,78 @@ export const DataExplorer = memo(() => {
     getShowSchemaHandler: getShowSchemaHandlerForNodes,
   });
 
+  const flatFileSourceByEntryId = useMemo(() => {
+    const map = new Map<LocalEntryId, AnyFlatFileDataSource>();
+    flatFileSourcesValues.forEach((source) => {
+      if (source.type !== 'xlsx-sheet') {
+        map.set(source.fileSourceId, source);
+      }
+    });
+    return map;
+  }, [flatFileSourcesValues]);
+
+  const sheetSourceByKey = useMemo(() => {
+    const map = new Map<string, AnyFlatFileDataSource>();
+    flatFileSourcesValues.forEach((source) => {
+      if (source.type === 'xlsx-sheet') {
+        map.set(`${source.fileSourceId}::${source.sheetName}`, source);
+      }
+    });
+    return map;
+  }, [flatFileSourcesValues]);
+
+  const getComparisonSourceForNode = useCallback(
+    (nodeId: string) => {
+      const info = nodeMap.get(nodeId);
+      if (!info) {
+        return null;
+      }
+
+      if ('db' in info) {
+        const { db, schemaName, objectName } = info;
+        if (!db || !schemaName || !objectName) {
+          return null;
+        }
+        const dataSource = allDataSources.get(db);
+        if (!dataSource || (dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db')) {
+          return null;
+        }
+        return {
+          type: 'table' as const,
+          tableName: objectName,
+          schemaName,
+          databaseName: dataSource.dbName,
+        };
+      }
+
+      if ('entryId' in info) {
+        const entryId = info.entryId;
+        if (!entryId) {
+          return null;
+        }
+        if (info.isSheet) {
+          if (!info.sheetName) {
+            return null;
+          }
+          const sheetSource = sheetSourceByKey.get(`${entryId}::${info.sheetName}`);
+          return sheetSource ? dataSourceToComparisonSource(sheetSource) : null;
+        }
+
+        const fileSource = flatFileSourceByEntryId.get(entryId);
+        return fileSource ? dataSourceToComparisonSource(fileSource) : null;
+      }
+
+      return null;
+    },
+    [allDataSources, flatFileSourceByEntryId, sheetSourceByKey, nodeMap],
+  );
+
   // Create the enhanced extra data
   const enhancedExtraData: DataExplorerContext = {
     nodeMap,
     anyNodeIdToNodeTypeMap,
     onShowSchemaForMultiple: handleShowSchema,
+    getComparisonSourceForNode,
     ...contextResult,
   };
 

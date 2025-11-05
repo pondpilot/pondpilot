@@ -69,7 +69,10 @@ export function TreeNodeContent<NTypeToIdTypeMap extends Record<string, any>>({
           <IconX />
         </ActionIcon>
       ) : (
-        <div className="text-iconDefault-light dark:text-iconDefault-dark p-[1px]">
+        <div
+          className="text-iconDefault-light dark:text-iconDefault-dark p-[1px]"
+          data-dnd-drag-icon="true"
+        >
           <NamedIcon iconType={iconType} size={16} />
         </div>
       )}

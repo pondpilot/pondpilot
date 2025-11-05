@@ -1,4 +1,5 @@
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree';
+import { ComparisonSource } from '@models/comparison';
 import { PersistentDataSourceId } from '@models/data-source';
 import { LocalEntryId } from '@models/file-system';
 
@@ -57,6 +58,9 @@ export type DataExplorerContext = {
   flattenedNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   flattenedNodeIds: string[];
   selectedDeleteableNodeIds: string[];
+
+  // Comparison integration
+  getComparisonSourceForNode: (nodeId: string) => ComparisonSource | null;
 };
 
 // Helper type guards
