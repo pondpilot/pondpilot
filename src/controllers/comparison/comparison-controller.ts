@@ -1,6 +1,7 @@
 // Public comparison controller API's
 // By convetion the order should follow CRUD groups!
 
+import { showWarning } from '@components/app-notifications';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
@@ -16,11 +17,11 @@ import { COMPARISON_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
 import { ComparisonTab, TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { ensureComparison, makeComparisonId } from '@utils/comparison';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { findUniqueName } from '@utils/helpers';
 
 import { persistDeleteComparison } from './persist';
 import { deleteComparisonImpl } from './pure';
+import { dropComparisonResultsTable } from './table-utils';
 
 /**
  * ------------------------------------------------------------
@@ -128,6 +129,18 @@ export const clearComparisonResults = async (
   }
 
   const tableName = options?.tableNameOverride ?? comparison.resultsTableName;
+  const pool = options?.pool ?? null;
+
+  if (tableName && pool) {
+    const dropOutcome = await dropComparisonResultsTable(pool, tableName);
+    if (!dropOutcome.ok) {
+      showWarning({
+        title: 'Failed to clear comparison results',
+        message: `Could not remove the stored results table "${tableName}". Please try again or refresh the database connection. Details: ${dropOutcome.error.message}`,
+      });
+      throw dropOutcome.error;
+    }
+  }
 
   const updatedComparison: Comparison = {
     ...comparison,
@@ -177,14 +190,8 @@ export const clearComparisonResults = async (
     await tx.done;
   }
 
-  const pool = options?.pool ?? null;
   if (pool && tableName) {
-    try {
-      await pool.query(`DROP TABLE IF EXISTS pondpilot.main.${toDuckDBIdentifier(tableName)}`);
-      await refreshDatabaseMetadata(pool, [PERSISTENT_DB_NAME]);
-    } catch (error) {
-      console.error('Failed to drop comparison results table during clear:', error);
-    }
+    await refreshDatabaseMetadata(pool, [PERSISTENT_DB_NAME]);
   }
 };
 
@@ -424,10 +431,9 @@ export const deleteComparisons = async (
   if (pool) {
     if (tablesToDrop.length > 0) {
       for (const tableName of tablesToDrop) {
-        try {
-          await pool.query(`DROP TABLE IF EXISTS pondpilot.main.${toDuckDBIdentifier(tableName)}`);
-        } catch (error) {
-          console.error(`Failed to drop comparison results table ${tableName}:`, error);
+        const outcome = await dropComparisonResultsTable(pool, tableName);
+        if (!outcome.ok) {
+          console.error(`Failed to drop comparison results table ${tableName}:`, outcome.error);
         }
       }
     }

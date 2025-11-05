@@ -4,6 +4,11 @@ import { makeIdFactory } from './new-id';
 
 export const makeComparisonId = makeIdFactory<ComparisonId>();
 
+export const COMPARISON_RESULTS_TABLE_PREFIX = 'ppc_';
+
+export const isComparisonResultsTableName = (tableName: string): boolean =>
+  tableName.startsWith(COMPARISON_RESULTS_TABLE_PREFIX);
+
 export function ensureComparison(
   comparisonOrId: Comparison | ComparisonId,
   comparisons: Map<ComparisonId, Comparison>,
@@ -87,5 +92,5 @@ export function getComparisonResultsTableName(
   // Ensure we only use safe identifier characters
   const sanitizedHash = shortHash.replace(/[^a-z0-9]/gi, '').toLowerCase();
 
-  return `ppc_${sanitizedHash}_${timestamp}`;
+  return `${COMPARISON_RESULTS_TABLE_PREFIX}${sanitizedHash}_${timestamp}`;
 }

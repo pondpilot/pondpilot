@@ -1,3 +1,4 @@
+import { dropComparisonResultsTable } from '@controllers/comparison/table-utils';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { ComparisonId } from '@models/comparison';
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
@@ -14,8 +15,6 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
   const [isExecuting, setIsExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedSQL, setGeneratedSQL] = useState<string | null>(null);
-
-  const quoteIdentifier = (value: string): string => `"${value.replace(/"/g, '""')}"`;
 
   const executeComparison = useCallback(
     async (
@@ -54,8 +53,10 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
         const previousTableName = existingComparison?.resultsTableName ?? null;
 
         if (previousTableName && previousTableName !== tableName) {
-          const dropSql = `DROP TABLE IF EXISTS pondpilot.main.${quoteIdentifier(previousTableName)}`;
-          await pool.query(dropSql);
+          const dropOutcome = await dropComparisonResultsTable(pool, previousTableName);
+          if (!dropOutcome.ok) {
+            throw dropOutcome.error;
+          }
         }
 
         const endTime = performance.now();
