@@ -499,11 +499,12 @@ describe('file-system-node-builder', () => {
       const node = buildFileNode(csvEntry, source, mockContext);
       const menuItems = node.contextMenu?.[0].children || [];
 
-      expect(menuItems).toHaveLength(3);
+      expect(menuItems).toHaveLength(4);
       expect(menuItems.map((item) => item.label)).toEqual([
         'Copy Full Name',
         'Create a Query',
         'Show Schema',
+        'Comparison',
       ]);
 
       // Test Create a Query
@@ -514,6 +515,10 @@ describe('file-system-node-builder', () => {
         'data_csv_query',
         'SELECT * FROM main.data_csv;',
       );
+
+      const comparisonMenu = menuItems.find((item) => item.label === 'Comparison');
+      expect(comparisonMenu).toBeDefined();
+      expect(comparisonMenu?.submenu).toHaveLength(3);
     });
   });
 
