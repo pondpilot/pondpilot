@@ -2,12 +2,12 @@ import { updateSchemaComparison } from '@controllers/tab/comparison-tab-controll
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { useAppTheme } from '@hooks/use-app-theme';
 import {
+  ActionIcon,
   Alert,
   Badge,
   Box,
   Button,
   Checkbox,
-  Collapse,
   Group,
   Loader,
   Paper,
@@ -16,11 +16,13 @@ import {
   Stack,
   Text,
   Textarea,
+  Tooltip,
   useMantineTheme,
   rgba,
 } from '@mantine/core';
+import type { ComparisonId } from '@models/comparison';
 import { ComparisonConfig, ComparisonSource, SchemaComparisonResult, TabId } from '@models/tab';
-import { IconAlertCircle, IconCheck, IconChevronDown, IconTable } from '@tabler/icons-react';
+import { IconAlertCircle, IconCheck, IconInfoCircle, IconTable } from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, RefObject, useMemo } from 'react';
 
 import { ColumnMapper } from './column-mapper';
@@ -57,12 +59,14 @@ interface ComparisonConfigScreenProps {
   onAnalyzeSchemas: (
     sourceA: ComparisonSource,
     sourceB: ComparisonSource,
+    comparisonId?: ComparisonId | null,
   ) => Promise<SchemaComparisonResult | null>;
   isAnalyzing: boolean;
   onRun: () => void;
   canRun: boolean;
   isRunning: boolean;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
+  comparisonId: ComparisonId | null;
 }
 
 export const ComparisonConfigScreen = ({
@@ -76,6 +80,7 @@ export const ComparisonConfigScreen = ({
   canRun,
   isRunning,
   scrollContainerRef,
+  comparisonId,
 }: ComparisonConfigScreenProps) => {
   const theme = useMantineTheme();
   const colorScheme = useAppTheme();
@@ -100,7 +105,6 @@ export const ComparisonConfigScreen = ({
     };
   };
   // Local UI state
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Track if we've triggered analysis for the current sources
@@ -244,23 +248,21 @@ export const ComparisonConfigScreen = ({
   );
 
   // Drag-and-drop hooks for source selection
-  const {
-    isDragOver: isSourceADragOver,
-    dropHandlers: sourceADropHandlers,
-  } = useDatasetDropTarget({
-    onDrop: handleSourceAChange,
-    acceptFilter: (source) => source.type === 'table',
-    errorMessage: 'Only table sources can be used for comparison',
-  });
+  const { isDragOver: isSourceADragOver, dropHandlers: sourceADropHandlers } = useDatasetDropTarget(
+    {
+      onDrop: handleSourceAChange,
+      acceptFilter: (source) => source.type === 'table',
+      errorMessage: 'Only table sources can be used for comparison',
+    },
+  );
 
-  const {
-    isDragOver: isSourceBDragOver,
-    dropHandlers: sourceBDropHandlers,
-  } = useDatasetDropTarget({
-    onDrop: handleSourceBChange,
-    acceptFilter: (source) => source.type === 'table',
-    errorMessage: 'Only table sources can be used for comparison',
-  });
+  const { isDragOver: isSourceBDragOver, dropHandlers: sourceBDropHandlers } = useDatasetDropTarget(
+    {
+      onDrop: handleSourceBChange,
+      acceptFilter: (source) => source.type === 'table',
+      errorMessage: 'Only table sources can be used for comparison',
+    },
+  );
 
   // Helper to format source display name
   const getSourceDisplayName = (source: ComparisonSource | null): string => {
@@ -299,7 +301,7 @@ export const ComparisonConfigScreen = ({
     // Use a cancellation flag to prevent race conditions
     let cancelled = false;
 
-    onAnalyzeSchemas(config.sourceA, config.sourceB).then((result) => {
+    onAnalyzeSchemas(config.sourceA, config.sourceB, comparisonId).then((result) => {
       // Only update if this analysis is still relevant (sources haven't changed)
       if (!cancelled && result && analysisTriggeredRef.current === sourceKey) {
         updateSchemaComparison(tabId, result);
@@ -309,7 +311,7 @@ export const ComparisonConfigScreen = ({
     return () => {
       cancelled = true;
     };
-  }, [config?.sourceA, config?.sourceB, onAnalyzeSchemas, tabId]);
+  }, [config?.sourceA, config?.sourceB, onAnalyzeSchemas, tabId, comparisonId]);
 
   useEffect(() => {
     if (!config?.sourceA || !config?.sourceB || !schemaComparison) {
@@ -952,48 +954,89 @@ export const ComparisonConfigScreen = ({
 
             {/* Advanced Options */}
             <Paper p="md" withBorder>
-              <Button
-                variant="subtle"
-                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                rightSection={
-                  <IconChevronDown
-                    size={16}
-                    style={{
-                      transform: showAdvancedOptions ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 200ms',
-                    }}
-                  />
-                }
-                mb={showAdvancedOptions ? 'md' : 0}
-              >
-                Advanced Options
-              </Button>
+              <Stack gap="md">
+                <Text size="sm" fw={600}>
+                  Advanced
+                </Text>
 
-              <Collapse in={showAdvancedOptions}>
-                <Stack gap="md">
-                  <Checkbox
-                    label="Show only rows with differences"
-                    description="Filter out rows that are identical in both sources (recommended for large datasets)"
-                    checked={config?.showOnlyDifferences ?? true}
-                    onChange={(e) =>
-                      onConfigChange({ showOnlyDifferences: e.currentTarget.checked })
-                    }
-                  />
+                <Checkbox
+                  label="Show only rows with differences"
+                  checked={config?.showOnlyDifferences ?? true}
+                  onChange={(e) => onConfigChange({ showOnlyDifferences: e.currentTarget.checked })}
+                />
 
-                  <Select
-                    label="Compare mode"
-                    description="Strict: exact type matching. Coerce: automatic type conversion for mismatched types"
-                    data={[
-                      { value: 'strict', label: 'Strict (exact types)' },
-                      { value: 'coerce', label: 'Coerce (convert types)' },
-                    ]}
-                    value={config?.compareMode || 'strict'}
-                    onChange={(value) =>
-                      onConfigChange({ compareMode: value as 'strict' | 'coerce' })
-                    }
-                  />
-                </Stack>
-              </Collapse>
+                <Select
+                  label={
+                    <Group gap="xs" align="center">
+                      <Text size="sm">Comparison method</Text>
+                      <Tooltip
+                        multiline
+                        maw={300}
+                        label={
+                          <Stack gap="xs">
+                            <Text size="xs" fw={600}>
+                              Auto:
+                            </Text>
+                            <Text size="xs">
+                              Automatically selects the best method based on dataset size and
+                              available memory.
+                            </Text>
+                            <Text size="xs" fw={600}>
+                              Hash diff:
+                            </Text>
+                            <Text size="xs">
+                              Memory-efficient method ideal for very large datasets. Processes data
+                              in buckets to minimize memory usage.
+                            </Text>
+                            <Text size="xs" fw={600}>
+                              Full outer join:
+                            </Text>
+                            <Text size="xs">
+                              Faster for smaller datasets. Uses a single SQL query to compare all
+                              rows at once.
+                            </Text>
+                            <Text size="xs" fw={600}>
+                              Random sampling:
+                            </Text>
+                            <Text size="xs">
+                              Quick preview of differences using a 1% random sample (1k-100k rows).
+                              Best for large datasets when you need a quick overview.
+                            </Text>
+                          </Stack>
+                        }
+                      >
+                        <ActionIcon variant="subtle" size="xs" color="gray">
+                          <IconInfoCircle size={14} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  }
+                  data={[
+                    { value: 'auto', label: 'Auto (let Pondpilot decide)' },
+                    { value: 'hash-bucket', label: 'Hash diff (memory efficient)' },
+                    { value: 'join', label: 'Full outer join (single query)' },
+                    { value: 'sampling', label: 'Random sampling (1% preview, 1k-100k rows)' },
+                  ]}
+                  value={config?.algorithm ?? 'auto'}
+                  onChange={(value) =>
+                    onConfigChange({
+                      algorithm: (value as ComparisonConfig['algorithm']) ?? 'auto',
+                    })
+                  }
+                />
+
+                <Select
+                  label="Compare mode"
+                  data={[
+                    { value: 'strict', label: 'Strict (exact types)' },
+                    { value: 'coerce', label: 'Coerce (convert types)' },
+                  ]}
+                  value={config?.compareMode || 'strict'}
+                  onChange={(value) =>
+                    onConfigChange({ compareMode: value as 'strict' | 'coerce' })
+                  }
+                />
+              </Stack>
             </Paper>
           </>
         )}

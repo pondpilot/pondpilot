@@ -1,6 +1,6 @@
 import { useExplorerContext } from '@components/explorer-tree/hooks';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { AnyFlatFileDataSource } from '@models/data-source';
 import { LocalEntryId, supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { memo, useMemo, useCallback } from 'react';
@@ -186,7 +186,7 @@ export const DataExplorer = memo(() => {
       }
 
       if ('entryId' in info) {
-        const entryId = info.entryId;
+        const { entryId } = info;
         if (!entryId) {
           return null;
         }

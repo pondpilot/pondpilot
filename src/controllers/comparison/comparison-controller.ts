@@ -16,6 +16,7 @@ import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { COMPARISON_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
 import { ComparisonTab, TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
+import { setComparisonPartialResults } from '@store/comparison-metadata';
 import { ensureComparison, makeComparisonId } from '@utils/comparison';
 import { findUniqueName } from '@utils/helpers';
 
@@ -50,6 +51,11 @@ export const createComparison = (
     lastExecutionTime: null,
     lastRunAt: null,
     resultsTableName: null,
+    metadata: {
+      sourceStats: null,
+      partialResults: false,
+      executionMetadata: null,
+    },
   };
 
   // Add the new comparison to the store
@@ -189,6 +195,8 @@ export const clearComparisonResults = async (
     }
     await tx.done;
   }
+
+  setComparisonPartialResults(comparison.id, false);
 
   if (pool && tableName) {
     await refreshDatabaseMetadata(pool, [PERSISTENT_DB_NAME]);

@@ -22,7 +22,7 @@ import {
   Checkbox,
   ScrollArea,
   ActionIcon,
-  List,
+  Tooltip as MantineTooltip,
   useMantineTheme,
 } from '@mantine/core';
 import { modals } from '@mantine/modals';
@@ -41,7 +41,7 @@ import {
   IconLayoutColumns,
 } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 
 import {
   ComparisonResultsTable,
@@ -206,6 +206,7 @@ interface ComparisonViewerProps {
   lastRunAt: string | null;
   onReconfigure: () => void;
   onRefresh: () => void;
+  onResultsLoaded?: () => void;
 }
 
 export const ComparisonViewer = ({
@@ -218,6 +219,7 @@ export const ComparisonViewer = ({
   lastRunAt,
   onReconfigure,
   onRefresh,
+  onResultsLoaded,
 }: ComparisonViewerProps) => {
   const theme = useMantineTheme();
   const colorScheme = useAppTheme();
@@ -229,7 +231,61 @@ export const ComparisonViewer = ({
   const dataSources = useAppStore.use.dataSources();
   const databaseMetadata = useAppStore.use.databaseMetadata();
   const comparisons = useAppStore.use.comparisons();
-  const comparisonName = comparisons.get(comparisonId)?.name ?? 'Comparison';
+  const comparison = comparisons.get(comparisonId);
+  const comparisonName = comparison?.name ?? 'Comparison';
+  const hasPartialResults = comparison?.metadata?.partialResults ?? false;
+  const executionMetadata = comparison?.metadata?.executionMetadata;
+  const usedSampling = executionMetadata?.samplingParams !== undefined;
+
+  // Build badge indicators
+  const badges: React.ReactElement[] = [];
+
+  if (hasPartialResults) {
+    badges.push(
+      <MantineTooltip
+        key="partial"
+        withArrow
+        label="This comparison was finished early and may omit some differences. Click to rerun the full comparison."
+      >
+        <Badge
+          component="button"
+          type="button"
+          variant="light"
+          color="orange"
+          radius="sm"
+          px="sm"
+          py={4}
+          onClick={onRefresh}
+          aria-label="Partial results - click to rerun full comparison"
+        >
+          Partial Results
+        </Badge>
+      </MantineTooltip>,
+    );
+  }
+
+  if (usedSampling && executionMetadata?.samplingParams) {
+    const { samplingRate, sampleSize, totalRows } = executionMetadata.samplingParams;
+    const percentSampled = (samplingRate * 100).toFixed(1);
+    badges.push(
+      <MantineTooltip
+        key="sampling"
+        withArrow
+        label={`Comparison used random sampling: ${sampleSize.toLocaleString()} of ${totalRows.toLocaleString()} rows (${percentSampled}% sample). Results are approximate.`}
+      >
+        <Badge
+          variant="light"
+          color="blue"
+          radius="sm"
+          aria-label={`Sampled comparison: ${sampleSize.toLocaleString()} of ${totalRows.toLocaleString()} rows`}
+        >
+          Sampled ({sampleSize.toLocaleString()})
+        </Badge>
+      </MantineTooltip>,
+    );
+  }
+
+  const comparisonBadges = badges.length > 0 ? <Group gap="xs">{badges}</Group> : null;
   const pool = useInitializedDuckDBConnectionPool();
   const handledMissingTableRef = useRef(false);
   const [isClearing, setIsClearing] = useState(false);
@@ -483,10 +539,8 @@ export const ComparisonViewer = ({
   const canResetFilters = hasStatusFilter || activeColumnFilters.length > 0;
 
   const datasetsAreIdentical =
-    (statusTotals.total === 0 ||
-      (statusTotals.added === 0 &&
-        statusTotals.removed === 0 &&
-        statusTotals.modified === 0));
+    statusTotals.total === 0 ||
+    (statusTotals.added === 0 && statusTotals.removed === 0 && statusTotals.modified === 0);
 
   const handleResetFilters = useCallback(() => {
     setShowAdded(true);
@@ -946,6 +1000,7 @@ export const ComparisonViewer = ({
           isRefreshing={false}
           onClearResults={handleClearResults}
           isClearing={isClearing}
+          leftContent={comparisonBadges}
         />
 
         <Paper p="md" withBorder>
@@ -1146,6 +1201,7 @@ export const ComparisonViewer = ({
         isRefreshing={isLoading}
         onClearResults={handleClearResults}
         isClearing={isClearing}
+        leftContent={comparisonBadges}
       />
 
       <Paper p="md" withBorder>
@@ -1488,182 +1544,182 @@ export const ComparisonViewer = ({
       ) : (
         /* Comparison Results Table */
         <Paper p="md" withBorder>
-        <Group justify="space-between" align="flex-start" mb="sm">
-          <Stack gap={4}>
-            <Text size="sm" fw={600}>
-              Comparison Results
-            </Text>
-            <Text size="xs" c="dimmed">
-              Showing {displayedRows.length.toLocaleString()} of{' '}
-              {statusTotals.total.toLocaleString()} rows
-            </Text>
-            {isTruncated && (
-              <Text size="xs" c="dimmed">
-                Showing the first {RESULTS_ROW_LIMIT.toLocaleString()} rows. Narrow filters to see
-                more.
+          <Group justify="space-between" align="flex-start" mb="sm">
+            <Stack gap={4}>
+              <Text size="sm" fw={600}>
+                Comparison Results
               </Text>
-            )}
-          </Stack>
-          <Group gap="xs">
-            {canResetFilters && (
-              <Button variant="light" size="xs" onClick={handleResetFilters}>
-                Reset Filters
-              </Button>
-            )}
-            <Popover
-              opened={columnsPopoverOpened}
-              onChange={setColumnsPopoverOpened}
-              shadow="md"
-              trapFocus
-              position="bottom-end"
-              middlewares={{ flip: true, shift: true }}
-            >
-              <Popover.Target>
-                <Button
-                  variant="secondary"
-                  size="xs"
-                  leftSection={<IconLayoutColumns size={14} />}
-                  onClick={() => setColumnsPopoverOpened((open) => !open)}
-                >
-                  Select Columns
+              <Text size="xs" c="dimmed">
+                Showing {displayedRows.length.toLocaleString()} of{' '}
+                {statusTotals.total.toLocaleString()} rows
+              </Text>
+              {isTruncated && (
+                <Text size="xs" c="dimmed">
+                  Showing the first {RESULTS_ROW_LIMIT.toLocaleString()} rows. Narrow filters to see
+                  more.
+                </Text>
+              )}
+            </Stack>
+            <Group gap="xs">
+              {canResetFilters && (
+                <Button variant="light" size="xs" onClick={handleResetFilters}>
+                  Reset Filters
                 </Button>
-              </Popover.Target>
-              <Popover.Dropdown
-                maw={320}
-                p="sm"
-                className={cn(
-                  'min-w-32 border-0 bg-backgroundInverse-light dark:bg-backgroundInverse-dark rounded-lg',
-                )}
-                style={{
-                  boxShadow:
-                    colorScheme === 'dark'
-                      ? '0px 18px 34px rgba(0, 0, 0, 0.45)'
-                      : '0px 18px 34px rgba(14, 22, 33, 0.16)',
-                }}
+              )}
+              <Popover
+                opened={columnsPopoverOpened}
+                onChange={setColumnsPopoverOpened}
+                shadow="md"
+                trapFocus
+                position="bottom-end"
+                middlewares={{ flip: true, shift: true }}
               >
-                <Stack gap="xs">
-                  <TextInput
+                <Popover.Target>
+                  <Button
+                    variant="secondary"
                     size="xs"
-                    placeholder="Search columns..."
-                    value={columnSearchQuery}
-                    onChange={(event) => setColumnSearchQuery(event.currentTarget.value)}
-                    variant="default"
-                    classNames={{
-                      input: cn(
-                        'bg-backgroundInverse-light dark:bg-backgroundInverse-dark',
-                        'text-textContrast-light dark:text-textContrast-dark',
-                        'placeholder:text-iconDisabled-light dark:placeholder:text-iconDisabled-dark',
-                        'border border-borderSecondary-light dark:border-borderSecondary-dark',
-                        'focus:border-iconAccent-light dark:focus:border-iconAccent-dark',
-                      ),
-                    }}
-                  />
-                  <Group gap="xs">
-                    <Button
+                    leftSection={<IconLayoutColumns size={14} />}
+                    onClick={() => setColumnsPopoverOpened((open) => !open)}
+                  >
+                    Select Columns
+                  </Button>
+                </Popover.Target>
+                <Popover.Dropdown
+                  maw={320}
+                  p="sm"
+                  className={cn(
+                    'min-w-32 border-0 bg-backgroundInverse-light dark:bg-backgroundInverse-dark rounded-lg',
+                  )}
+                  style={{
+                    boxShadow:
+                      colorScheme === 'dark'
+                        ? '0px 18px 34px rgba(0, 0, 0, 0.45)'
+                        : '0px 18px 34px rgba(14, 22, 33, 0.16)',
+                  }}
+                >
+                  <Stack gap="xs">
+                    <TextInput
                       size="xs"
-                      variant="transparent"
-                      color="text-contrast"
-                      className="hover:bg-transparentWhite-012 dark:hover:bg-transparentWhite-012"
-                      onClick={() => handleSelectAllColumns(true)}
-                    >
-                      Select All
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="transparent"
-                      color="text-contrast"
-                      className="hover:bg-transparentWhite-012 dark:hover:bg-transparentWhite-012"
-                      onClick={() => handleSelectAllColumns(false)}
-                    >
-                      Deselect All
-                    </Button>
-                  </Group>
-                  <Text size="xs" fw={600} c="text-contrast">
-                    Join Columns
-                  </Text>
-                  <ScrollArea.Autosize mah={120} type="auto">
-                    <Stack gap={4}>
-                      {filteredJoinColumnOptions.length === 0 ? (
-                        <Text size="xs" c="text-contrast">
-                          No columns
-                        </Text>
-                      ) : (
-                        filteredJoinColumnOptions.map((option) => (
-                          <Checkbox
-                            key={option.id}
-                            size="xs"
-                            color="icon-accent"
-                            label={option.label}
-                            styles={{
-                              label: {
-                                color: inverseTextColor,
-                              },
-                            }}
-                            checked={visibleJoinColumns[option.id] !== false}
-                            onChange={(event) =>
-                              handleJoinColumnVisibilityChange(
-                                option.id,
-                                event.currentTarget.checked,
-                              )
-                            }
-                          />
-                        ))
-                      )}
-                    </Stack>
-                  </ScrollArea.Autosize>
-                  <Text size="xs" fw={600} c="text-contrast">
-                    Comparison Columns
-                  </Text>
-                  <ScrollArea.Autosize mah={150} type="auto">
-                    <Stack gap={4}>
-                      {filteredValueColumnOptions.length === 0 ? (
-                        <Text size="xs" c="text-contrast">
-                          No columns
-                        </Text>
-                      ) : (
-                        filteredValueColumnOptions.map((option) => (
-                          <Checkbox
-                            key={option.id}
-                            size="xs"
-                            color="icon-accent"
-                            label={option.label}
-                            styles={{
-                              label: {
-                                color: inverseTextColor,
-                              },
-                            }}
-                            checked={visibleValueColumns[option.id] !== false}
-                            onChange={(event) =>
-                              handleValueColumnVisibilityChange(
-                                option.id,
-                                event.currentTarget.checked,
-                              )
-                            }
-                          />
-                        ))
-                      )}
-                    </Stack>
-                  </ScrollArea.Autosize>
-                </Stack>
-              </Popover.Dropdown>
-            </Popover>
+                      placeholder="Search columns..."
+                      value={columnSearchQuery}
+                      onChange={(event) => setColumnSearchQuery(event.currentTarget.value)}
+                      variant="default"
+                      classNames={{
+                        input: cn(
+                          'bg-backgroundInverse-light dark:bg-backgroundInverse-dark',
+                          'text-textContrast-light dark:text-textContrast-dark',
+                          'placeholder:text-iconDisabled-light dark:placeholder:text-iconDisabled-dark',
+                          'border border-borderSecondary-light dark:border-borderSecondary-dark',
+                          'focus:border-iconAccent-light dark:focus:border-iconAccent-dark',
+                        ),
+                      }}
+                    />
+                    <Group gap="xs">
+                      <Button
+                        size="xs"
+                        variant="transparent"
+                        color="text-contrast"
+                        className="hover:bg-transparentWhite-012 dark:hover:bg-transparentWhite-012"
+                        onClick={() => handleSelectAllColumns(true)}
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="transparent"
+                        color="text-contrast"
+                        className="hover:bg-transparentWhite-012 dark:hover:bg-transparentWhite-012"
+                        onClick={() => handleSelectAllColumns(false)}
+                      >
+                        Deselect All
+                      </Button>
+                    </Group>
+                    <Text size="xs" fw={600} c="text-contrast">
+                      Join Columns
+                    </Text>
+                    <ScrollArea.Autosize mah={120} type="auto">
+                      <Stack gap={4}>
+                        {filteredJoinColumnOptions.length === 0 ? (
+                          <Text size="xs" c="text-contrast">
+                            No columns
+                          </Text>
+                        ) : (
+                          filteredJoinColumnOptions.map((option) => (
+                            <Checkbox
+                              key={option.id}
+                              size="xs"
+                              color="icon-accent"
+                              label={option.label}
+                              styles={{
+                                label: {
+                                  color: inverseTextColor,
+                                },
+                              }}
+                              checked={visibleJoinColumns[option.id] !== false}
+                              onChange={(event) =>
+                                handleJoinColumnVisibilityChange(
+                                  option.id,
+                                  event.currentTarget.checked,
+                                )
+                              }
+                            />
+                          ))
+                        )}
+                      </Stack>
+                    </ScrollArea.Autosize>
+                    <Text size="xs" fw={600} c="text-contrast">
+                      Comparison Columns
+                    </Text>
+                    <ScrollArea.Autosize mah={150} type="auto">
+                      <Stack gap={4}>
+                        {filteredValueColumnOptions.length === 0 ? (
+                          <Text size="xs" c="text-contrast">
+                            No columns
+                          </Text>
+                        ) : (
+                          filteredValueColumnOptions.map((option) => (
+                            <Checkbox
+                              key={option.id}
+                              size="xs"
+                              color="icon-accent"
+                              label={option.label}
+                              styles={{
+                                label: {
+                                  color: inverseTextColor,
+                                },
+                              }}
+                              checked={visibleValueColumns[option.id] !== false}
+                              onChange={(event) =>
+                                handleValueColumnVisibilityChange(
+                                  option.id,
+                                  event.currentTarget.checked,
+                                )
+                              }
+                            />
+                          ))
+                        )}
+                      </Stack>
+                    </ScrollArea.Autosize>
+                  </Stack>
+                </Popover.Dropdown>
+              </Popover>
+            </Group>
           </Group>
-        </Group>
-        {tableConfig ? (
-          <ComparisonResultsTable
-            rows={displayedRows}
-            joinColumns={tableConfig.joinColumns}
-            valueColumns={tableConfig.valueColumns}
-            rowStatusColumn={tableConfig.rowStatusColumn}
-            sort={sort}
-            onSort={handleSort}
-            columnFilters={columnFilters}
-            onFilterChange={handleColumnFilterChange}
-            scrollOffset={tableScrollOffset}
-            onScrollChange={handleTableScrollChange}
-          />
-        ) : null}
-      </Paper>
+          {tableConfig ? (
+            <ComparisonResultsTable
+              rows={displayedRows}
+              joinColumns={tableConfig.joinColumns}
+              valueColumns={tableConfig.valueColumns}
+              rowStatusColumn={tableConfig.rowStatusColumn}
+              sort={sort}
+              onSort={handleSort}
+              columnFilters={columnFilters}
+              onFilterChange={handleColumnFilterChange}
+              scrollOffset={tableScrollOffset}
+              onScrollChange={handleTableScrollChange}
+            />
+          ) : null}
+        </Paper>
       )}
     </Stack>
   );

@@ -519,6 +519,11 @@ export const restoreAppDataFromIDB = async (
           lastExecutionTime: comparisonTab.lastExecutionTime ?? null,
           lastRunAt: comparisonTab.lastExecutionTime ? new Date().toISOString() : null,
           resultsTableName: comparisonTab.comparisonResultsTable ?? null,
+          metadata: {
+            sourceStats: null,
+            partialResults: false,
+            executionMetadata: null,
+          },
         };
 
         comparisons.set(stubComparison.id, stubComparison);
@@ -545,6 +550,11 @@ export const restoreAppDataFromIDB = async (
       lastExecutionTime: comparisonTab.lastExecutionTime ?? null,
       lastRunAt: comparisonTab.lastExecutionTime ? new Date().toISOString() : null,
       resultsTableName: comparisonTab.comparisonResultsTable ?? null,
+      metadata: {
+        sourceStats: null,
+        partialResults: false,
+        executionMetadata: null,
+      },
     };
 
     existingComparisonNames.add(uniqueName);

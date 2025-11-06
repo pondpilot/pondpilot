@@ -1,11 +1,9 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { isComparisonResultsTableName } from '@utils/comparison';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
-export type DropComparisonResultsTableOutcome =
-  | { ok: true }
-  | { ok: false; error: Error };
+export type DropComparisonResultsTableOutcome = { ok: true } | { ok: false; error: Error };
 
 export async function dropComparisonResultsTable(
   pool: AsyncDuckDBConnectionPool,

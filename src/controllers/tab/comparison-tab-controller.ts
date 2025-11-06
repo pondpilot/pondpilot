@@ -75,6 +75,7 @@ export const updateComparisonConfig = (tabId: TabId, config: Partial<ComparisonC
     filterB: null,
     showOnlyDifferences: true,
     compareMode: 'strict',
+    algorithm: 'auto',
   };
   const baseConfig: ComparisonConfig = comparison.config
     ? { ...defaultConfig, ...comparison.config }

@@ -150,6 +150,7 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
         filterB: null,
         showOnlyDifferences: true,
         compareMode: 'strict',
+        algorithm: 'auto',
       });
 
       getOrCreateTabFromComparison(newComparison, true);

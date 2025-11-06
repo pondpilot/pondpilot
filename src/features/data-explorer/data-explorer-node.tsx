@@ -3,9 +3,8 @@ import { RenderTreeNodePayload } from '@components/explorer-tree/model';
 import { useDataSourceIdForActiveTab, useIsLocalDBElementOnActiveTab } from '@store/app-store';
 import type { DragEvent } from 'react';
 
-import { DATASET_DND_MIME_TYPE } from '../../constants/dnd';
-
 import { DataExplorerNodeTypeMap, DataExplorerContext } from './model';
+import { DATASET_DND_MIME_TYPE } from '../../constants/dnd';
 
 const attachDragImage = (
   event: DragEvent<HTMLDivElement>,
@@ -31,7 +30,7 @@ const attachDragImage = (
   dragGhost.style.borderRadius = '100px';
   dragGhost.style.background = isDarkMode ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.95)';
   dragGhost.style.backdropFilter = 'blur(14px)';
-  dragGhost.style.WebkitBackdropFilter = 'blur(14px)';
+  dragGhost.style.setProperty('-webkit-backdrop-filter', 'blur(14px)');
   dragGhost.style.color = isDarkMode ? '#e2e8f0' : '#334155';
   dragGhost.style.fontSize = '13px';
   dragGhost.style.fontWeight = '500';
@@ -82,7 +81,7 @@ const attachDragImage = (
   document.body.appendChild(wrapper);
 
   // Force a layout/paint cycle to ensure border-radius is applied
-  void dragGhost.offsetHeight;
+  dragGhost.offsetHeight;
 
   const { width, height } = dragGhost.getBoundingClientRect();
   event.dataTransfer.setDragImage(dragGhost, width / 2, height / 2);
@@ -170,7 +169,8 @@ export const DataExplorerNode = (
   const comparisonSource = extraData.getComparisonSourceForNode(itemId);
   const canDrag = Boolean(comparisonSource);
 
-  const originalOnDragStart = (props.elementProps as Record<string, unknown> | undefined)?.onDragStart;
+  const originalOnDragStart = (props.elementProps as Record<string, unknown> | undefined)
+    ?.onDragStart;
 
   const enhancedElementProps = {
     ...props.elementProps,
@@ -179,10 +179,7 @@ export const DataExplorerNode = (
           draggable: true,
           onDragStart: (event: DragEvent<HTMLDivElement>) => {
             if (comparisonSource) {
-              event.dataTransfer.setData(
-                DATASET_DND_MIME_TYPE,
-                JSON.stringify(comparisonSource),
-              );
+              event.dataTransfer.setData(DATASET_DND_MIME_TYPE, JSON.stringify(comparisonSource));
               event.dataTransfer.effectAllowed = 'copy';
               event.dataTransfer.setData('text/plain', node.label);
               const iconElement = (event.currentTarget as HTMLElement).querySelector<HTMLElement>(

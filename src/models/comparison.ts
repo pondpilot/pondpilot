@@ -92,7 +92,17 @@ export interface ComparisonConfig {
 
   // Comparison mode
   compareMode: 'strict' | 'coerce'; // strict = exact match, coerce = type conversion
+
+  /**
+   * Comparison algorithm to use. 'auto' will defer to heuristics,
+   * 'hash-bucket' uses the memory-efficient hash diff executor,
+   * 'join' runs the classic full outer join query,
+   * 'sampling' performs comparison on a random sample.
+   */
+  algorithm: 'auto' | 'hash-bucket' | 'join' | 'sampling';
 }
+
+export type ComparisonAlgorithmName = Exclude<ComparisonConfig['algorithm'], 'auto'>;
 
 export interface SchemaComparisonResult {
   // Columns that exist in both tables
@@ -117,6 +127,12 @@ export interface SchemaComparisonResult {
 
   // Suggested join key columns (based on PK detection, 'id' columns, etc.)
   suggestedKeys: string[];
+
+  // Optional row counts derived from metadata or fast queries
+  rowCountA: number | null;
+  rowCountB: number | null;
+  rowCountSourceA: 'metadata' | 'query' | null;
+  rowCountSourceB: 'metadata' | 'query' | null;
 }
 
 export type Comparison = {
@@ -143,4 +159,91 @@ export type Comparison = {
   // Format: __pondpilot_comparison_{sanitized_comparison_id}
   // This persists across browser restarts unlike temp tables
   resultsTableName: string | null;
+
+  metadata: {
+    sourceStats: ComparisonSourceStats | null;
+    partialResults: boolean;
+    executionMetadata: ComparisonExecutionMetadata | null;
+  };
 };
+
+export type RowCountSource = 'metadata' | 'query';
+
+export interface ComparisonExecutionMetadata {
+  /**
+   * Algorithm that was used for this execution
+   */
+  algorithmUsed: ComparisonAlgorithmName;
+
+  /**
+   * Sampling parameters if sampling was used
+   */
+  samplingParams?: {
+    sampleSize: number;
+    totalRows: number;
+    samplingRate: number;
+  };
+}
+
+export interface ComparisonSourceStats {
+  sourceA: ComparisonSourceStat | null;
+  sourceB: ComparisonSourceStat | null;
+}
+
+export interface ComparisonSourceStat {
+  rowCount: number;
+  rowCountSource: RowCountSource;
+  lastUpdated: string; // ISO timestamp
+}
+
+export type ComparisonExecutionStage =
+  | 'idle'
+  | 'queued'
+  | 'counting'
+  | 'splitting'
+  | 'inserting'
+  | 'bucket-complete'
+  | 'finalizing'
+  | 'completed'
+  | 'partial'
+  | 'cancelled'
+  | 'failed';
+
+export const COMPARISON_EXECUTION_STAGE = {
+  IDLE: 'idle' as const,
+  QUEUED: 'queued' as const,
+  COUNTING: 'counting' as const,
+  SPLITTING: 'splitting' as const,
+  INSERTING: 'inserting' as const,
+  BUCKET_COMPLETE: 'bucket-complete' as const,
+  FINALIZING: 'finalizing' as const,
+  COMPLETED: 'completed' as const,
+  PARTIAL: 'partial' as const,
+  CANCELLED: 'cancelled' as const,
+  FAILED: 'failed' as const,
+} satisfies Record<string, ComparisonExecutionStage>;
+
+export interface ComparisonExecutionBucket {
+  depth: number;
+  countA: number;
+  countB: number;
+  modulus?: number;
+  bucket?: number;
+  hashRangeStart?: string;
+  hashRangeEnd?: string;
+}
+
+export interface ComparisonExecutionProgress {
+  stage: ComparisonExecutionStage;
+  startedAt: number;
+  updatedAt: number;
+  completedBuckets: number;
+  pendingBuckets: number;
+  totalBuckets: number;
+  processedRows: number;
+  diffRows: number;
+  currentBucket: ComparisonExecutionBucket | null;
+  cancelRequested: boolean;
+  supportsFinishEarly: boolean;
+  error?: string;
+}

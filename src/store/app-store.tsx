@@ -1,5 +1,6 @@
 import { IconType } from '@components/named-icon';
-import { Comparison, ComparisonId } from '@models/comparison';
+import { PROGRESS_CLEANUP_MAX_AGE_MS } from '@features/comparison/config/execution-config';
+import { Comparison, ComparisonExecutionProgress, ComparisonId } from '@models/comparison';
 import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
@@ -120,6 +121,11 @@ type AppStore = {
    * Set to null after spotlight reads the value.
    */
   spotlightInitialView: SpotlightView | null;
+
+  /**
+   * Runtime execution progress for comparison jobs (not persisted).
+   */
+  comparisonExecutionProgress: Map<ComparisonId, ComparisonExecutionProgress>;
 } & ContentViewState;
 
 const initialState: AppStore = {
@@ -136,6 +142,7 @@ const initialState: AppStore = {
   tabExecutionErrors: new Map(),
   comparisonSourceSelectionCallback: null,
   spotlightInitialView: null,
+  comparisonExecutionProgress: new Map(),
   // From ContentViewState
   activeTabId: null,
   previewTabId: null,
@@ -212,6 +219,109 @@ export function useIsLocalDBElementOnActiveTab(
     return (
       tab.dataSourceId === id && tab.schemaName === schemaName && tab.objectName === objectName
     );
+  });
+}
+
+type ProgressUpdater = (
+  previous: ComparisonExecutionProgress | undefined,
+) => ComparisonExecutionProgress | null;
+
+export const updateComparisonExecutionProgress = (
+  comparisonId: ComparisonId,
+  updater: ProgressUpdater,
+  action: string = 'AppStore/updateComparisonExecutionProgress',
+): void => {
+  useAppStore.setState(
+    (state) => {
+      const map = new Map(state.comparisonExecutionProgress);
+      const previous = map.get(comparisonId);
+      const next = updater(previous);
+      if (next === null) {
+        map.delete(comparisonId);
+      } else {
+        map.set(comparisonId, next);
+      }
+      return { comparisonExecutionProgress: map };
+    },
+    undefined,
+    action,
+  );
+};
+
+export const clearComparisonExecutionProgress = (comparisonId: ComparisonId): void => {
+  updateComparisonExecutionProgress(
+    comparisonId,
+    () => null,
+    'AppStore/clearComparisonExecutionProgress',
+  );
+};
+
+export const markComparisonCancelRequested = (comparisonId: ComparisonId): void => {
+  updateComparisonExecutionProgress(
+    comparisonId,
+    (prev) => {
+      if (!prev) {
+        const now = Date.now();
+        return {
+          stage: 'cancelled',
+          startedAt: now,
+          updatedAt: now,
+          completedBuckets: 0,
+          pendingBuckets: 0,
+          totalBuckets: 0,
+          processedRows: 0,
+          diffRows: 0,
+          currentBucket: null,
+          cancelRequested: true,
+          supportsFinishEarly: false,
+        };
+      }
+      return { ...prev, cancelRequested: true, updatedAt: Date.now() };
+    },
+    'AppStore/markComparisonCancelRequested',
+  );
+};
+
+/**
+ * Cleans up stale comparison execution progress entries that haven't been updated recently.
+ * This prevents memory leaks from orphaned progress entries.
+ * Uses PROGRESS_CLEANUP_MAX_AGE_MS from execution config (default: 5 minutes)
+ */
+export const cleanupStaleComparisonProgress = (maxAgeMs?: number): void => {
+  const maxAge = maxAgeMs ?? PROGRESS_CLEANUP_MAX_AGE_MS;
+  useAppStore.setState(
+    (state) => {
+      const now = Date.now();
+      const map = new Map(state.comparisonExecutionProgress);
+      let removedCount = 0;
+
+      for (const [comparisonId, progress] of map.entries()) {
+        const age = now - progress.updatedAt;
+        if (age > maxAge) {
+          map.delete(comparisonId);
+          removedCount += 1;
+        }
+      }
+
+      if (removedCount > 0) {
+        return { comparisonExecutionProgress: map };
+      }
+
+      return state;
+    },
+    undefined,
+    'AppStore/cleanupStaleComparisonProgress',
+  );
+};
+
+export function useComparisonExecutionProgress(
+  comparisonId: ComparisonId | null,
+): ComparisonExecutionProgress | null {
+  return useAppStore((state) => {
+    if (!comparisonId) {
+      return null;
+    }
+    return state.comparisonExecutionProgress.get(comparisonId) ?? null;
   });
 }
 

@@ -2,6 +2,20 @@ import { ComparisonConfig, ComparisonSource, SchemaComparisonResult } from '@mod
 import { quote } from '@utils/helpers';
 import { validateFilterExpression } from '@utils/sql-security';
 
+import { MAX_HASH_MODULUS, MAX_HASH_RANGE_SIZE } from '../config/execution-config';
+
+export type HashFilterOptions =
+  | {
+      type: 'hash-bucket';
+      modulus: number;
+      bucket: number;
+    }
+  | {
+      type: 'hash-range';
+      start: string;
+      end: string;
+    };
+
 /**
  * Builds the source SQL for a comparison source
  */
@@ -66,13 +80,97 @@ export const getColumnsToCompare = (
   });
 };
 
+export const buildHashFilterCondition = (
+  source: 'a' | 'b',
+  joinColumns: string[],
+  joinKeyMappings: Record<string, string>,
+  filter: HashFilterOptions | undefined,
+): string | null => {
+  if (!filter) {
+    return null;
+  }
+
+  const columns =
+    source === 'a' ? joinColumns : joinColumns.map((key) => joinKeyMappings[key] || key);
+
+  if (columns.length === 0) {
+    return null;
+  }
+
+  const structPack = `struct_pack(${columns
+    .map((col) => `${quote(col)} := ${quote(col)}`)
+    .join(', ')})`;
+
+  if (filter.type === 'hash-bucket') {
+    if (!Number.isInteger(filter.modulus) || filter.modulus <= 0) {
+      throw new Error(`Invalid bucket modulus: ${filter.modulus}. Must be a positive integer.`);
+    }
+    if (filter.modulus > MAX_HASH_MODULUS) {
+      throw new Error(
+        `Bucket modulus ${filter.modulus} exceeds maximum allowed value of ${MAX_HASH_MODULUS}. Please use a smaller modulus to prevent excessive resource usage.`,
+      );
+    }
+    if (!Number.isInteger(filter.bucket) || filter.bucket < 0 || filter.bucket >= filter.modulus) {
+      throw new Error(
+        `Invalid bucket number: ${filter.bucket}. Must be a non-negative integer less than modulus (${filter.modulus}).`,
+      );
+    }
+
+    const normalizedModulo = `((hash(${structPack}) % ${filter.modulus}) + ${filter.modulus}) % ${filter.modulus}`;
+    return `${normalizedModulo} = ${filter.bucket}`;
+  }
+
+  let start: bigint;
+  let end: bigint;
+
+  try {
+    start = BigInt(filter.start);
+  } catch (err) {
+    throw new Error(
+      `Invalid hash range start value: "${filter.start}". Must be a valid integer string.`,
+    );
+  }
+
+  try {
+    end = BigInt(filter.end);
+  } catch (err) {
+    throw new Error(
+      `Invalid hash range end value: "${filter.end}". Must be a valid integer string.`,
+    );
+  }
+
+  if (start < 0n) {
+    throw new Error('Invalid hash range start. Start must be non-negative.');
+  }
+
+  if (end <= start) {
+    throw new Error('Invalid hash range. End must be greater than start.');
+  }
+
+  const rangeSize = end - start;
+  if (rangeSize > MAX_HASH_RANGE_SIZE) {
+    throw new Error(
+      `Hash range size (${rangeSize.toString()}) exceeds maximum allowed size of ${MAX_HASH_RANGE_SIZE.toString()}. Please use a smaller range to prevent excessive resource usage.`,
+    );
+  }
+
+  const startLiteral = `${start.toString()}::UBIGINT`;
+  const endLiteral = `${(end - 1n).toString()}::UBIGINT`;
+  return `hash(${structPack}) BETWEEN ${startLiteral} AND ${endLiteral}`;
+};
+
 /**
  * Generates the comparison SQL query
  */
 export const generateComparisonSQL = (
   config: ComparisonConfig,
   schemaComparison: SchemaComparisonResult,
-  options?: { materialize?: boolean; tableName?: string },
+  options?: {
+    materialize?: boolean;
+    tableName?: string;
+    hashFilter?: HashFilterOptions;
+    includeOrderBy?: boolean;
+  },
 ): string => {
   const { sourceA, sourceB, joinColumns, joinKeyMappings, showOnlyDifferences, columnMappings } =
     config;
@@ -104,18 +202,44 @@ export const generateComparisonSQL = (
   sql += 'WITH\n';
 
   // Source A CTE
+  const bucketConditionA = buildHashFilterCondition(
+    'a',
+    joinColumns,
+    joinKeyMappings,
+    options?.hashFilter,
+  );
+  const sourceAConditions: string[] = [];
+  if (filterA) {
+    sourceAConditions.push(filterA);
+  }
+  if (bucketConditionA) {
+    sourceAConditions.push(bucketConditionA);
+  }
   sql += '  source_a_filtered AS (\n';
   sql += `    SELECT * FROM ${sourceASQL}\n`;
-  if (filterA) {
-    sql += `    WHERE ${filterA}\n`;
+  if (sourceAConditions.length > 0) {
+    sql += `    WHERE ${sourceAConditions.join(' AND ')}\n`;
   }
   sql += '  ),\n';
 
   // Source B CTE
+  const bucketConditionB = buildHashFilterCondition(
+    'b',
+    joinColumns,
+    joinKeyMappings,
+    options?.hashFilter,
+  );
+  const sourceBConditions: string[] = [];
+  if (filterB) {
+    sourceBConditions.push(filterB);
+  }
+  if (bucketConditionB) {
+    sourceBConditions.push(bucketConditionB);
+  }
   sql += '  source_b_filtered AS (\n';
   sql += `    SELECT * FROM ${sourceBSQL}\n`;
-  if (filterB) {
-    sql += `    WHERE ${filterB}\n`;
+  if (sourceBConditions.length > 0) {
+    sql += `    WHERE ${sourceBConditions.join(' AND ')}\n`;
   }
   sql += '  ),\n';
 
@@ -198,9 +322,13 @@ export const generateComparisonSQL = (
     sql += "WHERE _row_status != 'same'\n";
   }
 
-  // Order by join keys
-  const orderByKeys = joinColumns.map((key) => quote(`_key_${key}`));
-  sql += `ORDER BY ${orderByKeys.join(', ')};`;
+  if (options?.includeOrderBy !== false) {
+    // Order by join keys
+    const orderByKeys = joinColumns.map((key) => quote(`_key_${key}`));
+    sql += `ORDER BY ${orderByKeys.join(', ')};`;
+  } else {
+    sql += ';';
+  }
 
   return sql;
 };
