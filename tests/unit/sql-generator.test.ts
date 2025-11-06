@@ -84,4 +84,21 @@ describe('generateComparisonSQL bucket option', () => {
 
     expect(sql).toContain('hash(struct_pack("id" := "id")) BETWEEN 0::UBIGINT AND 1023::UBIGINT');
   });
+
+  it('aliases query sources automatically', () => {
+    const config: ComparisonConfig = {
+      ...baseConfig,
+      sourceA: {
+        type: 'query',
+        sql: 'SELECT id, value FROM table_a',
+        alias: 'source_a_query',
+      },
+    };
+
+    const sql = generateComparisonSQL(config, schemaComparisonSample, {
+      includeOrderBy: false,
+    });
+
+    expect(sql).toContain('FROM (SELECT id, value FROM table_a) AS "source_a_query"');
+  });
 });
