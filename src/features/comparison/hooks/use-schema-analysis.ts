@@ -41,7 +41,8 @@ const getSourceSchema = async (
 
     sql = `DESCRIBE (SELECT * FROM ${tableParts.join('.')} LIMIT 0)`;
   } else {
-    sql = `DESCRIBE (SELECT * FROM (${source.sql}) LIMIT 0)`;
+    const base = buildSourceSQL(source, { includeDefaultAlias: false });
+    sql = `DESCRIBE (SELECT * FROM ${base} LIMIT 0)`;
   }
 
   const result = await pool.query<{
@@ -161,8 +162,7 @@ const getRowCountFromQuery = async (
   }
 
   try {
-    const base = buildSourceSQL(source);
-    const fromClause = source.type === 'query' ? `${base} AS source_row_count` : base;
+    const fromClause = buildSourceSQL(source, { alias: 'source_row_count' });
     const sql = `SELECT COUNT(*) AS cnt FROM ${fromClause}`;
     const result = await pool.query(sql);
     const column = result.getChild('cnt') ?? result.getChildAt(0);

@@ -4,6 +4,20 @@ import { validateFilterExpression } from '@utils/sql-security';
 
 import { MAX_HASH_MODULUS, MAX_HASH_RANGE_SIZE } from '../config/execution-config';
 
+type BuildSourceSQLOptions = {
+  /**
+   * Explicit alias to apply to the source. When omitted, query sources will use
+   * their configured alias while table sources will remain unaliased.
+   */
+  alias?: string | null;
+  /**
+   * Whether query sources should fall back to their configured alias when an
+   * explicit alias is not provided. Defaults to true to ensure derivations are
+   * always properly aliased.
+   */
+  includeDefaultAlias?: boolean;
+};
+
 export type HashFilterOptions =
   | {
       type: 'hash-bucket';
@@ -16,10 +30,33 @@ export type HashFilterOptions =
       end: string;
     };
 
+const resolveSourceAlias = (
+  source: ComparisonSource,
+  options?: BuildSourceSQLOptions,
+): string | null => {
+  if (options?.alias) {
+    return options.alias;
+  }
+  const includeDefaultAlias = options?.includeDefaultAlias ?? true;
+  if (!includeDefaultAlias) {
+    return null;
+  }
+  if (source.type === 'query') {
+    return source.alias;
+  }
+  return null;
+};
+
 /**
- * Builds the source SQL for a comparison source
+ * Builds the source SQL for a comparison source, ensuring query sources are
+ * always aliased unless explicitly suppressed.
  */
-export const buildSourceSQL = (source: ComparisonSource): string => {
+export const buildSourceSQL = (
+  source: ComparisonSource,
+  options?: BuildSourceSQLOptions,
+): string => {
+  const alias = resolveSourceAlias(source, options);
+
   if (source.type === 'table') {
     const parts = [];
     if (source.databaseName) {
@@ -27,9 +64,12 @@ export const buildSourceSQL = (source: ComparisonSource): string => {
     }
     parts.push(quote(source.schemaName || 'main'));
     parts.push(quote(source.tableName));
-    return parts.join('.');
+    const base = parts.join('.');
+    return alias ? `${base} AS ${quote(alias)}` : base;
   }
-  return `(${source.sql})`;
+
+  const subquery = `(${source.sql})`;
+  return alias ? `${subquery} AS ${quote(alias)}` : subquery;
 };
 
 /**

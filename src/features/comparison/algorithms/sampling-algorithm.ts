@@ -1,4 +1,3 @@
-import { ComparisonSource } from '@models/comparison';
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
 
 import {
@@ -7,7 +6,7 @@ import {
   AlgorithmProgressCallback,
   ComparisonAlgorithm,
 } from './types';
-import { generateComparisonSQL } from '../utils/sql-generator';
+import { generateComparisonSQL, buildSourceSQL } from '../utils/sql-generator';
 
 /**
  * Sampling-based comparison algorithm
@@ -203,7 +202,7 @@ export class SamplingAlgorithm implements ComparisonAlgorithm {
       throw new Error('Join columns are required for sampling comparison');
     }
 
-    const sourceARef = this.buildSourceReference(sourceA);
+    const sourceARef = buildSourceSQL(sourceA);
     const filterAClause = (filterMode === 'common' ? commonFilter : filterA) || null;
     const joinKeysA = joinColumns.map((col) => `"${col}"`).join(', ');
 
@@ -250,8 +249,8 @@ export class SamplingAlgorithm implements ComparisonAlgorithm {
       throw new Error('Both sourceA and sourceB are required for comparison');
     }
 
-    const sourceARef = this.buildSourceReference(sourceA);
-    const sourceBRef = this.buildSourceReference(sourceB);
+    const sourceARef = buildSourceSQL(sourceA, { includeDefaultAlias: false });
+    const sourceBRef = buildSourceSQL(sourceB, { includeDefaultAlias: false });
 
     const filterAClause = (filterMode === 'common' ? commonFilter : filterA) || null;
     const filterBClause = (filterMode === 'common' ? commonFilter : filterB) || null;
@@ -309,18 +308,4 @@ export class SamplingAlgorithm implements ComparisonAlgorithm {
     });
   }
 
-  /**
-   * Builds a SQL reference to a comparison source
-   */
-  private buildSourceReference(source: ComparisonSource): string {
-    if (source.type === 'table') {
-      const parts = [source.databaseName, source.schemaName, source.tableName]
-        .filter(Boolean)
-        .map((p) => `"${p}"`);
-
-      return parts.join('.');
-    }
-    // For query sources, wrap in subquery
-    return `(${source.sql})`;
-  }
 }
