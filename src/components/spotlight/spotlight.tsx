@@ -8,7 +8,10 @@ import {
   getOrCreateTabFromScript,
   deleteTab,
 } from '@controllers/tab';
-import { getOrCreateTabFromComparison } from '@controllers/tab/comparison-tab-controller';
+import {
+  getOrCreateTabFromComparison,
+  createComparisonTab,
+} from '@controllers/tab/comparison-tab-controller';
 import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import { ImportScriptModalContent } from '@features/script-import';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
@@ -33,6 +36,7 @@ import {
   IconKeyboard,
   IconLayoutGridRemove,
   IconLayoutNavbarCollapse,
+  IconScale,
 } from '@tabler/icons-react';
 import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
 import { fileSystemService } from '@utils/file-system-adapter';
@@ -321,6 +325,17 @@ export const SpotlightMenu = () => {
       handler: async () => {
         const newEmptyScript = createSQLScript();
         getOrCreateTabFromScript(newEmptyScript, true);
+        resetSpotlight();
+        ensureHome();
+      },
+    },
+    {
+      id: 'create-new-comparison',
+      label: 'New Comparison',
+      icon: <IconScale size={20} className={ICON_CLASSES} />,
+      hotkey: [control, option, 'C'],
+      handler: async () => {
+        createComparisonTab({ setActive: true });
         resetSpotlight();
         ensureHome();
       },
