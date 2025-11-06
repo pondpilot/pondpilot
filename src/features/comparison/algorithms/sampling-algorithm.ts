@@ -307,5 +307,4 @@ export class SamplingAlgorithm implements ComparisonAlgorithm {
       tableName,
     });
   }
-
 }
