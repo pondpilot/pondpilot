@@ -7,7 +7,7 @@ import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { findUniqueName } from '@utils/helpers';
+import { findUniqueName, getAllExistingNames } from '@utils/helpers';
 import { ensureScript, makeSQLScriptId } from '@utils/sql-script';
 
 import { persistDeleteSqlScript } from './persist';
@@ -23,10 +23,7 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
   const { sqlScripts, comparisons } = useAppStore.getState();
 
   // Generate unique name checking both SQL scripts and comparisons
-  // This ensures script names don't conflict with comparison names (parity with createComparison)
-  const existingScriptNames = Array.from(sqlScripts.values()).map((script) => script.name);
-  const existingComparisonNames = Array.from(comparisons.values()).map((comp) => comp.name);
-  const allExistingNames = new Set([...existingScriptNames, ...existingComparisonNames]);
+  const allExistingNames = getAllExistingNames({ comparisons, sqlScripts });
 
   const fileName = findUniqueName(name, (value) => allExistingNames.has(value));
   const sqlScriptId = makeSQLScriptId();
@@ -108,12 +105,11 @@ export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName:
   const sqlScript = ensureScript(sqlScriptOrId, sqlScripts);
 
   // Make sure the name is unique among other scripts and comparisons
-  // This ensures renamed scripts don't conflict with comparison names (parity with renameComparison)
-  const existingScriptNames = Array.from(sqlScripts.values())
-    .filter((script) => script.id !== sqlScript.id)
-    .map((script) => script.name);
-  const existingComparisonNames = Array.from(comparisons.values()).map((comp) => comp.name);
-  const allExistingNames = new Set([...existingScriptNames, ...existingComparisonNames]);
+  const allExistingNames = getAllExistingNames({
+    comparisons,
+    sqlScripts,
+    excludeId: sqlScript.id,
+  });
 
   const uniqueName = findUniqueName(newName, (value) => allExistingNames.has(value));
 

@@ -18,7 +18,7 @@ import { ComparisonTab, TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { setComparisonPartialResults } from '@store/comparison-metadata';
 import { ensureComparison, makeComparisonId } from '@utils/comparison';
-import { findUniqueName } from '@utils/helpers';
+import { findUniqueName, getAllExistingNames } from '@utils/helpers';
 
 import { persistDeleteComparison } from './persist';
 import { deleteComparisonImpl } from './pure';
@@ -37,9 +37,7 @@ export const createComparison = (
   const { comparisons, sqlScripts } = useAppStore.getState();
 
   // Generate unique name checking both comparisons and SQL scripts
-  const existingComparisonNames = Array.from(comparisons.values()).map((comp) => comp.name);
-  const existingScriptNames = Array.from(sqlScripts.values()).map((script) => script.name);
-  const allExistingNames = new Set([...existingComparisonNames, ...existingScriptNames]);
+  const allExistingNames = getAllExistingNames({ comparisons, sqlScripts });
 
   const uniqueName = findUniqueName(name, (value) => allExistingNames.has(value));
   const comparisonId = makeComparisonId();
@@ -248,11 +246,11 @@ export const renameComparison = (
   const comparison = ensureComparison(comparisonOrId, comparisons);
 
   // Make sure the name is unique among both other comparisons and SQL scripts
-  const existingComparisonNames = Array.from(comparisons.values())
-    .filter((comp) => comp.id !== comparison.id)
-    .map((comp) => comp.name);
-  const existingScriptNames = Array.from(sqlScripts.values()).map((script) => script.name);
-  const allExistingNames = new Set([...existingComparisonNames, ...existingScriptNames]);
+  const allExistingNames = getAllExistingNames({
+    comparisons,
+    sqlScripts,
+    excludeId: comparison.id,
+  });
 
   const uniqueName = findUniqueName(newName, (value) => allExistingNames.has(value));
 
