@@ -1012,10 +1012,10 @@ export const ComparisonConfigScreen = ({
                     </Group>
                   }
                   data={[
-                    { value: 'auto', label: 'Auto (let Pondpilot decide)' },
-                    { value: 'hash-bucket', label: 'Hash diff (memory efficient)' },
-                    { value: 'join', label: 'Full outer join (single query)' },
-                    { value: 'sampling', label: 'Random sampling (1% preview, 1k-100k rows)' },
+                    { value: 'auto', label: 'Auto' },
+                    { value: 'hash-bucket', label: 'Hash diff' },
+                    { value: 'join', label: 'Full outer join' },
+                    { value: 'sampling', label: 'Random sampling' },
                   ]}
                   value={config?.algorithm ?? 'auto'}
                   onChange={(value) =>
