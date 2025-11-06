@@ -95,12 +95,24 @@ export class HashBucketAlgorithm implements ComparisonAlgorithm {
         }
       : undefined;
 
-    await runRangeHashDiff(pool, tableName, config, schemaComparison, hashDiffOptions, {
-      signal: abortSignal,
-      onProgress: progressHandler,
-    });
+    const metrics = await runRangeHashDiff(
+      pool,
+      tableName,
+      config,
+      schemaComparison,
+      hashDiffOptions,
+      {
+        signal: abortSignal,
+        onProgress: progressHandler,
+      },
+    );
 
-    return {};
+    return {
+      metrics: {
+        type: 'hash-diff' as const,
+        stats: metrics,
+      },
+    };
   }
 
   private computeHashDiffOptions(

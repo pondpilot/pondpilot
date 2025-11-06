@@ -5,17 +5,21 @@ import {
   setComparisonResultsTable,
 } from '@controllers/tab/comparison-tab-controller';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { Stack, LoadingOverlay, Alert, Text } from '@mantine/core';
+import { Stack, LoadingOverlay, Alert, Text, Center } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { TabId, ComparisonConfig } from '@models/tab';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { memo, useCallback, useRef } from 'react';
 
+import { AnimatedPollyDuck } from './components/animated-polly-duck';
 import { ComparisonConfigScreen } from './components/comparison-config-screen';
+import { ComparisonExecutionProgressCard } from './components/comparison-execution-progress-card';
+import { ComparisonProgressErrorBoundary } from './components/comparison-progress-error-boundary';
 import { ComparisonViewer } from './components/comparison-results/comparison-viewer';
 import { ICON_CLASSES } from './constants/color-classes';
 import { useComparison } from './hooks/use-comparison';
 import { useComparisonExecution } from './hooks/use-comparison-execution';
+import { useComparisonProgress } from './hooks/use-comparison-progress';
 import { useSchemaAnalysis } from './hooks/use-schema-analysis';
 
 interface ComparisonTabViewProps {
@@ -27,7 +31,13 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
   const data = useComparison(tabId);
   const pool = useInitializedDuckDBConnectionPool();
   const { analyzeSchemas, isAnalyzing, error: analysisError } = useSchemaAnalysis(pool);
-  const { executeComparison, isExecuting, error: executionError } = useComparisonExecution(pool);
+  const {
+    executeComparison,
+    cancelComparison,
+    finishEarlyComparison,
+    isExecuting,
+    error: executionError,
+  } = useComparisonExecution(pool);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const tab = data?.tab;
@@ -38,6 +48,15 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
   const viewingResults = tab?.viewingResults ?? false;
   const resultsTableName = tab?.comparisonResultsTable || comparison?.resultsTableName || null;
   const lastExecutionTime = tab?.lastExecutionTime || comparison?.lastExecutionTime || null;
+
+  const progress = useComparisonProgress(comparisonId ?? null);
+  const progressStage = progress?.stage ?? null;
+  const progressActive =
+    progressStage !== null &&
+    !['completed', 'cancelled', 'failed', 'partial'].includes(progressStage);
+  const canFinishEarly = Boolean(
+    progress?.supportsFinishEarly && progressActive && (progress?.diffRows ?? 0) > 0,
+  );
 
   const handleConfigChange = useCallback(
     (configChanges: Partial<ComparisonConfig>) => {
@@ -71,8 +90,23 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
     [tabId, comparisonId, comparisonConfig, schemaComparison, executeComparison],
   );
 
-  const handleRefreshComparison = useCallback(async () => {
-    await runComparison(false);
+  const handleRefreshComparison = useCallback(() => {
+    modals.openConfirmModal({
+      title: 'Refresh comparison?',
+      children: (
+        <Text size="sm">
+          This will re-run the comparison with the current configuration. Any existing results will
+          be replaced.
+        </Text>
+      ),
+      labels: { confirm: 'Refresh', cancel: 'Cancel' },
+      confirmProps: { color: 'blue' },
+      onConfirm: () => {
+        runComparison(false).catch(() => {
+          // Ignored: errors surfaced via executionError state
+        });
+      },
+    });
   }, [runComparison]);
 
   const handleExecuteComparison = useCallback(() => {
@@ -107,12 +141,65 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
     });
   }, [comparisonConfig, schemaComparison, runComparison]);
 
-  // Compute canRun for the header
+  const handleCancelExecution = useCallback(() => {
+    if (!comparisonId) return;
+
+    modals.openConfirmModal({
+      title: 'Cancel comparison?',
+      children: (
+        <Text size="sm">
+          The current comparison will stop immediately. You can rerun it anytime from the
+          configuration screen.
+        </Text>
+      ),
+      labels: { confirm: 'Cancel comparison', cancel: 'Keep running' },
+      confirmProps: { color: 'red' },
+      onConfirm: () => {
+        cancelComparison(comparisonId);
+      },
+    });
+  }, [cancelComparison, comparisonId]);
+
+  const handleFinishEarlyExecution = useCallback(() => {
+    if (!comparisonId) return;
+
+    modals.openConfirmModal({
+      title: 'Finish comparison now?',
+      children: (
+        <Text size="sm">
+          We will stop scanning immediately and show the differences found so far. You can rerun
+          later to complete the comparison.
+        </Text>
+      ),
+      labels: { confirm: 'Finish early', cancel: 'Keep running' },
+      confirmProps: { color: 'red' },
+      onConfirm: () => {
+        finishEarlyComparison(comparisonId);
+      },
+    });
+  }, [finishEarlyComparison, comparisonId]);
+
   const canRun =
     !!comparisonConfig?.sourceA &&
     !!comparisonConfig?.sourceB &&
     !!schemaComparison &&
     (comparisonConfig?.joinColumns || []).length > 0;
+
+  // Show the main loading overlay only when analyzing the schema.
+  // During execution, we'll show the animated Polly duck instead.
+  const showLoadingOverlay = isAnalyzing;
+
+  const datasetNameA = comparisonConfig?.sourceA
+    ? comparisonConfig.sourceA.type === 'table'
+      ? comparisonConfig.sourceA.tableName
+      : comparisonConfig.sourceA.alias
+    : 'Dataset A';
+
+  const datasetNameB = comparisonConfig?.sourceB
+    ? comparisonConfig.sourceB.type === 'table'
+      ? comparisonConfig.sourceB.tableName
+      : comparisonConfig.sourceB.alias
+    : 'Dataset B';
 
   if (!data) {
     return null;
@@ -123,8 +210,8 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
   }
 
   return (
-    <div ref={scrollContainerRef} className="h-full overflow-auto relative">
-      <LoadingOverlay visible={isAnalyzing || isExecuting} overlayProps={{ blur: 2 }} />
+    <div ref={scrollContainerRef} className="relative h-full overflow-auto">
+      <LoadingOverlay visible={showLoadingOverlay} overlayProps={{ blur: 2 }} />
 
       <Stack gap="xl" p={viewingResults ? 'xl' : 0}>
         {analysisError && (
@@ -147,9 +234,31 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
           </Alert>
         )}
 
-        {!viewingResults && (
+        {(progressActive || isExecuting) && (
+          <Center className="w-full" style={{ minHeight: '60vh' }}>
+            <Stack gap="xl" align="center">
+              <AnimatedPollyDuck
+                size={100}
+                datasetNameA={datasetNameA}
+                datasetNameB={datasetNameB}
+              />
+              {progressActive && progress && (
+                <ComparisonProgressErrorBoundary>
+                  <ComparisonExecutionProgressCard
+                    progress={progress}
+                    onCancel={handleCancelExecution}
+                    onFinishEarly={canFinishEarly ? handleFinishEarlyExecution : undefined}
+                  />
+                </ComparisonProgressErrorBoundary>
+              )}
+            </Stack>
+          </Center>
+        )}
+
+        {!progressActive && !isExecuting && !viewingResults && (
           <ComparisonConfigScreen
             tabId={tabId}
+            comparisonId={comparisonId ?? null}
             config={comparisonConfig}
             schemaComparison={schemaComparison}
             onConfigChange={handleConfigChange}
@@ -157,12 +266,14 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
             isAnalyzing={isAnalyzing}
             onRun={handleExecuteComparison}
             canRun={canRun}
-            isRunning={isExecuting}
+            isRunning={isExecuting || progressActive}
             scrollContainerRef={scrollContainerRef}
           />
         )}
 
-        {viewingResults &&
+        {!progressActive &&
+          !isExecuting &&
+          viewingResults &&
           comparisonId &&
           comparisonConfig &&
           schemaComparison &&

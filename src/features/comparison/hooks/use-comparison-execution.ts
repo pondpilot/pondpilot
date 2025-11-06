@@ -23,6 +23,7 @@ import { useState, useCallback, useRef } from 'react';
 import {
   AlgorithmContext,
   AlgorithmProgressUpdate,
+  AlgorithmExecutionMetrics,
   ComparisonAlgorithm,
   selectAlgorithm,
 } from '../algorithms';
@@ -352,6 +353,7 @@ const handleComparisonSuccess = async (
   result: {
     generatedSQL?: string;
     samplingParams?: { sampleSize: number; totalRows: number; samplingRate: number };
+    metrics?: AlgorithmExecutionMetrics;
   },
   setGeneratedSQL: (sql: string | null) => void,
 ): Promise<{ tableName: string; durationSeconds: number }> => {
@@ -395,6 +397,8 @@ const handleComparisonSuccess = async (
   setComparisonExecutionMetadata(comparisonId, {
     algorithmUsed: algorithm.name,
     samplingParams: result.samplingParams,
+    hashDiffMetrics:
+      result.metrics && result.metrics.type === 'hash-diff' ? result.metrics.stats : undefined,
   });
 
   setComparisonPartialResults(comparisonId, false);

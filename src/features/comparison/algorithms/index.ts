@@ -1,6 +1,7 @@
 // Export algorithm types and interfaces
 export type {
   AlgorithmContext,
+  AlgorithmExecutionMetrics,
   AlgorithmExecutionResult,
   AlgorithmProgressCallback,
   AlgorithmProgressUpdate,

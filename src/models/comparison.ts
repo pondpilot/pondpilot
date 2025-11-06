@@ -183,6 +183,14 @@ export interface ComparisonExecutionMetadata {
     totalRows: number;
     samplingRate: number;
   };
+
+  hashDiffMetrics?: {
+    processedBuckets: number;
+    totalBucketsEnqueued: number;
+    maxDepth: number;
+    maxBucketRowsA: number;
+    maxBucketRowsB: number;
+  };
 }
 
 export interface ComparisonSourceStats {

@@ -40,6 +40,16 @@ export interface AlgorithmProgressUpdate {
   };
 }
 
+export interface HashDiffMetrics {
+  processedBuckets: number;
+  totalBucketsEnqueued: number;
+  maxDepth: number;
+  maxBucketRowsA: number;
+  maxBucketRowsB: number;
+}
+
+export type AlgorithmExecutionMetrics = { type: 'hash-diff'; stats: HashDiffMetrics };
+
 /**
  * Result of algorithm execution
  */
@@ -62,6 +72,11 @@ export interface AlgorithmExecutionResult {
     totalRows: number;
     samplingRate: number;
   };
+
+  /**
+   * Optional execution metrics provided by the algorithm
+   */
+  metrics?: AlgorithmExecutionMetrics;
 }
 
 /**

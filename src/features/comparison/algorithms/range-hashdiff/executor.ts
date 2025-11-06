@@ -9,6 +9,8 @@ import {
   generateComparisonSQL,
   HashFilterOptions,
 } from '../../utils/sql-generator';
+import { HashDiffMetrics } from '../types';
+import { PriorityQueue } from './priority-queue';
 
 const ABORT_ERROR_NAME = 'AbortError';
 
@@ -24,87 +26,6 @@ type QueueEntry = HashSegment & {
   estimatedSize: number;
   countsComputed: boolean;
 };
-
-class SegmentPriorityQueue {
-  private heap: QueueEntry[] = [];
-
-  constructor(private readonly isHigherPriority: (a: QueueEntry, b: QueueEntry) => boolean) {}
-
-  push(entry: QueueEntry): void {
-    this.heap.push(entry);
-    this.bubbleUp(this.heap.length - 1);
-  }
-
-  pop(): QueueEntry | null {
-    if (this.heap.length === 0) {
-      return null;
-    }
-
-    const top = this.heap[0];
-    const last = this.heap.pop();
-    if (last && this.heap.length > 0) {
-      this.heap[0] = last;
-      this.bubbleDown(0);
-    }
-
-    return top;
-  }
-
-  isEmpty(): boolean {
-    return this.heap.length === 0;
-  }
-
-  size(): number {
-    return this.heap.length;
-  }
-
-  private bubbleUp(index: number): void {
-    let currentIndex = index;
-    while (currentIndex > 0) {
-      const parentIndex = Math.floor((currentIndex - 1) / 2);
-      if (this.isHigherPriority(this.heap[currentIndex], this.heap[parentIndex])) {
-        this.swap(currentIndex, parentIndex);
-        currentIndex = parentIndex;
-      } else {
-        break;
-      }
-    }
-  }
-
-  private bubbleDown(index: number): void {
-    let currentIndex = index;
-    const { length } = this.heap;
-
-    while (true) {
-      const leftIndex = currentIndex * 2 + 1;
-      const rightIndex = leftIndex + 1;
-      let bestIndex = currentIndex;
-
-      if (leftIndex < length && this.isHigherPriority(this.heap[leftIndex], this.heap[bestIndex])) {
-        bestIndex = leftIndex;
-      }
-      if (
-        rightIndex < length &&
-        this.isHigherPriority(this.heap[rightIndex], this.heap[bestIndex])
-      ) {
-        bestIndex = rightIndex;
-      }
-
-      if (bestIndex === currentIndex) {
-        break;
-      }
-
-      this.swap(currentIndex, bestIndex);
-      currentIndex = bestIndex;
-    }
-  }
-
-  private swap(a: number, b: number): void {
-    const tmp = this.heap[a];
-    this.heap[a] = this.heap[b];
-    this.heap[b] = tmp;
-  }
-}
 
 export type RangeHashDiffProgressStage =
   | 'queued'
@@ -318,7 +239,7 @@ const countTotalRows = async (
   return typeof countValue === 'number' ? countValue : Number(countValue ?? 0);
 };
 
-const determineEffectiveDepth = (
+export const determineEffectiveDepth = (
   maxRows: number,
   options: Required<RangeHashDiffOptions>,
 ): number => {
@@ -336,6 +257,20 @@ const determineEffectiveDepth = (
   return Math.min(cappedByConfig, MAX_ADAPTIVE_DEPTH);
 };
 
+export const calculateSplitFactor = (
+  maxCount: number,
+  threshold: number,
+  baseSplitFactor: number,
+): number => {
+  if (maxCount <= threshold) {
+    return 0;
+  }
+
+  const desired = Math.ceil(maxCount / threshold);
+  const bounded = Math.min(baseSplitFactor, Math.max(2, desired));
+  return bounded;
+};
+
 export const runRangeHashDiff = async (
   pool: AsyncDuckDBConnectionPool,
   tableName: string,
@@ -343,7 +278,7 @@ export const runRangeHashDiff = async (
   schemaComparison: SchemaComparisonResult,
   options?: RangeHashDiffOptions,
   context?: RangeHashDiffContext,
-): Promise<void> => {
+): Promise<HashDiffMetrics> => {
   if (!config.sourceA || !config.sourceB) {
     throw new Error('Both sourceA and sourceB must be provided for comparison execution.');
   }
@@ -382,7 +317,7 @@ export const runRangeHashDiff = async (
   const getEffectiveSize = (entry: QueueEntry): number =>
     entry.countsComputed ? Math.max(entry.countA, entry.countB) : entry.estimatedSize;
 
-  const queue = new SegmentPriorityQueue((a, b) => {
+  const queue = new PriorityQueue<QueueEntry>((a, b) => {
     const sizeA = getEffectiveSize(a);
     const sizeB = getEffectiveSize(b);
     if (sizeA !== sizeB) {
@@ -399,6 +334,10 @@ export const runRangeHashDiff = async (
   let completedBuckets = 0;
   let processedRows = 0;
   let diffRows = 0;
+  let totalBucketsEnqueued = queue.size();
+  let maxDepthProcessed = rootSegment.depth;
+  let maxBucketRowsA = rootSegment.countA;
+  let maxBucketRowsB = rootSegment.countB;
 
   const sendProgress = (
     stage: RangeHashDiffProgressStage,
@@ -485,6 +424,9 @@ export const runRangeHashDiff = async (
     const { modulus, bucket, depth, countA, countB } = current;
     const maxCount = Math.max(countA, countB);
     const segment: HashSegment = { modulus, bucket, depth };
+    maxDepthProcessed = Math.max(maxDepthProcessed, depth);
+    maxBucketRowsA = Math.max(maxBucketRowsA, countA);
+    maxBucketRowsB = Math.max(maxBucketRowsB, countB);
 
     sendProgress('counting', segment, { countA, countB, diffRows }, true);
 
@@ -515,10 +457,15 @@ export const runRangeHashDiff = async (
       continue;
     }
 
-    const localSplitFactor = Math.min(
+    let localSplitFactor = calculateSplitFactor(
+      maxCount,
+      executorOptions.rowThreshold,
       splitFactor,
-      Math.max(2, Math.ceil(maxCount / executorOptions.rowThreshold)),
     );
+
+    if (localSplitFactor <= 1) {
+      localSplitFactor = Math.min(splitFactor, Math.max(2, splitFactor));
+    }
 
     const nextModulus = modulus * localSplitFactor;
     const estimatedChildSize = Math.max(1, Math.ceil(maxCount / localSplitFactor));
@@ -537,6 +484,7 @@ export const runRangeHashDiff = async (
     }
 
     pendingBuckets += localSplitFactor;
+    totalBucketsEnqueued += localSplitFactor;
     sendProgress('splitting', segment, { countA, countB, diffRows }, false);
   }
 
@@ -544,4 +492,12 @@ export const runRangeHashDiff = async (
   sendProgress('finalizing', null, { diffRows }, false);
   await runQuery(pool, 'CHECKPOINT;', signal);
   sendProgress('done', null, { diffRows }, false);
+
+  return {
+    processedBuckets: completedBuckets,
+    totalBucketsEnqueued,
+    maxDepth: maxDepthProcessed,
+    maxBucketRowsA,
+    maxBucketRowsB,
+  };
 };

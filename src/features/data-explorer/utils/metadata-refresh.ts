@@ -1,6 +1,7 @@
 import { showWarning } from '@components/app-notifications';
 import { dropComparisonResultsTable } from '@controllers/comparison/table-utils';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { invalidateRowCountCacheForDatabase } from '@features/comparison/hooks/row-count-cache';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
 import { DataBaseModel, DBSchema } from '@models/db';
@@ -114,6 +115,10 @@ export async function refreshDatabaseMetadata(
       }
       return { databaseMetadata: newMetadata };
     });
+
+    for (const dbName of dbNames) {
+      invalidateRowCountCacheForDatabase(dbName);
+    }
 
     if (orphanDropFailures.length > 0) {
       showWarning({

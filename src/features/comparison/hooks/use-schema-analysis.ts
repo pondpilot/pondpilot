@@ -9,6 +9,7 @@ import { quote } from '@utils/helpers';
 import * as arrow from 'apache-arrow';
 import { useState, useCallback } from 'react';
 
+import { buildRowCountCacheKey, getCachedRowCount, setCachedRowCount } from './row-count-cache';
 import { detectJoinKeys } from '../utils/key-detection';
 import { buildSourceSQL } from '../utils/sql-generator';
 
@@ -69,10 +70,6 @@ const getSourceSchema = async (
 
 type RowCountSource = 'metadata' | 'query' | null;
 
-const ROW_COUNT_CACHE_TTL_MS = 5 * 60 * 1000;
-
-const rowCountCache = new Map<string, { rowCount: number; timestamp: number }>();
-
 const isFlatFileDataSource = (dataSource: unknown): dataSource is AnyFlatFileDataSource => {
   return Boolean(dataSource) && typeof dataSource === 'object' && 'viewName' in (dataSource as any);
 };
@@ -126,6 +123,16 @@ const getRowCountFromMetadata = async (
       return { rowCount: null, source: null };
     }
 
+    const cacheKey = buildRowCountCacheKey({
+      type: 'table',
+      databaseName: source.databaseName ?? undefined,
+      schemaName: source.schemaName ?? undefined,
+      tableName: source.tableName,
+    });
+    if (cacheKey) {
+      setCachedRowCount(cacheKey, numeric);
+    }
+
     return { rowCount: numeric, source: 'metadata' };
   } catch (err) {
     console.warn('Failed to read parquet metadata row count', err);
@@ -133,35 +140,24 @@ const getRowCountFromMetadata = async (
   }
 };
 
-const getRowCountCacheKey = (source: ComparisonSource): string | null => {
-  if (source.type === 'table') {
-    return JSON.stringify({
-      type: 'table',
-      databaseName: source.databaseName ?? '',
-      schemaName: source.schemaName ?? 'main',
-      tableName: source.tableName,
-    });
-  }
-
-  if (source.type === 'query') {
-    return `query:${source.sql}`;
-  }
-
-  return null;
-};
-
 const getRowCountFromQuery = async (
   pool: AsyncDuckDBConnectionPool,
   source: ComparisonSource,
 ): Promise<{ rowCount: number | null; source: RowCountSource }> => {
-  const cacheKey = getRowCountCacheKey(source);
+  const cacheKey = buildRowCountCacheKey({
+    type: source.type,
+    databaseName: source.type === 'table' ? source.databaseName : undefined,
+    schemaName: source.type === 'table' ? source.schemaName : undefined,
+    tableName: source.type === 'table' ? source.tableName : undefined,
+    sql: source.type === 'query' ? source.sql : undefined,
+  });
   if (!cacheKey) {
     return { rowCount: null, source: null };
   }
 
-  const cached = rowCountCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp <= ROW_COUNT_CACHE_TTL_MS) {
-    return { rowCount: cached.rowCount, source: 'query' };
+  const cached = getCachedRowCount(cacheKey);
+  if (cached !== null) {
+    return { rowCount: cached, source: 'query' };
   }
 
   try {
@@ -180,7 +176,7 @@ const getRowCountFromQuery = async (
       return { rowCount: null, source: null };
     }
 
-    rowCountCache.set(cacheKey, { rowCount: numeric, timestamp: Date.now() });
+    setCachedRowCount(cacheKey, numeric);
     return { rowCount: numeric, source: 'query' };
   } catch (err) {
     console.warn('Failed to compute row count via query', err);
