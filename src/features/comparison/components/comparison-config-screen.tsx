@@ -32,24 +32,13 @@ import { getDragOverStyle } from '../constants/dnd-styles';
 import { useComparisonSourceSelection } from '../hooks/use-comparison-source-selection';
 import { useDatasetDropTarget } from '../hooks/use-dataset-drop-target';
 import { useFilterValidation } from '../hooks/use-filter-validation';
+import { areSourcesEqual, createSourceKey } from '../utils/source-comparison';
 import { getStatusAccentColor, getStatusSurfaceColor, getThemeColorValue } from '../utils/theme';
 
 // Constants
 const SCROLL_COLLAPSE_THRESHOLD = 100;
 const SCROLL_EXPAND_THRESHOLD = 40;
 const MIN_SCROLLABLE_DISTANCE = 160;
-
-const createSourceKey = (sourceA: ComparisonSource, sourceB: ComparisonSource): string => {
-  const keyA =
-    sourceA.type === 'table'
-      ? `table:${sourceA.databaseName}:${sourceA.schemaName}:${sourceA.tableName}`
-      : `query:${sourceA.alias}`;
-  const keyB =
-    sourceB.type === 'table'
-      ? `table:${sourceB.databaseName}:${sourceB.schemaName}:${sourceB.tableName}`
-      : `query:${sourceB.alias}`;
-  return `${keyA}|${keyB}`;
-};
 
 interface ComparisonConfigScreenProps {
   tabId: TabId;
@@ -142,6 +131,11 @@ export const ComparisonConfigScreen = ({
     }
     return [{ source: config.sourceB, label: 'Source B' }];
   }, [config?.filterMode, config?.sourceB]);
+
+  const duplicateSourceSelected = useMemo(
+    () => areSourcesEqual(config?.sourceA ?? null, config?.sourceB ?? null),
+    [config?.sourceA, config?.sourceB],
+  );
 
   // Validate filters
   const commonFilterValidation = useFilterValidation(
@@ -401,13 +395,23 @@ export const ComparisonConfigScreen = ({
           // Collapsed state - single compact row
           <Group justify="space-between" align="center" gap="md" wrap="nowrap">
             <Group gap="xs" style={{ flex: 1, minWidth: 0 }}>
-              <Text size="sm" fw={500} style={{ whiteSpace: 'nowrap' }}>
+              <Text
+                size="sm"
+                fw={500}
+                style={{ whiteSpace: 'nowrap' }}
+                c={duplicateSourceSelected ? 'red' : undefined}
+              >
                 {getSourceDisplayName(config?.sourceA || null)}
               </Text>
-              <Text size="sm" c="dimmed">
+              <Text size="sm" c={duplicateSourceSelected ? 'red' : 'dimmed'}>
                 ⟷
               </Text>
-              <Text size="sm" fw={500} style={{ whiteSpace: 'nowrap' }}>
+              <Text
+                size="sm"
+                fw={500}
+                style={{ whiteSpace: 'nowrap' }}
+                c={duplicateSourceSelected ? 'red' : undefined}
+              >
                 {getSourceDisplayName(config?.sourceB || null)}
               </Text>
             </Group>
@@ -437,6 +441,7 @@ export const ComparisonConfigScreen = ({
                   leftSection={<IconTable size={16} />}
                   onClick={selectSourceA}
                   {...sourceADropHandlers}
+                  color={duplicateSourceSelected ? 'red' : undefined}
                   style={isSourceADragOver ? getDragOverStyle(theme, colorScheme) : undefined}
                   fullWidth
                 >
@@ -454,6 +459,7 @@ export const ComparisonConfigScreen = ({
                   leftSection={<IconTable size={16} />}
                   onClick={selectSourceB}
                   {...sourceBDropHandlers}
+                  color={duplicateSourceSelected ? 'red' : undefined}
                   style={isSourceBDragOver ? getDragOverStyle(theme, colorScheme) : undefined}
                   fullWidth
                 >
@@ -461,6 +467,18 @@ export const ComparisonConfigScreen = ({
                 </Button>
               </Stack>
             </Group>
+            {duplicateSourceSelected && (
+              <Alert
+                mt="md"
+                variant="light"
+                color="background-warning"
+                icon={<IconAlertCircle size={16} className={ICON_CLASSES.warning} />}
+                styles={getAlertStyles('warning')}
+              >
+                Source A and Source B reference the same dataset. Select a different dataset for a
+                meaningful comparison.
+              </Alert>
+            )}
           </>
         )}
       </Paper>

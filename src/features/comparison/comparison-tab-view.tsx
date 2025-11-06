@@ -3,13 +3,14 @@ import {
   updateComparisonConfig,
   setComparisonExecutionTime,
   setComparisonResultsTable,
+  updateSchemaComparison,
 } from '@controllers/tab/comparison-tab-controller';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { Stack, LoadingOverlay, Alert, Text, Center } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { TabId, ComparisonConfig } from '@models/tab';
 import { IconAlertCircle } from '@tabler/icons-react';
-import { memo, useCallback, useRef } from 'react';
+import { memo, useCallback, useRef, useEffect } from 'react';
 
 import { AnimatedPollyDuck } from './components/animated-polly-duck';
 import { ComparisonConfigScreen } from './components/comparison-config-screen';
@@ -178,6 +179,37 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
       },
     });
   }, [finishEarlyComparison, comparisonId]);
+
+  // Automatically trigger schema analysis when both sources are configured but schema is not analyzed
+  useEffect(() => {
+    if (
+      comparisonConfig?.sourceA &&
+      comparisonConfig?.sourceB &&
+      !schemaComparison &&
+      !isAnalyzing &&
+      !isExecuting &&
+      !progressActive &&
+      comparisonId
+    ) {
+      analyzeSchemas(comparisonConfig.sourceA, comparisonConfig.sourceB, comparisonId).then(
+        (result) => {
+          if (result) {
+            updateSchemaComparison(tabId, result);
+          }
+        },
+      );
+    }
+  }, [
+    comparisonConfig?.sourceA,
+    comparisonConfig?.sourceB,
+    schemaComparison,
+    isAnalyzing,
+    isExecuting,
+    progressActive,
+    comparisonId,
+    tabId,
+    analyzeSchemas,
+  ]);
 
   const canRun =
     !!comparisonConfig?.sourceA &&

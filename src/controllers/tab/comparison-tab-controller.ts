@@ -11,6 +11,7 @@ import {
   ComparisonId,
   ComparisonConfig,
   SchemaComparisonResult,
+  ComparisonSource,
 } from '@models/comparison';
 import { TAB_TABLE_NAME } from '@models/persisted-store';
 import { ComparisonTab, TabId } from '@models/tab';
@@ -306,4 +307,63 @@ export const setComparisonResultsTable = (
   if (iDb) {
     iDb.put(TAB_TABLE_NAME, updatedTab, tabId);
   }
+};
+
+type ActiveComparisonContext = {
+  tab: ComparisonTab;
+  comparison: Comparison;
+};
+
+const getActiveComparisonContext = (): ActiveComparisonContext | null => {
+  const state = useAppStore.getState();
+  const { activeTabId } = state;
+  if (!activeTabId) {
+    return null;
+  }
+
+  const tab = state.tabs.get(activeTabId);
+  if (!tab || tab.type !== 'comparison') {
+    return null;
+  }
+
+  const comparison = state.comparisons.get(tab.comparisonId);
+  if (!comparison) {
+    return null;
+  }
+
+  return { tab, comparison };
+};
+
+export const hasActiveComparisonTab = (): boolean => getActiveComparisonContext() !== null;
+
+export const setActiveComparisonSource = (target: 'A' | 'B', source: ComparisonSource): boolean => {
+  const context = getActiveComparisonContext();
+  if (!context) {
+    return false;
+  }
+
+  const { tab } = context;
+
+  updateComparisonConfig(tab.id, target === 'A' ? { sourceA: source } : { sourceB: source });
+  updateSchemaComparison(tab.id, null);
+  setComparisonViewingResults(tab.id, false);
+
+  return true;
+};
+
+export const createComparisonWithInitialSource = (source: ComparisonSource): ComparisonTab => {
+  const tab = createComparisonTab({ setActive: true });
+  updateComparisonConfig(tab.id, { sourceA: source, sourceB: null });
+  updateSchemaComparison(tab.id, null);
+  return tab;
+};
+
+export const createComparisonWithSources = (
+  sourceA: ComparisonSource,
+  sourceB: ComparisonSource,
+): ComparisonTab => {
+  const tab = createComparisonTab({ setActive: true });
+  updateComparisonConfig(tab.id, { sourceA, sourceB });
+  updateSchemaComparison(tab.id, null);
+  return tab;
 };

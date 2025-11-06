@@ -1,6 +1,9 @@
+import { TreeNodeData } from '@components/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
+import { createComparisonWithSources } from '@controllers/tab/comparison-tab-controller';
 import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { ComparisonSource } from '@models/comparison';
 import { AnyFlatFileDataSource } from '@models/data-source';
 import { LocalEntryId, supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { memo, useMemo, useCallback } from 'react';
@@ -134,13 +137,6 @@ export const DataExplorer = memo(() => {
       flatFileSources,
     });
 
-  // Use the common explorer context hook
-  const contextResult = useExplorerContext<DataExplorerNodeTypeMap>({
-    nodes: unifiedTree,
-    handleDeleteSelected,
-    getShowSchemaHandler: getShowSchemaHandlerForNodes,
-  });
-
   const flatFileSourceByEntryId = useMemo(() => {
     const map = new Map<LocalEntryId, AnyFlatFileDataSource>();
     flatFileSourcesValues.forEach((source) => {
@@ -206,6 +202,62 @@ export const DataExplorer = memo(() => {
     },
     [allDataSources, flatFileSourceByEntryId, sheetSourceByKey, nodeMap],
   );
+
+  const handleCompareDatasets = useCallback(
+    (sourceA: ComparisonSource, sourceB: ComparisonSource) => {
+      createComparisonWithSources(sourceA, sourceB);
+    },
+    [],
+  );
+
+  const getAdditionalMultiSelectMenu = useCallback(
+    (selectedNodes: TreeNodeData<DataExplorerNodeTypeMap>[]) => {
+      // Filter to only dataset-level nodes (file, sheet, object) - exclude schema/column children
+      const datasetNodes = selectedNodes.filter((node) => {
+        const nodeType = anyNodeIdToNodeTypeMap.get(node.value as string);
+        return nodeType === 'file' || nodeType === 'sheet' || nodeType === 'object';
+      });
+
+      if (datasetNodes.length !== 2) {
+        return null;
+      }
+
+      const sources: ComparisonSource[] = [];
+      for (const node of datasetNodes) {
+        const source = getComparisonSourceForNode(node.value as string);
+        if (!source) {
+          return null;
+        }
+        sources.push(source);
+      }
+
+      if (sources.length !== 2) {
+        return null;
+      }
+
+      return [
+        {
+          children: [
+            {
+              label: 'Compare',
+              onClick: () => {
+                handleCompareDatasets(sources[0], sources[1]);
+              },
+            },
+          ],
+        },
+      ];
+    },
+    [anyNodeIdToNodeTypeMap, getComparisonSourceForNode, handleCompareDatasets],
+  );
+
+  // Use the common explorer context hook
+  const contextResult = useExplorerContext<DataExplorerNodeTypeMap>({
+    nodes: unifiedTree,
+    handleDeleteSelected,
+    getShowSchemaHandler: getShowSchemaHandlerForNodes,
+    getAdditionalMultiSelectMenu,
+  });
 
   // Create the enhanced extra data
   const enhancedExtraData: DataExplorerContext = {

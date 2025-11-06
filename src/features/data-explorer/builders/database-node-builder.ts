@@ -27,6 +27,7 @@ import { copyToClipboard } from '@utils/clipboard';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
+import { buildComparisonMenuItems } from '../utils/comparison-menu-items';
 import { refreshDatabaseMetadata } from '../utils/metadata-refresh';
 
 interface BuilderContext {
@@ -309,6 +310,12 @@ export function buildObjectTreeNode({
               });
             },
           },
+          ...buildComparisonMenuItems(() => ({
+            type: 'table',
+            tableName: objectName,
+            schemaName,
+            databaseName: dbName,
+          })),
           ...devMenuItems,
         ],
       },
