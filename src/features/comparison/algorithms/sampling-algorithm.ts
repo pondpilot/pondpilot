@@ -181,6 +181,27 @@ export class SamplingAlgorithm implements ComparisonAlgorithm {
   }
 
   /**
+   * Builds the SQL used by the sampling algorithm without executing it.
+   * Useful for previews/editing in the SQL editor.
+   */
+  buildPreviewSQL(config: ComparisonConfig, schemaComparison: SchemaComparisonResult): string {
+    const sampleParams = this.calculateSampleSize(schemaComparison);
+    const previewResultTable = '__pondpilot_sampling_preview_results';
+    const previewKeysTable = `${previewResultTable}_keys`;
+
+    const stage1SQL = this.generateSampleKeysSQL(config, previewKeysTable, sampleParams.sampleSize);
+    const stage2SQL = this.generateComparisonSQL(
+      config,
+      schemaComparison,
+      previewResultTable,
+      previewKeysTable,
+      sampleParams.sampleSize,
+    );
+
+    return `${stage1SQL};\n\n${stage2SQL};`;
+  }
+
+  /**
    * Stage 1: Sample from source A and materialize only the join keys
    *
    * Smart materialization: We only materialize the join keys (very small table),

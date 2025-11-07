@@ -1,3 +1,6 @@
+import { showError, showSuccess } from '@components/app-notifications';
+import { createSQLScript } from '@controllers/sql-script';
+import { getOrCreateTabFromScript } from '@controllers/tab';
 import { updateSchemaComparison } from '@controllers/tab/comparison-tab-controller';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { useAppTheme } from '@hooks/use-app-theme';
@@ -22,17 +25,25 @@ import {
 } from '@mantine/core';
 import type { ComparisonId } from '@models/comparison';
 import { ComparisonConfig, ComparisonSource, SchemaComparisonResult, TabId } from '@models/tab';
-import { IconAlertCircle, IconCheck, IconInfoCircle, IconTable } from '@tabler/icons-react';
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconCode,
+  IconInfoCircle,
+  IconTable,
+} from '@tabler/icons-react';
 import { useCallback, useEffect, useRef, useState, RefObject, useMemo } from 'react';
 
 import { ColumnMapper } from './column-mapper';
 import { JoinKeyMapper } from './join-key-mapper';
+import { SamplingAlgorithm } from '../algorithms/sampling-algorithm';
 import { ICON_CLASSES } from '../constants/color-classes';
 import { getDragOverStyle } from '../constants/dnd-styles';
 import { useComparisonSourceSelection } from '../hooks/use-comparison-source-selection';
 import { useDatasetDropTarget } from '../hooks/use-dataset-drop-target';
 import { useFilterValidation } from '../hooks/use-filter-validation';
 import { areSourcesEqual, createSourceKey } from '../utils/source-comparison';
+import { generateComparisonSQL } from '../utils/sql-generator';
 import { getStatusAccentColor, getStatusSurfaceColor, getThemeColorValue } from '../utils/theme';
 
 // Constants
@@ -276,14 +287,50 @@ export const ComparisonConfigScreen = ({
   );
 
   // Helper to format source display name
-  const getSourceDisplayName = (source: ComparisonSource | null): string => {
+  const getSourceDisplayName = useCallback((source: ComparisonSource | null): string => {
     if (!source) return 'Not selected';
     if (source.type === 'table') {
       const parts = [source.databaseName, source.schemaName, source.tableName].filter(Boolean);
       return parts.join('.');
     }
     return source.alias;
-  };
+  }, []);
+
+  const handleOpenSqlInEditor = useCallback(() => {
+    if (!config || !config.sourceA || !config.sourceB || !schemaComparison) {
+      showError({
+        title: 'SQL unavailable',
+        message: 'Select both sources and analyze schemas before opening the query in the editor.',
+      });
+      return;
+    }
+
+    try {
+      let sql: string;
+      if (config.algorithm === 'sampling') {
+        const sampler = new SamplingAlgorithm();
+        sql = sampler.buildPreviewSQL(config, schemaComparison);
+      } else {
+        sql = generateComparisonSQL(config, schemaComparison, { includeOrderBy: true });
+      }
+      const scriptLabel = `${getSourceDisplayName(config.sourceA)} vs ${getSourceDisplayName(
+        config.sourceB,
+      )} comparison`;
+      const scriptName = scriptLabel.trim() || 'comparison-sql';
+      const script = createSQLScript(scriptName, sql);
+      getOrCreateTabFromScript(script, true);
+      showSuccess({
+        title: 'Query opened in editor',
+        message: 'Review or customize the generated comparison SQL in the new tab.',
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      showError({
+        title: 'Failed to build SQL',
+        message,
+      });
+    }
+  }, [config, schemaComparison, getSourceDisplayName]);
 
   // Auto-trigger schema analysis when both sources are selected
   useEffect(() => {
@@ -381,6 +428,32 @@ export const ComparisonConfigScreen = ({
   const hasSchemaAnalysis = !!schemaComparison;
   const hasJoinKeys = (config?.joinColumns || []).length > 0;
   const hasTypeMismatches = schemaComparison?.commonColumns.some((col) => !col.typesMatch) || false;
+  const isSqlPreviewAlgorithm = config?.algorithm === 'join' || config?.algorithm === 'sampling';
+  const canGenerateSqlScript = hasValidConfig && hasSchemaAnalysis && hasJoinKeys;
+  const shouldShowOpenSqlButton = isSqlPreviewAlgorithm;
+  const canOpenSqlButton = shouldShowOpenSqlButton && canGenerateSqlScript;
+
+  const renderPrimaryActions = (buttonSize: 'xs' | 'sm') => (
+    <Group gap="xs" wrap="nowrap">
+      {shouldShowOpenSqlButton ? (
+        <Tooltip label="Open SQL in editor" withArrow>
+          <ActionIcon
+            variant="subtle"
+            color="icon-accent"
+            size={buttonSize === 'xs' ? 'sm' : 'md'}
+            aria-label="Open SQL in editor"
+            disabled={!canOpenSqlButton}
+            onClick={handleOpenSqlInEditor}
+          >
+            <IconCode size={14} />
+          </ActionIcon>
+        </Tooltip>
+      ) : null}
+      <Button onClick={onRun} disabled={!canRun || isRunning} loading={isRunning} size={buttonSize}>
+        Run Comparison
+      </Button>
+    </Group>
+  );
 
   return (
     <div>
@@ -432,9 +505,7 @@ export const ComparisonConfigScreen = ({
                 {getSourceDisplayName(config?.sourceB || null)}
               </Text>
             </Group>
-            <Button onClick={onRun} disabled={!canRun || isRunning} loading={isRunning} size="xs">
-              Run Comparison
-            </Button>
+            {renderPrimaryActions('xs')}
           </Group>
         ) : (
           // Expanded state - full UI
@@ -443,9 +514,7 @@ export const ComparisonConfigScreen = ({
               <Text size="sm" fw={600}>
                 Data Sources
               </Text>
-              <Button onClick={onRun} disabled={!canRun || isRunning} loading={isRunning} size="sm">
-                Run Comparison
-              </Button>
+              {renderPrimaryActions('sm')}
             </Group>
             <Group grow>
               {/* Source A */}
