@@ -7,11 +7,23 @@ import { IconCheck, IconX } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import rehypeSanitize from 'rehype-sanitize';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+import type { Options as RehypeSanitizeOptions } from 'rehype-sanitize';
 
 import { ChatVisualization } from './chat-visualization';
 import { MessageActions } from './message-actions';
 import { SqlQueryDisplay } from './sql-query-display';
+
+const markdownSanitizeSchema: RehypeSanitizeOptions = {
+  ...defaultSchema,
+  attributes: {
+    ...(defaultSchema.attributes || {}),
+    code: [
+      ...(defaultSchema.attributes?.code || []),
+      ['className', /^language-[\w-]+$/],
+    ],
+  },
+};
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -155,14 +167,14 @@ export const ChatMessage = ({
                   {/* Message content with markdown support */}
                   <div className="prose dark:prose-invert max-w-none prose-sm prose-p:my-2 prose-pre:my-3 leading-normal flex-1 text-textPrimary-light dark:text-textPrimary-dark">
                     <ReactMarkdown
-                      rehypePlugins={[rehypeSanitize]}
+                      rehypePlugins={[[rehypeSanitize, markdownSanitizeSchema]]}
                       components={{
-                        code: ({ className, children, ...props }) => {
-                          const match = /language-(\w+)/.exec(className || '');
+                        code: ({ className = '', children, ...props }) => {
+                          const match = /language-(\w+)/.exec(className);
                           const language = match ? match[1] : '';
-                          const inline = !className || !className.includes('language-');
+                          const isInline = !className.includes('language-');
 
-                          if (!inline && language === 'sql' && !message.query) {
+                          if (!isInline && language === 'sql' && !message.query) {
                             // SQL code block without execution
                             return (
                               <div className="my-2">
@@ -173,10 +185,10 @@ export const ChatMessage = ({
                             );
                           }
 
-                          return inline ? (
+                          return isInline ? (
                             <Code {...props}>{children}</Code>
                           ) : (
-                            <Code block {...props}>
+                            <Code block className={className} {...props}>
                               {children}
                             </Code>
                           );

@@ -1,11 +1,12 @@
+import { aiChatController } from '@controllers/ai-chat';
 import { createSQLScript } from '@controllers/sql-script';
-import { getOrCreateTabFromScript, createComparisonTab } from '@controllers/tab';
+import { getOrCreateTabFromScript, getOrCreateTabFromConversation, createComparisonTab } from '@controllers/tab';
 import { DataExplorer } from '@features/data-explorer';
 import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import { ScriptExplorer } from '@features/script-explorer';
 import { ActionIcon, Group, Skeleton, Stack, Text, Box } from '@mantine/core';
 import { useAppStore } from '@store/app-store';
-import { IconPlus, IconChevronDown, IconScale } from '@tabler/icons-react';
+import { IconPlus, IconChevronDown, IconScale, IconMessageCircle } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -339,6 +340,22 @@ export const AccordionContent = () => {
                 aria-label="Create comparison tab"
               >
                 <IconScale />
+              </ActionIcon>
+              <ActionIcon
+                data-testid={setDataTestId('create-ai-chat-button')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newConversation = aiChatController.createConversation();
+                  getOrCreateTabFromConversation(newConversation.id, true);
+                  if (!sectionStates.queries) {
+                    setSectionStates((prev) => ({ ...prev, queries: true }));
+                  }
+                }}
+                size={16}
+                title="New AI Chat"
+                aria-label="Create new AI chat"
+              >
+                <IconMessageCircle />
               </ActionIcon>
             </Group>
           )}

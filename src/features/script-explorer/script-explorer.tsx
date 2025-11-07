@@ -1,12 +1,20 @@
 import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
+import { aiChatController } from '@controllers/ai-chat';
+import {
+  deletePersistedConversation,
+  updatePersistedConversation,
+} from '@controllers/ai-chat/persist';
 import { deleteComparisons, renameComparison } from '@controllers/comparison';
 import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import {
   deleteTabByScriptId,
+  deleteTabByConversationId,
   findTabFromScript,
+  findTabFromConversation,
   getOrCreateTabFromScript,
+  getOrCreateTabFromConversation,
   setActiveTabId,
   setPreviewTabId,
   deleteTab,
@@ -15,15 +23,18 @@ import {
   findTabFromComparison,
   getOrCreateTabFromComparison,
 } from '@controllers/tab/comparison-tab-controller';
+import { useAIChatSubscription } from '@features/ai-chat/hooks/use-ai-chat-subscription';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { RenderTreeNodePayload as MantineRenderTreeNodePayload } from '@mantine/core';
+import { showNotification } from '@mantine/notifications';
+import { ChatConversationId } from '@models/ai-chat';
 import { ComparisonId } from '@models/comparison';
 import { SQLScriptId } from '@models/sql-script';
 import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
 import { exportSingleScript } from '@utils/script-export';
 import { createShareableScriptUrl } from '@utils/script-sharing';
-import { memo, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback, useState, useEffect } from 'react';
 
 import { ScriptExplorerContext, ScriptNodeTypeToIdTypeMap } from './model';
 import { ScriptExplorerNode } from './script-explorer-node';
@@ -42,6 +53,15 @@ const isScriptNode = (
   node: TreeNodeData<ScriptNodeTypeToIdTypeMap>,
 ): node is TreeNodeData<ScriptNodeTypeToIdTypeMap> & { nodeType: 'script'; value: SQLScriptId } => {
   return node.nodeType === 'script';
+};
+
+const isAIChatNode = (
+  node: TreeNodeData<ScriptNodeTypeToIdTypeMap>,
+): node is TreeNodeData<ScriptNodeTypeToIdTypeMap> & {
+  nodeType: 'ai-chat';
+  value: ChatConversationId;
+} => {
+  return node.nodeType === 'ai-chat';
 };
 
 // We could have used closure, but this is possibly slightly more performant
@@ -68,6 +88,17 @@ const onNodeClick = (
     return;
   }
 
+  if (isAIChatNode(node)) {
+    const existingTab = findTabFromConversation(node.value);
+    if (existingTab) {
+      setActiveTabId(existingTab.id);
+      return;
+    }
+    const tab = getOrCreateTabFromConversation(node.value, true);
+    setPreviewTabId(tab.id);
+    return;
+  }
+
   if (isScriptNode(node)) {
     // For script tabs
     // Check if the tab is already open
@@ -91,6 +122,8 @@ const onCloseItemClick = (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>): void =
     if (tab) {
       deleteTab([tab.id]);
     }
+  } else if (isAIChatNode(node)) {
+    deleteTabByConversationId(node.value);
   } else if (isScriptNode(node)) {
     deleteTabByScriptId(node.value);
   }
@@ -130,7 +163,7 @@ const validateRename = (
 };
 
 const prepareRenameValue = (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>): string => {
-  if (node.nodeType === 'comparison') {
+  if (node.nodeType === 'comparison' || node.nodeType === 'ai-chat') {
     return node.label;
   }
   // Strip the .sql extension for scripts
@@ -169,13 +202,44 @@ export const ScriptExplorer = memo(() => {
   /**
    * Global state
    */
+  // Subscribe to AI chat changes for live updates
+  useAIChatSubscription();
+
   const sqlScripts = useSqlScriptNameMap();
   const comparisons = useComparisonsList();
   const pool = useInitializedDuckDBConnectionPool();
 
+  // Local state to store conversations
+  const [conversations, setConversations] = useState(() => aiChatController.getAllConversations());
+
+  // Update when conversations change
+  useEffect(() => {
+    const updateConversations = () => {
+      setConversations(aiChatController.getAllConversations());
+    };
+
+    // Initial load
+    updateConversations();
+
+    // Subscribe to AI chat controller changes (includes cross-tab updates)
+    const unsubscribeController = aiChatController.subscribe(updateConversations);
+
+    // Also update when app state changes
+    const unsubscribeStore = useAppStore.subscribe(() => updateConversations());
+
+    return () => {
+      unsubscribeController();
+      unsubscribeStore();
+    };
+  }, []);
+
   const hasActiveElement = useAppStore((state) => {
     const activeTab = state.activeTabId && state.tabs.get(state.activeTabId);
-    return activeTab?.type === 'script' || activeTab?.type === 'comparison';
+    return (
+      activeTab?.type === 'script' ||
+      activeTab?.type === 'comparison' ||
+      activeTab?.type === 'ai-chat'
+    );
   });
 
   /**
@@ -197,6 +261,22 @@ export const ScriptExplorer = memo(() => {
     [comparisons],
   );
 
+  const conversationsArray = useMemo(
+    () =>
+      conversations
+        .map((conv) => {
+          const lastMessage = conv.messages[conv.messages.length - 1];
+          const title =
+            conv.title ||
+            (lastMessage?.role === 'user'
+              ? lastMessage.content.slice(0, 50) + (lastMessage.content.length > 50 ? '...' : '')
+              : 'New Chat');
+          return [conv.id, title] as const;
+        })
+        .sort(([, leftName], [, rightName]) => leftName.localeCompare(rightName)),
+    [conversations],
+  );
+
   // Get all names for validation (excluding current node's name in validateRename)
   const getAllNamesExcept = useMemo(
     () => (nodeId: string) => {
@@ -204,9 +284,12 @@ export const ScriptExplorer = memo(() => {
       const comparisonNames = comparisonsArray
         .filter(([id]) => id !== nodeId)
         .map(([, name]) => name);
-      return [...scriptNames, ...comparisonNames];
+      const chatNames = conversationsArray
+        .filter(([id]) => id !== nodeId)
+        .map(([, title]) => title);
+      return [...scriptNames, ...comparisonNames, ...chatNames];
     },
-    [scriptsArray, comparisonsArray],
+    [scriptsArray, comparisonsArray, conversationsArray],
   );
 
   const scriptContextMenu: TreeNodeMenuType<TreeNodeData<ScriptNodeTypeToIdTypeMap>> = useMemo(
@@ -248,16 +331,43 @@ export const ScriptExplorer = memo(() => {
   );
 
   const handleNodeDelete = useCallback(
-    (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>) => {
+    async (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>) => {
       if (isComparisonNode(node)) {
-        deleteComparisons([node.value], pool).catch(() => {
+        await deleteComparisons([node.value], pool).catch(() => {
           // Ignored: error handling happens via global notifications
+        });
+      } else if (isAIChatNode(node)) {
+        // Close the tab if it's open
+        deleteTabByConversationId(node.value);
+        // Delete from controller
+        aiChatController.deleteConversation(node.value);
+        // Delete from persistent storage
+        await deletePersistedConversation(node.value);
+        showNotification({
+          message: 'Chat conversation deleted',
+          color: 'green',
         });
       } else if (isScriptNode(node)) {
         deleteSqlScripts([node.value]);
       }
     },
     [pool],
+  );
+
+  const chatContextMenu: TreeNodeMenuType<TreeNodeData<ScriptNodeTypeToIdTypeMap>> = useMemo(
+    () => [
+      {
+        children: [
+          {
+            label: 'Copy title',
+            onClick: (node) => {
+              copyToClipboard(node.label, { showNotification: true });
+            },
+          },
+        ],
+      },
+    ],
+    [],
   );
 
   const comparisonContextMenu: TreeNodeMenuType<TreeNodeData<ScriptNodeTypeToIdTypeMap>> = useMemo(
@@ -296,6 +406,27 @@ export const ScriptExplorer = memo(() => {
       onRenameSubmit: (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>, newName: string) => {
         if (isComparisonNode(node)) {
           renameComparison(node.value, newName);
+        }
+      },
+      prepareRenameValue,
+    }),
+    [getAllNamesExcept],
+  );
+
+  const chatRenameCallbacks = useMemo(
+    () => ({
+      validateRename: createValidateRename(getAllNamesExcept),
+      onRenameSubmit: async (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>, newName: string) => {
+        if (isAIChatNode(node)) {
+          await updatePersistedConversation(node.value, { title: newName });
+          // Update the tab title if it's open
+          const tab = findTabFromConversation(node.value);
+          if (tab) {
+            const { tabs } = useAppStore.getState();
+            const newTabs = new Map(tabs);
+            newTabs.set(tab.id, { ...tab });
+            useAppStore.setState({ tabs: newTabs });
+          }
         }
       },
       prepareRenameValue,
@@ -347,6 +478,28 @@ export const ScriptExplorer = memo(() => {
     [comparisonsArray, comparisonRenameCallbacks, comparisonContextMenu, handleNodeDelete],
   );
 
+  const chatTree: TreeNodeData<ScriptNodeTypeToIdTypeMap>[] = useMemo(
+    () =>
+      conversationsArray.map(
+        ([conversationId, conversationTitle]) =>
+          ({
+            nodeType: 'ai-chat',
+            value: conversationId,
+            label: conversationTitle,
+            iconType: 'ai-message',
+            isDisabled: false,
+            isSelectable: true,
+            onNodeClick,
+            renameCallbacks: chatRenameCallbacks,
+            onDelete: handleNodeDelete,
+            onCloseItemClick,
+            contextMenu: chatContextMenu,
+            // no children
+          }) as TreeNodeData<ScriptNodeTypeToIdTypeMap>,
+      ),
+    [conversationsArray, chatRenameCallbacks, chatContextMenu, handleNodeDelete],
+  );
+
   const collator = useMemo(
     () => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }),
     [],
@@ -360,11 +513,11 @@ export const ScriptExplorer = memo(() => {
       return node.label.toLowerCase();
     };
 
-    return [...sqlScriptTree, ...comparisonTree].sort((a, b) => {
+    return [...sqlScriptTree, ...comparisonTree, ...chatTree].sort((a, b) => {
       const order = collator.compare(getSortKey(a), getSortKey(b));
       return order !== 0 ? order : collator.compare(a.label.toLowerCase(), b.label.toLowerCase());
     });
-  }, [sqlScriptTree, comparisonTree, collator]);
+  }, [sqlScriptTree, comparisonTree, chatTree, collator]);
 
   // Create Sets for efficient O(1) lookup instead of O(n) array search
   const scriptIdsSet = useMemo(() => new Set(scriptsArray.map(([id]) => id)), [scriptsArray]);
@@ -372,12 +525,17 @@ export const ScriptExplorer = memo(() => {
     () => new Set(comparisonsArray.map(([id]) => id)),
     [comparisonsArray],
   );
+  const chatIdsSet = useMemo(
+    () => new Set(conversationsArray.map(([id]) => id)),
+    [conversationsArray],
+  );
 
   // Memoize the delete handler to prevent unnecessary re-renders
   const handleDeleteSelected = useMemo(
-    () => (ids: (SQLScriptId | ComparisonId)[]) => {
+    () => async (ids: (SQLScriptId | ComparisonId | ChatConversationId)[]) => {
       const scriptIds: SQLScriptId[] = [];
       const comparisonIds: ComparisonId[] = [];
+      const chatIds: ChatConversationId[] = [];
 
       // Use Set lookups for O(1) performance instead of O(n) array.some()
       ids.forEach((id) => {
@@ -385,6 +543,8 @@ export const ScriptExplorer = memo(() => {
           scriptIds.push(id as SQLScriptId);
         } else if (comparisonIdsSet.has(id as ComparisonId)) {
           comparisonIds.push(id as ComparisonId);
+        } else if (chatIdsSet.has(id as ChatConversationId)) {
+          chatIds.push(id as ChatConversationId);
         }
       });
 
@@ -396,8 +556,17 @@ export const ScriptExplorer = memo(() => {
           // Ignored: error handling happens via global notifications
         });
       }
+      if (chatIds.length > 0) {
+        for (const id of chatIds) {
+          await deletePersistedConversation(id);
+        }
+        showNotification({
+          message: `Deleted ${chatIds.length} conversation${chatIds.length > 1 ? 's' : ''}`,
+          color: 'green',
+        });
+      }
     },
-    [scriptIdsSet, comparisonIdsSet, pool],
+    [scriptIdsSet, comparisonIdsSet, chatIdsSet, pool],
   );
 
   // Use the common explorer context hook

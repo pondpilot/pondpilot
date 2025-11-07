@@ -2,7 +2,7 @@ import { Select, SelectProps } from '@mantine/core';
 import { getAIConfig } from '@utils/ai-config';
 import { navigateToSettings } from '@utils/route-navigation';
 import { cn } from '@utils/ui/styles';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import {
   getAvailableModels,
@@ -30,11 +30,36 @@ export const ModelSelector = ({
   'data-testid': dataTestId = 'ai-model-selector',
 }: ModelSelectorProps) => {
   const config = getAIConfig();
-  const apiKeys = config?.apiKeys || {};
   const currentModel = config?.model || '';
 
   // Build available models
   const { selectData, hasProviders } = useMemo(() => getAvailableModels(config), [config]);
+  const selectDataSafe = ensureValidSelectData(selectData);
+  const initialSelectValue =
+    getModelDisplayValue(currentModel, selectDataSafe) || selectDataSafe[0]?.value || 'none';
+  const [selectedModel, setSelectedModel] = useState(initialSelectValue);
+
+  useEffect(() => {
+    if (!hasProviders) {
+      return;
+    }
+
+    const fallbackValue = selectDataSafe[0]?.value || 'none';
+    const nextValue = getModelDisplayValue(currentModel, selectDataSafe) || fallbackValue;
+
+    setSelectedModel((prev) => {
+      const hasOption = selectDataSafe.some((option) => option.value === prev);
+      if (!hasOption) {
+        return nextValue;
+      }
+
+      if (currentModel && currentModel !== prev) {
+        return currentModel;
+      }
+
+      return prev;
+    });
+  }, [currentModel, hasProviders, selectDataSafe]);
 
   // If no providers are logged in, show a button-like select that navigates to settings
   if (!hasProviders) {
@@ -60,18 +85,18 @@ export const ModelSelector = ({
     );
   }
 
-  // Find the current model's display name
-  const displayValue = getModelDisplayValue(currentModel, selectData);
-
-  // Ensure data is always a valid array
-  const selectDataSafe = ensureValidSelectData(selectData);
-
   return (
     <Select
       data={selectDataSafe}
-      value={displayValue || 'none'}
+      value={selectedModel}
       onChange={(value) => {
-        if (value && value !== 'none') {
+        if (!value) {
+          return;
+        }
+
+        setSelectedModel(value);
+
+        if (value !== 'none') {
           onModelChange(value);
         }
       }}

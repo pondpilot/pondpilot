@@ -6,5 +6,6 @@ export function getBrowserSupportedFeatures(): BrowserSupportedFeatures {
   return {
     isFileAccessApiSupported: 'showDirectoryPicker' in window && 'showOpenFilePicker' in window,
     isMobileDevice: isMobileDevice(),
+    isTabBlocked: false, // Default to false - can be detected based on browser/context if needed
   };
 }

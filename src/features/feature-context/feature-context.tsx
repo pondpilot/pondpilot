@@ -63,6 +63,7 @@ export const FeatureProvider: React.FC<{ children: React.ReactNode }> = ({ child
       // Other features
       isMobileDevice: browserFeatures.isMobileDevice,
       isOPFSSupported,
+      isTabBlocked: browserFeatures.isTabBlocked,
     };
 
     return features;

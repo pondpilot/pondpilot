@@ -71,6 +71,7 @@
     "react-router-dom": "^6.23.1",
     "react-vega": "^7.6.0",
     "reactflow": "^11.11.4",
+    "rehype-sanitize": "^6.0.0",
     "sql-formatter": "^15.6.6",
     "tailwind-merge": "^2.5.2",
     "uuid": "^11.1.0",
