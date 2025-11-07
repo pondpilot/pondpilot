@@ -233,10 +233,21 @@ ${request.prompt}`;
         ],
       };
 
-      // Use correct token parameter based on model type
-      if (this.config.reasoning) {
+      // Use correct token parameter based on provider and model type
+      // OpenAI now requires max_completion_tokens for all models (GPT-5, GPT-4.1, etc.)
+      if (config.providerName === 'OpenAI') {
+        requestBody.max_completion_tokens = 5000;
+        // GPT-5 nano and some reasoning models don't support custom temperature
+        // Only add temperature for non-reasoning models
+        const isNanoModel = this.config.model.includes('nano');
+        if (!this.config.reasoning && !isNanoModel) {
+          requestBody.temperature = 0.1;
+        }
+      } else if (this.config.reasoning) {
+        // Reasoning models from other providers also use max_completion_tokens
         requestBody.max_completion_tokens = 5000;
       } else {
+        // Non-reasoning models from other providers (Anthropic, custom) use max_tokens
         requestBody.max_tokens = 5000;
         requestBody.temperature = 0.1;
       }

@@ -54,9 +54,21 @@ export const AI_PROVIDERS: AIProvider[] = [
     name: 'OpenAI',
     models: [
       {
+        id: 'gpt-5',
+        name: 'GPT-5',
+        description: 'Flagship reasoning model for complex logical and technical SQL tasks',
+        reasoning: true,
+      },
+      {
+        id: 'gpt-5-mini',
+        name: 'GPT-5 Mini',
+        description: 'Faster and affordable reasoning model with great balance',
+        reasoning: true,
+      },
+      {
         id: 'gpt-4.1',
         name: 'GPT-4.1',
-        description: 'Smartest model for complex SQL tasks and database optimization',
+        description: 'Smartest non-reasoning model for complex SQL tasks and database optimization',
       },
       {
         id: 'o4-mini',
@@ -72,7 +84,13 @@ export const AI_PROVIDERS: AIProvider[] = [
       {
         id: 'o3-mini',
         name: 'o3-mini',
-        description: 'Previous generation, cost-effecient reasoning model for SQL tasks',
+        description: 'Previous generation, cost-efficient reasoning model for SQL tasks',
+        reasoning: true,
+      },
+      {
+        id: 'gpt-5-nano',
+        name: 'GPT-5 Nano',
+        description: 'Fastest and most affordable reasoning model for summarization and classification',
         reasoning: true,
       },
     ],
@@ -82,14 +100,14 @@ export const AI_PROVIDERS: AIProvider[] = [
     name: 'Anthropic',
     models: [
       {
-        id: 'claude-opus-4-20250514',
-        name: 'Claude 4 Opus',
-        description: 'Flagship model, excellent for complex reasoning and SQL tasks',
+        id: 'claude-sonnet-4-5',
+        name: 'Claude 4.5 Sonnet',
+        description: 'Best coding model in the world, strongest for building complex agents',
       },
       {
-        id: 'claude-sonnet-4-20250514',
-        name: 'Claude 4 Sonnet',
-        description: 'Fast and efficient model for quick SQL assistance. Best for most users.',
+        id: 'claude-haiku-4-5',
+        name: 'Claude 4.5 Haiku',
+        description: 'Fast and cost-efficient, optimized for low latency tasks',
       },
     ],
   },
@@ -102,7 +120,7 @@ export const AI_PROVIDERS: AIProvider[] = [
 
 export const DEFAULT_AI_CONFIG: AIServiceConfig = {
   provider: 'anthropic',
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-4-5',
   apiKey: '',
   apiKeys: {},
   reasoning: false,

@@ -1,5 +1,6 @@
 import { ModelSelector, MentionDropdown } from '@components/ai-shared';
 import { Text, Box, Portal } from '@mantine/core';
+import { AI_PROVIDERS } from '@models/ai-service';
 import { getAIConfig, saveAIConfig } from '@utils/ai-config';
 import { cn } from '@utils/ui/styles';
 
@@ -31,32 +32,36 @@ export const ChatInput = ({ onSendMessage, isLoading, placeholder }: ChatInputPr
   const handleModelChange = (model: string) => {
     const config = getAIConfig();
 
-    // Find the provider for this model
+    // Find the provider for this model by checking AI_PROVIDERS
     let newProvider = config.provider;
-    const providers = ['openai', 'anthropic', 'custom'];
+    let reasoning = config.reasoning || false;
 
-    for (const provider of providers) {
-      const apiKey = config.apiKeys?.[provider];
-      if (apiKey) {
-        // Check if this provider has this model
-        const isCustomModel =
-          provider === 'custom' && config.customModels?.some((m) => m.id === model);
-        const isProviderModel =
-          provider !== 'custom' &&
-          ['gpt-4.1', 'o4-mini', 'gpt-4.1-mini', 'o3-mini'].includes(model) &&
-          provider === 'openai';
-        const isAnthropicModel =
-          provider === 'anthropic' &&
-          ['claude-opus-4-20250514', 'claude-sonnet-4-20250514'].includes(model);
+    // First, find which provider has this model (regardless of API key)
+    for (const provider of AI_PROVIDERS) {
+      // Check if this provider has this model
+      const hasModel = provider.models.some((m) => m.id === model);
 
-        if (isCustomModel || isProviderModel || isAnthropicModel) {
-          newProvider = provider;
-          break;
-        }
+      // For custom provider, also check custom models
+      const hasCustomModel =
+        provider.id === 'custom' && config.customModels?.some((m) => m.id === model);
+
+      if (hasModel || hasCustomModel) {
+        newProvider = provider.id;
+
+        // Update reasoning flag based on the selected model
+        const selectedModel = provider.models.find((m) => m.id === model);
+        reasoning = selectedModel?.reasoning || false;
+
+        // Get the API key for this provider
+        const apiKey = config.apiKeys?.[provider.id] || '';
+
+        saveAIConfig({ ...config, model, provider: newProvider, reasoning, apiKey });
+        return;
       }
     }
 
-    saveAIConfig({ ...config, model, provider: newProvider });
+    // If we get here, just update the model without changing provider
+    saveAIConfig({ ...config, model });
   };
 
   return (
