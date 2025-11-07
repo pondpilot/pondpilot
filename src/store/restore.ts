@@ -413,6 +413,7 @@ export const restoreAppDataFromIDB = async (
   onBeforeRequestFilePermission: (handles: FileSystemHandle[]) => Promise<boolean>,
 ): Promise<{ discardedEntries: DiscardedEntry[]; warnings: string[] }> => {
   const iDbConn = await getAppDataDBConnection();
+  await loadAIChatConversations();
 
   const warnings: string[] = [];
   // iDB doesn't allow holding transaction while we await something

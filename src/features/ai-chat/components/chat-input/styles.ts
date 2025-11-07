@@ -36,7 +36,7 @@ export const chatInputStyles = {
 
   sendButton: {
     base: [
-      'absolute right-3 bottom-2',
+      'absolute right-3 top-1/2 -translate-y-1/2',
       'transition-all duration-200',
       'hover:bg-gray-200 dark:hover:bg-gray-700',
     ],

@@ -71,7 +71,7 @@ export const ModelSelector = ({
         size={size}
         variant={variant}
         disabled={disabled}
-        className={cn('cursor-pointer', compact && 'max-w-[200px]', className)}
+        className={cn('cursor-pointer', compact && 'max-w-[280px]', className)}
         data-testid={dataTestId}
         classNames={{
           input: 'cursor-pointer',
@@ -106,7 +106,7 @@ export const ModelSelector = ({
       placeholder="Select AI model"
       searchable={selectData.length > 5}
       clearable={false}
-      className={cn(compact && 'max-w-[200px]', className)}
+      className={cn(compact && 'max-w-[280px]', className)}
       data-testid={dataTestId}
       comboboxProps={{
         transitionProps: { transition: 'fade', duration: 200 },
