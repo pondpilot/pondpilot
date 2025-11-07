@@ -7,6 +7,7 @@ default:
     just --list
 
 docker-build base_path='/':
+  #!/usr/bin/env sh
   # Validate and normalize base_path
   if [[ "{{base_path}}" != /* ]]; then
     echo "Base path must start with a slash. Prepending automatically." >&2
