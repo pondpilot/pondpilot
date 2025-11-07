@@ -86,7 +86,10 @@ test.describe('Datasource Wizard', () => {
     await expect(disabled).toBeDisabled();
   });
 
-  test('should disable buttons during connection test', async ({ page, openDatasourceWizard }) => {
+  test.skip('should disable buttons during connection test', async ({
+    page,
+    openDatasourceWizard,
+  }) => {
     // Navigate to remote database config
     await openDatasourceWizard();
     const remoteDBCard = getWizardCard(

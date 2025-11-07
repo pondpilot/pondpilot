@@ -19,7 +19,7 @@ import {
 } from '@tabler/icons-react';
 import { stringifyTypedValue } from '@utils/db';
 import { cn } from '@utils/ui/styles';
-import { Fragment, ReactNode, useMemo, useState, useLayoutEffect, useRef } from 'react';
+import { Fragment, ReactNode, useMemo, useState, useLayoutEffect, useRef, useEffect } from 'react';
 
 import {
   getStatusAccentColor,
@@ -66,6 +66,19 @@ const statusOrderLabel: Record<string, string> = {
   removed: 'Removed',
   modified: 'Modified',
   same: 'Unchanged',
+};
+
+type DiffSegmentType = 'added' | 'removed' | 'modified' | 'same' | 'none';
+
+type StatusSegmentType = Exclude<DiffSegmentType, 'none'>;
+
+type DiffSegment = {
+  type: DiffSegmentType;
+  value: number;
+  color: string | undefined;
+  count: number;
+  percentage: number;
+  label: string;
 };
 
 const renderValue = (value: unknown, column: DBColumn): ReactNode => {
@@ -122,6 +135,98 @@ const SortButton = ({
         )}
       />
     </button>
+  );
+};
+
+const renderTypeBadge = (column: DBColumn) => (
+  <span className="text-[10px] uppercase tracking-wide text-textSecondary-light dark:text-textSecondary-dark">
+    {column.databaseType}
+  </span>
+);
+
+interface ColumnFilterButtonProps {
+  columnId: string;
+  value: string;
+  onChange: (columnId: string, value: string) => void;
+  label: string;
+}
+
+const ColumnFilterButton = ({ columnId, value, onChange, label }: ColumnFilterButtonProps) => {
+  const [opened, setOpened] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const trimmed = value.trim();
+  const isActive = trimmed.length > 0;
+
+  useEffect(() => {
+    if (!opened) {
+      return undefined;
+    }
+    const focusInput = () => {
+      inputRef.current?.focus({ preventScroll: true });
+    };
+    if (typeof window === 'undefined') {
+      focusInput();
+      return undefined;
+    }
+    const timeoutId = window.setTimeout(focusInput, 0);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [opened]);
+
+  return (
+    <Popover
+      withArrow
+      shadow="md"
+      trapFocus
+      position="bottom-end"
+      opened={opened}
+      onChange={setOpened}
+      middlewares={{ flip: true, shift: true }}
+      withinPortal
+    >
+      <Popover.Target>
+        <Tooltip withArrow label={isActive ? 'Edit filter' : 'Filter column'}>
+          <ActionIcon
+            variant={isActive ? 'primary' : 'transparent'}
+            color={isActive ? 'icon-accent' : 'icon-default'}
+            size="sm"
+            aria-pressed={isActive}
+            onClick={() => setOpened((prev) => !prev)}
+          >
+            {isActive ? <IconFilterFilled size={12} /> : <IconFilter size={12} />}
+          </ActionIcon>
+        </Tooltip>
+      </Popover.Target>
+      <Popover.Dropdown maw={220}>
+        <Text size="xs" fw={600} mb={4} c="dimmed">
+          Filter {label}
+        </Text>
+        <TextInput
+          ref={inputRef}
+          value={value}
+          onChange={(event) => onChange(columnId, event.currentTarget.value)}
+          placeholder="Contains…"
+          size="xs"
+          rightSection={
+            trimmed ? (
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="sm"
+                onClick={() => {
+                  onChange(columnId, '');
+                  setOpened(false);
+                }}
+              >
+                <IconX size={12} />
+              </ActionIcon>
+            ) : null
+          }
+          rightSectionPointerEvents="all"
+        />
+      </Popover.Dropdown>
+    </Popover>
   );
 };
 
@@ -184,116 +289,76 @@ export const ComparisonResultsTable = ({
     [valueColumns],
   );
 
-  const buildDiffSegments = (column: ComparisonValueColumn) => {
-    if (column.diffStats.total === 0) {
-      return [{ value: 100, color: 'transparent' }];
+  const buildDiffSegments = (column: ComparisonValueColumn): DiffSegment[] => {
+    const { diffStats } = column;
+    const { total, added, removed, modified, same } = diffStats;
+    if (total === 0) {
+      return [
+        {
+          type: 'none',
+          value: 100,
+          color: 'transparent',
+          count: 0,
+          percentage: 0,
+          label: 'No rows compared yet',
+        },
+      ];
     }
-    const { added, removed, modified, same: _same, total } = column.diffStats;
+
     const toPercent = (value: number) => Math.round((value / total) * 100);
-    const segments: Array<{ value: number; color: string | undefined }> = [];
-    if (added > 0) {
+    const segments: DiffSegment[] = [];
+    const addSegment = (type: StatusSegmentType, count: number, color: string | undefined) => {
+      if (!count) return;
+      const percentage = toPercent(count);
+      const labelBase = statusOrderLabel[type] ?? 'Other';
       segments.push({
-        value: toPercent(added),
-        color: getStatusAccentColor(theme, 'added', colorScheme, colorScheme === 'dark' ? 4 : 6),
+        type,
+        count,
+        percentage,
+        value: percentage,
+        color,
+        label: `${labelBase}: ${count.toLocaleString()} (${percentage}%)`,
       });
+    };
+
+    addSegment(
+      'added',
+      added,
+      getStatusAccentColor(theme, 'added', colorScheme, colorScheme === 'dark' ? 4 : 6),
+    );
+    addSegment(
+      'removed',
+      removed,
+      getStatusAccentColor(theme, 'removed', colorScheme, colorScheme === 'dark' ? 4 : 6),
+    );
+    addSegment(
+      'modified',
+      modified,
+      getStatusAccentColor(theme, 'modified', colorScheme, colorScheme === 'dark' ? 4 : 6),
+    );
+    addSegment(
+      'same',
+      same,
+      getStatusAccentColor(theme, 'same', colorScheme, colorScheme === 'dark' ? 5 : 4),
+    );
+
+    if (segments.length === 0) {
+      return [
+        {
+          type: 'none',
+          value: 100,
+          color: 'transparent',
+          count: 0,
+          percentage: 0,
+          label: 'No changes detected',
+        },
+      ];
     }
-    if (removed > 0) {
-      segments.push({
-        value: toPercent(removed),
-        color: getStatusAccentColor(theme, 'removed', colorScheme, colorScheme === 'dark' ? 4 : 6),
-      });
-    }
-    if (modified > 0) {
-      segments.push({
-        value: toPercent(modified),
-        color: getStatusAccentColor(theme, 'modified', colorScheme, colorScheme === 'dark' ? 4 : 6),
-      });
-    }
-    const matched = total - (added + removed + modified);
-    if (matched > 0) {
-      segments.push({
-        value: toPercent(matched),
-        color: getStatusAccentColor(theme, 'same', colorScheme, colorScheme === 'dark' ? 5 : 4),
-      });
-    }
+
     return segments;
   };
 
   const getColumnIcon = (column: DBColumn) => getIconTypeForSQLType(column.sqlType);
-
-  const renderTypeBadge = (column: DBColumn) => (
-    <span className="text-[10px] uppercase tracking-wide text-textSecondary-light dark:text-textSecondary-dark">
-      {column.databaseType}
-    </span>
-  );
-
-  const ColumnFilterButton = ({
-    columnId,
-    value,
-    onChange,
-    label,
-  }: {
-    columnId: string;
-    value: string;
-    onChange: (columnId: string, value: string) => void;
-    label: string;
-  }) => {
-    const [opened, setOpened] = useState(false);
-    const trimmed = value.trim();
-    const isActive = trimmed.length > 0;
-
-    return (
-      <Popover
-        withArrow
-        shadow="md"
-        trapFocus
-        position="bottom-end"
-        opened={opened}
-        onChange={setOpened}
-      >
-        <Popover.Target>
-          <Tooltip withArrow label={isActive ? 'Edit filter' : 'Filter column'}>
-            <ActionIcon
-              variant={isActive ? 'filled' : 'subtle'}
-              color={isActive ? 'accent' : 'gray'}
-              size="sm"
-              onClick={() => setOpened((prev) => !prev)}
-            >
-              {isActive ? <IconFilterFilled size={12} /> : <IconFilter size={12} />}
-            </ActionIcon>
-          </Tooltip>
-        </Popover.Target>
-        <Popover.Dropdown maw={220}>
-          <Text size="xs" fw={600} mb={4} c="dimmed">
-            Filter {label}
-          </Text>
-          <TextInput
-            value={value}
-            onChange={(event) => onChange(columnId, event.currentTarget.value)}
-            placeholder="Contains…"
-            size="xs"
-            autoFocus
-            rightSection={
-              trimmed ? (
-                <ActionIcon
-                  variant="subtle"
-                  color="gray"
-                  size="sm"
-                  onClick={() => {
-                    onChange(columnId, '');
-                    setOpened(false);
-                  }}
-                >
-                  <IconX size={12} />
-                </ActionIcon>
-              ) : null
-            }
-            rightSectionPointerEvents="all"
-          />
-        </Popover.Dropdown>
-      </Popover>
-    );
-  };
 
   return (
     <div
@@ -386,10 +451,20 @@ export const ComparisonResultsTable = ({
                         key={`${column.displayName}-segment-${idx}`}
                         style={{
                           width: `${segment.value}%`,
-                          backgroundColor: segment.color ?? barColor,
+                          flexShrink: 0,
                         }}
                         className="h-full transition-[width]"
-                      />
+                      >
+                        <Tooltip withArrow withinPortal label={segment.label}>
+                          <div
+                            className="h-full w-full"
+                            style={{
+                              backgroundColor: segment.color ?? barColor,
+                            }}
+                            aria-label={segment.label}
+                          />
+                        </Tooltip>
+                      </div>
                     ))}
                   </div>
                   <div className="mt-1 text-[10px] text-textSecondary-light dark:text-textSecondary-dark flex gap-3">

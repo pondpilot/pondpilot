@@ -32,7 +32,7 @@ export const ComparisonToolbar = ({
         <Tooltip label="Reconfigure comparison">
           <ActionIcon
             variant="subtle"
-            color="icon-default"
+            color="icon-accent"
             size="lg"
             onClick={onReconfigure}
             disabled={isRefreshing}
@@ -54,27 +54,31 @@ export const ComparisonToolbar = ({
         </Tooltip>
 
         {onClearResults && (
-          <Button
-            variant="light"
-            color="error"
-            leftSection={<IconTrash size={16} />}
-            onClick={onClearResults}
-            loading={isClearing}
-            disabled={isRefreshing || isClearing}
-          >
-            Clear Results
-          </Button>
+          <Tooltip label="Clear results">
+            <ActionIcon
+              variant="subtle"
+              color="icon-accent"
+              size="lg"
+              onClick={onClearResults}
+              loading={isClearing}
+              disabled={isRefreshing || isClearing}
+            >
+              <IconTrash size={18} />
+            </ActionIcon>
+          </Tooltip>
         )}
 
-        <Button
-          variant="light"
-          color="background-accent"
-          leftSection={<IconTable size={16} />}
-          onClick={onOpenTableView}
-          disabled={isRefreshing}
-        >
-          Open Table View
-        </Button>
+        <Tooltip label="Open table view">
+          <ActionIcon
+            variant="subtle"
+            color="icon-accent"
+            size="lg"
+            onClick={onOpenTableView}
+            disabled={isRefreshing}
+          >
+            <IconTable size={18} />
+          </ActionIcon>
+        </Tooltip>
 
         <Button
           variant="light"

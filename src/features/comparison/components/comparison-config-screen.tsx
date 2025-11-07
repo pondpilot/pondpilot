@@ -36,8 +36,8 @@ import { areSourcesEqual, createSourceKey } from '../utils/source-comparison';
 import { getStatusAccentColor, getStatusSurfaceColor, getThemeColorValue } from '../utils/theme';
 
 // Constants
-const SCROLL_COLLAPSE_THRESHOLD = 100;
-const SCROLL_EXPAND_THRESHOLD = 40;
+const SCROLL_COLLAPSE_THRESHOLD = 120;
+const SCROLL_EXPAND_THRESHOLD = 20;
 const MIN_SCROLLABLE_DISTANCE = 160;
 
 interface ComparisonConfigScreenProps {
@@ -183,6 +183,7 @@ export const ComparisonConfigScreen = ({
     if (!container) return;
 
     let ticking = false;
+    let debounceTimeout: NodeJS.Timeout | null = null;
 
     const handleScroll = () => {
       if (!ticking) {
@@ -192,7 +193,18 @@ export const ComparisonConfigScreen = ({
             scrollHeight: container.scrollHeight,
             clientHeight: container.clientHeight,
           };
-          setIsCollapsed((prev) => evaluateCollapseState(prev, metrics));
+
+          // Clear any pending debounce
+          if (debounceTimeout) {
+            clearTimeout(debounceTimeout);
+          }
+
+          // Debounce state changes to prevent rapid toggling
+          debounceTimeout = setTimeout(() => {
+            setIsCollapsed((prev) => evaluateCollapseState(prev, metrics));
+            debounceTimeout = null;
+          }, 50);
+
           ticking = false;
         });
         ticking = true;
@@ -212,7 +224,12 @@ export const ComparisonConfigScreen = ({
     container.addEventListener('scroll', handleScroll, { passive: true });
     initializeState();
 
-    return () => container.removeEventListener('scroll', handleScroll);
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+      }
+    };
   }, [evaluateCollapseState, scrollContainerRef]);
 
   const handleSourceAChange = useCallback(
@@ -376,7 +393,7 @@ export const ComparisonConfigScreen = ({
           position: 'sticky',
           top: 0,
           zIndex: 10,
-          transition: 'all 200ms ease-in-out',
+          transition: 'all 350ms cubic-bezier(0.4, 0.0, 0.2, 1)',
           ...(isCollapsed
             ? {
                 borderRadius: 0,
