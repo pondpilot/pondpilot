@@ -1,6 +1,7 @@
 import { DatabaseManagementSettings } from '@components/database-management/database-management-settings';
 
 import { AISettings } from './components/ai-settings';
+import { CorsProxySettings } from './components/cors-proxy-settings';
 import { EditorSettings } from './components/editor-settings';
 import { QueryTimeoutSettings } from './components/query-settings/query-timeout-settings';
 import { ClearDataSection } from './components/sections/clear-data-section';
@@ -37,6 +38,18 @@ export const settingsConfig: SettingsConfig = {
           title: 'AI Assistant',
           description: 'Configure your AI assistant provider and model.',
           component: AISettings,
+        },
+      ],
+    },
+    {
+      id: 'remote-databases',
+      title: 'Remote Databases',
+      sections: [
+        {
+          id: 'cors-proxy',
+          title: 'CORS Proxy',
+          description: 'Configure how PondPilot accesses remote databases.',
+          component: CorsProxySettings,
         },
       ],
     },

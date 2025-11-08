@@ -8,6 +8,7 @@ import {
   IconX,
   IconClipboard,
 } from '@tabler/icons-react';
+import { fileSystemService } from '@utils/file-system-adapter';
 import { setDataTestId } from '@utils/test-id';
 import { useState, useEffect, useCallback } from 'react';
 
@@ -55,6 +56,10 @@ export function DatasourceWizardModal({
   >('unknown');
 
   const [hasUserCheckedClipboard, setHasUserCheckedClipboard] = useState(false);
+
+  // Detect if browser is Safari or Firefox
+  const browserInfo = fileSystemService.getBrowserInfo();
+  const isSafariOrFirefox = browserInfo.name === 'Safari' || browserInfo.name === 'Firefox';
 
   // Check clipboard permission state using Permissions API
   const checkClipboardPermission = async () => {
@@ -110,15 +115,21 @@ export function DatasourceWizardModal({
 
   const handleCheckClipboard = async () => {
     setHasUserCheckedClipboard(true);
-    await checkClipboard();
+    checkClipboard();
   };
 
   // Check clipboard permissions and auto-check content if already granted
   useEffect(() => {
     const initializeClipboard = async () => {
       const permissionState = await checkClipboardPermission();
-      // If permission already granted, automatically check clipboard content
-      // Also check if permission state is unknown (fallback for environments without Permissions API)
+
+      // For Safari and Firefox, NEVER auto-check clipboard to avoid triggering paste menu
+      // They require explicit user gesture even when permission is granted
+      if (isSafariOrFirefox) {
+        return;
+      }
+
+      // For Chrome/Edge: auto-check clipboard if permission already granted or unknown
       if (permissionState === 'granted' || permissionState === 'unknown') {
         setHasUserCheckedClipboard(true);
         await checkClipboard();
@@ -126,7 +137,7 @@ export function DatasourceWizardModal({
     };
 
     initializeClipboard();
-  }, [checkClipboard]);
+  }, [checkClipboard, isSafariOrFirefox]);
 
   const handleRemoteDatabaseClick = () => {
     setStep('remote-config');
@@ -198,6 +209,89 @@ export function DatasourceWizardModal({
         message: 'Failed to read clipboard content. Please check browser permissions.',
       });
     }
+  };
+
+  // Render functions for clipboard alerts
+  const renderCheckClipboardBanner = () => {
+    if (isSafariOrFirefox) return null;
+    if (hasUserCheckedClipboard) return null;
+    if (clipboardPermissionState === 'denied' || clipboardPermissionState === 'granted') {
+      return null;
+    }
+
+    return (
+      <Alert
+        icon={<IconClipboard size={20} />}
+        color="background-accent"
+        data-testid={setDataTestId('clipboard-check-banner')}
+      >
+        <Group justify="space-between" align="center">
+          <Text size="sm">You can import data from your clipboard</Text>
+          <Button
+            size="xs"
+            onClick={handleCheckClipboard}
+            data-testid={setDataTestId('check-clipboard-button')}
+          >
+            Check clipboard
+          </Button>
+        </Group>
+      </Alert>
+    );
+  };
+
+  const renderPasteDataBanner = () => {
+    if (!isSafariOrFirefox && !hasClipboardContent) return null;
+
+    return (
+      <Alert
+        icon={<IconClipboard size={20} />}
+        color="background-accent"
+        variant="light"
+        data-testid={setDataTestId('clipboard-alert')}
+      >
+        <Group justify="space-between" align="center">
+          <Text size="sm" fw={500}>
+            Paste data from clipboard
+          </Text>
+          <Group gap={8}>
+            <Button
+              size="xs"
+              onClick={() => handlePasteAs('csv')}
+              data-testid={setDataTestId('paste-as-csv')}
+            >
+              CSV
+            </Button>
+            <Button
+              size="xs"
+              onClick={() => handlePasteAs('json')}
+              data-testid={setDataTestId('paste-as-json')}
+            >
+              JSON
+            </Button>
+          </Group>
+        </Group>
+      </Alert>
+    );
+  };
+
+  const renderClipboardBlockedAlert = () => {
+    if (isSafariOrFirefox || clipboardPermissionState !== 'denied') return null;
+
+    return (
+      <Alert icon={<IconClipboard size={20} />} color="background-accent" variant="light">
+        <Stack gap={12} w="100%">
+          <Stack gap={4}>
+            <Text size="sm" fw={500}>
+              Clipboard access blocked
+            </Text>
+            <Text size="xs" c="text-secondary">
+              To import data from clipboard, please click the 🔒 icon in your browser&apos;s address
+              bar and allow clipboard access.
+            </Text>
+          </Stack>
+        </Stack>
+      </Alert>
+    );
   };
 
   const datasourceCards = [
@@ -273,76 +367,9 @@ export function DatasourceWizardModal({
 
       {step === 'selection' && (
         <Stack gap={16}>
-          {/* Show "Check clipboard" button only if permission is not granted and not denied */}
-          {!hasUserCheckedClipboard &&
-            clipboardPermissionState !== 'denied' &&
-            clipboardPermissionState !== 'granted' && (
-              <Alert
-                icon={<IconClipboard size={20} />}
-                color="background-accent"
-                data-testid={setDataTestId('clipboard-check-banner')}
-              >
-                <Group justify="space-between" align="center">
-                  <Text size="sm">You can import data from your clipboard</Text>
-                  <Button
-                    size="xs"
-                    onClick={handleCheckClipboard}
-                    data-testid={setDataTestId('check-clipboard-button')}
-                  >
-                    Check clipboard
-                  </Button>
-                </Group>
-              </Alert>
-            )}
-
-          {/* Show CSV/JSON buttons only if clipboard has content */}
-          {hasClipboardContent && (
-            <Alert
-              icon={<IconClipboard size={20} />}
-              color="background-accent"
-              variant="light"
-              data-testid={setDataTestId('clipboard-alert')}
-            >
-              <Group justify="space-between" align="center">
-                <Text size="sm" fw={500}>
-                  Paste data from clipboard
-                </Text>
-                <Group gap={8}>
-                  <Button
-                    size="xs"
-                    onClick={() => handlePasteAs('csv')}
-                    data-testid={setDataTestId('paste-as-csv')}
-                  >
-                    CSV
-                  </Button>
-                  <Button
-                    size="xs"
-                    onClick={() => handlePasteAs('json')}
-                    data-testid={setDataTestId('paste-as-json')}
-                  >
-                    JSON
-                  </Button>
-                </Group>
-              </Group>
-            </Alert>
-          )}
-
-          {/* Show blocked access notification only if denied and not dismissed */}
-          {clipboardPermissionState === 'denied' && (
-            <Alert icon={<IconClipboard size={20} />} color="background-accent" variant="light">
-              <Stack gap={12} w="100%">
-                <Stack gap={4}>
-                  <Text size="sm" fw={500}>
-                    Clipboard access blocked
-                  </Text>
-                  <Text size="xs" c="text-secondary">
-                    To import data from clipboard, please click the 🔒 icon in your browser&apos;s
-                    address bar and allow clipboard access.
-                  </Text>
-                </Stack>
-              </Stack>
-            </Alert>
-          )}
+          {renderCheckClipboardBanner()}
+          {renderPasteDataBanner()}
+          {renderClipboardBlockedAlert()}
 
           <Group>
             <Group gap="md" className="justify-center md:justify-start">

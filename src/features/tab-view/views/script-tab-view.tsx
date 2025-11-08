@@ -17,6 +17,8 @@ import { RemoteDB } from '@models/data-source';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
 import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
+import { parseAttachStatement, parseDetachStatement } from '@utils/attach-parser';
+import { normalizeRemoteUrl } from '@utils/cors-proxy-config';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import {
@@ -27,6 +29,8 @@ import {
   SQLStatement,
   SQLStatementType,
 } from '@utils/editor/sql';
+import { isNotReadableError, getErrorMessage } from '@utils/error-classification';
+import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
 import { formatSQLSafe } from '@utils/sql-formatter';
 import { Allotment } from 'allotment';
 import { memo, useCallback, useState, useEffect } from 'react';
@@ -140,11 +144,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
       const runQueryWithFileSyncAndRetry = async (code: string) => {
         try {
-          await conn.execute(code);
-        } catch (error: any) {
-          if (error.message?.includes('NotReadableError')) {
+          await pooledConnectionQueryWithCorsRetry(conn, code);
+        } catch (error: unknown) {
+          if (isNotReadableError(error)) {
             await syncFiles(pool);
-            await conn.execute(code);
+            await pooledConnectionQueryWithCorsRetry(conn, code);
           } else {
             throw error;
           }
@@ -154,8 +158,8 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       const prepQueryWithFileSyncAndRetry = async (code: string): Promise<PreparedStatement> => {
         try {
           return await conn.prepare(code);
-        } catch (error: any) {
-          if (error.message?.includes('NotReadableError')) {
+        } catch (error: unknown) {
+          if (isNotReadableError(error)) {
             await syncFiles(pool);
             return conn.prepare(code);
           }
@@ -189,7 +193,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           try {
             await runQueryWithFileSyncAndRetry(statement.code);
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = getErrorMessage(error);
             if (needsTransaction) {
               await conn.execute('ROLLBACK');
             }
@@ -225,7 +229,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             const preparedStatement = await prepQueryWithFileSyncAndRetry(lastStatement.code);
             await preparedStatement.close();
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = getErrorMessage(error);
 
             if (needsTransaction) {
               await conn.execute('ROLLBACK');
@@ -262,7 +266,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           try {
             await runQueryWithFileSyncAndRetry(lastStatement.code);
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = getErrorMessage(error);
             if (needsTransaction) {
               await conn.execute('ROLLBACK');
             }
@@ -372,57 +376,48 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             // Check for remote databases that were attached or detached
             for (const statement of classifiedStatements) {
               if (statement.type === SQLStatement.ATTACH) {
-                // Parse ATTACH statement to extract URL and database name (safely)
-                const { parseAttachStatement } = await import('@utils/sql-attach');
-                const attachInfo = parseAttachStatement(statement.code);
+                // Parse ATTACH statement to extract URL and database name
+                const parsed = parseAttachStatement(statement.code);
+                if (parsed) {
+                  const { rawUrl, dbName } = parsed;
 
-                if (attachInfo) {
-                  const { url, dbName } = attachInfo;
-                  const { isMotherDuckUrl } = await import('@utils/url-helpers');
+                  // Normalize the URL and check if it's remote
+                  const { url, isRemote } = normalizeRemoteUrl(rawUrl);
 
-                  // Check if this database is already registered
-                  const existingDb = Array.from(dataSources.values()).find(
-                    (ds) =>
-                      (ds.type === 'remote-db' && ds.dbName === dbName) ||
-                      (ds.type === 'attached-db' && ds.dbName === dbName),
-                  );
+                  if (isRemote) {
+                    // Check if this database is already registered
+                    const existingDb = Array.from(dataSources.values()).find(
+                      (ds) =>
+                        (ds.type === 'remote-db' && ds.dbName === dbName) ||
+                        (ds.type === 'attached-db' && ds.dbName === dbName),
+                    );
 
-                  if (!existingDb) {
-                    // Create RemoteDB entry
-                    const remoteDb: RemoteDB = {
-                      type: 'remote-db',
-                      id: makePersistentDataSourceId(),
-                      legacyUrl: url,
-                      connectionType: url.startsWith('md:') ? 'motherduck' : 'url',
-                      dbName,
-                      queryEngineType: 'duckdb',
-                      supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
-                      connectionState: 'connected',
-                      attachedAt: Date.now(),
-                      // For MotherDuck databases attached via SQL, we don't have the secret name
-                      // so we use 'default' to group them together
-                      instanceName: isMotherDuckUrl(url) ? 'default' : undefined,
-                    };
+                    if (!existingDb) {
+                      // Create RemoteDB entry
+                      const remoteDb: RemoteDB = {
+                        type: 'remote-db',
+                        id: makePersistentDataSourceId(),
+                        url,
+                        dbName,
+                        dbType: 'duckdb',
+                        connectionState: 'connected',
+                        attachedAt: Date.now(),
+                      };
 
-                    updatedDataSources.set(remoteDb.id, remoteDb);
+                      updatedDataSources.set(remoteDb.id, remoteDb);
 
-                    // Persist (SQLite in Tauri or IndexedDB on web)
-                    const { _iDbConn, _persistenceAdapter } = useAppStore.getState();
-                    const store = (_persistenceAdapter as any) || _iDbConn;
-                    if (store) {
-                      await persistPutDataSources(store, [remoteDb]);
+                      // Persist to IndexedDB
+                      const { _iDbConn } = useAppStore.getState();
+                      if (_iDbConn) {
+                        await persistPutDataSources(_iDbConn, [remoteDb]);
+                      }
                     }
                   }
                 }
               } else if (statement.type === SQLStatement.DETACH) {
                 // Parse DETACH statement to extract database name
-                const detachMatch = statement.code.match(/DETACH\s+(?:DATABASE\s+)?("[^"]+"|\w+)/i);
-                if (detachMatch) {
-                  let [, dbName] = detachMatch as any;
-                  if (dbName.startsWith('"') && dbName.endsWith('"')) {
-                    dbName = dbName.slice(1, -1).replace(/""/g, '"');
-                  }
-
+                const dbName = parseDetachStatement(statement.code);
+                if (dbName) {
                   // Find and remove the database from dataSources
                   const dbToRemove = Array.from(updatedDataSources.entries()).find(
                     ([, ds]) =>

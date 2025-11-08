@@ -2,7 +2,7 @@ import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { ConnectionPool } from '@engines/types';
-import { Stack, TextInput, Text, Button, Group, Checkbox, Alert } from '@mantine/core';
+import { Stack, TextInput, Text, Button, Group, Checkbox, Alert, Tooltip } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { RemoteDB } from '@models/data-source';
@@ -34,6 +34,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
   const [url, setUrl] = useInputState('');
   const [dbName, setDbName] = useInputState('');
   const [readOnly, setReadOnly] = useState(true);
+  const [useCorsProxy, setUseCorsProxy] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
@@ -78,7 +79,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         actualDbName = remoteDb.dbName;
         attachQuery = `ATTACH ${quote(url.trim(), { single: true })}`;
       } else {
-        attachQuery = buildAttachQuery(url, dbName, { readOnly });
+        attachQuery = buildAttachQuery(url, dbName, { readOnly, useCorsProxy });
       }
 
       try {
@@ -148,23 +149,17 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         remoteDb = mdResult.remoteDb;
         attachQuery = `ATTACH ${quote(url.trim(), { single: true })}`;
       } else {
-        const trimmedUrl = url.trim();
-        const isMotherDuck = trimmedUrl.startsWith('md:');
-        const connectionType = isMotherDuck ? 'motherduck' : 'url';
-
         remoteDb = {
           type: 'remote-db',
           id: makePersistentDataSourceId(),
-          legacyUrl: trimmedUrl, // Use legacyUrl for URL-based connections
+          url: url.trim(),
           dbName: dbName.trim(),
-          connectionType, // Set proper connectionType
-          queryEngineType: 'duckdb',
-          supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'], // URL-based connections work on both
-          requiresProxy: false,
+          dbType: 'duckdb',
           connectionState: 'connecting',
           attachedAt: Date.now(),
+          useCorsProxy,
         };
-        attachQuery = buildAttachQuery(trimmedUrl, remoteDb.dbName, { readOnly });
+        attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly, useCorsProxy });
       }
 
       const { dataSources, databaseMetadata } = useAppStore.getState();
@@ -281,6 +276,21 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
           onChange={(event) => setReadOnly(event.currentTarget.checked)}
           className="pl-4"
         />
+
+        <Tooltip
+          label="Uses a CORS proxy to access databases without CORS headers. The proxy forwards requests transparently without logging or storing data."
+          multiline
+          w={300}
+          withArrow
+          position="right"
+        >
+          <Checkbox
+            label="Use CORS proxy"
+            checked={useCorsProxy}
+            onChange={(event) => setUseCorsProxy(event.currentTarget.checked)}
+            className="pl-4"
+          />
+        </Tooltip>
       </Stack>
 
       <Group justify="end" className="mt-4">

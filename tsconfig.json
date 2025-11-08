@@ -30,6 +30,7 @@
       "@controllers/*": ["controllers/*"],
       "@models/*": ["models/*"],
       "@assets/*": ["assets/*"],
+      "@services/*": ["services/*"],
       "@engines/*": ["engines/*"]
     }
   },

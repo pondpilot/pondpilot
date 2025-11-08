@@ -224,6 +224,11 @@ export interface RemoteDB {
    * Used for grouping and persistence, won't change even if secret is renamed
    */
   instanceId?: string;
+
+  /**
+   * Whether to use CORS proxy when connecting to this remote database
+   */
+  useCorsProxy?: boolean;
 }
 
 export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB;

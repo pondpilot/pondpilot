@@ -16,8 +16,10 @@ module.exports = {
   globals: {
     'import.meta.env.DEV': false,
     'import.meta.env.PROD': true,
+    'import.meta.env.VITE_CORS_PROXY_URL': undefined,
   },
   moduleNameMapper: {
+    '^@utils/env$': '<rootDir>/tests/unit/__mocks__/env.ts',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
     '^@consts/(.*)$': '<rootDir>/src/consts/$1',
     '^@models/(.*)$': '<rootDir>/src/models/$1',
