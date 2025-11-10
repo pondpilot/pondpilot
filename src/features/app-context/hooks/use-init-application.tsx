@@ -109,7 +109,7 @@ async function reconnectRemoteDatabases(conn: ConnectionPool): Promise<void> {
     const [motherDuckInstanceId, motherDuckDatabases] = motherDuckEntries[0];
     try {
       const { SecretsAPI } = await import('../../../services/secrets-api');
-      // Apply the secret to set MOTHERDUCK_TOKEN environment variable
+      // Apply the secret so the backend refreshes its cached MotherDuck token
       await SecretsAPI.applySecretToConnection({
         connection_id: `motherduck_reconnect_${motherDuckInstanceId}`,
         secret_id: motherDuckInstanceId,

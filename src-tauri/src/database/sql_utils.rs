@@ -1,5 +1,7 @@
 //! SQL utility helpers shared across commands/engine code for readability and reuse
 
+use crate::errors::{DuckDBError, Result};
+
 /// Escape a SQL identifier for DuckDB (double-quote and escape inner quotes)
 pub fn escape_identifier(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
@@ -40,4 +42,56 @@ pub fn build_attach_statements(items: &[AttachItem]) -> Vec<String> {
         }
     }
     stmts
+}
+
+/// Validate the shape of a MotherDuck URL before embedding it into SQL.
+pub fn validate_motherduck_url(url: &str) -> Result<()> {
+    if !url.starts_with("md:") {
+        return Err(DuckDBError::InvalidQuery {
+            message: "MotherDuck URLs must start with 'md:'".to_string(),
+            sql: None,
+            position: None,
+        });
+    }
+
+    if url.len() <= 3 {
+        return Err(DuckDBError::InvalidQuery {
+            message: "MotherDuck URL missing database name".to_string(),
+            sql: None,
+            position: None,
+        });
+    }
+
+    if url.chars().any(|c| c.is_control() || c.is_whitespace() || c == '\'' || c == '"' || c == ';')
+    {
+        return Err(DuckDBError::InvalidQuery {
+            message: "MotherDuck URL contains invalid characters".to_string(),
+            sql: None,
+            position: None,
+        });
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_valid_motherduck_url() {
+        assert!(validate_motherduck_url("md:analytics").is_ok());
+        assert!(validate_motherduck_url("md:Data123").is_ok());
+    }
+
+    #[test]
+    fn rejects_missing_prefix() {
+        assert!(validate_motherduck_url("motherduck:db").is_err());
+    }
+
+    #[test]
+    fn rejects_control_characters() {
+        assert!(validate_motherduck_url("md:orders;DROP").is_err());
+        assert!(validate_motherduck_url("md:bad\nname").is_err());
+    }
 }

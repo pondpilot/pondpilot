@@ -1,8 +1,10 @@
 use super::arrow_streaming::ArrowStreamingExecutor;
 use super::connection_handler::ThreadSafeConnectionManager;
 use super::extensions::ALLOWED_EXTENSIONS;
+use super::motherduck_token;
 use super::query_builder::{QueryBuilder, QueryHints};
 use super::resource_manager::ResourceManager;
+use super::sql_utils::{escape_string_literal, validate_motherduck_url};
 use super::types::*;
 use super::unified_pool::{PoolConfig, UnifiedPool};
 use crate::errors::Result;
@@ -177,6 +179,30 @@ fn sanitize_identifier(name: &str) -> Result<String> {
     Ok(name.to_string())
 }
 
+#[cfg(test)]
+mod identifier_tests {
+    use super::sanitize_identifier;
+
+    #[test]
+    fn accepts_valid_identifier() {
+        let result = sanitize_identifier("valid_name").expect("identifier should be valid");
+        assert_eq!(result, "valid_name");
+    }
+
+    #[test]
+    fn quotes_sql_keyword() {
+        let result = sanitize_identifier("select").expect("keyword should be quoted");
+        assert_eq!(result, "\"select\"");
+    }
+
+    #[test]
+    fn rejects_illegal_characters() {
+        let err = sanitize_identifier("bad$name");
+        assert!(err.is_err());
+    }
+}
+
+
 #[derive(Debug, Clone)]
 pub struct DuckDBEngine {
     pool: Arc<UnifiedPool>,
@@ -226,6 +252,60 @@ impl DuckDBEngine {
         }
 
         Ok(())
+    }
+
+    /// Cache the MotherDuck token securely and push it to all live connections.
+    pub async fn set_motherduck_token(&self, token: &str) {
+        motherduck_token::set_token(token);
+
+        // Apply immediately to existing connections so they can authenticate
+        // without waiting for the next query cycle.
+        let set_sql = format!("SET motherduck_token = {}", escape_string_literal(token));
+        let existing_connections = self.connection_manager.get_all_connections().await;
+        for (conn_id, handle) in existing_connections {
+            match handle.execute(set_sql.clone(), vec![]).await {
+                Ok(_) => {
+                    tracing::debug!(
+                        "[DuckDBEngine] Applied MotherDuck token to connection '{}'",
+                        conn_id
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "[DuckDBEngine] Failed to apply MotherDuck token to connection '{}': {}",
+                        conn_id,
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    /// Clear the cached MotherDuck token and reset session settings across all connections.
+    pub async fn clear_motherduck_token(&self) {
+        motherduck_token::clear_token();
+
+        let reset_sql = "RESET motherduck_token".to_string();
+        let fallback_sql = "SET motherduck_token = ''".to_string();
+        let existing_connections = self.connection_manager.get_all_connections().await;
+
+        for (conn_id, handle) in existing_connections {
+            let result = handle.execute(reset_sql.clone(), vec![]).await;
+            if result.is_err() {
+                tracing::debug!(
+                    "[DuckDBEngine] RESET motherduck_token failed on '{}': {}",
+                    conn_id,
+                    result.err().unwrap()
+                );
+                if let Err(fallback_err) = handle.execute(fallback_sql.clone(), vec![]).await {
+                    tracing::warn!(
+                        "[DuckDBEngine] Failed to clear MotherDuck token on '{}': {}",
+                        conn_id,
+                        fallback_err
+                    );
+                }
+            }
+        }
     }
 
     /// Replace the configured extension list at runtime
@@ -514,17 +594,17 @@ impl DuckDBEngine {
 
         // Build the ATTACH query with the SECRET parameter
         // Use the sanitized alias which will be properly quoted if needed
-        // Escape single quotes in the connection string for SQL literal
-        let connection_string_sql = connection_string.replace('\'', "''");
-
         // Properly quote the secret name as an identifier to prevent SQL injection
         // DuckDB uses double quotes for identifiers
         // SECURITY FIX: Correctly escape double quotes by doubling them
         let secret_name_quoted = format!("\"{}\"", secret_name.replace('"', "\"\""));
 
         let attach_query = format!(
-            "ATTACH '{}' AS {} (TYPE {}, SECRET {})",
-            connection_string_sql, sanitized_alias, db_type_upper, secret_name_quoted
+            "ATTACH {} AS {} (TYPE {}, SECRET {})",
+            escape_string_literal(&connection_string),
+            sanitized_alias,
+            db_type_upper,
+            secret_name_quoted
         );
 
         // Combine CREATE SECRET and ATTACH in a single batch to run on same connection
@@ -696,8 +776,8 @@ impl DuckDBEngine {
 
     /// Attach MotherDuck database to all existing connections
     pub async fn attach_motherduck_to_all_connections(&self, database_url: String) -> Result<()> {
-        // Build the MotherDuck ATTACH SQL
-        let attach_sql = format!("ATTACH '{}'", database_url);
+        validate_motherduck_url(&database_url)?;
+        let attach_literal = escape_string_literal(&database_url);
 
         // Apply the attachment to ALL existing persistent connections
         let existing_connections = self.connection_manager.get_all_connections().await;
@@ -720,8 +800,14 @@ impl DuckDBEngine {
                     database_url,
                     conn_id
                 );
-                // Execute the ATTACH SQL on this connection
-                match handle.execute(attach_sql.clone(), vec![]).await {
+                // Execute the ATTACH SQL on this connection using parameterized input
+                match handle
+                    .execute(
+                        "ATTACH ?".to_string(),
+                        vec![serde_json::Value::String(database_url.clone())],
+                    )
+                    .await
+                {
                     Ok(_) => {
                         tracing::debug!(
                             "[DuckDBEngine] ✓ Successfully attached MotherDuck to connection '{}'",
@@ -747,7 +833,7 @@ impl DuckDBEngine {
             if !any_success {
                 return Err(crate::errors::DuckDBError::QueryError {
                     message: "Failed to attach MotherDuck to any existing connection".to_string(),
-                    sql: Some(attach_sql),
+                    sql: Some(format!("ATTACH {}", attach_literal)),
                     error_code: None,
                     line_number: None,
                 });
@@ -757,19 +843,18 @@ impl DuckDBEngine {
         // Also validate on a new connection
         let permit = self.pool.acquire_connection_permit().await?;
 
-        let attach_sql_clone = attach_sql.clone();
+        let database_url_clone = database_url.clone();
         tokio::task::spawn_blocking(move || {
             // Create connection in this thread
             let (conn, _permit) = permit.create_connection()?;
 
             // Execute the ATTACH statement
-            conn.execute(&attach_sql_clone, []).map_err(|e| {
-                crate::errors::DuckDBError::QueryError {
-                    message: format!("Failed to attach MotherDuck database: {}", e),
-                    sql: Some(attach_sql_clone.clone()),
-                    error_code: None,
-                    line_number: None,
-                }
+            let attach_sql = format!("ATTACH {}", escape_string_literal(&database_url_clone));
+            conn.execute(&attach_sql, []).map_err(|e| crate::errors::DuckDBError::QueryError {
+                message: format!("Failed to attach MotherDuck database: {}", e),
+                sql: Some(attach_sql.clone()),
+                error_code: None,
+                line_number: None,
             })?;
 
             Ok::<(), crate::errors::DuckDBError>(())

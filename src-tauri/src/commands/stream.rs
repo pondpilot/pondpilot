@@ -12,9 +12,7 @@ use crate::database::{DuckDBEngine, QueryHints};
 use crate::errors::Result as DuckDBResult;
 use crate::streaming::StreamManager;
 use anyhow::Result;
-use arrow_array::RecordBatch;
 use arrow_ipc::writer::StreamWriter;
-use arrow_schema::Schema;
 use serde::Serialize;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
@@ -251,10 +249,10 @@ async fn execute_streaming_query(
                 }
 
                 // Convert DuckDB schema to Arrow schema and serialize to IPC format
-                let arrow_schema = convert_duckdb_schema(&duckdb_schema);
                 let mut schema_buffer = Vec::new();
                 {
-                    let mut writer = StreamWriter::try_new(&mut schema_buffer, &arrow_schema)?;
+                    let mut writer =
+                        StreamWriter::try_new(&mut schema_buffer, duckdb_schema.as_ref())?;
                     writer.finish()?;
                 }
 
@@ -315,12 +313,11 @@ async fn execute_streaming_query(
                 }
 
                 // Convert DuckDB batch to Arrow batch and serialize to IPC format
-                let arrow_batch = convert_duckdb_batch(&duckdb_batch)?;
                 let mut batch_buffer = Vec::new();
                 {
-                    let arrow_schema = arrow_batch.schema();
-                    let mut writer = StreamWriter::try_new(&mut batch_buffer, &arrow_schema)?;
-                    writer.write(&arrow_batch)?;
+                    let mut writer =
+                        StreamWriter::try_new(&mut batch_buffer, duckdb_batch.schema().as_ref())?;
+                    writer.write(&duckdb_batch)?;
                     writer.finish()?;
                 }
 
@@ -435,32 +432,4 @@ pub async fn acknowledge_stream_batch(
         );
     }
     Ok(())
-}
-
-// Zero-copy conversion using type aliasing
-// Since both duckdb::arrow and arrow-rs use the exact same Arrow 55.2.0 crates,
-// the types are identical - this just transmutes the Arc pointer (zero copy!)
-fn convert_duckdb_schema(duckdb_schema: &Arc<duckdb::arrow::datatypes::Schema>) -> Arc<Schema> {
-    // SAFETY: Both Arc<Schema> types are identical from arrow-schema 55.2.0
-    // DuckDB re-exports the exact same types, so this transmute is just a pointer cast
-    // No data is copied - we're just reinterpreting the type at compile time
-    unsafe {
-        std::mem::transmute::<Arc<duckdb::arrow::datatypes::Schema>, Arc<arrow_schema::Schema>>(
-            Arc::clone(duckdb_schema),
-        )
-    }
-}
-
-// Zero-copy conversion using type aliasing
-// This replaces 300+ lines of manual value-by-value copying with a pointer cast
-fn convert_duckdb_batch(batch: &duckdb::arrow::record_batch::RecordBatch) -> Result<RecordBatch> {
-    // SAFETY: Both RecordBatch types are from the same arrow-array 55.2.0 crate
-    // DuckDB re-exports the exact same types, so this is just a pointer cast
-    // The memory layout is identical, making this safe
-    unsafe {
-        Ok(std::mem::transmute::<
-            duckdb::arrow::record_batch::RecordBatch,
-            arrow_array::RecordBatch,
-        >(batch.clone()))
-    }
 }

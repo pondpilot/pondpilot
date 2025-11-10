@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use super::errors::ConnectionError;
 use super::models::{ConnectionConfig, ConnectionType, ConnectionWithCredentials};
+use crate::database::sql_utils::{escape_string_literal, validate_motherduck_url};
 use crate::database::DuckDBEngine;
 use crate::secrets::manager::SecretsManager;
 use crate::secrets::models::SecretCredentials;
@@ -497,8 +498,11 @@ impl ConnectionsManager {
 
         // Use ATTACH with the secret and connection parameters
         let attach_query = format!(
-            "ATTACH '{}' AS {} (TYPE {}, SECRET {})",
-            connection_string, test_alias, db_type, secret_name
+            "ATTACH {} AS {} (TYPE {}, SECRET {})",
+            escape_string_literal(&connection_string),
+            test_alias,
+            db_type,
+            secret_name
         );
 
         match duckdb_conn.execute(&attach_query, []) {
@@ -784,6 +788,12 @@ impl ConnectionsManager {
             "[Connections] Registering MotherDuck attachment: url={}",
             database_url
         );
+
+        if let Err(err) = validate_motherduck_url(&database_url) {
+            return Err(ConnectionError::ConnectionTestFailed {
+                error: err.to_string(),
+            });
+        }
 
         // Check if DuckDB engine is available
         let engine =

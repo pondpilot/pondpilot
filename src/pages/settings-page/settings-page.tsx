@@ -46,7 +46,7 @@ export const SettingsPage = () => {
 
   return (
     <div
-      className="flex flex-1 justify-center overflow-y-auto"
+      className="flex flex-1 justify-center overflow-y-auto min-h-0"
       data-testid={setDataTestId('settings-page')}
     >
       <div className="flex relative max-w-[1024px] w-full min-h-0">

@@ -1,4 +1,5 @@
 use super::extensions::ALLOWED_EXTENSIONS;
+use super::sql_utils::escape_string_literal;
 use crate::errors::{DuckDBError, Result};
 use crate::system_resources::{calculate_resource_limits, ResourceLimits};
 use duckdb::Connection;
@@ -180,18 +181,23 @@ impl ConnectionPermit {
             // Attach database based on type and available metadata
             let attach_sql = if db_info.db_type == "MOTHERDUCK" {
                 // MotherDuck uses special syntax without alias and without SECRET
-                format!("ATTACH '{}'", db_info.connection_string)
+                format!(
+                    "ATTACH {}",
+                    escape_string_literal(&db_info.connection_string)
+                )
             } else if db_info.db_type == "PLAIN" {
                 // Plain URL/file attach
                 if db_info.read_only {
                     format!(
-                        "ATTACH '{}' AS {} (READ_ONLY)",
-                        db_info.connection_string, db_info.alias
+                        "ATTACH {} AS {} (READ_ONLY)",
+                        escape_string_literal(&db_info.connection_string),
+                        db_info.alias
                     )
                 } else {
                     format!(
-                        "ATTACH '{}' AS {}",
-                        db_info.connection_string, db_info.alias
+                        "ATTACH {} AS {}",
+                        escape_string_literal(&db_info.connection_string),
+                        db_info.alias
                     )
                 }
             } else if let Some(secret_name) = &db_info.secret_name {
@@ -199,8 +205,11 @@ impl ConnectionPermit {
                 // FIX: Quote secret name defensively (SQL identifier escaping)
                 let quoted_secret = format!("\"{}\"", secret_name.replace('"', "\"\""));
                 format!(
-                    "ATTACH '{}' AS {} (TYPE {}, SECRET {})",
-                    db_info.connection_string, db_info.alias, db_info.db_type, quoted_secret
+                    "ATTACH {} AS {} (TYPE {}, SECRET {})",
+                    escape_string_literal(&db_info.connection_string),
+                    db_info.alias,
+                    db_info.db_type,
+                    quoted_secret
                 )
             } else {
                 tracing::warn!(

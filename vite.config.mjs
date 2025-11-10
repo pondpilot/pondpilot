@@ -48,9 +48,8 @@ export default defineConfig(({ mode }) => {
   console.log(`[build] Using base path: ${basePath}`);
 
   return {
-    base: isTauriBuild ? '' : '/',
+    base: isTauriBuild ? '' : basePath,
     mode: mode === 'int-test-build' ? 'production' : mode,
-    base: basePath,
     define: {
       __INTEGRATION_TEST__: mode === 'int-test-build',
       __VERSION__: JSON.stringify(getVersionInfo()),

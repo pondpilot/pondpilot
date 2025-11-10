@@ -8,8 +8,10 @@
 //
 // TODO: Implement full parameter binding when DuckDB Rust bindings add support
 
+use crate::database::motherduck_token;
 use crate::database::sql_classifier::ClassifiedSqlStatement;
 use crate::database::sql_sanitizer;
+use crate::database::sql_utils::escape_string_literal;
 use crate::database::types::{ColumnInfo, QueryResult};
 use crate::errors::{DuckDBError, Result};
 use duckdb::Connection;
@@ -20,7 +22,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, oneshot, Mutex};
 // Arrow array types used for value downcasting
 use base64::Engine;
-use chrono::{Duration as ChronoDuration, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use chrono::{Duration as ChronoDuration, NaiveDate};
 use duckdb::arrow::array::{
     Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Float32Array,
     Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
@@ -105,12 +107,12 @@ impl ConnectionHandler {
 
     /// Apply MotherDuck settings in a secure way
     fn apply_motherduck_settings(&mut self) {
-        // Only apply settings if token is present
-        if let Ok(token) = std::env::var("MOTHERDUCK_TOKEN") {
-            debug!("[MotherDuck] Token found in environment");
+        // Only apply settings if a token has been cached by the secrets manager
+        if let Some(token) = motherduck_token::get_token() {
+            let token_str = token.as_str();
 
             // Validate token format
-            if !Self::is_valid_token(&token) {
+            if !Self::is_valid_token(token_str) {
                 debug!("[MotherDuck] Skipping token - invalid format detected");
                 return;
             }
@@ -122,12 +124,17 @@ impl ConnectionHandler {
                 debug!("[MotherDuck] Extension loaded successfully");
             }
 
-            // Rely on MOTHERDUCK_TOKEN env var; some versions require the token
-            // to be set at initialization and reject SET after init.
-            // The extension reads the environment token when needed.
-            debug!("[MotherDuck] Using environment token (no SET)");
+            // Apply the token using DuckDB's session setting instead of relying
+            // on inherited environment variables.
+            let set_sql = format!(
+                "SET motherduck_token = {}",
+                escape_string_literal(token_str)
+            );
+            if let Err(e) = self.connection.execute(&set_sql, []) {
+                debug!("[MotherDuck] Failed to set session token: {}", e);
+            }
         } else {
-            debug!("[MotherDuck] No MOTHERDUCK_TOKEN found in environment");
+            debug!("[MotherDuck] No cached MotherDuck token found");
         }
     }
 

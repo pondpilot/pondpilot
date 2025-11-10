@@ -3,6 +3,8 @@ use std::sync::Arc;
 use tauri::State;
 use uuid::Uuid;
 
+use crate::database::motherduck_token;
+
 use super::manager::SecretsManager;
 use super::models::{SecretFields, SecretMetadata, SecretType};
 
@@ -180,6 +182,7 @@ pub async fn get_secret(
 pub async fn delete_secret(
     window: tauri::Window,
     state: State<'_, Arc<SecretsManager>>,
+    engine: tauri::State<'_, Arc<crate::database::DuckDBEngine>>,
     secret_id: String,
 ) -> Result<(), String> {
     // Verify this command is called from the secrets window
@@ -194,11 +197,21 @@ pub async fn delete_secret(
         format!("Invalid secret ID: {}", e)
     })?;
 
+    let secret = state.get_secret(id).await.map_err(|e| {
+        #[cfg(debug_assertions)]
+        eprintln!("[Secrets] Failed to load secret {} before deletion: {}", secret_id, e);
+        e.to_string()
+    })?;
+
     state.delete_secret(id).await.map_err(|e| {
         #[cfg(debug_assertions)]
         eprintln!("[Secrets] Failed to delete secret {}: {}", secret_id, e);
         e.to_string()
     })?;
+
+    if matches!(secret.metadata.secret_type, SecretType::MotherDuck) {
+        engine.clear_motherduck_token().await;
+    }
 
     #[cfg(debug_assertions)]
     println!("[Secrets] Secret {} deleted successfully", secret_id);
@@ -209,6 +222,7 @@ pub async fn delete_secret(
 pub async fn update_secret(
     window: tauri::Window,
     state: State<'_, Arc<SecretsManager>>,
+    engine: tauri::State<'_, Arc<crate::database::DuckDBEngine>>,
     request: UpdateSecretRequest,
 ) -> Result<SecretResponse, String> {
     // Verify this command is called from the secrets window
@@ -228,6 +242,24 @@ pub async fn update_secret(
         )
         .await
         .map_err(|e| e.to_string())?;
+
+    if metadata.secret_type == SecretType::MotherDuck {
+        match state.get_secret(id).await {
+            Ok(secret) => {
+                if let Some(token) = secret.credentials.get("token") {
+                    engine.set_motherduck_token(token.expose()).await;
+                } else {
+                    engine.clear_motherduck_token().await;
+                }
+            }
+            Err(err) => {
+                tracing::warn!(
+                    "[Secrets] Unable to refresh MotherDuck token after update: {}",
+                    err
+                );
+            }
+        }
+    }
 
     Ok(SecretResponse { metadata })
 }
@@ -320,43 +352,12 @@ pub async fn apply_secret_to_connection(
         secret.metadata.secret_type
     );
 
-    // For MotherDuck, we need to set the environment variable for now
-    // since DuckDB's MotherDuck extension reads from environment
     match secret.metadata.secret_type {
         SecretType::MotherDuck => {
             if let Some(token) = secret.credentials.get("token") {
-                // Clear any existing token first to ensure DuckDB picks up the new one
-                #[cfg(debug_assertions)]
-                println!("[Secrets] Clearing existing MOTHERDUCK_TOKEN environment variable");
-                std::env::remove_var("MOTHERDUCK_TOKEN");
-
-                #[cfg(debug_assertions)]
-                println!("[Secrets] Setting new MOTHERDUCK_TOKEN environment variable");
-                std::env::set_var("MOTHERDUCK_TOKEN", token.expose());
-                #[cfg(debug_assertions)]
-                println!("[Secrets] MOTHERDUCK_TOKEN set successfully");
-
-                // Also set the token in DuckDB engine
-                // This ensures the token is picked up even if the motherduck extension was already loaded
                 let token_value = token.expose();
-                let sql = format!("SET motherduck_token = '{}';", token_value);
-
-                #[cfg(debug_assertions)]
-                println!("[Secrets] Executing SQL to set motherduck_token in DuckDB engine");
-
-                match engine.execute_query(&sql, vec![]).await {
-                    Ok(_) => {
-                        #[cfg(debug_assertions)]
-                        println!("[Secrets] Successfully set motherduck_token in DuckDB");
-                    }
-                    Err(e) => {
-                        // Log warning but don't fail - the env var approach might still work
-                        tracing::warn!(
-                            "Failed to set motherduck_token via SQL (env var is still set): {}",
-                            e
-                        );
-                    }
-                }
+                motherduck_token::set_token(token_value);
+                engine.set_motherduck_token(token_value).await;
             } else {
                 eprintln!("[Secrets] No token field found in MotherDuck secret");
                 return Err("MotherDuck secret missing token field".to_string());

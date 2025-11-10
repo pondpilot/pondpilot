@@ -126,12 +126,24 @@ export function getFlatFileDataSourceName(
   localEntriesOrEntry: Map<LocalEntryId, LocalEntry> | LocalEntry,
   options?: { nonAliased?: boolean },
 ): string {
-  let localEntry: LocalEntry;
+  let localEntry: LocalEntry | undefined;
 
   if (localEntriesOrEntry instanceof Map) {
-    localEntry = localEntriesOrEntry.get(dataSource.fileSourceId)!;
+    localEntry = localEntriesOrEntry.get(dataSource.fileSourceId);
   } else {
     localEntry = localEntriesOrEntry;
+  }
+
+  if (!localEntry) {
+    if (options?.nonAliased) {
+      return dataSource.viewName;
+    }
+
+    if (dataSource.type === 'xlsx-sheet') {
+      return `${dataSource.viewName} (${dataSource.sheetName})`;
+    }
+
+    return dataSource.viewName;
   }
 
   if (dataSource.type === 'xlsx-sheet') {

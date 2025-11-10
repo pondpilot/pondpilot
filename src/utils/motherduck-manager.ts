@@ -55,10 +55,10 @@ export class MotherDuckManager {
         }
       }
 
-      // Apply the secret to set environment variable for the target instance if available
+      // Apply the secret so the backend refreshes its cached MotherDuck token
       if (targetDataSource.instanceId) {
         try {
-          // Apply the secret to set MOTHERDUCK_TOKEN environment variable
+          // Backend command securely caches the token instead of touching env vars
           await SecretsAPI.applySecretToConnection({
             connection_id: `motherduck_reconnect_${targetDataSource.instanceId}`,
             secret_id: targetDataSource.instanceId,

@@ -1,5 +1,7 @@
+use crate::database::motherduck_token;
 use crate::database::sql_classifier::ClassifiedSqlStatement;
 use crate::database::unified_pool::UnifiedPool;
+use crate::database::sql_utils::escape_string_literal;
 use crate::errors::Result;
 use duckdb::arrow::datatypes::Schema as ArrowSchema;
 use duckdb::arrow::record_batch::RecordBatch;
@@ -97,10 +99,11 @@ impl ArrowStreamingExecutor {
                 Err(e) => debug!("[ARROW_STREAMING] Failed to rollback transaction: {}", e),
             }
             // Run setup statements (load extensions, attach databases) if provided
-            // If a MotherDuck token is available in the environment, attempt to load the extension
-            // The extension will read the token from the environment when needed
-            if std::env::var("MOTHERDUCK_TOKEN").is_ok() {
+            if let Some(token) = motherduck_token::get_token() {
                 let _ = conn.execute("LOAD motherduck", []);
+                let set_sql =
+                    format!("SET motherduck_token = {}", escape_string_literal(token.as_str()));
+                let _ = conn.execute(&set_sql, []);
             }
 
             // Now run any provided setup statements

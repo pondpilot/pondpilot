@@ -240,6 +240,7 @@ export async function registerAndAttachDatabase(
 ): Promise<File | null> {
   // Get file reference (path for Tauri, filename for web)
   const fileRef = getFileReference(handle, fileName);
+  let registeredFile: File | null = null;
 
   // Detach any existing database with the same name
   const detachQuery = buildDetachQuery(dbName, true);
@@ -250,6 +251,8 @@ export async function registerAndAttachDatabase(
   if (needsFileRegistration()) {
     // Web environment: register file handle using abstracted method
     if (!handle) throw new Error('FileSystemFileHandle is required for web environment');
+    const file = await handle.getFile();
+    registeredFile = file;
 
     if (conn.registerFile) {
       // Drop the file first if it exists
@@ -263,7 +266,7 @@ export async function registerAndAttachDatabase(
       await conn.registerFile({
         name: fileName,
         type: 'file-handle',
-        handle,
+        handle: file,
       });
     }
   }
@@ -320,6 +323,9 @@ export async function registerAndAttachDatabase(
   }
 
   // Return file object for web, null for Tauri
+  if (registeredFile) {
+    return registeredFile;
+  }
   return await getFileContent(handle);
 }
 
@@ -438,7 +444,7 @@ export async function registerFileHandle(
     await conn.registerFile({
       name: fileName,
       type: 'file-handle',
-      handle,
+      handle: file,
     });
   } else {
     throw new Error('registerFile method not available on connection pool');

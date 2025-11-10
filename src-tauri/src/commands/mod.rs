@@ -2,6 +2,7 @@ pub mod stream;
 pub mod utils;
 
 use crate::database::extensions::ALLOWED_EXTENSIONS;
+use crate::database::motherduck_token;
 use crate::database::{
     CatalogInfo, ColumnInfo, DatabaseInfo, DuckDBEngine, EngineConfig, FileInfo, FileRegistration,
     QueryResult, TableInfo,
@@ -202,12 +203,9 @@ pub async fn connection_execute(
 
                 // Additional MotherDuck diagnostics
                 if path_str.starts_with("md:") {
-                    let token_present = std::env::var("MOTHERDUCK_TOKEN")
-                        .ok()
-                        .map(|t| !t.is_empty())
-                        .unwrap_or(false);
+                    let token_present = motherduck_token::has_token();
                     tracing::debug!(
-                        "[ATTACH_DEBUG] MotherDuck URL detected; env token present: {}",
+                        "[ATTACH_DEBUG] MotherDuck URL detected; cached token present: {}",
                         token_present
                     );
                     // Try to check extension load state on this connection

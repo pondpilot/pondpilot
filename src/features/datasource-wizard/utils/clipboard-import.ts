@@ -185,13 +185,14 @@ export async function importClipboardAsTable(
     let fileHandle: FileSystemFileHandle;
     try {
       fileHandle = await opfsUtil.getFileHandle(tempFileName, false);
+      const file = await fileHandle.getFile();
 
       // Register the file handle with DuckDB using abstracted method
       if (conn.registerFile) {
         await conn.registerFile({
           name: tempFileName,
           type: 'file-handle',
-          handle: fileHandle,
+          handle: file,
         });
       } else {
         throw new Error('registerFile method not available on connection pool');

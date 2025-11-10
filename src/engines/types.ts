@@ -1,7 +1,7 @@
 export interface FileRegistration {
   name: string;
   type: 'file-handle' | 'url' | 'path';
-  handle?: FileSystemFileHandle;
+  handle?: File | FileSystemFileHandle;
   url?: string;
   path?: string;
 }

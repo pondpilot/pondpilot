@@ -22,6 +22,14 @@ import {
   ExtensionInfo,
 } from './types';
 
+function isFileSystemHandle(handle: unknown): handle is FileSystemFileHandle {
+  return typeof (handle as FileSystemFileHandle)?.getFile === 'function';
+}
+
+function isBrowserFile(handle: unknown): handle is File {
+  return typeof File !== 'undefined' && handle instanceof File;
+}
+
 export class DuckDBWasmEngine implements DatabaseEngine {
   private worker: Worker | null = null;
   private _db: duckdb.AsyncDuckDB | null = null;
@@ -137,9 +145,22 @@ export class DuckDBWasmEngine implements DatabaseEngine {
     }
 
     if (options.type === 'file-handle' && options.handle) {
+      let fileToRegister: File;
+
+      if (isBrowserFile(options.handle)) {
+        fileToRegister = options.handle;
+      } else if (isFileSystemHandle(options.handle)) {
+        fileToRegister = await options.handle.getFile();
+      } else {
+        throw new FileOperationError(
+          'Unsupported file handle type for registration',
+          options.name,
+        );
+      }
+
       await this._db.registerFileHandle(
         options.name,
-        options.handle,
+        fileToRegister,
         duckdb.DuckDBDataProtocol.BROWSER_FILEREADER,
         true,
       );

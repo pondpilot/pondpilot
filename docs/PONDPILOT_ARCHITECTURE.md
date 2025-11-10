@@ -719,7 +719,7 @@ The abstraction layers ensure that platform-specific code is isolated, making th
    - SQL identifier sanitization
    - Extension whitelisting (httpfs, parquet, json, etc.)
    - Resource limits based on system capabilities
-   - MotherDuck token management
+   - MotherDuck token management (tokens are cached only in memory, refreshed on update, and purged immediately when a secret is deleted)
 
 5. **Resource Management**
    - Dynamic resource limits calculation
@@ -739,4 +739,3 @@ The abstraction layers ensure that platform-specific code is isolated, making th
    - Auto-updater functionality
    - Native menu bar with shortcuts
    - macOS code signing and notarization
-

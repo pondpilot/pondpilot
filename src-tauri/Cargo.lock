@@ -3426,6 +3426,7 @@ dependencies = [
  "futures",
  "keyring",
  "num_cpus",
+ "once_cell",
  "open",
  "rusqlite",
  "serde",
