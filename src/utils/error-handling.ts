@@ -1,4 +1,5 @@
 import { showError, showErrorWithAction } from '@components/app-notifications/app-notifications';
+import { normalizeErrorMessage } from './error-utils';
 
 export interface ErrorContext {
   operation?: string;
@@ -14,16 +15,7 @@ export interface ErrorContext {
  * Converts an unknown error to a user-friendly message
  */
 export function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === 'string') {
-    return error;
-  }
-  if (error && typeof error === 'object' && 'message' in error) {
-    return String(error.message);
-  }
-  return 'An unexpected error occurred';
+  return normalizeErrorMessage(error);
 }
 
 /**

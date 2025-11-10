@@ -105,7 +105,10 @@ export class AttachmentLoader {
                     await connection.execute(attachSql);
 
                     // Register with pool for re-attachment
-                    await ConnectionsAPI.registerMotherDuckAttachment(db.legacyUrl);
+                    await ConnectionsAPI.registerMotherDuckAttachment(
+                      db.legacyUrl,
+                      db.instanceId ?? undefined,
+                    );
                     logger.info(`Attached and registered MotherDuck database '${db.dbName}'`);
 
                     // Fetch metadata for the attached MotherDuck database

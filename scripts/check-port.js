@@ -5,8 +5,72 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const DEFAULT_PORT = 5174;
+const DEFAULT_PORT = 5173;
 const MAX_PORT_ATTEMPTS = 10;
+const ROOT_DIR = path.join(__dirname, '..');
+const TAURI_CONFIG_PATH = path.join(ROOT_DIR, 'src-tauri', 'tauri.conf.json');
+const ENV_LOCAL_PATH = path.join(ROOT_DIR, '.env.local');
+const ENV_PATH = path.join(ROOT_DIR, '.env');
+
+function parsePort(value) {
+  if (!value) {
+    return null;
+  }
+
+  const sanitized = value
+    .split('#')[0] // Drop inline comments
+    .trim()
+    .replace(/^['"]|['"]$/g, '');
+
+  const port = Number.parseInt(sanitized, 10);
+  if (Number.isInteger(port) && port > 0 && port <= 65535) {
+    return port;
+  }
+  return null;
+}
+
+function readPortFromEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  const content = fs.readFileSync(filePath, 'utf8');
+  const match = content.match(/^VITE_PORT\s*=\s*(.+)$/m);
+  return match ? parsePort(match[1]) : null;
+}
+
+function getPortFromTauriConfig() {
+  if (!fs.existsSync(TAURI_CONFIG_PATH)) {
+    return null;
+  }
+  try {
+    const config = JSON.parse(fs.readFileSync(TAURI_CONFIG_PATH, 'utf8'));
+    const devUrl = config?.build?.devUrl;
+    if (typeof devUrl !== 'string') {
+      return null;
+    }
+    try {
+      const parsed = new URL(devUrl);
+      if (parsed.port) {
+        return parsePort(parsed.port);
+      }
+      return parsed.protocol === 'https:' ? 443 : 80;
+    } catch {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
+function resolveBasePort() {
+  return (
+    parsePort(process.env.VITE_PORT) ??
+    readPortFromEnvFile(ENV_LOCAL_PATH) ??
+    readPortFromEnvFile(ENV_PATH) ??
+    getPortFromTauriConfig() ??
+    DEFAULT_PORT
+  );
+}
 
 function isPortAvailable(port) {
   return new Promise((resolve) => {
@@ -51,43 +115,48 @@ function getProcessUsingPort(port) {
 }
 
 async function main() {
-  const isAvailable = await isPortAvailable(DEFAULT_PORT);
+  const basePort = resolveBasePort();
+  const isAvailable = await isPortAvailable(basePort);
   
   if (!isAvailable) {
-    console.warn(`⚠️  Port ${DEFAULT_PORT} is already in use`);
+    console.warn(`⚠️  Port ${basePort} is already in use`);
     
-    const processInfo = getProcessUsingPort(DEFAULT_PORT);
+    const processInfo = getProcessUsingPort(basePort);
     if (processInfo) {
       console.warn(`   Process: ${processInfo.command} (PID: ${processInfo.pid}, User: ${processInfo.user})`);
     }
     
-    const newPort = await findAvailablePort(DEFAULT_PORT);
+    const newPort = await findAvailablePort(basePort);
     console.log(`✅ Found available port: ${newPort}`);
     
     // Update tauri.conf.json
-    const tauriConfigPath = path.join(__dirname, '..', 'src-tauri', 'tauri.conf.json');
-    const tauriConfig = JSON.parse(fs.readFileSync(tauriConfigPath, 'utf8'));
-    tauriConfig.build.devUrl = `http://localhost:${newPort}`;
-    fs.writeFileSync(tauriConfigPath, JSON.stringify(tauriConfig, null, 2));
-    console.log(`✅ Updated tauri.conf.json with new port`);
+    if (fs.existsSync(TAURI_CONFIG_PATH)) {
+      const tauriConfig = JSON.parse(fs.readFileSync(TAURI_CONFIG_PATH, 'utf8'));
+      tauriConfig.build = tauriConfig.build || {};
+      tauriConfig.build.devUrl = `http://localhost:${newPort}`;
+      fs.writeFileSync(TAURI_CONFIG_PATH, JSON.stringify(tauriConfig, null, 2));
+      console.log(`✅ Updated tauri.conf.json with new port`);
+    }
     
     // Create/update .env.local to set Vite port
-    const envPath = path.join(__dirname, '..', '.env.local');
-    let envContent = '';
+    const envPath = ENV_LOCAL_PATH;
+    let envLines = [];
     if (fs.existsSync(envPath)) {
-      envContent = fs.readFileSync(envPath, 'utf8');
-      // Remove existing VITE_PORT if present
-      envContent = envContent.split('\n')
-        .filter(line => !line.startsWith('VITE_PORT='))
-        .join('\n');
+      envLines = fs
+        .readFileSync(envPath, 'utf8')
+        .split('\n')
+        .filter((line) => {
+          const trimmed = line.trim();
+          return trimmed.length === 0 || !trimmed.startsWith('VITE_PORT=');
+        });
     }
-    envContent = envContent.trim() + `\nVITE_PORT=${newPort}\n`;
-    fs.writeFileSync(envPath, envContent);
+    envLines.push(`VITE_PORT=${newPort}`);
+    fs.writeFileSync(envPath, `${envLines.join('\n')}\n`);
     console.log(`✅ Updated .env.local with VITE_PORT=${newPort}`);
     
-    process.env.VITE_PORT = newPort;
+    process.env.VITE_PORT = String(newPort);
   } else {
-    console.log(`✅ Port ${DEFAULT_PORT} is available`);
+    console.log(`✅ Port ${basePort} is available`);
   }
 }
 

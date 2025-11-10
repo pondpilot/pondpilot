@@ -17,7 +17,9 @@ export class TauriFileHandle implements UnifiedFileHandle {
   async getFile(): Promise<File> {
     const fs = await import('@tauri-apps/plugin-fs');
     const contents = await fs.readFile(this.path);
-    return new File([contents], this.name, {
+    // Convert Uint8Array<ArrayBufferLike> to Uint8Array<ArrayBuffer> for File constructor
+    const buffer = new Uint8Array(contents);
+    return new File([buffer], this.name, {
       lastModified: this._lastModified || Date.now(),
     });
   }

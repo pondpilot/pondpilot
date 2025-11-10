@@ -5,6 +5,9 @@ import { ConnectionPool } from '@engines/types';
 import { RemoteDB } from '@models/data-source';
 import { useAppStore } from '@store/app-store';
 import { makePersistentDataSourceId } from '@utils/data-source';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { getErrorMessage } from '@utils/error-handling';
+import { quote } from '@utils/helpers';
 import { isMotherDuckUrl } from '@utils/url-helpers';
 import { useCallback, useState, useEffect } from 'react';
 
@@ -133,7 +136,6 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
           )
         ) {
           try {
-            const { toDuckDBIdentifier } = await import('@utils/duckdb/identifier');
             await conn.execute(`DETACH DATABASE ${toDuckDBIdentifier(catalogDbName)}`);
           } catch (e) {
             // Could not detach catalog database
@@ -222,6 +224,11 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
         connection_id: `motherduck_attach_${Date.now()}`, // Use unique ID to force fresh application
         secret_id: selectedSecretId,
       });
+      console.info('[MotherDuck] Secret applied before attachment', {
+        secretId: selectedSecretId,
+        secretName: selectedSecretName,
+        attaching: namesToAttach,
+      });
 
       const conn = await pool.acquire();
       try {
@@ -237,43 +244,79 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
           checkAttached.rows.map((row: any) => row.database_name as string),
         );
 
+        const { ConnectionsAPI } = await import('../../../services/connections-api');
+
+        console.info('[MotherDuck] Starting attachment batch', {
+          dbCount: namesToAttach.length,
+          namesToAttach,
+        });
+
         // Attach each database individually
         for (const dbName of namesToAttach) {
-          // Skip if already attached
+          const dbUrl = `md:${dbName}`;
+
+          const registerAttachment = async () => {
+            try {
+              await ConnectionsAPI.registerMotherDuckAttachment(
+                dbUrl,
+                selectedSecretId || undefined,
+              );
+              console.info('[MotherDuck] Registered attachment with backend', {
+                dbName,
+                secretId: selectedSecretId,
+              });
+            } catch (registerError) {
+              console.error(
+                `[MotherDuck] register_motherduck_attachment failed for ${dbName}`,
+                registerError,
+              );
+              throw registerError;
+            }
+          };
+
           if (currentlyAttached.has(dbName)) {
+            await registerAttachment();
             attachedNames.push(dbName);
             attachedDbNames.add(dbName);
             continue;
           }
 
-          const dbUrl = `md:${dbName}`;
+          let dbIdentifier = '';
+          let detachOnError = false;
 
           try {
+            dbIdentifier = toDuckDBIdentifier(dbName);
             const attachQuery = `ATTACH '${dbUrl}'`;
             await conn.execute(attachQuery);
+            detachOnError = true;
 
-            // Verify we can see tables in this database
+            const verifyQuery = `SELECT COUNT(*) as table_count FROM information_schema.tables WHERE table_catalog = ${quote(dbName, { single: true })} AND table_schema NOT IN ('information_schema', 'pg_catalog')`;
             try {
-              const { toDuckDBIdentifier } = await import('@utils/duckdb/identifier');
-              const verifyQuery = `SELECT COUNT(*) as table_count FROM ${toDuckDBIdentifier(dbName)}.information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog')`;
-              const verifyResult = await conn.execute(verifyQuery);
-              const _tableCount = verifyResult.rows[0]?.table_count || 0;
-
-              attachedNames.push(dbName);
-              attachedDbNames.add(dbName);
+              await conn.execute(verifyQuery);
             } catch (verifyError) {
-              // Still add it as attached
-              attachedNames.push(dbName);
-              attachedDbNames.add(dbName);
+              const verifyMessage = getErrorMessage(verifyError);
+              console.warn(
+                `[MotherDuck] Verification query failed for ${dbName} (continuing): ${verifyMessage}`,
+                { query: verifyQuery },
+              );
             }
+
+            await registerAttachment();
+            detachOnError = false;
+            attachedNames.push(dbName);
+            attachedDbNames.add(dbName);
           } catch (e: any) {
-            const msg = String(e?.message || e);
-            if (/already attached|already in use/i.test(msg)) {
-              attachedNames.push(dbName);
-              attachedDbNames.add(dbName);
-            } else {
-              console.error(`[MotherDuck] Failed to attach ${dbName}:`, e);
+            if (detachOnError && dbIdentifier) {
+              try {
+                await conn.execute(`DETACH ${dbIdentifier}`);
+              } catch (detachError) {
+                console.warn(
+                  `[MotherDuck] Failed to detach ${dbName} after error:`,
+                  detachError,
+                );
+              }
             }
+            throw e;
           }
         }
       } finally {
@@ -302,7 +345,10 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
         // Register with backend for re-attachment on all connections
         try {
           const { ConnectionsAPI } = await import('../../../services/connections-api');
-          await ConnectionsAPI.registerMotherDuckAttachment(`md:${dbName}`);
+          await ConnectionsAPI.registerMotherDuckAttachment(
+            `md:${dbName}`,
+            selectedSecretId || undefined,
+          );
         } catch (regError) {
           console.error(`[MotherDuck] Failed to register ${dbName} with backend:`, regError);
         }
@@ -340,15 +386,13 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
 
       return true; // Success
     } catch (error) {
-      console.error('Failed to attach MotherDuck database:', error);
-      let msg: string;
-      if (error instanceof Error) {
-        msg = error.message;
-      } else if (typeof error === 'object' && error !== null && 'message' in error) {
-        msg = String((error as any).message);
-      } else {
-        msg = String(error);
-      }
+      console.error('Failed to attach MotherDuck database batch:', {
+        error,
+        selectedSecretId,
+        selectedSecretName,
+        requestedDatabases: Array.from(selectedSet),
+      });
+      const msg = getErrorMessage(error);
       showError({ title: 'Failed to attach database', message: msg });
       return false; // Failure
     } finally {

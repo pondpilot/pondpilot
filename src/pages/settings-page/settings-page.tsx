@@ -46,19 +46,19 @@ export const SettingsPage = () => {
 
   return (
     <div
-      className="flex flex-1 justify-center overflow-y-auto min-h-0"
+      className="flex flex-1 h-full justify-center overflow-y-auto min-h-0"
       data-testid={setDataTestId('settings-page')}
     >
-      <div className="flex relative max-w-[1024px] w-full min-h-0">
+      <div className="flex relative max-w-[1024px] w-full min-h-0 h-full">
         <SettingsNavigation
           navigationItems={navigationItems}
           activeSection={activeSection}
           onSectionClick={scrollToSection}
         />
 
-        <main className="flex-1 p-4 overflow-y-auto min-h-0 custom-scroll-hidden">
-          <div className="max-w-2xl mx-auto">
-            <Stack gap={32} className="pb-16">
+        <main className="flex-1 p-4 overflow-y-auto h-full min-h-0 custom-scroll-hidden">
+          <div className="max-w-2xl mx-auto min-h-full">
+            <Stack gap={32} className="pb-16 min-h-full">
               {settingsConfig.blocks.map((block, index) => (
                 <Fragment key={block.id}>
                   {index > 0 && <Divider />}

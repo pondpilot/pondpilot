@@ -397,9 +397,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
                       const remoteDb: RemoteDB = {
                         type: 'remote-db',
                         id: makePersistentDataSourceId(),
-                        url,
+                        connectionType: 'url',
+                        legacyUrl: url,
                         dbName,
-                        dbType: 'duckdb',
+                        queryEngineType: 'duckdb',
+                        supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
                         connectionState: 'connected',
                         attachedAt: Date.now(),
                       };

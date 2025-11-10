@@ -1,12 +1,13 @@
 import { showError } from '@components/app-notifications';
 import { ConnectionPool } from '@engines/types';
-import { Group, Stack, Title, ActionIcon, Text, Button, Alert } from '@mantine/core';
+import { Group, Stack, Title, ActionIcon, Text, Button, Alert, SimpleGrid } from '@mantine/core';
 import {
   IconDatabasePlus,
   IconFilePlus,
   IconFolderPlus,
   IconX,
   IconClipboard,
+  IconCloud,
 } from '@tabler/icons-react';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { setDataTestId } from '@utils/test-id';
@@ -15,6 +16,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { BaseActionCard } from './components/base-action-card';
 import { ClipboardImportConfig } from './components/clipboard-import-config';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
+import { MotherDuckDatabaseConfig } from './components/motherduck-database-config';
 import { validateJSON, validateCSV } from './utils/clipboard-import';
 
 interface DatasourceWizardModalProps {
@@ -25,12 +27,19 @@ interface DatasourceWizardModalProps {
   initialStep?: WizardStep;
 }
 
-export type WizardStep = 'selection' | 'remote-config' | 'clipboard-csv' | 'clipboard-json';
+export type WizardStep =
+  | 'selection'
+  | 'remote-config'
+  | 'motherduck-config'
+  | 'clipboard-csv'
+  | 'clipboard-json';
 
 const getStepTitle = (step: WizardStep): string => {
   switch (step) {
     case 'remote-config':
       return 'REMOTE DATABASE';
+    case 'motherduck-config':
+      return 'MOTHERDUCK';
     case 'clipboard-csv':
       return 'IMPORT CSV FROM CLIPBOARD';
     case 'clipboard-json':
@@ -141,6 +150,10 @@ export function DatasourceWizardModal({
 
   const handleRemoteDatabaseClick = () => {
     setStep('remote-config');
+  };
+
+  const handleMotherDuckClick = () => {
+    setStep('motherduck-config');
   };
 
   const handleBack = () => {
@@ -337,6 +350,20 @@ export function DatasourceWizardModal({
       description: 'S3, GCS, Azure, HTTPS',
       testId: 'add-remote-database-card',
     },
+    {
+      type: 'motherduck' as const,
+      onClick: handleMotherDuckClick,
+      icon: (
+        <IconCloud
+          size={48}
+          className="text-textSecondary-light dark:text-textSecondary-dark"
+          stroke={1.5}
+        />
+      ),
+      title: 'MotherDuck Cloud',
+      description: 'Use saved tokens, browse available DBs',
+      testId: 'add-motherduck-card',
+    },
   ];
 
   return (
@@ -371,25 +398,32 @@ export function DatasourceWizardModal({
           {renderPasteDataBanner()}
           {renderClipboardBlockedAlert()}
 
-          <Group>
-            <Group gap="md" className="justify-center md:justify-start">
-              {datasourceCards.map((card) => (
-                <BaseActionCard
-                  key={card.type}
-                  onClick={card.onClick}
-                  icon={card.icon}
-                  title={card.title}
-                  description={card.description}
-                  testId={card.testId}
-                />
-              ))}
-            </Group>
-          </Group>
+          <SimpleGrid
+            cols={{ base: 1, sm: 2, lg: 3 }}
+            spacing="md"
+            className="w-full"
+            verticalSpacing="md"
+          >
+            {datasourceCards.map((card) => (
+              <BaseActionCard
+                key={card.type}
+                onClick={card.onClick}
+                icon={card.icon}
+                title={card.title}
+                description={card.description}
+                testId={card.testId}
+              />
+            ))}
+          </SimpleGrid>
         </Stack>
       )}
 
       {step === 'remote-config' && (
         <RemoteDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+
+      {step === 'motherduck-config' && (
+        <MotherDuckDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
 
       {(step === 'clipboard-csv' || step === 'clipboard-json') && (

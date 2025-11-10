@@ -152,14 +152,16 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         remoteDb = {
           type: 'remote-db',
           id: makePersistentDataSourceId(),
-          url: url.trim(),
+          connectionType: 'url',
+          legacyUrl: url.trim(),
           dbName: dbName.trim(),
-          dbType: 'duckdb',
+          queryEngineType: 'duckdb',
+          supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
           connectionState: 'connecting',
           attachedAt: Date.now(),
-          useCorsProxy,
+          requiresProxy: useCorsProxy,
         };
-        attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly, useCorsProxy });
+        attachQuery = buildAttachQuery(remoteDb.legacyUrl!, remoteDb.dbName, { readOnly, useCorsProxy });
       }
 
       const { dataSources, databaseMetadata } = useAppStore.getState();
