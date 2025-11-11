@@ -32,8 +32,16 @@ function tryParseStructuredMessage(text: string): string | null {
 }
 
 function extractMessage(value: unknown, depth = 0): string | null {
-  if (depth > 5 || value === null || value === undefined) {
+  if (depth > 5) {
     return null;
+  }
+
+  // Handle null/undefined by converting to string
+  if (value === null) {
+    return 'null';
+  }
+  if (value === undefined) {
+    return 'undefined';
   }
 
   if (value instanceof DatabaseEngineError) {
