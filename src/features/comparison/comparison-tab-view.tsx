@@ -185,9 +185,10 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
 
   // Automatically trigger schema analysis when both sources are configured but schema is not analyzed
   useEffect(() => {
-    const hasSources = Boolean(comparisonConfig?.sourceA && comparisonConfig?.sourceB);
+    const sourceA = comparisonConfig?.sourceA ?? null;
+    const sourceB = comparisonConfig?.sourceB ?? null;
 
-    if (!hasSources) {
+    if (!sourceA || !sourceB) {
       lastAnalysisKeyRef.current = null;
       lastAnalysisFailedRef.current = false;
       return;
@@ -197,7 +198,7 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
       return;
     }
 
-    const sourceKey = createSourceKey(comparisonConfig.sourceA, comparisonConfig.sourceB);
+    const sourceKey = createSourceKey(sourceA, sourceB);
 
     if (lastAnalysisFailedRef.current && lastAnalysisKeyRef.current === sourceKey) {
       return;
@@ -205,7 +206,7 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
 
     lastAnalysisKeyRef.current = sourceKey;
 
-    analyzeSchemas(comparisonConfig.sourceA, comparisonConfig.sourceB, comparisonId)
+    analyzeSchemas(sourceA, sourceB, comparisonId)
       .then((result) => {
         if (result) {
           updateSchemaComparison(tabId, result);
