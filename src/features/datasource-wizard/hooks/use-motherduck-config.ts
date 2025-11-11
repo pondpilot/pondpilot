@@ -224,6 +224,7 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
         connection_id: `motherduck_attach_${Date.now()}`, // Use unique ID to force fresh application
         secret_id: selectedSecretId,
       });
+      // eslint-disable-next-line no-console
       console.info('[MotherDuck] Secret applied before attachment', {
         secretId: selectedSecretId,
         secretName: selectedSecretName,
@@ -246,6 +247,7 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
 
         const { ConnectionsAPI } = await import('../../../services/connections-api');
 
+        // eslint-disable-next-line no-console
         console.info('[MotherDuck] Starting attachment batch', {
           dbCount: namesToAttach.length,
           namesToAttach,
@@ -261,6 +263,7 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
                 dbUrl,
                 selectedSecretId || undefined,
               );
+              // eslint-disable-next-line no-console
               console.info('[MotherDuck] Registered attachment with backend', {
                 dbName,
                 secretId: selectedSecretId,

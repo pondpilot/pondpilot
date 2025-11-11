@@ -1,8 +1,4 @@
-import type {
-  ParquetView,
-  PersistentDataSourceId,
-  XlsxSheetView,
-} from '@models/data-source';
+import type { ParquetView, PersistentDataSourceId, XlsxSheetView } from '@models/data-source';
 import type { DataSourceLocalFile, LocalEntry, LocalEntryId } from '@models/file-system';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 

@@ -11,7 +11,7 @@ function tryParseStructuredMessage(text: string): string | null {
   try {
     const parsed = JSON.parse(trimmed);
     if (parsed && typeof parsed === 'object') {
-      const { details } = (parsed as any);
+      const { details } = parsed as any;
       if (details && typeof details === 'object') {
         if (typeof details.message === 'string') {
           return details.message;

@@ -1036,7 +1036,9 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           }
         }
       };
-      void asyncDestructor();
+      asyncDestructor().catch(() => {
+        // Intentionally ignore errors during cleanup
+      });
     };
     // We intentionally use this only on mount, as we want different
     // behavior on all other changes - handled by the effect above
