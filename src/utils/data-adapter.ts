@@ -1,4 +1,4 @@
-import { getFileReferenceForDuckDB } from '@controllers/file-system/file-helpers';
+import { getFileReferenceForDuckDB, escapeDuckDBPath } from '@controllers/file-system/file-helpers';
 import { ConnectionPool } from '@engines/types';
 import { ColumnAggregateType, DataAdapterQueries } from '@models/data-adapter';
 import {
@@ -10,7 +10,7 @@ import {
   SYSTEM_DATABASE_NAME,
 } from '@models/data-source';
 import { DBColumn } from '@models/db';
-import { LocalEntry, LocalFile } from '@models/file-system';
+import { LocalEntry, LocalFile, DataSourceLocalFile } from '@models/file-system';
 import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { isTauriEnvironment } from '@utils/browser';
@@ -142,6 +142,9 @@ function getFlatFileDataAdapterQueries(
   }
 
   if (dataSource.type === 'parquet') {
+    const fileReference = escapeDuckDBPath(
+      getFileReferenceForDuckDB(sourceFile as DataSourceLocalFile),
+    );
     return {
       ...baseAttrs,
       getRowCount: async (abortSignal: AbortSignal) => {
@@ -149,7 +152,7 @@ function getFlatFileDataAdapterQueries(
           throw new Error('Connection pool does not support queryAbortable');
         }
         const { value, aborted } = await pool.queryAbortable(
-          `SELECT num_rows FROM parquet_file_metadata('${sourceFile.uniqueAlias}.${sourceFile.ext}')`,
+          `SELECT num_rows FROM parquet_file_metadata('${fileReference}')`,
           abortSignal,
         );
 
