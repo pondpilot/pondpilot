@@ -286,6 +286,7 @@ fn main() {
                 secrets::update_secret,
                 secrets::test_secret,
                 secrets::apply_secret_to_connection,
+                secrets::register_storage_secret,
                 secrets::get_secret_types,
                 secrets::debug_secret,
                 secrets::cleanup_orphaned_secrets,

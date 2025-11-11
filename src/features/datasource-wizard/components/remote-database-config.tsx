@@ -2,10 +2,11 @@ import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { ConnectionPool } from '@engines/types';
-import { Stack, TextInput, Text, Button, Group, Checkbox, Alert, Tooltip } from '@mantine/core';
+import { Stack, TextInput, Text, Button, Group, Checkbox, Alert, Tooltip, Select } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { RemoteDB } from '@models/data-source';
+import { SecretType, SECRET_TYPE_LABELS } from '@models/secrets';
 import { useAppStore } from '@store/app-store';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { isTauriEnvironment } from '@utils/browser';
@@ -22,13 +23,36 @@ import { validateRemoteDatabaseUrl } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { setDataTestId } from '@utils/test-id';
 import { isMotherDuckUrl } from '@utils/url-helpers';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import SecretsAPI from '@services/secrets-api';
+import { getSecretAlias } from '@utils/secret-alias';
+import { useSecretsByType } from '../hooks/use-secrets-by-type';
 
 interface RemoteDatabaseConfigProps {
   pool: ConnectionPool | null;
   onBack: () => void;
   onClose: () => void;
 }
+
+const SUPPORTED_SECRET_TYPES: SecretType[] = [
+  SecretType.S3,
+  SecretType.R2,
+  SecretType.GCS,
+  SecretType.Azure,
+  SecretType.HTTP,
+  SecretType.HuggingFace,
+  SecretType.DuckLake,
+];
+
+const SECRET_ATTACH_TYPE: Partial<Record<SecretType, string>> = {
+  [SecretType.S3]: 'S3',
+  [SecretType.R2]: 'R2',
+  [SecretType.GCS]: 'GCS',
+  [SecretType.Azure]: 'AZURE',
+  [SecretType.HTTP]: 'HTTP',
+  [SecretType.HuggingFace]: 'HUGGINGFACE',
+  [SecretType.DuckLake]: 'DUCKLAKE',
+};
 
 export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseConfigProps) {
   const [url, setUrl] = useInputState('');
@@ -37,6 +61,57 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
   const [useCorsProxy, setUseCorsProxy] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [selectedSecretId, setSelectedSecretId] = useState<string | null>(null);
+
+  const { secrets: availableSecrets, loading: secretsLoading } = useSecretsByType(
+    SUPPORTED_SECRET_TYPES,
+  );
+
+  const selectedSecret = useMemo(
+    () => availableSecrets.find((secret) => secret.metadata.id === selectedSecretId) || null,
+    [selectedSecretId, availableSecrets],
+  );
+
+  const effectiveUseCorsProxy = selectedSecret ? false : useCorsProxy;
+  const secretOptions = useMemo(
+    () =>
+      availableSecrets.map((secret) => ({
+        value: secret.metadata.id,
+        label: secret.metadata.name,
+        description: SECRET_TYPE_LABELS[secret.type],
+      })),
+    [availableSecrets],
+  );
+
+  const ensureSecretRegistered = async () => {
+    if (!selectedSecret) {
+      return null;
+    }
+
+    const attachType = SECRET_ATTACH_TYPE[selectedSecret.type];
+    if (!attachType) {
+      showError({
+        title: 'Unsupported credential',
+        message: `Selected secret type (${SECRET_TYPE_LABELS[selectedSecret.type]}) cannot be used for this connection`,
+      });
+      return null;
+    }
+
+    try {
+      await SecretsAPI.registerStorageSecret(selectedSecret.metadata.id);
+      return {
+        attachType,
+        secretName: getSecretAlias(selectedSecret.metadata.id),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to apply credentials';
+      showError({
+        title: 'Credential error',
+        message,
+      });
+      throw error;
+    }
+  };
 
   const handleTest = async () => {
     if (!pool) {
@@ -79,7 +154,13 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         actualDbName = remoteDb.dbName;
         attachQuery = `ATTACH ${quote(url.trim(), { single: true })}`;
       } else {
-        attachQuery = buildAttachQuery(url, dbName, { readOnly, useCorsProxy });
+        const secretConfig = await ensureSecretRegistered();
+        attachQuery = buildAttachQuery(url, dbName, {
+          readOnly,
+          useCorsProxy: effectiveUseCorsProxy,
+          attachType: secretConfig?.attachType,
+          secretName: secretConfig?.secretName,
+        });
       }
 
       try {
@@ -149,6 +230,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         remoteDb = mdResult.remoteDb;
         attachQuery = `ATTACH ${quote(url.trim(), { single: true })}`;
       } else {
+        const secretConfig = await ensureSecretRegistered();
         remoteDb = {
           type: 'remote-db',
           id: makePersistentDataSourceId(),
@@ -159,9 +241,14 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
           supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
           connectionState: 'connecting',
           attachedAt: Date.now(),
-          requiresProxy: useCorsProxy,
+          requiresProxy: effectiveUseCorsProxy,
         };
-        attachQuery = buildAttachQuery(remoteDb.legacyUrl!, remoteDb.dbName, { readOnly, useCorsProxy });
+        attachQuery = buildAttachQuery(remoteDb.legacyUrl!, remoteDb.dbName, {
+          readOnly,
+          useCorsProxy: effectiveUseCorsProxy,
+          attachType: secretConfig?.attachType,
+          secretName: secretConfig?.secretName,
+        });
       }
 
       const { dataSources, databaseMetadata } = useAppStore.getState();
@@ -247,11 +334,40 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         className="text-sm"
         classNames={{ icon: 'mr-1' }}
       >
-        Supported protocols: HTTPS, S3, GCS (Google Cloud Storage), Azure Blob Storage
-        {isTauriEnvironment() ? ', MotherDuck (md:)' : ''}
+        Supported sources: HTTPS (optionally with API tokens), S3/R2/GCS/Azure buckets
+        {isTauriEnvironment() ? ', and MotherDuck (md:)' : ''}
       </Alert>
 
       <Stack gap={12}>
+        <Stack gap={6}>
+          <Text size="sm" c="text-secondary" className="pl-4">
+            Optional: use saved credentials for cloud buckets or API tokens
+          </Text>
+          <Select
+            label="Stored credentials"
+            placeholder={
+              secretsLoading
+                ? 'Loading credentials...'
+                : secretOptions.length === 0
+                  ? 'No saved credentials'
+                  : 'Choose saved credentials (optional)'
+            }
+            data={secretOptions}
+            value={selectedSecretId}
+            onChange={setSelectedSecretId}
+            searchable
+            clearable
+            disabled={secretsLoading || secretOptions.length === 0 || isMotherDuckUrl(url)}
+            description="S3 / R2 / GCS / Azure / HTTP / HuggingFace / DuckLake secrets"
+            classNames={{ description: 'pl-4 text-sm' }}
+          />
+          {selectedSecret && (
+            <Text size="xs" c="text-secondary" className="pl-4">
+              Using {SECRET_TYPE_LABELS[selectedSecret.type]} credentials: {selectedSecret.metadata.name}
+            </Text>
+          )}
+        </Stack>
+
         <TextInput
           label="Database URL"
           data-testid={setDataTestId('remote-database-url-input')}
@@ -280,7 +396,11 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         />
 
         <Tooltip
-          label="Uses a CORS proxy to access databases without CORS headers. The proxy forwards requests transparently without logging or storing data."
+          label={
+            selectedSecret
+              ? 'Disabled while using saved credentials'
+              : 'Uses a CORS proxy to access databases without CORS headers'
+          }
           multiline
           w={300}
           withArrow
@@ -288,9 +408,10 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         >
           <Checkbox
             label="Use CORS proxy"
-            checked={useCorsProxy}
+            checked={effectiveUseCorsProxy}
             onChange={(event) => setUseCorsProxy(event.currentTarget.checked)}
             className="pl-4"
+            disabled={!!selectedSecret}
           />
         </Tooltip>
       </Stack>

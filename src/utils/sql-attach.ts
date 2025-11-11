@@ -29,11 +29,14 @@ const VALID_DB_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
  * @param options - Additional options for the ATTACH statement
  * @returns A properly escaped SQL query string
  */
-export function buildAttachQuery(
-  filePath: string,
-  dbName: string,
-  options?: { readOnly?: boolean; useCorsProxy?: boolean },
-): string {
+interface AttachOptions {
+  readOnly?: boolean;
+  useCorsProxy?: boolean;
+  secretName?: string;
+  attachType?: string;
+}
+
+export function buildAttachQuery(filePath: string, dbName: string, options?: AttachOptions): string {
   // Wrap with CORS proxy only if explicitly enabled
   let finalPath = filePath;
   if (options?.useCorsProxy === true && isRemoteUrl(filePath)) {
@@ -46,9 +49,20 @@ export function buildAttachQuery(
 
   const escapedPath = quote(finalPath, { single: true });
   const escapedDbName = toDuckDBIdentifier(dbName);
-  const readOnlyClause = options?.readOnly ? ' (READ_ONLY)' : '';
+  const clauses: string[] = [];
+  if (options?.attachType) {
+    clauses.push(`TYPE ${options.attachType}`);
+  }
+  if (options?.secretName) {
+    clauses.push(`SECRET ${options.secretName}`);
+  }
+  if (options?.readOnly) {
+    clauses.push('READ_ONLY');
+  }
 
-  return `ATTACH ${escapedPath} AS ${escapedDbName}${readOnlyClause}`;
+  const clauseSuffix = clauses.length ? ` (${clauses.join(', ')})` : '';
+
+  return `ATTACH ${escapedPath} AS ${escapedDbName}${clauseSuffix}`;
 }
 
 /**

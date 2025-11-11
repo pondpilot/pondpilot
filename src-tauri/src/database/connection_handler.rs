@@ -51,6 +51,8 @@ struct ConnectionHandler {
     connection: Connection,
     /// Semaphore permit held for the lifetime of this connection to enforce pool limits
     _permit: tokio::sync::OwnedSemaphorePermit,
+    motherduck_extension_loaded: bool,
+    motherduck_token_applied: bool,
 }
 
 impl ConnectionHandler {
@@ -63,6 +65,8 @@ impl ConnectionHandler {
             connection,
             receiver,
             _permit: permit,
+            motherduck_extension_loaded: false,
+            motherduck_token_applied: false,
         }
     }
 
@@ -118,20 +122,40 @@ impl ConnectionHandler {
             }
 
             // Try to load the extension (idempotent); ignore errors if not installed
-            if let Err(e) = self.connection.execute("LOAD motherduck", []) {
-                debug!("[MotherDuck] Failed to load extension: {}", e);
-            } else {
-                debug!("[MotherDuck] Extension loaded successfully");
+            if !self.motherduck_extension_loaded {
+                match self.connection.execute("LOAD motherduck", []) {
+                    Ok(_) => {
+                        debug!("[MotherDuck] Extension loaded successfully");
+                        self.motherduck_extension_loaded = true;
+                    }
+                    Err(e) => {
+                        debug!("[MotherDuck] Failed to load extension: {}", e);
+                    }
+                }
             }
 
-            // Apply the token using DuckDB's session setting instead of relying
-            // on inherited environment variables.
-            let set_sql = format!(
-                "SET motherduck_token = {}",
-                escape_string_literal(token_str)
-            );
-            if let Err(e) = self.connection.execute(&set_sql, []) {
-                debug!("[MotherDuck] Failed to set session token: {}", e);
+            if self.motherduck_token_applied {
+                return;
+            }
+
+            // Apply the token using DuckDB's session setting. This only needs to run once
+            // per connection; DuckDB rejects resetting it after initialization.
+            let set_sql = format!("SET motherduck_token = {}", escape_string_literal(token_str));
+            match self.connection.execute(&set_sql, []) {
+                Ok(_) => {
+                    self.motherduck_token_applied = true;
+                    debug!("[MotherDuck] Session token applied on connection");
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    if msg.contains("can only be set during initialization") {
+                        // This usually means the token was already set during connection startup.
+                        self.motherduck_token_applied = true;
+                        debug!("[MotherDuck] Session token already initialized");
+                    } else {
+                        debug!("[MotherDuck] Failed to set session token: {}", msg);
+                    }
+                }
             }
         } else {
             debug!("[MotherDuck] No cached MotherDuck token found");

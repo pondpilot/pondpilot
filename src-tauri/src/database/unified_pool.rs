@@ -1,4 +1,5 @@
 use super::extensions::ALLOWED_EXTENSIONS;
+use super::motherduck_token;
 use super::sql_utils::escape_string_literal;
 use crate::errors::{DuckDBError, Result};
 use crate::system_resources::{calculate_resource_limits, ResourceLimits};
@@ -71,6 +72,7 @@ pub struct UnifiedPool {
     // Store attached databases with explicit secret name for robust re-attachment
     // (alias, connection_string, db_type, secret_sql, secret_name)
     attached_databases: Arc<tokio::sync::Mutex<Vec<AttachedDatabase>>>,
+    registered_secrets: Arc<tokio::sync::Mutex<Vec<String>>>,
 }
 
 /// Permit to create a connection
@@ -81,6 +83,7 @@ pub struct ConnectionPermit {
     resource_limits: ResourceLimits,
     extensions: Arc<tokio::sync::Mutex<Vec<super::types::ExtensionInfoForLoad>>>,
     attached_databases: Arc<tokio::sync::Mutex<Vec<AttachedDatabase>>>,
+    registered_secrets: Arc<tokio::sync::Mutex<Vec<String>>>,
 }
 
 impl ConnectionPermit {
@@ -96,6 +99,7 @@ impl ConnectionPermit {
             resource_limits,
             extensions,
             attached_databases,
+            registered_secrets,
         } = self;
 
         tracing::debug!(
@@ -116,6 +120,9 @@ impl ConnectionPermit {
             message: format!("Failed to create connection to {:?}: {}", db_path, e),
             context: None,
         })?;
+
+        // Apply MotherDuck token as early as possible (before any PRAGMA/config statements)
+        apply_motherduck_token_on_connection(&conn);
 
         // Configure the connection
         let config = format!(
@@ -234,9 +241,55 @@ impl ConnectionPermit {
             }
         }
 
+        // Apply registered secrets on this connection
+        let secret_statements = registered_secrets.blocking_lock();
+        for secret_sql in secret_statements.iter() {
+            if let Err(e) = conn.execute_batch(secret_sql) {
+                tracing::warn!(
+                    "[UNIFIED_POOL] Failed to apply registered secret on connection {}: {}",
+                    id,
+                    e
+                );
+            }
+        }
+
         // Return both the connection and the permit
         // The permit will be held by ConnectionHandler to enforce pool limits
         Ok((conn, _permit))
+    }
+}
+
+fn apply_motherduck_token_on_connection(conn: &Connection) {
+    if let Some(token) = motherduck_token::get_token() {
+        let token_str = token.as_str();
+        // Try to load extension early; ignore errors (may not be installed yet)
+        let _ = conn.execute("LOAD motherduck", []);
+        let set_sql = format!(
+            "SET motherduck_token = {}",
+            escape_string_literal(token_str)
+        );
+        match conn.execute(&set_sql, []) {
+            Ok(_) => {
+                tracing::debug!(
+                    "[UNIFIED_POOL] MotherDuck token applied during connection initialization"
+                );
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("can only be set during initialization")
+                    || msg.contains("unrecognized configuration parameter")
+                {
+                    tracing::debug!(
+                        "[UNIFIED_POOL] MotherDuck token already initialized / extension not loaded yet"
+                    );
+                } else {
+                    tracing::warn!(
+                        "[UNIFIED_POOL] Failed to set MotherDuck token during initialization: {}",
+                        msg
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -262,6 +315,7 @@ impl UnifiedPool {
             connection_counter: Arc::new(AtomicUsize::new(0)),
             extensions,
             attached_databases: Arc::new(tokio::sync::Mutex::new(Vec::new())),
+            registered_secrets: Arc::new(tokio::sync::Mutex::new(Vec::new())),
         };
 
         Ok(pool)
@@ -340,6 +394,7 @@ impl UnifiedPool {
                     resource_limits: self.resource_limits.clone(),
                     extensions: self.extensions.clone(),
                     attached_databases: self.attached_databases.clone(),
+                    registered_secrets: self.registered_secrets.clone(),
                 })
             }
             Ok(Err(_)) => Err(DuckDBError::ConnectionError {
@@ -378,5 +433,10 @@ impl UnifiedPool {
                 read_only,
             });
         }
+    }
+
+    pub async fn register_secret_sql(&self, secret_sql: String) {
+        let mut secrets = self.registered_secrets.lock().await;
+        secrets.push(secret_sql);
     }
 }

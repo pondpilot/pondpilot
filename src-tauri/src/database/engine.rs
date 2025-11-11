@@ -113,6 +113,7 @@ fn validate_file_path(path: &str) -> Result<PathBuf> {
     Ok(canonical)
 }
 
+
 /// Sanitizes SQL identifiers (table names, column names, etc.) to prevent injection
 fn sanitize_identifier(name: &str) -> Result<String> {
     // Check for empty identifier
@@ -257,6 +258,8 @@ impl DuckDBEngine {
     /// Cache the MotherDuck token securely and push it to all live connections.
     pub async fn set_motherduck_token(&self, token: &str) {
         motherduck_token::set_token(token);
+        std::env::set_var("MOTHERDUCK_TOKEN", token);
+        std::env::set_var("motherduck_token", token);
 
         // Apply immediately to existing connections so they can authenticate
         // without waiting for the next query cycle.
@@ -271,11 +274,19 @@ impl DuckDBEngine {
                     );
                 }
                 Err(e) => {
-                    tracing::warn!(
-                        "[DuckDBEngine] Failed to apply MotherDuck token to connection '{}': {}",
-                        conn_id,
-                        e
-                    );
+                    let msg = e.to_string();
+                    if msg.contains("can only be set during initialization") {
+                        tracing::debug!(
+                            "[DuckDBEngine] MotherDuck token already initialized on connection '{}'",
+                            conn_id
+                        );
+                    } else {
+                        tracing::warn!(
+                            "[DuckDBEngine] Failed to apply MotherDuck token to connection '{}': {}",
+                            conn_id,
+                            msg
+                        );
+                    }
                 }
             }
         }
@@ -284,6 +295,8 @@ impl DuckDBEngine {
     /// Clear the cached MotherDuck token and reset session settings across all connections.
     pub async fn clear_motherduck_token(&self) {
         motherduck_token::clear_token();
+        std::env::remove_var("MOTHERDUCK_TOKEN");
+        std::env::remove_var("motherduck_token");
 
         let reset_sql = "RESET motherduck_token".to_string();
         let fallback_sql = "SET motherduck_token = ''".to_string();
@@ -774,10 +787,33 @@ impl DuckDBEngine {
             .await;
     }
 
+    /// Register a CREATE SECRET SQL so it is applied to current and future connections
+    pub async fn register_secret_sql(&self, secret_sql: String) -> Result<()> {
+        self.pool.register_secret_sql(secret_sql.clone()).await;
+
+        let existing_connections = self.connection_manager.get_all_connections().await;
+        for (conn_id, handle) in existing_connections {
+            if let Err(e) = handle.execute(secret_sql.clone(), vec![]).await {
+                tracing::warn!(
+                    "[DuckDBEngine] Failed to apply registered secret on connection '{}': {}",
+                    conn_id,
+                    e
+                );
+            }
+        }
+
+        Ok(())
+    }
+
     /// Attach MotherDuck database to all existing connections
     pub async fn attach_motherduck_to_all_connections(&self, database_url: String) -> Result<()> {
         validate_motherduck_url(&database_url)?;
         let attach_literal = escape_string_literal(&database_url);
+
+        tracing::debug!(
+            "[DuckDBEngine] MotherDuck token present before attachment: {}",
+            motherduck_token::has_token()
+        );
 
         // Apply the attachment to ALL existing persistent connections
         let existing_connections = self.connection_manager.get_all_connections().await;
@@ -820,11 +856,20 @@ impl DuckDBEngine {
                         any_success = true;
                     }
                     Err(e) => {
-                        tracing::warn!(
-                            "[DuckDBEngine] Failed to attach MotherDuck to connection '{}': {}",
-                            conn_id,
-                            e
-                        );
+                        if Self::is_redundant_motherduck_attachment_error(&e) {
+                            tracing::debug!(
+                                "[DuckDBEngine] MotherDuck already attached on connection '{}'; skipping re-attach ({})",
+                                conn_id,
+                                e
+                            );
+                            any_success = true;
+                        } else {
+                            tracing::warn!(
+                                "[DuckDBEngine] Failed to attach MotherDuck to connection '{}': {}",
+                                conn_id,
+                                e
+                            );
+                        }
                         // Continue with other connections even if one fails
                     }
                 }
@@ -857,6 +902,11 @@ impl DuckDBEngine {
                 line_number: None,
             })?;
 
+            tracing::info!(
+                "[DuckDBEngine] MotherDuck database '{}' validated on new connection",
+                database_url_clone
+            );
+
             Ok::<(), crate::errors::DuckDBError>(())
         })
         .await
@@ -866,6 +916,14 @@ impl DuckDBEngine {
         })??;
 
         Ok(())
+    }
+
+    fn is_redundant_motherduck_attachment_error(error: &crate::errors::DuckDBError) -> bool {
+        let message = error.to_string().to_lowercase();
+        message.contains("already attached")
+            || message.contains("already in use")
+            || message.contains("already exists")
+            || message.contains("duplicate catalog entry")
     }
 
     pub async fn get_tables(&self, database: &str) -> Result<Vec<TableInfo>> {
@@ -1109,7 +1167,7 @@ impl DuckDBEngine {
         if let Some(ref statements) = setup_sql {
             for (idx, stmt) in statements.iter().enumerate() {
                 let trimmed = stmt.trim();
-                if !trimmed.is_empty() {
+                if !trimmed.is_empty() && !is_whitelisted_setup_statement(trimmed) {
                     if let Err(e) = crate::security::validate_sql_safety(trimmed) {
                         // Log security validation failure for setup SQL
                         tracing::warn!(
@@ -1249,4 +1307,16 @@ impl DuckDBEngine {
 
         Ok(())
     }
+}
+
+fn is_whitelisted_setup_statement(stmt: &str) -> bool {
+    let trimmed = stmt.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    let upper = trimmed.to_uppercase();
+    upper.starts_with("USE ")
+        || upper.starts_with("ATTACH ")
+        || upper.starts_with("DETACH ")
+        || upper.starts_with("SET MOTHERDUCK_TOKEN")
 }

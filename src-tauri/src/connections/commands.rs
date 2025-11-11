@@ -428,6 +428,7 @@ pub async fn register_motherduck_attachment(
     window: tauri::Window,
     state: State<'_, ConnectionsManager>,
     database_url: String,
+    secret_id: Option<String>,
 ) -> Result<(), String> {
     // Security check
     if window.label() != "main" {
@@ -441,8 +442,17 @@ pub async fn register_motherduck_attachment(
         return Err("Invalid MotherDuck URL: must start with 'md:'".into());
     }
 
+    let parsed_secret = if let Some(secret_id) = secret_id {
+        Some(
+            Uuid::parse_str(&secret_id)
+                .map_err(|e| format!("Invalid secret ID: {}", e))?,
+        )
+    } else {
+        None
+    };
+
     state
-        .register_motherduck_attachment(database_url)
+        .register_motherduck_attachment(database_url, parsed_secret)
         .await
         .map_err(|e| e.to_string())
 }

@@ -45,6 +45,10 @@ export class SecretsAPI {
     await invoke('apply_secret_to_connection', { request });
   }
 
+  static async registerStorageSecret(secretId: string): Promise<string> {
+    return await invoke<string>('register_storage_secret', { secretId });
+  }
+
   static async cleanupOrphanedSecrets(): Promise<string> {
     return await invoke<string>('cleanup_orphaned_secrets');
   }

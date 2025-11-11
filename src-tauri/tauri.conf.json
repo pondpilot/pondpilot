@@ -5,8 +5,8 @@
   "identifier": "io.pondpilot.desktop",
   "build": {
     "beforeBuildCommand": "yarn build",
-    "beforeDevCommand": "yarn dev",
-    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "yarn dev:tauri",
+    "devUrl": "http://localhost:5174",
     "frontendDist": "../dist"
   },
   "app": {
@@ -32,7 +32,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' tauri: asset:; img-src 'self' asset: data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.groq.com https://generativelanguage.googleapis.com http://localhost:5173 ws://localhost:5173",
+      "csp": "default-src 'self' tauri: asset:; img-src 'self' asset: data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.openai.com https://api.anthropic.com https://api.groq.com https://generativelanguage.googleapis.com http://localhost:5174 ws://localhost:5174",
       "assetProtocol": {
         "enable": true,
         "scope": ["$RESOURCE/**", "$APP/**"]

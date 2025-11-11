@@ -6,10 +6,11 @@ use uuid::Uuid;
 
 use super::errors::ConnectionError;
 use super::models::{ConnectionConfig, ConnectionType, ConnectionWithCredentials};
+use crate::database::motherduck_token;
 use crate::database::sql_utils::{escape_string_literal, validate_motherduck_url};
 use crate::database::DuckDBEngine;
 use crate::secrets::manager::SecretsManager;
-use crate::secrets::models::SecretCredentials;
+use crate::secrets::models::{SecretCredentials, SecretType};
 
 /// Manages database connections configuration and storage
 /// Handles CRUD operations for connection metadata and integrates with the secrets manager
@@ -48,6 +49,35 @@ impl ConnectionsManager {
     /// Set the DuckDB engine to use for attachments
     pub fn set_duckdb_engine(&mut self, engine: Arc<DuckDBEngine>) {
         self.duckdb_engine = Some(engine);
+    }
+
+    async fn apply_motherduck_secret(&self, secret_id: Uuid) -> Result<(), ConnectionError> {
+        let secret = self.secrets_manager.get_secret(secret_id).await?;
+
+        if secret.metadata.secret_type != SecretType::MotherDuck {
+            return Err(ConnectionError::ConnectionTestFailed {
+                error: "Secret is not a MotherDuck token".to_string(),
+            });
+        }
+
+        let token = secret
+            .credentials
+            .get("token")
+            .ok_or_else(|| ConnectionError::ConnectionTestFailed {
+                error: "MotherDuck secret missing token value".to_string(),
+            })?
+            .expose()
+            .to_string();
+
+        let engine =
+            self.duckdb_engine
+                .as_ref()
+                .ok_or_else(|| ConnectionError::ConnectionTestFailed {
+                    error: "DuckDB engine not initialized".to_string(),
+                })?;
+
+        engine.set_motherduck_token(&token).await;
+        Ok(())
     }
 
     fn init_database(&self) -> Result<(), ConnectionError> {
@@ -783,11 +813,29 @@ impl ConnectionsManager {
     pub async fn register_motherduck_attachment(
         &self,
         database_url: String,
+        secret_id: Option<Uuid>,
     ) -> Result<(), ConnectionError> {
         tracing::info!(
             "[Connections] Registering MotherDuck attachment: url={}",
             database_url
         );
+
+        if let Some(secret_id) = secret_id {
+            tracing::info!(
+                "[Connections] Applying MotherDuck secret {} before attachment",
+                secret_id
+            );
+            self.apply_motherduck_secret(secret_id).await?;
+            tracing::debug!(
+                "[Connections] MotherDuck secret {} applied successfully",
+                secret_id
+            );
+        } else {
+            tracing::debug!(
+                "[Connections] register_motherduck_attachment called without secret_id (cached token present: {})",
+                motherduck_token::has_token()
+            );
+        }
 
         if let Err(err) = validate_motherduck_url(&database_url) {
             return Err(ConnectionError::ConnectionTestFailed {
@@ -796,12 +844,17 @@ impl ConnectionsManager {
         }
 
         // Check if DuckDB engine is available
-        let engine =
-            self.duckdb_engine
-                .as_ref()
-                .ok_or_else(|| ConnectionError::ConnectionTestFailed {
-                    error: "DuckDB engine not initialized".to_string(),
-                })?;
+        let engine = self
+            .duckdb_engine
+            .as_ref()
+            .ok_or_else(|| ConnectionError::ConnectionTestFailed {
+                error: "DuckDB engine not initialized".to_string(),
+            })?;
+
+        tracing::info!(
+            "[Connections] MotherDuck token cached in backend: {}",
+            motherduck_token::has_token()
+        );
 
         // Extract database name from URL (md:database_name)
         let db_name = if database_url.starts_with("md:") {

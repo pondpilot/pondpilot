@@ -320,15 +320,6 @@ pub struct ConnectionWithCredentials {
 }
 
 impl ConnectionWithCredentials {
-    /// Generate a complete connection string with embedded credentials
-    /// WARNING: Contains sensitive information, use carefully
-    pub fn get_connection_string(&self) -> String {
-        let template = self.config.get_connection_string_template();
-        template
-            .replace("{username}", &self.username)
-            .replace("{password}", &self.password)
-    }
-
     /// Generate a connection string with masked credentials for logging/display
     pub fn get_safe_connection_string(&self) -> String {
         let template = self.config.get_connection_string_template();

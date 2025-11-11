@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "baseUrl": "./src",
-    "types": ["node", "@types/wicg-file-system-access"],
+    "types": ["node", "@types/wicg-file-system-access", "jest"],
     "target": "ESNext",
     "useDefineForClassFields": true,
     "lib": ["DOM", "DOM.Iterable", "ESNext"],

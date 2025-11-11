@@ -57,6 +57,10 @@ pub struct SecretListResponse {
     pub secrets: Vec<SecretMetadata>,
 }
 
+fn build_secret_alias(id: &Uuid) -> String {
+    format!("secret_{}", id.to_string().replace('-', "_"))
+}
+
 #[tauri::command]
 pub async fn save_secret(
     window: tauri::Window,
@@ -336,7 +340,17 @@ pub async fn apply_secret_to_connection(
         return Err("Invalid connection_id".into());
     }
 
-    tracing::debug!("[Secrets] Applying secret to connection");
+    let conn_preview = request
+        .connection_id
+        .chars()
+        .take(24)
+        .collect::<String>();
+    tracing::info!(
+        "[Secrets] Applying secret {} to connection {} (operation: {:?})",
+        request.secret_id,
+        conn_preview,
+        request.operation
+    );
 
     let secret_id =
         Uuid::parse_str(&request.secret_id).map_err(|e| format!("Invalid secret ID: {}", e))?;
@@ -346,10 +360,10 @@ pub async fn apply_secret_to_connection(
         e.to_string()
     })?;
 
-    #[cfg(debug_assertions)]
-    println!(
-        "[Secrets] Retrieved secret type: {:?}",
-        secret.metadata.secret_type
+    tracing::debug!(
+        "[Secrets] Retrieved secret type {:?} for connection {}",
+        secret.metadata.secret_type,
+        conn_preview
     );
 
     match secret.metadata.secret_type {
@@ -357,6 +371,10 @@ pub async fn apply_secret_to_connection(
             if let Some(token) = secret.credentials.get("token") {
                 let token_value = token.expose();
                 motherduck_token::set_token(token_value);
+                tracing::info!(
+                    "[Secrets] MotherDuck token cached and propagated for connection {}",
+                    conn_preview
+                );
                 engine.set_motherduck_token(token_value).await;
             } else {
                 eprintln!("[Secrets] No token field found in MotherDuck secret");
@@ -384,6 +402,48 @@ pub async fn apply_secret_to_connection(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn register_storage_secret(
+    window: tauri::Window,
+    state: State<'_, Arc<SecretsManager>>,
+    engine: tauri::State<'_, Arc<crate::database::DuckDBEngine>>,
+    secret_id: String,
+) -> Result<String, String> {
+    if window.label() != "main" {
+        return Err(
+            "Unauthorized: register_storage_secret only available from main window".into(),
+        );
+    }
+
+    let id = Uuid::parse_str(&secret_id).map_err(|e| format!("Invalid secret ID: {}", e))?;
+    let secret = state.get_secret(id).await.map_err(|e| e.to_string())?;
+
+    match secret.metadata.secret_type {
+        SecretType::S3
+        | SecretType::R2
+        | SecretType::GCS
+        | SecretType::Azure
+        | SecretType::HTTP
+        | SecretType::HuggingFace
+        | SecretType::DuckLake => {}
+        _ => {
+            return Err("Secret type not supported for cloud/API attachments".into());
+        }
+    }
+
+    let injector = crate::secrets::injector::DuckDBSecretInjector::new();
+    let secret_sql = injector
+        .build_create_secret(&secret)
+        .map_err(|e| e.to_string())?;
+
+    engine
+        .register_secret_sql(secret_sql)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(build_secret_alias(&secret.metadata.id))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

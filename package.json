@@ -20,6 +20,7 @@
   "scripts": {
     "predev": "node scripts/check-port.js",
     "dev": "vite",
+    "dev:tauri": "vite --port 5174",
     "tauri:dev": "./scripts/tauri-dev-safe.sh",
     "tauri:dev:unsafe": "tauri dev",
     "build": "tsc && vite build",
@@ -91,6 +92,7 @@
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-shell": "^2",
     "@types/dagre": "^0.7.52",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.7.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

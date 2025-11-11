@@ -1,12 +1,13 @@
 import type {
   AnyFlatFileDataSource,
+  ParquetView,
   PersistentDataSourceId,
   XlsxSheetView,
 } from '@models/data-source';
-import type { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
+import type { DataSourceLocalFile, LocalEntry, LocalEntryId } from '@models/file-system';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 
-const createLocalFile = (overrides: Partial<LocalFile> = {}): LocalFile => ({
+const createLocalFile = (overrides: Partial<DataSourceLocalFile> = {}): DataSourceLocalFile => ({
   kind: 'file',
   id: 'file-1' as LocalEntryId,
   name: 'orders',
@@ -19,9 +20,7 @@ const createLocalFile = (overrides: Partial<LocalFile> = {}): LocalFile => ({
   ...overrides,
 });
 
-const createFlatFileDataSource = (
-  overrides: Partial<AnyFlatFileDataSource> = {},
-): AnyFlatFileDataSource => ({
+const createFlatFileDataSource = (overrides: Partial<ParquetView> = {}): ParquetView => ({
   type: 'parquet',
   id: 'ds-1' as PersistentDataSourceId,
   fileSourceId: 'file-1' as LocalEntryId,
