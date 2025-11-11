@@ -1,13 +1,14 @@
-import { expect } from '@playwright/test';
+import { expect, mergeTests } from '@playwright/test';
 
-import { test } from '../fixtures/page';
+import { test as baseTest } from '../fixtures/page';
+import { test as spotlightTest } from '../fixtures/spotlight';
+
+const test = mergeTests(baseTest, spotlightTest);
 
 test.describe('Multi-Engine Database Support', () => {
-  test('should execute basic queries', async ({ page }) => {
+  test('should execute basic queries', async ({ page, createScriptViaSpotlight }) => {
     // Open SQL editor
-    await page.getByTestId('spotlight-trigger-input').click();
-    await page.getByTestId('spotlight-search').fill('New SQL');
-    await page.getByTestId('spotlight-action-create-new-script').click();
+    await createScriptViaSpotlight();
 
     // Create test data
     const editor = page.locator('.cm-content');
@@ -38,7 +39,7 @@ test.describe('Multi-Engine Database Support', () => {
     await expect(page.getByText('Bob')).toBeVisible();
   });
 
-  test('should handle file operations', async ({ page }) => {
+  test('should handle file operations', async ({ page, createScriptViaSpotlight }) => {
     // Create a CSV file content
     const csvContent = 'id,name,age\n1,John,30\n2,Jane,25\n3,Bob,35';
 
@@ -70,9 +71,7 @@ test.describe('Multi-Engine Database Support', () => {
     await expect(addFileCard).toBeHidden();
 
     // Query the file
-    await page.getByTestId('spotlight-trigger-input').click();
-    await page.getByTestId('spotlight-search').fill('New SQL');
-    await page.getByTestId('spotlight-action-create-new-script').click();
+    await createScriptViaSpotlight();
 
     const editor = page.locator('.cm-content');
     await editor.click();
@@ -85,11 +84,9 @@ test.describe('Multi-Engine Database Support', () => {
     await expect(page.getByText('Bob')).toBeVisible();
   });
 
-  test('should handle transactions', async ({ page }) => {
+  test('should handle transactions', async ({ page, createScriptViaSpotlight }) => {
     // Open SQL editor
-    await page.getByTestId('spotlight-trigger-input').click();
-    await page.getByTestId('spotlight-search').fill('New SQL');
-    await page.getByTestId('spotlight-action-create-new-script').click();
+    await createScriptViaSpotlight();
 
     const editor = page.locator('.cm-content');
 
