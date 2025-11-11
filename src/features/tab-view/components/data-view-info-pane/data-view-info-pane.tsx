@@ -40,6 +40,7 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
   const hasStaleData = hasData && dataAdapter.isStale;
 
   const hasDataSourceError = dataAdapter.dataSourceError.length > 0;
+  const rowCountWarning = dataAdapter.rowCountWarning;
   const [isFetching] = useDebouncedValue(dataAdapter.isFetchingData, 100);
   const [isSorting] = useDebouncedValue(dataAdapter.isSorting, 50);
 
@@ -95,6 +96,14 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
       }
     }
 
+    if (rowCountWarning && hasData) {
+      return (
+        <Text {...textDefaultProps} c="text-warning">
+          {rowCountWarning}
+        </Text>
+      );
+    }
+
     if (isSorting) {
       return (
         <Text {...textDefaultProps} c="text-warning">
@@ -127,7 +136,16 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
     }
 
     return null;
-  }, [hasActualData, hasStaleData, isFetching, isSorting, hasDataSourceError, tabType]);
+  }, [
+    hasActualData,
+    hasStaleData,
+    isFetching,
+    isSorting,
+    hasDataSourceError,
+    tabType,
+    rowCountWarning,
+    hasData,
+  ]);
 
   return (
     <Group justify="space-between" className="h-7 my-2 px-3">

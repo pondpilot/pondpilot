@@ -113,6 +113,11 @@ export interface DataAdapterApi {
    * Information about possibly known total row count
    */
   rowCountInfo: RowCountInfo;
+  /**
+   * Non-blocking warning message when auxiliary metadata (like row count)
+   * fails to load. Should not be treated as a fatal data source error.
+   */
+  rowCountWarning: string | null;
 
   /**
    * Either operation blocking sorting is being executed

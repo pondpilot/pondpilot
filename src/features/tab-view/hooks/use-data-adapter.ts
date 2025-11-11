@@ -183,6 +183,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
   const [dataSourceExhausted, setDataSourceExhausted] = useState(false);
   const [dataSourceReadError, setDataSourceReadError] = useState<string[]>([]);
+  const [rowCountWarning, setRowCountWarning] = useState<string | null>(null);
   /**
    * Set or append a data source read error. If an error is already present and a new value is set,
    * this function will append the new error to the existing one.
@@ -283,6 +284,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // Unexpected: setting real row count to a different value than the previous one
       }
 
+      setRowCountWarning(null);
       setRowCountInfo((prev) => {
         return {
           ...prev,
@@ -291,7 +293,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         };
       });
     },
-    [rowCountInfo.realRowCount],
+    [rowCountInfo.realRowCount, setRowCountWarning],
   );
 
   /**
@@ -316,6 +318,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         return;
       }
 
+      setRowCountWarning(null);
       setRowCountInfo((prev) => {
         return {
           ...prev,
@@ -323,7 +326,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         };
       });
     },
-    [rowCountInfo.estimatedRowCount, rowCountInfo.realRowCount],
+    [rowCountInfo.estimatedRowCount, rowCountInfo.realRowCount, setRowCountWarning],
   );
 
   /**
@@ -388,28 +391,33 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         if (!aborted) setEstimatedRowCount(value);
       }
     } catch (error) {
-      if (!(error instanceof ConnectionTimeoutError)) {
-        console.error('[DataAdapter] Row count fetch error:', error);
-        if (error instanceof Error && error.message?.includes('Out of Memory Error')) {
-          setAppendDataSourceReadError(
-            'File is too large to analyze (512MB web limit). Use the desktop app for large files.',
-          );
-        } else if (error instanceof Error && error.message?.includes('schema_name')) {
-          setAppendDataSourceReadError(
-            'Database metadata query failed. The file format may not be supported or the database is corrupted.',
-          );
-        } else {
-          setAppendDataSourceReadError(
-            `Failed to fetch row counts: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          );
+      if (error instanceof ConnectionTimeoutError) {
+        return;
+      }
+
+      console.error('[DataAdapter] Row count fetch error:', error);
+      let warningMessage: string | null = null;
+
+      if (error instanceof Error && error.message?.includes('Out of Memory Error')) {
+        warningMessage =
+          'File is too large to analyze (512MB web limit). Use the desktop app for large files.';
+      } else if (error instanceof Error && error.message?.includes('schema_name')) {
+        warningMessage =
+          'Database metadata query failed. The file format may not be supported or the database is corrupted.';
+      } else if (error instanceof Error) {
+        const message = error.message?.trim();
+        if (message && message !== '[object Object]') {
+          warningMessage = `Row count unavailable: ${message}`;
         }
       }
+
+      setRowCountWarning(warningMessage);
     }
   }, [
     queries,
     setRealRowCount,
     setEstimatedRowCount,
-    setAppendDataSourceReadError,
+    setRowCountWarning,
     getBackgroundTasksAbortSignal,
   ]);
 
@@ -567,6 +575,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       setDataSourceExhausted(false);
       // And any error
       setDataSourceReadError([]);
+      setRowCountWarning(null);
       // Fetch to target is reset to 0
       fetchTo.current = 0;
       dataReadCancelled.current = false;
@@ -599,7 +608,15 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // And let the new reader be created in the background
       await getNewReader(newSortParams);
     },
-    [actualDataSchema, cancelAllDataOperations, getNewReader, staleData, setLastSortSafe, sort],
+    [
+      actualDataSchema,
+      cancelAllDataOperations,
+      getNewReader,
+      staleData,
+      setLastSortSafe,
+      sort,
+      setRowCountWarning,
+    ],
   );
 
   /**
@@ -985,18 +1002,11 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     dataSourceError.length,
   ]);
 
-  // Track mount generation to handle StrictMode double mounting
-  const mountGenerationRef = useRef(0);
-
   // On mount we may have cached data in our local state vars,
   // so we do not want to call a full `reset`, but only to initiate reader
   // creation in the background.
   useEffect(() => {
-    // Increment mount generation
-    mountGenerationRef.current += 1;
-    const currentMountGeneration = mountGenerationRef.current;
     // Removed console statement
-
     const newReaderPromise = getNewReader(sort);
 
     return () => {
@@ -1009,33 +1019,24 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // the previous call, we want to make sure state is fully
         // updated. Otherwise if the tab is closed quickly,
         // we may get into inconsistent state. This is also happening
-        // in dev mode due to React.StrictMode firring this hook twice.
+        // in dev mode due to React.StrictMode firing this hook twice.
         await newReaderPromise;
 
         // Cancel the main data reader
-        const curReader = mainDataReaderRef.current;
-        if (curReader) {
-          // In development with StrictMode, React will mount/unmount/remount components quickly
-          // We use a small delay to check if this is a StrictMode remount
-          if (import.meta.env.DEV) {
-            // Wait a tick to see if component remounts
-            await new Promise((resolve) => setTimeout(resolve, 0));
-
-            // Check if component has remounted with a new generation
-            if (mountGenerationRef.current > currentMountGeneration) {
-              // Removed console statement
-              return;
-            }
+        const readerToCancel = mainDataReaderRef.current;
+        if (readerToCancel) {
+          // If the same reader is still current, drop the ref so a new reader can be created.
+          if (mainDataReaderRef.current === readerToCancel) {
+            mainDataReaderRef.current = null;
           }
-
-          // Removed console statement
-          // Normal unmount - clear the ref and cancel
-          mainDataReaderRef.current = null;
-          await curReader.cancel();
-          // Removed console statement
+          try {
+            await readerToCancel.cancel();
+          } catch {
+            // Intentionally ignore cancellation errors during teardown
+          }
         }
       };
-      asyncDestructor();
+      void asyncDestructor();
     };
     // We intentionally use this only on mount, as we want different
     // behavior on all other changes - handled by the effect above
@@ -1241,6 +1242,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     currentSchema,
     isStale,
     rowCountInfo,
+    rowCountWarning,
     disableSort,
     sort,
     dataSourceExhausted,
