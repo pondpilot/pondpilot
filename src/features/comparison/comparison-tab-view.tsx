@@ -22,6 +22,7 @@ import { useComparison } from './hooks/use-comparison';
 import { useComparisonExecution } from './hooks/use-comparison-execution';
 import { useComparisonProgress } from './hooks/use-comparison-progress';
 import { useSchemaAnalysis } from './hooks/use-schema-analysis';
+import { createSourceKey } from './utils/source-comparison';
 
 interface ComparisonTabViewProps {
   tabId: TabId;
@@ -40,6 +41,8 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
     error: executionError,
   } = useComparisonExecution(pool);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const lastAnalysisKeyRef = useRef<string | null>(null);
+  const lastAnalysisFailedRef = useRef(false);
 
   const tab = data?.tab;
   const comparison = data?.comparison;
@@ -182,23 +185,38 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
 
   // Automatically trigger schema analysis when both sources are configured but schema is not analyzed
   useEffect(() => {
-    if (
-      comparisonConfig?.sourceA &&
-      comparisonConfig?.sourceB &&
-      !schemaComparison &&
-      !isAnalyzing &&
-      !isExecuting &&
-      !progressActive &&
-      comparisonId
-    ) {
-      analyzeSchemas(comparisonConfig.sourceA, comparisonConfig.sourceB, comparisonId).then(
-        (result) => {
-          if (result) {
-            updateSchemaComparison(tabId, result);
-          }
-        },
-      );
+    const hasSources = Boolean(comparisonConfig?.sourceA && comparisonConfig?.sourceB);
+
+    if (!hasSources) {
+      lastAnalysisKeyRef.current = null;
+      lastAnalysisFailedRef.current = false;
+      return;
     }
+
+    if (schemaComparison || isAnalyzing || isExecuting || progressActive || !comparisonId) {
+      return;
+    }
+
+    const sourceKey = createSourceKey(comparisonConfig.sourceA, comparisonConfig.sourceB);
+
+    if (lastAnalysisFailedRef.current && lastAnalysisKeyRef.current === sourceKey) {
+      return;
+    }
+
+    lastAnalysisKeyRef.current = sourceKey;
+
+    analyzeSchemas(comparisonConfig.sourceA, comparisonConfig.sourceB, comparisonId)
+      .then((result) => {
+        if (result) {
+          updateSchemaComparison(tabId, result);
+          lastAnalysisFailedRef.current = false;
+        } else {
+          lastAnalysisFailedRef.current = true;
+        }
+      })
+      .catch(() => {
+        lastAnalysisFailedRef.current = true;
+      });
   }, [
     comparisonConfig?.sourceA,
     comparisonConfig?.sourceB,
