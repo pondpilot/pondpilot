@@ -1,8 +1,9 @@
 import { useActiveSection } from '@hooks/use-active-section';
+import { useIsTauri } from '@hooks/use-is-tauri';
 import { ActionIcon, Divider, Stack } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { Fragment, useEffect } from 'react';
+import { Fragment, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { SettingsBlock } from './components/settings-block';
@@ -11,7 +12,12 @@ import { settingsConfig, getNavigationItems } from './settings.config';
 
 export const SettingsPage = () => {
   const navigate = useNavigate();
-  const navigationItems = getNavigationItems();
+  const isTauri = useIsTauri();
+  const visibleBlocks = useMemo(
+    () => settingsConfig.blocks.filter((block) => !(block.isTauriOnly && !isTauri)),
+    [isTauri],
+  );
+  const navigationItems = useMemo(() => getNavigationItems(visibleBlocks), [visibleBlocks]);
   const sectionIds = navigationItems.map((item) => item.id);
   const activeSection = useActiveSection({ sections: sectionIds });
 
@@ -29,7 +35,7 @@ export const SettingsPage = () => {
   // Handle initial hash on page load
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    const validSectionIds = getNavigationItems().map((item) => item.id);
+    const validSectionIds = navigationItems.map((item) => item.id);
     if (hash && validSectionIds.includes(hash)) {
       // Small delay to ensure content is rendered
       setTimeout(() => {
@@ -42,7 +48,7 @@ export const SettingsPage = () => {
         }
       }, 100);
     }
-  }, []); // Empty dependency array - only run on mount
+  }, [navigationItems]);
 
   return (
     <div
@@ -59,7 +65,7 @@ export const SettingsPage = () => {
         <main className="flex-1 p-4 overflow-y-auto h-full min-h-0 custom-scroll-hidden">
           <div className="max-w-2xl mx-auto min-h-full">
             <Stack gap={32} className="pb-16 min-h-full">
-              {settingsConfig.blocks.map((block, index) => (
+              {visibleBlocks.map((block, index) => (
                 <Fragment key={block.id}>
                   {index > 0 && <Divider />}
                   <SettingsBlock {...block} />

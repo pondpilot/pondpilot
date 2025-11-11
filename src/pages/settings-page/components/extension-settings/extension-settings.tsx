@@ -78,16 +78,6 @@ export const ExtensionSettings = () => {
 
   return (
     <Stack>
-      <Box>
-        <Title c="text-primary" order={2}>
-          DuckDB Extensions
-        </Title>
-        <Text c="text-secondary">
-          Manage DuckDB extensions to add additional functionality to your queries. Installed
-          extensions are automatically loaded on startup unless explicitly disabled.
-        </Text>
-      </Box>
-
       {error && (
         <Card bg="red.9" p="sm">
           <Text c="white" size="sm">

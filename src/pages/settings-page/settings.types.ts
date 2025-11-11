@@ -19,6 +19,7 @@ export interface SettingsBlock {
   title: string;
   icon?: ComponentType;
   sections: SettingsSection[];
+  isTauriOnly?: boolean;
 }
 
 export interface SettingsConfig {
