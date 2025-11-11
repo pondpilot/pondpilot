@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
 import { SecretMetadata, SecretType } from '@models/secrets';
 import { SecretsAPI } from '@services/secrets-api';
+import { useCallback, useEffect, useState } from 'react';
 
 export interface SecretOption {
   metadata: SecretMetadata;
@@ -18,7 +18,7 @@ export function useSecretsByType(secretTypes: SecretType[]) {
         secretTypes.map(async (type) => {
           try {
             const list = await SecretsAPI.listSecrets(type);
-            return list.map((metadata) => ({ metadata, type } as SecretOption));
+            return list.map((metadata) => ({ metadata, type }) as SecretOption);
           } catch (error) {
             console.error(`Failed to load secrets for ${type}:`, error);
             return [];

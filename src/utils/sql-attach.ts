@@ -1,7 +1,4 @@
-import {
-  wrapWithCorsProxyPathBased,
-  convertS3ToHttps,
-} from '@utils/cors-proxy-config';
+import { wrapWithCorsProxyPathBased, convertS3ToHttps } from '@utils/cors-proxy-config';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 
@@ -36,7 +33,11 @@ interface AttachOptions {
   attachType?: string;
 }
 
-export function buildAttachQuery(filePath: string, dbName: string, options?: AttachOptions): string {
+export function buildAttachQuery(
+  filePath: string,
+  dbName: string,
+  options?: AttachOptions,
+): string {
   // Wrap with CORS proxy only if explicitly enabled
   let finalPath = filePath;
   if (options?.useCorsProxy === true && isRemoteUrl(filePath)) {

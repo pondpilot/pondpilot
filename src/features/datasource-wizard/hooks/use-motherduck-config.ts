@@ -310,10 +310,7 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
               try {
                 await conn.execute(`DETACH ${dbIdentifier}`);
               } catch (detachError) {
-                console.warn(
-                  `[MotherDuck] Failed to detach ${dbName} after error:`,
-                  detachError,
-                );
+                console.warn(`[MotherDuck] Failed to detach ${dbName} after error:`, detachError);
               }
             }
             throw e;

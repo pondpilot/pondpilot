@@ -16,10 +16,10 @@ import { useState, useEffect, useCallback } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
 import { ClipboardImportConfig } from './components/clipboard-import-config';
-import { RemoteDatabaseConfig } from './components/remote-database-config';
-import { PostgresConfig } from './components/postgres-config';
-import { MySQLConfig } from './components/mysql-config';
 import { MotherDuckDatabaseConfig } from './components/motherduck-database-config';
+import { MySQLConfig } from './components/mysql-config';
+import { PostgresConfig } from './components/postgres-config';
+import { RemoteDatabaseConfig } from './components/remote-database-config';
 import { validateJSON, validateCSV } from './utils/clipboard-import';
 
 interface DatasourceWizardModalProps {
@@ -324,102 +324,102 @@ export function DatasourceWizardModal({
     );
   };
 
-const datasourceSections = [
-  {
-    title: 'Files & Buckets',
-    cards: [
-      {
-        type: 'file' as const,
-        onClick: handleCardClick('file'),
-        icon: (
-          <IconFilePlus
-            size={48}
-            className="text-textSecondary-light dark:text-textSecondary-dark"
-            stroke={1.5}
-          />
-        ),
-        title: 'Add Files',
-        description: 'CSV, Parquet, JSON, Excel',
-        testId: 'add-file-card',
-      },
-      {
-        type: 'folder' as const,
-        onClick: handleCardClick('folder'),
-        icon: (
-          <IconFolderPlus
-            size={48}
-            className="text-textSecondary-light dark:text-textSecondary-dark"
-            stroke={1.5}
-          />
-        ),
-        title: 'Add Folder',
-        description: 'Browse entire directories',
-        testId: 'add-folder-card',
-      },
-      {
-        type: 'remote' as const,
-        onClick: handleRemoteDatabaseClick,
-        icon: (
-          <IconDatabasePlus
-            size={48}
-            className="text-textSecondary-light dark:text-textSecondary-dark"
-            stroke={1.5}
-          />
-        ),
-        title: 'External URL / Cloud',
-        description: 'HTTP(S), S3/R2/GCS/Azure, API tokens',
-        testId: 'add-remote-database-card',
-      },
-    ],
-  },
-  {
-    title: 'Database Connections',
-    cards: [
-      {
-        type: 'postgres' as const,
-        onClick: handlePostgresClick,
-        icon: (
-          <IconDatabase
-            size={48}
-            className="text-textSecondary-light dark:text-textSecondary-dark"
-            stroke={1.5}
-          />
-        ),
-        title: 'PostgreSQL',
-        description: 'Desktop only · Uses saved credentials',
-        testId: 'add-postgres-card',
-      },
-      {
-        type: 'mysql' as const,
-        onClick: handleMysqlClick,
-        icon: (
-          <IconDatabase
-            size={48}
-            className="text-textSecondary-light dark:text-textSecondary-dark"
-            stroke={1.5}
-          />
-        ),
-        title: 'MySQL',
-        description: 'Desktop only · Uses saved credentials',
-        testId: 'add-mysql-card',
-      },
-      {
-        type: 'motherduck' as const,
-        onClick: handleMotherDuckClick,
-        icon: (
-          <IconCloud
-            size={48}
-            className="text-textSecondary-light dark:text-textSecondary-dark"
-            stroke={1.5}
-          />
-        ),
-        title: 'MotherDuck Cloud',
-        description: 'Requires saved token · Browse available DBs',
-        testId: 'add-motherduck-card',
-      },
-    ],
-  },
-];
+  const datasourceSections = [
+    {
+      title: 'Files & Buckets',
+      cards: [
+        {
+          type: 'file' as const,
+          onClick: handleCardClick('file'),
+          icon: (
+            <IconFilePlus
+              size={48}
+              className="text-textSecondary-light dark:text-textSecondary-dark"
+              stroke={1.5}
+            />
+          ),
+          title: 'Add Files',
+          description: 'CSV, Parquet, JSON, Excel',
+          testId: 'add-file-card',
+        },
+        {
+          type: 'folder' as const,
+          onClick: handleCardClick('folder'),
+          icon: (
+            <IconFolderPlus
+              size={48}
+              className="text-textSecondary-light dark:text-textSecondary-dark"
+              stroke={1.5}
+            />
+          ),
+          title: 'Add Folder',
+          description: 'Browse entire directories',
+          testId: 'add-folder-card',
+        },
+        {
+          type: 'remote' as const,
+          onClick: handleRemoteDatabaseClick,
+          icon: (
+            <IconDatabasePlus
+              size={48}
+              className="text-textSecondary-light dark:text-textSecondary-dark"
+              stroke={1.5}
+            />
+          ),
+          title: 'External URL / Cloud',
+          description: 'HTTP(S), S3/R2/GCS/Azure, API tokens',
+          testId: 'add-remote-database-card',
+        },
+      ],
+    },
+    {
+      title: 'Database Connections',
+      cards: [
+        {
+          type: 'postgres' as const,
+          onClick: handlePostgresClick,
+          icon: (
+            <IconDatabase
+              size={48}
+              className="text-textSecondary-light dark:text-textSecondary-dark"
+              stroke={1.5}
+            />
+          ),
+          title: 'PostgreSQL',
+          description: 'Desktop only · Uses saved credentials',
+          testId: 'add-postgres-card',
+        },
+        {
+          type: 'mysql' as const,
+          onClick: handleMysqlClick,
+          icon: (
+            <IconDatabase
+              size={48}
+              className="text-textSecondary-light dark:text-textSecondary-dark"
+              stroke={1.5}
+            />
+          ),
+          title: 'MySQL',
+          description: 'Desktop only · Uses saved credentials',
+          testId: 'add-mysql-card',
+        },
+        {
+          type: 'motherduck' as const,
+          onClick: handleMotherDuckClick,
+          icon: (
+            <IconCloud
+              size={48}
+              className="text-textSecondary-light dark:text-textSecondary-dark"
+              stroke={1.5}
+            />
+          ),
+          title: 'MotherDuck Cloud',
+          description: 'Requires saved token · Browse available DBs',
+          testId: 'add-motherduck-card',
+        },
+      ],
+    },
+  ];
 
   return (
     <Stack className="p-6" gap={24}>
@@ -456,7 +456,12 @@ const datasourceSections = [
           <Stack gap={24}>
             {datasourceSections.map((section) => (
               <Stack key={section.title} gap={12}>
-                <Text size="xs" fw={600} c="text-secondary" className="pl-2 uppercase tracking-wide">
+                <Text
+                  size="xs"
+                  fw={600}
+                  c="text-secondary"
+                  className="pl-2 uppercase tracking-wide"
+                >
                   {section.title}
                 </Text>
                 <SimpleGrid
@@ -494,9 +499,7 @@ const datasourceSections = [
         <PostgresConfig pool={pool} onBack={handleBack} onClose={onClose} />
       )}
 
-      {step === 'mysql-config' && (
-        <MySQLConfig pool={pool} onBack={handleBack} onClose={onClose} />
-      )}
+      {step === 'mysql-config' && <MySQLConfig pool={pool} onBack={handleBack} onClose={onClose} />}
 
       {(step === 'clipboard-csv' || step === 'clipboard-json') && (
         <ClipboardImportConfig

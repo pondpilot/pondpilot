@@ -57,10 +57,7 @@ export class ConnectionsAPI {
     return await invoke<string>('get_connection_with_credentials', { connectionId });
   }
 
-  static async registerMotherDuckAttachment(
-    databaseUrl: string,
-    secretId?: string,
-  ): Promise<void> {
+  static async registerMotherDuckAttachment(databaseUrl: string, secretId?: string): Promise<void> {
     await invoke('register_motherduck_attachment', {
       databaseUrl,
       secretId: secretId ?? null,

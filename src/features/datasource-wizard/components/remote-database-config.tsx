@@ -2,11 +2,22 @@ import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { ConnectionPool } from '@engines/types';
-import { Stack, TextInput, Text, Button, Group, Checkbox, Alert, Tooltip, Select } from '@mantine/core';
+import {
+  Stack,
+  TextInput,
+  Text,
+  Button,
+  Group,
+  Checkbox,
+  Alert,
+  Tooltip,
+  Select,
+} from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { RemoteDB } from '@models/data-source';
 import { SecretType, SECRET_TYPE_LABELS } from '@models/secrets';
+import SecretsAPI from '@services/secrets-api';
 import { useAppStore } from '@store/app-store';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { isTauriEnvironment } from '@utils/browser';
@@ -20,12 +31,12 @@ import {
   MOTHERDUCK_CONSTANTS,
 } from '@utils/motherduck-helper';
 import { validateRemoteDatabaseUrl } from '@utils/remote-database';
+import { getSecretAlias } from '@utils/secret-alias';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { setDataTestId } from '@utils/test-id';
 import { isMotherDuckUrl } from '@utils/url-helpers';
 import { useState, useMemo } from 'react';
-import SecretsAPI from '@services/secrets-api';
-import { getSecretAlias } from '@utils/secret-alias';
+
 import { useSecretsByType } from '../hooks/use-secrets-by-type';
 
 interface RemoteDatabaseConfigProps {
@@ -63,9 +74,8 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
   const [isTesting, setIsTesting] = useState(false);
   const [selectedSecretId, setSelectedSecretId] = useState<string | null>(null);
 
-  const { secrets: availableSecrets, loading: secretsLoading } = useSecretsByType(
-    SUPPORTED_SECRET_TYPES,
-  );
+  const { secrets: availableSecrets, loading: secretsLoading } =
+    useSecretsByType(SUPPORTED_SECRET_TYPES);
 
   const selectedSecret = useMemo(
     () => availableSecrets.find((secret) => secret.metadata.id === selectedSecretId) || null,
@@ -363,7 +373,8 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
           />
           {selectedSecret && (
             <Text size="xs" c="text-secondary" className="pl-4">
-              Using {SECRET_TYPE_LABELS[selectedSecret.type]} credentials: {selectedSecret.metadata.name}
+              Using {SECRET_TYPE_LABELS[selectedSecret.type]} credentials:{' '}
+              {selectedSecret.metadata.name}
             </Text>
           )}
         </Stack>

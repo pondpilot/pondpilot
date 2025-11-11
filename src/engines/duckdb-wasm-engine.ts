@@ -152,10 +152,7 @@ export class DuckDBWasmEngine implements DatabaseEngine {
       } else if (isFileSystemHandle(options.handle)) {
         fileToRegister = await options.handle.getFile();
       } else {
-        throw new FileOperationError(
-          'Unsupported file handle type for registration',
-          options.name,
-        );
+        throw new FileOperationError('Unsupported file handle type for registration', options.name);
       }
 
       await this._db.registerFileHandle(

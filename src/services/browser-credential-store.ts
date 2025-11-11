@@ -102,16 +102,12 @@ export class BrowserCredentialStore {
         const existing = localStorage.getItem(this.KEY_STORAGE_KEY);
         if (existing) {
           const raw = this.base64ToArrayBuffer(existing);
-          return cryptoObj.subtle.importKey('raw', raw, 'AES-GCM', true, [
-            'encrypt',
-            'decrypt',
-          ]);
+          return cryptoObj.subtle.importKey('raw', raw, 'AES-GCM', true, ['encrypt', 'decrypt']);
         }
-        const key = await cryptoObj.subtle.generateKey(
-          { name: 'AES-GCM', length: 256 },
-          true,
-          ['encrypt', 'decrypt'],
-        );
+        const key = await cryptoObj.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, [
+          'encrypt',
+          'decrypt',
+        ]);
         const exported = await cryptoObj.subtle.exportKey('raw', key);
         localStorage.setItem(this.KEY_STORAGE_KEY, this.arrayBufferToBase64(exported));
         return key;
@@ -149,11 +145,7 @@ export class BrowserCredentialStore {
     const key = await this.getOrCreateKey();
     const iv = cryptoObj.getRandomValues(new Uint8Array(12));
     const encoded = new TextEncoder().encode(value);
-    const ciphertext = await cryptoObj.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      encoded,
-    );
+    const ciphertext = await cryptoObj.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
     const payload = new Uint8Array(iv.length + ciphertext.byteLength);
     payload.set(iv, 0);
     payload.set(new Uint8Array(ciphertext), iv.length);
@@ -174,11 +166,7 @@ export class BrowserCredentialStore {
 
     const iv = bytes.slice(0, 12);
     const payload = bytes.slice(12);
-    const plaintext = await cryptoObj.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      payload,
-    );
+    const plaintext = await cryptoObj.subtle.decrypt({ name: 'AES-GCM', iv }, key, payload);
     return new TextDecoder().decode(plaintext);
   }
 }

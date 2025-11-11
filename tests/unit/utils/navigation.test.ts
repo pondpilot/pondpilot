@@ -1,5 +1,4 @@
 import type {
-  AnyFlatFileDataSource,
   ParquetView,
   PersistentDataSourceId,
   XlsxSheetView,
@@ -35,9 +34,7 @@ describe('getFlatFileDataSourceName', () => {
     ]);
     const dataSource = createFlatFileDataSource();
 
-    expect(getFlatFileDataSourceName(dataSource, localEntries)).toBe(
-      'orders_view (orders_source)',
-    );
+    expect(getFlatFileDataSourceName(dataSource, localEntries)).toBe('orders_view (orders_source)');
   });
 
   it('falls back to view name when entry is missing', () => {
@@ -57,8 +54,6 @@ describe('getFlatFileDataSourceName', () => {
       sheetName: 'Sheet1',
     };
 
-    expect(getFlatFileDataSourceName(dataSource, localEntries)).toBe(
-      'orders_sheet (Sheet1)',
-    );
+    expect(getFlatFileDataSourceName(dataSource, localEntries)).toBe('orders_sheet (Sheet1)');
   });
 });
