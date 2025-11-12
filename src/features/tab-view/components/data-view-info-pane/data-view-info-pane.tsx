@@ -270,6 +270,16 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
         )}
       </Group>
       <Group className="h-full">
+        {canCreateComparison && (
+          <ActionIcon
+            size={16}
+            onClick={handleCreateComparison}
+            disabled={disableCopyAndExport}
+            data-testid={setDataTestId('create-comparison-button')}
+          >
+            <IconScale size={16} />
+          </ActionIcon>
+        )}
         <Tooltip label="Copy table to clipboard">
           <ActionIcon
             data-testid={setDataTestId('copy-table-button')}
@@ -280,19 +290,6 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
             <IconCopy />
           </ActionIcon>
         </Tooltip>
-
-        {canCreateComparison && (
-          <Button
-            variant="light"
-            color="background-accent"
-            leftSection={<IconScale size={16} />}
-            onClick={handleCreateComparison}
-            disabled={disableCopyAndExport}
-            data-testid={setDataTestId('create-comparison-button')}
-          >
-            Add to Comparison
-          </Button>
-        )}
 
         <Menu shadow="md" position="bottom-end">
           <Menu.Target>
