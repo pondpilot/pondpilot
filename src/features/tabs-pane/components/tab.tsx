@@ -16,6 +16,7 @@ interface TabProps {
   icon: React.ReactNode;
   activeTabRef: React.RefObject<HTMLDivElement | null>;
   isLast: boolean;
+  isFirst: boolean;
   handleDeleteTab: () => void;
   onClick: () => void;
   onDoubleClick: () => void;
@@ -33,6 +34,7 @@ export const Tab = ({
   onClick,
   onDoubleClick,
   isLast,
+  isFirst,
 }: TabProps) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: tabId });
   const [isDragging, setIsDragging] = useState(false);
@@ -78,6 +80,7 @@ export const Tab = ({
           active &&
             'bg-backgroundPrimary-light hover:bg-white dark:bg-backgroundPrimary-dark dark:hover:bg-backgroundPrimary-dark',
           isLast && 'border-r',
+          isFirst && 'border-l-0',
         )}
       >
         <Group gap={2} className="justify-between w-full">
