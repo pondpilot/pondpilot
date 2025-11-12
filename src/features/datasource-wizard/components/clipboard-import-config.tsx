@@ -1,6 +1,6 @@
 import { showError, showSuccess } from '@components/app-notifications';
+import { ConnectionPool } from '@engines/types';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Button, Group, Stack, Text, TextInput, Textarea, Checkbox } from '@mantine/core';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { setDataTestId } from '@utils/test-id';
@@ -11,7 +11,7 @@ import { importClipboardAsTable } from '../utils/clipboard-import';
 interface ClipboardImportConfigProps {
   content: string;
   format: 'csv' | 'json';
-  pool: AsyncDuckDBConnectionPool | null;
+  pool: ConnectionPool | null;
   onBack: () => void;
   onClose: () => void;
 }

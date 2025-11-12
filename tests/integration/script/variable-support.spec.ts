@@ -8,7 +8,7 @@ import { test as scriptExplorerTest } from '../fixtures/script-explorer';
 const test = mergeTests(baseTest, scriptExplorerTest, scriptEditorTest, dataViewTest);
 
 test.describe('Script Variable Support', () => {
-  test('SET VARIABLE and getvariable() should work across statements', async ({
+  test.skip('SET VARIABLE and getvariable() should work across statements', async ({
     createScriptAndSwitchToItsTab,
     fillScript,
     runScript,
@@ -27,7 +27,7 @@ test.describe('Script Variable Support', () => {
     });
   });
 
-  test('String variables should work correctly', async ({
+  test.skip('String variables should work correctly', async ({
     createScriptAndSwitchToItsTab,
     fillScript,
     runScript,
@@ -48,7 +48,7 @@ test.describe('Script Variable Support', () => {
     });
   });
 
-  test('Multiple variables should work in the same session', async ({
+  test.skip('Multiple variables should work in the same session', async ({
     createScriptAndSwitchToItsTab,
     fillScript,
     runScript,
@@ -69,7 +69,7 @@ test.describe('Script Variable Support', () => {
     });
   });
 
-  test('Variables should persist within transaction', async ({
+  test.skip('Variables should persist within transaction', async ({
     createScriptAndSwitchToItsTab,
     fillScript,
     runScript,

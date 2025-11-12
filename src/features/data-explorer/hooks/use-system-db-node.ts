@@ -1,5 +1,5 @@
 import { TreeNodeData } from '@components/explorer-tree/model';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { LocalDB, SYSTEM_DATABASE_ID } from '@models/data-source';
 
 import { buildDatabaseNode } from '../builders/database-tree-builder';
@@ -9,7 +9,7 @@ type UseSystemDbNodeProps = {
   systemDatabase: LocalDB | undefined;
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, any>;
-  conn: AsyncDuckDBConnectionPool;
+  conn: ConnectionPool;
   localDBLocalEntriesMap: Map<string, any>;
   databaseMetadata: Map<string, any>;
   fileViewNames: Set<string>;

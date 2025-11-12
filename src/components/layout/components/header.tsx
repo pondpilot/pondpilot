@@ -3,6 +3,7 @@ import duckLogo from '@assets/duck.svg';
 import { HotkeyPill } from '@components/hotkey-pill';
 import { SpotlightMenu } from '@components/spotlight';
 import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-modal';
+import { useIsTauri } from '@hooks/use-is-tauri';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { Group, Text, TextInput, Tooltip } from '@mantine/core';
 import { modals } from '@mantine/modals';
@@ -17,6 +18,7 @@ export const Header = memo(() => {
   const navigate = useNavigate();
   const location = useLocation();
   const mod = useOsModifierIcon();
+  const isTauri = useIsTauri();
   const isSettingsPage = location.pathname.includes('settings');
 
   const logoSection = isSettingsPage ? (
@@ -27,7 +29,8 @@ export const Header = memo(() => {
       <Text size="xs">/</Text>
       <Text size="xs">SETTINGS</Text>
     </Group>
-  ) : (
+  ) : isTauri ? null : ( // Tauri desktop: Clean header, no branding (version moved to sidebar)
+    // Web version: Keep original design with logo
     <Group className="gap-3 cursor-default">
       <Tooltip label="Hi, I'm Polly!" position="bottom" openDelay={500}>
         <div>
@@ -63,25 +66,34 @@ export const Header = memo(() => {
     <>
       <SpotlightMenu />
       <Group justify="space-between" className="h-full">
-        <Group gap={40} flex={1}>
-          {logoSection}
-        </Group>
+        {/* Left section - logo or empty in Tauri */}
+        {!isTauri && (
+          <Group gap={40} flex={1}>
+            {logoSection}
+          </Group>
+        )}
 
+        {/* Center section - search */}
         <TextInput
-          flex={1}
+          flex={isTauri ? undefined : 1}
           data-testid={setDataTestId('spotlight-trigger-input')}
-          className="cursor-pointer max-w-[400px] min-w-[300px]"
+          data-tauri-drag-region="no-drag"
+          className={cn('cursor-pointer', isTauri ? 'w-[340px]' : 'max-w-[400px] min-w-[300px]')}
           classNames={{
             input: cn(
-              'bg-backgroundSecondary-light  border-0 placeholder-textSecondary-light  h-[38px] rounded-full ',
+              'bg-backgroundSecondary-light  border-0 placeholder-textSecondary-light rounded-full',
+              isTauri ? 'h-[26px] text-xs' : 'h-[36px]',
               'dark:bg-backgroundSecondary-dark dark:placeholder-textSecondary-dark',
             ),
           }}
           readOnly
           leftSection={
-            <Group gap={4} onClick={spotlight.open}>
-              <IconSearch size={20} className="dark:text-iconDefault-dark text-iconDefault-light" />{' '}
-              <Text c="text-secondary" className="text-sm">
+            <Group gap={3} onClick={spotlight.open}>
+              <IconSearch
+                size={isTauri ? 15 : 18}
+                className="dark:text-iconDefault-dark text-iconDefault-light"
+              />{' '}
+              <Text c="text-secondary" className={isTauri ? 'text-xs' : 'text-sm'}>
                 Search
               </Text>
             </Group>
@@ -91,9 +103,9 @@ export const Header = memo(() => {
             onClick: spotlight.open,
             className: 'w-auto pr-1',
           }}
-          rightSectionWidth={74}
-          leftSectionWidth={100}
-          rightSection={<HotkeyPill value={[mod.command, 'K']} />}
+          rightSectionWidth={isTauri ? 65 : 74}
+          leftSectionWidth={isTauri ? 85 : 100}
+          rightSection={<HotkeyPill value={[mod.command, 'K']} size={isTauri ? 'xs' : undefined} />}
           pointer
           onClick={(e) => {
             e.stopPropagation();
@@ -101,19 +113,12 @@ export const Header = memo(() => {
           }}
         />
 
-        <Group flex={1} justify="end" gap={8}>
-          {/* // TODO: Implement this */}
-          {/* <ActionIcon size={20} disabled>
-          <IconLayoutSidebarFilled />
-        </ActionIcon>
-        <ActionIcon size={20} disabled>
-          <IconLayoutBottombarFilled />
-        </ActionIcon>
-        <Divider orientation="vertical" />
-          <ActionIcon size={20} disabled>
-            <IconLayout />
-          </ActionIcon> */}
-        </Group>
+        {/* Right section - empty for balance */}
+        {!isTauri && (
+          <Group flex={1} justify="end" gap={8}>
+            {/* Future toolbar items */}
+          </Group>
+        )}
       </Group>
     </>
   );

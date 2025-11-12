@@ -9,6 +9,13 @@ global.import = {
   },
 };
 
+// Provide Web Crypto + base64 helpers for Node environment
+const { webcrypto } = require('crypto');
+
+global.crypto = webcrypto;
+global.btoa = (value) => Buffer.from(String(value), 'binary').toString('base64');
+global.atob = (value) => Buffer.from(String(value), 'base64').toString('binary');
+
 // Mock window object for browser APIs
 global.window = {
   location: {

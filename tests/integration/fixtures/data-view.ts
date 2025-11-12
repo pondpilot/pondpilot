@@ -221,7 +221,8 @@ export const test = base.extend<DataViewFixtures>({
       const rowCount = expected.data.length;
       for (let i = 0; i < rowCount; i += 1) {
         const rowNumberCell = getDataCellValue(dataTable, '#', i, currentPage);
-        await expect(rowNumberCell).toBeVisible();
+        // For the first cell, wait longer to ensure data has loaded
+        await expect(rowNumberCell).toBeVisible({ timeout: i === 0 ? 10000 : 0 });
         await expect(rowNumberCell).toHaveText(String(i + 1));
       }
 

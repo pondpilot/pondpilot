@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { PersistentDataSourceId, AnyFlatFileDataSource } from '@models/data-source';
 import { LocalEntryId, LocalEntry } from '@models/file-system';
 import { SchemaBrowserTab } from '@models/tab';
@@ -11,7 +11,7 @@ import { SchemaGraph } from '../../model';
  */
 export async function processFolderSource(
   tab: Omit<SchemaBrowserTab, 'dataViewStateCache'>,
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   localEntries: Map<LocalEntryId, LocalEntry>,
   flatFileSources: Map<PersistentDataSourceId, AnyFlatFileDataSource>,
   abortSignal: AbortSignal,

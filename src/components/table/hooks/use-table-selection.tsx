@@ -44,23 +44,26 @@ export const useTableSelection = ({
     setLastSelectedColumn(null);
     setLastSelectedRow('0');
     onColumnSelectChange(null);
-  }, []);
+  }, [onColumnSelectChange]);
 
-  const handleCellSelect = useCallback((cell: Cell<any, any>) => {
-    const isIndexColumn = cell.column.getIsFirstColumn();
+  const handleCellSelect = useCallback(
+    (cell: Cell<any, any>) => {
+      const isIndexColumn = cell.column.getIsFirstColumn();
 
-    if (isIndexColumn) return;
-    clearSelection();
-    onCellSelectChange();
+      if (isIndexColumn) return;
+      clearSelection();
+      onCellSelectChange();
 
-    const { type } = cell.column.columnDef.meta as ColumnMeta;
-    const value = cell.getValue();
-    const formattedValue = stringifyTypedValue({
-      type,
-      value,
-    });
-    setSelectedCell({ cellId: cell.id, rawValue: value, formattedValue });
-  }, []);
+      const { type } = cell.column.columnDef.meta as ColumnMeta;
+      const value = cell.getValue();
+      const formattedValue = stringifyTypedValue({
+        type,
+        value,
+      });
+      setSelectedCell({ cellId: cell.id, rawValue: value, formattedValue });
+    },
+    [clearSelection, onCellSelectChange],
+  );
 
   const handleCopySelectedRows = useCallback(
     (table: Table<any>) => {
@@ -116,27 +119,28 @@ export const useTableSelection = ({
       }
 
       if (isSelectRange && !multiple) {
-        if (Object.keys(selectedRows).length === 0) {
-          setSelectedRows({ [rowId]: true });
-          setLastSelectedRow(rowId);
-          return;
-        }
+        setSelectedRows((prev) => {
+          if (Object.keys(prev).length === 0) {
+            setLastSelectedRow(rowId);
+            return { [rowId]: true };
+          }
 
-        const start = parseInt(lastSelectedRow, 10);
-        const end = parseInt(rowId, 10);
-        const selectedRowsRange = Array.from({ length: Math.abs(end - start) + 1 }, (_, i) =>
-          (start < end ? start + i : start - i).toString(),
-        ).reduce(
-          (acc, id) => {
-            acc[id] = true;
-            return acc;
-          },
-          {} as Record<string, boolean>,
-        );
-        setSelectedRows(selectedRowsRange);
+          const start = parseInt(lastSelectedRow, 10);
+          const end = parseInt(rowId, 10);
+          const selectedRowsRange = Array.from({ length: Math.abs(end - start) + 1 }, (_, i) =>
+            (start < end ? start + i : start - i).toString(),
+          ).reduce(
+            (acc, id) => {
+              acc[id] = true;
+              return acc;
+            },
+            {} as Record<string, boolean>,
+          );
+          return selectedRowsRange;
+        });
       }
     },
-    [lastSelectedRow, JSON.stringify(selectedRows)],
+    [lastSelectedRow, onRowSelectChange],
   );
 
   const handleHeadCellClick = useCallback(
@@ -160,25 +164,26 @@ export const useTableSelection = ({
       }
 
       if (isSelectRange && !multiple) {
-        if (Object.keys(selectedCols).length === 0) {
-          setSelectedCols({ [columnId]: true });
-          setLastSelectedColumn(columnId);
-          return;
-        }
+        setSelectedCols((prev) => {
+          if (Object.keys(prev).length === 0) {
+            setLastSelectedColumn(columnId);
+            return { [columnId]: true };
+          }
 
-        const start = schema.findIndex((col) => col.id === lastSelectedColumn);
-        const end = schema.findIndex((col) => col.id === columnId);
-        const selectedCols2 = schema.slice(Math.min(start, end), Math.max(start, end) + 1).reduce(
-          (acc, col) => {
-            acc[col.id] = true;
-            return acc;
-          },
-          {} as Record<string, boolean>,
-        );
-        setSelectedCols(selectedCols2);
+          const start = schema.findIndex((col) => col.id === lastSelectedColumn);
+          const end = schema.findIndex((col) => col.id === columnId);
+          const selectedCols2 = schema.slice(Math.min(start, end), Math.max(start, end) + 1).reduce(
+            (acc, col) => {
+              acc[col.id] = true;
+              return acc;
+            },
+            {} as Record<string, boolean>,
+          );
+          return selectedCols2;
+        });
       }
     },
-    [lastSelectedColumn, schema, JSON.stringify(selectedCols)],
+    [lastSelectedColumn, schema],
   );
 
   useDidUpdate(() => {

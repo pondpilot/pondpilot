@@ -23,7 +23,7 @@ export function BaseActionCard({
   return (
     <UnstyledButton
       onClick={onClick}
-      className={`flex flex-col items-center justify-center p-6 rounded-lg border border-borderPrimary-light dark:border-borderPrimary-dark hover:border-borderAccent-light dark:hover:border-borderAccent-dark hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark transition-all duration-200 cursor-pointer h-40 ${className || ''}`}
+      className={`flex flex-col items-center justify-center p-6 rounded-lg border border-borderPrimary-light dark:border-borderPrimary-dark hover:border-borderAccent-light dark:hover:border-borderAccent-dark hover:bg-transparentBrandBlue-012 dark:hover:bg-transparent004-dark transition-all duration-200 cursor-pointer h-40 w-full ${className || ''}`}
       data-testid={testId ? setDataTestId(`datasource-modal-${testId}`) : undefined}
     >
       <Stack align="center" gap={12}>

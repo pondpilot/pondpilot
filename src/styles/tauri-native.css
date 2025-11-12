@@ -1,0 +1,126 @@
+/* Tauri Native Desktop Styles */
+
+/* Window dragging region */
+.tauri-titlebar {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.tauri-titlebar button,
+.tauri-titlebar input,
+.tauri-titlebar a {
+  -webkit-app-region: no-drag;
+}
+
+/* macOS unified toolbar styles */
+.tauri-macos header {
+  /* Subtle background for overlay style */
+  background: transparent;
+}
+
+/* Windows specific styles */
+.tauri-windows .tauri-titlebar {
+  padding-right: 138px; /* Space for window controls */
+}
+
+/* Native window feel */
+.tauri-desktop {
+  /* Remove web-like elements */
+  scrollbar-width: thin;
+}
+
+.tauri-desktop::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.tauri-desktop::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tauri-desktop::-webkit-scrollbar-thumb {
+  background-color: rgba(155, 155, 155, 0.5);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.tauri-desktop::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(155, 155, 155, 0.7);
+}
+
+/* Dark mode scrollbar */
+.dark .tauri-desktop::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.dark .tauri-desktop::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Override custom-scroll-hidden in Tauri to show native scrollbars */
+.tauri-desktop .custom-scroll-hidden {
+  scrollbar-width: thin;
+  -ms-overflow-style: auto;
+}
+
+.tauri-desktop .custom-scroll-hidden::-webkit-scrollbar {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+.tauri-desktop .custom-scroll-hidden::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tauri-desktop .custom-scroll-hidden::-webkit-scrollbar-thumb {
+  background-color: rgba(155, 155, 155, 0.5);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.tauri-desktop .custom-scroll-hidden::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(155, 155, 155, 0.7);
+}
+
+/* Dark mode scrollbar for custom-scroll-hidden */
+.dark .tauri-desktop .custom-scroll-hidden::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.dark .tauri-desktop .custom-scroll-hidden::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Native button styles */
+.tauri-desktop button {
+  transition: all 0.1s ease;
+}
+
+/* Remove focus rings for mouse users but keep for keyboard */
+.tauri-desktop button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Native-style sidebar */
+.tauri-sidebar {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.dark .tauri-sidebar {
+  background: rgba(30, 30, 30, 0.7);
+}
+
+/* Smooth animations */
+.tauri-desktop * {
+  animation-duration: 0.2s !important;
+}
+
+/* Native context menus styling preparation */
+.tauri-context-menu {
+  backdrop-filter: blur(20px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
