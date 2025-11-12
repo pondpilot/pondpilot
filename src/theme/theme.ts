@@ -20,6 +20,7 @@ import {
   TextInput,
   Title,
   virtualColor,
+  Paper,
 } from '@mantine/core';
 import {
   Spotlight,
@@ -639,12 +640,18 @@ export const theme = createTheme({
         classNames: {
           content: 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark rounded-2xl',
           header: 'p-4 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
+          body: 'p-4 pt-0',
         },
       },
     }),
     Slider: Slider.extend({
       defaultProps: {
         color: 'background-accent',
+      },
+    }),
+    Paper: Paper.extend({
+      defaultProps: {
+        bg: 'background-primary',
       },
     }),
   },

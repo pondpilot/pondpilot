@@ -278,8 +278,8 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
         {executionError && (
           <Alert
             icon={<IconAlertCircle size={16} className={ICON_CLASSES.error} />}
-            title="Execution Error"
-            color="background-error"
+            title={<Text c="text-error">Execution Error</Text>}
+            color="text-error"
           >
             {executionError}
           </Alert>
