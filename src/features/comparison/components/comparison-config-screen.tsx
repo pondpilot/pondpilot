@@ -27,6 +27,7 @@ import type { ComparisonId } from '@models/comparison';
 import { ComparisonConfig, ComparisonSource, SchemaComparisonResult, TabId } from '@models/tab';
 import {
   IconAlertCircle,
+  IconArrowsDiff,
   IconCheck,
   IconCode,
   IconInfoCircle,
@@ -414,15 +415,6 @@ export const ComparisonConfigScreen = ({
     onConfigChange({ filterMode: mode });
   };
 
-  // Get column options for MultiSelect
-  const _getColumnOptions = (): { value: string; label: string }[] => {
-    if (!schemaComparison) return [];
-    return schemaComparison.commonColumns.map((col) => ({
-      value: col.name,
-      label: col.name,
-    }));
-  };
-
   // Check if configuration is valid
   const hasValidConfig = config?.sourceA && config?.sourceB;
   const hasSchemaAnalysis = !!schemaComparison;
@@ -433,14 +425,45 @@ export const ComparisonConfigScreen = ({
   const shouldShowOpenSqlButton = isSqlPreviewAlgorithm;
   const canOpenSqlButton = shouldShowOpenSqlButton && canGenerateSqlScript;
 
-  const renderPrimaryActions = (buttonSize: 'xs' | 'sm') => (
+  const renderSourceSelector = ({
+    label,
+    source,
+    onClick,
+    dropHandlers,
+    isDragOver,
+  }: {
+    label: string;
+    source: ComparisonSource | null;
+    onClick: () => void;
+    dropHandlers: ReturnType<typeof useDatasetDropTarget>['dropHandlers'];
+    isDragOver: boolean;
+  }) => (
+    <Stack key={label} gap="xs">
+      <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
+        {label}
+      </Text>
+      <Button
+        variant={source ? 'light' : 'default'}
+        leftSection={<IconTable size={16} />}
+        onClick={onClick}
+        {...dropHandlers}
+        color={duplicateSourceSelected ? 'red' : 'background-accent'}
+        style={isDragOver ? getDragOverStyle(theme, colorScheme) : undefined}
+        fullWidth
+      >
+        {getSourceDisplayName(source || null)}
+      </Button>
+    </Stack>
+  );
+
+  const primaryActions = (
     <Group gap="xs" wrap="nowrap">
-      {shouldShowOpenSqlButton ? (
+      {!shouldShowOpenSqlButton ? (
         <Tooltip label="Open SQL in editor" withArrow>
           <ActionIcon
-            variant="subtle"
+            variant="filled"
+            size="sm"
             color="icon-accent"
-            size={buttonSize === 'xs' ? 'sm' : 'md'}
             aria-label="Open SQL in editor"
             disabled={!canOpenSqlButton}
             onClick={handleOpenSqlInEditor}
@@ -449,7 +472,7 @@ export const ComparisonConfigScreen = ({
           </ActionIcon>
         </Tooltip>
       ) : null}
-      <Button onClick={onRun} disabled={!canRun || isRunning} loading={isRunning} size={buttonSize}>
+      <Button onClick={onRun} disabled={!canRun || isRunning} loading={isRunning}>
         Run Comparison
       </Button>
     </Group>
@@ -477,7 +500,7 @@ export const ComparisonConfigScreen = ({
                 paddingRight: theme.spacing.xl,
               }
             : {
-                margin: theme.spacing.xl,
+                margin: theme.spacing.md,
               }),
         }}
       >
@@ -494,7 +517,10 @@ export const ComparisonConfigScreen = ({
                 {getSourceDisplayName(config?.sourceA || null)}
               </Text>
               <Text size="sm" c={duplicateSourceSelected ? 'red' : 'dimmed'}>
-                ⟷
+                <IconArrowsDiff
+                  size={16}
+                  className="text-textPrimary-light dark:text-textPrimary-dark"
+                />
               </Text>
               <Text
                 size="sm"
@@ -505,7 +531,7 @@ export const ComparisonConfigScreen = ({
                 {getSourceDisplayName(config?.sourceB || null)}
               </Text>
             </Group>
-            {renderPrimaryActions('xs')}
+            {primaryActions}
           </Group>
         ) : (
           // Expanded state - full UI
@@ -514,44 +540,23 @@ export const ComparisonConfigScreen = ({
               <Text size="sm" fw={600}>
                 Data Sources
               </Text>
-              {renderPrimaryActions('sm')}
+              {primaryActions}
             </Group>
             <Group grow>
-              {/* Source A */}
-              <Stack gap="xs">
-                <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
-                  Source A
-                </Text>
-                <Button
-                  variant={config?.sourceA ? 'light' : 'default'}
-                  leftSection={<IconTable size={16} />}
-                  onClick={selectSourceA}
-                  {...sourceADropHandlers}
-                  color={duplicateSourceSelected ? 'red' : undefined}
-                  style={isSourceADragOver ? getDragOverStyle(theme, colorScheme) : undefined}
-                  fullWidth
-                >
-                  {getSourceDisplayName(config?.sourceA || null)}
-                </Button>
-              </Stack>
-
-              {/* Source B */}
-              <Stack gap="xs">
-                <Text size="xs" c="dimmed" tt="uppercase" fw={500}>
-                  Source B
-                </Text>
-                <Button
-                  variant={config?.sourceB ? 'light' : 'default'}
-                  leftSection={<IconTable size={16} />}
-                  onClick={selectSourceB}
-                  {...sourceBDropHandlers}
-                  color={duplicateSourceSelected ? 'red' : undefined}
-                  style={isSourceBDragOver ? getDragOverStyle(theme, colorScheme) : undefined}
-                  fullWidth
-                >
-                  {getSourceDisplayName(config?.sourceB || null)}
-                </Button>
-              </Stack>
+              {renderSourceSelector({
+                label: 'Source A',
+                source: config?.sourceA || null,
+                onClick: selectSourceA,
+                dropHandlers: sourceADropHandlers,
+                isDragOver: isSourceADragOver,
+              })}
+              {renderSourceSelector({
+                label: 'Source B',
+                source: config?.sourceB || null,
+                onClick: selectSourceB,
+                dropHandlers: sourceBDropHandlers,
+                isDragOver: isSourceBDragOver,
+              })}
             </Group>
             {duplicateSourceSelected && (
               <Alert
@@ -1078,34 +1083,37 @@ export const ComparisonConfigScreen = ({
                         maw={300}
                         label={
                           <Stack gap="xs">
-                            <Text size="xs" fw={600}>
-                              Auto:
-                            </Text>
-                            <Text size="xs">
-                              Automatically selects the best method based on dataset size and
-                              available memory.
-                            </Text>
-                            <Text size="xs" fw={600}>
-                              Hash diff:
-                            </Text>
-                            <Text size="xs">
-                              Memory-efficient method ideal for very large datasets. Processes data
-                              in buckets to minimize memory usage.
-                            </Text>
-                            <Text size="xs" fw={600}>
-                              Full outer join:
-                            </Text>
-                            <Text size="xs">
-                              Faster for smaller datasets. Uses a single SQL query to compare all
-                              rows at once.
-                            </Text>
-                            <Text size="xs" fw={600}>
-                              Random sampling:
-                            </Text>
-                            <Text size="xs">
-                              Quick preview of differences using a 1% random sample (1k-100k rows).
-                              Best for large datasets when you need a quick overview.
-                            </Text>
+                            {[
+                              {
+                                title: 'Auto',
+                                description:
+                                  'Automatically selects the best method based on dataset size and available memory.',
+                              },
+                              {
+                                title: 'Hash diff',
+                                description:
+                                  'Memory-efficient method ideal for very large datasets. Processes data in buckets to minimize memory usage.',
+                              },
+                              {
+                                title: 'Full outer join',
+                                description:
+                                  'Faster for smaller datasets. Uses a single SQL query to compare all rows at once.',
+                              },
+                              {
+                                title: 'Random sampling',
+                                description:
+                                  'Quick preview of differences using a 1% random sample (1k-100k rows). Best for large datasets when you need a quick overview.',
+                              },
+                            ].map((item) => (
+                              <div key={item.title}>
+                                <Text size="xs" fw={600} c="text-contrast">
+                                  {item.title}:
+                                </Text>
+                                <Text c="text-contrast" size="xs">
+                                  {item.description}
+                                </Text>
+                              </div>
+                            ))}
                           </Stack>
                         }
                       >
@@ -1115,6 +1123,10 @@ export const ComparisonConfigScreen = ({
                       </Tooltip>
                     </Group>
                   }
+                  comboboxProps={{
+                    position: 'top',
+                    transitionProps: { transition: 'pop', duration: 200 },
+                  }}
                   data={[
                     { value: 'auto', label: 'Auto' },
                     { value: 'hash-bucket', label: 'Hash diff' },
@@ -1135,6 +1147,10 @@ export const ComparisonConfigScreen = ({
                     { value: 'strict', label: 'Strict (exact types)' },
                     { value: 'coerce', label: 'Coerce (convert types)' },
                   ]}
+                  comboboxProps={{
+                    position: 'top',
+                    transitionProps: { transition: 'pop', duration: 200 },
+                  }}
                   value={config?.compareMode || 'strict'}
                   onChange={(value) =>
                     onConfigChange({ compareMode: value as 'strict' | 'coerce' })
