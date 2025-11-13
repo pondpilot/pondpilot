@@ -21,6 +21,7 @@ import { ICON_CLASSES } from './constants/color-classes';
 import { useComparison } from './hooks/use-comparison';
 import { useComparisonExecution } from './hooks/use-comparison-execution';
 import { useComparisonProgress } from './hooks/use-comparison-progress';
+import { useComparisonProgressCleanup } from './hooks/use-comparison-progress-cleanup';
 import { useSchemaAnalysis } from './hooks/use-schema-analysis';
 import { createSourceKey } from './utils/source-comparison';
 
@@ -43,6 +44,9 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastAnalysisKeyRef = useRef<string | null>(null);
   const lastAnalysisFailedRef = useRef(false);
+
+  // Set up periodic cleanup of stale comparison progress entries
+  useComparisonProgressCleanup();
 
   const tab = data?.tab;
   const comparison = data?.comparison;

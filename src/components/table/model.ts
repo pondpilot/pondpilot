@@ -1,7 +1,7 @@
 import { IconType } from '@components/named-icon';
 import { NormalizedSQLType, DataRow, ColumnSortSpec } from '@models/db';
-import { Cell, Header } from '@tanstack/react-table';
-import { ReactNode } from 'react';
+import { Cell, Header, Row } from '@tanstack/react-table';
+import { ReactNode, CSSProperties } from 'react';
 
 export type ColumnHeaderRendererParams = {
   header: Header<DataRow, unknown>;
@@ -30,3 +30,8 @@ export type ColumnMeta = {
   cellRenderer?: (params: ColumnCellRendererParams) => ReactNode;
 };
 export type TableMeta = { rowOffset: number };
+
+export type GetRowClassName<TData = any> = (
+  row: Row<TData>,
+  rowIndex: number,
+) => string | string[] | { className?: string | string[]; style?: CSSProperties } | undefined;
