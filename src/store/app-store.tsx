@@ -1,4 +1,6 @@
 import { IconType } from '@components/named-icon';
+import { PROGRESS_CLEANUP_MAX_AGE_MS } from '@features/comparison/config/execution-config';
+import { Comparison, ComparisonExecutionProgress, ComparisonId } from '@models/comparison';
 import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
@@ -22,7 +24,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { PersistenceAdapter } from './persistence';
 import { resetAppData } from './restore';
 import { createSelectors } from './utils';
+import { SpotlightView } from '../components/spotlight/model';
 import { TabExecutionError } from '../controllers/tab/tab-controller';
+import { SourceSelectionCallback } from '../features/comparison/hooks/use-comparison-source-selection';
 
 type AppLoadState = 'init' | 'ready' | 'error';
 
@@ -69,6 +73,11 @@ type AppStore = {
   sqlScripts: Map<SQLScriptId, SQLScript>;
 
   /**
+   * A mapping of comparison identifiers to their corresponding Comparison objects.
+   */
+  comparisons: Map<ComparisonId, Comparison>;
+
+  /**
    * A mapping of tab identifiers to their corresponding Tab objects.
    */
   tabs: Map<TabId, AnyTab>;
@@ -100,6 +109,27 @@ type AppStore = {
    * and should be cleared on app reload.
    */
   tabExecutionErrors: Map<TabId, TabExecutionError>;
+
+  /**
+   * Callback function for comparison source selection.
+   * When this is set, spotlight will use it to handle data source selections
+   * instead of opening tabs. This allows the comparison feature to capture
+   * source selections.
+   *
+   * This is not persisted as it's only active during comparison configuration.
+   */
+  comparisonSourceSelectionCallback: SourceSelectionCallback | null;
+
+  /**
+   * The current view for the spotlight. Allows features like comparison source
+   * selection to request a specific view before opening spotlight.
+   */
+  spotlightView: SpotlightView;
+
+  /**
+   * Runtime execution progress for comparison jobs (not persisted).
+   */
+  comparisonExecutionProgress: Map<ComparisonId, ComparisonExecutionProgress>;
 } & ContentViewState;
 
 const initialState: AppStore = {
@@ -110,10 +140,14 @@ const initialState: AppStore = {
   localEntries: new Map(),
   registeredFiles: new Map(),
   sqlScripts: new Map(),
+  comparisons: new Map(),
   tabs: new Map(),
   databaseMetadata: new Map(),
   duckDBFunctions: [],
   tabExecutionErrors: new Map(),
+  comparisonSourceSelectionCallback: null,
+  spotlightView: 'home',
+  comparisonExecutionProgress: new Map(),
   // From ContentViewState
   activeTabId: null,
   previewTabId: null,
@@ -161,6 +195,13 @@ export function useIsSqlScriptIdOnActiveTab(id: SQLScriptId | null): boolean {
   });
 }
 
+export function useIsActiveTabId(tabId: TabId | null): boolean {
+  return useAppStore((state) => {
+    if (!tabId) return false;
+    return state.activeTabId === tabId;
+  });
+}
+
 export function useIsLocalDBElementOnActiveTab(
   id: PersistentDataSourceId | null | undefined,
   schemaName: string | null | undefined,
@@ -183,6 +224,109 @@ export function useIsLocalDBElementOnActiveTab(
     return (
       tab.dataSourceId === id && tab.schemaName === schemaName && tab.objectName === objectName
     );
+  });
+}
+
+type ProgressUpdater = (
+  previous: ComparisonExecutionProgress | undefined,
+) => ComparisonExecutionProgress | null;
+
+export const updateComparisonExecutionProgress = (
+  comparisonId: ComparisonId,
+  updater: ProgressUpdater,
+  action: string = 'AppStore/updateComparisonExecutionProgress',
+): void => {
+  useAppStore.setState(
+    (state) => {
+      const map = new Map(state.comparisonExecutionProgress);
+      const previous = map.get(comparisonId);
+      const next = updater(previous);
+      if (next === null) {
+        map.delete(comparisonId);
+      } else {
+        map.set(comparisonId, next);
+      }
+      return { comparisonExecutionProgress: map };
+    },
+    undefined,
+    action,
+  );
+};
+
+export const clearComparisonExecutionProgress = (comparisonId: ComparisonId): void => {
+  updateComparisonExecutionProgress(
+    comparisonId,
+    () => null,
+    'AppStore/clearComparisonExecutionProgress',
+  );
+};
+
+export const markComparisonCancelRequested = (comparisonId: ComparisonId): void => {
+  updateComparisonExecutionProgress(
+    comparisonId,
+    (prev) => {
+      if (!prev) {
+        const now = Date.now();
+        return {
+          stage: 'cancelled',
+          startedAt: now,
+          updatedAt: now,
+          completedBuckets: 0,
+          pendingBuckets: 0,
+          totalBuckets: 0,
+          processedRows: 0,
+          diffRows: 0,
+          currentBucket: null,
+          cancelRequested: true,
+          supportsFinishEarly: false,
+        };
+      }
+      return { ...prev, cancelRequested: true, updatedAt: Date.now() };
+    },
+    'AppStore/markComparisonCancelRequested',
+  );
+};
+
+/**
+ * Cleans up stale comparison execution progress entries that haven't been updated recently.
+ * This prevents memory leaks from orphaned progress entries.
+ * Uses PROGRESS_CLEANUP_MAX_AGE_MS from execution config (default: 5 minutes)
+ */
+export const cleanupStaleComparisonProgress = (maxAgeMs?: number): void => {
+  const maxAge = maxAgeMs ?? PROGRESS_CLEANUP_MAX_AGE_MS;
+  useAppStore.setState(
+    (state) => {
+      const now = Date.now();
+      const map = new Map(state.comparisonExecutionProgress);
+      let removedCount = 0;
+
+      for (const [comparisonId, progress] of map.entries()) {
+        const age = now - progress.updatedAt;
+        if (age > maxAge) {
+          map.delete(comparisonId);
+          removedCount += 1;
+        }
+      }
+
+      if (removedCount > 0) {
+        return { comparisonExecutionProgress: map };
+      }
+
+      return state;
+    },
+    undefined,
+    'AppStore/cleanupStaleComparisonProgress',
+  );
+};
+
+export function useComparisonExecutionProgress(
+  comparisonId: ComparisonId | null,
+): ComparisonExecutionProgress | null {
+  return useAppStore((state) => {
+    if (!comparisonId) {
+      return null;
+    }
+    return state.comparisonExecutionProgress.get(comparisonId) ?? null;
   });
 }
 
@@ -259,13 +403,16 @@ export function useProtectedViews(): Set<string> {
   return useAppStore(
     useShallow(
       (state) =>
-        new Set(
-          Array.from(state.dataSources.values())
+        new Set([
+          ...Array.from(state.dataSources.values())
             .filter(
               (dataSource) => dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db',
             )
             .map((dataSource): string => (dataSource as AnyFlatFileDataSource).viewName),
-        ),
+          ...Array.from(state.comparisons.values())
+            .map((comparison) => comparison.resultsTableName)
+            .filter((name): name is string => Boolean(name)),
+        ]),
     ),
   );
 }
@@ -430,7 +577,13 @@ export function useTabNameMap(): Map<TabId, string> {
         new Map(
           Array.from(state.tabs).map(([id, tab]): [TabId, string] => [
             id,
-            getTabName(tab, state.sqlScripts, state.dataSources, state.localEntries),
+            getTabName(
+              tab,
+              state.sqlScripts,
+              state.dataSources,
+              state.localEntries,
+              state.comparisons,
+            ),
           ]),
         ),
     ),

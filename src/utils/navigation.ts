@@ -1,4 +1,5 @@
 import { IconType } from '@components/named-icon';
+import { Comparison, ComparisonId } from '@models/comparison';
 import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId, LocalFile, LocalFolder } from '@models/file-system';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
@@ -16,6 +17,7 @@ export function getTabName(
   sqlScripts: Map<SQLScriptId, SQLScript>,
   dataSources: Map<PersistentDataSourceId, AnyDataSource>,
   localEntries: Map<LocalEntryId, LocalEntry>,
+  comparisons: Map<ComparisonId, Comparison>,
 ): string {
   // ScriptTab
   if (tab.type === 'script') {
@@ -25,6 +27,11 @@ export function getTabName(
   // Schema Browser tab
   if (tab.type === 'schema-browser') {
     return getSchemaBrowserTabTitle(tab, dataSources, localEntries);
+  }
+
+  // Comparison tab
+  if (tab.type === 'comparison') {
+    return comparisons.get(tab.comparisonId)?.name || 'Unknown comparison';
   }
 
   // Data source tabs
@@ -63,6 +70,10 @@ export function getTabIcon(
 
   if (tab.type === 'schema-browser') {
     return 'db-schema';
+  }
+
+  if (tab.type === 'comparison') {
+    return 'comparison';
   }
 
   if (tab.type === 'data-source' && tab.dataSourceType === 'file') {

@@ -150,7 +150,7 @@ export const TabsPane = memo(() => {
                 {appInitializing ? (
                   <Skeleton className="ml-2" width={100} height={20} />
                 ) : (
-                  orderedTabIds.map((tabId) => {
+                  orderedTabIds.map((tabId, idx) => {
                     const tabName = tabNameMap.get(tabId)!;
                     const tabIcon = tabIconMap.get(tabId)!;
                     const isLast = orderedTabIds[orderedTabIds.length - 1] === tabId;
@@ -171,6 +171,7 @@ export const TabsPane = memo(() => {
                           handleTabDoubleClick(tabId);
                         }}
                         isLast={isLast}
+                        isFirst={idx === 0}
                       />
                     );
                   })

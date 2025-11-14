@@ -7,7 +7,7 @@ import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { findUniqueName } from '@utils/helpers';
+import { findUniqueName, getAllExistingNames } from '@utils/helpers';
 import { ensureScript, makeSQLScriptId } from '@utils/sql-script';
 
 import { persistDeleteSqlScript } from './persist';
@@ -20,10 +20,12 @@ import { deleteSqlScriptImpl } from './pure';
  */
 
 export const createSQLScript = (name: string = 'query', content: string = ''): SQLScript => {
-  const { sqlScripts } = useAppStore.getState();
-  const allNames = new Set(Array.from(sqlScripts.values()).map((script) => script.name));
+  const { sqlScripts, comparisons } = useAppStore.getState();
 
-  const fileName = findUniqueName(name, (value) => allNames.has(value));
+  // Generate unique name checking both SQL scripts and comparisons
+  const allExistingNames = getAllExistingNames({ comparisons, sqlScripts });
+
+  const fileName = findUniqueName(name, (value) => allExistingNames.has(value));
   const sqlScriptId = makeSQLScriptId();
   const sqlScript: SQLScript = {
     id: sqlScriptId,
@@ -101,19 +103,19 @@ export const updateSQLScriptContent = (
 };
 
 export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName: string): void => {
-  const { sqlScripts } = useAppStore.getState();
+  const { sqlScripts, comparisons } = useAppStore.getState();
 
   // Check if the script exists
   const sqlScript = ensureScript(sqlScriptOrId, sqlScripts);
 
-  // Make sure the name is unique among other scripts
-  const allNames = new Set(
-    Array.from(sqlScripts.values())
-      .filter((script) => script.id !== sqlScript.id)
-      .map((script) => script.name),
-  );
+  // Make sure the name is unique among other scripts and comparisons
+  const allExistingNames = getAllExistingNames({
+    comparisons,
+    sqlScripts,
+    excludeId: sqlScript.id,
+  });
 
-  const uniqueName = findUniqueName(newName, (value) => allNames.has(value));
+  const uniqueName = findUniqueName(newName, (value) => allExistingNames.has(value));
 
   // Create updated script
   const updatedScript: SQLScript = {

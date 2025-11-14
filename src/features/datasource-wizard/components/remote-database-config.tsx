@@ -124,12 +124,24 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
   };
 
   const handleTest = async () => {
+    if (isTesting || isLoading) {
+      return;
+    }
+
+    setIsTesting(true);
+
+    const finishTesting = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      setIsTesting(false);
+    };
+
     if (!pool) {
       showError({
         title: 'App not ready',
         message: 'Please wait for the app to initialize',
         autoClose: false,
       });
+      await finishTesting();
       return;
     }
 
@@ -141,6 +153,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         message: urlValidation.error || 'Please enter a valid URL',
         autoClose: false,
       });
+      await finishTesting();
       return;
     }
 
@@ -150,10 +163,10 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         message: 'Please enter a name for the database',
         autoClose: false,
       });
+      await finishTesting();
       return;
     }
 
-    setIsTesting(true);
     try {
       let attachQuery: string;
       let actualDbName = dbName;
@@ -199,7 +212,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         message: `Failed to connect: ${message}`,
       });
     } finally {
-      setIsTesting(false);
+      await finishTesting();
     }
   };
 
@@ -442,7 +455,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         </Button>
         <Button
           onClick={handleAdd}
-          loading={isLoading}
+          loading={isLoading || isTesting}
           disabled={!url.trim() || !dbName.trim() || isTesting}
           data-testid={setDataTestId('add-remote-database-button')}
         >

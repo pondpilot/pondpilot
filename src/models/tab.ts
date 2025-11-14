@@ -1,3 +1,9 @@
+import {
+  ComparisonId,
+  ComparisonConfig,
+  ComparisonSource,
+  SchemaComparisonResult,
+} from './comparison';
 import { PersistentDataSourceId } from './data-source';
 import {
   ARROW_STREAMING_BATCH_SIZE,
@@ -8,6 +14,9 @@ import {
 import { LocalEntryId } from './file-system';
 import { NewId } from './new-id';
 import { SQLScriptId } from './sql-script';
+
+// Re-export comparison types for backward compatibility with existing code
+export type { ComparisonConfig, ComparisonSource, SchemaComparisonResult };
 
 export type TabId = NewId<'TabId'>;
 
@@ -29,7 +38,7 @@ export type TabDataViewStateCache = {
   staleData: StaleData | null;
 };
 
-export type TabType = 'script' | 'data-source' | 'schema-browser';
+export type TabType = 'script' | 'data-source' | 'schema-browser' | 'comparison';
 
 export interface TabBase {
   readonly type: TabType;
@@ -96,12 +105,28 @@ export interface SchemaBrowserTab extends TabBase {
   layoutState?: Record<string, unknown>;
 }
 
+export interface ComparisonTab extends TabBase {
+  readonly type: 'comparison';
+  comparisonId: ComparisonId;
+
+  // UI state - true when viewing results, false when configuring
+  viewingResults: boolean;
+
+  // Last execution duration in seconds (used for refresh detection)
+  lastExecutionTime: number | null;
+
+  // Materialized comparison results table name (NOT persisted - temp tables don't survive restarts)
+  comparisonResultsTable: string | null;
+}
+
 export type AnyFileSourceTab = FlatFileDataSourceTab | LocalDBDataTab;
-export type AnyTab = ScriptTab | AnyFileSourceTab | SchemaBrowserTab;
+export type AnyTab = ScriptTab | AnyFileSourceTab | SchemaBrowserTab | ComparisonTab;
 export type TabReactiveState<T extends AnyTab> = T extends ScriptTab
   ? Omit<ScriptTab, 'dataViewStateCache'>
   : T extends FlatFileDataSourceTab
     ? Omit<FlatFileDataSourceTab, 'dataViewStateCache'>
     : T extends SchemaBrowserTab
       ? Omit<SchemaBrowserTab, 'dataViewStateCache'>
-      : Omit<LocalDBDataTab, 'dataViewStateCache'>;
+      : T extends ComparisonTab
+        ? Omit<ComparisonTab, 'dataViewStateCache'>
+        : Omit<LocalDBDataTab, 'dataViewStateCache'>;

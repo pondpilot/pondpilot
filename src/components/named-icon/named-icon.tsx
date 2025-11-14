@@ -20,6 +20,7 @@ import {
   IconNumber10,
   IconBrackets,
   IconPoo,
+  IconScale,
 } from '@tabler/icons-react';
 import React from 'react';
 
@@ -47,6 +48,8 @@ export type IconType =
   | 'zsav'
   | 'por'
   | 'dta'
+  // Tab types
+  | 'comparison'
   // Column types
   | 'column-float'
   | 'column-decimal'
@@ -157,6 +160,8 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
     case 'por':
     case 'dta':
       return <IconTable {...iconProps} />;
+    case 'comparison':
+      return <IconScale {...iconProps} />;
 
     case 'error':
       return <IconQuestionMark {...iconProps} />;

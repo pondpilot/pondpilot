@@ -1,4 +1,4 @@
-import { ConnectionPool } from '@engines/types';
+import { Comparison } from '@models/comparison';
 import { LocalDB } from '@models/data-source';
 import { useMemo } from 'react';
 
@@ -15,6 +15,8 @@ type UseLocalDbNodesProps = {
   fileViewNames: Set<string>;
   initialExpandedState: Record<string, boolean>;
   flatFileSources: Map<string, any>;
+  comparisonTableNames: Set<string>;
+  comparisonByTableName: Map<string, Comparison>;
 };
 
 export const useLocalDbNodes = ({
@@ -27,6 +29,8 @@ export const useLocalDbNodes = ({
   fileViewNames,
   initialExpandedState,
   flatFileSources,
+  comparisonTableNames,
+  comparisonByTableName,
 }: UseLocalDbNodesProps) => {
   return useMemo(
     () =>
@@ -41,6 +45,8 @@ export const useLocalDbNodes = ({
           fileViewNames,
           initialExpandedState,
           flatFileSources,
+          comparisonTableNames,
+          comparisonByTableName,
         }),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,6 +59,8 @@ export const useLocalDbNodes = ({
       databaseMetadata,
       fileViewNames,
       flatFileSources,
+      comparisonTableNames,
+      comparisonByTableName,
     ],
   );
 };

@@ -1,3 +1,4 @@
+import { Comparison } from '@models/comparison';
 import {
   useAppStore,
   useFlatFileDataSourceMap,
@@ -52,6 +53,33 @@ export const useDataExplorerData = () => {
     return viewNames;
   }, [flatFileSourcesValues]);
 
+  // Gather comparison metadata
+  const comparisons = useAppStore((state) => state.comparisons);
+  const comparisonValues = useMemo(
+    () => Array.from(comparisons.values()) as Comparison[],
+    [comparisons],
+  );
+
+  const comparisonTableNames = useMemo(
+    () =>
+      new Set(
+        comparisonValues
+          .map((comparison) => comparison.resultsTableName)
+          .filter((name): name is string => Boolean(name)),
+      ),
+    [comparisonValues],
+  );
+
+  const comparisonByTableName = useMemo(() => {
+    const map = new Map<string, Comparison>();
+    for (const comparison of comparisonValues) {
+      if (comparison.resultsTableName) {
+        map.set(comparison.resultsTableName, comparison);
+      }
+    }
+    return map;
+  }, [comparisonValues]);
+
   // These are the node state maps that get passed as extra data to the explorer tree
   const nodeMap: DataExplorerNodeMap = new Map();
   const anyNodeIdToNodeTypeMap = new Map<string, keyof DataExplorerNodeTypeMap>();
@@ -73,5 +101,7 @@ export const useDataExplorerData = () => {
     nodeMap,
     anyNodeIdToNodeTypeMap,
     initialExpandedState,
+    comparisonTableNames,
+    comparisonByTableName,
   };
 };

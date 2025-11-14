@@ -1,9 +1,9 @@
-import { ColumnMeta } from '@components/table/model';
+import { ColumnMeta, GetRowClassName } from '@components/table/model';
 import { Text } from '@mantine/core';
 import { useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { DataTableSlice } from '@models/data-adapter';
-import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema } from '@models/db';
-import { useReactTable, getCoreRowModel } from '@tanstack/react-table';
+import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema, DataRow } from '@models/db';
+import { useReactTable, getCoreRowModel, ColumnDef } from '@tanstack/react-table';
 import { copyToClipboard } from '@utils/clipboard';
 import { setDataTestId } from '@utils/test-id';
 import { memo, useMemo, useRef } from 'react';
@@ -19,6 +19,7 @@ interface TableProps {
   sort: ColumnSortSpecList;
   visible: boolean;
   initialColumnSizes?: Record<string, number>;
+  columns?: ColumnDef<DataRow, any>[];
   // Undefined means sorting is blocked
   onSort?: (columnId: string) => void;
   // Undefined means copying is blocked
@@ -27,6 +28,7 @@ interface TableProps {
   onCellSelectChange: () => void;
   onColumnSelectChange: (column: DBColumn | null) => void;
   onColumnResizeChange?: (columnSizes: Record<string, number>) => void;
+  getRowClassName?: GetRowClassName<DataRow>;
 }
 
 export const Table = memo(
@@ -36,12 +38,14 @@ export const Table = memo(
     sort,
     visible,
     initialColumnSizes,
+    columns,
     onSort,
     onSelectedColsCopy,
     onColumnSelectChange,
     onCellSelectChange,
     onRowSelectChange,
     onColumnResizeChange,
+    getRowClassName,
   }: TableProps) => {
     const hasRows = dataSlice.data.length > 0;
 
@@ -73,6 +77,9 @@ export const Table = memo(
     const columnSizesRef = useRef<Record<string, number>>(initialColumnSizes);
 
     const tableColumns = useMemo(() => {
+      if (columns) {
+        return columns;
+      }
       return getTableColumns({
         schema,
         initialColumnSizes: columnSizesRef.current,
@@ -80,7 +87,7 @@ export const Table = memo(
       });
       // Note that `columnSizesRef.current` is not a dependency here intentionally!
       // See the reasoning above.
-    }, [schema, onRowSelectionChange]);
+    }, [columns, schema, onRowSelectionChange]);
 
     const table = useReactTable({
       data: dataSlice.data,
@@ -90,6 +97,8 @@ export const Table = memo(
       getCoreRowModel: getCoreRowModel(),
       state: { rowSelection: selectedRows },
     });
+
+    const { columnSizingInfo, columnSizing } = table.getState();
 
     const columnSizeVars = useMemo(() => {
       const headers = table.getFlatHeaders();
@@ -104,16 +113,26 @@ export const Table = memo(
         colSizes[header.index] = header.getSize();
       }
 
+      const sizingKeys = Object.keys(columnSizing);
+      for (let i = 0; i < sizingKeys.length; i += 1) {
+        const key = sizingKeys[i]!;
+        if (!(key in colSizeVars)) {
+          const existingSize = columnSizing[key];
+          if (typeof existingSize === 'number') {
+            colSizeVars[`--col-${key}-size`] = existingSize;
+          }
+        }
+      }
+
+      // Access resizing state so memo updates when the active resize target changes
+      if (columnSizingInfo.isResizingColumn !== null) {
+        // no-op
+      }
+
       onColumnResizeChange?.(colSizes);
       columnSizesRef.current = colSizes;
       return colSizeVars;
-    }, [
-      schema,
-      onColumnResizeChange,
-      table,
-      table.getState().columnSizingInfo,
-      table.getState().columnSizing,
-    ]);
+    }, [columnSizing, columnSizingInfo, onColumnResizeChange, table]);
 
     useDidUpdate(() => {
       clearSelection();
@@ -134,8 +153,8 @@ export const Table = memo(
             handleCopySelectedRows(table);
           }
           if (Object.keys(selectedCols).length && onSelectedColsCopy) {
-            const columns = schema.filter((col) => selectedCols[col.id]);
-            onSelectedColsCopy(columns);
+            const selectedSchemaColumns = schema.filter((col) => selectedCols[col.id]);
+            onSelectedColsCopy(selectedSchemaColumns);
           }
         },
       ],
@@ -160,7 +179,10 @@ export const Table = memo(
                 {headerGroup.headers.map((header, index) => {
                   const { deltaOffset } = table.getState().columnSizingInfo;
                   const resizingColumnId = table.getState().columnSizingInfo.isResizingColumn;
-                  const { name: columnName } = header.column.columnDef.meta as ColumnMeta;
+                  const columnMeta = header.column.columnDef.meta as ColumnMeta | undefined;
+                  const columnName = columnMeta?.name ?? header.column.id;
+                  const sortKey = columnMeta?.sortColumnName ?? columnName;
+                  const appliedSort = sort.find((s) => s.column === sortKey) ?? null;
 
                   return (
                     <TableHeadCell
@@ -168,7 +190,7 @@ export const Table = memo(
                       header={header}
                       index={index}
                       totalHeaders={headerGroup.headers.length}
-                      sort={sort.find((s) => s.column === columnName)}
+                      sort={appliedSort}
                       table={table}
                       onSort={onSort}
                       resizingColumnId={resizingColumnId}
@@ -202,6 +224,7 @@ export const Table = memo(
             selectedCellId={selectedCell.cellId}
             selectedCols={selectedCols}
             onCellSelect={handleCellSelect}
+            getRowClassName={getRowClassName}
           />
         ) : (
           <TableBody
@@ -209,6 +232,7 @@ export const Table = memo(
             selectedCellId={selectedCell.cellId}
             selectedCols={selectedCols}
             onCellSelect={handleCellSelect}
+            getRowClassName={getRowClassName}
           />
         )}
       </div>

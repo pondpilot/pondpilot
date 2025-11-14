@@ -1,4 +1,4 @@
-import { expect, mergeTests } from '@playwright/test';
+import { expect, mergeTests, Page } from '@playwright/test';
 
 import { test as filePickerTest } from '../fixtures/file-picker';
 import { test as fileSystemExplorerTest } from '../fixtures/file-system-explorer';
@@ -18,22 +18,76 @@ const test = mergeTests(
   globalHotkeyTest,
 );
 
-test('Dnd overlay shows and hides', async ({ page }) => {
+const createDataTransferWithHandle = async (
+  page: Page,
+  options: { entryName: string; kind: 'file' | 'directory'; mimeType?: string },
+) => {
+  const dataTransferHandle = await page.evaluateHandle(async ({ entryName, kind, mimeType }) => {
+    const dataTransfer = new DataTransfer();
+    const rootDirHandle = await navigator.storage.getDirectory();
+
+    const handle =
+      kind === 'directory'
+        ? await rootDirHandle.getDirectoryHandle(entryName)
+        : await rootDirHandle.getFileHandle(entryName);
+
+    const mockItem = {
+      kind: 'file',
+      type: mimeType ?? '',
+      getAsFileSystemHandle: () => Promise.resolve(handle),
+    };
+
+    Object.defineProperty(dataTransfer, 'items', {
+      value: [mockItem],
+      configurable: true,
+    });
+    Object.defineProperty(dataTransfer, 'types', {
+      value: ['Files'],
+      configurable: true,
+    });
+
+    return dataTransfer;
+  }, options);
+
+  return dataTransferHandle;
+};
+
+test('Dnd overlay responds only to file drags', async ({ page }) => {
   // Wait for the DnD overlay to be ready
   const dndOverlay = page.getByTestId('dnd-overlay');
   await expect(dndOverlay).toBeAttached();
+  const overlayText = page.getByText('Drop your files here!');
 
-  // Simulate dragenter event to trigger the overlay
-  await page.dispatchEvent('[data-testid="dnd-overlay"]', 'dragover');
+  await expect(overlayText).toBeHidden();
 
-  // Check if drag overlay becomes visible (should show "Drop your files here!")
-  await expect(page.getByText('Drop your files here!')).toBeVisible();
+  // Simulate dragging non-file content; overlay should stay hidden
+  const emptyTransfer = await page.evaluateHandle(() => new DataTransfer());
+  await page.dispatchEvent('[data-testid="dnd-overlay"]', 'dragover', {
+    dataTransfer: emptyTransfer,
+  });
+  await expect(overlayText).toBeHidden();
+  await emptyTransfer.dispose();
 
-  // Simulate dragleave to hide the overlay
-  await page.dispatchEvent('[data-testid="dnd-overlay"]', 'dragleave');
+  // Simulate dragging files; overlay should become visible
+  const fileTransfer = await page.evaluateHandle(() => {
+    const dataTransfer = new DataTransfer();
+    Object.defineProperty(dataTransfer, 'types', {
+      value: ['Files'],
+      configurable: true,
+    });
+    return dataTransfer;
+  });
+  await page.dispatchEvent('[data-testid="dnd-overlay"]', 'dragover', {
+    dataTransfer: fileTransfer,
+  });
+  await expect(overlayText).toBeVisible();
 
-  // Verify overlay is hidden
-  await expect(page.getByText('Drop your files here!')).toBeHidden();
+  // Simulate dragleave with file drag; overlay should hide again
+  await page.dispatchEvent('[data-testid="dnd-overlay"]', 'dragleave', {
+    dataTransfer: fileTransfer,
+  });
+  await expect(overlayText).toBeHidden();
+  await fileTransfer.dispose();
 });
 
 test('Drop CSV file via drag and drop', async ({
@@ -56,29 +110,15 @@ test('Drop CSV file via drag and drop', async ({
   await expect(dndOverlay).toBeAttached();
 
   // Simulate drag and drop by creating a real FileSystemFileHandle from OPFS
-  await page.dispatchEvent('[data-testid="dnd-overlay"]', 'drop', {
-    dataTransfer: await page.evaluateHandle(async () => {
-      const dt = new DataTransfer();
-
-      // Get the actual FileSystemFileHandle from OPFS (similar to file-picker.ts)
-      const dirHandle = await navigator.storage.getDirectory();
-      const fileHandle = await dirHandle.getFileHandle('test-data.csv');
-
-      // Create a DataTransferItem that mimics browser drag & drop behavior
-      const mockItem = {
-        kind: 'file',
-        type: 'text/csv',
-        getAsFileSystemHandle: () => Promise.resolve(fileHandle),
-      };
-
-      // Add the mock item to dataTransfer
-      Object.defineProperty(dt, 'items', {
-        value: [mockItem],
-      });
-
-      return dt;
-    }),
+  const csvTransfer = await createDataTransferWithHandle(page, {
+    entryName: 'test-data.csv',
+    kind: 'file',
+    mimeType: 'text/csv',
   });
+  await page.dispatchEvent('[data-testid="dnd-overlay"]', 'drop', {
+    dataTransfer: csvTransfer,
+  });
+  await csvTransfer.dispose();
 
   // Wait for the file to be processed and appear in the explorer
   await page.waitForSelector(
@@ -122,29 +162,14 @@ test('Drop folder with files via drag and drop', async ({
   await expect(dndOverlay).toBeAttached();
 
   // Simulate drag and drop of folder
-  await page.dispatchEvent('[data-testid="dnd-overlay"]', 'drop', {
-    dataTransfer: await page.evaluateHandle(async (folder) => {
-      const dt = new DataTransfer();
-
-      // Get the actual FileSystemDirectoryHandle from OPFS
-      const rootDirHandle = await navigator.storage.getDirectory();
-      const folderHandle = await rootDirHandle.getDirectoryHandle(folder);
-
-      // Create a DataTransferItem that mimics browser drag & drop behavior for directory
-      const mockItem = {
-        kind: 'file',
-        type: '',
-        getAsFileSystemHandle: () => Promise.resolve(folderHandle),
-      };
-
-      // Add the mock item to dataTransfer
-      Object.defineProperty(dt, 'items', {
-        value: [mockItem],
-      });
-
-      return dt;
-    }, folderName),
+  const folderTransfer = await createDataTransferWithHandle(page, {
+    entryName: folderName,
+    kind: 'directory',
   });
+  await page.dispatchEvent('[data-testid="dnd-overlay"]', 'drop', {
+    dataTransfer: folderTransfer,
+  });
+  await folderTransfer.dispose();
 
   // Wait for the folder to be processed and appear in the explorer
   await page.waitForSelector(

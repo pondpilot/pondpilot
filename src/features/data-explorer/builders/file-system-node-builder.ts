@@ -15,6 +15,7 @@ import {
   deleteTabByDataSourceId,
 } from '@controllers/tab';
 import { ConnectionPool } from '@engines/types';
+import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
 import { AnyFlatFileDataSource, XlsxSheetView } from '@models/data-source';
 import { DBColumn, DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -30,6 +31,7 @@ import {
 } from '@utils/navigation';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
+import { buildComparisonMenuItems } from '../utils/comparison-menu-items';
 import { validateFileRename, validateXlsxFileRename } from '../utils/validation';
 
 interface FileSystemBuilderContext {
@@ -217,6 +219,7 @@ function buildXlsxSheetNode(
               getOrCreateTabFromScript(newScript, true);
             },
           },
+          ...buildComparisonMenuItems(() => dataSourceToComparisonSource(sheet)),
         ],
       },
     ],
@@ -426,6 +429,10 @@ export function buildFileNode(
       onClick: (node: any, tree: any) => tree.toggleExpanded(node.value),
     });
   }
+
+  contextMenuItems.push(
+    ...buildComparisonMenuItems(() => dataSourceToComparisonSource(relatedSource)),
+  );
 
   return {
     nodeType: 'file',

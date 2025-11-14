@@ -499,18 +499,26 @@ describe('file-system-node-builder', () => {
       const node = buildFileNode(csvEntry, source, mockContext);
       const menuItems = node.contextMenu?.[0].children || [];
 
-      expect(menuItems).toHaveLength(3);
+      expect(menuItems).toHaveLength(4);
       expect(menuItems.map((item) => item.label)).toEqual([
         'Copy Full Name',
         'Create a Query',
         'Show Schema',
+        'Comparison',
       ]);
 
       // Test Create a Query
       (createSQLScript as jest.Mock).mockReturnValue({ id: 'script-123' });
       const queryItem = menuItems.find((item) => item.label === 'Create a Query');
       queryItem?.onClick?.(node, {} as any);
-      expect(createSQLScript).toHaveBeenCalledWith('data_csv_query', 'SELECT * FROM data_csv;');
+      expect(createSQLScript).toHaveBeenCalledWith(
+        'data_csv_query',
+        'SELECT * FROM main.data_csv;',
+      );
+
+      const comparisonMenu = menuItems.find((item) => item.label === 'Comparison');
+      expect(comparisonMenu).toBeDefined();
+      expect(comparisonMenu?.submenu).toHaveLength(3);
     });
   });
 
