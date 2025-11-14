@@ -8,6 +8,10 @@ import {
   getOrCreateTabFromScript,
   deleteTab,
 } from '@controllers/tab';
+import {
+  getOrCreateTabFromComparison,
+  createComparisonTab,
+} from '@controllers/tab/comparison-tab-controller';
 import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import { ImportScriptModalContent } from '@features/script-import';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
@@ -16,7 +20,8 @@ import { Group, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { Spotlight } from '@mantine/spotlight';
 import { APP_DOCS_URL, APP_OPEN_ISSUES_URL } from '@models/app-urls';
-import { useAppStore } from '@store/app-store';
+import { SYSTEM_DATABASE_NAME } from '@models/data-source';
+import { useAppStore, useProtectedViews } from '@store/app-store';
 import {
   IconDatabase,
   IconCode,
@@ -31,13 +36,14 @@ import {
   IconKeyboard,
   IconLayoutGridRemove,
   IconLayoutNavbarCollapse,
+  IconScale,
 } from '@tabler/icons-react';
 import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 import { setDataTestId } from '@utils/test-id';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { SpotlightBreadcrumbs } from './components';
@@ -47,6 +53,7 @@ import {
   ICON_CLASSES,
   SCRIPT_DISPLAY_NAME,
   SCRIPT_GROUP_DISPLAY_NAME,
+  COMPARISON_GROUP_DISPLAY_NAME,
   SEARCH_PREFIXES,
   SEARCH_SUFFIXES,
 } from './consts';
@@ -105,20 +112,30 @@ export const SpotlightMenu = () => {
    * Store access
    */
   const sqlScripts = useAppStore.use.sqlScripts();
+  const comparisonsMap = useAppStore.use.comparisons();
   const dataSources = useAppStore.use.dataSources();
   const databaseMetadata = useAppStore.use.databaseMetadata();
   const localEntries = useAppStore.use.localEntries();
+  const comparisonSourceSelectionCallback = useAppStore.use.comparisonSourceSelectionCallback();
+  const protectedViews = useProtectedViews();
 
   /**
    * Local state
    */
   const [searchValue, setSearchValue] = useState('');
-  const [spotlightView, setSpotlightView] = useState<SpotlightView>('home');
+  const spotlightView = useAppStore.use.spotlightView();
+  const setSpotlightView = useCallback((view: SpotlightView) => {
+    useAppStore.setState({ spotlightView: view });
+  }, []);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const resetSpotlight = () => {
     setSpotlightView('home');
     Spotlight.close();
+    // Clear comparison source selection callback if it exists
+    if (comparisonSourceSelectionCallback) {
+      useAppStore.setState({ comparisonSourceSelectionCallback: null });
+    }
   };
 
   const ensureHome = () => {
@@ -159,6 +176,8 @@ export const SpotlightMenu = () => {
     if (isLocalDatabase(dataSource) || isRemoteDatabase(dataSource)) {
       // For databases we need to read all tables and views from metadata
       const dbMetadata = databaseMetadata.get(dataSource.dbName);
+      const isSystemDatabase =
+        isLocalDatabase(dataSource) && dataSource.dbName === SYSTEM_DATABASE_NAME;
 
       if (!dbMetadata) {
         continue;
@@ -166,6 +185,10 @@ export const SpotlightMenu = () => {
 
       dbMetadata.schemas.forEach((schema) => {
         schema.objects.forEach((tableOrView) => {
+          if (isSystemDatabase && protectedViews.has(tableOrView.name)) {
+            return;
+          }
+
           dataSourceActions.push({
             id: `open-data-source-${dataSource.id}-${tableOrView.name}`,
             label: tableOrView.label,
@@ -177,15 +200,22 @@ export const SpotlightMenu = () => {
               />
             ),
             handler: () => {
-              getOrCreateTabFromLocalDBObject(
-                dataSource,
-                schema.name,
-                tableOrView.name,
-                tableOrView.type,
-                true,
-              );
-              Spotlight.close();
-              ensureHome();
+              // Check if we're in comparison source selection mode
+              if (comparisonSourceSelectionCallback) {
+                comparisonSourceSelectionCallback(dataSource, schema.name, tableOrView.name);
+                Spotlight.close();
+              } else {
+                // Normal mode - open a tab
+                getOrCreateTabFromLocalDBObject(
+                  dataSource,
+                  schema.name,
+                  tableOrView.name,
+                  tableOrView.type,
+                  true,
+                );
+                Spotlight.close();
+                ensureHome();
+              }
             },
           });
         });
@@ -200,9 +230,16 @@ export const SpotlightMenu = () => {
       label: getFlatFileDataSourceName(dataSource, localEntries),
       icon: <NamedIcon iconType={dataSource.type} size={20} className={ICON_CLASSES} />,
       handler: () => {
-        getOrCreateTabFromFlatFileDataSource(dataSource, true);
-        Spotlight.close();
-        ensureHome();
+        // Check if we're in comparison source selection mode
+        if (comparisonSourceSelectionCallback) {
+          comparisonSourceSelectionCallback(dataSource);
+          Spotlight.close();
+        } else {
+          // Normal mode - open a tab
+          getOrCreateTabFromFlatFileDataSource(dataSource, true);
+          Spotlight.close();
+          ensureHome();
+        }
       },
     });
   }
@@ -213,6 +250,17 @@ export const SpotlightMenu = () => {
     icon: <NamedIcon iconType="code-file" size={20} className={ICON_CLASSES} />,
     handler: () => {
       getOrCreateTabFromScript(script.id, true);
+      Spotlight.close();
+      ensureHome();
+    },
+  }));
+
+  const comparisonActions: Action[] = Array.from(comparisonsMap.values()).map((comparison) => ({
+    id: `open-comparison-${comparison.id}`,
+    label: comparison.name,
+    icon: <NamedIcon iconType="comparison" size={20} className={ICON_CLASSES} />,
+    handler: () => {
+      getOrCreateTabFromComparison(comparison.id, true);
       Spotlight.close();
       ensureHome();
     },
@@ -269,6 +317,17 @@ export const SpotlightMenu = () => {
       handler: async () => {
         const newEmptyScript = createSQLScript();
         getOrCreateTabFromScript(newEmptyScript, true);
+        resetSpotlight();
+        ensureHome();
+      },
+    },
+    {
+      id: 'create-new-comparison',
+      label: 'New Comparison',
+      icon: <IconScale size={20} className={ICON_CLASSES} />,
+      hotkey: [control, option, 'C'],
+      handler: async () => {
+        createComparisonTab({ setActive: true });
         resetSpotlight();
         ensureHome();
       },
@@ -431,6 +490,7 @@ export const SpotlightMenu = () => {
 
     // Only show data sources if there is a search query
     const filteredDataSources = searchValue ? filterActions(dataSourceActions, searchValue) : [];
+    const filteredComparisons = searchValue ? filterActions(comparisonActions, searchValue) : [];
 
     return (
       <>
@@ -438,6 +498,8 @@ export const SpotlightMenu = () => {
           <>
             {filteredScripts.length > 0 &&
               renderActionsGroup(filteredScripts, SCRIPT_GROUP_DISPLAY_NAME)}
+            {filteredComparisons.length > 0 &&
+              renderActionsGroup(filteredComparisons, COMPARISON_GROUP_DISPLAY_NAME)}
             {filteredDataSources.length > 0 &&
               renderActionsGroup(filteredDataSources, DATA_SOURCE_GROUP_DISPLAY_NAME)}
           </>
@@ -466,6 +528,7 @@ export const SpotlightMenu = () => {
   const renderScriptsView = () => {
     const filteredActions = filterActions(scriptGroupActions, searchValue);
     const filteredScripts = filterActions(scriptActions, searchValue);
+    const filteredComparisons = filterActions(comparisonActions, searchValue);
 
     // Can't be empty but ok...
     return (
@@ -473,6 +536,8 @@ export const SpotlightMenu = () => {
         {filteredActions.length > 0 &&
           renderActionsGroup(filteredActions, SCRIPT_GROUP_DISPLAY_NAME)}
         {filteredScripts.length > 0 && renderActionsGroup(filteredScripts, 'Recent Queries')}
+        {filteredComparisons.length > 0 &&
+          renderActionsGroup(filteredComparisons, COMPARISON_GROUP_DISPLAY_NAME)}
       </>
     );
   };

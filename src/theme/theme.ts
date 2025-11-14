@@ -20,6 +20,9 @@ import {
   TextInput,
   Title,
   virtualColor,
+  Paper,
+  Alert,
+  SegmentedControl,
 } from '@mantine/core';
 import {
   Spotlight,
@@ -639,12 +642,36 @@ export const theme = createTheme({
         classNames: {
           content: 'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark rounded-2xl',
           header: 'p-4 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
+          body: 'p-4 pt-0',
         },
       },
     }),
     Slider: Slider.extend({
       defaultProps: {
         color: 'background-accent',
+      },
+    }),
+    Paper: Paper.extend({
+      defaultProps: {
+        bg: 'background-primary',
+        classNames: {
+          root: 'border-borderPrimary-light dark:border-borderPrimary-dark',
+        },
+      },
+    }),
+    Alert: Alert.extend({
+      defaultProps: {
+        variant: 'filled',
+      },
+    }),
+    SegmentedControl: SegmentedControl.extend({
+      defaultProps: {
+        size: 'sm',
+        color: 'background-tertiary',
+        bg: 'background-secondary',
+      },
+      classNames: {
+        label: 'text-textPrimary-light dark:text-textPrimary-dark',
       },
     }),
   },

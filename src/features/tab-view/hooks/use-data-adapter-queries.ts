@@ -78,6 +78,13 @@ export const useDataAdapterQueries = ({
           internalErrors: [],
         };
       }
+      case 'comparison': {
+        // Comparison tab doesn't need a data adapter in this context
+        return {
+          userErrors: [],
+          internalErrors: [],
+        };
+      }
       default:
         assertNeverValueType(tab);
         return {

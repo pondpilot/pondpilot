@@ -52,7 +52,7 @@ test.describe('Data Explorer Filtering', () => {
   // eslint-disable-next-line playwright/expect-expect
   test('should filter by type when clicking filter buttons', async ({
     page,
-    addFileButton,
+    addFileButton: _addFileButton,
     addFile,
     fileSystemExplorer: _fileSystemExplorer,
     testTmp,

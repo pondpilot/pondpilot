@@ -11,6 +11,7 @@ import { persistAddLocalEntry } from '@controllers/file-system/persist';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { Comparison, ComparisonId } from '@models/comparison';
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
@@ -33,6 +34,7 @@ import {
 import {
   ALL_TABLE_NAMES,
   APP_DB_NAME,
+  COMPARISON_TABLE_NAME,
   CONTENT_VIEW_TABLE_NAME,
   DATA_SOURCE_TABLE_NAME,
   DB_VERSION,
@@ -41,8 +43,9 @@ import {
   TAB_TABLE_NAME,
   AppIdbSchema,
 } from '@models/persisted-store';
-import { TabId } from '@models/tab';
+import { ComparisonTab, TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
+import { makeComparisonId } from '@utils/comparison';
 import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
 import {
   collectFileHandlePersmissions,
@@ -59,7 +62,9 @@ async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
     upgrade(newDb) {
       for (const storeName of ALL_TABLE_NAMES) {
-        newDb.createObjectStore(storeName);
+        if (!newDb.objectStoreNames.contains(storeName)) {
+          newDb.createObjectStore(storeName);
+        }
       }
     },
   });
@@ -451,8 +456,130 @@ export const restoreAppDataFromIDB = async (
   const sqlScriptsArray = await tx.objectStore(SQL_SCRIPT_TABLE_NAME).getAll();
   const sqlScripts = new Map(sqlScriptsArray.map((script) => [script.id, script]));
 
+  const comparisonsArray = await tx.objectStore(COMPARISON_TABLE_NAME).getAll();
+  const comparisons = new Map<ComparisonId, Comparison>(
+    comparisonsArray.map((comparison) => [comparison.id as ComparisonId, comparison as Comparison]),
+  );
+
   const tabsArray = await tx.objectStore(TAB_TABLE_NAME).getAll();
-  const tabs = new Map(tabsArray.map((tab) => [tab.id, tab]));
+  const tabs = new Map<TabId, any>(tabsArray.map((tab) => [tab.id as TabId, tab]));
+
+  const comparisonWrites: Map<ComparisonId, Comparison> = new Map();
+  const tabWrites: Map<TabId, ComparisonTab> = new Map();
+
+  // Normalize existing comparison entries to include newer persistence fields
+  for (const [comparisonId, comparisonData] of comparisons.entries()) {
+    const lastExecutionTime = (comparisonData as Partial<Comparison>).lastExecutionTime ?? null;
+    const resultsTableName = (comparisonData as Partial<Comparison>).resultsTableName ?? null;
+    const lastRunAt = (comparisonData as Partial<Comparison>).lastRunAt ?? null;
+
+    if (
+      comparisonData.lastExecutionTime !== lastExecutionTime ||
+      comparisonData.resultsTableName !== resultsTableName ||
+      (comparisonData as Partial<Comparison>).lastRunAt !== lastRunAt
+    ) {
+      const normalizedComparison: Comparison = {
+        ...comparisonData,
+        lastExecutionTime,
+        lastRunAt,
+        resultsTableName,
+      };
+
+      comparisons.set(comparisonId, normalizedComparison);
+      comparisonWrites.set(comparisonId, normalizedComparison);
+    }
+  }
+
+  const existingComparisonNames = new Set(
+    Array.from(comparisons.values()).map((comparison) => comparison.name),
+  );
+  const existingScriptNames = new Set(sqlScriptsArray.map((script) => script.name));
+
+  // Migrate legacy comparison tabs that still own their comparison data
+  for (const [tabId, tabValue] of tabs.entries()) {
+    if (!tabValue || tabValue.type !== 'comparison') {
+      continue;
+    }
+
+    const comparisonTab = tabValue as any;
+
+    if (comparisonTab.comparisonId) {
+      // If the comparison record is missing (rare) backfill a minimal entry so the UI can list it
+      if (!comparisons.has(comparisonTab.comparisonId)) {
+        const fallbackName = findUniqueName(
+          'Comparison',
+          (value) => existingComparisonNames.has(value) || existingScriptNames.has(value),
+        );
+
+        const stubComparison: Comparison = {
+          id: comparisonTab.comparisonId as ComparisonId,
+          name: fallbackName,
+          config: null,
+          schemaComparison: null,
+          lastExecutionTime: comparisonTab.lastExecutionTime ?? null,
+          lastRunAt: comparisonTab.lastExecutionTime ? new Date().toISOString() : null,
+          resultsTableName: comparisonTab.comparisonResultsTable ?? null,
+          metadata: {
+            sourceStats: null,
+            partialResults: false,
+            executionMetadata: null,
+          },
+        };
+
+        comparisons.set(stubComparison.id, stubComparison);
+        comparisonWrites.set(stubComparison.id, stubComparison);
+        existingComparisonNames.add(fallbackName);
+      }
+
+      continue;
+    }
+
+    const desiredName: string = comparisonTab.name ?? 'Comparison';
+    const uniqueName = findUniqueName(
+      desiredName,
+      (value) => existingComparisonNames.has(value) || existingScriptNames.has(value),
+    );
+
+    const comparisonId = makeComparisonId();
+
+    const migratedComparison: Comparison = {
+      id: comparisonId,
+      name: uniqueName,
+      config: comparisonTab.config ?? null,
+      schemaComparison: comparisonTab.schemaComparison ?? null,
+      lastExecutionTime: comparisonTab.lastExecutionTime ?? null,
+      lastRunAt: comparisonTab.lastExecutionTime ? new Date().toISOString() : null,
+      resultsTableName: comparisonTab.comparisonResultsTable ?? null,
+      metadata: {
+        sourceStats: null,
+        partialResults: false,
+        executionMetadata: null,
+      },
+    };
+
+    existingComparisonNames.add(uniqueName);
+
+    const viewingResults =
+      'viewingResults' in comparisonTab
+        ? Boolean(comparisonTab.viewingResults)
+        : comparisonTab.wizardStep === 'results';
+
+    const migratedTab: ComparisonTab = {
+      type: 'comparison',
+      id: comparisonTab.id,
+      comparisonId,
+      viewingResults,
+      lastExecutionTime: comparisonTab.lastExecutionTime ?? null,
+      comparisonResultsTable: comparisonTab.comparisonResultsTable ?? null,
+      dataViewStateCache: comparisonTab.dataViewStateCache ?? null,
+    };
+
+    comparisons.set(comparisonId, migratedComparison);
+    tabs.set(tabId, migratedTab);
+
+    comparisonWrites.set(comparisonId, migratedComparison);
+    tabWrites.set(tabId, migratedTab);
+  }
 
   const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
   const dataSourcesArray = await dataSourceStore.getAll();
@@ -464,6 +591,22 @@ export const restoreAppDataFromIDB = async (
   );
 
   await tx.done;
+
+  if (comparisonWrites.size > 0 || tabWrites.size > 0) {
+    const migrationTx = iDbConn.transaction([COMPARISON_TABLE_NAME, TAB_TABLE_NAME], 'readwrite');
+
+    const comparisonStore = migrationTx.objectStore(COMPARISON_TABLE_NAME);
+    for (const comparison of comparisonWrites.values()) {
+      await comparisonStore.put(comparison, comparison.id);
+    }
+
+    const tabStore = migrationTx.objectStore(TAB_TABLE_NAME);
+    for (const tab of tabWrites.values()) {
+      await tabStore.put(tab, tab.id);
+    }
+
+    await migrationTx.done;
+  }
 
   // The following mirrors the logic for adding new data sources.
   // In reality currently our database is created from scratch, so it
@@ -866,6 +1009,7 @@ export const restoreAppDataFromIDB = async (
       localEntries: localEntriesMap,
       registeredFiles,
       sqlScripts,
+      comparisons,
       tabs: newTabs,
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,

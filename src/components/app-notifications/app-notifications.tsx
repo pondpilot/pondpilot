@@ -47,18 +47,21 @@ export const showSuccess = (data: NotificationData) => showAppAlert(data, 'succe
 export const showWarning = (data: NotificationData) => showAppAlert(data, 'warning');
 export const showError = (data: NotificationData) => showAppAlert(data, 'error');
 
-interface ErrorWithActionData extends NotificationData {
+interface NotificationWithActionData extends NotificationData {
   action?: {
     label: string;
     onClick: () => void;
   };
 }
 
-export const showErrorWithAction = (data: ErrorWithActionData) => {
+const showAppAlertWithAction = (
+  data: NotificationWithActionData,
+  type: 'info' | 'success' | 'warning' | 'error',
+) => {
   const { action, ...notificationData } = data;
 
   // Generate an ID for the notification if not provided
-  const notificationId = notificationData.id || `error-${Date.now()}`;
+  const notificationId = notificationData.id || `${type}-${Date.now()}`;
 
   // Create custom message with action button if provided
   const messageContent = action ? (
@@ -87,6 +90,12 @@ export const showErrorWithAction = (data: ErrorWithActionData) => {
       id: notificationId,
       message: messageContent as ReactNode,
     },
-    'error',
+    type,
   );
 };
+
+export const showErrorWithAction = (data: NotificationWithActionData) =>
+  showAppAlertWithAction(data, 'error');
+
+export const showWarningWithAction = (data: NotificationWithActionData) =>
+  showAppAlertWithAction(data, 'warning');
