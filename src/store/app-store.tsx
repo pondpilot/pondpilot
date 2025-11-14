@@ -114,13 +114,10 @@ type AppStore = {
   comparisonSourceSelectionCallback: SourceSelectionCallback | null;
 
   /**
-   * The initial view to show when spotlight opens. Used to open spotlight
-   * directly to a specific view (e.g., 'dataSources' for comparison source selection).
-   *
-   * This is not persisted as it's only relevant for the next spotlight open.
-   * Set to null after spotlight reads the value.
+   * The current view for the spotlight. Allows features like comparison source
+   * selection to request a specific view before opening spotlight.
    */
-  spotlightInitialView: SpotlightView | null;
+  spotlightView: SpotlightView;
 
   /**
    * Runtime execution progress for comparison jobs (not persisted).
@@ -141,7 +138,7 @@ const initialState: AppStore = {
   duckDBFunctions: [],
   tabExecutionErrors: new Map(),
   comparisonSourceSelectionCallback: null,
-  spotlightInitialView: null,
+  spotlightView: 'home',
   comparisonExecutionProgress: new Map(),
   // From ContentViewState
   activeTabId: null,

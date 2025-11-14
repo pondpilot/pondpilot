@@ -43,7 +43,7 @@ import { fileSystemService } from '@utils/file-system-adapter';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 import { setDataTestId } from '@utils/test-id';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { SpotlightBreadcrumbs } from './components';
@@ -123,19 +123,11 @@ export const SpotlightMenu = () => {
    * Local state
    */
   const [searchValue, setSearchValue] = useState('');
-  const [spotlightView, setSpotlightView] = useState<SpotlightView>('home');
+  const spotlightView = useAppStore.use.spotlightView();
+  const setSpotlightView = useCallback((view: SpotlightView) => {
+    useAppStore.setState({ spotlightView: view });
+  }, []);
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Subscribe to spotlightInitialView changes from app store
-  // This allows comparison feature to request opening in a specific view
-  const spotlightInitialView = useAppStore.use.spotlightInitialView();
-  useEffect(() => {
-    if (spotlightInitialView) {
-      setSpotlightView(spotlightInitialView);
-      // Clear it immediately so it doesn't affect future opens
-      useAppStore.setState({ spotlightInitialView: null });
-    }
-  }, [spotlightInitialView]);
 
   const resetSpotlight = () => {
     setSpotlightView('home');
