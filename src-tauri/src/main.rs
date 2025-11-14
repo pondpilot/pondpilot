@@ -23,7 +23,9 @@ use persistence::PersistenceState;
 use secrets::SecretsManager;
 use std::sync::Arc;
 use streaming::StreamManager;
-use tauri::{Listener, Manager};
+use tauri::Manager;
+#[cfg(debug_assertions)]
+use tauri::Listener;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -38,7 +40,13 @@ fn test_connection() -> Result<String, String> {
 #[tauri::command]
 fn log_message(message: String) {
     #[cfg(debug_assertions)]
-    println!("[JS] {}", message);
+    {
+        println!("[JS] {}", message);
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = message;
+    }
 }
 
 fn main() {
@@ -208,28 +216,22 @@ fn main() {
                 // Set up menu event handlers
                 menu::setup_menu_handlers(&app.handle());
 
-                // Get the main window
-                let window = app.get_webview_window("main").unwrap();
-
-                // Enable devtools in debug mode
                 #[cfg(debug_assertions)]
                 {
+                    // Get the main window and enable devtools / listeners only when debugging
+                    let window = app
+                        .get_webview_window("main")
+                        .expect("Main window should exist during setup");
+
                     window.open_devtools();
-                }
 
-                // Log current configuration (debug only)
-                #[cfg(debug_assertions)]
-                {
                     eprintln!("[WEBVIEW] Debug mode: {}", cfg!(debug_assertions));
-                    // Check what URL is being loaded
                     if let Ok(current_url) = window.url() {
                         eprintln!("[WEBVIEW] Initial URL: {}", current_url);
                     }
-                    // Listen for navigation events
                     window.listen("tauri://navigate", |event| {
                         eprintln!("[WEBVIEW] Navigation event: {:?}", event.payload());
                     });
-                    // Listen for error events
                     let window_error = window.clone();
                     window_error.listen("tauri://error", move |event| {
                         eprintln!("[WEBVIEW] Error event: {:?}", event.payload());

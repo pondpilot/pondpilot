@@ -2,11 +2,12 @@ pub mod stream;
 pub mod utils;
 
 use crate::database::extensions::ALLOWED_EXTENSIONS;
-use crate::database::motherduck_token;
 use crate::database::{
     CatalogInfo, ColumnInfo, DatabaseInfo, DuckDBEngine, EngineConfig, FileInfo, FileRegistration,
     QueryResult, TableInfo,
 };
+#[cfg(debug_assertions)]
+use crate::database::motherduck_token;
 use crate::errors::Result;
 use serde::Serialize;
 use std::sync::Arc;

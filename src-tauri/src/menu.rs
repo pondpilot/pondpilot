@@ -252,6 +252,7 @@ pub fn setup_menu_handlers(app: &AppHandle) {
                 }
             }
             "dev_tools" => {
+                #[cfg(any(debug_assertions, feature = "devtools"))]
                 if let Some(window) = app.get_webview_window("main") {
                     window.open_devtools();
                 }

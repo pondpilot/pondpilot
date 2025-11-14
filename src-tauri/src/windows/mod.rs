@@ -24,10 +24,14 @@ pub async fn open_secrets_window(app: AppHandle) -> Result<(), String> {
     .build()
     .map_err(|e| e.to_string())?;
 
-    // Enable devtools in debug mode
+    // Enable devtools only in debug builds
     #[cfg(debug_assertions)]
     {
         window.open_devtools();
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = window;
     }
     Ok(())
 }

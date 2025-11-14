@@ -329,13 +329,19 @@ pub async fn apply_secret_to_connection(
     if !is_allowed {
         // SECURITY AUDIT: Log denied secret access attempts for security monitoring
         // Redact sensitive IDs to prevent information disclosure in logs
-        let connection_prefix = request.connection_id.chars().take(10).collect::<String>();
         #[cfg(debug_assertions)]
-        eprintln!(
-            "[SECURITY AUDIT] Denied secret access attempt - connection_prefix: {}..., window: {}",
-            connection_prefix,
-            window.label()
-        );
+        {
+            let connection_prefix = request
+                .connection_id
+                .chars()
+                .take(10)
+                .collect::<String>();
+            eprintln!(
+                "[SECURITY AUDIT] Denied secret access attempt - connection_prefix: {}..., window: {}",
+                connection_prefix,
+                window.label()
+            );
+        }
         tracing::warn!("[SECURITY AUDIT] Secret access denied for connection pattern check");
         return Err("Invalid connection_id".into());
     }
@@ -498,12 +504,18 @@ pub async fn cleanup_orphaned_secrets(
                         );
                         cleaned += 1;
                     }
-                    Err(e) => {
+                    Err(err) => {
                         #[cfg(debug_assertions)]
-                        eprintln!(
-                            "[Secrets] Failed to clean up orphaned secret {}: {}",
-                            secret.id, e
-                        );
+                        {
+                            eprintln!(
+                                "[Secrets] Failed to clean up orphaned secret {}: {}",
+                                secret.id, err
+                            );
+                        }
+                        #[cfg(not(debug_assertions))]
+                        {
+                            let _ = err;
+                        }
                         failed += 1;
                     }
                 }

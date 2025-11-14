@@ -41,7 +41,7 @@ check-and-fix:
 tauri-dev:
     yarn tauri dev
 
-# Build Tauri release version
+# Build Tauri release version (run-tauri.js injects linuxdeploy env vars on Linux)
 tauri-build:
     yarn tauri build
 

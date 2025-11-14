@@ -39,8 +39,8 @@
     "lint:stylelint:fix": "stylelint '**/*.css' --cache --fix",
     "prettier": "prettier --check \"**/*.{ts,tsx}\"",
     "prettier:write": "prettier --write \"**/*.{ts,tsx}\"",
-    "tauri": "tauri",
-    "tauri:build": "tauri build"
+    "tauri": "node ./scripts/run-tauri.js",
+    "tauri:build": "node ./scripts/run-tauri.js build"
   },
   "dependencies": {
     "@codemirror/lang-sql": "^6.8.0",

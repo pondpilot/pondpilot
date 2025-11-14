@@ -49,6 +49,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    },
     "macOS": {
       "signingIdentity": "Developer ID Application: Ameba Labs, LLC (X93LWC49WV)",
       "minimumSystemVersion": "10.15",
