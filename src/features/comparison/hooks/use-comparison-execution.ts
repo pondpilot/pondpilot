@@ -1,5 +1,5 @@
 import { dropComparisonResultsTable } from '@controllers/comparison/table-utils';
-import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import {
   COMPARISON_EXECUTION_STAGE,
   ComparisonExecutionProgress,

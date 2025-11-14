@@ -5,7 +5,7 @@ import { showWarning } from '@components/app-notifications';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
-import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import {
   Comparison,
   ComparisonId,

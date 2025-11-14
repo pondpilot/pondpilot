@@ -1,4 +1,4 @@
-import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { isComparisonResultsTableName } from '@utils/comparison';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';

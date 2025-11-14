@@ -1,4 +1,5 @@
 import { Comparison } from '@models/comparison';
+import { ConnectionPool } from '@engines/types';
 import { LocalDB } from '@models/data-source';
 import { useMemo } from 'react';
 

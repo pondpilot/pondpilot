@@ -1,4 +1,5 @@
 import { Comparison } from '@models/comparison';
+import { ConnectionPool } from '@engines/types';
 import { LocalDB, RemoteDB } from '@models/data-source';
 
 import { DataExplorerNodeMap } from '../model';

@@ -1,5 +1,5 @@
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { useEffect, useState } from 'react';
 
 export interface TableInfo {

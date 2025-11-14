@@ -1,4 +1,4 @@
-import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { ComparisonId } from '@models/comparison';
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
 

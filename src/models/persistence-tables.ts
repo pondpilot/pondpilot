@@ -14,6 +14,7 @@ export const PERSISTENCE_TABLES = {
   SQL_SCRIPTS: 'sql_scripts',
   TABS: 'tabs',
   CONTENT_VIEW: 'content_view',
+  COMPARISONS: 'comparisons',
 } as const;
 
 // Legacy hyphenated names - used by IndexedDB for backward compatibility
@@ -23,6 +24,7 @@ export const LEGACY_TABLE_NAMES = {
   SQL_SCRIPTS: 'sql-script',
   TABS: 'tab',
   CONTENT_VIEW: 'content-view',
+  COMPARISONS: 'comparison',
 } as const;
 
 // Type exports

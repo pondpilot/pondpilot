@@ -1,4 +1,4 @@
-import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { ComparisonConfig, ComparisonSource, SchemaComparisonResult } from '@models/tab';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
@@ -76,7 +76,7 @@ const throwIfAborted = (signal?: AbortSignal) => {
 };
 
 const runQuery = async (pool: ConnectionPool, sql: string, signal?: AbortSignal) => {
-  if (!signal) {
+  if (!signal || !pool.queryAbortable) {
     return pool.query(sql);
   }
 

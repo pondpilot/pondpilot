@@ -1,4 +1,5 @@
 import { showWarning } from '@components/app-notifications';
+import { ConnectionPool } from '@engines/types';
 import { dropComparisonResultsTable } from '@controllers/comparison/table-utils';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { invalidateRowCountCacheForDatabase } from '@features/comparison/hooks/row-count-cache';

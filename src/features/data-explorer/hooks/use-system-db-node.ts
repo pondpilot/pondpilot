@@ -1,4 +1,5 @@
 import { TreeNodeData } from '@components/explorer-tree/model';
+import { ConnectionPool } from '@engines/types';
 import { Comparison } from '@models/comparison';
 import { LocalDB, SYSTEM_DATABASE_ID } from '@models/data-source';
 

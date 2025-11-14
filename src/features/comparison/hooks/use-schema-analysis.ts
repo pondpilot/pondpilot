@@ -1,4 +1,4 @@
-import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import type { ComparisonId, ComparisonSourceStat } from '@models/comparison';
 import { AnyFlatFileDataSource } from '@models/data-source';
 import { DataSourceLocalFile, LocalEntry } from '@models/file-system';

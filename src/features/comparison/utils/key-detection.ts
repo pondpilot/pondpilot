@@ -1,4 +1,4 @@
-import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { ComparisonSource } from '@models/tab';
 import { quote } from '@utils/helpers';
 import * as arrow from 'apache-arrow';
