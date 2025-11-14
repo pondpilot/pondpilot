@@ -191,12 +191,14 @@ export type BaseTreeNodeProps<NTypeToIdTypeMap extends Record<string, any>> =
 
 export type TreeNodeMenuItemType<NType> = {
   label: string;
-  isDisabled?: boolean;
+  isDisabled?: boolean | ((node: NType, tree: MantineRenderTreeNodePayload['tree']) => boolean);
+  isHidden?: (node: NType, tree: MantineRenderTreeNodePayload['tree']) => boolean;
   onClick: (node: NType, tree: MantineRenderTreeNodePayload['tree']) => void;
   onAlt?: {
     label: string;
     onClick: (node: NType, tree: MantineRenderTreeNodePayload['tree']) => void;
   };
+  submenu?: TreeNodeMenuItemType<NType>[];
 };
 
 export type TreeNodeMenuSectionType<NType> = {

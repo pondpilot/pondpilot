@@ -2,6 +2,7 @@ import { showWarning } from '@components/app-notifications';
 import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { IconType } from '@components/named-icon';
 import { getIconTypeForSQLType } from '@components/named-icon/utils';
+import { clearComparisonResults } from '@controllers/comparison';
 import { createSQLScript } from '@controllers/sql-script';
 import {
   findTabFromFlatFileDataSource,
@@ -13,7 +14,12 @@ import {
   setActiveTabId,
   setPreviewTabId,
 } from '@controllers/tab';
+import {
+  findTabFromComparison,
+  getOrCreateTabFromComparison,
+} from '@controllers/tab/comparison-tab-controller';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { Comparison } from '@models/comparison';
 import { PersistentDataSourceId } from '@models/data-source';
 import { DBColumn, DBSchema, DBTableOrView } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -21,6 +27,7 @@ import { copyToClipboard } from '@utils/clipboard';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
+import { buildComparisonMenuItems } from '../utils/comparison-menu-items';
 import { refreshDatabaseMetadata } from '../utils/metadata-refresh';
 
 interface BuilderContext {
@@ -30,6 +37,8 @@ interface BuilderContext {
 
 export interface ExtendedBuilderContext extends BuilderContext {
   flatFileSources?: Map<string, any>;
+  comparisonByTableName?: Map<string, Comparison>;
+  comparisonTableNames?: Set<string>;
 }
 
 /**
@@ -116,6 +125,7 @@ export function buildObjectTreeNode({
   schemaName,
   object,
   fileViewNames,
+  comparisonTableNames,
   conn,
   context,
 }: {
@@ -124,6 +134,7 @@ export function buildObjectTreeNode({
   schemaName: string;
   object: DBTableOrView;
   fileViewNames?: Set<string>;
+  comparisonTableNames?: Set<string>;
   conn?: AsyncDuckDBConnectionPool;
   context: ExtendedBuilderContext;
 }): TreeNodeData<DataExplorerNodeTypeMap> {
@@ -155,20 +166,35 @@ export function buildObjectTreeNode({
     ];
   }
 
+  const comparisonForTable =
+    object.type === 'table' &&
+    dbName === PERSISTENT_DB_NAME &&
+    comparisonTableNames?.has(objectName)
+      ? context.comparisonByTableName?.get(objectName)
+      : undefined;
+
   const label = objectName;
 
   // Check if this is a file view in the system database
   const isFileView =
     object.type === 'view' && dbName === PERSISTENT_DB_NAME && fileViewNames?.has(objectName);
 
+  const isComparisonTable = Boolean(comparisonForTable);
+
+  const tooltip =
+    isComparisonTable && comparisonForTable
+      ? `Comparison: ${comparisonForTable.name}\nLast run: ${comparisonForTable.lastRunAt ? new Date(comparisonForTable.lastRunAt).toLocaleString() : 'Never'}\nTable: ${objectName}`
+      : undefined;
+
   // Allow dropping objects in system database, except file views
-  const canDrop = dbName === PERSISTENT_DB_NAME && !isFileView;
+  const canDrop = dbName === PERSISTENT_DB_NAME && !isFileView && !isComparisonTable;
 
   return {
     nodeType: 'object',
     value: objectNodeId,
     label,
-    iconType: object.type === 'table' ? 'db-table' : 'db-view',
+    iconType: isComparisonTable ? 'comparison' : object.type === 'table' ? 'db-table' : 'db-view',
+    tooltip,
     isDisabled: false,
     isSelectable: true,
     doNotExpandOnClick: true,
@@ -181,6 +207,12 @@ export function buildObjectTreeNode({
 
               // Refresh database metadata after successful drop
               await refreshDatabaseMetadata(conn, [dbName]);
+
+              if (isComparisonTable && comparisonForTable) {
+                await clearComparisonResults(comparisonForTable.id, {
+                  tableNameOverride: null,
+                });
+              }
             } catch (error) {
               // Show user-friendly error notification without exposing internal details
               showWarning({
@@ -213,6 +245,16 @@ export function buildObjectTreeNode({
           setPreviewTabId(tab.id);
           return;
         }
+      }
+
+      if (isComparisonTable && comparisonForTable) {
+        const existingTab = findTabFromComparison(comparisonForTable.id);
+        const tab = getOrCreateTabFromComparison(comparisonForTable, true);
+
+        if (!existingTab) {
+          setPreviewTabId(tab.id);
+        }
+        return;
       }
 
       // Regular table/view handling
@@ -268,6 +310,12 @@ export function buildObjectTreeNode({
               });
             },
           },
+          ...buildComparisonMenuItems(() => ({
+            type: 'table',
+            tableName: objectName,
+            schemaName,
+            databaseName: dbName,
+          })),
           ...devMenuItems,
         ],
       },
@@ -306,6 +354,7 @@ export function buildSchemaTreeNode({
   dbName,
   schema,
   fileViewNames,
+  comparisonTableNames,
   conn,
   context,
   initialExpandedState,
@@ -314,6 +363,7 @@ export function buildSchemaTreeNode({
   dbName: string;
   schema: DBSchema;
   fileViewNames?: Set<string>;
+  comparisonTableNames?: Set<string>;
   conn?: AsyncDuckDBConnectionPool;
   context: ExtendedBuilderContext;
   initialExpandedState: Record<string, boolean>;
@@ -337,14 +387,21 @@ export function buildSchemaTreeNode({
   // For system database, separate file views from regular objects
   let children: TreeNodeData<DataExplorerNodeTypeMap>[] = [];
 
-  if (dbName === PERSISTENT_DB_NAME && schemaName === 'main' && fileViewNames) {
-    // Separate file views and regular objects
+  if (
+    dbName === PERSISTENT_DB_NAME &&
+    schemaName === 'main' &&
+    (fileViewNames || comparisonTableNames)
+  ) {
+    // Separate special categories and regular objects
     const fileViews: DBTableOrView[] = [];
+    const comparisonTables: DBTableOrView[] = [];
     const regularObjects: DBTableOrView[] = [];
 
     for (const object of sortedObjects) {
-      if (object.type === 'view' && fileViewNames.has(object.name)) {
+      if (object.type === 'view' && fileViewNames?.has(object.name)) {
         fileViews.push(object);
+      } else if (object.type === 'table' && comparisonTableNames?.has(object.name)) {
+        comparisonTables.push(object);
       } else {
         regularObjects.push(object);
       }
@@ -358,6 +415,7 @@ export function buildSchemaTreeNode({
         schemaName,
         object,
         fileViewNames,
+        comparisonTableNames,
         conn,
         context,
       }),
@@ -389,10 +447,52 @@ export function buildSchemaTreeNode({
             schemaName,
             object,
             fileViewNames,
+            comparisonTableNames,
             conn,
             context,
           }),
         ),
+      });
+    }
+
+    if (comparisonTables.length > 0) {
+      comparisonTables.sort((a, b) => {
+        const nameA = context.comparisonByTableName?.get(a.name)?.name ?? a.name;
+        const nameB = context.comparisonByTableName?.get(b.name)?.name ?? b.name;
+        return nameA.localeCompare(nameB);
+      });
+
+      const comparisonSectionId = `${dbId}.${schemaName}.comparisons`;
+      context.nodeMap.set(comparisonSectionId, {
+        db: dbId,
+        schemaName,
+        objectName: null,
+        columnName: null,
+      });
+      context.anyNodeIdToNodeTypeMap.set(comparisonSectionId, 'section');
+
+      const comparisonChildren = comparisonTables.map((object) =>
+        buildObjectTreeNode({
+          dbId,
+          dbName,
+          schemaName,
+          object,
+          fileViewNames,
+          comparisonTableNames,
+          conn,
+          context,
+        }),
+      );
+
+      children.push({
+        nodeType: 'section',
+        value: comparisonSectionId,
+        label: 'Comparisons',
+        iconType: 'folder',
+        isDisabled: false,
+        isSelectable: false,
+        contextMenu: [],
+        children: comparisonChildren,
       });
     }
   } else {
@@ -404,6 +504,7 @@ export function buildSchemaTreeNode({
         schemaName,
         object,
         fileViewNames,
+        comparisonTableNames,
         conn,
         context,
       }),

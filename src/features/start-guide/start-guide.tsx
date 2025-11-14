@@ -3,6 +3,7 @@ import duck from '@assets/duck.svg';
 import { ICON_CLASSES, SCRIPT_DISPLAY_NAME } from '@components/spotlight/consts';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
+import { createComparisonTab } from '@controllers/tab/comparison-tab-controller';
 import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import {
   ONBOARDING_MODAL_OPTIONS,
@@ -22,6 +23,7 @@ import {
   IconFilePlus,
   IconFolderPlus,
   IconPlus,
+  IconScale,
 } from '@tabler/icons-react';
 import { importSQLFiles } from '@utils/import-script-file';
 import { setDataTestId } from '@utils/test-id';
@@ -43,6 +45,15 @@ export const StartGuide = () => {
       handler: () => {
         const newEmptyScript = createSQLScript();
         getOrCreateTabFromScript(newEmptyScript, true);
+      },
+    },
+    {
+      key: 'create-new-comparison',
+      label: 'New Comparison',
+      icon: <IconScale size={20} className={ICON_CLASSES} />,
+      hotkey: [mod.control, mod.option, 'C'],
+      handler: () => {
+        createComparisonTab({ setActive: true });
       },
     },
     {

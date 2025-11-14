@@ -4,6 +4,9 @@ import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
 import { PropsWithChildren, useState, useCallback } from 'react';
 
+const isFileDragEvent = (e: React.DragEvent<HTMLDivElement>) =>
+  Array.from(e.dataTransfer?.types ?? []).includes('Files');
+
 interface DndOverlayProps extends PropsWithChildren {
   handleFileDrop: (e: React.DragEvent<HTMLDivElement>) => void;
 }
@@ -12,18 +15,29 @@ export const DndOverlay = ({ children, handleFileDrop }: DndOverlayProps) => {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!isFileDragEvent(e)) {
+      return;
+    }
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
     setIsDragging(true);
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!isFileDragEvent(e)) {
+      return;
+    }
     e.preventDefault();
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+    const nextTarget = e.relatedTarget as Node | null;
+    if (!nextTarget || !e.currentTarget.contains(nextTarget)) {
       setIsDragging(false);
     }
   }, []);
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isFileDragEvent(e)) {
+      return;
+    }
     e.preventDefault();
     setIsDragging(false);
     handleFileDrop(e);

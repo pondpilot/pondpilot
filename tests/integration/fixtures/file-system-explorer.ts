@@ -1,6 +1,6 @@
 /* eslint-disable no-case-declarations */
 
-import { test as base, expect, Locator } from '@playwright/test';
+import { test as base, expect, Locator, Page } from '@playwright/test';
 
 import {
   assertExplorerItems,
@@ -61,6 +61,14 @@ type FileSystemExplorerFixtures = {
 
 export const FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX = 'data-explorer-fs';
 
+const getDatasourceCardLocator = (
+  page: Page,
+  primaryTestId: string,
+  fallbackTestId: string,
+): Locator => {
+  return page.locator(`[data-testid="${primaryTestId}"], [data-testid="${fallbackTestId}"]`);
+};
+
 export const test = base.extend<FileSystemExplorerFixtures>({
   fileSystemExplorer: async ({ page }, use) => {
     await use(page.getByTestId(FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX));
@@ -80,11 +88,13 @@ export const test = base.extend<FileSystemExplorerFixtures>({
   },
 
   addFileButton: async ({ page }, use) => {
-    await use(page.getByTestId('datasource-modal-add-file-card'));
+    await use(getDatasourceCardLocator(page, 'add-file-card', 'datasource-modal-add-file-card'));
   },
 
   addFolderButton: async ({ page }, use) => {
-    await use(page.getByTestId('datasource-modal-add-folder-button'));
+    await use(
+      getDatasourceCardLocator(page, 'add-folder-card', 'datasource-modal-add-folder-card'),
+    );
   },
 
   openFileFromExplorer: async ({ getFileNodeByName }, use) => {
@@ -217,7 +227,11 @@ export const test = base.extend<FileSystemExplorerFixtures>({
   addFile: async ({ page }, use) => {
     await use(async () => {
       await page.getByTestId('navbar-add-datasource-button').click();
-      const addFileButton = page.getByTestId('datasource-modal-add-file-card');
+      const addFileButton = getDatasourceCardLocator(
+        page,
+        'add-file-card',
+        'datasource-modal-add-file-card',
+      );
       await expect(addFileButton).toBeVisible();
       await addFileButton.click();
     });
@@ -226,7 +240,11 @@ export const test = base.extend<FileSystemExplorerFixtures>({
   addFolder: async ({ page }, use) => {
     await use(async () => {
       await page.getByTestId('navbar-add-datasource-button').click();
-      const addFolderButton = page.getByTestId('datasource-modal-add-folder-card');
+      const addFolderButton = getDatasourceCardLocator(
+        page,
+        'add-folder-card',
+        'datasource-modal-add-folder-card',
+      );
       await expect(addFolderButton).toBeVisible();
       await addFolderButton.click();
     });

@@ -37,6 +37,34 @@ export const findUniqueName = (name: string, checkIfExists: (name: string) => bo
   return uniqueName;
 };
 
+/**
+ * Gets all existing names from both comparisons and SQL scripts in the store.
+ * This ensures name uniqueness across both types of items.
+ *
+ * @param {object} options - Configuration options
+ * @param {Map} options.comparisons - Map of all comparisons
+ * @param {Map} options.sqlScripts - Map of all SQL scripts
+ * @param {string} [options.excludeId] - Optional ID to exclude (when renaming)
+ * @returns {Set<string>} Set of all existing names
+ */
+export const getAllExistingNames = (options: {
+  comparisons: Map<string, { id: string; name: string }>;
+  sqlScripts: Map<string, { id: string; name: string }>;
+  excludeId?: string;
+}): Set<string> => {
+  const { comparisons, sqlScripts, excludeId } = options;
+
+  const comparisonNames = Array.from(comparisons.values())
+    .filter((item) => item.id !== excludeId)
+    .map((item) => item.name);
+
+  const scriptNames = Array.from(sqlScripts.values())
+    .filter((item) => item.id !== excludeId)
+    .map((item) => item.name);
+
+  return new Set([...comparisonNames, ...scriptNames]);
+};
+
 export function quote(s: string, options = { single: false }): string {
   // Replace each quote with two quotes and wrap result in quotes
   if (options.single) {

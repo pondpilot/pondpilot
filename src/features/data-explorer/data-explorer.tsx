@@ -1,7 +1,12 @@
+import { TreeNodeData } from '@components/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
+import { createComparisonWithSources } from '@controllers/tab/comparison-tab-controller';
+import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
-import { memo, useMemo } from 'react';
+import { ComparisonSource } from '@models/comparison';
+import { AnyFlatFileDataSource } from '@models/data-source';
+import { LocalEntryId, supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import { memo, useMemo, useCallback } from 'react';
 
 import { DataExplorerFilters, DataExplorerContent } from './components';
 import { useFileSystemTreeBuilder } from './components/file-system-tree-builder';
@@ -45,6 +50,8 @@ export const DataExplorer = memo(() => {
     nodeMap,
     anyNodeIdToNodeTypeMap,
     initialExpandedState,
+    comparisonTableNames,
+    comparisonByTableName,
   } = useDataExplorerData();
 
   // Separate databases by type
@@ -107,6 +114,8 @@ export const DataExplorer = memo(() => {
       fileViewNames,
       initialExpandedState,
       flatFileSources,
+      comparisonTableNames,
+      comparisonByTableName,
     },
   );
 
@@ -128,11 +137,126 @@ export const DataExplorer = memo(() => {
       flatFileSources,
     });
 
+  const flatFileSourceByEntryId = useMemo(() => {
+    const map = new Map<LocalEntryId, AnyFlatFileDataSource>();
+    flatFileSourcesValues.forEach((source) => {
+      if (source.type !== 'xlsx-sheet') {
+        map.set(source.fileSourceId, source);
+      }
+    });
+    return map;
+  }, [flatFileSourcesValues]);
+
+  const sheetSourceByKey = useMemo(() => {
+    const map = new Map<string, AnyFlatFileDataSource>();
+    flatFileSourcesValues.forEach((source) => {
+      if (source.type === 'xlsx-sheet') {
+        map.set(`${source.fileSourceId}::${source.sheetName}`, source);
+      }
+    });
+    return map;
+  }, [flatFileSourcesValues]);
+
+  const getComparisonSourceForNode = useCallback(
+    (nodeId: string) => {
+      const info = nodeMap.get(nodeId);
+      if (!info) {
+        return null;
+      }
+
+      if ('db' in info) {
+        const { db, schemaName, objectName } = info;
+        if (!db || !schemaName || !objectName) {
+          return null;
+        }
+        const dataSource = allDataSources.get(db);
+        if (!dataSource || (dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db')) {
+          return null;
+        }
+        return {
+          type: 'table' as const,
+          tableName: objectName,
+          schemaName,
+          databaseName: dataSource.dbName,
+        };
+      }
+
+      if ('entryId' in info) {
+        const { entryId } = info;
+        if (!entryId) {
+          return null;
+        }
+        if (info.isSheet) {
+          if (!info.sheetName) {
+            return null;
+          }
+          const sheetSource = sheetSourceByKey.get(`${entryId}::${info.sheetName}`);
+          return sheetSource ? dataSourceToComparisonSource(sheetSource) : null;
+        }
+
+        const fileSource = flatFileSourceByEntryId.get(entryId);
+        return fileSource ? dataSourceToComparisonSource(fileSource) : null;
+      }
+
+      return null;
+    },
+    [allDataSources, flatFileSourceByEntryId, sheetSourceByKey, nodeMap],
+  );
+
+  const handleCompareDatasets = useCallback(
+    (sourceA: ComparisonSource, sourceB: ComparisonSource) => {
+      createComparisonWithSources(sourceA, sourceB);
+    },
+    [],
+  );
+
+  const getAdditionalMultiSelectMenu = useCallback(
+    (selectedNodes: TreeNodeData<DataExplorerNodeTypeMap>[]) => {
+      // Filter to only dataset-level nodes (file, sheet, object) - exclude schema/column children
+      const datasetNodes = selectedNodes.filter((node) => {
+        const nodeType = anyNodeIdToNodeTypeMap.get(node.value as string);
+        return nodeType === 'file' || nodeType === 'sheet' || nodeType === 'object';
+      });
+
+      if (datasetNodes.length !== 2) {
+        return null;
+      }
+
+      const sources: ComparisonSource[] = [];
+      for (const node of datasetNodes) {
+        const source = getComparisonSourceForNode(node.value as string);
+        if (!source) {
+          return null;
+        }
+        sources.push(source);
+      }
+
+      if (sources.length !== 2) {
+        return null;
+      }
+
+      return [
+        {
+          children: [
+            {
+              label: 'Compare',
+              onClick: () => {
+                handleCompareDatasets(sources[0], sources[1]);
+              },
+            },
+          ],
+        },
+      ];
+    },
+    [anyNodeIdToNodeTypeMap, getComparisonSourceForNode, handleCompareDatasets],
+  );
+
   // Use the common explorer context hook
   const contextResult = useExplorerContext<DataExplorerNodeTypeMap>({
     nodes: unifiedTree,
     handleDeleteSelected,
     getShowSchemaHandler: getShowSchemaHandlerForNodes,
+    getAdditionalMultiSelectMenu,
   });
 
   // Create the enhanced extra data
@@ -140,6 +264,7 @@ export const DataExplorer = memo(() => {
     nodeMap,
     anyNodeIdToNodeTypeMap,
     onShowSchemaForMultiple: handleShowSchema,
+    getComparisonSourceForNode,
     ...contextResult,
   };
 

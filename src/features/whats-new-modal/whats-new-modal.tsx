@@ -7,6 +7,7 @@ import { APP_RELEASE_TAGS_GITHUB_API_URL } from '@models/app-urls';
 import { setDataTestId } from '@utils/test-id';
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
 
 export const WHATS_NEW_MODAL_OPTIONS: ModalSettings = {
   size: 675,
@@ -60,6 +61,7 @@ export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
         <div data-testid={setDataTestId('whats-new-modal-content')}>
           <ScrollArea h={600} scrollHideDelay={500} type="hover">
             <ReactMarkdown
+              rehypePlugins={[rehypeSanitize]}
               components={{
                 // TODO: Add more components and styles if needed
                 h1: ({ node, ...props }) => <Title className="py-2" order={1} {...props} />,

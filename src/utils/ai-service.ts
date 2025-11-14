@@ -1,3 +1,4 @@
+import { AI_SERVICE } from '../config/constants';
 import { AIRequest, AIResponse, AIServiceConfig } from '../models/ai-service';
 import { SQL_ASSISTANT_FUNCTION, StructuredSQLResponse } from '../models/structured-ai-response';
 
@@ -46,6 +47,40 @@ export class AIService {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error occurred',
       };
+    }
+  }
+
+  async generateChatTitle(userMessage: string, assistantResponse: string): Promise<string> {
+    if (!this.config.apiKey) {
+      return 'New Chat';
+    }
+
+    try {
+      const prompt = `Based on this conversation, generate a concise title (2-5 words) that captures the main topic or query:
+
+User: ${userMessage}
+Assistant: ${assistantResponse}
+
+Respond with ONLY the title, nothing else.`;
+
+      const request: AIRequest = {
+        prompt,
+        useStructuredResponse: false,
+      };
+
+      const response = await this.generateSQLAssistance(request);
+
+      if (response.success && response.content) {
+        // Clean up the title - remove quotes, trim whitespace
+        const title = response.content.replace(/["']/g, '').trim();
+        // Ensure it's not too long
+        return title.length > 50 ? `${title.substring(0, 47)}...` : title;
+      }
+
+      return 'New Chat';
+    } catch (error) {
+      console.error('Failed to generate chat title:', error);
+      return 'New Chat';
     }
   }
 
@@ -198,10 +233,21 @@ ${request.prompt}`;
         ],
       };
 
-      // Use correct token parameter based on model type
-      if (this.config.reasoning) {
+      // Use correct token parameter based on provider and model type
+      // OpenAI now requires max_completion_tokens for all models (GPT-5, GPT-4.1, etc.)
+      if (config.providerName === 'OpenAI') {
+        requestBody.max_completion_tokens = 5000;
+        // GPT-5 nano and some reasoning models don't support custom temperature
+        // Only add temperature for non-reasoning models
+        const isNanoModel = this.config.model.includes('nano');
+        if (!this.config.reasoning && !isNanoModel) {
+          requestBody.temperature = 0.1;
+        }
+      } else if (this.config.reasoning) {
+        // Reasoning models from other providers also use max_completion_tokens
         requestBody.max_completion_tokens = 5000;
       } else {
+        // Non-reasoning models from other providers (Anthropic, custom) use max_tokens
         requestBody.max_tokens = 5000;
         requestBody.temperature = 0.1;
       }
@@ -245,7 +291,7 @@ ${request.prompt}`;
 
       // Add timeout to fetch request
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+      const timeoutId = setTimeout(() => controller.abort(), AI_SERVICE.REQUEST_TIMEOUT);
 
       try {
         // Ensure we don't have double slashes by removing trailing slash from baseUrl
@@ -266,7 +312,7 @@ ${request.prompt}`;
         if (fetchError instanceof Error && fetchError.name === 'AbortError') {
           return {
             success: false,
-            error: `Request timeout: ${config.providerName} took too long to respond`,
+            error: `Request timeout: ${config.providerName} took longer than ${AI_SERVICE.REQUEST_TIMEOUT / 1000} seconds to respond`,
           };
         }
 
