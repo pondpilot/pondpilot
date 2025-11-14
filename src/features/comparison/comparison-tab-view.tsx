@@ -5,7 +5,7 @@ import {
   setComparisonResultsTable,
   updateSchemaComparison,
 } from '@controllers/tab/comparison-tab-controller';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { Stack, LoadingOverlay, Alert, Text, Center } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { TabId, ComparisonConfig } from '@models/tab';
@@ -32,7 +32,7 @@ interface ComparisonTabViewProps {
 
 export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps) => {
   const data = useComparison(tabId);
-  const pool = useInitializedDuckDBConnectionPool();
+  const pool = useInitializedDatabaseConnectionPool();
   const { analyzeSchemas, isAnalyzing, error: analysisError } = useSchemaAnalysis(pool);
   const {
     executeComparison,

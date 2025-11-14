@@ -5,7 +5,7 @@ import { showWarning } from '@components/app-notifications';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   Comparison,
   ComparisonId,
@@ -123,7 +123,7 @@ export const updateComparisonConfig = (
 
 export const clearComparisonResults = async (
   comparisonOrId: Comparison | ComparisonId,
-  options?: { pool?: AsyncDuckDBConnectionPool | null; tableNameOverride?: string | null },
+  options?: { pool?: ConnectionPool | null; tableNameOverride?: string | null },
 ): Promise<void> => {
   const { comparisons, tabs, _iDbConn: iDbConn } = useAppStore.getState();
   const comparison = ensureComparison(comparisonOrId, comparisons);
@@ -367,7 +367,7 @@ export const updateComparisonResultsTable = (
  */
 export const deleteComparisons = async (
   comparisonIds: Iterable<ComparisonId>,
-  pool?: any, // AsyncDuckDBConnectionPool - optional to avoid circular dependency
+  pool?: any, // ConnectionPool - optional to avoid circular dependency
 ) => {
   const {
     comparisons,

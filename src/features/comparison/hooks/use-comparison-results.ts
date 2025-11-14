@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
 import { useState, useEffect } from 'react';
 
@@ -24,7 +24,7 @@ export interface ComparisonResults {
  * Hook to fetch and process comparison results from materialized temp table
  */
 export const useComparisonResults = (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   config: ComparisonConfig | null,
   schemaComparison: SchemaComparisonResult | null,
   tableName: string | null,

@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { isComparisonResultsTableName } from '@utils/comparison';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
@@ -6,7 +6,7 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 export type DropComparisonResultsTableOutcome = { ok: true } | { ok: false; error: Error };
 
 export async function dropComparisonResultsTable(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   tableName: string,
 ): Promise<DropComparisonResultsTableOutcome> {
   if (!isComparisonResultsTableName(tableName)) {

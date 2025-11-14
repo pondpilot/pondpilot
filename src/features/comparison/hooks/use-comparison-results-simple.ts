@@ -1,4 +1,4 @@
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { ColumnSortSpecList, DBTableOrViewSchema } from '@models/db';
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
 import { convertArrowTable, getArrowTableSchema } from '@utils/arrow';
@@ -36,7 +36,7 @@ export const useComparisonResultsSimple = (
   sort: ColumnSortSpecList,
   statusFilter: ComparisonRowStatus[],
 ) => {
-  const pool = useInitializedDuckDBConnectionPool();
+  const pool = useInitializedDatabaseConnectionPool();
   const [results, setResults] = useState<ComparisonResults | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -1,5 +1,5 @@
 import { dropComparisonResultsTable } from '@controllers/comparison/table-utils';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   COMPARISON_EXECUTION_STAGE,
   ComparisonExecutionProgress,
@@ -166,7 +166,7 @@ const createThrottledProgressUpdater = () => {
 const progressUpdater = createThrottledProgressUpdater();
 
 interface ComparisonExecutionState {
-  pool: AsyncDuckDBConnectionPool;
+  pool: ConnectionPool;
   comparisonId: ComparisonId;
   algorithm: ComparisonAlgorithm | null;
   tableName: string | null;
@@ -195,7 +195,7 @@ const handleExecutionError = (err: unknown): string => {
  * Cleans up partial results table if one was created
  */
 const cleanupPartialResults = async (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   comparisonId: ComparisonId,
   tableName: string,
 ): Promise<void> => {
@@ -409,7 +409,7 @@ const handleComparisonSuccess = async (
 /**
  * Hook to execute comparison queries
  */
-export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
+export const useComparisonExecution = (pool: ConnectionPool) => {
   const [isExecuting, setIsExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedSQL, setGeneratedSQL] = useState<string | null>(null);

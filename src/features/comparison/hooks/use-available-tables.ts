@@ -1,5 +1,5 @@
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { useEffect, useState } from 'react';
 
 export interface TableInfo {
@@ -10,7 +10,7 @@ export interface TableInfo {
   type: 'table' | 'view';
 }
 
-export const useAvailableTables = (pool: AsyncDuckDBConnectionPool) => {
+export const useAvailableTables = (pool: ConnectionPool) => {
   const [tables, setTables] = useState<TableInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

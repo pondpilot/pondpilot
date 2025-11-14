@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { ComparisonConfig, ComparisonSource, SchemaComparisonResult } from '@models/tab';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
@@ -75,7 +75,7 @@ const throwIfAborted = (signal?: AbortSignal) => {
   }
 };
 
-const runQuery = async (pool: AsyncDuckDBConnectionPool, sql: string, signal?: AbortSignal) => {
+const runQuery = async (pool: ConnectionPool, sql: string, signal?: AbortSignal) => {
   if (!signal) {
     return pool.query(sql);
   }
@@ -130,7 +130,7 @@ const buildFilteredSourceSelect = (
 };
 
 const createEmptyResultsTable = async (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   tableName: string,
   config: ComparisonConfig,
   schemaComparison: SchemaComparisonResult,
@@ -162,7 +162,7 @@ type BucketCounts = {
 };
 
 const computeBucketCounts = async (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   source: ComparisonSource,
   sourceKind: 'a' | 'b',
   config: ComparisonConfig,
@@ -225,7 +225,7 @@ const makeBucketFilter = (segment: HashSegment): HashFilterOptions => ({
 });
 
 const countTotalRows = async (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   source: ComparisonSource,
   sourceKind: 'a' | 'b',
   config: ComparisonConfig,
@@ -272,7 +272,7 @@ export const calculateSplitFactor = (
 };
 
 export const runRangeHashDiff = async (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   tableName: string,
   config: ComparisonConfig,
   schemaComparison: SchemaComparisonResult,

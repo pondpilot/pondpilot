@@ -2,7 +2,7 @@ import { showError, showSuccess } from '@components/app-notifications';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { updateSchemaComparison } from '@controllers/tab/comparison-tab-controller';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { useAppTheme } from '@hooks/use-app-theme';
 import {
   ActionIcon,
@@ -113,7 +113,7 @@ export const ComparisonConfigScreen = ({
   const autoJoinInitializedRef = useRef<string | null>(null);
 
   // Get DuckDB pool for filter validation
-  const pool = useInitializedDuckDBConnectionPool();
+  const pool = useInitializedDatabaseConnectionPool();
 
   const commonFilterContexts = useMemo(() => {
     if (!config || config.filterMode !== 'common') {

@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { ComparisonId } from '@models/comparison';
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
 
@@ -6,7 +6,7 @@ import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
  * Context object passed to all comparison algorithms
  */
 export interface AlgorithmContext {
-  pool: AsyncDuckDBConnectionPool;
+  pool: ConnectionPool;
   comparisonId: ComparisonId;
   config: ComparisonConfig;
   schemaComparison: SchemaComparisonResult;
