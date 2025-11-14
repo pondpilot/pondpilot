@@ -3,7 +3,7 @@ import { getQueryTimeoutMs, setQueryTimeoutMs } from '@models/app-config';
 import { useState, useEffect } from 'react';
 
 export const QueryTimeoutSettings = () => {
-  const [timeoutMs, setTimeoutMs] = useState<number>(30000);
+  const [timeoutMs, setTimeoutMs] = useState<number>(1800000);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -14,8 +14,8 @@ export const QueryTimeoutSettings = () => {
     const num = typeof value === 'string' ? parseInt(value, 10) : value;
     if (!Number.isFinite(num)) return;
     setTimeoutMs(num);
-    if (num < 1000 || num > 10 * 60 * 1000) {
-      setError('Please choose between 1,000 and 600,000 ms (10 minutes).');
+    if (num < 1000 || num > 60 * 60 * 1000) {
+      setError('Please choose between 1,000 and 3,600,000 ms (60 minutes).');
     } else {
       setError(null);
       setQueryTimeoutMs(num);
@@ -36,7 +36,7 @@ export const QueryTimeoutSettings = () => {
         <NumberInput
           value={timeoutMs}
           min={1000}
-          max={10 * 60 * 1000}
+          max={60 * 60 * 1000}
           step={1000}
           onChange={onChange}
           clampBehavior="strict"
