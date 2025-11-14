@@ -15,13 +15,24 @@ export const renderActions = (actions: Action[]) =>
       onClick={action.handler}
     >
       <Group justify="space-between" className={cn('w-full', action.disabled && 'opacity-50')}>
-        <Group className="gap-2">
+        <Group className="gap-2 flex-1 min-w-0">
           {action.icon ? <div>{action.icon}</div> : undefined}
-          <Text c="text-secondary" truncate="end" maw={250}>
+          <Text c="text-secondary" truncate="end" className="flex-1">
             {action.label}
           </Text>
         </Group>
-        <Group>
+        <Group className="gap-2 flex-shrink-0">
+          {action.description ? (
+            <Text
+              c="dimmed"
+              size="xs"
+              className="opacity-60 max-w-48"
+              truncate="end"
+              title={action.description}
+            >
+              {action.description}
+            </Text>
+          ) : undefined}
           {action.hotkey ? <HotkeyPill variant="secondary" value={action.hotkey} /> : undefined}
         </Group>
       </Group>
