@@ -69,7 +69,7 @@ export function useComparisonSourceSelection(
     // Store the callback in app store BEFORE opening spotlight
     useAppStore.setState({
       comparisonSourceSelectionCallback: callback,
-      spotlightInitialView: 'dataSources',
+      spotlightView: 'dataSources',
     });
 
     spotlight.open();
@@ -101,7 +101,7 @@ export function useComparisonSourceSelection(
     // Store the callback in app store BEFORE opening spotlight
     useAppStore.setState({
       comparisonSourceSelectionCallback: callback,
-      spotlightInitialView: 'dataSources',
+      spotlightView: 'dataSources',
     });
 
     spotlight.open();

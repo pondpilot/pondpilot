@@ -1,12 +1,12 @@
-import { ColumnMeta } from '@components/table/model';
+import { ColumnMeta, GetRowClassName } from '@components/table/model';
 import { Text } from '@mantine/core';
 import { useDidUpdate, useHotkeys } from '@mantine/hooks';
 import { DataTableSlice } from '@models/data-adapter';
 import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema, DataRow } from '@models/db';
-import { useReactTable, getCoreRowModel, ColumnDef, Row } from '@tanstack/react-table';
+import { useReactTable, getCoreRowModel, ColumnDef } from '@tanstack/react-table';
 import { copyToClipboard } from '@utils/clipboard';
 import { setDataTestId } from '@utils/test-id';
-import { memo, useMemo, useRef, CSSProperties } from 'react';
+import { memo, useMemo, useRef } from 'react';
 
 import { MemoizedTableBody, TableBody } from './components/table-body';
 import { TableHeadCell } from './components/thead-cell';
@@ -28,17 +28,7 @@ interface TableProps {
   onCellSelectChange: () => void;
   onColumnSelectChange: (column: DBColumn | null) => void;
   onColumnResizeChange?: (columnSizes: Record<string, number>) => void;
-  getRowClassName?: (
-    row: Row<DataRow>,
-    rowIndex: number,
-  ) =>
-    | string
-    | string[]
-    | {
-        className?: string | string[];
-        style?: CSSProperties;
-      }
-    | undefined;
+  getRowClassName?: GetRowClassName<DataRow>;
 }
 
 export const Table = memo(

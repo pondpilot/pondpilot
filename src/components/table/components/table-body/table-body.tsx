@@ -1,6 +1,7 @@
-import { Table as TableType, Cell, Row } from '@tanstack/react-table';
+import { GetRowClassName } from '@components/table/model';
+import { Table as TableType, Cell } from '@tanstack/react-table';
 import { cn } from '@utils/ui/styles';
-import { memo, CSSProperties } from 'react';
+import { memo } from 'react';
 
 import { TableIndexCell, TableRegularCell } from './components';
 
@@ -15,17 +16,7 @@ export const TableBody = ({
   selectedCellId: string | null;
   onCellSelect: (cell: Cell<any, any>) => void;
   selectedCols: Record<string, boolean>;
-  getRowClassName?: (
-    row: Row<any>,
-    rowIndex: number,
-  ) =>
-    | string
-    | string[]
-    | {
-        className?: string | string[];
-        style?: CSSProperties;
-      }
-    | undefined;
+  getRowClassName?: GetRowClassName;
 }) => (
   <div>
     {table.getRowModel().rows.map((row, rowIndex) => {
