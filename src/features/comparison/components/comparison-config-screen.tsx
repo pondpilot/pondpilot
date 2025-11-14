@@ -458,7 +458,7 @@ export const ComparisonConfigScreen = ({
 
   const primaryActions = (
     <Group gap="xs" wrap="nowrap">
-      {!shouldShowOpenSqlButton ? (
+      {shouldShowOpenSqlButton ? (
         <Tooltip label="Open SQL in editor" withArrow>
           <ActionIcon
             variant="filled"

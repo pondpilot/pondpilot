@@ -289,10 +289,8 @@ export const JoinKeyMapper = ({
 
             {!hasJoinKeys && (
               <Alert
-                icon={<IconAlertCircle size={16} className={ICON_CLASSES.warning} />}
-                color="background-warning"
-                variant="light"
-                p="xs"
+                color="background-tertiary"
+                icon={<IconAlertCircle size={16} className="text-iconWarning-light" />}
               >
                 <Text size="sm">
                   No join keys selected. Please select at least one column, or use custom mapping if
