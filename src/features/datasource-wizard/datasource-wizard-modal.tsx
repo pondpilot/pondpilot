@@ -223,6 +223,7 @@ export function DatasourceWizardModal({
       <Alert
         icon={<IconClipboard size={20} />}
         color="background-accent"
+        variant="light"
         data-testid={setDataTestId('clipboard-check-banner')}
       >
         <Group justify="space-between" align="center">
