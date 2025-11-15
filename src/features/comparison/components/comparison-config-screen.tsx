@@ -23,6 +23,7 @@ import {
   useMantineTheme,
   rgba,
 } from '@mantine/core';
+import { useIntersection } from '@mantine/hooks';
 import type { ComparisonId } from '@models/comparison';
 import { ComparisonConfig, ComparisonSource, SchemaComparisonResult, TabId } from '@models/tab';
 import {
@@ -33,7 +34,7 @@ import {
   IconInfoCircle,
   IconTable,
 } from '@tabler/icons-react';
-import { useCallback, useEffect, useRef, useState, RefObject, useMemo } from 'react';
+import { useCallback, useEffect, useRef, RefObject, useMemo } from 'react';
 
 import { ColumnMapper } from './column-mapper';
 import { JoinKeyMapper } from './join-key-mapper';
@@ -46,11 +47,6 @@ import { useFilterValidation } from '../hooks/use-filter-validation';
 import { areSourcesEqual, createSourceKey } from '../utils/source-comparison';
 import { generateComparisonSQL } from '../utils/sql-generator';
 import { getStatusAccentColor, getStatusSurfaceColor, getThemeColorValue } from '../utils/theme';
-
-// Constants
-const SCROLL_COLLAPSE_THRESHOLD = 120;
-const SCROLL_EXPAND_THRESHOLD = 20;
-const MIN_SCROLLABLE_DISTANCE = 160;
 
 interface ComparisonConfigScreenProps {
   tabId: TabId;
@@ -105,8 +101,13 @@ export const ComparisonConfigScreen = ({
       },
     };
   };
-  // Local UI state
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const { ref: contentRef, entry } = useIntersection({
+    root: scrollContainerRef.current,
+    rootMargin: '-20px',
+    threshold: 1,
+  });
+
+  const isContentVisible = entry?.isIntersecting ?? true;
 
   // Track if we've triggered analysis for the current sources
   const analysisTriggeredRef = useRef<string | null>(null);
@@ -157,92 +158,6 @@ export const ComparisonConfigScreen = ({
   );
   const filterAValidation = useFilterValidation(pool, config?.filterA || '', filterAContexts);
   const filterBValidation = useFilterValidation(pool, config?.filterB || '', filterBContexts);
-
-  // Detect scroll to auto-collapse header
-  const evaluateCollapseState = useCallback(
-    (
-      prev: boolean,
-      metrics: { scrollTop: number; scrollHeight: number; clientHeight: number },
-    ): boolean => {
-      const { scrollTop, scrollHeight, clientHeight } = metrics;
-      const canCollapse = scrollHeight - clientHeight > MIN_SCROLLABLE_DISTANCE;
-
-      if (prev) {
-        if (scrollTop < SCROLL_EXPAND_THRESHOLD) {
-          return false;
-        }
-        if (!canCollapse && scrollTop < SCROLL_COLLAPSE_THRESHOLD) {
-          return false;
-        }
-        return true;
-      }
-
-      if (!canCollapse) {
-        return false;
-      }
-
-      if (scrollTop > SCROLL_COLLAPSE_THRESHOLD) {
-        return true;
-      }
-
-      return false;
-    },
-    [],
-  );
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    let ticking = false;
-    let debounceTimeout: NodeJS.Timeout | null = null;
-
-    const handleScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const metrics = {
-            scrollTop: container.scrollTop,
-            scrollHeight: container.scrollHeight,
-            clientHeight: container.clientHeight,
-          };
-
-          // Clear any pending debounce
-          if (debounceTimeout) {
-            clearTimeout(debounceTimeout);
-          }
-
-          // Debounce state changes to prevent rapid toggling
-          debounceTimeout = setTimeout(() => {
-            setIsCollapsed((prev) => evaluateCollapseState(prev, metrics));
-            debounceTimeout = null;
-          }, 50);
-
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    // Initialize collapse state
-    const initializeState = () => {
-      const metrics = {
-        scrollTop: container.scrollTop,
-        scrollHeight: container.scrollHeight,
-        clientHeight: container.clientHeight,
-      };
-      setIsCollapsed((prev) => evaluateCollapseState(prev, metrics));
-    };
-
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    initializeState();
-
-    return () => {
-      container.removeEventListener('scroll', handleScroll);
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
-    };
-  }, [evaluateCollapseState, scrollContainerRef]);
 
   const handleSourceAChange = useCallback(
     (source: ComparisonSource | null) => {
@@ -443,7 +358,7 @@ export const ComparisonConfigScreen = ({
         {label}
       </Text>
       <Button
-        variant={source ? 'light' : 'default'}
+        variant={source ? 'light' : 'outline'}
         leftSection={<IconTable size={16} />}
         onClick={onClick}
         {...dropHandlers}
@@ -477,6 +392,8 @@ export const ComparisonConfigScreen = ({
       </Button>
     </Group>
   );
+
+  const isCollapsed = !isContentVisible;
 
   return (
     <div>
@@ -573,6 +490,7 @@ export const ComparisonConfigScreen = ({
           </>
         )}
       </Paper>
+      <div ref={contentRef} />
 
       {/* Main content with padding */}
       <Stack gap="lg" p="md">
