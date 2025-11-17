@@ -77,6 +77,15 @@ describe('attach-parser', () => {
       });
     });
 
+    it('should ignore trailing semicolons after the database name', () => {
+      const result = parseAttachStatement("ATTACH 'https://example.com/db.duckdb' AS mydb;");
+      expect(result).toEqual({
+        rawUrl: 'https://example.com/db.duckdb',
+        dbName: 'mydb',
+        statement: "ATTACH 'https://example.com/db.duckdb' AS mydb;",
+      });
+    });
+
     it('should parse S3 URLs', () => {
       const result = parseAttachStatement("ATTACH 's3://bucket/data.duckdb' AS s3db");
       expect(result).toEqual({
