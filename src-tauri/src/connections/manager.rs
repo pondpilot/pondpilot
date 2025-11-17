@@ -427,11 +427,7 @@ impl ConnectionsManager {
         }
 
         // Create a unique database alias for testing
-        let test_alias = format!(
-            "test_{}_{}",
-            extension_name,
-            uuid::Uuid::new_v4().simple()
-        );
+        let test_alias = format!("test_{}_{}", extension_name, uuid::Uuid::new_v4().simple());
 
         // Get the existing secret from the secrets manager
         let existing_secret = self
@@ -844,12 +840,12 @@ impl ConnectionsManager {
         }
 
         // Check if DuckDB engine is available
-        let engine = self
-            .duckdb_engine
-            .as_ref()
-            .ok_or_else(|| ConnectionError::ConnectionTestFailed {
-                error: "DuckDB engine not initialized".to_string(),
-            })?;
+        let engine =
+            self.duckdb_engine
+                .as_ref()
+                .ok_or_else(|| ConnectionError::ConnectionTestFailed {
+                    error: "DuckDB engine not initialized".to_string(),
+                })?;
 
         tracing::info!(
             "[Connections] MotherDuck token cached in backend: {}",

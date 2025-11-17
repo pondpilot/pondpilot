@@ -87,10 +87,10 @@ export function createMockFileSystemDirectoryHandle(
   // Add missing methods
   (handle as any).getFile = undefined;
   (handle as any).getDirectory = undefined;
-  (handle as any).getEntries = function () {
+  (handle as any).getEntries = function getEntries() {
     return this.entries();
   };
-  (handle as any)[Symbol.asyncIterator] = function () {
+  (handle as any)[Symbol.asyncIterator] = function asyncIterator() {
     return this.entries();
   };
 

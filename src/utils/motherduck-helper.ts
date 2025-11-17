@@ -45,7 +45,7 @@ export async function attachMotherDuckDatabase(
   };
 
   // For MotherDuck, we need to use the special syntax without an alias
-  const attachQuery = `ATTACH ${quote(url, { single: true })}`;
+  const _attachQuery = `ATTACH ${quote(url, { single: true })}`;
 
   return { dbName, remoteDb };
 }

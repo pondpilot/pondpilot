@@ -2,6 +2,7 @@ use super::arrow_streaming::ArrowStreamingExecutor;
 use super::connection_handler::ThreadSafeConnectionManager;
 use super::extensions::ALLOWED_EXTENSIONS;
 use super::motherduck_token;
+use super::progress::QueryProgressDispatcher;
 use super::query_builder::{QueryBuilder, QueryHints};
 use super::resource_manager::ResourceManager;
 use super::sql_utils::{escape_string_literal, validate_motherduck_url};
@@ -12,6 +13,7 @@ use crate::system_resources::get_total_memory;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tauri::AppHandle;
 use tokio_util::sync::CancellationToken;
 
 // Extension allowlist is centralized in extensions.rs
@@ -113,7 +115,6 @@ fn validate_file_path(path: &str) -> Result<PathBuf> {
     Ok(canonical)
 }
 
-
 /// Sanitizes SQL identifiers (table names, column names, etc.) to prevent injection
 fn sanitize_identifier(name: &str) -> Result<String> {
     // Check for empty identifier
@@ -203,7 +204,6 @@ mod identifier_tests {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub struct DuckDBEngine {
     pool: Arc<UnifiedPool>,
@@ -219,10 +219,12 @@ pub struct DuckDBEngine {
     extensions: Arc<tokio::sync::Mutex<Vec<ExtensionInfoForLoad>>>,
     /// Stores prepared statements by ID for reuse (mapping ID to SQL)
     prepared_statements: Arc<tokio::sync::Mutex<HashMap<String, String>>>,
+    #[allow(dead_code)]
+    progress_dispatcher: Option<Arc<QueryProgressDispatcher>>,
 }
 
 impl DuckDBEngine {
-    pub fn new(db_path: PathBuf) -> Result<Self> {
+    pub fn new(db_path: PathBuf, app_handle: Option<AppHandle>) -> Result<Self> {
         let extensions = Arc::new(tokio::sync::Mutex::new(Vec::new()));
         let pool_config = PoolConfig::default();
         let pool = Arc::new(UnifiedPool::new(
@@ -233,15 +235,19 @@ impl DuckDBEngine {
 
         let total_memory = get_total_memory();
         let resources = Arc::new(ResourceManager::new(total_memory, 10)); // 10 max connections
+        let progress_dispatcher = app_handle.map(QueryProgressDispatcher::new);
 
         Ok(Self {
             pool,
             resources,
             registered_files: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             db_path,
-            connection_manager: Arc::new(ThreadSafeConnectionManager::new()),
+            connection_manager: Arc::new(ThreadSafeConnectionManager::new(
+                progress_dispatcher.clone(),
+            )),
             extensions,
             prepared_statements: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            progress_dispatcher,
         })
     }
 
@@ -290,6 +296,12 @@ impl DuckDBEngine {
                 }
             }
         }
+    }
+
+    pub async fn interrupt_connection(&self, connection_id: &str) -> Result<()> {
+        self.connection_manager
+            .interrupt_connection(connection_id)
+            .await
     }
 
     /// Clear the cached MotherDuck token and reset session settings across all connections.
@@ -895,12 +907,13 @@ impl DuckDBEngine {
 
             // Execute the ATTACH statement
             let attach_sql = format!("ATTACH {}", escape_string_literal(&database_url_clone));
-            conn.execute(&attach_sql, []).map_err(|e| crate::errors::DuckDBError::QueryError {
-                message: format!("Failed to attach MotherDuck database: {}", e),
-                sql: Some(attach_sql.clone()),
-                error_code: None,
-                line_number: None,
-            })?;
+            conn.execute(&attach_sql, [])
+                .map_err(|e| crate::errors::DuckDBError::QueryError {
+                    message: format!("Failed to attach MotherDuck database: {}", e),
+                    sql: Some(attach_sql.clone()),
+                    error_code: None,
+                    line_number: None,
+                })?;
 
             tracing::info!(
                 "[DuckDBEngine] MotherDuck database '{}' validated on new connection",

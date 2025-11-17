@@ -443,10 +443,7 @@ pub async fn register_motherduck_attachment(
     }
 
     let parsed_secret = if let Some(secret_id) = secret_id {
-        Some(
-            Uuid::parse_str(&secret_id)
-                .map_err(|e| format!("Invalid secret ID: {}", e))?,
-        )
+        Some(Uuid::parse_str(&secret_id).map_err(|e| format!("Invalid secret ID: {}", e))?)
     } else {
         None
     };

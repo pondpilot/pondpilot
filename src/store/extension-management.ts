@@ -592,7 +592,7 @@ export const useExtensionManagementStore = create<ExtensionManagementState>()(
         }
         return persistedState;
       },
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => (_state) => {
         // This runs after the store has been rehydrated
         storeHydrated = true;
         if (hydrationPromise) {

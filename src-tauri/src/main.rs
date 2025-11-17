@@ -23,9 +23,9 @@ use persistence::PersistenceState;
 use secrets::SecretsManager;
 use std::sync::Arc;
 use streaming::StreamManager;
-use tauri::Manager;
 #[cfg(debug_assertions)]
 use tauri::Listener;
+use tauri::Manager;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -120,22 +120,23 @@ fn main() {
                 }
 
                 // Create DuckDB engine with persistent database
-                let engine = match DuckDBEngine::new(duckdb_path.clone()) {
-                    Ok(engine) => Arc::new(engine),
-                    Err(e) => {
-                        eprintln!("STARTUP ERROR: Database Connection Failed");
-                        eprintln!(
-                            "Failed to connect to the database:\n\n{}\n\n\
+                let engine =
+                    match DuckDBEngine::new(duckdb_path.clone(), Some(app.handle().clone())) {
+                        Ok(engine) => Arc::new(engine),
+                        Err(e) => {
+                            eprintln!("STARTUP ERROR: Database Connection Failed");
+                            eprintln!(
+                                "Failed to connect to the database:\n\n{}\n\n\
                         This might be because:\n\
                         1. Another instance of PondPilot is running\n\
                         2. The database file is corrupted\n\
                         3. Insufficient permissions\n\n\
                         Try closing all PondPilot instances and restarting.",
-                            e
-                        );
-                        return Err("Failed to create DuckDB engine".into());
-                    }
-                };
+                                e
+                            );
+                            return Err("Failed to create DuckDB engine".into());
+                        }
+                    };
 
                 // Schedule engine initialization after setup completes
                 let engine_clone = engine.clone();
@@ -265,10 +266,12 @@ fn main() {
                 commands::checkpoint,
                 commands::load_extension,
                 commands::list_extensions,
+                commands::drop_comparison_table,
                 commands::prepare_statement,
                 commands::prepared_statement_execute,
                 commands::prepared_statement_close,
                 commands::set_extensions,
+                commands::interrupt_connection,
                 // Persistence commands
                 persistence::sqlite_get,
                 persistence::sqlite_put,

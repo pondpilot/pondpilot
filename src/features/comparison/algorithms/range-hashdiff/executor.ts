@@ -414,6 +414,7 @@ export const runRangeHashDiff = async (
     return insertedCount;
   };
 
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     throwIfAborted(signal);
     const current = pickNextSegment();

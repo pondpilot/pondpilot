@@ -3,6 +3,7 @@ pub mod connection_handler;
 pub mod engine;
 pub mod extensions;
 pub mod motherduck_token;
+pub mod progress;
 pub mod query_builder;
 pub mod resource_manager;
 pub mod sql_classifier;

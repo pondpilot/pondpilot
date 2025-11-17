@@ -219,7 +219,7 @@ export const ComparisonViewer = ({
   lastRunAt,
   onReconfigure,
   onRefresh,
-  onResultsLoaded,
+  onResultsLoaded: _onResultsLoaded,
 }: ComparisonViewerProps) => {
   const theme = useMantineTheme();
   const colorScheme = useAppTheme();

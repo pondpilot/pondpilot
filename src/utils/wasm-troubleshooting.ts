@@ -51,8 +51,8 @@ export function checkWasmEnvironment(): {
  */
 export async function attemptFileRecovery(
   engine: any,
-  fileName: string,
-  originalError: Error,
+  _fileName: string,
+  _originalError: Error,
 ): Promise<{ recovered: boolean; message: string }> {
   try {
     // Force garbage collection if available
@@ -63,7 +63,7 @@ export async function attemptFileRecovery(
     // Try to flush and reopen the file
     if (engine && engine.db) {
       // Close any existing connections
-      const connections = await engine.db.connectionsCount();
+      const _connections = await engine.db.connectionsCount();
 
       // Try to force a checkpoint
       try {

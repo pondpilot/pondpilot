@@ -9,17 +9,23 @@
 // TODO: Implement full parameter binding when DuckDB Rust bindings add support
 
 use crate::database::motherduck_token;
+use crate::database::progress::{
+    QueryProgressDispatcher, QueryProgressPayload, QueryProgressStatus,
+};
 use crate::database::sql_classifier::ClassifiedSqlStatement;
 use crate::database::sql_sanitizer;
 use crate::database::sql_utils::escape_string_literal;
 use crate::database::types::{ColumnInfo, QueryResult};
 use crate::errors::{DuckDBError, Result};
 use duckdb::Connection;
+use libduckdb_sys as duckdb_ffi;
 use serde_json;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc as std_mpsc, Arc, Mutex as StdMutex};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, oneshot, Mutex};
+use uuid::Uuid;
 // Arrow array types used for value downcasting
 use base64::Engine;
 use chrono::{Duration as ChronoDuration, NaiveDate};
@@ -29,6 +35,7 @@ use duckdb::arrow::array::{
     LargeStringArray, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
     TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
 };
+use std::fmt;
 use tracing::debug;
 
 /// Commands that can be sent to a connection thread
@@ -45,6 +52,12 @@ enum ConnectionCommand {
     },
 }
 
+impl fmt::Debug for ThreadSafeConnectionManager {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ThreadSafeConnectionManager").finish()
+    }
+}
+
 /// Handles a single DuckDB connection in its own dedicated thread
 struct ConnectionHandler {
     receiver: mpsc::Receiver<ConnectionCommand>,
@@ -53,6 +66,8 @@ struct ConnectionHandler {
     _permit: tokio::sync::OwnedSemaphorePermit,
     motherduck_extension_loaded: bool,
     motherduck_token_applied: bool,
+    connection_id: String,
+    progress_dispatcher: Option<Arc<QueryProgressDispatcher>>,
 }
 
 impl ConnectionHandler {
@@ -60,6 +75,8 @@ impl ConnectionHandler {
         connection: Connection,
         receiver: mpsc::Receiver<ConnectionCommand>,
         permit: tokio::sync::OwnedSemaphorePermit,
+        connection_id: String,
+        progress_dispatcher: Option<Arc<QueryProgressDispatcher>>,
     ) -> Self {
         Self {
             connection,
@@ -67,6 +84,8 @@ impl ConnectionHandler {
             _permit: permit,
             motherduck_extension_loaded: false,
             motherduck_token_applied: false,
+            connection_id,
+            progress_dispatcher,
         }
     }
 
@@ -140,7 +159,10 @@ impl ConnectionHandler {
 
             // Apply the token using DuckDB's session setting. This only needs to run once
             // per connection; DuckDB rejects resetting it after initialization.
-            let set_sql = format!("SET motherduck_token = {}", escape_string_literal(token_str));
+            let set_sql = format!(
+                "SET motherduck_token = {}",
+                escape_string_literal(token_str)
+            );
             match self.connection.execute(&set_sql, []) {
                 Ok(_) => {
                     self.motherduck_token_applied = true;
@@ -196,6 +218,8 @@ impl ConnectionHandler {
             sql.to_string()
         };
 
+        let progress_monitor = self.start_progress_monitor(&final_sql);
+
         // Classify the SQL statement
         let classified = ClassifiedSqlStatement::classify(&final_sql);
 
@@ -210,6 +234,8 @@ impl ConnectionHandler {
                     line_number: None,
                 }
             })?;
+
+            drop(progress_monitor);
 
             // Return empty result
             Ok(QueryResult {
@@ -497,6 +523,8 @@ impl ConnectionHandler {
 
             let row_count = all_rows.len();
 
+            drop(progress_monitor);
+
             Ok(QueryResult {
                 rows: all_rows,
                 columns: columns_info,
@@ -504,6 +532,54 @@ impl ConnectionHandler {
                 execution_time_ms: 0,
             })
         }
+    }
+
+    fn start_progress_monitor(&self, sql: &str) -> Option<ProgressMonitor> {
+        let dispatcher = self.progress_dispatcher.clone()?;
+        let interrupt_handle = self.connection.interrupt_handle();
+        let connection_id = self.connection_id.clone();
+        let sql_preview = preview_sql(sql);
+        let query_run_id = Uuid::new_v4().to_string();
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let stop_flag_clone = stop_flag.clone();
+
+        let handle = std::thread::spawn(move || {
+            let mut last_percentage = -1.0;
+            while !stop_flag_clone.load(Ordering::Relaxed) {
+                if let Some(snapshot) = poll_query_progress(&interrupt_handle) {
+                    if snapshot.percentage >= 0.0
+                        && (snapshot.percentage - last_percentage).abs() >= 0.5
+                    {
+                        dispatcher.emit(QueryProgressPayload {
+                            connection_id: connection_id.clone(),
+                            query_run_id: query_run_id.clone(),
+                            sql_preview: sql_preview.clone(),
+                            status: QueryProgressStatus::Running,
+                            percentage: snapshot.percentage,
+                            rows_processed: snapshot.rows_processed,
+                            total_rows_to_process: snapshot.total_rows,
+                        });
+                        last_percentage = snapshot.percentage;
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(250));
+            }
+
+            dispatcher.emit(QueryProgressPayload {
+                connection_id,
+                query_run_id,
+                sql_preview,
+                status: QueryProgressStatus::Finished,
+                percentage: 100.0,
+                rows_processed: 0,
+                total_rows_to_process: 0,
+            });
+        });
+
+        Some(ProgressMonitor {
+            stop_flag,
+            handle: Some(handle),
+        })
     }
 
     /// Helper to format time from seconds and nanoseconds as HH:MM:SS[.fraction]
@@ -516,6 +592,63 @@ impl ConnectionHandler {
             format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
         }
     }
+}
+
+struct ProgressMonitor {
+    stop_flag: Arc<AtomicBool>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for ProgressMonitor {
+    fn drop(&mut self) {
+        self.stop_flag.store(true, Ordering::Release);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ProgressSnapshot {
+    percentage: f64,
+    rows_processed: u64,
+    total_rows: u64,
+}
+
+fn poll_query_progress(handle: &Arc<duckdb::InterruptHandle>) -> Option<ProgressSnapshot> {
+    // SAFETY: InterruptHandle is a transparent wrapper around a Mutex<duckdb_connection>.
+    // We only read the pointer while holding the mutex lock.
+    let mutex_ptr = handle.as_ref() as *const duckdb::InterruptHandle
+        as *const StdMutex<duckdb_ffi::duckdb_connection>;
+    let mutex = unsafe { &*mutex_ptr };
+    let conn = *mutex.lock().ok()?;
+    if conn.is_null() {
+        return None;
+    }
+
+    let progress = unsafe { duckdb_ffi::duckdb_query_progress(conn) };
+    if progress.percentage < 0.0 {
+        return None;
+    }
+
+    Some(ProgressSnapshot {
+        percentage: progress.percentage,
+        rows_processed: progress.rows_processed,
+        total_rows: progress.total_rows_to_process,
+    })
+}
+
+fn preview_sql(sql: &str) -> String {
+    const MAX_CHARS: usize = 200;
+    let single_line = sql.replace('\n', " ").replace('\r', " ");
+    let mut preview = String::new();
+    for ch in single_line.chars().take(MAX_CHARS) {
+        preview.push(ch);
+    }
+    if preview.len() < single_line.len() {
+        preview.push_str("...");
+    }
+    preview
 }
 
 /// Format time given total seconds and nanoseconds since midnight
@@ -646,10 +779,11 @@ fn format_decimal_128(value: i128, scale: i32) -> String {
 // These were not being called anywhere in the codebase
 
 /// Handle to communicate with a connection thread
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ConnectionHandle {
     sender: mpsc::Sender<ConnectionCommand>,
     last_activity: Arc<Mutex<Instant>>,
+    interrupt_handle: Arc<duckdb::InterruptHandle>,
 }
 
 impl ConnectionHandle {
@@ -743,21 +877,26 @@ impl ConnectionHandle {
                 context: None,
             })?
     }
+
+    pub fn interrupt(&self) {
+        self.interrupt_handle.interrupt();
+    }
 }
 
 /// Manages persistent DuckDB connections, each in their own thread
-#[derive(Debug)]
 pub struct ThreadSafeConnectionManager {
     connections: Arc<Mutex<HashMap<String, ConnectionHandle>>>,
     #[allow(dead_code)]
     cleanup_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    progress_dispatcher: Option<Arc<QueryProgressDispatcher>>,
 }
 
 impl ThreadSafeConnectionManager {
-    pub fn new() -> Self {
+    pub fn new(progress_dispatcher: Option<Arc<QueryProgressDispatcher>>) -> Self {
         let manager = Self {
             connections: Arc::new(Mutex::new(HashMap::new())),
             cleanup_handle: Arc::new(Mutex::new(None)),
+            progress_dispatcher,
         };
 
         // Start the cleanup task
@@ -810,46 +949,69 @@ impl ThreadSafeConnectionManager {
         connection_id: String,
         permit: crate::database::unified_pool::ConnectionPermit,
     ) -> Result<()> {
-        let (tx, rx) = mpsc::channel(10);
-        let handle = ConnectionHandle {
-            sender: tx,
-            last_activity: Arc::new(Mutex::new(Instant::now())),
-        };
-
-        // Store the handle
-        let mut connections = self.connections.lock().await;
-        if connections.contains_key(&connection_id) {
+        if self.connections.lock().await.contains_key(&connection_id) {
             return Err(DuckDBError::ConnectionError {
                 message: format!("Connection {} already exists", connection_id),
                 context: None,
             });
         }
-        connections.insert(connection_id.clone(), handle);
-        drop(connections);
 
-        // Spawn a dedicated thread for this connection
-        std::thread::spawn(move || {
-            debug!("Starting thread for connection {}", connection_id);
+        let (tx, rx) = mpsc::channel(10);
+        let last_activity = Arc::new(Mutex::new(Instant::now()));
+        let (interrupt_tx, interrupt_rx) = std_mpsc::channel();
+        let dispatcher = self.progress_dispatcher.clone();
 
-            // FIX: Create the connection IN THIS THREAD (the one it will be used in)
-            // This ensures thread-affinity and allows us to hold the permit
-            let (conn, owned_permit) = match permit.create_connection() {
-                Ok(result) => result,
-                Err(e) => {
-                    debug!(
-                        "Failed to create connection {} in dedicated thread: {:?}",
-                        connection_id, e
-                    );
-                    return;
-                }
-            };
+        std::thread::spawn({
+            let connection_id = connection_id.clone();
+            move || {
+                debug!("Starting thread for connection {}", connection_id);
 
-            // FIX: Pass the permit to ConnectionHandler to hold it for the connection's lifetime
-            // This ensures the pool limit is enforced for the entire connection lifetime
-            let handler = ConnectionHandler::new(conn, rx, owned_permit);
-            handler.run();
-            debug!("Thread for connection {} terminated", connection_id);
+                let (conn, owned_permit) = match permit.create_connection() {
+                    Ok(result) => result,
+                    Err(e) => {
+                        let _ = interrupt_tx.send(None);
+                        debug!(
+                            "Failed to create connection {} in dedicated thread: {:?}",
+                            connection_id, e
+                        );
+                        return;
+                    }
+                };
+
+                let interrupt_handle = conn.interrupt_handle();
+                let _ = interrupt_tx.send(Some(interrupt_handle.clone()));
+
+                let handler = ConnectionHandler::new(
+                    conn,
+                    rx,
+                    owned_permit,
+                    connection_id.clone(),
+                    dispatcher.clone(),
+                );
+                handler.run();
+                debug!("Thread for connection {} terminated", connection_id);
+            }
         });
+
+        let interrupt_handle = interrupt_rx
+            .recv()
+            .map_err(|_| DuckDBError::ConnectionError {
+                message: format!("Failed to obtain interrupt handle for {}", connection_id),
+                context: None,
+            })?
+            .ok_or_else(|| DuckDBError::ConnectionError {
+                message: format!("Failed to initialize connection {}", connection_id),
+                context: None,
+            })?;
+
+        let handle = ConnectionHandle {
+            sender: tx,
+            last_activity,
+            interrupt_handle,
+        };
+
+        let mut connections = self.connections.lock().await;
+        connections.insert(connection_id, handle);
 
         Ok(())
     }
@@ -909,6 +1071,19 @@ impl ThreadSafeConnectionManager {
         }
 
         debug!("All connections have been reset");
+        Ok(())
+    }
+
+    pub async fn interrupt_connection(&self, connection_id: &str) -> Result<()> {
+        let connections = self.connections.lock().await;
+        let handle =
+            connections
+                .get(connection_id)
+                .ok_or_else(|| DuckDBError::ConnectionError {
+                    message: format!("Connection {} not found", connection_id),
+                    context: None,
+                })?;
+        handle.interrupt();
         Ok(())
     }
 }

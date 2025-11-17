@@ -203,7 +203,10 @@ pub async fn delete_secret(
 
     let secret = state.get_secret(id).await.map_err(|e| {
         #[cfg(debug_assertions)]
-        eprintln!("[Secrets] Failed to load secret {} before deletion: {}", secret_id, e);
+        eprintln!(
+            "[Secrets] Failed to load secret {} before deletion: {}",
+            secret_id, e
+        );
         e.to_string()
     })?;
 
@@ -331,11 +334,7 @@ pub async fn apply_secret_to_connection(
         // Redact sensitive IDs to prevent information disclosure in logs
         #[cfg(debug_assertions)]
         {
-            let connection_prefix = request
-                .connection_id
-                .chars()
-                .take(10)
-                .collect::<String>();
+            let connection_prefix = request.connection_id.chars().take(10).collect::<String>();
             eprintln!(
                 "[SECURITY AUDIT] Denied secret access attempt - connection_prefix: {}..., window: {}",
                 connection_prefix,
@@ -346,11 +345,7 @@ pub async fn apply_secret_to_connection(
         return Err("Invalid connection_id".into());
     }
 
-    let conn_preview = request
-        .connection_id
-        .chars()
-        .take(24)
-        .collect::<String>();
+    let conn_preview = request.connection_id.chars().take(24).collect::<String>();
     tracing::info!(
         "[Secrets] Applying secret {} to connection {} (operation: {:?})",
         request.secret_id,
@@ -418,9 +413,7 @@ pub async fn register_storage_secret(
     secret_id: String,
 ) -> Result<String, String> {
     if window.label() != "main" {
-        return Err(
-            "Unauthorized: register_storage_secret only available from main window".into(),
-        );
+        return Err("Unauthorized: register_storage_secret only available from main window".into());
     }
 
     let id = Uuid::parse_str(&secret_id).map_err(|e| format!("Invalid secret ID: {}", e))?;

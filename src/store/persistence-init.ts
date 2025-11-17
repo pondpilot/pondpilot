@@ -113,7 +113,6 @@ async function restoreAppDataFromSQLite(
   const tabOrder: TabId[] = [];
 
   // Always ensure the system database exists in data sources BEFORE any state updates
-  let systemDbAdded = false;
   if (!dataSources.has(SYSTEM_DATABASE_ID)) {
     const systemDb: LocalDB = {
       type: 'attached-db',
@@ -123,7 +122,6 @@ async function restoreAppDataFromSQLite(
       fileSourceId: SYSTEM_DATABASE_FILE_SOURCE_ID,
     };
     dataSources.set(SYSTEM_DATABASE_ID, systemDb);
-    systemDbAdded = true;
 
     // Persist the system database
     await adapter.put(DATA_SOURCE_TABLE_NAME, systemDb, systemDb.id);
@@ -202,12 +200,13 @@ async function restoreAppDataFromSQLite(
 
     try {
       // Register the file and create view
-      const { registerFileSourceAndCreateView, registerFileHandle, createXlsxSheetView } =
-        await import('@controllers/db/data-source');
+      const { registerFileSourceAndCreateView, createXlsxSheetView } = await import(
+        '@controllers/db/data-source'
+      );
 
       if (dataSource.type === 'xlsx-sheet') {
         // For Excel files, register file handle first
-        const fileName = `${localEntry.uniqueAlias}.${localEntry.ext}`;
+        const _fileName = `${localEntry.uniqueAlias}.${localEntry.ext}`;
 
         // In Tauri, we don't need to register the file handle for Excel files
         // Just create the sheet view directly

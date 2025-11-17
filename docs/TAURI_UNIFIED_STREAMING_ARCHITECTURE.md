@@ -88,6 +88,11 @@ impl ConnectionPermit {
 }
 ```
 
+> **Resource heuristics (desktop):**
+> - Primary connection reserve: ~50% of host RAM (max 16 GB) and ~85% of CPU cores, so heavyweight operations are not throttled when we eventually wire this path.
+> - Each pooled connection (used for user queries) now grabs ~20% of RAM (min 0.5 GB, max 8 GB) and ~55% of CPU cores, clamped to the number of physical cores; 4 concurrent heavy queries therefore stay within ~80% of the machine’s memory budget.
+> - These limits translate directly into the `PRAGMA threads` and `PRAGMA memory_limit` statements shown above, allowing DuckDB to spend most of the machine on a single query when needed.
+
 ### Query Execution Model
 
 All queries follow the same thread-safe pattern:

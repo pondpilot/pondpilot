@@ -245,7 +245,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     }
 
     return buildErrors;
-  }, [queries, tab.id]);
+  }, [queries]);
 
   const dataSourceError = [...dataQueriesBuildError, ...dataSourceReadError];
 

@@ -51,6 +51,37 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!isTauriEnvironment()) {
+      return undefined;
+    }
+
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+
+    import('@tauri-apps/api/event')
+      .then(({ listen }) => {
+        if (cancelled) return undefined;
+        return listen('pondpilot://query-progress', (event) => {
+          // eslint-disable-next-line no-console
+          console.debug('[QueryProgress]', event.payload);
+        });
+      })
+      .then((listener) => {
+        unlisten = listener;
+      })
+      .catch((error) => {
+        console.warn('Failed to subscribe to query progress events', error);
+      });
+
+    return () => {
+      cancelled = true;
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, []);
+
   return (
     <MantineProvider theme={theme}>
       <ModalsProvider>

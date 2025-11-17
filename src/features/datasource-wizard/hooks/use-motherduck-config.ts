@@ -49,7 +49,7 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
   );
 
   // Simplified - we don't need complex detachment logic since we'll restart the app
-  const detachAllMotherDuckDatabases = useCallback(async () => {
+  const _detachAllMotherDuckDatabases = useCallback(async () => {
     // This function is no longer used since we handle disconnection and restart in the component
   }, []);
 
@@ -162,13 +162,7 @@ export function useMotherDuckConfig(pool: ConnectionPool | null) {
     } finally {
       setLoading(false);
     }
-  }, [
-    pool,
-    selectedSecretId,
-    selectedSecretName,
-    getConnectedDbNamesForInstance,
-    detachAllMotherDuckDatabases,
-  ]);
+  }, [pool, selectedSecretId, selectedSecretName, getConnectedDbNamesForInstance]);
 
   const handleAttach = useCallback(async () => {
     if (!pool) {

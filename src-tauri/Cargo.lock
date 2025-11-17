@@ -3406,6 +3406,7 @@ dependencies = [
  "duckdb",
  "futures",
  "keyring",
+ "libduckdb-sys",
  "num_cpus",
  "once_cell",
  "open",

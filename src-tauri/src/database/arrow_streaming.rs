@@ -1,7 +1,7 @@
 use crate::database::motherduck_token;
 use crate::database::sql_classifier::ClassifiedSqlStatement;
-use crate::database::unified_pool::UnifiedPool;
 use crate::database::sql_utils::escape_string_literal;
+use crate::database::unified_pool::UnifiedPool;
 use crate::errors::Result;
 use duckdb::arrow::datatypes::Schema as ArrowSchema;
 use duckdb::arrow::record_batch::RecordBatch;
@@ -101,8 +101,10 @@ impl ArrowStreamingExecutor {
             // Run setup statements (load extensions, attach databases) if provided
             if let Some(token) = motherduck_token::get_token() {
                 let _ = conn.execute("LOAD motherduck", []);
-                let set_sql =
-                    format!("SET motherduck_token = {}", escape_string_literal(token.as_str()));
+                let set_sql = format!(
+                    "SET motherduck_token = {}",
+                    escape_string_literal(token.as_str())
+                );
                 let _ = conn.execute(&set_sql, []);
             }
 

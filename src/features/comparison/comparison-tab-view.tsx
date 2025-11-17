@@ -6,11 +6,23 @@ import {
   updateSchemaComparison,
 } from '@controllers/tab/comparison-tab-controller';
 import { useInitializedDatabaseConnectionPool } from '@features/database-context';
-import { Stack, LoadingOverlay, Alert, Text, Center } from '@mantine/core';
+import {
+  Alert,
+  Button,
+  Center,
+  Group,
+  LoadingOverlay,
+  Progress,
+  Stack,
+  Text,
+  rem,
+} from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { TabId, ComparisonConfig } from '@models/tab';
+import { interruptNativeQuery } from '@services/tauri-query-control';
 import { IconAlertCircle } from '@tabler/icons-react';
-import { memo, useCallback, useRef, useEffect } from 'react';
+import { isTauriEnvironment } from '@utils/browser';
+import { memo, useCallback, useRef, useEffect, useState } from 'react';
 
 import { AnimatedPollyDuck } from './components/animated-polly-duck';
 import { ComparisonConfigScreen } from './components/comparison-config-screen';
@@ -65,6 +77,21 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
   const canFinishEarly = Boolean(
     progress?.supportsFinishEarly && progressActive && (progress?.diffRows ?? 0) > 0,
   );
+  const isTauri = isTauriEnvironment();
+  const tauriQueryProgress = useTauriQueryProgress(isTauri && (progressActive || isExecuting));
+  const latestConnectionIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    latestConnectionIdRef.current = tauriQueryProgress?.connectionId ?? null;
+  }, [tauriQueryProgress]);
+
+  useEffect(() => {
+    return () => {
+      if (isTauri && latestConnectionIdRef.current) {
+        interruptNativeQuery(latestConnectionIdRef.current).catch(() => undefined);
+      }
+    };
+  }, [isTauri]);
 
   const handleConfigChange = useCallback(
     (configChanges: Partial<ComparisonConfig>) => {
@@ -149,24 +176,30 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
     });
   }, [comparisonConfig, schemaComparison, runComparison]);
 
-  const handleCancelExecution = useCallback(() => {
-    if (!comparisonId) return;
+  const handleCancelExecution = useCallback(
+    (connectionId?: string) => {
+      if (!comparisonId) return;
 
-    modals.openConfirmModal({
-      title: 'Cancel comparison?',
-      children: (
-        <Text size="sm">
-          The current comparison will stop immediately. You can rerun it anytime from the
-          configuration screen.
-        </Text>
-      ),
-      labels: { confirm: 'Cancel comparison', cancel: 'Keep running' },
-      confirmProps: { color: 'red' },
-      onConfirm: () => {
-        cancelComparison(comparisonId);
-      },
-    });
-  }, [cancelComparison, comparisonId]);
+      modals.openConfirmModal({
+        title: 'Cancel comparison?',
+        children: (
+          <Text size="sm">
+            The current comparison will stop immediately. You can rerun it anytime from the
+            configuration screen.
+          </Text>
+        ),
+        labels: { confirm: 'Cancel comparison', cancel: 'Keep running' },
+        confirmProps: { color: 'red' },
+        onConfirm: () => {
+          cancelComparison(comparisonId);
+          if (connectionId) {
+            interruptNativeQuery(connectionId).catch(() => undefined);
+          }
+        },
+      });
+    },
+    [cancelComparison, comparisonId],
+  );
 
   const handleFinishEarlyExecution = useCallback(() => {
     if (!comparisonId) return;
@@ -297,11 +330,35 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
                 datasetNameA={datasetNameA}
                 datasetNameB={datasetNameB}
               />
+              {tauriQueryProgress && (
+                <Stack gap={6} w="100%" maw={rem(480)}>
+                  <Text size="xs" c="dimmed">
+                    DuckDB query progress ({tauriQueryProgress.percentage.toFixed(1)}%)
+                  </Text>
+                  <Progress
+                    value={tauriQueryProgress.percentage}
+                    striped
+                    animated
+                    size="sm"
+                    transitionDuration={200}
+                  />
+                  <Group justify="flex-end" gap="xs">
+                    <Button
+                      size="xs"
+                      variant="light"
+                      color="red"
+                      onClick={() => handleCancelExecution(tauriQueryProgress.connectionId)}
+                    >
+                      Cancel query
+                    </Button>
+                  </Group>
+                </Stack>
+              )}
               {progressActive && progress && (
                 <ComparisonProgressErrorBoundary>
                   <ComparisonExecutionProgressCard
                     progress={progress}
-                    onCancel={handleCancelExecution}
+                    onCancel={() => handleCancelExecution()}
                     onFinishEarly={canFinishEarly ? handleFinishEarlyExecution : undefined}
                   />
                 </ComparisonProgressErrorBoundary>
@@ -352,3 +409,73 @@ export const ComparisonTabView = memo(({ tabId, active }: ComparisonTabViewProps
 });
 
 ComparisonTabView.displayName = 'ComparisonTabView';
+
+type TauriQueryProgressState = {
+  connectionId: string;
+  percentage: number;
+};
+
+type TauriProgressPayload = {
+  connectionId: string;
+  sqlPreview?: string | null;
+  status: 'running' | 'finished';
+  percentage: number;
+};
+
+function useTauriQueryProgress(active: boolean): TauriQueryProgressState | null {
+  const [state, setState] = useState<TauriQueryProgressState | null>(null);
+  const isTauri = isTauriEnvironment();
+
+  useEffect(() => {
+    if (!isTauri) {
+      return undefined;
+    }
+
+    if (!active) {
+      setState(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+
+    (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        if (cancelled) {
+          return;
+        }
+        unlisten = await listen<TauriProgressPayload>('pondpilot://query-progress', (event) => {
+          const { payload } = event;
+          const preview = payload?.sqlPreview?.toLowerCase() ?? '';
+          // Comparison materialization queries always target pondpilot tables prefixed with ppc_
+          if (!preview.includes('ppc_')) {
+            return;
+          }
+
+          if (payload.status === 'finished') {
+            setState(null);
+            return;
+          }
+
+          const clamped = Math.max(0, Math.min(100, payload.percentage));
+          setState({
+            connectionId: payload.connectionId,
+            percentage: clamped,
+          });
+        });
+      } catch (error) {
+        console.warn('Failed to subscribe to query progress events', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [active, isTauri]);
+
+  return state;
+}

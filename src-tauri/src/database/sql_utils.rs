@@ -62,7 +62,9 @@ pub fn validate_motherduck_url(url: &str) -> Result<()> {
         });
     }
 
-    if url.chars().any(|c| c.is_control() || c.is_whitespace() || c == '\'' || c == '"' || c == ';')
+    if url
+        .chars()
+        .any(|c| c.is_control() || c.is_whitespace() || c == '\'' || c == '"' || c == ';')
     {
         return Err(DuckDBError::InvalidQuery {
             message: "MotherDuck URL contains invalid characters".to_string(),

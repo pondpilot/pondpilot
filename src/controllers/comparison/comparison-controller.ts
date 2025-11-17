@@ -4,8 +4,8 @@
 import { showWarning } from '@components/app-notifications';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
-import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
 import { ConnectionPool } from '@engines/types';
+import { refreshDatabaseMetadata } from '@features/data-explorer/utils/metadata-refresh';
 import {
   Comparison,
   ComparisonId,
@@ -49,6 +49,7 @@ export const createComparison = (
     lastExecutionTime: null,
     lastRunAt: null,
     resultsTableName: null,
+    pendingResultsTableName: null,
     metadata: {
       sourceStats: null,
       partialResults: false,
@@ -151,6 +152,7 @@ export const clearComparisonResults = async (
     resultsTableName: null,
     lastExecutionTime: null,
     lastRunAt: null,
+    pendingResultsTableName: null,
   };
 
   const newComparisons = new Map(comparisons);
@@ -329,6 +331,7 @@ export const updateComparisonResultsTable = (
   const updatedComparison: Comparison = {
     ...comparison,
     resultsTableName,
+    pendingResultsTableName: null,
   };
 
   // Update the store
@@ -345,6 +348,35 @@ export const updateComparisonResultsTable = (
   );
 
   // Persist the changes to IndexedDB
+  const iDb = useAppStore.getState()._iDbConn;
+  if (iDb) {
+    iDb.put(COMPARISON_TABLE_NAME, updatedComparison, comparison.id);
+  }
+};
+
+export const setComparisonPendingResultsTable = (
+  comparisonOrId: Comparison | ComparisonId,
+  pendingResultsTableName: string | null,
+): void => {
+  const { comparisons } = useAppStore.getState();
+  const comparison = ensureComparison(comparisonOrId, comparisons);
+
+  const updatedComparison: Comparison = {
+    ...comparison,
+    pendingResultsTableName,
+  };
+
+  const newComparisons = new Map(comparisons);
+  newComparisons.set(comparison.id, updatedComparison);
+
+  useAppStore.setState(
+    {
+      comparisons: newComparisons,
+    },
+    undefined,
+    'AppStore/setComparisonPendingResultsTable',
+  );
+
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
     iDb.put(COMPARISON_TABLE_NAME, updatedComparison, comparison.id);
@@ -386,6 +418,9 @@ export const deleteComparisons = async (
     const comparison = comparisons.get(comparisonId);
     if (comparison?.resultsTableName) {
       tablesToDrop.push(comparison.resultsTableName);
+    }
+    if (comparison?.pendingResultsTableName) {
+      tablesToDrop.push(comparison.pendingResultsTableName);
     }
   }
 

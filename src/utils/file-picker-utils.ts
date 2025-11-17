@@ -17,7 +17,7 @@ import { getFilePicker } from '../services/file-picker';
 /**
  * Convert a picked file to a LocalFile or null if unsupported
  */
-function createLocalFileFromPicked(
+function _createLocalFileFromPicked(
   pickedFile: { name: string; handle?: FileSystemFileHandle; path?: string },
   parentId: LocalEntryId | null,
   userAdded: boolean,
@@ -220,7 +220,7 @@ function createMockFileHandle(pickedFile: {
     createWritable: async () => {
       throw new Error('Write not supported');
     },
-    isSameEntry: async (other: FileSystemHandle) => false,
+    isSameEntry: async (_other: FileSystemHandle) => false,
     isFile: true,
     isDirectory: false,
   } as FileSystemFileHandle;
@@ -266,7 +266,7 @@ function createMockDirectoryHandle(pickedDirectory: {
     },
     queryPermission: async () => 'granted' as PermissionState,
     requestPermission: async () => 'granted' as PermissionState,
-    isSameEntry: async (other: FileSystemHandle) => false,
+    isSameEntry: async (_other: FileSystemHandle) => false,
     isFile: false,
     isDirectory: true,
   };
@@ -274,10 +274,10 @@ function createMockDirectoryHandle(pickedDirectory: {
   // Add missing methods
   (handle as any).getFile = undefined;
   (handle as any).getDirectory = undefined;
-  (handle as any).getEntries = function () {
+  (handle as any).getEntries = function getEntries() {
     return this.entries();
   };
-  (handle as any)[Symbol.asyncIterator] = function () {
+  (handle as any)[Symbol.asyncIterator] = function asyncIterator() {
     return this.entries();
   };
 

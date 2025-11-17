@@ -253,7 +253,7 @@ export class SamplingAlgorithm implements ComparisonAlgorithm {
     schemaComparison: SchemaComparisonResult,
     tableName: string,
     keysTableName: string,
-    rowLimit: number,
+    _rowLimit: number,
   ): string {
     const {
       sourceA,

@@ -471,18 +471,22 @@ export const restoreAppDataFromIDB = async (
   for (const [comparisonId, comparisonData] of comparisons.entries()) {
     const lastExecutionTime = (comparisonData as Partial<Comparison>).lastExecutionTime ?? null;
     const resultsTableName = (comparisonData as Partial<Comparison>).resultsTableName ?? null;
+    const pendingResultsTableName =
+      (comparisonData as Partial<Comparison>).pendingResultsTableName ?? null;
     const lastRunAt = (comparisonData as Partial<Comparison>).lastRunAt ?? null;
 
     if (
       comparisonData.lastExecutionTime !== lastExecutionTime ||
       comparisonData.resultsTableName !== resultsTableName ||
-      (comparisonData as Partial<Comparison>).lastRunAt !== lastRunAt
+      (comparisonData as Partial<Comparison>).lastRunAt !== lastRunAt ||
+      (comparisonData as Partial<Comparison>).pendingResultsTableName !== pendingResultsTableName
     ) {
       const normalizedComparison: Comparison = {
         ...comparisonData,
         lastExecutionTime,
         lastRunAt,
         resultsTableName,
+        pendingResultsTableName,
       };
 
       comparisons.set(comparisonId, normalizedComparison);
@@ -519,6 +523,7 @@ export const restoreAppDataFromIDB = async (
           lastExecutionTime: comparisonTab.lastExecutionTime ?? null,
           lastRunAt: comparisonTab.lastExecutionTime ? new Date().toISOString() : null,
           resultsTableName: comparisonTab.comparisonResultsTable ?? null,
+          pendingResultsTableName: null,
           metadata: {
             sourceStats: null,
             partialResults: false,
@@ -550,6 +555,7 @@ export const restoreAppDataFromIDB = async (
       lastExecutionTime: comparisonTab.lastExecutionTime ?? null,
       lastRunAt: comparisonTab.lastExecutionTime ? new Date().toISOString() : null,
       resultsTableName: comparisonTab.comparisonResultsTable ?? null,
+      pendingResultsTableName: null,
       metadata: {
         sourceStats: null,
         partialResults: false,

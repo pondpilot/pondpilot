@@ -110,10 +110,7 @@ pub fn validate_sql_safety(sql: &str) -> Result<()> {
     }
 
     // Block dangerous file system operations
-    let filesystem_ops = [
-        "COPY ",
-        "EXPORT ",
-    ];
+    let filesystem_ops = ["COPY ", "EXPORT "];
 
     for keyword in &filesystem_ops {
         if normalized.starts_with(keyword) {
@@ -139,7 +136,10 @@ pub fn validate_sql_safety(sql: &str) -> Result<()> {
         for dangerous in &dangerous_pragmas {
             if normalized.starts_with(dangerous) {
                 return Err(DuckDBError::SecurityViolation {
-                    message: format!("Dangerous PRAGMA not allowed: {}", dangerous.trim_start_matches("PRAGMA ")),
+                    message: format!(
+                        "Dangerous PRAGMA not allowed: {}",
+                        dangerous.trim_start_matches("PRAGMA ")
+                    ),
                     violation_type: Some("dangerous_pragma".to_string()),
                 });
             }
@@ -148,15 +148,15 @@ pub fn validate_sql_safety(sql: &str) -> Result<()> {
 
     // Block SET commands that could change session state in dangerous ways
     if normalized.starts_with("SET ") {
-        let dangerous_settings = [
-            "SET enable_external_access",
-            "SET enable_object_cache",
-        ];
+        let dangerous_settings = ["SET enable_external_access", "SET enable_object_cache"];
 
         for setting in &dangerous_settings {
             if normalized.starts_with(&setting.to_uppercase()) {
                 return Err(DuckDBError::SecurityViolation {
-                    message: format!("Dangerous SET command not allowed: {}", setting.trim_start_matches("SET ")),
+                    message: format!(
+                        "Dangerous SET command not allowed: {}",
+                        setting.trim_start_matches("SET ")
+                    ),
                     violation_type: Some("dangerous_set".to_string()),
                 });
             }
@@ -363,12 +363,18 @@ mod tests {
 
         // Multiple statements
         assert!(has_multiple_statements("SELECT 1; SELECT 2"));
-        assert!(has_multiple_statements("SELECT * FROM users; DROP TABLE users"));
-        assert!(has_multiple_statements("INSERT INTO t VALUES (1); DELETE FROM t"));
+        assert!(has_multiple_statements(
+            "SELECT * FROM users; DROP TABLE users"
+        ));
+        assert!(has_multiple_statements(
+            "INSERT INTO t VALUES (1); DELETE FROM t"
+        ));
 
         // Edge cases
         assert!(!has_multiple_statements("SELECT ';' as semicolon"));
-        assert!(!has_multiple_statements("SELECT * FROM users WHERE name = 'a;b'"));
+        assert!(!has_multiple_statements(
+            "SELECT * FROM users WHERE name = 'a;b'"
+        ));
     }
 
     #[test]

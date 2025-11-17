@@ -2,17 +2,20 @@ pub mod stream;
 pub mod utils;
 
 use crate::database::extensions::ALLOWED_EXTENSIONS;
+#[cfg(debug_assertions)]
+use crate::database::motherduck_token;
+use crate::database::sql_utils::escape_identifier;
 use crate::database::{
     CatalogInfo, ColumnInfo, DatabaseInfo, DuckDBEngine, EngineConfig, FileInfo, FileRegistration,
     QueryResult, TableInfo,
 };
-#[cfg(debug_assertions)]
-use crate::database::motherduck_token;
-use crate::errors::Result;
+use crate::errors::{DuckDBError, Result};
 use serde::Serialize;
 use std::sync::Arc;
 use tauri::State;
 use uuid::Uuid;
+
+const SQL_PREVIEW_MAX_CHARS: usize = 400;
 
 // Note: DuckDBEngine is now stored directly without Mutex since it's thread-safe internally
 pub type EngineState<'r> = State<'r, Arc<DuckDBEngine>>;
@@ -233,35 +236,50 @@ pub async fn connection_execute(
     let result = engine
         .execute_on_connection_with_timeout(&connection_id, &sql, params, timeoutMs)
         .await;
-    // If ATTACH succeeded, register it for future connections
-    if result.is_ok() {
-        let upper = sql.trim_start().to_uppercase();
-        if upper.starts_with("ATTACH ") {
-            // Try to extract alias and read-only
-            // Pattern: ATTACH 'url' AS alias (READ_ONLY)
-            let alias = sql
-                .split_whitespace()
-                .skip_while(|s| s.to_uppercase() != "AS")
-                .nth(1)
-                .map(|s| s.trim_matches(|c: char| c == '"' || c == '\'' || c == ';'))
-                .map(|s| s.to_string());
-            let read_only = sql.to_uppercase().contains("READ_ONLY");
-            if let Some(alias) = alias {
-                // Extract URL/path between first quotes
-                if let Some(s) = sql.find('\'') {
-                    if let Some(e_rel) = sql[s + 1..].find('\'') {
-                        let e = s + 1 + e_rel;
-                        let url = sql[s + 1..e].to_string();
-                        // Register as PLAIN attach for future connections
-                        engine
-                            .register_plain_attachment(alias, url, read_only)
-                            .await;
+    match result {
+        Ok(query_result) => {
+            // If ATTACH succeeded, register it for future connections
+            let upper = sql.trim_start().to_uppercase();
+            if upper.starts_with("ATTACH ") {
+                // Try to extract alias and read-only
+                // Pattern: ATTACH 'url' AS alias (READ_ONLY)
+                let alias = sql
+                    .split_whitespace()
+                    .skip_while(|s| s.to_uppercase() != "AS")
+                    .nth(1)
+                    .map(|s| s.trim_matches(|c: char| c == '"' || c == '\'' || c == ';'))
+                    .map(|s| s.to_string());
+                let read_only = sql.to_uppercase().contains("READ_ONLY");
+                if let Some(alias) = alias {
+                    // Extract URL/path between first quotes
+                    if let Some(s) = sql.find('\'') {
+                        if let Some(e_rel) = sql[s + 1..].find('\'') {
+                            let e = s + 1 + e_rel;
+                            let url = sql[s + 1..e].to_string();
+                            // Register as PLAIN attach for future connections
+                            engine
+                                .register_plain_attachment(alias, url, read_only)
+                                .await;
+                        }
                     }
                 }
             }
+            Ok(query_result)
+        }
+        Err(err) => {
+            let sql_preview = sql_preview(&sql);
+            tracing::error!(
+                "[CONNECTION_EXECUTE] Query failed (variant={}, connection={}, sql_len={}, sql_preview=\"{}\", timeoutMs={:?}): {}",
+                duckdb_error_variant(&err),
+                connection_id,
+                sql.len(),
+                sql_preview,
+                timeoutMs,
+                err
+            );
+            Err(err)
         }
     }
-    result
 }
 
 #[tauri::command]
@@ -398,3 +416,68 @@ pub async fn list_extensions(engine: EngineState<'_>) -> Result<Vec<ExtensionInf
 }
 
 // Note: export/import database API intentionally not exposed.
+
+#[tauri::command]
+pub async fn drop_comparison_table(engine: EngineState<'_>, table_name: String) -> Result<()> {
+    if !is_valid_comparison_table_name(&table_name) {
+        return Err(DuckDBError::SecurityViolation {
+            message: format!(
+                "Refusing to drop unmanaged table '{}'; only ppc_* tables are allowed",
+                table_name
+            ),
+            violation_type: Some("drop_comparison_table".to_string()),
+        });
+    }
+
+    let ident = escape_identifier(&table_name);
+    let sql = format!("DROP TABLE IF EXISTS pondpilot.main.{}", ident);
+    engine.execute_query(&sql, vec![]).await?;
+    Ok(())
+}
+
+fn is_valid_comparison_table_name(table_name: &str) -> bool {
+    if table_name.len() < 5 || table_name.len() > 128 {
+        return false;
+    }
+    if !table_name.starts_with("ppc_") {
+        return false;
+    }
+    table_name
+        .bytes()
+        .all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9' | b'_'))
+}
+
+#[tauri::command]
+pub async fn interrupt_connection(engine: EngineState<'_>, connection_id: String) -> Result<()> {
+    engine.interrupt_connection(&connection_id).await
+}
+
+fn sql_preview(sql: &str) -> String {
+    let single_line = sql.replace('\n', " ").replace('\r', " ");
+    let mut chars = single_line.chars();
+    let mut preview: String = chars.by_ref().take(SQL_PREVIEW_MAX_CHARS).collect();
+    if chars.next().is_some() {
+        preview.push('…');
+    }
+    preview
+}
+
+fn duckdb_error_variant(error: &DuckDBError) -> &'static str {
+    match error {
+        DuckDBError::ConnectionError { .. } => "ConnectionError",
+        DuckDBError::QueryError { .. } => "QueryError",
+        DuckDBError::FileNotFound { .. } => "FileNotFound",
+        DuckDBError::InvalidOperation { .. } => "InvalidOperation",
+        DuckDBError::FileAccess { .. } => "FileAccess",
+        DuckDBError::InvalidQuery { .. } => "InvalidQuery",
+        DuckDBError::PersistenceError { .. } => "PersistenceError",
+        DuckDBError::PoolExhausted { .. } => "PoolExhausted",
+        DuckDBError::InitializationError { .. } => "InitializationError",
+        DuckDBError::SerializationError { .. } => "SerializationError",
+        DuckDBError::UnsupportedExtension { .. } => "UnsupportedExtension",
+        DuckDBError::ResourceLimit { .. } => "ResourceLimit",
+        DuckDBError::QueryExecution { .. } => "QueryExecution",
+        DuckDBError::ParameterBinding { .. } => "ParameterBinding",
+        DuckDBError::SecurityViolation { .. } => "SecurityViolation",
+    }
+}

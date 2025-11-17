@@ -1,10 +1,9 @@
-import { Comparison } from '@models/comparison';
 import { ConnectionPool } from '@engines/types';
+import { Comparison } from '@models/comparison';
 import { RemoteDB } from '@models/data-source';
 import { useMemo } from 'react';
 
 import { buildDatabaseNode } from '../builders/database-tree-builder';
-import { buildRemoteDatabaseNodesWithHierarchy } from '../builders/motherduck-tree-builder';
 import { DataExplorerNodeMap } from '../model';
 
 type UseRemoteDbNodesProps = {

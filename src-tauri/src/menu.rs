@@ -251,7 +251,8 @@ pub fn setup_menu_handlers(app: &AppHandle) {
                     let _ = window.eval("window.location.reload()");
                 }
             }
-            "dev_tools" => {
+            "dev_tools" =>
+            {
                 #[cfg(any(debug_assertions, feature = "devtools"))]
                 if let Some(window) = app.get_webview_window("main") {
                     window.open_devtools();
