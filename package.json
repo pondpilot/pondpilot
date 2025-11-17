@@ -1,7 +1,7 @@
 {
   "name": "pondpilot",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Get your data ducks in a row - a fast data exploration tool using DuckDB",
   "license": "AGPL-3.0-only",
   "repository": {

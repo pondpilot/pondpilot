@@ -8,6 +8,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- next-header -->
 ## ✨ Highlights
 
+This release brings powerful new features that make PondPilot more collaborative, accessible, and robust for working with remote data! The headline features are **data comparison**, **built-in feedback system**, and **seamless remote database access** through intelligent CORS proxy support.
+
+- **📊 PondPilot Compare**: Compare datasets side-by-side with visual highlighting of differences. Perfect for validating data transformations, tracking changes over time, or comparing production vs. staging data. The intuitive interface makes it easy to spot discrepancies at a glance.
+
+- **💬 Built-in Feedback Reporter**: Share your thoughts without leaving the app! The new in-app bug reporter lets you submit feedback, report issues, and request features directly from PondPilot. With smart context capture (browser info, app version, error details), reports include everything needed to quickly address your concerns.
+
+- **🌐 CORS Proxy Support**: Access remote databases and data files without CORS headaches. PondPilot now automatically detects CORS errors and retries through a transparent proxy, making remote S3 buckets, cloud storage, and databases instantly accessible. Just paste the URL and go - PondPilot handles the rest.
+
+- **🚀 Subdirectory Deployment**: Deploy PondPilot alongside other services with configurable base path support. Perfect for organizations running multiple apps under one domain (e.g., ). Includes comprehensive nginx configuration examples and Docker deployment guides.
+
+## 🎯 What's Next
+
+We're continuing to enhance the core data exploration experience:
+
+- Advanced data visualization and chart capabilities
+- Enhanced comparison features with drill-down analysis
+- Performance optimizations for larger remote datasets
+- Additional cloud storage provider integrations
+
+## 📋 Changelog
+
+### 🚀 New
+
+- [Feature]: PondPilot Compare [#231](https://github.com/pondpilot/pondpilot/pull/231)
+- [Feature]: Implement a built-in feedback reporter [#224](https://github.com/pondpilot/pondpilot/pull/224)
+- [Feature]: Add CORS Proxy Support for Remote Database Access [#222](https://github.com/pondpilot/pondpilot/pull/222)
+- [Feature]: Enhance deployment support with subdirectory configuration and update… [#219](https://github.com/pondpilot/pondpilot/pull/219)
+
+### 🐛 Fixed
+
+- [Bug]: Fix comparison page header [#237](https://github.com/pondpilot/pondpilot/pull/237)
+- [Bug]: Fix clipboard handling for Safari and Firefox [#226](https://github.com/pondpilot/pondpilot/pull/226)
+- [Bug]: Fix S3 rewriter [#225](https://github.com/pondpilot/pondpilot/pull/225)
+
+**Full Changelog**: [v0.6.0...v0.7.0](https://github.com/pondpilot/pondpilot/compare/v0.6.0...v0.7.0)
+
+
+## ✨ Highlights
+
 This release makes PondPilot more accessible and user-friendly than ever! The biggest news is **full cross-browser support** - you can now use PondPilot in Firefox and Safari, not just Chrome and Edge. We've also added incredibly convenient **clipboard data import** for quick ad-hoc analysis, and improved the overall user experience with better notifications and file exploration.
 
 - **🌐 Universal Browser Support**: PondPilot now works seamlessly across all major browsers including Firefox, Safari, Chrome, and Edge. Non-Chromium browsers get a gracefully degraded experience with session-based file handling and clear compatibility notifications.
