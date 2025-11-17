@@ -1,56 +1,7 @@
-import {
-  wrapWithCorsProxyPathBased,
-  isRemoteUrl,
-  convertS3ToHttps,
-} from '@utils/cors-proxy-config';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
-import { quote } from '@utils/helpers';
 
-/**
- * Safely build an ATTACH DATABASE query with proper escaping
- *
- * Note: CORS proxy wrapping is disabled by default. Use the retry mechanism
- * in query-with-cors-retry.ts which automatically handles CORS errors.
- *
- * @param filePath - The file path or URL to attach
- * @param dbName - The database alias name
- * @param options - Additional options for the ATTACH statement
- * @returns A properly escaped SQL query string
- */
-export function buildAttachQuery(
-  filePath: string,
-  dbName: string,
-  options?: { readOnly?: boolean; useCorsProxy?: boolean },
-): string {
-  // Wrap with CORS proxy only if explicitly enabled
-  let finalPath = filePath;
-  if (options?.useCorsProxy === true && isRemoteUrl(filePath)) {
-    // Convert S3 URLs to HTTPS before wrapping with proxy
-    // The proxy can't handle s3:// protocol directly
-    const httpsUrl = convertS3ToHttps(filePath);
-    // Use path-based proxy for database files to allow DuckDB to construct URLs for related files
-    finalPath = wrapWithCorsProxyPathBased(httpsUrl || filePath);
-  }
-
-  const escapedPath = quote(finalPath, { single: true });
-  const escapedDbName = toDuckDBIdentifier(dbName);
-  const readOnlyClause = options?.readOnly ? ' (READ_ONLY)' : '';
-
-  return `ATTACH ${escapedPath} AS ${escapedDbName}${readOnlyClause}`;
-}
-
-/**
- * Safely build a DETACH DATABASE query with proper escaping
- * @param dbName - The database alias name to detach
- * @param ifExists - Whether to use IF EXISTS clause
- * @returns A properly escaped SQL query string
- */
-export function buildDetachQuery(dbName: string, ifExists = true): string {
-  const escapedDbName = toDuckDBIdentifier(dbName);
-  const ifExistsClause = ifExists ? 'IF EXISTS ' : '';
-
-  return `DETACH DATABASE ${ifExistsClause}${escapedDbName}`;
-}
+// Re-export ATTACH-related functions from the consolidated module
+export { buildAttachQuery, buildDetachQuery } from './sql-attach';
 
 /**
  * Safely build a DROP VIEW query with proper escaping

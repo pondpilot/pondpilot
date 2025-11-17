@@ -1,6 +1,10 @@
-import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
-
+// Stream reader interface that provides async iteration with cancellation support
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';
+
+export interface StreamReader<T> extends AsyncIterator<T> {
+  cancel: () => Promise<void>;
+  closed: boolean;
+}
 
 /**
  * A custom error class that represents a cancelled data adapter operation.
@@ -109,6 +113,11 @@ export interface DataAdapterApi {
    * Information about possibly known total row count
    */
   rowCountInfo: RowCountInfo;
+  /**
+   * Non-blocking warning message when auxiliary metadata (like row count)
+   * fails to load. Should not be treated as a fatal data source error.
+   */
+  rowCountWarning: string | null;
 
   /**
    * Either operation blocking sorting is being executed
@@ -217,6 +226,13 @@ export interface DataAdapterApi {
   cancelDataRead: () => void;
 
   /**
+   * Cancels all pending data operations including fetches,
+   * user tasks, and background tasks. This is a comprehensive
+   * cancellation that aborts all data-related operations.
+   */
+  cancelAllDataOperations: () => void;
+
+  /**
    * Resets the data read cancelled state. This is used to
    * acknowledge that the downstream code also reacted to
    * the cancellation and wants to be able to start a new read.
@@ -249,7 +265,7 @@ export interface DataAdapterQueries {
   getSortableReader?: (
     sort: ColumnSortSpecList,
     abortSignal: AbortSignal,
-  ) => Promise<AsyncDuckDBPooledStreamReader<any> | null>;
+  ) => Promise<StreamReader<any> | null>;
 
   /**
    * Returns a streaming reader.
@@ -259,7 +275,7 @@ export interface DataAdapterQueries {
    *
    * If both are missing it essentially means no data source exists.
    */
-  getReader?: (abortSignal: AbortSignal) => Promise<AsyncDuckDBPooledStreamReader<any> | null>;
+  getReader?: (abortSignal: AbortSignal) => Promise<StreamReader<any> | null>;
 
   /**
    * Returns column aggregate for the given column.

@@ -42,7 +42,7 @@ export const useShowPermsAlert = () => {
           ),
         });
       }),
-    [showAlert],
+    [],
   );
 
   return { showPermsAlert };

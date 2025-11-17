@@ -27,7 +27,7 @@ import { aiAssistantTooltip, structuredResponseField } from './ai-assistant-tool
 import { functionTooltip } from './function-tooltips';
 import { useEditorTheme } from './hooks';
 import createSQLTableNameHighlightPlugin from './sql-tablename-highlight';
-import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
+import { useDatabaseConnectionPool } from '../database-context';
 
 type FunctionTooltip = Record<string, { syntax: string; description: string }>;
 
@@ -68,7 +68,7 @@ export const SqlEditor = forwardRef<ReactCodeMirrorRef, SqlEditorProps>(
     ref,
   ) => {
     const { darkTheme, lightTheme } = useEditorTheme(colorSchemeDark);
-    const connectionPool = useDuckDBConnectionPool();
+    const connectionPool = useDatabaseConnectionPool();
     const editorRef = useRef<ReactCodeMirrorRef>(null);
     const sqlScripts = useAppStore((state) => state.sqlScripts);
     const { preferences, updatePreference } = useEditorPreferences();

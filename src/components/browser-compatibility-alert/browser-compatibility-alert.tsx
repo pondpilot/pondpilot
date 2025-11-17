@@ -2,6 +2,7 @@ import { Alert, Text, Stack, List, Button, Group, Title, Collapse } from '@manti
 import { useDisclosure } from '@mantine/hooks';
 import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { IconAlertCircle, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
+import { isTauriEnvironment } from '@utils/browser';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { useState, useEffect } from 'react';
 
@@ -13,6 +14,11 @@ export function BrowserCompatibilityAlert() {
   const [showDetails, { toggle: toggleDetails }] = useDisclosure(false);
 
   useEffect(() => {
+    // Never show compatibility alert in Tauri
+    if (isTauriEnvironment()) {
+      return;
+    }
+
     const info = fileSystemService.getBrowserInfo();
 
     // Only show for non-full compatibility
@@ -32,7 +38,8 @@ export function BrowserCompatibilityAlert() {
     localStorage.setItem(LOCAL_STORAGE_KEYS.BROWSER_COMPATIBILITY_DISMISSED, 'true');
   };
 
-  if (!browserInfo || dismissed || browserInfo.level === 'full') {
+  // Double-check: Never show in Tauri environment
+  if (isTauriEnvironment() || !browserInfo || dismissed || browserInfo.level === 'full') {
     return null;
   }
 

@@ -42,9 +42,11 @@ export const createSQLScript = (name: string = 'query', content: string = ''): S
     'AppStore/createSQLScript',
   );
 
-  // Persist the new SQL script to IndexedDB
-  const iDb = useAppStore.getState()._iDbConn;
-  if (iDb) {
+  // Persist the new SQL script
+  const { _iDbConn: iDb, _persistenceAdapter: persistenceAdapter } = useAppStore.getState();
+  if (persistenceAdapter) {
+    persistenceAdapter.put(SQL_SCRIPT_TABLE_NAME, sqlScript, sqlScriptId);
+  } else if (iDb) {
     iDb.put(SQL_SCRIPT_TABLE_NAME, sqlScript, sqlScriptId);
   }
 
@@ -91,9 +93,11 @@ export const updateSQLScriptContent = (
     'AppStore/updateSQLScriptContent',
   );
 
-  // Persist the changes to IndexedDB
-  const iDb = useAppStore.getState()._iDbConn;
-  if (iDb) {
+  // Persist the changes
+  const { _iDbConn: iDb, _persistenceAdapter: persistenceAdapter } = useAppStore.getState();
+  if (persistenceAdapter) {
+    persistenceAdapter.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id);
+  } else if (iDb) {
     iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id);
   }
 };
@@ -132,9 +136,11 @@ export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName:
     'AppStore/renameSQLScript',
   );
 
-  // Persist the changes to IndexedDB
-  const iDb = useAppStore.getState()._iDbConn;
-  if (iDb) {
+  // Persist the changes
+  const { _iDbConn: iDb, _persistenceAdapter: persistenceAdapter } = useAppStore.getState();
+  if (persistenceAdapter) {
+    persistenceAdapter.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id);
+  } else if (iDb) {
     iDb.put(SQL_SCRIPT_TABLE_NAME, updatedScript, sqlScript.id);
   }
 };
@@ -159,6 +165,7 @@ export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
     activeTabId,
     previewTabId,
     _iDbConn: iDbConn,
+    _persistenceAdapter: persistenceAdapter,
   } = useAppStore.getState();
 
   const sqlScriptIdsToDeleteSet = new Set(sqlScriptIds);
@@ -207,7 +214,25 @@ export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
     'AppStore/deleteSqlScript',
   );
 
-  if (iDbConn) {
+  if (persistenceAdapter) {
+    // Delete SQL scripts using persistence adapter
+    const deletePromises: Promise<void>[] = [];
+    for (const id of sqlScriptIds) {
+      deletePromises.push(persistenceAdapter.delete(SQL_SCRIPT_TABLE_NAME, id));
+    }
+    Promise.all(deletePromises);
+
+    // Delete associated tabs if any
+    if (tabsToDelete.length) {
+      persistDeleteTab(
+        persistenceAdapter,
+        tabsToDelete,
+        newActiveTabId,
+        newPreviewTabId,
+        newTabOrder,
+      );
+    }
+  } else if (iDbConn) {
     // Delete SQL scripts from IndexedDB
     persistDeleteSqlScript(iDbConn, sqlScriptIds);
 

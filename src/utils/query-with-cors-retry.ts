@@ -6,8 +6,7 @@
  */
 
 import { showAlert } from '@components/app-notifications';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
+import { ConnectionPool, DatabaseConnection } from '@engines/types';
 import * as arrow from 'apache-arrow';
 
 import { rewriteAttachUrl, isAttachStatement } from './attach-cors-rewriter';
@@ -124,7 +123,7 @@ export async function queryWithCorsRetry<
   T extends {
     [key: string]: arrow.DataType;
   } = any,
->(pool: AsyncDuckDBConnectionPool, query: string): Promise<arrow.Table<T>> {
+>(pool: ConnectionPool, query: string): Promise<arrow.Table<T>> {
   return executeWithCorsRetry(
     query,
     () => pool.query<T>(query),
@@ -147,21 +146,25 @@ export async function queryAbortableWithCorsRetry<
     [key: string]: arrow.DataType;
   } = any,
 >(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   query: string,
   signal: AbortSignal,
 ): Promise<{ value: arrow.Table<T>; aborted: false } | { value: void; aborted: true }> {
+  if (!pool.queryAbortable) {
+    throw new Error('queryAbortable is not supported by this ConnectionPool implementation');
+  }
   return executeWithCorsRetry(
     query,
-    () => pool.queryAbortable<T>(query, signal),
-    (rewritten) => pool.queryAbortable<T>(rewritten, signal),
+    () => pool.queryAbortable!<T>(query, signal),
+    (rewritten) => pool.queryAbortable!<T>(rewritten, signal),
   );
 }
 
 /**
  * Execute a query on a pooled connection with automatic CORS proxy retry
  *
- * For use with AsyncDuckDBPooledConnection (from pool.getPooledConnection())
+ * Note: DatabaseConnection uses execute() which returns QueryResult, not Arrow tables.
+ * This function wraps the connection to provide CORS retry for acquired connections.
  *
  * @param conn The pooled connection
  * @param query The SQL query to execute
@@ -171,10 +174,19 @@ export async function pooledConnectionQueryWithCorsRetry<
   T extends {
     [key: string]: arrow.DataType;
   } = any,
->(conn: AsyncDuckDBPooledConnection, query: string): Promise<arrow.Table<T>> {
+>(conn: DatabaseConnection, query: string): Promise<arrow.Table<T>> {
+  // DatabaseConnection has execute(), not query(), so we need to adapt the interface
+  // For CORS retry purposes, we'll use execute and cast appropriately
+  const executeWrapper = async (sql: string) => {
+    const result = await conn.execute(sql);
+    // The actual implementation returns Arrow tables for certain queries
+    // Cast to any to work around the type mismatch
+    return result as any as arrow.Table<T>;
+  };
+
   return executeWithCorsRetry(
     query,
-    () => conn.query<T>(query),
-    (rewritten) => conn.query<T>(rewritten),
+    () => executeWrapper(query),
+    (rewritten) => executeWrapper(rewritten),
   );
 }

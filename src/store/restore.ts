@@ -10,7 +10,7 @@ import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { persistAddLocalEntry } from '@controllers/file-system/persist';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { Comparison, ComparisonId } from '@models/comparison';
 import {
   AnyDataSource,
@@ -408,7 +408,7 @@ async function restoreLocalEntries(
  * @returns {Promise<void>} A promise that resolves when the data is hydrated.
  */
 export const restoreAppDataFromIDB = async (
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   onBeforeRequestFilePermission: (handles: FileSystemHandle[]) => Promise<boolean>,
 ): Promise<{ discardedEntries: DiscardedEntry[]; warnings: string[] }> => {
   const iDbConn = await getAppDataDBConnection();
@@ -471,18 +471,22 @@ export const restoreAppDataFromIDB = async (
   for (const [comparisonId, comparisonData] of comparisons.entries()) {
     const lastExecutionTime = (comparisonData as Partial<Comparison>).lastExecutionTime ?? null;
     const resultsTableName = (comparisonData as Partial<Comparison>).resultsTableName ?? null;
+    const pendingResultsTableName =
+      (comparisonData as Partial<Comparison>).pendingResultsTableName ?? null;
     const lastRunAt = (comparisonData as Partial<Comparison>).lastRunAt ?? null;
 
     if (
       comparisonData.lastExecutionTime !== lastExecutionTime ||
       comparisonData.resultsTableName !== resultsTableName ||
-      (comparisonData as Partial<Comparison>).lastRunAt !== lastRunAt
+      (comparisonData as Partial<Comparison>).lastRunAt !== lastRunAt ||
+      (comparisonData as Partial<Comparison>).pendingResultsTableName !== pendingResultsTableName
     ) {
       const normalizedComparison: Comparison = {
         ...comparisonData,
         lastExecutionTime,
         lastRunAt,
         resultsTableName,
+        pendingResultsTableName,
       };
 
       comparisons.set(comparisonId, normalizedComparison);
@@ -519,6 +523,7 @@ export const restoreAppDataFromIDB = async (
           lastExecutionTime: comparisonTab.lastExecutionTime ?? null,
           lastRunAt: comparisonTab.lastExecutionTime ? new Date().toISOString() : null,
           resultsTableName: comparisonTab.comparisonResultsTable ?? null,
+          pendingResultsTableName: null,
           metadata: {
             sourceStats: null,
             partialResults: false,
@@ -550,6 +555,7 @@ export const restoreAppDataFromIDB = async (
       lastExecutionTime: comparisonTab.lastExecutionTime ?? null,
       lastRunAt: comparisonTab.lastExecutionTime ? new Date().toISOString() : null,
       resultsTableName: comparisonTab.comparisonResultsTable ?? null,
+      pendingResultsTableName: null,
       metadata: {
         sourceStats: null,
         partialResults: false,
@@ -650,12 +656,23 @@ export const restoreAppDataFromIDB = async (
 
           validDataSources.add(dataSource.id);
 
+          if (!localEntry.handle) {
+            warnings.push(
+              `File handle is null for ${localEntry.name}, skipping database attachment.`,
+            );
+            discardedEntries.push({ type: 'removed', entry: localEntry, reason: 'no-handle' });
+            break;
+          }
+
           const regFile = await registerAndAttachDatabase(
             conn,
             localEntry.handle,
             `${localEntry.uniqueAlias}.${localEntry.ext}`,
             dataSource.dbName,
           );
+          if (!regFile) {
+            throw new Error(`Failed to register and attach database ${dataSource.dbName}`);
+          }
           registeredFiles.set(localEntry.id, regFile);
           break;
         }
@@ -664,6 +681,12 @@ export const restoreAppDataFromIDB = async (
           // 1. Get the current sheet names
           // 2. Compare with stored data sources for this file
           // 3. Keep valid sheets, register missing sheets, remove deleted sheets
+
+          if (!localEntry.handle) {
+            warnings.push(`File handle is null for ${localEntry.name}, skipping restoration.`);
+            discardedEntries.push({ type: 'removed', entry: localEntry, reason: 'no-handle' });
+            break;
+          }
 
           const xlsxFile = await localEntry.handle.getFile();
           // Get current sheet names
@@ -683,6 +706,9 @@ export const restoreAppDataFromIDB = async (
 
           // Register file handle - this may throw NotFoundError if the file no longer exists
           const regFile = await registerFileHandle(conn, localEntry.handle, fileName);
+          if (!regFile) {
+            throw new Error(`Failed to register file handle for ${fileName}`);
+          }
           registeredFiles.set(localEntry.id, regFile);
 
           // Find all data sources associated with this file
@@ -754,6 +780,40 @@ export const restoreAppDataFromIDB = async (
           }
           break;
         }
+        case 'db': {
+          // Get the existing data source for this entry
+          let dataSource = dataSourceByLocalEntryId.get(localEntry.id);
+
+          if (!dataSource || dataSource.type !== 'attached-db') {
+            // This is a data corruption, but we can recover from it
+            dataSource = addLocalDB(localEntry, _reservedDbs);
+
+            // save to the map
+            missingDataSources.set(dataSource.id, dataSource);
+          }
+
+          validDataSources.add(dataSource.id);
+
+          if (!localEntry.handle) {
+            warnings.push(
+              `File handle is null for ${localEntry.name}, skipping database attachment.`,
+            );
+            discardedEntries.push({ type: 'removed', entry: localEntry, reason: 'no-handle' });
+            break;
+          }
+
+          const regFile = await registerAndAttachDatabase(
+            conn,
+            localEntry.handle,
+            `${localEntry.uniqueAlias}.${localEntry.ext}`,
+            dataSource.dbName,
+          );
+          if (!regFile) {
+            throw new Error(`Failed to register and attach database ${dataSource.dbName}`);
+          }
+          registeredFiles.set(localEntry.id, regFile);
+          break;
+        }
         default: {
           // Get the existing data source for this entry
           let dataSource = dataSourceByLocalEntryId.get(localEntry.id);
@@ -778,13 +838,15 @@ export const restoreAppDataFromIDB = async (
             `${localEntry.uniqueAlias}.${localEntry.ext}`,
             (dataSource as AnyFlatFileDataSource).viewName,
           );
-          registeredFiles.set(localEntry.id, regFile);
+          if (regFile) {
+            registeredFiles.set(localEntry.id, regFile);
+          }
           break;
         }
       }
     } catch (error) {
       // Handle errors with file handles (NotFoundError, etc.)
-      console.error(`Error processing file ${localEntry.name}:`, error);
+      // console.error(`Error processing file ${localEntry.name}:`, error);
 
       // Add to discarded entries
       discardedEntries.push({
@@ -888,7 +950,9 @@ export const restoreAppDataFromIDB = async (
   }
 
   // Read database meta data
+  // console.log('[restore] Getting database metadata...');
   const databaseMetadata = await getDatabaseModel(conn);
+  // console.log('[restore] Database metadata:', databaseMetadata);
 
   // Always add the PondPilot system database to dataSources
   // This ensures it's visible even when empty on fresh start

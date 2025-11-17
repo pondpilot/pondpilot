@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { ComparisonSource } from '@models/tab';
 import { quote } from '@utils/helpers';
 import * as arrow from 'apache-arrow';
@@ -7,7 +7,7 @@ import * as arrow from 'apache-arrow';
  * Gets primary key columns for a table source
  */
 const getPrimaryKeysForTable = async (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   databaseName: string | undefined,
   schemaName: string,
   tableName: string,
@@ -57,7 +57,7 @@ const getPrimaryKeysForTable = async (
  * Detects and suggests join key columns for comparison
  */
 export const detectJoinKeys = async (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   sourceA: ComparisonSource,
   sourceB: ComparisonSource,
   commonColumnNames: string[],

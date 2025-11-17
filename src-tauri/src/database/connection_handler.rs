@@ -1,0 +1,1089 @@
+// Connection Handler for DuckDB
+//
+// SECURITY NOTE: Parameter binding is currently limited in the DuckDB Rust bindings
+// when using Arrow queries. As a mitigation:
+// 1. All SQL identifiers (table names, column names) are sanitized in engine.rs
+// 2. File paths are validated and canonicalized in engine.rs
+// 3. Parameters in queries should be escaped at the application level
+//
+// TODO: Implement full parameter binding when DuckDB Rust bindings add support
+
+use crate::database::motherduck_token;
+use crate::database::progress::{
+    QueryProgressDispatcher, QueryProgressPayload, QueryProgressStatus,
+};
+use crate::database::sql_classifier::ClassifiedSqlStatement;
+use crate::database::sql_sanitizer;
+use crate::database::sql_utils::escape_string_literal;
+use crate::database::types::{ColumnInfo, QueryResult};
+use crate::errors::{DuckDBError, Result};
+use duckdb::Connection;
+use libduckdb_sys as duckdb_ffi;
+use serde_json;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc as std_mpsc, Arc, Mutex as StdMutex};
+use std::time::{Duration, Instant};
+use tokio::sync::{mpsc, oneshot, Mutex};
+use uuid::Uuid;
+// Arrow array types used for value downcasting
+use base64::Engine;
+use chrono::{Duration as ChronoDuration, NaiveDate};
+use duckdb::arrow::array::{
+    Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Float32Array,
+    Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray,
+    LargeStringArray, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
+    TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+};
+use std::fmt;
+use tracing::debug;
+
+/// Commands that can be sent to a connection thread
+#[derive(Debug)]
+enum ConnectionCommand {
+    Execute {
+        sql: String,
+        params: Vec<serde_json::Value>,
+        response: oneshot::Sender<Result<QueryResult>>,
+        timeout_ms: Option<u64>,
+    },
+    Close {
+        response: oneshot::Sender<Result<()>>,
+    },
+}
+
+impl fmt::Debug for ThreadSafeConnectionManager {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ThreadSafeConnectionManager").finish()
+    }
+}
+
+/// Handles a single DuckDB connection in its own dedicated thread
+struct ConnectionHandler {
+    receiver: mpsc::Receiver<ConnectionCommand>,
+    connection: Connection,
+    /// Semaphore permit held for the lifetime of this connection to enforce pool limits
+    _permit: tokio::sync::OwnedSemaphorePermit,
+    motherduck_extension_loaded: bool,
+    motherduck_token_applied: bool,
+    connection_id: String,
+    progress_dispatcher: Option<Arc<QueryProgressDispatcher>>,
+}
+
+impl ConnectionHandler {
+    fn new(
+        connection: Connection,
+        receiver: mpsc::Receiver<ConnectionCommand>,
+        permit: tokio::sync::OwnedSemaphorePermit,
+        connection_id: String,
+        progress_dispatcher: Option<Arc<QueryProgressDispatcher>>,
+    ) -> Self {
+        Self {
+            connection,
+            receiver,
+            _permit: permit,
+            motherduck_extension_loaded: false,
+            motherduck_token_applied: false,
+            connection_id,
+            progress_dispatcher,
+        }
+    }
+
+    /// Run the connection handler loop in the current thread
+    fn run(mut self) {
+        while let Some(command) = self.receiver.blocking_recv() {
+            match command {
+                ConnectionCommand::Execute {
+                    sql,
+                    params,
+                    response,
+                    timeout_ms,
+                } => {
+                    let result = if let Some(timeout) = timeout_ms {
+                        self.execute_sql_with_timeout(&sql, &params, timeout)
+                    } else {
+                        self.execute_sql(&sql, &params)
+                    };
+                    let _ = response.send(result);
+                }
+                ConnectionCommand::Close { response } => {
+                    // Connection will be dropped when this function returns
+                    let _ = response.send(Ok(()));
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Execute SQL with a timeout
+    /// Note: DuckDB 1.3.0 doesn't support interrupt_handle(), so we rely on
+    /// the async timeout in ConnectionHandle::execute_with_timeout
+    fn execute_sql_with_timeout(
+        &mut self,
+        sql: &str,
+        params: &[serde_json::Value],
+        _timeout_ms: u64,
+    ) -> Result<QueryResult> {
+        // Simply execute the query - timeout enforcement happens at the async layer
+        self.execute_sql(sql, params)
+    }
+
+    /// Apply MotherDuck settings in a secure way
+    fn apply_motherduck_settings(&mut self) {
+        // Only apply settings if a token has been cached by the secrets manager
+        if let Some(token) = motherduck_token::get_token() {
+            let token_str = token.as_str();
+
+            // Validate token format
+            if !Self::is_valid_token(token_str) {
+                debug!("[MotherDuck] Skipping token - invalid format detected");
+                return;
+            }
+
+            // Try to load the extension (idempotent); ignore errors if not installed
+            if !self.motherduck_extension_loaded {
+                match self.connection.execute("LOAD motherduck", []) {
+                    Ok(_) => {
+                        debug!("[MotherDuck] Extension loaded successfully");
+                        self.motherduck_extension_loaded = true;
+                    }
+                    Err(e) => {
+                        debug!("[MotherDuck] Failed to load extension: {}", e);
+                    }
+                }
+            }
+
+            if self.motherduck_token_applied {
+                return;
+            }
+
+            // Apply the token using DuckDB's session setting. This only needs to run once
+            // per connection; DuckDB rejects resetting it after initialization.
+            let set_sql = format!(
+                "SET motherduck_token = {}",
+                escape_string_literal(token_str)
+            );
+            match self.connection.execute(&set_sql, []) {
+                Ok(_) => {
+                    self.motherduck_token_applied = true;
+                    debug!("[MotherDuck] Session token applied on connection");
+                }
+                Err(e) => {
+                    let msg = e.to_string();
+                    if msg.contains("can only be set during initialization") {
+                        // This usually means the token was already set during connection startup.
+                        self.motherduck_token_applied = true;
+                        debug!("[MotherDuck] Session token already initialized");
+                    } else {
+                        debug!("[MotherDuck] Failed to set session token: {}", msg);
+                    }
+                }
+            }
+        } else {
+            debug!("[MotherDuck] No cached MotherDuck token found");
+        }
+    }
+
+    /// Validate token format to prevent injection attempts
+    const MAX_MOTHERDUCK_TOKEN_LEN: usize = 1024;
+
+    fn is_valid_token(token: &str) -> bool {
+        // Check basic constraints
+        if token.is_empty() || token.len() > Self::MAX_MOTHERDUCK_TOKEN_LEN {
+            return false;
+        }
+
+        // Check for null bytes or control characters
+        if token.chars().any(|c| c.is_control() || c == '\0') {
+            return false;
+        }
+
+        // MotherDuck tokens typically follow a specific format
+        // They should only contain alphanumeric chars, hyphens, underscores, and dots
+        token
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+    }
+
+    fn execute_sql(&mut self, sql: &str, params: &[serde_json::Value]) -> Result<QueryResult> {
+        // Ensure MotherDuck session settings are applied if token is present in the environment.
+        // We do this per execute to cover all connections; errors are ignored to avoid noise
+        // if the extension is not loaded or the setting is unknown.
+        self.apply_motherduck_settings();
+
+        // Build the final SQL with escaped parameters if any are provided
+        let final_sql = if !params.is_empty() {
+            sql_sanitizer::build_parameterized_query(sql, params)?
+        } else {
+            sql.to_string()
+        };
+
+        let progress_monitor = self.start_progress_monitor(&final_sql);
+
+        // Classify the SQL statement
+        let classified = ClassifiedSqlStatement::classify(&final_sql);
+
+        if !classified.returns_result_set {
+            // For DDL/DML that don't return results
+            // Note: final_sql already has parameters escaped
+            self.connection.execute(&final_sql, []).map_err(|e| {
+                crate::errors::DuckDBError::QueryError {
+                    message: e.to_string(),
+                    sql: Some(sql.to_string()), // Return original SQL for error reporting
+                    error_code: None,
+                    line_number: None,
+                }
+            })?;
+
+            drop(progress_monitor);
+
+            // Return empty result
+            Ok(QueryResult {
+                rows: vec![],
+                columns: vec![],
+                row_count: 0,
+                execution_time_ms: 0,
+            })
+        } else {
+            // For queries that return results
+            // Use prepare_arrow for Arrow interface
+
+            // Note: final_sql already has parameters escaped
+            let mut stmt = self.connection.prepare(&final_sql).map_err(|e| {
+                crate::errors::DuckDBError::QueryError {
+                    message: e.to_string(),
+                    sql: Some(sql.to_string()), // Return original SQL for error reporting
+                    error_code: None,
+                    line_number: None,
+                }
+            })?;
+
+            // Use query_arrow on the prepared statement
+            // Parameters are already escaped in final_sql
+            let arrow_result = stmt.query_arrow([]).map_err(|e| {
+                crate::errors::DuckDBError::QueryError {
+                    message: e.to_string(),
+                    sql: Some(sql.to_string()), // Return original SQL for error reporting
+                    error_code: None,
+                    line_number: None,
+                }
+            })?;
+
+            let mut all_rows = Vec::new();
+            let mut columns_info = Vec::new();
+            let mut first_batch = true;
+
+            for batch in arrow_result {
+                // batch is already a RecordBatch, not a Result
+
+                // Get column info from the first batch
+                if first_batch {
+                    let schema = batch.schema();
+                    for field in schema.fields() {
+                        columns_info.push(ColumnInfo {
+                            name: field.name().to_string(),
+                            type_name: format!("{:?}", field.data_type()),
+                            nullable: field.is_nullable(),
+                        });
+                    }
+                    first_batch = false;
+                }
+
+                // Convert each row in the batch
+                for row_idx in 0..batch.num_rows() {
+                    let mut row_map = HashMap::new();
+
+                    for (col_idx, column) in batch.columns().iter().enumerate() {
+                        let schema = batch.schema();
+                        let field = schema.field(col_idx);
+                        let col_name = field.name().to_string();
+                        let dtype_owned = field.data_type().clone();
+
+                        // Special-case TIME first to avoid incorrect null bitmaps
+                        let json_value = match dtype_owned {
+                            duckdb::arrow::datatypes::DataType::Time32(
+                                duckdb::arrow::datatypes::TimeUnit::Second,
+                            ) => {
+                                if column.is_null(row_idx) {
+                                    serde_json::Value::Null
+                                } else if let Some(arr) =
+                                    column.as_any().downcast_ref::<Int32Array>()
+                                {
+                                    if !arr.is_null(row_idx) {
+                                        let secs = arr.value(row_idx) as i64;
+                                        serde_json::Value::String(format_time_hhmmss(secs, 0))
+                                    } else {
+                                        serde_json::Value::Null
+                                    }
+                                } else {
+                                    serde_json::Value::String("".to_string())
+                                }
+                            }
+                            duckdb::arrow::datatypes::DataType::Time32(
+                                duckdb::arrow::datatypes::TimeUnit::Millisecond,
+                            ) => {
+                                if column.is_null(row_idx) {
+                                    serde_json::Value::Null
+                                } else if let Some(arr) =
+                                    column.as_any().downcast_ref::<Int32Array>()
+                                {
+                                    if !arr.is_null(row_idx) {
+                                        let ms = arr.value(row_idx) as i64;
+                                        serde_json::Value::String(format_time_from_frac(ms, 1_000))
+                                    } else {
+                                        serde_json::Value::Null
+                                    }
+                                } else {
+                                    serde_json::Value::String("".to_string())
+                                }
+                            }
+                            duckdb::arrow::datatypes::DataType::Time64(
+                                duckdb::arrow::datatypes::TimeUnit::Microsecond,
+                            ) => {
+                                if column.is_null(row_idx) {
+                                    serde_json::Value::Null
+                                } else if let Some(arr) =
+                                    column.as_any().downcast_ref::<Int64Array>()
+                                {
+                                    if !arr.is_null(row_idx) {
+                                        let us = arr.value(row_idx);
+                                        serde_json::Value::String(format_time_from_frac(
+                                            us, 1_000_000,
+                                        ))
+                                    } else {
+                                        serde_json::Value::Null
+                                    }
+                                } else {
+                                    serde_json::Value::String("".to_string())
+                                }
+                            }
+                            duckdb::arrow::datatypes::DataType::Time64(
+                                duckdb::arrow::datatypes::TimeUnit::Nanosecond,
+                            ) => {
+                                if column.is_null(row_idx) {
+                                    serde_json::Value::Null
+                                } else if let Some(arr) =
+                                    column.as_any().downcast_ref::<Int64Array>()
+                                {
+                                    if !arr.is_null(row_idx) {
+                                        let ns = arr.value(row_idx);
+                                        serde_json::Value::String(format_time_from_frac(
+                                            ns,
+                                            1_000_000_000,
+                                        ))
+                                    } else {
+                                        serde_json::Value::Null
+                                    }
+                                } else {
+                                    serde_json::Value::String("".to_string())
+                                }
+                            }
+                            _ => {
+                                // Convert Arrow value to JSON
+                                if column.is_null(row_idx) {
+                                    serde_json::Value::Null
+                                } else {
+                                    // Use Arrow array downcasts for robust conversion of common types
+
+                                    if let Some(arr) = column.as_any().downcast_ref::<StringArray>()
+                                    {
+                                        serde_json::Value::String(arr.value(row_idx).to_string())
+                                    } else if let Some(arr) =
+                                        column.as_any().downcast_ref::<BooleanArray>()
+                                    {
+                                        serde_json::Value::Bool(arr.value(row_idx))
+                                    } else if let Some(arr) =
+                                        column.as_any().downcast_ref::<Int8Array>()
+                                    {
+                                        serde_json::Value::Number(arr.value(row_idx).into())
+                                    } else if let Some(arr) =
+                                        column.as_any().downcast_ref::<Int16Array>()
+                                    {
+                                        serde_json::Value::Number(arr.value(row_idx).into())
+                                    } else if let Some(arr) =
+                                        column.as_any().downcast_ref::<Int32Array>()
+                                    {
+                                        serde_json::Value::Number(arr.value(row_idx).into())
+                                    } else if let Some(arr) =
+                                        column.as_any().downcast_ref::<Int64Array>()
+                                    {
+                                        serde_json::Value::Number(arr.value(row_idx).into())
+                                    } else if let Some(arr) =
+                                        column.as_any().downcast_ref::<UInt8Array>()
+                                    {
+                                        serde_json::Value::Number(arr.value(row_idx).into())
+                                    } else if let Some(arr) =
+                                        column.as_any().downcast_ref::<UInt16Array>()
+                                    {
+                                        serde_json::Value::Number(arr.value(row_idx).into())
+                                    } else if let Some(arr) =
+                                        column.as_any().downcast_ref::<UInt32Array>()
+                                    {
+                                        serde_json::Value::Number(arr.value(row_idx).into())
+                                    } else if let Some(arr) =
+                                        column.as_any().downcast_ref::<UInt64Array>()
+                                    {
+                                        serde_json::Value::Number(arr.value(row_idx).into())
+                                    } else if let Some(arr) =
+                                        column.as_any().downcast_ref::<Float32Array>()
+                                    {
+                                        serde_json::json!(arr.value(row_idx))
+                                    } else if let Some(arr) =
+                                        column.as_any().downcast_ref::<Float64Array>()
+                                    {
+                                        serde_json::json!(arr.value(row_idx))
+                                    } else {
+                                        // Remaining logical types
+                                        if let Some(arr) =
+                                            column.as_any().downcast_ref::<LargeStringArray>()
+                                        {
+                                            serde_json::Value::String(
+                                                arr.value(row_idx).to_string(),
+                                            )
+                                        } else if let Some(arr) =
+                                            column.as_any().downcast_ref::<Date32Array>()
+                                        {
+                                            // days since epoch
+                                            let days = arr.value(row_idx);
+                                            serde_json::Value::String(format_date_from_days(days))
+                                        } else if let Some(arr) =
+                                            column.as_any().downcast_ref::<Date64Array>()
+                                        {
+                                            // ms since epoch -> date
+                                            let ms = arr.value(row_idx);
+                                            serde_json::Value::String(format_date_from_millis(ms))
+                                        } else if let Some(arr) = column
+                                            .as_any()
+                                            .downcast_ref::<TimestampMillisecondArray>(
+                                        ) {
+                                            let v = arr.value(row_idx);
+                                            serde_json::Value::String(format_timestamp_millis(v))
+                                        } else if let Some(arr) = column
+                                            .as_any()
+                                            .downcast_ref::<TimestampMicrosecondArray>(
+                                        ) {
+                                            let v = arr.value(row_idx);
+                                            serde_json::Value::String(format_timestamp_micros(v))
+                                        } else if let Some(arr) = column
+                                            .as_any()
+                                            .downcast_ref::<TimestampNanosecondArray>(
+                                        ) {
+                                            let v = arr.value(row_idx);
+                                            serde_json::Value::String(format_timestamp_nanos(v))
+                                        } else if let Some(arr) =
+                                            column.as_any().downcast_ref::<BinaryArray>()
+                                        {
+                                            let bytes = arr.value(row_idx);
+                                            serde_json::Value::String(
+                                                base64::engine::general_purpose::STANDARD
+                                                    .encode(bytes),
+                                            )
+                                        } else if let Some(arr) =
+                                            column.as_any().downcast_ref::<LargeBinaryArray>()
+                                        {
+                                            let bytes = arr.value(row_idx);
+                                            serde_json::Value::String(
+                                                base64::engine::general_purpose::STANDARD
+                                                    .encode(bytes),
+                                            )
+                                        } else if let Some(arr) =
+                                            column.as_any().downcast_ref::<Decimal128Array>()
+                                        {
+                                            // Format decimal according to scale from schema
+                                            let schema2 = batch.schema();
+                                            let field2 = schema2.field(col_idx);
+                                            let dtype2 = field2.data_type();
+                                            let (_p, scale) = match dtype2 {
+                                                duckdb::arrow::datatypes::DataType::Decimal128(
+                                                    p,
+                                                    s,
+                                                ) => (*p, *s),
+                                                _ => (38, 0),
+                                            };
+                                            let raw = arr.value(row_idx);
+                                            let s = format_decimal_128(raw, scale as i32);
+                                            serde_json::Value::String(s)
+                                        } else {
+                                            // Fallback: mark unsupported logical type
+                                            serde_json::Value::String(
+                                                "unsupported_type".to_string(),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        };
+
+                        row_map.insert(col_name, json_value);
+                    }
+
+                    all_rows.push(row_map);
+                }
+            }
+
+            let row_count = all_rows.len();
+
+            drop(progress_monitor);
+
+            Ok(QueryResult {
+                rows: all_rows,
+                columns: columns_info,
+                row_count,
+                execution_time_ms: 0,
+            })
+        }
+    }
+
+    fn start_progress_monitor(&self, sql: &str) -> Option<ProgressMonitor> {
+        let dispatcher = self.progress_dispatcher.clone()?;
+        let interrupt_handle = self.connection.interrupt_handle();
+        let connection_id = self.connection_id.clone();
+        let sql_preview = preview_sql(sql);
+        let query_run_id = Uuid::new_v4().to_string();
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let stop_flag_clone = stop_flag.clone();
+
+        let handle = std::thread::spawn(move || {
+            let mut last_percentage = -1.0;
+            while !stop_flag_clone.load(Ordering::Relaxed) {
+                if let Some(snapshot) = poll_query_progress(&interrupt_handle) {
+                    if snapshot.percentage >= 0.0
+                        && (snapshot.percentage - last_percentage).abs() >= 0.5
+                    {
+                        dispatcher.emit(QueryProgressPayload {
+                            connection_id: connection_id.clone(),
+                            query_run_id: query_run_id.clone(),
+                            sql_preview: sql_preview.clone(),
+                            status: QueryProgressStatus::Running,
+                            percentage: snapshot.percentage,
+                            rows_processed: snapshot.rows_processed,
+                            total_rows_to_process: snapshot.total_rows,
+                        });
+                        last_percentage = snapshot.percentage;
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(250));
+            }
+
+            dispatcher.emit(QueryProgressPayload {
+                connection_id,
+                query_run_id,
+                sql_preview,
+                status: QueryProgressStatus::Finished,
+                percentage: 100.0,
+                rows_processed: 0,
+                total_rows_to_process: 0,
+            });
+        });
+
+        Some(ProgressMonitor {
+            stop_flag,
+            handle: Some(handle),
+        })
+    }
+
+    /// Helper to format time from seconds and nanoseconds as HH:MM:SS[.fraction]
+    fn format_time_parts(hours: i64, minutes: i64, seconds: i64, nanos: i64) -> String {
+        if nanos > 0 {
+            // Trim trailing zeros from fractional seconds
+            let frac = format!("{:09}", nanos).trim_end_matches('0').to_string();
+            format!("{:02}:{:02}:{:02}.{}", hours, minutes, seconds, frac)
+        } else {
+            format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+        }
+    }
+}
+
+struct ProgressMonitor {
+    stop_flag: Arc<AtomicBool>,
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for ProgressMonitor {
+    fn drop(&mut self) {
+        self.stop_flag.store(true, Ordering::Release);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ProgressSnapshot {
+    percentage: f64,
+    rows_processed: u64,
+    total_rows: u64,
+}
+
+fn poll_query_progress(handle: &Arc<duckdb::InterruptHandle>) -> Option<ProgressSnapshot> {
+    // SAFETY: InterruptHandle is a transparent wrapper around a Mutex<duckdb_connection>.
+    // We only read the pointer while holding the mutex lock.
+    let mutex_ptr = handle.as_ref() as *const duckdb::InterruptHandle
+        as *const StdMutex<duckdb_ffi::duckdb_connection>;
+    let mutex = unsafe { &*mutex_ptr };
+    let conn = *mutex.lock().ok()?;
+    if conn.is_null() {
+        return None;
+    }
+
+    let progress = unsafe { duckdb_ffi::duckdb_query_progress(conn) };
+    if progress.percentage < 0.0 {
+        return None;
+    }
+
+    Some(ProgressSnapshot {
+        percentage: progress.percentage,
+        rows_processed: progress.rows_processed,
+        total_rows: progress.total_rows_to_process,
+    })
+}
+
+fn preview_sql(sql: &str) -> String {
+    const MAX_CHARS: usize = 200;
+    let single_line = sql.replace('\n', " ").replace('\r', " ");
+    let mut preview = String::new();
+    for ch in single_line.chars().take(MAX_CHARS) {
+        preview.push(ch);
+    }
+    if preview.len() < single_line.len() {
+        preview.push_str("...");
+    }
+    preview
+}
+
+/// Format time given total seconds and nanoseconds since midnight
+fn format_time_hhmmss(total_seconds: i64, nanos: i64) -> String {
+    let secs_in_day = 24 * 3600;
+    let total_seconds = total_seconds % secs_in_day;
+    let h = total_seconds / 3600;
+    let m = (total_seconds % 3600) / 60;
+    let s = total_seconds % 60;
+    ConnectionHandler::format_time_parts(h, m, s, nanos)
+}
+
+/// Format time from a fractional count since midnight with given denominator
+/// For example, ms with denom=1000, us with denom=1_000_000, ns with denom=1_000_000_000
+fn format_time_from_frac(value: i64, denom: i64) -> String {
+    // Add bounds checking to prevent overflow
+    const MAX_SECONDS_IN_DAY: i64 = 24 * 3600;
+
+    let secs = value / denom;
+    let remainder = value % denom;
+
+    // Ensure we're within a valid day range
+    let normalized_secs = secs % MAX_SECONDS_IN_DAY;
+
+    // Ensure remainder is positive for proper nanosecond calculation
+    let abs_remainder = remainder.abs();
+    // Convert remainder to nanoseconds with overflow protection
+    let nanos = match denom {
+        1_000 => abs_remainder.saturating_mul(1_000_000),
+        1_000_000 => abs_remainder.saturating_mul(1_000),
+        1_000_000_000 => abs_remainder,
+        _ => 0,
+    };
+    format_time_hhmmss(normalized_secs, nanos)
+}
+
+fn format_date_from_days(days_since_epoch: i32) -> String {
+    let epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+    let date = epoch + ChronoDuration::days(days_since_epoch as i64);
+    date.format("%Y-%m-%d").to_string()
+}
+
+fn format_date_from_millis(ms_since_epoch: i64) -> String {
+    // Compute date portion from milliseconds since epoch (UTC)
+    if let Some(dt) = chrono::DateTime::from_timestamp_millis(ms_since_epoch) {
+        dt.format("%Y-%m-%d").to_string()
+    } else {
+        "1970-01-01".to_string()
+    }
+}
+
+fn format_timestamp_millis(ms_since_epoch: i64) -> String {
+    if let Some(dt) = chrono::DateTime::from_timestamp_millis(ms_since_epoch) {
+        dt.format("%Y-%m-%dT%H:%M:%S%.fZ").to_string()
+    } else {
+        "1970-01-01T00:00:00Z".to_string()
+    }
+}
+
+fn format_timestamp_micros(us_since_epoch: i64) -> String {
+    let secs = us_since_epoch / 1_000_000;
+    let micros = us_since_epoch % 1_000_000;
+    // Ensure micros is positive before conversion
+    let abs_micros = micros.abs() as u32;
+    let nanos = abs_micros * 1_000; // convert to ns
+    if let Some(dt) = chrono::DateTime::from_timestamp(secs, nanos) {
+        dt.format("%Y-%m-%dT%H:%M:%S%.fZ").to_string()
+    } else {
+        "1970-01-01T00:00:00Z".to_string()
+    }
+}
+
+fn format_timestamp_nanos(ns_since_epoch: i64) -> String {
+    let secs = ns_since_epoch / 1_000_000_000;
+    let nanos = ns_since_epoch % 1_000_000_000;
+    // Ensure nanos is positive (must be in range [0, 999_999_999])
+    let abs_nanos = nanos.abs() as u32;
+    if let Some(dt) = chrono::DateTime::from_timestamp(secs, abs_nanos) {
+        dt.format("%Y-%m-%dT%H:%M:%S%.fZ").to_string()
+    } else {
+        "1970-01-01T00:00:00Z".to_string()
+    }
+}
+
+fn format_decimal_128(value: i128, scale: i32) -> String {
+    if scale <= 0 {
+        return value.to_string();
+    }
+
+    // Add bounds checking for scale to prevent panic
+    // DuckDB max decimal scale is 38
+    const MAX_SCALE: i32 = 38;
+    let safe_scale = scale.min(MAX_SCALE);
+
+    let negative = value < 0;
+    let abs = if negative {
+        // Handle i128::MIN edge case
+        value.checked_neg().unwrap_or(i128::MAX)
+    } else {
+        value
+    };
+
+    // Use checked_pow to prevent panic on large scale values
+    let denom = match 10_i128.checked_pow(safe_scale as u32) {
+        Some(d) => d,
+        None => {
+            // Scale too large, fallback to string representation
+            return value.to_string();
+        }
+    };
+
+    let int_part = abs / denom;
+    let frac_part = (abs % denom) as i128;
+    let mut frac_str = format!("{:0width$}", frac_part, width = safe_scale as usize);
+    // Trim trailing zeros for readability
+    while frac_str.ends_with('0') && frac_str.len() > 1 {
+        frac_str.pop();
+    }
+    format!(
+        "{}{}.{}",
+        if negative { "-" } else { "" },
+        int_part,
+        frac_str
+    )
+}
+
+// Note: Removed unused interval/duration formatting functions
+// These were not being called anywhere in the codebase
+
+/// Handle to communicate with a connection thread
+#[derive(Clone)]
+pub struct ConnectionHandle {
+    sender: mpsc::Sender<ConnectionCommand>,
+    last_activity: Arc<Mutex<Instant>>,
+    interrupt_handle: Arc<duckdb::InterruptHandle>,
+}
+
+impl ConnectionHandle {
+    /// Execute SQL on this connection with optional parameters
+    pub async fn execute(
+        &self,
+        sql: String,
+        params: Vec<serde_json::Value>,
+    ) -> Result<QueryResult> {
+        self.execute_with_timeout(sql, params, None).await
+    }
+
+    /// Execute SQL on this connection with optional parameters and timeout
+    pub async fn execute_with_timeout(
+        &self,
+        sql: String,
+        params: Vec<serde_json::Value>,
+        timeout_ms: Option<u64>,
+    ) -> Result<QueryResult> {
+        // Update last activity time
+        {
+            let mut last_activity = self.last_activity.lock().await;
+            *last_activity = Instant::now();
+        }
+
+        let (response_tx, response_rx) = oneshot::channel();
+
+        let sql_clone = sql.clone();
+        self.sender
+            .send(ConnectionCommand::Execute {
+                sql,
+                params,
+                response: response_tx,
+                timeout_ms,
+            })
+            .await
+            .map_err(|_| DuckDBError::ConnectionError {
+                message: "Connection thread has terminated".to_string(),
+                context: None,
+            })?;
+
+        // Apply timeout on the response channel if specified
+        if let Some(timeout) = timeout_ms {
+            match tokio::time::timeout(Duration::from_millis(timeout), response_rx).await {
+                Ok(Ok(result)) => result,
+                Ok(Err(_)) => Err(DuckDBError::ConnectionError {
+                    message: "Failed to receive response from connection thread".to_string(),
+                    context: None,
+                }),
+                Err(_) => Err(DuckDBError::QueryError {
+                    message: format!("Query execution timed out after {}ms", timeout),
+                    sql: Some(sql_clone),
+                    error_code: Some("TIMEOUT".to_string()),
+                    line_number: None,
+                }),
+            }
+        } else {
+            response_rx
+                .await
+                .map_err(|_| DuckDBError::ConnectionError {
+                    message: "Failed to receive response from connection thread".to_string(),
+                    context: None,
+                })?
+        }
+    }
+
+    /// Check if this connection has been idle for longer than the timeout
+    pub async fn is_idle(&self, timeout: Duration) -> bool {
+        let last_activity = self.last_activity.lock().await;
+        last_activity.elapsed() > timeout
+    }
+
+    /// Close this connection
+    pub async fn close(self) -> Result<()> {
+        let (response_tx, response_rx) = oneshot::channel();
+
+        self.sender
+            .send(ConnectionCommand::Close {
+                response: response_tx,
+            })
+            .await
+            .map_err(|_| DuckDBError::ConnectionError {
+                message: "Connection thread has already terminated".to_string(),
+                context: None,
+            })?;
+
+        response_rx
+            .await
+            .map_err(|_| DuckDBError::ConnectionError {
+                message: "Failed to receive close confirmation".to_string(),
+                context: None,
+            })?
+    }
+
+    pub fn interrupt(&self) {
+        self.interrupt_handle.interrupt();
+    }
+}
+
+/// Manages persistent DuckDB connections, each in their own thread
+pub struct ThreadSafeConnectionManager {
+    connections: Arc<Mutex<HashMap<String, ConnectionHandle>>>,
+    #[allow(dead_code)]
+    cleanup_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    progress_dispatcher: Option<Arc<QueryProgressDispatcher>>,
+}
+
+impl ThreadSafeConnectionManager {
+    pub fn new(progress_dispatcher: Option<Arc<QueryProgressDispatcher>>) -> Self {
+        let manager = Self {
+            connections: Arc::new(Mutex::new(HashMap::new())),
+            cleanup_handle: Arc::new(Mutex::new(None)),
+            progress_dispatcher,
+        };
+
+        // Start the cleanup task
+        manager.start_cleanup_task();
+        manager
+    }
+
+    /// Start a background task to clean up idle connections
+    fn start_cleanup_task(&self) {
+        let connections = self.connections.clone();
+        let cleanup_handle = self.cleanup_handle.clone();
+
+        let handle = tokio::spawn(async move {
+            let idle_timeout = Duration::from_secs(300); // 5 minute idle timeout
+            let check_interval = Duration::from_secs(60); // Check every minute
+
+            loop {
+                tokio::time::sleep(check_interval).await;
+
+                let mut conns = connections.lock().await;
+                let mut to_remove = Vec::new();
+
+                // Check for idle connections
+                for (id, handle) in conns.iter() {
+                    if handle.is_idle(idle_timeout).await {
+                        to_remove.push(id.clone());
+                    }
+                }
+
+                // Remove and close idle connections
+                for id in to_remove {
+                    if let Some(handle) = conns.remove(&id) {
+                        let _ = handle.close().await;
+                    }
+                }
+            }
+        });
+
+        // Store the cleanup handle - must use async lock here
+        tokio::spawn(async move {
+            let mut cleanup = cleanup_handle.lock().await;
+            *cleanup = Some(handle);
+        });
+    }
+
+    /// Create a new connection with the given ID, running in its own thread
+    /// The connection will be created inside the dedicated thread to ensure thread-affinity
+    pub async fn create_connection(
+        &self,
+        connection_id: String,
+        permit: crate::database::unified_pool::ConnectionPermit,
+    ) -> Result<()> {
+        if self.connections.lock().await.contains_key(&connection_id) {
+            return Err(DuckDBError::ConnectionError {
+                message: format!("Connection {} already exists", connection_id),
+                context: None,
+            });
+        }
+
+        let (tx, rx) = mpsc::channel(10);
+        let last_activity = Arc::new(Mutex::new(Instant::now()));
+        let (interrupt_tx, interrupt_rx) = std_mpsc::channel();
+        let dispatcher = self.progress_dispatcher.clone();
+
+        std::thread::spawn({
+            let connection_id = connection_id.clone();
+            move || {
+                debug!("Starting thread for connection {}", connection_id);
+
+                let (conn, owned_permit) = match permit.create_connection() {
+                    Ok(result) => result,
+                    Err(e) => {
+                        let _ = interrupt_tx.send(None);
+                        debug!(
+                            "Failed to create connection {} in dedicated thread: {:?}",
+                            connection_id, e
+                        );
+                        return;
+                    }
+                };
+
+                let interrupt_handle = conn.interrupt_handle();
+                let _ = interrupt_tx.send(Some(interrupt_handle.clone()));
+
+                let handler = ConnectionHandler::new(
+                    conn,
+                    rx,
+                    owned_permit,
+                    connection_id.clone(),
+                    dispatcher.clone(),
+                );
+                handler.run();
+                debug!("Thread for connection {} terminated", connection_id);
+            }
+        });
+
+        let interrupt_handle = interrupt_rx
+            .recv()
+            .map_err(|_| DuckDBError::ConnectionError {
+                message: format!("Failed to obtain interrupt handle for {}", connection_id),
+                context: None,
+            })?
+            .ok_or_else(|| DuckDBError::ConnectionError {
+                message: format!("Failed to initialize connection {}", connection_id),
+                context: None,
+            })?;
+
+        let handle = ConnectionHandle {
+            sender: tx,
+            last_activity,
+            interrupt_handle,
+        };
+
+        let mut connections = self.connections.lock().await;
+        connections.insert(connection_id, handle);
+
+        Ok(())
+    }
+
+    /// Get a connection handle by ID
+    pub async fn get_connection(&self, connection_id: &str) -> Result<ConnectionHandle> {
+        let connections = self.connections.lock().await;
+        connections
+            .get(connection_id)
+            .cloned()
+            .ok_or_else(|| DuckDBError::ConnectionError {
+                message: format!("Connection {} not found", connection_id),
+                context: None,
+            })
+    }
+
+    /// Remove and close a connection
+    pub async fn close_connection(&self, connection_id: &str) -> Result<()> {
+        let mut connections = self.connections.lock().await;
+        let handle =
+            connections
+                .remove(connection_id)
+                .ok_or_else(|| DuckDBError::ConnectionError {
+                    message: format!("Connection {} not found", connection_id),
+                    context: None,
+                })?;
+
+        drop(connections);
+        handle.close().await
+    }
+
+    /// Get all connection handles (used for applying attachments to all connections)
+    pub async fn get_all_connections(&self) -> Vec<(String, ConnectionHandle)> {
+        let connections = self.connections.lock().await;
+        connections
+            .iter()
+            .map(|(id, handle)| (id.clone(), handle.clone()))
+            .collect()
+    }
+
+    /// Reset all connections (closes and removes all existing connections)
+    pub async fn reset_all_connections(&self) -> Result<()> {
+        let mut connections = self.connections.lock().await;
+
+        // Collect all connection IDs and handles
+        let all_handles: Vec<(String, ConnectionHandle)> = connections.drain().collect();
+
+        drop(connections);
+
+        // Close all connections
+        for (id, handle) in all_handles {
+            debug!("Closing connection {} during reset", id);
+            if let Err(e) = handle.close().await {
+                debug!("Failed to close connection {}: {:?}", id, e);
+                // Continue closing other connections even if one fails
+            }
+        }
+
+        debug!("All connections have been reset");
+        Ok(())
+    }
+
+    pub async fn interrupt_connection(&self, connection_id: &str) -> Result<()> {
+        let connections = self.connections.lock().await;
+        let handle =
+            connections
+                .get(connection_id)
+                .ok_or_else(|| DuckDBError::ConnectionError {
+                    message: format!("Connection {} not found", connection_id),
+                    context: None,
+                })?;
+        handle.interrupt();
+        Ok(())
+    }
+}

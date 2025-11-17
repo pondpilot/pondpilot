@@ -136,7 +136,7 @@ export const Table = memo(
 
     useDidUpdate(() => {
       clearSelection();
-    }, [JSON.stringify(schema)]);
+    }, [schema]);
 
     useHotkeys([
       [

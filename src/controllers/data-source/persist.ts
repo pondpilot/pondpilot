@@ -9,6 +9,8 @@ import {
   DATA_SOURCE_TABLE_NAME,
   LOCAL_ENTRY_TABLE_NAME,
 } from '@models/persisted-store';
+import { PersistenceAdapter } from '@store/persistence';
+import { isTauriEnvironment } from '@utils/browser';
 import { IDBPDatabase } from 'idb';
 
 /**
@@ -18,19 +20,30 @@ import { IDBPDatabase } from 'idb';
  */
 
 export const persistPutDataSources = async (
-  iDb: IDBPDatabase<AppIdbSchema>,
+  iDbOrAdapter: IDBPDatabase<AppIdbSchema> | PersistenceAdapter,
   dataSources: Iterable<AnyDataSource>,
 ) => {
-  const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME], 'readwrite');
+  if (isTauriEnvironment()) {
+    const adapter = iDbOrAdapter as PersistenceAdapter;
+    // Use transaction to ensure atomicity
+    await adapter.transaction(async (txAdapter) => {
+      for (const ds of dataSources) {
+        await txAdapter.put(DATA_SOURCE_TABLE_NAME, ds, ds.id);
+      }
+    });
+  } else {
+    const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;
+    const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME], 'readwrite');
 
-  // Replace data sources
-  const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
-  for (const ds of dataSources) {
-    await dataSourceStore.put(ds, ds.id);
+    // Replace data sources
+    const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
+    for (const ds of dataSources) {
+      await dataSourceStore.put(ds, ds.id);
+    }
+
+    // Commit the transaction
+    await tx.done;
   }
-
-  // Commit the transaction
-  await tx.done;
 };
 
 /**
@@ -52,24 +65,44 @@ export const persistPutDataSources = async (
  */
 
 export const persistDeleteDataSource = async (
-  iDb: IDBPDatabase<AppIdbSchema>,
+  iDbOrAdapter: IDBPDatabase<AppIdbSchema> | PersistenceAdapter,
   deletedDataSourceIds: Iterable<PersistentDataSourceId>,
   entryIdsToDelete: Iterable<LocalEntryId>,
 ) => {
-  const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME, LOCAL_ENTRY_TABLE_NAME], 'readwrite');
+  if (isTauriEnvironment()) {
+    // Using persistence adapter (Tauri/SQLite)
+    const adapter = iDbOrAdapter as PersistenceAdapter;
 
-  // Delete each data source
-  const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
-  for (const id of deletedDataSourceIds) {
-    await dataSourceStore.delete(id);
+    // Use transaction to ensure atomicity across multiple tables
+    await adapter.transaction(async (txAdapter) => {
+      // Delete each data source
+      for (const id of deletedDataSourceIds) {
+        await txAdapter.delete(DATA_SOURCE_TABLE_NAME, id);
+      }
+
+      // Delete each local entry
+      for (const id of entryIdsToDelete) {
+        await txAdapter.delete(LOCAL_ENTRY_TABLE_NAME, id);
+      }
+    });
+  } else {
+    // Using IndexedDB directly (web)
+    const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;
+    const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME, LOCAL_ENTRY_TABLE_NAME], 'readwrite');
+
+    // Delete each data source
+    const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
+    for (const id of deletedDataSourceIds) {
+      await dataSourceStore.delete(id);
+    }
+
+    // Delete each local entry
+    const localEntryStore = tx.objectStore(LOCAL_ENTRY_TABLE_NAME);
+    for (const id of entryIdsToDelete) {
+      await localEntryStore.delete(id);
+    }
+
+    // Commit the transaction
+    await tx.done;
   }
-
-  // Delete each local entry
-  const localEntryStore = tx.objectStore(LOCAL_ENTRY_TABLE_NAME);
-  for (const id of entryIdsToDelete) {
-    await localEntryStore.delete(id);
-  }
-
-  // Commit the transaction
-  await tx.done;
 };

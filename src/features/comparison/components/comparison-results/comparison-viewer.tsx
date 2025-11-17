@@ -3,7 +3,7 @@ import duck from '@assets/duck.svg';
 import { showWarningWithAction, showSuccess, showError } from '@components/app-notifications';
 import { clearComparisonResults } from '@controllers/comparison';
 import { getOrCreateTabFromLocalDBObject } from '@controllers/tab';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { useAppTheme } from '@hooks/use-app-theme';
 import {
   Stack,
@@ -219,7 +219,7 @@ export const ComparisonViewer = ({
   lastRunAt,
   onReconfigure,
   onRefresh,
-  onResultsLoaded,
+  onResultsLoaded: _onResultsLoaded,
 }: ComparisonViewerProps) => {
   const theme = useMantineTheme();
   const colorScheme = useAppTheme();
@@ -286,7 +286,7 @@ export const ComparisonViewer = ({
   }
 
   const comparisonBadges = badges.length > 0 ? <Group gap="xs">{badges}</Group> : null;
-  const pool = useInitializedDuckDBConnectionPool();
+  const pool = useInitializedDatabaseConnectionPool();
   const handledMissingTableRef = useRef(false);
   const [isClearing, setIsClearing] = useState(false);
 

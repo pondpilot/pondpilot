@@ -550,7 +550,6 @@ export const theme = createTheme({
       defaultProps: {
         size: 'xs',
         color: 'icon-accent',
-        withThumbIndicator: false,
       },
     }),
     Text: Text.extend({

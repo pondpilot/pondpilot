@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
 import { useState, useEffect } from 'react';
 
@@ -24,7 +24,7 @@ export interface ComparisonResults {
  * Hook to fetch and process comparison results from materialized temp table
  */
 export const useComparisonResults = (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   config: ComparisonConfig | null,
   schemaComparison: SchemaComparisonResult | null,
   tableName: string | null,
@@ -50,15 +50,15 @@ export const useComparisonResults = (
         const result = await pool.query(sql);
 
         // Extract column names
-        const allColumns = result.schema.fields.map((f) => f.name);
-        const keyColumns = config.joinColumns.map((k) => `_key_${k}`);
-        const statusColumns = allColumns.filter((c) => c.endsWith('_status'));
+        const allColumns = result.schema.fields.map((f: any) => f.name);
+        const keyColumns = config.joinColumns.map((k: string) => `_key_${k}`);
+        const statusColumns = allColumns.filter((c: string) => c.endsWith('_status'));
 
         // Convert Arrow table to rows
         const rows: ComparisonResultRow[] = [];
         for (let i = 0; i < result.numRows; i += 1) {
           const row: ComparisonResultRow = {};
-          allColumns.forEach((colName) => {
+          allColumns.forEach((colName: string) => {
             const col = result.getChild(colName);
             if (col) {
               row[colName] = col.get(i);

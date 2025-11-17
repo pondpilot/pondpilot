@@ -98,13 +98,20 @@ export function getLocalEntryIcon(entry: LocalEntry): IconType {
     ? 'folder'
     : entry.fileType === 'code-file'
       ? 'code-file'
-      : entry.ext === 'duckdb'
+      : entry.ext === 'duckdb' || entry.ext === 'db'
         ? 'db'
         : entry.ext === 'parquet'
           ? 'db-table'
           : entry.ext === 'xlsx'
             ? 'xlsx'
-            : entry.ext;
+            : entry.ext === 'sas7bdat' ||
+                entry.ext === 'xpt' ||
+                entry.ext === 'sav' ||
+                entry.ext === 'zsav' ||
+                entry.ext === 'por' ||
+                entry.ext === 'dta'
+              ? 'db-table'
+              : entry.ext;
 }
 
 /**
@@ -130,12 +137,24 @@ export function getFlatFileDataSourceName(
   localEntriesOrEntry: Map<LocalEntryId, LocalEntry> | LocalEntry,
   options?: { nonAliased?: boolean },
 ): string {
-  let localEntry: LocalEntry;
+  let localEntry: LocalEntry | undefined;
 
   if (localEntriesOrEntry instanceof Map) {
-    localEntry = localEntriesOrEntry.get(dataSource.fileSourceId)!;
+    localEntry = localEntriesOrEntry.get(dataSource.fileSourceId);
   } else {
     localEntry = localEntriesOrEntry;
+  }
+
+  if (!localEntry) {
+    if (options?.nonAliased) {
+      return dataSource.viewName;
+    }
+
+    if (dataSource.type === 'xlsx-sheet') {
+      return `${dataSource.viewName} (${dataSource.sheetName})`;
+    }
+
+    return dataSource.viewName;
   }
 
   if (dataSource.type === 'xlsx-sheet') {

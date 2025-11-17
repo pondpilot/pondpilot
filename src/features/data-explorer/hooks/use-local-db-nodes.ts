@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { Comparison } from '@models/comparison';
 import { LocalDB } from '@models/data-source';
 import { useMemo } from 'react';
@@ -10,7 +10,7 @@ type UseLocalDbNodesProps = {
   localDatabases: LocalDB[];
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, any>;
-  conn: AsyncDuckDBConnectionPool;
+  conn: ConnectionPool;
   localDBLocalEntriesMap: Map<string, any>;
   databaseMetadata: Map<string, any>;
   fileViewNames: Set<string>;

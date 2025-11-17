@@ -2,7 +2,7 @@ import { TreeNodeData, TreeNodeMenuItemType } from '@components/explorer-tree';
 import { deleteDataSources } from '@controllers/data-source';
 import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { Comparison } from '@models/comparison';
 import { LocalDB, RemoteDB } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
@@ -20,7 +20,7 @@ import { validateDbRename } from '../utils/validation';
 interface DatabaseTreeBuilderContext {
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, keyof DataExplorerNodeTypeMap>;
-  conn: AsyncDuckDBConnectionPool;
+  conn: ConnectionPool;
   localDatabases: LocalDB[];
   localDBLocalEntriesMap: Map<string, LocalEntry>;
   databaseMetadata: Map<string, DataBaseModel>;
@@ -107,9 +107,12 @@ export function buildDatabaseNode(
   nodeMap.set(dbId, { db: dbId, schemaName: null, objectName: null, columnName: null });
   anyNodeIdToNodeTypeMap.set(dbId, 'db');
 
-  const sortedSchemas = databaseMetadata
-    .get(dbName)
-    ?.schemas?.sort((a: any, b: any) => a.name.localeCompare(b.name));
+  // Resolve schemas for this database from metadata
+  const dbSchemas = databaseMetadata.get(dbName)?.schemas;
+
+  // Do not fallback to 'main' here; database names should match what DuckDB reports
+
+  const sortedSchemas = dbSchemas?.slice().sort((a: any, b: any) => a.name.localeCompare(b.name));
 
   // Base context menu items
   const baseContextMenuItems = [
@@ -153,10 +156,14 @@ export function buildDatabaseNode(
         {
           label: 'Copy URL',
           onClick: () => {
-            copyToClipboard((dataSource as RemoteDB).url, {
-              showNotification: true,
-              notificationTitle: 'URL Copied',
-            });
+            copyToClipboard(
+              (dataSource as RemoteDB).legacyUrl ||
+                `Connection ID: ${(dataSource as RemoteDB).connectionId}`,
+              {
+                showNotification: true,
+                notificationTitle: 'URL Copied',
+              },
+            );
           },
         },
         {

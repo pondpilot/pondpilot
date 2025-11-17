@@ -21,6 +21,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 
+import { PersistenceAdapter } from './persistence';
 import { resetAppData } from './restore';
 import { createSelectors } from './utils';
 import { SpotlightView } from '../components/spotlight/model';
@@ -39,6 +40,12 @@ type AppStore = {
    * Used to persist the app state when connection is available.
    */
   _iDbConn: IDBPDatabase<AppIdbSchema> | null;
+
+  /**
+   * Persistence adapter for cross-platform storage (IndexedDB for web, SQLite for Tauri).
+   * This provides a unified interface for persisting app state.
+   */
+  _persistenceAdapter: PersistenceAdapter | null;
 
   /**
    * The current state of the app, indicating whether it is loading, ready, or has encountered an error.
@@ -127,6 +134,7 @@ type AppStore = {
 
 const initialState: AppStore = {
   _iDbConn: null,
+  _persistenceAdapter: null,
   appLoadState: 'init',
   dataSources: new Map(),
   localEntries: new Map(),
@@ -340,7 +348,13 @@ export function useDataSourceObjectSchema(
         dataSource.type === 'csv' ||
         dataSource.type === 'parquet' ||
         dataSource.type === 'xlsx-sheet' ||
-        dataSource.type === 'json'
+        dataSource.type === 'json' ||
+        dataSource.type === 'sas7bdat' ||
+        dataSource.type === 'xpt' ||
+        dataSource.type === 'sav' ||
+        dataSource.type === 'zsav' ||
+        dataSource.type === 'por' ||
+        dataSource.type === 'dta'
       ) {
         dbName = PERSISTENT_DB_NAME;
         schemaName = 'main';

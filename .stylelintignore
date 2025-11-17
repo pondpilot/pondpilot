@@ -1,2 +1,3 @@
 dist
 playwright-report
+src-tauri/target/

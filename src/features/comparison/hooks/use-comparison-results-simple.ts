@@ -1,5 +1,7 @@
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
+import { escapeStringLiteral } from '@features/schema-browser/utils/sql-escape';
 import { ColumnSortSpecList, DBTableOrViewSchema } from '@models/db';
+import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { ComparisonConfig, SchemaComparisonResult } from '@models/tab';
 import { convertArrowTable, getArrowTableSchema } from '@utils/arrow';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
@@ -36,7 +38,7 @@ export const useComparisonResultsSimple = (
   sort: ColumnSortSpecList,
   statusFilter: ComparisonRowStatus[],
 ) => {
-  const pool = useInitializedDuckDBConnectionPool();
+  const pool = useInitializedDatabaseConnectionPool();
   const [results, setResults] = useState<ComparisonResults | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,8 @@ export const useComparisonResultsSimple = (
     setError(null);
 
     try {
+      await waitForComparisonTable(pool, tableName);
+
       // Build SQL with sorting
       const qualifiedTable = `pondpilot.main.${toDuckDBIdentifier(tableName)}`;
       const allowedStatuses = new Set<ComparisonRowStatus>([
@@ -155,3 +159,34 @@ export const useComparisonResultsSimple = (
 
   return { results, isLoading, error, refetch: fetchResults };
 };
+async function waitForComparisonTable(
+  pool: ReturnType<typeof useInitializedDatabaseConnectionPool>,
+  tableName: string,
+  options?: { timeoutMs?: number; intervalMs?: number },
+): Promise<void> {
+  const timeoutMs = options?.timeoutMs ?? 10_000;
+  const intervalMs = options?.intervalMs ?? 250;
+  const deadline = Date.now() + timeoutMs;
+  const sql = `SELECT 1 AS exists_flag
+    FROM duckdb_tables()
+    WHERE database_name = ${escapeStringLiteral(PERSISTENT_DB_NAME)}
+      AND schema_name = 'main'
+      AND table_name = ${escapeStringLiteral(tableName)}
+    LIMIT 1`;
+
+  while (Date.now() <= deadline) {
+    try {
+      const result = await pool.query(sql);
+      if ((result as any)?.numRows > 0 || (result as any)?.rowCount > 0) {
+        return;
+      }
+    } catch (error) {
+      console.warn('Failed to verify comparison table existence', error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error(
+    `Comparison results table "${tableName}" is not yet available. Please wait a moment and retry.`,
+  );
+}

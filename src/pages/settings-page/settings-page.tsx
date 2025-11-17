@@ -1,8 +1,9 @@
 import { useActiveSection } from '@hooks/use-active-section';
+import { useIsTauri } from '@hooks/use-is-tauri';
 import { ActionIcon, Divider, Stack } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { Fragment, useEffect } from 'react';
+import { Fragment, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { SettingsBlock } from './components/settings-block';
@@ -11,7 +12,12 @@ import { settingsConfig, getNavigationItems } from './settings.config';
 
 export const SettingsPage = () => {
   const navigate = useNavigate();
-  const navigationItems = getNavigationItems();
+  const isTauri = useIsTauri();
+  const visibleBlocks = useMemo(
+    () => settingsConfig.blocks.filter((block) => !(block.isTauriOnly && !isTauri)),
+    [isTauri],
+  );
+  const navigationItems = useMemo(() => getNavigationItems(visibleBlocks), [visibleBlocks]);
   const sectionIds = navigationItems.map((item) => item.id);
   const activeSection = useActiveSection({ sections: sectionIds });
 
@@ -29,7 +35,7 @@ export const SettingsPage = () => {
   // Handle initial hash on page load
   useEffect(() => {
     const hash = window.location.hash.slice(1);
-    const validSectionIds = getNavigationItems().map((item) => item.id);
+    const validSectionIds = navigationItems.map((item) => item.id);
     if (hash && validSectionIds.includes(hash)) {
       // Small delay to ensure content is rendered
       setTimeout(() => {
@@ -42,24 +48,24 @@ export const SettingsPage = () => {
         }
       }, 100);
     }
-  }, []); // Empty dependency array - only run on mount
+  }, [navigationItems]);
 
   return (
     <div
-      className="flex flex-1 justify-center overflow-y-auto"
+      className="flex flex-1 h-full justify-center overflow-y-auto min-h-0"
       data-testid={setDataTestId('settings-page')}
     >
-      <div className="flex relative max-w-[1024px] w-full min-h-0">
+      <div className="flex relative max-w-[1024px] w-full min-h-0 h-full">
         <SettingsNavigation
           navigationItems={navigationItems}
           activeSection={activeSection}
           onSectionClick={scrollToSection}
         />
 
-        <main className="flex-1 p-4 overflow-y-auto min-h-0 custom-scroll-hidden">
-          <div className="max-w-2xl mx-auto">
-            <Stack gap={32} className="pb-16">
-              {settingsConfig.blocks.map((block, index) => (
+        <main className="flex-1 p-4 overflow-y-auto h-full min-h-0 custom-scroll-hidden">
+          <div className="max-w-2xl mx-auto min-h-full">
+            <Stack gap={32} className="pb-16 min-h-full">
+              {visibleBlocks.map((block, index) => (
                 <Fragment key={block.id}>
                   {index > 0 && <Divider />}
                   <SettingsBlock {...block} />

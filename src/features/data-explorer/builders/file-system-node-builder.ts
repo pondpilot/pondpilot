@@ -14,8 +14,8 @@ import {
   setPreviewTabId,
   deleteTabByDataSourceId,
 } from '@controllers/tab';
+import { ConnectionPool } from '@engines/types';
 import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AnyFlatFileDataSource, XlsxSheetView } from '@models/data-source';
 import { DBColumn, DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -37,7 +37,7 @@ import { validateFileRename, validateXlsxFileRename } from '../utils/validation'
 interface FileSystemBuilderContext {
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, keyof DataExplorerNodeTypeMap>;
-  conn: AsyncDuckDBConnectionPool;
+  conn: ConnectionPool;
   dataSourceByFileId: Map<LocalEntryId, AnyFlatFileDataSource>;
   flatFileSourcesValues: AnyFlatFileDataSource[];
   nonLocalDBFileEntries: LocalEntry[];
@@ -168,7 +168,8 @@ function buildXlsxSheetNode(
   const { nodeMap, anyNodeIdToNodeTypeMap } = context;
   const sheetLabel = sheet.sheetName;
   const sheetId = `${entry.id}::${sheet.sheetName}`;
-  const fqn = `main.${toDuckDBIdentifier(sheet.viewName)}`;
+  // Don't use database prefix - views are created in the default database
+  const fqn = toDuckDBIdentifier(sheet.viewName);
 
   nodeMap.set(sheetId, { entryId: entry.id, isSheet: true, sheetName: sheet.sheetName });
   anyNodeIdToNodeTypeMap.set(sheetId, 'sheet');
@@ -349,7 +350,8 @@ export function buildFileNode(
   const label = getFlatFileDataSourceName(relatedSource, entry);
   const iconType = getFlatFileDataSourceIcon(relatedSource);
   const value = entry.id;
-  const fqn = `main.${toDuckDBIdentifier(relatedSource.viewName)}`;
+  // Don't use database prefix - views are created in the default database
+  const fqn = toDuckDBIdentifier(relatedSource.viewName);
 
   // Get columns metadata if enabled
   const getFileColumns = (
