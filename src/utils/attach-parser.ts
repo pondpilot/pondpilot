@@ -62,9 +62,14 @@ export function parseAttachStatement(statement: string): ParsedAttachStatement |
   // Group 3: Database name (required)
   const [, rawUrl, , dbName] = match;
 
+  // DuckDB doesn't allow semicolons in unquoted identifiers, but scripts often
+  // terminate statements with `;` without whitespace ("AS mydb;"). Strip the
+  // trailing semicolon so the parsed database name matches DuckDB's actual alias.
+  const normalizedDbName = dbName.replace(/;$/, '');
+
   return {
     rawUrl,
-    dbName,
+    dbName: normalizedDbName,
     statement,
   };
 }
