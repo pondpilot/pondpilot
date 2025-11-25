@@ -1,4 +1,4 @@
-import { AnyDataSource, AnyFlatFileDataSource } from '@models/data-source';
+import { AnyDataSource, AnyFlatFileDataSource, SYSTEM_DATABASE_NAME } from '@models/data-source';
 import { ComparisonSource } from '@models/tab';
 
 /**
@@ -38,6 +38,6 @@ export function dataSourceToComparisonSource(
     type: 'table',
     tableName: flatFileSource.viewName,
     schemaName: 'main',
-    databaseName: 'pondpilot',
+    databaseName: SYSTEM_DATABASE_NAME,
   };
 }

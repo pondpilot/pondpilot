@@ -1,6 +1,6 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import type { ComparisonId, ComparisonSourceStat } from '@models/comparison';
-import { AnyFlatFileDataSource } from '@models/data-source';
+import { AnyFlatFileDataSource, SYSTEM_DATABASE_NAME } from '@models/data-source';
 import { DataSourceLocalFile, LocalEntry } from '@models/file-system';
 import { ComparisonSource, SchemaComparisonResult } from '@models/tab';
 import { useAppStore } from '@store/app-store';
@@ -87,7 +87,10 @@ const getRowCountFromMetadata = async (
     return { rowCount: null, source: null };
   }
 
-  if (source.databaseName !== 'pondpilot' || (source.schemaName && source.schemaName !== 'main')) {
+  if (
+    source.databaseName !== SYSTEM_DATABASE_NAME ||
+    (source.schemaName && source.schemaName !== 'main')
+  ) {
     return { rowCount: null, source: null };
   }
 
