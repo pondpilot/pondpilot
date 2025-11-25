@@ -87,7 +87,10 @@ const getRowCountFromMetadata = async (
     return { rowCount: null, source: null };
   }
 
-  if (source.databaseName !== SYSTEM_DATABASE_NAME || (source.schemaName && source.schemaName !== 'main')) {
+  if (
+    source.databaseName !== SYSTEM_DATABASE_NAME ||
+    (source.schemaName && source.schemaName !== 'main')
+  ) {
     return { rowCount: null, source: null };
   }
 
