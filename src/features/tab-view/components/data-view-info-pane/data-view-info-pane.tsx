@@ -7,6 +7,7 @@ import { useTableExport } from '@features/tab-view/hooks';
 import { TextProps, Group, ActionIcon, Button, Text, Menu, Divider, Tooltip } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { DataAdapterApi } from '@models/data-adapter';
+import { SYSTEM_DATABASE_NAME } from '@models/data-source';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { IconX, IconCopy, IconRefresh, IconChevronDown, IconScale } from '@tabler/icons-react';
@@ -111,7 +112,7 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
           type: 'table' as const,
           tableName: tabName,
           schemaName: 'main',
-          databaseName: 'system',
+          databaseName: SYSTEM_DATABASE_NAME,
         };
       } else if (tab.dataSourceType === 'db') {
         // For database sources
