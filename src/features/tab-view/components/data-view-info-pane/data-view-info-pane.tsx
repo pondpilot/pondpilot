@@ -126,7 +126,7 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
 
         sourceA = {
           type: 'table' as const,
-          tableName: tabName,
+          tableName: tab.objectName,
           schemaName: tab.schemaName,
           databaseName: dataSource.dbName,
         };
