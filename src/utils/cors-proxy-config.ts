@@ -368,6 +368,90 @@ export function normalizeRemoteUrl(rawUrl: string): {
 }
 
 /**
+ * DuckDB variable name for custom S3 endpoint override.
+ * Users can set this via: SET VARIABLE s3_endpoint = 'minio.example.com:9000';
+ */
+export const S3_ENDPOINT_VARIABLE = 's3_endpoint';
+
+/**
+ * Query function type for fetching S3 endpoint from DuckDB session.
+ * Accepts a SQL string and returns a result with Arrow-like structure.
+ */
+type S3EndpointQueryResult = {
+  getChildAt: (index: number) => { get: (index: number) => unknown } | null;
+};
+
+/**
+ * Query the s3_endpoint variable from a DuckDB session.
+ * Users can set this via: SET VARIABLE s3_endpoint = 'minio.example.com:9000';
+ *
+ * @param queryFn - Function that executes SQL and returns an Arrow-like result
+ * @returns The endpoint string, or null if not set or query fails
+ */
+export async function getS3EndpointFromSession(
+  queryFn: (sql: string) => Promise<S3EndpointQueryResult>,
+): Promise<string | null> {
+  try {
+    const result = await queryFn(`SELECT getvariable('${S3_ENDPOINT_VARIABLE}')`);
+    const value = result.getChildAt(0)?.get(0);
+    // Arrow returns objects that need explicit string conversion
+    // Value is null/undefined when variable is not set
+    if (value == null) {
+      return null;
+    }
+    const strValue = String(value);
+    // Check for null-ish string representations
+    return strValue && strValue !== 'null' && strValue !== 'undefined' ? strValue : null;
+  } catch {
+    // Variable not set or query failed - this is expected when users
+    // haven't configured a custom S3 endpoint
+    return null;
+  }
+}
+
+/**
+ * Default AWS S3 endpoint
+ */
+const DEFAULT_S3_ENDPOINT = 's3.amazonaws.com';
+
+/**
+ * Validate an S3 endpoint string to prevent injection attacks.
+ *
+ * Checks that the endpoint:
+ * - Does not contain URL injection characters (@, #)
+ * - Can form a valid URL when combined with a protocol
+ *
+ * @param endpoint - The endpoint string to validate
+ * @returns true if the endpoint is safe to use
+ */
+export function isValidS3Endpoint(endpoint: string): boolean {
+  const trimmed = endpoint.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  // Block characters that could be used for URL injection
+  // @ - could inject credentials (user:pass@host)
+  // # - could inject fragments that alter URL parsing
+  if (trimmed.includes('@') || trimmed.includes('#')) {
+    return false;
+  }
+
+  // Validate that endpoint can form a valid URL
+  try {
+    // If it already has a protocol, validate as-is
+    const testUrl =
+      trimmed.startsWith('http://') || trimmed.startsWith('https://')
+        ? trimmed
+        : `https://${trimmed}`;
+    // URL constructor throws if invalid - we just need to check validity
+    return URL.canParse?.(testUrl) ?? Boolean(new URL(testUrl));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Convert an S3 URL to an HTTPS URL
  *
  * Converts s3://bucket/path to an appropriate HTTPS URL.
@@ -375,9 +459,10 @@ export function normalizeRemoteUrl(rawUrl: string): {
  *
  * For buckets with dots (e.g., my.bucket), uses path-style URLs to avoid
  * TLS certificate validation issues. For buckets without dots, uses
- * virtual-hosted-style URLs.
+ * virtual-hosted-style URLs (only for AWS S3).
  *
  * @param s3Url - The S3 URL (s3://bucket/path?query)
+ * @param endpoint - Optional custom S3 endpoint (e.g., 'minio.example.com:9000')
  * @returns HTTPS URL, or null if invalid S3 URL
  *
  * @example
@@ -387,8 +472,12 @@ export function normalizeRemoteUrl(rawUrl: string): {
  * @example
  * convertS3ToHttps('s3://my.dotted.bucket/data.csv?versionId=abc123')
  * // Returns: 'https://s3.amazonaws.com/my.dotted.bucket/data.csv?versionId=abc123'
+ *
+ * @example
+ * convertS3ToHttps('s3://mybucket/data.db', 'minio.example.com:9000')
+ * // Returns: 'https://minio.example.com:9000/mybucket/data.db'
  */
-export function convertS3ToHttps(s3Url: string): string | null {
+export function convertS3ToHttps(s3Url: string, endpoint?: string): string | null {
   try {
     const parsed = new URL(s3Url);
 
@@ -406,16 +495,38 @@ export function convertS3ToHttps(s3Url: string): string | null {
       return null;
     }
 
+    // If custom endpoint is provided, always use path-style URLs
+    // (most S3-compatible services like MinIO use path-style)
+    if (endpoint && endpoint.trim()) {
+      const trimmedEndpoint = endpoint.trim();
+      // Validate endpoint to prevent URL injection
+      if (!isValidS3Endpoint(trimmedEndpoint)) {
+        console.warn('[CORS Proxy] Invalid S3 endpoint, falling back to default:', trimmedEndpoint);
+        // Fall through to default AWS handling
+      } else {
+        // If endpoint includes protocol, use it as-is
+        if (trimmedEndpoint.startsWith('http://') || trimmedEndpoint.startsWith('https://')) {
+          return `${trimmedEndpoint}/${bucket}${path}${search}`;
+        }
+        // For localhost/127.0.0.1, default to http (common for local dev)
+        if (trimmedEndpoint.startsWith('localhost') || trimmedEndpoint.startsWith('127.0.0.1')) {
+          return `http://${trimmedEndpoint}/${bucket}${path}${search}`;
+        }
+        // Otherwise default to https
+        return `https://${trimmedEndpoint}/${bucket}${path}${search}`;
+      }
+    }
+
     // Buckets with dots in the name cause TLS wildcard mismatch with
     // virtual-hosted-style URLs (https://my.bucket.s3.amazonaws.com)
     // Use path-style instead: https://s3.amazonaws.com/my.bucket/path
     if (bucket.includes('.')) {
-      return `https://s3.amazonaws.com/${bucket}${path}${search}`;
+      return `https://${DEFAULT_S3_ENDPOINT}/${bucket}${path}${search}`;
     }
 
     // For buckets without dots, use virtual-hosted-style
     // This will auto-redirect to the correct region
-    return `https://${bucket}.s3.amazonaws.com${path}${search}`;
+    return `https://${bucket}.${DEFAULT_S3_ENDPOINT}${path}${search}`;
   } catch {
     return null;
   }

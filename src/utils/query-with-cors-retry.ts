@@ -11,7 +11,7 @@ import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-poo
 import * as arrow from 'apache-arrow';
 
 import { rewriteAttachUrl, isAttachStatement } from './attach-cors-rewriter';
-import { getCorsProxySettings, PROXY_PREFIX } from './cors-proxy-config';
+import { getCorsProxySettings, getS3EndpointFromSession, PROXY_PREFIX } from './cors-proxy-config';
 import { getErrorMessage, isCorsError } from './error-classification';
 
 /**
@@ -23,10 +23,13 @@ import { getErrorMessage, isCorsError } from './error-classification';
  * - CORS error detection and retry
  * - User notifications
  * - Proxy error handling
+ * - Custom S3 endpoint from DuckDB session variable
  *
  * @param query - The SQL query to execute
  * @param executor - Function to execute the query directly
  * @param retryExecutor - Function to execute the rewritten query on retry
+ * @param getS3Endpoint - Function to get the s3_endpoint variable from DuckDB session
+ * @param rollback - Function to rollback the transaction (needed after CORS error aborts transaction)
  * @returns Query result
  * @internal
  */
@@ -34,13 +37,22 @@ async function executeWithCorsRetry<TResult>(
   query: string,
   executor: () => Promise<TResult>,
   retryExecutor: (rewrittenQuery: string) => Promise<TResult>,
+  getS3Endpoint: () => Promise<string | null>,
+  rollback: () => Promise<void>,
 ): Promise<TResult> {
   const settings = getCorsProxySettings();
 
   // First, check for explicit proxy: prefix in ATTACH statements
   // This must be done BEFORE sending to DuckDB to avoid it being parsed as an extension
   if (isAttachStatement(query) && query.includes(PROXY_PREFIX)) {
-    const { rewritten } = rewriteAttachUrl(query);
+    // Query DuckDB for custom S3 endpoint if this is an S3 URL
+    const isS3Url = query.toLowerCase().includes('s3://');
+    const s3Endpoint = isS3Url ? await getS3Endpoint() : null;
+
+    const { rewritten } = rewriteAttachUrl(query, {
+      forceWrap: false,
+      s3Endpoint: s3Endpoint || undefined,
+    });
     // Always use the rewritten query to ensure proxy: prefix is stripped
     // even if the URL wasn't actually wrapped with the proxy
     return await retryExecutor(rewritten);
@@ -52,11 +64,30 @@ async function executeWithCorsRetry<TResult>(
   } catch (error) {
     // Only retry if it's a CORS error and an ATTACH statement (auto mode)
     if (settings.behavior === 'auto' && isCorsError(error) && isAttachStatement(query)) {
+      // A failed ATTACH due to CORS error leaves DuckDB's transaction in an aborted state.
+      // DuckDB-WASM wraps ATTACH in an implicit transaction, and when the HTTP request
+      // fails due to CORS, that transaction becomes "aborted" rather than cleanly rolled back.
+      // We must explicitly rollback before executing any new queries (like querying the
+      // s3_endpoint session variable below), otherwise those queries will fail with
+      // "transaction is aborted" errors.
+      try {
+        await rollback();
+      } catch {
+        // Ignore rollback errors - transaction might not be active or already rolled back
+      }
+
       // Check if this is an S3 URL for better messaging
       const isS3Url = query.toLowerCase().includes('s3://');
 
+      // Query DuckDB for custom S3 endpoint if this is an S3 URL
+      // This must happen AFTER rollback, otherwise the query will fail
+      const s3Endpoint = isS3Url ? await getS3Endpoint() : null;
+
       // Rewrite the query to use CORS proxy (forceWrap = true)
-      const { rewritten, wasRewritten } = rewriteAttachUrl(query, true);
+      const { rewritten, wasRewritten } = rewriteAttachUrl(query, {
+        forceWrap: true,
+        s3Endpoint: s3Endpoint || undefined,
+      });
 
       if (wasRewritten) {
         // Show notification to user with context-specific message
@@ -115,6 +146,7 @@ async function executeWithCorsRetry<TResult>(
  * 1. Try query directly first
  * 2. If CORS error and is ATTACH statement → rewrite URLs and retry
  * 3. Show notification when proxy is used
+ * 4. Use s3_endpoint variable from DuckDB session if set
  *
  * @param pool The DuckDB connection pool
  * @param query The SQL query to execute
@@ -129,6 +161,10 @@ export async function queryWithCorsRetry<
     query,
     () => pool.query<T>(query),
     (rewritten) => pool.query<T>(rewritten),
+    () => getS3EndpointFromSession((sql) => pool.query(sql)),
+    async () => {
+      await pool.query('ROLLBACK');
+    },
   );
 }
 
@@ -155,6 +191,10 @@ export async function queryAbortableWithCorsRetry<
     query,
     () => pool.queryAbortable<T>(query, signal),
     (rewritten) => pool.queryAbortable<T>(rewritten, signal),
+    () => getS3EndpointFromSession((sql) => pool.query(sql)),
+    async () => {
+      await pool.query('ROLLBACK');
+    },
   );
 }
 
@@ -176,5 +216,9 @@ export async function pooledConnectionQueryWithCorsRetry<
     query,
     () => conn.query<T>(query),
     (rewritten) => conn.query<T>(rewritten),
+    () => getS3EndpointFromSession((sql) => conn.query(sql)),
+    async () => {
+      await conn.query('ROLLBACK');
+    },
   );
 }

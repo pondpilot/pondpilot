@@ -22,6 +22,18 @@ export function isAttachStatement(query: string): boolean {
   return classified.type === SQLStatement.ATTACH;
 }
 
+export interface RewriteAttachUrlOptions {
+  /**
+   * If true, always wrap remote URLs regardless of behavior setting (used in auto-retry)
+   */
+  forceWrap?: boolean;
+  /**
+   * Custom S3 endpoint for non-AWS S3-compatible services (e.g., MinIO).
+   * Example: 'minio.example.com:9000'
+   */
+  s3Endpoint?: string;
+}
+
 /**
  * Rewrite HTTP(S) and S3 URLs in an ATTACH statement to use CORS proxy
  *
@@ -38,12 +50,18 @@ export function isAttachStatement(query: string): boolean {
  *   → (tries native s3:// first, converts to https:// + proxy on CORS error)
  *
  * @param query - The SQL query to rewrite
- * @param forceWrap - If true, always wrap remote URLs regardless of behavior setting (used in auto-retry)
+ * @param optionsOrForceWrap - Options object or boolean for backward compatibility
  */
 export function rewriteAttachUrl(
   query: string,
-  forceWrap: boolean = false,
+  optionsOrForceWrap: boolean | RewriteAttachUrlOptions = false,
 ): { rewritten: string; wasRewritten: boolean } {
+  // Support both old boolean signature and new options object
+  const options: RewriteAttachUrlOptions =
+    typeof optionsOrForceWrap === 'boolean'
+      ? { forceWrap: optionsOrForceWrap }
+      : optionsOrForceWrap;
+  const { forceWrap = false, s3Endpoint } = options;
   if (!isAttachStatement(query)) {
     return { rewritten: query, wasRewritten: false };
   }
@@ -68,7 +86,7 @@ export function rewriteAttachUrl(
       // Handle S3 URLs - convert to HTTPS before wrapping
       // This handles both forceWrap (auto-retry) and explicit proxy: prefix scenarios
       if (cleanUrl.startsWith('s3://') && (isExplicitProxy || forceWrap)) {
-        const httpsUrl = convertS3ToHttps(cleanUrl);
+        const httpsUrl = convertS3ToHttps(cleanUrl, s3Endpoint);
         if (httpsUrl) {
           // Use path-based proxy for .duckdb files to allow DuckDB to construct URLs for related files
           const proxiedUrl = wrapWithCorsProxyPathBased(httpsUrl);
