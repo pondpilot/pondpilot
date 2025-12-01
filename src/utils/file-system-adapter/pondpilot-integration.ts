@@ -2,10 +2,18 @@
  * Integration utilities for PondPilot to work with the file system adapter
  */
 
-import { SUPPORTED_DATA_SOURCE_FILE_EXTS } from '@models/file-system';
+import { SUPPORTED_DATA_SOURCE_FILE_EXTS, CORE_DATA_SOURCE_FILE_EXTS } from '@models/file-system';
+import { isTauriEnvironment } from '@utils/browser';
 
 import { fileSystemService } from './file-system-service';
 import { createFileHandleWrapper, createDirectoryHandleWrapper } from './handle-converter';
+import { getFilePicker } from '../../services/file-picker';
+import {
+  createUnifiedFileHandle,
+  createUnifiedDirectoryHandle,
+  createMockFileSystemFileHandle,
+  createMockFileSystemDirectoryHandle,
+} from '../file-handle';
 
 interface PickFilesResult {
   handles: FileSystemFileHandle[];
@@ -30,6 +38,44 @@ export async function pickFilesForPondPilot(
   multiple: boolean = true,
 ): Promise<PickFilesResult> {
   try {
+    // For Tauri, use the file picker directly
+    if (isTauriEnvironment()) {
+      const filePicker = getFilePicker();
+      const result = await filePicker.pickFiles({
+        accept: accept || [],
+        description: description || 'Select files',
+        multiple,
+      });
+
+      if (result.cancelled || result.error) {
+        return {
+          handles: [],
+          error: result.error || null,
+          isFallbackMode: false,
+        };
+      }
+
+      // Create unified handles for Tauri files
+      const handles: FileSystemFileHandle[] = result.files.map((file) => {
+        if (file.handle) {
+          return file.handle;
+        }
+
+        // Create a unified handle for files without native handles
+        const unifiedHandle = createUnifiedFileHandle(file.path!, file.name);
+
+        // Create a mock FileSystemFileHandle
+        return createMockFileSystemFileHandle(unifiedHandle);
+      });
+
+      return {
+        handles,
+        error: null,
+        isFallbackMode: false,
+      };
+    }
+
+    // For non-Tauri browsers, use the file system service
     // Build accept object
     const acceptObj: Record<string, string[]> = {};
     if (accept && accept.length > 0) {
@@ -91,6 +137,44 @@ export async function pickFilesForPondPilot(
  */
 export async function pickFolderForPondPilot(): Promise<PickFolderResult> {
   try {
+    // For Tauri, use the file picker directly
+    if (isTauriEnvironment()) {
+      const filePicker = getFilePicker();
+      const result = await filePicker.pickDirectory();
+
+      if (result.cancelled || result.error) {
+        return {
+          handle: null,
+          error: result.error || null,
+          isFallbackMode: false,
+        };
+      }
+
+      if (result.directory) {
+        // Create a unified directory handle for Tauri
+        const unifiedHandle = createUnifiedDirectoryHandle(
+          result.directory.path!,
+          result.directory.name,
+        );
+
+        // Create a mock FileSystemDirectoryHandle for compatibility
+        const mockHandle = createMockFileSystemDirectoryHandle(unifiedHandle);
+
+        return {
+          handle: mockHandle,
+          error: null,
+          isFallbackMode: false,
+        };
+      }
+
+      return {
+        handle: null,
+        error: 'No directory selected',
+        isFallbackMode: false,
+      };
+    }
+
+    // For non-Tauri browsers, use the file system service
     const result = await fileSystemService.pickDirectory({
       mode: 'read',
     });
@@ -134,7 +218,10 @@ export async function pickFolderForPondPilot(): Promise<PickFolderResult> {
  * Pick data source files specifically for PondPilot
  */
 export async function pickDataSourceFiles(): Promise<PickFilesResult> {
-  const extensions = SUPPORTED_DATA_SOURCE_FILE_EXTS.map((ext) => `.${ext}`);
+  // Only include statistical file formats in Tauri
+  const extensions = isTauriEnvironment()
+    ? SUPPORTED_DATA_SOURCE_FILE_EXTS.map((ext) => `.${ext}`)
+    : CORE_DATA_SOURCE_FILE_EXTS.map((ext) => `.${ext}`);
   return pickFilesForPondPilot(extensions, 'Data Source Files', true);
 }
 

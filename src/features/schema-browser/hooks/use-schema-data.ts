@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { SchemaBrowserTab } from '@models/tab';
 import {
   useAppStore,
@@ -46,7 +46,7 @@ import {
  */
 export function useSchemaData(
   tab: Omit<SchemaBrowserTab, 'dataViewStateCache'>,
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   forceRefresh?: number,
 ): { isLoading: boolean; schemaData: SchemaGraph | null; error: SchemaError | null } {
   const [isLoading, setIsLoading] = useState<boolean>(true);

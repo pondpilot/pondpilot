@@ -9,8 +9,8 @@ import {
   clearTabExecutionError,
   setTabExecutionError,
 } from '@controllers/tab';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
+import { PreparedStatement } from '@engines/types';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { ScriptEditor } from '@features/script-editor';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import { RemoteDB } from '@models/data-source';
@@ -20,6 +20,7 @@ import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-
 import { parseAttachStatement, parseDetachStatement } from '@utils/attach-parser';
 import { normalizeRemoteUrl } from '@utils/cors-proxy-config';
 import { makePersistentDataSourceId } from '@utils/data-source';
+import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import {
   splitSQLByStats,
   classifySQLStatements,
@@ -32,7 +33,7 @@ import { isNotReadableError, getErrorMessage } from '@utils/error-classification
 import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
 import { formatSQLSafe } from '@utils/sql-formatter';
 import { Allotment } from 'allotment';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useState, useEffect } from 'react';
 
 import { DataView, DataViewInfoPane } from '../components';
 import { useDataAdapter } from '../hooks/use-data-adapter';
@@ -41,6 +42,9 @@ interface ScriptTabViewProps {
   tabId: TabId;
   active: boolean;
 }
+
+const getScriptResultTableName = (tabId: TabId): string =>
+  `pondpilot_script_result_${tabId.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
 export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
   // Get the reactive portion of tab state
@@ -65,7 +69,22 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
   const [scriptExecutionState, setScriptExecutionState] = useState<ScriptExecutionState>('idle');
 
-  const pool = useInitializedDuckDBConnectionPool();
+  // Monitor data adapter errors and update script execution state
+  useEffect(() => {
+    if (dataAdapter.dataSourceError.length > 0) {
+      // Only update if we're currently showing success
+      if (scriptExecutionState === 'success') {
+        setScriptExecutionState('error');
+        // Show error notification for streaming errors
+        showError({
+          title: 'Query execution failed',
+          message: dataAdapter.dataSourceError.join('\n'),
+        });
+      }
+    }
+  }, [dataAdapter.dataSourceError, scriptExecutionState]);
+
+  const pool = useInitializedDatabaseConnectionPool();
   const protectedViews = useProtectedViews();
   const { preferences } = useEditorPreferences();
 
@@ -102,7 +121,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // Check if the statements are valid
       const errors = validateStatements(classifiedStatements, protectedViews);
       if (errors.length > 0) {
-        console.error('Errors in SQL statements:', errors);
+        // Errors in SQL statements - user is notified via showError
         setScriptExecutionState('error');
         showError({
           title: 'Error in SQL statements',
@@ -114,8 +133,14 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // Query to be used in data adapter and saved to the store
       let lastExecutedQuery: string | null = null;
 
-      // Create a pooled connection
-      const conn = await pool.getPooledConnection();
+      // Get a connection from the pool for the entire operation
+      const conn = await pool.acquire();
+      const scriptResultTableName = getScriptResultTableName(tabId);
+      const qualifiedScriptResultTable = `main.${toDuckDBIdentifier(scriptResultTableName)}`;
+
+      const dropPreviousResult = async () => {
+        await conn.execute(`DROP TABLE IF EXISTS ${qualifiedScriptResultTable}`);
+      };
 
       const runQueryWithFileSyncAndRetry = async (code: string) => {
         try {
@@ -130,9 +155,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         }
       };
 
-      const prepQueryWithFileSyncAndRetry = async (
-        code: string,
-      ): Promise<AsyncDuckDBPooledPreparedStatement<any>> => {
+      const prepQueryWithFileSyncAndRetry = async (code: string): Promise<PreparedStatement> => {
         try {
           return await conn.prepare(code);
         } catch (error: unknown) {
@@ -145,12 +168,23 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       };
 
       try {
-        // No need transaction if there is only one statement
+        // Cancel any active data operations before running new script
+        // This ensures clean state for the new execution
+        dataAdapter.cancelAllDataOperations();
+
+        // Clean up old temp table if it exists (from legacy executions)
+        // This is a no-op for most cases since we no longer create temp tables
+        try {
+          await dropPreviousResult();
+        } catch (error) {
+          // Ignore errors - table might not exist
+        }
+
         const needsTransaction =
           classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
 
         if (needsTransaction) {
-          await conn.query('BEGIN TRANSACTION');
+          await conn.execute('BEGIN TRANSACTION');
         }
 
         // Execute each statement except the last one
@@ -161,9 +195,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           } catch (error) {
             const message = getErrorMessage(error);
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await conn.execute('ROLLBACK');
             }
-            console.error('Error executing statement:', statement.type, error);
+            // Error executing statement - user is notified via showErrorWithAction
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
               errorMessage: message,
@@ -190,7 +224,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
         const lastStatement = classifiedStatements[classifiedStatements.length - 1];
         if (SelectableStatements.includes(lastStatement.type)) {
-          // Validate last SELECT statement via prepare
+          // Validate last statement via prepare before materializing results
           try {
             const preparedStatement = await prepQueryWithFileSyncAndRetry(lastStatement.code);
             await preparedStatement.close();
@@ -198,12 +232,8 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             const message = getErrorMessage(error);
 
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await conn.execute('ROLLBACK');
             }
-            console.error(
-              'Creation of a prepared statement for the last SELECT statement failed:',
-              error,
-            );
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
               errorMessage: message,
@@ -216,7 +246,6 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
               action: {
                 label: 'Fix with AI',
                 onClick: () => {
-                  // Dispatch custom event to trigger AI Assistant
                   const event = new CustomEvent('trigger-ai-assistant', {
                     detail: { tabId },
                   });
@@ -226,6 +255,10 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             });
             return;
           }
+
+          // For SELECT/WITH statements, stream results directly
+          // For other selectable statements (DESCRIBE, SHOW, etc.), also use directly
+          // The data adapter handles all paging/streaming efficiently - no materialization needed
           lastExecutedQuery = lastStatement.code;
         } else {
           // The last statement is not a SELECT statement
@@ -235,9 +268,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           } catch (error) {
             const message = getErrorMessage(error);
             if (needsTransaction) {
-              await conn.query('ROLLBACK');
+              await conn.execute('ROLLBACK');
             }
-            console.error('Error executing last non-SELECT statement:', lastStatement.type, error);
+            // Error executing last non-SELECT statement - user is notified via showErrorWithAction
             setScriptExecutionState('error');
             setTabExecutionError(tabId, {
               errorMessage: message,
@@ -265,7 +298,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
         // All statements executed successfully
         if (needsTransaction) {
-          await conn.query('COMMIT');
+          await conn.execute('COMMIT');
         }
 
         // Check if any DDL or database operations were executed and refresh metadata
@@ -275,12 +308,55 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         );
 
         if (hasDDL || hasAttachDetach) {
-          // Get all currently attached databases
-          const attachedDatabasesResult = await conn.query(
-            'SELECT DISTINCT database_name FROM duckdb_databases() WHERE NOT internal',
+          const attachedDatabasesResult = await conn.execute(
+            'SELECT DISTINCT database_name FROM duckdb_databases',
           );
-          const attachedDatabases = attachedDatabasesResult.toArray();
-          const dbNames = attachedDatabases.map((row: any) => row.database_name);
+
+          // Handle the result format from conn.execute (returns {rows: [...], columns: [...], ...})
+          let attachedDatabases: any[];
+          if (attachedDatabasesResult && attachedDatabasesResult.rows) {
+            // Direct result format from Tauri connection
+            attachedDatabases = attachedDatabasesResult.rows;
+          } else if (Array.isArray(attachedDatabasesResult)) {
+            // Already an array
+            attachedDatabases = attachedDatabasesResult;
+          } else {
+            // Fallback
+            attachedDatabases = [];
+          }
+
+          // Filter out system databases manually since attached databases might be marked as internal
+          const systemDatabases = ['system', 'temp'];
+          const dbNames = attachedDatabases
+            .map((row: any) => row.database_name)
+            .filter((name) => !systemDatabases.includes(name));
+
+          // For newly attached databases, we need to ensure metadata is loaded
+          // by querying the database schema
+          for (const dbName of dbNames) {
+            if (dbName !== 'memory' && dbName !== 'temp' && dbName !== 'system') {
+              try {
+                // Try to query the database to ensure metadata is loaded
+                const schemaQuery = `SELECT table_name FROM ${toDuckDBIdentifier(
+                  dbName,
+                )}.information_schema.tables LIMIT 1`;
+                await pool.query(schemaQuery).catch(() => {
+                  // If information_schema doesn't exist, try duckdb_tables
+                  return pool
+                    .query(
+                      `SELECT name FROM ${toDuckDBIdentifier(
+                        dbName,
+                      )}.sqlite_master WHERE type='table' LIMIT 1`,
+                    )
+                    .catch(() => {
+                      // Ignore errors - some databases might not have these views
+                    });
+                });
+              } catch (e) {
+                // Ignore errors
+              }
+            }
+          }
 
           // Refresh metadata for all attached databases
           const newMetadata = await getDatabaseModel(pool, dbNames);
@@ -321,9 +397,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
                       const remoteDb: RemoteDB = {
                         type: 'remote-db',
                         id: makePersistentDataSourceId(),
-                        url,
+                        connectionType: 'url',
+                        legacyUrl: url,
                         dbName,
-                        dbType: 'duckdb',
+                        queryEngineType: 'duckdb',
+                        supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
                         connectionState: 'connected',
                         attachedAt: Date.now(),
                       };
@@ -356,10 +434,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
                     // Remove from metadata
                     updatedMetadata.delete(dbName);
 
-                    // Remove from IndexedDB
-                    const { _iDbConn } = useAppStore.getState();
-                    if (_iDbConn) {
-                      await persistDeleteDataSource(_iDbConn, [dbId], []);
+                    // Remove from persistent store
+                    const { _iDbConn, _persistenceAdapter } = useAppStore.getState();
+                    const store = (_persistenceAdapter as any) || _iDbConn;
+                    if (store) {
+                      await persistDeleteDataSource(store, [dbId], []);
                     }
                   }
                 }
@@ -378,9 +457,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         }
       } finally {
         // Release the pooled connection
-        await conn.close();
+        await pool.release(conn);
       }
 
+      // Only set success state if there are no immediate errors
+      // Streaming errors will be caught by the useEffect hook
       setScriptExecutionState('success');
       clearTabExecutionError(tabId);
       incrementScriptVersion();
@@ -389,7 +470,15 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // update the state and trigger re-render.
       updateScriptTabLastExecutedQuery({ tabId, lastExecutedQuery, force: true });
     },
-    [pool, protectedViews, tabId, incrementScriptVersion, preferences, tab.sqlScriptId],
+    [
+      pool,
+      protectedViews,
+      tabId,
+      incrementScriptVersion,
+      preferences,
+      tab.sqlScriptId,
+      dataAdapter,
+    ],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {

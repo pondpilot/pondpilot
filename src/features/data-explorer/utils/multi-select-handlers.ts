@@ -3,7 +3,7 @@ import { TreeNodeData } from '@components/explorer-tree';
 import { deleteDataSources } from '@controllers/data-source';
 import { deleteLocalFileOrFolders } from '@controllers/file-system';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { PersistentDataSourceId } from '@models/data-source';
 import { LocalEntryId } from '@models/file-system';
 
@@ -12,7 +12,7 @@ import { DataExplorerNodeMap, DataExplorerNodeTypeMap, isDBNodeInfo } from '../m
 interface MultiSelectHandlerContext {
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, keyof DataExplorerNodeTypeMap>;
-  conn: AsyncDuckDBConnectionPool;
+  conn: ConnectionPool;
   flatFileSources: Map<PersistentDataSourceId, any>;
 }
 

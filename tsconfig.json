@@ -30,7 +30,8 @@
       "@controllers/*": ["controllers/*"],
       "@models/*": ["models/*"],
       "@assets/*": ["assets/*"],
-      "@services/*": ["services/*"]
+      "@services/*": ["services/*"],
+      "@engines/*": ["engines/*"]
     }
   },
   "include": ["src", "tests", "playwright.config.ts"]

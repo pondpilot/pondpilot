@@ -2,7 +2,7 @@ import { TreeNodeData } from '@components/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { createComparisonWithSources } from '@controllers/tab/comparison-tab-controller';
 import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { ComparisonSource } from '@models/comparison';
 import { AnyFlatFileDataSource } from '@models/data-source';
 import { LocalEntryId, supportedFlatFileDataSourceFileExt } from '@models/file-system';
@@ -24,7 +24,7 @@ import { DataExplorerContext, DataExplorerNodeTypeMap } from './model';
  * Unified data explorer that combines file system and database exploration
  */
 export const DataExplorer = memo(() => {
-  const conn = useInitializedDuckDBConnectionPool();
+  const conn = useInitializedDatabaseConnectionPool();
 
   // State management
   const {

@@ -1,26 +1,69 @@
 import { showError, showSuccess } from '@components/app-notifications';
 import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { Stack, TextInput, Text, Button, Group, Checkbox, Alert, Tooltip } from '@mantine/core';
+import { ConnectionPool } from '@engines/types';
+import {
+  Stack,
+  TextInput,
+  Text,
+  Button,
+  Group,
+  Checkbox,
+  Alert,
+  Tooltip,
+  Select,
+} from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { RemoteDB } from '@models/data-source';
+import { SecretType, SECRET_TYPE_LABELS } from '@models/secrets';
+import SecretsAPI from '@services/secrets-api';
 import { useAppStore } from '@store/app-store';
 import { IconAlertCircle } from '@tabler/icons-react';
+import { isTauriEnvironment } from '@utils/browser';
 import { executeWithRetry } from '@utils/connection-manager';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { quote } from '@utils/helpers';
+import {
+  attachMotherDuckDatabase,
+  verifyDatabaseAttached,
+  MOTHERDUCK_CONSTANTS,
+} from '@utils/motherduck-helper';
 import { validateRemoteDatabaseUrl } from '@utils/remote-database';
+import { getSecretAlias } from '@utils/secret-alias';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { setDataTestId } from '@utils/test-id';
-import { useState } from 'react';
+import { isMotherDuckUrl } from '@utils/url-helpers';
+import { useState, useMemo } from 'react';
+
+import { useSecretsByType } from '../hooks/use-secrets-by-type';
 
 interface RemoteDatabaseConfigProps {
-  pool: AsyncDuckDBConnectionPool | null;
+  pool: ConnectionPool | null;
   onBack: () => void;
   onClose: () => void;
 }
+
+const SUPPORTED_SECRET_TYPES: SecretType[] = [
+  SecretType.S3,
+  SecretType.R2,
+  SecretType.GCS,
+  SecretType.Azure,
+  SecretType.HTTP,
+  SecretType.HuggingFace,
+  SecretType.DuckLake,
+];
+
+const SECRET_ATTACH_TYPE: Partial<Record<SecretType, string>> = {
+  [SecretType.S3]: 'S3',
+  [SecretType.R2]: 'R2',
+  [SecretType.GCS]: 'GCS',
+  [SecretType.Azure]: 'AZURE',
+  [SecretType.HTTP]: 'HTTP',
+  [SecretType.HuggingFace]: 'HUGGINGFACE',
+  [SecretType.DuckLake]: 'DUCKLAKE',
+};
 
 export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseConfigProps) {
   const [url, setUrl] = useInputState('');
@@ -29,6 +72,56 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
   const [useCorsProxy, setUseCorsProxy] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [selectedSecretId, setSelectedSecretId] = useState<string | null>(null);
+
+  const { secrets: availableSecrets, loading: secretsLoading } =
+    useSecretsByType(SUPPORTED_SECRET_TYPES);
+
+  const selectedSecret = useMemo(
+    () => availableSecrets.find((secret) => secret.metadata.id === selectedSecretId) || null,
+    [selectedSecretId, availableSecrets],
+  );
+
+  const effectiveUseCorsProxy = selectedSecret ? false : useCorsProxy;
+  const secretOptions = useMemo(
+    () =>
+      availableSecrets.map((secret) => ({
+        value: secret.metadata.id,
+        label: secret.metadata.name,
+        description: SECRET_TYPE_LABELS[secret.type],
+      })),
+    [availableSecrets],
+  );
+
+  const ensureSecretRegistered = async () => {
+    if (!selectedSecret) {
+      return null;
+    }
+
+    const attachType = SECRET_ATTACH_TYPE[selectedSecret.type];
+    if (!attachType) {
+      showError({
+        title: 'Unsupported credential',
+        message: `Selected secret type (${SECRET_TYPE_LABELS[selectedSecret.type]}) cannot be used for this connection`,
+      });
+      return null;
+    }
+
+    try {
+      await SecretsAPI.registerStorageSecret(selectedSecret.metadata.id);
+      return {
+        attachType,
+        secretName: getSecretAlias(selectedSecret.metadata.id),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to apply credentials';
+      showError({
+        title: 'Credential error',
+        message,
+      });
+      throw error;
+    }
+  };
 
   const handleTest = async () => {
     if (isTesting || isLoading) {
@@ -56,7 +149,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
     if (!urlValidation.isValid) {
       notifications.clean();
       showError({
-        title: 'Invalid URL',
+        title: 'Validation error',
         message: urlValidation.error || 'Please enter a valid URL',
         autoClose: false,
       });
@@ -75,13 +168,37 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
     }
 
     try {
-      const attachQuery = buildAttachQuery(url, dbName, { readOnly, useCorsProxy });
-      await executeWithRetry(pool, attachQuery, {
-        maxRetries: 1,
-        timeout: 10000,
-      });
+      let attachQuery: string;
+      let actualDbName = dbName;
 
-      const detachQuery = `DETACH DATABASE ${toDuckDBIdentifier(dbName)}`;
+      // Handle MotherDuck URLs specially
+      if (isMotherDuckUrl(url)) {
+        const { remoteDb } = await attachMotherDuckDatabase(pool, url);
+        actualDbName = remoteDb.dbName;
+        attachQuery = `ATTACH ${quote(url.trim(), { single: true })}`;
+      } else {
+        const secretConfig = await ensureSecretRegistered();
+        attachQuery = buildAttachQuery(url, dbName, {
+          readOnly,
+          useCorsProxy: effectiveUseCorsProxy,
+          attachType: secretConfig?.attachType,
+          secretName: secretConfig?.secretName,
+        });
+      }
+
+      try {
+        await executeWithRetry(pool, attachQuery, {
+          maxRetries: 1,
+          timeout: 10000,
+        });
+      } catch (e: any) {
+        const msg = String(e?.message || e);
+        const isDup =
+          /already in use|already attached|Unique file handle conflict|already exists/i.test(msg);
+        if (!isDup) throw e;
+      }
+
+      const detachQuery = `DETACH DATABASE ${toDuckDBIdentifier(actualDbName)}`;
       await pool.query(detachQuery);
 
       showSuccess({
@@ -89,7 +206,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         message: 'Remote database connection test passed',
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : 'An unexpected error occurred';
       showError({
         title: 'Connection failed',
         message: `Failed to connect: ${message}`,
@@ -111,7 +228,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
     const urlValidation = validateRemoteDatabaseUrl(url);
     if (!urlValidation.isValid) {
       showError({
-        title: 'Invalid URL',
+        title: 'Validation error',
         message: urlValidation.error || 'Please enter a valid URL',
       });
       return;
@@ -127,59 +244,61 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
 
     setIsLoading(true);
     try {
-      const remoteDb: RemoteDB = {
-        type: 'remote-db',
-        id: makePersistentDataSourceId(),
-        url: url.trim(),
-        dbName: dbName.trim(),
-        dbType: 'duckdb',
-        connectionState: 'connecting',
-        attachedAt: Date.now(),
-        useCorsProxy,
-      };
+      let remoteDb: RemoteDB;
+      let attachQuery: string;
+
+      // Handle MotherDuck URLs specially
+      if (isMotherDuckUrl(url)) {
+        const mdResult = await attachMotherDuckDatabase(pool, url);
+        remoteDb = mdResult.remoteDb;
+        attachQuery = `ATTACH ${quote(url.trim(), { single: true })}`;
+      } else {
+        const secretConfig = await ensureSecretRegistered();
+        remoteDb = {
+          type: 'remote-db',
+          id: makePersistentDataSourceId(),
+          connectionType: 'url',
+          legacyUrl: url.trim(),
+          dbName: dbName.trim(),
+          queryEngineType: 'duckdb',
+          supportedPlatforms: ['duckdb-wasm', 'duckdb-tauri'],
+          connectionState: 'connecting',
+          attachedAt: Date.now(),
+          requiresProxy: effectiveUseCorsProxy,
+        };
+        attachQuery = buildAttachQuery(remoteDb.legacyUrl!, remoteDb.dbName, {
+          readOnly,
+          useCorsProxy: effectiveUseCorsProxy,
+          attachType: secretConfig?.attachType,
+          secretName: secretConfig?.secretName,
+        });
+      }
 
       const { dataSources, databaseMetadata } = useAppStore.getState();
       const newDataSources = new Map(dataSources);
       newDataSources.set(remoteDb.id, remoteDb);
 
-      const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, {
-        readOnly,
-        useCorsProxy,
-      });
-      await executeWithRetry(pool, attachQuery, {
-        maxRetries: 3,
-        timeout: 30000,
-        retryDelay: 2000,
-        exponentialBackoff: true,
-      });
+      try {
+        await executeWithRetry(pool, attachQuery, {
+          maxRetries: MOTHERDUCK_CONSTANTS.DEFAULT_ATTACH_MAX_RETRIES,
+          timeout: MOTHERDUCK_CONSTANTS.DEFAULT_ATTACH_TIMEOUT_MS,
+          retryDelay: MOTHERDUCK_CONSTANTS.DEFAULT_RETRY_DELAY_MS,
+          exponentialBackoff: true,
+        });
+      } catch (e: any) {
+        const msg = String(e?.message || e);
+        const isDup =
+          /already in use|already attached|Unique file handle conflict|already exists/i.test(msg);
+        if (!isDup) throw e;
+      }
 
       // Verify the database is attached by checking the catalog
-      // This replaces the arbitrary 1-second delay with a proper readiness check
-      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${remoteDb.dbName}'`;
-
-      let dbFound = false;
-      let attempts = 0;
-      const maxAttempts = 3;
-
-      while (!dbFound && attempts < maxAttempts) {
-        try {
-          const result = await pool.query(checkQuery);
-          if (result && result.numRows > 0) {
-            dbFound = true;
-          } else {
-            throw new Error('Database not found in catalog');
-          }
-        } catch (error) {
-          attempts += 1;
-          if (attempts >= maxAttempts) {
-            throw new Error(
-              `Database ${remoteDb.dbName} could not be verified after ${maxAttempts} attempts`,
-            );
-          }
-          console.warn(`Attempt ${attempts}: Database not ready yet, waiting...`);
-          await new Promise((resolve) => setTimeout(resolve, 500)); // Shorter delay between attempts
-        }
-      }
+      await verifyDatabaseAttached(
+        pool,
+        remoteDb.dbName,
+        MOTHERDUCK_CONSTANTS.MAX_VERIFICATION_ATTEMPTS,
+        500, // Using slightly longer delay than default for remote DBs
+      );
 
       remoteDb.connectionState = 'connected';
       newDataSources.set(remoteDb.id, remoteDb);
@@ -204,9 +323,10 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         );
       }
 
-      const { _iDbConn } = useAppStore.getState();
-      if (_iDbConn) {
-        await persistPutDataSources(_iDbConn, [remoteDb]);
+      const { _iDbConn, _persistenceAdapter } = useAppStore.getState();
+      const target = _persistenceAdapter || _iDbConn;
+      if (target) {
+        await persistPutDataSources(target, [remoteDb]);
       }
 
       showSuccess({
@@ -215,7 +335,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
       });
       onClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : 'An unexpected error occurred';
       showError({
         title: 'Failed to add database',
         message: `Error: ${message}`,
@@ -237,17 +357,48 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         className="text-sm"
         classNames={{ icon: 'mr-1' }}
       >
-        Supported protocols: HTTPS, S3, GCS (Google Cloud Storage), Azure Blob Storage
+        Supported sources: HTTPS (optionally with API tokens), S3/R2/GCS/Azure buckets
+        {isTauriEnvironment() ? ', and MotherDuck (md:)' : ''}
       </Alert>
 
       <Stack gap={12}>
+        <Stack gap={6}>
+          <Text size="sm" c="text-secondary" className="pl-4">
+            Optional: use saved credentials for cloud buckets or API tokens
+          </Text>
+          <Select
+            label="Stored credentials"
+            placeholder={
+              secretsLoading
+                ? 'Loading credentials...'
+                : secretOptions.length === 0
+                  ? 'No saved credentials'
+                  : 'Choose saved credentials (optional)'
+            }
+            data={secretOptions}
+            value={selectedSecretId}
+            onChange={setSelectedSecretId}
+            searchable
+            clearable
+            disabled={secretsLoading || secretOptions.length === 0 || isMotherDuckUrl(url)}
+            description="S3 / R2 / GCS / Azure / HTTP / HuggingFace / DuckLake secrets"
+            classNames={{ description: 'pl-4 text-sm' }}
+          />
+          {selectedSecret && (
+            <Text size="xs" c="text-secondary" className="pl-4">
+              Using {SECRET_TYPE_LABELS[selectedSecret.type]} credentials:{' '}
+              {selectedSecret.metadata.name}
+            </Text>
+          )}
+        </Stack>
+
         <TextInput
           label="Database URL"
           data-testid={setDataTestId('remote-database-url-input')}
-          placeholder="https://example.com/data.parquet"
+          placeholder="https://example.com/data.duckdb"
           value={url}
           onChange={setUrl}
-          description="Enter the full URL to your remote database or file"
+          description="Enter the full URL to your remote database file"
           required
         />
 
@@ -269,7 +420,11 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         />
 
         <Tooltip
-          label="Uses a CORS proxy to access databases without CORS headers. The proxy forwards requests transparently without logging or storing data."
+          label={
+            selectedSecret
+              ? 'Disabled while using saved credentials'
+              : 'Uses a CORS proxy to access databases without CORS headers'
+          }
           multiline
           w={300}
           withArrow
@@ -277,9 +432,10 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         >
           <Checkbox
             label="Use CORS proxy"
-            checked={useCorsProxy}
+            checked={effectiveUseCorsProxy}
             onChange={(event) => setUseCorsProxy(event.currentTarget.checked)}
             className="pl-4"
+            disabled={!!selectedSecret}
           />
         </Tooltip>
       </Stack>

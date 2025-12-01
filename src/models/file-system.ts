@@ -6,28 +6,49 @@ export type LocalEntryId = NewId<'LocalEntryId'>;
 
 export type LocalFileType = 'data-source' | 'code-file';
 
+// Core file extensions supported in both web and Tauri
+export const CORE_DATA_SOURCE_FILE_EXTS = ['csv', 'xlsx', 'duckdb', 'parquet', 'json'] as const;
+
+// Extensions only supported in Tauri (desktop version)
+export const TAURI_ONLY_DATA_SOURCE_FILE_EXTS = [
+  'db', // SQLite databases
+  'sas7bdat', // Statistical file formats
+  'xpt',
+  'sav',
+  'zsav',
+  'por',
+  'dta',
+] as const;
+
+// All supported extensions (used for type definitions)
 export const SUPPORTED_DATA_SOURCE_FILE_EXTS = [
-  'csv',
-  'xlsx',
-  'duckdb',
-  'parquet',
-  'json',
+  ...CORE_DATA_SOURCE_FILE_EXTS,
+  ...TAURI_ONLY_DATA_SOURCE_FILE_EXTS,
 ] as const;
 export type supportedDataSourceFileExt = (typeof SUPPORTED_DATA_SOURCE_FILE_EXTS)[number];
 export type supportedDataSourceFileExtArray = readonly supportedDataSourceFileExt[number][];
-export type supportedFlatFileDataSourceFileExt = Exclude<supportedDataSourceFileExt, 'duckdb'>;
+export type supportedFlatFileDataSourceFileExt = Exclude<
+  supportedDataSourceFileExt,
+  'duckdb' | 'db'
+>;
 
 export type AllDataSourceFileExt =
   | 'csv'
   | 'json'
   | 'txt'
   | 'duckdb'
-  | 'sqlite'
+  | 'db'
   | 'postgresql'
   | 'parquet'
   | 'arrow'
   | 'xlsx'
-  | 'url';
+  | 'url'
+  | 'sas7bdat'
+  | 'xpt'
+  | 'sav'
+  | 'zsav'
+  | 'por'
+  | 'dta';
 
 export const dataSourceMimeTypes = [
   'text/csv',
@@ -40,21 +61,33 @@ export const dataSourceMimeTypes = [
   'application/arrow',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/x-uri',
+  'application/x-sas-data',
+  'application/x-sas-xport',
+  'application/x-spss-sav',
+  'application/x-spss-zsav',
+  'application/x-spss-por',
+  'application/x-stata-dta',
 ] as const;
 
 export type DataSourceMimeType = (typeof dataSourceExtMap)[AllDataSourceFileExt];
 
-export const dataSourceExtMap = {
+export const dataSourceExtMap: Record<AllDataSourceFileExt, string> = {
   csv: 'text/csv',
   json: 'application/json',
   txt: 'text/plain',
   duckdb: 'application/duckdb',
-  sqlite: 'application/sqlite',
+  db: 'application/sqlite',
   postgresql: 'application/postgresql',
   parquet: 'application/parquet',
   arrow: 'application/arrow',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   url: 'text/x-uri', // remote sources
+  sas7bdat: 'application/x-sas-data',
+  xpt: 'application/x-sas-xport',
+  sav: 'application/x-spss-sav',
+  zsav: 'application/x-spss-zsav',
+  por: 'application/x-spss-por',
+  dta: 'application/x-stata-dta',
 } as const;
 
 export const ignoredFolders = new Set([
@@ -113,6 +146,11 @@ type LocalFileBase = {
    * multiple files with the same name in our single duckdb instance.
    */
   uniqueAlias: string;
+
+  /**
+   * File system path for Tauri applications
+   */
+  filePath?: string;
 };
 
 /**
@@ -182,6 +220,11 @@ export type LocalFolder = {
    * multiple top level folders with the same name
    */
   uniqueAlias: string;
+
+  /**
+   * File system path for Tauri applications
+   */
+  directoryPath?: string;
 };
 
 /**

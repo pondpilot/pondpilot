@@ -2,6 +2,8 @@
  * Unified file system service that automatically selects the appropriate adapter
  */
 
+import { isTauriEnvironment } from '@utils/browser';
+
 import { ChromeFileSystemAdapter } from './chrome-adapter';
 import { FallbackFileSystemAdapter } from './fallback-adapter';
 import {
@@ -19,12 +21,18 @@ import {
 class FileSystemService implements FileSystemAdapter {
   private adapter: FileSystemAdapter;
   private static instance: FileSystemService;
+  private isTauri: boolean;
 
   private constructor() {
+    this.isTauri = isTauriEnvironment();
+
     // Detect browser capabilities and select appropriate adapter
-    if (this.hasFileSystemAccessAPI()) {
+    // For Tauri, we should NOT use Chrome adapter as window.showDirectoryPicker doesn't exist
+    if (!this.isTauri && this.hasFileSystemAccessAPI()) {
       this.adapter = new ChromeFileSystemAdapter();
     } else {
+      // For Tauri and other browsers, use fallback adapter
+      // Tauri file picking is handled by the separate TauriFilePicker service
       this.adapter = new FallbackFileSystemAdapter();
     }
   }
@@ -47,22 +55,58 @@ class FileSystemService implements FileSystemAdapter {
 
   // Delegate all methods to the selected adapter
   getBrowserInfo(): BrowserInfo {
+    // For Tauri, always report full capabilities regardless of underlying browser
+    if (this.isTauri) {
+      return {
+        name: 'PondPilot Desktop',
+        version: '',
+        capabilities: this.getBrowserCapabilities(),
+        level: 'full',
+        limitations: [],
+        recommendations: [],
+      };
+    }
     return this.adapter.getBrowserInfo();
   }
 
   getBrowserCapabilities(): BrowserCapabilities {
+    // For Tauri, report full capabilities since file access is handled natively
+    if (this.isTauri) {
+      return {
+        // File system features - all available through Tauri APIs
+        hasNativeFileSystemAccess: true,
+        hasFallbackFileAccess: true,
+        canPickFiles: true,
+        canPickMultipleFiles: true,
+        canPickDirectories: true,
+        canPersistFileHandles: true,
+        canWriteToFiles: true,
+
+        // Storage features
+        hasOPFS: false, // Tauri uses native file system, not OPFS
+        hasIndexedDB: true,
+
+        // Input features
+        hasWebkitDirectory: true,
+        hasDragAndDrop: true,
+        hasDragAndDropDirectory: true,
+      };
+    }
     return this.adapter.getBrowserCapabilities();
   }
 
   canPersistHandles(): boolean {
+    if (this.isTauri) return true;
     return this.adapter.canPersistHandles();
   }
 
   canAccessDirectories(): boolean {
+    if (this.isTauri) return true;
     return this.adapter.canAccessDirectories();
   }
 
   canWriteBack(): boolean {
+    if (this.isTauri) return true;
     return this.adapter.canWriteBack();
   }
 

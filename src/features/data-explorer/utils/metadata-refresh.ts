@@ -1,8 +1,8 @@
 import { showWarning } from '@components/app-notifications';
 import { dropComparisonResultsTable } from '@controllers/comparison/table-utils';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { ConnectionPool } from '@engines/types';
 import { invalidateRowCountCacheForDatabase } from '@features/comparison/hooks/row-count-cache';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
 import { DataBaseModel, DBSchema } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
@@ -66,20 +66,24 @@ function collectOrphanComparisonTables(
 }
 
 export async function refreshDatabaseMetadata(
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   dbNames: string[],
   options?: {
-    comparisons?: Map<string, Pick<Comparison, 'resultsTableName'>>;
+    comparisons?: Map<string, Pick<Comparison, 'resultsTableName' | 'pendingResultsTableName'>>;
   },
 ): Promise<void> {
   try {
     const updatedMetadata = await getDatabaseModel(conn, dbNames);
-    const comparisons = options?.comparisons ?? useAppStore.getState().comparisons;
+    const state = useAppStore.getState();
+    const comparisons = options?.comparisons ?? state.comparisons;
     const trackedComparisonTables = new Set<string>();
 
     comparisons.forEach((comparison) => {
       if (comparison.resultsTableName) {
         trackedComparisonTables.add(comparison.resultsTableName);
+      }
+      if (comparison.pendingResultsTableName) {
+        trackedComparisonTables.add(comparison.pendingResultsTableName);
       }
     });
 
@@ -108,8 +112,8 @@ export async function refreshDatabaseMetadata(
       schema.objects = schema.objects.filter((object) => !tablesToRemove.has(object.name));
     });
 
-    useAppStore.setState((state) => {
-      const newMetadata = new Map(state.databaseMetadata);
+    useAppStore.setState((prevState) => {
+      const newMetadata = new Map(prevState.databaseMetadata);
       for (const [updatedDbName, updatedDbModel] of updatedMetadata) {
         newMetadata.set(updatedDbName, updatedDbModel);
       }
@@ -121,12 +125,10 @@ export async function refreshDatabaseMetadata(
     }
 
     if (orphanDropFailures.length > 0) {
-      showWarning({
-        title: 'Failed to clean comparison tables',
-        message: `Some stored comparison tables could not be removed automatically: ${orphanDropFailures.join(
-          ', ',
-        )}. You can drop them manually from the PondPilot database.`,
-      });
+      console.warn(
+        'Failed to clean comparison tables automatically:',
+        orphanDropFailures.join(', '),
+      );
     }
   } catch (error) {
     // Show user-friendly error without exposing internal details

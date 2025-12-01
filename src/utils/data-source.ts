@@ -120,6 +120,18 @@ export function addFlatFileDataSource(
         fileSourceId: localEntry.id,
         viewName,
       };
+    case 'sas7bdat':
+    case 'xpt':
+    case 'sav':
+    case 'zsav':
+    case 'por':
+    case 'dta':
+      return {
+        id: dataSourceId,
+        type: localEntry.ext,
+        fileSourceId: localEntry.id,
+        viewName,
+      };
     default:
       throw new Error('Unexpcted unsupported data source file type');
   }
@@ -163,6 +175,14 @@ export function addLocalDB(localEntry: DataSourceLocalFile, reservedDbs: Set<str
         id: dataSourceId,
         type: 'attached-db',
         dbType: 'duckdb',
+        fileSourceId: localEntry.id,
+        dbName,
+      };
+    case 'db':
+      return {
+        id: dataSourceId,
+        type: 'attached-db',
+        dbType: 'sqlite',
         fileSourceId: localEntry.id,
         dbName,
       };

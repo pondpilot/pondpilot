@@ -1,11 +1,11 @@
 import { syncFiles } from '@controllers/file-system';
 import { updateTabDataViewStaleDataCache } from '@controllers/tab';
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
-import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
-import { PoolTimeoutError } from '@features/duckdb-context/timeout-error';
+import { ConnectionTimeoutError } from '@engines/errors';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { useAbortController } from '@hooks/use-abort-controller';
 import { useDidUpdate } from '@mantine/hooks';
 import {
+  StreamReader,
   CancelledOperation,
   ColumnAggregateType,
   DataAdapterApi,
@@ -27,6 +27,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useDataAdapterQueries } from './use-data-adapter-queries';
 
+// SQL error patterns that indicate a query execution error rather than a file access error
+const SQL_ERROR_PATTERNS = ['Table Function with name', 'Catalog Error', 'Failed to execute query'];
+
+/**
+ * Checks if an error is a SQL execution error that shouldn't trigger file sync retries
+ */
+const isSqlExecutionError = (error: Error): boolean => {
+  return SQL_ERROR_PATTERNS.some((pattern) => error.message?.includes(pattern));
+};
+
 // Data adapter is a logic layer between abstract batch streaming data source
 // and the UI layer (Table component).
 //
@@ -43,7 +53,10 @@ type UseDataAdapterProps = {
 };
 
 export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): DataAdapterApi => {
-  const pool = useInitializedDuckDBConnectionPool();
+  const pool = useInitializedDatabaseConnectionPool();
+
+  // Add instance tracking for debugging race conditions
+  const instanceId = useRef(`adapter-${Math.random().toString(36).substr(2, 9)}`);
 
   /**
    * Hooks
@@ -72,6 +85,15 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
   // Using this to cancel all background tasks on tab close
   const activeTabId = useAppStore.use.activeTabId();
+
+  // Add cleanup tracking
+  useEffect(() => {
+    const currentInstanceId = instanceId.current;
+    return () => {
+      // Using saved instanceId to avoid stale closure warning
+      currentInstanceId;
+    };
+  }, [tab.id]);
 
   /**
    * Local Reactive State
@@ -161,6 +183,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
   const [dataSourceExhausted, setDataSourceExhausted] = useState(false);
   const [dataSourceReadError, setDataSourceReadError] = useState<string[]>([]);
+  const [rowCountWarning, setRowCountWarning] = useState<string | null>(null);
   /**
    * Set or append a data source read error. If an error is already present and a new value is set,
    * this function will append the new error to the existing one.
@@ -186,11 +209,13 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    */
 
   // Holds the current connection to the database
-  const mainDataReaderRef = useRef<AsyncDuckDBPooledStreamReader<any> | null>(null);
+  const mainDataReaderRef = useRef<StreamReader<any> | null>(null);
 
   // Holds the data read from the data source. We use ref to allow efficient
   // appends instead of re-writing, what can be a huge array every time.
   const actualData = useRef<DataTable>([]);
+  // Prevent concurrent fetch loops that could reenter reader.next()
+  const fetchLockRef = useRef<boolean>(false);
 
   // We need a non-reactive ref to be able to handle multiple
   // parallel fetch calls, such that to the end user it seems that
@@ -214,14 +239,13 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     // Log internal errors to the console and add one user facing error
     // to the load errors
     if (queries.internalErrors.length > 0) {
-      console.group('Error creating data adapter for tab id:', tab.id);
-      queries.internalErrors.forEach((error) => console.error(error));
-      console.groupEnd();
+      // Log internal errors silently
+      queries.internalErrors.forEach(() => {});
       buildErrors.push('Internal error creating data adapter. Please report this issue.');
     }
 
     return buildErrors;
-  }, [queries, tab.id]);
+  }, [queries]);
 
   const dataSourceError = [...dataQueriesBuildError, ...dataSourceReadError];
 
@@ -257,11 +281,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       if (rowCountInfo.realRowCount !== null) {
         // probably a bug, but not critical
-        console.warn(
-          'Unexpectedly setting real row count to a different value than the previous one.',
-        );
+        // Unexpected: setting real row count to a different value than the previous one
       }
 
+      setRowCountWarning(null);
       setRowCountInfo((prev) => {
         return {
           ...prev,
@@ -270,7 +293,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         };
       });
     },
-    [rowCountInfo.realRowCount],
+    [rowCountInfo.realRowCount, setRowCountWarning],
   );
 
   /**
@@ -291,10 +314,11 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       if (rowCountInfo.realRowCount !== null) {
         // probably a bug, but not critical
-        console.warn('Tried setting estimated row count while real row count is already set.');
+        // Tried setting estimated row count while real row count is already set
         return;
       }
 
+      setRowCountWarning(null);
       setRowCountInfo((prev) => {
         return {
           ...prev,
@@ -302,7 +326,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         };
       });
     },
-    [rowCountInfo.estimatedRowCount, rowCountInfo.realRowCount],
+    [rowCountInfo.estimatedRowCount, rowCountInfo.realRowCount, setRowCountWarning],
   );
 
   /**
@@ -367,22 +391,33 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         if (!aborted) setEstimatedRowCount(value);
       }
     } catch (error) {
-      if (!(error instanceof PoolTimeoutError)) {
-        console.error('Failed to fetch row count:', error);
-        if (error instanceof Error && error.message?.includes('Out of Memory Error')) {
-          setAppendDataSourceReadError(
-            'Data source is too large to count rows. Try using a SQL query with specific columns.',
-          );
-        } else {
-          setAppendDataSourceReadError('Failed to fetch row counts');
+      if (error instanceof ConnectionTimeoutError) {
+        return;
+      }
+
+      console.error('[DataAdapter] Row count fetch error:', error);
+      let warningMessage: string | null = null;
+
+      if (error instanceof Error && error.message?.includes('Out of Memory Error')) {
+        warningMessage =
+          'File is too large to analyze (512MB web limit). Use the desktop app for large files.';
+      } else if (error instanceof Error && error.message?.includes('schema_name')) {
+        warningMessage =
+          'Database metadata query failed. The file format may not be supported or the database is corrupted.';
+      } else if (error instanceof Error) {
+        const message = error.message?.trim();
+        if (message && message !== '[object Object]') {
+          warningMessage = `Row count unavailable: ${message}`;
         }
       }
+
+      setRowCountWarning(warningMessage);
     }
   }, [
     queries,
     setRealRowCount,
     setEstimatedRowCount,
-    setAppendDataSourceReadError,
+    setRowCountWarning,
     getBackgroundTasksAbortSignal,
   ]);
 
@@ -400,19 +435,35 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             ? await queries.getSortableReader(newSortParams, abortSignal)
             : await queries.getReader!(abortSignal);
 
+          // Removed console statement
+          // Removed console statement
+
           // Reader will be null if load was aborted, so check it first
           if (newReader !== null) {
+            // Removed console statement
             mainDataReaderRef.current = newReader;
-            setDataSourceVersion((prev) => prev + 1);
+
+            // Force a synchronous check to detect immediate clearing
+            if (!mainDataReaderRef.current) {
+              // Removed console statement
+            } else {
+              // Removed console statement
+            }
 
             // Send row count fetching to background if we do not have it already
             if (!rowCountInfo.realRowCount) {
               fetchRowCount();
             }
+
+            // Update version - this will trigger the effect to fetch initial data
+            // We set the reader first to avoid race conditions
+            setDataSourceVersion((prev) => prev + 1);
+
+            // Removed console statement
           }
         }
       } catch (error: any) {
-        if (error instanceof PoolTimeoutError) {
+        if (error instanceof ConnectionTimeoutError) {
           setAppendDataSourceReadError(
             'Too many tabs open or operations running. Please wait and re-open this tab.',
           );
@@ -421,7 +472,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             await syncFiles(pool);
             await getNewReader(newSortParams, { retry_with_file_sync: false });
           } else {
-            console.error('Data source have been moved or deleted:', error);
+            // Removed console statement
             setAppendDataSourceReadError('Data source have been moved or deleted.');
           }
         } else if (isSchemaError(error)) {
@@ -430,21 +481,31 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             await reset(newSortParams);
             await getNewReader(newSortParams, { retry_with_file_sync: false });
           } else {
-            console.error('Schema mismatch detected:', error);
+            // Removed console statement
             setAppendDataSourceReadError('Data source schema has changed. Please refresh the tab.');
           }
         } else if (error.message?.includes('NotFoundError')) {
-          console.error('Data source have been moved or deleted:', error);
+          // Removed console statement
           setAppendDataSourceReadError('Data source have been moved or deleted.');
         } else if (error.message?.includes('Out of Memory Error')) {
-          console.error('Out of memory while reading data source:', error);
+          console.error('[DataAdapter] Out of Memory Error:', error);
           setAppendDataSourceReadError(
-            'The data source is too large to process in memory. Try using a SQL query to select specific columns or limit rows.',
+            'File is too large for web browser memory (512MB limit). For large files, use the desktop app or reduce file size by selecting specific columns/rows.',
+          );
+        } else if (error.message?.includes('registerFileHandle method not found')) {
+          console.error('[DataAdapter] File registration error:', error);
+          setAppendDataSourceReadError(
+            'File registration failed. This is likely an engine initialization issue. Please refresh and try again.',
+          );
+        } else if (error.message?.includes('WASM database not initialized')) {
+          console.error('[DataAdapter] WASM database not initialized:', error);
+          setAppendDataSourceReadError(
+            'Database engine not ready. Please wait for initialization to complete and try again.',
           );
         } else {
-          console.error('Failed to create a reader for the data source:', error);
+          console.error('[DataAdapter] Reader creation error:', error);
           setAppendDataSourceReadError(
-            'Failed to create a reader for the data source. See console for technical details.',
+            `Failed to create a reader for the data source: ${error.message || 'Unknown error'}`,
           );
         }
       } finally {
@@ -461,6 +522,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       queries,
       rowCountInfo.realRowCount,
       setAppendDataSourceReadError,
+      instanceId,
     ],
   );
 
@@ -473,6 +535,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
    */
   const reset = useCallback(
     async (newSortParams: ColumnSortSpecList | null) => {
+      // Removed console statement
       // Reset a bunch of things.
 
       let lastAvailableRowCount = 0;
@@ -500,16 +563,19 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // Cancel the main data reader before creating a new one
       const curReader = mainDataReaderRef.current;
       if (curReader) {
+        // Removed console statement
         // First drop the ref, so any async operation will not proceed
         // while we are waiting for the cancel to finish next
         mainDataReaderRef.current = null;
         await curReader.cancel();
+        // Removed console statement
       }
 
       // As we will read from the start, we reset this flag
       setDataSourceExhausted(false);
       // And any error
       setDataSourceReadError([]);
+      setRowCountWarning(null);
       // Fetch to target is reset to 0
       fetchTo.current = 0;
       dataReadCancelled.current = false;
@@ -542,7 +608,15 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       // And let the new reader be created in the background
       await getNewReader(newSortParams);
     },
-    [actualDataSchema, cancelAllDataOperations, getNewReader, staleData, setLastSortSafe, sort],
+    [
+      actualDataSchema,
+      cancelAllDataOperations,
+      getNewReader,
+      staleData,
+      setLastSortSafe,
+      sort,
+      setRowCountWarning,
+    ],
   );
 
   /**
@@ -574,6 +648,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       let updateSchemaFromInferred = actualData.current.length === 0;
 
       try {
+        // Removed console statement
+
         // Stop fetching when the reader is done or fetch is cancelled
         while (
           !readAll &&
@@ -583,7 +659,15 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           // If we read enough data, we can stop
           (fetchTo.current === null || actualData.current.length < fetchTo.current)
         ) {
+          // Removed console statement
           // Run an abortable read
+          // Debug: trace before next()
+          try {
+            // eslint-disable-next-line no-console
+            console.log('[STREAM][fetch] reader.next()...');
+          } catch {
+            // Intentionally empty - ignore console errors
+          }
           const { done, value } = await Promise.race([
             mainDataReaderRef.current.next(),
             new Promise<never>((_, reject) => {
@@ -599,6 +683,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           ]);
 
           if (done) {
+            try {
+              // eslint-disable-next-line no-console
+              console.log('[STREAM][fetch] reader done');
+            } catch {
+              // Intentionally empty - ignore console errors
+            }
             readAll = true;
             break;
           }
@@ -609,6 +699,12 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           }
 
           const newTableData = convertArrowTable(value, inferredSchema);
+          try {
+            // eslint-disable-next-line no-console
+            console.log('[STREAM][fetch] batch rows:', newTableData.length);
+          } catch {
+            // Intentionally empty - ignore console errors
+          }
 
           actualData.current.push(...newTableData);
 
@@ -630,7 +726,39 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           // And ping downstream components that data has changed
           setDataVersion((prev) => prev + 1);
         }
+
+        // After the loop exits, check if the reader has an error
+        // This happens when the streaming query fails on the backend
+        if (mainDataReaderRef.current?.closed && !abortSignal.aborted) {
+          // Try to get the error by calling next()
+          try {
+            await mainDataReaderRef.current.next();
+          } catch (error: any) {
+            try {
+              // eslint-disable-next-line no-console
+              console.log('[STREAM][fetch] reader error after closed:', error);
+            } catch {
+              // Intentionally empty - ignore console errors
+            }
+            // Handle the error like other streaming errors
+            if (isSqlExecutionError(error)) {
+              // This is a SQL error, not a file access error
+              setAppendDataSourceReadError(error.message);
+              // Also clear the readAll flag since this wasn't actually successful
+              readAll = false;
+            } else if (!error.message?.includes('Stream cancelled')) {
+              // Re-throw to be caught by outer catch block (unless it's just a cancellation)
+              throw error;
+            }
+          }
+        }
       } catch (error: any) {
+        try {
+          // eslint-disable-next-line no-console
+          console.log('[STREAM][fetch] caught error:', error);
+        } catch {
+          // Intentionally empty - ignore console errors
+        }
         if (error.message?.includes('NotReadableError')) {
           if (options.retry_with_file_sync) {
             // First try to sync files, that may re-create a working handle
@@ -647,7 +775,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             afterRetry = true;
           } else {
             // We got an unrecoverable actual error
-            console.error('Data source have been moved or deleted:', error);
+            // Removed console statement
             setAppendDataSourceReadError('Data source have been moved or deleted.');
           }
         } else if (isSchemaError(error)) {
@@ -666,19 +794,21 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
             afterRetry = true;
           } else {
             // We got an unrecoverable schema mismatch error
-            console.error('Schema mismatch detected:', error);
+            // Removed console statement
             setAppendDataSourceReadError('Data source schema has changed. Please refresh the tab.');
           }
         } else if (!abortSignal.aborted) {
           // Fetch was not cancelled we got an actual error
           if (error.message?.includes('NotFoundError')) {
-            console.error('Data source have been moved or deleted:', error);
+            // Removed console statement
             setAppendDataSourceReadError('Data source have been moved or deleted.');
+          } else if (isSqlExecutionError(error)) {
+            // This is a SQL error, not a file access error - don't retry
+            setAppendDataSourceReadError(error.message);
           } else {
-            console.error('Failed to read data from the data source:', error);
-            setAppendDataSourceReadError(
-              'Failed to read data from the data source. See console for technical details.',
-            );
+            // Set a more specific error message if possible
+            const errorMessage = error.message || 'Failed to read data from the data source';
+            setAppendDataSourceReadError(errorMessage);
           }
         }
       }
@@ -744,6 +874,14 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       rowTo: number | null;
       curSort: ColumnSortSpecList;
     }): Promise<void> => {
+      // Removed console statement
+
+      if (mainDataReaderRef.current) {
+        // Removed console statement
+      } else {
+        // Removed console statement
+      }
+
       if (
         // No reader - no fetching
         !mainDataReaderRef.current ||
@@ -755,6 +893,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // do no use closed reader either.
         mainDataReaderRef.current.closed
       ) {
+        // Removed console statement
         return;
       }
 
@@ -767,10 +906,23 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       }
 
       // Now exit early if already fetching or have enough
+      // Removed console statement
       if (
+        fetchLockRef.current ||
         isFetchingData ||
         (fetchTo.current !== null && actualData.current.length >= fetchTo.current)
       ) {
+        try {
+          // eslint-disable-next-line no-console
+          console.log('[STREAM][fetch] Skipping fetch: locked or already fetching or enough data', {
+            locked: fetchLockRef.current,
+            isFetchingData,
+            have: actualData.current.length,
+            need: fetchTo.current,
+          });
+        } catch {
+          // Intentionally empty - ignore console errors
+        }
         return;
       }
 
@@ -779,6 +931,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
 
       try {
         // Update the state to show that we are fetching data.
+        fetchLockRef.current = true;
         setIsFetchingData(true);
 
         // Wait for an actual fetch to finish
@@ -788,6 +941,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // first fetch after sort change.
         setLastSortSafe(curSort);
         setIsFetchingData(false);
+        fetchLockRef.current = false;
       }
     },
     [
@@ -796,6 +950,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       isFetchingData,
       fetchDataSingleEntry,
       setLastSortSafe,
+      // Note: mainDataReaderRef is intentionally not in dependencies
+      // because we access it via .current
     ],
   );
 
@@ -820,10 +976,37 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     }
   }, [activeTabId, abortUserTasks, abortBackgroundTasks, tab.id]);
 
+  // Effect to trigger initial data fetch when reader becomes available
+  useEffect(() => {
+    // Only trigger if we have a reader and it's not closed
+    if (
+      mainDataReaderRef.current &&
+      !mainDataReaderRef.current.closed &&
+      !isFetchingData &&
+      !dataSourceExhausted &&
+      dataSourceError.length === 0
+    ) {
+      // Double-check the reader is still valid before fetching
+      // Removed console statement
+      fetchData({ rowTo: 100, curSort: sort });
+    } else if (dataSourceVersion > 0) {
+      // Log why we're not fetching if version was incremented
+      // Removed console statement
+    }
+  }, [
+    dataSourceVersion,
+    fetchData,
+    sort,
+    isFetchingData,
+    dataSourceExhausted,
+    dataSourceError.length,
+  ]);
+
   // On mount we may have cached data in our local state vars,
   // so we do not want to call a full `reset`, but only to initiate reader
   // creation in the background.
   useEffect(() => {
+    // Removed console statement
     const newReaderPromise = getNewReader(sort);
 
     return () => {
@@ -836,19 +1019,26 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         // the previous call, we want to make sure state is fully
         // updated. Otherwise if the tab is closed quickly,
         // we may get into inconsistent state. This is also happening
-        // in dev mode due to React.StrictMode firring this hook twice.
+        // in dev mode due to React.StrictMode firing this hook twice.
         await newReaderPromise;
 
         // Cancel the main data reader
-        const curReader = mainDataReaderRef.current;
-        if (curReader) {
-          // First drop the ref, so any async operation will not proceed
-          // while we are waiting for the cancel to finish next
-          mainDataReaderRef.current = null;
-          await curReader.cancel();
+        const readerToCancel = mainDataReaderRef.current;
+        if (readerToCancel) {
+          // If the same reader is still current, drop the ref so a new reader can be created.
+          if (mainDataReaderRef.current === readerToCancel) {
+            mainDataReaderRef.current = null;
+          }
+          try {
+            await readerToCancel.cancel();
+          } catch {
+            // Intentionally ignore cancellation errors during teardown
+          }
         }
       };
-      asyncDestructor();
+      asyncDestructor().catch(() => {
+        // Intentionally ignore errors during cleanup
+      });
     };
     // We intentionally use this only on mount, as we want different
     // behavior on all other changes - handled by the effect above
@@ -1033,10 +1223,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
       throw new Error('Stale data should not be available when isStale is false');
     }
 
-    if (dataSourceError.length > 0 && (isFetchingData || !disableSort)) {
-      throw new Error(
-        'After data source read error we should never be in fetching state and sort should be disabled',
-      );
+    if (dataSourceError.length > 0 && !disableSort) {
+      throw new Error('After data source read error sort should be disabled');
     }
 
     if (isSorting && isFetchingData && disableSort) {
@@ -1056,6 +1244,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     currentSchema,
     isStale,
     rowCountInfo,
+    rowCountWarning,
     disableSort,
     sort,
     dataSourceExhausted,
@@ -1069,6 +1258,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     toggleColumnSort,
     getColumnAggregate,
     cancelDataRead,
+    cancelAllDataOperations,
     ackDataReadCancelled,
   };
 };

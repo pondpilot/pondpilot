@@ -18,7 +18,7 @@ import {
   findTabFromComparison,
   getOrCreateTabFromComparison,
 } from '@controllers/tab/comparison-tab-controller';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { Comparison } from '@models/comparison';
 import { PersistentDataSourceId } from '@models/data-source';
 import { DBColumn, DBSchema, DBTableOrView } from '@models/db';
@@ -135,7 +135,7 @@ export function buildObjectTreeNode({
   object: DBTableOrView;
   fileViewNames?: Set<string>;
   comparisonTableNames?: Set<string>;
-  conn?: AsyncDuckDBConnectionPool;
+  conn?: ConnectionPool;
   context: ExtendedBuilderContext;
 }): TreeNodeData<DataExplorerNodeTypeMap> {
   const { name: objectName, columns } = object;
@@ -220,7 +220,7 @@ export function buildObjectTreeNode({
                 message: `Could not drop ${objectName}. Please check if the ${object.type} is currently in use or try refreshing the database.`,
               });
               // Log detailed error for debugging
-              console.error(`Drop ${object.type} failed:`, error);
+              // console.error(`Drop ${object.type} failed:`, error);
             }
           }
         : undefined,
@@ -364,7 +364,7 @@ export function buildSchemaTreeNode({
   schema: DBSchema;
   fileViewNames?: Set<string>;
   comparisonTableNames?: Set<string>;
-  conn?: AsyncDuckDBConnectionPool;
+  conn?: ConnectionPool;
   context: ExtendedBuilderContext;
   initialExpandedState: Record<string, boolean>;
 }): TreeNodeData<DataExplorerNodeTypeMap> {
@@ -397,8 +397,16 @@ export function buildSchemaTreeNode({
     const comparisonTables: DBTableOrView[] = [];
     const regularObjects: DBTableOrView[] = [];
 
+    // console.log('[buildSchemaTreeNode] Processing objects for file views separation:', {
+    //   dbName,
+    //   schemaName,
+    //   fileViewNames: Array.from(fileViewNames),
+    //   objects: sortedObjects.map((o) => ({ name: o.name, type: o.type })),
+    // });
+
     for (const object of sortedObjects) {
       if (object.type === 'view' && fileViewNames?.has(object.name)) {
+        // console.log('[buildSchemaTreeNode] Matched file view:', object.name);
         fileViews.push(object);
       } else if (object.type === 'table' && comparisonTableNames?.has(object.name)) {
         comparisonTables.push(object);
@@ -406,6 +414,17 @@ export function buildSchemaTreeNode({
         regularObjects.push(object);
       }
     }
+
+    // Log unmatched views for debugging
+    // const unmatchedViews = sortedObjects.filter(
+    //   (o) => o.type === 'view' && !fileViewNames.has(o.name),
+    // );
+    // if (unmatchedViews.length > 0) {
+    //   console.log(
+    //     '[buildSchemaTreeNode] Unmatched views (not in fileViewNames):',
+    //     unmatchedViews.map((v) => v.name),
+    //   );
+    // }
 
     // Build regular objects first
     children = regularObjects.map((object) =>
@@ -423,6 +442,11 @@ export function buildSchemaTreeNode({
 
     // Add file views section if there are any
     if (fileViews.length > 0) {
+      // console.log(
+      //   '[buildSchemaTreeNode] Creating File Views section with',
+      //   fileViews.length,
+      //   'views',
+      // );
       const fileViewsSectionId = `${dbId}.${schemaName}.file-views`;
       context.nodeMap.set(fileViewsSectionId, {
         db: dbId,
@@ -453,6 +477,8 @@ export function buildSchemaTreeNode({
           }),
         ),
       });
+    } else {
+      // console.log('[buildSchemaTreeNode] No file views found to create section');
     }
 
     if (comparisonTables.length > 0) {

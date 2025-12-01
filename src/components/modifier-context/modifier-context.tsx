@@ -39,19 +39,21 @@ export const ModifierProvider = ({ children }: { children: React.ReactNode }) =>
   // Subscribe on mount
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Checking for state of the button prevents multiple state updates
-      // when the secondary button is pressed
-      if (event.key === 'Alt' && !isAltPressed) {
-        setIsAltPressed(true);
+      // Using functional updates to prevent multiple state updates when key is held down
+      if (event.key === 'Alt') {
+        setIsAltPressed((prev) => {
+          // Only update if not already pressed
+          return prev || true;
+        });
       }
-      if (event.key === 'Control' && !isCtrlPressed) {
-        setIsCtrlPressed(true);
+      if (event.key === 'Control') {
+        setIsCtrlPressed((prev) => prev || true);
       }
-      if (event.key === 'Meta' && !isMetaPressed) {
-        setIsMetaPressed(true);
+      if (event.key === 'Meta') {
+        setIsMetaPressed((prev) => prev || true);
       }
-      if (event.key === 'Shift' && !isShiftPressed) {
-        setIsShiftPressed(true);
+      if (event.key === 'Shift') {
+        setIsShiftPressed((prev) => prev || true);
       }
     };
 

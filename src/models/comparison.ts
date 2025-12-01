@@ -159,6 +159,11 @@ export type Comparison = {
   // Format: __pondpilot_comparison_{sanitized_comparison_id}
   // This persists across browser restarts unlike temp tables
   resultsTableName: string | null;
+  /**
+   * Reserved table name for the next execution. This lets us track and protect the table
+   * before it is fully populated so desktop cleanup routines do not delete it.
+   */
+  pendingResultsTableName: string | null;
 
   metadata: {
     sourceStats: ComparisonSourceStats | null;

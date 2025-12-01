@@ -142,3 +142,40 @@ tests/test-tmp
 .module-cache
 
 *.local.*
+
+# Rust
+target/
+**/*.rs.bk
+*.pdb
+
+# Rust build artifacts
+debug/
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Rust documentation
+target/doc/
+
+# Rust IDE files
+*.iml
+.idea/
+*.swp
+*.swo
+*~
+
+# Rust profiling
+*.profraw
+*.profdata
+
+# Rust test artifacts
+tarpaulin-report.html
+cobertura.xml
+
+# Backup files
+*.orig
+*.rej
+
+# Tauri generated schemas
+src-tauri/gen/schemas/

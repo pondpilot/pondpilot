@@ -146,6 +146,8 @@ const StatementsAllowedInScripts = [
   SQLStatement.DESCRIBE,
   SQLStatement.SHOW,
   SQLStatement.INSERT,
+  SQLStatement.INSTALL,
+  SQLStatement.LOAD,
   SQLStatement.PIVOT,
   SQLStatement.UNPIVOT,
   SQLStatement.FROM,

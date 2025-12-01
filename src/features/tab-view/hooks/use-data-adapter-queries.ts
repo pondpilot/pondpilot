@@ -1,4 +1,4 @@
-import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { useInitializedDatabaseConnectionPool } from '@features/database-context';
 import { DataAdapterQueries } from '@models/data-adapter';
 import { AnyTab, TabReactiveState } from '@models/tab';
 import { useAppStore } from '@store/app-store';
@@ -26,7 +26,7 @@ export const useDataAdapterQueries = ({
   sourceVersion,
 }: UseDataAdapterQueriesProps): UseDataAdapterQueriesRetType => {
   // Get pool
-  const pool = useInitializedDuckDBConnectionPool();
+  const pool = useInitializedDatabaseConnectionPool();
 
   // We are getting various state values baesd on tab type that is then
   // passed to our pure utility functions that create actual query functions
@@ -96,7 +96,18 @@ export const useDataAdapterQueries = ({
     // we need sourceVersion to be a dependency, because it allows us to re-create the queries
     // when the script is re-executed, even if the data source is "the same"
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, pool, dataSource, sourceFile, sourceVersion]);
+  }, [
+    tab.id,
+    tab.type,
+    'dataSourceId' in tab ? tab.dataSourceId : undefined,
+    'lastExecutedQuery' in tab ? tab.lastExecutedQuery : undefined,
+    pool,
+    dataSource?.id,
+    dataSource?.type,
+    sourceFile?.id,
+    sourceFile?.kind,
+    sourceVersion,
+  ]);
 
   return ret;
 };

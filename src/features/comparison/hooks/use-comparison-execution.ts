@@ -1,5 +1,6 @@
+import { setComparisonPendingResultsTable } from '@controllers/comparison/comparison-controller';
 import { dropComparisonResultsTable } from '@controllers/comparison/table-utils';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import {
   COMPARISON_EXECUTION_STAGE,
   ComparisonExecutionProgress,
@@ -166,12 +167,13 @@ const createThrottledProgressUpdater = () => {
 const progressUpdater = createThrottledProgressUpdater();
 
 interface ComparisonExecutionState {
-  pool: AsyncDuckDBConnectionPool;
+  pool: ConnectionPool;
   comparisonId: ComparisonId;
   algorithm: ComparisonAlgorithm | null;
   tableName: string | null;
   startTime: number;
   finishEarlyComparisonRef: React.MutableRefObject<ComparisonId | null>;
+  cancelRequestedRef: React.MutableRefObject<ComparisonId | null>;
 }
 
 /**
@@ -195,7 +197,7 @@ const handleExecutionError = (err: unknown): string => {
  * Cleans up partial results table if one was created
  */
 const cleanupPartialResults = async (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   comparisonId: ComparisonId,
   tableName: string,
 ): Promise<void> => {
@@ -248,7 +250,7 @@ const handleFinishEarly = async (
  * Handles user-initiated cancellation - discards results and cleans up
  */
 const handleCancellation = async (state: ComparisonExecutionState): Promise<void> => {
-  const { comparisonId, algorithm, tableName, pool } = state;
+  const { comparisonId, algorithm, tableName, pool, cancelRequestedRef } = state;
 
   if (algorithm?.supportsProgress) {
     updateComparisonExecutionProgress(
@@ -272,6 +274,11 @@ const handleCancellation = async (state: ComparisonExecutionState): Promise<void
   }
 
   setComparisonExecutionMetadata(comparisonId, null);
+  setComparisonPendingResultsTable(comparisonId, null);
+
+  if (cancelRequestedRef.current === comparisonId) {
+    cancelRequestedRef.current = null;
+  }
 };
 
 /**
@@ -311,6 +318,7 @@ const handleFailure = async (
   }
 
   setComparisonExecutionMetadata(comparisonId, null);
+  setComparisonPendingResultsTable(comparisonId, null);
 };
 
 /**
@@ -323,10 +331,11 @@ const handleComparisonError = async (
   state: ComparisonExecutionState,
   setError: (error: string) => void,
 ): Promise<{ tableName: string | null; durationSeconds: number } | null> => {
-  const { comparisonId, algorithm, finishEarlyComparisonRef } = state;
+  const { comparisonId, algorithm, finishEarlyComparisonRef, cancelRequestedRef } = state;
   const isAbortError = err instanceof DOMException && err.name === 'AbortError';
   const finishEarlyRequested =
     algorithm?.supportsFinishEarly && finishEarlyComparisonRef.current === comparisonId;
+  const cancelRequested = cancelRequestedRef.current === comparisonId;
 
   // Handle finish early: save partial results
   if (isAbortError && finishEarlyRequested) {
@@ -334,7 +343,7 @@ const handleComparisonError = async (
   }
 
   // Handle cancellation: discard results
-  if (isAbortError) {
+  if (isAbortError || cancelRequested) {
     await handleCancellation(state);
     return null;
   }
@@ -409,7 +418,7 @@ const handleComparisonSuccess = async (
 /**
  * Hook to execute comparison queries
  */
-export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
+export const useComparisonExecution = (pool: ConnectionPool) => {
   const [isExecuting, setIsExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedSQL, setGeneratedSQL] = useState<string | null>(null);
@@ -423,6 +432,7 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
   // - cancel: discard results and clear the comparison
   // - finish early: keep partial results and mark the comparison as partial
   const finishEarlyComparisonRef = useRef<ComparisonId | null>(null);
+  const cancelRequestedRef = useRef<ComparisonId | null>(null);
 
   const executeComparison = useCallback(
     async (
@@ -437,6 +447,7 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
       let tableName: string | null = null;
       let algorithm: ComparisonAlgorithm | null = null;
       finishEarlyComparisonRef.current = null;
+      cancelRequestedRef.current = null;
 
       // Reset metadata flags so stale execution details don't leak into the next run
       setComparisonExecutionMetadata(comparisonId, null);
@@ -460,6 +471,7 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
 
         const createdAt = new Date();
         tableName = getComparisonResultsTableName(comparisonId, config, createdAt);
+        setComparisonPendingResultsTable(comparisonId, tableName);
 
         // Clear progress if algorithm doesn't support it
         if (!algorithm.supportsProgress) {
@@ -513,7 +525,15 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
 
         // Handle successful execution
         return await handleComparisonSuccess(
-          { pool, comparisonId, algorithm, tableName, startTime, finishEarlyComparisonRef },
+          {
+            pool,
+            comparisonId,
+            algorithm,
+            tableName,
+            startTime,
+            finishEarlyComparisonRef,
+            cancelRequestedRef,
+          },
           algorithm,
           result,
           setGeneratedSQL,
@@ -522,13 +542,22 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
         // Handle execution errors
         return await handleComparisonError(
           err,
-          { pool, comparisonId, algorithm, tableName, startTime, finishEarlyComparisonRef },
+          {
+            pool,
+            comparisonId,
+            algorithm,
+            tableName,
+            startTime,
+            finishEarlyComparisonRef,
+            cancelRequestedRef,
+          },
           setError,
         );
       } finally {
         abortControllerRef.current = null;
         runningComparisonIdRef.current = null;
         finishEarlyComparisonRef.current = null;
+        cancelRequestedRef.current = null;
         progressUpdater.cleanup(comparisonId);
         setIsExecuting(false);
       }
@@ -537,6 +566,7 @@ export const useComparisonExecution = (pool: AsyncDuckDBConnectionPool) => {
   );
 
   const cancelComparison = useCallback((comparisonId: ComparisonId) => {
+    cancelRequestedRef.current = comparisonId;
     if (runningComparisonIdRef.current !== comparisonId) {
       return;
     }

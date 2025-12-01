@@ -1,3 +1,5 @@
+import { ConnectionPool } from '@engines/types';
+
 import { DATABASE_LIMITS, MENTION_AUTOCOMPLETE, FUZZY_SCORE, UI_SELECTORS } from './constants';
 import { DatabaseModel, DatabaseModelCache } from './model';
 import {
@@ -7,7 +9,6 @@ import {
 } from './utils/dropdown-styles';
 import { sanitizeText, getObjectSizeInBytes, bytesToMB } from './utils/sanitization';
 import { getDatabaseModel } from '../../../controllers/db/duckdb-meta';
-import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
 
 export interface MentionSuggestion {
   value: string;
@@ -118,7 +119,7 @@ export function fuzzyScore(query: string, text: string): number {
 }
 
 export async function getTableSuggestions(
-  connectionPool: AsyncDuckDBConnectionPool | null,
+  connectionPool: ConnectionPool | null,
   query: string,
   sqlScripts?: Map<string, { id: string; name: string; content: string }>,
 ): Promise<MentionSuggestion[]> {
@@ -395,9 +396,7 @@ const dropdownHandlers = new WeakMap<HTMLElement, RepositionHandler>();
 
 let databaseModelCache: DatabaseModelCache | null = null;
 
-async function getCachedDatabaseModel(
-  connectionPool: AsyncDuckDBConnectionPool,
-): Promise<DatabaseModel> {
+async function getCachedDatabaseModel(connectionPool: ConnectionPool): Promise<DatabaseModel> {
   const now = Date.now();
 
   // Return cached data if it's still valid and size is acceptable

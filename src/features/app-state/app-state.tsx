@@ -9,6 +9,7 @@ export const AppState = () => {
       data-testid={setDataTestId('app-state')}
       data-app-load-state={appLoadState}
       style={{ display: 'none' }}
+      className="app-state"
     />
   );
 };

@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import type { ComparisonId, ComparisonSourceStat } from '@models/comparison';
 import { AnyFlatFileDataSource, SYSTEM_DATABASE_NAME } from '@models/data-source';
 import { DataSourceLocalFile, LocalEntry } from '@models/file-system';
@@ -22,7 +22,7 @@ type ColumnInfo = {
  * Gets schema for a source (table or query)
  */
 const getSourceSchema = async (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   source: ComparisonSource,
 ): Promise<ColumnInfo[]> => {
   let sql: string;
@@ -80,7 +80,7 @@ const isDataSourceLocalFile = (entry: LocalEntry | undefined): entry is DataSour
 };
 
 const getRowCountFromMetadata = async (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   source: ComparisonSource,
 ): Promise<{ rowCount: number | null; source: RowCountSource }> => {
   if (source.type !== 'table') {
@@ -145,7 +145,7 @@ const getRowCountFromMetadata = async (
 };
 
 const getRowCountFromQuery = async (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   source: ComparisonSource,
 ): Promise<{ rowCount: number | null; source: RowCountSource }> => {
   const cacheKey = buildRowCountCacheKey({
@@ -190,7 +190,7 @@ const getRowCountFromQuery = async (
 /**
  * Hook to analyze and compare schemas of two data sources
  */
-export const useSchemaAnalysis = (pool: AsyncDuckDBConnectionPool) => {
+export const useSchemaAnalysis = (pool: ConnectionPool) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

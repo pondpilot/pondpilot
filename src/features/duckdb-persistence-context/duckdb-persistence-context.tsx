@@ -1,11 +1,12 @@
 import { DBPersistenceController } from '@controllers/db-persistence';
 import { DevModal } from '@features/app-context/components/dev-modal';
 import {
-  DuckDBConnectionPoolProvider,
-  DuckDBInitializerStatusContext,
-} from '@features/duckdb-context/duckdb-context';
+  DatabaseConnectionPoolProvider,
+  DatabaseInitializerStatusContext,
+} from '@features/database-context';
 import { useFeatureContext } from '@features/feature-context';
 import { DBPersistenceState } from '@models/db-persistence';
+import { isTauriEnvironment } from '@utils/browser';
 import { OPFSUtil } from '@utils/opfs';
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
@@ -118,16 +119,16 @@ export const PersistenceConnector: React.FC<{
     <PersistenceUIContext.Provider value={uiContextValue}>
       <DuckDBPersistenceProvider onStatusUpdate={handlePersistenceStatus}>
         {/* Provide combined status to DevModal */}
-        <DuckDBInitializerStatusContext.Provider value={statusContextValue}>
+        <DatabaseInitializerStatusContext.Provider value={statusContextValue}>
           {import.meta.env.DEV && <DevModal />}
-          {/* DuckDBConnectionPoolProvider manages actual DuckDB initialization */}
-          <DuckDBConnectionPoolProvider
+          {/* DatabaseConnectionPoolProvider manages actual database initialization with engine detection */}
+          <DatabaseConnectionPoolProvider
             maxPoolSize={maxPoolSize}
             onStatusUpdate={handleDuckDBStatus}
           >
             {children}
-          </DuckDBConnectionPoolProvider>
-        </DuckDBInitializerStatusContext.Provider>
+          </DatabaseConnectionPoolProvider>
+        </DatabaseInitializerStatusContext.Provider>
       </DuckDBPersistenceProvider>
     </PersistenceUIContext.Provider>
   );
@@ -160,6 +161,16 @@ export const DuckDBPersistenceProvider: React.FC<{
 
   useEffect(() => {
     const init = async () => {
+      // Skip OPFS initialization entirely in Tauri
+      if (isTauriEnvironment()) {
+        memoizedStatusUpdate({
+          state: 'ready',
+          message: 'Using Tauri native storage',
+        });
+        setIsInitialized(true);
+        return;
+      }
+
       memoizedStatusUpdate({
         state: 'loading',
         message: 'Preparing database storage...',

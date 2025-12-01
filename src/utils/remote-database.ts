@@ -7,12 +7,14 @@
 import { showError, showWarning, showSuccess } from '@components/app-notifications';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { deleteTab } from '@controllers/tab';
-import { RemoteDB, PersistentDataSourceId } from '@models/data-source';
+import { EngineType } from '@engines/types';
+import { RemoteDB, PersistentDataSourceId, migrateRemoteDB } from '@models/data-source';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
-import { executeWithRetry } from '@utils/connection-manager';
-import { buildAttachQuery, buildDetachQuery } from '@utils/sql-builder';
+import { createConnectionFactory } from '@utils/connection-factory';
+import { getPlatformContext, getConnectionCapability } from '@utils/platform-capabilities';
+import { buildDetachQuery } from '@utils/sql-builder';
 
 // Re-export validation functions from the separate module
 export {
@@ -50,22 +52,68 @@ export function updateRemoteDbConnectionState(
 }
 
 /**
- * Attempts to reconnect a remote database
+ * Attempts to reconnect a remote database using the new connection system
  */
-export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Promise<boolean> {
+export async function reconnectRemoteDatabase(
+  pool: any,
+  remoteDb: RemoteDB,
+  engineType?: EngineType,
+): Promise<boolean> {
   try {
     updateRemoteDbConnectionState(remoteDb.id, 'connecting');
 
-    // First, re-attach the database with READ_ONLY flag
-    const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly: true });
+    // Migrate legacy database if needed
+    const migratedDb = migrateRemoteDB(remoteDb);
 
+    // Get platform context
+    const platformContext = getPlatformContext();
+    const currentEngineType = engineType || platformContext.engineType;
+
+    // Check if this connection type is supported on current platform
+    const capability = getConnectionCapability(migratedDb.connectionType, platformContext);
+    if (!capability.supported) {
+      throw new Error(
+        capability.reason ||
+          `${migratedDb.connectionType} connections not supported on this platform`,
+      );
+    }
+
+    // Create appropriate connection factory
+    const connectionFactory = createConnectionFactory(currentEngineType);
+
+    if (!connectionFactory.canConnect(migratedDb)) {
+      throw new Error(
+        `Connection type ${migratedDb.connectionType} not supported by ${currentEngineType} engine`,
+      );
+    }
+
+    // Ensure required extensions are loaded
+    if (migratedDb.connectionType === 'motherduck') {
+      try {
+        const { ExtensionLoader } = await import('../services/extension-loader');
+        await ExtensionLoader.installAndLoadExtension(pool, 'motherduck', true);
+      } catch (e) {
+        console.warn('Failed to pre-load motherduck extension on reconnect:', e);
+      }
+    } else if (migratedDb.connectionType === 'postgres') {
+      try {
+        const { ExtensionLoader } = await import('../services/extension-loader');
+        await ExtensionLoader.installAndLoadExtension(pool, 'postgres_scanner', true);
+      } catch (e) {
+        console.warn('Failed to pre-load postgres_scanner extension on reconnect:', e);
+      }
+    } else if (migratedDb.connectionType === 'mysql') {
+      try {
+        const { ExtensionLoader } = await import('../services/extension-loader');
+        await ExtensionLoader.installAndLoadExtension(pool, 'mysql_scanner', true);
+      } catch (e) {
+        console.warn('Failed to pre-load mysql_scanner extension on reconnect:', e);
+      }
+    }
+
+    // Attempt to attach using the connection factory
     try {
-      await executeWithRetry(pool, attachQuery, {
-        maxRetries: 3,
-        timeout: 30000, // 30 seconds
-        retryDelay: 2000, // 2 seconds
-        exponentialBackoff: true,
-      });
+      await connectionFactory.attachDatabase(pool, migratedDb);
     } catch (attachError: any) {
       // Check for various "already attached" error messages
       const errorMsg = attachError.message || '';
@@ -100,6 +148,16 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
       } catch (error) {
         attempts += 1;
         if (attempts >= maxAttempts) {
+          // If attach failed because it's already attached, treat as connected
+          const errMsg = (error as any)?.message ? String((error as any).message) : String(error);
+          if (
+            /already in use|already attached|Unique file handle conflict|already exists/i.test(
+              errMsg,
+            )
+          ) {
+            dbFound = true;
+            break;
+          }
           throw new Error(
             `Database ${remoteDb.dbName} could not be verified after ${maxAttempts} attempts`,
           );
@@ -129,9 +187,21 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
       console.error('Failed to load metadata after reconnection:', metadataError);
     }
 
+    // Update the data source in store with migrated version if it was changed
+    if (migratedDb !== remoteDb) {
+      const currentDataSources = useAppStore.getState().dataSources;
+      const newDataSources = new Map(currentDataSources);
+      newDataSources.set(migratedDb.id, migratedDb);
+      useAppStore.setState(
+        { dataSources: newDataSources },
+        false,
+        'RemoteDB/updateMigratedDatabase',
+      );
+    }
+
     showSuccess({
       title: 'Reconnected',
-      message: `Successfully reconnected to remote database '${remoteDb.dbName}'`,
+      message: `Successfully reconnected to remote database '${migratedDb.dbName}'`,
     });
 
     return true;

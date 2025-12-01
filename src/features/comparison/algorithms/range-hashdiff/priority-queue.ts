@@ -48,6 +48,7 @@ export class PriorityQueue<T> {
     let current = index;
     const { length } = this.heap;
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const left = current * 2 + 1;
       const right = left + 1;

@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { ComparisonSource } from '@models/tab';
 import { useEffect, useState } from 'react';
 
@@ -24,7 +24,7 @@ interface FilterValidationContext {
  * which is safer and more performant than executing the filter.
  */
 export const useFilterValidation = (
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   filterText: string,
   contexts: FilterValidationContext[] = [],
   debounceMs = 500,

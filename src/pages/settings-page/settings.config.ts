@@ -3,6 +3,8 @@ import { DatabaseManagementSettings } from '@components/database-management/data
 import { AISettings } from './components/ai-settings';
 import { CorsProxySettings } from './components/cors-proxy-settings';
 import { EditorSettings } from './components/editor-settings';
+import { ExtensionSettings } from './components/extension-settings';
+import { QueryTimeoutSettings } from './components/query-settings/query-timeout-settings';
 import { ClearDataSection } from './components/sections/clear-data-section';
 import { ExportQueriesSection } from './components/sections/export-queries-section';
 import { ThemeSwitcher } from './components/theme-switcher';
@@ -53,6 +55,20 @@ export const settingsConfig: SettingsConfig = {
       ],
     },
     {
+      id: 'database-extensions',
+      title: 'Database Extensions',
+      isTauriOnly: true,
+      sections: [
+        {
+          id: 'duckdb-extensions',
+          title: 'DuckDB Extensions',
+          description:
+            'Install, enable, or disable DuckDB extensions. This feature is available only in the desktop app.',
+          component: ExtensionSettings,
+        },
+      ],
+    },
+    {
       id: 'saved-data',
       title: 'Saved Data',
       sections: [
@@ -81,12 +97,24 @@ export const settingsConfig: SettingsConfig = {
         },
       ],
     },
+    {
+      id: 'performance',
+      title: 'Performance',
+      sections: [
+        {
+          id: 'query-timeout',
+          title: 'Query timeout',
+          description: 'Control how long PondPilot waits for a query before timing out.',
+          component: QueryTimeoutSettings,
+        },
+      ],
+    },
   ],
 };
 
 // Generate navigation items from config
-export const getNavigationItems = () => {
-  return settingsConfig.blocks.map((block) => ({
+export const getNavigationItems = (blocks = settingsConfig.blocks) => {
+  return blocks.map((block) => ({
     id: block.id,
     label: block.title,
   }));

@@ -41,7 +41,7 @@ test.describe('Datasource Wizard', () => {
   test('should validate remote database URL', async ({
     page,
     openDatasourceWizard,
-    waitForNotification,
+    expectNotificationWithText,
   }) => {
     // Navigate to remote database config
     await openDatasourceWizard();
@@ -63,7 +63,7 @@ test.describe('Datasource Wizard', () => {
     await testConnectionButton.click();
 
     // Should show error
-    await waitForNotification('Invalid URL');
+    await expectNotificationWithText('Validation error', 'Invalid URL format');
   });
 
   test('should validate database name', async ({ page, openDatasourceWizard }) => {

@@ -4,6 +4,8 @@ import {
 } from '@features/data-explorer/components/data-explorer-filters';
 import { describe, it, expect } from '@jest/globals';
 
+import { getTestFileTypeFilter } from '../test-helpers';
+
 // Since we're in a Node test environment, we'll test the types and logic
 // rather than the React component rendering
 
@@ -24,14 +26,14 @@ describe('DataExplorerFilters Types', () => {
 
   describe('FileTypeFilter', () => {
     it('should have the correct structure', () => {
-      const filter: FileTypeFilter = {
+      const filter: FileTypeFilter = getTestFileTypeFilter({
         csv: true,
         json: false,
         parquet: true,
         xlsx: false,
-      };
+      });
 
-      expect(Object.keys(filter)).toHaveLength(4);
+      expect(Object.keys(filter)).toHaveLength(10);
       expect(filter).toHaveProperty('csv');
       expect(filter).toHaveProperty('json');
       expect(filter).toHaveProperty('parquet');
@@ -39,12 +41,7 @@ describe('DataExplorerFilters Types', () => {
     });
 
     it('should only accept boolean values', () => {
-      const filter: FileTypeFilter = {
-        csv: true,
-        json: true,
-        parquet: true,
-        xlsx: true,
-      };
+      const filter: FileTypeFilter = getTestFileTypeFilter();
 
       Object.values(filter).forEach((value) => {
         expect(typeof value).toBe('boolean');
@@ -54,40 +51,30 @@ describe('DataExplorerFilters Types', () => {
 
   describe('Filter Logic', () => {
     it('should determine all file types selected', () => {
-      const allSelected: FileTypeFilter = {
-        csv: true,
-        json: true,
-        parquet: true,
-        xlsx: true,
-      };
+      const allSelected: FileTypeFilter = getTestFileTypeFilter();
 
       const activeFileTypes = Object.entries(allSelected).filter(([_, enabled]) => enabled);
-      const allFileTypesSelected = activeFileTypes.length === 4;
+      const allFileTypesSelected = activeFileTypes.length === 10;
 
       expect(allFileTypesSelected).toBe(true);
     });
 
     it('should determine some file types selected', () => {
-      const someSelected: FileTypeFilter = {
+      const someSelected: FileTypeFilter = getTestFileTypeFilter({
         csv: true,
         json: false,
         parquet: true,
         xlsx: false,
-      };
+      });
 
       const activeFileTypes = Object.entries(someSelected).filter(([_, enabled]) => enabled);
-      const someFileTypesSelected = activeFileTypes.length > 0 && activeFileTypes.length < 4;
+      const someFileTypesSelected = activeFileTypes.length > 0 && activeFileTypes.length < 10;
 
       expect(someFileTypesSelected).toBe(true);
     });
 
     it('should toggle file type correctly', () => {
-      const filter: FileTypeFilter = {
-        csv: true,
-        json: true,
-        parquet: true,
-        xlsx: true,
-      };
+      const filter: FileTypeFilter = getTestFileTypeFilter();
 
       const fileType: keyof FileTypeFilter = 'csv';
       const toggled = {
@@ -102,37 +89,54 @@ describe('DataExplorerFilters Types', () => {
     });
 
     it('should handle select all when all are selected', () => {
-      const filter: FileTypeFilter = {
-        csv: true,
-        json: true,
-        parquet: true,
-        xlsx: true,
-      };
+      const filter: FileTypeFilter = getTestFileTypeFilter();
 
       const activeFileTypes = Object.entries(filter).filter(([_, enabled]) => enabled);
-      const allFileTypesSelected = activeFileTypes.length === 4;
+      const allFileTypesSelected = activeFileTypes.length === 10;
 
       const newFilter = allFileTypesSelected
-        ? { csv: false, json: false, parquet: false, xlsx: false }
-        : { csv: true, json: true, parquet: true, xlsx: true };
+        ? getTestFileTypeFilter({
+            csv: false,
+            json: false,
+            parquet: false,
+            xlsx: false,
+            sas7bdat: false,
+            xpt: false,
+            sav: false,
+            zsav: false,
+            por: false,
+            dta: false,
+          })
+        : getTestFileTypeFilter();
 
       expect(Object.values(newFilter).every((v) => v === false)).toBe(true);
     });
 
     it('should handle select all when some are selected', () => {
-      const filter: FileTypeFilter = {
+      const filter: FileTypeFilter = getTestFileTypeFilter({
         csv: true,
         json: false,
         parquet: true,
         xlsx: false,
-      };
+      });
 
       const activeFileTypes = Object.entries(filter).filter(([_, enabled]) => enabled);
-      const allFileTypesSelected = activeFileTypes.length === 4;
+      const allFileTypesSelected = activeFileTypes.length === 10;
 
       const newFilter = allFileTypesSelected
-        ? { csv: false, json: false, parquet: false, xlsx: false }
-        : { csv: true, json: true, parquet: true, xlsx: true };
+        ? getTestFileTypeFilter({
+            csv: false,
+            json: false,
+            parquet: false,
+            xlsx: false,
+            sas7bdat: false,
+            xpt: false,
+            sav: false,
+            zsav: false,
+            por: false,
+            dta: false,
+          })
+        : getTestFileTypeFilter();
 
       expect(Object.values(newFilter).every((v) => v === true)).toBe(true);
     });

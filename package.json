@@ -18,7 +18,11 @@
     "node": ">=18"
   },
   "scripts": {
+    "predev": "node scripts/check-port.js",
     "dev": "vite",
+    "dev:tauri": "vite --port 5174",
+    "tauri:dev": "./scripts/tauri-dev-safe.sh",
+    "tauri:dev:unsafe": "tauri dev",
     "build": "tsc && vite build",
     "build:test": "yarn build --mode int-test-build",
     "test": "yarn build:test && playwright test",
@@ -34,7 +38,9 @@
     "lint:stylelint": "stylelint '**/*.css' --cache",
     "lint:stylelint:fix": "stylelint '**/*.css' --cache --fix",
     "prettier": "prettier --check \"**/*.{ts,tsx}\"",
-    "prettier:write": "prettier --write \"**/*.{ts,tsx}\""
+    "prettier:write": "prettier --write \"**/*.{ts,tsx}\"",
+    "tauri": "node ./scripts/run-tauri.js",
+    "tauri:build": "node ./scripts/run-tauri.js build"
   },
   "dependencies": {
     "@codemirror/lang-sql": "^6.8.0",
@@ -80,8 +86,14 @@
   "devDependencies": {
     "@playwright/test": "^1.51.0",
     "@tanstack/eslint-plugin-query": "^5.68.0",
+    "@tauri-apps/api": "^2.7.0",
+    "@tauri-apps/cli": "^2.7.0",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2",
+    "@tauri-apps/plugin-shell": "^2",
     "@types/dagre": "^0.7.52",
-    "@types/node": "^22.13.9",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.7.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/wicg-file-system-access": "^2023.10.6",
@@ -113,7 +125,7 @@
     "stylelint-config-standard-scss": "^13.1.0",
     "tailwindcss": "^3.4.13",
     "ts-jest": "^29.3.1",
-    "typescript": "^5.5.2",
+    "typescript": "^5.9.3",
     "vite": "^5.3.1",
     "vite-plugin-svgr": "^4.3.0",
     "vite-tsconfig-paths": "^4.3.2",

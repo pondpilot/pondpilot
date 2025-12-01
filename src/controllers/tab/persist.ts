@@ -4,6 +4,8 @@
 
 import { AppIdbSchema, CONTENT_VIEW_TABLE_NAME, TAB_TABLE_NAME } from '@models/persisted-store';
 import { AnyTab, TabId } from '@models/tab';
+import { PersistenceAdapter } from '@store/persistence';
+import { isTauriEnvironment } from '@utils/browser';
 import { IDBPDatabase } from 'idb';
 
 /**
@@ -45,24 +47,44 @@ export const persistCreateTab = async (
  */
 
 export const persistDeleteTab = async (
-  iDb: IDBPDatabase<AppIdbSchema>,
+  iDbOrAdapter: IDBPDatabase<AppIdbSchema> | PersistenceAdapter,
   deletedTabIds: TabId[],
   newActiveTabId: TabId | null,
   newPreviewTabId: TabId | null,
   newTabOrder: TabId[],
 ) => {
-  const tx = iDb.transaction([TAB_TABLE_NAME, CONTENT_VIEW_TABLE_NAME], 'readwrite');
+  if (isTauriEnvironment()) {
+    // Using persistence adapter (Tauri/SQLite)
+    const adapter = iDbOrAdapter as PersistenceAdapter;
 
-  // Delete each tab
-  const tabStore = tx.objectStore(TAB_TABLE_NAME);
-  for (const tabId of deletedTabIds) {
-    await tabStore.delete(tabId);
+    // Use transaction to ensure atomicity across multiple tables
+    await adapter.transaction(async (txAdapter) => {
+      // Delete each tab
+      for (const tabId of deletedTabIds) {
+        await txAdapter.delete(TAB_TABLE_NAME, tabId);
+      }
+
+      // Update the content view data
+      await txAdapter.put(CONTENT_VIEW_TABLE_NAME, newTabOrder, 'tabOrder');
+      await txAdapter.put(CONTENT_VIEW_TABLE_NAME, newActiveTabId, 'activeTabId');
+      await txAdapter.put(CONTENT_VIEW_TABLE_NAME, newPreviewTabId, 'previewTabId');
+    });
+  } else {
+    // Using IndexedDB directly (web)
+    const iDb = iDbOrAdapter as IDBPDatabase<AppIdbSchema>;
+    const tx = iDb.transaction([TAB_TABLE_NAME, CONTENT_VIEW_TABLE_NAME], 'readwrite');
+
+    // Delete each tab
+    const tabStore = tx.objectStore(TAB_TABLE_NAME);
+    for (const tabId of deletedTabIds) {
+      await tabStore.delete(tabId);
+    }
+
+    const contentViewStore = tx.objectStore(CONTENT_VIEW_TABLE_NAME);
+    await contentViewStore.put(newTabOrder, 'tabOrder');
+    await contentViewStore.put(newActiveTabId, 'activeTabId');
+    await contentViewStore.put(newPreviewTabId, 'previewTabId');
+
+    await tx.done;
   }
-
-  const contentViewStore = tx.objectStore(CONTENT_VIEW_TABLE_NAME);
-  await contentViewStore.put(newTabOrder, 'tabOrder');
-  await contentViewStore.put(newActiveTabId, 'activeTabId');
-  await contentViewStore.put(newPreviewTabId, 'previewTabId');
-
-  await tx.done;
 };

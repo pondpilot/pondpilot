@@ -247,6 +247,20 @@ export const test = baseTest.extend<FilePickerFixtures>({
             await storage.uploadFile(xlsxFilePath, file.path);
             break;
 
+          case 'db':
+            // Skip for now - SQLite test fixtures would require creating valid SQLite databases
+            break;
+
+          // Statistical file formats - not tested
+          case 'sas7bdat':
+          case 'xpt':
+          case 'sav':
+          case 'zsav':
+          case 'por':
+          case 'dta':
+            // Skip these for now - not creating test fixtures for statistical formats
+            break;
+
           default:
             assertNeverValueType(file);
         }
@@ -261,8 +275,12 @@ export const test = baseTest.extend<FilePickerFixtures>({
       const allDbNodes = await getAllDBNodes();
       const initialDbNodeCount = await allDbNodes.count();
 
-      const isAddingFiles = rootFiles.some((fileName) => !fileName.endsWith('duckdb'));
-      const isAddingDbFiles = rootFiles.some((fileName) => fileName.endsWith('duckdb'));
+      const isAddingFiles = rootFiles.some(
+        (fileName) => !fileName.endsWith('duckdb') && !fileName.endsWith('.db'),
+      );
+      const isAddingDbFiles = rootFiles.some(
+        (fileName) => fileName.endsWith('duckdb') || fileName.endsWith('.db'),
+      );
 
       await addFile();
 

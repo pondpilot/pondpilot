@@ -17,6 +17,10 @@ const getVersionInfo = () => {
 export default defineConfig(({ mode }) => {
   // Check for DOCKER_BUILD environment variable
   const isDockerBuild = process.env.DOCKER_BUILD === 'true';
+  const port = process.env.VITE_PORT ? parseInt(process.env.VITE_PORT) : 5173;
+  
+  // Check if building for Tauri
+  const isTauriBuild = process.env.TAURI_ENV_PLATFORM !== undefined || process.env.TAURI_PLATFORM !== undefined;
 
   // Get and normalize base path from environment variable, default to '/'
   // Ensures it both starts and ends with a single '/'
@@ -44,8 +48,8 @@ export default defineConfig(({ mode }) => {
   console.log(`[build] Using base path: ${basePath}`);
 
   return {
+    base: isTauriBuild ? '' : basePath,
     mode: mode === 'int-test-build' ? 'production' : mode,
-    base: basePath,
     define: {
       __INTEGRATION_TEST__: mode === 'int-test-build',
       __VERSION__: JSON.stringify(getVersionInfo()),
@@ -54,7 +58,7 @@ export default defineConfig(({ mode }) => {
       react(),
       tsconfigPaths(),
       VitePWA({
-        disable: mode !== 'production' || isDockerBuild, // Disable PWA for Docker builds
+        disable: mode !== 'production' || isDockerBuild || isTauriBuild, // Disable PWA for Docker and Tauri builds
         registerType: 'autoUpdate',
         clientsClaim: true,
         skipWaiting: true,
@@ -150,9 +154,19 @@ export default defineConfig(({ mode }) => {
 
     build: {
       sourcemap: mode === 'development',
+      rollupOptions: {
+        external: ['duckdb', 'fs/promises'],
+      },
+      commonjsOptions: {
+        transformMixedEsModules: true,
+      },
     },
     optimizeDeps: {
       exclude: ['@duckdb/duckdb-wasm'],
+    },
+    server: {
+      port: port,
+      strictPort: false, // Allow Vite to find another port if needed
     },
   };
 });

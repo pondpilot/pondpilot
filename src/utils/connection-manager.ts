@@ -4,7 +4,7 @@
  * Utilities for managing database connections with timeouts and retries
  */
 
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 
 import { ConnectionTimeoutError, MaxRetriesExceededError } from './connection-errors';
 
@@ -36,7 +36,7 @@ const DEFAULT_CONFIG: Required<ConnectionConfig> = {
  * Execute a query with timeout
  */
 async function queryWithTimeout<T>(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   query: string,
   timeoutMs: number,
 ): Promise<T> {
@@ -93,7 +93,7 @@ function calculateRetryDelay(
  * Execute a database connection with retries and timeout
  */
 export async function executeWithRetry<T>(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   query: string,
   config?: ConnectionConfig,
 ): Promise<T> {
@@ -142,7 +142,7 @@ export async function executeWithRetry<T>(
  * Test a remote database connection with timeout
  */
 export async function testRemoteConnection(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   dbName: string,
   config?: ConnectionConfig,
 ): Promise<boolean> {
@@ -166,7 +166,7 @@ export async function testRemoteConnection(
  * Execute an ATTACH statement with retries and timeout
  */
 export async function attachDatabaseWithRetry(
-  pool: AsyncDuckDBConnectionPool,
+  pool: ConnectionPool,
   attachQuery: string,
   config?: ConnectionConfig,
 ): Promise<void> {

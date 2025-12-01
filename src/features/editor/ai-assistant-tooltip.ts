@@ -9,6 +9,7 @@ import {
   ViewUpdate,
   keymap,
 } from '@codemirror/view';
+import { ConnectionPool } from '@engines/types';
 
 import { createAIAssistantHandlers } from './ai-assistant/ai-assistant-handlers';
 import {
@@ -44,7 +45,6 @@ import { StructuredSQLResponse } from '../../models/structured-ai-response';
 import { useAppStore } from '../../store/app-store';
 import { saveAIConfig, getAIConfig } from '../../utils/ai-config';
 import { resolveAIContext } from '../../utils/editor/statement-parser';
-import { AsyncDuckDBConnectionPool } from '../duckdb-context/duckdb-connection-pool';
 
 class AIAssistantWidget extends WidgetType {
   private cleanup?: () => void;
@@ -590,7 +590,7 @@ export { structuredResponseField };
 
 // Export the extension
 export function aiAssistantTooltip(
-  connectionPool?: AsyncDuckDBConnectionPool | null,
+  connectionPool?: ConnectionPool | null,
   services?: AIAssistantServices,
   sqlScripts?: Map<string, SQLScript>,
 ) {

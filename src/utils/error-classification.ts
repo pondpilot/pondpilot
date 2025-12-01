@@ -1,3 +1,5 @@
+import { normalizeErrorMessage } from './error-utils';
+
 /**
  * Error Classification Utilities
  *
@@ -112,17 +114,5 @@ export function isNetworkError(error: unknown): boolean {
  * @returns A user-friendly error message
  */
 export function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  // Handle cases where a plain object with a message property is thrown
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'message' in error &&
-    typeof error.message === 'string'
-  ) {
-    return error.message;
-  }
-  return String(error);
+  return normalizeErrorMessage(error);
 }

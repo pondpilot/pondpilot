@@ -8,7 +8,7 @@ import {
 } from '@controllers/db';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { PersistentDataSourceId } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
@@ -48,7 +48,7 @@ import { persistDeleteDataSource } from './persist';
  */
 
 export const deleteDataSources = async (
-  conn: AsyncDuckDBConnectionPool,
+  conn: ConnectionPool,
   dataSourceIds: PersistentDataSourceId[],
 ) => {
   const {
@@ -60,6 +60,7 @@ export const deleteDataSources = async (
     localEntries,
     registeredFiles,
     _iDbConn: iDbConn,
+    _persistenceAdapter: persistenceAdapter,
   } = useAppStore.getState();
 
   // Data source have many connected objects.
@@ -138,15 +139,23 @@ export const deleteDataSources = async (
     'AppStore/deleteDataSource',
   );
 
-  if (iDbConn) {
-    // Delete data sources from IndexedDB
-    persistDeleteDataSource(iDbConn, dataSourceIds, entryIdsToDelete);
+  // Use the appropriate persistence adapter
+  const persistenceStore = persistenceAdapter || iDbConn;
+  if (persistenceStore) {
+    // Delete data sources from persistence (IndexedDB or SQLite)
+    persistDeleteDataSource(persistenceStore, dataSourceIds, entryIdsToDelete);
 
-    // Delete associated tabs from IndexedDB if any. For simplicty we do not bother
+    // Delete associated tabs from persistence if any. For simplicty we do not bother
     // doing this in a single transaction, highly unlikely to be a problem.
     // This also takes care of the data view cache entries associated with the tabs
     if (tabsToDelete.length) {
-      persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
+      persistDeleteTab(
+        persistenceStore,
+        tabsToDelete,
+        newActiveTabId,
+        newPreviewTabId,
+        newTabOrder,
+      );
     }
   }
 
@@ -154,7 +163,7 @@ export const deleteDataSources = async (
   for (const dataSource of deletedDataSources) {
     if (dataSource.type === 'remote-db') {
       // For remote databases, just detach
-      detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.url);
+      detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.legacyUrl || '');
       continue;
     }
 

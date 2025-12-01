@@ -1,4 +1,4 @@
-import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { ConnectionPool } from '@engines/types';
 import { getCorsProxyMacros } from '@utils/attach-cors-rewriter';
 
 /**
@@ -10,7 +10,7 @@ import { getCorsProxyMacros } from '@utils/attach-cors-rewriter';
  *
  * @param conn - DuckDB connection pool
  */
-export async function installCorsProxyMacros(conn: AsyncDuckDBConnectionPool): Promise<void> {
+export async function installCorsProxyMacros(conn: ConnectionPool): Promise<void> {
   try {
     const macros = getCorsProxyMacros();
 

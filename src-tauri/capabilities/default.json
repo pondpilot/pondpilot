@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/capabilities.json",
+  "identifier": "default",
+  "description": "Default permissions for the PondPilot application",
+  "windows": ["main", "secrets"],
+  "permissions": [
+    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-show",
+    "shell:allow-open",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-ask",
+    "dialog:allow-confirm",
+    { "identifier": "fs:allow-read-dir", "allow": [ {"path": "$APPDATA/io.pondpilot/**"}, {"path": "$DOWNLOAD/**"}, {"path": "$DOCUMENT/**"} ] },
+    { "identifier": "fs:allow-read-file", "allow": [ {"path": "$APPDATA/io.pondpilot/**"}, {"path": "$DOWNLOAD/**"}, {"path": "$DOCUMENT/**"} ] },
+    { "identifier": "fs:allow-write-file", "allow": [ {"path": "$APPDATA/io.pondpilot/**"}, {"path": "$TEMP/io.pondpilot/**"} ] },
+    { "identifier": "fs:allow-stat", "allow": [ {"path": "$APPDATA/io.pondpilot/**"}, {"path": "$DOWNLOAD/**"}, {"path": "$DOCUMENT/**"}, {"path": "$TEMP/io.pondpilot/**"} ] },
+    { "identifier": "fs:allow-exists", "allow": [ {"path": "$APPDATA/io.pondpilot/**"}, {"path": "$DOWNLOAD/**"}, {"path": "$DOCUMENT/**"}, {"path": "$TEMP/io.pondpilot/**"} ] },
+    { "identifier": "fs:create-app-specific-dirs" }
+  ]
+}
