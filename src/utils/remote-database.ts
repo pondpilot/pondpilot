@@ -58,7 +58,11 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
     updateRemoteDbConnectionState(remoteDb.id, 'connecting');
 
     // First, re-attach the database with READ_ONLY flag
-    const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, { readOnly: true });
+    const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, {
+      readOnly: true,
+      useCorsProxy: remoteDb.useCorsProxy ?? true,
+      s3Endpoint: remoteDb.s3Endpoint,
+    });
 
     try {
       await executeWithRetry(pool, attachQuery, {
