@@ -299,28 +299,6 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
           required
         />
 
-        <Checkbox
-          label="Read-only access (Recommended for remote databases)"
-          checked={readOnly}
-          onChange={(event) => setReadOnly(event.currentTarget.checked)}
-          className="pl-4"
-        />
-
-        <Tooltip
-          label="Uses a CORS proxy to access databases without CORS headers. The proxy forwards requests transparently without logging or storing data."
-          multiline
-          w={300}
-          withArrow
-          position="right"
-        >
-          <Checkbox
-            label="Use CORS proxy"
-            checked={useCorsProxy}
-            onChange={(event) => setUseCorsProxy(event.currentTarget.checked)}
-            className="pl-4"
-          />
-        </Tooltip>
-
         {isS3Url && useCorsProxy && (
           <Tooltip
             label={`For non-AWS S3-compatible services (MinIO, DigitalOcean Spaces, etc.). You can also set this via: SET VARIABLE ${S3_ENDPOINT_VARIABLE} = 'your-endpoint';`}
@@ -349,6 +327,28 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
             />
           </Tooltip>
         )}
+
+        <Checkbox
+          label="Read-only access (Recommended for remote databases)"
+          checked={readOnly}
+          onChange={(event) => setReadOnly(event.currentTarget.checked)}
+          className="pl-4"
+        />
+
+        <Tooltip
+          label="Uses a CORS proxy to access databases without CORS headers. The proxy forwards requests transparently without logging or storing data."
+          multiline
+          w={300}
+          withArrow
+          position="right"
+        >
+          <Checkbox
+            label="Use CORS proxy"
+            checked={useCorsProxy}
+            onChange={(event) => setUseCorsProxy(event.currentTarget.checked)}
+            className="pl-4"
+          />
+        </Tooltip>
       </Stack>
 
       <Group justify="end" className="mt-4">
