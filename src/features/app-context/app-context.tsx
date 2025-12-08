@@ -1,4 +1,5 @@
 import { useFeatureContext } from '@features/feature-context';
+import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { useBeforeUnloadProtection } from '@hooks/use-beforeunload-protection';
 import { createContext, useContext } from 'react';
 
@@ -13,9 +14,11 @@ const AppContext = createContext({});
 
 export const AppContextProvider = ({ children }: { children: React.ReactNode }) => {
   const { isFileAccessApiSupported, isMobileDevice } = useFeatureContext();
+  const { isTabBlocked } = useTabCoordinationContext();
   useAppInitialization({
     isFileAccessApiSupported,
     isMobileDevice,
+    isTabBlocked,
   });
 
   // Add protection against losing file references in non-Chrome browsers
@@ -23,7 +26,7 @@ export const AppContextProvider = ({ children }: { children: React.ReactNode }) 
 
   return (
     <AppContext.Provider value={{}}>
-      {import.meta.env.DEV && isFileAccessApiSupported && <DevModal />}
+      {import.meta.env.DEV && isFileAccessApiSupported && !isTabBlocked && <DevModal />}
       {children}
     </AppContext.Provider>
   );

@@ -12,7 +12,11 @@ const backgroundImages = [
   browserNotSupportedImgMatrix,
 ];
 
-export const MultipleTabsBlocked = () => {
+interface MultipleTabsBlockedProps {
+  onTakeOver: () => void;
+}
+
+export const MultipleTabsBlocked = ({ onTakeOver }: MultipleTabsBlockedProps) => {
   const handleRefresh = () => {
     window.location.reload();
   };
@@ -47,9 +51,18 @@ export const MultipleTabsBlocked = () => {
               PondPilot works with local files and databases. Running multiple tabs simultaneously
               could cause data conflicts and corruption.
             </Text>
-            <Button onClick={handleRefresh} size="md" className="mt-4">
-              Refresh Page
-            </Button>
+            <Stack gap={8} className="mt-4">
+              <Button
+                onClick={onTakeOver}
+                size="md"
+                data-testid={setDataTestId('take-over-button')}
+              >
+                Take Over
+              </Button>
+              <Button onClick={handleRefresh} size="md" variant="subtle">
+                Refresh Page
+              </Button>
+            </Stack>
           </Stack>
         </Box>
       </Center>

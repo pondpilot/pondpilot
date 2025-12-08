@@ -5,9 +5,13 @@ import {
   DuckDBInitializerStatusContext,
 } from '@features/duckdb-context/duckdb-context';
 import { useFeatureContext } from '@features/feature-context';
+import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { DBPersistenceState } from '@models/db-persistence';
 import { OPFSUtil } from '@utils/opfs';
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+
+const PERSISTENCE_BLOCKED_MESSAGE =
+  'Persistence initialization paused because this tab is inactive.';
 
 // Context for managing persistence UI state
 interface UIStateContextType {
@@ -52,6 +56,7 @@ export const PersistenceConnector: React.FC<{
   maxPoolSize: number;
   children: React.ReactNode;
 }> = ({ maxPoolSize, children }) => {
+  const { isTabBlocked } = useTabCoordinationContext();
   // No local ready state; combinedStatus tracks overall readiness
   // Track a combined initialization state for a unified loading experience
   const [combinedStatus, setCombinedStatus] = useState<{
@@ -119,7 +124,7 @@ export const PersistenceConnector: React.FC<{
       <DuckDBPersistenceProvider onStatusUpdate={handlePersistenceStatus}>
         {/* Provide combined status to DevModal */}
         <DuckDBInitializerStatusContext.Provider value={statusContextValue}>
-          {import.meta.env.DEV && <DevModal />}
+          {import.meta.env.DEV && !isTabBlocked && <DevModal />}
           {/* DuckDBConnectionPoolProvider manages actual DuckDB initialization */}
           <DuckDBConnectionPoolProvider
             maxPoolSize={maxPoolSize}
@@ -141,6 +146,7 @@ export const DuckDBPersistenceProvider: React.FC<{
   }) => void;
 }> = ({ children, onStatusUpdate }) => {
   const { isOPFSSupported } = useFeatureContext();
+  const { isTabBlocked } = useTabCoordinationContext();
 
   // Memoize the onStatusUpdate function to prevent infinite loops
   const memoizedStatusUpdate = useCallback(
@@ -157,8 +163,14 @@ export const DuckDBPersistenceProvider: React.FC<{
     lastSync: null,
   });
   const [isInitialized, setIsInitialized] = useState(false);
+  const isCleaningUpRef = useRef(false);
 
   useEffect(() => {
+    // Don't initialize if this tab is blocked by another active tab
+    if (isTabBlocked) {
+      return;
+    }
+
     const init = async () => {
       memoizedStatusUpdate({
         state: 'loading',
@@ -231,7 +243,53 @@ export const DuckDBPersistenceProvider: React.FC<{
     };
 
     init();
-  }, [isOPFSSupported, memoizedStatusUpdate]);
+  }, [isOPFSSupported, isTabBlocked, memoizedStatusUpdate]);
+
+  useEffect(() => {
+    if (!isTabBlocked) {
+      return;
+    }
+
+    memoizedStatusUpdate({
+      state: 'none',
+      message: PERSISTENCE_BLOCKED_MESSAGE,
+    });
+
+    setIsInitialized(false);
+
+    if (!controller) {
+      return;
+    }
+
+    let isActive = true;
+
+    const cleanup = async () => {
+      // Prevent concurrent cleanup operations to avoid race conditions
+      if (isCleaningUpRef.current) {
+        console.warn('Persistence cleanup already in progress, skipping duplicate cleanup');
+        return;
+      }
+
+      isCleaningUpRef.current = true;
+
+      try {
+        await controller.cleanupResources();
+      } catch (error) {
+        console.warn('Failed to cleanup persistence resources:', error);
+      } finally {
+        isCleaningUpRef.current = false;
+        if (isActive) {
+          setController(null);
+        }
+      }
+    };
+
+    cleanup();
+
+    return () => {
+      isActive = false;
+    };
+  }, [controller, isTabBlocked, memoizedStatusUpdate]);
 
   const updatePersistenceState = async () => {
     if (!controller) return;
