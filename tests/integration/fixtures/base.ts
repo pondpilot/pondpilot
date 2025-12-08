@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { test as base } from '@playwright/test';
+import type { Route } from '@playwright/test';
 
 export const test = base.extend<{ forEachTest: void }>({
   forEachTest: [
@@ -10,15 +11,34 @@ export const test = base.extend<{ forEachTest: void }>({
 
       // Catch-all route to mock any other external requests
       await context.route(/^https?:\/\/(?!localhost|127\.0\.0\.1).*/, async (route) => {
-        const url = route.request().url();
+        const requestUrl = route.request().url();
+        const host = (() => {
+          try {
+            return new URL(requestUrl).host;
+          } catch {
+            return '';
+          }
+        })();
+
+        if (
+          host === 'cdn.jsdelivr.net' ||
+          host === 'extensions.duckdb.org' ||
+          host === 'cdn.sheetjs.com' ||
+          host === 'fonts.gstatic.com' ||
+          host === 'fonts.googleapis.com'
+        ) {
+          await route.fallback();
+          return;
+        }
+
         if (isDebugMode) {
           // eslint-disable-next-line no-console
-          console.debug(`🚫 [${testInfo.title}] Blocking external request: ${url}`);
+          console.debug(`🚫 [${testInfo.title}] Blocking external request: ${requestUrl}`);
         }
 
         // Mock GitHub API responses
-        if (url.includes('api.github.com')) {
-          await route.fulfill({
+        if (requestUrl.includes('api.github.com')) {
+          await safeFulfill(route, {
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
@@ -31,8 +51,8 @@ export const test = base.extend<{ forEachTest: void }>({
         }
 
         // Mock YouTube embeds
-        if (url.includes('youtube.com') || url.includes('youtu.be')) {
-          await route.fulfill({
+        if (requestUrl.includes('youtube.com') || requestUrl.includes('youtu.be')) {
+          await safeFulfill(route, {
             status: 200,
             contentType: 'text/html',
             body: '<html><body><div>Mock YouTube Video</div></body></html>',
@@ -41,7 +61,7 @@ export const test = base.extend<{ forEachTest: void }>({
         }
 
         // For all other external requests, return a generic response
-        await route.fulfill({
+        await safeFulfill(route, {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({ message: 'Mocked response for testing' }),
@@ -50,7 +70,7 @@ export const test = base.extend<{ forEachTest: void }>({
 
       // Block Google Fonts requests - will prevent waiting for these resources and speed up tests
       await context.route(/^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)/, (route) =>
-        route.fulfill({
+        safeFulfill(route, {
           status: 200,
           contentType: 'text/css',
           body: '/* Fonts blocked for testing */',
@@ -86,7 +106,7 @@ export const test = base.extend<{ forEachTest: void }>({
             // Determine content type based on file extension
             const contentType = getContentTypeFromFileName(fileName);
 
-            await route.fulfill({
+            await safeFulfill(route, {
               status: 200,
               contentType,
               body: fileContent,
@@ -96,12 +116,17 @@ export const test = base.extend<{ forEachTest: void }>({
 
           // For files we don't have cached yet, intercept and save for future runs
           try {
-            const response = await route.fetch();
-            const body = await response.body();
-            const headers = response.headers();
+            const response = await fetch(route.request().url());
+            const arrayBuffer = await response.arrayBuffer();
+            const body = Buffer.from(arrayBuffer);
+
+            const headers: Record<string, string> = {};
+            response.headers.forEach((value, key) => {
+              headers[key] = value;
+            });
 
             // Also save to disk for future test runs if ok
-            if (response.ok()) {
+            if (response.ok) {
               if (isDebugMode) {
                 // eslint-disable-next-line no-console
                 console.debug(
@@ -121,14 +146,14 @@ export const test = base.extend<{ forEachTest: void }>({
             }
 
             // Return the original response
-            await route.fulfill({
-              status: response.status(),
+            await safeFulfill(route, {
+              status: response.status,
               headers,
               body,
             });
           } catch (error) {
             console.error('Error fetching the route:', error);
-            await route.abort();
+            await safeAbort(route);
           }
         },
       );
@@ -166,5 +191,29 @@ function getContentTypeFromFileName(fileName: string): string {
       return 'text/css';
     default:
       return 'application/octet-stream';
+  }
+}
+
+type RouteFulfillInput = Parameters<Route['fulfill']>[0];
+
+async function safeFulfill(route: Route, options: RouteFulfillInput) {
+  try {
+    await route.fulfill(options);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Route is already handled')) {
+      return;
+    }
+    throw error;
+  }
+}
+
+async function safeAbort(route: Route) {
+  try {
+    await route.abort();
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Route is already handled')) {
+      return;
+    }
+    throw error;
   }
 }
