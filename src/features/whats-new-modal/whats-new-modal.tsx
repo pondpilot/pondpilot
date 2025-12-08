@@ -3,18 +3,33 @@ import { showError } from '@components/app-notifications';
 import { DotAnimation } from '@components/dots-animation';
 import { Text, Stack, Title, List, Button, Group, ScrollArea, Center } from '@mantine/core';
 import { ModalSettings } from '@mantine/modals/lib/context';
-import { APP_RELEASE_TAGS_GITHUB_API_URL } from '@models/app-urls';
+import { APP_RELEASE_TAGS_GITHUB_API_URL, APP_RELEASES_URL } from '@models/app-urls';
 import { setDataTestId } from '@utils/test-id';
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+
+interface GitHubReleaseData {
+  body: string;
+  tag_name: string;
+  name: string;
+  html_url: string;
+  published_at: string;
+}
 
 export const WHATS_NEW_MODAL_OPTIONS: ModalSettings = {
   size: 675,
   styles: { body: { paddingBottom: 0 }, header: { paddingInlineEnd: 16 } },
 };
 
+const stripFullChangelogLink = (body: string): string => {
+  if (!body || typeof body !== 'string') {
+    return '';
+  }
+  return body.replace(/\*\*Full Changelog\*\*:.*$/m, '').trim();
+};
+
 export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
-  const [ghReleaseNotesData, setGhReleaseNotesData] = useState<any>(null);
+  const [ghReleaseNotesData, setGhReleaseNotesData] = useState<GitHubReleaseData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -88,19 +103,32 @@ export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
                 ),
               }}
             >
-              {ghReleaseNotesData.body}
+              {stripFullChangelogLink(ghReleaseNotesData.body)}
             </ReactMarkdown>
           </ScrollArea>
         </div>
       )}
       <Group
-        justify="end"
+        justify="space-between"
         className="sticky bottom-0 bg-backgroundPrimary-light py-6 px-4 dark:bg-backgroundPrimary-dark"
       >
         {!isLoading && (
-          <Button onClick={onClose} data-testid={setDataTestId('whats-new-modal-submit-button')}>
-            Got it!
-          </Button>
+          <>
+            <Button
+              variant="subtle"
+              component="a"
+              href={APP_RELEASES_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="View all releases on GitHub (opens in new tab)"
+              data-testid={setDataTestId('whats-new-modal-view-releases-button')}
+            >
+              View all releases
+            </Button>
+            <Button onClick={onClose} data-testid={setDataTestId('whats-new-modal-submit-button')}>
+              Got it!
+            </Button>
+          </>
         )}
       </Group>
     </Stack>
