@@ -8,7 +8,15 @@ import { useFeatureContext } from '@features/feature-context';
 import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { DBPersistenceState } from '@models/db-persistence';
 import { OPFSUtil } from '@utils/opfs';
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 
 const PERSISTENCE_BLOCKED_MESSAGE =
   'Persistence initialization paused because this tab is inactive.';

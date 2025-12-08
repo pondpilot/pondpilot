@@ -16,8 +16,7 @@ class DuckDBInitializationCancelledError extends Error {
   }
 }
 
-const TAB_BLOCKED_STATUS_MESSAGE =
-  'DuckDB initialization paused because this tab is inactive.';
+const TAB_BLOCKED_STATUS_MESSAGE = 'DuckDB initialization paused because this tab is inactive.';
 
 // Context used to provide progress of duckdb initialization
 type duckDBInitState = 'none' | 'loading' | 'ready' | 'error';
@@ -118,9 +117,12 @@ export const DuckDBConnectionPoolProvider = ({
   }, [worker, workerBlobUrl]);
 
   // terminate worker and revoke blob URL on unmount
-  useEffect(() => () => {
-    cleanupWorkerResources();
-  }, [cleanupWorkerResources]);
+  useEffect(
+    () => () => {
+      cleanupWorkerResources();
+    },
+    [cleanupWorkerResources],
+  );
 
   // Single reference for the in-flight promise
   const inFlight = useRef<Promise<AsyncDuckDBConnectionPool | null> | null>(null);
@@ -512,12 +514,7 @@ export const DuckDBConnectionPoolProvider = ({
         console.error('Failed to cleanup connection resources:', error);
       });
     }
-  }, [
-    isTabBlocked,
-    connectionPool,
-    cleanupConnectionResources,
-    memoizedStatusUpdate,
-  ]);
+  }, [isTabBlocked, connectionPool, cleanupConnectionResources, memoizedStatusUpdate]);
 
   // If we're being managed by a parent component (like PersistenceConnector),
   // we'll just forward status updates but not show our own UI
