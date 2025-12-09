@@ -1,11 +1,22 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { useDuckDBPersistence } from '@features/duckdb-persistence-context';
+import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { setAppLoadState } from '@store/app-store';
 import { isSafeOpfsPath, normalizeOpfsPath } from '@utils/opfs';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { v4 } from 'uuid';
 
 import { AsyncDuckDBConnectionPool } from './duckdb-connection-pool';
+
+class DuckDBInitializationCancelledError extends Error {
+  constructor(message = 'DuckDB initialization cancelled') {
+    super(message);
+    this.name = 'DuckDBInitializationCancelledError';
+  }
+}
+
+const TAB_BLOCKED_STATUS_MESSAGE = 'DuckDB initialization paused because this tab is inactive.';
 
 // Context used to provide progress of duckdb initialization
 type duckDBInitState = 'none' | 'loading' | 'ready' | 'error';
@@ -65,6 +76,7 @@ export const DuckDBConnectionPoolProvider = ({
     message: string;
   }) => void;
 }) => {
+  const { isTabBlocked } = useTabCoordinationContext();
   const [initStatus, setInitStatus] = useState<DuckDBInitializerStatusContextType>({
     state: 'none',
     message: "DuckDB initialization hasn't started yet",
@@ -89,23 +101,27 @@ export const DuckDBConnectionPoolProvider = ({
   // duckdb worker and blob URL references
   const worker = useRef<Worker | null>(null);
   const workerBlobUrl = useRef<string | null>(null);
+  const cancelTokenRef = useRef(0);
+  const isCleaningUpRef = useRef(false);
+
+  const cleanupWorkerResources = useCallback(() => {
+    if (worker.current != null) {
+      worker.current.terminate();
+      worker.current = null;
+    }
+
+    if (workerBlobUrl.current != null) {
+      URL.revokeObjectURL(workerBlobUrl.current);
+      workerBlobUrl.current = null;
+    }
+  }, [worker, workerBlobUrl]);
 
   // terminate worker and revoke blob URL on unmount
   useEffect(
     () => () => {
-      // Terminate the worker
-      if (worker.current != null) {
-        worker.current.terminate();
-        worker.current = null;
-      }
-
-      // Revoke the blob URL
-      if (workerBlobUrl.current != null) {
-        URL.revokeObjectURL(workerBlobUrl.current);
-        workerBlobUrl.current = null;
-      }
+      cleanupWorkerResources();
     },
-    [],
+    [cleanupWorkerResources],
   );
 
   // Single reference for the in-flight promise
@@ -122,7 +138,58 @@ export const DuckDBConnectionPoolProvider = ({
     [onStatusUpdate],
   );
 
+  const cleanupConnectionResources = useCallback(
+    async (reason?: string) => {
+      // Prevent concurrent cleanup operations to avoid race conditions
+      if (isCleaningUpRef.current) {
+        console.warn('DuckDB cleanup already in progress, skipping duplicate cleanup');
+        return;
+      }
+
+      isCleaningUpRef.current = true;
+
+      try {
+        inFlight.current = null;
+
+        const activePool = connectionPool;
+
+        if (activePool) {
+          try {
+            await activePool.close();
+          } catch (error) {
+            console.error('Failed to close DuckDB connection pool during cleanup:', error);
+          } finally {
+            setConnectionPool(null);
+          }
+        }
+
+        cleanupWorkerResources();
+
+        setAppLoadState('init');
+
+        if (reason) {
+          memoizedStatusUpdate({
+            state: 'none',
+            message: reason,
+          });
+        }
+      } finally {
+        isCleaningUpRef.current = false;
+      }
+    },
+    [cleanupWorkerResources, connectionPool, memoizedStatusUpdate],
+  );
+
   const connectDuckDb = useCallback(async (): Promise<AsyncDuckDBConnectionPool | null> => {
+    // Don't initialize if this tab is blocked by another active tab
+    if (isTabBlocked) {
+      memoizedStatusUpdate({
+        state: 'none',
+        message: TAB_BLOCKED_STATUS_MESSAGE,
+      });
+      return null;
+    }
+
     // If we already have a connection request in flight, return it
     if (inFlight.current) {
       return inFlight.current;
@@ -137,6 +204,13 @@ export const DuckDBConnectionPoolProvider = ({
       return null;
     }
 
+    const cancellationToken = cancelTokenRef.current;
+    const ensureNotCancelled = () => {
+      if (cancellationToken !== cancelTokenRef.current) {
+        throw new DuckDBInitializationCancelledError();
+      }
+    };
+
     // Create a local promise we can track for error handling
     const connectionPromise = (async (): Promise<AsyncDuckDBConnectionPool | null> => {
       try {
@@ -146,8 +220,12 @@ export const DuckDBConnectionPoolProvider = ({
           message: 'Starting DuckDB worker...',
         });
 
+        ensureNotCancelled();
+
         // Resolve bundle
         const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+
+        ensureNotCancelled();
 
         // Create a blob URL for the worker script
         const worker_url = URL.createObjectURL(
@@ -175,6 +253,8 @@ export const DuckDBConnectionPoolProvider = ({
           });
           throw e; // Rethrow to trigger error handler
         }
+
+        ensureNotCancelled();
 
         // Instantiate DuckDB
         try {
@@ -214,6 +294,8 @@ export const DuckDBConnectionPoolProvider = ({
           });
           throw e; // Rethrow to trigger error handler
         }
+
+        ensureNotCancelled();
 
         // Open a database with the OPFS path - no fallback to in-memory
         try {
@@ -266,6 +348,8 @@ export const DuckDBConnectionPoolProvider = ({
           });
           throw e; // Rethrow to trigger error handler
         }
+
+        ensureNotCancelled();
 
         // Finally, get the connection
         try {
@@ -350,6 +434,8 @@ export const DuckDBConnectionPoolProvider = ({
             console.warn('Failed to cleanup temporary UUID tables:', cleanupError);
           }
 
+          ensureNotCancelled();
+
           setConnectionPool(pool);
           memoizedStatusUpdate({
             state: 'ready',
@@ -370,6 +456,10 @@ export const DuckDBConnectionPoolProvider = ({
           throw e; // Rethrow to trigger error handler
         }
       } catch (e: any) {
+        if (e instanceof DuckDBInitializationCancelledError) {
+          cleanupWorkerResources();
+          return null;
+        }
         // Catch any uncaught errors in the initialization process
         console.error('Uncaught error in DuckDB initialization:', e);
         memoizedStatusUpdate({
@@ -385,14 +475,46 @@ export const DuckDBConnectionPoolProvider = ({
     // Store the promise and add error handling
     inFlight.current = connectionPromise;
 
-    // Add proper cleanup if errors occur
-    connectionPromise.catch(() => {
-      // Always clear the inFlight reference on error
-      inFlight.current = null;
+    connectionPromise.finally(() => {
+      if (inFlight.current === connectionPromise) {
+        inFlight.current = null;
+      }
     });
 
     return connectionPromise;
-  }, [persistenceState.dbPath, updatePersistenceState, normalizedPoolSize, memoizedStatusUpdate]);
+  }, [
+    persistenceState.dbPath,
+    updatePersistenceState,
+    normalizedPoolSize,
+    memoizedStatusUpdate,
+    isTabBlocked,
+    cleanupWorkerResources,
+  ]);
+
+  useEffect(() => {
+    if (!isTabBlocked) {
+      return;
+    }
+
+    // Increment cancellation token to signal any in-flight initialization to abort.
+    // This is safe in JavaScript's single-threaded event loop - no atomicity concerns.
+    cancelTokenRef.current += 1;
+
+    // Clear the in-flight promise reference. Any ongoing initialization will
+    // detect cancellation via the token check and clean up on its own.
+    inFlight.current = null;
+
+    memoizedStatusUpdate({
+      state: 'none',
+      message: TAB_BLOCKED_STATUS_MESSAGE,
+    });
+
+    if (connectionPool) {
+      cleanupConnectionResources().catch((error) => {
+        console.error('Failed to cleanup connection resources:', error);
+      });
+    }
+  }, [isTabBlocked, connectionPool, cleanupConnectionResources, memoizedStatusUpdate]);
 
   // If we're being managed by a parent component (like PersistenceConnector),
   // we'll just forward status updates but not show our own UI

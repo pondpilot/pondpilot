@@ -1,6 +1,6 @@
 import { deleteTab } from '@controllers/tab';
 import { ComparisonTabView } from '@features/comparison';
-import { Stack } from '@mantine/core';
+import { Skeleton, Stack } from '@mantine/core';
 import { useAppStore, useTabTypeMap } from '@store/app-store';
 import { useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -14,6 +14,7 @@ const TAB_CACHE_SIZE = 10;
 export const TabView = () => {
   const tabToTypeMap = useTabTypeMap();
   const activeTabId = useAppStore.use.activeTabId();
+  const appLoadState = useAppStore.use.appLoadState();
 
   // Use tab cache t avoid rendering all tabs at once
   const { addToCache, isTabCached } = useTabCache(TAB_CACHE_SIZE);
@@ -23,6 +24,15 @@ export const TabView = () => {
     if (activeTabId === null) return;
     addToCache(activeTabId);
   }, [activeTabId, addToCache]);
+
+  if (appLoadState !== 'ready') {
+    return (
+      <Stack className="h-full gap-0 p-4" justify="center" align="center">
+        <Skeleton width="60%" height={24} />
+        <Skeleton width="100%" height="100%" radius="md" />
+      </Stack>
+    );
+  }
 
   return (
     <Stack className="h-full gap-0">

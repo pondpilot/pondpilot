@@ -11,6 +11,7 @@ import { AppState } from '@features/app-state';
 import { PersistenceConnector } from '@features/duckdb-persistence-context';
 import { FeatureProvider } from '@features/feature-context';
 import { InitModals } from '@features/init-modals';
+import { TabCoordinationProvider } from '@features/tab-coordination-context';
 import { MantineProvider } from '@mantine/core';
 import { useLocalStorage } from '@mantine/hooks';
 import { ModalsProvider } from '@mantine/modals';
@@ -30,16 +31,18 @@ export default function App() {
     <MantineProvider theme={theme}>
       <ModalsProvider>
         <ModifierProvider>
-          <FeatureProvider>
-            <PersistenceConnector maxPoolSize={connectionPoolSize}>
-              <AppContextProvider>
-                <Notifications />
-                <AppState />
-                <Router />
-                <InitModals />
-              </AppContextProvider>
-            </PersistenceConnector>
-          </FeatureProvider>
+          <TabCoordinationProvider>
+            <FeatureProvider>
+              <PersistenceConnector maxPoolSize={connectionPoolSize}>
+                <AppContextProvider>
+                  <Notifications />
+                  <AppState />
+                  <Router />
+                  <InitModals />
+                </AppContextProvider>
+              </PersistenceConnector>
+            </FeatureProvider>
+          </TabCoordinationProvider>
         </ModifierProvider>
       </ModalsProvider>
     </MantineProvider>

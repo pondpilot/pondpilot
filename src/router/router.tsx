@@ -5,6 +5,7 @@ import { Layout } from '@components/layout';
 import { MultipleTabsBlocked } from '@components/multiple-tabs-blocked';
 import { useFeatureContext } from '@features/feature-context';
 import { SharedScriptImport } from '@features/script-import';
+import { useTabCoordinationContext } from '@features/tab-coordination-context';
 import { MainPage } from '@pages/main-page';
 import { SettingsPage } from '@pages/settings-page';
 import { createBrowserRouter, RouterProvider, Navigate, RouteObject } from 'react-router-dom';
@@ -28,12 +29,12 @@ if (import.meta.env.DEV || __INTEGRATION_TEST__) {
 }
 
 export function Router() {
-  const { isFileAccessApiSupported, isMobileDevice, isOPFSSupported, isTabBlocked } =
-    useFeatureContext();
+  const { isFileAccessApiSupported, isMobileDevice, isOPFSSupported } = useFeatureContext();
+  const { isTabBlocked, takeOver } = useTabCoordinationContext();
   const canUseApp = isFileAccessApiSupported && isOPFSSupported;
 
   if (isTabBlocked) {
-    return <MultipleTabsBlocked />;
+    return <MultipleTabsBlocked onTakeOver={takeOver} />;
   }
 
   const getAppRoutes = () => {

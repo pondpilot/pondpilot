@@ -98,11 +98,13 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
 interface UseAppInitializationProps {
   isFileAccessApiSupported: boolean;
   isMobileDevice: boolean;
+  isTabBlocked: boolean;
 }
 
 export function useAppInitialization({
   isFileAccessApiSupported,
   isMobileDevice,
+  isTabBlocked,
 }: UseAppInitializationProps) {
   const { showPermsAlert } = useShowPermsAlert();
 
@@ -194,15 +196,23 @@ export function useAppInitialization({
   };
 
   useEffect(() => {
+    // Don't initialize DuckDB if this tab is blocked by another active tab
+    if (isTabBlocked) {
+      setAppLoadState('init');
+      return;
+    }
+
     // As of today, if the File Access API is not supported,
     // we are not initializing either in-memory DuckDB or the app data.
     if (!isFileAccessApiSupported || isMobileDevice) return;
 
     // Start initialization of data when the database is ready
     if (conn) {
+      setAppLoadState('init');
       initAppData(conn);
     } else {
+      setAppLoadState('init');
       connectDuckDb();
     }
-  }, [conn]);
+  }, [conn, isTabBlocked]);
 }
