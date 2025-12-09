@@ -59,7 +59,7 @@ export const MultipleTabsBlocked = ({ onTakeOver }: MultipleTabsBlockedProps) =>
               >
                 Take Over
               </Button>
-              <Button onClick={handleRefresh} size="md" variant="subtle">
+              <Button onClick={handleRefresh} size="md" variant="transparent">
                 Refresh Page
               </Button>
             </Stack>
