@@ -5,25 +5,19 @@ import { TabId, ScriptTab, AnyTab } from '@models/tab';
 
 // Module-under-test import MUST come AFTER jest.mock calls
 
-// Mock setup - must be hoisted before jest.mock calls
-// Using let so we can reference it in the mock factory
-let mockSetState: jest.Mock;
-let mockTabs: Map<TabId, AnyTab>;
+// Mock setup - must be declared before jest.mock calls
+const mockSetState = jest.fn();
+const mockTabs: Map<TabId, AnyTab> = new Map();
 
-jest.mock('@store/app-store', () => {
-  // Initialize within factory to avoid hoisting issues
-  mockSetState = jest.fn();
-  mockTabs = new Map();
-  return {
-    useAppStore: {
-      getState: () => ({
-        tabs: mockTabs,
-        _iDbConn: null,
-      }),
-      setState: mockSetState,
-    },
-  };
-});
+jest.mock('@store/app-store', () => ({
+  useAppStore: {
+    getState: () => ({
+      tabs: mockTabs,
+      _iDbConn: null,
+    }),
+    setState: mockSetState,
+  },
+}));
 
 // Mock ensureTab utility
 jest.mock('@utils/tab', () => ({
@@ -150,6 +144,7 @@ describe('tab-controller', () => {
         xAxisLabel: null,
         yAxisLabel: null,
         colorScheme: 'default',
+        additionalYColumns: [],
       };
       const existingTab: ScriptTab = {
         type: 'script',
@@ -201,6 +196,7 @@ describe('tab-controller', () => {
             xAxisLabel: null,
             yAxisLabel: null,
             colorScheme: 'default',
+            additionalYColumns: [],
           },
         },
       };
@@ -225,6 +221,7 @@ describe('tab-controller', () => {
         xAxisLabel: null,
         yAxisLabel: null,
         colorScheme: 'default',
+        additionalYColumns: [],
       });
     });
 
@@ -254,6 +251,7 @@ describe('tab-controller', () => {
             xAxisLabel: null,
             yAxisLabel: null,
             colorScheme: 'default',
+            additionalYColumns: [],
           },
         },
       };
@@ -278,6 +276,7 @@ describe('tab-controller', () => {
         xAxisLabel: null,
         yAxisLabel: null,
         colorScheme: 'default',
+        additionalYColumns: [],
       });
     });
 
@@ -316,6 +315,7 @@ describe('tab-controller', () => {
         xAxisLabel: null,
         yAxisLabel: null,
         colorScheme: 'default',
+        additionalYColumns: [],
       });
     });
 
@@ -357,6 +357,7 @@ describe('tab-controller', () => {
         xAxisLabel: null,
         yAxisLabel: null,
         colorScheme: 'default',
+        additionalYColumns: [],
       });
     });
   });
