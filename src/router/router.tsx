@@ -86,8 +86,17 @@ export function Router() {
     ],
     {
       basename: import.meta.env.BASE_URL,
+      future: {
+        // These flags go on createBrowserRouter
+        v7_relativeSplatPath: true,
+        v7_fetcherPersist: true,
+        v7_normalizeFormMethod: true,
+        v7_partialHydration: true,
+        v7_skipActionErrorRevalidation: true,
+      },
     },
   );
 
-  return <RouterProvider router={router} />;
+  // v7_startTransition goes on RouterProvider, not createBrowserRouter
+  return <RouterProvider router={router} future={{ v7_startTransition: true }} />;
 }

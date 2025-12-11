@@ -34,6 +34,11 @@ export type ChartConfig = {
   yAxisLabel: string | null;
   /** Color scheme preset for chart colors */
   colorScheme: ColorScheme;
+  /**
+   * Additional Y columns for small multiples view.
+   * When set, renders multiple charts stacked vertically with synced X-axis.
+   */
+  additionalYColumns: string[];
 };
 
 export const DEFAULT_CHART_CONFIG: ChartConfig = {
@@ -48,6 +53,7 @@ export const DEFAULT_CHART_CONFIG: ChartConfig = {
   xAxisLabel: null,
   yAxisLabel: null,
   colorScheme: 'default',
+  additionalYColumns: [],
 };
 
 export const COLOR_SCHEME_LABELS: Record<ColorScheme, string> = {

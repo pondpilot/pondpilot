@@ -93,6 +93,7 @@ describe('pure tab controller functions', () => {
           xAxisLabel: null,
           yAxisLabel: null,
           colorScheme: 'default',
+          additionalYColumns: [],
         },
       });
 
@@ -110,6 +111,7 @@ describe('pure tab controller functions', () => {
         xAxisLabel: null,
         yAxisLabel: null,
         colorScheme: 'default',
+        additionalYColumns: [],
       });
     });
 

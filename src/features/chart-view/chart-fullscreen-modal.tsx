@@ -1,4 +1,4 @@
-import { ActionIcon, Center, Group, Loader, Modal, Stack, Text, Tooltip } from '@mantine/core';
+import { ActionIcon, Group, Modal, Tooltip } from '@mantine/core';
 import { ChartConfig } from '@models/chart';
 import { DBColumn } from '@models/db';
 import { IconArrowsMaximize, IconX } from '@tabler/icons-react';
@@ -13,7 +13,9 @@ import {
   AreaChart,
   StackedBarChart,
   HorizontalBarChart,
+  ChartLoading,
 } from './components';
+import { MODAL_CHART_RENDER_DELAY_MS } from './constants';
 import { ChartDataPoint, PieChartDataPoint } from './hooks/use-chart-data';
 
 interface ChartFullscreenModalProps {
@@ -41,7 +43,10 @@ export function ChartFullscreenModal({
   // Delay chart rendering until modal is fully visible to allow ResponsiveContainer to measure correctly
   useEffect(() => {
     if (opened) {
-      const timer = setTimeout(() => setIsReady(true), 50);
+      // Delay ensures Modal transition is fully complete before rendering the chart.
+      // Rendering during transition can cause ResponsiveContainer to calculate
+      // 0 height/width or get stuck in a bad state.
+      const timer = setTimeout(() => setIsReady(true), MODAL_CHART_RENDER_DELAY_MS);
       return () => clearTimeout(timer);
     }
     setIsReady(false);
@@ -123,7 +128,7 @@ export function ChartFullscreenModal({
         withCloseButton={false}
         padding={0}
         styles={{
-          body: { height: '100%' },
+          body: { height: '100%', display: 'flex', flexDirection: 'column' },
           content: { height: '100vh' },
         }}
       >
@@ -140,25 +145,14 @@ export function ChartFullscreenModal({
               groupByCandidates={groupByCandidates}
               onConfigChange={onConfigChange}
             />
-            <Tooltip label="Close fullscreen">
+            <Tooltip label="Close fullscreen" openDelay={400}>
               <ActionIcon variant="transparent" size="md" onClick={() => setOpened(false)}>
                 <IconX size={20} />
               </ActionIcon>
             </Tooltip>
           </Group>
-          <div className="flex-1 min-h-0 h-full p-4">
-            {isReady ? (
-              renderChart()
-            ) : (
-              <Center className="h-full">
-                <Stack align="center" gap="xs">
-                  <Loader size="md" />
-                  <Text size="sm" c="dimmed">
-                    Loading chart...
-                  </Text>
-                </Stack>
-              </Center>
-            )}
+          <div className="flex-1 min-h-0 min-w-0 h-full p-4">
+            {isReady ? renderChart() : <ChartLoading />}
           </div>
         </div>
       </Modal>

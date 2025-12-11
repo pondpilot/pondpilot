@@ -830,6 +830,8 @@ export const updateTabChartConfig = (tabId: TabId, chartConfig: Partial<ChartCon
     xAxisLabel: sanitizedXAxisLabel,
     yAxisLabel: sanitizedYAxisLabel,
     colorScheme: chartConfig.colorScheme ?? currentChartConfig?.colorScheme ?? 'default',
+    additionalYColumns:
+      chartConfig.additionalYColumns ?? currentChartConfig?.additionalYColumns ?? [],
   };
 
   // Check if there's a change using shallow comparison
