@@ -3,17 +3,42 @@ import { DotAnimation } from '@components/dots-animation';
 import { ExportOptionsModal } from '@components/export-options-modal';
 import { createComparison } from '@controllers/comparison';
 import { getOrCreateTabFromComparison } from '@controllers/tab';
+import {
+  ChartConfigToolbar,
+  ChartFullscreenModal,
+  useChartData,
+  useChartExport,
+} from '@features/chart-view';
 import { useTableExport } from '@features/tab-view/hooks';
-import { TextProps, Group, ActionIcon, Button, Text, Menu, Divider, Tooltip } from '@mantine/core';
+import {
+  TextProps,
+  Group,
+  ActionIcon,
+  Button,
+  Text,
+  Menu,
+  Divider,
+  Tooltip,
+  SegmentedControl,
+} from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
+import { ChartConfig, ViewMode } from '@models/chart';
 import { DataAdapterApi } from '@models/data-adapter';
 import { SYSTEM_DATABASE_NAME } from '@models/data-source';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { IconX, IconCopy, IconRefresh, IconChevronDown, IconScale } from '@tabler/icons-react';
+import {
+  IconX,
+  IconCopy,
+  IconRefresh,
+  IconChevronDown,
+  IconScale,
+  IconTable,
+  IconChartBar,
+} from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { assertNeverValueType } from '@utils/typing';
-import { useMemo, useCallback } from 'react';
+import { RefObject, useMemo, useCallback } from 'react';
 
 import { ColRowCount } from './components/col-row-count';
 
@@ -21,9 +46,24 @@ interface DataViewInfoPaneProps {
   dataAdapter: DataAdapterApi;
   tabType: TabType;
   tabId: TabId;
+  viewMode?: ViewMode;
+  chartConfig?: ChartConfig | null;
+  onViewModeChange?: (mode: ViewMode) => void;
+  onChartConfigChange?: (config: Partial<ChartConfig>) => void;
+  /** Ref to chart container for export */
+  chartRef?: RefObject<HTMLDivElement | null>;
 }
 
-export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPaneProps) => {
+export const DataViewInfoPane = ({
+  dataAdapter,
+  tabType,
+  tabId,
+  viewMode = 'table',
+  chartConfig = null,
+  onViewModeChange,
+  onChartConfigChange,
+  chartRef,
+}: DataViewInfoPaneProps) => {
   /**
    * Hooks
    */
@@ -37,8 +77,37 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
     tabName,
   } = useTableExport(dataAdapter, tabId);
 
+  // Chart export functions (used when in chart mode)
+  const {
+    copyChartToClipboard,
+    exportChartToPng,
+    isCopying: isChartCopying,
+    isExporting: isChartExporting,
+  } = useChartExport(chartRef ?? { current: null }, tabName);
+
   const tabs = useAppStore.use.tabs();
   const dataSources = useAppStore.use.dataSources();
+
+  // Get chart data for config toolbar (only when in chart mode)
+  const effectiveChartConfig = chartConfig ?? {
+    chartType: 'bar' as const,
+    xAxisColumn: null,
+    yAxisColumn: null,
+    groupByColumn: null,
+    aggregation: 'sum' as const,
+    sortBy: 'x' as const,
+    sortOrder: 'none' as const,
+    title: null,
+    xAxisLabel: null,
+    yAxisLabel: null,
+    colorScheme: 'default' as const,
+  };
+  const isChartMode = viewMode === 'chart';
+  const { xAxisCandidates, yAxisCandidates, groupByCandidates, chartData, pieChartData } =
+    useChartData(dataAdapter, effectiveChartConfig, { enabled: isChartMode });
+
+  // Check if charting is supported for this tab type
+  const supportsCharting = tabType === 'script' || tabType === 'data-source';
 
   /**
    * Computed data source state
@@ -249,28 +318,97 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
   }, [hasActualData, hasStaleData, isFetching, isSorting, hasDataSourceError, tabType]);
 
   return (
-    <Group justify="space-between" className="h-7 my-2 px-3">
-      <Group gap={4}>
-        {hasData && (
-          <ColRowCount
-            rowCount={rowCountToShow}
-            columnCount={columnCount}
-            isEstimatedRowCount={isEstimatedRowCount}
-          />
-        )}
-        {statusMessage}
-        {showCancelButton && (
-          <ActionIcon size={16} onClick={dataAdapter.cancelDataRead}>
-            <IconX />
-          </ActionIcon>
-        )}
-        {hasDataSourceError && (
-          <ActionIcon size={16} onClick={dataAdapter.reset}>
-            <IconRefresh />
-          </ActionIcon>
+    <Group
+      justify="space-between"
+      wrap="nowrap"
+      className="h-7 mt-2 mb-3 px-3 relative z-10 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
+    >
+      <Group
+        gap="sm"
+        wrap="nowrap"
+        className="overflow-x-auto flex-shrink min-w-0 custom-scroll-hidden"
+      >
+        <Group gap={4} wrap="nowrap" className="flex-shrink-0">
+          {hasData && viewMode !== 'chart' && (
+            <ColRowCount
+              rowCount={rowCountToShow}
+              columnCount={columnCount}
+              isEstimatedRowCount={isEstimatedRowCount}
+            />
+          )}
+          {statusMessage}
+          {showCancelButton && (
+            <ActionIcon size={16} onClick={dataAdapter.cancelDataRead}>
+              <IconX />
+            </ActionIcon>
+          )}
+          {hasDataSourceError && (
+            <ActionIcon size={16} onClick={dataAdapter.reset}>
+              <IconRefresh />
+            </ActionIcon>
+          )}
+        </Group>
+
+        {/* Chart Config Toolbar (only visible in chart mode) - on left side */}
+        {supportsCharting && viewMode === 'chart' && onChartConfigChange && (
+          <>
+            <ChartConfigToolbar
+              chartConfig={effectiveChartConfig}
+              xAxisCandidates={xAxisCandidates}
+              yAxisCandidates={yAxisCandidates}
+              groupByCandidates={groupByCandidates}
+              onConfigChange={onChartConfigChange}
+              disabled={!hasData}
+            />
+            {/* Divider before fullscreen */}
+            <div className="w-px h-4 bg-borderPrimary-light dark:bg-borderPrimary-dark" />
+            <ChartFullscreenModal
+              chartConfig={effectiveChartConfig}
+              chartData={chartData}
+              pieChartData={pieChartData}
+              xAxisCandidates={xAxisCandidates}
+              yAxisCandidates={yAxisCandidates}
+              groupByCandidates={groupByCandidates}
+              onConfigChange={onChartConfigChange}
+            />
+          </>
         )}
       </Group>
-      <Group className="h-full">
+
+      <Group className="h-full flex-shrink-0" gap="sm" wrap="nowrap">
+        {/* View Mode Toggle - stays on right side */}
+        {supportsCharting && onViewModeChange && (
+          <SegmentedControl
+            size="xs"
+            value={viewMode}
+            onChange={(value) => onViewModeChange(value as ViewMode)}
+            aria-label="Data view mode"
+            data={[
+              {
+                value: 'table',
+                label: (
+                  <Tooltip label="Table view">
+                    <Group gap={4} aria-label="Table view">
+                      <IconTable size={14} aria-hidden="true" />
+                    </Group>
+                  </Tooltip>
+                ),
+              },
+              {
+                value: 'chart',
+                label: (
+                  <Tooltip label="Chart view">
+                    <Group gap={4} aria-label="Chart view">
+                      <IconChartBar size={14} aria-hidden="true" />
+                    </Group>
+                  </Tooltip>
+                ),
+              },
+            ]}
+            disabled={!hasData}
+          />
+        )}
+
         {canCreateComparison && (
           <ActionIcon
             size={16}
@@ -281,44 +419,54 @@ export const DataViewInfoPane = ({ dataAdapter, tabType, tabId }: DataViewInfoPa
             <IconScale size={16} />
           </ActionIcon>
         )}
-        <Tooltip label="Copy table to clipboard">
+        <Tooltip label={isChartMode ? 'Copy chart to clipboard' : 'Copy table to clipboard'}>
           <ActionIcon
             data-testid={setDataTestId('copy-table-button')}
             size={16}
-            onClick={copyTableToClipboard}
-            disabled={disableCopyAndExport}
+            onClick={isChartMode ? copyChartToClipboard : copyTableToClipboard}
+            disabled={disableCopyAndExport || isChartCopying}
           >
             <IconCopy />
           </ActionIcon>
         </Tooltip>
 
-        <Menu shadow="md" position="bottom-end">
-          <Menu.Target>
-            <Button
-              disabled={disableCopyAndExport}
-              rightSection={<IconChevronDown size={14} />}
-              data-testid={setDataTestId('export-table-button')}
-            >
-              Export
-            </Button>
-          </Menu.Target>
+        {isChartMode ? (
+          <Button
+            disabled={disableCopyAndExport || isChartExporting}
+            onClick={exportChartToPng}
+            data-testid={setDataTestId('export-chart-button')}
+          >
+            {isChartExporting ? 'Exporting...' : 'Export PNG'}
+          </Button>
+        ) : (
+          <Menu shadow="md" position="bottom-end">
+            <Menu.Target>
+              <Button
+                disabled={disableCopyAndExport}
+                rightSection={<IconChevronDown size={14} />}
+                data-testid={setDataTestId('export-table-button')}
+              >
+                Export
+              </Button>
+            </Menu.Target>
 
-          <Menu.Dropdown>
-            <Menu.Item
-              onClick={exportTableToCSV}
-              data-testid={setDataTestId('export-table-csv-menu-item')}
-            >
-              CSV
-            </Menu.Item>
-            <Divider />
-            <Menu.Item
-              onClick={openExportOptions}
-              data-testid={setDataTestId('export-table-advanced-menu-item')}
-            >
-              Advanced...
-            </Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
+            <Menu.Dropdown>
+              <Menu.Item
+                onClick={exportTableToCSV}
+                data-testid={setDataTestId('export-table-csv-menu-item')}
+              >
+                CSV
+              </Menu.Item>
+              <Divider />
+              <Menu.Item
+                onClick={openExportOptions}
+                data-testid={setDataTestId('export-table-advanced-menu-item')}
+              >
+                Advanced...
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        )}
       </Group>
 
       <ExportOptionsModal

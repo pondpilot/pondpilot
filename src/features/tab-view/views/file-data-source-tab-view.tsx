@@ -1,7 +1,9 @@
+import { updateTabViewMode, updateTabChartConfig } from '@controllers/tab';
 import { Stack } from '@mantine/core';
+import { ChartConfig, DEFAULT_CHART_CONFIG, DEFAULT_VIEW_MODE, ViewMode } from '@models/chart';
 import { AnyFileSourceTab, TabId } from '@models/tab';
-import { useTabReactiveState } from '@store/app-store';
-import { memo } from 'react';
+import { useAppStore, useTabReactiveState } from '@store/app-store';
+import { memo, useCallback, useRef, useState } from 'react';
 
 import { DataView, DataViewInfoPane } from '../components';
 import { useDataAdapter } from '../hooks/use-data-adapter';
@@ -18,10 +20,64 @@ export const FileDataSourceTabView = memo(({ tabId, active }: FileDataSourceTabV
   // Get the data adapter
   const dataAdapter = useDataAdapter({ tab, sourceVersion: 0 });
 
+  // View mode state (table/chart)
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    () => useAppStore.getState().tabs.get(tabId)?.dataViewStateCache?.viewMode ?? DEFAULT_VIEW_MODE,
+  );
+
+  // Chart configuration state
+  const [chartConfig, setChartConfig] = useState<ChartConfig>(() => {
+    const cached = useAppStore.getState().tabs.get(tabId)?.dataViewStateCache?.chartConfig;
+    return cached ?? DEFAULT_CHART_CONFIG;
+  });
+
+  // Ref for chart container (used for PNG export)
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  // Handle view mode change
+  const handleViewModeChange = useCallback(
+    (newMode: ViewMode) => {
+      setViewMode(newMode);
+      updateTabViewMode(tabId, newMode);
+    },
+    [tabId],
+  );
+
+  // Handle chart config change
+  const handleChartConfigChange = useCallback(
+    (newConfig: Partial<ChartConfig>) => {
+      setChartConfig((prev) => {
+        const updated = { ...prev, ...newConfig };
+        updateTabChartConfig(tabId, updated);
+        return updated;
+      });
+    },
+    [tabId],
+  );
+
   return (
     <Stack className="gap-0 h-full relative">
-      <DataViewInfoPane dataAdapter={dataAdapter} tabType={tab.type} tabId={tab.id} />
-      <DataView active={active} dataAdapter={dataAdapter} tabId={tab.id} tabType={tab.type} />
+      <DataViewInfoPane
+        dataAdapter={dataAdapter}
+        tabType={tab.type}
+        tabId={tab.id}
+        viewMode={viewMode}
+        chartConfig={chartConfig}
+        onViewModeChange={handleViewModeChange}
+        onChartConfigChange={handleChartConfigChange}
+        chartRef={chartRef}
+      />
+      <DataView
+        active={active}
+        dataAdapter={dataAdapter}
+        tabId={tab.id}
+        tabType={tab.type}
+        viewMode={viewMode}
+        chartConfig={chartConfig}
+        onChartConfigChange={handleChartConfigChange}
+        onViewModeChange={handleViewModeChange}
+        chartRef={chartRef}
+      />
     </Stack>
   );
 });

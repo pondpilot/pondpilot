@@ -5,10 +5,12 @@ import {
   updateTabDataViewColumnSizesCache,
   updateTabDataViewDataPageCache,
 } from '@controllers/tab';
+import { ChartErrorBoundary } from '@features/chart-view';
 import { useColumnSummary } from '@features/tab-view/hooks';
 import { copyTableColumns } from '@features/tab-view/utils';
 import { Button, Center, Group, Loader, Stack, Text } from '@mantine/core';
 import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
+import { ChartConfig, ViewMode } from '@models/chart';
 import { DataAdapterApi, DataTableSlice, GetDataTableSliceReturnType } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
 import { MAX_DATA_VIEW_PAGE_SIZE, TabId, TabType } from '@models/tab';
@@ -16,7 +18,12 @@ import { useAppStore } from '@store/app-store';
 import { IconCancel, IconClipboardSmile } from '@tabler/icons-react';
 import { formatStringsAsMDList } from '@utils/pretty';
 import { setDataTestId } from '@utils/test-id';
-import { useCallback, useRef, useState } from 'react';
+import { lazy, RefObject, Suspense, useCallback, useRef, useState } from 'react';
+
+// Lazy load ChartView to reduce initial bundle size (~200KB for recharts)
+const ChartView = lazy(() =>
+  import('@features/chart-view').then((module) => ({ default: module.ChartView })),
+);
 
 interface DataViewProps {
   /**
@@ -27,9 +34,25 @@ interface DataViewProps {
   dataAdapter: DataAdapterApi;
   tabId: TabId;
   tabType: TabType;
+  viewMode?: ViewMode;
+  chartConfig?: ChartConfig | null;
+  onChartConfigChange?: (config: Partial<ChartConfig>) => void;
+  onViewModeChange?: (mode: ViewMode) => void;
+  /** Ref to the chart container for export functionality */
+  chartRef?: RefObject<HTMLDivElement | null>;
 }
 
-export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps) => {
+export const DataView = ({
+  active,
+  dataAdapter,
+  tabId,
+  tabType,
+  viewMode = 'table',
+  chartConfig = null,
+  onChartConfigChange,
+  onViewModeChange,
+  chartRef,
+}: DataViewProps) => {
   /**
    * Helpful hooks
    */
@@ -149,7 +172,10 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
   // Whether we should show the table, even if with no rows.
   // If we didn't make a mistke, if `hasData` is true then `tableData`
   // is not null. But we are using a stronger check to be sure.
-  const showTableAndPagination = dataSlice !== null && hasData;
+  const showTableAndPagination = dataSlice !== null && hasData && viewMode === 'table';
+
+  // Whether to show chart view
+  const showChart = hasData && viewMode === 'chart';
 
   // The actual row range to show in pagination. It may be different from the expected row range.
   // If we have 0 rows, than return 0, but if we have rows, we show 1-indexed range.
@@ -417,6 +443,32 @@ export const DataView = ({ active, dataAdapter, tabId, tabType }: DataViewProps)
             isEstimatedRowCount={isEstimatedRowCount}
             onJumpToRow={import.meta.env.DEV ? handleOnJumpToRow : undefined}
           />
+        </div>
+      )}
+      {/* Chart view */}
+      {showChart && onChartConfigChange && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ChartErrorBoundary onSwitchToTable={() => onViewModeChange?.('table')}>
+            <Suspense
+              fallback={
+                <Center className="h-full">
+                  <Stack align="center" gap="xs">
+                    <Loader size="md" />
+                    <Text size="sm" c="dimmed">
+                      Loading chart...
+                    </Text>
+                  </Stack>
+                </Center>
+              }
+            >
+              <ChartView
+                ref={chartRef}
+                dataAdapter={dataAdapter}
+                chartConfig={chartConfig}
+                onConfigChange={onChartConfigChange}
+              />
+            </Suspense>
+          </ChartErrorBoundary>
         </div>
       )}
     </Stack>

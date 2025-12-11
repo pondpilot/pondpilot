@@ -67,6 +67,24 @@ export type RowCountInfo = {
 
 export type ColumnAggregateType = 'count' | 'sum' | 'avg' | 'min' | 'max';
 
+export type ChartAggregationType = 'sum' | 'avg' | 'count' | 'min' | 'max';
+
+export type ChartSortOrder = 'asc' | 'desc';
+
+/**
+ * A single aggregated data point for charts.
+ */
+export type ChartAggregatedDataPoint = {
+  x: string;
+  y: number;
+  group?: string;
+};
+
+/**
+ * Result of chart data aggregation query.
+ */
+export type ChartAggregatedData = ChartAggregatedDataPoint[];
+
 /**
  * Interface defining the API for a data adapter component.
  * This interface provides methods and properties for fetching, managing, and manipulating tabular data.
@@ -211,6 +229,28 @@ export interface DataAdapterApi {
   ) => Promise<any | undefined>;
 
   /**
+   * Retrieves aggregated data for chart visualization.
+   * Executes a GROUP BY query on the data source to aggregate values.
+   *
+   * @param xColumn - Column to use for X-axis (grouped by)
+   * @param yColumn - Column to aggregate for Y-axis values
+   * @param aggregation - Aggregation function to apply
+   * @param groupByColumn - Optional additional column for series grouping
+   * @param sortBy - Sort by X-axis or Y-axis values
+   * @param sortOrder - Sort direction, or null for no sorting
+   * @throws CancelledOperation if the operation was cancelled
+   * @returns Aggregated data points, or undefined if not supported
+   */
+  getChartAggregatedData: (
+    xColumn: string,
+    yColumn: string,
+    aggregation: ChartAggregationType,
+    groupByColumn: string | null,
+    sortBy: 'x' | 'y',
+    sortOrder: ChartSortOrder | null,
+  ) => Promise<ChartAggregatedData | undefined>;
+
+  /**
    * Cancels the current data read and prevents further reads
    * until user asks for more data by paging/scrolling
    */
@@ -277,4 +317,18 @@ export interface DataAdapterQueries {
     columns: DBColumn[],
     abortSignal: AbortSignal,
   ) => Promise<{ value: DataTable; aborted: boolean }>;
+
+  /**
+   * Returns aggregated data for chart visualization.
+   * Executes a GROUP BY query with the specified aggregation.
+   */
+  getChartAggregatedData?: (
+    xColumn: string,
+    yColumn: string,
+    aggregation: ChartAggregationType,
+    groupByColumn: string | null,
+    sortBy: 'x' | 'y',
+    sortOrder: ChartSortOrder | null,
+    abortSignal: AbortSignal,
+  ) => Promise<{ value: ChartAggregatedData; aborted: boolean }>;
 }
