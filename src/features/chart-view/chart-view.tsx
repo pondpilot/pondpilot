@@ -1,10 +1,11 @@
-import { Center, Loader, Stack, Text, ThemeIcon } from '@mantine/core';
+import { Center, Stack, Text, ThemeIcon } from '@mantine/core';
 import { ChartConfig, DEFAULT_CHART_CONFIG } from '@models/chart';
 import { DataAdapterApi } from '@models/data-adapter';
 import { IconChartBarOff, IconAlertCircle, IconNumber123, IconSettings } from '@tabler/icons-react';
 import { forwardRef, lazy, Suspense, useEffect } from 'react';
 
-import { useChartData } from './hooks';
+import { ChartLoading } from './components';
+import { useChartData, useSmallMultiplesData } from './hooks';
 
 // Lazy load chart components to reduce initial bundle size
 const BarChart = lazy(() =>
@@ -28,17 +29,8 @@ const StackedBarChart = lazy(() =>
 const HorizontalBarChart = lazy(() =>
   import('./components/horizontal-bar-chart').then((m) => ({ default: m.HorizontalBarChart })),
 );
-
-// Loading fallback for lazy-loaded charts
-const ChartLoadingFallback = () => (
-  <Center className="h-full">
-    <Stack align="center" gap="xs">
-      <Loader size="md" />
-      <Text size="sm" c="dimmed">
-        Loading chart...
-      </Text>
-    </Stack>
-  </Center>
+const SmallMultiplesChart = lazy(() =>
+  import('./components/small-multiples-chart').then((m) => ({ default: m.SmallMultiplesChart })),
 );
 
 interface ChartViewProps {
@@ -51,6 +43,9 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
   ({ dataAdapter, chartConfig, onConfigChange }, ref) => {
     const effectiveConfig = chartConfig ?? DEFAULT_CHART_CONFIG;
 
+    // Determine small multiples mode before hooks to avoid duplicate queries
+    const isSmallMultiplesMode = effectiveConfig.additionalYColumns.length > 0;
+
     const {
       chartData,
       pieChartData,
@@ -59,7 +54,16 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
       xAxisCandidates,
       yAxisCandidates,
       suggestedConfig,
-    } = useChartData(dataAdapter, effectiveConfig);
+    } = useChartData(dataAdapter, effectiveConfig, {
+      // Skip fetching when in small multiples mode - that hook handles all Y columns
+      enabled: !isSmallMultiplesMode,
+    });
+
+    // Small multiples data (only fetches when additionalYColumns is non-empty)
+    const { multiplesData, isLoading: isSmallMultiplesLoading } = useSmallMultiplesData(
+      dataAdapter,
+      effectiveConfig,
+    );
 
     // Auto-apply suggested config when columns change and no config is set
     useEffect(() => {
@@ -71,20 +75,13 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
     // Determine if we have valid configuration
     const hasValidConfig = effectiveConfig.xAxisColumn && effectiveConfig.yAxisColumn;
     const hasData = chartData.length > 0 || pieChartData.length > 0;
+    const hasSmallMultiplesData = multiplesData.some((d) => d.data.length > 0);
     const hasNoNumericColumns = yAxisCandidates.length === 0;
 
-    // Loading state
-    if (isLoading) {
-      return (
-        <Center className="h-full">
-          <Stack align="center" gap="xs">
-            <Loader size="md" />
-            <Text size="sm" c="dimmed">
-              Loading chart data...
-            </Text>
-          </Stack>
-        </Center>
-      );
+    // Loading state (check both regular and small multiples loading)
+    const isAnyLoading = isLoading || (isSmallMultiplesMode && isSmallMultiplesLoading);
+    if (isAnyLoading) {
+      return <ChartLoading message="Loading chart data..." />;
     }
 
     // Error state
@@ -146,8 +143,8 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
       );
     }
 
-    // No data after configuration
-    if (!hasData && hasValidConfig) {
+    // No data after configuration (unless we have small multiples data)
+    if (!hasData && !hasSmallMultiplesData && hasValidConfig) {
       return (
         <Center className="h-full">
           <Stack align="center" gap="sm">
@@ -173,6 +170,22 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
       yAxisLabel: effectiveConfig.yAxisLabel,
       colorScheme: effectiveConfig.colorScheme,
     };
+
+    // Render small multiples if in that mode
+    if (isSmallMultiplesMode && hasSmallMultiplesData) {
+      return (
+        <div ref={ref} className="h-full w-full p-2 overflow-hidden">
+          <Suspense fallback={<ChartLoading />}>
+            <SmallMultiplesChart
+              multiplesData={multiplesData}
+              chartType={effectiveConfig.chartType}
+              colorScheme={effectiveConfig.colorScheme}
+              title={effectiveConfig.title}
+            />
+          </Suspense>
+        </div>
+      );
+    }
 
     // Render the appropriate chart type
     const renderChart = () => {
@@ -246,7 +259,7 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
 
     return (
       <div ref={ref} className="h-full w-full p-2 overflow-hidden">
-        <Suspense fallback={<ChartLoadingFallback />}>{renderChart()}</Suspense>
+        <Suspense fallback={<ChartLoading />}>{renderChart()}</Suspense>
       </div>
     );
   },

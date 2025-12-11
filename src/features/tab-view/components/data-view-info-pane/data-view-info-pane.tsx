@@ -101,6 +101,7 @@ export const DataViewInfoPane = ({
     xAxisLabel: null,
     yAxisLabel: null,
     colorScheme: 'default' as const,
+    additionalYColumns: [],
   };
   const isChartMode = viewMode === 'chart';
   const { xAxisCandidates, yAxisCandidates, groupByCandidates, chartData, pieChartData } =
