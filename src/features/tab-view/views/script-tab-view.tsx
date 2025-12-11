@@ -8,11 +8,14 @@ import {
   updateScriptTabLayout,
   clearTabExecutionError,
   setTabExecutionError,
+  updateTabViewMode,
+  updateTabChartConfig,
 } from '@controllers/tab';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
+import { ChartConfig, DEFAULT_CHART_CONFIG, DEFAULT_VIEW_MODE, ViewMode } from '@models/chart';
 import { RemoteDB } from '@models/data-source';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
@@ -32,7 +35,7 @@ import { isNotReadableError, getErrorMessage } from '@utils/error-classification
 import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
 import { formatSQLSafe } from '@utils/sql-formatter';
 import { Allotment } from 'allotment';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 
 import { DataView, DataViewInfoPane } from '../components';
 import { useDataAdapter } from '../hooks/use-data-adapter';
@@ -58,6 +61,41 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
   // Get the data adapter
   const dataAdapter = useDataAdapter({ tab, sourceVersion: scriptVersion });
+
+  // View mode state (table/chart)
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    () => useAppStore.getState().tabs.get(tabId)?.dataViewStateCache?.viewMode ?? DEFAULT_VIEW_MODE,
+  );
+
+  // Chart configuration state
+  const [chartConfig, setChartConfig] = useState<ChartConfig>(() => {
+    const cached = useAppStore.getState().tabs.get(tabId)?.dataViewStateCache?.chartConfig;
+    return cached ?? DEFAULT_CHART_CONFIG;
+  });
+
+  // Ref for chart container (used for PNG export)
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  // Handle view mode change
+  const handleViewModeChange = useCallback(
+    (newMode: ViewMode) => {
+      setViewMode(newMode);
+      updateTabViewMode(tabId, newMode);
+    },
+    [tabId],
+  );
+
+  // Handle chart config change
+  const handleChartConfigChange = useCallback(
+    (newConfig: Partial<ChartConfig>) => {
+      setChartConfig((prev) => {
+        const updated = { ...prev, ...newConfig };
+        updateTabChartConfig(tabId, updated);
+        return updated;
+      });
+    },
+    [tabId],
+  );
 
   // Neither of the following checks should be necessary as this is called
   // from the tab view which gets the ids from the same map in the store
@@ -413,8 +451,27 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         </Allotment.Pane>
 
         <Allotment.Pane preferredSize={tab.dataViewPaneHeight} minSize={120}>
-          <DataViewInfoPane dataAdapter={dataAdapter} tabType={tab.type} tabId={tab.id} />
-          <DataView active={active} dataAdapter={dataAdapter} tabId={tab.id} tabType={tab.type} />
+          <DataViewInfoPane
+            dataAdapter={dataAdapter}
+            tabType={tab.type}
+            tabId={tab.id}
+            viewMode={viewMode}
+            chartConfig={chartConfig}
+            onViewModeChange={handleViewModeChange}
+            onChartConfigChange={handleChartConfigChange}
+            chartRef={chartRef}
+          />
+          <DataView
+            active={active}
+            dataAdapter={dataAdapter}
+            tabId={tab.id}
+            tabType={tab.type}
+            viewMode={viewMode}
+            chartConfig={chartConfig}
+            onChartConfigChange={handleChartConfigChange}
+            onViewModeChange={handleViewModeChange}
+            chartRef={chartRef}
+          />
         </Allotment.Pane>
       </Allotment>
     </div>

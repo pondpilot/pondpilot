@@ -1,3 +1,4 @@
+import { ChartConfig, ViewMode } from './chart';
 import {
   ComparisonId,
   ComparisonConfig,
@@ -36,6 +37,8 @@ export type TabDataViewStateCache = {
   tableColumnSizes: Record<string, number> | null;
   sort: ColumnSortSpecList | null;
   staleData: StaleData | null;
+  viewMode: ViewMode | null;
+  chartConfig: ChartConfig | null;
 };
 
 export type TabType = 'script' | 'data-source' | 'schema-browser' | 'comparison';

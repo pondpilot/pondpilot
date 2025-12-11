@@ -7,6 +7,9 @@ import { useAbortController } from '@hooks/use-abort-controller';
 import { useDidUpdate } from '@mantine/hooks';
 import {
   CancelledOperation,
+  ChartAggregatedData,
+  ChartAggregationType,
+  ChartSortOrder,
   ColumnAggregateType,
   DataAdapterApi,
   GetDataTableSliceReturnType,
@@ -1010,6 +1013,48 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     [queries, abortUserTasks, getUserTasksAbortSignal],
   );
 
+  const getChartAggregatedData = useCallback(
+    async (
+      xColumn: string,
+      yColumn: string,
+      aggregation: ChartAggregationType,
+      groupByColumn: string | null,
+      sortBy: 'x' | 'y',
+      sortOrder: ChartSortOrder | null,
+    ): Promise<ChartAggregatedData | undefined> => {
+      if (!queries.getChartAggregatedData) {
+        // Chart aggregation not available for this data source
+        return Promise.resolve(undefined);
+      }
+
+      // Abort previous background tasks
+      abortUserTasks();
+
+      // Get new abort signal
+      const signal = getUserTasksAbortSignal();
+
+      const { value, aborted } = await queries.getChartAggregatedData(
+        xColumn,
+        yColumn,
+        aggregation,
+        groupByColumn,
+        sortBy,
+        sortOrder,
+        signal,
+      );
+
+      if (aborted) {
+        throw new CancelledOperation({
+          isUser: false,
+          reason: 'Operation cancelled as it was replaced by a newer chart aggregation request',
+        });
+      }
+
+      return value;
+    },
+    [queries, abortUserTasks, getUserTasksAbortSignal],
+  );
+
   const cancelDataRead = useCallback(() => {
     // this will ensure that fetching doesn't resume
     fetchTo.current = actualData.current.length;
@@ -1068,6 +1113,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     getAllTableData,
     toggleColumnSort,
     getColumnAggregate,
+    getChartAggregatedData,
     cancelDataRead,
     ackDataReadCancelled,
   };

@@ -4,7 +4,14 @@
 
 import { AnyFlatFileDataSource, LocalDB, RemoteDB } from '@models/data-source';
 import { SQLScriptId } from '@models/sql-script';
-import { AnyTab, LocalDBDataTab, FlatFileDataSourceTab, ScriptTab, TabId } from '@models/tab';
+import {
+  AnyTab,
+  LocalDBDataTab,
+  FlatFileDataSourceTab,
+  ScriptTab,
+  TabId,
+  TabDataViewStateCache,
+} from '@models/tab';
 
 /**
  * ------------------------------------------------------------
@@ -54,6 +61,36 @@ export const findTabFromScriptImpl = (
  * -------------------------- Update --------------------------
  * ------------------------------------------------------------
  */
+
+/**
+ * Creates a default TabDataViewStateCache with all fields set to null.
+ */
+export const createDefaultDataViewStateCache = (): TabDataViewStateCache => ({
+  dataViewPage: null,
+  tableColumnSizes: null,
+  sort: null,
+  staleData: null,
+  viewMode: null,
+  chartConfig: null,
+});
+
+/**
+ * Updates specific fields of a tab's dataViewStateCache, creating the cache
+ * with defaults if it doesn't exist.
+ *
+ * @param currentCache - The current cache state (may be null)
+ * @param updates - Partial updates to apply to the cache
+ * @returns A new cache object with the updates applied
+ */
+export const updateDataViewStateCache = (
+  currentCache: TabDataViewStateCache | null,
+  updates: Partial<TabDataViewStateCache>,
+): TabDataViewStateCache => {
+  if (currentCache) {
+    return { ...currentCache, ...updates };
+  }
+  return { ...createDefaultDataViewStateCache(), ...updates };
+};
 
 /**
  * ------------------------------------------------------------

@@ -1,5 +1,7 @@
 // Public tab controller API's
 // By convetion the order should follow CRUD groups!
+import { sanitizeChartLabel } from '@features/chart-view/utils/sanitize-label';
+import { ChartConfig, ViewMode } from '@models/chart';
 import {
   AnyFlatFileDataSource,
   LocalDB,
@@ -16,6 +18,7 @@ import {
   SchemaBrowserTab,
   ScriptTab,
   StaleData,
+  TabDataViewStateCache,
   TabId,
 } from '@models/tab';
 import { useAppStore } from '@store/app-store';
@@ -30,7 +33,48 @@ import {
   findTabFromLocalDBObjectImpl,
   findTabFromFlatFileDataSourceImpl,
   findTabFromScriptImpl,
+  updateDataViewStateCache,
 } from './pure';
+
+/**
+ * In-memory cache for preserving dataViewStateCache across script tab deletion/recreation.
+ * When a script tab is deleted, its dataViewStateCache is stored here keyed by SQLScriptId.
+ * When a tab is recreated from the same script, the cache is restored.
+ *
+ * This cache is intentionally in-memory only - it survives within a session but not
+ * across app restarts. For full persistence, this would need to be stored in IndexedDB.
+ */
+const scriptDataViewStateCache = new Map<SQLScriptId, TabDataViewStateCache>();
+
+/**
+ * Saves the dataViewStateCache for a script tab before deletion.
+ * This allows the cache to be restored when the tab is recreated.
+ */
+const saveScriptDataViewStateCache = (
+  sqlScriptId: SQLScriptId,
+  cache: TabDataViewStateCache | null,
+): void => {
+  if (cache) {
+    // Only save if there's actual data worth preserving
+    const hasData = cache.chartConfig || cache.viewMode || cache.tableColumnSizes || cache.sort;
+    if (hasData) {
+      scriptDataViewStateCache.set(sqlScriptId, cache);
+    }
+  }
+};
+
+/**
+ * Retrieves and removes the cached dataViewStateCache for a script.
+ * The cache is removed after retrieval to avoid stale data.
+ */
+const popScriptDataViewStateCache = (sqlScriptId: SQLScriptId): TabDataViewStateCache | null => {
+  const cache = scriptDataViewStateCache.get(sqlScriptId);
+  if (cache) {
+    scriptDataViewStateCache.delete(sqlScriptId);
+    return cache;
+  }
+  return null;
+};
 
 // Tab execution error types
 export interface TabExecutionError {
@@ -281,6 +325,10 @@ export const getOrCreateTabFromScript = (
 
   // Create a new tab
   const tabId = makeTabId();
+
+  // Restore cached dataViewStateCache if available (preserves chart config, view mode, etc.)
+  const cachedDataViewState = popScriptDataViewStateCache(sqlScript.id);
+
   const tab: ScriptTab = {
     type: 'script',
     id: tabId,
@@ -288,7 +336,7 @@ export const getOrCreateTabFromScript = (
     dataViewPaneHeight: 0,
     editorPaneHeight: 0,
     lastExecutedQuery: null,
-    dataViewStateCache: null,
+    dataViewStateCache: cachedDataViewState,
   };
 
   // Add the new tab to the store
@@ -465,27 +513,22 @@ export const updateTabDataViewStaleDataCache = (
     data: serializableData, // Override with serializable version
   };
 
+  // Merge stale data with existing if present
+  const mergedStaleData = currentTab.dataViewStateCache?.staleData
+    ? {
+        ...currentTab.dataViewStateCache.staleData,
+        ...newCache.staleData,
+        data: serializableData,
+      }
+    : fullNewStaleData;
+
   // Create new tab object with updated layout
   const updatedTab = {
     ...currentTab,
-    dataViewStateCache: currentTab.dataViewStateCache
-      ? {
-          ...currentTab.dataViewStateCache,
-          sort: newCache.sort,
-          staleData: currentTab.dataViewStateCache.staleData
-            ? {
-                ...currentTab.dataViewStateCache.staleData,
-                ...newCache.staleData,
-                data: serializableData, // Override with serializable version
-              }
-            : fullNewStaleData,
-        }
-      : {
-          tableColumnSizes: null,
-          dataViewPage: null,
-          sort: newCache.sort,
-          staleData: fullNewStaleData,
-        },
+    dataViewStateCache: updateDataViewStateCache(currentTab.dataViewStateCache, {
+      sort: newCache.sort,
+      staleData: mergedStaleData,
+    }),
   };
 
   // Update the store
@@ -517,8 +560,8 @@ export const updateTabDataViewColumnSizesCache = (
   // We have to use a tab object from the store
   const currentTab = ensureTab(tabId, tabs);
 
-  // Check if they are different
-  if (!shallow(currentTab.dataViewStateCache?.tableColumnSizes, newColumnSizes)) {
+  // Check if they are the same (shallow returns true when equal)
+  if (shallow(currentTab.dataViewStateCache?.tableColumnSizes, newColumnSizes)) {
     // No changes, nothing to do
     return;
   }
@@ -526,17 +569,9 @@ export const updateTabDataViewColumnSizesCache = (
   // Create new tab object with updated layout
   const updatedTab = {
     ...currentTab,
-    dataViewStateCache: currentTab.dataViewStateCache
-      ? {
-          ...currentTab.dataViewStateCache,
-          tableColumnSizes: newColumnSizes,
-        }
-      : {
-          tableColumnSizes: newColumnSizes,
-          dataViewPage: null,
-          sort: null,
-          staleData: null,
-        },
+    dataViewStateCache: updateDataViewStateCache(currentTab.dataViewStateCache, {
+      tableColumnSizes: newColumnSizes,
+    }),
   };
 
   // Update the store
@@ -574,17 +609,9 @@ export const updateTabDataViewDataPageCache = (tabId: TabId, newDataPage: number
   // Create new tab object with updated layout
   const updatedTab = {
     ...currentTab,
-    dataViewStateCache: currentTab.dataViewStateCache
-      ? {
-          ...currentTab.dataViewStateCache,
-          dataViewPage: newDataPage,
-        }
-      : {
-          dataViewPage: newDataPage,
-          tableColumnSizes: null,
-          sort: null,
-          staleData: null,
-        },
+    dataViewStateCache: updateDataViewStateCache(currentTab.dataViewStateCache, {
+      dataViewPage: newDataPage,
+    }),
   };
 
   // Update the store
@@ -718,6 +745,126 @@ export const updateScriptTabLayout = (
 };
 
 /**
+ * Updates the view mode (table/chart) for a tab's data view.
+ *
+ * @param tabId - The ID of the tab to update.
+ * @param viewMode - The view mode to set ('table' or 'chart').
+ */
+export const updateTabViewMode = (tabId: TabId, viewMode: ViewMode): void => {
+  const { tabs } = useAppStore.getState();
+
+  // Allow gracefully ignoring deleted tabs
+  if (!tabs.has(tabId)) return;
+
+  const currentTab = ensureTab(tabId, tabs);
+
+  // Check if there's a change
+  if (currentTab.dataViewStateCache?.viewMode === viewMode) {
+    return;
+  }
+
+  // Create new tab object with updated view mode
+  const updatedTab = {
+    ...currentTab,
+    dataViewStateCache: updateDataViewStateCache(currentTab.dataViewStateCache, { viewMode }),
+  };
+
+  // Update the store
+  const newTabs = new Map(tabs);
+  newTabs.set(currentTab.id, updatedTab);
+
+  useAppStore.setState(
+    {
+      tabs: newTabs,
+    },
+    undefined,
+    'AppStore/updateTabViewMode',
+  );
+
+  // Persist the changes to IndexedDB
+  const iDb = useAppStore.getState()._iDbConn;
+  if (iDb) {
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+  }
+};
+
+/**
+ * Updates the chart configuration for a tab's data view.
+ *
+ * @param tabId - The ID of the tab to update.
+ * @param chartConfig - The partial chart config to merge with existing config.
+ */
+export const updateTabChartConfig = (tabId: TabId, chartConfig: Partial<ChartConfig>): void => {
+  const { tabs } = useAppStore.getState();
+
+  // Allow gracefully ignoring deleted tabs
+  if (!tabs.has(tabId)) return;
+
+  const currentTab = ensureTab(tabId, tabs);
+
+  const currentChartConfig = currentTab.dataViewStateCache?.chartConfig;
+
+  // Sanitize text labels to prevent issues with very long strings or control characters
+  const sanitizedTitle =
+    chartConfig.title !== undefined
+      ? sanitizeChartLabel(chartConfig.title)
+      : (currentChartConfig?.title ?? null);
+  const sanitizedXAxisLabel =
+    chartConfig.xAxisLabel !== undefined
+      ? sanitizeChartLabel(chartConfig.xAxisLabel)
+      : (currentChartConfig?.xAxisLabel ?? null);
+  const sanitizedYAxisLabel =
+    chartConfig.yAxisLabel !== undefined
+      ? sanitizeChartLabel(chartConfig.yAxisLabel)
+      : (currentChartConfig?.yAxisLabel ?? null);
+
+  const newChartConfig: ChartConfig = {
+    chartType: chartConfig.chartType ?? currentChartConfig?.chartType ?? 'bar',
+    xAxisColumn: chartConfig.xAxisColumn ?? currentChartConfig?.xAxisColumn ?? null,
+    yAxisColumn: chartConfig.yAxisColumn ?? currentChartConfig?.yAxisColumn ?? null,
+    groupByColumn: chartConfig.groupByColumn ?? currentChartConfig?.groupByColumn ?? null,
+    aggregation: chartConfig.aggregation ?? currentChartConfig?.aggregation ?? 'sum',
+    sortBy: chartConfig.sortBy ?? currentChartConfig?.sortBy ?? 'x',
+    sortOrder: chartConfig.sortOrder ?? currentChartConfig?.sortOrder ?? 'none',
+    title: sanitizedTitle,
+    xAxisLabel: sanitizedXAxisLabel,
+    yAxisLabel: sanitizedYAxisLabel,
+    colorScheme: chartConfig.colorScheme ?? currentChartConfig?.colorScheme ?? 'default',
+  };
+
+  // Check if there's a change using shallow comparison
+  if (shallow(currentChartConfig, newChartConfig)) {
+    return;
+  }
+
+  // Create new tab object with updated chart config
+  const updatedTab = {
+    ...currentTab,
+    dataViewStateCache: updateDataViewStateCache(currentTab.dataViewStateCache, {
+      chartConfig: newChartConfig,
+    }),
+  };
+
+  // Update the store
+  const newTabs = new Map(tabs);
+  newTabs.set(currentTab.id, updatedTab);
+
+  useAppStore.setState(
+    {
+      tabs: newTabs,
+    },
+    undefined,
+    'AppStore/updateTabChartConfig',
+  );
+
+  // Persist the changes to IndexedDB
+  const iDb = useAppStore.getState()._iDbConn;
+  if (iDb) {
+    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+  }
+};
+
+/**
  * Sets/resets the active tab id.
  *
  * Idempotent, if the tab is already active, it does nothing.
@@ -762,6 +909,12 @@ export const setPreviewTabId = (tabId: TabId | null) => {
 
   // Cases 2 (with deletion)
   if (previewTabId && tabId) {
+    // Before deleting, save dataViewStateCache for script tabs
+    const previewTab = tabs.get(previewTabId);
+    if (previewTab?.type === 'script') {
+      saveScriptDataViewStateCache(previewTab.sqlScriptId, previewTab.dataViewStateCache);
+    }
+
     const { newTabs, newTabOrder, newActiveTabId } = deleteTabImpl({
       deleteTabIds: [previewTabId],
       tabs,
@@ -821,6 +974,15 @@ export const deleteTab = (tabIds: TabId[]) => {
     tabExecutionErrors,
     _iDbConn: iDbConn,
   } = useAppStore.getState();
+
+  // Before deleting, save dataViewStateCache for script tabs so it can be restored
+  // when the tab is recreated from the same script
+  for (const tabId of tabIds) {
+    const tab = tabs.get(tabId);
+    if (tab?.type === 'script') {
+      saveScriptDataViewStateCache(tab.sqlScriptId, tab.dataViewStateCache);
+    }
+  }
 
   const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl({
     deleteTabIds: tabIds,

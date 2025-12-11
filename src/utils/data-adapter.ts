@@ -1,5 +1,11 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { ColumnAggregateType, DataAdapterQueries } from '@models/data-adapter';
+import {
+  ChartAggregatedData,
+  ChartAggregationType,
+  ChartSortOrder,
+  ColumnAggregateType,
+  DataAdapterQueries,
+} from '@models/data-adapter';
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
@@ -66,6 +72,115 @@ function getGetColumnsDataApiFromFQN(
   };
 }
 
+/**
+ * Maximum number of unique X-axis values to return from chart aggregation.
+ * Prevents excessive data when grouping by high-cardinality columns.
+ */
+const MAX_CHART_GROUPS = 1000;
+
+/**
+ * Builds the SQL query for chart data aggregation.
+ */
+export function buildChartAggregationQuery(
+  source: string,
+  xColumn: string,
+  yColumn: string,
+  aggregation: ChartAggregationType,
+  groupByColumn: string | null,
+  sortBy: 'x' | 'y',
+  sortOrder: ChartSortOrder | null,
+): string {
+  const xCol = toDuckDBIdentifier(xColumn);
+  const yCol = toDuckDBIdentifier(yColumn);
+  const agg = aggregation.toUpperCase();
+
+  let selectClause: string;
+  let groupByClause: string;
+
+  if (groupByColumn) {
+    const groupCol = toDuckDBIdentifier(groupByColumn);
+    selectClause = `CAST(${xCol} AS VARCHAR) AS x, CAST(${groupCol} AS VARCHAR) AS grp, ${agg}(${yCol}) AS y`;
+    groupByClause = `GROUP BY ${xCol}, ${groupCol}`;
+  } else {
+    selectClause = `CAST(${xCol} AS VARCHAR) AS x, ${agg}(${yCol}) AS y`;
+    groupByClause = `GROUP BY ${xCol}`;
+  }
+
+  let orderByClause = '';
+  if (sortOrder) {
+    const sortCol = sortBy === 'x' ? 'x' : 'y';
+    orderByClause = `ORDER BY ${sortCol} ${sortOrder.toUpperCase()}`;
+  }
+
+  const whereClause = `WHERE ${xCol} IS NOT NULL`;
+
+  return `SELECT ${selectClause} FROM ${source} ${whereClause} ${groupByClause} ${orderByClause} LIMIT ${MAX_CHART_GROUPS}`;
+}
+
+/**
+ * Converts Arrow table result to ChartAggregatedData format.
+ */
+function convertArrowToChartData(arrowTable: any, hasGroupColumn: boolean): ChartAggregatedData {
+  const result: ChartAggregatedData = [];
+  const { numRows } = arrowTable;
+
+  const xColumn = arrowTable.getChildAt(0);
+  const yColumn = hasGroupColumn ? arrowTable.getChildAt(2) : arrowTable.getChildAt(1);
+  const groupColumn = hasGroupColumn ? arrowTable.getChildAt(1) : null;
+
+  for (let i = 0; i < numRows; i += 1) {
+    const x = xColumn?.get(i);
+    const y = yColumn?.get(i);
+    const group = groupColumn?.get(i);
+
+    if (x != null && y != null) {
+      const point: ChartAggregatedData[number] = {
+        x: String(x),
+        y: typeof y === 'bigint' ? Number(y) : y,
+      };
+      if (hasGroupColumn && group != null) {
+        point.group = String(group);
+      }
+      result.push(point);
+    }
+  }
+
+  return result;
+}
+
+function getGetChartAggregatedDataFromFQN(
+  pool: AsyncDuckDBConnectionPool,
+  fqn: string,
+): DataAdapterQueries['getChartAggregatedData'] {
+  return async (
+    xColumn: string,
+    yColumn: string,
+    aggregation: ChartAggregationType,
+    groupByColumn: string | null,
+    sortBy: 'x' | 'y',
+    sortOrder: ChartSortOrder | null,
+    abortSignal: AbortSignal,
+  ) => {
+    const query = buildChartAggregationQuery(
+      fqn,
+      xColumn,
+      yColumn,
+      aggregation,
+      groupByColumn,
+      sortBy,
+      sortOrder,
+    );
+
+    const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+
+    if (aborted) {
+      return { value: [], aborted };
+    }
+
+    return { value: convertArrowToChartData(value, groupByColumn !== null), aborted };
+  };
+}
+
 function getFlatFileDataAdapterQueries(
   pool: AsyncDuckDBConnectionPool,
   dataSource: AnyFlatFileDataSource,
@@ -77,6 +192,7 @@ function getFlatFileDataAdapterQueries(
     getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn),
     getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn),
     getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
+    getChartAggregatedData: getGetChartAggregatedDataFromFQN(pool, fqn),
   };
 
   if (dataSource.type === 'csv' || dataSource.type === 'json' || dataSource.type === 'xlsx-sheet') {
@@ -159,6 +275,7 @@ function getDatabaseDataAdapterApi(
       getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn),
       getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn),
       getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
+      getChartAggregatedData: getGetChartAggregatedDataFromFQN(pool, fqn),
     },
     userErrors: [],
     internalErrors: [],
@@ -352,6 +469,35 @@ export function getScriptAdapterQueries({
               return { value: [], aborted };
             }
             return { value: convertArrowTable(value, columns), aborted };
+          }
+        : undefined,
+      getChartAggregatedData: classifiedStmt.isAllowedInSubquery
+        ? async (
+            xColumn: string,
+            yColumn: string,
+            aggregation: ChartAggregationType,
+            groupByColumn: string | null,
+            sortBy: 'x' | 'y',
+            sortOrder: ChartSortOrder | null,
+            abortSignal: AbortSignal,
+          ) => {
+            const query = buildChartAggregationQuery(
+              `(${trimmedQuery})`,
+              xColumn,
+              yColumn,
+              aggregation,
+              groupByColumn,
+              sortBy,
+              sortOrder,
+            );
+
+            const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+
+            if (aborted) {
+              return { value: [], aborted };
+            }
+
+            return { value: convertArrowToChartData(value, groupByColumn !== null), aborted };
           }
         : undefined,
     },
