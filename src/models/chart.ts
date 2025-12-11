@@ -11,7 +11,7 @@ export type ChartType =
   | 'stacked-bar'
   | 'horizontal-bar';
 
-export type AggregationType = 'sum' | 'avg' | 'count' | 'min' | 'max';
+export type AggregationType = 'none' | 'sum' | 'avg' | 'count' | 'min' | 'max';
 
 export type SortOrder = 'none' | 'asc' | 'desc';
 
@@ -66,6 +66,7 @@ export const COLOR_SCHEME_LABELS: Record<ColorScheme, string> = {
 };
 
 export const AGGREGATION_LABELS: Record<AggregationType, string> = {
+  none: 'None',
   sum: 'Sum',
   avg: 'Average',
   count: 'Count',

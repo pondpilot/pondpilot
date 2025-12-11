@@ -80,6 +80,7 @@ const MAX_CHART_GROUPS = 1000;
 
 /**
  * Builds the SQL query for chart data aggregation.
+ * When aggregation is 'none', values are used directly without aggregation.
  */
 export function buildChartAggregationQuery(
   source: string,
@@ -92,18 +93,30 @@ export function buildChartAggregationQuery(
 ): string {
   const xCol = toDuckDBIdentifier(xColumn);
   const yCol = toDuckDBIdentifier(yColumn);
-  const agg = aggregation.toUpperCase();
 
   let selectClause: string;
   let groupByClause: string;
 
-  if (groupByColumn) {
-    const groupCol = toDuckDBIdentifier(groupByColumn);
-    selectClause = `CAST(${xCol} AS VARCHAR) AS x, CAST(${groupCol} AS VARCHAR) AS grp, ${agg}(${yCol}) AS y`;
-    groupByClause = `GROUP BY ${xCol}, ${groupCol}`;
+  if (aggregation === 'none') {
+    // No aggregation - use values directly
+    if (groupByColumn) {
+      const groupCol = toDuckDBIdentifier(groupByColumn);
+      selectClause = `CAST(${xCol} AS VARCHAR) AS x, CAST(${groupCol} AS VARCHAR) AS grp, ${yCol} AS y`;
+      groupByClause = '';
+    } else {
+      selectClause = `CAST(${xCol} AS VARCHAR) AS x, ${yCol} AS y`;
+      groupByClause = '';
+    }
   } else {
-    selectClause = `CAST(${xCol} AS VARCHAR) AS x, ${agg}(${yCol}) AS y`;
-    groupByClause = `GROUP BY ${xCol}`;
+    const agg = aggregation.toUpperCase();
+    if (groupByColumn) {
+      const groupCol = toDuckDBIdentifier(groupByColumn);
+      selectClause = `CAST(${xCol} AS VARCHAR) AS x, CAST(${groupCol} AS VARCHAR) AS grp, ${agg}(${yCol}) AS y`;
+      groupByClause = `GROUP BY ${xCol}, ${groupCol}`;
+    } else {
+      selectClause = `CAST(${xCol} AS VARCHAR) AS x, ${agg}(${yCol}) AS y`;
+      groupByClause = `GROUP BY ${xCol}`;
+    }
   }
 
   let orderByClause = '';

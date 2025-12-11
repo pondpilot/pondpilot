@@ -8,6 +8,7 @@ import {
 import { DBColumn } from '@models/db';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { MAX_CHART_DATA_POINTS } from '../constants';
 import {
   suggestChartColumns,
   getXAxisCandidates,
@@ -130,6 +131,15 @@ export function useChartData(
         setIsSupported(false);
         setAggregatedData(null);
         setError('Charts are not available for this query type');
+      } else if (result.length > MAX_CHART_DATA_POINTS) {
+        // Prevent rendering extremely large datasets that could cause performance issues
+        setIsSupported(true);
+        setAggregatedData(null);
+        setError(
+          `Dataset too large for visualization (${result.length.toLocaleString()} data points). ` +
+            `Maximum supported is ${MAX_CHART_DATA_POINTS.toLocaleString()}. ` +
+            'Try adding filters or using GROUP BY to reduce the data size.',
+        );
       } else {
         setIsSupported(true);
         setAggregatedData(result);
@@ -138,7 +148,12 @@ export function useChartData(
       if (err instanceof CancelledOperation && err.isSystemCancelled) {
         return;
       }
-      const message = err instanceof Error ? err.message : 'Failed to load chart data';
+      let message = err instanceof Error ? err.message : 'Failed to load chart data';
+      // Provide a more helpful error message for DuckDB OOM errors
+      if (message.includes('Out of Memory Error')) {
+        message =
+          'Query processing ran out of memory. Try simplifying your query or reducing the amount of data being aggregated.';
+      }
       setError(message);
       setAggregatedData(null);
     } finally {

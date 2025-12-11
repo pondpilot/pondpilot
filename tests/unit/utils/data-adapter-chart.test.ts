@@ -68,6 +68,44 @@ describe('buildChartAggregationQuery', () => {
       );
       expect(maxQuery).toContain('MAX(price) AS y');
     });
+
+    it('should build a query without aggregation when aggregation is none', () => {
+      const query = buildChartAggregationQuery(
+        'sales',
+        'period',
+        'revenue',
+        'none',
+        null,
+        'x',
+        null,
+      );
+
+      expect(query).toContain('SELECT');
+      expect(query).toContain('CAST(period AS VARCHAR) AS x');
+      expect(query).toContain('revenue AS y');
+      expect(query).toContain('FROM sales');
+      expect(query).toContain('WHERE period IS NOT NULL');
+      expect(query).not.toContain('GROUP BY');
+      expect(query).toContain('LIMIT 1000');
+    });
+
+    it('should build a query without aggregation with group column', () => {
+      const query = buildChartAggregationQuery(
+        'sales',
+        'period',
+        'revenue',
+        'none',
+        'region',
+        'x',
+        'asc',
+      );
+
+      expect(query).toContain('CAST(period AS VARCHAR) AS x');
+      expect(query).toContain('CAST(region AS VARCHAR) AS grp');
+      expect(query).toContain('revenue AS y');
+      expect(query).not.toContain('GROUP BY');
+      expect(query).toContain('ORDER BY x ASC');
+    });
   });
 
   describe('with group by column', () => {
