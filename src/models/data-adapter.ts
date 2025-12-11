@@ -67,7 +67,7 @@ export type RowCountInfo = {
 
 export type ColumnAggregateType = 'count' | 'sum' | 'avg' | 'min' | 'max';
 
-export type ChartAggregationType = 'sum' | 'avg' | 'count' | 'min' | 'max';
+export type ChartAggregationType = 'none' | 'sum' | 'avg' | 'count' | 'min' | 'max';
 
 export type ChartSortOrder = 'asc' | 'desc';
 

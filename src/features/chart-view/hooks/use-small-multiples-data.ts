@@ -7,6 +7,7 @@ import {
 } from '@models/data-adapter';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { MAX_CHART_DATA_POINTS } from '../constants';
 import { ChartDataPoint } from './use-chart-data';
 
 /**
@@ -95,6 +96,20 @@ export function useSmallMultiplesData(
             next.delete(yCol);
             return next;
           });
+        } else if (result.length > MAX_CHART_DATA_POINTS) {
+          // Prevent rendering extremely large datasets that could cause performance issues
+          setErrorMap((prev) =>
+            new Map(prev).set(
+              yCol,
+              `Dataset too large (${result.length.toLocaleString()} points). ` +
+                `Max: ${MAX_CHART_DATA_POINTS.toLocaleString()}.`,
+            ),
+          );
+          setDataMap((prev) => {
+            const next = new Map(prev);
+            next.delete(yCol);
+            return next;
+          });
         } else {
           setDataMap((prev) => new Map(prev).set(yCol, result));
         }
@@ -107,7 +122,12 @@ export function useSmallMultiplesData(
           return;
         }
 
-        const message = err instanceof Error ? err.message : 'Failed to load chart data';
+        let message = err instanceof Error ? err.message : 'Failed to load chart data';
+        // Provide a more helpful error message for DuckDB OOM errors
+        if (message.includes('Out of Memory Error')) {
+          message =
+            'Query processing ran out of memory. Try comparing fewer metrics or simplifying your query.';
+        }
         setErrorMap((prev) => new Map(prev).set(yCol, message));
         setDataMap((prev) => {
           const next = new Map(prev);
