@@ -199,14 +199,7 @@ export function useSmallMultiplesData(
     return () => {
       isCancelled = true;
     };
-  }, [
-    allYColumns,
-    isSmallMultiplesMode,
-    fetchColumnData,
-    dataVersion,
-    hasData,
-    xAxisColumn,
-  ]);
+  }, [allYColumns, isSmallMultiplesMode, fetchColumnData, dataVersion, hasData, xAxisColumn]);
 
   // Transform aggregated data into Recharts format for each column
   const multiplesData = useMemo((): SmallMultipleData[] => {
