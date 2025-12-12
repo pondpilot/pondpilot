@@ -152,11 +152,12 @@ export function ChartFullscreenModal({
           content: { height: '100vh' },
         }}
       >
-        <div className="h-full flex flex-col">
+        <div className="h-screen flex flex-col">
           <Group
             justify="space-between"
             wrap="nowrap"
-            className="p-2 border-b border-borderPrimary-light dark:border-borderPrimary-dark flex-shrink-0"
+            className="p-2 border-b border-borderPrimary-light dark:border-borderPrimary-dark"
+            style={{ height: '52px', flexShrink: 0 }}
           >
             <ChartConfigToolbar
               chartConfig={chartConfig}
@@ -171,8 +172,8 @@ export function ChartFullscreenModal({
               </ActionIcon>
             </Tooltip>
           </Group>
-          <div className="flex-1 min-h-0 min-w-0 p-4" style={{ height: 'calc(100% - 52px)' }}>
-            <div className="h-full w-full">
+          <div className="p-4" style={{ height: 'calc(100vh - 52px)' }}>
+            <div style={{ width: '100%', height: '100%' }}>
               {isReady ? renderChart() : <ChartLoading />}
             </div>
           </div>
