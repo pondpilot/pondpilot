@@ -41,8 +41,10 @@ export function useSmallMultiplesData(
   const [loadingSet, setLoadingSet] = useState<Set<string>>(new Set());
   const [errorMap, setErrorMap] = useState<Map<string, string>>(new Map());
 
-  const columns = dataAdapter.currentSchema;
-  const hasData = columns.length > 0 && !dataAdapter.isStale;
+  // Destructure to get stable function reference (from useCallback in use-data-adapter)
+  // Using the whole dataAdapter object in dependencies causes re-renders to recreate callbacks
+  const { getChartAggregatedData, currentSchema, isStale, dataVersion } = dataAdapter;
+  const hasData = currentSchema.length > 0 && !isStale;
 
   const { xAxisColumn, yAxisColumn, additionalYColumns, aggregation, sortBy, sortOrder } =
     chartConfig;
@@ -74,7 +76,7 @@ export function useSmallMultiplesData(
 
       try {
         // Small multiples don't use groupBy - each chart shows one metric
-        const result = await dataAdapter.getChartAggregatedData(
+        const result = await getChartAggregatedData(
           xAxisColumn,
           yCol,
           aggregation,
@@ -144,7 +146,7 @@ export function useSmallMultiplesData(
         }
       }
     },
-    [dataAdapter, hasData, xAxisColumn, aggregation, sortBy, apiSortOrder],
+    [getChartAggregatedData, hasData, xAxisColumn, aggregation, sortBy, apiSortOrder],
   );
 
   // Fetch all columns when config changes
@@ -201,7 +203,7 @@ export function useSmallMultiplesData(
     allYColumns,
     isSmallMultiplesMode,
     fetchColumnData,
-    dataAdapter.dataVersion,
+    dataVersion,
     hasData,
     xAxisColumn,
   ]);

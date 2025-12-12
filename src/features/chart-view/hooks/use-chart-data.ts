@@ -78,21 +78,23 @@ export function useChartData(
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(true);
 
-  const columns = dataAdapter.currentSchema;
-  const hasData = columns.length > 0 && !dataAdapter.isStale;
+  // Destructure to get stable function reference (from useCallback in use-data-adapter)
+  // Using the whole dataAdapter object in dependencies causes re-renders to recreate callbacks
+  const { getChartAggregatedData, currentSchema, isStale, dataVersion } = dataAdapter;
+  const hasData = currentSchema.length > 0 && !isStale;
 
   // Compute column candidates for the config UI
-  const xAxisCandidates = useMemo(() => getXAxisCandidates(columns), [columns]);
-  const yAxisCandidates = useMemo(() => getYAxisCandidates(columns), [columns]);
-  const groupByCandidates = useMemo(() => getGroupByCandidates(columns), [columns]);
+  const xAxisCandidates = useMemo(() => getXAxisCandidates(currentSchema), [currentSchema]);
+  const yAxisCandidates = useMemo(() => getYAxisCandidates(currentSchema), [currentSchema]);
+  const groupByCandidates = useMemo(() => getGroupByCandidates(currentSchema), [currentSchema]);
 
   // Auto-suggest columns when schema changes
   const suggestedConfig = useMemo(() => {
-    if (columns.length === 0) {
+    if (currentSchema.length === 0) {
       return {};
     }
-    return suggestChartColumns(columns);
-  }, [columns]);
+    return suggestChartColumns(currentSchema);
+  }, [currentSchema]);
 
   const { xAxisColumn, yAxisColumn, groupByColumn, aggregation, sortBy, sortOrder } = chartConfig;
 
@@ -117,7 +119,7 @@ export function useChartData(
     setError(null);
 
     try {
-      const result = await dataAdapter.getChartAggregatedData(
+      const result = await getChartAggregatedData(
         xAxisColumn,
         yAxisColumn,
         aggregation,
@@ -160,7 +162,7 @@ export function useChartData(
       setIsLoading(false);
     }
   }, [
-    dataAdapter,
+    getChartAggregatedData,
     hasData,
     enabled,
     xAxisColumn,
@@ -174,7 +176,7 @@ export function useChartData(
   // Fetch data when config or data version changes
   useEffect(() => {
     fetchData();
-  }, [fetchData, dataAdapter.dataVersion]);
+  }, [fetchData, dataVersion]);
 
   // Transform aggregated data into Recharts format
   const chartData = useMemo((): ChartDataPoint[] => {
