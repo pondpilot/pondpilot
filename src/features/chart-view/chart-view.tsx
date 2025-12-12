@@ -2,9 +2,9 @@ import { Center, Stack, Text, ThemeIcon } from '@mantine/core';
 import { ChartConfig, DEFAULT_CHART_CONFIG } from '@models/chart';
 import { DataAdapterApi } from '@models/data-adapter';
 import { IconChartBarOff, IconAlertCircle, IconNumber123, IconSettings } from '@tabler/icons-react';
-import { forwardRef, lazy, Suspense, useEffect } from 'react';
+import { forwardRef, lazy, Suspense, useEffect, useMemo } from 'react';
 
-import { ChartLoading } from './components';
+import { ChartErrorBoundary, ChartLoading } from './components';
 import { useChartData, useSmallMultiplesData } from './hooks';
 
 // Lazy load chart components to reduce initial bundle size
@@ -72,14 +72,54 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
       }
     }, [chartConfig, suggestedConfig, onConfigChange]);
 
-    // Determine if we have valid configuration
-    const hasValidConfig = effectiveConfig.xAxisColumn && effectiveConfig.yAxisColumn;
-    const hasData = chartData.length > 0 || pieChartData.length > 0;
-    const hasSmallMultiplesData = multiplesData.some((d) => d.data.length > 0);
-    const hasNoNumericColumns = yAxisCandidates.length === 0;
+    // Memoize computed display conditions to avoid recalculation on every render
+    const displayConditions = useMemo(
+      () => ({
+        hasValidConfig: Boolean(effectiveConfig.xAxisColumn && effectiveConfig.yAxisColumn),
+        hasData: chartData.length > 0 || pieChartData.length > 0,
+        hasSmallMultiplesData: multiplesData.some((d) => d.data.length > 0),
+        hasNoNumericColumns: yAxisCandidates.length === 0,
+        hasXAxisCandidates: xAxisCandidates.length > 0,
+        isAnyLoading: isLoading || (isSmallMultiplesMode && isSmallMultiplesLoading),
+      }),
+      [
+        effectiveConfig.xAxisColumn,
+        effectiveConfig.yAxisColumn,
+        chartData.length,
+        pieChartData.length,
+        multiplesData,
+        yAxisCandidates.length,
+        xAxisCandidates.length,
+        isLoading,
+        isSmallMultiplesMode,
+        isSmallMultiplesLoading,
+      ],
+    );
 
-    // Loading state (check both regular and small multiples loading)
-    const isAnyLoading = isLoading || (isSmallMultiplesMode && isSmallMultiplesLoading);
+    // Memoize common props for all chart types (must be before any early returns)
+    const chartProps = useMemo(
+      () => ({
+        title: effectiveConfig.title,
+        xAxisLabel: effectiveConfig.xAxisLabel,
+        yAxisLabel: effectiveConfig.yAxisLabel,
+        colorScheme: effectiveConfig.colorScheme,
+      }),
+      [
+        effectiveConfig.title,
+        effectiveConfig.xAxisLabel,
+        effectiveConfig.yAxisLabel,
+        effectiveConfig.colorScheme,
+      ],
+    );
+
+    const {
+      hasValidConfig,
+      hasData,
+      hasSmallMultiplesData,
+      hasNoNumericColumns,
+      hasXAxisCandidates,
+      isAnyLoading,
+    } = displayConditions;
     if (isAnyLoading) {
       return <ChartLoading message="Loading chart data..." />;
     }
@@ -104,7 +144,7 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
     }
 
     // No numeric columns available
-    if (hasNoNumericColumns && xAxisCandidates.length > 0) {
+    if (hasNoNumericColumns && hasXAxisCandidates) {
       return (
         <Center className="h-full">
           <Stack align="center" gap="sm">
@@ -163,26 +203,20 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
       );
     }
 
-    // Common props for all chart types
-    const chartProps = {
-      title: effectiveConfig.title,
-      xAxisLabel: effectiveConfig.xAxisLabel,
-      yAxisLabel: effectiveConfig.yAxisLabel,
-      colorScheme: effectiveConfig.colorScheme,
-    };
-
     // Render small multiples if in that mode
     if (isSmallMultiplesMode && hasSmallMultiplesData) {
       return (
         <div ref={ref} className="h-full w-full p-2 overflow-hidden">
-          <Suspense fallback={<ChartLoading />}>
-            <SmallMultiplesChart
-              multiplesData={multiplesData}
-              chartType={effectiveConfig.chartType}
-              colorScheme={effectiveConfig.colorScheme}
-              title={effectiveConfig.title}
-            />
-          </Suspense>
+          <ChartErrorBoundary>
+            <Suspense fallback={<ChartLoading />}>
+              <SmallMultiplesChart
+                multiplesData={multiplesData}
+                chartType={effectiveConfig.chartType}
+                colorScheme={effectiveConfig.colorScheme}
+                title={effectiveConfig.title}
+              />
+            </Suspense>
+          </ChartErrorBoundary>
         </div>
       );
     }
@@ -259,7 +293,9 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
 
     return (
       <div ref={ref} className="h-full w-full p-2 overflow-hidden">
-        <Suspense fallback={<ChartLoading />}>{renderChart()}</Suspense>
+        <ChartErrorBoundary>
+          <Suspense fallback={<ChartLoading />}>{renderChart()}</Suspense>
+        </ChartErrorBoundary>
       </div>
     );
   },

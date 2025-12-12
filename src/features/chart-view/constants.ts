@@ -13,3 +13,9 @@ export const SMALL_MULTIPLES_MIN_CHART_HEIGHT = 120;
 
 /** Maximum character length for X-axis labels before truncation */
 export const X_AXIS_LABEL_MAX_LENGTH = 12;
+
+/**
+ * Maximum number of data points to render in a chart.
+ * Rendering more points can cause performance issues and memory exhaustion.
+ */
+export const MAX_CHART_DATA_POINTS = 10000;

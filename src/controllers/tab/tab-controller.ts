@@ -46,6 +46,26 @@ import {
  */
 const scriptDataViewStateCache = new Map<SQLScriptId, TabDataViewStateCache>();
 
+/** Maximum number of cached script data view states to prevent memory leaks */
+const MAX_SCRIPT_CACHE_SIZE = 50;
+
+/**
+ * Cleans up the oldest entries from scriptDataViewStateCache if it exceeds the size limit.
+ * Uses a simple FIFO strategy based on Map insertion order.
+ */
+const cleanupScriptDataViewStateCache = (): void => {
+  if (scriptDataViewStateCache.size > MAX_SCRIPT_CACHE_SIZE) {
+    const entriesToRemove = scriptDataViewStateCache.size - MAX_SCRIPT_CACHE_SIZE;
+    const keysIterator = scriptDataViewStateCache.keys();
+    for (let i = 0; i < entriesToRemove; i += 1) {
+      const key = keysIterator.next().value;
+      if (key !== undefined) {
+        scriptDataViewStateCache.delete(key);
+      }
+    }
+  }
+};
+
 /**
  * Saves the dataViewStateCache for a script tab before deletion.
  * This allows the cache to be restored when the tab is recreated.
@@ -59,6 +79,8 @@ const saveScriptDataViewStateCache = (
     const hasData = cache.chartConfig || cache.viewMode || cache.tableColumnSizes || cache.sort;
     if (hasData) {
       scriptDataViewStateCache.set(sqlScriptId, cache);
+      // Clean up old entries to prevent memory leaks
+      cleanupScriptDataViewStateCache();
     }
   }
 };
