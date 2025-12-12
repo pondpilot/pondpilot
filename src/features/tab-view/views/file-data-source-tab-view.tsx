@@ -48,7 +48,8 @@ export const FileDataSourceTabView = memo(({ tabId, active }: FileDataSourceTabV
     (newConfig: Partial<ChartConfig>) => {
       setChartConfig((prev) => {
         const updated = { ...prev, ...newConfig };
-        updateTabChartConfig(tabId, updated);
+        // Schedule store update after state is set to avoid side effects in updater
+        queueMicrotask(() => updateTabChartConfig(tabId, updated));
         return updated;
       });
     },
