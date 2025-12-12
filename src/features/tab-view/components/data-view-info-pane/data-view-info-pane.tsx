@@ -8,6 +8,7 @@ import {
   ChartFullscreenModal,
   useChartData,
   useChartExport,
+  useSmallMultiplesData,
 } from '@features/chart-view';
 import { useTableExport } from '@features/tab-view/hooks';
 import {
@@ -106,6 +107,9 @@ export const DataViewInfoPane = ({
   const isChartMode = viewMode === 'chart';
   const { xAxisCandidates, yAxisCandidates, groupByCandidates, chartData, pieChartData } =
     useChartData(dataAdapter, effectiveChartConfig, { enabled: isChartMode });
+
+  // Get small multiples data for fullscreen modal
+  const { multiplesData } = useSmallMultiplesData(dataAdapter, effectiveChartConfig);
 
   // Check if charting is supported for this tab type
   const supportsCharting = tabType === 'script' || tabType === 'data-source';
@@ -367,6 +371,7 @@ export const DataViewInfoPane = ({
               chartConfig={effectiveChartConfig}
               chartData={chartData}
               pieChartData={pieChartData}
+              multiplesData={multiplesData}
               xAxisCandidates={xAxisCandidates}
               yAxisCandidates={yAxisCandidates}
               groupByCandidates={groupByCandidates}

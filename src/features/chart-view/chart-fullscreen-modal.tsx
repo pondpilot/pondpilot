@@ -13,15 +13,18 @@ import {
   AreaChart,
   StackedBarChart,
   HorizontalBarChart,
+  SmallMultiplesChart,
   ChartLoading,
 } from './components';
 import { MODAL_CHART_RENDER_DELAY_MS } from './constants';
 import { ChartDataPoint, PieChartDataPoint } from './hooks/use-chart-data';
+import { SmallMultipleData } from './hooks/use-small-multiples-data';
 
 interface ChartFullscreenModalProps {
   chartConfig: ChartConfig;
   chartData: ChartDataPoint[];
   pieChartData: PieChartDataPoint[];
+  multiplesData: SmallMultipleData[];
   xAxisCandidates: DBColumn[];
   yAxisCandidates: DBColumn[];
   groupByCandidates: DBColumn[];
@@ -32,6 +35,7 @@ export function ChartFullscreenModal({
   chartConfig,
   chartData,
   pieChartData,
+  multiplesData,
   xAxisCandidates,
   yAxisCandidates,
   groupByCandidates,
@@ -39,6 +43,10 @@ export function ChartFullscreenModal({
 }: ChartFullscreenModalProps) {
   const [opened, setOpened] = useState(false);
   const [isReady, setIsReady] = useState(false);
+
+  // Check if in small multiples mode
+  const isSmallMultiplesMode = chartConfig.additionalYColumns.length > 0;
+  const hasSmallMultiplesData = multiplesData.some((d) => d.data.length > 0);
 
   // Delay chart rendering until modal is fully visible to allow ResponsiveContainer to measure correctly
   useEffect(() => {
@@ -61,6 +69,18 @@ export function ChartFullscreenModal({
   };
 
   const renderChart = () => {
+    // Render small multiples if in that mode
+    if (isSmallMultiplesMode && hasSmallMultiplesData) {
+      return (
+        <SmallMultiplesChart
+          multiplesData={multiplesData}
+          chartType={chartConfig.chartType}
+          colorScheme={chartConfig.colorScheme}
+          title={chartConfig.title}
+        />
+      );
+    }
+
     switch (chartConfig.chartType) {
       case 'bar':
         return (

@@ -8,45 +8,27 @@ interface ChartExportState {
 }
 
 /**
- * Converts chart SVG to a PNG blob.
- * Uses SVG serialization for fast, high-quality output.
+ * Converts a single SVG element to an image.
  */
-async function chartToPngBlob(chartRef: RefObject<HTMLDivElement | null>): Promise<Blob | null> {
-  if (!chartRef.current) return null;
-
-  const svgElement = chartRef.current.querySelector('svg');
-  if (!svgElement) {
-    console.error('No SVG element found in chart');
-    return null;
-  }
-
-  // Clone SVG to avoid modifying the original
+async function svgToImage(
+  svgElement: SVGSVGElement,
+  scale: number = 2,
+): Promise<{ img: HTMLImageElement; width: number; height: number }> {
   const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
-
-  // Get computed styles
-  const computedStyle = window.getComputedStyle(svgElement);
-  const bgColor = computedStyle.backgroundColor || '#ffffff';
-
-  // Get dimensions (2x for retina)
   const svgRect = svgElement.getBoundingClientRect();
-  const width = svgRect.width * 2;
-  const height = svgRect.height * 2;
+  const width = svgRect.width * scale;
+  const height = svgRect.height * scale;
 
-  // Set explicit dimensions on the cloned SVG
   clonedSvg.setAttribute('width', String(width));
   clonedSvg.setAttribute('height', String(height));
   clonedSvg.setAttribute('viewBox', `0 0 ${svgRect.width} ${svgRect.height}`);
 
-  // Serialize SVG to string
   const serializer = new XMLSerializer();
   const svgString = serializer.serializeToString(clonedSvg);
-
-  // Create a blob URL for the SVG
   const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
   const svgUrl = URL.createObjectURL(svgBlob);
 
   try {
-    // Load SVG into an image
     const img = new Image();
     img.width = width;
     img.height = height;
@@ -57,31 +39,83 @@ async function chartToPngBlob(chartRef: RefObject<HTMLDivElement | null>): Promi
       img.src = svgUrl;
     });
 
-    // Create offscreen canvas and draw the image
+    return { img, width, height };
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+}
+
+/**
+ * Converts chart SVG(s) to a PNG blob.
+ * Handles both single charts and small multiples (multiple SVGs stacked vertically).
+ * Uses SVG serialization for fast, high-quality output.
+ */
+async function chartToPngBlob(chartRef: RefObject<HTMLDivElement | null>): Promise<Blob | null> {
+  if (!chartRef.current) return null;
+
+  const svgElements = chartRef.current.querySelectorAll('svg');
+  if (svgElements.length === 0) {
+    console.error('No SVG element found in chart');
+    return null;
+  }
+
+  // Get background color from container
+  const computedStyle = window.getComputedStyle(chartRef.current);
+  const bgColor = computedStyle.backgroundColor || '#ffffff';
+
+  const scale = 2; // Retina scaling
+
+  // For single SVG, use simpler path
+  if (svgElements.length === 1) {
+    const { img, width, height } = await svgToImage(svgElements[0], scale);
+
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
 
     const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('Failed to get canvas context');
-    }
+    if (!ctx) throw new Error('Failed to get canvas context');
 
-    // Fill background
     ctx.fillStyle = bgColor === 'rgba(0, 0, 0, 0)' ? '#ffffff' : bgColor;
     ctx.fillRect(0, 0, width, height);
-
-    // Draw the SVG image
     ctx.drawImage(img, 0, 0, width, height);
 
-    // Convert to PNG blob
-    const blob = await new Promise<Blob | null>((resolve) => {
+    return new Promise<Blob | null>((resolve) => {
       canvas.toBlob((b) => resolve(b), 'image/png');
     });
-    return blob;
-  } finally {
-    URL.revokeObjectURL(svgUrl);
   }
+
+  // For multiple SVGs (small multiples), combine them vertically
+  const containerRect = chartRef.current.getBoundingClientRect();
+  const totalWidth = containerRect.width * scale;
+  const totalHeight = containerRect.height * scale;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = totalWidth;
+  canvas.height = totalHeight;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Failed to get canvas context');
+
+  // Fill background
+  ctx.fillStyle = bgColor === 'rgba(0, 0, 0, 0)' ? '#ffffff' : bgColor;
+  ctx.fillRect(0, 0, totalWidth, totalHeight);
+
+  // Draw each SVG at its relative position within the container
+  for (const svgElement of svgElements) {
+    const { img, width, height } = await svgToImage(svgElement, scale);
+    const svgRect = svgElement.getBoundingClientRect();
+
+    // Calculate position relative to container
+    const x = (svgRect.left - containerRect.left) * scale;
+    const y = (svgRect.top - containerRect.top) * scale;
+
+    ctx.drawImage(img, x, y, width, height);
+  }
+
+  return new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((b) => resolve(b), 'image/png');
+  });
 }
 
 export const useChartExport = (
