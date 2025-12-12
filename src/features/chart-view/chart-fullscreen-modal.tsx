@@ -171,8 +171,10 @@ export function ChartFullscreenModal({
               </ActionIcon>
             </Tooltip>
           </Group>
-          <div className="flex-1 min-h-0 min-w-0 h-full p-4">
-            {isReady ? renderChart() : <ChartLoading />}
+          <div className="flex-1 min-h-0 min-w-0 p-4" style={{ height: 'calc(100% - 52px)' }}>
+            <div className="h-full w-full">
+              {isReady ? renderChart() : <ChartLoading />}
+            </div>
           </div>
         </div>
       </Modal>
