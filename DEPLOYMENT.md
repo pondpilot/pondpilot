@@ -60,7 +60,7 @@ services:
     image: pondpilot:latest
   nginx:
     image: nginx:alpine
-    ports: ["80:80"]
+    ports: ['80:80']
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
     depends_on: [pondpilot]
@@ -86,4 +86,3 @@ open http://localhost:5173/ui/
 - `start_url` – PWA launch URL (must match base path).
 
 This is enough for correct deployment. For rationale, see the PR history.
-

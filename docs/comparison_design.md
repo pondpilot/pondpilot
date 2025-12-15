@@ -5,6 +5,7 @@ This guide documents the memory-conscious comparison executor now wired into Pon
 ---
 
 ## 1. Context & Goals
+
 - The single-query comparison path materialized a `FULL OUTER JOIN` into `pondpilot.main.<table>`, which exceeded the 3 GB DuckDB-WASM ceiling on large inputs.
 - We now stream the diff by partitioning the join space into hash buckets. Each bucket is processed independently, keeping intermediate results bounded while preserving the existing results-table contract for the UI.
 - The UI experience (materialized table + viewer hooks) stays intact; only the execution pathway changed.
@@ -14,6 +15,7 @@ This guide documents the memory-conscious comparison executor now wired into Pon
 ## 2. Architecture Overview
 
 ### 2.1 Algorithm Registry Pattern
+
 - Comparison execution now uses a pluggable algorithm architecture via `src/features/comparison/algorithms/registry.ts`.
 - Each algorithm implements the `ComparisonAlgorithm` interface with:
   - `canHandle(context)`: Returns whether the algorithm can process the given comparison.
@@ -27,6 +29,7 @@ This guide documents the memory-conscious comparison executor now wired into Pon
 - Auto-selection uses cost-based routing: the registry evaluates all capable algorithms and selects the one with the lowest estimated cost based on row counts and column counts.
 
 ### 2.2 Range Hash Executor
+
 - Entry point: `runRangeHashDiff` (`src/features/comparison/algorithms/range-hashdiff/executor.ts`).
 - During preparation we compute aggregated hash counts once per source:
   - `SELECT ((hash(struct_pack(join_keys)) % M + M) % M) AS bucket, COUNT(*) FROM (…) GROUP BY 1;` where `M = splitFactor^maxDepth_adjusted`.
@@ -42,6 +45,7 @@ This guide documents the memory-conscious comparison executor now wired into Pon
 - **Adaptive bucket sizing**: The `HashBucketAlgorithm` dynamically tunes `rowThreshold` based on dataset size (16 k–4 M rows per bucket), targeting ~4 segments per side while enforcing a safety limit of 1 k total buckets to prevent resource exhaustion.
 
 ### 2.3 Hash Predicate
+
 - When range filters are applied inside `generateComparisonSQL` we support both `hash-bucket` (modulus-based) and `hash-range` (BETWEEN-based) predicates.
 - `hash-bucket`: Uses `((hash(struct_pack(<join keys>)) % M) + M) % M = bucket` for precise bucket matching.
 - `hash-range`: Uses `hash(struct_pack(<join keys>)) BETWEEN <start> AND <end - 1>` for range-based partitioning.
@@ -259,6 +263,7 @@ Note: Sampling guarantees matched records are compared
 ## 3. Execution Flow
 
 1. **Algorithm Selection**
+
    - `useComparisonExecution` calls `selectAlgorithm(mode, context)` where mode is `'auto' | 'hash-bucket' | 'join' | 'sampling'`.
    - In auto mode, the registry evaluates each algorithm's `estimateCost()` and selects the lowest:
      - JoinAlgorithm: cost = 1 for datasets ≤500k rows, 20 for ≤1M rows, 100 otherwise.
@@ -267,10 +272,12 @@ Note: Sampling guarantees matched records are compared
    - Selected algorithm is then executed with full context (pool, config, schemaComparison, tableName, abortSignal).
 
 2. **Preparation (Hash-Bucket Path)**
+
    - `runRangeHashDiff` validates sources and creates an empty results table via `CREATE OR REPLACE TABLE … AS <select> LIMIT 0;` so schema always matches the viewer contract.
    - Pre-computes bucket counts for both sources at the final modulus depth to enable fast segment size estimation.
 
 3. **Segment Loop (Hash-Bucket Path)**
+
    - Start with root segment `{ modulus: 1, bucket: 0, depth: 0 }`.
    - For each dequeued segment:
      1. Estimate row counts using pre-computed bucket counts. Zero on both sides → mark complete.
@@ -320,7 +327,7 @@ The algorithm pattern allows easy extension: new comparison strategies can be ad
 
 ## 6. Store & UI Considerations
 
-- Advanced options now expose a *Comparison method* picker with four modes: `'auto'`, `'hash-bucket'`, `'join'`, `'sampling'`.
+- Advanced options now expose a _Comparison method_ picker with four modes: `'auto'`, `'hash-bucket'`, `'join'`, `'sampling'`.
 - **Auto mode** uses cost-based algorithm selection:
   - JoinAlgorithm preferred for small datasets (≤500k rows) with low column counts.
   - HashBucketAlgorithm preferred for large datasets (>1M rows) or wide tables.
@@ -362,12 +369,14 @@ The algorithm pattern allows easy extension: new comparison strategies can be ad
 ## 8. Completed Optimizations & Future Iterations
 
 ### Completed
+
 1. ✅ **Progress instrumentation**: Full progress tracking with stage, bucket counts, row counts, current bucket details, and elapsed time display.
 2. ✅ **Adaptive bucket sizing**: `rowThreshold`, `splitFactor`, and `maxDepth` are dynamically tuned based on dataset size with safety limits.
 3. ✅ **Algorithm registry pattern**: Extensible architecture supporting multiple comparison strategies with cost-based auto-selection.
 4. ✅ **Cancellation & finish-early**: Users can cancel comparisons or finish early with partial results.
 
 ### Future Iterations (Optional)
+
 1. Cache row-count probes to avoid repeated scans when re-running in quick succession.
 2. ~~Investigate combining struct-hash pre-filtering with per-column diff materialisation~~ - Not recommended: requires per-column status anyway, individual column comparisons are better optimized, and hash overhead would exceed benefits.
 3. Add automated large-table benchmarks to detect performance regressions.
