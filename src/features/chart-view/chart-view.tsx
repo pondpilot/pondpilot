@@ -1,11 +1,12 @@
-import { Center, Stack, Text, ThemeIcon } from '@mantine/core';
+import { Center, Group, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import { ChartConfig, DEFAULT_CHART_CONFIG } from '@models/chart';
 import { DataAdapterApi } from '@models/data-adapter';
 import { IconChartBarOff, IconAlertCircle, IconNumber123, IconSettings } from '@tabler/icons-react';
 import { forwardRef, lazy, Suspense, useEffect, useMemo } from 'react';
 
-import { ChartErrorBoundary, ChartLoading } from './components';
+import { ChartAxisControls, ChartErrorBoundary, ChartLoading } from './components';
 import { useChartData, useSmallMultiplesData } from './hooks';
+import { getGroupByCandidates } from './utils';
 
 // Lazy load chart components to reduce initial bundle size
 const BarChart = lazy(() =>
@@ -165,18 +166,34 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
 
     // No data available - needs configuration
     if (!hasData && !hasValidConfig) {
+      const groupByCandidates = getGroupByCandidates(dataAdapter.currentSchema);
+
       return (
         <Center className="h-full">
-          <Stack align="center" gap="sm">
-            <ThemeIcon variant="light" color="blue" size="xl" radius="xl">
+          <Stack align="center" gap="md">
+            <ThemeIcon variant="light" color="background-accent" size="xl" radius="xl">
               <IconSettings size={24} />
             </ThemeIcon>
-            <Text fw={500} size="sm">
-              Configure your chart
-            </Text>
-            <Text c="dimmed" size="xs" maw={300} ta="center">
-              Select X-axis and Y-axis columns from the toolbar above to create a visualization of
-              your data.
+            <Title order={3}>Configure your chart</Title>
+
+            <Group gap="xs">
+              <ChartAxisControls
+                xAxisColumn={effectiveConfig.xAxisColumn}
+                yAxisColumn={effectiveConfig.yAxisColumn}
+                groupByColumn={effectiveConfig.groupByColumn}
+                xAxisCandidates={xAxisCandidates}
+                yAxisCandidates={yAxisCandidates}
+                groupByCandidates={groupByCandidates}
+                onXAxisChange={(value) => onConfigChange({ xAxisColumn: value })}
+                onYAxisChange={(value) => onConfigChange({ yAxisColumn: value })}
+                onGroupByChange={(value) => onConfigChange({ groupByColumn: value })}
+                showGroupBy={effectiveConfig.chartType !== 'pie'}
+                disabled={false}
+              />
+            </Group>
+
+            <Text c="dimmed" size="xs" maw={350} ta="center">
+              Select columns above to create your visualization
             </Text>
           </Stack>
         </Center>

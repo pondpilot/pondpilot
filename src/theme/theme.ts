@@ -667,6 +667,7 @@ export const theme = createTheme({
     SegmentedControl: SegmentedControl.extend({
       defaultProps: {
         size: 'sm',
+        radius: 'xl',
         color: 'background-tertiary',
         bg: 'background-secondary',
       },

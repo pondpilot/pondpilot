@@ -94,6 +94,9 @@ export function ChartAxisControls({
         disabled={disabled}
         comboboxProps={{ withinPortal: true, zIndex: 1000 }}
         w={120}
+        classNames={{
+          input: 'pr-10',
+        }}
       />
 
       <Select
@@ -106,6 +109,9 @@ export function ChartAxisControls({
         disabled={disabled}
         comboboxProps={{ withinPortal: true, zIndex: 1000 }}
         w={120}
+        classNames={{
+          input: 'pr-10',
+        }}
       />
 
       {showGroupBy && groupByOptions.length > 0 && (

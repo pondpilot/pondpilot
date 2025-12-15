@@ -28,15 +28,7 @@ import { DataAdapterApi } from '@models/data-adapter';
 import { SYSTEM_DATABASE_NAME } from '@models/data-source';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import {
-  IconX,
-  IconCopy,
-  IconRefresh,
-  IconChevronDown,
-  IconScale,
-  IconTable,
-  IconChartBar,
-} from '@tabler/icons-react';
+import { IconX, IconCopy, IconRefresh, IconChevronDown, IconScale } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { assertNeverValueType } from '@utils/typing';
 import { RefObject, useMemo, useCallback } from 'react';
@@ -366,7 +358,7 @@ export const DataViewInfoPane = ({
               disabled={!hasData}
             />
             {/* Divider before fullscreen */}
-            <div className="w-px h-4 bg-borderPrimary-light dark:bg-borderPrimary-dark" />
+            <Divider orientation="vertical" />
             <ChartFullscreenModal
               chartConfig={effectiveChartConfig}
               chartData={chartData}
@@ -392,23 +384,11 @@ export const DataViewInfoPane = ({
             data={[
               {
                 value: 'table',
-                label: (
-                  <Tooltip label="Table view">
-                    <Group gap={4} aria-label="Table view">
-                      <IconTable size={14} aria-hidden="true" />
-                    </Group>
-                  </Tooltip>
-                ),
+                label: 'Table',
               },
               {
                 value: 'chart',
-                label: (
-                  <Tooltip label="Chart view">
-                    <Group gap={4} aria-label="Chart view">
-                      <IconChartBar size={14} aria-hidden="true" />
-                    </Group>
-                  </Tooltip>
-                ),
+                label: 'Chart',
               },
             ]}
             disabled={!hasData}
@@ -441,6 +421,7 @@ export const DataViewInfoPane = ({
             disabled={disableCopyAndExport || isChartExporting}
             onClick={exportChartToPng}
             data-testid={setDataTestId('export-chart-button')}
+            className="w-28"
           >
             {isChartExporting ? 'Exporting...' : 'Export PNG'}
           </Button>
@@ -451,6 +432,7 @@ export const DataViewInfoPane = ({
                 disabled={disableCopyAndExport}
                 rightSection={<IconChevronDown size={14} />}
                 data-testid={setDataTestId('export-table-button')}
+                className="w-28"
               >
                 Export
               </Button>
