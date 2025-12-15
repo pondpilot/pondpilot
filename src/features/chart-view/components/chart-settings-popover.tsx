@@ -105,26 +105,17 @@ export function ChartSettingsPopover({
     [onSortChange],
   );
 
-  const handleTitleChange = useCallback(
-    (value: string) => {
-      setTitleInput(value);
-    },
-    [],
-  );
+  const handleTitleChange = useCallback((value: string) => {
+    setTitleInput(value);
+  }, []);
 
-  const handleXAxisLabelChange = useCallback(
-    (value: string) => {
-      setXAxisLabelInput(value);
-    },
-    [],
-  );
+  const handleXAxisLabelChange = useCallback((value: string) => {
+    setXAxisLabelInput(value);
+  }, []);
 
-  const handleYAxisLabelChange = useCallback(
-    (value: string) => {
-      setYAxisLabelInput(value);
-    },
-    [],
-  );
+  const handleYAxisLabelChange = useCallback((value: string) => {
+    setYAxisLabelInput(value);
+  }, []);
 
   const handleColorSchemeChange = useCallback(
     (scheme: ColorScheme) => {
