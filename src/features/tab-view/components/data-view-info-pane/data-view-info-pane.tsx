@@ -3,13 +3,8 @@ import { DotAnimation } from '@components/dots-animation';
 import { ExportOptionsModal } from '@components/export-options-modal';
 import { createComparison } from '@controllers/comparison';
 import { getOrCreateTabFromComparison } from '@controllers/tab';
-import {
-  ChartConfigToolbar,
-  ChartFullscreenModal,
-  useChartData,
-  useChartExport,
-  useSmallMultiplesData,
-} from '@features/chart-view';
+import { ChartConfigToolbar, ChartFullscreenModal, useChartExport } from '@features/chart-view';
+import type { ChartDataPoint, PieChartDataPoint, SmallMultipleData } from '@features/chart-view';
 import { useTableExport } from '@features/tab-view/hooks';
 import {
   TextProps,
@@ -26,6 +21,7 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { ChartConfig, ViewMode } from '@models/chart';
 import { DataAdapterApi } from '@models/data-adapter';
 import { SYSTEM_DATABASE_NAME } from '@models/data-source';
+import { DBColumn } from '@models/db';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { IconX, IconCopy, IconRefresh, IconChevronDown, IconScale } from '@tabler/icons-react';
@@ -45,6 +41,12 @@ interface DataViewInfoPaneProps {
   onChartConfigChange?: (config: Partial<ChartConfig>) => void;
   /** Ref to chart container for export */
   chartRef?: RefObject<HTMLDivElement | null>;
+  xAxisCandidates: DBColumn[];
+  yAxisCandidates: DBColumn[];
+  groupByCandidates: DBColumn[];
+  chartData: ChartDataPoint[];
+  pieChartData: PieChartDataPoint[];
+  multiplesData: SmallMultipleData[];
 }
 
 export const DataViewInfoPane = ({
@@ -56,6 +58,12 @@ export const DataViewInfoPane = ({
   onViewModeChange,
   onChartConfigChange,
   chartRef,
+  xAxisCandidates,
+  yAxisCandidates,
+  groupByCandidates,
+  chartData,
+  pieChartData,
+  multiplesData,
 }: DataViewInfoPaneProps) => {
   /**
    * Hooks
@@ -97,13 +105,6 @@ export const DataViewInfoPane = ({
     additionalYColumns: [],
   };
   const isChartMode = viewMode === 'chart';
-  const { xAxisCandidates, yAxisCandidates, groupByCandidates, chartData, pieChartData } =
-    useChartData(dataAdapter, effectiveChartConfig, {
-      enabled: isChartMode || chartConfig !== null,
-    });
-
-  // Get small multiples data for fullscreen modal
-  const { multiplesData } = useSmallMultiplesData(dataAdapter, effectiveChartConfig);
 
   // Check if charting is supported for this tab type
   const supportsCharting = tabType === 'script' || tabType === 'data-source';

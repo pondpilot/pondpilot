@@ -1,4 +1,5 @@
 import { updateTabViewMode, updateTabChartConfig } from '@controllers/tab';
+import { useChartData, useSmallMultiplesData } from '@features/chart-view';
 import { Stack } from '@mantine/core';
 import { ChartConfig, DEFAULT_CHART_CONFIG, DEFAULT_VIEW_MODE, ViewMode } from '@models/chart';
 import { AnyFileSourceTab, TabId } from '@models/tab';
@@ -30,6 +31,13 @@ export const FileDataSourceTabView = memo(({ tabId, active }: FileDataSourceTabV
     const cached = useAppStore.getState().tabs.get(tabId)?.dataViewStateCache?.chartConfig;
     return cached ?? DEFAULT_CHART_CONFIG;
   });
+
+  const isSmallMultiplesMode = chartConfig.additionalYColumns.length > 0;
+  const shouldFetchChartData = viewMode === 'chart' && !isSmallMultiplesMode;
+  const chartDataResult = useChartData(dataAdapter, chartConfig, {
+    enabled: shouldFetchChartData,
+  });
+  const smallMultiplesResult = useSmallMultiplesData(dataAdapter, chartConfig);
 
   // Ref for chart container (used for PNG export)
   const chartRef = useRef<HTMLDivElement>(null);
@@ -67,6 +75,12 @@ export const FileDataSourceTabView = memo(({ tabId, active }: FileDataSourceTabV
         onViewModeChange={handleViewModeChange}
         onChartConfigChange={handleChartConfigChange}
         chartRef={chartRef}
+        xAxisCandidates={chartDataResult.xAxisCandidates}
+        yAxisCandidates={chartDataResult.yAxisCandidates}
+        groupByCandidates={chartDataResult.groupByCandidates}
+        chartData={chartDataResult.chartData}
+        pieChartData={chartDataResult.pieChartData}
+        multiplesData={smallMultiplesResult.multiplesData}
       />
       <DataView
         active={active}
@@ -78,6 +92,8 @@ export const FileDataSourceTabView = memo(({ tabId, active }: FileDataSourceTabV
         onChartConfigChange={handleChartConfigChange}
         onViewModeChange={handleViewModeChange}
         chartRef={chartRef}
+        chartDataResult={chartDataResult}
+        smallMultiplesResult={smallMultiplesResult}
       />
     </Stack>
   );

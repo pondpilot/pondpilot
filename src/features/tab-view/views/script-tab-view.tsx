@@ -11,6 +11,7 @@ import {
   updateTabViewMode,
   updateTabChartConfig,
 } from '@controllers/tab';
+import { useChartData, useSmallMultiplesData } from '@features/chart-view';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duckdb-pooled-prepared-stmt';
 import { ScriptEditor } from '@features/script-editor';
@@ -72,6 +73,13 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
     const cached = useAppStore.getState().tabs.get(tabId)?.dataViewStateCache?.chartConfig;
     return cached ?? DEFAULT_CHART_CONFIG;
   });
+
+  const isSmallMultiplesMode = chartConfig.additionalYColumns.length > 0;
+  const shouldFetchChartData = viewMode === 'chart' && !isSmallMultiplesMode;
+  const chartDataResult = useChartData(dataAdapter, chartConfig, {
+    enabled: shouldFetchChartData,
+  });
+  const smallMultiplesResult = useSmallMultiplesData(dataAdapter, chartConfig);
 
   // Ref for chart container (used for PNG export)
   const chartRef = useRef<HTMLDivElement>(null);
@@ -461,6 +469,12 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             onViewModeChange={handleViewModeChange}
             onChartConfigChange={handleChartConfigChange}
             chartRef={chartRef}
+            xAxisCandidates={chartDataResult.xAxisCandidates}
+            yAxisCandidates={chartDataResult.yAxisCandidates}
+            groupByCandidates={chartDataResult.groupByCandidates}
+            chartData={chartDataResult.chartData}
+            pieChartData={chartDataResult.pieChartData}
+            multiplesData={smallMultiplesResult.multiplesData}
           />
           <DataView
             active={active}
@@ -472,6 +486,8 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             onChartConfigChange={handleChartConfigChange}
             onViewModeChange={handleViewModeChange}
             chartRef={chartRef}
+            chartDataResult={chartDataResult}
+            smallMultiplesResult={smallMultiplesResult}
           />
         </Allotment.Pane>
       </Allotment>
