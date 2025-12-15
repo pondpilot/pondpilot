@@ -1,4 +1,5 @@
 import { ActionIcon, Menu, Select, Stack, TextInput, Tooltip } from '@mantine/core';
+import { useDebouncedValue } from '@mantine/hooks';
 import {
   AggregationType,
   AGGREGATION_LABELS,
@@ -14,7 +15,7 @@ import {
   IconSortDescending,
   IconTextCaption,
 } from '@tabler/icons-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 
 const AGGREGATION_OPTIONS: AggregationType[] = ['sum', 'avg', 'count', 'min', 'max'];
 
@@ -60,6 +61,35 @@ export function ChartSettingsPopover({
   disabled,
 }: ChartSettingsPopoverProps) {
   const [labelsMenuOpened, setLabelsMenuOpened] = useState(false);
+  const [titleInput, setTitleInput] = useState(title ?? '');
+  const [xAxisLabelInput, setXAxisLabelInput] = useState(xAxisLabel ?? '');
+  const [yAxisLabelInput, setYAxisLabelInput] = useState(yAxisLabel ?? '');
+
+  const [debouncedTitle] = useDebouncedValue(titleInput, 300);
+  const [debouncedXAxisLabel] = useDebouncedValue(xAxisLabelInput, 300);
+  const [debouncedYAxisLabel] = useDebouncedValue(yAxisLabelInput, 300);
+
+  // Sync debounced values to callbacks
+  useEffect(() => {
+    onTitleChange(debouncedTitle || null);
+  }, [debouncedTitle, onTitleChange]);
+
+  useEffect(() => {
+    onXAxisLabelChange(debouncedXAxisLabel || null);
+  }, [debouncedXAxisLabel, onXAxisLabelChange]);
+
+  useEffect(() => {
+    onYAxisLabelChange(debouncedYAxisLabel || null);
+  }, [debouncedYAxisLabel, onYAxisLabelChange]);
+
+  // Sync prop changes back to local state when menu is closed
+  useEffect(() => {
+    if (!labelsMenuOpened) {
+      setTitleInput(title ?? '');
+      setXAxisLabelInput(xAxisLabel ?? '');
+      setYAxisLabelInput(yAxisLabel ?? '');
+    }
+  }, [labelsMenuOpened, title, xAxisLabel, yAxisLabel]);
 
   const handleAggregationChange = useCallback(
     (agg: AggregationType) => {
@@ -77,23 +107,23 @@ export function ChartSettingsPopover({
 
   const handleTitleChange = useCallback(
     (value: string) => {
-      onTitleChange(value || null);
+      setTitleInput(value);
     },
-    [onTitleChange],
+    [],
   );
 
   const handleXAxisLabelChange = useCallback(
     (value: string) => {
-      onXAxisLabelChange(value || null);
+      setXAxisLabelInput(value);
     },
-    [onXAxisLabelChange],
+    [],
   );
 
   const handleYAxisLabelChange = useCallback(
     (value: string) => {
-      onYAxisLabelChange(value || null);
+      setYAxisLabelInput(value);
     },
-    [onYAxisLabelChange],
+    [],
   );
 
   const handleColorSchemeChange = useCallback(
@@ -219,7 +249,7 @@ export function ChartSettingsPopover({
               <TextInput
                 placeholder="Enter title..."
                 size="xs"
-                value={title ?? ''}
+                value={titleInput}
                 onChange={(e) => handleTitleChange(e.currentTarget.value)}
               />
             </div>
@@ -228,7 +258,7 @@ export function ChartSettingsPopover({
               <TextInput
                 placeholder={xAxisColumn ?? 'X-axis'}
                 size="xs"
-                value={xAxisLabel ?? ''}
+                value={xAxisLabelInput}
                 onChange={(e) => handleXAxisLabelChange(e.currentTarget.value)}
               />
             </div>
@@ -237,7 +267,7 @@ export function ChartSettingsPopover({
               <TextInput
                 placeholder={yAxisColumn ?? 'Y-axis'}
                 size="xs"
-                value={yAxisLabel ?? ''}
+                value={yAxisLabelInput}
                 onChange={(e) => handleYAxisLabelChange(e.currentTarget.value)}
               />
             </div>
