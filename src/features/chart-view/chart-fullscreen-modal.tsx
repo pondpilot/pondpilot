@@ -148,34 +148,34 @@ export function ChartFullscreenModal({
         withCloseButton={false}
         padding={0}
         styles={{
-          body: { height: '100%', display: 'flex', flexDirection: 'column' },
-          content: { height: '100vh' },
+          root: { height: '100vh' },
+          inner: { height: '100vh' },
+          content: { height: '100vh', display: 'flex', flexDirection: 'column' },
+          body: { height: '100%', flex: 1, display: 'flex', flexDirection: 'column', padding: 0 },
         }}
       >
-        <div className="h-screen flex flex-col">
-          <Group
-            justify="space-between"
-            wrap="nowrap"
-            className="p-2 border-b border-borderPrimary-light dark:border-borderPrimary-dark"
-            style={{ height: '52px', flexShrink: 0 }}
-          >
-            <ChartConfigToolbar
-              chartConfig={chartConfig}
-              xAxisCandidates={xAxisCandidates}
-              yAxisCandidates={yAxisCandidates}
-              groupByCandidates={groupByCandidates}
-              onConfigChange={onConfigChange}
-            />
-            <Tooltip label="Close fullscreen" openDelay={400}>
-              <ActionIcon variant="transparent" size="md" onClick={() => setOpened(false)}>
-                <IconX size={20} />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
-          <div className="p-4" style={{ height: 'calc(100vh - 52px)' }}>
-            <div style={{ width: '100%', height: '100%' }}>
-              {isReady ? renderChart() : <ChartLoading />}
-            </div>
+        <Group
+          justify="space-between"
+          wrap="nowrap"
+          className="p-2 border-b border-borderPrimary-light dark:border-borderPrimary-dark"
+          style={{ height: '52px', flexShrink: 0 }}
+        >
+          <ChartConfigToolbar
+            chartConfig={chartConfig}
+            xAxisCandidates={xAxisCandidates}
+            yAxisCandidates={yAxisCandidates}
+            groupByCandidates={groupByCandidates}
+            onConfigChange={onConfigChange}
+          />
+          <Tooltip label="Close fullscreen" openDelay={400}>
+            <ActionIcon variant="transparent" size="md" onClick={() => setOpened(false)}>
+              <IconX size={20} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+        <div className="flex-1 overflow-hidden p-4">
+          <div style={{ width: '100%', height: '100%' }}>
+            {isReady ? renderChart() : <ChartLoading />}
           </div>
         </div>
       </Modal>
