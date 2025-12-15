@@ -97,8 +97,15 @@ export const DataViewInfoPane = ({
     additionalYColumns: [],
   };
   const isChartMode = viewMode === 'chart';
-  const { xAxisCandidates, yAxisCandidates, groupByCandidates, chartData, pieChartData } =
-    useChartData(dataAdapter, effectiveChartConfig, { enabled: isChartMode });
+  const {
+    xAxisCandidates,
+    yAxisCandidates,
+    groupByCandidates,
+    chartData,
+    pieChartData,
+  } = useChartData(dataAdapter, effectiveChartConfig, {
+    enabled: isChartMode || chartConfig !== null,
+  });
 
   // Get small multiples data for fullscreen modal
   const { multiplesData } = useSmallMultiplesData(dataAdapter, effectiveChartConfig);
