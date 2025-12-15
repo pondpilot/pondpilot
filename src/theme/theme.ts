@@ -5,6 +5,7 @@ import {
   colorsTuple,
   createTheme,
   Divider,
+  Loader,
   LoadingOverlay,
   MantineThemeOverride,
   Menu,
@@ -673,6 +674,11 @@ export const theme = createTheme({
       },
       classNames: {
         label: 'text-textPrimary-light dark:text-textPrimary-dark',
+      },
+    }),
+    Loader: Loader.extend({
+      defaultProps: {
+        color: 'background-accent',
       },
     }),
   },
