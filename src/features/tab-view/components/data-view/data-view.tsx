@@ -6,6 +6,7 @@ import {
   updateTabDataViewDataPageCache,
 } from '@controllers/tab';
 import { ChartErrorBoundary } from '@features/chart-view';
+import type { UseChartDataResult, UseSmallMultiplesDataResult } from '@features/chart-view';
 import { useColumnSummary } from '@features/tab-view/hooks';
 import { copyTableColumns } from '@features/tab-view/utils';
 import { Button, Center, Group, Loader, Stack, Text } from '@mantine/core';
@@ -40,6 +41,8 @@ interface DataViewProps {
   onViewModeChange?: (mode: ViewMode) => void;
   /** Ref to the chart container for export functionality */
   chartRef?: RefObject<HTMLDivElement | null>;
+  chartDataResult: UseChartDataResult;
+  smallMultiplesResult: UseSmallMultiplesDataResult;
 }
 
 export const DataView = ({
@@ -52,6 +55,8 @@ export const DataView = ({
   onChartConfigChange,
   onViewModeChange,
   chartRef,
+  chartDataResult,
+  smallMultiplesResult,
 }: DataViewProps) => {
   /**
    * Helpful hooks
@@ -463,9 +468,10 @@ export const DataView = ({
             >
               <ChartView
                 ref={chartRef}
-                dataAdapter={dataAdapter}
                 chartConfig={chartConfig}
                 onConfigChange={onChartConfigChange}
+                chartDataResult={chartDataResult}
+                smallMultiplesResult={smallMultiplesResult}
               />
             </Suspense>
           </ChartErrorBoundary>

@@ -1,12 +1,11 @@
 import { Center, Group, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import { ChartConfig, DEFAULT_CHART_CONFIG } from '@models/chart';
-import { DataAdapterApi } from '@models/data-adapter';
 import { IconChartBarOff, IconAlertCircle, IconNumber123, IconSettings } from '@tabler/icons-react';
 import { forwardRef, lazy, Suspense, useEffect, useMemo } from 'react';
 
 import { ChartAxisControls, ChartErrorBoundary, ChartLoading } from './components';
-import { useChartData, useSmallMultiplesData } from './hooks';
-import { getGroupByCandidates } from './utils';
+import type { UseChartDataResult } from './hooks/use-chart-data';
+import type { UseSmallMultiplesDataResult } from './hooks/use-small-multiples-data';
 
 // Lazy load chart components to reduce initial bundle size
 const BarChart = lazy(() =>
@@ -35,13 +34,14 @@ const SmallMultiplesChart = lazy(() =>
 );
 
 interface ChartViewProps {
-  dataAdapter: DataAdapterApi;
   chartConfig: ChartConfig | null;
   onConfigChange: (config: Partial<ChartConfig>) => void;
+  chartDataResult: UseChartDataResult;
+  smallMultiplesResult: UseSmallMultiplesDataResult;
 }
 
 export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
-  ({ dataAdapter, chartConfig, onConfigChange }, ref) => {
+  ({ chartConfig, onConfigChange, chartDataResult, smallMultiplesResult }, ref) => {
     const effectiveConfig = chartConfig ?? DEFAULT_CHART_CONFIG;
 
     // Determine small multiples mode before hooks to avoid duplicate queries
@@ -54,17 +54,11 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
       error,
       xAxisCandidates,
       yAxisCandidates,
+      groupByCandidates,
       suggestedConfig,
-    } = useChartData(dataAdapter, effectiveConfig, {
-      // Skip fetching when in small multiples mode - that hook handles all Y columns
-      enabled: !isSmallMultiplesMode,
-    });
+    } = chartDataResult;
 
-    // Small multiples data (only fetches when additionalYColumns is non-empty)
-    const { multiplesData, isLoading: isSmallMultiplesLoading } = useSmallMultiplesData(
-      dataAdapter,
-      effectiveConfig,
-    );
+    const { multiplesData, isLoading: isSmallMultiplesLoading } = smallMultiplesResult;
 
     // Auto-apply suggested config when columns change and no config is set
     useEffect(() => {
@@ -166,8 +160,6 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
 
     // No data available - needs configuration
     if (!hasData && !hasValidConfig) {
-      const groupByCandidates = getGroupByCandidates(dataAdapter.currentSchema);
-
       return (
         <Center className="h-full">
           <Stack align="center" gap="md">

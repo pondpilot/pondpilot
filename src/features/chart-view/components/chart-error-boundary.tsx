@@ -54,11 +54,11 @@ export class ChartErrorBoundary extends Component<
                 'An unexpected error occurred while rendering the chart.'}
             </Text>
             <Stack gap="xs" mt="xs">
-              <Button size="xs" variant="light" onClick={this.handleRetry}>
+              <Button size="xs" variant="outline" onClick={this.handleRetry}>
                 Try Again
               </Button>
               {this.props.onSwitchToTable && (
-                <Button size="xs" variant="subtle" onClick={this.handleSwitchToTable}>
+                <Button size="xs" variant="outline" onClick={this.handleSwitchToTable}>
                   Switch to Table View
                 </Button>
               )}
