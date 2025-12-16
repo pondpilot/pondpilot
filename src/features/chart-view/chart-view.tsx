@@ -1,9 +1,9 @@
-import { Center, Group, Stack, Text, ThemeIcon, Title } from '@mantine/core';
+import { Center, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import { ChartConfig, DEFAULT_CHART_CONFIG } from '@models/chart';
 import { IconChartBarOff, IconAlertCircle, IconNumber123, IconSettings } from '@tabler/icons-react';
 import { forwardRef, lazy, Suspense, useEffect, useMemo } from 'react';
 
-import { ChartAxisControls, ChartErrorBoundary, ChartLoading } from './components';
+import { ChartErrorBoundary, ChartLoading } from './components';
 import type { UseChartDataResult } from './hooks/use-chart-data';
 import type { UseSmallMultiplesDataResult } from './hooks/use-small-multiples-data';
 
@@ -168,24 +168,9 @@ export const ChartView = forwardRef<HTMLDivElement, ChartViewProps>(
             </ThemeIcon>
             <Title order={3}>Configure your chart</Title>
 
-            <Group gap="xs">
-              <ChartAxisControls
-                xAxisColumn={effectiveConfig.xAxisColumn}
-                yAxisColumn={effectiveConfig.yAxisColumn}
-                groupByColumn={effectiveConfig.groupByColumn}
-                xAxisCandidates={xAxisCandidates}
-                yAxisCandidates={yAxisCandidates}
-                groupByCandidates={groupByCandidates}
-                onXAxisChange={(value) => onConfigChange({ xAxisColumn: value })}
-                onYAxisChange={(value) => onConfigChange({ yAxisColumn: value })}
-                onGroupByChange={(value) => onConfigChange({ groupByColumn: value })}
-                showGroupBy={effectiveConfig.chartType !== 'pie'}
-                disabled={false}
-              />
-            </Group>
-
             <Text c="dimmed" size="xs" maw={350} ta="center">
-              Select columns above to create your visualization
+              Chart controls live in the toolbar above—choose columns there to create your
+              visualization.
             </Text>
           </Stack>
         </Center>
