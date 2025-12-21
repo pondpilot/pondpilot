@@ -42,8 +42,13 @@ import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
+import {
+  getDataSourceAccessTime,
+  getScriptAccessTime,
+  getTableAccessTime,
+} from '@utils/table-access';
 import { setDataTestId } from '@utils/test-id';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { SpotlightBreadcrumbs } from './components';
@@ -58,7 +63,12 @@ import {
   SEARCH_SUFFIXES,
 } from './consts';
 import { Action, SpotlightView } from './model';
-import { getSpotlightSearchPlaceholder, filterActions, getSearchTermFromValue } from './utlis';
+import {
+  getSpotlightSearchPlaceholder,
+  filterActions,
+  getSearchTermFromValue,
+  sortActionsByLRU,
+} from './utils';
 
 /**
  * Filter list of script actions by search value and
@@ -75,18 +85,20 @@ const getFilteredScriptActions = (
   // If we no results - add create new script action
   if (filteredActions.length === 0 && fallbackForEmpty) {
     const name = getSearchTermFromValue(searchValue);
-    scriptActions.push({
-      id: 'create-new',
-      label: `Create ${name ? `"${name}"` : 'new'} ${SCRIPT_DISPLAY_NAME.toLowerCase()}`,
-      icon: <IconPlus size={20} className={ICON_CLASSES} />,
-      handler: () => {
-        const newEmptyScript = createSQLScript(name);
-        getOrCreateTabFromScript(newEmptyScript, true);
-        Spotlight.close();
+    return [
+      {
+        id: 'script-create-new',
+        label: `Create ${name ? `"${name}"` : 'new'} ${SCRIPT_DISPLAY_NAME.toLowerCase()}`,
+        icon: <IconPlus size={20} className={ICON_CLASSES} />,
+        handler: () => {
+          const newEmptyScript = createSQLScript(name);
+          getOrCreateTabFromScript(newEmptyScript, true);
+          Spotlight.close();
+        },
       },
-    });
+    ];
   }
-  return scriptActions;
+  return filteredActions;
 };
 
 export const SpotlightMenu = () => {
@@ -116,6 +128,9 @@ export const SpotlightMenu = () => {
   const dataSources = useAppStore.use.dataSources();
   const databaseMetadata = useAppStore.use.databaseMetadata();
   const localEntries = useAppStore.use.localEntries();
+  const dataSourceAccessTimes = useAppStore.use.dataSourceAccessTimes();
+  const scriptAccessTimes = useAppStore.use.scriptAccessTimes();
+  const tableAccessTimes = useAppStore.use.tableAccessTimes();
   const comparisonSourceSelectionCallback = useAppStore.use.comparisonSourceSelectionCallback();
   const protectedViews = useProtectedViews();
 
@@ -170,90 +185,119 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const dataSourceActions: Action[] = [];
+  // Build and sort data source actions (memoized to avoid re-computing on every render)
+  const sortedDataSourceActions = useMemo(() => {
+    const dataSourceActions: Action[] = [];
 
-  for (const dataSource of dataSources.values()) {
-    if (isLocalDatabase(dataSource) || isRemoteDatabase(dataSource)) {
-      // For databases we need to read all tables and views from metadata
-      const dbMetadata = databaseMetadata.get(dataSource.dbName);
-      const isSystemDatabase =
-        isLocalDatabase(dataSource) && dataSource.dbName === SYSTEM_DATABASE_NAME;
+    for (const dataSource of dataSources.values()) {
+      if (isLocalDatabase(dataSource) || isRemoteDatabase(dataSource)) {
+        // For databases we need to read all tables and views from metadata
+        const dbMetadata = databaseMetadata.get(dataSource.dbName);
+        const isSystemDatabase =
+          isLocalDatabase(dataSource) && dataSource.dbName === SYSTEM_DATABASE_NAME;
 
-      if (!dbMetadata) {
+        if (!dbMetadata) {
+          continue;
+        }
+
+        dbMetadata.schemas.forEach((schema) => {
+          schema.objects.forEach((tableOrView) => {
+            if (isSystemDatabase && protectedViews.has(tableOrView.name)) {
+              return;
+            }
+
+            const tableLastUsed = getTableAccessTime(
+              dataSource.dbName,
+              schema.name,
+              tableOrView.name,
+            );
+            const dataSourceLastUsed = getDataSourceAccessTime(dataSource.id);
+            const lastUsed = tableLastUsed > 0 ? tableLastUsed : dataSourceLastUsed;
+
+            dataSourceActions.push({
+              id: `open-data-source-${dataSource.id}-${schema.name}-${tableOrView.type}-${tableOrView.name}`,
+              label: tableOrView.label,
+              description: `${dataSource.dbName}.${schema.name}`,
+              icon: (
+                <NamedIcon
+                  iconType={tableOrView.type === 'table' ? 'db-table' : 'db-view'}
+                  size={20}
+                  className={ICON_CLASSES}
+                />
+              ),
+              metadata: { lastUsed },
+              handler: () => {
+                // Check if we're in comparison source selection mode
+                if (comparisonSourceSelectionCallback) {
+                  comparisonSourceSelectionCallback(dataSource, schema.name, tableOrView.name);
+                  Spotlight.close();
+                } else {
+                  // Normal mode - open a tab
+                  getOrCreateTabFromLocalDBObject(
+                    dataSource,
+                    schema.name,
+                    tableOrView.name,
+                    tableOrView.type,
+                    true,
+                  );
+                  Spotlight.close();
+                  ensureHome();
+                }
+              },
+            });
+          });
+        });
+
         continue;
       }
 
-      dbMetadata.schemas.forEach((schema) => {
-        schema.objects.forEach((tableOrView) => {
-          if (isSystemDatabase && protectedViews.has(tableOrView.name)) {
-            return;
+      // Flat file data sources
+      dataSourceActions.push({
+        id: `open-data-source-${dataSource.id}`,
+        label: getFlatFileDataSourceName(dataSource, localEntries),
+        icon: <NamedIcon iconType={dataSource.type} size={20} className={ICON_CLASSES} />,
+        metadata: { lastUsed: getDataSourceAccessTime(dataSource.id) },
+        handler: () => {
+          // Check if we're in comparison source selection mode
+          if (comparisonSourceSelectionCallback) {
+            comparisonSourceSelectionCallback(dataSource);
+            Spotlight.close();
+          } else {
+            // Normal mode - open a tab
+            getOrCreateTabFromFlatFileDataSource(dataSource, true);
+            Spotlight.close();
+            ensureHome();
           }
-
-          dataSourceActions.push({
-            id: `open-data-source-${dataSource.id}-${tableOrView.name}`,
-            label: tableOrView.label,
-            icon: (
-              <NamedIcon
-                iconType={tableOrView.type === 'table' ? 'db-table' : 'db-view'}
-                size={20}
-                className={ICON_CLASSES}
-              />
-            ),
-            handler: () => {
-              // Check if we're in comparison source selection mode
-              if (comparisonSourceSelectionCallback) {
-                comparisonSourceSelectionCallback(dataSource, schema.name, tableOrView.name);
-                Spotlight.close();
-              } else {
-                // Normal mode - open a tab
-                getOrCreateTabFromLocalDBObject(
-                  dataSource,
-                  schema.name,
-                  tableOrView.name,
-                  tableOrView.type,
-                  true,
-                );
-                Spotlight.close();
-                ensureHome();
-              }
-            },
-          });
-        });
+        },
       });
-
-      continue;
     }
 
-    // Flat file data sources
-    dataSourceActions.push({
-      id: `open-data-source-${dataSource.id}`,
-      label: getFlatFileDataSourceName(dataSource, localEntries),
-      icon: <NamedIcon iconType={dataSource.type} size={20} className={ICON_CLASSES} />,
-      handler: () => {
-        // Check if we're in comparison source selection mode
-        if (comparisonSourceSelectionCallback) {
-          comparisonSourceSelectionCallback(dataSource);
-          Spotlight.close();
-        } else {
-          // Normal mode - open a tab
-          getOrCreateTabFromFlatFileDataSource(dataSource, true);
-          Spotlight.close();
-          ensureHome();
-        }
-      },
-    });
-  }
+    return sortActionsByLRU(dataSourceActions);
+  }, [
+    dataSources,
+    databaseMetadata,
+    localEntries,
+    protectedViews,
+    comparisonSourceSelectionCallback,
+    dataSourceAccessTimes,
+    tableAccessTimes,
+  ]);
 
-  const scriptActions = Array.from(sqlScripts.values()).map((script) => ({
-    id: `open-data-source-${script.id}`,
-    label: `${script.name}.sql`,
-    icon: <NamedIcon iconType="code-file" size={20} className={ICON_CLASSES} />,
-    handler: () => {
-      getOrCreateTabFromScript(script.id, true);
-      Spotlight.close();
-      ensureHome();
-    },
-  }));
+  const sortedScriptActions = useMemo(() => {
+    const scriptActions = Array.from(sqlScripts.values()).map((script) => ({
+      id: `open-script-${script.id}`,
+      label: `${script.name}.sql`,
+      icon: <NamedIcon iconType="code-file" size={20} className={ICON_CLASSES} />,
+      metadata: { lastUsed: getScriptAccessTime(script.id) },
+      handler: () => {
+        getOrCreateTabFromScript(script.id, true);
+        Spotlight.close();
+        ensureHome();
+      },
+    }));
+
+    return sortActionsByLRU(scriptActions);
+  }, [sqlScripts, scriptAccessTimes]);
 
   const comparisonActions: Action[] = Array.from(comparisonsMap.values()).map((comparison) => ({
     id: `open-comparison-${comparison.id}`,
@@ -485,11 +529,13 @@ export const SpotlightMenu = () => {
 
     // Only include script actions themselves if we have search, including fallback
     const filteredScripts = searchValue
-      ? getFilteredScriptActions(scriptActions, searchValue, true)
+      ? getFilteredScriptActions(sortedScriptActions, searchValue, true)
       : [];
 
     // Only show data sources if there is a search query
-    const filteredDataSources = searchValue ? filterActions(dataSourceActions, searchValue) : [];
+    const filteredDataSources = searchValue
+      ? filterActions(sortedDataSourceActions, searchValue)
+      : [];
     const filteredComparisons = searchValue ? filterActions(comparisonActions, searchValue) : [];
 
     return (
@@ -514,7 +560,7 @@ export const SpotlightMenu = () => {
   };
   const renderDataSourcesView = () => {
     const filteredActions = filterActions(dataSourceGroupActions, searchValue);
-    const filteredDataSources = filterActions(dataSourceActions, searchValue);
+    const filteredDataSources = filterActions(sortedDataSourceActions, searchValue);
     // Can't be empty but ok...
     return (
       <>
@@ -527,7 +573,7 @@ export const SpotlightMenu = () => {
 
   const renderScriptsView = () => {
     const filteredActions = filterActions(scriptGroupActions, searchValue);
-    const filteredScripts = filterActions(scriptActions, searchValue);
+    const filteredScripts = filterActions(sortedScriptActions, searchValue);
     const filteredComparisons = filterActions(comparisonActions, searchValue);
 
     // Can't be empty but ok...
@@ -550,13 +596,13 @@ export const SpotlightMenu = () => {
 
     // Data source actions only (doesn't include group actions)
     if (searchValue.startsWith(SEARCH_PREFIXES.dataSource)) {
-      const filteredDataSources = filterActions(dataSourceActions, searchValue);
+      const filteredDataSources = filterActions(sortedDataSourceActions, searchValue);
       return renderActionsGroup(filteredDataSources, DATA_SOURCE_GROUP_DISPLAY_NAME);
     }
 
     // Script actions only (doesn't include group actions)
     if (searchValue.startsWith(SEARCH_PREFIXES.script)) {
-      const filteredScripts = getFilteredScriptActions(scriptActions, searchValue, true);
+      const filteredScripts = getFilteredScriptActions(sortedScriptActions, searchValue, true);
       return renderActionsGroup(filteredScripts, SCRIPT_GROUP_DISPLAY_NAME);
     }
 

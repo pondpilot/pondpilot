@@ -104,6 +104,21 @@ type AppStore = {
   tabExecutionErrors: Map<TabId, TabExecutionError>;
 
   /**
+   * A mapping of data source identifiers to their last access times.
+   */
+  dataSourceAccessTimes: Map<PersistentDataSourceId, number>;
+
+  /**
+   * A mapping of SQL script identifiers to their last access times.
+   */
+  scriptAccessTimes: Map<SQLScriptId, number>;
+
+  /**
+   * A mapping of database table/view identifiers to their last access times.
+   */
+  tableAccessTimes: Map<string, number>;
+
+  /**
    * Callback function for comparison source selection.
    * When this is set, spotlight will use it to handle data source selections
    * instead of opening tabs. This allows the comparison feature to capture
@@ -137,6 +152,9 @@ const initialState: AppStore = {
   databaseMetadata: new Map(),
   duckDBFunctions: [],
   tabExecutionErrors: new Map(),
+  dataSourceAccessTimes: new Map(),
+  scriptAccessTimes: new Map(),
+  tableAccessTimes: new Map(),
   comparisonSourceSelectionCallback: null,
   spotlightView: 'home',
   comparisonExecutionProgress: new Map(),

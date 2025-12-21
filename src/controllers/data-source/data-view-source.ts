@@ -13,6 +13,7 @@ import { PersistentDataSourceId } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
+import { parseTableAccessKey } from '@utils/table-access';
 
 import { persistDeleteDataSource } from './persist';
 
@@ -53,6 +54,8 @@ export const deleteDataSources = async (
 ) => {
   const {
     dataSources,
+    dataSourceAccessTimes,
+    tableAccessTimes,
     tabs,
     tabOrder,
     activeTabId,
@@ -81,6 +84,26 @@ export const deleteDataSources = async (
   // Create the updated state for data sources
   const newDataSources = new Map(
     Array.from(dataSources).filter(([id, _]) => !dataSourceIdsToDelete.has(id)),
+  );
+
+  const newDataSourceAccessTimes = new Map(
+    Array.from(dataSourceAccessTimes).filter(([id]) => !dataSourceIdsToDelete.has(id)),
+  );
+
+  const deletedDbNames = new Set(
+    deletedDataSources
+      .filter((dataSource) => dataSource.type === 'attached-db' || dataSource.type === 'remote-db')
+      .map((dataSource) => dataSource.dbName),
+  );
+  const newTableAccessTimes = new Map(
+    Array.from(tableAccessTimes).filter(([key]) => {
+      const parsed = parseTableAccessKey(key);
+      if (!parsed) {
+        return true;
+      }
+      const [dbName] = parsed;
+      return !deletedDbNames.has(dbName);
+    }),
   );
 
   // Create the updated state for tabs
@@ -127,6 +150,8 @@ export const deleteDataSources = async (
   useAppStore.setState(
     {
       dataSources: newDataSources,
+      dataSourceAccessTimes: newDataSourceAccessTimes,
+      tableAccessTimes: newTableAccessTimes,
       localEntries: newLocalEntires,
       registeredFiles: newRegisteredFiles,
       tabs: newTabs,
