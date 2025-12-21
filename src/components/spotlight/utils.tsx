@@ -27,14 +27,25 @@ export const getBreadcrumbText = (view: SpotlightView) =>
     home: 'Home',
   })[view];
 
-export const filterActions = (actions: any[], searchValue: string) => {
+export const filterActions = (
+  actions: any[],
+  searchValue: string,
+  options?: { preserveOrder?: boolean },
+) => {
   const searchTerm = getSearchTermFromValue(searchValue);
 
   if (!searchTerm) return actions;
 
-  return matchSorter(actions, searchTerm, {
+  const matches = matchSorter(actions, searchTerm, {
     keys: ['label'],
   });
+
+  if (!options?.preserveOrder) {
+    return matches;
+  }
+
+  const matchSet = new Set(matches);
+  return actions.filter((action) => matchSet.has(action));
 };
 
 /**

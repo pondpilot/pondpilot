@@ -631,14 +631,15 @@ export const restoreAppDataFromIDB = async (
   );
 
   const dataSourceAccessTimes = new Map<PersistentDataSourceId, number>();
-  const dataSourceAccessValues = await tx
-    .objectStore(DATA_SOURCE_ACCESS_TIME_TABLE_NAME)
-    .getAll();
+  const dataSourceAccessValues = await tx.objectStore(DATA_SOURCE_ACCESS_TIME_TABLE_NAME).getAll();
   const dataSourceAccessKeys = await tx
     .objectStore(DATA_SOURCE_ACCESS_TIME_TABLE_NAME)
     .getAllKeys();
   dataSourceAccessKeys.forEach((key, index) => {
-    dataSourceAccessTimes.set(key as PersistentDataSourceId, dataSourceAccessValues[index] as number);
+    dataSourceAccessTimes.set(
+      key as PersistentDataSourceId,
+      dataSourceAccessValues[index] as number,
+    );
   });
 
   const scriptAccessTimes = new Map<SQLScriptId, number>();
