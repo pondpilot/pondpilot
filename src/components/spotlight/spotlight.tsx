@@ -80,7 +80,7 @@ const getFilteredScriptActions = (
   searchValue: string,
   fallbackForEmpty: boolean,
 ) => {
-  const filteredActions = filterActions(scriptActions, searchValue);
+  const filteredActions = filterActions(scriptActions, searchValue, { preserveOrder: true });
 
   // If we no results - add create new script action
   if (filteredActions.length === 0 && fallbackForEmpty) {
@@ -534,7 +534,7 @@ export const SpotlightMenu = () => {
 
     // Only show data sources if there is a search query
     const filteredDataSources = searchValue
-      ? filterActions(sortedDataSourceActions, searchValue)
+      ? filterActions(sortedDataSourceActions, searchValue, { preserveOrder: true })
       : [];
     const filteredComparisons = searchValue ? filterActions(comparisonActions, searchValue) : [];
 
@@ -560,7 +560,9 @@ export const SpotlightMenu = () => {
   };
   const renderDataSourcesView = () => {
     const filteredActions = filterActions(dataSourceGroupActions, searchValue);
-    const filteredDataSources = filterActions(sortedDataSourceActions, searchValue);
+    const filteredDataSources = filterActions(sortedDataSourceActions, searchValue, {
+      preserveOrder: true,
+    });
     // Can't be empty but ok...
     return (
       <>
@@ -596,7 +598,9 @@ export const SpotlightMenu = () => {
 
     // Data source actions only (doesn't include group actions)
     if (searchValue.startsWith(SEARCH_PREFIXES.dataSource)) {
-      const filteredDataSources = filterActions(sortedDataSourceActions, searchValue);
+      const filteredDataSources = filterActions(sortedDataSourceActions, searchValue, {
+        preserveOrder: true,
+      });
       return renderActionsGroup(filteredDataSources, DATA_SOURCE_GROUP_DISPLAY_NAME);
     }
 

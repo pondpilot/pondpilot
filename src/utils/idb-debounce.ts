@@ -72,7 +72,7 @@ class DebouncedIDBWriter {
 export const lastUsedWriter = new DebouncedIDBWriter(500);
 
 // Flush on page unload to ensure pending writes are persisted
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && window.addEventListener) {
   window.addEventListener('beforeunload', () => {
     const { _iDbConn } = useAppStore.getState();
     if (_iDbConn) {
