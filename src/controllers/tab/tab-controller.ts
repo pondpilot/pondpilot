@@ -23,6 +23,12 @@ import {
 } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { ensureDatabaseDataSource, ensureFlatFileDataSource } from '@utils/data-source';
+import {
+  updateDataSourceLastUsed,
+  updateSQLScriptLastUsed,
+  updateTableAccessTime,
+} from '@utils/lru-tracker';
+import { createPersistenceCatchHandler } from '@utils/persistence-logger';
 import { ensureScript } from '@utils/sql-script';
 import { ensureTab, makeTabId } from '@utils/tab';
 import { shallow } from 'zustand/shallow';
@@ -227,11 +233,9 @@ export const getOrCreateTabFromLocalDBObject = (
   // Add the new tab to the store
   const newTabs = new Map(state.tabs).set(tabId, tab);
   const newTabOrder = [...state.tabOrder, tabId];
-  const newActiveTabId = setActive ? tabId : state.activeTabId;
 
   useAppStore.setState(
     (_) => ({
-      activeTabId: newActiveTabId,
       tabs: newTabs,
       tabOrder: newTabOrder,
     }),
@@ -242,7 +246,13 @@ export const getOrCreateTabFromLocalDBObject = (
   // Persist the new tab to IndexedDB
   const iDb = state._iDbConn;
   if (iDb) {
+    const newActiveTabId = setActive ? tabId : state.activeTabId;
     persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
+  }
+
+  // Set as active after creating the tab (this also updates lastUsed)
+  if (setActive) {
+    setActiveTabId(tabId);
   }
 
   return tab;
@@ -292,11 +302,9 @@ export const getOrCreateTabFromFlatFileDataSource = (
   // Add the new tab to the store
   const newTabs = new Map(state.tabs).set(tabId, tab);
   const newTabOrder = [...state.tabOrder, tabId];
-  const newActiveTabId = setActive ? tabId : state.activeTabId;
 
   useAppStore.setState(
     (_) => ({
-      activeTabId: newActiveTabId,
       tabs: newTabs,
       tabOrder: newTabOrder,
     }),
@@ -307,7 +315,13 @@ export const getOrCreateTabFromFlatFileDataSource = (
   // Persist the new tab to IndexedDB
   const iDb = state._iDbConn;
   if (iDb) {
+    const newActiveTabId = setActive ? tabId : state.activeTabId;
     persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
+  }
+
+  // Set as active after creating the tab (this also updates lastUsed)
+  if (setActive) {
+    setActiveTabId(tabId);
   }
 
   return tab;
@@ -364,11 +378,9 @@ export const getOrCreateTabFromScript = (
   // Add the new tab to the store
   const newTabs = new Map(state.tabs).set(tabId, tab);
   const newTabOrder = [...state.tabOrder, tabId];
-  const newActiveTabId = setActive ? tabId : state.activeTabId;
 
   useAppStore.setState(
     (_) => ({
-      activeTabId: newActiveTabId,
       tabs: newTabs,
       tabOrder: newTabOrder,
     }),
@@ -379,7 +391,13 @@ export const getOrCreateTabFromScript = (
   // Persist the new tab to IndexedDB
   const iDb = state._iDbConn;
   if (iDb) {
+    const newActiveTabId = setActive ? tabId : state.activeTabId;
     persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
+  }
+
+  // Set as active after creating the tab (this also updates lastUsed)
+  if (setActive) {
+    setActiveTabId(tabId);
   }
 
   return tab;
@@ -569,7 +587,9 @@ export const updateTabDataViewStaleDataCache = (
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist script tab last executed query'));
   }
 };
 
@@ -612,7 +632,9 @@ export const updateTabDataViewColumnSizesCache = (
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist script tab layout'));
   }
 };
 
@@ -652,7 +674,9 @@ export const updateTabDataViewDataPageCache = (tabId: TabId, newDataPage: number
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist tab stale data cache update'));
   }
 };
 
@@ -713,7 +737,9 @@ export const updateScriptTabLastExecutedQuery = ({
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist tab column sizes cache update'));
   }
 };
 
@@ -762,7 +788,9 @@ export const updateScriptTabLayout = (
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist tab data page cache update'));
   }
 };
 
@@ -806,7 +834,9 @@ export const updateTabViewMode = (tabId: TabId, viewMode: ViewMode): void => {
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist tab view mode update'));
   }
 };
 
@@ -884,26 +914,58 @@ export const updateTabChartConfig = (tabId: TabId, chartConfig: Partial<ChartCon
   // Persist the changes to IndexedDB
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(TAB_TABLE_NAME, updatedTab, currentTab.id);
+    iDb
+      .put(TAB_TABLE_NAME, updatedTab, currentTab.id)
+      .catch(createPersistenceCatchHandler('persist tab chart config update'));
   }
 };
 
 /**
+ * Helper function to update LRU timestamps for a tab and its associated resources.
+ */
+function updateTabLRUTracking(tabId: TabId): void {
+  const { tabs, dataSources } = useAppStore.getState();
+  const tab = tabs.get(tabId);
+
+  if (!tab) return;
+
+  if (tab.type === 'script') {
+    updateSQLScriptLastUsed(tab.sqlScriptId);
+  } else if (tab.type === 'data-source') {
+    updateDataSourceLastUsed(tab.dataSourceId);
+
+    if (tab.dataSourceType === 'db') {
+      const dataSource = dataSources.get(tab.dataSourceId);
+      if (dataSource && (dataSource.type === 'attached-db' || dataSource.type === 'remote-db')) {
+        updateTableAccessTime(dataSource.dbName, tab.schemaName, tab.objectName);
+      }
+    }
+  }
+}
+
+/**
  * Sets/resets the active tab id.
  *
- * Idempotent, if the tab is already active, it does nothing.
+ * Always updates LRU tracking for the tab, even if already active.
+ * If the tab is already active, skips state update and persistence.
  */
 export const setActiveTabId = (tabId: TabId | null) => {
   const { activeTabId } = useAppStore.getState();
 
-  // If the tab is already active, do nothing
+  if (tabId) {
+    updateTabLRUTracking(tabId);
+  }
+
+  // If the tab is already active, skip state update and persistence
   if (activeTabId === tabId) return;
 
   useAppStore.setState({ activeTabId: tabId }, undefined, 'AppStore/setActiveTabId');
 
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(CONTENT_VIEW_TABLE_NAME, tabId, 'activeTabId');
+    iDb
+      .put(CONTENT_VIEW_TABLE_NAME, tabId, 'activeTabId')
+      .catch(createPersistenceCatchHandler('persist active tab ID'));
   }
 };
 
@@ -970,7 +1032,9 @@ export const setPreviewTabId = (tabId: TabId | null) => {
   useAppStore.setState({ previewTabId: tabId }, undefined, 'AppStore/setPreviewTabId');
 
   if (iDbConn) {
-    iDbConn.put(CONTENT_VIEW_TABLE_NAME, tabId, 'previewTabId');
+    iDbConn
+      .put(CONTENT_VIEW_TABLE_NAME, tabId, 'previewTabId')
+      .catch(createPersistenceCatchHandler('persist preview tab ID'));
   }
 };
 
@@ -979,7 +1043,9 @@ export const setTabOrder = (tabOrder: TabId[]) => {
 
   const iDb = useAppStore.getState()._iDbConn;
   if (iDb) {
-    iDb.put(CONTENT_VIEW_TABLE_NAME, tabOrder, 'tabOrder');
+    iDb
+      .put(CONTENT_VIEW_TABLE_NAME, tabOrder, 'tabOrder')
+      .catch(createPersistenceCatchHandler('persist tab order'));
   }
 };
 

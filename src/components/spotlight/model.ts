@@ -7,4 +7,8 @@ export interface Action {
   icon?: React.ReactNode;
   hotkey?: Array<string | React.ReactNode>;
   disabled?: boolean;
+  description?: string;
+  metadata?: {
+    lastUsed?: number;
+  };
 }

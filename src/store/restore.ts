@@ -36,13 +36,17 @@ import {
   APP_DB_NAME,
   COMPARISON_TABLE_NAME,
   CONTENT_VIEW_TABLE_NAME,
+  DATA_SOURCE_ACCESS_TIME_TABLE_NAME,
   DATA_SOURCE_TABLE_NAME,
   DB_VERSION,
   LOCAL_ENTRY_TABLE_NAME,
+  SCRIPT_ACCESS_TIME_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
   TAB_TABLE_NAME,
+  TABLE_ACCESS_TIME_TABLE_NAME,
   AppIdbSchema,
 } from '@models/persisted-store';
+import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ComparisonTab, TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { makeComparisonId } from '@utils/comparison';
@@ -60,11 +64,35 @@ import { IDBPDatabase, openDB } from 'idb';
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
-    upgrade(newDb) {
+    upgrade: async (newDb, oldVersion, _newVersion, transaction) => {
       for (const storeName of ALL_TABLE_NAMES) {
         if (!newDb.objectStoreNames.contains(storeName)) {
           newDb.createObjectStore(storeName);
         }
+      }
+
+      if (oldVersion < 3) {
+        const now = Date.now();
+        const dataSourceStore = transaction.objectStore(DATA_SOURCE_TABLE_NAME);
+        const dataSourceAccessStore = transaction.objectStore(DATA_SOURCE_ACCESS_TIME_TABLE_NAME);
+        const scriptStore = transaction.objectStore(SQL_SCRIPT_TABLE_NAME);
+        const scriptAccessStore = transaction.objectStore(SCRIPT_ACCESS_TIME_TABLE_NAME);
+
+        const dataSourcesArray = await dataSourceStore.getAll();
+        dataSourcesArray.forEach((dv, index) => {
+          const legacyDataSource = dv as { lastUsed?: number };
+          const lastUsed =
+            legacyDataSource.lastUsed ??
+            (dv.type === 'remote-db' ? dv.attachedAt : now - dataSourcesArray.length + index);
+          dataSourceAccessStore.put(lastUsed, dv.id);
+        });
+
+        const sqlScriptsArray = await scriptStore.getAll();
+        sqlScriptsArray.forEach((script, index) => {
+          const legacyScript = script as { lastUsed?: number };
+          const lastUsed = legacyScript.lastUsed ?? now - sqlScriptsArray.length + index;
+          scriptAccessStore.put(lastUsed, script.id);
+        });
       }
     },
   });
@@ -454,7 +482,13 @@ export const restoreAppDataFromIDB = async (
 
   // Read & Convert data to the appropriate types
   const sqlScriptsArray = await tx.objectStore(SQL_SCRIPT_TABLE_NAME).getAll();
-  const sqlScripts = new Map(sqlScriptsArray.map((script) => [script.id, script]));
+  type LegacySQLScript = SQLScript & { lastUsed?: number };
+  const sqlScripts = new Map(
+    sqlScriptsArray.map((script) => {
+      const { lastUsed: _lastUsed, ...scriptWithoutLastUsed } = script as LegacySQLScript;
+      return [script.id, scriptWithoutLastUsed as SQLScript];
+    }),
+  );
 
   const comparisonsArray = await tx.objectStore(COMPARISON_TABLE_NAME).getAll();
   const comparisons = new Map<ComparisonId, Comparison>(
@@ -583,12 +617,43 @@ export const restoreAppDataFromIDB = async (
 
   const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
   const dataSourcesArray = await dataSourceStore.getAll();
-  let dataSources = new Map(dataSourcesArray.map((dv) => [dv.id, dv]));
+  type LegacyDataSource = AnyDataSource & { lastUsed?: number };
+  let dataSources = new Map(
+    dataSourcesArray.map((dv) => {
+      const { lastUsed: _lastUsed, ...dataSourceWithoutLastUsed } = dv as LegacyDataSource;
+      return [dv.id, dataSourceWithoutLastUsed as AnyDataSource];
+    }),
+  );
   const dataSourceByLocalEntryId = new Map<LocalEntryId, AnyDataSource>(
     dataSourcesArray
       .filter((dv) => 'fileSourceId' in dv)
       .map((dv) => [(dv as any).fileSourceId, dv]),
   );
+
+  const dataSourceAccessTimes = new Map<PersistentDataSourceId, number>();
+  const dataSourceAccessValues = await tx
+    .objectStore(DATA_SOURCE_ACCESS_TIME_TABLE_NAME)
+    .getAll();
+  const dataSourceAccessKeys = await tx
+    .objectStore(DATA_SOURCE_ACCESS_TIME_TABLE_NAME)
+    .getAllKeys();
+  dataSourceAccessKeys.forEach((key, index) => {
+    dataSourceAccessTimes.set(key as PersistentDataSourceId, dataSourceAccessValues[index] as number);
+  });
+
+  const scriptAccessTimes = new Map<SQLScriptId, number>();
+  const scriptAccessValues = await tx.objectStore(SCRIPT_ACCESS_TIME_TABLE_NAME).getAll();
+  const scriptAccessKeys = await tx.objectStore(SCRIPT_ACCESS_TIME_TABLE_NAME).getAllKeys();
+  scriptAccessKeys.forEach((key, index) => {
+    scriptAccessTimes.set(key as SQLScript['id'], scriptAccessValues[index] as number);
+  });
+
+  const tableAccessTimes = new Map<string, number>();
+  const tableAccessValues = await tx.objectStore(TABLE_ACCESS_TIME_TABLE_NAME).getAll();
+  const tableAccessKeys = await tx.objectStore(TABLE_ACCESS_TIME_TABLE_NAME).getAllKeys();
+  tableAccessKeys.forEach((key, index) => {
+    tableAccessTimes.set(key as string, tableAccessValues[index] as number);
+  });
 
   await tx.done;
 
@@ -1014,6 +1079,9 @@ export const restoreAppDataFromIDB = async (
       tabOrder: newTabOrder,
       activeTabId: newActiveTabId,
       previewTabId: newPreviewTabId,
+      dataSourceAccessTimes,
+      scriptAccessTimes,
+      tableAccessTimes,
     },
     undefined,
     'AppStore/restoreAppDataFromIDB',

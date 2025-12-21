@@ -1,5 +1,5 @@
 import { SpotlightView } from '@components/spotlight/model';
-import { getBreadcrumbText } from '@components/spotlight/utlis';
+import { getBreadcrumbText } from '@components/spotlight/utils';
 import { Group, Text } from '@mantine/core';
 import { cn } from '@utils/ui/styles';
 import { Fragment } from 'react/jsx-runtime';

@@ -6,6 +6,7 @@ import { PersistentDataSourceId, AnyDataSource } from '@models/data-source';
 import { LocalEntryId } from '@models/file-system';
 import {
   AppIdbSchema,
+  DATA_SOURCE_ACCESS_TIME_TABLE_NAME,
   DATA_SOURCE_TABLE_NAME,
   LOCAL_ENTRY_TABLE_NAME,
 } from '@models/persisted-store';
@@ -56,17 +57,28 @@ export const persistDeleteDataSource = async (
   deletedDataSourceIds: Iterable<PersistentDataSourceId>,
   entryIdsToDelete: Iterable<LocalEntryId>,
 ) => {
-  const tx = iDb.transaction([DATA_SOURCE_TABLE_NAME, LOCAL_ENTRY_TABLE_NAME], 'readwrite');
+  const dataSourceIds = Array.from(deletedDataSourceIds);
+  const entryIds = Array.from(entryIdsToDelete);
+  const tx = iDb.transaction(
+    [DATA_SOURCE_TABLE_NAME, DATA_SOURCE_ACCESS_TIME_TABLE_NAME, LOCAL_ENTRY_TABLE_NAME],
+    'readwrite',
+  );
 
   // Delete each data source
   const dataSourceStore = tx.objectStore(DATA_SOURCE_TABLE_NAME);
-  for (const id of deletedDataSourceIds) {
+  for (const id of dataSourceIds) {
     await dataSourceStore.delete(id);
+  }
+
+  // Delete access time entries for deleted data sources
+  const accessTimeStore = tx.objectStore(DATA_SOURCE_ACCESS_TIME_TABLE_NAME);
+  for (const id of dataSourceIds) {
+    await accessTimeStore.delete(id);
   }
 
   // Delete each local entry
   const localEntryStore = tx.objectStore(LOCAL_ENTRY_TABLE_NAME);
-  for (const id of entryIdsToDelete) {
+  for (const id of entryIds) {
     await localEntryStore.delete(id);
   }
 
