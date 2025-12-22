@@ -631,30 +631,75 @@ export const restoreAppDataFromIDB = async (
   );
 
   const dataSourceAccessTimes = new Map<PersistentDataSourceId, number>();
-  const dataSourceAccessValues = await tx.objectStore(DATA_SOURCE_ACCESS_TIME_TABLE_NAME).getAll();
-  const dataSourceAccessKeys = await tx
-    .objectStore(DATA_SOURCE_ACCESS_TIME_TABLE_NAME)
-    .getAllKeys();
-  dataSourceAccessKeys.forEach((key, index) => {
-    dataSourceAccessTimes.set(
-      key as PersistentDataSourceId,
-      dataSourceAccessValues[index] as number,
-    );
-  });
+  try {
+    const dataSourceAccessStore = tx.objectStore(DATA_SOURCE_ACCESS_TIME_TABLE_NAME);
+    const dataSourceAccessValues = await dataSourceAccessStore.getAll();
+    const dataSourceAccessKeys = await dataSourceAccessStore.getAllKeys();
+    dataSourceAccessKeys.forEach((key, index) => {
+      dataSourceAccessTimes.set(
+        key as PersistentDataSourceId,
+        dataSourceAccessValues[index] as number,
+      );
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotFoundError') {
+      // eslint-disable-next-line no-console
+      console.info('Data source access times store not found, falling back to legacy migration');
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn('Error loading data source access times, falling back to migration:', error);
+    }
+    const now = Date.now();
+    dataSourcesArray.forEach((dv, index) => {
+      const legacyDs = dv as LegacyDataSource;
+      const lastUsed =
+        legacyDs.lastUsed ??
+        (dv.type === 'remote-db' ? dv.attachedAt : now - dataSourcesArray.length + index);
+      dataSourceAccessTimes.set(dv.id, lastUsed);
+    });
+  }
 
   const scriptAccessTimes = new Map<SQLScriptId, number>();
-  const scriptAccessValues = await tx.objectStore(SCRIPT_ACCESS_TIME_TABLE_NAME).getAll();
-  const scriptAccessKeys = await tx.objectStore(SCRIPT_ACCESS_TIME_TABLE_NAME).getAllKeys();
-  scriptAccessKeys.forEach((key, index) => {
-    scriptAccessTimes.set(key as SQLScript['id'], scriptAccessValues[index] as number);
-  });
+  try {
+    const scriptAccessStore = tx.objectStore(SCRIPT_ACCESS_TIME_TABLE_NAME);
+    const scriptAccessValues = await scriptAccessStore.getAll();
+    const scriptAccessKeys = await scriptAccessStore.getAllKeys();
+    scriptAccessKeys.forEach((key, index) => {
+      scriptAccessTimes.set(key as SQLScript['id'], scriptAccessValues[index] as number);
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotFoundError') {
+      // eslint-disable-next-line no-console
+      console.info('Script access times store not found, falling back to legacy migration');
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn('Error loading script access times, falling back to migration:', error);
+    }
+    const now = Date.now();
+    sqlScriptsArray.forEach((script, index) => {
+      const legacyScript = script as LegacySQLScript;
+      const lastUsed = legacyScript.lastUsed ?? now - sqlScriptsArray.length + index;
+      scriptAccessTimes.set(script.id, lastUsed);
+    });
+  }
 
   const tableAccessTimes = new Map<string, number>();
-  const tableAccessValues = await tx.objectStore(TABLE_ACCESS_TIME_TABLE_NAME).getAll();
-  const tableAccessKeys = await tx.objectStore(TABLE_ACCESS_TIME_TABLE_NAME).getAllKeys();
-  tableAccessKeys.forEach((key, index) => {
-    tableAccessTimes.set(key as string, tableAccessValues[index] as number);
-  });
+  try {
+    const tableAccessTimesStore = tx.objectStore(TABLE_ACCESS_TIME_TABLE_NAME);
+    const tableAccessValues = await tableAccessTimesStore.getAll();
+    const tableAccessKeys = await tableAccessTimesStore.getAllKeys();
+    tableAccessKeys.forEach((key, index) => {
+      tableAccessTimes.set(key as string, tableAccessValues[index] as number);
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotFoundError') {
+      // eslint-disable-next-line no-console
+      console.info('Table access times store not found, initializing empty map');
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn('Error loading table access times, starting with empty map:', error);
+    }
+  }
 
   await tx.done;
 
