@@ -142,3 +142,6 @@ tests/test-tmp
 .module-cache
 
 *.local.*
+
+# WASM build artifacts
+/public/wasm/

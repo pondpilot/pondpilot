@@ -49,6 +49,7 @@
     "@mantine/modals": "^8.2.3",
     "@mantine/notifications": "^8.2.3",
     "@mantine/spotlight": "^8.2.3",
+    "@pondpilot/flowscope-core": "0.1.0-beta.5",
     "@tabler/icons-react": "^3.35.0",
     "@tanstack/react-table": "^8.20.5",
     "@uiw/codemirror-themes": "^4.23.8",

@@ -116,6 +116,19 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
   const protectedViews = useProtectedViews();
   const { preferences } = useEditorPreferences();
 
+  const formatStatementError = useCallback(
+    (
+      statement: { type: SQLStatement; lineNumber: number; statementIndex: number; code: string },
+      errorMessage: string,
+    ) => {
+      const truncatedCode =
+        statement.code.length > 100 ? `${statement.code.substring(0, 100)}...` : statement.code;
+      const statementNum = statement.statementIndex + 1;
+      return `Line ${statement.lineNumber}, statement ${statementNum} (${statement.type}):\n${truncatedCode}\n\n${errorMessage}`;
+    },
+    [],
+  );
+
   const runScriptQuery = useCallback(
     async (query: string) => {
       setScriptExecutionState('running');
@@ -141,7 +154,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         }
       }
       // Parse query into statements
-      const statements = splitSQLByStats(queryToExecute);
+      const statements = await splitSQLByStats(queryToExecute);
 
       // Classify statements
       const classifiedStatements = classifySQLStatements(statements);
@@ -216,10 +229,13 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
               errorMessage: message,
               statementType: statement.type,
               timestamp: Date.now(),
+              lineNumber: statement.lineNumber,
+              statementIndex: statement.statementIndex,
+              statementCode: statement.code.substring(0, 200),
             });
             showErrorWithAction({
               title: 'Error executing SQL statement',
-              message: `Error in ${statement.type} statement: ${message}`,
+              message: formatStatementError(statement, message),
               action: {
                 label: 'Fix with AI',
                 onClick: () => {
@@ -256,10 +272,13 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
               errorMessage: message,
               statementType: lastStatement.type,
               timestamp: Date.now(),
+              lineNumber: lastStatement.lineNumber,
+              statementIndex: lastStatement.statementIndex,
+              statementCode: lastStatement.code.substring(0, 200),
             });
             showErrorWithAction({
               title: 'Error executing SQL statement',
-              message: `Error in ${lastStatement.type} statement: ${message}`,
+              message: formatStatementError(lastStatement, message),
               action: {
                 label: 'Fix with AI',
                 onClick: () => {
@@ -290,10 +309,13 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
               errorMessage: message,
               statementType: lastStatement.type,
               timestamp: Date.now(),
+              lineNumber: lastStatement.lineNumber,
+              statementIndex: lastStatement.statementIndex,
+              statementCode: lastStatement.code.substring(0, 200),
             });
             showErrorWithAction({
               title: 'Error executing SQL statement',
-              message: `Error in ${lastStatement.type} statement: ${message}`,
+              message: formatStatementError(lastStatement, message),
               action: {
                 label: 'Fix with AI',
                 onClick: () => {
@@ -436,7 +458,15 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // update the state and trigger re-render.
       updateScriptTabLastExecutedQuery({ tabId, lastExecutedQuery, force: true });
     },
-    [pool, protectedViews, tabId, incrementScriptVersion, preferences, tab.sqlScriptId],
+    [
+      pool,
+      protectedViews,
+      tabId,
+      incrementScriptVersion,
+      preferences,
+      tab.sqlScriptId,
+      formatStatementError,
+    ],
   );
 
   const setPanelSize = ([editor, table]: number[]) => {
