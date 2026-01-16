@@ -2,10 +2,9 @@
  * Utilities for encoding and decoding shared SQL scripts via URLs
  */
 
-import { gunzipSync, strFromU8 } from 'fflate';
-
 import { SQLScript } from '@models/sql-script';
 import { makeSQLScriptId } from '@utils/sql-script';
+import { gunzipSync, strFromU8 } from 'fflate';
 
 /**
  * Decode URL-safe base64 to Uint8Array
@@ -19,7 +18,7 @@ function base64UrlDecode(str: string): Uint8Array {
   }
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
+  for (let i = 0; i < binary.length; i += 1) {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
