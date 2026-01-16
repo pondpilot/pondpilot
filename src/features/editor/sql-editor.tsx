@@ -7,17 +7,11 @@
 import { formatSQLInEditor } from '@controllers/sql-formatter';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import MonacoEditor from '@monaco-editor/react';
-import {
-  analyzeSql,
-  completionContext,
-  splitStatements,
-  type CompletionContext,
-  type Span,
-  type StatementSplitResult,
-} from '@pondpilot/flowscope-core';
+import type { CompletionContext, Span } from '@pondpilot/flowscope-core';
 import { useAppStore } from '@store/app-store';
 import { checkValidDuckDBIdentifer } from '@utils/duckdb/identifier';
-import { ensureFlowScopeWasm, fromUtf8Offset, toUtf8Offset } from '@utils/editor/sql';
+import { fromUtf8Offset, toUtf8Offset } from '@utils/editor/sql';
+import { getFlowScopeClient } from '../../workers/flowscope-client';
 import * as monaco from 'monaco-editor';
 import {
   forwardRef,
@@ -62,9 +56,6 @@ type AnalysisCache = {
 };
 
 const AI_WIDGET_PLACEHOLDER = 'Press Cmd+I to open the AI Assistant';
-
-// Maximum SQL size for FlowScope analysis (100KB) to prevent resource exhaustion
-const MAX_ANALYSIS_SIZE = 100_000;
 
 type FontWeight = 'light' | 'regular' | 'semibold' | 'bold';
 
@@ -281,13 +272,6 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           cache.promise = null;
           return null;
         }
-        // Skip analysis for very large files to prevent resource exhaustion
-        if (sqlText.length > MAX_ANALYSIS_SIZE) {
-          cache.sql = sqlText;
-          cache.result = null;
-          cache.promise = null;
-          return null;
-        }
         if (cache.sql === sqlText && cache.result) {
           return cache.result;
         }
@@ -295,13 +279,10 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           return cache.promise;
         }
 
-        await ensureFlowScopeWasm();
+        const client = getFlowScopeClient();
         cache.sql = sqlText;
-        cache.promise = analyzeSql({
-          sql: sqlText,
-          dialect: 'duckdb',
-          schema,
-        })
+        cache.promise = client
+          .analyze(sqlText, schema)
           .then((result) => {
             cache.result = result;
             cache.promise = null;
@@ -326,13 +307,6 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         cache.promise = null;
         return [];
       }
-      // Skip splitting for very large files to prevent resource exhaustion
-      if (sqlText.length > MAX_ANALYSIS_SIZE) {
-        cache.sql = sqlText;
-        cache.spans = [];
-        cache.promise = null;
-        return [];
-      }
       if (cache.sql === sqlText && cache.spans.length > 0) {
         return cache.spans;
       }
@@ -340,13 +314,11 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         return cache.promise;
       }
 
-      await ensureFlowScopeWasm();
+      const client = getFlowScopeClient();
       cache.sql = sqlText;
-      cache.promise = splitStatements({
-        sql: sqlText,
-        dialect: 'duckdb',
-      })
-        .then((result: StatementSplitResult) => {
+      cache.promise = client
+        .split(sqlText)
+        .then((result) => {
           cache.spans = result.statements;
           cache.promise = null;
           return result.statements;
@@ -413,12 +385,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           };
         }
 
-        await ensureFlowScopeWasm();
-        const analysis = await analyzeSql({
-          sql: context.sql,
-          dialect: 'duckdb',
-          schema,
-        });
+        const client = getFlowScopeClient();
+        const analysis = await client.analyze(context.sql, schema);
         cache.set(cacheKey, analysis);
         if (cache.size > 100) {
           cache.clear();
@@ -817,12 +785,12 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             const sqlText = completionModel.getValue();
             const cursorOffset = toUtf8Offset(sqlText, completionModel.getOffsetAt(position));
             const statementContext = await getStatementContext(sqlText, cursorOffset);
-            const context = await completionContext({
-              sql: statementContext.sql,
-              dialect: 'duckdb',
-              cursorOffset: statementContext.cursorOffset,
+            const client = getFlowScopeClient();
+            const context = await client.completion(
+              statementContext.sql,
+              statementContext.cursorOffset,
               schema,
-            });
+            );
 
             const range = createCompletionRange(
               completionModel,
