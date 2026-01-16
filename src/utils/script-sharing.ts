@@ -4,7 +4,7 @@
 
 import { SQLScript } from '@models/sql-script';
 import { makeSQLScriptId } from '@utils/sql-script';
-import { gunzipSync, strFromU8 } from 'fflate';
+import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate';
 
 /**
  * Decode URL-safe base64 to Uint8Array
@@ -25,6 +25,17 @@ function base64UrlDecode(str: string): Uint8Array {
 }
 
 /**
+ * Encode Uint8Array to URL-safe base64
+ */
+function base64UrlEncode(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+/**
  * Shared script format (what gets encoded to URL)
  */
 export interface SharedScript {
@@ -39,7 +50,9 @@ export function encodeScriptToBase64(script: SQLScript | SharedScript): string {
   };
 
   const jsonString = JSON.stringify(shareableScript);
-  return btoa(encodeURIComponent(jsonString));
+  const compressedBytes = gzipSync(strToU8(jsonString));
+
+  return base64UrlEncode(compressedBytes);
 }
 
 export function decodeBase64ToScript(base64String: string): SharedScript | null {
