@@ -2,8 +2,28 @@
  * Utilities for encoding and decoding shared SQL scripts via URLs
  */
 
+import { gunzipSync, strFromU8 } from 'fflate';
+
 import { SQLScript } from '@models/sql-script';
 import { makeSQLScriptId } from '@utils/sql-script';
+
+/**
+ * Decode URL-safe base64 to Uint8Array
+ */
+function base64UrlDecode(str: string): Uint8Array {
+  // Restore standard base64 from URL-safe variant
+  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  // Add padding if needed
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
 
 /**
  * Shared script format (what gets encoded to URL)
@@ -30,17 +50,34 @@ export function decodeBase64ToScript(base64String: string): SharedScript | null 
       return null;
     }
 
-    if (!/^[A-Za-z0-9+/=]+$/.test(base64String)) {
+    // Check for valid base64 characters (including URL-safe variants)
+    if (!/^[A-Za-z0-9+/=_-]+$/.test(base64String)) {
       console.error('Invalid base64 string: contains invalid characters');
       return null;
     }
 
-    let jsonString;
+    let jsonString: string;
+
+    // Try URL-safe base64 decode first to check for gzip
     try {
-      jsonString = decodeURIComponent(atob(base64String));
-    } catch (e) {
-      console.error('Error decoding base64 string:', e);
-      return null;
+      const bytes = base64UrlDecode(base64String);
+
+      // Check for gzip magic bytes (0x1f 0x8b)
+      if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) {
+        // Gzip compressed format (from Flowscope)
+        jsonString = strFromU8(gunzipSync(bytes));
+      } else {
+        // Legacy format: standard base64 with URI-encoded JSON
+        jsonString = decodeURIComponent(atob(base64String));
+      }
+    } catch {
+      // Fallback to legacy format
+      try {
+        jsonString = decodeURIComponent(atob(base64String));
+      } catch (e) {
+        console.error('Error decoding base64 string:', e);
+        return null;
+      }
     }
 
     if (!jsonString.startsWith('{') || !jsonString.endsWith('}')) {
