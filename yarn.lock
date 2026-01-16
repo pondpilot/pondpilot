@@ -2777,6 +2777,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@monaco-editor/loader@npm:^1.5.0":
+  version: 1.7.0
+  resolution: "@monaco-editor/loader@npm:1.7.0"
+  dependencies:
+    state-local: "npm:^1.0.6"
+  checksum: 10c0/1fd3579cb09b669493cf553dfc0723a93483140a44353ce9a739827edfa7b2c6541b254024d15c48176ece749ef666b6d16cce6cf0e4396c7fa1c5a48012d08a
+  languageName: node
+  linkType: hard
+
+"@monaco-editor/react@npm:^4.7.0":
+  version: 4.7.0
+  resolution: "@monaco-editor/react@npm:4.7.0"
+  dependencies:
+    "@monaco-editor/loader": "npm:^1.5.0"
+  peerDependencies:
+    monaco-editor: ">= 0.25.0 < 1"
+    react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 10c0/a4e91c6eda1a71f5fd23871bd801de435490ccbc43934d23cba65cefe2be7e9d02c9a57c4ef80fc9fe99e4d4deea51e5db19cb4e0ecf3f51818dda0eb9cdbf12
+  languageName: node
+  linkType: hard
+
 "@nodelib/fs.scandir@npm:2.1.5":
   version: 2.1.5
   resolution: "@nodelib/fs.scandir@npm:2.1.5"
@@ -2844,10 +2866,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pondpilot/flowscope-core@npm:0.1.0-beta.5":
+"@pondpilot/flowscope-core@file:../flowscope/packages/core::locator=pondpilot%40workspace%3A.":
   version: 0.1.0-beta.5
-  resolution: "@pondpilot/flowscope-core@npm:0.1.0-beta.5"
-  checksum: 10c0/03a889d5bfc49360d071bdae8c07e4d38261e9fec123db9f3424295d76fa21142bf1f6ea5141b1df54915cfab847a5817b3309552da2fbf237ef9479b23dc1b8
+  resolution: "@pondpilot/flowscope-core@file:../flowscope/packages/core#../flowscope/packages/core::hash=ad1553&locator=pondpilot%40workspace%3A."
+  checksum: 10c0/ba3c6b62f59f8da9f6b46af1da3c072abcc8de79f25630c528a5224f79a54e4cdbac725f3a14fd2d377d03ba62d8aa223af0935200138a46ea8c7ab510c6a122
   languageName: node
   linkType: hard
 
@@ -9794,6 +9816,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"monaco-editor@npm:^0.52.0":
+  version: 0.52.2
+  resolution: "monaco-editor@npm:0.52.2"
+  checksum: 10c0/5a92da64f1e2ab375c0ce99364137f794d057c97bed10ecc65a08d6e6846804b8ecbd377eacf01e498f7dfbe1b21e8be64f728256681448f0484df90e767b435
+  languageName: node
+  linkType: hard
+
 "moo@npm:^0.5.0":
   version: 0.5.2
   resolution: "moo@npm:0.5.2"
@@ -10360,8 +10389,9 @@ __metadata:
     "@mantine/modals": "npm:^8.2.3"
     "@mantine/notifications": "npm:^8.2.3"
     "@mantine/spotlight": "npm:^8.2.3"
+    "@monaco-editor/react": "npm:^4.7.0"
     "@playwright/test": "npm:^1.55.1"
-    "@pondpilot/flowscope-core": "npm:0.1.0-beta.5"
+    "@pondpilot/flowscope-core": "file:../flowscope/packages/core"
     "@tabler/icons-react": "npm:^3.35.0"
     "@tanstack/eslint-plugin-query": "npm:^5.68.0"
     "@tanstack/react-table": "npm:^8.20.5"
@@ -10402,6 +10432,7 @@ __metadata:
     jsdom: "npm:^24.1.0"
     jszip: "npm:^3.10.1"
     match-sorter: "npm:^8.0.0"
+    monaco-editor: "npm:^0.52.0"
     postcss: "npm:^8.4.47"
     postcss-preset-mantine: "npm:1.18.0"
     postcss-simple-vars: "npm:^7.0.1"
@@ -12011,6 +12042,13 @@ __metadata:
     as-table: "npm:^1.0.36"
     get-source: "npm:^2.0.12"
   checksum: 10c0/e17357d0a532d303138899b910ab660572009a1f4cde1cbf73b99416957a2378e6e1c791b3c31b043cf7c5f37647da1dd114e66c9203f23c65b34f783665405b
+  languageName: node
+  linkType: hard
+
+"state-local@npm:^1.0.6":
+  version: 1.0.7
+  resolution: "state-local@npm:1.0.7"
+  checksum: 10c0/8dc7daeac71844452fafb514a6d6b6f40d7e2b33df398309ea1c7b3948d6110c57f112b7196500a10c54fdde40291488c52c875575670fb5c819602deca48bd9
   languageName: node
   linkType: hard
 

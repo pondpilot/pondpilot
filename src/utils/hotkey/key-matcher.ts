@@ -9,15 +9,40 @@ interface KeyMatcherProps {
   shift?: boolean;
   alt?: boolean;
 }
+
+type KeyMatcherEvent =
+  | KeyboardEvent
+  | React.KeyboardEvent
+  | {
+      ctrlKey: boolean;
+      metaKey?: boolean;
+      shiftKey: boolean;
+      altKey: boolean;
+      key?: string;
+      code?: string;
+      browserEvent?: KeyboardEvent;
+    };
+
+function extractKey(event: KeyMatcherEvent): string | undefined {
+  if ('key' in event && event.key) return event.key;
+  if ('browserEvent' in event && event.browserEvent?.key) return event.browserEvent.key;
+  return undefined;
+}
+
+function extractCode(event: KeyMatcherEvent): string | undefined {
+  if ('code' in event && event.code) return event.code;
+  if ('browserEvent' in event && event.browserEvent?.code) return event.browserEvent.code;
+  return undefined;
+}
+
 export default class KeyMatcher {
   protected key: KeyMatcherProps;
   constructor(props: KeyMatcherProps) {
     this.key = props;
   }
-  static capture(e: KeyboardEvent | React.KeyboardEvent) {
+  static capture(e: KeyMatcherEvent) {
     const isCtrlKey = e.ctrlKey || e.metaKey;
-    // eslint-disable-next-line prefer-destructuring
-    let key: string | undefined = e.key;
+    let key: string | undefined = extractKey(e);
     if (key === 'Shift') key = undefined;
     if (key === 'Control') key = undefined;
     if (key === 'Alt') key = undefined;
@@ -29,9 +54,11 @@ export default class KeyMatcher {
     });
   }
 
-  match(e: KeyboardEvent | React.KeyboardEvent<HTMLDivElement>) {
+  match(e: KeyMatcherEvent) {
     let isMatched = true;
     const isCtrlKey = e.ctrlKey || e.metaKey;
+    const key = extractKey(e);
+    const code = extractCode(e);
 
     if (this.key.ctrl && !isCtrlKey) {
       isMatched = false;
@@ -40,11 +67,11 @@ export default class KeyMatcher {
     if (this.key.key) {
       // Dead keys are not supported, so we need to check if the key is a dead key
       // It is temp solution, but it works for now
-      if (this.key.key === 'n' && this.key.alt && this.key.ctrl && e.code === 'KeyN') {
+      if (this.key.key === 'n' && this.key.alt && this.key.ctrl && code === 'KeyN') {
         // Only match if alt is actually pressed
         return isMatched;
       }
-      if (e.key !== this.key.key) {
+      if (key !== this.key.key) {
         isMatched = false;
       }
     }

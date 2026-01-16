@@ -1,6 +1,13 @@
-import { EditorView } from '@codemirror/view';
-
 import { DataBaseModel } from '../../../models/db';
+
+export interface AIAssistantEditorAdapter {
+  getValue: () => string;
+  getSelection: () => { from: number; to: number };
+  getCursorOffset: () => number;
+  replaceRange: (text: string, from: number, to: number) => void;
+  insertText: (text: string, offset: number) => void;
+  focus: () => void;
+}
 
 export interface AIAction {
   type:
@@ -29,7 +36,7 @@ export interface StructuredAIResponse {
 }
 
 export interface AIAssistantContext {
-  view: EditorView;
+  editor: AIAssistantEditorAdapter;
   sqlStatement?: string;
   queryError?: {
     errorMessage: string;

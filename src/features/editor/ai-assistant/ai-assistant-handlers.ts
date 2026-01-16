@@ -2,24 +2,16 @@
  * Business logic handlers for AI Assistant widget
  */
 
-import { EditorView } from '@codemirror/view';
-
-import {
-  hideAIAssistantEffect,
-  showStructuredResponseEffect,
-  insertAIResponseEffect,
-  startAIRequestEffect,
-  endAIRequestEffect,
-} from './effects';
 import { handleAIServiceError, handleSchemaContextError } from './error-handler';
 import { extractMentions } from './mention-autocomplete';
+import { AIAssistantEditorAdapter } from './model';
 import { getPromptHistoryManager } from './prompt-history';
 import { AIAssistantServices } from './services-facet';
-import { aiAssistantStateField } from './state-field';
 import { preventEventPropagation } from './ui-factories';
 import { categorizeMentions, expandDatabaseMentions } from './utils/mention-categorization';
 import { getDatabaseModel } from '../../../controllers/db/duckdb-meta';
 import { TabExecutionError } from '../../../controllers/tab/tab-controller';
+import { StructuredSQLResponse } from '../../../models/structured-ai-response';
 
 export interface AIAssistantHandlers {
   hideWidget: () => void;
@@ -29,30 +21,31 @@ export interface AIAssistantHandlers {
   setupEventHandlers: (container: HTMLElement, onClose: () => void) => () => void;
 }
 
+export interface AIAssistantHandlerCallbacks {
+  onHide: () => void;
+  onStructuredResponse: (response: StructuredSQLResponse) => void;
+  onInsertResponse: (text: string) => void;
+  onActiveRequestChange: (active: boolean) => void;
+  getActiveRequest: () => boolean;
+}
+
 /**
  * Creates handlers for AI Assistant widget interactions
  */
 export function createAIAssistantHandlers(
-  view: EditorView,
+  editor: AIAssistantEditorAdapter,
   sqlStatement: string | undefined,
   services: AIAssistantServices,
+  callbacks: AIAssistantHandlerCallbacks,
   errorContext?: TabExecutionError,
   cursorContext?: { isOnEmptyLine: boolean; hasExistingQuery: boolean },
 ): AIAssistantHandlers {
   const hideWidget = () => {
-    if (view) {
-      // Check if there's an active request
-      const aiState = view.state.field(aiAssistantStateField);
-      if (aiState.activeRequest) {
-        // Don't hide the widget if request is active
-        return;
-      }
-
-      view.dispatch({
-        effects: hideAIAssistantEffect.of(null),
-      });
-      view.focus();
+    if (callbacks.getActiveRequest()) {
+      return;
     }
+    callbacks.onHide();
+    editor.focus();
   };
 
   const handleSubmit = async (textarea: HTMLTextAreaElement, generateBtn: HTMLButtonElement) => {
@@ -61,17 +54,11 @@ export function createAIAssistantHandlers(
     // If no query and no error context, don't proceed
     if (!query && !errorContext) return;
 
-    // Check if there's already an active request
-    const aiState = view.state.field(aiAssistantStateField);
-    if (aiState.activeRequest) {
-      // Don't proceed if request is already active
+    if (callbacks.getActiveRequest()) {
       return;
     }
 
-    // Dispatch effect to mark request as active
-    view.dispatch({
-      effects: startAIRequestEffect.of(null),
-    });
+    callbacks.onActiveRequestChange(true);
 
     // Disable controls and show loading state
     generateBtn.disabled = true;
@@ -159,7 +146,7 @@ export function createAIAssistantHandlers(
       let queryError;
 
       if (errorContext) {
-        const currentScript = view.state.doc.toString();
+        const currentScript = editor.getValue();
         queryError = {
           errorMessage: errorContext.errorMessage,
           statementType: errorContext.statementType,
@@ -199,21 +186,10 @@ export function createAIAssistantHandlers(
         }
 
         if (response.structuredResponse) {
-          // Handle structured response - hide AI assistant and show action selection UI
-          view.dispatch({
-            effects: [
-              hideAIAssistantEffect.of(null),
-              showStructuredResponseEffect.of({
-                response: response.structuredResponse,
-                view,
-              }),
-            ],
-          });
+          callbacks.onStructuredResponse(response.structuredResponse);
         } else if (response.content) {
-          // Fallback to text response
-          view.dispatch({
-            effects: [hideAIAssistantEffect.of(null), insertAIResponseEffect.of(response.content)],
-          });
+          callbacks.onInsertResponse(response.content);
+          callbacks.onHide();
         }
       } else {
         handleAIServiceError(response.error, textarea, query);
@@ -221,14 +197,10 @@ export function createAIAssistantHandlers(
     } catch (error) {
       handleAIServiceError(error, textarea, query);
     } finally {
-      // Dispatch effect to mark request as complete
-      view.dispatch({
-        effects: endAIRequestEffect.of(null),
-      });
+      callbacks.onActiveRequestChange(false);
 
-      // Remove loading state and restore original text
       generateBtn.classList.remove('ai-widget-loading');
-      generateBtn.innerHTML = ''; // Clear loading dots
+      generateBtn.innerHTML = '';
       generateBtn.textContent = originalText || 'Generate';
       generateBtn.disabled = false;
       textarea.disabled = false;

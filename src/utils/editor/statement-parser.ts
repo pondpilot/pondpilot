@@ -3,67 +3,42 @@
  * Copyright (C) [2025] Outerbase
  * Licensed under GNU AGPL v3.0
  */
-import { syntaxTree } from '@codemirror/language';
-import { SyntaxNode } from '@lezer/common';
-import { EditorState } from '@uiw/react-codemirror';
+import { splitSQLByStats } from './sql';
 
-import { isEndStatement, isRequireEndStatement } from './helpers';
-import { StatementSegment } from './models';
+export interface StatementSegment {
+  from: number;
+  to: number;
+  text: string;
+}
 
-export function splitSqlQuery(
-  state: EditorState,
+export async function splitSqlQuery(
+  sql: string,
   generateText: boolean = true,
-): StatementSegment[] {
-  const { topNode } = syntaxTree(state);
-  let needEndStatementCounter = 0;
-  const statements = topNode.getChildren('Statement');
+): Promise<StatementSegment[]> {
+  const statements = await splitSQLByStats(sql);
   if (statements.length === 0) return [];
-  const statementGroups: SyntaxNode[][] = [];
-  let accumulateNodes: SyntaxNode[] = [];
 
-  for (let i = 0; i < statements.length; i += 1) {
-    const statement = statements[i];
-    needEndStatementCounter += isRequireEndStatement(state, statement);
-    if (needEndStatementCounter) {
-      accumulateNodes.push(statement);
-    } else {
-      statementGroups.push([statement]);
-    }
-    if (needEndStatementCounter && isEndStatement(state, statement)) {
-      needEndStatementCounter -= 1;
-      if (needEndStatementCounter === 0) {
-        statementGroups.push(accumulateNodes);
-        accumulateNodes = [];
-      }
-    }
-  }
-
-  if (accumulateNodes.length > 0) {
-    statementGroups.push(accumulateNodes);
-  }
-
-  return statementGroups.map((r) => ({
-    from: r[0].from,
-    to: r[r.length - 1].to,
-    text: generateText ? state.doc.sliceString(r[0].from, r[r.length - 1].to) : '',
+  return statements.map((statement) => ({
+    from: statement.start,
+    to: statement.end,
+    text: generateText ? statement.code : '',
   }));
 }
 
-export function resolveToNearestStatement(state: EditorState) {
-  const cursor = state.selection.main.from;
-  const statements = splitSqlQuery(state, false);
+export async function resolveToNearestStatement(
+  sql: string,
+  cursorOffset: number,
+): Promise<StatementSegment | null> {
+  const statements = await splitSqlQuery(sql, false);
   if (statements.length === 0) return null;
 
   for (let i = 0; i < statements.length; i += 1) {
     const statement = statements[i];
-    if (cursor < statement.from) {
+    if (cursorOffset < statement.from) {
       if (i === 0) return statements[0];
-      const cursorLine = state.doc.lineAt(cursor).number;
-      const topLine = state.doc.lineAt(statements[i - 1].to).number;
-      const bottomLine = state.doc.lineAt(statements[i].from).number;
-      return cursorLine - topLine >= bottomLine - cursorLine ? statements[i] : statements[i - 1];
+      return statements[i - 1];
     }
-    if (cursor >= statement.from && cursor <= statement.to) {
+    if (cursorOffset >= statement.from && cursorOffset <= statement.to) {
       return statement;
     }
   }
@@ -74,14 +49,13 @@ export function resolveToNearestStatement(state: EditorState) {
  * Resolves SQL context for AI Assistant, prioritizing selected text over cursor-based statement detection
  * If text is selected, returns the selection; otherwise falls back to nearest statement
  */
-export function resolveAIContext(
-  state: EditorState,
-): { from: number; to: number; text?: string } | null {
-  const selection = state.selection.main;
-
+export async function resolveAIContext(
+  sql: string,
+  selection: { from: number; to: number },
+): Promise<{ from: number; to: number; text?: string } | null> {
   // If text is selected, use the selection as context
-  if (!selection.empty) {
-    const selectedText = state.doc.sliceString(selection.from, selection.to);
+  if (selection.from !== selection.to) {
+    const selectedText = sql.slice(selection.from, selection.to);
     return {
       from: selection.from,
       to: selection.to,
@@ -89,30 +63,25 @@ export function resolveAIContext(
     };
   }
 
-  // Get the current line as a fallback
-  const cursorLine = state.doc.lineAt(selection.from);
-  const currentLineText = cursorLine.text.trim();
-
-  // Try to get the nearest statement
-  const nearestStatement = resolveToNearestStatement(state);
-
+  const nearestStatement = await resolveToNearestStatement(sql, selection.from);
   if (!nearestStatement) {
-    // If no statement found, use the current line
-    if (currentLineText) {
+    const currentLineStart = sql.lastIndexOf('\n', selection.from - 1) + 1;
+    const currentLineEnd = sql.indexOf('\n', selection.from);
+    const end = currentLineEnd === -1 ? sql.length : currentLineEnd;
+    const lineText = sql.slice(currentLineStart, end).trim();
+    if (lineText) {
       return {
-        from: cursorLine.from,
-        to: cursorLine.to,
-        text: currentLineText,
+        from: currentLineStart,
+        to: end,
+        text: lineText,
       };
     }
     return null;
   }
 
-  const statementText = state.doc.sliceString(nearestStatement.from, nearestStatement.to);
-
   return {
     from: nearestStatement.from,
     to: nearestStatement.to,
-    text: statementText,
+    text: sql.slice(nearestStatement.from, nearestStatement.to),
   };
 }

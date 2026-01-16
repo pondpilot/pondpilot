@@ -2,8 +2,6 @@
  * Widget-specific UI builders for AI Assistant components
  */
 
-import { EditorView } from '@codemirror/view';
-
 import {
   createContainer,
   createTextarea,
@@ -25,7 +23,6 @@ import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connectio
  */
 export function createCombinedContextSection(
   sqlStatement: string | undefined,
-  view: EditorView,
   connectionPool: AsyncDuckDBConnectionPool | null,
   modelSelect: HTMLSelectElement,
   errorContext?: TabExecutionError,
@@ -275,7 +272,6 @@ export function createModelSelectionSection(onModelChange: (model: string) => vo
  * Creates the schema context section with availability indicator
  */
 export function createSchemaContextSection(
-  view: EditorView,
   connectionPool: AsyncDuckDBConnectionPool | null,
 ): HTMLElement {
   const { section } = createSection(
