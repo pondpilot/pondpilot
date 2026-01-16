@@ -2844,6 +2844,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@pondpilot/flowscope-core@npm:0.1.0-beta.5":
+  version: 0.1.0-beta.5
+  resolution: "@pondpilot/flowscope-core@npm:0.1.0-beta.5"
+  checksum: 10c0/03a889d5bfc49360d071bdae8c07e4d38261e9fec123db9f3424295d76fa21142bf1f6ea5141b1df54915cfab847a5817b3309552da2fbf237ef9479b23dc1b8
+  languageName: node
+  linkType: hard
+
 "@reactflow/background@npm:11.3.14":
   version: 11.3.14
   resolution: "@reactflow/background@npm:11.3.14"
@@ -10354,6 +10361,7 @@ __metadata:
     "@mantine/notifications": "npm:^8.2.3"
     "@mantine/spotlight": "npm:^8.2.3"
     "@playwright/test": "npm:^1.55.1"
+    "@pondpilot/flowscope-core": "npm:0.1.0-beta.5"
     "@tabler/icons-react": "npm:^3.35.0"
     "@tanstack/eslint-plugin-query": "npm:^5.68.0"
     "@tanstack/react-table": "npm:^8.20.5"

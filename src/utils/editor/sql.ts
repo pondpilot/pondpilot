@@ -1,5 +1,7 @@
-import { PostgreSQL, sql } from '@codemirror/lang-sql';
+import { PostgreSQL, sql as sqlLanguage } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
+import { analyzeSql, initWasm } from '@pondpilot/flowscope-core';
+import type { AnalyzeRequest, AnalyzeResult } from '@pondpilot/flowscope-core';
 import { EditorState } from '@uiw/react-codemirror';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
@@ -218,25 +220,453 @@ const StatementSearchMap: Record<SQLStatement, string> = {
   [SQLStatement.UNKNOWN]: 'UNKNOWN',
 };
 
-export const trimQuery = (query: string): string => {
+export function trimQuery(query: string): string {
   // Trim whitespaces and semicolons from the end of the query
-  const trimmedQuery = query.trim().replace(/[;\s]*$/, '');
-  return trimmedQuery;
+  return query.trim().replace(/[;\s]*$/, '');
+}
+
+/**
+ * Strip leading comments and whitespace from SQL to get the actual statement start
+ */
+function stripLeadingComments(text: string): string {
+  let i = 0;
+  while (i < text.length) {
+    const char = text[i];
+    const followingChar = text[i + 1];
+
+    // Skip whitespace
+    if (/\s/.test(char)) {
+      i += 1;
+      continue;
+    }
+
+    // Single-line comment - skip to end of line
+    if (char === '-' && followingChar === '-') {
+      const lineEnd = text.indexOf('\n', i);
+      if (lineEnd === -1) {
+        return ''; // Rest is just a comment
+      }
+      i = lineEnd + 1;
+      continue;
+    }
+
+    // Block comment - skip to end of comment
+    if (char === '/' && followingChar === '*') {
+      const commentEnd = text.indexOf('*/', i + 2);
+      if (commentEnd === -1) {
+        return ''; // Rest is just a comment
+      }
+      i = commentEnd + 2;
+      continue;
+    }
+
+    // Found actual SQL - return from here
+    return text.slice(i);
+  }
+
+  return ''; // Only whitespace and comments
+}
+
+type StatementRange = {
+  start: number;
+  end: number;
 };
 
-export function splitSQLByStats(editor: EditorState | string): string[] {
-  // Retrieve non-empty SQL statements from the code
-  if (typeof editor === 'string') {
-    editor = EditorState.create({
-      doc: editor,
-      extensions: [sql({ dialect: PostgreSQL })],
-    });
+const FLOW_SCOPE_WASM_URL = '/wasm/flowscope_wasm_bg.wasm';
+let flowScopeInitPromise: Promise<unknown> | null = null;
+
+async function ensureFlowScopeWasm(): Promise<void> {
+  if (!flowScopeInitPromise) {
+    flowScopeInitPromise = initWasm({ wasmUrl: FLOW_SCOPE_WASM_URL });
   }
-  const { topNode } = syntaxTree(editor);
-  const statements = topNode.getChildren('Statement');
-  return statements
-    .map((node) => editor.doc.sliceString(node.from, node.to))
-    .filter((s) => trimQuery(s) !== '');
+
+  await flowScopeInitPromise;
+}
+
+async function analyzeSqlWithFlowScope(request: AnalyzeRequest): Promise<AnalyzeResult> {
+  await ensureFlowScopeWasm();
+  return analyzeSql(request);
+}
+
+async function getStatementCount(sqlText: string): Promise<number | null> {
+  try {
+    const result = await analyzeSqlWithFlowScope({
+      sql: sqlText,
+      dialect: 'duckdb',
+    });
+
+    if (result.summary?.hasErrors) {
+      return null;
+    }
+
+    if (typeof result.summary?.statementCount === 'number') {
+      return result.summary.statementCount;
+    }
+
+    return result.statements.length;
+  } catch (error) {
+    console.warn('FlowScope SQL analysis failed, falling back to range count.', error);
+    return null;
+  }
+}
+
+function nextChar(sql: string, index: number): { char: string; advance: number } {
+  const codePoint = sql.codePointAt(index);
+  if (codePoint === undefined) {
+    return { char: '', advance: 1 };
+  }
+  const char = String.fromCodePoint(codePoint);
+  return { char, advance: char.length };
+}
+
+function charAt(sql: string, index: number): { char: string; advance: number } | null {
+  if (index >= sql.length) {
+    return null;
+  }
+  const codePoint = sql.codePointAt(index);
+  if (codePoint === undefined) {
+    return null;
+  }
+  const char = String.fromCodePoint(codePoint);
+  return { char, advance: char.length };
+}
+
+function startsWithAt(sql: string, index: number, pattern: string): boolean {
+  if (index >= sql.length) {
+    return false;
+  }
+  return sql.startsWith(pattern, index);
+}
+
+function detectDollarQuote(
+  sql: string,
+  start: number,
+): { delimiter: string; endIndex: number } | null {
+  if (start + 1 >= sql.length) {
+    return null;
+  }
+
+  let index = start + 1;
+  while (index < sql.length) {
+    const { char, advance } = nextChar(sql, index);
+    index += advance;
+    if (char === '$') {
+      return { delimiter: sql.slice(start, index), endIndex: index };
+    }
+    if (!/[_a-zA-Z0-9]/.test(char)) {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function skipLineComment(sql: string, index: number, end: number): number {
+  let cursor = index;
+  while (cursor < end) {
+    const char = sql[cursor];
+    cursor += 1;
+    if (char === '\n' || char === '\r') {
+      break;
+    }
+  }
+  return cursor;
+}
+
+function skipBlockComment(sql: string, index: number, end: number): number {
+  let cursor = index;
+  while (cursor < end) {
+    if (cursor + 1 < end && sql[cursor] === '*' && sql[cursor + 1] === '/') {
+      return cursor + 2;
+    }
+    cursor += 1;
+  }
+  return end;
+}
+
+function trimStatementRange(sql: string, start: number, end: number): StatementRange | null {
+  if (start >= end) {
+    return null;
+  }
+
+  let cursorStart = start;
+  let cursorEnd = end;
+
+  while (cursorStart < cursorEnd) {
+    if (cursorStart + 1 < cursorEnd) {
+      const first = sql[cursorStart];
+      const second = sql[cursorStart + 1];
+      if (first === '-' && second === '-') {
+        cursorStart = skipLineComment(sql, cursorStart + 2, cursorEnd);
+        continue;
+      }
+      if (first === '/' && second === '*') {
+        cursorStart = skipBlockComment(sql, cursorStart + 2, cursorEnd);
+        continue;
+      }
+    }
+
+    const char = sql[cursorStart];
+    if (char === '#') {
+      cursorStart = skipLineComment(sql, cursorStart + 1, cursorEnd);
+      continue;
+    }
+    if (/\s/.test(char)) {
+      cursorStart += 1;
+      continue;
+    }
+    break;
+  }
+
+  while (cursorStart < cursorEnd && /\s/.test(sql[cursorEnd - 1])) {
+    cursorEnd -= 1;
+  }
+
+  if (cursorStart >= cursorEnd) {
+    return null;
+  }
+
+  return { start: cursorStart, end: cursorEnd };
+}
+
+function pushStatementRange(ranges: StatementRange[], sql: string, start: number, end: number) {
+  const trimmed = trimStatementRange(sql, start, end);
+  if (trimmed) {
+    ranges.push(trimmed);
+  }
+}
+
+function computeStatementRanges(sql: string): StatementRange[] {
+  const ranges: StatementRange[] = [];
+  if (!sql) {
+    return ranges;
+  }
+
+  let start = 0;
+  let index = 0;
+
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inBacktick = false;
+  let inBracket = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let dollarDelimiter: string | null = null;
+
+  while (index < sql.length) {
+    if (dollarDelimiter) {
+      if (sql.startsWith(dollarDelimiter, index)) {
+        index += dollarDelimiter.length;
+        dollarDelimiter = null;
+      } else {
+        const { advance } = nextChar(sql, index);
+        index += advance;
+      }
+      continue;
+    }
+
+    if (inLineComment) {
+      const { char, advance } = nextChar(sql, index);
+      index += advance;
+      if (char === '\n' || char === '\r') {
+        inLineComment = false;
+      }
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (startsWithAt(sql, index, '*/')) {
+        index += 2;
+        inBlockComment = false;
+      } else {
+        const { advance } = nextChar(sql, index);
+        index += advance;
+      }
+      continue;
+    }
+
+    if (inSingleQuote) {
+      const { char, advance } = nextChar(sql, index);
+      index += advance;
+      if (char === "'") {
+        const next = charAt(sql, index);
+        if (next?.char === "'") {
+          index += next.advance;
+        } else {
+          inSingleQuote = false;
+        }
+      }
+      continue;
+    }
+
+    if (inDoubleQuote) {
+      const { char, advance } = nextChar(sql, index);
+      index += advance;
+      if (char === '"') {
+        const next = charAt(sql, index);
+        if (next?.char === '"') {
+          index += next.advance;
+        } else {
+          inDoubleQuote = false;
+        }
+      }
+      continue;
+    }
+
+    if (inBacktick) {
+      const { char, advance } = nextChar(sql, index);
+      index += advance;
+      if (char === '`') {
+        const next = charAt(sql, index);
+        if (next?.char === '`') {
+          index += next.advance;
+        } else {
+          inBacktick = false;
+        }
+      }
+      continue;
+    }
+
+    if (inBracket) {
+      const { char, advance } = nextChar(sql, index);
+      index += advance;
+      if (char === ']') {
+        const next = charAt(sql, index);
+        if (next?.char === ']') {
+          index += next.advance;
+        } else {
+          inBracket = false;
+        }
+      }
+      continue;
+    }
+
+    const { char, advance } = nextChar(sql, index);
+    switch (char) {
+      case "'":
+        inSingleQuote = true;
+        index += advance;
+        continue;
+      case '"':
+        inDoubleQuote = true;
+        index += advance;
+        continue;
+      case '`':
+        inBacktick = true;
+        index += advance;
+        continue;
+      case '[':
+        inBracket = true;
+        index += advance;
+        continue;
+      case '-':
+        if (startsWithAt(sql, index + advance, '-')) {
+          inLineComment = true;
+          index += advance + 1;
+          continue;
+        }
+        break;
+      case '#':
+        inLineComment = true;
+        index += advance;
+        continue;
+      case '/':
+        if (startsWithAt(sql, index + advance, '*')) {
+          inBlockComment = true;
+          index += advance + 1;
+          continue;
+        }
+        break;
+      case '$': {
+        const delimiter = detectDollarQuote(sql, index);
+        if (delimiter) {
+          dollarDelimiter = delimiter.delimiter;
+          index = delimiter.endIndex;
+          continue;
+        }
+        break;
+      }
+      case ';':
+        pushStatementRange(ranges, sql, start, index);
+        start = index + advance;
+        break;
+      default:
+        break;
+    }
+
+    index += advance;
+  }
+
+  pushStatementRange(ranges, sql, start, sql.length);
+  return ranges;
+}
+
+async function mergeStatementRanges(
+  sql: string,
+  ranges: StatementRange[],
+  statementCount: number,
+): Promise<StatementRange[]> {
+  if (ranges.length <= statementCount) {
+    return ranges;
+  }
+
+  const merged: StatementRange[] = [];
+  let rangeIndex = 0;
+
+  for (let statementIndex = 0; statementIndex < statementCount; statementIndex += 1) {
+    if (rangeIndex >= ranges.length) {
+      return ranges;
+    }
+
+    let current = { ...ranges[rangeIndex] };
+    rangeIndex += 1;
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const snippet = sql.slice(current.start, current.end);
+      const parsedCount = await getStatementCount(snippet);
+      if (parsedCount === 1) {
+        merged.push(current);
+        break;
+      }
+
+      if (rangeIndex >= ranges.length || parsedCount === null) {
+        return ranges;
+      }
+
+      current = { start: current.start, end: ranges[rangeIndex].end };
+      rangeIndex += 1;
+    }
+  }
+
+  if (rangeIndex !== ranges.length) {
+    return ranges;
+  }
+
+  return merged;
+}
+
+export type ParsedStatement = {
+  code: string;
+  lineNumber: number;
+};
+
+export async function splitSQLByStats(editor: EditorState | string): Promise<ParsedStatement[]> {
+  const sqlText = typeof editor === 'string' ? editor : editor.doc.toString();
+  const state = typeof editor === 'string' ? EditorState.create({ doc: sqlText }) : editor;
+  const ranges = computeStatementRanges(sqlText);
+  if (ranges.length === 0) {
+    return [];
+  }
+
+  const statementCount = await getStatementCount(sqlText);
+  const alignedRanges =
+    statementCount === null ? ranges : await mergeStatementRanges(sqlText, ranges, statementCount);
+
+  return alignedRanges.map((range) => ({
+    code: sqlText.slice(range.start, range.end),
+    lineNumber: state.doc.lineAt(range.start).number,
+  }));
 }
 
 export type ClassifiedSQLStatement = {
@@ -246,30 +676,60 @@ export type ClassifiedSQLStatement = {
   needsTransaction: boolean;
   isAllowedInScript: boolean;
   isAllowedInSubquery: boolean;
-  // TODO: add hasOrderClause and codeWithoutOrder
+  lineNumber: number;
+  statementIndex: number;
 };
 
-export function classifySQLStatement(stmt: string): ClassifiedSQLStatement {
+/**
+ * Classify a single SQL statement (for use outside of script execution).
+ * Line number defaults to 1 and statement index to 0.
+ */
+export function classifySQLStatement(code: string): ClassifiedSQLStatement {
+  const strippedStmt = stripLeadingComments(code);
+
   const statementType =
     Object.values(SQLStatement).find((value) =>
-      stmt
+      strippedStmt
         .trim()
         .toUpperCase()
         .startsWith(StatementSearchMap[value as SQLStatement]),
     ) || SQLStatement.UNKNOWN;
 
   return {
-    code: stmt,
+    code,
     type: statementType,
     sqlType: StatementTypeMap[statementType],
     needsTransaction: TransactionalStatementMap[statementType],
     isAllowedInScript: StatementsAllowedInScripts.includes(statementType),
     isAllowedInSubquery: StatementsAllowedInSubquery.includes(statementType),
+    lineNumber: 1,
+    statementIndex: 0,
   };
 }
 
-export function classifySQLStatements(stmts: string[]): ClassifiedSQLStatement[] {
-  return stmts.map((stmt) => classifySQLStatement(stmt));
+export function classifySQLStatements(stmts: ParsedStatement[]): ClassifiedSQLStatement[] {
+  return stmts.map((stmt, index) => {
+    const strippedStmt = stripLeadingComments(stmt.code);
+
+    const statementType =
+      Object.values(SQLStatement).find((value) =>
+        strippedStmt
+          .trim()
+          .toUpperCase()
+          .startsWith(StatementSearchMap[value as SQLStatement]),
+      ) || SQLStatement.UNKNOWN;
+
+    return {
+      code: stmt.code,
+      type: statementType,
+      sqlType: StatementTypeMap[statementType],
+      needsTransaction: TransactionalStatementMap[statementType],
+      isAllowedInScript: StatementsAllowedInScripts.includes(statementType),
+      isAllowedInSubquery: StatementsAllowedInSubquery.includes(statementType),
+      lineNumber: stmt.lineNumber,
+      statementIndex: index,
+    };
+  });
 }
 
 export const validateStatements = (
@@ -306,7 +766,7 @@ export const validateStatements = (
       // Check all DROP statements against source tables
       const state = EditorState.create({
         doc: statement.code,
-        extensions: [sql({ dialect: PostgreSQL })],
+        extensions: [sqlLanguage({ dialect: PostgreSQL })],
       });
 
       const tree = syntaxTree(state);

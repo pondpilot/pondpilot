@@ -109,6 +109,9 @@ export interface TabExecutionError {
   errorMessage: string;
   statementType?: string;
   timestamp: number;
+  lineNumber?: number;
+  statementIndex?: number;
+  statementCode?: string;
 }
 
 /**

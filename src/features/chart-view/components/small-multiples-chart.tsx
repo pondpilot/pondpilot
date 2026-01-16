@@ -15,12 +15,12 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+import { ChartLoading } from './chart-loading';
 import { SMALL_MULTIPLES_MIN_CHART_HEIGHT, X_AXIS_LABEL_MAX_LENGTH } from '../constants';
 import { ChartDataPoint } from '../hooks/use-chart-data';
 import { useChartTheme } from '../hooks/use-chart-theme';
 import { SmallMultipleData } from '../hooks/use-small-multiples-data';
 import { getChartColorPalette, formatCompactNumber, formatTooltipNumber } from '../utils';
-import { ChartLoading } from './chart-loading';
 
 interface SmallMultiplesChartProps {
   multiplesData: SmallMultipleData[];
