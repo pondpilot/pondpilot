@@ -222,19 +222,18 @@ export const ScriptEditor = ({
           schema={schema}
           functionTooltips={functionTooltips}
           path={sqlScript?.id ? String(sqlScript.id) : tabId ? String(tabId) : undefined}
+          onRun={() => {
+            handleRunQuery().catch((error) => {
+              console.warn('Run query failed:', error);
+            });
+          }}
+          onRunSelection={() => {
+            handleRunQuery('selection').catch((error) => {
+              console.warn('Run selection failed:', error);
+            });
+          }}
           onKeyDown={(e: monaco.IKeyboardEvent) => {
-            if (KEY_BINDING.run.match(e)) {
-              if (KEY_BINDING.runSelection.match(e)) {
-                handleRunQuery('selection').catch((error) => {
-                  console.warn('Run selection failed:', error);
-                });
-              } else {
-                handleRunQuery().catch((error) => {
-                  console.warn('Run query failed:', error);
-                });
-              }
-              e.preventDefault();
-            } else if (KEY_BINDING.save.match(e)) {
+            if (KEY_BINDING.save.match(e)) {
               handleQuerySave().catch((error) => {
                 console.warn('Save query failed:', error);
               });

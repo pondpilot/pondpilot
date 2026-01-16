@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* AI Assistant Widget Styles */
+@import './features/editor/ai-assistant/ai-widget.css';
+
 html,
 body,
 #root {

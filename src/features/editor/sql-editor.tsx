@@ -4,14 +4,7 @@
  * Modified by Andrii Butko (C) [2025]
  * Licensed under GNU AGPL v3.0
  */
-import { formatSQLInEditor } from '@controllers/sql-formatter';
-import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import MonacoEditor from '@monaco-editor/react';
-import type { CompletionContext, Span } from '@pondpilot/flowscope-core';
-import { useAppStore } from '@store/app-store';
-import { checkValidDuckDBIdentifer } from '@utils/duckdb/identifier';
-import { fromUtf8Offset, toUtf8Offset } from '@utils/editor/sql';
-import { getFlowScopeClient } from '../../workers/flowscope-client';
 import * as monaco from 'monaco-editor';
 import {
   forwardRef,
@@ -23,9 +16,17 @@ import {
   useState,
 } from 'react';
 
+import { formatSQLInEditor } from '@controllers/sql-formatter';
+import { useEditorPreferences } from '@hooks/use-editor-preferences';
+import type { CompletionContext, Span } from '@pondpilot/flowscope-core';
+import { useAppStore } from '@store/app-store';
+import { checkValidDuckDBIdentifer } from '@utils/duckdb/identifier';
+import { fromUtf8Offset, toUtf8Offset } from '@utils/editor/sql';
+
 import { registerAIAssistant, showAIAssistant, hideAIAssistant } from './ai-assistant-tooltip';
 import { useEditorTheme } from './hooks';
 import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
+import { getFlowScopeClient } from '../../workers/flowscope-client';
 
 type FunctionTooltip = Record<string, { syntax: string; description: string; example?: string }>;
 
@@ -44,6 +45,8 @@ interface SqlEditorProps {
   schema?: import('@pondpilot/flowscope-core').SchemaMetadata;
   onKeyDown?: (event: monaco.IKeyboardEvent) => void;
   onCursorChange?: (pos: number, lineNumber: number, columnNumber: number) => void;
+  onRun?: () => void;
+  onRunSelection?: () => void;
   onBlur: () => void;
   functionTooltips: FunctionTooltip;
   path?: string;
@@ -216,6 +219,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       schema,
       onKeyDown,
       onCursorChange,
+      onRun,
+      onRunSelection,
       readOnly,
       onBlur,
       functionTooltips,
@@ -745,6 +750,17 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.Space, () => {
         editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
       });
+
+      editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.Enter, () => {
+        onRun?.();
+      });
+
+      editor.addCommand(
+        monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyMod.Shift | monacoInstance.KeyCode.Enter,
+        () => {
+          onRunSelection?.();
+        },
+      );
 
       editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.Equal, () => {
         const newFontSize = Math.min(2, preferences.fontSize + 0.1);
