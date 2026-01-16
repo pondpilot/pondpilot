@@ -1,4 +1,4 @@
-import { PostgreSQL, sql } from '@codemirror/lang-sql';
+import { PostgreSQL, sql as sqlLanguage } from '@codemirror/lang-sql';
 import { syntaxTree } from '@codemirror/language';
 import { analyzeSql, initWasm } from '@pondpilot/flowscope-core';
 import type { AnalyzeRequest, AnalyzeResult } from '@pondpilot/flowscope-core';
@@ -232,7 +232,7 @@ function stripLeadingComments(text: string): string {
   let i = 0;
   while (i < text.length) {
     const char = text[i];
-    const nextChar = text[i + 1];
+    const followingChar = text[i + 1];
 
     // Skip whitespace
     if (/\s/.test(char)) {
@@ -241,7 +241,7 @@ function stripLeadingComments(text: string): string {
     }
 
     // Single-line comment - skip to end of line
-    if (char === '-' && nextChar === '-') {
+    if (char === '-' && followingChar === '-') {
       const lineEnd = text.indexOf('\n', i);
       if (lineEnd === -1) {
         return ''; // Rest is just a comment
@@ -251,7 +251,7 @@ function stripLeadingComments(text: string): string {
     }
 
     // Block comment - skip to end of comment
-    if (char === '/' && nextChar === '*') {
+    if (char === '/' && followingChar === '*') {
       const commentEnd = text.indexOf('*/', i + 2);
       if (commentEnd === -1) {
         return ''; // Rest is just a comment
@@ -766,7 +766,7 @@ export const validateStatements = (
       // Check all DROP statements against source tables
       const state = EditorState.create({
         doc: statement.code,
-        extensions: [sql({ dialect: PostgreSQL })],
+        extensions: [sqlLanguage({ dialect: PostgreSQL })],
       });
 
       const tree = syntaxTree(state);

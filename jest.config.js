@@ -19,6 +19,7 @@ module.exports = {
     'import.meta.env.VITE_CORS_PROXY_URL': undefined,
   },
   moduleNameMapper: {
+    '^@pondpilot/flowscope-core$': '<rootDir>/tests/unit/__mocks__/flowscope-core.ts',
     '^@utils/env$': '<rootDir>/tests/unit/__mocks__/env.ts',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
     '^@consts/(.*)$': '<rootDir>/src/consts/$1',
