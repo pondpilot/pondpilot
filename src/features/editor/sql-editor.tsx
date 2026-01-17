@@ -4,7 +4,14 @@
  * Modified by Andrii Butko (C) [2025]
  * Licensed under GNU AGPL v3.0
  */
+
+import { formatSQLInEditor } from '@controllers/sql-formatter';
+import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import MonacoEditor from '@monaco-editor/react';
+import type { CompletionContext, Span } from '@pondpilot/flowscope-core';
+import { useAppStore } from '@store/app-store';
+import { checkValidDuckDBIdentifer } from '@utils/duckdb/identifier';
+import { fromUtf8Offset, toUtf8Offset } from '@utils/editor/sql';
 import * as monaco from 'monaco-editor';
 import {
   forwardRef,
@@ -16,17 +23,10 @@ import {
   useState,
 } from 'react';
 
-import { formatSQLInEditor } from '@controllers/sql-formatter';
-import { useEditorPreferences } from '@hooks/use-editor-preferences';
-import type { CompletionContext, Span } from '@pondpilot/flowscope-core';
-import { useAppStore } from '@store/app-store';
-import { checkValidDuckDBIdentifer } from '@utils/duckdb/identifier';
-import { fromUtf8Offset, toUtf8Offset } from '@utils/editor/sql';
-
 import { registerAIAssistant, showAIAssistant, hideAIAssistant } from './ai-assistant-tooltip';
 import { useEditorTheme } from './hooks';
-import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
 import { getFlowScopeClient } from '../../workers/flowscope-client';
+import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
 
 type FunctionTooltip = Record<string, { syntax: string; description: string; example?: string }>;
 

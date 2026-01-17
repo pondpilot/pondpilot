@@ -9,10 +9,10 @@ import {
   initWasm,
   analyzeSql,
   splitStatements,
-  completionContext,
+  completionItems,
   type AnalyzeResult,
   type StatementSplitResult,
-  type CompletionContext,
+  type CompletionItemsResult,
   type SchemaMetadata,
 } from '@pondpilot/flowscope-core';
 import wasmUrl from '@pondpilot/flowscope-core/wasm/flowscope_wasm_bg.wasm?url';
@@ -64,7 +64,7 @@ export type FlowScopeResponse<T> = FlowScopeSuccessResponse<T> | FlowScopeErrorR
 
 export type FlowScopeAnalyzeResponse = FlowScopeResponse<AnalyzeResult>;
 export type FlowScopeSplitResponse = FlowScopeResponse<StatementSplitResult>;
-export type FlowScopeCompletionResponse = FlowScopeResponse<CompletionContext>;
+export type FlowScopeCompletionResponse = FlowScopeResponse<CompletionItemsResult>;
 
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
@@ -127,7 +127,7 @@ async function handleSplit(request: FlowScopeSplitRequest): Promise<void> {
 async function handleCompletion(request: FlowScopeCompletionRequest): Promise<void> {
   try {
     await ensureWasmInitialized();
-    const result = await completionContext({
+    const result = await completionItems({
       sql: request.sql,
       dialect: request.dialect as 'duckdb',
       cursorOffset: request.cursorOffset,
