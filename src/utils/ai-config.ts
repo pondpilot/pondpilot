@@ -1,5 +1,11 @@
 import { getJSONCookie, setJSONCookie } from './cookies';
-import { AIServiceConfig, DEFAULT_AI_CONFIG, AI_PROVIDERS } from '../models/ai-service';
+import { PROVIDER_IDS } from '../constants/ai';
+import {
+  AIServiceConfig,
+  DEFAULT_AI_CONFIG,
+  AI_PROVIDERS,
+  isPollyProvider,
+} from '../models/ai-service';
 import { LOCAL_STORAGE_KEYS } from '../models/local-storage';
 
 function sanitizeConfig(config: Partial<AIServiceConfig>): Partial<AIServiceConfig> {
@@ -127,4 +133,30 @@ export function saveAIConfig(config: AIServiceConfig): void {
     console.error('Failed to save AI config to cookies:', error);
     throw new Error('Failed to save AI configuration. Please try again.');
   }
+}
+
+/**
+ * Check if a provider is configured and ready to use
+ * Polly AI is always available (no API key required)
+ */
+export function isProviderConfigured(providerId: string, config: AIServiceConfig): boolean {
+  // Polly AI is always available
+  if (isPollyProvider(providerId)) {
+    return true;
+  }
+
+  // Custom provider needs both endpoint and API key
+  if (providerId === PROVIDER_IDS.CUSTOM) {
+    return Boolean(config.apiKeys?.[providerId]) && Boolean(config.customEndpoint);
+  }
+
+  // Other providers just need an API key
+  return Boolean(config.apiKeys?.[providerId]?.trim());
+}
+
+/**
+ * Get list of configured provider IDs
+ */
+export function getConfiguredProviders(config: AIServiceConfig): string[] {
+  return AI_PROVIDERS.filter((p) => isProviderConfigured(p.id, config)).map((p) => p.id);
 }

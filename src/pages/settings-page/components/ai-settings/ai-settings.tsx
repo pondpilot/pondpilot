@@ -1,4 +1,5 @@
 import { CreatableSelect } from '@components/creatable-select';
+import { PollyDemoBanner } from '@components/polly-demo-banner';
 import {
   Alert,
   Box,
@@ -14,10 +15,22 @@ import {
   ActionIcon,
   Checkbox,
 } from '@mantine/core';
-import { IconInfoCircle, IconShieldCheck, IconCheck, IconX, IconTrash } from '@tabler/icons-react';
+import {
+  IconInfoCircle,
+  IconShieldCheck,
+  IconCheck,
+  IconX,
+  IconTrash,
+  IconSparkles,
+} from '@tabler/icons-react';
 import { useCallback, useEffect, useState } from 'react';
 
-import { AI_PROVIDERS, AIServiceConfig, AIModel } from '../../../../models/ai-service';
+import {
+  AI_PROVIDERS,
+  AIServiceConfig,
+  AIModel,
+  isPollyProvider,
+} from '../../../../models/ai-service';
 import { getAIConfig, saveAIConfig } from '../../../../utils/ai-config';
 import { getAIService } from '../../../../utils/ai-service';
 
@@ -214,6 +227,21 @@ export const AISettings = () => {
     return (
       <Group gap="xs" wrap="wrap">
         {AI_PROVIDERS.map((provider) => {
+          // Polly AI is always available (no API key required)
+          if (isPollyProvider(provider.id)) {
+            return (
+              <Badge
+                key={provider.id}
+                variant="filled"
+                color="blue"
+                leftSection={<IconSparkles size={12} />}
+                size="sm"
+              >
+                {provider.name}: Built-in
+              </Badge>
+            );
+          }
+
           const hasKey = Boolean(apiKeys[provider.id]);
           // For custom provider, also check if endpoint is configured
           const isConfigured =
@@ -248,8 +276,13 @@ export const AISettings = () => {
     );
   };
 
+  const isPolly = isPollyProvider(config.provider);
+
   return (
     <Stack className="gap-4">
+      {/* Show demo banner for Polly AI (first-use only, dismissable) */}
+      <PollyDemoBanner />
+
       <Select
         label="AI Provider"
         description="Choose your AI service provider"
@@ -350,6 +383,18 @@ export const AISettings = () => {
             onChange={(event) => handleCustomSupportsToolsChange(event.currentTarget.checked)}
           />
         </Stack>
+      ) : currentProvider && isPolly ? (
+        /* Polly AI - show info instead of model selector */
+        <Alert icon={<IconSparkles size={16} />} color="blue" variant="light">
+          <Text size="sm">
+            <strong>Polly</strong> is PondPilot&apos;s built-in AI assistant, ready to help with
+            your SQL queries. No configuration required!
+          </Text>
+          <Text size="sm" c="dimmed" mt="xs">
+            Polly has limited usage for demo purposes. For production use, switch to OpenAI or
+            Anthropic with your own API key.
+          </Text>
+        </Alert>
       ) : currentProvider ? (
         <Select
           label="Model"
@@ -363,13 +408,16 @@ export const AISettings = () => {
         />
       ) : null}
 
-      <PasswordInput
-        label="API Key"
-        description={`Enter your ${currentProvider?.name || 'AI provider'} API key`}
-        placeholder="sk-..."
-        value={config.apiKey}
-        onChange={(event) => handleApiKeyChange(event.currentTarget.value)}
-      />
+      {/* Only show API key input for non-Polly providers */}
+      {!isPolly && (
+        <PasswordInput
+          label="API Key"
+          description={`Enter your ${currentProvider?.name || 'AI provider'} API key`}
+          placeholder="sk-..."
+          value={config.apiKey}
+          onChange={(event) => handleApiKeyChange(event.currentTarget.value)}
+        />
+      )}
 
       <Box>
         <Text size="sm" c="text-secondary" mb="xs">
@@ -381,9 +429,11 @@ export const AISettings = () => {
       <Alert icon={<IconShieldCheck size={16} />} color="background-accent" variant="light">
         <Text size="sm">
           <strong>Privacy Notice:</strong> When using AI assistance, your SQL queries and database
-          schema information are sent to {currentProvider?.name || 'the selected AI provider'}.
-          Ensure this complies with your organization&apos;s data privacy policies. API keys are
-          securely stored in your browser&apos;s cookies.
+          schema information are sent to{' '}
+          {isPolly ? "PondPilot's servers" : currentProvider?.name || 'the selected AI provider'}.
+          {isPolly
+            ? ' Polly uses Claude under the hood to process your requests.'
+            : " Ensure this complies with your organization's data privacy policies. API keys are securely stored in your browser's cookies."}
         </Text>
       </Alert>
 
@@ -410,7 +460,10 @@ export const AISettings = () => {
             onClick={handleTestConnection}
             variant="outline"
             loading={testStatus.testing}
-            disabled={!config.apiKey || (config.provider === 'custom' && !config.customEndpoint)}
+            disabled={
+              (!isPolly && !config.apiKey) ||
+              (config.provider === 'custom' && !config.customEndpoint)
+            }
           >
             Test Connection
           </Button>
@@ -422,7 +475,8 @@ export const AISettings = () => {
         )}
       </Group>
 
-      {!config.apiKey && (
+      {/* Only show API key prompt for non-Polly providers without a key */}
+      {!isPolly && !config.apiKey && (
         <Alert icon={<IconInfoCircle size={16} />} color="background-accent" variant="light">
           <Text size="sm">
             The AI assistant will be available once you configure an API key. You can obtain an API
