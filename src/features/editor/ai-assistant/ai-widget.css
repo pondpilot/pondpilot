@@ -9,7 +9,9 @@
 
 .cm-ai-assistant-widget {
   display: block;
-  width: 100%;
+  width: 500px;
+  min-width: 400px;
+  max-width: 500px;
   margin: 0;
   padding: 0;
   position: relative;
@@ -24,7 +26,8 @@
 }
 
 .ai-widget-container {
-  max-width: 500px;
+  width: 100%;
+  min-width: 400px;
   border: 1px solid #d1d5db;
   border-radius: 12px;
   background-color: #fff;
@@ -157,7 +160,7 @@
   border: none;
   border-radius: 16px;
   background-color: #4957C1;
-  color: #FFF;
+  color: #fff;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -179,7 +182,7 @@
 
 [data-mantine-color-scheme="dark"] .ai-widget-generate {
   background-color: #4C61FF;
-  color: #FDFDFD;
+  color: #fdfdfd;
 }
 
 .ai-widget-loading-dots {
@@ -794,7 +797,7 @@
 
 .action-apply-btn {
   background-color: #4957C1;
-  color: #FFF;
+  color: #fff;
   border: none;
   border-radius: 16px;
   padding: 6px 16px;
@@ -810,7 +813,7 @@
 
 [data-mantine-color-scheme="dark"] .action-apply-btn {
   background-color: #4C61FF;
-  color: #FDFDFD;
+  color: #fdfdfd;
 }
 
 .action-copy-btn {
@@ -927,7 +930,7 @@
 
 .alternative-use-btn {
   background-color: #4957C1;
-  color: #FFF;
+  color: #fff;
   border: none;
   border-radius: 16px;
   padding: 6px 16px;
@@ -943,7 +946,7 @@
 
 [data-mantine-color-scheme="dark"] .alternative-use-btn {
   background-color: #4C61FF;
-  color: #FDFDFD;
+  color: #fdfdfd;
 }
 
 .alternative-copy-btn {

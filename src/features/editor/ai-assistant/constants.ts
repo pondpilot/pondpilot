@@ -36,6 +36,8 @@ export const PROMPT_HISTORY = {
 export const DATABASE_LIMITS = {
   /** Threshold for showing warning about large databases */
   LARGE_DB_THRESHOLD: 5000,
+  /** Threshold for very large databases requiring stricter limits */
+  VERY_LARGE_DB_THRESHOLD: 10000,
   /** Maximum cache size in MB for database model */
   MAX_CACHE_SIZE_MB: 50,
 } as const;

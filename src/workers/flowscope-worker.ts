@@ -2,7 +2,7 @@
  * FlowScope Web Worker
  *
  * Runs FlowScope WASM operations in a separate thread to avoid blocking the main UI.
- * Supports: analyze, split, completionContext operations.
+ * Supports: analyze, split, completionItems operations.
  * Each request has an ID for cancellation support - stale responses are ignored by the client.
  */
 import {
@@ -17,7 +17,7 @@ import {
 } from '@pondpilot/flowscope-core';
 import wasmUrl from '@pondpilot/flowscope-core/wasm/flowscope_wasm_bg.wasm?url';
 
-export type FlowScopeRequestType = 'analyze' | 'split' | 'completion';
+export type FlowScopeRequestType = 'analyze' | 'split' | 'completionItems';
 
 export interface FlowScopeAnalyzeRequest {
   type: 'analyze';
@@ -34,8 +34,8 @@ export interface FlowScopeSplitRequest {
   dialect: string;
 }
 
-export interface FlowScopeCompletionRequest {
-  type: 'completion';
+export interface FlowScopeCompletionItemsRequest {
+  type: 'completionItems';
   id: number;
   sql: string;
   dialect: string;
@@ -46,7 +46,7 @@ export interface FlowScopeCompletionRequest {
 export type FlowScopeRequest =
   | FlowScopeAnalyzeRequest
   | FlowScopeSplitRequest
-  | FlowScopeCompletionRequest;
+  | FlowScopeCompletionItemsRequest;
 
 export interface FlowScopeSuccessResponse<T> {
   id: number;
@@ -64,7 +64,7 @@ export type FlowScopeResponse<T> = FlowScopeSuccessResponse<T> | FlowScopeErrorR
 
 export type FlowScopeAnalyzeResponse = FlowScopeResponse<AnalyzeResult>;
 export type FlowScopeSplitResponse = FlowScopeResponse<StatementSplitResult>;
-export type FlowScopeCompletionResponse = FlowScopeResponse<CompletionItemsResult>;
+export type FlowScopeCompletionItemsResponse = FlowScopeResponse<CompletionItemsResult>;
 
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
@@ -124,7 +124,7 @@ async function handleSplit(request: FlowScopeSplitRequest): Promise<void> {
   }
 }
 
-async function handleCompletion(request: FlowScopeCompletionRequest): Promise<void> {
+async function handleCompletionItems(request: FlowScopeCompletionItemsRequest): Promise<void> {
   try {
     await ensureWasmInitialized();
     const result = await completionItems({
@@ -137,7 +137,7 @@ async function handleCompletion(request: FlowScopeCompletionRequest): Promise<vo
       id: request.id,
       success: true,
       result,
-    } satisfies FlowScopeCompletionResponse);
+    } satisfies FlowScopeCompletionItemsResponse);
   } catch (error) {
     globalThis.postMessage({
       id: request.id,
@@ -157,8 +157,8 @@ globalThis.onmessage = async (event: MessageEvent<FlowScopeRequest>) => {
     case 'split':
       await handleSplit(request);
       break;
-    case 'completion':
-      await handleCompletion(request);
+    case 'completionItems':
+      await handleCompletionItems(request);
       break;
   }
 };

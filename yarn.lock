@@ -2868,8 +2868,8 @@ __metadata:
 
 "@pondpilot/flowscope-core@file:../flowscope/packages/core::locator=pondpilot%40workspace%3A.":
   version: 0.1.0-beta.6
-  resolution: "@pondpilot/flowscope-core@file:../flowscope/packages/core#../flowscope/packages/core::hash=1574e9&locator=pondpilot%40workspace%3A."
-  checksum: 10c0/6dec01135050144ea407cd610133238c5cea89fc7f0020d4032cd5f54314fcbd9611749f85738c04d28becd38894182db6e0385a17a48f1e0dfe69f1b344e523
+  resolution: "@pondpilot/flowscope-core@file:../flowscope/packages/core#../flowscope/packages/core::hash=052729&locator=pondpilot%40workspace%3A."
+  checksum: 10c0/a083d0cb91bc63de943f074faa0f11962b3473b8656472c27872b15333ed3b299392a0569ced957ccd4bdaf61bbb774ef121efd54f3699bc21d30e7622b5416d
   languageName: node
   linkType: hard
 

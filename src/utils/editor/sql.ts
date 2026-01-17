@@ -1,7 +1,6 @@
-import { initWasm, splitStatements } from '@pondpilot/flowscope-core';
-import type { StatementSplitResult } from '@pondpilot/flowscope-core';
-import wasmUrl from '@pondpilot/flowscope-core/wasm/flowscope_wasm_bg.wasm?url';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+
+import { getFlowScopeClient } from '../../workers/flowscope-client';
 
 export enum SQLStatement {
   ANALYZE = 'ANALYZE',
@@ -309,16 +308,6 @@ function stripLeadingComments(text: string): string {
   return ''; // Only whitespace and comments
 }
 
-let flowScopeInitPromise: Promise<unknown> | null = null;
-
-export async function ensureFlowScopeWasm(): Promise<void> {
-  if (!flowScopeInitPromise) {
-    flowScopeInitPromise = initWasm({ wasmUrl });
-  }
-
-  await flowScopeInitPromise;
-}
-
 export type ParsedStatement = {
   code: string;
   lineNumber: number;
@@ -326,16 +315,17 @@ export type ParsedStatement = {
   end: number;
 };
 
+/**
+ * Split SQL into individual statements using FlowScope WASM (runs in Web Worker)
+ * This is non-blocking and won't freeze the UI on large files.
+ */
 export async function splitSQLByStats(sqlText: string): Promise<ParsedStatement[]> {
   if (!sqlText.trim()) {
     return [];
   }
 
-  await ensureFlowScopeWasm();
-  const result: StatementSplitResult = await splitStatements({
-    sql: sqlText,
-    dialect: 'duckdb',
-  });
+  const client = getFlowScopeClient();
+  const result = await client.split(sqlText);
 
   if (!result.statements.length) {
     return [];

@@ -8,7 +8,7 @@
 import type {
   AnalyzeResult,
   StatementSplitResult,
-  CompletionContext,
+  CompletionItemsResult,
   SchemaMetadata,
 } from '@pondpilot/flowscope-core';
 
@@ -63,18 +63,25 @@ class FlowScopeClient {
     return this.worker;
   }
 
-  private sendRequest<T>(type: FlowScopeRequestType, request: Record<string, unknown>): Promise<T> {
+  private sendRequest<T>(
+    type: FlowScopeRequestType,
+    request: Record<string, unknown>,
+    cancelPrevious: boolean = false,
+  ): Promise<T> {
     this.requestId += 1;
     const id = this.requestId;
 
-    // Cancel previous request of the same type
-    const previousId = this.latestRequestByType.get(type);
-    if (previousId !== undefined) {
-      const previous = this.pendingRequests.get(previousId);
-      if (previous) {
-        // Resolve with a cancelled marker instead of rejecting
-        // This prevents error spam in the console
-        this.pendingRequests.delete(previousId);
+    // Only cancel previous request if explicitly requested
+    // (useful for autocomplete where only the latest result matters)
+    if (cancelPrevious) {
+      const previousId = this.latestRequestByType.get(type);
+      if (previousId !== undefined) {
+        const previous = this.pendingRequests.get(previousId);
+        if (previous) {
+          // Resolve with a cancelled marker instead of rejecting
+          // This prevents error spam in the console
+          this.pendingRequests.delete(previousId);
+        }
       }
     }
 
@@ -128,21 +135,26 @@ class FlowScopeClient {
   }
 
   /**
-   * Get completion context for autocomplete.
+   * Get ranked completion items for autocomplete.
+   * Cancels previous completion requests since only the latest matters.
    */
-  async completion(
+  async completionItems(
     sql: string,
     cursorOffset: number,
     schema?: SchemaMetadata,
     dialect: string = 'duckdb',
-  ): Promise<CompletionContext> {
-    return this.sendRequest<CompletionContext>('completion', {
-      type: 'completion',
-      sql,
-      dialect,
-      cursorOffset,
-      schema,
-    });
+  ): Promise<CompletionItemsResult> {
+    return this.sendRequest<CompletionItemsResult>(
+      'completionItems',
+      {
+        type: 'completionItems',
+        sql,
+        dialect,
+        cursorOffset,
+        schema,
+      },
+      true, // Cancel previous completion requests
+    );
   }
 
   /**

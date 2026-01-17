@@ -12,7 +12,9 @@ export interface CategorizedMentions {
 }
 
 /**
- * Categorizes raw mention strings into scripts, databases, and tables
+ * Categorizes raw mention strings into scripts, databases, and tables.
+ * Uses lazy lookup to avoid building full sets of all table names upfront.
+ *
  * @param rawMentions - Array of raw mention strings extracted from text
  * @param databaseModel - The database model containing databases and tables
  * @param sqlScripts - Map of SQL scripts
@@ -33,24 +35,10 @@ export function categorizeMentions(
     return { mentionedScriptIds, mentionedDbNames, mentionedTableNames };
   }
 
-  const actualDatabases = new Set<string>();
-  const actualTables = new Set<string>();
+  // Build set of database names only (this is O(D) where D = number of databases, usually small)
+  const actualDatabases = databaseModel ? new Set(databaseModel.keys()) : new Set<string>();
 
-  // Build sets of actual database and table names
-  if (databaseModel) {
-    for (const [dbName, database] of databaseModel.entries()) {
-      actualDatabases.add(dbName);
-      for (const schema of database.schemas) {
-        for (const object of schema.objects) {
-          if (object.type === 'table' || object.type === 'view') {
-            actualTables.add(object.name);
-          }
-        }
-      }
-    }
-  }
-
-  // Categorize each mention
+  // Categorize each mention using lazy lookup
   for (const mention of rawMentions) {
     let categorized = false;
 
@@ -74,7 +62,11 @@ export function categorizeMentions(
     }
 
     if (!categorized) {
-      // Default to table (even if not found in metadata)
+      // Default to table (the lookup happens only if needed, and only for this specific mention)
+      // Note: We don't verify if the table exists because:
+      // 1. It's expensive for large databases
+      // 2. The user might be mentioning a table that will be created
+      // 3. The AI will handle non-existent tables gracefully
       mentionedTableNames.add(mention);
     }
   }

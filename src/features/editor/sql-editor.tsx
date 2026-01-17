@@ -4,13 +4,11 @@
  * Modified by Andrii Butko (C) [2025]
  * Licensed under GNU AGPL v3.0
  */
-
 import { formatSQLInEditor } from '@controllers/sql-formatter';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import MonacoEditor from '@monaco-editor/react';
-import type { CompletionContext, Span } from '@pondpilot/flowscope-core';
+import type { CompletionItemsResult, Span } from '@pondpilot/flowscope-core';
 import { useAppStore } from '@store/app-store';
-import { checkValidDuckDBIdentifer } from '@utils/duckdb/identifier';
 import { fromUtf8Offset, toUtf8Offset } from '@utils/editor/sql';
 import * as monaco from 'monaco-editor';
 import {
@@ -58,7 +56,8 @@ type AnalysisCache = {
   promise: Promise<import('@pondpilot/flowscope-core').AnalyzeResult> | null;
 };
 
-const AI_WIDGET_PLACEHOLDER = 'Press Cmd+I to open the AI Assistant';
+type CompletionItem = CompletionItemsResult['items'][number];
+type CompletionItemKind = CompletionItem['kind'];
 
 type FontWeight = 'light' | 'regular' | 'semibold' | 'bold';
 
@@ -75,21 +74,9 @@ function getFontWeightValue(weight: FontWeight): string {
   }
 }
 
-// Monaco snippet syntax uses ${n:placeholder} format
-/* eslint-disable no-template-curly-in-string */
-const keywordSnippetMap: Record<string, string> = {
-  'CASE WHEN ... THEN ... END': 'CASE WHEN ${1:condition} THEN ${2:value} END',
-  'COALESCE(expr, ...)': 'COALESCE(${1:expr}, ${2:expr})',
-  'CAST(expr AS type)': 'CAST(${1:expr} AS ${2:type})',
-  'COUNT(*)': 'COUNT(*)',
-  'FILTER (WHERE ...)': 'FILTER (WHERE ${1:condition})',
-  'OVER (PARTITION BY ...)': 'OVER (PARTITION BY ${1:columns})',
-};
-/* eslint-enable no-template-curly-in-string */
-
 const createCompletionRange = (
   model: monaco.editor.ITextModel,
-  contextToken: CompletionContext['token'],
+  contextToken: CompletionItemsResult['token'],
   position: monaco.Position,
   tokenBaseOffset: number = 0,
 ): monaco.IRange => {
@@ -110,105 +97,29 @@ const createCompletionRange = (
   return new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
 };
 
-const applyIdentifier = (name: string): string => {
-  if (checkValidDuckDBIdentifer(name)) {
-    return name;
-  }
-  return `"${name}"`;
+// Centralized metadata for completion item kinds - maps kind to Monaco icon and default detail text
+const COMPLETION_KIND_META: Record<
+  CompletionItemKind,
+  { monacoKind: monaco.languages.CompletionItemKind; defaultDetail: string }
+> = {
+  keyword: { monacoKind: monaco.languages.CompletionItemKind.Keyword, defaultDetail: 'keyword' },
+  operator: { monacoKind: monaco.languages.CompletionItemKind.Operator, defaultDetail: 'operator' },
+  function: { monacoKind: monaco.languages.CompletionItemKind.Function, defaultDetail: 'function' },
+  snippet: { monacoKind: monaco.languages.CompletionItemKind.Snippet, defaultDetail: 'snippet' },
+  table: { monacoKind: monaco.languages.CompletionItemKind.Struct, defaultDetail: 'table' },
+  // schemaTable uses Module to visually distinguish schema-qualified tables from plain tables
+  schemaTable: {
+    monacoKind: monaco.languages.CompletionItemKind.Module,
+    defaultDetail: 'schema table',
+  },
+  column: { monacoKind: monaco.languages.CompletionItemKind.Field, defaultDetail: 'column' },
 };
 
-const buildCompletionItems = (
-  context: CompletionContext,
-  functionTooltips: FunctionTooltip,
-  range: monaco.IRange,
-  schemaTables: Array<{ name: string; displayName: string }>,
-): monaco.languages.CompletionItem[] => {
-  const items: monaco.languages.CompletionItem[] = [];
+const mapCompletionItemKind = (kind: CompletionItemKind): monaco.languages.CompletionItemKind =>
+  COMPLETION_KIND_META[kind]?.monacoKind ?? monaco.languages.CompletionItemKind.Text;
 
-  context.keywordHints.clause.keywords.forEach((keyword: string) => {
-    items.push({
-      label: keyword,
-      kind: monaco.languages.CompletionItemKind.Keyword,
-      insertText: keyword,
-      range,
-    });
-  });
-
-  context.keywordHints.clause.operators.forEach((operator: string) => {
-    items.push({
-      label: operator,
-      kind: monaco.languages.CompletionItemKind.Operator,
-      insertText: operator,
-      range,
-    });
-  });
-
-  context.keywordHints.clause.aggregates.forEach((aggregate: string) => {
-    items.push({
-      label: aggregate,
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertText: `${aggregate}(`,
-      range,
-    });
-  });
-
-  context.keywordHints.clause.snippets.forEach((snippet: string) => {
-    const insertText = keywordSnippetMap[snippet] || snippet;
-    items.push({
-      label: snippet,
-      kind: monaco.languages.CompletionItemKind.Snippet,
-      insertText,
-      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-      range,
-    });
-  });
-
-  context.columnsInScope.forEach((column: CompletionContext['columnsInScope'][number]) => {
-    const label =
-      column.isAmbiguous && column.table ? `${column.table}.${column.name}` : column.name;
-    items.push({
-      label,
-      kind: monaco.languages.CompletionItemKind.Field,
-      insertText: label,
-      range,
-      detail: column.dataType ? `${column.dataType}` : undefined,
-    });
-  });
-
-  context.tablesInScope.forEach((table: CompletionContext['tablesInScope'][number]) => {
-    const label = table.alias ? `${table.alias} (${table.name})` : table.name;
-    const insertText = applyIdentifier(table.alias || table.name);
-    items.push({
-      label,
-      kind: monaco.languages.CompletionItemKind.Struct,
-      insertText,
-      range,
-      detail: table.canonical || undefined,
-    });
-  });
-
-  schemaTables.forEach((table) => {
-    items.push({
-      label: table.displayName,
-      kind: monaco.languages.CompletionItemKind.Struct,
-      insertText: applyIdentifier(table.name),
-      range,
-    });
-  });
-
-  Object.entries(functionTooltips).forEach(([name, tooltip]) => {
-    items.push({
-      label: name,
-      kind: monaco.languages.CompletionItemKind.Function,
-      insertText: `${name}(`,
-      range,
-      detail: tooltip.syntax,
-      documentation: tooltip.description || undefined,
-    });
-  });
-
-  return items;
-};
+const getCompletionDetail = (item: CompletionItem): string | undefined =>
+  item.detail ?? COMPLETION_KIND_META[item.kind]?.defaultDetail;
 
 export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
   (
@@ -252,14 +163,6 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
     const mountedRef = useRef(true);
     const [assistantVisible, setAssistantVisible] = useState(false);
     const [structuredResponseVisible, setStructuredResponseVisible] = useState(false);
-
-    const getSchemaTables = useMemo(() => {
-      if (!schema?.tables) return [];
-      return schema.tables.map((table) => ({
-        name: table.name,
-        displayName: table.schema ? `${table.schema}.${table.name}` : table.name,
-      }));
-    }, [schema]);
 
     const schemaCacheKey = useMemo(() => (schema ? JSON.stringify(schema) : ''), [schema]);
 
@@ -351,8 +254,36 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       return spans[spans.length - 1];
     }, []);
 
+    const getStatementContextFromCache = useCallback(
+      (sqlText: string, cursorOffset: number) => {
+        const spansCache = statementSpansRef.current;
+        if (spansCache.sql !== sqlText || spansCache.spans.length === 0) {
+          return null;
+        }
+
+        const span = findStatementSpan(spansCache.spans, cursorOffset);
+        if (!span) {
+          return null;
+        }
+
+        const startIndex = fromUtf8Offset(sqlText, span.start);
+        const endIndex = fromUtf8Offset(sqlText, span.end);
+        return {
+          sql: sqlText.slice(startIndex, endIndex),
+          cursorOffset: Math.max(0, cursorOffset - span.start),
+          span,
+        };
+      },
+      [findStatementSpan],
+    );
+
     const getStatementContext = useCallback(
       async (sqlText: string, cursorOffset: number) => {
+        const cachedContext = getStatementContextFromCache(sqlText, cursorOffset);
+        if (cachedContext) {
+          return cachedContext;
+        }
+
         const spans = await getStatementSpans(sqlText);
         const span = findStatementSpan(spans, cursorOffset);
         if (!span) {
@@ -371,7 +302,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           span,
         };
       },
-      [findStatementSpan, getStatementSpans],
+      [findStatementSpan, getStatementContextFromCache, getStatementSpans],
     );
 
     const getStatementAnalysis = useCallback(
@@ -520,6 +451,17 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           return;
         }
 
+        const getMarkerSeverity = (severity: string): monaco.MarkerSeverity => {
+          switch (severity) {
+            case 'error':
+              return monaco.MarkerSeverity.Error;
+            case 'warning':
+              return monaco.MarkerSeverity.Warning;
+            default:
+              return monaco.MarkerSeverity.Info;
+          }
+        };
+
         const markers: monaco.editor.IMarkerData[] = analysis.issues.map((issue) => {
           if (!issue.span) {
             return {
@@ -538,12 +480,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           const endPos = model.getPositionAt(endOffset);
 
           return {
-            severity:
-              issue.severity === 'error'
-                ? monaco.MarkerSeverity.Error
-                : issue.severity === 'warning'
-                  ? monaco.MarkerSeverity.Warning
-                  : monaco.MarkerSeverity.Info,
+            severity: getMarkerSeverity(issue.severity),
             message: issue.message,
             startLineNumber: startPos.lineNumber,
             startColumn: startPos.column,
@@ -792,34 +729,57 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       });
 
       const completionProvider = monacoInstance.languages.registerCompletionItemProvider('sql', {
-        triggerCharacters: ['.', ' ', '\n', '(', ','],
+        triggerCharacters: ['.', '(', ','],
         provideCompletionItems: async (
           completionModel: monaco.editor.ITextModel,
           position: monaco.Position,
+          completionContextInfo,
         ) => {
           try {
             const sqlText = completionModel.getValue();
-            const cursorOffset = toUtf8Offset(sqlText, completionModel.getOffsetAt(position));
-            const statementContext = await getStatementContext(sqlText, cursorOffset);
+            const absoluteOffset = completionModel.getOffsetAt(position);
+            const cursorOffset = toUtf8Offset(sqlText, absoluteOffset);
+
+            let statementContext = getStatementContextFromCache(sqlText, cursorOffset);
+            if (!statementContext) {
+              if (!sqlText.trim()) {
+                return { suggestions: [] };
+              }
+
+              const fallbackContext = await getStatementContext(sqlText, cursorOffset);
+              if (fallbackContext.span) {
+                statementContext = fallbackContext;
+              }
+            }
+            if (!statementContext || !statementContext.sql.trim()) {
+              return { suggestions: [] };
+            }
+
             const client = getFlowScopeClient();
-            const context = await client.completion(
+            const result = await client.completionItems(
               statementContext.sql,
               statementContext.cursorOffset,
               schema,
             );
 
+            if (!result.shouldShow) {
+              return { suggestions: [] };
+            }
+
             const range = createCompletionRange(
               completionModel,
-              context.token,
+              result.token,
               position,
               statementContext.span?.start ?? 0,
             );
-            const suggestions = buildCompletionItems(
-              context,
-              functionTooltips,
+
+            const suggestions = result.items.map((item: CompletionItem) => ({
+              label: item.label,
+              kind: mapCompletionItemKind(item.kind),
+              insertText: item.insertText,
+              detail: getCompletionDetail(item),
               range,
-              getSchemaTables,
-            );
+            }));
 
             return { suggestions };
           } catch (error) {
@@ -932,12 +892,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       }
     }, [preferences.fontSize, preferences.fontWeight]);
 
-    const placeholderVisible =
-      value.trim().length === 0 && !assistantVisible && !structuredResponseVisible;
-
     return (
       <div className="relative w-full h-full">
-        {placeholderVisible && <div className="monaco-placeholder">{AI_WIDGET_PLACEHOLDER}</div>}
         <MonacoEditor
           value={value}
           defaultLanguage="sql"

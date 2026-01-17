@@ -404,6 +404,13 @@ export function assembleAIAssistantWidget(components: {
   container.contentEditable = 'false';
   container.tabIndex = -1;
 
+  // Add explicit inline styles as fallback for Monaco content widgets
+  // which are positioned absolutely outside normal document flow.
+  // These values must match .cm-ai-assistant-widget in ai-widget.css
+  container.style.width = '500px';
+  container.style.minWidth = '400px';
+  container.style.maxWidth = '500px';
+
   // Detect and apply the current theme from the parent document
   const rootElement = document.documentElement;
   const currentColorScheme = rootElement.getAttribute('data-mantine-color-scheme');

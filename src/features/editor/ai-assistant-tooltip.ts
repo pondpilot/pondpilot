@@ -1,6 +1,7 @@
 import * as monaco from 'monaco-editor';
 
 import { createAIAssistantHandlers } from './ai-assistant/ai-assistant-handlers';
+import { logError } from './ai-assistant/error-handler';
 import { HistoryNavigationManager } from './ai-assistant/managers/history-manager';
 import { MentionManager } from './ai-assistant/managers/mention-manager';
 import { createAIAssistantServices, AIAssistantServices } from './ai-assistant/services-facet';
@@ -362,12 +363,20 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
       this.hideStructuredResponse();
     }
 
-    const position = this.editor.getPosition();
-    if (!position) return;
+    const cursorPosition = this.editor.getPosition();
+    if (!cursorPosition) return;
 
-    const dom = await this.buildAssistantDom(errorContext);
+    let dom: HTMLElement;
+    try {
+      dom = await this.buildAssistantDom(errorContext);
+    } catch (error) {
+      logError('Failed to build widget DOM', error);
+      return;
+    }
 
-    const widget = createContentWidget('ai-assistant-widget', dom, position);
+    // Position widget at the start of the current line (left-aligned)
+    const widgetPosition = new monaco.Position(cursorPosition.lineNumber, 1);
+    const widget = createContentWidget('ai-assistant-widget', dom, widgetPosition);
     this.assistantWidget = widget;
     this.editor.addContentWidget(widget);
     this.editor.layoutContentWidget(widget);
