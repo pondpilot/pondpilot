@@ -16,10 +16,11 @@ test('Autocomplete converts keywords to uppercase', async ({
 
   // Type 'select' in the editor
   const editor = scriptEditorContent;
-  await editor.pressSequentially('select');
+  await editor.click();
+  await page.keyboard.type('select');
 
   // Wait for autocomplete to appear and check it's visible
-  const autocompleteTooltip = page.locator('.cm-tooltip-autocomplete');
+  const autocompleteTooltip = page.locator('.monaco-editor .suggest-widget');
   await expect(autocompleteTooltip).toBeVisible();
 
   // Use a more specific selector that matches only the exact "SELECT" option
@@ -45,7 +46,7 @@ test('Shows auto-save notification when pressing Mod+S', async ({
   await scriptEditorContent.click();
 
   // Type something to make sure the editor is active
-  await scriptEditorContent.pressSequentially('select');
+  await page.keyboard.type('select');
 
   await page.keyboard.press('ControlOrMeta+KeyS');
 
@@ -65,10 +66,11 @@ test('Autocompletes DuckDB functions and shows tooltip with parentheses insertio
 
   // Focus the editor and type the beginning of a SQL query with a function
   const editor = scriptEditorContent;
-  await editor.pressSequentially('SELECT * from abs');
+  await editor.click();
+  await page.keyboard.type('SELECT * from abs');
 
   // Wait for autocomplete to appear and check it's visible
-  const autocompleteTooltip = page.locator('.cm-tooltip-autocomplete');
+  const autocompleteTooltip = page.locator('.monaco-editor .suggest-widget');
   await expect(autocompleteTooltip).toBeVisible();
 
   // Find the abs function in the autocomplete list
@@ -76,7 +78,7 @@ test('Autocompletes DuckDB functions and shows tooltip with parentheses insertio
   await expect(absOption).toBeVisible();
 
   // Verify it has the function icon
-  await expect(absOption.locator('.cm-completionIcon-function')).toBeVisible();
+  await expect(absOption.locator('.codicon-symbol-function')).toBeVisible();
 
   // Click on the abs option
   await absOption.click();
@@ -85,10 +87,10 @@ test('Autocompletes DuckDB functions and shows tooltip with parentheses insertio
   await expect(editor).toContainText('SELECT * from abs');
 
   // Now type the full query to trigger the tooltip
-  await editor.pressSequentially('(');
+  await page.keyboard.type('(');
 
   // Check that the tooltip with the abs function description is shown
-  const tooltip = page.locator('.cm-tooltip-cursor');
+  const tooltip = page.locator('.monaco-editor .parameter-hints-widget');
   await expect(tooltip).toBeVisible();
   await expect(tooltip.getByText('abs(x)')).toBeVisible();
   await expect(tooltip.getByText('Absolute value')).toBeVisible();

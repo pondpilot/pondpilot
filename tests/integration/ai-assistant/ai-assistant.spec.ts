@@ -182,7 +182,8 @@ test.describe('AI Assistant Integration', () => {
   test.describe('Context display', () => {
     test('should show collapsible context section', async ({ page, scriptEditorContent }) => {
       // Add some SQL to the editor
-      await scriptEditorContent.pressSequentially('SELECT * FROM users;');
+      await scriptEditorContent.click();
+      await page.keyboard.type('SELECT * FROM users;');
 
       // Open AI assistant
       await page.keyboard.press('ControlOrMeta+i');

@@ -20,7 +20,8 @@ test.describe('AI Assistant Structured Response', () => {
     // In a real test, we would need to mock the AI service response
 
     // Add SQL to editor
-    await scriptEditorContent.pressSequentially('SELECT * FROM users;');
+    await scriptEditorContent.click();
+    await page.keyboard.type('SELECT * FROM users;');
 
     // Open AI assistant
     await page.keyboard.press('ControlOrMeta+i');

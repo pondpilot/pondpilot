@@ -55,7 +55,7 @@ export const test = base.extend<ScriptEditorFixtures>({
   },
 
   scriptEditorContent: async ({ activeScriptEditor }, use) => {
-    await use(activeScriptEditor.locator('.cm-content'));
+    await use(activeScriptEditor.locator('.monaco-editor'));
   },
 
   runScriptButton: async ({ activeScriptEditor }, use) => {
@@ -69,13 +69,13 @@ export const test = base.extend<ScriptEditorFixtures>({
   getScriptEditorContent: async ({ activeScriptEditor }, use) => {
     await use(async (baseLocator?: Locator) => {
       const activeEditor = baseLocator || activeScriptEditor;
-      const editorContent = activeEditor.locator('.cm-content');
+      const editorContent = activeEditor.locator('.monaco-editor');
       await expect(editorContent).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
       return editorContent;
     });
   },
 
-  fillScript: async ({ activeScriptEditor, scriptEditorContent }, use) => {
+  fillScript: async ({ activeScriptEditor, scriptEditorContent, page }, use) => {
     await use(async (content: string) => {
       // Verify the script tab is active
       await expect(
@@ -83,7 +83,13 @@ export const test = base.extend<ScriptEditorFixtures>({
         'Did you forget to open a script tab before calling this fixture? Use `createScriptAndSwitchToItsTab` or similar fixture first',
       ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
-      await scriptEditorContent.fill(content);
+      const editorInput = activeScriptEditor.locator('.monaco-editor textarea.inputarea');
+      await expect(editorInput).toHaveCount(1, { timeout: QUERY_EDITOR_TIMEOUT });
+
+      await scriptEditorContent.click();
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.keyboard.type(content);
+
       await expect(scriptEditorContent).toContainText(content);
     });
   },
@@ -147,7 +153,7 @@ export const test = base.extend<ScriptEditorFixtures>({
       await activeScriptEditor.click();
 
       // Find n-th line and select it
-      const lineLocator = scriptEditorContent.locator(`.cm-line:nth-child(${line})`);
+      const lineLocator = scriptEditorContent.locator('.view-lines .view-line').nth(line - 1);
       await lineLocator.click();
       // Move to the end of the line
       await page.keyboard.press('ControlOrMeta+ArrowRight');
