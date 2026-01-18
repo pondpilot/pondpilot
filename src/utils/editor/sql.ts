@@ -1,9 +1,7 @@
-import { PostgreSQL, sql as sqlLanguage } from '@codemirror/lang-sql';
-import { syntaxTree } from '@codemirror/language';
-import { analyzeSql, initWasm } from '@pondpilot/flowscope-core';
-import type { AnalyzeRequest, AnalyzeResult } from '@pondpilot/flowscope-core';
-import { EditorState } from '@uiw/react-codemirror';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+
+import { buildByteToCharMap, buildCharToLineMap, getUtf8ByteLength } from './byte-offset';
+import { getFlowScopeClient } from '../../workers/flowscope-client';
 
 export enum SQLStatement {
   ANALYZE = 'ANALYZE',
@@ -225,6 +223,67 @@ export function trimQuery(query: string): string {
   return query.trim().replace(/[;\s]*$/, '');
 }
 
+function extractDropTarget(statement: string): string | null {
+  const match = statement.match(
+    /drop\s+(?:table|view|schema|sequence|index|macro|type|function|materialized\s+view)?\s*(?:if\s+exists\s+)?([^\s;]+)/i,
+  );
+  if (!match) return null;
+  return match[1].replace(/^"|"$/g, '');
+}
+
+/**
+ * Converts a UTF-16 code unit offset (JavaScript string index) to a UTF-8 byte offset.
+ *
+ * JavaScript strings use UTF-16 internally, but FlowScope returns UTF-8 byte offsets.
+ * This function handles surrogate pairs correctly: for...of iterates by code points,
+ * while char.length returns the UTF-16 code unit count (1 for BMP, 2 for astral plane).
+ *
+ * @param text - The source text
+ * @param utf16Offset - Offset in UTF-16 code units (JS string index)
+ * @returns Offset in UTF-8 bytes
+ */
+export function toUtf8Offset(text: string, utf16Offset: number): number {
+  let byteOffset = 0;
+  let charIndex = 0;
+
+  for (const char of text) {
+    if (charIndex >= utf16Offset) break;
+    byteOffset += getUtf8ByteLength(char);
+    // char.length is 1 for BMP characters, 2 for astral plane (surrogate pairs)
+    charIndex += char.length;
+  }
+
+  return byteOffset;
+}
+
+/**
+ * Converts a UTF-8 byte offset to a UTF-16 code unit offset (JavaScript string index).
+ *
+ * JavaScript strings use UTF-16 internally, but FlowScope returns UTF-8 byte offsets.
+ * This function handles surrogate pairs correctly: for...of iterates by code points,
+ * while char.length returns the UTF-16 code unit count (1 for BMP, 2 for astral plane).
+ *
+ * @param text - The source text
+ * @param byteOffset - Offset in UTF-8 bytes
+ * @returns Offset in UTF-16 code units (JS string index)
+ */
+export function fromUtf8Offset(text: string, byteOffset: number): number {
+  let bytes = 0;
+  let utf16Index = 0;
+
+  for (const char of text) {
+    const charBytes = getUtf8ByteLength(char);
+    if (bytes + charBytes > byteOffset) {
+      return utf16Index;
+    }
+    bytes += charBytes;
+    // char.length is 1 for BMP characters, 2 for astral plane (surrogate pairs)
+    utf16Index += char.length;
+  }
+
+  return text.length;
+}
+
 /**
  * Strip leading comments and whitespace from SQL to get the actual statement start
  */
@@ -267,406 +326,78 @@ function stripLeadingComments(text: string): string {
   return ''; // Only whitespace and comments
 }
 
-type StatementRange = {
+export type ParsedStatement = {
+  code: string;
+  lineNumber: number;
   start: number;
   end: number;
 };
 
-const FLOW_SCOPE_WASM_URL = '/wasm/flowscope_wasm_bg.wasm';
-let flowScopeInitPromise: Promise<unknown> | null = null;
-
-async function ensureFlowScopeWasm(): Promise<void> {
-  if (!flowScopeInitPromise) {
-    flowScopeInitPromise = initWasm({ wasmUrl: FLOW_SCOPE_WASM_URL });
-  }
-
-  await flowScopeInitPromise;
-}
-
-async function analyzeSqlWithFlowScope(request: AnalyzeRequest): Promise<AnalyzeResult> {
-  await ensureFlowScopeWasm();
-  return analyzeSql(request);
-}
-
-async function getStatementCount(sqlText: string): Promise<number | null> {
-  try {
-    const result = await analyzeSqlWithFlowScope({
-      sql: sqlText,
-      dialect: 'duckdb',
-    });
-
-    if (result.summary?.hasErrors) {
-      return null;
-    }
-
-    if (typeof result.summary?.statementCount === 'number') {
-      return result.summary.statementCount;
-    }
-
-    return result.statements.length;
-  } catch (error) {
-    console.warn('FlowScope SQL analysis failed, falling back to range count.', error);
-    return null;
-  }
-}
-
-function nextChar(sql: string, index: number): { char: string; advance: number } {
-  const codePoint = sql.codePointAt(index);
-  if (codePoint === undefined) {
-    return { char: '', advance: 1 };
-  }
-  const char = String.fromCodePoint(codePoint);
-  return { char, advance: char.length };
-}
-
-function charAt(sql: string, index: number): { char: string; advance: number } | null {
-  if (index >= sql.length) {
-    return null;
-  }
-  const codePoint = sql.codePointAt(index);
-  if (codePoint === undefined) {
-    return null;
-  }
-  const char = String.fromCodePoint(codePoint);
-  return { char, advance: char.length };
-}
-
-function startsWithAt(sql: string, index: number, pattern: string): boolean {
-  if (index >= sql.length) {
-    return false;
-  }
-  return sql.startsWith(pattern, index);
-}
-
-function detectDollarQuote(
-  sql: string,
-  start: number,
-): { delimiter: string; endIndex: number } | null {
-  if (start + 1 >= sql.length) {
-    return null;
-  }
-
-  let index = start + 1;
-  while (index < sql.length) {
-    const { char, advance } = nextChar(sql, index);
-    index += advance;
-    if (char === '$') {
-      return { delimiter: sql.slice(start, index), endIndex: index };
-    }
-    if (!/[_a-zA-Z0-9]/.test(char)) {
-      return null;
-    }
-  }
-
-  return null;
-}
-
-function skipLineComment(sql: string, index: number, end: number): number {
-  let cursor = index;
-  while (cursor < end) {
-    const char = sql[cursor];
-    cursor += 1;
-    if (char === '\n' || char === '\r') {
-      break;
-    }
-  }
-  return cursor;
-}
-
-function skipBlockComment(sql: string, index: number, end: number): number {
-  let cursor = index;
-  while (cursor < end) {
-    if (cursor + 1 < end && sql[cursor] === '*' && sql[cursor + 1] === '/') {
-      return cursor + 2;
-    }
-    cursor += 1;
-  }
-  return end;
-}
-
-function trimStatementRange(sql: string, start: number, end: number): StatementRange | null {
-  if (start >= end) {
-    return null;
-  }
-
-  let cursorStart = start;
-  let cursorEnd = end;
-
-  while (cursorStart < cursorEnd) {
-    if (cursorStart + 1 < cursorEnd) {
-      const first = sql[cursorStart];
-      const second = sql[cursorStart + 1];
-      if (first === '-' && second === '-') {
-        cursorStart = skipLineComment(sql, cursorStart + 2, cursorEnd);
-        continue;
-      }
-      if (first === '/' && second === '*') {
-        cursorStart = skipBlockComment(sql, cursorStart + 2, cursorEnd);
-        continue;
-      }
-    }
-
-    const char = sql[cursorStart];
-    if (char === '#') {
-      cursorStart = skipLineComment(sql, cursorStart + 1, cursorEnd);
-      continue;
-    }
-    if (/\s/.test(char)) {
-      cursorStart += 1;
-      continue;
-    }
-    break;
-  }
-
-  while (cursorStart < cursorEnd && /\s/.test(sql[cursorEnd - 1])) {
-    cursorEnd -= 1;
-  }
-
-  if (cursorStart >= cursorEnd) {
-    return null;
-  }
-
-  return { start: cursorStart, end: cursorEnd };
-}
-
-function pushStatementRange(ranges: StatementRange[], sql: string, start: number, end: number) {
-  const trimmed = trimStatementRange(sql, start, end);
-  if (trimmed) {
-    ranges.push(trimmed);
-  }
-}
-
-function computeStatementRanges(sql: string): StatementRange[] {
-  const ranges: StatementRange[] = [];
-  if (!sql) {
-    return ranges;
-  }
-
-  let start = 0;
-  let index = 0;
-
-  let inSingleQuote = false;
-  let inDoubleQuote = false;
-  let inBacktick = false;
-  let inBracket = false;
-  let inLineComment = false;
-  let inBlockComment = false;
-  let dollarDelimiter: string | null = null;
-
-  while (index < sql.length) {
-    if (dollarDelimiter) {
-      if (sql.startsWith(dollarDelimiter, index)) {
-        index += dollarDelimiter.length;
-        dollarDelimiter = null;
-      } else {
-        const { advance } = nextChar(sql, index);
-        index += advance;
-      }
-      continue;
-    }
-
-    if (inLineComment) {
-      const { char, advance } = nextChar(sql, index);
-      index += advance;
-      if (char === '\n' || char === '\r') {
-        inLineComment = false;
-      }
-      continue;
-    }
-
-    if (inBlockComment) {
-      if (startsWithAt(sql, index, '*/')) {
-        index += 2;
-        inBlockComment = false;
-      } else {
-        const { advance } = nextChar(sql, index);
-        index += advance;
-      }
-      continue;
-    }
-
-    if (inSingleQuote) {
-      const { char, advance } = nextChar(sql, index);
-      index += advance;
-      if (char === "'") {
-        const next = charAt(sql, index);
-        if (next?.char === "'") {
-          index += next.advance;
-        } else {
-          inSingleQuote = false;
-        }
-      }
-      continue;
-    }
-
-    if (inDoubleQuote) {
-      const { char, advance } = nextChar(sql, index);
-      index += advance;
-      if (char === '"') {
-        const next = charAt(sql, index);
-        if (next?.char === '"') {
-          index += next.advance;
-        } else {
-          inDoubleQuote = false;
-        }
-      }
-      continue;
-    }
-
-    if (inBacktick) {
-      const { char, advance } = nextChar(sql, index);
-      index += advance;
-      if (char === '`') {
-        const next = charAt(sql, index);
-        if (next?.char === '`') {
-          index += next.advance;
-        } else {
-          inBacktick = false;
-        }
-      }
-      continue;
-    }
-
-    if (inBracket) {
-      const { char, advance } = nextChar(sql, index);
-      index += advance;
-      if (char === ']') {
-        const next = charAt(sql, index);
-        if (next?.char === ']') {
-          index += next.advance;
-        } else {
-          inBracket = false;
-        }
-      }
-      continue;
-    }
-
-    const { char, advance } = nextChar(sql, index);
-    switch (char) {
-      case "'":
-        inSingleQuote = true;
-        index += advance;
-        continue;
-      case '"':
-        inDoubleQuote = true;
-        index += advance;
-        continue;
-      case '`':
-        inBacktick = true;
-        index += advance;
-        continue;
-      case '[':
-        inBracket = true;
-        index += advance;
-        continue;
-      case '-':
-        if (startsWithAt(sql, index + advance, '-')) {
-          inLineComment = true;
-          index += advance + 1;
-          continue;
-        }
-        break;
-      case '#':
-        inLineComment = true;
-        index += advance;
-        continue;
-      case '/':
-        if (startsWithAt(sql, index + advance, '*')) {
-          inBlockComment = true;
-          index += advance + 1;
-          continue;
-        }
-        break;
-      case '$': {
-        const delimiter = detectDollarQuote(sql, index);
-        if (delimiter) {
-          dollarDelimiter = delimiter.delimiter;
-          index = delimiter.endIndex;
-          continue;
-        }
-        break;
-      }
-      case ';':
-        pushStatementRange(ranges, sql, start, index);
-        start = index + advance;
-        break;
-      default:
-        break;
-    }
-
-    index += advance;
-  }
-
-  pushStatementRange(ranges, sql, start, sql.length);
-  return ranges;
-}
-
-async function mergeStatementRanges(
-  sql: string,
-  ranges: StatementRange[],
-  statementCount: number,
-): Promise<StatementRange[]> {
-  if (ranges.length <= statementCount) {
-    return ranges;
-  }
-
-  const merged: StatementRange[] = [];
-  let rangeIndex = 0;
-
-  for (let statementIndex = 0; statementIndex < statementCount; statementIndex += 1) {
-    if (rangeIndex >= ranges.length) {
-      return ranges;
-    }
-
-    let current = { ...ranges[rangeIndex] };
-    rangeIndex += 1;
-
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const snippet = sql.slice(current.start, current.end);
-      const parsedCount = await getStatementCount(snippet);
-      if (parsedCount === 1) {
-        merged.push(current);
-        break;
-      }
-
-      if (rangeIndex >= ranges.length || parsedCount === null) {
-        return ranges;
-      }
-
-      current = { start: current.start, end: ranges[rangeIndex].end };
-      rangeIndex += 1;
-    }
-  }
-
-  if (rangeIndex !== ranges.length) {
-    return ranges;
-  }
-
-  return merged;
-}
-
-export type ParsedStatement = {
-  code: string;
-  lineNumber: number;
-};
-
-export async function splitSQLByStats(editor: EditorState | string): Promise<ParsedStatement[]> {
-  const sqlText = typeof editor === 'string' ? editor : editor.doc.toString();
-  const state = typeof editor === 'string' ? EditorState.create({ doc: sqlText }) : editor;
-  const ranges = computeStatementRanges(sqlText);
-  if (ranges.length === 0) {
+/**
+ * Split SQL into individual statements using FlowScope WASM (runs in Web Worker)
+ * This is non-blocking and won't freeze the UI on large files.
+ */
+export async function splitSQLByStats(sqlText: string): Promise<ParsedStatement[]> {
+  if (!sqlText.trim()) {
     return [];
   }
 
-  const statementCount = await getStatementCount(sqlText);
-  const alignedRanges =
-    statementCount === null ? ranges : await mergeStatementRanges(sqlText, ranges, statementCount);
+  const client = getFlowScopeClient();
+  const result = await client.split(sqlText);
 
-  return alignedRanges.map((range) => ({
-    code: sqlText.slice(range.start, range.end),
-    lineNumber: state.doc.lineAt(range.start).number,
-  }));
+  if (!result.statements.length) {
+    return [];
+  }
+
+  // Collect unique byte offsets for batch conversion
+  const byteOffsets = new Set<number>();
+  for (const span of result.statements) {
+    byteOffsets.add(span.start);
+    byteOffsets.add(span.end);
+  }
+
+  // Build byte-to-char offset map using shared utility
+  const byteToCharMap = buildByteToCharMap(sqlText, Array.from(byteOffsets));
+
+  // Collect character positions for line number mapping
+  // Use filtered positions since we'll handle missing mappings in the main loop
+  const charPositions: number[] = [];
+  for (const span of result.statements) {
+    const charPos = byteToCharMap.get(span.start);
+    if (charPos !== undefined) {
+      charPositions.push(charPos);
+    }
+  }
+
+  // Build line number map using shared utility
+  const charToLineMap = buildCharToLineMap(sqlText, charPositions);
+
+  return result.statements.map((span: { start: number; end: number }) => {
+    const startIndex = byteToCharMap.get(span.start);
+    const endIndex = byteToCharMap.get(span.end);
+
+    if (startIndex === undefined || endIndex === undefined) {
+      const message = `Missing byte-to-char mapping for span: start=${span.start}, end=${span.end}`;
+      if (import.meta.env.DEV) {
+        throw new Error(message);
+      }
+      console.error(message);
+      // Fallback: return the entire text as a single statement to avoid crashes
+      return {
+        code: sqlText,
+        lineNumber: 1,
+        start: 0,
+        end: sqlText.length,
+      };
+    }
+
+    return {
+      code: sqlText.slice(startIndex, endIndex),
+      lineNumber: charToLineMap.get(startIndex) ?? 1,
+      start: startIndex,
+      end: endIndex,
+    };
+  });
 }
 
 export type ClassifiedSQLStatement = {
@@ -763,24 +494,8 @@ export const validateStatements = (
     }
 
     if (statement.type === SQLStatement.DROP) {
-      // Check all DROP statements against source tables
-      const state = EditorState.create({
-        doc: statement.code,
-        extensions: [sqlLanguage({ dialect: PostgreSQL })],
-      });
-
-      const tree = syntaxTree(state);
-      const cursor = tree.cursor();
-      let tableName = '';
-
-      while (cursor.next()) {
-        if (cursor.name === 'Identifier') {
-          tableName = state.sliceDoc(cursor.from, cursor.to);
-          break;
-        }
-      }
-
-      if (protectedViewNames.includes(tableName.toLowerCase())) {
+      const tableName = extractDropTarget(statement.code);
+      if (tableName && protectedViewNames.includes(tableName.toLowerCase())) {
         errors.push(
           `Cannot drop object \`${tableName}\` as it is managed by PondPilot (file views and comparison tables are protected).`,
         );

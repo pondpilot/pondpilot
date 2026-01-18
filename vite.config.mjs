@@ -21,21 +21,18 @@ export default defineConfig(({ mode }) => {
   // Get and normalize base path from environment variable, default to '/'
   // Ensures it both starts and ends with a single '/'
   const getNormalizedBasePath = (value) => {
-    let v = (value || '/').trim();
-    // Collapse ALL consecutive slashes first
-    v = v.replace(/\/+ /g, '/'); // remove any accidental space variants (defensive, then real replace)
-    v = v.replace(/\/+ /g, '/');
-    v = v.replace(/\/+/, '/'); // final cleanup (will be replaced by global below if needed)
-    v = v.replace(/\/+/, '/');
-    // Proper global collapse (final authoritative normalization)
-    v = v.replace(/\/+/, '/');
+    let path = (value || '/').trim();
+    // Collapse all consecutive slashes into single slashes
+    path = path.replace(/\/+/g, '/');
     // Ensure leading slash
-    if (!v.startsWith('/')) v = '/' + v;
+    if (!path.startsWith('/')) {
+      path = '/' + path;
+    }
     // Ensure trailing slash
-    if (!v.endsWith('/')) v = v + '/';
-    // Special-case root (avoid double slash)
-    if (v !== '/' && v.endsWith('//')) v = v.slice(0, -1);
-    return v.replace(/\/+/, '/');
+    if (!path.endsWith('/')) {
+      path = path + '/';
+    }
+    return path;
   };
 
   const basePath = getNormalizedBasePath(process.env.VITE_BASE_PATH);
@@ -153,6 +150,7 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       exclude: ['@duckdb/duckdb-wasm'],
+      include: ['node-sql-parser'],
     },
   };
 });

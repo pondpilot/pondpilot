@@ -1,7 +1,7 @@
-import { EditorView } from '@codemirror/view';
 import { showSuccess, showError } from '@components/app-notifications';
 import { SQLScript } from '@models/sql-script';
 import { formatSQLSafe } from '@utils/sql-formatter';
+import type * as monaco from 'monaco-editor';
 
 import { updateSQLScriptContent } from './sql-script';
 
@@ -36,43 +36,56 @@ export async function formatAndApplySQLScript(sqlScript: SQLScript): Promise<boo
 }
 
 /**
- * Format SQL in a CodeMirror editor view
- * @param view The CodeMirror editor view
+ * Format SQL in a Monaco editor
+ * @param editor The Monaco editor instance
  * @returns true if formatting was successful, false otherwise
  */
-export function formatSQLInEditor(view: EditorView): boolean {
-  const selection = view.state.selection.main;
-  const hasSelection = !selection.empty;
+export function formatSQLInEditor(editor: monaco.editor.IStandaloneCodeEditor): boolean {
+  const model = editor.getModel();
+  if (!model) return false;
+
+  const selection = editor.getSelection();
+  const hasSelection = selection ? !selection.isEmpty() : false;
 
   let textToFormat: string;
-  let fromPos: number;
-  let toPos: number;
+  let range: monaco.IRange;
 
-  if (hasSelection) {
-    // Format only selected text
-    textToFormat = view.state.sliceDoc(selection.from, selection.to);
-    fromPos = selection.from;
-    toPos = selection.to;
+  if (selection && hasSelection) {
+    textToFormat = model.getValueInRange(selection);
+    range = selection;
   } else {
-    // Format entire document
-    textToFormat = view.state.doc.toString();
-    fromPos = 0;
-    toPos = view.state.doc.length;
+    textToFormat = model.getValue();
+    range = model.getFullModelRange();
   }
 
   const formatResult = formatSQLSafe(textToFormat);
 
   if (formatResult.success) {
-    // Replace the text with formatted SQL
-    view.dispatch({
-      changes: {
-        from: fromPos,
-        to: toPos,
-        insert: formatResult.result,
-      },
-      // Group this operation for undo/redo
-      userEvent: 'format',
+    const startOffset = model.getOffsetAt({
+      lineNumber: range.startLineNumber,
+      column: range.startColumn,
     });
+
+    editor.executeEdits('sql-format', [
+      {
+        range,
+        text: formatResult.result,
+        forceMoveMarkers: true,
+      },
+    ]);
+
+    // Restore selection to cover the formatted text
+    if (hasSelection) {
+      const endOffset = startOffset + formatResult.result.length;
+      const startPos = model.getPositionAt(startOffset);
+      const endPos = model.getPositionAt(endOffset);
+      editor.setSelection({
+        startLineNumber: startPos.lineNumber,
+        startColumn: startPos.column,
+        endLineNumber: endPos.lineNumber,
+        endColumn: endPos.column,
+      });
+    }
 
     showSuccess({
       title: hasSelection ? 'Selection formatted' : 'SQL formatted successfully',

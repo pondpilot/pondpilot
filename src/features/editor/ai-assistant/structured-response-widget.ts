@@ -1,5 +1,4 @@
-import { EditorView, WidgetType } from '@codemirror/view';
-
+import { AIAssistantEditorAdapter } from './model';
 import {
   createResponseHeader,
   createActionsSection,
@@ -10,33 +9,36 @@ import {
 import { createStructuredResponseHandlers } from './structured-response-handlers';
 import { StructuredSQLResponse } from '../../../models/structured-ai-response';
 
-export class StructuredResponseWidget extends WidgetType {
+export class StructuredResponseWidget {
   private cleanup?: () => void;
 
   constructor(
-    private view: EditorView,
+    private editor: AIAssistantEditorAdapter,
     private response: StructuredSQLResponse,
-  ) {
-    super();
-  }
-
-  eq(other: StructuredResponseWidget) {
-    return other instanceof StructuredResponseWidget && other.response === this.response;
-  }
+    private onHide: () => void,
+  ) {}
 
   toDOM() {
-    const handlers = createStructuredResponseHandlers(this.view);
+    const handlers = createStructuredResponseHandlers(this.editor, this.onHide);
     const header = createResponseHeader(this.response.summary);
 
     const actionsSection = createActionsSection(
       this.response.actions,
-      handlers.applyAction,
+      (action) => {
+        handlers.applyAction(action).catch((error) => {
+          console.warn('Apply action failed:', error);
+        });
+      },
       handlers.hideWidget,
     );
 
     const alternativesSection = createAlternativesSection(
       this.response.alternatives || [],
-      handlers.applyAlternative,
+      (alternative) => {
+        handlers.applyAlternative(alternative).catch((error) => {
+          console.warn('Apply alternative failed:', error);
+        });
+      },
       handlers.hideWidget,
     );
 
@@ -49,14 +51,12 @@ export class StructuredResponseWidget extends WidgetType {
       footer,
     });
 
-    // Detect and apply the current theme from the parent document
     const rootElement = document.documentElement;
     const currentColorScheme = rootElement.getAttribute('data-mantine-color-scheme');
     if (currentColorScheme) {
       container.setAttribute('data-mantine-color-scheme', currentColorScheme);
     }
 
-    // Set up mutation observer to watch for theme changes
     const themeObserver = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (
@@ -76,7 +76,6 @@ export class StructuredResponseWidget extends WidgetType {
       attributeFilter: ['data-mantine-color-scheme'],
     });
 
-    // Enhanced cleanup to include theme observer
     const originalCleanup = handlers.setupEventHandlers(container, this.response.actions);
     this.cleanup = () => {
       themeObserver.disconnect();
@@ -86,12 +85,7 @@ export class StructuredResponseWidget extends WidgetType {
     return container;
   }
 
-  ignoreEvent() {
-    return false;
-  }
-
   destroy() {
-    // Clean up event handlers when widget is destroyed
     if (this.cleanup) {
       this.cleanup();
       this.cleanup = undefined;
