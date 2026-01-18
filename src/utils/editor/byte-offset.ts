@@ -79,7 +79,7 @@ export function buildByteToCharMap(text: string, byteOffsets: number[]): Map<num
     // Record any offsets we've reached
     while (offsetIndex < sortedOffsets.length && bytePos >= sortedOffsets[offsetIndex]) {
       byteToCharMap.set(sortedOffsets[offsetIndex], charPos);
-      offsetIndex++;
+      offsetIndex += 1;
     }
     if (offsetIndex >= sortedOffsets.length) break;
 
@@ -91,7 +91,7 @@ export function buildByteToCharMap(text: string, byteOffsets: number[]): Map<num
   // Handle any remaining offsets at or after end of text
   while (offsetIndex < sortedOffsets.length) {
     byteToCharMap.set(sortedOffsets[offsetIndex], text.length);
-    offsetIndex++;
+    offsetIndex += 1;
   }
 
   return byteToCharMap;
@@ -151,12 +151,12 @@ export function createOffsetConverter(text: string): {
     const charBytes = getUtf8ByteLength(char);
 
     // Map each byte position to its char position
-    for (let i = 0; i < charBytes; i++) {
+    for (let i = 0; i < charBytes; i += 1) {
       byteToChar[bytePos + i] = charPos;
     }
 
     // Map each char position to its byte position
-    for (let i = 0; i < char.length; i++) {
+    for (let i = 0; i < char.length; i += 1) {
       charToByte[charPos + i] = bytePos;
     }
 
@@ -204,12 +204,12 @@ export function buildCharToLineMap(text: string, charPositions: number[]): Map<n
   while (posIndex < sortedPositions.length && charIndex <= text.length) {
     if (charIndex === sortedPositions[posIndex]) {
       charToLineMap.set(charIndex, line);
-      posIndex++;
+      posIndex += 1;
     }
     if (charIndex < text.length && text[charIndex] === '\n') {
-      line++;
+      line += 1;
     }
-    charIndex++;
+    charIndex += 1;
   }
 
   return charToLineMap;

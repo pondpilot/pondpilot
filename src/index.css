@@ -16,6 +16,22 @@ body {
   overflow: hidden;
 }
 
+:root {
+  --monaco-editor-left: 0px;
+  --monaco-editor-width: 0px;
+}
+
+/*
+ * Monaco quick input (Go to Symbol) positions relative to viewport when
+ * fixedOverflowWidgets is enabled, so we center it within the editor bounds.
+ */
+.quick-input-widget {
+  left: calc(var(--monaco-editor-left) + (var(--monaco-editor-width) / 2)) !important;
+  transform: translateX(-50%) !important;
+  right: auto !important;
+  max-width: calc(var(--monaco-editor-width) - 24px) !important;
+}
+
 .custom-allotment {
   --separator-border: #dbdde1;
   --focus-border: #dbdde1;
@@ -161,6 +177,13 @@ body {
 
 [data-mantine-color-scheme='dark'] .monaco-aggregated-column {
   color: var(--mantine-color-orange-4);
+}
+
+/* Ensure Monaco widgets appear above all other UI elements */
+.monaco-editor .parameter-hints-widget,
+.monaco-editor .editor-hover,
+.monaco-editor .suggest-widget {
+  z-index: 10000 !important;
 }
 
 /*

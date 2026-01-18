@@ -15,6 +15,7 @@ import {
 import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import { ImportScriptModalContent } from '@features/script-import';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
+import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { Group, Text } from '@mantine/core';
 import { modals } from '@mantine/modals';
@@ -37,6 +38,8 @@ import {
   IconLayoutGridRemove,
   IconLayoutNavbarCollapse,
   IconScale,
+  IconMap,
+  IconMapOff,
 } from '@tabler/icons-react';
 import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
 import { fileSystemService } from '@utils/file-system-adapter';
@@ -119,6 +122,7 @@ export const SpotlightMenu = () => {
   const { handleAddFile, handleAddFolder } = useAddLocalFilesOrFolders();
   const { command, option, control } = useOsModifierIcon();
   const { openDataWizardModal } = useOpenDataWizardModal();
+  const { preferences, updatePreference } = useEditorPreferences();
 
   /**
    * Store access
@@ -499,7 +503,28 @@ export const SpotlightMenu = () => {
     },
   ];
 
-  const quickActions: Action[] = [...scriptGroupActions, ...dataSourceGroupActions, ...tabActions];
+  const editorActions: Action[] = [
+    {
+      id: 'toggle-minimap',
+      label: preferences.minimap ? 'Hide Minimap' : 'Show Minimap',
+      icon: preferences.minimap ? (
+        <IconMapOff size={20} className={ICON_CLASSES} />
+      ) : (
+        <IconMap size={20} className={ICON_CLASSES} />
+      ),
+      handler: () => {
+        updatePreference('minimap', !preferences.minimap);
+        Spotlight.close();
+      },
+    },
+  ];
+
+  const quickActions: Action[] = [
+    ...scriptGroupActions,
+    ...dataSourceGroupActions,
+    ...tabActions,
+    ...editorActions,
+  ];
 
   const searchModeActions: Action[] = [
     {

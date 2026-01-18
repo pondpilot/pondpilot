@@ -5,6 +5,9 @@
  * Supports request cancellation via request IDs - when a new request is made,
  * pending requests for the same operation type are automatically cancelled.
  */
+
+/* eslint-disable max-classes-per-file */
+
 import type {
   AnalyzeResult,
   StatementSplitResult,
@@ -14,11 +17,26 @@ import type {
 
 import type { FlowScopeRequestType, FlowScopeResponse } from './flowscope-worker';
 
+/**
+ * Error thrown when a request is cancelled because a newer request of the same type was made.
+ * Callers can check `error instanceof CancelledError` to distinguish from real errors.
+ */
+export class CancelledError extends Error {
+  constructor() {
+    super('Request cancelled');
+    this.name = 'CancelledError';
+  }
+}
+
 type PendingRequest<T> = {
   id: number;
   resolve: (value: T) => void;
   reject: (error: Error) => void;
+  timeoutId?: ReturnType<typeof setTimeout>;
 };
+
+// Default timeout for worker requests (30 seconds)
+const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 
 class FlowScopeClient {
   private worker: Worker | null = null;
@@ -41,6 +59,11 @@ class FlowScopeClient {
           return;
         }
 
+        // Clear the timeout since we received a response
+        if (pending.timeoutId) {
+          clearTimeout(pending.timeoutId);
+        }
+
         this.pendingRequests.delete(response.id);
 
         if (response.success) {
@@ -52,11 +75,14 @@ class FlowScopeClient {
 
       this.worker.onerror = (error) => {
         console.error('FlowScope worker error:', error);
-        // Reject all pending requests
-        for (const [id, pending] of this.pendingRequests) {
+        // Reject all pending requests and clear their timeouts
+        for (const pending of this.pendingRequests.values()) {
+          if (pending.timeoutId) {
+            clearTimeout(pending.timeoutId);
+          }
           pending.reject(new Error('Worker error'));
-          this.pendingRequests.delete(id);
         }
+        this.pendingRequests.clear();
       };
     }
 
@@ -78,9 +104,13 @@ class FlowScopeClient {
       if (previousId !== undefined) {
         const previous = this.pendingRequests.get(previousId);
         if (previous) {
-          // Resolve with a cancelled marker instead of rejecting
-          // This prevents error spam in the console
+          // Clear the timeout for the cancelled request
+          if (previous.timeoutId) {
+            clearTimeout(previous.timeoutId);
+          }
           this.pendingRequests.delete(previousId);
+          // Reject with CancelledError so callers can distinguish from real errors
+          previous.reject(new CancelledError());
         }
       }
     }
@@ -88,10 +118,20 @@ class FlowScopeClient {
     this.latestRequestByType.set(type, id);
 
     return new Promise((resolve, reject) => {
+      // Set up timeout to prevent memory leaks if worker hangs
+      const timeoutId = setTimeout(() => {
+        const pending = this.pendingRequests.get(id);
+        if (pending) {
+          this.pendingRequests.delete(id);
+          reject(new Error(`Worker request timed out after ${DEFAULT_REQUEST_TIMEOUT_MS}ms`));
+        }
+      }, DEFAULT_REQUEST_TIMEOUT_MS);
+
       this.pendingRequests.set(id, {
         id,
         resolve: resolve as (value: unknown) => void,
         reject,
+        timeoutId,
       });
 
       const worker = this.getWorker();
@@ -125,13 +165,18 @@ class FlowScopeClient {
 
   /**
    * Split SQL into individual statements.
+   * Cancels previous split requests since only the latest result matters.
    */
   async split(sql: string, dialect: string = 'duckdb'): Promise<StatementSplitResult> {
-    return this.sendRequest<StatementSplitResult>('split', {
-      type: 'split',
-      sql,
-      dialect,
-    });
+    return this.sendRequest<StatementSplitResult>(
+      'split',
+      {
+        type: 'split',
+        sql,
+        dialect,
+      },
+      true, // Cancel previous split requests
+    );
   }
 
   /**
@@ -161,12 +206,20 @@ class FlowScopeClient {
    * Terminate the worker. Call when the editor is unmounted.
    */
   terminate(): void {
+    // Reject all pending requests and clear their timeouts
+    for (const pending of this.pendingRequests.values()) {
+      if (pending.timeoutId) {
+        clearTimeout(pending.timeoutId);
+      }
+      pending.reject(new Error('Worker terminated'));
+    }
+    this.pendingRequests.clear();
+    this.latestRequestByType.clear();
+
     if (this.worker) {
       this.worker.terminate();
       this.worker = null;
     }
-    this.pendingRequests.clear();
-    this.latestRequestByType.clear();
   }
 }
 

@@ -24,7 +24,11 @@ import {
 
 import { registerAIAssistant, showAIAssistant, hideAIAssistant } from './ai-assistant-tooltip';
 import { useEditorTheme } from './hooks';
-import { getFlowScopeClient } from '../../workers/flowscope-client';
+import {
+  CancelledError,
+  getFlowScopeClient,
+  terminateFlowScopeClient,
+} from '../../workers/flowscope-client';
 import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
 
 type FunctionTooltip = Record<string, { syntax: string; description: string; example?: string }>;
@@ -80,8 +84,19 @@ function getFontWeightValue(weight: FontWeight): string {
  * Used to disable animations for users who prefer reduced motion.
  */
 const getPrefersReducedMotion = (): boolean =>
-  typeof window !== 'undefined' &&
-  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+const updateQuickOpenPositionVars = (editor: monaco.editor.IStandaloneCodeEditor) => {
+  // Monaco quick input uses viewport coordinates when overflow widgets are fixed.
+  if (typeof document === 'undefined') return;
+  const editorDomNode = editor.getDomNode();
+  if (!editorDomNode) return;
+
+  const rect = editorDomNode.getBoundingClientRect();
+  const root = document.documentElement;
+  root.style.setProperty('--monaco-editor-left', `${rect.left}px`);
+  root.style.setProperty('--monaco-editor-width', `${rect.width}px`);
+};
 
 /**
  * Shared Monaco editor options for SQL editing.
@@ -140,6 +155,15 @@ const createSqlEditorOptions = (
   // Code folding: collapse multi-line statements for better navigation
   folding: true,
   foldingStrategy: 'auto',
+
+  // Render widgets (signature help, hover) in fixed position to escape container overflow
+  fixedOverflowWidgets: true,
+
+  // Enable linked editing for simultaneous renaming of CTE/table references
+  linkedEditing: true,
+
+  // Show code lens (reference counts) above definitions
+  codeLens: true,
 });
 
 const createCompletionRange = (
@@ -203,6 +227,60 @@ const mapCompletionItemKind = (kind: CompletionItemKind): monaco.languages.Compl
 
 const getCompletionDetail = (item: CompletionItem): string | undefined =>
   item.detail ?? COMPLETION_KIND_META[item.kind]?.defaultDetail;
+
+/**
+ * Checks if analysis contains a CTE with the given label.
+ */
+function hasCteWithLabel(
+  analysis: import('@pondpilot/flowscope-core').AnalyzeResult,
+  label: string,
+): boolean {
+  const targetLabel = label.toLowerCase();
+  return analysis.statements.some((stmt) =>
+    stmt.nodes.some((node) => node.type === 'cte' && node.label.toLowerCase() === targetLabel),
+  );
+}
+
+/**
+ * Parses text before cursor to find the function being called and the parameter index.
+ * Used by signature help to show parameter hints.
+ */
+function getFunctionCallContext(
+  model: monaco.editor.ITextModel,
+  position: monaco.Position,
+): { functionName: string; parameterIndex: number } | null {
+  const lineContent = model.getLineContent(position.lineNumber);
+  const textBeforeCursor = lineContent.substring(0, position.column - 1);
+
+  let parenDepth = 0;
+  let commaCount = 0;
+  let funcNameEnd = -1;
+
+  // Scan backwards to find the opening parenthesis
+  for (let i = textBeforeCursor.length - 1; i >= 0; i -= 1) {
+    const char = textBeforeCursor[i];
+    if (char === ')') {
+      parenDepth += 1;
+    } else if (char === '(') {
+      if (parenDepth === 0) {
+        funcNameEnd = i;
+        break;
+      }
+      parenDepth -= 1;
+    } else if (char === ',' && parenDepth === 0) {
+      commaCount += 1;
+    }
+  }
+
+  if (funcNameEnd < 0) return null;
+
+  // Extract function name before the opening parenthesis
+  const beforeParen = textBeforeCursor.substring(0, funcNameEnd);
+  const funcMatch = beforeParen.match(/(\w+)\s*$/);
+  if (!funcMatch) return null;
+
+  return { functionName: funcMatch[1].toLowerCase(), parameterIndex: commaCount };
+}
 
 export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
   (
@@ -621,6 +699,9 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         }
 
         statementAnalysisCacheRef.current.clear();
+        // Capture cursor offset before async operation to avoid race condition
+        // where cursor moves during the await
+        const capturedCursorOffset = cursorOffsetRef.current;
         statementSplitTimerRef.current = window.setTimeout(async () => {
           if (!mountedRef.current) return;
           if (model.isDisposed()) return;
@@ -628,11 +709,11 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             const sqlText = model.getValue();
             await getStatementSpans(sqlText);
             if (!mountedRef.current) return;
-            updateStatementHighlight(model, cursorOffsetRef.current);
+            updateStatementHighlight(model, capturedCursorOffset);
           } catch (error) {
             if (!mountedRef.current) return;
             statementSpansRef.current = { sql: model.getValue(), spans: [], promise: null };
-            updateStatementHighlight(model, cursorOffsetRef.current);
+            updateStatementHighlight(model, capturedCursorOffset);
           }
         }, 300);
       },
@@ -688,6 +769,10 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         }
         disposablesRef.current.forEach((disposable) => disposable.dispose());
         disposablesRef.current = [];
+        // Terminate the FlowScope worker to free resources
+        // Note: This is safe because FlowScopeClient is lazily initialized,
+        // so a new worker will be created if needed after remounting
+        terminateFlowScopeClient();
       };
     }, []);
 
@@ -713,9 +798,26 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         fontFamily: "'IBM Plex Mono', monospace",
         fontWeight: getFontWeightValue(preferences.fontWeight as FontWeight),
         readOnly,
-        minimap: { enabled: false },
+        minimap: { enabled: preferences.minimap, scale: 1, showSlider: 'mouseover' },
         automaticLayout: true,
         contextmenu: true,
+      });
+
+      const handleQuickOpenLayout = () => {
+        updateQuickOpenPositionVars(editor);
+      };
+
+      handleQuickOpenLayout();
+
+      const layoutDisposable = editor.onDidLayoutChange(handleQuickOpenLayout);
+      window.addEventListener('resize', handleQuickOpenLayout);
+      window.addEventListener('scroll', handleQuickOpenLayout, true);
+
+      disposablesRef.current.push(layoutDisposable, {
+        dispose: () => {
+          window.removeEventListener('resize', handleQuickOpenLayout);
+          window.removeEventListener('scroll', handleQuickOpenLayout, true);
+        },
       });
 
       const aiManager = registerAIAssistant(editor, {
@@ -817,7 +919,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       });
 
       const completionProvider = monacoInstance.languages.registerCompletionItemProvider('sql', {
-        triggerCharacters: ['.', '(', ','],
+        triggerCharacters: ['.'],
         provideCompletionItems: async (
           completionModel: monaco.editor.ITextModel,
           position: monaco.Position,
@@ -883,9 +985,11 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
             return { suggestions };
           } catch (error) {
-            // Only log error message to avoid leaking SQL content
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            console.warn('Completion provider failed:', message);
+            // Skip logging for cancelled requests (expected when user types quickly)
+            if (!(error instanceof CancelledError)) {
+              const message = error instanceof Error ? error.message : 'Unknown error';
+              console.warn('Completion provider failed:', message);
+            }
             return { suggestions: [] };
           }
         },
@@ -958,9 +1062,11 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
               contents: contents.map((content) => ({ value: content })),
             };
           } catch (error) {
-            // Only log error message to avoid leaking SQL content
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            console.warn('Hover provider failed:', message);
+            // Skip logging for cancelled requests (expected when user moves cursor quickly)
+            if (!(error instanceof CancelledError)) {
+              const message = error instanceof Error ? error.message : 'Unknown error';
+              console.warn('Hover provider failed:', message);
+            }
             return null;
           }
         },
@@ -1035,15 +1141,473 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             return ranges;
           } catch (error) {
             // Graceful degradation: return empty ranges on parser failure
-            // Only log error message to avoid leaking SQL content
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            console.warn('Folding provider failed:', message);
+            // Skip logging for cancelled requests (expected when user types quickly)
+            if (!(error instanceof CancelledError)) {
+              const message = error instanceof Error ? error.message : 'Unknown error';
+              console.warn('Folding provider failed:', message);
+            }
             return [];
           }
         },
       });
 
-      disposablesRef.current.push(completionProvider, hoverProvider, foldingProvider);
+      // Signature help provider: shows parameter hints for SQL functions
+      const signatureHelpProvider = monacoInstance.languages.registerSignatureHelpProvider('sql', {
+        signatureHelpTriggerCharacters: ['(', ','],
+        signatureHelpRetriggerCharacters: [','],
+
+        provideSignatureHelp: async (model, position) => {
+          const context = getFunctionCallContext(model, position);
+          if (!context) return null;
+
+          const funcDoc = functionTooltips[context.functionName];
+          if (!funcDoc) return null;
+
+          // Parse parameters from function syntax (e.g., "SUM(expression)" -> ["expression"])
+          const paramMatch = funcDoc.syntax.match(/\(([^)]*)\)/);
+          const params = paramMatch ? paramMatch[1].split(',').map((p) => p.trim()) : [];
+
+          return {
+            value: {
+              signatures: [
+                {
+                  label: funcDoc.syntax,
+                  documentation: funcDoc.description,
+                  parameters: params.map((param) => ({ label: param })),
+                },
+              ],
+              activeSignature: 0,
+              activeParameter: Math.min(context.parameterIndex, params.length - 1),
+            },
+            dispose: () => {},
+          };
+        },
+      });
+
+      // Go to definition provider: navigate to CTE definitions
+      const definitionProvider = monacoInstance.languages.registerDefinitionProvider('sql', {
+        provideDefinition: async (model, position) => {
+          const sqlText = model.getValue();
+          const word = model.getWordAtPosition(position);
+          if (!word) return null;
+
+          const analysis = await getFlowScopeAnalysis(sqlText);
+          if (!analysis) return null;
+
+          if (!hasCteWithLabel(analysis, word.word)) return null;
+
+          // FlowScope doesn't provide spans for CTEs, so search for definition in text
+          // Match patterns like "WITH cte_name AS" or ", cte_name AS"
+          const pattern = `(?:WITH|,)\\s+(${word.word})\\s+AS\\s*\\(`;
+          const cteRegex = new RegExp(pattern, 'gi');
+          const match = cteRegex.exec(sqlText);
+
+          if (match) {
+            // Find the position of the CTE name within the match
+            const cteNameStart = match.index + match[0].indexOf(match[1]);
+            const cteNameEnd = cteNameStart + match[1].length;
+            const startPos = model.getPositionAt(cteNameStart);
+            const endPos = model.getPositionAt(cteNameEnd);
+
+            return {
+              uri: model.uri,
+              range: new monacoInstance.Range(
+                startPos.lineNumber,
+                startPos.column,
+                endPos.lineNumber,
+                endPos.column,
+              ),
+            };
+          }
+
+          return null;
+        },
+      });
+
+      // Find all references provider: locate all usages of a table, CTE, or view
+      const referenceProvider = monacoInstance.languages.registerReferenceProvider('sql', {
+        provideReferences: async (model, position) => {
+          const sqlText = model.getValue();
+          const word = model.getWordAtPosition(position);
+          if (!word) return null;
+
+          const analysis = await getFlowScopeAnalysis(sqlText);
+          if (!analysis) return null;
+
+          const references: monaco.languages.Location[] = [];
+          const targetLabel = word.word.toLowerCase();
+          const converter = createOffsetConverter(sqlText);
+
+          // Find all nodes matching the label (tables, CTEs, views)
+          for (const statement of analysis.statements) {
+            for (const node of statement.nodes) {
+              if (
+                (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
+                node.label.toLowerCase() === targetLabel &&
+                node.span
+              ) {
+                const startOffset = converter.fromUtf8(node.span.start);
+                const endOffset = converter.fromUtf8(node.span.end);
+                const startPos = model.getPositionAt(startOffset);
+                const endPos = model.getPositionAt(endOffset);
+
+                references.push({
+                  uri: model.uri,
+                  range: new monacoInstance.Range(
+                    startPos.lineNumber,
+                    startPos.column,
+                    endPos.lineNumber,
+                    endPos.column,
+                  ),
+                });
+              }
+            }
+          }
+
+          // For CTEs without spans, use text search as fallback
+          if (hasCteWithLabel(analysis, targetLabel) && references.length === 0) {
+            // Search for all occurrences of the CTE name as a word
+            const wordPattern = new RegExp(`\\b${word.word}\\b`, 'gi');
+            let match;
+            while ((match = wordPattern.exec(sqlText)) !== null) {
+              const startPos = model.getPositionAt(match.index);
+              const endPos = model.getPositionAt(match.index + match[0].length);
+              references.push({
+                uri: model.uri,
+                range: new monacoInstance.Range(
+                  startPos.lineNumber,
+                  startPos.column,
+                  endPos.lineNumber,
+                  endPos.column,
+                ),
+              });
+            }
+          }
+
+          return references;
+        },
+      });
+
+      // Document symbol provider: outline view and breadcrumb navigation (Ctrl+Shift+O)
+      const documentSymbolProvider = monacoInstance.languages.registerDocumentSymbolProvider(
+        'sql',
+        {
+          provideDocumentSymbols: async (model) => {
+            const sqlText = model.getValue();
+            const spans = await getStatementSpans(sqlText);
+            if (spans.length === 0) return [];
+
+            const symbols: monaco.languages.DocumentSymbol[] = [];
+            const converter = createOffsetConverter(sqlText);
+
+            for (let i = 0; i < spans.length; i += 1) {
+              const span = spans[i];
+              const startOffset = converter.fromUtf8(span.start);
+              const endOffset = converter.fromUtf8(span.end);
+              const startPos = model.getPositionAt(startOffset);
+              const endPos = model.getPositionAt(endOffset);
+              const statementText = sqlText.slice(startOffset, endOffset);
+
+              // Determine statement type from first keyword
+              const firstWord = statementText.trim().split(/\s+/)[0]?.toUpperCase() || 'STATEMENT';
+              let symbolKind = monacoInstance.languages.SymbolKind.Function;
+              let statementName = `${firstWord} (${i + 1})`;
+
+              // Try to extract a more meaningful name
+              if (firstWord === 'WITH') {
+                // Extract CTE names
+                const cteMatch = statementText.match(/WITH\s+(\w+)/i);
+                if (cteMatch) {
+                  statementName = `WITH ${cteMatch[1]}`;
+                  symbolKind = monacoInstance.languages.SymbolKind.Module;
+                }
+              } else if (firstWord === 'CREATE') {
+                const createMatch = statementText.match(
+                  /CREATE\s+(?:OR\s+REPLACE\s+)?(\w+)\s+(\w+)/i,
+                );
+                if (createMatch) {
+                  statementName = `CREATE ${createMatch[1]} ${createMatch[2]}`;
+                  symbolKind = monacoInstance.languages.SymbolKind.Class;
+                }
+              } else if (firstWord === 'INSERT') {
+                const insertMatch = statementText.match(/INSERT\s+INTO\s+(\w+)/i);
+                if (insertMatch) {
+                  statementName = `INSERT INTO ${insertMatch[1]}`;
+                  symbolKind = monacoInstance.languages.SymbolKind.Method;
+                }
+              } else if (firstWord === 'UPDATE') {
+                const updateMatch = statementText.match(/UPDATE\s+(\w+)/i);
+                if (updateMatch) {
+                  statementName = `UPDATE ${updateMatch[1]}`;
+                  symbolKind = monacoInstance.languages.SymbolKind.Method;
+                }
+              } else if (firstWord === 'DELETE') {
+                const deleteMatch = statementText.match(/DELETE\s+FROM\s+(\w+)/i);
+                if (deleteMatch) {
+                  statementName = `DELETE FROM ${deleteMatch[1]}`;
+                  symbolKind = monacoInstance.languages.SymbolKind.Method;
+                }
+              } else if (firstWord === 'SELECT') {
+                // Try to find the main table in FROM clause
+                const fromMatch = statementText.match(/FROM\s+(\w+)/i);
+                if (fromMatch) {
+                  statementName = `SELECT FROM ${fromMatch[1]}`;
+                }
+                symbolKind = monacoInstance.languages.SymbolKind.Function;
+              }
+
+              const range = new monacoInstance.Range(
+                startPos.lineNumber,
+                startPos.column,
+                endPos.lineNumber,
+                endPos.column,
+              );
+
+              symbols.push({
+                name: statementName,
+                detail: `Line ${startPos.lineNumber}`,
+                kind: symbolKind,
+                range,
+                selectionRange: range,
+                tags: [],
+              });
+            }
+
+            return symbols;
+          },
+        },
+      );
+
+      // Rename provider: F2 to rename CTEs across all references
+      const renameProvider = monacoInstance.languages.registerRenameProvider('sql', {
+        provideRenameEdits: async (model, position, newName) => {
+          const sqlText = model.getValue();
+          const word = model.getWordAtPosition(position);
+          if (!word) return null;
+
+          const analysis = await getFlowScopeAnalysis(sqlText);
+          if (!analysis) return null;
+
+          if (!hasCteWithLabel(analysis, word.word)) return null;
+
+          const targetLabel = word.word.toLowerCase();
+          const edits: monaco.languages.IWorkspaceTextEdit[] = [];
+          const converter = createOffsetConverter(sqlText);
+
+          // Find all occurrences with spans
+          for (const statement of analysis.statements) {
+            for (const node of statement.nodes) {
+              if (
+                (node.type === 'table' || node.type === 'cte') &&
+                node.label.toLowerCase() === targetLabel &&
+                node.span
+              ) {
+                const startOffset = converter.fromUtf8(node.span.start);
+                const endOffset = converter.fromUtf8(node.span.end);
+                const startPos = model.getPositionAt(startOffset);
+                const endPos = model.getPositionAt(endOffset);
+
+                edits.push({
+                  resource: model.uri,
+                  versionId: undefined,
+                  textEdit: {
+                    range: new monacoInstance.Range(
+                      startPos.lineNumber,
+                      startPos.column,
+                      endPos.lineNumber,
+                      endPos.column,
+                    ),
+                    text: newName,
+                  },
+                });
+              }
+            }
+          }
+
+          // For CTEs without spans, use text search as fallback
+          if (edits.length === 0) {
+            const wordPattern = new RegExp(`\\b${word.word}\\b`, 'gi');
+            let match;
+            while ((match = wordPattern.exec(sqlText)) !== null) {
+              const startPos = model.getPositionAt(match.index);
+              const endPos = model.getPositionAt(match.index + match[0].length);
+              edits.push({
+                resource: model.uri,
+                versionId: undefined,
+                textEdit: {
+                  range: new monacoInstance.Range(
+                    startPos.lineNumber,
+                    startPos.column,
+                    endPos.lineNumber,
+                    endPos.column,
+                  ),
+                  text: newName,
+                },
+              });
+            }
+          }
+
+          return { edits };
+        },
+      });
+
+      // Code lens provider: show reference counts above CTE definitions
+      const codeLensProvider = monacoInstance.languages.registerCodeLensProvider('sql', {
+        provideCodeLenses: async (model) => {
+          const sqlText = model.getValue();
+          const analysis = await getFlowScopeAnalysis(sqlText);
+          if (!analysis) return { lenses: [], dispose: () => {} };
+
+          const lenses: monaco.languages.CodeLens[] = [];
+
+          // Find all CTEs and count their references
+          const cteReferences = new Map<string, number>();
+          const cteDefinitionRanges = new Map<string, monaco.IRange>();
+
+          for (const statement of analysis.statements) {
+            for (const node of statement.nodes) {
+              if (node.type === 'cte') {
+                const label = node.label.toLowerCase();
+                cteReferences.set(label, (cteReferences.get(label) || 0) + 1);
+              }
+            }
+          }
+
+          // Find CTE definition positions using regex
+          for (const [cteName] of cteReferences) {
+            const pattern = `(?:WITH|,)\\s+(${cteName})\\s+AS\\s*\\(`;
+            const cteRegex = new RegExp(pattern, 'gi');
+            const match = cteRegex.exec(sqlText);
+
+            if (match) {
+              const cteNameStart = match.index + match[0].indexOf(match[1]);
+              const startPos = model.getPositionAt(cteNameStart);
+              cteDefinitionRanges.set(cteName, {
+                startLineNumber: startPos.lineNumber,
+                startColumn: startPos.column,
+                endLineNumber: startPos.lineNumber,
+                endColumn: startPos.column + match[1].length,
+              });
+            }
+          }
+
+          // Create code lenses for CTEs with multiple references
+          for (const [cteName, count] of cteReferences) {
+            const definitionRange = cteDefinitionRanges.get(cteName);
+            // Only show lens if there are references (count > 1 means 1 definition + references)
+            if (definitionRange && count > 1) {
+              const refCount = count - 1; // Subtract the definition itself
+              lenses.push({
+                range: definitionRange,
+                command: {
+                  id: 'editor.action.findReferences',
+                  title: `${refCount} reference${refCount === 1 ? '' : 's'}`,
+                  arguments: [
+                    model.uri,
+                    new monacoInstance.Position(
+                      definitionRange.startLineNumber,
+                      definitionRange.startColumn,
+                    ),
+                  ],
+                },
+              });
+            }
+          }
+
+          return { lenses, dispose: () => {} };
+        },
+      });
+
+      // Linked editing ranges provider: edit all occurrences of a CTE/table name simultaneously
+      const linkedEditingProvider = monacoInstance.languages.registerLinkedEditingRangeProvider(
+        'sql',
+        {
+          provideLinkedEditingRanges: async (model, position) => {
+            const sqlText = model.getValue();
+            const word = model.getWordAtPosition(position);
+            if (!word) return null;
+
+            const analysis = await getFlowScopeAnalysis(sqlText);
+            if (!analysis) return null;
+
+            const targetLabel = word.word.toLowerCase();
+            const ranges: monaco.IRange[] = [];
+            const converter = createOffsetConverter(sqlText);
+
+            // Check if this is a CTE, table, or view
+            const isLinkedIdentifier = analysis.statements.some((stmt) =>
+              stmt.nodes.some(
+                (node) =>
+                  (node.type === 'cte' || node.type === 'table' || node.type === 'view') &&
+                  node.label.toLowerCase() === targetLabel,
+              ),
+            );
+
+            if (!isLinkedIdentifier) return null;
+
+            // Find all occurrences with spans
+            for (const statement of analysis.statements) {
+              for (const node of statement.nodes) {
+                if (
+                  (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
+                  node.label.toLowerCase() === targetLabel &&
+                  node.span
+                ) {
+                  const startOffset = converter.fromUtf8(node.span.start);
+                  const endOffset = converter.fromUtf8(node.span.end);
+                  const startPos = model.getPositionAt(startOffset);
+                  const endPos = model.getPositionAt(endOffset);
+
+                  ranges.push(
+                    new monacoInstance.Range(
+                      startPos.lineNumber,
+                      startPos.column,
+                      endPos.lineNumber,
+                      endPos.column,
+                    ),
+                  );
+                }
+              }
+            }
+
+            // For CTEs without spans, use text search as fallback
+            if (hasCteWithLabel(analysis, targetLabel) && ranges.length === 0) {
+              const wordPattern = new RegExp(`\\b${word.word}\\b`, 'gi');
+
+              let match;
+              while ((match = wordPattern.exec(sqlText)) !== null) {
+                const startPos = model.getPositionAt(match.index);
+                const endPos = model.getPositionAt(match.index + match[0].length);
+                ranges.push(
+                  new monacoInstance.Range(
+                    startPos.lineNumber,
+                    startPos.column,
+                    endPos.lineNumber,
+                    endPos.column,
+                  ),
+                );
+              }
+            }
+
+            if (ranges.length < 2) return null;
+
+            return { ranges, wordPattern: undefined };
+          },
+        },
+      );
+
+      disposablesRef.current.push(
+        completionProvider,
+        hoverProvider,
+        foldingProvider,
+        signatureHelpProvider,
+        definitionProvider,
+        referenceProvider,
+        documentSymbolProvider,
+        renameProvider,
+        codeLensProvider,
+        linkedEditingProvider,
+      );
     };
 
     useEffect(() => {
@@ -1069,9 +1633,10 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         editorRef.current.updateOptions({
           fontSize: preferences.fontSize * 16,
           fontWeight: getFontWeightValue(preferences.fontWeight as FontWeight),
+          minimap: { enabled: preferences.minimap, scale: 1, showSlider: 'mouseover' },
         });
       }
-    }, [preferences.fontSize, preferences.fontWeight]);
+    }, [preferences.fontSize, preferences.fontWeight, preferences.minimap]);
 
     return (
       <div className="relative w-full h-full">
@@ -1089,7 +1654,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           options={{
             ...createSqlEditorOptions(getPrefersReducedMotion()),
             readOnly,
-            minimap: { enabled: false },
+            minimap: { enabled: preferences.minimap, scale: 1, showSlider: 'mouseover' },
           }}
         />
       </div>

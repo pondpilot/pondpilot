@@ -1,27 +1,28 @@
 import * as monaco from 'monaco-editor';
 
-import { createAIAssistantHandlers } from './ai-assistant/ai-assistant-handlers';
-import { logError } from './ai-assistant/error-handler';
-import { HistoryNavigationManager } from './ai-assistant/managers/history-manager';
-import { MentionManager } from './ai-assistant/managers/mention-manager';
-import { createAIAssistantServices, AIAssistantServices } from './ai-assistant/services-facet';
-import { StructuredResponseWidget } from './ai-assistant/structured-response-widget';
-import { createCleanupRegistry } from './ai-assistant/utils/cleanup-registry';
-import {
-  createCombinedContextSection,
-  createInputSection,
-  createWidgetFooter,
-  createModelSelectionSection,
-  assembleAIAssistantWidget,
-} from './ai-assistant/widget-builders';
 import { TabExecutionError } from '../../controllers/tab/tab-controller';
 import { AI_PROVIDERS } from '../../models/ai-service';
 import { SQLScript } from '../../models/sql-script';
 import { StructuredSQLResponse } from '../../models/structured-ai-response';
-import { saveAIConfig, getAIConfig } from '../../utils/ai-config';
+import { getAIConfig, saveAIConfig } from '../../utils/ai-config';
 import { resolveAIContext } from '../../utils/editor/statement-parser';
 import { AsyncDuckDBConnectionPool } from '../duckdb-context/duckdb-connection-pool';
+import { createAIAssistantHandlers } from './ai-assistant/ai-assistant-handlers';
+import { UI_SELECTORS } from './ai-assistant/constants';
+import { logError } from './ai-assistant/error-handler';
+import { HistoryNavigationManager } from './ai-assistant/managers/history-manager';
+import { MentionManager } from './ai-assistant/managers/mention-manager';
 import { AIAssistantEditorAdapter } from './ai-assistant/model';
+import { createAIAssistantServices, AIAssistantServices } from './ai-assistant/services-facet';
+import { StructuredResponseWidget } from './ai-assistant/structured-response-widget';
+import { createCleanupRegistry } from './ai-assistant/utils/cleanup-registry';
+import {
+  assembleAIAssistantWidget,
+  createCombinedContextSection,
+  createInputSection,
+  createModelSelectionSection,
+  createWidgetFooter,
+} from './ai-assistant/widget-builders';
 
 interface AIAssistantManagerOptions {
   connectionPool?: AsyncDuckDBConnectionPool | null;
@@ -306,8 +307,10 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
 
     const lineStartOffset = model.getOffsetAt({ lineNumber: position.lineNumber, column: 1 });
 
-    // Sanitize text to prevent SQL comment injection (escaping */ sequences)
-    const sanitizeLine = (line: string): string => line.replace(/\*\//g, '* /');
+    // Sanitize text to prevent SQL comment injection
+    // Escape both /* and */ to prevent nested comments or comment breakout
+    const sanitizeLine = (line: string): string =>
+      line.replace(/\/\*/g, '/ *').replace(/\*\//g, '* /');
 
     const lines = text.split('\n');
     let formattedComment = '/*\n';
@@ -381,6 +384,11 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
     this.editor.addContentWidget(widget);
     this.editor.layoutContentWidget(widget);
     this.notifyVisibility();
+
+    window.setTimeout(() => {
+      const textarea = dom.querySelector(UI_SELECTORS.TEXTAREA) as HTMLTextAreaElement | null;
+      textarea?.focus();
+    }, 0);
   }
 
   hideAssistant() {
