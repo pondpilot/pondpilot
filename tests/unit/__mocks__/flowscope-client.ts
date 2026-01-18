@@ -1,16 +1,14 @@
-class MockFlowScopeClient {
-  async analyze(): Promise<Record<string, unknown>> {
-    return {};
-  }
+type MockFlowScopeClient = {
+  analyze: () => Promise<Record<string, unknown>>;
+  split: () => Promise<{ statements: Array<{ start: number; end: number }> }>;
+  completionItems: () => Promise<Record<string, unknown>>;
+};
 
-  async split(): Promise<{ statements: Array<{ start: number; end: number }> }> {
-    return { statements: [] };
-  }
-
-  async completionItems(): Promise<Record<string, unknown>> {
-    return {};
-  }
-}
+const createMockFlowScopeClient = (): MockFlowScopeClient => ({
+  analyze: async () => ({}),
+  split: async () => ({ statements: [] }),
+  completionItems: async () => ({}),
+});
 
 export class CancelledError extends Error {
   constructor() {
@@ -23,7 +21,7 @@ let clientInstance: MockFlowScopeClient | null = null;
 
 export function getFlowScopeClient(): MockFlowScopeClient {
   if (!clientInstance) {
-    clientInstance = new MockFlowScopeClient();
+    clientInstance = createMockFlowScopeClient();
   }
   return clientInstance;
 }
