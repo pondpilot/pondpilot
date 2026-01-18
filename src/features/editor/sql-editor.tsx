@@ -9,6 +9,7 @@ import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import MonacoEditor from '@monaco-editor/react';
 import type { CompletionItemsResult, Span } from '@pondpilot/flowscope-core';
 import { useAppStore } from '@store/app-store';
+import { buildByteToCharMap, createOffsetConverter } from '@utils/editor/byte-offset';
 import { fromUtf8Offset, toUtf8Offset } from '@utils/editor/sql';
 import * as monaco from 'monaco-editor';
 import {
@@ -135,6 +136,10 @@ const createSqlEditorOptions = (
     top: 8,
     bottom: 8,
   },
+
+  // Code folding: collapse multi-line statements for better navigation
+  folding: true,
+  foldingStrategy: 'auto',
 });
 
 const createCompletionRange = (
@@ -485,6 +490,9 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         }
 
         const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+        const modelValue = model.getValue();
+        // Use cached converter for O(1) lookups when processing many nodes
+        const converter = createOffsetConverter(modelValue);
 
         analysis.statements.forEach((statement) => {
           statement.nodes.forEach((node) => {
@@ -494,8 +502,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             ) {
               return;
             }
-            const startOffset = fromUtf8Offset(model.getValue(), node.span.start);
-            const endOffset = fromUtf8Offset(model.getValue(), node.span.end);
+            const startOffset = converter.fromUtf8(node.span.start);
+            const endOffset = converter.fromUtf8(node.span.end);
             const startPos = model.getPositionAt(startOffset);
             const endPos = model.getPositionAt(endOffset);
 
@@ -540,6 +548,9 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           }
         };
 
+        const modelValue = model.getValue();
+        // Use cached converter for O(1) lookups when processing many issues
+        const converter = createOffsetConverter(modelValue);
         const markers: monaco.editor.IMarkerData[] = analysis.issues.map((issue) => {
           if (!issue.span) {
             return {
@@ -552,8 +563,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             };
           }
 
-          const startOffset = fromUtf8Offset(model.getValue(), issue.span.start);
-          const endOffset = fromUtf8Offset(model.getValue(), issue.span.end);
+          const startOffset = converter.fromUtf8(issue.span.start);
+          const endOffset = converter.fromUtf8(issue.span.end);
           const startPos = model.getPositionAt(startOffset);
           const endPos = model.getPositionAt(endOffset);
 
@@ -872,7 +883,9 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
             return { suggestions };
           } catch (error) {
-            console.warn('Completion provider failed:', error);
+            // Only log error message to avoid leaking SQL content
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            console.warn('Completion provider failed:', message);
             return { suggestions: [] };
           }
         },
@@ -945,13 +958,92 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
               contents: contents.map((content) => ({ value: content })),
             };
           } catch (error) {
-            console.warn('Hover provider failed:', error);
+            // Only log error message to avoid leaking SQL content
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            console.warn('Hover provider failed:', message);
             return null;
           }
         },
       });
 
-      disposablesRef.current.push(completionProvider, hoverProvider);
+      // Code folding provider: enables folding multi-line SQL statements
+      // Resource limits to prevent performance issues on large documents
+      const MAX_FOLDING_SPANS = 100000;
+      const MAX_DOCUMENT_SIZE = 10_000_000; // 10MB
+
+      const foldingProvider = monacoInstance.languages.registerFoldingRangeProvider('sql', {
+        provideFoldingRanges: async (model, _context, token) => {
+          try {
+            if (token.isCancellationRequested) return [];
+
+            const sqlText = model.getValue();
+
+            // Skip folding for very large documents to prevent UI lag
+            if (sqlText.length > MAX_DOCUMENT_SIZE) {
+              return [];
+            }
+            const spans = await getStatementSpans(sqlText);
+
+            if (token.isCancellationRequested) return [];
+            if (spans.length === 0) return [];
+
+            // Resource exhaustion protection
+            if (spans.length > MAX_FOLDING_SPANS) {
+              console.warn(`Too many statements for folding (${spans.length}), skipping`);
+              return [];
+            }
+
+            // Collect unique byte offsets for batch conversion
+            const byteOffsets = new Set<number>();
+            for (const span of spans) {
+              byteOffsets.add(span.start);
+              byteOffsets.add(span.end);
+            }
+
+            // Build byte-to-char map using shared utility
+            const byteToCharMap = buildByteToCharMap(sqlText, Array.from(byteOffsets));
+
+            const ranges: monaco.languages.FoldingRange[] = [];
+            for (const span of spans) {
+              // Check cancellation inside loop for large documents
+              if (token.isCancellationRequested) return ranges;
+
+              const startCharOffset = byteToCharMap.get(span.start);
+              const endCharOffset = byteToCharMap.get(span.end);
+
+              // Warn on missing mappings instead of silently defaulting
+              if (startCharOffset === undefined || endCharOffset === undefined) {
+                console.warn('Missing byte-to-char mapping for folding span:', {
+                  start: span.start,
+                  end: span.end,
+                });
+                continue;
+              }
+
+              const startPos = model.getPositionAt(startCharOffset);
+              const endPos = model.getPositionAt(endCharOffset);
+
+              // Only fold multi-line statements
+              if (endPos.lineNumber > startPos.lineNumber) {
+                ranges.push({
+                  start: startPos.lineNumber,
+                  end: endPos.lineNumber,
+                  kind: monacoInstance.languages.FoldingRangeKind.Region,
+                });
+              }
+            }
+            return ranges;
+          } catch (error) {
+            // Graceful degradation: return empty ranges on parser failure
+            // Only log error message to avoid leaking SQL content
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            console.warn('Folding provider failed:', message);
+            return [];
+          }
+        },
+      });
+
+      disposablesRef.current.push(completionProvider, hoverProvider, foldingProvider);
     };
 
     useEffect(() => {

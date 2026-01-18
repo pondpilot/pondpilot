@@ -1,5 +1,6 @@
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
+import { buildByteToCharMap, buildCharToLineMap, getUtf8ByteLength } from './byte-offset';
 import { getFlowScopeClient } from '../../workers/flowscope-client';
 
 export enum SQLStatement {
@@ -222,17 +223,6 @@ export function trimQuery(query: string): string {
   return query.trim().replace(/[;\s]*$/, '');
 }
 
-function getLineNumberAtOffset(sqlText: string, offset: number): number {
-  if (offset <= 0) return 1;
-  let line = 1;
-  for (let index = 0; index < sqlText.length && index < offset; index += 1) {
-    if (sqlText[index] === '\n') {
-      line += 1;
-    }
-  }
-  return line;
-}
-
 function extractDropTarget(statement: string): string | null {
   const match = statement.match(
     /drop\s+(?:table|view|schema|sequence|index|macro|type|function|materialized\s+view)?\s*(?:if\s+exists\s+)?([^\s;]+)/i,
@@ -241,26 +231,54 @@ function extractDropTarget(statement: string): string | null {
   return match[1].replace(/^"|"$/g, '');
 }
 
+/**
+ * Converts a UTF-16 code unit offset (JavaScript string index) to a UTF-8 byte offset.
+ *
+ * JavaScript strings use UTF-16 internally, but FlowScope returns UTF-8 byte offsets.
+ * This function handles surrogate pairs correctly: for...of iterates by code points,
+ * while char.length returns the UTF-16 code unit count (1 for BMP, 2 for astral plane).
+ *
+ * @param text - The source text
+ * @param utf16Offset - Offset in UTF-16 code units (JS string index)
+ * @returns Offset in UTF-8 bytes
+ */
 export function toUtf8Offset(text: string, utf16Offset: number): number {
-  const encoder = new TextEncoder();
-  return encoder.encode(text.slice(0, utf16Offset)).length;
+  let byteOffset = 0;
+  let charIndex = 0;
+
+  for (const char of text) {
+    if (charIndex >= utf16Offset) break;
+    byteOffset += getUtf8ByteLength(char);
+    // char.length is 1 for BMP characters, 2 for astral plane (surrogate pairs)
+    charIndex += char.length;
+  }
+
+  return byteOffset;
 }
 
+/**
+ * Converts a UTF-8 byte offset to a UTF-16 code unit offset (JavaScript string index).
+ *
+ * JavaScript strings use UTF-16 internally, but FlowScope returns UTF-8 byte offsets.
+ * This function handles surrogate pairs correctly: for...of iterates by code points,
+ * while char.length returns the UTF-16 code unit count (1 for BMP, 2 for astral plane).
+ *
+ * @param text - The source text
+ * @param byteOffset - Offset in UTF-8 bytes
+ * @returns Offset in UTF-16 code units (JS string index)
+ */
 export function fromUtf8Offset(text: string, byteOffset: number): number {
-  const encoder = new TextEncoder();
   let bytes = 0;
   let utf16Index = 0;
 
-  // Use for...of to iterate over Unicode code points, not UTF-16 code units.
-  // This correctly handles surrogate pairs (e.g., emoji like 👍).
-  for (const codePoint of text) {
-    const charBytes = encoder.encode(codePoint).length;
+  for (const char of text) {
+    const charBytes = getUtf8ByteLength(char);
     if (bytes + charBytes > byteOffset) {
       return utf16Index;
     }
     bytes += charBytes;
-    // codePoint.length is 1 for BMP characters, 2 for astral plane (surrogate pairs)
-    utf16Index += codePoint.length;
+    // char.length is 1 for BMP characters, 2 for astral plane (surrogate pairs)
+    utf16Index += char.length;
   }
 
   return text.length;
@@ -331,12 +349,51 @@ export async function splitSQLByStats(sqlText: string): Promise<ParsedStatement[
     return [];
   }
 
+  // Collect unique byte offsets for batch conversion
+  const byteOffsets = new Set<number>();
+  for (const span of result.statements) {
+    byteOffsets.add(span.start);
+    byteOffsets.add(span.end);
+  }
+
+  // Build byte-to-char offset map using shared utility
+  const byteToCharMap = buildByteToCharMap(sqlText, Array.from(byteOffsets));
+
+  // Collect character positions for line number mapping
+  // Use filtered positions since we'll handle missing mappings in the main loop
+  const charPositions: number[] = [];
+  for (const span of result.statements) {
+    const charPos = byteToCharMap.get(span.start);
+    if (charPos !== undefined) {
+      charPositions.push(charPos);
+    }
+  }
+
+  // Build line number map using shared utility
+  const charToLineMap = buildCharToLineMap(sqlText, charPositions);
+
   return result.statements.map((span: { start: number; end: number }) => {
-    const startIndex = fromUtf8Offset(sqlText, span.start);
-    const endIndex = fromUtf8Offset(sqlText, span.end);
+    const startIndex = byteToCharMap.get(span.start);
+    const endIndex = byteToCharMap.get(span.end);
+
+    if (startIndex === undefined || endIndex === undefined) {
+      const message = `Missing byte-to-char mapping for span: start=${span.start}, end=${span.end}`;
+      if (import.meta.env.DEV) {
+        throw new Error(message);
+      }
+      console.error(message);
+      // Fallback: return the entire text as a single statement to avoid crashes
+      return {
+        code: sqlText,
+        lineNumber: 1,
+        start: 0,
+        end: sqlText.length,
+      };
+    }
+
     return {
       code: sqlText.slice(startIndex, endIndex),
-      lineNumber: getLineNumberAtOffset(sqlText, startIndex),
+      lineNumber: charToLineMap.get(startIndex) ?? 1,
       start: startIndex,
       end: endIndex,
     };

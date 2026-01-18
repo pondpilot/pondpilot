@@ -127,3 +127,50 @@ body {
 [data-mantine-color-scheme='dark'] .cm-completionIcon-schema::after {
   content: url('/assets/schema-dark.svg');
 }
+
+/* Monaco semantic highlighting for SQL editor */
+.monaco-table-name {
+  color: var(--mantine-color-blue-6);
+}
+
+.monaco-cte-name {
+  color: var(--mantine-color-cyan-6);
+  font-style: italic;
+}
+
+.monaco-view-name {
+  color: var(--mantine-color-teal-6);
+}
+
+.monaco-aggregated-column {
+  color: var(--mantine-color-orange-6);
+}
+
+/* Dark mode overrides for Monaco semantic highlighting */
+[data-mantine-color-scheme='dark'] .monaco-table-name {
+  color: var(--mantine-color-blue-4);
+}
+
+[data-mantine-color-scheme='dark'] .monaco-cte-name {
+  color: var(--mantine-color-cyan-4);
+}
+
+[data-mantine-color-scheme='dark'] .monaco-view-name {
+  color: var(--mantine-color-teal-4);
+}
+
+[data-mantine-color-scheme='dark'] .monaco-aggregated-column {
+  color: var(--mantine-color-orange-4);
+}
+
+/*
+ * Statement highlight for current cursor position.
+ * Uses 5% opacity to provide subtle visual feedback without distracting
+ * from the code. This opacity level is visible but doesn't interfere
+ * with syntax highlighting colors.
+ */
+.monaco-statement-highlight {
+  /* Fallback for browsers without color-mix() support */
+  background-color: rgba(34, 139, 230, 0.05);
+  background-color: color-mix(in srgb, var(--mantine-color-blue-filled) 5%, transparent);
+}
