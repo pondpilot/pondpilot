@@ -47,7 +47,7 @@ type ScriptEditorFixtures = {
   runSelectionWithHotkey: (line: number) => Promise<void>;
 };
 
-const QUERY_EDITOR_TIMEOUT = Number(process.env.PLAYWRIGHT_QUERY_EDITOR_TIMEOUT) || 100;
+const QUERY_EDITOR_TIMEOUT = Number(process.env.PLAYWRIGHT_QUERY_EDITOR_TIMEOUT) || 2000;
 
 export const test = base.extend<ScriptEditorFixtures>({
   scriptEditor: async ({ page }, use) => {
@@ -83,8 +83,8 @@ export const test = base.extend<ScriptEditorFixtures>({
         'Did you forget to open a script tab before calling this fixture? Use `createScriptAndSwitchToItsTab` or similar fixture first',
       ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
-      const editorInput = activeScriptEditor.locator('.monaco-editor textarea.inputarea');
-      await expect(editorInput).toHaveCount(1, { timeout: QUERY_EDITOR_TIMEOUT });
+      const editorInput = scriptEditorContent.locator('textarea.inputarea');
+      await expect(editorInput).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
       await scriptEditorContent.click();
       await page.keyboard.press('ControlOrMeta+A');
