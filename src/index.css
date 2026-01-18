@@ -1,6 +1,5 @@
 /* AI Assistant Widget Styles */
 @import './features/editor/ai-assistant/ai-widget.css';
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
