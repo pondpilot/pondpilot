@@ -79,20 +79,35 @@ const createCompletionRange = (
   contextToken: CompletionItemsResult['token'],
   position: monaco.Position,
   tokenBaseOffset: number = 0,
+  triggerChar?: string,
 ): monaco.IRange => {
   if (!contextToken) {
-    return new monaco.Range(
-      position.lineNumber,
-      position.column,
-      position.lineNumber,
-      position.column,
-    );
+    const word = model.getWordUntilPosition(position);
+    const startColumn = word?.startColumn ?? position.column;
+    const endColumn = word?.endColumn ?? position.column;
+    return new monaco.Range(position.lineNumber, startColumn, position.lineNumber, endColumn);
   }
 
-  const startOffset = fromUtf8Offset(model.getValue(), contextToken.span.start + tokenBaseOffset);
-  const endOffset = fromUtf8Offset(model.getValue(), contextToken.span.end + tokenBaseOffset);
+  const modelValue = model.getValue();
+  const startOffset = fromUtf8Offset(modelValue, contextToken.span.start + tokenBaseOffset);
+  const endOffset = fromUtf8Offset(modelValue, contextToken.span.end + tokenBaseOffset);
   const startPos = model.getPositionAt(startOffset);
   const endPos = model.getPositionAt(endOffset);
+
+  if (triggerChar === '.') {
+    const rangeText = modelValue.slice(startOffset, endOffset);
+    const lastDotIndex = rangeText.lastIndexOf('.');
+    if (lastDotIndex !== -1) {
+      const adjustedStartOffset = startOffset + lastDotIndex + 1;
+      const adjustedStartPos = model.getPositionAt(adjustedStartOffset);
+      return new monaco.Range(
+        adjustedStartPos.lineNumber,
+        adjustedStartPos.column,
+        endPos.lineNumber,
+        endPos.column,
+      );
+    }
+  }
 
   return new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
 };
@@ -751,6 +766,17 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
                 statementContext = fallbackContext;
               }
             }
+
+            const triggerChar = completionContextInfo?.triggerCharacter;
+            const contextTooShort =
+              statementContext && statementContext.cursorOffset > statementContext.sql.length;
+            if ((triggerChar === '.' || contextTooShort) && sqlText.trim()) {
+              const fallbackContext = await getStatementContext(sqlText, cursorOffset);
+              if (fallbackContext.span) {
+                statementContext = fallbackContext;
+              }
+            }
+
             if (!statementContext || !statementContext.sql.trim()) {
               return { suggestions: [] };
             }
@@ -771,6 +797,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
               result.token,
               position,
               statementContext.span?.start ?? 0,
+              triggerChar,
             );
 
             const suggestions = result.items.map((item: CompletionItem) => ({

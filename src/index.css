@@ -1,10 +1,9 @@
+/* AI Assistant Widget Styles */
+@import './features/editor/ai-assistant/ai-widget.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* AI Assistant Widget Styles - imported after Tailwind to ensure proper cascade */
-/* stylelint-disable-next-line no-invalid-position-at-import-rule */
-@import './features/editor/ai-assistant/ai-widget.css';
 
 html,
 body,
@@ -129,4 +128,3 @@ body {
 [data-mantine-color-scheme='dark'] .cm-completionIcon-schema::after {
   content: url('/assets/schema-dark.svg');
 }
-
