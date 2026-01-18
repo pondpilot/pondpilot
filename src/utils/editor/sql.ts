@@ -1,6 +1,6 @@
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
-import { buildByteToCharMap, buildCharToLineMap, getUtf8ByteLength } from './byte-offset';
+import { buildCharToLineMap, safeSliceBySpan } from './spans';
 import { getFlowScopeClient } from '../../workers/flowscope-client';
 
 export enum SQLStatement {
@@ -232,59 +232,6 @@ function extractDropTarget(statement: string): string | null {
 }
 
 /**
- * Converts a UTF-16 code unit offset (JavaScript string index) to a UTF-8 byte offset.
- *
- * JavaScript strings use UTF-16 internally, but FlowScope returns UTF-8 byte offsets.
- * This function handles surrogate pairs correctly: for...of iterates by code points,
- * while char.length returns the UTF-16 code unit count (1 for BMP, 2 for astral plane).
- *
- * @param text - The source text
- * @param utf16Offset - Offset in UTF-16 code units (JS string index)
- * @returns Offset in UTF-8 bytes
- */
-export function toUtf8Offset(text: string, utf16Offset: number): number {
-  let byteOffset = 0;
-  let charIndex = 0;
-
-  for (const char of text) {
-    if (charIndex >= utf16Offset) break;
-    byteOffset += getUtf8ByteLength(char);
-    // char.length is 1 for BMP characters, 2 for astral plane (surrogate pairs)
-    charIndex += char.length;
-  }
-
-  return byteOffset;
-}
-
-/**
- * Converts a UTF-8 byte offset to a UTF-16 code unit offset (JavaScript string index).
- *
- * JavaScript strings use UTF-16 internally, but FlowScope returns UTF-8 byte offsets.
- * This function handles surrogate pairs correctly: for...of iterates by code points,
- * while char.length returns the UTF-16 code unit count (1 for BMP, 2 for astral plane).
- *
- * @param text - The source text
- * @param byteOffset - Offset in UTF-8 bytes
- * @returns Offset in UTF-16 code units (JS string index)
- */
-export function fromUtf8Offset(text: string, byteOffset: number): number {
-  let bytes = 0;
-  let utf16Index = 0;
-
-  for (const char of text) {
-    const charBytes = getUtf8ByteLength(char);
-    if (bytes + charBytes > byteOffset) {
-      return utf16Index;
-    }
-    bytes += charBytes;
-    // char.length is 1 for BMP characters, 2 for astral plane (surrogate pairs)
-    utf16Index += char.length;
-  }
-
-  return text.length;
-}
-
-/**
  * Strip leading comments and whitespace from SQL to get the actual statement start
  */
 function stripLeadingComments(text: string): string {
@@ -349,53 +296,20 @@ export async function splitSQLByStats(sqlText: string): Promise<ParsedStatement[
     return [];
   }
 
-  // Collect unique byte offsets for batch conversion
-  const byteOffsets = new Set<number>();
-  for (const span of result.statements) {
-    byteOffsets.add(span.start);
-    byteOffsets.add(span.end);
-  }
-
-  // Build byte-to-char offset map using shared utility
-  const byteToCharMap = buildByteToCharMap(sqlText, Array.from(byteOffsets));
-
-  // Collect character positions for line number mapping
-  // Use filtered positions since we'll handle missing mappings in the main loop
-  const charPositions: number[] = [];
-  for (const span of result.statements) {
-    const charPos = byteToCharMap.get(span.start);
-    if (charPos !== undefined) {
-      charPositions.push(charPos);
-    }
-  }
+  // Collect start positions for line number mapping
+  const charPositions = result.statements.map((span) => span.start);
 
   // Build line number map using shared utility
   const charToLineMap = buildCharToLineMap(sqlText, charPositions);
 
   return result.statements.map((span: { start: number; end: number }) => {
-    const startIndex = byteToCharMap.get(span.start);
-    const endIndex = byteToCharMap.get(span.end);
-
-    if (startIndex === undefined || endIndex === undefined) {
-      const message = `Missing byte-to-char mapping for span: start=${span.start}, end=${span.end}`;
-      if (import.meta.env.DEV) {
-        throw new Error(message);
-      }
-      console.error(message);
-      // Fallback: return the entire text as a single statement to avoid crashes
-      return {
-        code: sqlText,
-        lineNumber: 1,
-        start: 0,
-        end: sqlText.length,
-      };
-    }
-
+    const code = safeSliceBySpan(sqlText, span, 'statement split');
     return {
-      code: sqlText.slice(startIndex, endIndex),
-      lineNumber: charToLineMap.get(startIndex) ?? 1,
-      start: startIndex,
-      end: endIndex,
+      // If span is invalid, fall back to extracting the full statement range
+      code: code ?? sqlText.slice(Math.max(0, span.start), Math.min(sqlText.length, span.end)),
+      lineNumber: charToLineMap.get(span.start) ?? 1,
+      start: span.start,
+      end: span.end,
     };
   });
 }

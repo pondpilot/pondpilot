@@ -3,7 +3,7 @@
  * Copyright (C) [2025] Outerbase
  * Licensed under GNU AGPL v3.0
  */
-import { splitSQLByStats, toUtf8Offset, fromUtf8Offset } from './sql';
+import { splitSQLByStats } from './sql';
 import { getFlowScopeClient } from '../../workers/flowscope-client';
 
 export interface StatementSegment {
@@ -27,11 +27,9 @@ export async function splitSqlQuery(
 }
 
 /**
- * Finds the statement containing the cursor using raw byte offsets from the worker.
- * This is more efficient than splitSqlQuery because it:
- * 1. Only converts the cursor position to UTF-8 once
- * 2. Only converts back to UTF-16 for the ONE matching statement
- * 3. Doesn't compute line numbers or extract code for all statements
+ * Finds the statement containing the cursor.
+ * More efficient than splitSqlQuery because it doesn't compute line numbers
+ * or extract code for all statements.
  */
 export async function resolveToNearestStatement(
   sql: string,
@@ -39,26 +37,23 @@ export async function resolveToNearestStatement(
 ): Promise<StatementSegment | null> {
   if (!sql.trim()) return null;
 
-  // Get raw byte offsets from worker (no post-processing)
   const client = getFlowScopeClient();
   const result = await client.split(sql);
 
   if (!result.statements.length) return null;
 
-  // Convert cursor position to UTF-8 byte offset once
-  const cursorByteOffset = toUtf8Offset(sql, cursorOffset);
-
-  // Find the statement containing the cursor using byte offsets
+  // Find the statement containing the cursor
   let matchingStatement: { start: number; end: number } | null = null;
 
   for (let i = 0; i < result.statements.length; i += 1) {
     const stmt = result.statements[i];
-    if (cursorByteOffset < stmt.start) {
+    if (cursorOffset < stmt.start) {
       // Cursor is before this statement
       matchingStatement = i === 0 ? result.statements[0] : result.statements[i - 1];
       break;
     }
-    if (cursorByteOffset >= stmt.start && cursorByteOffset <= stmt.end) {
+    // Spans use half-open intervals [start, end), so end is exclusive
+    if (cursorOffset >= stmt.start && cursorOffset < stmt.end) {
       // Cursor is inside this statement
       matchingStatement = stmt;
       break;
@@ -70,11 +65,7 @@ export async function resolveToNearestStatement(
     matchingStatement = result.statements[result.statements.length - 1];
   }
 
-  // Only convert the ONE matching statement to UTF-16 offsets
-  const from = fromUtf8Offset(sql, matchingStatement.start);
-  const to = fromUtf8Offset(sql, matchingStatement.end);
-
-  return { from, to, text: '' };
+  return { from: matchingStatement.start, to: matchingStatement.end, text: '' };
 }
 
 /**

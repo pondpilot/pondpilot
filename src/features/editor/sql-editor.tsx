@@ -9,8 +9,7 @@ import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import MonacoEditor from '@monaco-editor/react';
 import type { CompletionItemsResult, Span } from '@pondpilot/flowscope-core';
 import { useAppStore } from '@store/app-store';
-import { buildByteToCharMap, createOffsetConverter } from '@utils/editor/byte-offset';
-import { fromUtf8Offset, toUtf8Offset } from '@utils/editor/sql';
+import { safeSliceBySpan, isSpanValid, type Utf16Span } from '@utils/editor/spans';
 import * as monaco from 'monaco-editor';
 import {
   forwardRef,
@@ -77,6 +76,31 @@ function getFontWeightValue(weight: FontWeight): string {
     case 'bold':
       return '700';
   }
+}
+
+/**
+ * Converts a UTF-16 span to a Monaco Range.
+ * Returns null if the span is missing or invalid.
+ *
+ * @param model - The Monaco text model
+ * @param span - The span to convert (may be null/undefined)
+ * @returns A Monaco Range, or null if span is invalid
+ */
+function spanToRange(
+  model: monaco.editor.ITextModel,
+  span: Utf16Span | null | undefined,
+): monaco.Range | null {
+  if (!span) return null;
+
+  const textLength = model.getValue().length;
+  if (span.start < 0 || span.end > textLength || span.start > span.end) {
+    return null;
+  }
+
+  const startPos = model.getPositionAt(span.start);
+  const endPos = model.getPositionAt(span.end);
+
+  return new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
 }
 
 /**
@@ -180,13 +204,13 @@ const createCompletionRange = (
     return new monaco.Range(position.lineNumber, startColumn, position.lineNumber, endColumn);
   }
 
-  const modelValue = model.getValue();
-  const startOffset = fromUtf8Offset(modelValue, contextToken.span.start + tokenBaseOffset);
-  const endOffset = fromUtf8Offset(modelValue, contextToken.span.end + tokenBaseOffset);
+  const startOffset = contextToken.span.start + tokenBaseOffset;
+  const endOffset = contextToken.span.end + tokenBaseOffset;
   const startPos = model.getPositionAt(startOffset);
   const endPos = model.getPositionAt(endOffset);
 
   if (triggerChar === '.') {
+    const modelValue = model.getValue();
     const rangeText = modelValue.slice(startOffset, endOffset);
     const lastDotIndex = rangeText.lastIndexOf('.');
     if (lastDotIndex !== -1) {
@@ -427,11 +451,10 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           return null;
         }
 
-        const startIndex = fromUtf8Offset(sqlText, span.start);
-        const endIndex = fromUtf8Offset(sqlText, span.end);
+        const statementSql = safeSliceBySpan(sqlText, span, 'statement context');
         return {
-          sql: sqlText.slice(startIndex, endIndex),
-          cursorOffset: Math.max(0, cursorOffset - span.start),
+          sql: statementSql ?? sqlText,
+          cursorOffset: statementSql ? Math.max(0, cursorOffset - span.start) : cursorOffset,
           span,
         };
       },
@@ -455,11 +478,10 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           };
         }
 
-        const startIndex = fromUtf8Offset(sqlText, span.start);
-        const endIndex = fromUtf8Offset(sqlText, span.end);
+        const statementSql = safeSliceBySpan(sqlText, span, 'statement context');
         return {
-          sql: sqlText.slice(startIndex, endIndex),
-          cursorOffset: Math.max(0, cursorOffset - span.start),
+          sql: statementSql ?? sqlText,
+          cursorOffset: statementSql ? Math.max(0, cursorOffset - span.start) : cursorOffset,
           span,
         };
       },
@@ -528,11 +550,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           );
           return;
         }
-
-        const startOffset = fromUtf8Offset(sqlText, statementSpan.start);
-        const endOffset = fromUtf8Offset(sqlText, statementSpan.end);
-        const startPos = model.getPositionAt(startOffset);
-        const endPos = model.getPositionAt(endOffset);
+        const startPos = model.getPositionAt(statementSpan.start);
+        const endPos = model.getPositionAt(statementSpan.end);
 
         // Use a single multi-line decoration instead of one per line for better performance
         statementDecorationsRef.current = editorRef.current.deltaDecorations(
@@ -568,10 +587,6 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         }
 
         const decorations: monaco.editor.IModelDeltaDecoration[] = [];
-        const modelValue = model.getValue();
-        // Use cached converter for O(1) lookups when processing many nodes
-        const converter = createOffsetConverter(modelValue);
-
         analysis.statements.forEach((statement) => {
           statement.nodes.forEach((node) => {
             if (
@@ -580,10 +595,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             ) {
               return;
             }
-            const startOffset = converter.fromUtf8(node.span.start);
-            const endOffset = converter.fromUtf8(node.span.end);
-            const startPos = model.getPositionAt(startOffset);
-            const endPos = model.getPositionAt(endOffset);
+            const startPos = model.getPositionAt(node.span.start);
+            const endPos = model.getPositionAt(node.span.end);
 
             decorations.push({
               range: new monaco.Range(
@@ -625,10 +638,6 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
               return monaco.MarkerSeverity.Info;
           }
         };
-
-        const modelValue = model.getValue();
-        // Use cached converter for O(1) lookups when processing many issues
-        const converter = createOffsetConverter(modelValue);
         const markers: monaco.editor.IMarkerData[] = analysis.issues.map((issue) => {
           if (!issue.span) {
             return {
@@ -641,10 +650,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             };
           }
 
-          const startOffset = converter.fromUtf8(issue.span.start);
-          const endOffset = converter.fromUtf8(issue.span.end);
-          const startPos = model.getPositionAt(startOffset);
-          const endPos = model.getPositionAt(endOffset);
+          const startPos = model.getPositionAt(issue.span.start);
+          const endPos = model.getPositionAt(issue.span.end);
 
           return {
             severity: getMarkerSeverity(issue.severity),
@@ -737,14 +744,12 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         if (spansCache.sql !== sqlText || spansCache.spans.length === 0) {
           return null;
         }
-
-        const cursorOffset = toUtf8Offset(sqlText, offset);
-        const span = findStatementSpan(spansCache.spans, cursorOffset);
+        const span = findStatementSpan(spansCache.spans, offset);
         if (!span) return null;
 
         return {
-          start: fromUtf8Offset(sqlText, span.start),
-          end: fromUtf8Offset(sqlText, span.end),
+          start: span.start,
+          end: span.end,
         };
       },
       [findStatementSpan],
@@ -836,9 +841,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           const offset = editorModel ? editorModel.getOffsetAt(event.position) : 0;
           onCursorChange?.(offset, event.position.lineNumber, event.position.column);
           if (editorModel) {
-            const cursorOffset = toUtf8Offset(editorModel.getValue(), offset);
-            cursorOffsetRef.current = cursorOffset;
-            updateStatementHighlight(editorModel, cursorOffset);
+            cursorOffsetRef.current = offset;
+            updateStatementHighlight(editorModel, offset);
           }
         }),
       );
@@ -927,8 +931,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         ) => {
           try {
             const sqlText = completionModel.getValue();
-            const absoluteOffset = completionModel.getOffsetAt(position);
-            const cursorOffset = toUtf8Offset(sqlText, absoluteOffset);
+            const cursorOffset = completionModel.getOffsetAt(position);
 
             let statementContext = getStatementContextFromCache(sqlText, cursorOffset);
             if (!statementContext) {
@@ -1021,7 +1024,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             }
 
             const sqlText = hoverModel.getValue();
-            const cursorOffset = toUtf8Offset(sqlText, hoverModel.getOffsetAt(position));
+            const cursorOffset = hoverModel.getOffsetAt(position);
             const statementResult = await getStatementAnalysis(sqlText, cursorOffset);
             if (!statementResult?.analysis) return null;
 
@@ -1098,36 +1101,18 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
               console.warn(`Too many statements for folding (${spans.length}), skipping`);
               return [];
             }
-
-            // Collect unique byte offsets for batch conversion
-            const byteOffsets = new Set<number>();
-            for (const span of spans) {
-              byteOffsets.add(span.start);
-              byteOffsets.add(span.end);
-            }
-
-            // Build byte-to-char map using shared utility
-            const byteToCharMap = buildByteToCharMap(sqlText, Array.from(byteOffsets));
-
             const ranges: monaco.languages.FoldingRange[] = [];
             for (const span of spans) {
               // Check cancellation inside loop for large documents
               if (token.isCancellationRequested) return ranges;
 
-              const startCharOffset = byteToCharMap.get(span.start);
-              const endCharOffset = byteToCharMap.get(span.end);
-
-              // Warn on missing mappings instead of silently defaulting
-              if (startCharOffset === undefined || endCharOffset === undefined) {
-                console.warn('Missing byte-to-char mapping for folding span:', {
-                  start: span.start,
-                  end: span.end,
-                });
+              // Skip invalid spans to prevent getPositionAt errors
+              if (!isSpanValid(sqlText, span)) {
                 continue;
               }
 
-              const startPos = model.getPositionAt(startCharOffset);
-              const endPos = model.getPositionAt(endCharOffset);
+              const startPos = model.getPositionAt(span.start);
+              const endPos = model.getPositionAt(span.end);
 
               // Only fold multi-line statements
               if (endPos.lineNumber > startPos.lineNumber) {
@@ -1196,28 +1181,23 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
           if (!hasCteWithLabel(analysis, word.word)) return null;
 
-          // FlowScope doesn't provide spans for CTEs, so search for definition in text
-          // Match patterns like "WITH cte_name AS" or ", cte_name AS"
-          const pattern = `(?:WITH|,)\\s+(${word.word})\\s+AS\\s*\\(`;
-          const cteRegex = new RegExp(pattern, 'gi');
-          const match = cteRegex.exec(sqlText);
+          const targetLabel = word.word.toLowerCase();
 
-          if (match) {
-            // Find the position of the CTE name within the match
-            const cteNameStart = match.index + match[0].indexOf(match[1]);
-            const cteNameEnd = cteNameStart + match[1].length;
-            const startPos = model.getPositionAt(cteNameStart);
-            const endPos = model.getPositionAt(cteNameEnd);
+          // Find the first CTE definition with this label (first occurrence is the definition)
+          for (const statement of analysis.statements) {
+            for (const node of statement.nodes) {
+              if (node.type === 'cte' && node.label.toLowerCase() === targetLabel) {
+                const range = spanToRange(model, node.span);
+                if (!range) {
+                  console.warn(
+                    `CTE '${targetLabel}' found but missing or invalid span from FlowScope`,
+                  );
+                  return null;
+                }
 
-            return {
-              uri: model.uri,
-              range: new monacoInstance.Range(
-                startPos.lineNumber,
-                startPos.column,
-                endPos.lineNumber,
-                endPos.column,
-              ),
-            };
+                return { uri: model.uri, range };
+              }
+            }
           }
 
           return null;
@@ -1236,52 +1216,30 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
           const references: monaco.languages.Location[] = [];
           const targetLabel = word.word.toLowerCase();
-          const converter = createOffsetConverter(sqlText);
+          let missingSpanCount = 0;
 
           // Find all nodes matching the label (tables, CTEs, views)
           for (const statement of analysis.statements) {
             for (const node of statement.nodes) {
               if (
                 (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
-                node.label.toLowerCase() === targetLabel &&
-                node.span
+                node.label.toLowerCase() === targetLabel
               ) {
-                const startOffset = converter.fromUtf8(node.span.start);
-                const endOffset = converter.fromUtf8(node.span.end);
-                const startPos = model.getPositionAt(startOffset);
-                const endPos = model.getPositionAt(endOffset);
+                const range = spanToRange(model, node.span);
+                if (!range) {
+                  missingSpanCount += 1;
+                  continue;
+                }
 
-                references.push({
-                  uri: model.uri,
-                  range: new monacoInstance.Range(
-                    startPos.lineNumber,
-                    startPos.column,
-                    endPos.lineNumber,
-                    endPos.column,
-                  ),
-                });
+                references.push({ uri: model.uri, range });
               }
             }
           }
 
-          // For CTEs without spans, use text search as fallback
-          if (hasCteWithLabel(analysis, targetLabel) && references.length === 0) {
-            // Search for all occurrences of the CTE name as a word
-            const wordPattern = new RegExp(`\\b${word.word}\\b`, 'gi');
-            let match;
-            while ((match = wordPattern.exec(sqlText)) !== null) {
-              const startPos = model.getPositionAt(match.index);
-              const endPos = model.getPositionAt(match.index + match[0].length);
-              references.push({
-                uri: model.uri,
-                range: new monacoInstance.Range(
-                  startPos.lineNumber,
-                  startPos.column,
-                  endPos.lineNumber,
-                  endPos.column,
-                ),
-              });
-            }
+          if (missingSpanCount > 0) {
+            console.warn(
+              `${missingSpanCount} reference(s) for '${targetLabel}' missing or invalid span from FlowScope`,
+            );
           }
 
           return references;
@@ -1298,74 +1256,121 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             if (spans.length === 0) return [];
 
             const symbols: monaco.languages.DocumentSymbol[] = [];
-            const converter = createOffsetConverter(sqlText);
+            const seenRanges = new Set<string>();
+            const statementKindMap: Record<string, monaco.languages.SymbolKind> = {
+              SELECT: monacoInstance.languages.SymbolKind.Function,
+              INSERT: monacoInstance.languages.SymbolKind.Method,
+              UPDATE: monacoInstance.languages.SymbolKind.Method,
+              DELETE: monacoInstance.languages.SymbolKind.Method,
+              CREATE: monacoInstance.languages.SymbolKind.Class,
+              ALTER: monacoInstance.languages.SymbolKind.Class,
+              DROP: monacoInstance.languages.SymbolKind.Class,
+            };
 
             for (let i = 0; i < spans.length; i += 1) {
               const span = spans[i];
-              const startOffset = converter.fromUtf8(span.start);
-              const endOffset = converter.fromUtf8(span.end);
-              const startPos = model.getPositionAt(startOffset);
-              const endPos = model.getPositionAt(endOffset);
-              const statementText = sqlText.slice(startOffset, endOffset);
+              const range = spanToRange(model, span);
+              if (!range) continue;
+
+              const rangeKey = `${range.startLineNumber}:${range.startColumn}-${range.endLineNumber}:${range.endColumn}`;
+              if (seenRanges.has(rangeKey)) {
+                continue;
+              }
+              seenRanges.add(rangeKey);
+
+              const statementText = safeSliceBySpan(sqlText, span, 'document symbol') ?? '';
 
               // Determine statement type from first keyword
               const firstWord = statementText.trim().split(/\s+/)[0]?.toUpperCase() || 'STATEMENT';
-              let symbolKind = monacoInstance.languages.SymbolKind.Function;
+              let statementTypeLabel = firstWord;
               let statementName = `${firstWord} (${i + 1})`;
+              let symbolIdentifier: string | null = null;
 
-              // Try to extract a more meaningful name
               if (firstWord === 'WITH') {
-                // Extract CTE names
                 const cteMatch = statementText.match(/WITH\s+(\w+)/i);
                 if (cteMatch) {
-                  statementName = `WITH ${cteMatch[1]}`;
-                  symbolKind = monacoInstance.languages.SymbolKind.Module;
+                  const [, cteName] = cteMatch;
+                  statementName = `WITH ${cteName}`;
+                  symbolIdentifier = cteName;
+                }
+                const terminalMatch = statementText.match(
+                  /\)\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i,
+                );
+                if (terminalMatch) {
+                  const [, terminalKeyword] = terminalMatch;
+                  statementTypeLabel = terminalKeyword.toUpperCase();
                 }
               } else if (firstWord === 'CREATE') {
                 const createMatch = statementText.match(
-                  /CREATE\s+(?:OR\s+REPLACE\s+)?(\w+)\s+(\w+)/i,
+                  /CREATE\s+(?:OR\s+REPLACE\s+)?(\w+)\s+([\w.]+)/i,
                 );
                 if (createMatch) {
-                  statementName = `CREATE ${createMatch[1]} ${createMatch[2]}`;
-                  symbolKind = monacoInstance.languages.SymbolKind.Class;
+                  const [, createType, createTarget] = createMatch;
+                  statementName = `CREATE ${createType} ${createTarget}`;
+                  symbolIdentifier = createTarget;
+                }
+              } else if (firstWord === 'ALTER') {
+                const alterMatch = statementText.match(/ALTER\s+(\w+)\s+([\w.]+)/i);
+                if (alterMatch) {
+                  const [, alterType, alterTarget] = alterMatch;
+                  statementName = `ALTER ${alterType} ${alterTarget}`;
+                  symbolIdentifier = alterTarget;
+                }
+              } else if (firstWord === 'DROP') {
+                const dropMatch = statementText.match(
+                  /DROP\s+(?:IF\s+EXISTS\s+)?(\w+)\s+([\w.]+)/i,
+                );
+                if (dropMatch) {
+                  const [, dropType, dropTarget] = dropMatch;
+                  statementName = `DROP ${dropType} ${dropTarget}`;
+                  symbolIdentifier = dropTarget;
                 }
               } else if (firstWord === 'INSERT') {
-                const insertMatch = statementText.match(/INSERT\s+INTO\s+(\w+)/i);
+                const insertMatch = statementText.match(/INSERT\s+INTO\s+([\w.]+)/i);
                 if (insertMatch) {
-                  statementName = `INSERT INTO ${insertMatch[1]}`;
-                  symbolKind = monacoInstance.languages.SymbolKind.Method;
+                  const [, insertTarget] = insertMatch;
+                  statementName = `INSERT INTO ${insertTarget}`;
+                  symbolIdentifier = insertTarget;
                 }
               } else if (firstWord === 'UPDATE') {
-                const updateMatch = statementText.match(/UPDATE\s+(\w+)/i);
+                const updateMatch = statementText.match(/UPDATE\s+([\w.]+)/i);
                 if (updateMatch) {
-                  statementName = `UPDATE ${updateMatch[1]}`;
-                  symbolKind = monacoInstance.languages.SymbolKind.Method;
+                  const [, updateTarget] = updateMatch;
+                  statementName = `UPDATE ${updateTarget}`;
+                  symbolIdentifier = updateTarget;
                 }
               } else if (firstWord === 'DELETE') {
-                const deleteMatch = statementText.match(/DELETE\s+FROM\s+(\w+)/i);
+                const deleteMatch = statementText.match(/DELETE\s+FROM\s+([\w.]+)/i);
                 if (deleteMatch) {
-                  statementName = `DELETE FROM ${deleteMatch[1]}`;
-                  symbolKind = monacoInstance.languages.SymbolKind.Method;
+                  const [, deleteTarget] = deleteMatch;
+                  statementName = `DELETE FROM ${deleteTarget}`;
+                  symbolIdentifier = deleteTarget;
                 }
               } else if (firstWord === 'SELECT') {
                 // Try to find the main table in FROM clause
-                const fromMatch = statementText.match(/FROM\s+(\w+)/i);
+                const fromMatch = statementText.match(/FROM\s+([\w.]+)/i);
                 if (fromMatch) {
-                  statementName = `SELECT FROM ${fromMatch[1]}`;
+                  const [, fromTarget] = fromMatch;
+                  statementName = `SELECT FROM ${fromTarget}`;
+                  symbolIdentifier = fromTarget;
                 }
-                symbolKind = monacoInstance.languages.SymbolKind.Function;
               }
 
-              const range = new monacoInstance.Range(
-                startPos.lineNumber,
-                startPos.column,
-                endPos.lineNumber,
-                endPos.column,
-              );
+              const detailParts = [
+                symbolIdentifier,
+                firstWord === 'WITH' && statementTypeLabel !== 'WITH' ? statementTypeLabel : null,
+                `Line ${range.startLineNumber}`,
+                `Statement ${i + 1}`,
+              ].filter(Boolean);
+
+              const symbolDetail = detailParts.join(' • ');
+              const symbolKind =
+                statementKindMap[statementTypeLabel] ??
+                monacoInstance.languages.SymbolKind.Function;
 
               symbols.push({
                 name: statementName,
-                detail: `Line ${startPos.lineNumber}`,
+                detail: symbolDetail,
                 kind: symbolKind,
                 range,
                 selectionRange: range,
@@ -1392,59 +1397,34 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
           const targetLabel = word.word.toLowerCase();
           const edits: monaco.languages.IWorkspaceTextEdit[] = [];
-          const converter = createOffsetConverter(sqlText);
+          let missingSpanCount = 0;
 
           // Find all occurrences with spans
           for (const statement of analysis.statements) {
             for (const node of statement.nodes) {
               if (
                 (node.type === 'table' || node.type === 'cte') &&
-                node.label.toLowerCase() === targetLabel &&
-                node.span
+                node.label.toLowerCase() === targetLabel
               ) {
-                const startOffset = converter.fromUtf8(node.span.start);
-                const endOffset = converter.fromUtf8(node.span.end);
-                const startPos = model.getPositionAt(startOffset);
-                const endPos = model.getPositionAt(endOffset);
+                const range = spanToRange(model, node.span);
+                if (!range) {
+                  missingSpanCount += 1;
+                  continue;
+                }
 
                 edits.push({
                   resource: model.uri,
                   versionId: undefined,
-                  textEdit: {
-                    range: new monacoInstance.Range(
-                      startPos.lineNumber,
-                      startPos.column,
-                      endPos.lineNumber,
-                      endPos.column,
-                    ),
-                    text: newName,
-                  },
+                  textEdit: { range, text: newName },
                 });
               }
             }
           }
 
-          // For CTEs without spans, use text search as fallback
-          if (edits.length === 0) {
-            const wordPattern = new RegExp(`\\b${word.word}\\b`, 'gi');
-            let match;
-            while ((match = wordPattern.exec(sqlText)) !== null) {
-              const startPos = model.getPositionAt(match.index);
-              const endPos = model.getPositionAt(match.index + match[0].length);
-              edits.push({
-                resource: model.uri,
-                versionId: undefined,
-                textEdit: {
-                  range: new monacoInstance.Range(
-                    startPos.lineNumber,
-                    startPos.column,
-                    endPos.lineNumber,
-                    endPos.column,
-                  ),
-                  text: newName,
-                },
-              });
-            }
+          if (missingSpanCount > 0) {
+            console.warn(
+              `${missingSpanCount} occurrence(s) of '${targetLabel}' missing or invalid span - rename may be incomplete`,
+            );
           }
 
           return { edits };
@@ -1460,35 +1440,35 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
           const lenses: monaco.languages.CodeLens[] = [];
 
-          // Find all CTEs and count their references
+          // Find all CTEs and count their references, track definition spans
           const cteReferences = new Map<string, number>();
           const cteDefinitionRanges = new Map<string, monaco.IRange>();
+          const ctesWithoutSpan: string[] = [];
 
           for (const statement of analysis.statements) {
             for (const node of statement.nodes) {
               if (node.type === 'cte') {
                 const label = node.label.toLowerCase();
-                cteReferences.set(label, (cteReferences.get(label) || 0) + 1);
+                const count = cteReferences.get(label) || 0;
+                cteReferences.set(label, count + 1);
+
+                // First occurrence is the definition
+                if (count === 0) {
+                  const range = spanToRange(model, node.span);
+                  if (range) {
+                    cteDefinitionRanges.set(label, range);
+                  } else {
+                    ctesWithoutSpan.push(label);
+                  }
+                }
               }
             }
           }
 
-          // Find CTE definition positions using regex
-          for (const [cteName] of cteReferences) {
-            const pattern = `(?:WITH|,)\\s+(${cteName})\\s+AS\\s*\\(`;
-            const cteRegex = new RegExp(pattern, 'gi');
-            const match = cteRegex.exec(sqlText);
-
-            if (match) {
-              const cteNameStart = match.index + match[0].indexOf(match[1]);
-              const startPos = model.getPositionAt(cteNameStart);
-              cteDefinitionRanges.set(cteName, {
-                startLineNumber: startPos.lineNumber,
-                startColumn: startPos.column,
-                endLineNumber: startPos.lineNumber,
-                endColumn: startPos.column + match[1].length,
-              });
-            }
+          if (ctesWithoutSpan.length > 0) {
+            console.warn(
+              `CTE definition(s) missing or invalid span: ${ctesWithoutSpan.join(', ')} - code lens unavailable`,
+            );
           }
 
           // Create code lenses for CTEs with multiple references
@@ -1532,7 +1512,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
             const targetLabel = word.word.toLowerCase();
             const ranges: monaco.IRange[] = [];
-            const converter = createOffsetConverter(sqlText);
+            let missingSpanCount = 0;
 
             // Check if this is a CTE, table, or view
             const isLinkedIdentifier = analysis.statements.some((stmt) =>
@@ -1550,43 +1530,23 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
               for (const node of statement.nodes) {
                 if (
                   (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
-                  node.label.toLowerCase() === targetLabel &&
-                  node.span
+                  node.label.toLowerCase() === targetLabel
                 ) {
-                  const startOffset = converter.fromUtf8(node.span.start);
-                  const endOffset = converter.fromUtf8(node.span.end);
-                  const startPos = model.getPositionAt(startOffset);
-                  const endPos = model.getPositionAt(endOffset);
+                  const range = spanToRange(model, node.span);
+                  if (!range) {
+                    missingSpanCount += 1;
+                    continue;
+                  }
 
-                  ranges.push(
-                    new monacoInstance.Range(
-                      startPos.lineNumber,
-                      startPos.column,
-                      endPos.lineNumber,
-                      endPos.column,
-                    ),
-                  );
+                  ranges.push(range);
                 }
               }
             }
 
-            // For CTEs without spans, use text search as fallback
-            if (hasCteWithLabel(analysis, targetLabel) && ranges.length === 0) {
-              const wordPattern = new RegExp(`\\b${word.word}\\b`, 'gi');
-
-              let match;
-              while ((match = wordPattern.exec(sqlText)) !== null) {
-                const startPos = model.getPositionAt(match.index);
-                const endPos = model.getPositionAt(match.index + match[0].length);
-                ranges.push(
-                  new monacoInstance.Range(
-                    startPos.lineNumber,
-                    startPos.column,
-                    endPos.lineNumber,
-                    endPos.column,
-                  ),
-                );
-              }
+            if (missingSpanCount > 0) {
+              console.warn(
+                `${missingSpanCount} occurrence(s) of '${targetLabel}' missing or invalid span - linked editing may be incomplete`,
+              );
             }
 
             if (ranges.length < 2) return null;

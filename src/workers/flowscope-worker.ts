@@ -66,15 +66,61 @@ export type FlowScopeAnalyzeResponse = FlowScopeResponse<AnalyzeResult>;
 export type FlowScopeSplitResponse = FlowScopeResponse<StatementSplitResult>;
 export type FlowScopeCompletionItemsResponse = FlowScopeResponse<CompletionItemsResult>;
 
+/**
+ * Common FlowScope options used for all API calls.
+ * - dialect: 'duckdb' - SQL dialect for parsing
+ * - encoding: 'utf16' - Returns spans as UTF-16 code units (JavaScript string indices)
+ *   This matches Monaco editor offsets and JS string methods, avoiding conversion overhead.
+ */
+const FLOWSCOPE_OPTIONS = {
+  dialect: 'duckdb' as const,
+  encoding: 'utf16' as const,
+};
+
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
+
+/**
+ * Validates that FlowScope returns UTF-16 offsets as expected.
+ * This runs once after WASM initialization to catch encoding mismatches early.
+ *
+ * Test case: "SELECT '😀'" where 😀 is a surrogate pair (2 UTF-16 code units, 4 UTF-8 bytes)
+ * Expected UTF-16 offsets: statement spans [0, 12) where the string is 12 code units long
+ */
+async function validateUtf16Encoding(): Promise<void> {
+  // Test string with emoji (surrogate pair) to verify UTF-16 encoding
+  const testSql = "SELECT '😀'";
+  const expectedLength = testSql.length; // 12 UTF-16 code units
+
+  const result = await splitStatements({
+    ...FLOWSCOPE_OPTIONS,
+    sql: testSql,
+  });
+
+  if (result.statements.length !== 1) {
+    console.error('FlowScope encoding validation failed: expected 1 statement');
+    return;
+  }
+
+  const stmt = result.statements[0];
+  if (stmt.end !== expectedLength) {
+    console.error(
+      `FlowScope encoding mismatch: expected UTF-16 end offset ${expectedLength}, got ${stmt.end}. ` +
+        'Spans may not be in UTF-16 code units.',
+    );
+  }
+}
 
 async function ensureWasmInitialized(): Promise<void> {
   if (wasmInitialized) return;
 
   if (!wasmInitPromise) {
-    wasmInitPromise = initWasm({ wasmUrl }).then(() => {
+    wasmInitPromise = initWasm({ wasmUrl }).then(async () => {
       wasmInitialized = true;
+      // Validate UTF-16 encoding in dev mode
+      if (import.meta.env.DEV) {
+        await validateUtf16Encoding();
+      }
     });
   }
 
@@ -85,8 +131,8 @@ async function handleAnalyze(request: FlowScopeAnalyzeRequest): Promise<void> {
   try {
     await ensureWasmInitialized();
     const result = await analyzeSql({
+      ...FLOWSCOPE_OPTIONS,
       sql: request.sql,
-      dialect: request.dialect as 'duckdb',
       schema: request.schema,
     });
     globalThis.postMessage({
@@ -107,8 +153,8 @@ async function handleSplit(request: FlowScopeSplitRequest): Promise<void> {
   try {
     await ensureWasmInitialized();
     const result = await splitStatements({
+      ...FLOWSCOPE_OPTIONS,
       sql: request.sql,
-      dialect: request.dialect as 'duckdb',
     });
     globalThis.postMessage({
       id: request.id,
@@ -128,8 +174,8 @@ async function handleCompletionItems(request: FlowScopeCompletionItemsRequest): 
   try {
     await ensureWasmInitialized();
     const result = await completionItems({
+      ...FLOWSCOPE_OPTIONS,
       sql: request.sql,
-      dialect: request.dialect as 'duckdb',
       cursorOffset: request.cursorOffset,
       schema: request.schema,
     });
