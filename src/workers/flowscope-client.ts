@@ -40,6 +40,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 
 const resolveFlowScopeWorkerUrl = (): URL => {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
     const importMetaUrl = new Function('return import.meta.url')() as string | undefined;
     if (importMetaUrl) {
       return new URL('./flowscope-worker.ts', importMetaUrl);
