@@ -92,6 +92,10 @@ export const test = base.extend<SpotlightFixtures>({
       // Verify spotlight is visible
       await expect(spotlight).toBeVisible();
 
+      const searchInput = page.getByTestId('spotlight-search');
+      await expect(searchInput).toBeVisible();
+      await searchInput.fill('');
+
       return spotlight;
     });
   },

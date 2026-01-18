@@ -36,6 +36,7 @@ type ScriptExplorerFixtures = {
 };
 
 const SCRIPT_EXPLORER_DATA_TESTID_PREFIX = 'script-explorer';
+const SCRIPT_EDITOR_READY_TIMEOUT = Number(process.env.PLAYWRIGHT_QUERY_EDITOR_TIMEOUT) || 5000;
 
 export const test = base.extend<ScriptExplorerFixtures>({
   scriptExplorer: async ({ page }, use) => {
@@ -80,6 +81,11 @@ export const test = base.extend<ScriptExplorerFixtures>({
       // Check that it has the selected data attribute. This assumes that
       // tab is open and avoids depending this test on tab fixtures.
       expect(await isExplorerTreeNodeSelected(newScriptNode)).toBe(true);
+
+      const editorLocator = page.locator(
+        '[data-testid="query-editor"][data-active-editor="true"] .monaco-editor',
+      );
+      await expect(editorLocator).toBeVisible({ timeout: SCRIPT_EDITOR_READY_TIMEOUT });
 
       return newScriptNode;
     });

@@ -69,6 +69,7 @@ class MockBroadcastChannel {
 let mockState: Record<string, unknown> = {};
 let mockRefs: Record<string, { current: unknown }> = {};
 let cleanupFn: (() => void) | undefined;
+let warnSpy: ReturnType<typeof jest.spyOn>;
 
 const STATE_KEY_BLOCKED = 'state_0';
 
@@ -107,9 +108,11 @@ describe('useTabCoordination', () => {
     mockWindow.addEventListener.mockClear();
     mockWindow.removeEventListener.mockClear();
     jest.clearAllMocks();
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
+    warnSpy.mockRestore();
     if (cleanupFn) {
       cleanupFn();
     }

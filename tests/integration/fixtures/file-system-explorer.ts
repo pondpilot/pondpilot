@@ -60,6 +60,7 @@ type FileSystemExplorerFixtures = {
 };
 
 export const FILE_SYSTEM_EXPLORER_DATA_TESTID_PREFIX = 'data-explorer-fs';
+const SCRIPT_EDITOR_READY_TIMEOUT = Number(process.env.PLAYWRIGHT_QUERY_EDITOR_TIMEOUT) || 5000;
 
 const getDatasourceCardLocator = (
   page: Page,
@@ -221,6 +222,11 @@ export const test = base.extend<FileSystemExplorerFixtures>({
         fileName,
         'Create a Query',
       );
+
+      const editorLocator = page.locator(
+        '[data-testid="query-editor"][data-active-editor="true"] .monaco-editor',
+      );
+      await expect(editorLocator).toBeVisible({ timeout: SCRIPT_EDITOR_READY_TIMEOUT });
     });
   },
 

@@ -23,6 +23,7 @@
     "build:test": "yarn build --mode int-test-build",
     "test": "yarn build:test && playwright test",
     "test:no-build": "playwright test",
+    "test:docker": "./docker-playwright.sh test",
     "test:unit": "jest",
     "test:all": "yarn test:unit && yarn test",
     "preview": "yarn build --mode int-test-build && vite preview",

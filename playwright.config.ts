@@ -3,12 +3,19 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
+const workersOverride = process.env.PLAYWRIGHT_WORKERS;
+const parsedWorkersOverride = workersOverride
+  ? Number.isNaN(Number(workersOverride))
+    ? workersOverride
+    : Number(workersOverride)
+  : undefined;
+
 export default defineConfig({
   testDir: './tests/integration',
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : '80%',
+  workers: parsedWorkersOverride ?? (process.env.CI ? 1 : '80%'),
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: process.env.CI
     ? [['junit', { outputFile: './playwright-report/results.xml' }]]

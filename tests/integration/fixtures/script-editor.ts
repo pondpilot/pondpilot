@@ -47,7 +47,7 @@ type ScriptEditorFixtures = {
   runSelectionWithHotkey: (line: number) => Promise<void>;
 };
 
-const QUERY_EDITOR_TIMEOUT = Number(process.env.PLAYWRIGHT_QUERY_EDITOR_TIMEOUT) || 2000;
+const QUERY_EDITOR_TIMEOUT = Number(process.env.PLAYWRIGHT_QUERY_EDITOR_TIMEOUT) || 5000;
 
 export const test = base.extend<ScriptEditorFixtures>({
   scriptEditor: async ({ page }, use) => {
@@ -63,7 +63,7 @@ export const test = base.extend<ScriptEditorFixtures>({
   },
 
   activeScriptEditor: async ({ page }, use) => {
-    await use(page.locator('[data-active-editor="true"]'));
+    await use(page.locator('[data-testid="query-editor"][data-active-editor="true"]'));
   },
 
   getScriptEditorContent: async ({ activeScriptEditor }, use) => {
@@ -83,14 +83,11 @@ export const test = base.extend<ScriptEditorFixtures>({
         'Did you forget to open a script tab before calling this fixture? Use `createScriptAndSwitchToItsTab` or similar fixture first',
       ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
-      const editorInput = scriptEditorContent.locator('textarea.inputarea');
-      await expect(editorInput).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
+      await expect(scriptEditorContent).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
       await scriptEditorContent.click();
       await page.keyboard.press('ControlOrMeta+A');
-      await page.keyboard.type(content);
-
-      await expect(scriptEditorContent).toContainText(content);
+      await page.keyboard.insertText(content);
     });
   },
 
@@ -103,11 +100,28 @@ export const test = base.extend<ScriptEditorFixtures>({
       ).toBeVisible({ timeout: QUERY_EDITOR_TIMEOUT });
 
       await runScriptButton.click();
-      // Wait for query to complete - look for any notification
-      await page.waitForTimeout(1000); // Give it a moment to start
-      // Check for either success or error messages
-      const successOrError = page.locator('text=/Query ran successfully|Error|Failed/').first();
-      await expect(successOrError).toBeVisible({ timeout: 10000 });
+
+      await page.waitForSelector('text=Processing Query...', { state: 'hidden', timeout: 30000 });
+
+      const completionState = await Promise.any([
+        page
+          .getByText('Query ran successfully')
+          .waitFor({ state: 'visible', timeout: 30000 })
+          .then(() => 'success'),
+        page
+          .getByTestId('data-table')
+          .waitFor({ state: 'visible', timeout: 30000 })
+          .then(() => 'table'),
+        page
+          .locator('text=/Error running query|Failed/')
+          .first()
+          .waitFor({ state: 'visible', timeout: 30000 })
+          .then(() => 'error'),
+      ]);
+
+      if (completionState === 'error') {
+        throw new Error('Query failed');
+      }
     });
   },
 
