@@ -293,10 +293,6 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
       cleanupRegistry.dispose();
     };
 
-    cleanupRegistry.setTimeout(() => {
-      textarea.focus();
-    }, 0);
-
     return container;
   }
 
@@ -385,10 +381,12 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
     this.editor.layoutContentWidget(widget);
     this.notifyVisibility();
 
-    window.setTimeout(() => {
-      const textarea = dom.querySelector(UI_SELECTORS.TEXTAREA) as HTMLTextAreaElement | null;
-      textarea?.focus();
-    }, 0);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const textarea = dom.querySelector(UI_SELECTORS.TEXTAREA) as HTMLTextAreaElement | null;
+        textarea?.focus();
+      });
+    });
   }
 
   hideAssistant() {
@@ -402,6 +400,7 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
       this.cleanup = undefined;
     }
     this.notifyVisibility();
+    this.editor.focus();
   }
 
   showStructuredResponse(response: StructuredSQLResponse) {
@@ -436,6 +435,7 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
       this.structuredCleanup = undefined;
     }
     this.notifyVisibility();
+    this.editor.focus();
   }
 
   isVisible(): boolean {
