@@ -74,6 +74,69 @@ function getFontWeightValue(weight: FontWeight): string {
   }
 }
 
+/**
+ * Detects user's preference for reduced motion (accessibility setting).
+ * Used to disable animations for users who prefer reduced motion.
+ */
+const getPrefersReducedMotion = (): boolean =>
+  typeof window !== 'undefined' &&
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * Shared Monaco editor options for SQL editing.
+ * These provide enhanced UX features like bracket colorization and guides.
+ *
+ * @param prefersReducedMotion - Whether to disable animations for accessibility
+ */
+const createSqlEditorOptions = (
+  prefersReducedMotion: boolean,
+): monaco.editor.IStandaloneEditorConstructionOptions => ({
+  scrollBeyondLastLine: false,
+  wordWrap: 'on',
+
+  // Bracket pair colorization: color-coded parentheses help visualize nested subqueries
+  bracketPairColorization: {
+    enabled: true,
+    independentColorPoolPerBracketType: true,
+  },
+
+  // Bracket guides: visual lines connecting matching brackets for complex SQL
+  guides: {
+    bracketPairs: true,
+    bracketPairsHorizontal: 'active',
+    highlightActiveBracketPair: true,
+    indentation: true,
+    highlightActiveIndentation: true,
+  },
+
+  // Selection highlighting: select text to see all occurrences in the document
+  occurrencesHighlight: 'singleFile',
+  selectionHighlight: true,
+
+  // Quick suggestions: auto-trigger completions while typing (disabled in comments to reduce noise)
+  quickSuggestions: {
+    other: true,
+    comments: false,
+    strings: true,
+  },
+  // 100ms delay balances responsiveness with performance
+  quickSuggestionsDelay: 100,
+
+  // Smooth animations (disabled when user prefers reduced motion)
+  smoothScrolling: !prefersReducedMotion,
+  cursorBlinking: prefersReducedMotion ? 'blink' : 'smooth',
+  cursorSmoothCaretAnimation: prefersReducedMotion ? 'off' : 'on',
+
+  // Cursor width of 2px provides good visibility without being intrusive
+  cursorWidth: 2,
+
+  // Vertical padding provides breathing room at document edges
+  padding: {
+    top: 8,
+    bottom: 8,
+  },
+});
+
 const createCompletionRange = (
   model: monaco.editor.ITextModel,
   contextToken: CompletionItemsResult['token'],
@@ -634,15 +697,14 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       }
 
       editor.updateOptions({
+        ...createSqlEditorOptions(getPrefersReducedMotion()),
         fontSize: preferences.fontSize * 16,
         fontFamily: "'IBM Plex Mono', monospace",
         fontWeight: getFontWeightValue(preferences.fontWeight as FontWeight),
         readOnly,
         minimap: { enabled: false },
         automaticLayout: true,
-        scrollBeyondLastLine: false,
         contextmenu: true,
-        wordWrap: 'on',
       });
 
       const aiManager = registerAIAssistant(editor, {
@@ -933,10 +995,9 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             }
           }}
           options={{
+            ...createSqlEditorOptions(getPrefersReducedMotion()),
             readOnly,
-            scrollBeyondLastLine: false,
             minimap: { enabled: false },
-            wordWrap: 'on',
           }}
         />
       </div>
