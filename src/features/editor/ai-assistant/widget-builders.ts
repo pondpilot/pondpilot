@@ -2,8 +2,6 @@
  * Widget-specific UI builders for AI Assistant components
  */
 
-import { EditorView } from '@codemirror/view';
-
 import {
   createContainer,
   createTextarea,
@@ -25,7 +23,6 @@ import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connectio
  */
 export function createCombinedContextSection(
   sqlStatement: string | undefined,
-  view: EditorView,
   connectionPool: AsyncDuckDBConnectionPool | null,
   modelSelect: HTMLSelectElement,
   errorContext?: TabExecutionError,
@@ -275,7 +272,6 @@ export function createModelSelectionSection(onModelChange: (model: string) => vo
  * Creates the schema context section with availability indicator
  */
 export function createSchemaContextSection(
-  view: EditorView,
   connectionPool: AsyncDuckDBConnectionPool | null,
 ): HTMLElement {
   const { section } = createSection(
@@ -407,6 +403,13 @@ export function assembleAIAssistantWidget(components: {
   const container = createContainer('cm-ai-assistant-widget');
   container.contentEditable = 'false';
   container.tabIndex = -1;
+
+  // Add explicit inline styles as fallback for Monaco content widgets
+  // which are positioned absolutely outside normal document flow.
+  // These values must match .cm-ai-assistant-widget in ai-widget.css
+  container.style.width = '500px';
+  container.style.minWidth = '400px';
+  container.style.maxWidth = '500px';
 
   // Detect and apply the current theme from the parent document
   const rootElement = document.documentElement;

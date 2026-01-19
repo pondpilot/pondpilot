@@ -20,6 +20,7 @@ module.exports = {
   },
   moduleNameMapper: {
     '^@pondpilot/flowscope-core$': '<rootDir>/tests/unit/__mocks__/flowscope-core.ts',
+    '^.+/workers/flowscope-client$': '<rootDir>/tests/unit/__mocks__/flowscope-client.ts',
     '^@utils/env$': '<rootDir>/tests/unit/__mocks__/env.ts',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
     '^@consts/(.*)$': '<rootDir>/src/consts/$1',

@@ -164,6 +164,8 @@ We welcome contributions from the community! Here's how to get started:
 - Mantine UI components
 - Tailwind CSS for styling
 - DuckDB-WASM for data processing
+- Monaco Editor for SQL editing
+- FlowScope for SQL analysis (completions, folding, symbols)
 - Vite for building
 
 ### Available Scripts
@@ -200,13 +202,13 @@ This means you're free to use, modify, and distribute the software, but if you m
 ## 🙏 Acknowledgments
 
 - Built with [DuckDB-WASM](https://github.com/duckdb/duckdb-wasm) - the powerful SQL database that runs in your browser
+- SQL editor powered by [Monaco Editor](https://microsoft.github.io/monaco-editor/)
+- SQL analysis by [FlowScope](https://github.com/pondpilot/flowscope)
 - UI components by [Mantine](https://mantine.dev/)
-- This project incorporates and modifies code related to query editor from [Outerbase Studio](https://github.com/outerbase/studio) which is licensed under the GNU Affero General Public License v3.0.
 
 ---
 
 <p align="center">
   <a href="https://app.pondpilot.io">app.pondpilot.io</a> •
   <a href="https://github.com/pondpilot/pondpilot">GitHub</a> •
-  <a href="https://t1a.com">Built at T1A with ❤️</a>
 </p>

@@ -6,6 +6,7 @@ export interface EditorPreferences {
   formatOnRun: boolean;
   fontSize: number;
   fontWeight: 'light' | 'regular' | 'semibold' | 'bold';
+  minimap: boolean;
 }
 
 const EDITOR_PREFERENCES_KEY = 'pondpilot-editor-preferences';
@@ -14,6 +15,7 @@ const defaultPreferences: EditorPreferences = {
   formatOnRun: false,
   fontSize: 0.875,
   fontWeight: 'regular',
+  minimap: false,
 };
 
 /**
@@ -47,6 +49,11 @@ export function saveEditorPreferences(preferences: Partial<EditorPreferences>): 
 }
 
 /**
+ * Custom event name for same-tab preference updates
+ */
+export const EDITOR_PREFERENCES_CHANGE_EVENT = 'pondpilot-editor-preferences-change';
+
+/**
  * Update a single preference
  */
 export function updateEditorPreference<K extends keyof EditorPreferences>(
@@ -54,6 +61,8 @@ export function updateEditorPreference<K extends keyof EditorPreferences>(
   value: EditorPreferences[K],
 ): void {
   saveEditorPreferences({ [key]: value });
+  // Dispatch custom event to notify other components in the same tab
+  window.dispatchEvent(new CustomEvent(EDITOR_PREFERENCES_CHANGE_EVENT));
 }
 
 /**

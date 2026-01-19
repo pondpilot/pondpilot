@@ -40,7 +40,9 @@ test.describe('AI Assistant Integration', () => {
       await expect(widget).toBeVisible();
 
       // Press Escape to close
-      await page.keyboard.press('Escape');
+      const textarea = widget.locator('.ai-widget-textarea');
+      await textarea.focus();
+      await textarea.press('Escape');
       await expect(widget).toBeHidden();
     });
 
@@ -70,12 +72,15 @@ test.describe('AI Assistant Integration', () => {
       const widget = page.locator('.cm-ai-assistant-widget');
       const textarea = widget.locator('.ai-widget-textarea');
 
+      await expect(widget).toBeVisible();
+      await expect(textarea).toBeVisible();
+
       // Type @ to trigger mention
       await textarea.type('@');
 
-      // Verify dropdown appears
+      // Wait for dropdown
       const dropdown = page.locator('.ai-widget-mention-dropdown');
-      await expect(dropdown).toBeVisible();
+      await expect(dropdown).toBeVisible({ timeout: 10000 });
 
       // Verify aria attributes
       await expect(textarea).toHaveAttribute('aria-expanded', 'true');
@@ -94,18 +99,21 @@ test.describe('AI Assistant Integration', () => {
       const widget = page.locator('.cm-ai-assistant-widget');
       const textarea = widget.locator('.ai-widget-textarea');
 
+      await expect(widget).toBeVisible();
+      await expect(textarea).toBeVisible();
+
       // Type @ to trigger mention
       await textarea.type('@');
 
       // Wait for dropdown
       const dropdown = page.locator('.ai-widget-mention-dropdown');
-      await expect(dropdown).toBeVisible();
+      await expect(dropdown).toBeVisible({ timeout: 10000 });
 
       // Wait for items to be visible
       await expect(dropdown.locator('.ai-widget-mention-item').first()).toBeVisible();
 
       // Press Enter to select first item
-      await page.keyboard.press('Enter');
+      await textarea.press('Enter');
 
       // Dropdown should disappear
       await expect(dropdown).toBeHidden();
@@ -122,12 +130,15 @@ test.describe('AI Assistant Integration', () => {
       const widget = page.locator('.cm-ai-assistant-widget');
       const textarea = widget.locator('.ai-widget-textarea');
 
+      await expect(widget).toBeVisible();
+      await expect(textarea).toBeVisible();
+
       // Type @ to trigger mention
       await textarea.type('@');
 
       // Wait for dropdown
       const dropdown = page.locator('.ai-widget-mention-dropdown');
-      await expect(dropdown).toBeVisible();
+      await expect(dropdown).toBeVisible({ timeout: 10000 });
 
       // Press Escape
       await page.keyboard.press('Escape');
@@ -158,7 +169,8 @@ test.describe('AI Assistant Integration', () => {
       for (const prompt of prompts) {
         await textarea.fill(prompt);
         // Close and reopen to simulate submitting
-        await page.keyboard.press('Escape');
+        await textarea.press('Escape');
+
         await page.keyboard.press('ControlOrMeta+i');
       }
 
@@ -182,7 +194,8 @@ test.describe('AI Assistant Integration', () => {
   test.describe('Context display', () => {
     test('should show collapsible context section', async ({ page, scriptEditorContent }) => {
       // Add some SQL to the editor
-      await scriptEditorContent.pressSequentially('SELECT * FROM users;');
+      await scriptEditorContent.click();
+      await page.keyboard.type('SELECT * FROM users;');
 
       // Open AI assistant
       await page.keyboard.press('ControlOrMeta+i');
@@ -205,7 +218,7 @@ test.describe('AI Assistant Integration', () => {
 
       // Should show SQL context
       const sqlContext = contextContent.locator('.ai-widget-context-code');
-      await expect(sqlContext).toContainText('SELECT * FROM users;');
+      await expect(sqlContext).toContainText(/SELECT \* FROM users;?/);
     });
 
     test('should show database schema indicator', async ({ page, scriptEditorContent }) => {

@@ -1,22 +1,24 @@
 import { showAlert } from '@components/app-notifications';
 import { createSQLScript, updateSQLScriptContent } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
-import { SqlEditor } from '@features/editor';
-import { aiAssistantStateField } from '@features/editor/ai-assistant/state-field';
-import { showAIAssistant, hideAIAssistant } from '@features/editor/ai-assistant-tooltip';
-import { convertToSQLNamespace, createDuckDBCompletions } from '@features/editor/auto-complete';
+import { SqlEditor, SqlEditorHandle } from '@features/editor';
+import {
+  showAIAssistant,
+  hideAIAssistant,
+  isAIAssistantVisible,
+} from '@features/editor/ai-assistant-tooltip';
+import { convertToFlowScopeSchema } from '@features/editor/auto-complete';
 import { useAppTheme } from '@hooks/use-app-theme';
 import { Group } from '@mantine/core';
 import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
 import { RunScriptMode, ScriptExecutionState, SQLScriptId } from '@models/sql-script';
 import { useAppStore, useDuckDBFunctions } from '@store/app-store';
-import { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip';
-import { splitSqlQuery } from '@utils/editor/statement-parser';
 import { KEY_BINDING } from '@utils/hotkey/key-matcher';
 import { setDataTestId } from '@utils/test-id';
-import { useEffect, useRef, useState, useMemo } from 'react';
+import * as monaco from 'monaco-editor';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ScriptEditorDataStatePane } from './components';
 
@@ -47,7 +49,7 @@ export const ScriptEditor = ({
   /**
    * State
    */
-  const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const editorRef = useRef<SqlEditorHandle | null>(null);
   const [dirty, setDirty] = useState(false);
   const [lastExecutedContent, setLastExecutedContent] = useState('');
 
@@ -73,69 +75,77 @@ export const ScriptEditor = ({
     return null;
   });
 
-  const sqlNamespace = useMemo(
-    () => convertToSQLNamespace(databaseModelsArray),
-    [databaseModelsArray],
-  );
-  const duckdbNamespace = useMemo(
-    () => createDuckDBCompletions(functionTooltips),
-    [functionTooltips],
-  );
   const schema = useMemo(
-    () => ({
-      ...duckdbNamespace,
-      ...sqlNamespace,
-    }),
-    [duckdbNamespace, sqlNamespace],
+    () => convertToFlowScopeSchema(databaseModelsArray),
+    [databaseModelsArray],
   );
 
   /**
    * Handlers
    */
   const handleRunQuery = async (mode?: RunScriptMode) => {
-    const editor = editorRef.current?.view;
-    if (!editor?.state) return;
+    const editorHandle = editorRef.current;
+    const editor = editorHandle?.editor;
+    const model = editor?.getModel();
+    if (!editor || !model) return;
 
-    const getCurrentStatement = () => {
-      const cursor = editor.state.selection.main.head;
-      const statementSegments = splitSqlQuery(editor.state);
-      const currentStatement = statementSegments.find(
-        (segment) => cursor >= segment.from && cursor <= segment.to,
-      );
-      return currentStatement;
-    };
+    const selection = editor.getSelection();
+    const position = selection?.getPosition() ?? editor.getPosition();
+    const cursorOffset = position ? model.getOffsetAt(position) : 0;
 
-    const getSelectedText = () => {
-      const { from } = editor.state.selection.ranges[0];
-      const { to } = editor.state.selection.ranges[0];
-      if (from === to) return getCurrentStatement()?.text || '';
-      return editor.state.doc.sliceString(from, to) || '';
-    };
+    const selectedText = selection && !selection.isEmpty() ? model.getValueInRange(selection) : '';
 
-    const fullQuery = editor.state.doc.toString();
-    const selectedText = getSelectedText();
+    let statementText = '';
+    if (!selectedText && editorHandle?.getStatementRangeAtOffset) {
+      const range = editorHandle.getStatementRangeAtOffset(cursorOffset);
+      if (range) {
+        const startPos = model.getPositionAt(range.start);
+        const endPos = model.getPositionAt(range.end);
+        statementText = model.getValueInRange(
+          new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column),
+        );
+      }
+    }
 
-    const queryToRun = mode === 'selection' ? selectedText : fullQuery;
+    const fullQuery = model.getValue();
+    const queryToRun =
+      mode === 'selection' ? selectedText || statementText || fullQuery : fullQuery;
 
     setLastExecutedContent(fullQuery);
     setDirty(false);
     runScriptQuery(queryToRun);
   };
 
-  const handleQuerySave = async () => {
-    updateSQLScriptContent(sqlScript, editorRef.current?.view?.state?.doc.toString() || '');
-  };
+  const latestValueRef = useRef(sqlScript?.content || '');
 
-  const handleEditorValueChange = useDebouncedCallback(async () => {
-    handleQuerySave();
+  useEffect(() => {
+    latestValueRef.current = sqlScript?.content || '';
+  }, [sqlScript?.content]);
+
+  const handleQuerySave = useCallback(
+    async (content?: string) => {
+      const nextContent = content ?? latestValueRef.current;
+      updateSQLScriptContent(sqlScript, nextContent);
+    },
+    [sqlScript],
+  );
+
+  // Use a ref to ensure debounced callback always uses the latest handleQuerySave
+  const handleQuerySaveRef = useRef(handleQuerySave);
+  useEffect(() => {
+    handleQuerySaveRef.current = handleQuerySave;
+  }, [handleQuerySave]);
+
+  const handleEditorValueChange = useDebouncedCallback(async (content: string) => {
+    await handleQuerySaveRef.current(content);
   }, 300);
 
-  const onSqlEditorChange = () => {
-    const currentContent = editorRef.current?.view?.state?.doc.toString() || '';
+  const onSqlEditorChange = (content: string) => {
+    latestValueRef.current = content;
     if (lastExecutedContent) {
-      setDirty(currentContent !== lastExecutedContent);
+      setDirty(content !== lastExecutedContent);
     }
-    handleEditorValueChange();
+    handleEditorValueChange(content);
   };
 
   const handleAddScript = () => {
@@ -145,23 +155,21 @@ export const ScriptEditor = ({
 
   useEffect(() => {
     return () => {
-      if (editorRef.current?.view) {
-        const editor = editorRef.current.view;
-        const currentScript = editor.state.doc.toString();
-        if (currentScript !== sqlScript?.content) {
-          handleQuerySave();
-        }
+      const currentScript = latestValueRef.current;
+      if (currentScript !== sqlScript?.content) {
+        handleQuerySave(currentScript);
       }
     };
-  }, []);
+  }, [sqlScript?.content, handleQuerySave]);
 
   // Listen for AI Assistant trigger event
   useEffect(() => {
     const handleTriggerAIAssistant = (event: CustomEvent) => {
-      if (event.detail.tabId === tabId && editorRef.current?.view && tabId) {
+      const { editor } = editorRef.current ?? {};
+      if (event.detail.tabId === tabId && editor && tabId) {
         const { tabExecutionErrors } = useAppStore.getState();
         const errorContext = tabExecutionErrors.get(tabId);
-        showAIAssistant(editorRef.current.view, errorContext);
+        showAIAssistant(editor, errorContext);
       }
     };
 
@@ -174,23 +182,19 @@ export const ScriptEditor = ({
 
   useDidUpdate(() => {
     if (active) {
-      editorRef.current?.view?.focus();
+      editorRef.current?.editor?.focus();
     }
   }, [active]);
 
   const handleAIAssistantClick = () => {
-    if (editorRef.current?.view && tabId) {
-      const { view } = editorRef.current;
-      const aiState = view.state.field(aiAssistantStateField, false);
-
-      if (aiState?.visible) {
-        // If AI assistant is visible, hide it
-        hideAIAssistant(view);
+    const { editor } = editorRef.current ?? {};
+    if (editor && tabId) {
+      if (isAIAssistantVisible(editor)) {
+        hideAIAssistant(editor);
       } else {
-        // If AI assistant is not visible, show it
         const { tabExecutionErrors } = useAppStore.getState();
         const errorContext = tabExecutionErrors.get(tabId);
-        showAIAssistant(view, errorContext);
+        showAIAssistant(editor, errorContext);
       }
     }
   };
@@ -217,16 +221,22 @@ export const ScriptEditor = ({
           onChange={onSqlEditorChange}
           schema={schema}
           functionTooltips={functionTooltips}
-          onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-            if (KEY_BINDING.run.match(e)) {
-              if (KEY_BINDING.runSelection.match(e)) {
-                handleRunQuery('selection');
-              } else {
-                handleRunQuery();
-              }
-              e.preventDefault();
-            } else if (KEY_BINDING.save.match(e)) {
-              handleQuerySave();
+          path={sqlScript?.id ? String(sqlScript.id) : tabId ? String(tabId) : undefined}
+          onRun={() => {
+            handleRunQuery().catch((error) => {
+              console.warn('Run query failed:', error);
+            });
+          }}
+          onRunSelection={() => {
+            handleRunQuery('selection').catch((error) => {
+              console.warn('Run selection failed:', error);
+            });
+          }}
+          onKeyDown={(e: monaco.IKeyboardEvent) => {
+            if (KEY_BINDING.save.match(e)) {
+              handleQuerySave().catch((error) => {
+                console.warn('Save query failed:', error);
+              });
               showAlert({
                 title: 'Auto-save enabled',
                 message:

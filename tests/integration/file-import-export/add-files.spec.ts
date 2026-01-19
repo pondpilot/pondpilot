@@ -99,6 +99,9 @@ test('should add csv files and folders', async ({
   await filePicker.selectDir('test_dir');
   // Click the add folder button
   await addDirectoryViaSpotlight();
+  await expect(
+    page.getByTestId('data-explorer-fs').getByText('test_dir', { exact: true }),
+  ).toBeVisible();
   // Verify explorer items
   await assertFileExplorerItems(['test_dir', 'test1', 'test2', 'test3']);
   // Click on the newly added folder to expand it

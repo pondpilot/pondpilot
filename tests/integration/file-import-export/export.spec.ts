@@ -29,8 +29,7 @@ test('roundtrip csv file with quotes and commas', async ({
   storage,
   filePicker,
   testTmp,
-  createScriptFromFileExplorer,
-  runScript,
+  openFileFromExplorer,
   assertDataTableMatches,
   assertFileExplorerItems,
   exportTableToCSV,
@@ -57,8 +56,7 @@ test('roundtrip csv file with quotes and commas', async ({
   // Verify explorer items
   await assertFileExplorerItems(['test_file']);
   // Verify file viewer
-  await createScriptFromFileExplorer('test_file');
-  await runScript();
+  await openFileFromExplorer('test_file');
   // TODO: Duckdb-Wasm that we currently use incorrectly parses the CSV, it doesn't
   // unqote the double double quotes. Update the test when we upgrade to reader that properly
   // handles this case.

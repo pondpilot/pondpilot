@@ -5,7 +5,7 @@ import {
   getErrorItemStyles,
   positionDropdown,
 } from './utils/dropdown-styles';
-import { sanitizeText, getObjectSizeInBytes, bytesToMB } from './utils/sanitization';
+import { sanitizeText } from './utils/sanitization';
 import { getDatabaseModel } from '../../../controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
 
@@ -158,15 +158,10 @@ export async function getTableSuggestions(
   try {
     const databaseModel = await getCachedDatabaseModel(connectionPool);
 
-    // Count total objects and check for large database
+    // Count total objects to check for large database
     let totalObjects = 0;
-    let _totalDatabases = 0;
-    let _totalSchemas = 0;
-
     for (const [, database] of databaseModel.entries()) {
-      _totalDatabases += 1;
       for (const schema of database.schemas) {
-        _totalSchemas += 1;
         totalObjects += schema.objects.length;
       }
     }
@@ -395,32 +390,28 @@ const dropdownHandlers = new WeakMap<HTMLElement, RepositionHandler>();
 
 let databaseModelCache: DatabaseModelCache | null = null;
 
+/**
+ * Get cached database model with simple time-based invalidation.
+ * Uses object count as a lightweight proxy for size instead of expensive
+ * full object graph traversal.
+ */
 async function getCachedDatabaseModel(
   connectionPool: AsyncDuckDBConnectionPool,
 ): Promise<DatabaseModel> {
   const now = Date.now();
 
-  // Return cached data if it's still valid and size is acceptable
+  // Return cached data if it's still valid (simple time-based check)
   if (
     databaseModelCache &&
     now - databaseModelCache.timestamp < MENTION_AUTOCOMPLETE.DATABASE_CACHE_TTL_MS
   ) {
-    const cacheSizeMB = bytesToMB(getObjectSizeInBytes(databaseModelCache.data));
-    if (cacheSizeMB < DATABASE_LIMITS.MAX_CACHE_SIZE_MB) {
-      return databaseModelCache.data;
-    }
-    console.warn(
-      `Database model cache exceeded size limit (${cacheSizeMB.toFixed(2)}MB), refreshing...`,
-    );
+    return databaseModelCache.data;
   }
 
   // Fetch new data and cache it
   const data = (await getDatabaseModel(connectionPool)) as DatabaseModel;
 
-  // Check size before caching
-  const newCacheSizeMB = bytesToMB(getObjectSizeInBytes(data));
-
-  // Count total objects for performance decisions
+  // Count total objects (lightweight proxy for size)
   let totalObjects = 0;
   for (const [, database] of data.entries()) {
     for (const schema of database.schemas) {
@@ -428,31 +419,26 @@ async function getCachedDatabaseModel(
     }
   }
 
-  if (newCacheSizeMB > DATABASE_LIMITS.MAX_CACHE_SIZE_MB * 2) {
-    // For extremely large databases, consider not caching at all
-    // Use standardized error logging for large database warning
+  // Use object count thresholds from shared constants
+  if (totalObjects > DATABASE_LIMITS.VERY_LARGE_DB_THRESHOLD) {
+    // For extremely large databases, use shorter TTL
     const { handleNonCriticalError } = await import('./error-handler');
     handleNonCriticalError(
       'Database model size warning',
       new Error(
-        `Database model is extremely large (${newCacheSizeMB.toFixed(2)}MB, ${totalObjects.toLocaleString()} objects). ` +
+        `Database has ${totalObjects.toLocaleString()} objects. ` +
           'Consider using a more focused database connection or filtering schemas.',
       ),
     );
-    // Still cache but with shorter TTL for very large DBs
     databaseModelCache = {
       data,
-      timestamp: now - MENTION_AUTOCOMPLETE.DATABASE_CACHE_TTL_MS * 0.7, // Reduce effective TTL by 70%
+      timestamp: now - MENTION_AUTOCOMPLETE.DATABASE_CACHE_TTL_MS * 0.7,
     };
-  } else if (newCacheSizeMB > DATABASE_LIMITS.MAX_CACHE_SIZE_MB) {
-    console.warn(
-      `Database model is very large (${newCacheSizeMB.toFixed(2)}MB, ${totalObjects.toLocaleString()} objects), ` +
-        'caching with reduced TTL for performance.',
-    );
-    // Cache with reduced TTL
+  } else if (totalObjects > DATABASE_LIMITS.LARGE_DB_THRESHOLD) {
+    // Large database - use reduced TTL (warning logged only for very large DBs)
     databaseModelCache = {
       data,
-      timestamp: now - MENTION_AUTOCOMPLETE.DATABASE_CACHE_TTL_MS * 0.5, // Reduce effective TTL by 50%
+      timestamp: now - MENTION_AUTOCOMPLETE.DATABASE_CACHE_TTL_MS * 0.5,
     };
   } else {
     // Normal caching

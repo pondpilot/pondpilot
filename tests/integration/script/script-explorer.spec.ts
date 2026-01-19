@@ -105,7 +105,7 @@ test.skip('Select items in the script explorer list using Hotkeys', async ({
 
 test('Create new script with hotkey', async ({
   createScriptAndSwitchToItsTab,
-  scriptEditorContent,
+  fillScript,
   assertScriptExplorerItems,
   getScriptEditorContent,
   pressNewScriptHotkey,
@@ -114,9 +114,8 @@ test('Create new script with hotkey', async ({
   await createScriptAndSwitchToItsTab();
 
   // Type 'select' in the editor
-  const editor = scriptEditorContent;
-  await editor.fill('select');
-  await expect(editor).toContainText('select');
+  await fillScript('select');
+  await expect(await getScriptEditorContent()).toContainText('select');
 
   // Press hotkey to create a new script
   await pressNewScriptHotkey();
