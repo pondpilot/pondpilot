@@ -386,7 +386,7 @@ export const VersionHistorySidebar = ({
       aria-label="Version History"
       tabIndex={-1}
       onKeyDown={handleKeyDown}
-      className="w-[280px] flex-shrink-0 h-full flex flex-col border-l border-borderPrimary-light dark:border-borderPrimary-dark bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark animate-slide-in-right outline-none"
+      className="w-[280px] flex-shrink-0 h-full flex flex-col border-l border-borderPrimary-light dark:border-borderPrimary-dark bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark outline-none"
       data-testid={setDataTestId('version-history-sidebar')}
     >
       {/* Header */}
