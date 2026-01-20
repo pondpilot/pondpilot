@@ -25,9 +25,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 
 import { ScriptEditorDataStatePane, VersionHistory } from './components';
 
-// Constants for version auto-save
-const AUTO_SAVE_INTERVAL_MS = 30000; // 30 seconds
-const AUTO_SAVE_CHECK_INTERVAL_MS = 5000; // Check every 5 seconds
+// Constants for version creation
 const MIN_VERSION_INTERVAL_MS = 1000; // Minimum 1 second between versions
 
 // Version tracking state
@@ -123,6 +121,7 @@ export const ScriptEditor = ({
   const [lastExecutedContent, setLastExecutedContent] = useState('');
   const [versionHistoryOpened, { open: openVersionHistory, close: closeVersionHistory }] =
     useDisclosure(false);
+  const [isOpeningVersionHistory, setIsOpeningVersionHistory] = useState(false);
   const [shouldShowVersionHistory, setShouldShowVersionHistory] = useState(false);
 
   // Use reducer for version tracking state
@@ -355,6 +354,24 @@ export const ScriptEditor = ({
     await handleQuerySaveRef.current(content);
   }, 300);
 
+  const handleOpenVersionHistory = useCallback(async () => {
+    if (isOpeningVersionHistory) return;
+
+    setIsOpeningVersionHistory(true);
+    const currentValue =
+      editorRef.current?.editor?.getModel()?.getValue() ?? latestValueRef.current;
+    latestValueRef.current = currentValue;
+
+    try {
+      await handleQuerySave(currentValue);
+    } catch (error) {
+      console.error('Failed to sync editor content before opening version history:', error);
+    } finally {
+      setIsOpeningVersionHistory(false);
+      openVersionHistory();
+    }
+  }, [handleQuerySave, isOpeningVersionHistory, openVersionHistory]);
+
   const onSqlEditorChange = (content: string) => {
     latestValueRef.current = content;
     if (lastExecutedContent) {
@@ -399,14 +416,17 @@ export const ScriptEditor = ({
   const cleanupRef = useRef<{
     versionTracking: typeof versionTracking;
     sqlScript: typeof sqlScript;
+    tabId: typeof tabId;
   }>({
     versionTracking,
     sqlScript,
+    tabId,
   });
 
   cleanupRef.current = {
     versionTracking,
     sqlScript,
+    tabId,
   };
 
   // Create version on unmount/tab close
@@ -420,6 +440,14 @@ export const ScriptEditor = ({
       // Also create version on cleanup if content changed
       const { current } = cleanupRef;
       if (current && current.versionTracking.isInitialized && versionController) {
+        const tabStillExists =
+          current.tabId == null ? true : useAppStore.getState().tabs.has(current.tabId);
+
+        // When the tab is being closed we rely on deleteTab to create the version
+        if (!tabStillExists) {
+          return;
+        }
+
         const { versionTracking: vt, sqlScript: script } = current;
         if (currentScript && currentScript !== vt.lastContent && script) {
           // Fire and forget - we can't wait for async in cleanup
@@ -437,36 +465,6 @@ export const ScriptEditor = ({
       }
     };
   }, [sqlScript?.content, sqlScript?.id, handleQuerySave, versionController]);
-
-  // Auto-save version every 30 seconds of active editing
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const timeSinceLastSave = now - versionTracking.lastAutoSaveTime;
-
-      // Only create auto-save if:
-      // 1. Enough time has passed
-      // 2. Tab is active
-      // 3. Initialization is complete
-      // 4. User has actually edited something
-      if (
-        timeSinceLastSave > AUTO_SAVE_INTERVAL_MS &&
-        active &&
-        versionTracking.isInitialized &&
-        versionTracking.hasUserEdited
-      ) {
-        createVersion('auto');
-      }
-    }, AUTO_SAVE_CHECK_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [
-    active,
-    createVersion,
-    versionTracking.isInitialized,
-    versionTracking.hasUserEdited,
-    versionTracking.lastAutoSaveTime,
-  ]);
 
   // Listen for AI Assistant trigger event
   useEffect(() => {
@@ -489,18 +487,8 @@ export const ScriptEditor = ({
   useDidUpdate(() => {
     if (active) {
       editorRef.current?.editor?.focus();
-    } else {
-      // Tab became inactive - save version if content changed
-      const currentContent = editorRef.current?.editor?.getModel()?.getValue() || '';
-      if (
-        currentContent &&
-        currentContent !== versionTracking.lastContent &&
-        versionTracking.isInitialized
-      ) {
-        createVersion('auto');
-      }
     }
-  }, [active, createVersion, versionTracking.lastContent, versionTracking.isInitialized]);
+  }, [active]);
 
   const handleAIAssistantClick = () => {
     const { editor } = editorRef.current ?? {};
@@ -527,7 +515,7 @@ export const ScriptEditor = ({
           handleRunQuery={handleRunQuery}
           scriptState={scriptState}
           onAIAssistantClick={handleAIAssistantClick}
-          onOpenVersionHistory={shouldShowVersionHistory ? openVersionHistory : undefined}
+          onOpenVersionHistory={shouldShowVersionHistory ? handleOpenVersionHistory : undefined}
         />
 
         <Group className="h-[calc(100%-40px)]">
@@ -591,6 +579,7 @@ export const ScriptEditor = ({
           },
           header: { display: 'none' },
           content: {
+            width: 'min(1100px, 90vw)',
             height: '80vh',
             display: 'flex',
             flexDirection: 'column',
@@ -601,6 +590,7 @@ export const ScriptEditor = ({
       >
         <VersionHistory
           scriptId={scriptId}
+          currentContent={sqlScript?.content || ''}
           onRestore={handleRestoreVersion}
           onClose={closeVersionHistory}
         />
