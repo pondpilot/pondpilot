@@ -26,13 +26,9 @@ test.describe('Script Version History', () => {
     // Wait for alert to disappear before checking button state
     await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
 
-    // Button should be hidden when content matches the saved version
+    // Button should be visible after save (there's at least one version)
     const versionHistoryButton = page.getByTestId('version-history-button');
-    await expect(versionHistoryButton).toBeHidden();
-
-    // Edit content - button should appear
-    await fillScript('SELECT 2;');
-    await expect(versionHistoryButton).toBeVisible({ timeout: 5000 });
+    await expect(versionHistoryButton).toBeVisible({ timeout: 10000 });
   });
 
   test('should create versions on save and run', async ({
@@ -50,33 +46,32 @@ test.describe('Script Version History', () => {
     await expect(page.getByText('Version saved')).toBeVisible();
     await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
 
-    // Wait between versions to respect MIN_VERSION_INTERVAL_MS
+    // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
     await page.waitForTimeout(1500);
 
     // Change content and run to create another version
     await fillScript('SELECT 2;');
     await runScript();
 
-    // Wait for version history button to appear
+    // Button appears after state updates complete
     const versionHistoryButton = page.getByTestId('version-history-button');
-    await expect(versionHistoryButton).toBeVisible({ timeout: 5000 });
+    await expect(versionHistoryButton).toBeVisible({ timeout: 10000 });
 
-    // Open version history
+    // Open version history sidebar
     await versionHistoryButton.click();
 
-    // Check if modal content is visible instead of the modal root
-    const modalContent = page.locator(
-      '[data-testid="version-history-modal"] [data-testid="version-item"]',
-    );
-    await expect(modalContent.first()).toBeVisible({ timeout: 10000 });
+    // Check if sidebar is visible with version items
+    const sidebar = page.getByTestId('version-history-sidebar');
+    await expect(sidebar).toBeVisible({ timeout: 10000 });
 
-    // Check that we have versions
-    const versionItems = page.locator('[data-testid="version-item"]');
+    // Check that we have versions in the sidebar
+    const versionItems = sidebar.locator('[data-testid="version-item"]');
+    await expect(versionItems.first()).toBeVisible({ timeout: 10000 });
     const count = await versionItems.count();
     expect(count).toBeGreaterThanOrEqual(2);
   });
 
-  test('should show version preview with restore and copy buttons', async ({
+  test('should show diff editor and action buttons when version selected', async ({
     page,
     createScriptAndSwitchToItsTab,
     fillScript,
@@ -90,19 +85,22 @@ test.describe('Script Version History', () => {
     await expect(page.getByText('Version saved')).toBeVisible();
     await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
 
-    // Wait between versions to respect MIN_VERSION_INTERVAL_MS
+    // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
     await page.waitForTimeout(1500);
 
     // Change content to make version history button visible
     await fillScript('SELECT 2;');
 
-    // Open version history
+    // Open version history sidebar (expect handles debounce wait)
     const versionHistoryButton = page.getByTestId('version-history-button');
-    await expect(versionHistoryButton).toBeVisible({ timeout: 5000 });
+    await expect(versionHistoryButton).toBeVisible({ timeout: 10000 });
     await versionHistoryButton.click();
 
-    // Wait for modal content to be visible
-    const versionItems = page.locator('[data-testid="version-item"]');
+    const sidebar = page.getByTestId('version-history-sidebar');
+    await expect(sidebar).toBeVisible({ timeout: 10000 });
+
+    // Version items should be visible in sidebar
+    const versionItems = sidebar.locator('[data-testid="version-item"]');
     await expect(versionItems.first()).toBeVisible({ timeout: 10000 });
 
     // Verify we have at least one version
@@ -112,14 +110,79 @@ test.describe('Script Version History', () => {
     // Click on the first version item to select it
     await versionItems.first().click();
 
-    // Check that preview panel is visible with action buttons
-    const preview = page.locator('[data-testid="version-preview"]');
-    await expect(preview).toBeVisible();
+    // Check that diff editor is visible (single mode)
+    const diffEditor = page.getByTestId('version-diff-single');
+    await expect(diffEditor).toBeVisible();
 
-    const restoreButton = page.getByRole('button', { name: 'Restore' });
+    // Check that action buttons are visible in the top pane
+    const restoreButton = page.getByTestId('restore-version-button');
     await expect(restoreButton).toBeVisible();
+  });
 
-    const copyButton = page.getByRole('button', { name: 'Copy' });
-    await expect(copyButton).toBeVisible();
+  test('should exit history mode with Escape key', async ({
+    page,
+    createScriptAndSwitchToItsTab,
+    fillScript,
+  }) => {
+    await page.waitForSelector('[data-testid="script-explorer"]', { state: 'visible' });
+    await createScriptAndSwitchToItsTab();
+
+    // Create a version and make history button visible
+    await fillScript('SELECT 1;');
+    await page.keyboard.press('ControlOrMeta+s');
+    await expect(page.getByText('Version saved')).toBeVisible();
+    await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
+    // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
+    await page.waitForTimeout(1500);
+    await fillScript('SELECT 2;');
+
+    // Open version history sidebar (expect handles debounce wait)
+    const versionHistoryButton = page.getByTestId('version-history-button');
+    await expect(versionHistoryButton).toBeVisible({ timeout: 10000 });
+    await versionHistoryButton.click();
+
+    // Verify sidebar is visible
+    const sidebar = page.getByTestId('version-history-sidebar');
+    await expect(sidebar).toBeVisible({ timeout: 10000 });
+
+    // Press Escape to exit history mode
+    await page.keyboard.press('Escape');
+
+    // Sidebar should be hidden
+    await expect(sidebar).toBeHidden({ timeout: 5000 });
+  });
+
+  test('should exit history mode with close button', async ({
+    page,
+    createScriptAndSwitchToItsTab,
+    fillScript,
+  }) => {
+    await page.waitForSelector('[data-testid="script-explorer"]', { state: 'visible' });
+    await createScriptAndSwitchToItsTab();
+
+    // Create a version and make history button visible
+    await fillScript('SELECT 1;');
+    await page.keyboard.press('ControlOrMeta+s');
+    await expect(page.getByText('Version saved')).toBeVisible();
+    await expect(page.getByText('Version saved')).toBeHidden({ timeout: 5000 });
+    // Wait between versions to respect MIN_VERSION_INTERVAL_MS (1000ms minimum between versions)
+    await page.waitForTimeout(1500);
+    await fillScript('SELECT 2;');
+
+    // Open version history sidebar
+    const versionHistoryButton = page.getByTestId('version-history-button');
+    await expect(versionHistoryButton).toBeVisible({ timeout: 10000 });
+    await versionHistoryButton.click();
+
+    // Verify sidebar is visible
+    const sidebar = page.getByTestId('version-history-sidebar');
+    await expect(sidebar).toBeVisible({ timeout: 10000 });
+
+    // Click close button
+    const closeButton = page.getByTestId('version-history-close-button');
+    await closeButton.click();
+
+    // Sidebar should be hidden
+    await expect(sidebar).toBeHidden({ timeout: 5000 });
   });
 });

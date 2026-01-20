@@ -1,1 +1,1 @@
-export * from './version-history';
+export { VersionDiffEditor, VersionHistorySidebar } from './components';

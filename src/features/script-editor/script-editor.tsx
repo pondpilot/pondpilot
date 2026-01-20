@@ -10,8 +10,8 @@ import {
 } from '@features/editor/ai-assistant-tooltip';
 import { convertToFlowScopeSchema } from '@features/editor/auto-complete';
 import { useAppTheme } from '@hooks/use-app-theme';
-import { Group, Modal } from '@mantine/core';
-import { useDebouncedCallback, useDidUpdate, useDisclosure } from '@mantine/hooks';
+import { Group } from '@mantine/core';
+import { useDebouncedCallback, useDidUpdate } from '@mantine/hooks';
 import { Spotlight } from '@mantine/spotlight';
 import { ScriptVersion } from '@models/script-version';
 import { RunScriptMode, ScriptExecutionState, SQLScriptId } from '@models/sql-script';
@@ -23,7 +23,8 @@ import { setDataTestId } from '@utils/test-id';
 import * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
-import { ScriptEditorDataStatePane, VersionHistory } from './components';
+import { ScriptEditorDataStatePane } from './components';
+import { VersionHistorySidebar, VersionDiffEditor } from './components/version-history';
 
 // Constants for version creation
 const MIN_VERSION_INTERVAL_MS = 1000; // Minimum 1 second between versions
@@ -41,8 +42,7 @@ type VersionTrackingAction =
   | { type: 'INITIALIZE'; content: string }
   | { type: 'VERSION_CREATED'; content: string }
   | { type: 'USER_EDITED' }
-  | { type: 'RESET' }
-  | { type: 'SET_INITIALIZED'; value: boolean };
+  | { type: 'RESET' };
 
 function versionTrackingReducer(
   state: VersionTrackingState,
@@ -77,11 +77,6 @@ function versionTrackingReducer(
         hasUserEdited: false,
         lastVersionCreatedTime: 0,
         isInitialized: false,
-      };
-    case 'SET_INITIALIZED':
-      return {
-        ...state,
-        isInitialized: action.value,
       };
     default:
       return state;
@@ -119,10 +114,23 @@ export const ScriptEditor = ({
   const editorRef = useRef<SqlEditorHandle | null>(null);
   const [dirty, setDirty] = useState(false);
   const [lastExecutedContent, setLastExecutedContent] = useState('');
-  const [versionHistoryOpened, { open: openVersionHistory, close: closeVersionHistory }] =
-    useDisclosure(false);
-  const [isOpeningVersionHistory, setIsOpeningVersionHistory] = useState(false);
   const [shouldShowVersionHistory, setShouldShowVersionHistory] = useState(false);
+  // Counter to force visibility check when content changes
+  const [contentChangeCount, setContentChangeCount] = useState(0);
+
+  // History mode state (sidebar)
+  const [historyMode, setHistoryMode] = useState(false);
+  const [selectedVersionForDiff, setSelectedVersionForDiff] = useState<ScriptVersion | null>(null);
+  const [compareVersion, setCompareVersion] = useState<ScriptVersion | null>(null);
+  const [isCompareMode, setIsCompareMode] = useState(false);
+
+  // Ref to hold the rename handler from VersionHistorySidebar.
+  // The sidebar populates this ref, and the top bar invokes it via handleRenameVersion.
+  // This pattern enables communication between sibling components without lifting state.
+  const renameVersionHandlerRef = useRef<((version: ScriptVersion) => void) | null>(null);
+
+  // Ref to track the latest editor content - used for visibility checks
+  const latestValueRef = useRef(sqlScript?.content || '');
 
   // Use reducer for version tracking state
   const [versionTracking, dispatchVersionTracking] = useReducer(versionTrackingReducer, {
@@ -187,25 +195,23 @@ export const ScriptEditor = ({
 
       try {
         const versions = await versionController.getVersionsByScriptId(sqlScript.id);
+        // Get current content from editor if available, otherwise use ref or store
         const currentContent =
-          editorRef.current?.editor?.getModel()?.getValue() || sqlScript.content || '';
+          editorRef.current?.editor?.getModel()?.getValue() ||
+          latestValueRef.current ||
+          sqlScript.content ||
+          '';
 
-        // Show version history if:
-        // 1. There's more than one version, OR
-        // 2. There's one version but its content differs from current content
-        const shouldShow =
-          versions.length > 1 || (versions.length === 1 && versions[0].content !== currentContent);
-        setShouldShowVersionHistory(shouldShow);
+        // Show version history if there's at least one version
+        setShouldShowVersionHistory(versions.length > 0);
       } catch (error) {
         console.error('Failed to check version history visibility:', error);
       }
     };
 
-    // Only check after initialization is complete
-    if (versionTracking.isInitialized) {
-      checkVersionHistoryVisibility();
-    }
-  }, [sqlScript?.content, versionController, sqlScript?.id, versionTracking.isInitialized]);
+    // Always run the check - it handles the case of no versions gracefully
+    checkVersionHistoryVisibility();
+  }, [sqlScript?.content, versionController, sqlScript?.id, contentChangeCount]);
 
   // Get the DuckDB functions from the store
   const duckDBFunctions = useDuckDBFunctions();
@@ -238,25 +244,30 @@ export const ScriptEditor = ({
    * Handlers
    */
   const createVersion = useCallback(
-    async (type: 'auto' | 'run' | 'manual' = 'auto') => {
-      // Don't create versions until initialization is complete
-      if (!versionController || !versionTracking.isInitialized) {
-        return;
+    async (type: 'auto' | 'run' | 'manual' = 'auto'): Promise<boolean> => {
+      // For auto-saves, wait for initialization to complete
+      // For manual saves and run versions, allow creation even if not fully initialized
+      if (!versionController) {
+        return false;
+      }
+      if (!versionTracking.isInitialized && type === 'auto') {
+        return false;
       }
 
-      const currentContent = editorRef.current?.editor?.getModel()?.getValue() || '';
+      const currentContent =
+        editorRef.current?.editor?.getModel()?.getValue() || latestValueRef.current || '';
 
       const now = Date.now();
       const timeSinceLastVersion = now - versionTracking.lastVersionCreatedTime;
 
       // Prevent rapid version creation (minimum 1 second between versions)
       if (timeSinceLastVersion < MIN_VERSION_INTERVAL_MS && type === 'auto') {
-        return;
+        return false;
       }
 
       // Only create version if content has changed
       if (currentContent === versionTracking.lastContent) {
-        return;
+        return false;
       }
 
       try {
@@ -272,6 +283,7 @@ export const ScriptEditor = ({
         // Always show version history after creating a version
         // (since now we have at least one version that may differ from current content)
         setShouldShowVersionHistory(true);
+        return true;
       } catch (error) {
         console.error('Failed to create version:', error);
         // Show non-intrusive notification for auto-save failures
@@ -283,6 +295,7 @@ export const ScriptEditor = ({
             autoClose: 5000,
           });
         }
+        return false;
       }
     },
     [
@@ -330,8 +343,6 @@ export const ScriptEditor = ({
     runScriptQuery(queryToRun);
   };
 
-  const latestValueRef = useRef(sqlScript?.content || '');
-
   useEffect(() => {
     latestValueRef.current = sqlScript?.content || '';
   }, [sqlScript?.content]);
@@ -354,10 +365,7 @@ export const ScriptEditor = ({
     await handleQuerySaveRef.current(content);
   }, 300);
 
-  const handleOpenVersionHistory = useCallback(async () => {
-    if (isOpeningVersionHistory) return;
-
-    setIsOpeningVersionHistory(true);
+  const handleEnterHistoryMode = useCallback(async () => {
     const currentValue =
       editorRef.current?.editor?.getModel()?.getValue() ?? latestValueRef.current;
     latestValueRef.current = currentValue;
@@ -365,12 +373,27 @@ export const ScriptEditor = ({
     try {
       await handleQuerySave(currentValue);
     } catch (error) {
-      console.error('Failed to sync editor content before opening version history:', error);
-    } finally {
-      setIsOpeningVersionHistory(false);
-      openVersionHistory();
+      console.error('Failed to sync editor content before entering history mode:', error);
     }
-  }, [handleQuerySave, isOpeningVersionHistory, openVersionHistory]);
+
+    // Reset selection state when entering
+    setSelectedVersionForDiff(null);
+    setCompareVersion(null);
+    setIsCompareMode(false);
+    setHistoryMode(true);
+  }, [handleQuerySave]);
+
+  const handleExitHistoryMode = useCallback(() => {
+    setHistoryMode(false);
+    setSelectedVersionForDiff(null);
+    setCompareVersion(null);
+    setIsCompareMode(false);
+  }, []);
+
+  const handleToggleCompareMode = useCallback(() => {
+    setIsCompareMode((prev) => !prev);
+    setCompareVersion(null);
+  }, []);
 
   const onSqlEditorChange = (content: string) => {
     latestValueRef.current = content;
@@ -379,6 +402,8 @@ export const ScriptEditor = ({
     }
     // Mark that user has edited
     dispatchVersionTracking({ type: 'USER_EDITED' });
+    // Force visibility check to re-run
+    setContentChangeCount((c) => c + 1);
     handleEditorValueChange(content);
   };
 
@@ -387,30 +412,35 @@ export const ScriptEditor = ({
     getOrCreateTabFromScript(newEmptyScript, true);
   };
 
-  const handleRestoreVersion = (version: ScriptVersion) => {
-    const editor = editorRef.current?.editor;
-    const model = editor?.getModel();
-    if (!editor || !model) return;
+  const handleRestoreVersion = useCallback(
+    (version: ScriptVersion) => {
+      // Update version tracking with the restored content
+      dispatchVersionTracking({ type: 'VERSION_CREATED', content: version.content });
+      latestValueRef.current = version.content;
 
-    // Update the editor content
-    model.setValue(version.content);
+      // Save the restored content to the store
+      // The SqlEditor will pick up this content when it remounts after exiting history mode
+      updateSQLScriptContent(sqlScript, version.content);
 
-    // Update version tracking with the restored content
-    dispatchVersionTracking({ type: 'VERSION_CREATED', content: version.content });
-    latestValueRef.current = version.content;
+      // Exit history mode - SqlEditor will remount with the restored content
+      handleExitHistoryMode();
 
-    // Save the restored content
-    updateSQLScriptContent(sqlScript, version.content);
+      showAlert({
+        title: 'Version Restored',
+        message: `Restored version from ${new Date(version.timestamp).toLocaleString()}`,
+        autoClose: 3000,
+      });
+    },
+    [handleExitHistoryMode, sqlScript],
+  );
 
-    // Close the modal
-    closeVersionHistory();
-
-    showAlert({
-      title: 'Version Restored',
-      message: `Restored version from ${new Date(version.timestamp).toLocaleString()}`,
-      autoClose: 3000,
-    });
-  };
+  const handleRenameVersion = useCallback(
+    (version: ScriptVersion) => {
+      // Delegate to the sidebar's rename handler
+      renameVersionHandlerRef.current?.(version);
+    },
+    [],
+  );
 
   // Use ref to capture latest values for cleanup without causing re-renders
   const cleanupRef = useRef<{
@@ -429,42 +459,62 @@ export const ScriptEditor = ({
     tabId,
   };
 
-  // Create version on unmount/tab close
+  const versionControllerRef = useRef(versionController);
+  useEffect(() => {
+    versionControllerRef.current = versionController;
+  }, [versionController]);
+
+  // On unmount:
+  // 1. Persist any unsaved editor content to storage.
+  // 2. If version tracking is initialized and the tab still exists,
+  //    create an "auto" version if content differs from last saved version.
+  // Uses refs to access latest state without causing effect re-runs.
   useEffect(() => {
     return () => {
       const currentScript = latestValueRef.current;
-      if (currentScript !== sqlScript?.content) {
-        handleQuerySave(currentScript);
+      const { current: cleanupState } = cleanupRef;
+
+      if (!cleanupState) {
+        return;
       }
 
-      // Also create version on cleanup if content changed
-      const { current } = cleanupRef;
-      if (current && current.versionTracking.isInitialized && versionController) {
-        const tabStillExists =
-          current.tabId == null ? true : useAppStore.getState().tabs.has(current.tabId);
+      // Persist any unsaved content
+      if (cleanupState.sqlScript && currentScript !== cleanupState.sqlScript.content) {
+        handleQuerySaveRef.current(currentScript).catch((err) => {
+          console.error('Failed to persist content:', err);
+        });
+      }
 
-        // When the tab is being closed we rely on deleteTab to create the version
-        if (!tabStillExists) {
-          return;
-        }
+      // Create version on cleanup if content changed and tab still exists
+      const controller = versionControllerRef.current;
+      if (!controller || !cleanupState.versionTracking.isInitialized) {
+        return;
+      }
 
-        const { versionTracking: vt, sqlScript: script } = current;
-        if (currentScript && currentScript !== vt.lastContent && script) {
-          // Fire and forget - we can't wait for async in cleanup
-          versionController
-            .createVersion({
-              scriptId: script.id,
-              content: currentScript,
-              type: 'auto',
-              metadata: getScriptMetadata(currentScript),
-            })
-            .catch((err) => {
-              console.error('Failed to create version on cleanup:', err);
-            });
-        }
+      const tabStillExists =
+        cleanupState.tabId == null || useAppStore.getState().tabs.has(cleanupState.tabId);
+
+      // When the tab is being closed we rely on deleteTab to create the version
+      if (!tabStillExists) {
+        return;
+      }
+
+      const { versionTracking: vt, sqlScript: script } = cleanupState;
+      if (currentScript !== vt.lastContent && script) {
+        // Fire and forget - we can't wait for async in cleanup
+        controller
+          .createVersion({
+            scriptId: script.id,
+            content: currentScript,
+            type: 'auto',
+            metadata: getScriptMetadata(currentScript),
+          })
+          .catch((err) => {
+            console.error('Failed to create version on cleanup:', err);
+          });
       }
     };
-  }, [sqlScript?.content, sqlScript?.id, handleQuerySave, versionController]);
+  }, []);
 
   // Listen for AI Assistant trigger event
   useEffect(() => {
@@ -483,6 +533,28 @@ export const ScriptEditor = ({
       window.removeEventListener('trigger-ai-assistant', handleTriggerAIAssistant as EventListener);
     };
   }, [tabId]);
+
+  // Handle Escape key to exit history mode.
+  // Don't exit if a modal is open (e.g., rename dialog) - let the modal handle Escape.
+  useEffect(() => {
+    if (!historyMode) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Check if focus is inside a modal - if so, let the modal handle Escape
+        const modalContainer = document.querySelector('.mantine-Modal-root');
+        if (modalContainer?.contains(e.target as Node)) {
+          return;
+        }
+
+        e.preventDefault();
+        handleExitHistoryMode();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyMode, handleExitHistoryMode]);
 
   useDidUpdate(() => {
     if (active) {
@@ -504,97 +576,97 @@ export const ScriptEditor = ({
   };
 
   return (
-    <>
-      <div
-        className="h-full"
-        data-testid={setDataTestId('query-editor')}
-        data-active-editor={!!active}
-      >
+    <div
+      className="h-full flex"
+      data-testid={setDataTestId('query-editor')}
+      data-active-editor={!!active}
+    >
+      {/* Main editor area */}
+      <div className="flex-1 flex flex-col min-w-0">
         <ScriptEditorDataStatePane
           dirty={dirty}
           handleRunQuery={handleRunQuery}
           scriptState={scriptState}
           onAIAssistantClick={handleAIAssistantClick}
-          onOpenVersionHistory={shouldShowVersionHistory ? handleOpenVersionHistory : undefined}
+          historyMode={historyMode}
+          onEnterHistoryMode={shouldShowVersionHistory ? handleEnterHistoryMode : undefined}
+          onExitHistoryMode={handleExitHistoryMode}
+          selectedVersion={selectedVersionForDiff}
+          onRestoreVersion={handleRestoreVersion}
+          onRenameVersion={handleRenameVersion}
         />
 
-        <Group className="h-[calc(100%-40px)]">
-          <SqlEditor
-            onBlur={handleQuerySave}
-            ref={editorRef}
-            colorSchemeDark={colorScheme === 'dark'}
-            value={sqlScript?.content || ''}
-            onChange={onSqlEditorChange}
-            schema={schema}
-            functionTooltips={functionTooltips}
-            path={sqlScript?.id ? String(sqlScript.id) : tabId ? String(tabId) : undefined}
-            onRun={() => {
-              handleRunQuery().catch((error) => {
-                console.warn('Run query failed:', error);
-              });
-            }}
-            onRunSelection={() => {
-              handleRunQuery('selection').catch((error) => {
-                console.warn('Run selection failed:', error);
-              });
-            }}
-            onKeyDown={(e: monaco.IKeyboardEvent) => {
-              if (KEY_BINDING.save.match(e)) {
-                handleQuerySave().catch((error) => {
-                  console.warn('Save query failed:', error);
-                });
-                // Create a manual version on Cmd+S
-                createVersion('manual');
-                showAlert({
-                  title: 'Version saved',
-                  message: 'A new version has been created for your script.',
-                  autoClose: 3000,
-                });
-                e.preventDefault();
-                e.stopPropagation();
-              } else if (KEY_BINDING.kmenu.match(e)) {
-                Spotlight.open();
-              } else if (KEY_BINDING.openNewScript.match(e)) {
-                e.preventDefault();
-                e.stopPropagation();
-                handleAddScript();
-              }
-            }}
-          />
-        </Group>
+        <div className="flex-1 h-[calc(100%-40px)]">
+          {historyMode ? (
+            <VersionDiffEditor
+              currentContent={latestValueRef.current}
+              selectedVersion={selectedVersionForDiff}
+              compareVersion={compareVersion}
+            />
+          ) : (
+            <Group className="h-full">
+              <SqlEditor
+                onBlur={handleQuerySave}
+                ref={editorRef}
+                colorSchemeDark={colorScheme === 'dark'}
+                value={sqlScript?.content || ''}
+                onChange={onSqlEditorChange}
+                schema={schema}
+                functionTooltips={functionTooltips}
+                path={sqlScript?.id ? String(sqlScript.id) : tabId ? String(tabId) : undefined}
+                onRun={() => {
+                  handleRunQuery().catch((error) => {
+                    console.warn('Run query failed:', error);
+                  });
+                }}
+                onRunSelection={() => {
+                  handleRunQuery('selection').catch((error) => {
+                    console.warn('Run selection failed:', error);
+                  });
+                }}
+                onKeyDown={(e: monaco.IKeyboardEvent) => {
+                  if (KEY_BINDING.save.match(e)) {
+                    handleQuerySave().catch((error) => {
+                      console.warn('Save query failed:', error);
+                    });
+                    // Create a manual version on Cmd+S
+                    createVersion('manual');
+                    showAlert({
+                      title: 'Version saved',
+                      message: 'A new version has been created for your script.',
+                      autoClose: 3000,
+                    });
+                    e.preventDefault();
+                    e.stopPropagation();
+                  } else if (KEY_BINDING.kmenu.match(e)) {
+                    Spotlight.open();
+                  } else if (KEY_BINDING.openNewScript.match(e)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleAddScript();
+                  }
+                }}
+              />
+            </Group>
+          )}
+        </div>
       </div>
 
-      <Modal
-        opened={versionHistoryOpened}
-        onClose={closeVersionHistory}
-        title=""
-        size="xl"
-        styles={{
-          body: {
-            padding: 0,
-            height: '80vh',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          },
-          header: { display: 'none' },
-          content: {
-            width: 'min(1100px, 90vw)',
-            height: '80vh',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          },
-        }}
-        data-testid={setDataTestId('version-history-modal')}
-      >
-        <VersionHistory
+      {/* Version History Sidebar */}
+      {historyMode && (
+        <VersionHistorySidebar
           scriptId={scriptId}
-          currentContent={sqlScript?.content || ''}
+          selectedVersion={selectedVersionForDiff}
+          compareVersion={compareVersion}
+          isCompareMode={isCompareMode}
+          onSelectVersion={setSelectedVersionForDiff}
+          onSelectCompareVersion={setCompareVersion}
+          onToggleCompareMode={handleToggleCompareMode}
           onRestore={handleRestoreVersion}
-          onClose={closeVersionHistory}
+          onClose={handleExitHistoryMode}
+          renameHandlerRef={renameVersionHandlerRef}
         />
-      </Modal>
-    </>
+      )}
+    </div>
   );
 };

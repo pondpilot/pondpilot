@@ -12,9 +12,6 @@ interface VersionListProps {
   isVersionCompareTarget: (version: ScriptVersion) => boolean;
   currentVersionId: ScriptVersion['id'] | null;
   onSelectVersion: (version: ScriptVersion) => void;
-  onRenameVersion: (version: ScriptVersion) => void;
-  onRestoreVersion: (version: ScriptVersion) => void;
-  onCopyVersion: (version: ScriptVersion) => void;
 }
 
 export const VersionList = ({
@@ -24,9 +21,6 @@ export const VersionList = ({
   isVersionCompareTarget,
   currentVersionId,
   onSelectVersion,
-  onRenameVersion,
-  onRestoreVersion,
-  onCopyVersion,
 }: VersionListProps) => {
   if (versionGroups.length === 0) {
     return (
@@ -54,9 +48,6 @@ export const VersionList = ({
                   compareMode={selectionMode === 'compare'}
                   isCurrent={currentVersionId === version.id}
                   onSelect={onSelectVersion}
-                  onRename={onRenameVersion}
-                  onRestore={onRestoreVersion}
-                  onCopy={onCopyVersion}
                 />
               ))}
             </div>

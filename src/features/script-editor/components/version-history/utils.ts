@@ -4,7 +4,7 @@ import { ScriptVersion, ScriptVersionGroup } from '@models/script-version';
  * Formats a date as a relative or absolute date string for version history headers.
  * Returns "Today", "Yesterday", or a formatted date string for older dates.
  */
-export const formatDateHeader = (date: Date): string => {
+export function formatDateHeader(date: Date): string {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -26,15 +26,15 @@ export const formatDateHeader = (date: Date): string => {
     month: 'long',
     day: 'numeric',
   });
-};
+}
 
 /**
  * Groups versions by date, sorted with most recent first.
  */
-export const groupVersionsByDate = (versions: ScriptVersion[]): ScriptVersionGroup[] => {
+export function groupVersionsByDate(versions: ScriptVersion[]): ScriptVersionGroup[] {
   const groups = new Map<string, ScriptVersion[]>();
 
-  versions.forEach((version) => {
+  for (const version of versions) {
     const date = new Date(version.timestamp);
     const dateKey = date.toDateString();
 
@@ -42,7 +42,7 @@ export const groupVersionsByDate = (versions: ScriptVersion[]): ScriptVersionGro
       groups.set(dateKey, []);
     }
     groups.get(dateKey)!.push(version);
-  });
+  }
 
   return Array.from(groups.entries())
     .map(([dateKey, versionList]) => ({
@@ -50,4 +50,4 @@ export const groupVersionsByDate = (versions: ScriptVersion[]): ScriptVersionGro
       versions: versionList.sort((a, b) => b.timestamp - a.timestamp),
     }))
     .sort((a, b) => b.date.getTime() - a.date.getTime());
-};
+}

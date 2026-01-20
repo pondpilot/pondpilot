@@ -1,7 +1,18 @@
-import { ActionIcon, Group, Text, Tooltip } from '@mantine/core';
+import { showAlert } from '@components/app-notifications';
+import { ActionIcon, Button, Group, Text, Tooltip } from '@mantine/core';
 import { useDidUpdate, useOs } from '@mantine/hooks';
+import { modals } from '@mantine/modals';
+import { ScriptVersion } from '@models/script-version';
 import { ScriptExecutionState } from '@models/sql-script';
-import { IconFileSad, IconHistory, IconSparkles } from '@tabler/icons-react';
+import {
+  IconArrowLeft,
+  IconCopy,
+  IconFileSad,
+  IconHistory,
+  IconPencil,
+  IconRestore,
+  IconSparkles,
+} from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { useRef, useState } from 'react';
 
@@ -10,18 +21,28 @@ import { RunQueryButton } from './components';
 interface ScriptEditorDataStatePaneProps {
   scriptState: ScriptExecutionState;
   dirty: boolean;
+  historyMode?: boolean;
+  selectedVersion?: ScriptVersion | null;
 
   handleRunQuery: (mode?: 'all' | 'selection') => Promise<void>;
   onAIAssistantClick: () => void;
-  onOpenVersionHistory?: () => void;
+  onEnterHistoryMode?: () => void;
+  onExitHistoryMode?: () => void;
+  onRestoreVersion?: (version: ScriptVersion) => void;
+  onRenameVersion?: (version: ScriptVersion) => void;
 }
 
 export const ScriptEditorDataStatePane = ({
   scriptState,
   dirty,
+  historyMode = false,
+  selectedVersion,
   handleRunQuery,
   onAIAssistantClick,
-  onOpenVersionHistory,
+  onEnterHistoryMode,
+  onExitHistoryMode,
+  onRestoreVersion,
+  onRenameVersion,
 }: ScriptEditorDataStatePaneProps) => {
   const os = useOs();
   const isMacOS = os === 'macos';
@@ -54,6 +75,102 @@ export const ScriptEditorDataStatePane = ({
     };
   }, [running]);
 
+  const handleCopyVersion = async () => {
+    if (!selectedVersion) return;
+
+    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+      showAlert({
+        title: 'Failed to copy',
+        message: 'Clipboard API not available',
+        color: 'red',
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(selectedVersion.content);
+      showAlert({
+        title: 'Copied to clipboard',
+        message: 'Version content copied successfully',
+        autoClose: 2000,
+      });
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      showAlert({
+        title: 'Failed to copy',
+        message: 'Could not copy to clipboard',
+        color: 'red',
+      });
+    }
+  };
+
+  const handleRestoreVersion = () => {
+    if (!selectedVersion) return;
+
+    modals.openConfirmModal({
+      title: 'Restore Version',
+      children: (
+        <Text size="sm">
+          Are you sure you want to restore this version? This will replace your current script
+          content.
+        </Text>
+      ),
+      labels: { confirm: 'Restore', cancel: 'Cancel' },
+      confirmProps: { color: 'background-accent' },
+      onConfirm: () => onRestoreVersion?.(selectedVersion),
+    });
+  };
+
+  // History mode controls
+  if (historyMode) {
+    return (
+      <Group className="px-3 h-10" justify="space-between">
+        <Group gap={8}>
+          <Button
+            variant="transparent"
+            size="xs"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={onExitHistoryMode}
+            data-testid={setDataTestId('exit-history-button')}
+          >
+            Exit History
+          </Button>
+        </Group>
+        <Group gap={8}>
+          {selectedVersion && (
+            <>
+              <Tooltip label="Copy version content">
+                <ActionIcon size="sm" aria-label="Copy version content" onClick={handleCopyVersion}>
+                  <IconCopy size={18} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Rename version">
+                <ActionIcon
+                  size="sm"
+                  aria-label="Rename version"
+                  onClick={() => onRenameVersion?.(selectedVersion)}
+                  data-testid={setDataTestId('rename-version-button')}
+                >
+                  <IconPencil size={18} />
+                </ActionIcon>
+              </Tooltip>
+              <Button
+                variant="default"
+                size="xs"
+                leftSection={<IconRestore size={16} />}
+                onClick={handleRestoreVersion}
+                data-testid={setDataTestId('restore-version-button')}
+              >
+                Restore
+              </Button>
+            </>
+          )}
+        </Group>
+      </Group>
+    );
+  }
+
+  // Normal mode controls
   return (
     <Group className="px-3 h-10" justify="space-between">
       <Group gap={2}>
@@ -88,12 +205,13 @@ export const ScriptEditorDataStatePane = ({
       </Group>
       <Group gap={8}>
         <Group gap={2}>
-          {onOpenVersionHistory && (
+          {onEnterHistoryMode && (
             <Tooltip label="Version History">
               <ActionIcon
                 variant="subtle"
                 c="background-accent"
-                onClick={onOpenVersionHistory}
+                aria-label="Version History"
+                onClick={onEnterHistoryMode}
                 data-testid={setDataTestId('version-history-button')}
               >
                 <IconHistory size={18} />
@@ -101,7 +219,7 @@ export const ScriptEditorDataStatePane = ({
             </Tooltip>
           )}
           <Tooltip label={`AI Assistant (${isMacOS ? '⌘' : 'Ctrl'}+I)`} position="bottom">
-            <ActionIcon c="background-accent" onClick={onAIAssistantClick}>
+            <ActionIcon c="background-accent" aria-label="AI Assistant" onClick={onAIAssistantClick}>
               <IconSparkles size={24} stroke={1.8} />
             </ActionIcon>
           </Tooltip>
