@@ -219,7 +219,11 @@ export const ScriptEditorDataStatePane = ({
             </Tooltip>
           )}
           <Tooltip label={`AI Assistant (${isMacOS ? '⌘' : 'Ctrl'}+I)`} position="bottom">
-            <ActionIcon c="background-accent" aria-label="AI Assistant" onClick={onAIAssistantClick}>
+            <ActionIcon
+              c="background-accent"
+              aria-label="AI Assistant"
+              onClick={onAIAssistantClick}
+            >
               <IconSparkles size={24} stroke={1.8} />
             </ActionIcon>
           </Tooltip>

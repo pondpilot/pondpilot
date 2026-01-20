@@ -1,7 +1,17 @@
 import { showAlert } from '@components/app-notifications';
+import {
+  ALERT_TIMING,
+  EDITOR_SAVE_DEBOUNCE_MS,
+  MIN_VERSION_INTERVAL_MS,
+} from '@consts/version-history';
 import { createScriptVersionController } from '@controllers/script-version';
 import { createSQLScript, updateSQLScriptContent } from '@controllers/sql-script';
-import { getOrCreateTabFromScript } from '@controllers/tab';
+import {
+  getOrCreateTabFromScript,
+  removeLiveScriptContentSnapshot,
+  tabsBeingDeleted,
+  updateLiveScriptContentSnapshot,
+} from '@controllers/tab';
 import { SqlEditor, SqlEditorHandle } from '@features/editor';
 import {
   showAIAssistant,
@@ -26,14 +36,9 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { ScriptEditorDataStatePane } from './components';
 import { VersionHistorySidebar, VersionDiffEditor } from './components/version-history';
 
-// Constants for version creation
-const MIN_VERSION_INTERVAL_MS = 1000; // Minimum 1 second between versions
-
-// Version tracking state
+// Version tracking state - tracks content and timing for version creation
 interface VersionTrackingState {
   lastContent: string;
-  lastAutoSaveTime: number;
-  hasUserEdited: boolean;
   lastVersionCreatedTime: number;
   isInitialized: boolean;
 }
@@ -41,7 +46,6 @@ interface VersionTrackingState {
 type VersionTrackingAction =
   | { type: 'INITIALIZE'; content: string }
   | { type: 'VERSION_CREATED'; content: string }
-  | { type: 'USER_EDITED' }
   | { type: 'RESET' };
 
 function versionTrackingReducer(
@@ -53,7 +57,6 @@ function versionTrackingReducer(
       return {
         ...state,
         lastContent: action.content,
-        hasUserEdited: false,
         lastVersionCreatedTime: 0,
         isInitialized: true,
       };
@@ -61,20 +64,11 @@ function versionTrackingReducer(
       return {
         ...state,
         lastContent: action.content,
-        lastAutoSaveTime: Date.now(),
         lastVersionCreatedTime: Date.now(),
-        hasUserEdited: false, // Reset after version is created
-      };
-    case 'USER_EDITED':
-      return {
-        ...state,
-        hasUserEdited: true,
       };
     case 'RESET':
       return {
         lastContent: '',
-        lastAutoSaveTime: Date.now(),
-        hasUserEdited: false,
         lastVersionCreatedTime: 0,
         isInitialized: false,
       };
@@ -115,8 +109,6 @@ export const ScriptEditor = ({
   const [dirty, setDirty] = useState(false);
   const [lastExecutedContent, setLastExecutedContent] = useState('');
   const [shouldShowVersionHistory, setShouldShowVersionHistory] = useState(false);
-  // Counter to force visibility check when content changes
-  const [contentChangeCount, setContentChangeCount] = useState(0);
 
   // History mode state (sidebar)
   const [historyMode, setHistoryMode] = useState(false);
@@ -132,11 +124,17 @@ export const ScriptEditor = ({
   // Ref to track the latest editor content - used for visibility checks
   const latestValueRef = useRef(sqlScript?.content || '');
 
+  const updateLatestEditorValue = useCallback(
+    (value: string) => {
+      latestValueRef.current = value;
+      updateLiveScriptContentSnapshot(scriptId, value);
+    },
+    [scriptId],
+  );
+
   // Use reducer for version tracking state
   const [versionTracking, dispatchVersionTracking] = useReducer(versionTrackingReducer, {
     lastContent: sqlScript?.content || '',
-    lastAutoSaveTime: Date.now(),
-    hasUserEdited: false,
     lastVersionCreatedTime: 0,
     isInitialized: false,
   });
@@ -149,69 +147,55 @@ export const ScriptEditor = ({
 
   // Initialize versions once on mount/script change
   useEffect(() => {
+    let didCancel = false;
+
     const initializeVersions = async () => {
-      if (!versionController || !sqlScript) {
-        dispatchVersionTracking({ type: 'INITIALIZE', content: sqlScript?.content || '' });
+      const currentScript = useAppStore.getState().sqlScripts.get(scriptId);
+
+      if (!versionController || !currentScript) {
+        if (!didCancel) {
+          dispatchVersionTracking({ type: 'INITIALIZE', content: currentScript?.content || '' });
+          setShouldShowVersionHistory(false);
+        }
         return;
       }
 
       try {
-        // Get all versions to check if any exist
-        const versions = await versionController.getVersionsByScriptId(sqlScript.id);
-        const currentContent = sqlScript.content || '';
+        const versions = await versionController.getVersionsByScriptId(scriptId);
+        if (didCancel) {
+          return;
+        }
+
+        const currentContent = currentScript.content || '';
 
         if (versions.length > 0) {
-          // Use the latest version content as baseline
           dispatchVersionTracking({ type: 'INITIALIZE', content: versions[0].content });
 
-          // Show version history if:
-          // 1. There's more than one version, OR
-          // 2. There's one version but its content differs from current content
-          const shouldShow =
-            versions.length > 1 ||
-            (versions.length === 1 && versions[0].content !== currentContent);
-          setShouldShowVersionHistory(shouldShow);
+          setShouldShowVersionHistory(versions.length > 0);
         } else {
-          // No versions exist yet, use current script content
           dispatchVersionTracking({ type: 'INITIALIZE', content: currentContent });
           setShouldShowVersionHistory(false);
         }
       } catch (error) {
+        if (didCancel) {
+          return;
+        }
         console.error('Failed to initialize versions:', error);
-        dispatchVersionTracking({ type: 'INITIALIZE', content: sqlScript.content || '' });
+        dispatchVersionTracking({
+          type: 'INITIALIZE',
+          content: useAppStore.getState().sqlScripts.get(scriptId)?.content || '',
+        });
         setShouldShowVersionHistory(false);
       }
     };
 
-    // Reset version tracking state when script changes
     dispatchVersionTracking({ type: 'RESET' });
     initializeVersions();
-  }, [sqlScript, versionController]);
 
-  // Re-evaluate whether to show version history when content changes
-  useEffect(() => {
-    const checkVersionHistoryVisibility = async () => {
-      if (!versionController || !sqlScript) return;
-
-      try {
-        const versions = await versionController.getVersionsByScriptId(sqlScript.id);
-        // Get current content from editor if available, otherwise use ref or store
-        const currentContent =
-          editorRef.current?.editor?.getModel()?.getValue() ||
-          latestValueRef.current ||
-          sqlScript.content ||
-          '';
-
-        // Show version history if there's at least one version
-        setShouldShowVersionHistory(versions.length > 0);
-      } catch (error) {
-        console.error('Failed to check version history visibility:', error);
-      }
+    return () => {
+      didCancel = true;
     };
-
-    // Always run the check - it handles the case of no versions gracefully
-    checkVersionHistoryVisibility();
-  }, [sqlScript?.content, versionController, sqlScript?.id, contentChangeCount]);
+  }, [scriptId, versionController]);
 
   // Get the DuckDB functions from the store
   const duckDBFunctions = useDuckDBFunctions();
@@ -292,7 +276,7 @@ export const ScriptEditor = ({
             title: 'Auto-save failed',
             message: 'Your changes are still in the editor but could not be saved to history',
             color: 'yellow',
-            autoClose: 5000,
+            autoClose: ALERT_TIMING.LONG,
           });
         }
         return false;
@@ -344,8 +328,14 @@ export const ScriptEditor = ({
   };
 
   useEffect(() => {
-    latestValueRef.current = sqlScript?.content || '';
-  }, [sqlScript?.content]);
+    updateLatestEditorValue(sqlScript?.content || '');
+  }, [sqlScript?.content, updateLatestEditorValue]);
+
+  useEffect(() => {
+    return () => {
+      removeLiveScriptContentSnapshot(scriptId);
+    };
+  }, [scriptId]);
 
   const handleQuerySave = useCallback(
     async (content?: string) => {
@@ -363,12 +353,19 @@ export const ScriptEditor = ({
 
   const handleEditorValueChange = useDebouncedCallback(async (content: string) => {
     await handleQuerySaveRef.current(content);
-  }, 300);
+  }, EDITOR_SAVE_DEBOUNCE_MS);
+
+  // Cancel pending debounced calls on unmount to prevent state updates after unmount
+  useEffect(() => {
+    return () => {
+      handleEditorValueChange.cancel();
+    };
+  }, [handleEditorValueChange]);
 
   const handleEnterHistoryMode = useCallback(async () => {
     const currentValue =
       editorRef.current?.editor?.getModel()?.getValue() ?? latestValueRef.current;
-    latestValueRef.current = currentValue;
+    updateLatestEditorValue(currentValue);
 
     try {
       await handleQuerySave(currentValue);
@@ -381,7 +378,7 @@ export const ScriptEditor = ({
     setCompareVersion(null);
     setIsCompareMode(false);
     setHistoryMode(true);
-  }, [handleQuerySave]);
+  }, [handleQuerySave, updateLatestEditorValue]);
 
   const handleExitHistoryMode = useCallback(() => {
     setHistoryMode(false);
@@ -396,14 +393,10 @@ export const ScriptEditor = ({
   }, []);
 
   const onSqlEditorChange = (content: string) => {
-    latestValueRef.current = content;
+    updateLatestEditorValue(content);
     if (lastExecutedContent) {
       setDirty(content !== lastExecutedContent);
     }
-    // Mark that user has edited
-    dispatchVersionTracking({ type: 'USER_EDITED' });
-    // Force visibility check to re-run
-    setContentChangeCount((c) => c + 1);
     handleEditorValueChange(content);
   };
 
@@ -416,7 +409,7 @@ export const ScriptEditor = ({
     (version: ScriptVersion) => {
       // Update version tracking with the restored content
       dispatchVersionTracking({ type: 'VERSION_CREATED', content: version.content });
-      latestValueRef.current = version.content;
+      updateLatestEditorValue(version.content);
 
       // Save the restored content to the store
       // The SqlEditor will pick up this content when it remounts after exiting history mode
@@ -428,19 +421,16 @@ export const ScriptEditor = ({
       showAlert({
         title: 'Version Restored',
         message: `Restored version from ${new Date(version.timestamp).toLocaleString()}`,
-        autoClose: 3000,
+        autoClose: ALERT_TIMING.MEDIUM,
       });
     },
-    [handleExitHistoryMode, sqlScript],
+    [handleExitHistoryMode, sqlScript, updateLatestEditorValue],
   );
 
-  const handleRenameVersion = useCallback(
-    (version: ScriptVersion) => {
-      // Delegate to the sidebar's rename handler
-      renameVersionHandlerRef.current?.(version);
-    },
-    [],
-  );
+  const handleRenameVersion = useCallback((version: ScriptVersion) => {
+    // Delegate to the sidebar's rename handler
+    renameVersionHandlerRef.current?.(version);
+  }, []);
 
   // Use ref to capture latest values for cleanup without causing re-renders
   const cleanupRef = useRef<{
@@ -468,6 +458,16 @@ export const ScriptEditor = ({
   // 1. Persist any unsaved editor content to storage.
   // 2. If version tracking is initialized and the tab still exists,
   //    create an "auto" version if content differs from last saved version.
+  //
+  // COORDINATION NOTE: This effect coordinates with deleteTab() in tab-controller.ts.
+  // When a tab is explicitly closed via deleteTab(), that function handles version creation.
+  // We check tabsBeingDeleted to avoid duplicate version creation. The flow is:
+  //   - deleteTab adds tab to tabsBeingDeleted
+  //   - deleteTab creates version, removes tab from store
+  //   - React unmounts ScriptEditor, this cleanup runs
+  //   - Cleanup skips version creation (tab is in tabsBeingDeleted or no longer exists)
+  //   - deleteTab removes tab from tabsBeingDeleted in finally block
+  //
   // Uses refs to access latest state without causing effect re-runs.
   useEffect(() => {
     return () => {
@@ -488,6 +488,12 @@ export const ScriptEditor = ({
       // Create version on cleanup if content changed and tab still exists
       const controller = versionControllerRef.current;
       if (!controller || !cleanupState.versionTracking.isInitialized) {
+        return;
+      }
+
+      // Check if this tab is being explicitly deleted via deleteTab.
+      // If so, deleteTab handles version creation, so we skip here to avoid duplicates.
+      if (cleanupState.tabId && tabsBeingDeleted.has(cleanupState.tabId)) {
         return;
       }
 
@@ -629,12 +635,22 @@ export const ScriptEditor = ({
                     handleQuerySave().catch((error) => {
                       console.warn('Save query failed:', error);
                     });
-                    // Create a manual version on Cmd+S
-                    createVersion('manual');
-                    showAlert({
-                      title: 'Version saved',
-                      message: 'A new version has been created for your script.',
-                      autoClose: 3000,
+                    // Create a manual version on Cmd+S and show feedback based on result
+                    createVersion('manual').then((success) => {
+                      if (success) {
+                        showAlert({
+                          title: 'Version saved',
+                          message: 'A new version has been created for your script.',
+                          autoClose: ALERT_TIMING.MEDIUM,
+                        });
+                      } else {
+                        // Version not created (no changes or error) - still acknowledge save
+                        showAlert({
+                          title: 'Script saved',
+                          message: 'No changes to save to version history.',
+                          autoClose: ALERT_TIMING.SHORT,
+                        });
+                      }
                     });
                     e.preventDefault();
                     e.stopPropagation();
@@ -664,6 +680,7 @@ export const ScriptEditor = ({
           onToggleCompareMode={handleToggleCompareMode}
           onRestore={handleRestoreVersion}
           onClose={handleExitHistoryMode}
+          onHistoryCleared={() => setShouldShowVersionHistory(false)}
           renameHandlerRef={renameVersionHandlerRef}
         />
       )}

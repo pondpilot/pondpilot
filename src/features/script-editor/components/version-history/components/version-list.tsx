@@ -3,7 +3,8 @@ import { ScriptVersion, ScriptVersionGroup } from '@models/script-version';
 
 import { VersionDateHeader } from './version-date-header';
 import { VersionItem } from './version-item';
-import { SelectionMode } from '../hooks/use-version-selection';
+
+export type SelectionMode = 'preview' | 'compare';
 
 interface VersionListProps {
   versionGroups: ScriptVersionGroup[];

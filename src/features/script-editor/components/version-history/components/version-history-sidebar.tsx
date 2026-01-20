@@ -1,5 +1,6 @@
 import { showAlert } from '@components/app-notifications';
 import { LoadingOverlay } from '@components/loading-overlay';
+import { ALERT_TIMING } from '@consts/version-history';
 import { createScriptVersionController } from '@controllers/script-version';
 import {
   ActionIcon,
@@ -17,7 +18,7 @@ import { SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
 import { IconGitCompare, IconTrash, IconX } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { VersionList } from './version-list';
 import { groupVersionsByDate } from '../utils';
@@ -86,6 +87,8 @@ interface VersionHistorySidebarProps {
   onToggleCompareMode: () => void;
   onRestore: (version: ScriptVersion) => void;
   onClose: () => void;
+  /** Called when all version history is cleared, so parent can hide the history button */
+  onHistoryCleared?: () => void;
   renameHandlerRef?: React.MutableRefObject<((version: ScriptVersion) => void) | null>;
 }
 
@@ -99,11 +102,28 @@ export const VersionHistorySidebar = ({
   onToggleCompareMode,
   onRestore,
   onClose,
+  onHistoryCleared,
   renameHandlerRef,
 }: VersionHistorySidebarProps) => {
   const [versions, setVersions] = useState<ScriptVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const iDbConn = useAppStore((state) => state._iDbConn);
+
+  // Track open modal IDs to ensure cleanup on unmount.
+  // When the sidebar unmounts (e.g., user exits history mode), any open modals
+  // should be closed to prevent orphaned state and memory leaks.
+  const openModalIdsRef = useRef<Set<string>>(new Set());
+
+  // Cleanup effect to close any open modals when sidebar unmounts
+  useEffect(() => {
+    return () => {
+      // Close any modals this sidebar opened that are still open
+      openModalIdsRef.current.forEach((modalId) => {
+        modals.close(modalId);
+      });
+      openModalIdsRef.current.clear();
+    };
+  }, []);
 
   // Clear all history
   const handleClearHistory = useCallback(() => {
@@ -126,10 +146,12 @@ export const VersionHistorySidebar = ({
           setVersions([]);
           onSelectVersion(null);
           onSelectCompareVersion(null);
+          // Notify parent that history was cleared so it can hide the history button
+          onHistoryCleared?.();
           showAlert({
             title: 'History Cleared',
             message: 'All version history has been deleted',
-            autoClose: 3000,
+            autoClose: ALERT_TIMING.MEDIUM,
           });
           onClose();
         } catch (error) {
@@ -142,7 +164,7 @@ export const VersionHistorySidebar = ({
         }
       },
     });
-  }, [iDbConn, scriptId, onSelectVersion, onSelectCompareVersion, onClose]);
+  }, [iDbConn, scriptId, onSelectVersion, onSelectCompareVersion, onHistoryCleared, onClose]);
 
   // Load versions once when sidebar opens
   useEffect(() => {
@@ -170,7 +192,7 @@ export const VersionHistorySidebar = ({
           title: 'Failed to load version history',
           message: 'Unable to retrieve version history. Please try again.',
           color: 'red',
-          autoClose: 5000,
+          autoClose: ALERT_TIMING.LONG,
         });
       } finally {
         if (mounted) {
@@ -223,8 +245,17 @@ export const VersionHistorySidebar = ({
       const initialName = version.name || '';
       const initialDescription = version.description || '';
 
+      const closeAndCleanup = (modalId: string) => {
+        openModalIdsRef.current.delete(modalId);
+        modals.close(modalId);
+      };
+
       const modalId = modals.open({
         title: 'Name This Version',
+        onClose: () => {
+          // Clean up tracking when modal closes (via any method)
+          openModalIdsRef.current.delete(modalId);
+        },
         children: (
           <RenameVersionForm
             initialName={initialName}
@@ -257,10 +288,10 @@ export const VersionHistorySidebar = ({
                 showAlert({
                   title: 'Version Named',
                   message: `Version named "${name.trim()}"`,
-                  autoClose: 3000,
+                  autoClose: ALERT_TIMING.MEDIUM,
                 });
 
-                modals.close(modalId);
+                closeAndCleanup(modalId);
               } catch (error) {
                 console.error('Failed to rename version:', error);
                 showAlert({
@@ -270,10 +301,13 @@ export const VersionHistorySidebar = ({
                 });
               }
             }}
-            onCancel={() => modals.close(modalId)}
+            onCancel={() => closeAndCleanup(modalId)}
           />
         ),
       });
+
+      // Track this modal so we can close it on unmount
+      openModalIdsRef.current.add(modalId);
     },
     [iDbConn, scriptId, selectedVersion, compareVersion, onSelectVersion, onSelectCompareVersion],
   );
@@ -306,9 +340,17 @@ export const VersionHistorySidebar = ({
   const versionGroups = useMemo(() => groupVersionsByDate(versions), [versions]);
   const currentVersionId = versions.length > 0 ? versions[0].id : null;
 
-  // Keyboard navigation
+  // Ref for the sidebar container - used for focus management and keyboard event scoping
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Focus the sidebar when it mounts so keyboard navigation works immediately
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    sidebarRef.current?.focus();
+  }, []);
+
+  // Keyboard navigation - only handle when sidebar has focus
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
       if (versions.length === 0) return;
 
       const currentIndex = selectedVersion
@@ -327,15 +369,24 @@ export const VersionHistorySidebar = ({
         e.preventDefault();
         onRestore(selectedVersion);
       }
-    };
+    },
+    [versions, selectedVersion, handleSelectVersion, onRestore],
+  );
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [versions, selectedVersion, handleSelectVersion, onRestore]);
-
+  // The sidebar element needs focus and keyboard handlers for accessibility:
+  // - tabIndex=-1 allows programmatic focus for keyboard navigation
+  // - onKeyDown enables arrow key navigation through versions
+  // - role="region" with aria-label provides screen reader context
+  // These are valid accessibility patterns for a navigable panel.
+  /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
   return (
     <div
-      className="w-[280px] flex-shrink-0 h-full flex flex-col border-l border-borderPrimary-light dark:border-borderPrimary-dark bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark animate-slide-in-right"
+      ref={sidebarRef}
+      role="region"
+      aria-label="Version History"
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+      className="w-[280px] flex-shrink-0 h-full flex flex-col border-l border-borderPrimary-light dark:border-borderPrimary-dark bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark animate-slide-in-right outline-none"
       data-testid={setDataTestId('version-history-sidebar')}
     >
       {/* Header */}
@@ -400,4 +451,5 @@ export const VersionHistorySidebar = ({
       </div>
     </div>
   );
+  /* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
 };

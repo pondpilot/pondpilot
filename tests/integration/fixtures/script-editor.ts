@@ -197,8 +197,8 @@ export const test = base.extend<ScriptEditorFixtures>({
 
       if (isVisible) {
         await versionHistoryButton.click();
-        // Wait for modal to appear
-        await page.waitForSelector('[data-testid="version-history-modal"]', { state: 'visible' });
+        // Wait for the sidebar to appear (replaced modal with sidebar in new design)
+        await page.waitForSelector('[data-testid="version-history-sidebar"]', { state: 'visible' });
       }
     });
   },

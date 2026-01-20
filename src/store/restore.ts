@@ -104,7 +104,8 @@ async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
       }
 
       // Migration to version 4: add script version table with index
-      // (handled in table creation loop above, index creation is automatic)
+      // The table and index are created in the loop above (via special handling
+      // for SCRIPT_VERSION_TABLE_NAME which creates the store with keyPath and index)
     },
   });
 }

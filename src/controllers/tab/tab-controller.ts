@@ -1,5 +1,6 @@
 // Public tab controller API's
 // By convetion the order should follow CRUD groups!
+import { createScriptVersionController } from '@controllers/script-version';
 import { sanitizeChartLabel } from '@features/chart-view/utils/sanitize-label';
 import { ChartConfig, ViewMode } from '@models/chart';
 import {
@@ -29,6 +30,7 @@ import {
   updateTableAccessTime,
 } from '@utils/lru-tracker';
 import { createPersistenceCatchHandler } from '@utils/persistence-logger';
+import { saveVersionIfContentDiffers } from '@utils/script-version';
 import { ensureScript } from '@utils/sql-script';
 import { ensureTab, makeTabId } from '@utils/tab';
 import { shallow } from 'zustand/shallow';
@@ -54,6 +56,35 @@ const scriptDataViewStateCache = new Map<SQLScriptId, TabDataViewStateCache>();
 
 /** Maximum number of cached script data view states to prevent memory leaks */
 const MAX_SCRIPT_CACHE_SIZE = 50;
+
+/**
+ * Set of tab IDs currently being deleted.
+ * Used to coordinate version creation between deleteTab and React cleanup effects.
+ * When deleteTab handles version creation for a tab, it adds the tab ID here so that
+ * the cleanup effect in ScriptEditor knows to skip version creation.
+ */
+export const tabsBeingDeleted = new Set<TabId>();
+
+/**
+ * Tracks the latest unsaved editor content by script ID so deleteTab can access
+ * the live editor value even if it hasn't been persisted to the store yet.
+ */
+const liveScriptContentSnapshots = new Map<SQLScriptId, string>();
+
+export const updateLiveScriptContentSnapshot = (
+  sqlScriptId: SQLScriptId,
+  content: string,
+): void => {
+  liveScriptContentSnapshots.set(sqlScriptId, content);
+};
+
+export const getLiveScriptContentSnapshot = (sqlScriptId: SQLScriptId): string | undefined => {
+  return liveScriptContentSnapshots.get(sqlScriptId);
+};
+
+export const removeLiveScriptContentSnapshot = (sqlScriptId: SQLScriptId): void => {
+  liveScriptContentSnapshots.delete(sqlScriptId);
+};
 
 /**
  * Cleans up the oldest entries from scriptDataViewStateCache if it exceeds the size limit.
@@ -1059,93 +1090,117 @@ export const setTabOrder = (tabOrder: TabId[]) => {
  */
 
 export const deleteTab = async (tabIds: TabId[]) => {
-  const {
-    tabs,
-    tabOrder,
-    activeTabId,
-    previewTabId,
-    tabExecutionErrors,
-    sqlScripts,
-    _iDbConn: iDbConn,
-  } = useAppStore.getState();
+  const { tabs, sqlScripts, _iDbConn: iDbConn } = useAppStore.getState();
 
-  // Before deleting, save dataViewStateCache for script tabs so it can be restored
-  // when the tab is recreated from the same script
+  // Signal that these tabs are being deleted. This coordinates with the cleanup
+  // effect in ScriptEditor to prevent duplicate version creation.
   for (const tabId of tabIds) {
-    const tab = tabs.get(tabId);
-    if (tab?.type === 'script') {
-      saveScriptDataViewStateCache(tab.sqlScriptId, tab.dataViewStateCache);
-    }
+    tabsBeingDeleted.add(tabId);
   }
 
-  // Save versions for script tabs before deleting
-  if (iDbConn) {
+  try {
+    // Before deleting, save dataViewStateCache for script tabs so it can be restored
+    // when the tab is recreated from the same script
     for (const tabId of tabIds) {
       const tab = tabs.get(tabId);
-      if (!tab) continue;
+      if (tab?.type === 'script') {
+        saveScriptDataViewStateCache(tab.sqlScriptId, tab.dataViewStateCache);
+      }
+    }
 
-      // If it's a script tab, save a version before closing
-      if (tab.type === 'script') {
-        try {
+    // Save versions for script tabs before deleting
+    if (iDbConn) {
+      const versionController = createScriptVersionController(iDbConn);
+
+      for (const tabId of tabIds) {
+        const tab = tabs.get(tabId);
+        if (!tab) continue;
+
+        // If it's a script tab, save a version before closing
+        if (tab.type === 'script') {
           const script = sqlScripts.get(tab.sqlScriptId);
-          if (script && script.content) {
-            // Get version controller and check latest version
-            const versionController = await import('@controllers/script-version').then((m) =>
-              m.createScriptVersionController(iDbConn),
-            );
-            const versions = await versionController.getVersionsByScriptId(tab.sqlScriptId);
-            const hasVersions = versions.length > 0;
-            const latestVersion = versions[0]; // Already sorted by timestamp desc
+          const liveContent = getLiveScriptContentSnapshot(tab.sqlScriptId);
+          const contentToPersist = liveContent ?? script?.content;
 
-            // Create a version if:
-            // 1. No versions exist yet (first save)
-            // 2. Content has changed from latest version
-            if (!hasVersions || (latestVersion && latestVersion.content !== script.content)) {
-              await versionController.createVersion({
-                scriptId: tab.sqlScriptId,
-                content: script.content,
-                type: 'auto',
-                metadata: await import('@utils/script-version').then((m) =>
-                  m.getScriptMetadata(script.content),
-                ),
-              });
+          if (script && contentToPersist) {
+            // Use shared helper to create version if content differs from latest
+            const result = await saveVersionIfContentDiffers(
+              versionController,
+              tab.sqlScriptId,
+              contentToPersist,
+              'auto',
+            );
+            if (!result.success && result.reason === 'error') {
+              console.error('Failed to save version before closing tab:', result.error);
             }
           }
-        } catch (error) {
-          console.error('Failed to save version before closing tab:', error);
         }
       }
     }
-  }
 
-  const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl({
-    deleteTabIds: tabIds,
-    tabs,
-    tabOrder,
-    activeTabId,
-    previewTabId,
-  });
+    let persistencePayload: {
+      newActiveTabId: TabId | null;
+      newPreviewTabId: TabId | null;
+      newTabOrder: TabId[];
+    } | null = null;
 
-  // Clear execution errors for deleted tabs
-  const newTabExecutionErrors = new Map(tabExecutionErrors);
-  tabIds.forEach((tabId) => newTabExecutionErrors.delete(tabId));
+    // Update the store with the latest snapshot to avoid racing with other deletions
+    useAppStore.setState(
+      (state) => {
+        const { newTabs, newTabOrder, newActiveTabId, newPreviewTabId } = deleteTabImpl({
+          deleteTabIds: tabIds,
+          tabs: state.tabs,
+          tabOrder: state.tabOrder,
+          activeTabId: state.activeTabId,
+          previewTabId: state.previewTabId,
+        });
 
-  // Update the store with the new state
-  useAppStore.setState(
-    {
-      tabs: newTabs,
-      tabOrder: newTabOrder,
-      activeTabId: newActiveTabId,
-      previewTabId: newPreviewTabId,
-      tabExecutionErrors: newTabExecutionErrors,
-    },
-    undefined,
-    'AppStore/deleteTab',
-  );
+        const newTabExecutionErrors = new Map(state.tabExecutionErrors);
+        tabIds.forEach((tabId) => newTabExecutionErrors.delete(tabId));
 
-  if (iDbConn) {
-    // Now we can pass the entire array (or single ID) directly
-    persistDeleteTab(iDbConn, tabIds, newActiveTabId, newPreviewTabId, newTabOrder);
+        persistencePayload = {
+          newActiveTabId,
+          newPreviewTabId,
+          newTabOrder,
+        };
+
+        return {
+          tabs: newTabs,
+          tabOrder: newTabOrder,
+          activeTabId: newActiveTabId,
+          previewTabId: newPreviewTabId,
+          tabExecutionErrors: newTabExecutionErrors,
+        };
+      },
+      undefined,
+      'AppStore/deleteTab',
+    );
+
+    // persistencePayload is definitely assigned by setState callback above
+    const payload = persistencePayload as {
+      newActiveTabId: TabId | null;
+      newPreviewTabId: TabId | null;
+      newTabOrder: TabId[];
+    } | null;
+    if (iDbConn && payload) {
+      // Now we can pass the entire array (or single ID) directly
+      persistDeleteTab(
+        iDbConn,
+        tabIds,
+        payload.newActiveTabId,
+        payload.newPreviewTabId,
+        payload.newTabOrder,
+      );
+    }
+  } finally {
+    // Clean up the signal - always runs even if an error occurs
+    for (const tabId of tabIds) {
+      tabsBeingDeleted.delete(tabId);
+      const tab = tabs.get(tabId);
+      if (tab?.type === 'script') {
+        removeLiveScriptContentSnapshot(tab.sqlScriptId);
+      }
+    }
   }
 };
 

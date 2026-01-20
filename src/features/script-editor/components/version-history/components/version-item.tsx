@@ -92,17 +92,10 @@ export const VersionItem = ({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <Text
-              size="sm"
-              fw={500}
-              className="text-textPrimary-light dark:text-textPrimary-dark"
-            >
+            <Text size="sm" fw={500} className="text-textPrimary-light dark:text-textPrimary-dark">
               {version.name || formatRelativeTime(version.timestamp)}
             </Text>
-            <Text
-              size="xs"
-              className="text-textSecondary-light dark:text-textSecondary-dark"
-            >
+            <Text size="xs" className="text-textSecondary-light dark:text-textSecondary-dark">
               {getVersionTypeLabel(version.type)}
             </Text>
             {isCurrent && (
@@ -126,10 +119,7 @@ export const VersionItem = ({
           )}
 
           {version.metadata && (
-            <Text
-              size="xs"
-              className="text-textTertiary-light dark:text-textTertiary-dark mt-0.5"
-            >
+            <Text size="xs" className="text-textTertiary-light dark:text-textTertiary-dark mt-0.5">
               {version.metadata.linesCount} lines
             </Text>
           )}

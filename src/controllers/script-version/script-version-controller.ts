@@ -122,13 +122,17 @@ export function createScriptVersionController(
 
     async deleteVersionsForScript(scriptId: SQLScriptId): Promise<void> {
       const tx = db.transaction([SCRIPT_VERSION_TABLE_NAME], 'readwrite');
-      const index = tx.objectStore(SCRIPT_VERSION_TABLE_NAME).index('by-script');
+      const store = tx.objectStore(SCRIPT_VERSION_TABLE_NAME);
+      const index = store.index('by-script');
 
-      // Get all versions for this script
-      const keys = await index.getAllKeys(scriptId);
-
-      // Delete all versions in parallel
-      await Promise.all(keys.map((key) => tx.objectStore(SCRIPT_VERSION_TABLE_NAME).delete(key)));
+      // Use cursor to delete synchronously within the transaction.
+      // This avoids potential transaction auto-commit issues that can occur
+      // when using Promise.all with multiple delete operations.
+      let cursor = await index.openCursor(scriptId);
+      while (cursor) {
+        cursor.delete();
+        cursor = await cursor.continue();
+      }
 
       await tx.done;
     },

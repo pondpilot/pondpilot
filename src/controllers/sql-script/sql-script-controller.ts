@@ -171,9 +171,12 @@ export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
     _iDbConn: iDbConn,
   } = useAppStore.getState();
 
-  const sqlScriptIdsToDeleteSet = new Set(sqlScriptIds);
+  // Convert to array once to safely iterate multiple times (iterables like generators
+  // are consumed after first iteration)
+  const scriptIdArray = Array.from(sqlScriptIds);
+  const sqlScriptIdsToDeleteSet = new Set(scriptIdArray);
 
-  const newSqlScripts = deleteSqlScriptImpl(sqlScriptIds, sqlScripts);
+  const newSqlScripts = deleteSqlScriptImpl(scriptIdArray, sqlScripts);
 
   const tabsToDelete: TabId[] = [];
 
@@ -224,33 +227,38 @@ export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
 
   if (iDbConn) {
     // Delete SQL scripts from IndexedDB
-    persistDeleteSqlScript(iDbConn, sqlScriptIds);
+    persistDeleteSqlScript(iDbConn, scriptIdArray);
 
     // Delete associated tabs from IndexedDB if any
     if (tabsToDelete.length) {
       persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
     }
 
-    // Delete all versions for the deleted scripts
+    // Delete all versions for the deleted scripts.
+    // Use Promise.allSettled to ensure all deletions are attempted even if some fail.
     const versionController = createScriptVersionController(iDbConn);
-    const versionDeletionErrors: string[] = [];
 
-    await Promise.all(
-      Array.from(sqlScriptIds).map(async (scriptId) => {
-        try {
-          await versionController.deleteVersionsForScript(scriptId);
-        } catch (error) {
-          console.error(`Failed to delete versions for script ${scriptId}:`, error);
-          versionDeletionErrors.push(scriptId);
-        }
-      }),
+    const results = await Promise.allSettled(
+      scriptIdArray.map((scriptId) => versionController.deleteVersionsForScript(scriptId)),
     );
 
-    // Show aggregated error if any version deletions failed
-    if (versionDeletionErrors.length > 0) {
+    // Collect failures with their error details
+    const failures = results
+      .map((result, index) => ({ result, scriptId: scriptIdArray[index] }))
+      .filter(
+        (item): item is { result: PromiseRejectedResult; scriptId: SQLScriptId } =>
+          item.result.status === 'rejected',
+      );
+
+    // Log detailed errors and show aggregated warning to user
+    if (failures.length > 0) {
+      failures.forEach(({ scriptId, result }) => {
+        console.error(`Failed to delete versions for script ${scriptId}:`, result.reason);
+      });
+
       showAlert({
         title: 'Warning',
-        message: `Failed to delete version history for ${versionDeletionErrors.length} script${versionDeletionErrors.length > 1 ? 's' : ''}. The scripts have been deleted but some version history may remain.`,
+        message: `Failed to delete version history for ${failures.length} script${failures.length > 1 ? 's' : ''}. The scripts have been deleted but some version history may remain.`,
         color: 'yellow',
       });
     }
