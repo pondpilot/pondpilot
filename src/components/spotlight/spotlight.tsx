@@ -478,10 +478,10 @@ export const SpotlightMenu = () => {
       id: 'close-all-tabs',
       label: 'Close All Tabs',
       icon: <IconLayoutGridRemove size={20} className={ICON_CLASSES} />,
-      handler: () => {
+      handler: async () => {
         const { tabOrder } = useAppStore.getState();
         if (tabOrder.length > 0) {
-          deleteTab(tabOrder);
+          await deleteTab(tabOrder);
         }
         Spotlight.close();
       },
@@ -490,12 +490,12 @@ export const SpotlightMenu = () => {
       id: 'close-all-but-active-tab',
       label: 'Close All But Active Tab',
       icon: <IconLayoutNavbarCollapse size={20} className={ICON_CLASSES} />,
-      handler: () => {
+      handler: async () => {
         const { tabOrder, activeTabId } = useAppStore.getState();
         if (tabOrder.length > 0 && activeTabId) {
           const tabsToClose = tabOrder.filter((tabId) => tabId !== activeTabId);
           if (tabsToClose.length > 0) {
-            deleteTab(tabsToClose);
+            await deleteTab(tabsToClose);
           }
         }
         Spotlight.close();

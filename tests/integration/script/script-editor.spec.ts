@@ -49,8 +49,8 @@ test('Shows auto-save notification when pressing Mod+S', async ({
 
   // Verify that the notification appears with the expected content
   await expectNotificationWithText(
-    'Auto-save enabled',
-    "Your changes are always saved automatically. You don't need to press 'Save' manually.",
+    'Version saved',
+    'A new version has been created for your script.',
   );
 });
 

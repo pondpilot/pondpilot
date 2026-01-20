@@ -1,6 +1,8 @@
 // Public sql script controller API's
 // By convetion the order should follow CRUD groups!
 
+import { showAlert } from '@components/app-notifications';
+import { createScriptVersionController } from '@controllers/script-version';
 import { persistDeleteTab } from '@controllers/tab/persist';
 import { deleteTabImpl } from '@controllers/tab/pure';
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
@@ -158,7 +160,7 @@ export const renameSQLScript = (sqlScriptOrId: SQLScript | SQLScriptId, newName:
  *
  * @param sqlScriptIds - iterable of IDs of SQL scripts to delete
  */
-export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
+export const deleteSqlScripts = async (sqlScriptIds: Iterable<SQLScriptId>) => {
   const {
     sqlScripts,
     scriptAccessTimes,
@@ -169,9 +171,12 @@ export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
     _iDbConn: iDbConn,
   } = useAppStore.getState();
 
-  const sqlScriptIdsToDeleteSet = new Set(sqlScriptIds);
+  // Convert to array once to safely iterate multiple times (iterables like generators
+  // are consumed after first iteration)
+  const scriptIdArray = Array.from(sqlScriptIds);
+  const sqlScriptIdsToDeleteSet = new Set(scriptIdArray);
 
-  const newSqlScripts = deleteSqlScriptImpl(sqlScriptIds, sqlScripts);
+  const newSqlScripts = deleteSqlScriptImpl(scriptIdArray, sqlScripts);
 
   const tabsToDelete: TabId[] = [];
 
@@ -222,11 +227,40 @@ export const deleteSqlScripts = (sqlScriptIds: Iterable<SQLScriptId>) => {
 
   if (iDbConn) {
     // Delete SQL scripts from IndexedDB
-    persistDeleteSqlScript(iDbConn, sqlScriptIds);
+    persistDeleteSqlScript(iDbConn, scriptIdArray);
 
     // Delete associated tabs from IndexedDB if any
     if (tabsToDelete.length) {
       persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
+    }
+
+    // Delete all versions for the deleted scripts.
+    // Use Promise.allSettled to ensure all deletions are attempted even if some fail.
+    const versionController = createScriptVersionController(iDbConn);
+
+    const results = await Promise.allSettled(
+      scriptIdArray.map((scriptId) => versionController.deleteVersionsForScript(scriptId)),
+    );
+
+    // Collect failures with their error details
+    const failures = results
+      .map((result, index) => ({ result, scriptId: scriptIdArray[index] }))
+      .filter(
+        (item): item is { result: PromiseRejectedResult; scriptId: SQLScriptId } =>
+          item.result.status === 'rejected',
+      );
+
+    // Log detailed errors and show aggregated warning to user
+    if (failures.length > 0) {
+      failures.forEach(({ scriptId, result }) => {
+        console.error(`Failed to delete versions for script ${scriptId}:`, result.reason);
+      });
+
+      showAlert({
+        title: 'Warning',
+        message: `Failed to delete version history for ${failures.length} script${failures.length > 1 ? 's' : ''}. The scripts have been deleted but some version history may remain.`,
+        color: 'yellow',
+      });
     }
   }
 };
