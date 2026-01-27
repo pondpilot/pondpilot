@@ -12,28 +12,34 @@ interface PollyDemoBannerProps {
   className?: string;
   /** Variant for different display contexts */
   variant?: 'default' | 'compact';
+  /** Current AI provider ID (for reactive visibility updates) */
+  providerId?: string;
 }
 
 /**
  * Dismissable banner that informs users they're using the demo Polly AI model.
  * Only shows on first use and can be dismissed permanently.
  */
-export function PollyDemoBanner({ className, variant = 'default' }: PollyDemoBannerProps) {
+export function PollyDemoBanner({
+  className,
+  variant = 'default',
+  providerId,
+}: PollyDemoBannerProps) {
   const [visible, setVisible] = useState(false);
+
+  const currentProvider = providerId ?? getAIConfig().provider;
 
   useEffect(() => {
     // Check if Polly is the current provider
-    const config = getAIConfig();
-    if (!isPollyProvider(config.provider)) {
+    if (!isPollyProvider(currentProvider)) {
+      setVisible(false);
       return;
     }
 
     // Check if user has dismissed the banner before
     const wasDismissed = localStorage.getItem(LOCAL_STORAGE_KEYS.POLLY_DEMO_BANNER_DISMISSED);
-    if (!wasDismissed) {
-      setVisible(true);
-    }
-  }, []);
+    setVisible(!wasDismissed);
+  }, [currentProvider]);
 
   const handleDismiss = useCallback(() => {
     setVisible(false);

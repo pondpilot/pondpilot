@@ -286,7 +286,7 @@ export const AISettings = () => {
   return (
     <Stack className="gap-4">
       {/* Show demo banner for Polly AI (first-use only, dismissable) */}
-      <PollyDemoBanner />
+      <PollyDemoBanner providerId={config.provider} />
 
       <Select
         label="AI Provider"

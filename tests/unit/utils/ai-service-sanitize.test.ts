@@ -16,6 +16,13 @@ describe('sanitizeErrorMessage', () => {
       expect(result).toBe('bearer [REDACTED] failed');
     });
 
+    it('should redact JWT-style Bearer tokens with dots', () => {
+      const message = 'Authorization: Bearer header.payload.signature failed';
+      const result = sanitizeErrorMessage(message);
+      expect(result).toBe('Authorization: bearer [REDACTED] failed');
+      expect(result).not.toContain('header.payload.signature');
+    });
+
     it('should redact OpenAI-style API keys (sk-)', () => {
       const message = 'Invalid key: sk-proj-abc123XYZ789-test';
       const result = sanitizeErrorMessage(message);
