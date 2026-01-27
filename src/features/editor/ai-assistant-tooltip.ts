@@ -404,8 +404,14 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
   }
 
   showStructuredResponse(response: StructuredSQLResponse) {
+    // Force hide assistant widget - bypass activeRequest guard since we're replacing it
     if (this.assistantWidget) {
-      this.hideAssistant();
+      this.editor.removeContentWidget(this.assistantWidget);
+      this.assistantWidget = null;
+      if (this.cleanup) {
+        this.cleanup();
+        this.cleanup = undefined;
+      }
     }
 
     const position = this.editor.getPosition();

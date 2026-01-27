@@ -602,7 +602,7 @@
 
 .structured-response-container {
   width: 100%;
-  max-width: 600px;
+  max-width: 500px;
   min-width: 400px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
