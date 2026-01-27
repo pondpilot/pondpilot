@@ -1,4 +1,5 @@
 import { StructuredSQLResponse } from './structured-ai-response';
+import { PROVIDER_IDS, POLLY_CONFIG } from '../constants/ai';
 
 export interface AIProvider {
   id: string;
@@ -50,7 +51,19 @@ export interface AIResponse {
 
 export const AI_PROVIDERS: AIProvider[] = [
   {
-    id: 'openai',
+    id: PROVIDER_IDS.POLLY,
+    name: POLLY_CONFIG.DISPLAY_NAME,
+    models: [
+      {
+        id: 'polly',
+        name: 'Polly',
+        description:
+          "PondPilot's built-in AI assistant. Limited usage - add your own API key for production.",
+      },
+    ],
+  },
+  {
+    id: PROVIDER_IDS.OPENAI,
     name: 'OpenAI',
     models: [
       {
@@ -78,7 +91,7 @@ export const AI_PROVIDERS: AIProvider[] = [
     ],
   },
   {
-    id: 'anthropic',
+    id: PROVIDER_IDS.ANTHROPIC,
     name: 'Anthropic',
     models: [
       {
@@ -94,16 +107,38 @@ export const AI_PROVIDERS: AIProvider[] = [
     ],
   },
   {
-    id: 'custom',
+    id: PROVIDER_IDS.CUSTOM,
     name: 'Custom Endpoint',
     models: [],
   },
 ];
 
 export const DEFAULT_AI_CONFIG: AIServiceConfig = {
-  provider: 'anthropic',
-  model: 'claude-sonnet-4-20250514',
+  provider: PROVIDER_IDS.POLLY,
+  model: 'polly',
   apiKey: '',
   apiKeys: {},
   reasoning: false,
 };
+
+/**
+ * Check if a provider is the built-in Polly AI (no API key required)
+ */
+export function isPollyProvider(providerId: string): boolean {
+  return providerId === PROVIDER_IDS.POLLY;
+}
+
+/**
+ * Get the display name for a provider ID
+ */
+export function getProviderDisplayName(providerId: string): string {
+  const provider = AI_PROVIDERS.find((p) => p.id === providerId);
+  return provider?.name || providerId;
+}
+
+/**
+ * Get the proxy URL for Polly AI from environment or default
+ */
+export function getPollyProxyUrl(): string {
+  return import.meta.env.VITE_POLLY_PROXY_URL || 'https://proxy.pondpilot.io';
+}

@@ -13,8 +13,8 @@ import {
   createSelect,
 } from './ui-factories';
 import { TabExecutionError } from '../../../controllers/tab/tab-controller';
-import { AI_PROVIDERS } from '../../../models/ai-service';
-import { getAIConfig } from '../../../utils/ai-config';
+import { AI_PROVIDERS, isPollyProvider } from '../../../models/ai-service';
+import { getAIConfig, isProviderConfigured } from '../../../utils/ai-config';
 import { navigateToSettings } from '../../../utils/route-navigation';
 import { AsyncDuckDBConnectionPool } from '../../duckdb-context/duckdb-connection-pool';
 
@@ -188,7 +188,6 @@ export function createModelSelectionSection(onModelChange: (model: string) => vo
 
   // Get current config to determine logged-in providers and current model
   const config = getAIConfig();
-  const apiKeys = config.apiKeys || {};
   const currentModel = config.model;
 
   // Build available models with provider groups
@@ -200,12 +199,13 @@ export function createModelSelectionSection(onModelChange: (model: string) => vo
   }> = [];
 
   AI_PROVIDERS.forEach((provider) => {
-    const hasApiKey = apiKeys[provider.id] && apiKeys[provider.id].trim() !== '';
-    if (hasApiKey) {
-      // Add provider group header
+    // Check if provider is configured (Polly is always available)
+    const isConfigured = isProviderConfigured(provider.id, config);
+    if (isConfigured) {
+      // Add provider group header (with "Demo" suffix for Polly)
       selectOptions.push({
         value: '',
-        label: provider.name,
+        label: isPollyProvider(provider.id) ? `${provider.name} (Demo)` : provider.name,
         isGroup: true,
       });
 
@@ -229,7 +229,8 @@ export function createModelSelectionSection(onModelChange: (model: string) => vo
     }
   });
 
-  // If no providers are logged in, create a dummy select that acts like a button
+  // This should never happen now since Polly is always available,
+  // but keep as fallback just in case
   if (selectOptions.length === 0) {
     const dummySelect = document.createElement('select');
     dummySelect.className = 'ai-widget-select ai-widget-select-button';
