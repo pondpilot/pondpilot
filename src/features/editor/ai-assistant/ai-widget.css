@@ -604,11 +604,12 @@
   width: 100%;
   max-width: 500px;
   min-width: 400px;
+  max-height: 60vh;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   background-color: #fff;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
+  overflow-y: auto;
   font-size: 14px;
   box-sizing: border-box;
 }

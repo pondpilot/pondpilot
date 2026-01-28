@@ -140,5 +140,5 @@ export function getProviderDisplayName(providerId: string): string {
  * Get the proxy URL for Polly AI from environment or default
  */
 export function getPollyProxyUrl(): string {
-  return import.meta.env.VITE_POLLY_PROXY_URL || 'https://proxy.pondpilot.io';
+  return import.meta.env.VITE_POLLY_PROXY_URL || 'https://ai-proxy.pondpilot.io';
 }
