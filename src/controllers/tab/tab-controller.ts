@@ -43,6 +43,7 @@ import {
   findTabFromScriptImpl,
   updateDataViewStateCache,
 } from './pure';
+import { toSerializableRows } from './serialize';
 
 /**
  * In-memory cache for preserving dataViewStateCache across script tab deletion/recreation.
@@ -556,27 +557,9 @@ export const updateTabDataViewStaleDataCache = (
   const currentTab = ensureTab(tabId, tabs);
 
   // Create a full model of the incoming stale data if the current
-  // state does not have it as a fallback
-  // Ensure data is serializable by converting any DuckDB Row objects to plain objects
-  const serializableData = newCache.staleData?.data
-    ? newCache.staleData.data.map((row) => {
-        // If it's already a plain object, return as is
-        if (row && typeof row === 'object' && row.constructor === Object) {
-          return row;
-        }
-        // If it's a DuckDB Row or other object, convert to plain object
-        if (row && typeof row === 'object') {
-          const plainRow: Record<string, any> = {};
-          for (const key in row) {
-            if (Object.prototype.hasOwnProperty.call(row, key)) {
-              plainRow[key] = (row as any)[key];
-            }
-          }
-          return plainRow;
-        }
-        return row;
-      })
-    : [];
+  // state does not have it as a fallback.
+  // Convert DuckDB Row proxy objects to plain objects for IndexedDB storage.
+  const serializableData = toSerializableRows(newCache.staleData?.data);
 
   const fullNewStaleData = {
     schema: [],

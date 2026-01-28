@@ -6,7 +6,7 @@ import { ColumnSortSpecList, DBColumn, DBTableOrViewSchema, DataRow } from '@mod
 import { useReactTable, getCoreRowModel, ColumnDef } from '@tanstack/react-table';
 import { copyToClipboard } from '@utils/clipboard';
 import { setDataTestId } from '@utils/test-id';
-import { memo, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 
 import { MemoizedTableBody, TableBody } from './components/table-body';
 import { TableHeadCell } from './components/thead-cell';
@@ -100,26 +100,26 @@ export const Table = memo(
 
     const { columnSizingInfo, columnSizing } = table.getState();
 
-    const columnSizeVars = useMemo(() => {
+    const { columnSizeVars, colSizes } = useMemo(() => {
       const headers = table.getFlatHeaders();
-      const colSizes: { [key: string]: number } = {};
-      const colSizeVars: { [key: string]: number } = {};
+      const sizes: { [key: string]: number } = {};
+      const sizeVars: { [key: string]: number } = {};
 
       for (let i = 0; i < headers.length; i += 1) {
         const header = headers[i]!;
 
-        colSizeVars[`--header-${header.index}-size`] = header.getSize();
-        colSizeVars[`--col-${header.index}-size`] = header.column.getSize();
-        colSizes[header.index] = header.getSize();
+        sizeVars[`--header-${header.index}-size`] = header.getSize();
+        sizeVars[`--col-${header.index}-size`] = header.column.getSize();
+        sizes[header.index] = header.getSize();
       }
 
       const sizingKeys = Object.keys(columnSizing);
       for (let i = 0; i < sizingKeys.length; i += 1) {
         const key = sizingKeys[i]!;
-        if (!(key in colSizeVars)) {
+        if (!(key in sizeVars)) {
           const existingSize = columnSizing[key];
           if (typeof existingSize === 'number') {
-            colSizeVars[`--col-${key}-size`] = existingSize;
+            sizeVars[`--col-${key}-size`] = existingSize;
           }
         }
       }
@@ -129,10 +129,14 @@ export const Table = memo(
         // no-op
       }
 
+      columnSizesRef.current = sizes;
+      return { columnSizeVars: sizeVars, colSizes: sizes };
+    }, [columnSizing, columnSizingInfo, table]);
+
+    // Notify parent of column size changes after render (not during)
+    useEffect(() => {
       onColumnResizeChange?.(colSizes);
-      columnSizesRef.current = colSizes;
-      return colSizeVars;
-    }, [columnSizing, columnSizingInfo, onColumnResizeChange, table]);
+    }, [colSizes, onColumnResizeChange]);
 
     useDidUpdate(() => {
       clearSelection();
