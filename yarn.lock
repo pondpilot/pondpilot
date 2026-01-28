@@ -2728,10 +2728,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pondpilot/flowscope-core@npm:0.1.0-beta.8":
-  version: 0.1.0-beta.8
-  resolution: "@pondpilot/flowscope-core@npm:0.1.0-beta.8"
-  checksum: 10c0/51226514cc8f92dd5307b9b1ac954aae776e8a804259c5918b0ce1537835c45105c4e3fce7c4c902f3e1eaae74b8f3ba2a9cff20a4670560a5196712579c9987
+"@pondpilot/flowscope-core@npm:0.3.1":
+  version: 0.3.1
+  resolution: "@pondpilot/flowscope-core@npm:0.3.1"
+  checksum: 10c0/877ed2e325858b717494f814205c17d28b54ded02ca6bad01bf51026fe7dae35b05b53bb344af3e9138e3da13526545fe6382631bae363218317ea8da81e7678
   languageName: node
   linkType: hard
 
@@ -10170,7 +10170,7 @@ __metadata:
     "@mantine/spotlight": "npm:^8.2.3"
     "@monaco-editor/react": "npm:^4.7.0"
     "@playwright/test": "npm:^1.55.1"
-    "@pondpilot/flowscope-core": "npm:0.1.0-beta.8"
+    "@pondpilot/flowscope-core": "npm:0.3.1"
     "@tabler/icons-react": "npm:^3.35.0"
     "@tanstack/eslint-plugin-query": "npm:^5.68.0"
     "@tanstack/react-table": "npm:^8.20.5"
