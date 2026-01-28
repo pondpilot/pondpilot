@@ -46,8 +46,8 @@ describe('toSerializableRows', () => {
 
       expect(result).toEqual([{ id: 1, nested: { value: 'deep' } }]);
       // Verify deep clone by checking nested object is different reference
-      const inputNested = (input[0] as Record<string, unknown>)['nested'];
-      const resultNested = (result[0] as Record<string, unknown>)['nested'];
+      const inputNested = (input[0] as Record<string, unknown>).nested;
+      const resultNested = (result[0] as Record<string, unknown>).nested;
       expect(resultNested).not.toBe(inputNested);
     });
 
@@ -186,4 +186,3 @@ describe('toSerializableRows', () => {
     });
   });
 });
-
