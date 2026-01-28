@@ -193,6 +193,12 @@ export function createStructuredResponseHandlers(
     const containerKeydownHandler = (e: KeyboardEvent) => handleKeyDown(e, actions);
     cleanupRegistry.addEventListener(container, 'keydown', containerKeydownHandler);
 
+    // Prevent Monaco from capturing wheel events so the widget can scroll
+    const wheelHandler = (e: WheelEvent) => {
+      e.stopPropagation();
+    };
+    cleanupRegistry.addEventListener(container, 'wheel', wheelHandler);
+
     const globalKeydownHandler = (e: KeyboardEvent) => {
       if (document.contains(container)) {
         handleKeyDown(e, actions);
