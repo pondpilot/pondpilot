@@ -26,11 +26,173 @@ import { useEditorTheme } from './hooks';
 import {
   CancelledError,
   getFlowScopeClient,
-  terminateFlowScopeClient,
+  getCompletionClient,
+  terminateFlowScopeClients,
 } from '../../workers/flowscope-client';
 import { useDuckDBConnectionPool } from '../duckdb-context/duckdb-context';
 
 type FunctionTooltip = Record<string, { syntax: string; description: string; example?: string }>;
+
+// Documents larger than this threshold skip expensive operations (full analyze, split,
+// code lens, linked editing) to avoid blocking the FlowScope worker for seconds.
+// Incremental spans and local semicolon scanning handle these documents instead.
+const LARGE_DOCUMENT_THRESHOLD = 50_000; // 50KB
+
+// Maximum character delta between incremental baseline and current SQL
+// for which we still consider incremental spans usable. Allows spans
+// to remain valid across a short burst of keystrokes before the next
+// full split completes.
+const INCREMENTAL_SPAN_TOLERANCE = 100;
+
+// Debounce interval for full statement re-split after edits.
+// Longer than typical debounce because incremental spans handle
+// immediate highlighting and completion needs. The full re-split
+// only runs to correct accumulated drift.
+const FULL_SPLIT_DEBOUNCE_MS = 2000;
+
+// Debug logging for completion performance analysis
+// Set to true to see timing information in console
+const DEBUG_COMPLETION = false;
+
+function debugLog(label: string, ...args: unknown[]) {
+  if (DEBUG_COMPLETION) {
+    // eslint-disable-next-line no-console
+    console.debug(`[Completion] ${label}`, ...args);
+  }
+}
+
+/**
+ * Incremental span tracking for efficient statement splitting.
+ * Instead of re-parsing the entire document on every keystroke,
+ * we adjust existing spans based on edit deltas.
+ */
+type IncrementalSpanState = {
+  // The SQL text when spans were last fully computed
+  baselineSql: string;
+  // Current spans (may be from full split or incrementally adjusted)
+  spans: Span[];
+};
+
+/**
+ * Adjusts spans after a text edit without re-parsing.
+ * Returns adjusted spans, or null if a full re-split is needed.
+ */
+function adjustSpansForEdit(
+  spans: Span[],
+  editOffset: number,
+  oldLength: number,
+  newLength: number,
+  newText: string,
+  oldText: string,
+): Span[] | null {
+  // If semicolons were added or removed, statement boundaries may have changed
+  const oldSemicolons = (oldText.match(/;/g) || []).length;
+  const newSemicolons = (newText.match(/;/g) || []).length;
+  if (oldSemicolons !== newSemicolons) {
+    debugLog(
+      `adjustSpans: semicolon count changed (${oldSemicolons} -> ${newSemicolons}), need full re-split`,
+    );
+    return null;
+  }
+
+  const delta = newLength - oldLength;
+  if (delta === 0 && spans.length > 0) {
+    // Same-length replacement, spans unchanged
+    return spans;
+  }
+
+  const adjustedSpans: Span[] = [];
+
+  for (const span of spans) {
+    if (span.end <= editOffset) {
+      // Span is entirely before the edit, unchanged
+      adjustedSpans.push(span);
+    } else if (span.start >= editOffset + oldLength) {
+      // Span is entirely after the edit, shift by delta
+      adjustedSpans.push({
+        start: span.start + delta,
+        end: span.end + delta,
+      });
+    } else {
+      // Edit is within or overlaps this span - adjust the end
+      const newEnd = span.end + delta;
+      adjustedSpans.push({
+        start: span.start,
+        end: Math.max(span.start + 1, newEnd),
+      });
+    }
+  }
+
+  debugLog(`adjustSpans: adjusted ${spans.length} spans by delta ${delta}`);
+  return adjustedSpans;
+}
+
+/**
+ * Context for a SQL statement at a cursor position.
+ * Used by completion and other providers to scope operations to the current statement.
+ */
+type StatementContext = {
+  sql: string;
+  cursorOffset: number;
+  span: Span | null;
+};
+
+/**
+ * Fast local extraction of the SQL statement around a cursor position.
+ * Scans backwards and forwards for semicolons to find statement boundaries.
+ * Used as a fallback when no parsed spans are available, to avoid sending
+ * the entire document to the completion engine.
+ *
+ * Note: This is a lexical semicolon-only scan that does not understand SQL
+ * quoting or comments. It may produce incorrect boundaries for SQL containing
+ * semicolons inside string literals or comments, but is sufficient as a
+ * best-effort fallback for completions.
+ */
+function extractStatementAroundCursor(sql: string, cursorOffset: number): StatementContext {
+  // Scan backwards for the nearest semicolon (or start of document)
+  let start = 0;
+  for (let i = cursorOffset - 1; i >= 0; i -= 1) {
+    if (sql[i] === ';') {
+      start = i + 1;
+      break;
+    }
+  }
+
+  // Scan forwards for the nearest semicolon (or end of document)
+  let end = sql.length;
+  for (let i = cursorOffset; i < sql.length; i += 1) {
+    if (sql[i] === ';') {
+      end = i + 1;
+      break;
+    }
+  }
+
+  const statementSql = sql.slice(start, end);
+  return {
+    sql: statementSql,
+    cursorOffset: cursorOffset - start,
+    span: { start, end },
+  };
+}
+
+/**
+ * Wraps a Monaco provider function with error handling.
+ * Catches CancelledError silently (expected during rapid typing) and logs other errors.
+ */
+async function withProviderErrorHandling<T>(
+  providerName: string,
+  fn: () => Promise<T>,
+  fallback: T,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (!(error instanceof CancelledError)) {
+      console.warn(`${providerName} failed:`, error);
+    }
+    return fallback;
+  }
+}
 
 export interface SqlEditorHandle {
   editor: monaco.editor.IStandaloneCodeEditor | null;
@@ -338,6 +500,11 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
     const fullAnalysisTimerRef = useRef<number | null>(null);
     const fullAnalysisRunRef = useRef(0);
     const statementSplitTimerRef = useRef<number | null>(null);
+    // Incremental span tracking - avoids re-parsing entire document on each keystroke
+    const incrementalSpansRef = useRef<IncrementalSpanState>({
+      baselineSql: '',
+      spans: [],
+    });
     const statementSpansRef = useRef<{
       sql: string;
       spans: Span[];
@@ -398,31 +565,167 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         cache.sql = sqlText;
         cache.spans = [];
         cache.promise = null;
+        debugLog('split: empty SQL');
         return [];
       }
       if (cache.sql === sqlText && cache.spans.length > 0) {
+        debugLog('split: cache hit (spans ready)', cache.spans.length, 'statements');
         return cache.spans;
       }
       if (cache.sql === sqlText && cache.promise) {
+        debugLog('split: cache hit (awaiting pending)');
         return cache.promise;
       }
 
+      debugLog('split: cache miss, calling FlowScope for', sqlText.length, 'chars');
+      const splitStart = performance.now();
       const client = getFlowScopeClient();
       cache.sql = sqlText;
       cache.promise = client
         .split(sqlText)
         .then((result) => {
+          const elapsed = performance.now() - splitStart;
+          debugLog(
+            'split: completed in',
+            `${elapsed.toFixed(1)}ms,`,
+            result.statements.length,
+            'statements',
+          );
           cache.spans = result.statements;
+          syncIncrementalFromFullSplit(sqlText, result.statements);
           cache.promise = null;
           return result.statements;
         })
         .catch((error: Error) => {
+          const elapsed = performance.now() - splitStart;
+          debugLog('split: failed after', `${elapsed.toFixed(1)}ms`, error.message);
           cache.spans = [];
           cache.promise = null;
           throw error;
         });
 
       return cache.promise ?? [];
+    }, []);
+
+    /**
+     * Apply an incremental edit to the tracked spans.
+     * This is called on every content change to keep spans approximately correct.
+     */
+    const applyIncrementalEdit = useCallback(
+      (
+        oldSql: string,
+        newSql: string,
+        changes: readonly { rangeOffset: number; rangeLength: number; text: string }[],
+      ) => {
+        const state = incrementalSpansRef.current;
+
+        // If we have no spans yet, nothing to adjust
+        if (state.spans.length === 0) {
+          debugLog('incremental: no spans to adjust');
+          return;
+        }
+
+        let currentSpans = state.spans;
+        let cumulativeOffset = 0;
+
+        // Monaco provides event.changes with rangeOffset relative to the
+        // *original* document (before the edit). When multiple changes occur
+        // in one event (e.g. multi-cursor), we apply them in ascending offset
+        // order and track a cumulative delta so that each subsequent change
+        // maps correctly into the already-shifted span positions.
+        const sortedChanges = [...changes].sort((a, b) => a.rangeOffset - b.rangeOffset);
+
+        for (const change of sortedChanges) {
+          const editOffset = change.rangeOffset + cumulativeOffset;
+          const oldLength = change.rangeLength;
+          const newLength = change.text.length;
+
+          // Get the old text that was replaced
+          const oldText = oldSql.substring(
+            change.rangeOffset,
+            change.rangeOffset + change.rangeLength,
+          );
+
+          const adjustedSpans = adjustSpansForEdit(
+            currentSpans,
+            editOffset,
+            oldLength,
+            newLength,
+            change.text,
+            oldText,
+          );
+
+          if (adjustedSpans === null) {
+            // Semicolons changed - keep using old spans until full re-split completes
+            debugLog('incremental: need full re-split (semicolons changed)');
+            return;
+          }
+
+          currentSpans = adjustedSpans;
+          cumulativeOffset += newLength - oldLength;
+        }
+
+        // Update state with adjusted spans
+        state.spans = currentSpans;
+        state.baselineSql = newSql;
+        debugLog(
+          'incremental: adjusted spans successfully, now have',
+          currentSpans.length,
+          'statements',
+        );
+      },
+      [],
+    );
+
+    /**
+     * Get spans from incremental tracking, falling back to full split cache.
+     * This returns immediately without waiting for any async operations.
+     */
+    const getSpansImmediate = useCallback((sqlText: string): Span[] | null => {
+      // First check the incremental state
+      const incState = incrementalSpansRef.current;
+      if (incState.spans.length > 0 && incState.baselineSql === sqlText) {
+        debugLog(`getSpansImmediate: using incremental spans (${incState.spans.length})`);
+        return incState.spans;
+      }
+
+      // Fall back to the full split cache
+      const cache = statementSpansRef.current;
+      if (cache.spans.length > 0 && cache.sql === sqlText) {
+        debugLog(`getSpansImmediate: using cached spans (${cache.spans.length})`);
+        return cache.spans;
+      }
+
+      // Check if incremental spans are close enough to still be usable
+      const lengthDelta = Math.abs(incState.baselineSql.length - sqlText.length);
+      if (incState.spans.length > 0 && lengthDelta < INCREMENTAL_SPAN_TOLERANCE) {
+        debugLog(
+          `getSpansImmediate: using stale incremental spans (delta: ${sqlText.length - incState.baselineSql.length} chars)`,
+        );
+        return incState.spans;
+      }
+
+      debugLog('getSpansImmediate: no spans available');
+      return null;
+    }, []);
+
+    /**
+     * Sync incremental state from a completed full split.
+     * Only applies if the document hasn't changed since the split was requested,
+     * to avoid overwriting newer incremental adjustments with stale data.
+     */
+    const syncIncrementalFromFullSplit = useCallback((sqlText: string, spans: Span[]) => {
+      const state = incrementalSpansRef.current;
+      // Guard against stale syncs: if the user has edited since this split
+      // was requested, the incremental state is more current - skip the sync
+      const currentSql = editorRef.current?.getModel()?.getValue();
+      if (currentSql !== undefined && currentSql !== sqlText) {
+        debugLog('incremental: skipping stale full split sync');
+        return;
+      }
+      state.baselineSql = sqlText;
+      state.spans = spans;
+      debugLog(`incremental: synced from full split (${spans.length} statements)`);
     }, []);
 
     const findStatementSpan = useCallback((spans: Span[], cursorOffset: number) => {
@@ -441,12 +744,13 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
     const getStatementContextFromCache = useCallback(
       (sqlText: string, cursorOffset: number) => {
-        const spansCache = statementSpansRef.current;
-        if (spansCache.sql !== sqlText || spansCache.spans.length === 0) {
+        // Use incremental spans if available (instant, no waiting)
+        const spans = getSpansImmediate(sqlText);
+        if (!spans || spans.length === 0) {
           return null;
         }
 
-        const span = findStatementSpan(spansCache.spans, cursorOffset);
+        const span = findStatementSpan(spans, cursorOffset);
         if (!span) {
           return null;
         }
@@ -458,7 +762,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           span,
         };
       },
-      [findStatementSpan],
+      [findStatementSpan, getSpansImmediate],
     );
 
     const getStatementContext = useCallback(
@@ -533,8 +837,9 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           return;
         }
 
-        const spansCache = statementSpansRef.current;
-        if (spansCache.sql !== sqlText || spansCache.spans.length === 0) {
+        // Use incremental spans for immediate highlight (no waiting for full split)
+        const spans = getSpansImmediate(sqlText);
+        if (!spans || spans.length === 0) {
           statementDecorationsRef.current = editorRef.current.deltaDecorations(
             statementDecorationsRef.current,
             [],
@@ -542,7 +847,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           return;
         }
 
-        const statementSpan = findStatementSpan(spansCache.spans, cursorOffset);
+        const statementSpan = findStatementSpan(spans, cursorOffset);
         if (!statementSpan) {
           statementDecorationsRef.current = editorRef.current.deltaDecorations(
             statementDecorationsRef.current,
@@ -572,7 +877,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           ],
         );
       },
-      [findStatementSpan],
+      [findStatementSpan, getSpansImmediate],
     );
 
     const applyTableHighlights = useCallback(
@@ -685,7 +990,10 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           if (model.getVersionId() !== version) return;
 
           try {
-            const analysis = await getFlowScopeAnalysis(model.getValue());
+            const sqlText = model.getValue();
+            // Skip full analysis for large documents to avoid blocking the worker
+            if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) return;
+            const analysis = await getFlowScopeAnalysis(sqlText);
             if (!mountedRef.current) return;
             applyDiagnostics(model, analysis);
             applyTableHighlights(model, analysis);
@@ -722,7 +1030,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             statementSpansRef.current = { sql: model.getValue(), spans: [], promise: null };
             updateStatementHighlight(model, capturedCursorOffset);
           }
-        }, 300);
+        }, FULL_SPLIT_DEBOUNCE_MS);
       },
       [getStatementSpans, updateStatementHighlight],
     );
@@ -752,7 +1060,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           end: span.end,
         };
       },
-      [findStatementSpan],
+      [findStatementSpan, getSpansImmediate],
     );
 
     useImperativeHandle(ref, () => ({
@@ -777,7 +1085,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         // Terminate the FlowScope worker to free resources
         // Note: This is safe because FlowScopeClient is lazily initialized,
         // so a new worker will be created if needed after remounting
-        terminateFlowScopeClient();
+        terminateFlowScopeClients();
       };
     }, []);
 
@@ -853,9 +1161,37 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         }),
       );
 
+      // Track old SQL for incremental span adjustment
+      let previousSql = editorModel?.getValue() || '';
+      // Coalesce rapid highlight updates into a single requestAnimationFrame
+      let highlightRafPending = false;
+
       disposablesRef.current.push(
-        editor.onDidChangeModelContent(() => {
+        editor.onDidChangeModelContent((event) => {
           if (editorModel) {
+            const newSql = editorModel.getValue();
+
+            // Apply incremental span adjustment
+            if (event.changes.length > 0 && previousSql) {
+              applyIncrementalEdit(previousSql, newSql, event.changes);
+            }
+
+            previousSql = newSql;
+
+            // Defer highlight update to avoid recursive deltaDecorations
+            // (Monaco disallows calling deltaDecorations from within onDidChangeModelContent).
+            // Coalesce multiple edits into one RAF to avoid redundant layout work.
+            if (!highlightRafPending) {
+              highlightRafPending = true;
+              requestAnimationFrame(() => {
+                highlightRafPending = false;
+                if (editorModel && !editorModel.isDisposed()) {
+                  updateStatementHighlight(editorModel, cursorOffsetRef.current);
+                }
+              });
+            }
+
+            // Schedule full re-split in background (for accuracy, with long debounce)
             scheduleStatementSplit(editorModel);
           }
         }),
@@ -929,44 +1265,82 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           position: monaco.Position,
           completionContextInfo,
         ) => {
+          const totalStart = performance.now();
           try {
             const sqlText = completionModel.getValue();
-            const cursorOffset = completionModel.getOffsetAt(position);
-
-            let statementContext = getStatementContextFromCache(sqlText, cursorOffset);
-            if (!statementContext) {
-              if (!sqlText.trim()) {
-                return { suggestions: [] };
-              }
-
-              const fallbackContext = await getStatementContext(sqlText, cursorOffset);
-              if (fallbackContext.span) {
-                statementContext = fallbackContext;
-              }
-            }
-
-            const triggerChar = completionContextInfo?.triggerCharacter;
-            const contextTooShort =
-              statementContext && statementContext.cursorOffset > statementContext.sql.length;
-            if ((triggerChar === '.' || contextTooShort) && sqlText.trim()) {
-              const fallbackContext = await getStatementContext(sqlText, cursorOffset);
-              if (fallbackContext.span) {
-                statementContext = fallbackContext;
-              }
-            }
-
-            if (!statementContext || !statementContext.sql.trim()) {
+            if (!sqlText.trim()) {
               return { suggestions: [] };
             }
 
-            const client = getFlowScopeClient();
+            const cursorOffset = completionModel.getOffsetAt(position);
+            debugLog(
+              'completion: start, doc size:',
+              sqlText.length,
+              'chars, cursor:',
+              cursorOffset,
+            );
+
+            // Try cache/incremental spans first - avoids calling split() on the worker
+            // which would block completionItems() (single-threaded worker)
+            const cacheStart = performance.now();
+            const cachedContext = getStatementContextFromCache(sqlText, cursorOffset);
+            let statementContext: StatementContext;
+            if (cachedContext) {
+              statementContext = cachedContext;
+              debugLog(
+                'completion: context from cache in',
+                `${(performance.now() - cacheStart).toFixed(1)}ms`,
+              );
+            } else {
+              // No cached spans - use fast local semicolon scan instead of
+              // sending the entire document to the completion engine
+              statementContext = extractStatementAroundCursor(sqlText, cursorOffset);
+              debugLog(
+                'completion: extracted statement via semicolon scan,',
+                statementContext.sql.length,
+                'chars',
+              );
+            }
+
+            const triggerChar = completionContextInfo?.triggerCharacter;
+            const contextTooShort = statementContext.cursorOffset > statementContext.sql.length;
+            if (contextTooShort) {
+              // Cursor offset is invalid, re-extract locally
+              debugLog('completion: cursor offset stale, re-extracting');
+              statementContext = extractStatementAroundCursor(sqlText, cursorOffset);
+            }
+
+            if (!statementContext.sql.trim()) {
+              return { suggestions: [] };
+            }
+
+            debugLog(
+              'completion: statement size:',
+              statementContext.sql.length,
+              'chars, cursorOffset:',
+              statementContext.cursorOffset,
+            );
+
+            // Use dedicated completion worker to avoid being blocked by split/analyze
+            const client = getCompletionClient();
+            const itemsStart = performance.now();
             const result = await client.completionItems(
               statementContext.sql,
               statementContext.cursorOffset,
               schema,
             );
+            debugLog(
+              'completion: completionItems() took',
+              `${(performance.now() - itemsStart).toFixed(1)}ms,`,
+              result.items.length,
+              'items',
+            );
 
             if (!result.shouldShow) {
+              debugLog(
+                'completion: shouldShow=false, total time:',
+                `${(performance.now() - totalStart).toFixed(1)}ms`,
+              );
               return { suggestions: [] };
             }
 
@@ -986,12 +1360,23 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
               range,
             }));
 
+            debugLog(
+              'completion: SUCCESS, total time:',
+              `${(performance.now() - totalStart).toFixed(1)}ms,`,
+              suggestions.length,
+              'suggestions',
+            );
             return { suggestions };
           } catch (error) {
             // Skip logging for cancelled requests (expected when user types quickly)
             if (!(error instanceof CancelledError)) {
               const message = error instanceof Error ? error.message : 'Unknown error';
               console.warn('Completion provider failed:', message);
+            } else {
+              debugLog(
+                'completion: CANCELLED after',
+                `${(performance.now() - totalStart).toFixed(1)}ms`,
+              );
             }
             return { suggestions: [] };
           }
@@ -1024,6 +1409,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             }
 
             const sqlText = hoverModel.getValue();
+            // Skip statement analysis for large documents to avoid blocking the worker
+            if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) return null;
             const cursorOffset = hoverModel.getOffsetAt(position);
             const statementResult = await getStatementAnalysis(sqlText, cursorOffset);
             if (!statementResult?.analysis) return null;
@@ -1091,7 +1478,17 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             if (sqlText.length > MAX_DOCUMENT_SIZE) {
               return [];
             }
-            const spans = await getStatementSpans(sqlText);
+
+            // For large documents, use incremental spans to avoid queuing split
+            // on the worker (which blocks completionItems)
+            let spans: Span[];
+            if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) {
+              const immediate = getSpansImmediate(sqlText);
+              if (!immediate || immediate.length === 0) return [];
+              spans = immediate;
+            } else {
+              spans = await getStatementSpans(sqlText);
+            }
 
             if (token.isCancellationRequested) return [];
             if (spans.length === 0) return [];
@@ -1171,79 +1568,89 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
       // Go to definition provider: navigate to CTE definitions
       const definitionProvider = monacoInstance.languages.registerDefinitionProvider('sql', {
-        provideDefinition: async (model, position) => {
-          const sqlText = model.getValue();
-          const word = model.getWordAtPosition(position);
-          if (!word) return null;
+        provideDefinition: (model, position) =>
+          withProviderErrorHandling(
+            'Definition',
+            async () => {
+              const sqlText = model.getValue();
+              const word = model.getWordAtPosition(position);
+              if (!word) return null;
 
-          const analysis = await getFlowScopeAnalysis(sqlText);
-          if (!analysis) return null;
+              const analysis = await getFlowScopeAnalysis(sqlText);
+              if (!analysis) return null;
 
-          if (!hasCteWithLabel(analysis, word.word)) return null;
+              if (!hasCteWithLabel(analysis, word.word)) return null;
 
-          const targetLabel = word.word.toLowerCase();
+              const targetLabel = word.word.toLowerCase();
 
-          // Find the first CTE definition with this label (first occurrence is the definition)
-          for (const statement of analysis.statements) {
-            for (const node of statement.nodes) {
-              if (node.type === 'cte' && node.label.toLowerCase() === targetLabel) {
-                const range = spanToRange(model, node.span);
-                if (!range) {
-                  console.warn(
-                    `CTE '${targetLabel}' found but missing or invalid span from FlowScope`,
-                  );
-                  return null;
+              // Find the first CTE definition with this label (first occurrence is the definition)
+              for (const statement of analysis.statements) {
+                for (const node of statement.nodes) {
+                  if (node.type === 'cte' && node.label.toLowerCase() === targetLabel) {
+                    const range = spanToRange(model, node.span);
+                    if (!range) {
+                      console.warn(
+                        `CTE '${targetLabel}' found but missing or invalid span from FlowScope`,
+                      );
+                      return null;
+                    }
+
+                    return { uri: model.uri, range };
+                  }
                 }
-
-                return { uri: model.uri, range };
               }
-            }
-          }
 
-          return null;
-        },
+              return null;
+            },
+            null,
+          ),
       });
 
       // Find all references provider: locate all usages of a table, CTE, or view
       const referenceProvider = monacoInstance.languages.registerReferenceProvider('sql', {
-        provideReferences: async (model, position) => {
-          const sqlText = model.getValue();
-          const word = model.getWordAtPosition(position);
-          if (!word) return null;
+        provideReferences: (model, position) =>
+          withProviderErrorHandling(
+            'Reference',
+            async () => {
+              const sqlText = model.getValue();
+              const word = model.getWordAtPosition(position);
+              if (!word) return [];
 
-          const analysis = await getFlowScopeAnalysis(sqlText);
-          if (!analysis) return null;
+              const analysis = await getFlowScopeAnalysis(sqlText);
+              if (!analysis) return [];
 
-          const references: monaco.languages.Location[] = [];
-          const targetLabel = word.word.toLowerCase();
-          let missingSpanCount = 0;
+              const references: monaco.languages.Location[] = [];
+              const targetLabel = word.word.toLowerCase();
+              let missingSpanCount = 0;
 
-          // Find all nodes matching the label (tables, CTEs, views)
-          for (const statement of analysis.statements) {
-            for (const node of statement.nodes) {
-              if (
-                (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
-                node.label.toLowerCase() === targetLabel
-              ) {
-                const range = spanToRange(model, node.span);
-                if (!range) {
-                  missingSpanCount += 1;
-                  continue;
+              // Find all nodes matching the label (tables, CTEs, views)
+              for (const statement of analysis.statements) {
+                for (const node of statement.nodes) {
+                  if (
+                    (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
+                    node.label.toLowerCase() === targetLabel
+                  ) {
+                    const range = spanToRange(model, node.span);
+                    if (!range) {
+                      missingSpanCount += 1;
+                      continue;
+                    }
+
+                    references.push({ uri: model.uri, range });
+                  }
                 }
-
-                references.push({ uri: model.uri, range });
               }
-            }
-          }
 
-          if (missingSpanCount > 0) {
-            console.warn(
-              `${missingSpanCount} reference(s) for '${targetLabel}' missing or invalid span from FlowScope`,
-            );
-          }
+              if (missingSpanCount > 0) {
+                console.warn(
+                  `${missingSpanCount} reference(s) for '${targetLabel}' missing or invalid span from FlowScope`,
+                );
+              }
 
-          return references;
-        },
+              return references;
+            },
+            [],
+          ),
       });
 
       // Document symbol provider: outline view and breadcrumb navigation (Ctrl+Shift+O)
@@ -1251,134 +1658,152 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         'sql',
         {
           provideDocumentSymbols: async (model) => {
-            const sqlText = model.getValue();
-            const spans = await getStatementSpans(sqlText);
-            if (spans.length === 0) return [];
+            try {
+              const sqlText = model.getValue();
 
-            const symbols: monaco.languages.DocumentSymbol[] = [];
-            const seenRanges = new Set<string>();
-            const statementKindMap: Record<string, monaco.languages.SymbolKind> = {
-              SELECT: monacoInstance.languages.SymbolKind.Function,
-              INSERT: monacoInstance.languages.SymbolKind.Method,
-              UPDATE: monacoInstance.languages.SymbolKind.Method,
-              DELETE: monacoInstance.languages.SymbolKind.Method,
-              CREATE: monacoInstance.languages.SymbolKind.Class,
-              ALTER: monacoInstance.languages.SymbolKind.Class,
-              DROP: monacoInstance.languages.SymbolKind.Class,
-            };
-
-            for (let i = 0; i < spans.length; i += 1) {
-              const span = spans[i];
-              const range = spanToRange(model, span);
-              if (!range) continue;
-
-              const rangeKey = `${range.startLineNumber}:${range.startColumn}-${range.endLineNumber}:${range.endColumn}`;
-              if (seenRanges.has(rangeKey)) {
-                continue;
+              // For large documents, use incremental spans to avoid queuing split
+              // on the worker (which blocks completionItems)
+              let spans: Span[];
+              if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) {
+                const immediate = getSpansImmediate(sqlText);
+                if (!immediate || immediate.length === 0) return [];
+                spans = immediate;
+              } else {
+                spans = await getStatementSpans(sqlText);
               }
-              seenRanges.add(rangeKey);
+              if (spans.length === 0) return [];
 
-              const statementText = safeSliceBySpan(sqlText, span, 'document symbol') ?? '';
+              const symbols: monaco.languages.DocumentSymbol[] = [];
+              const seenRanges = new Set<string>();
+              const statementKindMap: Record<string, monaco.languages.SymbolKind> = {
+                SELECT: monacoInstance.languages.SymbolKind.Function,
+                INSERT: monacoInstance.languages.SymbolKind.Method,
+                UPDATE: monacoInstance.languages.SymbolKind.Method,
+                DELETE: monacoInstance.languages.SymbolKind.Method,
+                CREATE: monacoInstance.languages.SymbolKind.Class,
+                ALTER: monacoInstance.languages.SymbolKind.Class,
+                DROP: monacoInstance.languages.SymbolKind.Class,
+              };
 
-              // Determine statement type from first keyword
-              const firstWord = statementText.trim().split(/\s+/)[0]?.toUpperCase() || 'STATEMENT';
-              let statementTypeLabel = firstWord;
-              let statementName = `${firstWord} (${i + 1})`;
-              let symbolIdentifier: string | null = null;
+              for (let i = 0; i < spans.length; i += 1) {
+                const span = spans[i];
+                const range = spanToRange(model, span);
+                if (!range) continue;
 
-              if (firstWord === 'WITH') {
-                const cteMatch = statementText.match(/WITH\s+(\w+)/i);
-                if (cteMatch) {
-                  const [, cteName] = cteMatch;
-                  statementName = `WITH ${cteName}`;
-                  symbolIdentifier = cteName;
+                const rangeKey = `${range.startLineNumber}:${range.startColumn}-${range.endLineNumber}:${range.endColumn}`;
+                if (seenRanges.has(rangeKey)) {
+                  continue;
                 }
-                const terminalMatch = statementText.match(
-                  /\)\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i,
-                );
-                if (terminalMatch) {
-                  const [, terminalKeyword] = terminalMatch;
-                  statementTypeLabel = terminalKeyword.toUpperCase();
+                seenRanges.add(rangeKey);
+
+                const statementText = safeSliceBySpan(sqlText, span, 'document symbol') ?? '';
+
+                // Determine statement type from first keyword
+                const firstWord =
+                  statementText.trim().split(/\s+/)[0]?.toUpperCase() || 'STATEMENT';
+                let statementTypeLabel = firstWord;
+                let statementName = `${firstWord} (${i + 1})`;
+                let symbolIdentifier: string | null = null;
+
+                if (firstWord === 'WITH') {
+                  const cteMatch = statementText.match(/WITH\s+(\w+)/i);
+                  if (cteMatch) {
+                    const [, cteName] = cteMatch;
+                    statementName = `WITH ${cteName}`;
+                    symbolIdentifier = cteName;
+                  }
+                  const terminalMatch = statementText.match(
+                    /\)\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i,
+                  );
+                  if (terminalMatch) {
+                    const [, terminalKeyword] = terminalMatch;
+                    statementTypeLabel = terminalKeyword.toUpperCase();
+                  }
+                } else if (firstWord === 'CREATE') {
+                  const createMatch = statementText.match(
+                    /CREATE\s+(?:OR\s+REPLACE\s+)?(\w+)\s+([\w.]+)/i,
+                  );
+                  if (createMatch) {
+                    const [, createType, createTarget] = createMatch;
+                    statementName = `CREATE ${createType} ${createTarget}`;
+                    symbolIdentifier = createTarget;
+                  }
+                } else if (firstWord === 'ALTER') {
+                  const alterMatch = statementText.match(/ALTER\s+(\w+)\s+([\w.]+)/i);
+                  if (alterMatch) {
+                    const [, alterType, alterTarget] = alterMatch;
+                    statementName = `ALTER ${alterType} ${alterTarget}`;
+                    symbolIdentifier = alterTarget;
+                  }
+                } else if (firstWord === 'DROP') {
+                  const dropMatch = statementText.match(
+                    /DROP\s+(?:IF\s+EXISTS\s+)?(\w+)\s+([\w.]+)/i,
+                  );
+                  if (dropMatch) {
+                    const [, dropType, dropTarget] = dropMatch;
+                    statementName = `DROP ${dropType} ${dropTarget}`;
+                    symbolIdentifier = dropTarget;
+                  }
+                } else if (firstWord === 'INSERT') {
+                  const insertMatch = statementText.match(/INSERT\s+INTO\s+([\w.]+)/i);
+                  if (insertMatch) {
+                    const [, insertTarget] = insertMatch;
+                    statementName = `INSERT INTO ${insertTarget}`;
+                    symbolIdentifier = insertTarget;
+                  }
+                } else if (firstWord === 'UPDATE') {
+                  const updateMatch = statementText.match(/UPDATE\s+([\w.]+)/i);
+                  if (updateMatch) {
+                    const [, updateTarget] = updateMatch;
+                    statementName = `UPDATE ${updateTarget}`;
+                    symbolIdentifier = updateTarget;
+                  }
+                } else if (firstWord === 'DELETE') {
+                  const deleteMatch = statementText.match(/DELETE\s+FROM\s+([\w.]+)/i);
+                  if (deleteMatch) {
+                    const [, deleteTarget] = deleteMatch;
+                    statementName = `DELETE FROM ${deleteTarget}`;
+                    symbolIdentifier = deleteTarget;
+                  }
+                } else if (firstWord === 'SELECT') {
+                  // Try to find the main table in FROM clause
+                  const fromMatch = statementText.match(/FROM\s+([\w.]+)/i);
+                  if (fromMatch) {
+                    const [, fromTarget] = fromMatch;
+                    statementName = `SELECT FROM ${fromTarget}`;
+                    symbolIdentifier = fromTarget;
+                  }
                 }
-              } else if (firstWord === 'CREATE') {
-                const createMatch = statementText.match(
-                  /CREATE\s+(?:OR\s+REPLACE\s+)?(\w+)\s+([\w.]+)/i,
-                );
-                if (createMatch) {
-                  const [, createType, createTarget] = createMatch;
-                  statementName = `CREATE ${createType} ${createTarget}`;
-                  symbolIdentifier = createTarget;
-                }
-              } else if (firstWord === 'ALTER') {
-                const alterMatch = statementText.match(/ALTER\s+(\w+)\s+([\w.]+)/i);
-                if (alterMatch) {
-                  const [, alterType, alterTarget] = alterMatch;
-                  statementName = `ALTER ${alterType} ${alterTarget}`;
-                  symbolIdentifier = alterTarget;
-                }
-              } else if (firstWord === 'DROP') {
-                const dropMatch = statementText.match(
-                  /DROP\s+(?:IF\s+EXISTS\s+)?(\w+)\s+([\w.]+)/i,
-                );
-                if (dropMatch) {
-                  const [, dropType, dropTarget] = dropMatch;
-                  statementName = `DROP ${dropType} ${dropTarget}`;
-                  symbolIdentifier = dropTarget;
-                }
-              } else if (firstWord === 'INSERT') {
-                const insertMatch = statementText.match(/INSERT\s+INTO\s+([\w.]+)/i);
-                if (insertMatch) {
-                  const [, insertTarget] = insertMatch;
-                  statementName = `INSERT INTO ${insertTarget}`;
-                  symbolIdentifier = insertTarget;
-                }
-              } else if (firstWord === 'UPDATE') {
-                const updateMatch = statementText.match(/UPDATE\s+([\w.]+)/i);
-                if (updateMatch) {
-                  const [, updateTarget] = updateMatch;
-                  statementName = `UPDATE ${updateTarget}`;
-                  symbolIdentifier = updateTarget;
-                }
-              } else if (firstWord === 'DELETE') {
-                const deleteMatch = statementText.match(/DELETE\s+FROM\s+([\w.]+)/i);
-                if (deleteMatch) {
-                  const [, deleteTarget] = deleteMatch;
-                  statementName = `DELETE FROM ${deleteTarget}`;
-                  symbolIdentifier = deleteTarget;
-                }
-              } else if (firstWord === 'SELECT') {
-                // Try to find the main table in FROM clause
-                const fromMatch = statementText.match(/FROM\s+([\w.]+)/i);
-                if (fromMatch) {
-                  const [, fromTarget] = fromMatch;
-                  statementName = `SELECT FROM ${fromTarget}`;
-                  symbolIdentifier = fromTarget;
-                }
+
+                const detailParts = [
+                  symbolIdentifier,
+                  firstWord === 'WITH' && statementTypeLabel !== 'WITH' ? statementTypeLabel : null,
+                  `Line ${range.startLineNumber}`,
+                  `Statement ${i + 1}`,
+                ].filter(Boolean);
+
+                const symbolDetail = detailParts.join(' • ');
+                const symbolKind =
+                  statementKindMap[statementTypeLabel] ??
+                  monacoInstance.languages.SymbolKind.Function;
+
+                symbols.push({
+                  name: statementName,
+                  detail: symbolDetail,
+                  kind: symbolKind,
+                  range,
+                  selectionRange: range,
+                  tags: [],
+                });
               }
 
-              const detailParts = [
-                symbolIdentifier,
-                firstWord === 'WITH' && statementTypeLabel !== 'WITH' ? statementTypeLabel : null,
-                `Line ${range.startLineNumber}`,
-                `Statement ${i + 1}`,
-              ].filter(Boolean);
-
-              const symbolDetail = detailParts.join(' • ');
-              const symbolKind =
-                statementKindMap[statementTypeLabel] ??
-                monacoInstance.languages.SymbolKind.Function;
-
-              symbols.push({
-                name: statementName,
-                detail: symbolDetail,
-                kind: symbolKind,
-                range,
-                selectionRange: range,
-                tags: [],
-              });
+              return symbols;
+            } catch (error) {
+              if (!(error instanceof CancelledError)) {
+                console.warn('Document symbol provider failed:', error);
+              }
+              return [];
             }
-
-            return symbols;
           },
         },
       );
@@ -1386,123 +1811,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       // Rename provider: F2 to rename CTEs across all references
       const renameProvider = monacoInstance.languages.registerRenameProvider('sql', {
         provideRenameEdits: async (model, position, newName) => {
-          const sqlText = model.getValue();
-          const word = model.getWordAtPosition(position);
-          if (!word) return null;
-
-          const analysis = await getFlowScopeAnalysis(sqlText);
-          if (!analysis) return null;
-
-          if (!hasCteWithLabel(analysis, word.word)) return null;
-
-          const targetLabel = word.word.toLowerCase();
-          const edits: monaco.languages.IWorkspaceTextEdit[] = [];
-          let missingSpanCount = 0;
-
-          // Find all occurrences with spans
-          for (const statement of analysis.statements) {
-            for (const node of statement.nodes) {
-              if (
-                (node.type === 'table' || node.type === 'cte') &&
-                node.label.toLowerCase() === targetLabel
-              ) {
-                const range = spanToRange(model, node.span);
-                if (!range) {
-                  missingSpanCount += 1;
-                  continue;
-                }
-
-                edits.push({
-                  resource: model.uri,
-                  versionId: undefined,
-                  textEdit: { range, text: newName },
-                });
-              }
-            }
-          }
-
-          if (missingSpanCount > 0) {
-            console.warn(
-              `${missingSpanCount} occurrence(s) of '${targetLabel}' missing or invalid span - rename may be incomplete`,
-            );
-          }
-
-          return { edits };
-        },
-      });
-
-      // Code lens provider: show reference counts above CTE definitions
-      const codeLensProvider = monacoInstance.languages.registerCodeLensProvider('sql', {
-        provideCodeLenses: async (model) => {
-          const sqlText = model.getValue();
-          const analysis = await getFlowScopeAnalysis(sqlText);
-          if (!analysis) return { lenses: [], dispose: () => {} };
-
-          const lenses: monaco.languages.CodeLens[] = [];
-
-          // Find all CTEs and count their references, track definition spans
-          const cteReferences = new Map<string, number>();
-          const cteDefinitionRanges = new Map<string, monaco.IRange>();
-          const ctesWithoutSpan: string[] = [];
-
-          for (const statement of analysis.statements) {
-            for (const node of statement.nodes) {
-              if (node.type === 'cte') {
-                const label = node.label.toLowerCase();
-                const count = cteReferences.get(label) || 0;
-                cteReferences.set(label, count + 1);
-
-                // First occurrence is the definition
-                if (count === 0) {
-                  const range = spanToRange(model, node.span);
-                  if (range) {
-                    cteDefinitionRanges.set(label, range);
-                  } else {
-                    ctesWithoutSpan.push(label);
-                  }
-                }
-              }
-            }
-          }
-
-          if (ctesWithoutSpan.length > 0) {
-            console.warn(
-              `CTE definition(s) missing or invalid span: ${ctesWithoutSpan.join(', ')} - code lens unavailable`,
-            );
-          }
-
-          // Create code lenses for CTEs with multiple references
-          for (const [cteName, count] of cteReferences) {
-            const definitionRange = cteDefinitionRanges.get(cteName);
-            // Only show lens if there are references (count > 1 means 1 definition + references)
-            if (definitionRange && count > 1) {
-              const refCount = count - 1; // Subtract the definition itself
-              lenses.push({
-                range: definitionRange,
-                command: {
-                  id: 'editor.action.findReferences',
-                  title: `${refCount} reference${refCount === 1 ? '' : 's'}`,
-                  arguments: [
-                    model.uri,
-                    new monacoInstance.Position(
-                      definitionRange.startLineNumber,
-                      definitionRange.startColumn,
-                    ),
-                  ],
-                },
-              });
-            }
-          }
-
-          return { lenses, dispose: () => {} };
-        },
-      });
-
-      // Linked editing ranges provider: edit all occurrences of a CTE/table name simultaneously
-      const linkedEditingProvider = monacoInstance.languages.registerLinkedEditingRangeProvider(
-        'sql',
-        {
-          provideLinkedEditingRanges: async (model, position) => {
+          try {
             const sqlText = model.getValue();
             const word = model.getWordAtPosition(position);
             if (!word) return null;
@@ -1510,26 +1819,17 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             const analysis = await getFlowScopeAnalysis(sqlText);
             if (!analysis) return null;
 
+            if (!hasCteWithLabel(analysis, word.word)) return null;
+
             const targetLabel = word.word.toLowerCase();
-            const ranges: monaco.IRange[] = [];
+            const edits: monaco.languages.IWorkspaceTextEdit[] = [];
             let missingSpanCount = 0;
-
-            // Check if this is a CTE, table, or view
-            const isLinkedIdentifier = analysis.statements.some((stmt) =>
-              stmt.nodes.some(
-                (node) =>
-                  (node.type === 'cte' || node.type === 'table' || node.type === 'view') &&
-                  node.label.toLowerCase() === targetLabel,
-              ),
-            );
-
-            if (!isLinkedIdentifier) return null;
 
             // Find all occurrences with spans
             for (const statement of analysis.statements) {
               for (const node of statement.nodes) {
                 if (
-                  (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
+                  (node.type === 'table' || node.type === 'cte') &&
                   node.label.toLowerCase() === targetLabel
                 ) {
                   const range = spanToRange(model, node.span);
@@ -1538,20 +1838,172 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
                     continue;
                   }
 
-                  ranges.push(range);
+                  edits.push({
+                    resource: model.uri,
+                    versionId: undefined,
+                    textEdit: { range, text: newName },
+                  });
                 }
               }
             }
 
             if (missingSpanCount > 0) {
               console.warn(
-                `${missingSpanCount} occurrence(s) of '${targetLabel}' missing or invalid span - linked editing may be incomplete`,
+                `${missingSpanCount} occurrence(s) of '${targetLabel}' missing or invalid span - rename may be incomplete`,
               );
             }
 
-            if (ranges.length < 2) return null;
+            return { edits };
+          } catch (error) {
+            if (!(error instanceof CancelledError)) {
+              console.warn('Rename provider failed:', error);
+            }
+            return null;
+          }
+        },
+      });
 
-            return { ranges, wordPattern: undefined };
+      // Code lens provider: show reference counts above CTE definitions
+      const codeLensProvider = monacoInstance.languages.registerCodeLensProvider('sql', {
+        provideCodeLenses: async (model) => {
+          try {
+            const sqlText = model.getValue();
+            // Skip full analysis for large documents to avoid blocking the worker
+            if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) {
+              return { lenses: [], dispose: () => {} };
+            }
+            const analysis = await getFlowScopeAnalysis(sqlText);
+            if (!analysis) return { lenses: [], dispose: () => {} };
+
+            const lenses: monaco.languages.CodeLens[] = [];
+
+            // Find all CTEs and count their references, track definition spans
+            const cteReferences = new Map<string, number>();
+            const cteDefinitionRanges = new Map<string, monaco.IRange>();
+            const ctesWithoutSpan: string[] = [];
+
+            for (const statement of analysis.statements) {
+              for (const node of statement.nodes) {
+                if (node.type === 'cte') {
+                  const label = node.label.toLowerCase();
+                  const count = cteReferences.get(label) || 0;
+                  cteReferences.set(label, count + 1);
+
+                  // First occurrence is the definition
+                  if (count === 0) {
+                    const range = spanToRange(model, node.span);
+                    if (range) {
+                      cteDefinitionRanges.set(label, range);
+                    } else {
+                      ctesWithoutSpan.push(label);
+                    }
+                  }
+                }
+              }
+            }
+
+            if (ctesWithoutSpan.length > 0) {
+              console.warn(
+                `CTE definition(s) missing or invalid span: ${ctesWithoutSpan.join(', ')} - code lens unavailable`,
+              );
+            }
+
+            // Create code lenses for CTEs with multiple references
+            for (const [cteName, count] of cteReferences) {
+              const definitionRange = cteDefinitionRanges.get(cteName);
+              // Only show lens if there are references (count > 1 means 1 definition + references)
+              if (definitionRange && count > 1) {
+                const refCount = count - 1; // Subtract the definition itself
+                lenses.push({
+                  range: definitionRange,
+                  command: {
+                    id: 'editor.action.findReferences',
+                    title: `${refCount} reference${refCount === 1 ? '' : 's'}`,
+                    arguments: [
+                      model.uri,
+                      new monacoInstance.Position(
+                        definitionRange.startLineNumber,
+                        definitionRange.startColumn,
+                      ),
+                    ],
+                  },
+                });
+              }
+            }
+
+            return { lenses, dispose: () => {} };
+          } catch (error) {
+            if (!(error instanceof CancelledError)) {
+              console.warn('Code lens provider failed:', error);
+            }
+            return { lenses: [], dispose: () => {} };
+          }
+        },
+      });
+
+      // Linked editing ranges provider: edit all occurrences of a CTE/table name simultaneously
+      const linkedEditingProvider = monacoInstance.languages.registerLinkedEditingRangeProvider(
+        'sql',
+        {
+          provideLinkedEditingRanges: async (model, position) => {
+            try {
+              const sqlText = model.getValue();
+              // Skip full analysis for large documents to avoid blocking the worker
+              if (sqlText.length > LARGE_DOCUMENT_THRESHOLD) return null;
+              const word = model.getWordAtPosition(position);
+              if (!word) return null;
+
+              const analysis = await getFlowScopeAnalysis(sqlText);
+              if (!analysis) return null;
+
+              const targetLabel = word.word.toLowerCase();
+              const ranges: monaco.IRange[] = [];
+              let missingSpanCount = 0;
+
+              // Check if this is a CTE, table, or view
+              const isLinkedIdentifier = analysis.statements.some((stmt) =>
+                stmt.nodes.some(
+                  (node) =>
+                    (node.type === 'cte' || node.type === 'table' || node.type === 'view') &&
+                    node.label.toLowerCase() === targetLabel,
+                ),
+              );
+
+              if (!isLinkedIdentifier) return null;
+
+              // Find all occurrences with spans
+              for (const statement of analysis.statements) {
+                for (const node of statement.nodes) {
+                  if (
+                    (node.type === 'table' || node.type === 'cte' || node.type === 'view') &&
+                    node.label.toLowerCase() === targetLabel
+                  ) {
+                    const range = spanToRange(model, node.span);
+                    if (!range) {
+                      missingSpanCount += 1;
+                      continue;
+                    }
+
+                    ranges.push(range);
+                  }
+                }
+              }
+
+              if (missingSpanCount > 0) {
+                console.warn(
+                  `${missingSpanCount} occurrence(s) of '${targetLabel}' missing or invalid span - linked editing may be incomplete`,
+                );
+              }
+
+              if (ranges.length < 2) return null;
+
+              return { ranges, wordPattern: undefined };
+            } catch (error) {
+              if (!(error instanceof CancelledError)) {
+                console.warn('Linked editing provider failed:', error);
+              }
+              return null;
+            }
           },
         },
       );
