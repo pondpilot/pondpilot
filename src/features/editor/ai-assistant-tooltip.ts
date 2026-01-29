@@ -373,7 +373,8 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
       return;
     }
 
-    // Position widget at the start of the current line (left-aligned)
+    // Anchor at column 1 so the wide panel stays left-aligned and
+    // does not get clipped or pushed off-screen on long lines.
     const widgetPosition = new monaco.Position(cursorPosition.lineNumber, 1);
     const widget = createContentWidget('ai-assistant-widget', dom, widgetPosition);
     this.assistantWidget = widget;
@@ -422,7 +423,10 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
     });
 
     const dom = widget.toDOM();
-    const contentWidget = createContentWidget('ai-structured-response', dom, position);
+    // Anchor at column 1 so the wide panel stays left-aligned and
+    // does not get clipped or pushed off-screen on long lines.
+    const widgetPosition = new monaco.Position(position.lineNumber, 1);
+    const contentWidget = createContentWidget('ai-structured-response', dom, widgetPosition);
     this.structuredWidget = contentWidget;
     this.editor.addContentWidget(contentWidget);
     this.editor.layoutContentWidget(contentWidget);
