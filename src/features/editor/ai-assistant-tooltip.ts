@@ -102,6 +102,7 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
   private assistantWidget: monaco.editor.IContentWidget | null = null;
   private structuredWidget: monaco.editor.IContentWidget | null = null;
   private activeRequest = false;
+  private abortController: AbortController | null = null;
   private currentPrompt: string | undefined;
   private cleanup?: () => void;
   private structuredCleanup?: () => void;
@@ -149,6 +150,10 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
           this.activeRequest = active;
         },
         getActiveRequest: () => this.activeRequest,
+        setAbortController: (controller) => {
+          this.abortController = controller;
+        },
+        getAbortController: () => this.abortController,
       },
       errorContext,
       cursorContext,
@@ -213,10 +218,15 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
     const historyManager = new HistoryNavigationManager(textarea);
 
     submitWrapper = () => {
-      if (!mentionManager.state.isActive) {
-        historyManager.resetHistory();
-        handlers.handleSubmit(textarea, generateBtn);
+      if (mentionManager.state.isActive) return;
+
+      if (this.activeRequest) {
+        handlers.cancelRequest();
+        return;
       }
+
+      historyManager.resetHistory();
+      handlers.handleSubmit(textarea, generateBtn);
     };
 
     const shouldMentionHandleKey = (event: KeyboardEvent): boolean => {
@@ -461,6 +471,11 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
   }
 
   dispose() {
+    // Abort any in-flight request before tearing down widgets
+    this.abortController?.abort();
+    this.abortController = null;
+    this.activeRequest = false;
+
     this.hideAssistant();
     this.hideStructuredResponse();
   }

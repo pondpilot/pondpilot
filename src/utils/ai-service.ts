@@ -82,7 +82,7 @@ export class AIService {
     }
   }
 
-  async generateSQLAssistance(request: AIRequest): Promise<AIResponse> {
+  async generateSQLAssistance(request: AIRequest, signal?: AbortSignal): Promise<AIResponse> {
     // Polly AI doesn't require an API key
     if (!isPollyProvider(this.config.provider) && !this.config.apiKey) {
       return {
@@ -93,7 +93,7 @@ export class AIService {
 
     // Handle Polly AI (built-in proxy)
     if (isPollyProvider(this.config.provider)) {
-      return this.callPollyProxy(request);
+      return this.callPollyProxy(request, signal);
     }
 
     if (this.config.provider === PROVIDER_IDS.OPENAI) {
@@ -101,7 +101,7 @@ export class AIService {
         baseUrl: 'https://api.openai.com/v1',
         authHeader: `Bearer ${this.config.apiKey}`,
         providerName: 'OpenAI',
-      });
+      }, signal);
     }
 
     if (this.config.provider === PROVIDER_IDS.ANTHROPIC) {
@@ -109,7 +109,7 @@ export class AIService {
         baseUrl: 'https://api.anthropic.com/v1',
         authHeader: `x-api-key ${this.config.apiKey}`,
         providerName: 'Anthropic',
-      });
+      }, signal);
     }
 
     if (this.config.provider === PROVIDER_IDS.CUSTOM) {
@@ -129,7 +129,7 @@ export class AIService {
         baseUrl: this.config.customEndpoint,
         authHeader,
         providerName: 'Custom Endpoint',
-      });
+      }, signal);
     }
 
     return {
@@ -177,10 +177,20 @@ export class AIService {
    */
   private async sendPollyRequest(
     requestBody: ChatCompletionRequestBody,
+    signal?: AbortSignal,
   ): Promise<{ response?: Response; error?: AIResponse }> {
     const baseUrl = getPollyProxyUrl();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), POLLY_CONFIG.TIMEOUT_MS);
+
+    // Forward external abort signal to the local controller
+    if (signal) {
+      if (signal.aborted) {
+        clearTimeout(timeoutId);
+        return { error: { success: false, cancelled: true } };
+      }
+      signal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
 
     try {
       const response = await fetch(`${baseUrl}/v1/chat`, {
@@ -198,6 +208,10 @@ export class AIService {
       clearTimeout(timeoutId);
 
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        // Distinguish user cancellation from timeout
+        if (signal?.aborted) {
+          return { error: { success: false, cancelled: true } };
+        }
         return {
           error: {
             success: false,
@@ -213,10 +227,10 @@ export class AIService {
   /**
    * Call the Polly AI proxy endpoint (public, no authentication required)
    */
-  private async callPollyProxy(request: AIRequest): Promise<AIResponse> {
+  private async callPollyProxy(request: AIRequest, signal?: AbortSignal): Promise<AIResponse> {
     try {
       const requestBody = this.buildPollyRequestBody(request);
-      const sendResult = await this.sendPollyRequest(requestBody);
+      const sendResult = await this.sendPollyRequest(requestBody, signal);
 
       if (sendResult.error || !sendResult.response) {
         return sendResult.error ?? { success: false, error: 'Failed to send request' };
@@ -402,6 +416,7 @@ ${request.prompt}`;
       authHeader: string;
       providerName: string;
     },
+    signal?: AbortSignal,
   ): Promise<AIResponse> {
     try {
       const isErrorFixing = !!request.queryError;
@@ -466,6 +481,15 @@ ${request.prompt}`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), AI_SERVICE_CONFIG.TIMEOUT_MS);
 
+      // Forward external abort signal to the local controller
+      if (signal) {
+        if (signal.aborted) {
+          clearTimeout(timeoutId);
+          return { success: false, cancelled: true };
+        }
+        signal.addEventListener('abort', () => controller.abort(), { once: true });
+      }
+
       try {
         // Ensure we don't have double slashes by removing trailing slash from baseUrl
         const baseUrl = providerConfig.baseUrl.endsWith('/')
@@ -485,6 +509,10 @@ ${request.prompt}`;
         clearTimeout(timeoutId);
 
         if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          // Distinguish user cancellation from timeout
+          if (signal?.aborted) {
+            return { success: false, cancelled: true };
+          }
           return {
             success: false,
             error: `Request timeout: ${providerConfig.providerName} took too long to respond`,

@@ -359,16 +359,10 @@ export function createInputSection(
     onClick: onSubmit,
   });
 
-  // If request is active, show loading state
+  // If request is active, show cancel state
   if (activeRequest) {
-    generateBtn.disabled = true;
-    generateBtn.classList.add('ai-widget-loading');
-    generateBtn.textContent = '';
-
-    const loadingDots = document.createElement('span');
-    loadingDots.className = 'ai-widget-loading-dots';
-    loadingDots.textContent = '...';
-    generateBtn.appendChild(loadingDots);
+    generateBtn.textContent = 'Cancel';
+    generateBtn.classList.add('ai-widget-cancel-mode');
   }
 
   textareaContainer.appendChild(textarea);

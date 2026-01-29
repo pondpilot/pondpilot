@@ -6,9 +6,6 @@ export const AI_ASSISTANT_TIMINGS = {
   /** Delay for schema context updates to ensure connection pool is ready */
   SCHEMA_UPDATE_DELAY: 100,
 
-  /** Interval for loading dots animation during AI request */
-  LOADING_DOTS_INTERVAL: 500,
-
   /** Duration to display error messages in textarea before reset */
   ERROR_DISPLAY_DURATION: 3000,
 
@@ -97,7 +94,6 @@ export const UI_SELECTORS = {
   INPUT_SECTION: '.ai-widget-input-section',
   TEXTAREA: '.ai-widget-textarea',
   GENERATE_BUTTON: '.ai-widget-generate',
-  LOADING: 'ai-widget-loading',
 
   // Context section classes
   CONTEXT: '.ai-widget-context',

@@ -189,15 +189,21 @@
   color: #fdfdfd;
 }
 
-.ai-widget-loading-dots {
-  animation: ai-loading-dots 1.5s infinite;
+.ai-widget-generate.ai-widget-cancel-mode {
+  background-color: #6b7280;
 }
 
-@keyframes ai-loading-dots {
-  0% { opacity: 0.3; }
-  33% { opacity: 1; }
-  66% { opacity: 0.3; }
-  100% { opacity: 0.3; }
+.ai-widget-generate.ai-widget-cancel-mode:hover {
+  background-color: #4b5563;
+  opacity: 1;
+}
+
+[data-mantine-color-scheme="dark"] .ai-widget-generate.ai-widget-cancel-mode {
+  background-color: #4b5563;
+}
+
+[data-mantine-color-scheme="dark"] .ai-widget-generate.ai-widget-cancel-mode:hover {
+  background-color: #6b7280;
 }
 
 .ai-widget-select {
