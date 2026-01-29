@@ -33,7 +33,6 @@ import {
 } from '../../../../models/ai-service';
 import { getAIConfig, saveAIConfig } from '../../../../utils/ai-config';
 import { getAIService } from '../../../../utils/ai-service';
-import { clearDemoToken } from '../../../../utils/polly-token-service';
 
 export const AISettings = () => {
   const [config, setConfig] = useState<AIServiceConfig>(() => getAIConfig());
@@ -57,10 +56,6 @@ export const AISettings = () => {
       const provider = AI_PROVIDERS.find((p) => p.id === value);
       if (provider) {
         setConfig((prev) => {
-          // Clear cached demo token when switching away from Polly
-          if (isPollyProvider(prev.provider) && !isPollyProvider(value)) {
-            clearDemoToken();
-          }
           // Ensure apiKeys exists
           const apiKeys = prev.apiKeys || {};
 

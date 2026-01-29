@@ -1,5 +1,4 @@
 import { sanitizeErrorMessage } from './error-sanitizer';
-import { getDemoToken } from './polly-token-service';
 import { POLLY_CONFIG, PROVIDER_IDS, AI_SERVICE_CONFIG } from '../constants/ai';
 import {
   AIRequest,
@@ -140,26 +139,6 @@ export class AIService {
   }
 
   /**
-   * Acquire authentication token for Polly AI proxy
-   */
-  private async getPollyAuthToken(): Promise<{ token?: string; error?: AIResponse }> {
-    try {
-      const token = await getDemoToken();
-      return { token };
-    } catch (tokenError) {
-      return {
-        error: {
-          success: false,
-          error:
-            tokenError instanceof Error
-              ? `Failed to authenticate with ${POLLY_CONFIG.DISPLAY_NAME}: ${sanitizeErrorMessage(tokenError.message)}`
-              : `Failed to authenticate with ${POLLY_CONFIG.DISPLAY_NAME}`,
-        },
-      };
-    }
-  }
-
-  /**
    * Build request body for Polly AI proxy (OpenAI-compatible format)
    */
   private buildPollyRequestBody(request: AIRequest): ChatCompletionRequestBody {
@@ -198,18 +177,16 @@ export class AIService {
    */
   private async sendPollyRequest(
     requestBody: ChatCompletionRequestBody,
-    token: string,
   ): Promise<{ response?: Response; error?: AIResponse }> {
     const baseUrl = getPollyProxyUrl();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), POLLY_CONFIG.TIMEOUT_MS);
 
     try {
-      const response = await fetch(`${baseUrl}/ai/chat`, {
+      const response = await fetch(`${baseUrl}/v1/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(requestBody),
         signal: controller.signal,
@@ -234,19 +211,12 @@ export class AIService {
   }
 
   /**
-   * Call the Polly AI proxy endpoint using demo token authentication
+   * Call the Polly AI proxy endpoint (public, no authentication required)
    */
   private async callPollyProxy(request: AIRequest): Promise<AIResponse> {
     try {
-      const authResult = await this.getPollyAuthToken();
-      if (authResult.error || !authResult.token) {
-        return (
-          authResult.error ?? { success: false, error: 'Failed to obtain authentication token' }
-        );
-      }
-
       const requestBody = this.buildPollyRequestBody(request);
-      const sendResult = await this.sendPollyRequest(requestBody, authResult.token);
+      const sendResult = await this.sendPollyRequest(requestBody);
 
       if (sendResult.error || !sendResult.response) {
         return sendResult.error ?? { success: false, error: 'Failed to send request' };

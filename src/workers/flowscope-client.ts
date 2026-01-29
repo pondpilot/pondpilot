@@ -223,8 +223,13 @@ class FlowScopeClient {
   }
 }
 
-// Singleton instance for the application
+// Singleton instance for background operations (split, analyze)
 let clientInstance: FlowScopeClient | null = null;
+
+// Separate singleton for interactive completion requests.
+// Completions run on a dedicated worker so they are never blocked
+// by long-running split/analyze operations on the main worker.
+let completionClientInstance: FlowScopeClient | null = null;
 
 export function getFlowScopeClient(): FlowScopeClient {
   if (!clientInstance) {
@@ -233,10 +238,26 @@ export function getFlowScopeClient(): FlowScopeClient {
   return clientInstance;
 }
 
-export function terminateFlowScopeClient(): void {
+/**
+ * Returns a FlowScopeClient dedicated to completion requests.
+ * Uses a separate Web Worker so that completionItems() is never
+ * blocked by split() or analyze() running on the main worker.
+ */
+export function getCompletionClient(): FlowScopeClient {
+  if (!completionClientInstance) {
+    completionClientInstance = new FlowScopeClient();
+  }
+  return completionClientInstance;
+}
+
+export function terminateFlowScopeClients(): void {
   if (clientInstance) {
     clientInstance.terminate();
     clientInstance = null;
+  }
+  if (completionClientInstance) {
+    completionClientInstance.terminate();
+    completionClientInstance = null;
   }
 }
 
