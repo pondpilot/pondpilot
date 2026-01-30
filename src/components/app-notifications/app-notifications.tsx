@@ -3,10 +3,13 @@ import {
   IconAlertCircleFilled,
   IconCircleCheckFilled,
   IconCircleXFilled,
+  IconCopy,
   IconInfoCircleFilled,
 } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { ReactNode } from 'react';
+
+const ERROR_MESSAGE_MAX_LENGTH = 200;
 
 const classNames = {
   root: 'w-[424px] right-[-20px] bg-backgroundInverse-light dark:bg-backgroundInverse-dark rounded-2xl',
@@ -45,7 +48,41 @@ const showAppAlert = (data: NotificationData, type: 'info' | 'success' | 'warnin
 export const showAlert = (data: NotificationData) => showAppAlert(data, 'info');
 export const showSuccess = (data: NotificationData) => showAppAlert(data, 'success');
 export const showWarning = (data: NotificationData) => showAppAlert(data, 'warning');
-export const showError = (data: NotificationData) => showAppAlert(data, 'error');
+
+/**
+ * Show an error notification with a "Copy Error" button and automatic
+ * truncation for long messages.
+ */
+export const showError = (data: NotificationData) => {
+  const rawMessage = typeof data.message === 'string' ? data.message : null;
+
+  if (!rawMessage) {
+    return showAppAlert(data, 'error');
+  }
+
+  const isLong = rawMessage.length > ERROR_MESSAGE_MAX_LENGTH;
+  const displayMessage = isLong
+    ? `${rawMessage.slice(0, ERROR_MESSAGE_MAX_LENGTH)}…`
+    : rawMessage;
+
+  const messageContent = (
+    <div className="flex flex-col gap-2">
+      <div className="break-words">{displayMessage}</div>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => navigator.clipboard.writeText(rawMessage)}
+          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
+        >
+          <IconCopy size={12} />
+          Copy Error
+        </button>
+      </div>
+    </div>
+  );
+
+  return showAppAlert({ ...data, message: messageContent as ReactNode }, 'error');
+};
 
 interface NotificationWithActionData extends NotificationData {
   action?: {
@@ -63,21 +100,40 @@ const showAppAlertWithAction = (
   // Generate an ID for the notification if not provided
   const notificationId = notificationData.id || `${type}-${Date.now()}`;
 
-  // Create custom message with action button if provided
-  const messageContent = action ? (
+  const rawMessage = typeof data.message === 'string' ? data.message : null;
+  const isError = type === 'error' && rawMessage;
+  const isLongError = isError && rawMessage.length > ERROR_MESSAGE_MAX_LENGTH;
+  const displayMessage = isLongError
+    ? `${rawMessage.slice(0, ERROR_MESSAGE_MAX_LENGTH)}…`
+    : data.message;
+
+  // Create custom message with action button(s) if provided
+  const messageContent = action || isError ? (
     <div className="flex flex-col gap-2">
-      {data.message && <div>{data.message}</div>}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => {
-            notifications.hide(notificationId);
-            action.onClick();
-          }}
-          className="px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
-        >
-          {action.label}
-        </button>
+      {displayMessage && <div className="break-words">{displayMessage}</div>}
+      <div className="flex justify-end gap-2">
+        {isError && (
+          <button
+            type="button"
+            onClick={() => navigator.clipboard.writeText(rawMessage)}
+            className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
+          >
+            <IconCopy size={12} />
+            Copy Error
+          </button>
+        )}
+        {action && (
+          <button
+            type="button"
+            onClick={() => {
+              notifications.hide(notificationId);
+              action.onClick();
+            }}
+            className="px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
+          >
+            {action.label}
+          </button>
+        )}
       </div>
     </div>
   ) : (

@@ -149,6 +149,14 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
     const domNode = this.editor.getDomNode();
     if (!domNode) return;
     domNode.classList.toggle('ai-viewzones-interactive', interactive);
+
+    const viewZones = domNode.querySelector('.view-zones') as HTMLElement | null;
+    if (!viewZones) return;
+    if (interactive) {
+      viewZones.style.zIndex = '50';
+    } else {
+      viewZones.style.zIndex = '';
+    }
   }
 
   private clearResizeObserver(kind: 'assistant' | 'structured') {
