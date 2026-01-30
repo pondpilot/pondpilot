@@ -3,15 +3,30 @@
  * Converted from CodeMirror EditorView.baseTheme to regular CSS for Monaco compatibility
  */
 
+:root {
+  --ai-widget-width: 800px;
+  --ai-widget-min-width: 600px;
+}
+
+/* ========================================
+   View Zone Interactivity
+   ======================================== */
+
+/* Elevate .view-zones above .view-lines so that interactive AI widgets
+   receive pointer events. Toggled via a class on the editor root. */
+.ai-viewzones-interactive .view-zones {
+  z-index: 10;
+}
+
 /* ========================================
    Base Widget Styles
    ======================================== */
 
 .cm-ai-assistant-widget {
   display: block;
-  width: 500px;
-  min-width: 400px;
-  max-width: 500px;
+  width: min(var(--ai-widget-width), calc(100vw - 80px));
+  min-width: var(--ai-widget-min-width);
+  max-width: var(--ai-widget-width);
   margin: 0;
   padding: 0;
   position: relative;
@@ -27,7 +42,6 @@
 
 .ai-widget-container {
   width: 100%;
-  min-width: 400px;
   border: 1px solid #d1d5db;
   border-radius: 12px;
   background-color: #fff;
@@ -185,15 +199,21 @@
   color: #fdfdfd;
 }
 
-.ai-widget-loading-dots {
-  animation: ai-loading-dots 1.5s infinite;
+.ai-widget-generate.ai-widget-cancel-mode {
+  background-color: #6b7280;
 }
 
-@keyframes ai-loading-dots {
-  0% { opacity: 0.3; }
-  33% { opacity: 1; }
-  66% { opacity: 0.3; }
-  100% { opacity: 0.3; }
+.ai-widget-generate.ai-widget-cancel-mode:hover {
+  background-color: #4b5563;
+  opacity: 1;
+}
+
+[data-mantine-color-scheme="dark"] .ai-widget-generate.ai-widget-cancel-mode {
+  background-color: #4b5563;
+}
+
+[data-mantine-color-scheme="dark"] .ai-widget-generate.ai-widget-cancel-mode:hover {
+  background-color: #6b7280;
 }
 
 .ai-widget-select {
@@ -602,8 +622,8 @@
 
 .structured-response-container {
   width: 100%;
-  max-width: 500px;
-  min-width: 400px;
+  max-width: var(--ai-widget-width);
+  min-width: var(--ai-widget-min-width);
   max-height: 60vh;
   border: 1px solid #d1d5db;
   border-radius: 8px;

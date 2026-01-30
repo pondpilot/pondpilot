@@ -47,6 +47,8 @@ export interface AIResponse {
   content?: string;
   structuredResponse?: StructuredSQLResponse;
   error?: string;
+  /** Request was intentionally aborted by the user. Treat as non-error in UI. */
+  cancelled?: boolean;
 }
 
 export const AI_PROVIDERS: AIProvider[] = [

@@ -15,6 +15,7 @@ import { StructuredSQLResponse } from '../../../models/structured-ai-response';
 
 export interface AIAssistantHandlers {
   hideWidget: () => void;
+  cancelRequest: () => void;
   handleSubmit: (textarea: HTMLTextAreaElement, generateBtn: HTMLButtonElement) => Promise<void>;
   handleTextareaKeyDown: (event: KeyboardEvent, onSubmit: () => void, onClose: () => void) => void;
   handleContainerKeyDown: (event: KeyboardEvent, onClose: () => void) => void;
@@ -27,6 +28,8 @@ export interface AIAssistantHandlerCallbacks {
   onInsertResponse: (text: string) => void;
   onActiveRequestChange: (active: boolean) => void;
   getActiveRequest: () => boolean;
+  setAbortController: (controller: AbortController | null) => void;
+  getAbortController: () => AbortController | null;
 }
 
 /**
@@ -40,8 +43,13 @@ export function createAIAssistantHandlers(
   errorContext?: TabExecutionError,
   cursorContext?: { isOnEmptyLine: boolean; hasExistingQuery: boolean },
 ): AIAssistantHandlers {
+  const cancelRequest = () => {
+    callbacks.getAbortController()?.abort();
+  };
+
   const hideWidget = () => {
     if (callbacks.getActiveRequest()) {
+      cancelRequest();
       return;
     }
     callbacks.onHide();
@@ -58,21 +66,15 @@ export function createAIAssistantHandlers(
       return;
     }
 
+    const abortController = new AbortController();
+    callbacks.setAbortController(abortController);
     callbacks.onActiveRequestChange(true);
 
-    // Disable controls and show loading state
-    generateBtn.disabled = true;
-    textarea.disabled = true;
-
-    generateBtn.classList.add('ai-widget-loading');
+    // Show cancel-mode button instead of disabled loading
     const originalText = generateBtn.textContent;
-    generateBtn.textContent = '';
-
-    // Create loading dots element
-    const loadingDots = document.createElement('span');
-    loadingDots.className = 'ai-widget-loading-dots';
-    loadingDots.textContent = '...';
-    generateBtn.appendChild(loadingDots);
+    generateBtn.textContent = 'Cancel';
+    generateBtn.classList.add('ai-widget-cancel-mode');
+    textarea.readOnly = true;
 
     try {
       // Extract mentioned tables, databases, and scripts from the query
@@ -176,7 +178,14 @@ export function createAIAssistantHandlers(
         cursorContext,
       };
 
-      const response = await services.aiService.generateSQLAssistance(aiRequest);
+      const response = await services.aiService.generateSQLAssistance(
+        aiRequest,
+        abortController.signal,
+      );
+
+      if (response.cancelled) {
+        return;
+      }
 
       if (response.success) {
         // Save successful prompts to history (use original query, not enhanced)
@@ -195,15 +204,18 @@ export function createAIAssistantHandlers(
         handleAIServiceError(response.error, textarea, query);
       }
     } catch (error) {
-      handleAIServiceError(error, textarea, query);
+      // Suppress errors caused by user cancellation
+      if (!abortController.signal.aborted) {
+        handleAIServiceError(error, textarea, query);
+      }
     } finally {
+      callbacks.setAbortController(null);
       callbacks.onActiveRequestChange(false);
 
-      generateBtn.classList.remove('ai-widget-loading');
-      generateBtn.innerHTML = '';
+      generateBtn.classList.remove('ai-widget-cancel-mode');
       generateBtn.textContent = originalText || 'Generate';
       generateBtn.disabled = false;
-      textarea.disabled = false;
+      textarea.readOnly = false;
     }
   };
 
@@ -308,6 +320,7 @@ export function createAIAssistantHandlers(
 
   return {
     hideWidget,
+    cancelRequest,
     handleSubmit,
     handleTextareaKeyDown,
     handleContainerKeyDown,

@@ -359,16 +359,10 @@ export function createInputSection(
     onClick: onSubmit,
   });
 
-  // If request is active, show loading state
+  // If request is active, show cancel state
   if (activeRequest) {
-    generateBtn.disabled = true;
-    generateBtn.classList.add('ai-widget-loading');
-    generateBtn.textContent = '';
-
-    const loadingDots = document.createElement('span');
-    loadingDots.className = 'ai-widget-loading-dots';
-    loadingDots.textContent = '...';
-    generateBtn.appendChild(loadingDots);
+    generateBtn.textContent = 'Cancel';
+    generateBtn.classList.add('ai-widget-cancel-mode');
   }
 
   textareaContainer.appendChild(textarea);
@@ -405,12 +399,14 @@ export function assembleAIAssistantWidget(components: {
   container.contentEditable = 'false';
   container.tabIndex = -1;
 
-  // Add explicit inline styles as fallback for Monaco content widgets
-  // which are positioned absolutely outside normal document flow.
-  // These values must match .cm-ai-assistant-widget in ai-widget.css
-  container.style.width = '500px';
-  container.style.minWidth = '400px';
-  container.style.maxWidth = '500px';
+  // Apply CSS-variable–driven dimensions as inline fallback for Monaco
+  // content widgets that are rendered outside normal document flow.
+  const rootStyles = getComputedStyle(document.documentElement);
+  const widgetWidth = rootStyles.getPropertyValue('--ai-widget-width').trim() || '800px';
+  const widgetMinWidth = rootStyles.getPropertyValue('--ai-widget-min-width').trim() || '600px';
+  container.style.width = widgetWidth;
+  container.style.minWidth = widgetMinWidth;
+  container.style.maxWidth = widgetWidth;
 
   // Detect and apply the current theme from the parent document
   const rootElement = document.documentElement;

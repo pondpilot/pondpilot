@@ -168,6 +168,8 @@ export function preventEventPropagation(element: HTMLElement): void {
     'keydown',
     'keyup',
     'keypress',
+    'pointerdown',
+    'pointerup',
     'mousedown',
     'click',
     'copy',
