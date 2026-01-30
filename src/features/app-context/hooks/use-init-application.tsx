@@ -30,6 +30,22 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
 
   for (const [id, dataSource] of dataSources) {
     if (isIcebergCatalog(dataSource)) {
+      // Catalogs created via SQL ATTACH don't store credentials — skip reconnection
+      // and let the user re-enter credentials via the IcebergReconnectModal.
+      const hasCredentials =
+        dataSource.authType !== 'none' &&
+        !!(
+          dataSource.clientId ||
+          dataSource.clientSecret ||
+          dataSource.token ||
+          dataSource.awsKeyId
+        );
+
+      if (!hasCredentials) {
+        updateIcebergCatalogConnectionState(id, 'credentials-required');
+        continue;
+      }
+
       try {
         updateIcebergCatalogConnectionState(id, 'connecting');
 
