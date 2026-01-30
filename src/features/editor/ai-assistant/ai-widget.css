@@ -9,6 +9,16 @@
 }
 
 /* ========================================
+   View Zone Interactivity
+   ======================================== */
+
+/* Elevate .view-zones above .view-lines so that interactive AI widgets
+   receive pointer events. Toggled via a class on the editor root. */
+.ai-viewzones-interactive .view-zones {
+  z-index: 10;
+}
+
+/* ========================================
    Base Widget Styles
    ======================================== */
 

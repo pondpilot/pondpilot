@@ -82,25 +82,46 @@ const createMonacoEditorAdapter = (
   },
 });
 
-const createContentWidget = (
-  id: string,
-  domNode: HTMLElement,
-  position: monaco.Position,
-): monaco.editor.IContentWidget => ({
-  getId: () => id,
-  getDomNode: () => domNode,
-  getPosition: () => ({
-    position,
-    preference: [
-      monaco.editor.ContentWidgetPositionPreference.BELOW,
-      monaco.editor.ContentWidgetPositionPreference.ABOVE,
-    ],
-  }),
-});
+/**
+ * Measure the rendered height of a DOM element by temporarily
+ * attaching it off-screen inside a container that matches the
+ * target width context.
+ *
+ * @param dom - The element to measure.
+ * @param container - The container whose width context should be
+ *   used for measurement (e.g. the editor DOM node). Falls back
+ *   to document.body when not provided.
+ */
+function measureDomHeight(dom: HTMLElement, container?: HTMLElement | null): number {
+  const savedPosition = dom.style.position;
+  const savedVisibility = dom.style.visibility;
+  const savedLeft = dom.style.left;
+
+  const parent = container ?? document.body;
+
+  dom.style.position = 'absolute';
+  dom.style.visibility = 'hidden';
+  dom.style.left = '-9999px';
+
+  parent.appendChild(dom);
+  try {
+    const { height } = dom.getBoundingClientRect();
+    return Math.ceil(height);
+  } finally {
+    parent.removeChild(dom);
+    dom.style.position = savedPosition;
+    dom.style.visibility = savedVisibility;
+    dom.style.left = savedLeft;
+  }
+}
 
 class MonacoAIAssistantManager implements monaco.IDisposable {
-  private assistantWidget: monaco.editor.IContentWidget | null = null;
-  private structuredWidget: monaco.editor.IContentWidget | null = null;
+  private assistantZoneId: string | null = null;
+  private structuredZoneId: string | null = null;
+  private assistantResizeObserver?: ResizeObserver;
+  private structuredResizeObserver?: ResizeObserver;
+  private assistantResizeRaf: number | null = null;
+  private structuredResizeRaf: number | null = null;
   private activeRequest = false;
   private abortController: AbortController | null = null;
   private currentPrompt: string | undefined;
@@ -112,8 +133,144 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
     private options: AIAssistantManagerOptions,
   ) {}
 
+  /**
+   * Elevate `.view-zones` above `.view-lines` so that interactive widgets
+   * inside a view zone receive pointer events. Without this, `.view-lines`
+   * (rendered after `.view-zones` in the DOM) intercepts all mouse events.
+   *
+   * Uses a CSS class on the editor root so the rule is defined in the
+   * stylesheet rather than via inline styles.
+   *
+   * Note: while any AI zone is visible, ALL view zones in this editor
+   * are elevated. This is acceptable because the toggle is scoped to
+   * the lifetime of an AI zone.
+   */
+  private setViewZonesInteractive(interactive: boolean) {
+    const domNode = this.editor.getDomNode();
+    if (!domNode) return;
+    domNode.classList.toggle('ai-viewzones-interactive', interactive);
+  }
+
+  private clearResizeObserver(kind: 'assistant' | 'structured') {
+    if (kind === 'assistant') {
+      this.assistantResizeObserver?.disconnect();
+      this.assistantResizeObserver = undefined;
+      if (this.assistantResizeRaf !== null) {
+        window.cancelAnimationFrame(this.assistantResizeRaf);
+        this.assistantResizeRaf = null;
+      }
+      return;
+    }
+
+    this.structuredResizeObserver?.disconnect();
+    this.structuredResizeObserver = undefined;
+    if (this.structuredResizeRaf !== null) {
+      window.cancelAnimationFrame(this.structuredResizeRaf);
+      this.structuredResizeRaf = null;
+    }
+  }
+
+  private installResizeObserver(
+    domNode: HTMLElement,
+    zone: monaco.editor.IViewZone,
+    getZoneId: () => string | null,
+    kind: 'assistant' | 'structured',
+  ) {
+    if (typeof ResizeObserver === 'undefined') return;
+
+    this.clearResizeObserver(kind);
+
+    let lastHeight = zone.heightInPx;
+
+    const updateHeight = () => {
+      const zoneId = getZoneId();
+      if (!zoneId) return;
+      const newHeight = Math.ceil(domNode.getBoundingClientRect().height);
+      if (!newHeight || newHeight === lastHeight) return;
+      lastHeight = newHeight;
+      zone.heightInPx = newHeight;
+      this.editor.changeViewZones((accessor) => {
+        accessor.layoutZone(zoneId);
+      });
+    };
+
+    const observer = new ResizeObserver(() => {
+      if (kind === 'assistant') {
+        if (this.assistantResizeRaf !== null) return;
+        this.assistantResizeRaf = window.requestAnimationFrame(() => {
+          this.assistantResizeRaf = null;
+          updateHeight();
+        });
+        return;
+      }
+
+      if (this.structuredResizeRaf !== null) return;
+      this.structuredResizeRaf = window.requestAnimationFrame(() => {
+        this.structuredResizeRaf = null;
+        updateHeight();
+      });
+    });
+
+    observer.observe(domNode);
+
+    if (kind === 'assistant') {
+      this.assistantResizeObserver = observer;
+    } else {
+      this.structuredResizeObserver = observer;
+    }
+  }
+
+  /**
+   * Create a view zone in the editor below the given line, measure
+   * its height within the editor container, and enable pointer
+   * interactivity for all view zones.
+   */
+  private addInteractiveZone(
+    afterLineNumber: number,
+    domNode: HTMLElement,
+    kind: 'assistant' | 'structured',
+  ): string {
+    const heightInPx = measureDomHeight(domNode, this.editor.getDomNode());
+    let zoneId = '';
+    const zone: monaco.editor.IViewZone = {
+      afterLineNumber,
+      heightInPx,
+      domNode,
+      suppressMouseDown: false,
+    };
+    this.editor.changeViewZones((accessor) => {
+      zoneId = accessor.addZone(zone);
+    });
+    if (kind === 'assistant') {
+      this.assistantZoneId = zoneId;
+    } else {
+      this.structuredZoneId = zoneId;
+    }
+    this.setViewZonesInteractive(true);
+    this.installResizeObserver(
+      domNode,
+      zone,
+      () => (kind === 'assistant' ? this.assistantZoneId : this.structuredZoneId),
+      kind,
+    );
+    return zoneId;
+  }
+
+  /** Remove a view zone and disable interactivity when no AI zones remain. */
+  private removeZone(zoneId: string) {
+    this.editor.changeViewZones((accessor) => {
+      accessor.removeZone(zoneId);
+    });
+    if (!this.assistantZoneId && !this.structuredZoneId) {
+      this.setViewZonesInteractive(false);
+    }
+  }
+
   private notifyVisibility() {
-    this.options.onVisibilityChange?.(!!this.assistantWidget, !!this.structuredWidget);
+    this.options.onVisibilityChange?.(
+      !!this.assistantZoneId,
+      !!this.structuredZoneId,
+    );
   }
 
   private buildAdapter(): AIAssistantEditorAdapter {
@@ -366,9 +523,9 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
   }
 
   async showAssistant(errorContext?: TabExecutionError) {
-    if (this.assistantWidget) return;
+    if (this.assistantZoneId) return;
 
-    if (this.structuredWidget) {
+    if (this.structuredZoneId) {
       this.hideStructuredResponse();
     }
 
@@ -383,29 +540,27 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
       return;
     }
 
-    // Anchor at column 1 so the wide panel stays left-aligned and
-    // does not get clipped or pushed off-screen on long lines.
-    const widgetPosition = new monaco.Position(cursorPosition.lineNumber, 1);
-    const widget = createContentWidget('ai-assistant-widget', dom, widgetPosition);
-    this.assistantWidget = widget;
-    this.editor.addContentWidget(widget);
-    this.editor.layoutContentWidget(widget);
+    this.addInteractiveZone(cursorPosition.lineNumber, dom, 'assistant');
     this.notifyVisibility();
 
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        const textarea = dom.querySelector(UI_SELECTORS.TEXTAREA) as HTMLTextAreaElement | null;
+        const textarea = dom.querySelector(
+          UI_SELECTORS.TEXTAREA,
+        ) as HTMLTextAreaElement | null;
         textarea?.focus();
       });
     });
   }
 
   hideAssistant() {
-    if (!this.assistantWidget) return;
+    if (!this.assistantZoneId) return;
     if (this.activeRequest) return;
 
-    this.editor.removeContentWidget(this.assistantWidget);
-    this.assistantWidget = null;
+    const zoneId = this.assistantZoneId;
+    this.assistantZoneId = null;
+    this.removeZone(zoneId);
+    this.clearResizeObserver('assistant');
     if (this.cleanup) {
       this.cleanup();
       this.cleanup = undefined;
@@ -415,10 +570,12 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
   }
 
   showStructuredResponse(response: StructuredSQLResponse) {
-    // Force hide assistant widget - bypass activeRequest guard since we're replacing it
-    if (this.assistantWidget) {
-      this.editor.removeContentWidget(this.assistantWidget);
-      this.assistantWidget = null;
+    // Force hide assistant zone - bypass activeRequest guard since we're replacing it
+    if (this.assistantZoneId) {
+      const zoneId = this.assistantZoneId;
+      this.assistantZoneId = null;
+      this.removeZone(zoneId);
+      this.clearResizeObserver('assistant');
       if (this.cleanup) {
         this.cleanup();
         this.cleanup = undefined;
@@ -428,28 +585,28 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
     const position = this.editor.getPosition();
     if (!position) return;
 
-    const widget = new StructuredResponseWidget(this.buildAdapter(), response, () => {
-      this.hideStructuredResponse();
-    });
+    const widget = new StructuredResponseWidget(
+      this.buildAdapter(),
+      response,
+      () => {
+        this.hideStructuredResponse();
+      },
+    );
 
     const dom = widget.toDOM();
-    // Anchor at column 1 so the wide panel stays left-aligned and
-    // does not get clipped or pushed off-screen on long lines.
-    const widgetPosition = new monaco.Position(position.lineNumber, 1);
-    const contentWidget = createContentWidget('ai-structured-response', dom, widgetPosition);
-    this.structuredWidget = contentWidget;
-    this.editor.addContentWidget(contentWidget);
-    this.editor.layoutContentWidget(contentWidget);
+    this.addInteractiveZone(position.lineNumber, dom, 'structured');
     this.structuredCleanup = () => widget.destroy();
 
     this.notifyVisibility();
   }
 
   hideStructuredResponse() {
-    if (!this.structuredWidget) return;
+    if (!this.structuredZoneId) return;
 
-    this.editor.removeContentWidget(this.structuredWidget);
-    this.structuredWidget = null;
+    const zoneId = this.structuredZoneId;
+    this.structuredZoneId = null;
+    this.removeZone(zoneId);
+    this.clearResizeObserver('structured');
     if (this.structuredCleanup) {
       this.structuredCleanup();
       this.structuredCleanup = undefined;
@@ -459,15 +616,15 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
   }
 
   isVisible(): boolean {
-    return Boolean(this.assistantWidget || this.structuredWidget);
+    return Boolean(this.assistantZoneId || this.structuredZoneId);
   }
 
   isAssistantVisible(): boolean {
-    return Boolean(this.assistantWidget);
+    return Boolean(this.assistantZoneId);
   }
 
   isStructuredVisible(): boolean {
-    return Boolean(this.structuredWidget);
+    return Boolean(this.structuredZoneId);
   }
 
   dispose() {
