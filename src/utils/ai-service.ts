@@ -97,19 +97,27 @@ export class AIService {
     }
 
     if (this.config.provider === PROVIDER_IDS.OPENAI) {
-      return this.callOpenAICompatible(request, {
-        baseUrl: 'https://api.openai.com/v1',
-        authHeader: `Bearer ${this.config.apiKey}`,
-        providerName: 'OpenAI',
-      }, signal);
+      return this.callOpenAICompatible(
+        request,
+        {
+          baseUrl: 'https://api.openai.com/v1',
+          authHeader: `Bearer ${this.config.apiKey}`,
+          providerName: 'OpenAI',
+        },
+        signal,
+      );
     }
 
     if (this.config.provider === PROVIDER_IDS.ANTHROPIC) {
-      return this.callOpenAICompatible(request, {
-        baseUrl: 'https://api.anthropic.com/v1',
-        authHeader: `x-api-key ${this.config.apiKey}`,
-        providerName: 'Anthropic',
-      }, signal);
+      return this.callOpenAICompatible(
+        request,
+        {
+          baseUrl: 'https://api.anthropic.com/v1',
+          authHeader: `x-api-key ${this.config.apiKey}`,
+          providerName: 'Anthropic',
+        },
+        signal,
+      );
     }
 
     if (this.config.provider === PROVIDER_IDS.CUSTOM) {
@@ -125,11 +133,15 @@ export class AIService {
           ? `x-api-key ${this.config.apiKey}`
           : `Bearer ${this.config.apiKey}`;
 
-      return this.callOpenAICompatible(request, {
-        baseUrl: this.config.customEndpoint,
-        authHeader,
-        providerName: 'Custom Endpoint',
-      }, signal);
+      return this.callOpenAICompatible(
+        request,
+        {
+          baseUrl: this.config.customEndpoint,
+          authHeader,
+          providerName: 'Custom Endpoint',
+        },
+        signal,
+      );
     }
 
     return {

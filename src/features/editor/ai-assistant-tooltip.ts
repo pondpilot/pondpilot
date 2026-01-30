@@ -275,10 +275,7 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
   }
 
   private notifyVisibility() {
-    this.options.onVisibilityChange?.(
-      !!this.assistantZoneId,
-      !!this.structuredZoneId,
-    );
+    this.options.onVisibilityChange?.(!!this.assistantZoneId, !!this.structuredZoneId);
   }
 
   private buildAdapter(): AIAssistantEditorAdapter {
@@ -553,9 +550,7 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
 
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        const textarea = dom.querySelector(
-          UI_SELECTORS.TEXTAREA,
-        ) as HTMLTextAreaElement | null;
+        const textarea = dom.querySelector(UI_SELECTORS.TEXTAREA) as HTMLTextAreaElement | null;
         textarea?.focus();
       });
     });
@@ -593,13 +588,9 @@ class MonacoAIAssistantManager implements monaco.IDisposable {
     const position = this.editor.getPosition();
     if (!position) return;
 
-    const widget = new StructuredResponseWidget(
-      this.buildAdapter(),
-      response,
-      () => {
-        this.hideStructuredResponse();
-      },
-    );
+    const widget = new StructuredResponseWidget(this.buildAdapter(), response, () => {
+      this.hideStructuredResponse();
+    });
 
     const dom = widget.toDOM();
     this.addInteractiveZone(position.lineNumber, dom, 'structured');

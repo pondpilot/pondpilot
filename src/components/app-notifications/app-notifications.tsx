@@ -61,9 +61,7 @@ export const showError = (data: NotificationData) => {
   }
 
   const isLong = rawMessage.length > ERROR_MESSAGE_MAX_LENGTH;
-  const displayMessage = isLong
-    ? `${rawMessage.slice(0, ERROR_MESSAGE_MAX_LENGTH)}…`
-    : rawMessage;
+  const displayMessage = isLong ? `${rawMessage.slice(0, ERROR_MESSAGE_MAX_LENGTH)}…` : rawMessage;
 
   const messageContent = (
     <div className="flex flex-col gap-2">
@@ -108,37 +106,38 @@ const showAppAlertWithAction = (
     : data.message;
 
   // Create custom message with action button(s) if provided
-  const messageContent = action || isError ? (
-    <div className="flex flex-col gap-2">
-      {displayMessage && <div className="break-words">{displayMessage}</div>}
-      <div className="flex justify-end gap-2">
-        {isError && (
-          <button
-            type="button"
-            onClick={() => navigator.clipboard.writeText(rawMessage)}
-            className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
-          >
-            <IconCopy size={12} />
-            Copy Error
-          </button>
-        )}
-        {action && (
-          <button
-            type="button"
-            onClick={() => {
-              notifications.hide(notificationId);
-              action.onClick();
-            }}
-            className="px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
-          >
-            {action.label}
-          </button>
-        )}
+  const messageContent =
+    action || isError ? (
+      <div className="flex flex-col gap-2">
+        {displayMessage && <div className="break-words">{displayMessage}</div>}
+        <div className="flex justify-end gap-2">
+          {isError && (
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(rawMessage)}
+              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
+            >
+              <IconCopy size={12} />
+              Copy Error
+            </button>
+          )}
+          {action && (
+            <button
+              type="button"
+              onClick={() => {
+                notifications.hide(notificationId);
+                action.onClick();
+              }}
+              className="px-3 py-1 text-xs font-medium bg-backgroundAccent-light dark:bg-backgroundAccent-dark text-textContrast-light dark:text-textContrast-dark rounded hover:opacity-90 transition-opacity"
+            >
+              {action.label}
+            </button>
+          )}
+        </div>
       </div>
-    </div>
-  ) : (
-    data.message
-  );
+    ) : (
+      data.message
+    );
 
   return showAppAlert(
     {
