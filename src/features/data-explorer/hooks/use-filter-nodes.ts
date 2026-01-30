@@ -9,6 +9,7 @@ type UseFilterNodesProps = {
   fileSystemNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   localDbNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   remoteDatabaseNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
+  icebergCatalogNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   activeFilter: DataExplorerFilterType;
   fileTypeFilter: FileTypeFilter;
   searchQuery: string;
@@ -19,6 +20,7 @@ export const useFilterNodes = ({
   fileSystemNodes,
   localDbNodes,
   remoteDatabaseNodes,
+  icebergCatalogNodes,
   activeFilter,
   fileTypeFilter,
   searchQuery,
@@ -46,6 +48,7 @@ export const useFilterNodes = ({
     const showFileSystem = showAll || activeFilter === 'files';
     const showLocalDbs = showAll || activeFilter === 'databases';
     const showRemoteDbs = showAll || activeFilter === 'remote';
+    const showIcebergCatalogs = showAll || activeFilter === 'remote';
 
     // Create a new expanded state for search
     const expandedState: Record<string, boolean> = {};
@@ -75,15 +78,28 @@ export const useFilterNodes = ({
         )
       : remoteDatabaseNodes;
 
+    const filteredIcebergCatalogNodes = searchQuery
+      ? filterTreeNodes(
+          icebergCatalogNodes,
+          'all',
+          undefined,
+          undefined,
+          searchQuery,
+          expandedState,
+        )
+      : icebergCatalogNodes;
+
     return {
       filteredSections: {
         showSystemDb,
         showFileSystem,
         showLocalDbs,
         showRemoteDbs,
+        showIcebergCatalogs,
         filteredFileSystemNodes,
         filteredLocalDbNodes,
         filteredRemoteDbNodes,
+        filteredIcebergCatalogNodes,
       },
       searchExpandedState: searchQuery ? expandedState : {},
     };
@@ -95,6 +111,7 @@ export const useFilterNodes = ({
     searchQuery,
     localDbNodes,
     remoteDatabaseNodes,
+    icebergCatalogNodes,
   ]);
 
   return { filteredSections, searchExpandedState };

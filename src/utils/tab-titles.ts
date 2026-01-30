@@ -28,7 +28,12 @@ export function getSchemaBrowserTabTitle(
 
   if (sourceType === 'file') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
-    if (dataSource && dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db') {
+    if (
+      dataSource &&
+      dataSource.type !== 'attached-db' &&
+      dataSource.type !== 'remote-db' &&
+      dataSource.type !== 'iceberg-catalog'
+    ) {
       return `File: ${(dataSource as AnyFlatFileDataSource).viewName}`;
     }
     return 'File';
@@ -36,6 +41,20 @@ export function getSchemaBrowserTabTitle(
 
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
+    if (dataSource && dataSource.type === 'iceberg-catalog') {
+      let tabName = `Catalog: ${dataSource.catalogAlias}`;
+      if (tab.schemaName) {
+        tabName = `Schema: ${dataSource.catalogAlias}.${tab.schemaName}`;
+      }
+      if (tab.objectNames && tab.objectNames.length > 0) {
+        if (tab.objectNames.length === 1) {
+          tabName = `Table: ${dataSource.catalogAlias}.${tab.schemaName}.${tab.objectNames[0]}`;
+        } else {
+          tabName = `Tables: ${dataSource.catalogAlias}.${tab.schemaName} (${tab.objectNames.length} selected)`;
+        }
+      }
+      return tabName;
+    }
     if (dataSource && dataSource.type === 'attached-db') {
       let tabName = `Database: ${dataSource.dbName}`;
 
@@ -95,7 +114,12 @@ export function getSchemaBrowserDisplayTitle(
 
   if (sourceType === 'file') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
-    if (dataSource && dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db') {
+    if (
+      dataSource &&
+      dataSource.type !== 'attached-db' &&
+      dataSource.type !== 'remote-db' &&
+      dataSource.type !== 'iceberg-catalog'
+    ) {
       return {
         prefix: 'File:',
         title: (dataSource as AnyFlatFileDataSource).viewName,
@@ -106,6 +130,25 @@ export function getSchemaBrowserDisplayTitle(
 
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
+    if (dataSource && dataSource.type === 'iceberg-catalog') {
+      const alias = dataSource.catalogAlias;
+      if (tab.schemaName) {
+        if (tab.objectNames && tab.objectNames.length > 0) {
+          if (tab.objectNames.length === 1) {
+            return {
+              prefix: 'Table:',
+              title: `${alias}.${tab.schemaName}.${tab.objectNames[0]}`,
+            };
+          }
+          return {
+            prefix: 'Tables:',
+            title: `${alias}.${tab.schemaName} (${tab.objectNames.length} selected)`,
+          };
+        }
+        return { prefix: 'Schema:', title: `${alias}.${tab.schemaName}` };
+      }
+      return { prefix: 'Catalog:', title: alias };
+    }
     if (dataSource && dataSource.type === 'attached-db') {
       const { dbName } = dataSource;
 

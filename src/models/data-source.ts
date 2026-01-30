@@ -80,6 +80,102 @@ export interface XlsxSheetView extends FlatFileDataSource {
 
 export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView | JSONView | ReadStatView;
 
+export type IcebergAuthType = 'oauth2' | 'bearer' | 'sigv4' | 'none';
+
+export interface IcebergCatalog {
+  readonly type: 'iceberg-catalog';
+  id: PersistentDataSourceId;
+
+  /**
+   * Name used in the ATTACH ... AS clause
+   */
+  catalogAlias: string;
+
+  /**
+   * Warehouse value passed to ATTACH
+   */
+  warehouseName: string;
+
+  /**
+   * REST catalog endpoint URL
+   */
+  endpoint: string;
+
+  /**
+   * Authentication type for the catalog
+   */
+  authType: IcebergAuthType;
+
+  /**
+   * Connection state for handling network issues
+   */
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting' | 'credentials-required';
+
+  /**
+   * Error message if connection failed
+   */
+  connectionError?: string;
+
+  /**
+   * Timestamp of when this catalog was attached
+   */
+  attachedAt: number;
+
+  /**
+   * Optional comment/description
+   */
+  comment?: string;
+
+  /**
+   * Whether to use CORS proxy when connecting
+   */
+  useCorsProxy?: boolean;
+
+  /**
+   * DuckDB secret name for drop/recreate
+   */
+  secretName: string;
+
+  /**
+   * Endpoint type for managed services (GLUE, S3_TABLES)
+   */
+  endpointType?: 'GLUE' | 'S3_TABLES';
+
+  /**
+   * Default AWS region for SigV4 auth
+   */
+  defaultRegion?: string;
+
+  /**
+   * OAuth2 server URI for token exchange
+   */
+  oauth2ServerUri?: string;
+
+  // ──────────────────────────────────────────────────────────────────
+  // SECURITY NOTE: The credential fields below are stored in plaintext
+  // in the browser's IndexedDB. This enables auto-reconnect on page
+  // reload without re-prompting the user. Any script running on this
+  // origin can read them. This is acceptable for PondPilot's single-user
+  // local-first model, but should be revisited if the app is ever served
+  // in a multi-tenant or untrusted environment.
+  // ──────────────────────────────────────────────────────────────────
+
+  /** OAuth2 client ID */
+  clientId?: string;
+
+  /** OAuth2 client secret */
+  clientSecret?: string;
+
+  /** Bearer token */
+  token?: string;
+
+  /** AWS access key ID */
+  awsKeyId?: string;
+
+  /** AWS secret access key */
+  awsSecret?: string;
+}
+
 export interface LocalDB extends SingleFileDataSourceBase {
   readonly type: 'attached-db';
 
@@ -147,7 +243,7 @@ export interface RemoteDB {
   useCorsProxy?: boolean;
 }
 
-export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB;
+export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB | IcebergCatalog;
 
 // Special constant for the system database
 export const SYSTEM_DATABASE_ID = 'pondpilot-system-db' as PersistentDataSourceId;

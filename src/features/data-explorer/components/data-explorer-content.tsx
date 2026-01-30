@@ -13,6 +13,8 @@ type DataExplorerContentProps = {
   localDbNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   showRemoteDbs: boolean;
   remoteDbNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
+  showIcebergCatalogs: boolean;
+  icebergCatalogNodes: TreeNodeData<DataExplorerNodeTypeMap>[];
   initialExpandedState: Record<string, boolean>;
   searchExpandedState: Record<string, boolean>;
   extraData: DataExplorerContext;
@@ -28,12 +30,18 @@ export const DataExplorerContent = ({
   localDbNodes,
   showRemoteDbs,
   remoteDbNodes,
+  showIcebergCatalogs,
+  icebergCatalogNodes,
   initialExpandedState,
   searchExpandedState,
   extraData,
   hasActiveElement,
 }: DataExplorerContentProps) => {
   const expandedState = { ...initialExpandedState, ...searchExpandedState };
+
+  // Combine remote databases and iceberg catalogs into one section
+  const showRemoteSection = showRemoteDbs || showIcebergCatalogs;
+  const remoteDataSourceNodes = [...remoteDbNodes, ...icebergCatalogNodes];
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden">
@@ -73,11 +81,11 @@ export const DataExplorerContent = ({
           />
         )}
 
-        {/* Remote databases section */}
-        {showRemoteDbs && remoteDbNodes.length > 0 && (
+        {/* Remote data sources section (remote databases + iceberg catalogs) */}
+        {showRemoteSection && remoteDataSourceNodes.length > 0 && (
           <DataExplorerSection
-            title="Remote Databases"
-            nodes={remoteDbNodes}
+            title="Remote Data Sources"
+            nodes={remoteDataSourceNodes}
             initialExpandedState={expandedState}
             extraData={extraData}
             dataTestIdPrefix="data-explorer-remote"

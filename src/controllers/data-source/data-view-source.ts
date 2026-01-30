@@ -13,6 +13,7 @@ import { PersistentDataSourceId } from '@models/data-source';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
+import { getDatabaseIdentifier } from '@utils/data-source';
 import { parseTableAccessKey } from '@utils/table-access';
 
 import { persistDeleteDataSource } from './persist';
@@ -92,8 +93,13 @@ export const deleteDataSources = async (
 
   const deletedDbNames = new Set(
     deletedDataSources
-      .filter((dataSource) => dataSource.type === 'attached-db' || dataSource.type === 'remote-db')
-      .map((dataSource) => dataSource.dbName),
+      .filter(
+        (dataSource) =>
+          dataSource.type === 'attached-db' ||
+          dataSource.type === 'remote-db' ||
+          dataSource.type === 'iceberg-catalog',
+      )
+      .map((dataSource) => getDatabaseIdentifier(dataSource)),
   );
   const newTableAccessTimes = new Map(
     Array.from(tableAccessTimes).filter(([key]) => {
@@ -177,6 +183,18 @@ export const deleteDataSources = async (
 
   // Delete the data sources from the database
   for (const dataSource of deletedDataSources) {
+    if (dataSource.type === 'iceberg-catalog') {
+      // For Iceberg catalogs: detach and drop secret
+      detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.warehouseName);
+      try {
+        const { buildDropSecretQuery } = await import('@utils/iceberg-sql-builder');
+        await conn.query(buildDropSecretQuery(dataSource.secretName));
+      } catch (secretError) {
+        console.warn('Failed to drop Iceberg secret during deletion:', secretError);
+      }
+      continue;
+    }
+
     if (dataSource.type === 'remote-db') {
       // For remote databases, just detach
       detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.url);
@@ -203,8 +221,11 @@ export const deleteDataSources = async (
   const { databaseMetadata } = useAppStore.getState();
   const deletedDataBases = new Set(
     deletedDataSources
-      .filter((ds) => ds.type === 'attached-db' || ds.type === 'remote-db')
-      .map((ds) => ds.dbName),
+      .filter(
+        (ds) =>
+          ds.type === 'attached-db' || ds.type === 'remote-db' || ds.type === 'iceberg-catalog',
+      )
+      .map((ds) => getDatabaseIdentifier(ds)),
   );
   // Filter out deleted databases from the metadata
   // eslint-disable-next-line prefer-const
@@ -212,7 +233,12 @@ export const deleteDataSources = async (
     Array.from(databaseMetadata).filter(([dbName, _]) => !deletedDataBases.has(dbName)),
   );
   // Update metadata views
-  if (deletedDataSources.some((ds) => ds.type !== 'attached-db' && ds.type !== 'remote-db')) {
+  if (
+    deletedDataSources.some(
+      (ds) =>
+        ds.type !== 'attached-db' && ds.type !== 'remote-db' && ds.type !== 'iceberg-catalog',
+    )
+  ) {
     // Refresh metadata for pondpilot database
     const newViewsMetadata = await getDatabaseModel(conn, [PERSISTENT_DB_NAME], ['main']);
 

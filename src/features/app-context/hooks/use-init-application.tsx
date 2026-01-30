@@ -10,8 +10,13 @@ import {
 import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
-import { attachDatabaseWithRetry } from '@utils/connection-manager';
-import { isRemoteDatabase } from '@utils/data-source';
+import { attachDatabaseWithRetry, executeWithRetry } from '@utils/connection-manager';
+import { isRemoteDatabase, isIcebergCatalog } from '@utils/data-source';
+import { updateIcebergCatalogConnectionState } from '@utils/iceberg-catalog';
+import {
+  buildIcebergSecretQuery,
+  buildIcebergAttachQuery,
+} from '@utils/iceberg-sql-builder';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { useEffect } from 'react';
@@ -24,6 +29,73 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
   const connectedDatabases: string[] = [];
 
   for (const [id, dataSource] of dataSources) {
+    if (isIcebergCatalog(dataSource)) {
+      try {
+        updateIcebergCatalogConnectionState(id, 'connecting');
+
+        const isManagedEndpoint =
+          dataSource.endpointType === 'GLUE' ||
+          dataSource.endpointType === 'S3_TABLES';
+
+        // Recreate the secret (in-memory only, lost on page refresh)
+        const secretQuery = buildIcebergSecretQuery({
+          secretName: dataSource.secretName,
+          authType: dataSource.authType,
+          useS3SecretType: isManagedEndpoint,
+          clientId: dataSource.clientId,
+          clientSecret: dataSource.clientSecret,
+          oauth2ServerUri: dataSource.oauth2ServerUri,
+          token: dataSource.token,
+          awsKeyId: dataSource.awsKeyId,
+          awsSecret: dataSource.awsSecret,
+          defaultRegion: dataSource.defaultRegion,
+        });
+        await conn.query(secretQuery);
+
+        // Re-attach the catalog
+        const attachQuery = buildIcebergAttachQuery({
+          warehouseName: dataSource.warehouseName,
+          catalogAlias: dataSource.catalogAlias,
+          endpoint: isManagedEndpoint ? undefined : dataSource.endpoint,
+          endpointType: dataSource.endpointType,
+          secretName: dataSource.secretName,
+          useCorsProxy: dataSource.useCorsProxy,
+        });
+
+        try {
+          await executeWithRetry(conn, attachQuery, {
+            maxRetries: 3,
+            timeout: 30000,
+            retryDelay: 2000,
+            exponentialBackoff: true,
+          });
+        } catch (attachError: any) {
+          if (!attachError.message?.includes('already in use')) {
+            throw attachError;
+          }
+        }
+
+        updateIcebergCatalogConnectionState(id, 'connected');
+        connectedDatabases.push(dataSource.catalogAlias);
+      } catch (error) {
+        let errorMessage: string;
+        if (error instanceof MaxRetriesExceededError) {
+          errorMessage = `Connection timeout after ${error.attempts} attempts: ${error.lastError.message}`;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = String(error);
+        }
+
+        console.warn(
+          `Failed to reconnect iceberg catalog ${dataSource.catalogAlias}:`,
+          errorMessage,
+        );
+        updateIcebergCatalogConnectionState(id, 'error', errorMessage);
+      }
+      continue;
+    }
+
     if (isRemoteDatabase(dataSource)) {
       try {
         updateRemoteDbConnectionState(id, 'connecting');

@@ -17,7 +17,6 @@ import {
   AnyFlatFileDataSource,
   PersistentDataSourceId,
   XlsxSheetView,
-  RemoteDB,
   LocalDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
@@ -886,7 +885,12 @@ export const restoreAppDataFromIDB = async (
           // Get the existing data source for this entry
           let dataSource = dataSourceByLocalEntryId.get(localEntry.id);
 
-          if (!dataSource || dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+          if (
+            !dataSource ||
+            dataSource.type === 'attached-db' ||
+            dataSource.type === 'remote-db' ||
+            dataSource.type === 'iceberg-catalog'
+          ) {
             // This is a data corruption, but we can recover from it
             dataSource = addFlatFileDataSource(localEntry, _reservedViews);
             _reservedViews.add(dataSource.viewName);
@@ -933,17 +937,15 @@ export const restoreAppDataFromIDB = async (
 
   await Promise.all(registerPromises);
 
-  // Handle remote databases - they need to be re-attached
-  const remoteDatabases = Array.from(dataSources.values()).filter(
-    (ds) => ds.type === 'remote-db',
-  ) as RemoteDB[];
-
-  // We don't re-attach remote databases here because:
+  // Handle remote databases and iceberg catalogs - they need to be re-attached.
+  // We don't re-attach them here because:
   // 1. They will be re-attached in reconnectRemoteDatabases() after app init
   // 2. We want to handle connection errors properly
   // Just mark them as valid so they don't get deleted
-  for (const remoteDb of remoteDatabases) {
-    validDataSources.add(remoteDb.id);
+  for (const ds of dataSources.values()) {
+    if (ds.type === 'remote-db' || ds.type === 'iceberg-catalog') {
+      validDataSources.add(ds.id);
+    }
   }
 
   if (missingDataSources.size > 0) {
@@ -1051,7 +1053,11 @@ export const restoreAppDataFromIDB = async (
 
     // Find all file-based data sources that don't have corresponding local entries
     for (const [dataSourceId, dataSource] of dataSources) {
-      if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+      if (
+        dataSource.type === 'attached-db' ||
+        dataSource.type === 'remote-db' ||
+        dataSource.type === 'iceberg-catalog'
+      ) {
         continue;
       }
 
@@ -1072,7 +1078,12 @@ export const restoreAppDataFromIDB = async (
     if (orphanedDataSourceIds.size > 0) {
       for (const dataSourceId of orphanedDataSourceIds) {
         const dataSource = dataSources.get(dataSourceId);
-        if (dataSource && dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db') {
+        if (
+          dataSource &&
+          dataSource.type !== 'attached-db' &&
+          dataSource.type !== 'remote-db' &&
+          dataSource.type !== 'iceberg-catalog'
+        ) {
           // Drop the view from DuckDB
           try {
             if (isFlatFileDataSource(dataSource)) {

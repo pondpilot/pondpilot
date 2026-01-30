@@ -13,6 +13,14 @@ const HTTPFS_BOOTSTRAP_STEPS: { statement: string; description: string }[] = [
     statement: 'LOAD httpfs',
     description: 'load the httpfs extension so S3/HTTP secrets become available',
   },
+  {
+    statement: 'INSTALL iceberg',
+    description: 'make the iceberg extension available if it is not bundled',
+  },
+  {
+    statement: 'LOAD iceberg',
+    description: 'load the iceberg extension so Iceberg REST catalogs become available',
+  },
 ];
 
 /**
@@ -28,18 +36,21 @@ export async function configureConnectionForHttpfs(conn: AsyncDuckDBConnection):
       await conn.query(statement);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (statement === 'LOAD httpfs' && /already loaded/i.test(message)) {
+      if (/^LOAD /i.test(statement) && /already loaded/i.test(message)) {
         continue;
       }
-      if (statement === 'INSTALL httpfs' && /already installed/i.test(message)) {
+      if (/^INSTALL /i.test(statement) && /already installed/i.test(message)) {
         continue;
       }
       console.warn(`Failed to ${description}:`, message);
       if (statement === 'LOAD httpfs') {
         throw error instanceof Error ? error : new Error(message);
       }
-      // If this fails once, subsequent statements are unlikely to succeed.
-      return;
+      // Iceberg load failure is non-fatal — the extension may not be available
+      if (statement === 'LOAD iceberg') {
+        console.warn('Iceberg extension not available, skipping.');
+        return;
+      }
     }
   }
 }

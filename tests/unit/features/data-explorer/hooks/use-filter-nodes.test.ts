@@ -52,6 +52,7 @@ describe('useFilterNodes', () => {
     fileSystemNodes: [createFileNode('file1', 'data.csv'), createFileNode('file2', 'report.json')],
     localDbNodes: [createDbNode('db1', 'local.db')],
     remoteDatabaseNodes: [createDbNode('remote1', 'cloud.db')],
+    icebergCatalogNodes: [] as any[],
     activeFilter: 'all' as DataExplorerFilterType,
     fileTypeFilter: {
       csv: true,
@@ -111,6 +112,7 @@ describe('useFilterNodes', () => {
       expect(result.filteredSections.showFileSystem).toBe(false);
       expect(result.filteredSections.showLocalDbs).toBe(false);
       expect(result.filteredSections.showRemoteDbs).toBe(true);
+      expect(result.filteredSections.showIcebergCatalogs).toBe(true);
     });
   });
 
@@ -183,12 +185,14 @@ describe('useFilterNodes', () => {
       const { calls } = (filterTreeNodes as jest.Mock).mock;
       expect(calls.length).toBeGreaterThan(1);
 
-      // Check that search was applied to local and remote DB nodes
+      // Check that search was applied to local, remote, and iceberg DB nodes
       const dbCalls = calls.filter(
         (call) =>
-          call[0] === defaultProps.localDbNodes || call[0] === defaultProps.remoteDatabaseNodes,
+          call[0] === defaultProps.localDbNodes ||
+          call[0] === defaultProps.remoteDatabaseNodes ||
+          call[0] === defaultProps.icebergCatalogNodes,
       );
-      expect(dbCalls.length).toBe(2);
+      expect(dbCalls.length).toBe(3);
       dbCalls.forEach((call) => {
         expect(call[4]).toBe('test'); // searchQuery parameter
       });

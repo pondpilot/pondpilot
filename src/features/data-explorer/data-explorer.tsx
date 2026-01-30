@@ -2,14 +2,17 @@ import { TreeNodeData } from '@components/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { createComparisonWithSources } from '@controllers/tab/comparison-tab-controller';
 import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
+import { IcebergReconnectModal } from '@features/datasource-wizard/components/iceberg-reconnect-modal';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { ComparisonSource } from '@models/comparison';
-import { AnyFlatFileDataSource } from '@models/data-source';
+import { AnyFlatFileDataSource, IcebergCatalog } from '@models/data-source';
 import {
   LocalEntryId,
   SUPPORTED_DATA_SOURCE_FILE_EXTS,
   supportedFlatFileDataSourceFileExt,
 } from '@models/file-system';
+import { useAppStore } from '@store/app-store';
+import { getDatabaseIdentifier } from '@utils/data-source';
 import { memo, useMemo, useCallback } from 'react';
 
 import { DataExplorerFilters, DataExplorerContent } from './components';
@@ -59,7 +62,8 @@ export const DataExplorer = memo(() => {
   } = useDataExplorerData();
 
   // Separate databases by type
-  const { systemDatabase, localDatabases, remoteDatabases } = useDatabaseSeparation(allDataSources);
+  const { systemDatabase, localDatabases, remoteDatabases, icebergCatalogs } =
+    useDatabaseSeparation(allDataSources);
 
   // Build file system tree
   const fileSystemNodes = useFileSystemTreeBuilder({
@@ -96,20 +100,33 @@ export const DataExplorer = memo(() => {
     const hasFiles = fileSystemNodes.length > 0;
     const hasLocalDbs = localDatabases.length > 0;
     const hasRemoteDbs = remoteDatabases.length > 0;
+    const hasIcebergCatalogs = icebergCatalogs.length > 0;
 
     return {
       files: hasFiles,
       databases: hasLocalDbs,
-      remote: hasRemoteDbs,
+      remote: hasRemoteDbs || hasIcebergCatalogs,
     };
-  }, [fileSystemNodes.length, localDatabases.length, remoteDatabases.length]);
+  }, [
+    fileSystemNodes.length,
+    localDatabases.length,
+    remoteDatabases.length,
+    icebergCatalogs.length,
+  ]);
 
   // Build database nodes
-  const { localDbNodes, remoteDatabaseNodes, systemDbNode, systemDbNodeForDisplay } = useBuildNodes(
-    {
+  const {
+    localDbNodes,
+    remoteDatabaseNodes,
+    icebergCatalogNodes,
+    systemDbNode,
+    systemDbNodeForDisplay,
+  } =
+    useBuildNodes({
       systemDatabase,
       localDatabases,
       remoteDatabases,
+      icebergCatalogs,
       nodeMap,
       anyNodeIdToNodeTypeMap,
       conn,
@@ -120,8 +137,7 @@ export const DataExplorer = memo(() => {
       flatFileSources,
       comparisonTableNames,
       comparisonByTableName,
-    },
-  );
+    });
 
   // Create unified tree for context
   const unifiedTree = [
@@ -129,6 +145,7 @@ export const DataExplorer = memo(() => {
     ...fileSystemNodes,
     ...localDbNodes,
     ...remoteDatabaseNodes,
+    ...icebergCatalogNodes,
   ];
 
   // Actions
@@ -174,14 +191,19 @@ export const DataExplorer = memo(() => {
           return null;
         }
         const dataSource = allDataSources.get(db);
-        if (!dataSource || (dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db')) {
+        if (
+          !dataSource ||
+          (dataSource.type !== 'attached-db' &&
+            dataSource.type !== 'remote-db' &&
+            dataSource.type !== 'iceberg-catalog')
+        ) {
           return null;
         }
         return {
           type: 'table' as const,
           tableName: objectName,
           schemaName,
-          databaseName: dataSource.dbName,
+          databaseName: getDatabaseIdentifier(dataSource),
         };
       }
 
@@ -277,11 +299,28 @@ export const DataExplorer = memo(() => {
     fileSystemNodes,
     localDbNodes,
     remoteDatabaseNodes,
+    icebergCatalogNodes,
     activeFilter,
     fileTypeFilter,
     searchQuery,
     localEntriesValues,
   });
+
+  // Iceberg reconnect modal state
+  const reconnectCatalogId = useAppStore.use.icebergReconnectCatalogId();
+  const reconnectCatalog = useMemo(() => {
+    if (!reconnectCatalogId) return null;
+    const ds = allDataSources.get(reconnectCatalogId);
+    return ds?.type === 'iceberg-catalog' ? (ds as IcebergCatalog) : null;
+  }, [reconnectCatalogId, allDataSources]);
+
+  const closeReconnectModal = useCallback(() => {
+    useAppStore.setState(
+      { icebergReconnectCatalogId: null },
+      false,
+      'IcebergCatalog/closeReconnect',
+    );
+  }, []);
 
   return (
     <div className="h-full overflow-hidden flex flex-col">
@@ -304,11 +343,23 @@ export const DataExplorer = memo(() => {
         localDbNodes={filteredSections.filteredLocalDbNodes}
         showRemoteDbs={filteredSections.showRemoteDbs}
         remoteDbNodes={filteredSections.filteredRemoteDbNodes}
+        showIcebergCatalogs={filteredSections.showIcebergCatalogs}
+        icebergCatalogNodes={
+          filteredSections.filteredIcebergCatalogNodes
+        }
         initialExpandedState={initialExpandedState}
         searchExpandedState={searchExpandedState}
         extraData={enhancedExtraData}
         hasActiveElement={hasActiveElement}
       />
+      {reconnectCatalog && conn && (
+        <IcebergReconnectModal
+          catalog={reconnectCatalog}
+          pool={conn}
+          opened={!!reconnectCatalog}
+          onClose={closeReconnectModal}
+        />
+      )}
     </div>
   );
 });

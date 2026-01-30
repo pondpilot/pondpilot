@@ -1,8 +1,9 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { LocalDB, RemoteDB } from '@models/data-source';
+import { IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
 
 import { DataExplorerNodeMap } from '../model';
+import { useIcebergCatalogNodes } from './use-iceberg-catalog-nodes';
 import { useLocalDbNodes } from './use-local-db-nodes';
 import { useRemoteDbNodes } from './use-remote-db-nodes';
 import { useSystemDbNode } from './use-system-db-node';
@@ -11,6 +12,7 @@ type UseBuildNodesProps = {
   systemDatabase: LocalDB | undefined;
   localDatabases: LocalDB[];
   remoteDatabases: RemoteDB[];
+  icebergCatalogs: IcebergCatalog[];
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, any>;
   conn: AsyncDuckDBConnectionPool;
@@ -32,6 +34,7 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     systemDatabase,
     localDatabases,
     remoteDatabases,
+    icebergCatalogs,
     nodeMap,
     anyNodeIdToNodeTypeMap,
     conn,
@@ -72,6 +75,19 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     comparisonByTableName,
   });
 
+  // Build Iceberg catalog nodes
+  const icebergCatalogNodes = useIcebergCatalogNodes({
+    icebergCatalogs,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    flatFileSources,
+    comparisonTableNames,
+    comparisonByTableName,
+  });
+
   // Build system database node
   const { systemDbNode, systemDbNodeForDisplay } = useSystemDbNode({
     systemDatabase,
@@ -90,6 +106,7 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
   return {
     localDbNodes,
     remoteDatabaseNodes,
+    icebergCatalogNodes,
     systemDbNode,
     systemDbNodeForDisplay,
   };

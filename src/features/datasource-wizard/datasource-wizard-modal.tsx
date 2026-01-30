@@ -7,6 +7,7 @@ import {
   IconFolderPlus,
   IconX,
   IconClipboard,
+  IconSnowflake,
 } from '@tabler/icons-react';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { setDataTestId } from '@utils/test-id';
@@ -14,6 +15,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
 import { ClipboardImportConfig } from './components/clipboard-import-config';
+import { IcebergCatalogConfig } from './components/iceberg-catalog-config';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
 import { validateJSON, validateCSV } from './utils/clipboard-import';
 
@@ -25,12 +27,19 @@ interface DatasourceWizardModalProps {
   initialStep?: WizardStep;
 }
 
-export type WizardStep = 'selection' | 'remote-config' | 'clipboard-csv' | 'clipboard-json';
+export type WizardStep =
+  | 'selection'
+  | 'remote-config'
+  | 'iceberg-config'
+  | 'clipboard-csv'
+  | 'clipboard-json';
 
 const getStepTitle = (step: WizardStep): string => {
   switch (step) {
     case 'remote-config':
       return 'REMOTE DATABASE';
+    case 'iceberg-config':
+      return 'ICEBERG CATALOG';
     case 'clipboard-csv':
       return 'IMPORT CSV FROM CLIPBOARD';
     case 'clipboard-json':
@@ -141,6 +150,10 @@ export function DatasourceWizardModal({
 
   const handleRemoteDatabaseClick = () => {
     setStep('remote-config');
+  };
+
+  const handleIcebergCatalogClick = () => {
+    setStep('iceberg-config');
   };
 
   const handleBack = () => {
@@ -338,6 +351,20 @@ export function DatasourceWizardModal({
       description: 'S3, GCS, Azure, HTTPS',
       testId: 'add-remote-database-card',
     },
+    {
+      type: 'iceberg' as const,
+      onClick: handleIcebergCatalogClick,
+      icon: (
+        <IconSnowflake
+          size={48}
+          className="text-textSecondary-light dark:text-textSecondary-dark"
+          stroke={1.5}
+        />
+      ),
+      title: 'Iceberg Catalog',
+      description: 'REST, S3 Tables, Glue',
+      testId: 'add-iceberg-catalog-card',
+    },
   ];
 
   return (
@@ -391,6 +418,10 @@ export function DatasourceWizardModal({
 
       {step === 'remote-config' && (
         <RemoteDatabaseConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+
+      {step === 'iceberg-config' && (
+        <IcebergCatalogConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
 
       {(step === 'clipboard-csv' || step === 'clipboard-json') && (
