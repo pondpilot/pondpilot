@@ -88,6 +88,98 @@ export function parseAttachStatement(statement: string): ParsedAttachStatement |
  * parseDetachStatement("DETACH DATABASE mydb")
  * // Returns: 'mydb'
  */
+/**
+ * Parsed Iceberg ATTACH statement information
+ */
+export interface ParsedIcebergAttachStatement {
+  /** Warehouse name (quoted value after ATTACH) */
+  warehouseName: string;
+  /** Catalog alias (identifier after AS) */
+  catalogAlias: string;
+  /** REST catalog endpoint URL from ENDPOINT option */
+  endpoint?: string;
+  /** Endpoint type from ENDPOINT_TYPE option (GLUE, S3_TABLES) */
+  endpointType?: string;
+  /** Secret name from SECRET option */
+  secretName?: string;
+  /** The original SQL statement */
+  statement: string;
+}
+
+/**
+ * Regex to match the overall ATTACH structure including the parenthesized options block.
+ *
+ * Capture groups:
+ * 1: The warehouse/URL value (required, quoted with ' or ")
+ * 2: Optional opening quote for alias (" or empty)
+ * 3: The catalog alias (required, optionally quoted)
+ * 4: The options block content inside parentheses
+ */
+const ICEBERG_ATTACH_REGEX =
+  /ATTACH\s+(?:DATABASE\s+)?(?:IF\s+NOT\s+EXISTS\s+)?['"]([^'"]+)['"]\s+AS\s+(['"]?)(\w+)\2\s*\(([^)]+)\)/i;
+
+/**
+ * Parse an Iceberg ATTACH statement to extract warehouse, alias, and options.
+ *
+ * This handles the DuckDB Iceberg ATTACH syntax:
+ *   ATTACH 'warehouse' AS alias (TYPE ICEBERG, ENDPOINT '...', SECRET secret_name)
+ *
+ * Returns null if the statement is not an Iceberg ATTACH (i.e., no TYPE ICEBERG
+ * found in the options block), allowing fallthrough to the existing remote DB handler.
+ *
+ * @param statement - The SQL statement to parse
+ * @returns Parsed Iceberg information, or null if not an Iceberg ATTACH
+ */
+export function parseIcebergAttachStatement(
+  statement: string,
+): ParsedIcebergAttachStatement | null {
+  const match = statement.match(ICEBERG_ATTACH_REGEX);
+  if (!match) {
+    return null;
+  }
+
+  const [, warehouseName, , catalogAlias, optionsBlock] = match;
+
+  // Verify TYPE ICEBERG is present in the options block
+  if (!/\bTYPE\s+ICEBERG\b/i.test(optionsBlock)) {
+    return null;
+  }
+
+  // Extract individual options from the options block
+  const endpoint = extractQuotedOption(optionsBlock, 'ENDPOINT');
+  const endpointType = extractUnquotedOption(optionsBlock, 'ENDPOINT_TYPE');
+  const secretName = extractUnquotedOption(optionsBlock, 'SECRET');
+
+  return {
+    warehouseName,
+    catalogAlias: catalogAlias.replace(/;$/, ''),
+    endpoint,
+    endpointType,
+    secretName,
+    statement,
+  };
+}
+
+/**
+ * Extract a quoted option value from an options block.
+ * Matches: KEY 'value' or KEY "value"
+ */
+function extractQuotedOption(optionsBlock: string, key: string): string | undefined {
+  const regex = new RegExp(`\\b${key}\\s+['"]([^'"]+)['"]`, 'i');
+  const match = optionsBlock.match(regex);
+  return match?.[1];
+}
+
+/**
+ * Extract an unquoted option value from an options block.
+ * Matches: KEY value (word characters only)
+ */
+function extractUnquotedOption(optionsBlock: string, key: string): string | undefined {
+  const regex = new RegExp(`\\b${key}\\s+(\\w+)`, 'i');
+  const match = optionsBlock.match(regex);
+  return match?.[1];
+}
+
 export function parseDetachStatement(statement: string): string | null {
   // Match DETACH followed by optional DATABASE keyword, then the database name
   // Ensure the database name is not the DATABASE keyword itself

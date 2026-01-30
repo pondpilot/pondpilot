@@ -110,7 +110,7 @@ export function PieChart({ data, title, colorScheme = 'default' }: PieChartProps
           }}
           labelStyle={{ color: chartTheme.tooltipText }}
           itemStyle={{ color: chartTheme.tooltipText }}
-          formatter={(value) => [formatTooltipNumber(Number(value ?? 0)), 'Value']}
+          formatter={(value: number | undefined) => [formatTooltipNumber(value), 'Value']}
         />
         <Legend
           layout="vertical"

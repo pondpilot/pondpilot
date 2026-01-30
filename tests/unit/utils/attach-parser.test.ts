@@ -3,6 +3,7 @@ import { describe, it, expect } from '@jest/globals';
 import {
   parseAttachStatement,
   parseDetachStatement,
+  parseIcebergAttachStatement,
   ATTACH_STATEMENT_REGEX,
 } from '../../../src/utils/attach-parser';
 
@@ -170,6 +171,96 @@ describe('attach-parser', () => {
     it('should return null for DETACH without database name', () => {
       expect(parseDetachStatement('DETACH')).toBeNull();
       expect(parseDetachStatement('DETACH DATABASE')).toBeNull();
+    });
+  });
+
+  describe('parseIcebergAttachStatement', () => {
+    it('should parse basic Iceberg ATTACH with ENDPOINT and SECRET', () => {
+      const sql =
+        "ATTACH 'my_warehouse' AS my_catalog (TYPE ICEBERG, ENDPOINT 'https://rest.example.com', SECRET my_secret)";
+      const result = parseIcebergAttachStatement(sql);
+      expect(result).toEqual({
+        warehouseName: 'my_warehouse',
+        catalogAlias: 'my_catalog',
+        endpoint: 'https://rest.example.com',
+        endpointType: undefined,
+        secretName: 'my_secret',
+        statement: sql,
+      });
+    });
+
+    it('should parse Iceberg ATTACH with ENDPOINT_TYPE GLUE', () => {
+      const sql =
+        "ATTACH 'warehouse' AS glue_cat (TYPE ICEBERG, ENDPOINT_TYPE GLUE, SECRET aws_creds)";
+      const result = parseIcebergAttachStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.endpointType).toBe('GLUE');
+      expect(result?.endpoint).toBeUndefined();
+    });
+
+    it('should parse Iceberg ATTACH with ENDPOINT_TYPE S3_TABLES', () => {
+      const sql =
+        "ATTACH 'warehouse' AS s3t_cat (TYPE ICEBERG, ENDPOINT_TYPE S3_TABLES, SECRET aws_creds)";
+      const result = parseIcebergAttachStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.endpointType).toBe('S3_TABLES');
+    });
+
+    it('should be case-insensitive for TYPE ICEBERG', () => {
+      const lower =
+        "attach 'wh' as cat (type iceberg, endpoint 'https://example.com', secret s)";
+      const mixed =
+        "Attach 'wh' AS cat (Type Iceberg, Endpoint 'https://example.com', Secret s)";
+
+      expect(parseIcebergAttachStatement(lower)).not.toBeNull();
+      expect(parseIcebergAttachStatement(mixed)).not.toBeNull();
+    });
+
+    it('should handle DATABASE and IF NOT EXISTS keywords', () => {
+      const sql =
+        "ATTACH DATABASE IF NOT EXISTS 'wh' AS cat (TYPE ICEBERG, SECRET s)";
+      const result = parseIcebergAttachStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.warehouseName).toBe('wh');
+      expect(result?.catalogAlias).toBe('cat');
+    });
+
+    it('should return null for non-Iceberg ATTACH with TYPE SQLITE', () => {
+      const sql = "ATTACH 'test.db' AS mydb (TYPE SQLITE)";
+      expect(parseIcebergAttachStatement(sql)).toBeNull();
+    });
+
+    it('should return null for ATTACH without TYPE option', () => {
+      const sql = "ATTACH 'https://example.com/db.duckdb' AS mydb";
+      expect(parseIcebergAttachStatement(sql)).toBeNull();
+    });
+
+    it('should handle missing SECRET option', () => {
+      const sql =
+        "ATTACH 'wh' AS cat (TYPE ICEBERG, ENDPOINT 'https://rest.example.com')";
+      const result = parseIcebergAttachStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.secretName).toBeUndefined();
+    });
+
+    it('should return null for malformed options block', () => {
+      // No closing parenthesis — regex won't match
+      const sql = "ATTACH 'wh' AS cat (TYPE ICEBERG";
+      expect(parseIcebergAttachStatement(sql)).toBeNull();
+    });
+
+    it('should return null for non-ATTACH statements', () => {
+      expect(parseIcebergAttachStatement('SELECT 1')).toBeNull();
+      expect(parseIcebergAttachStatement('')).toBeNull();
+      expect(parseIcebergAttachStatement('DETACH mydb')).toBeNull();
+    });
+
+    it('should handle double-quoted alias', () => {
+      const sql =
+        "ATTACH 'wh' AS \"my_catalog\" (TYPE ICEBERG, SECRET s)";
+      const result = parseIcebergAttachStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.catalogAlias).toBe('my_catalog');
     });
   });
 

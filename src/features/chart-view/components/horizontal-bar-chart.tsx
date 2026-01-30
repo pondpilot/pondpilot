@@ -117,7 +117,7 @@ export function HorizontalBarChart({
           }}
           labelStyle={{ color: chartTheme.tooltipText }}
           itemStyle={{ color: chartTheme.tooltipText }}
-          formatter={(value, name) => [formatTooltipNumber(Number(value ?? 0)), name ?? '']}
+          formatter={(value: number | undefined, name: string | undefined) => [formatTooltipNumber(value), name ?? '']}
         />
         {dataKeys.length > 1 && (
           <Legend
