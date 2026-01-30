@@ -219,5 +219,66 @@ describe('attach-cors-rewriter', () => {
         expect(result.rewritten).toContain('/proxy-path/');
       });
     });
+
+    describe('custom S3 endpoint', () => {
+      it('should use custom endpoint when converting S3 URL with forceWrap', () => {
+        const query = "ATTACH 's3://mybucket/data.duckdb' AS mydb";
+        const result = rewriteAttachUrl(query, {
+          forceWrap: true,
+          s3Endpoint: 'minio.example.com:9000',
+        });
+
+        expect(result.wasRewritten).toBe(true);
+        expect(result.rewritten).not.toContain('s3://');
+        expect(result.rewritten).not.toContain('amazonaws.com');
+        expect(result.rewritten).toContain('minio.example.com:9000');
+        expect(result.rewritten).toContain('/proxy-path/');
+      });
+
+      it('should use custom endpoint with explicit proxy prefix', () => {
+        const query = "ATTACH 'proxy:s3://mybucket/data.duckdb' AS mydb";
+        const result = rewriteAttachUrl(query, {
+          forceWrap: false,
+          s3Endpoint: 'storage.local:9000',
+        });
+
+        expect(result.wasRewritten).toBe(true);
+        expect(result.rewritten).not.toContain('amazonaws.com');
+        expect(result.rewritten).toContain('storage.local:9000');
+      });
+
+      it('should fall back to AWS when s3Endpoint is undefined', () => {
+        const query = "ATTACH 's3://mybucket/data.duckdb' AS mydb";
+        const result = rewriteAttachUrl(query, { forceWrap: true, s3Endpoint: undefined });
+
+        expect(result.wasRewritten).toBe(true);
+        expect(result.rewritten).toContain('s3.amazonaws.com');
+      });
+
+      it('should fall back to AWS when s3Endpoint is empty string', () => {
+        const query = "ATTACH 's3://mybucket/data.duckdb' AS mydb";
+        const result = rewriteAttachUrl(query, { forceWrap: true, s3Endpoint: '' });
+
+        expect(result.wasRewritten).toBe(true);
+        expect(result.rewritten).toContain('s3.amazonaws.com');
+      });
+
+      it('should support backward-compatible boolean parameter', () => {
+        const query = "ATTACH 's3://mybucket/data.duckdb' AS mydb";
+        const result = rewriteAttachUrl(query, true);
+
+        expect(result.wasRewritten).toBe(true);
+        expect(result.rewritten).toContain('s3.amazonaws.com');
+      });
+
+      it('should handle custom endpoint with dotted bucket name', () => {
+        const query = "ATTACH 's3://my.dotted.bucket/data.csv' AS mydb";
+        const result = rewriteAttachUrl(query, { forceWrap: true, s3Endpoint: 'minio.local' });
+
+        expect(result.wasRewritten).toBe(true);
+        expect(result.rewritten).toContain('minio.local');
+        expect(result.rewritten).toContain('my.dotted.bucket');
+      });
+    });
   });
 });
