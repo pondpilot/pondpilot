@@ -4,6 +4,7 @@ import { AnyDataSource, AnyFlatFileDataSource, PersistentDataSourceId } from '@m
 import { LocalEntry, LocalEntryId, LocalFile, LocalFolder } from '@models/file-system';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab } from '@models/tab';
+import { getDatabaseIdentifier } from '@utils/data-source';
 
 import { getSchemaBrowserTabTitle } from './tab-titles';
 
@@ -41,17 +42,26 @@ export function getTabName(
     return 'Unknown data source';
   }
 
-  // Database objects (both local attached and remote)
+  // Database objects (local attached, remote, and iceberg catalog)
   if (tab.dataSourceType === 'db') {
-    if (dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db') {
+    if (
+      dataSource.type !== 'attached-db' &&
+      dataSource.type !== 'remote-db' &&
+      dataSource.type !== 'iceberg-catalog'
+    ) {
       return 'Unknown data source';
     }
 
-    return `${dataSource.dbName}.${tab.schemaName}.${tab.objectName}`;
+    const dbIdentifier = getDatabaseIdentifier(dataSource);
+    return `${dbIdentifier}.${tab.schemaName}.${tab.objectName}`;
   }
 
   // Flat files
-  if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+  if (
+    dataSource.type === 'attached-db' ||
+    dataSource.type === 'remote-db' ||
+    dataSource.type === 'iceberg-catalog'
+  ) {
     return 'Unknown data source';
   }
 
@@ -79,7 +89,12 @@ export function getTabIcon(
   if (tab.type === 'data-source' && tab.dataSourceType === 'file') {
     const dataSource = dataSources.get(tab.dataSourceId);
 
-    if (!dataSource || dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+    if (
+      !dataSource ||
+      dataSource.type === 'attached-db' ||
+      dataSource.type === 'remote-db' ||
+      dataSource.type === 'iceberg-catalog'
+    ) {
       return 'error';
     }
     return getFlatFileDataSourceIcon(dataSource as AnyFlatFileDataSource);
