@@ -21,7 +21,7 @@ import { useAppStore } from '@store/app-store';
 import { executeWithRetry } from '@utils/connection-manager';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
-import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
+import { buildIcebergSecretPayload, isManagedIcebergEndpoint } from '@utils/iceberg-catalog';
 import { escapeSqlStringValue } from '@utils/sql-security';
 import {
   buildIcebergSecretQuery,
@@ -77,7 +77,7 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
-  const isManagedEndpoint = endpointType === 'GLUE' || endpointType === 'S3_TABLES';
+  const isManagedEndpoint = isManagedIcebergEndpoint(endpointType);
   const effectiveAuthType = isManagedEndpoint ? 'sigv4' : authType;
 
   const isFormValid = (): boolean => {
