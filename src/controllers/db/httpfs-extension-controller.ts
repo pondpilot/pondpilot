@@ -29,6 +29,10 @@ const HTTPFS_BOOTSTRAP_STEPS: { statement: string; description: string }[] = [
  * The default DuckDB-WASM build ships with a custom HTTP stack that blocks
  * `CREATE SECRET`. These settings restore the standard httpfs extension path
  * and let DuckDB autoload it when needed.
+ *
+ * `autoinstall_known_extensions = true` is safe in DuckDB-WASM: extensions
+ * are resolved from the bundled set shipped with the WASM build — no
+ * untrusted network downloads occur.
  */
 export async function configureConnectionForHttpfs(conn: AsyncDuckDBConnection): Promise<void> {
   for (const { statement, description } of HTTPFS_BOOTSTRAP_STEPS) {

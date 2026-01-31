@@ -34,6 +34,34 @@ describe('sanitizeErrorMessage', () => {
     expect(result).not.toContain('mysecretkey123');
   });
 
+  it('should redact PASSWORD values', () => {
+    const msg = "Error: PASSWORD 'hunter2' is too short";
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('hunter2');
+    expect(result).toContain('PASSWORD [REDACTED]');
+  });
+
+  it('should redact API_KEY values', () => {
+    const msg = "Invalid API_KEY 'sk-abc123xyz'";
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('sk-abc123xyz');
+    expect(result).toContain('API_KEY [REDACTED]');
+  });
+
+  it('should redact ACCESS_TOKEN values', () => {
+    const msg = "ACCESS_TOKEN 'eyJhbG.payload.sig' expired at 12:00";
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('eyJhbG.payload.sig');
+    expect(result).toContain('ACCESS_TOKEN [REDACTED]');
+  });
+
+  it('should redact REFRESH_TOKEN values', () => {
+    const msg = "Error refreshing: REFRESH_TOKEN 'rt-secret-value' invalid";
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('rt-secret-value');
+    expect(result).toContain('REFRESH_TOKEN [REDACTED]');
+  });
+
   it('should handle empty strings', () => {
     expect(sanitizeErrorMessage('')).toBe('');
   });

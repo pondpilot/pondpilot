@@ -53,13 +53,22 @@ const KEY_RECORD_ID = 'master';
 
 let cachedKey: CryptoKey | null = null;
 
+/** In-flight promise used to coalesce concurrent getOrCreateCryptoKey calls. */
+let pendingKeyPromise: Promise<CryptoKey> | null = null;
+
 /**
  * Opens the dedicated key database and returns (or creates) the master
  * AES-GCM encryption key.  The key is `extractable: false` so it can
  * never be read by JavaScript — only used via the Web Crypto API.
+ *
+ * Concurrent calls are coalesced: only the first caller performs the
+ * actual IndexedDB lookup / key generation; subsequent callers await
+ * the same in-flight promise, preventing duplicate key creation.
  */
 export async function getOrCreateCryptoKey(): Promise<CryptoKey> {
   if (cachedKey) return cachedKey;
+
+  if (pendingKeyPromise) return pendingKeyPromise;
 
   if (typeof crypto === 'undefined' || !crypto.subtle) {
     throw new Error(
@@ -67,28 +76,36 @@ export async function getOrCreateCryptoKey(): Promise<CryptoKey> {
     );
   }
 
-  // Open the dedicated key DB (separate from app-data)
-  const keyDb = await openKeyDb();
+  pendingKeyPromise = (async () => {
+    // Open the dedicated key DB (separate from app-data)
+    const keyDb = await openKeyDb();
+
+    try {
+      const existing = await keyDb.get(KEY_STORE_NAME, KEY_RECORD_ID);
+      if (existing) {
+        cachedKey = existing as CryptoKey;
+        return cachedKey;
+      }
+
+      // Generate a new key
+      const key = await crypto.subtle.generateKey(
+        { name: 'AES-GCM', length: 256 },
+        false, // non-extractable
+        ['encrypt', 'decrypt'],
+      );
+
+      await keyDb.put(KEY_STORE_NAME, key, KEY_RECORD_ID);
+      cachedKey = key;
+      return key;
+    } finally {
+      keyDb.close();
+    }
+  })();
 
   try {
-    const existing = await keyDb.get(KEY_STORE_NAME, KEY_RECORD_ID);
-    if (existing) {
-      cachedKey = existing as CryptoKey;
-      return cachedKey;
-    }
-
-    // Generate a new key
-    const key = await crypto.subtle.generateKey(
-      { name: 'AES-GCM', length: 256 },
-      false, // non-extractable
-      ['encrypt', 'decrypt'],
-    );
-
-    await keyDb.put(KEY_STORE_NAME, key, KEY_RECORD_ID);
-    cachedKey = key;
-    return key;
+    return await pendingKeyPromise;
   } finally {
-    keyDb.close();
+    pendingKeyPromise = null;
   }
 }
 
@@ -105,14 +122,22 @@ async function openKeyDb(): Promise<IDBPDatabase> {
 
 // ── Crypto helpers ──────────────────────────────────────────────────────
 
+/** Max buffer size (bytes) for the spread-based base64 conversion. */
+const MAX_B64_BUFFER_SIZE = 65_536;
+
 /**
  * Converts an ArrayBuffer to a base64 string.
  *
  * Uses `String.fromCharCode` spread which has a practical size limit of ~65 KB
  * due to max call stack arguments. This is safe for the current use case
- * (small JSON credential payloads) but should not be used for large buffers.
+ * (small JSON credential payloads). Throws for buffers exceeding the limit.
  */
 export function bufferToBase64(buffer: ArrayBuffer): string {
+  if (buffer.byteLength > MAX_B64_BUFFER_SIZE) {
+    throw new Error(
+      `bufferToBase64: buffer size ${buffer.byteLength} exceeds maximum of ${MAX_B64_BUFFER_SIZE} bytes`,
+    );
+  }
   const bytes = new Uint8Array(buffer);
   return btoa(String.fromCharCode(...bytes));
 }
@@ -229,4 +254,5 @@ export async function listSecrets(
  */
 export function clearCachedKey(): void {
   cachedKey = null;
+  pendingKeyPromise = null;
 }

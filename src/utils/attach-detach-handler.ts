@@ -50,7 +50,6 @@ export async function handleCreateSecretStatements(
 ): Promise<Map<string, SecretMappingEntry>> {
   const secretMapping = new Map<string, SecretMappingEntry>();
   const { _iDbConn } = useAppStore.getState();
-  if (!_iDbConn) return secretMapping;
 
   for (const statement of statements) {
     if (statement.type !== SQLStatement.CREATE) continue;
@@ -74,10 +73,19 @@ export async function handleCreateSecretStatements(
     if (options.REGION) data.defaultRegion = options.REGION;
     if (options.OAUTH2_SERVER_URI) data.oauth2ServerUri = options.OAUTH2_SERVER_URI;
 
-    await putSecret(_iDbConn, id, {
-      label: `SQL Secret: ${parsed.secretName}`,
-      data,
-    });
+    // Persist to the encrypted store when the app-data DB is available.
+    // The in-memory mapping is always populated so in-batch inference
+    // (ATTACH after CREATE SECRET in the same script) works regardless.
+    if (_iDbConn) {
+      await putSecret(_iDbConn, id, {
+        label: `SQL Secret: ${parsed.secretName}`,
+        data,
+      });
+    } else {
+      console.warn(
+        `Secret "${parsed.secretName}" parsed but not persisted: app-data DB unavailable.`,
+      );
+    }
 
     secretMapping.set(parsed.secretName, {
       secretRef: id,
