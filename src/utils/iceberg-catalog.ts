@@ -21,7 +21,17 @@ import {
   buildDropSecretQuery,
   buildIcebergAttachQuery,
 } from '@utils/iceberg-sql-builder';
+import { escapeSqlStringValue } from '@utils/sql-security';
 import { IDBPDatabase } from 'idb';
+
+/** Delay (ms) before verifying catalog attachment after ATTACH completes. */
+const ATTACH_SETTLE_DELAY_MS = 2000;
+
+/** Maximum number of verification attempts after attaching a catalog. */
+const VERIFICATION_MAX_ATTEMPTS = 5;
+
+/** Delay (ms) between verification retry attempts. */
+const VERIFICATION_RETRY_DELAY_MS = 2000;
 
 /**
  * Updates the connection state of an Iceberg catalog in the store.
@@ -146,7 +156,9 @@ export async function reconnectIcebergCatalog(
 
     // Create secret
     const isManagedEndpoint =
-      catalog.endpointType === 'GLUE' || catalog.endpointType === 'S3_TABLES';
+      catalog.endpointType === 'GLUE' ||
+      catalog.endpointType === 'S3_TABLES' ||
+      credentials.authType === 'sigv4';
     const secretQuery = buildIcebergSecretQuery({
       secretName: catalog.secretName,
       authType: credentials.authType,
@@ -191,15 +203,14 @@ export async function reconnectIcebergCatalog(
     }
 
     // Wait for catalog to be fully loaded
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, ATTACH_SETTLE_DELAY_MS));
 
     // Verify the catalog is attached
-    const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${catalog.catalogAlias}'`;
+    const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(catalog.catalogAlias)}'`;
     let dbFound = false;
     let attempts = 0;
-    const maxAttempts = 5;
 
-    while (!dbFound && attempts < maxAttempts) {
+    while (!dbFound && attempts < VERIFICATION_MAX_ATTEMPTS) {
       try {
         const result = await pool.query(checkQuery);
         if (result && result.numRows > 0) {
@@ -209,13 +220,13 @@ export async function reconnectIcebergCatalog(
         }
       } catch (error) {
         attempts += 1;
-        if (attempts >= maxAttempts) {
+        if (attempts >= VERIFICATION_MAX_ATTEMPTS) {
           throw new Error(
-            `Catalog ${catalog.catalogAlias} could not be verified after ${maxAttempts} attempts`,
+            `Catalog ${catalog.catalogAlias} could not be verified after ${VERIFICATION_MAX_ATTEMPTS} attempts`,
           );
         }
         console.warn(`Attempt ${attempts}: Catalog not ready yet, waiting...`);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, VERIFICATION_RETRY_DELAY_MS));
       }
     }
 

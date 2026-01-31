@@ -22,6 +22,7 @@ import { executeWithRetry } from '@utils/connection-manager';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
+import { escapeSqlStringValue } from '@utils/sql-security';
 import {
   buildIcebergSecretQuery,
   buildDropSecretQuery,
@@ -150,7 +151,7 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
       });
 
       // Verify
-      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${alias}'`;
+      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(alias)}'`;
       await pool.query(checkQuery);
 
       // Clean up test resources
@@ -274,7 +275,7 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
       });
 
       // Verify
-      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${alias}'`;
+      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(alias)}'`;
       let dbFound = false;
       let attempts = 0;
       const maxAttempts = 3;

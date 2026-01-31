@@ -1,6 +1,8 @@
 /* eslint-disable import/order -- Module-under-test import must come after jest.mock calls for proper mock hoisting */
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
+import type { SecretId } from '@services/secret-store';
+import type { SecretMappingEntry } from '@utils/attach-detach-handler';
 
 // Mock setup - must be declared before jest.mock calls
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -183,6 +185,175 @@ describe('attach-detach-handler', () => {
 
       expect(ctx.updatedDataSources.size).toBe(2);
       expect(mockPersistPut).toHaveBeenCalledTimes(2);
+    });
+
+    it('should infer s3 secret for S3_TABLES endpoint when no explicit SECRET', async () => {
+      const secretId = 'secret-ref-1' as unknown as SecretId;
+      const secretMapping = new Map<string, SecretMappingEntry>([
+        ['my_s3_secret', { secretRef: secretId, secretType: 's3', authType: 'sigv4' }],
+      ]);
+      const statements = [
+        makeStatement(
+          "CREATE OR REPLACE SECRET my_s3_secret (TYPE s3, KEY_ID 'AKID', SECRET 'skey', REGION 'us-east-1')",
+          SQLStatement.CREATE,
+        ),
+        makeStatement(
+          "ATTACH IF NOT EXISTS 'my_warehouse' AS my_catalog (TYPE ICEBERG, ENDPOINT_TYPE 's3_tables')",
+          SQLStatement.ATTACH,
+        ),
+      ];
+      const ctx = makeContext();
+
+      await handleAttachStatements(statements, ctx, secretMapping);
+
+      const created = Array.from(ctx.updatedDataSources.values());
+      expect(created).toHaveLength(1);
+      expect(created[0]).toMatchObject({
+        type: 'iceberg-catalog',
+        catalogAlias: 'my_catalog',
+        secretName: 'my_s3_secret',
+        secretRef: secretId,
+        authType: 'sigv4',
+      });
+    });
+
+    it('should infer s3 secret for GLUE endpoint when no explicit SECRET', async () => {
+      const secretId = 'secret-ref-2' as unknown as SecretId;
+      const secretMapping = new Map<string, SecretMappingEntry>([
+        ['glue_secret', { secretRef: secretId, secretType: 's3', authType: 'sigv4' }],
+      ]);
+      const statements = [
+        makeStatement(
+          "CREATE OR REPLACE SECRET glue_secret (TYPE s3, KEY_ID 'AKID', SECRET 'skey')",
+          SQLStatement.CREATE,
+        ),
+        makeStatement(
+          "ATTACH 'my_warehouse' AS glue_cat (TYPE ICEBERG, ENDPOINT_TYPE 'GLUE')",
+          SQLStatement.ATTACH,
+        ),
+      ];
+      const ctx = makeContext();
+
+      await handleAttachStatements(statements, ctx, secretMapping);
+
+      const created = Array.from(ctx.updatedDataSources.values());
+      expect(created).toHaveLength(1);
+      expect(created[0]).toMatchObject({
+        type: 'iceberg-catalog',
+        catalogAlias: 'glue_cat',
+        secretName: 'glue_secret',
+        secretRef: secretId,
+        authType: 'sigv4',
+      });
+    });
+
+    it('should not infer secret when secret type does not match endpoint', async () => {
+      const secretId = 'secret-ref-3' as unknown as SecretId;
+      const secretMapping = new Map<string, SecretMappingEntry>([
+        ['ice_secret', { secretRef: secretId, secretType: 'iceberg', authType: 'bearer' }],
+      ]);
+      const statements = [
+        makeStatement(
+          "CREATE OR REPLACE SECRET ice_secret (TYPE iceberg, TOKEN 'tok123')",
+          SQLStatement.CREATE,
+        ),
+        makeStatement(
+          "ATTACH 'my_warehouse' AS my_cat (TYPE ICEBERG, ENDPOINT_TYPE 's3_tables')",
+          SQLStatement.ATTACH,
+        ),
+      ];
+      const ctx = makeContext();
+
+      await handleAttachStatements(statements, ctx, secretMapping);
+
+      const created = Array.from(ctx.updatedDataSources.values());
+      expect(created).toHaveLength(1);
+      expect(created[0]).toMatchObject({
+        type: 'iceberg-catalog',
+        secretName: '',
+        secretRef: undefined,
+      });
+    });
+
+    it('should not infer secret when multiple CREATE SECRETs exist in batch', async () => {
+      const secretMapping = new Map<string, SecretMappingEntry>([
+        ['secret_a', { secretRef: 'ref-a' as unknown as SecretId, secretType: 's3', authType: 'sigv4' }],
+        ['secret_b', { secretRef: 'ref-b' as unknown as SecretId, secretType: 's3', authType: 'sigv4' }],
+      ]);
+      const statements = [
+        makeStatement(
+          "CREATE SECRET secret_a (TYPE s3, KEY_ID 'A', SECRET 'a')",
+          SQLStatement.CREATE,
+        ),
+        makeStatement(
+          "CREATE SECRET secret_b (TYPE s3, KEY_ID 'B', SECRET 'b')",
+          SQLStatement.CREATE,
+        ),
+        makeStatement(
+          "ATTACH 'wh' AS cat (TYPE ICEBERG, ENDPOINT_TYPE 's3_tables')",
+          SQLStatement.ATTACH,
+        ),
+      ];
+      const ctx = makeContext();
+
+      await handleAttachStatements(statements, ctx, secretMapping);
+
+      const created = Array.from(ctx.updatedDataSources.values());
+      expect(created).toHaveLength(1);
+      expect(created[0]).toMatchObject({
+        type: 'iceberg-catalog',
+        secretName: '',
+        secretRef: undefined,
+      });
+    });
+
+    it('should still use explicit SECRET option (regression)', async () => {
+      const secretId = 'explicit-ref' as unknown as SecretId;
+      const secretMapping = new Map<string, SecretMappingEntry>([
+        ['explicit_secret', { secretRef: secretId, secretType: 's3', authType: 'sigv4' }],
+      ]);
+      const statements = [
+        makeStatement(
+          "CREATE SECRET explicit_secret (TYPE s3, KEY_ID 'A', SECRET 'a')",
+          SQLStatement.CREATE,
+        ),
+        makeStatement(
+          "ATTACH 'wh' AS cat (TYPE ICEBERG, SECRET explicit_secret, ENDPOINT_TYPE 's3_tables')",
+          SQLStatement.ATTACH,
+        ),
+      ];
+      const ctx = makeContext();
+
+      await handleAttachStatements(statements, ctx, secretMapping);
+
+      const created = Array.from(ctx.updatedDataSources.values());
+      expect(created).toHaveLength(1);
+      expect(created[0]).toMatchObject({
+        type: 'iceberg-catalog',
+        secretName: 'explicit_secret',
+        secretRef: secretId,
+        authType: 'sigv4',
+      });
+    });
+
+    it('should not infer when batch has no CREATE SECRET at all', async () => {
+      const statements = [
+        makeStatement(
+          "ATTACH 'wh' AS cat (TYPE ICEBERG, ENDPOINT_TYPE 's3_tables')",
+          SQLStatement.ATTACH,
+        ),
+      ];
+      const ctx = makeContext();
+
+      await handleAttachStatements(statements, ctx);
+
+      const created = Array.from(ctx.updatedDataSources.values());
+      expect(created).toHaveLength(1);
+      expect(created[0]).toMatchObject({
+        type: 'iceberg-catalog',
+        secretName: '',
+        secretRef: undefined,
+      });
     });
 
     it('should not persist when _iDbConn is null', async () => {

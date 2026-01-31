@@ -27,15 +27,22 @@ export interface AttachDetachContext {
   updatedMetadata: Map<string, unknown>;
 }
 
+/** Info stored per CREATE SECRET for use by the attach handler. */
+export interface SecretMappingEntry {
+  secretRef: SecretId;
+  secretType: string;
+  authType: IcebergCatalog['authType'];
+}
+
 /**
  * Process CREATE SECRET statements, persisting credentials into the encrypted
- * secret store. Returns a mapping from DuckDB secret name to SecretId for use
- * by the attach handler.
+ * secret store. Returns a mapping from DuckDB secret name to SecretMappingEntry
+ * so the attach handler can look up auth type without re-parsing.
  */
 export async function handleCreateSecretStatements(
   statements: ClassifiedSQLStatement[],
-): Promise<Map<string, SecretId>> {
-  const secretMapping = new Map<string, SecretId>();
+): Promise<Map<string, SecretMappingEntry>> {
+  const secretMapping = new Map<string, SecretMappingEntry>();
   const { _iDbConn } = useAppStore.getState();
   if (!_iDbConn) return secretMapping;
 
@@ -51,7 +58,8 @@ export async function handleCreateSecretStatements(
     // that resolveIcebergCredentials expects.
     const data: Record<string, string> = {};
     const { options } = parsed;
-    data.authType = deriveAuthType(parsed.secretType, options);
+    const authType = deriveAuthType(parsed.secretType, options);
+    data.authType = authType;
     if (options.CLIENT_ID) data.clientId = options.CLIENT_ID;
     if (options.CLIENT_SECRET) data.clientSecret = options.CLIENT_SECRET;
     if (options.TOKEN) data.token = options.TOKEN;
@@ -65,7 +73,11 @@ export async function handleCreateSecretStatements(
       data,
     });
 
-    secretMapping.set(parsed.secretName, id);
+    secretMapping.set(parsed.secretName, {
+      secretRef: id,
+      secretType: parsed.secretType,
+      authType,
+    });
   }
 
   return secretMapping;
@@ -85,13 +97,47 @@ function deriveAuthType(
 }
 
 /**
+ * Infer a secret from the SQL batch when no explicit SECRET option is given
+ * in the ATTACH statement. Returns a match only when exactly one CREATE SECRET
+ * in the batch has a type compatible with the endpoint.
+ *
+ * Endpoint type to secret type mapping:
+ * - S3_TABLES / GLUE → requires TYPE s3
+ * - Everything else (REST) → requires TYPE iceberg
+ */
+function inferSecretFromBatch(
+  secretMapping: Map<string, SecretMappingEntry>,
+  endpointType?: string,
+): { secretName: string; entry: SecretMappingEntry } | undefined {
+  const requiredSecretType =
+    endpointType?.toUpperCase() === 'S3_TABLES' || endpointType?.toUpperCase() === 'GLUE'
+      ? 's3'
+      : 'iceberg';
+
+  const candidates: { secretName: string; entry: SecretMappingEntry }[] = [];
+
+  for (const [secretName, entry] of secretMapping) {
+    if (entry.secretType === requiredSecretType) {
+      candidates.push({ secretName, entry });
+    }
+  }
+
+  // Only infer when there's exactly one matching candidate
+  if (candidates.length === 1) {
+    return candidates[0];
+  }
+
+  return undefined;
+}
+
+/**
  * Process ATTACH statements, creating data source entries for newly attached
  * remote databases and Iceberg catalogs.
  */
 export async function handleAttachStatements(
   statements: ClassifiedSQLStatement[],
   context: AttachDetachContext,
-  secretMapping?: Map<string, SecretId>,
+  secretMapping?: Map<string, SecretMappingEntry>,
 ): Promise<void> {
   for (const statement of statements) {
     if (statement.type !== SQLStatement.ATTACH) {
@@ -107,25 +153,25 @@ export async function handleAttachStatements(
       );
 
       if (!existingCatalog) {
-        // Look up secretRef from CREATE SECRET mapping
-        const secretRef = icebergParsed.secretName
-          ? secretMapping?.get(icebergParsed.secretName)
-          : undefined;
-
-        // Derive auth type from the secret if available
+        // Resolve the secret reference and auth type from the mapping
+        let resolvedSecretName = icebergParsed.secretName;
+        let secretRef: SecretId | undefined;
         let authType: IcebergCatalog['authType'] = 'none';
-        if (icebergParsed.secretName && secretMapping?.has(icebergParsed.secretName)) {
-          // Re-parse the CREATE SECRET to get type info
-          const createSecretStmt = statements.find(
-            (s) =>
-              s.type === SQLStatement.CREATE &&
-              parseCreateSecretStatement(s.code)?.secretName === icebergParsed.secretName,
-          );
-          if (createSecretStmt) {
-            const parsed = parseCreateSecretStatement(createSecretStmt.code);
-            if (parsed) {
-              authType = deriveAuthType(parsed.secretType, parsed.options);
-            }
+
+        if (resolvedSecretName) {
+          // Explicit SECRET in ATTACH
+          const entry = secretMapping?.get(resolvedSecretName);
+          if (entry) {
+            secretRef = entry.secretRef;
+            authType = entry.authType;
+          }
+        } else if (secretMapping && secretMapping.size > 0) {
+          // No explicit SECRET — try to infer from batch
+          const match = inferSecretFromBatch(secretMapping, icebergParsed.endpointType);
+          if (match) {
+            resolvedSecretName = match.secretName;
+            secretRef = match.entry.secretRef;
+            authType = match.entry.authType;
           }
         }
 
@@ -138,7 +184,7 @@ export async function handleAttachStatements(
           authType,
           connectionState: 'connected',
           attachedAt: Date.now(),
-          secretName: icebergParsed.secretName ?? '',
+          secretName: resolvedSecretName ?? '',
           endpointType: icebergParsed.endpointType as 'GLUE' | 'S3_TABLES' | undefined,
           secretRef,
         };

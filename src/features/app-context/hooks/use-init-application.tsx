@@ -45,7 +45,8 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
 
         const isManagedEndpoint =
           dataSource.endpointType === 'GLUE' ||
-          dataSource.endpointType === 'S3_TABLES';
+          dataSource.endpointType === 'S3_TABLES' ||
+          credentials.authType === 'sigv4';
 
         // Recreate the DuckDB in-memory secret (lost on page refresh)
         const secretQuery = buildIcebergSecretQuery({

@@ -184,13 +184,28 @@ export const deleteDataSources = async (
   // Delete the data sources from the database
   for (const dataSource of deletedDataSources) {
     if (dataSource.type === 'iceberg-catalog') {
-      // For Iceberg catalogs: detach and drop secret
-      detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.warehouseName);
+      // For Iceberg catalogs: detach, drop DuckDB secret, and remove encrypted secret
+      try {
+        detachAndUnregisterDatabase(conn, dataSource.catalogAlias, dataSource.warehouseName);
+      } catch (detachError) {
+        console.warn('Failed to detach Iceberg catalog during deletion:', detachError);
+      }
       try {
         const { buildDropSecretQuery } = await import('@utils/iceberg-sql-builder');
         await conn.query(buildDropSecretQuery(dataSource.secretName));
       } catch (secretError) {
         console.warn('Failed to drop Iceberg secret during deletion:', secretError);
+      }
+      if (dataSource.secretRef) {
+        try {
+          const { _iDbConn } = useAppStore.getState();
+          if (_iDbConn) {
+            const { deleteSecret } = await import('@services/secret-store');
+            await deleteSecret(_iDbConn, dataSource.secretRef);
+          }
+        } catch (storeError) {
+          console.warn('Failed to delete secret from store during deletion:', storeError);
+        }
       }
       continue;
     }

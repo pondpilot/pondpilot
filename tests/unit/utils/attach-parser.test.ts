@@ -206,6 +206,23 @@ describe('attach-parser', () => {
       expect(result?.endpointType).toBe('S3_TABLES');
     });
 
+    it('should parse quoted ENDPOINT_TYPE s3_tables', () => {
+      const sql =
+        "ATTACH IF NOT EXISTS 'arn:aws:s3tables:us-east-1:123:bucket/wh' AS my_cat (TYPE iceberg, SECRET my_secret, ENDPOINT_TYPE 's3_tables')";
+      const result = parseIcebergAttachStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.endpointType).toBe('s3_tables');
+      expect(result?.secretName).toBe('my_secret');
+    });
+
+    it('should parse quoted ENDPOINT_TYPE GLUE', () => {
+      const sql =
+        "ATTACH 'wh' AS glue_cat (TYPE ICEBERG, SECRET aws_creds, ENDPOINT_TYPE 'GLUE')";
+      const result = parseIcebergAttachStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.endpointType).toBe('GLUE');
+    });
+
     it('should be case-insensitive for TYPE ICEBERG', () => {
       const lower =
         "attach 'wh' as cat (type iceberg, endpoint 'https://example.com', secret s)";

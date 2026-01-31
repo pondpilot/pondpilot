@@ -231,7 +231,10 @@ async function persistApiKeysToSecretStore(
 ): Promise<void> {
   const { useAppStore } = await import('@store/app-store');
   const { _iDbConn } = useAppStore.getState();
-  if (!_iDbConn) return;
+  if (!_iDbConn) {
+    console.warn('persistApiKeysToSecretStore: IDB connection not available, keys not persisted');
+    return;
+  }
 
   const { putSecret } = await import('../services/secret-store');
   await putSecret(_iDbConn, AI_API_KEYS_SECRET_ID, {
