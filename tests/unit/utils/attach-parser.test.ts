@@ -4,6 +4,7 @@ import {
   parseAttachStatement,
   parseDetachStatement,
   parseIcebergAttachStatement,
+  parseCreateSecretStatement,
   ATTACH_STATEMENT_REGEX,
 } from '../../../src/utils/attach-parser';
 
@@ -278,6 +279,57 @@ describe('attach-parser', () => {
       const result = parseIcebergAttachStatement(sql);
       expect(result).not.toBeNull();
       expect(result?.catalogAlias).toBe('my_catalog');
+    });
+
+    it('should parse Iceberg ATTACH with hyphenated quoted alias', () => {
+      const sql = "ATTACH 'wh' AS \"my-catalog\" (TYPE ICEBERG, SECRET s)";
+      const result = parseIcebergAttachStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.catalogAlias).toBe('my-catalog');
+    });
+
+    it('should parse Iceberg ATTACH with dotted quoted alias', () => {
+      const sql = "ATTACH 'wh' AS \"my.catalog\" (TYPE ICEBERG, SECRET s)";
+      const result = parseIcebergAttachStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.catalogAlias).toBe('my.catalog');
+    });
+  });
+
+  describe('parseCreateSecretStatement', () => {
+    it('should parse basic CREATE SECRET', () => {
+      const sql = "CREATE SECRET my_secret (TYPE s3, KEY_ID 'AKID', SECRET 'skey')";
+      const result = parseCreateSecretStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.secretName).toBe('my_secret');
+      expect(result?.secretType).toBe('s3');
+      expect(result?.options).toEqual({ KEY_ID: 'AKID', SECRET: 'skey' });
+    });
+
+    it('should parse CREATE SECRET with quoted name', () => {
+      const sql = "CREATE SECRET \"my-secret\" (TYPE s3, KEY_ID 'AKID')";
+      const result = parseCreateSecretStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.secretName).toBe('my-secret');
+    });
+
+    it('should parse CREATE OR REPLACE SECRET with quoted name', () => {
+      const sql = "CREATE OR REPLACE SECRET \"my.secret\" (TYPE iceberg, TOKEN 'tok')";
+      const result = parseCreateSecretStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.secretName).toBe('my.secret');
+    });
+
+    it('should parse unquoted option values for known keys', () => {
+      const sql = "CREATE SECRET my_secret (TYPE s3, KEY_ID 'AKID', SECRET 'skey', REGION us-east-1)";
+      const result = parseCreateSecretStatement(sql);
+      expect(result).not.toBeNull();
+      expect(result?.options.REGION).toBe('us-east-1');
+    });
+
+    it('should return null for non-CREATE SECRET statements', () => {
+      expect(parseCreateSecretStatement('CREATE TABLE foo (id INT)')).toBeNull();
+      expect(parseCreateSecretStatement('SELECT 1')).toBeNull();
     });
   });
 
