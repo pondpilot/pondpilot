@@ -45,7 +45,16 @@ export const useIcebergCatalogNodes = ({
           comparisonByTableName,
         }),
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [icebergCatalogs, nodeMap, anyNodeIdToNodeTypeMap, conn, databaseMetadata, flatFileSources],
+    [
+      icebergCatalogs,
+      nodeMap,
+      anyNodeIdToNodeTypeMap,
+      conn,
+      databaseMetadata,
+      initialExpandedState,
+      flatFileSources,
+      comparisonTableNames,
+      comparisonByTableName,
+    ],
   );
 };
