@@ -250,8 +250,7 @@ export const deleteDataSources = async (
   // Update metadata views
   if (
     deletedDataSources.some(
-      (ds) =>
-        ds.type !== 'attached-db' && ds.type !== 'remote-db' && ds.type !== 'iceberg-catalog',
+      (ds) => ds.type !== 'attached-db' && ds.type !== 'remote-db' && ds.type !== 'iceberg-catalog',
     )
   ) {
     // Refresh metadata for pondpilot database

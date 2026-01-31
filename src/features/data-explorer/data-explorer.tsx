@@ -121,23 +121,22 @@ export const DataExplorer = memo(() => {
     icebergCatalogNodes,
     systemDbNode,
     systemDbNodeForDisplay,
-  } =
-    useBuildNodes({
-      systemDatabase,
-      localDatabases,
-      remoteDatabases,
-      icebergCatalogs,
-      nodeMap,
-      anyNodeIdToNodeTypeMap,
-      conn,
-      localDBLocalEntriesMap,
-      databaseMetadata,
-      fileViewNames,
-      initialExpandedState,
-      flatFileSources,
-      comparisonTableNames,
-      comparisonByTableName,
-    });
+  } = useBuildNodes({
+    systemDatabase,
+    localDatabases,
+    remoteDatabases,
+    icebergCatalogs,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    localDBLocalEntriesMap,
+    databaseMetadata,
+    fileViewNames,
+    initialExpandedState,
+    flatFileSources,
+    comparisonTableNames,
+    comparisonByTableName,
+  });
 
   // Create unified tree for context
   const unifiedTree = [
@@ -344,9 +343,7 @@ export const DataExplorer = memo(() => {
         showRemoteDbs={filteredSections.showRemoteDbs}
         remoteDbNodes={filteredSections.filteredRemoteDbNodes}
         showIcebergCatalogs={filteredSections.showIcebergCatalogs}
-        icebergCatalogNodes={
-          filteredSections.filteredIcebergCatalogNodes
-        }
+        icebergCatalogNodes={filteredSections.filteredIcebergCatalogNodes}
         initialExpandedState={initialExpandedState}
         searchExpandedState={searchExpandedState}
         extraData={enhancedExtraData}

@@ -7,7 +7,12 @@
  */
 
 import { persistPutDataSources, persistDeleteDataSource } from '@controllers/data-source/persist';
-import { IcebergCatalog, RemoteDB, AnyDataSource, PersistentDataSourceId } from '@models/data-source';
+import {
+  IcebergCatalog,
+  RemoteDB,
+  AnyDataSource,
+  PersistentDataSourceId,
+} from '@models/data-source';
 import { makeSecretId, putSecret, deleteSecret } from '@services/secret-store';
 import type { SecretId } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
@@ -18,9 +23,9 @@ import {
   parseIcebergAttachStatement,
 } from '@utils/attach-parser';
 import { normalizeRemoteUrl } from '@utils/cors-proxy-config';
-import { isManagedIcebergEndpoint } from '@utils/iceberg-catalog';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { ClassifiedSQLStatement, SQLStatement } from '@utils/editor/sql';
+import { isManagedIcebergEndpoint } from '@utils/iceberg-catalog';
 
 export interface AttachDetachContext {
   dataSources: Map<PersistentDataSourceId, AnyDataSource>;

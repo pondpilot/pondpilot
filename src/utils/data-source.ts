@@ -83,11 +83,7 @@ export function ensureDatabaseDataSource(
     obj = dataSourceOrId;
   }
 
-  if (
-    obj.type !== 'attached-db' &&
-    obj.type !== 'remote-db' &&
-    obj.type !== 'iceberg-catalog'
-  ) {
+  if (obj.type !== 'attached-db' && obj.type !== 'remote-db' && obj.type !== 'iceberg-catalog') {
     throw new Error(`Data source with id ${obj.id} is not a database data source`);
   }
 
@@ -207,9 +203,7 @@ export function isIcebergCatalog(dataSource: AnyDataSource): dataSource is Icebe
 
 export type DatabaseDataSource = LocalDB | RemoteDB | IcebergCatalog;
 
-export function isDatabaseDataSource(
-  dataSource: AnyDataSource,
-): dataSource is DatabaseDataSource {
+export function isDatabaseDataSource(dataSource: AnyDataSource): dataSource is DatabaseDataSource {
   return (
     dataSource.type === 'attached-db' ||
     dataSource.type === 'remote-db' ||

@@ -46,11 +46,10 @@ describe('secret-store', () => {
     let key: CryptoKey;
 
     beforeAll(async () => {
-      key = await crypto.subtle.generateKey(
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['encrypt', 'decrypt'],
-      );
+      key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+        'encrypt',
+        'decrypt',
+      ]);
     });
 
     it('should encrypt and decrypt a simple string', async () => {
@@ -95,11 +94,10 @@ describe('secret-store', () => {
     });
 
     it('should fail to decrypt with a different key', async () => {
-      const otherKey = await crypto.subtle.generateKey(
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['encrypt', 'decrypt'],
-      );
+      const otherKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+        'encrypt',
+        'decrypt',
+      ]);
 
       const encrypted = await encrypt(key, 'secret data');
 

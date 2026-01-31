@@ -139,7 +139,7 @@ export function parseIcebergAttachStatement(
   }
 
   const [, warehouseName, quotedAlias, unquotedAlias, optionsBlock] = match;
-  const catalogAlias = (quotedAlias ?? unquotedAlias);
+  const catalogAlias = quotedAlias ?? unquotedAlias;
 
   // Verify TYPE ICEBERG is present in the options block
   if (!/\bTYPE\s+ICEBERG\b/i.test(optionsBlock)) {
@@ -216,9 +216,7 @@ const CREATE_SECRET_REGEX =
  * @param statement - The SQL statement to parse
  * @returns Parsed information, or null if not a valid CREATE SECRET statement
  */
-export function parseCreateSecretStatement(
-  statement: string,
-): ParsedCreateSecretStatement | null {
+export function parseCreateSecretStatement(statement: string): ParsedCreateSecretStatement | null {
   const match = statement.match(CREATE_SECRET_REGEX);
   if (!match) return null;
 

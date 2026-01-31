@@ -999,10 +999,7 @@ export const restoreAppDataFromIDB = async (
         dataSources.set(catalog.id, migrated);
         migratedCatalogs.push(migrated);
       } catch (error) {
-        console.warn(
-          `Failed to migrate credentials for catalog ${catalog.catalogAlias}:`,
-          error,
-        );
+        console.warn(`Failed to migrate credentials for catalog ${catalog.catalogAlias}:`, error);
       }
     }
 

@@ -15,13 +15,13 @@ import { TabId } from '@models/tab';
 import { getSecret, putSecret, SecretPayload } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
-import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { executeWithRetry } from '@utils/connection-manager';
 import {
   buildIcebergSecretQuery,
   buildDropSecretQuery,
   buildIcebergAttachQuery,
 } from '@utils/iceberg-sql-builder';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { escapeSqlStringValue } from '@utils/sql-security';
 import { IDBPDatabase } from 'idb';
 
@@ -37,9 +37,7 @@ import { IDBPDatabase } from 'idb';
  * Whether the given endpoint type is a managed AWS service (Glue or S3 Tables).
  * Managed endpoints require SigV4 auth and use TYPE s3 secrets.
  */
-export function isManagedIcebergEndpoint(
-  endpointType?: string,
-): boolean {
+export function isManagedIcebergEndpoint(endpointType?: string): boolean {
   const upper = endpointType?.toUpperCase();
   return upper === 'GLUE' || upper === 'S3_TABLES';
 }
@@ -176,8 +174,7 @@ export async function reconnectIcebergCatalog(
 
     // Create secret
     const isManagedEndpoint =
-      isManagedIcebergEndpoint(catalog.endpointType) ||
-      credentials.authType === 'sigv4';
+      isManagedIcebergEndpoint(catalog.endpointType) || credentials.authType === 'sigv4';
     const secretQuery = buildIcebergSecretQuery({
       secretName: catalog.secretName,
       authType: credentials.authType,
@@ -258,10 +255,7 @@ export async function reconnectIcebergCatalog(
       if (!secretRef) {
         secretRef = makeSecretId();
       }
-      const payload = buildIcebergSecretPayload(
-        `Iceberg: ${catalog.catalogAlias}`,
-        credentials,
-      );
+      const payload = buildIcebergSecretPayload(`Iceberg: ${catalog.catalogAlias}`, credentials);
       await putSecret(_iDbConn, secretRef, payload);
     }
 
@@ -352,10 +346,7 @@ export async function reconnectIcebergCatalog(
 /**
  * Disconnects an Iceberg catalog: detaches, drops secret, updates state, cleans metadata.
  */
-export async function disconnectIcebergCatalog(
-  pool: any,
-  catalog: IcebergCatalog,
-): Promise<void> {
+export async function disconnectIcebergCatalog(pool: any, catalog: IcebergCatalog): Promise<void> {
   try {
     // DETACH the catalog
     const { toDuckDBIdentifier } = await import('@utils/duckdb/identifier');
@@ -387,11 +378,7 @@ export async function disconnectIcebergCatalog(
         tabsToClose.push(tabId);
       }
 
-      if (
-        tab.type === 'schema-browser' &&
-        tab.sourceType === 'db' &&
-        tab.sourceId === catalog.id
-      ) {
+      if (tab.type === 'schema-browser' && tab.sourceType === 'db' && tab.sourceId === catalog.id) {
         tabsToClose.push(tabId);
       }
     }
@@ -405,7 +392,9 @@ export async function disconnectIcebergCatalog(
       message: `Successfully disconnected from Iceberg catalog '${catalog.catalogAlias}'`,
     });
   } catch (error) {
-    const errorMessage = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
+    const errorMessage = sanitizeErrorMessage(
+      error instanceof Error ? error.message : String(error),
+    );
 
     showError({
       title: 'Disconnection Failed',

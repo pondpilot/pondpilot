@@ -12,11 +12,11 @@ import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry, executeWithRetry } from '@utils/connection-manager';
 import { isRemoteDatabase, isIcebergCatalog } from '@utils/data-source';
-import { resolveIcebergCredentials, updateIcebergCatalogConnectionState } from '@utils/iceberg-catalog';
 import {
-  buildIcebergSecretQuery,
-  buildIcebergAttachQuery,
-} from '@utils/iceberg-sql-builder';
+  resolveIcebergCredentials,
+  updateIcebergCatalogConnectionState,
+} from '@utils/iceberg-catalog';
+import { buildIcebergSecretQuery, buildIcebergAttachQuery } from '@utils/iceberg-sql-builder';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { useEffect } from 'react';
@@ -31,9 +31,7 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
   for (const [id, dataSource] of dataSources) {
     if (isIcebergCatalog(dataSource)) {
       // Resolve credentials from secret store (or inline fallback)
-      const credentials = _iDbConn
-        ? await resolveIcebergCredentials(_iDbConn, dataSource)
-        : null;
+      const credentials = _iDbConn ? await resolveIcebergCredentials(_iDbConn, dataSource) : null;
 
       if (!credentials) {
         updateIcebergCatalogConnectionState(id, 'credentials-required');
