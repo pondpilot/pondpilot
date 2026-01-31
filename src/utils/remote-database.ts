@@ -13,6 +13,7 @@ import { useAppStore } from '@store/app-store';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { executeWithRetry } from '@utils/connection-manager';
 import { buildAttachQuery, buildDetachQuery } from '@utils/sql-builder';
+import { escapeSqlStringValue } from '@utils/sql-security';
 
 // Re-export validation functions from the separate module
 export {
@@ -83,7 +84,7 @@ export async function reconnectRemoteDatabase(pool: any, remoteDb: RemoteDB): Pr
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Verify the database is attached by checking the catalog
-    const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${remoteDb.dbName}'`;
+    const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(remoteDb.dbName)}'`;
 
     let dbFound = false;
     let attempts = 0;
