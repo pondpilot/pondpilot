@@ -21,6 +21,7 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { ChartConfig, ViewMode } from '@models/chart';
 import { DataAdapterApi } from '@models/data-adapter';
 import { SYSTEM_DATABASE_NAME } from '@models/data-source';
+import { getDatabaseIdentifier, isDatabaseDataSource } from '@utils/data-source';
 import { DBColumn } from '@models/db';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
@@ -180,7 +181,7 @@ export const DataViewInfoPane = ({
         };
       } else if (tab.dataSourceType === 'db') {
         // For database sources
-        if (dataSource.type !== 'remote-db' && dataSource.type !== 'attached-db') {
+        if (!isDatabaseDataSource(dataSource)) {
           showWarningWithAction({
             title: 'Cannot create comparison',
             message: 'Invalid database source type',
@@ -192,7 +193,7 @@ export const DataViewInfoPane = ({
           type: 'table' as const,
           tableName: tab.objectName,
           schemaName: tab.schemaName,
-          databaseName: dataSource.dbName,
+          databaseName: getDatabaseIdentifier(dataSource),
         };
       } else {
         showWarningWithAction({

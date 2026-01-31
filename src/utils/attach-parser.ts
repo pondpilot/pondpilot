@@ -180,6 +180,72 @@ function extractUnquotedOption(optionsBlock: string, key: string): string | unde
   return match?.[1];
 }
 
+/**
+ * Parsed CREATE SECRET statement information
+ */
+export interface ParsedCreateSecretStatement {
+  /** Secret name identifier */
+  secretName: string;
+  /** Secret type (e.g. 's3', 'iceberg', etc.) */
+  secretType: string;
+  /** Key-value options extracted from the statement */
+  options: Record<string, string>;
+  /** The original SQL statement */
+  statement: string;
+}
+
+/**
+ * Regex to match CREATE SECRET statements.
+ *
+ * Supports: CREATE [OR REPLACE] SECRET [IF NOT EXISTS] name (TYPE type, ...)
+ *
+ * Capture groups:
+ * 1: Secret name
+ * 2: Options block content inside parentheses
+ */
+const CREATE_SECRET_REGEX =
+  /CREATE\s+(?:OR\s+REPLACE\s+)?SECRET\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(([^)]+)\)/i;
+
+/**
+ * Parse a CREATE SECRET statement to extract the secret name, type, and options.
+ *
+ * @param statement - The SQL statement to parse
+ * @returns Parsed information, or null if not a valid CREATE SECRET statement
+ */
+export function parseCreateSecretStatement(
+  statement: string,
+): ParsedCreateSecretStatement | null {
+  const match = statement.match(CREATE_SECRET_REGEX);
+  if (!match) return null;
+
+  const [, secretName, optionsBlock] = match;
+
+  // Extract TYPE (required)
+  const typeMatch = optionsBlock.match(/\bTYPE\s+(\w+)/i);
+  if (!typeMatch) return null;
+  const secretType = typeMatch[1].toLowerCase();
+
+  // Extract key-value pairs from the options block
+  const options: Record<string, string> = {};
+  // Match KEY 'value' or KEY "value" patterns
+  const quotedOptionRegex = /\b(\w+)\s+['"]([^'"]*)['"]/gi;
+  let optionMatch: RegExpExecArray | null;
+  while ((optionMatch = quotedOptionRegex.exec(optionsBlock)) !== null) {
+    const [, rawKey, value] = optionMatch;
+    const key = rawKey.toUpperCase();
+    if (key !== 'TYPE') {
+      options[key] = value;
+    }
+  }
+
+  return {
+    secretName,
+    secretType,
+    options,
+    statement,
+  };
+}
+
 export function parseDetachStatement(statement: string): string | null {
   // Match DETACH followed by optional DATABASE keyword, then the database name
   // Ensure the database name is not the DATABASE keyword itself

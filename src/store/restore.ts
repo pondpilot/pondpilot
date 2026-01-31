@@ -15,6 +15,7 @@ import { Comparison, ComparisonId } from '@models/comparison';
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
+  IcebergCatalog,
   PersistentDataSourceId,
   XlsxSheetView,
   LocalDB,
@@ -48,6 +49,7 @@ import {
 } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ComparisonTab, TabId } from '@models/tab';
+import { makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { makeComparisonId } from '@utils/comparison';
 import {
@@ -64,6 +66,7 @@ import {
 } from '@utils/file-system';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { findUniqueName } from '@utils/helpers';
+import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
 
@@ -456,6 +459,13 @@ export const restoreAppDataFromIDB = async (
   onBeforeRequestFilePermission: (handles: FileSystemHandle[]) => Promise<boolean>,
 ): Promise<{ discardedEntries: DiscardedEntry[]; warnings: string[] }> => {
   const iDbConn = await getAppDataDBConnection();
+
+  // Initialize AI config from the encrypted secret store (or migrate from cookie).
+  // This must happen before reconnection triggers any `getAIConfig()` calls.
+  // Dynamic import to avoid pulling ai-service.ts (which uses import.meta) into
+  // the static import graph — Jest doesn't support import.meta outside modules.
+  const { initAIConfigFromSecretStore } = await import('@utils/ai-config');
+  await initAIConfigFromSecretStore(iDbConn);
 
   const warnings: string[] = [];
   // iDB doesn't allow holding transaction while we await something
@@ -945,6 +955,59 @@ export const restoreAppDataFromIDB = async (
   for (const ds of dataSources.values()) {
     if (ds.type === 'remote-db' || ds.type === 'iceberg-catalog') {
       validDataSources.add(ds.id);
+    }
+  }
+
+  // Migrate Iceberg catalogs that have inline credentials but no secretRef
+  const catalogsToMigrate: IcebergCatalog[] = [];
+  for (const ds of dataSources.values()) {
+    if (
+      ds.type === 'iceberg-catalog' &&
+      !ds.secretRef &&
+      (ds.clientId || ds.clientSecret || ds.token || ds.awsKeyId || ds.awsSecret)
+    ) {
+      catalogsToMigrate.push(ds);
+    }
+  }
+
+  if (catalogsToMigrate.length > 0) {
+    const migratedCatalogs: IcebergCatalog[] = [];
+    for (const catalog of catalogsToMigrate) {
+      try {
+        const secretRef = makeSecretId();
+        const payload = buildIcebergSecretPayload(`Iceberg: ${catalog.catalogAlias}`, {
+          authType: catalog.authType,
+          clientId: catalog.clientId,
+          clientSecret: catalog.clientSecret,
+          oauth2ServerUri: catalog.oauth2ServerUri,
+          token: catalog.token,
+          awsKeyId: catalog.awsKeyId,
+          awsSecret: catalog.awsSecret,
+          defaultRegion: catalog.defaultRegion,
+        });
+        await putSecret(iDbConn, secretRef, payload);
+
+        const migrated: IcebergCatalog = {
+          ...catalog,
+          secretRef,
+          clientId: undefined,
+          clientSecret: undefined,
+          token: undefined,
+          awsKeyId: undefined,
+          awsSecret: undefined,
+        };
+        dataSources.set(catalog.id, migrated);
+        migratedCatalogs.push(migrated);
+      } catch (error) {
+        console.warn(
+          `Failed to migrate credentials for catalog ${catalog.catalogAlias}:`,
+          error,
+        );
+      }
+    }
+
+    if (migratedCatalogs.length > 0) {
+      await persistPutDataSources(iDbConn, migratedCatalogs);
     }
   }
 

@@ -1,6 +1,7 @@
 import { PERSISTENT_DB_NAME } from './db-persistence';
 import { LocalEntryId, ReadStatViewType } from './file-system';
 import { NewId } from './new-id';
+import type { SecretId } from '../services/secret-store';
 
 // We have two types of data view sources:
 // 1. Persistent - these are stored in app state to allow
@@ -152,27 +153,33 @@ export interface IcebergCatalog {
   oauth2ServerUri?: string;
 
   // ──────────────────────────────────────────────────────────────────
-  // SECURITY NOTE: The credential fields below are stored in plaintext
-  // in the browser's IndexedDB. This enables auto-reconnect on page
-  // reload without re-prompting the user. Any script running on this
-  // origin can read them. This is acceptable for PondPilot's single-user
-  // local-first model, but should be revisited if the app is ever served
-  // in a multi-tenant or untrusted environment.
+  // SECURITY NOTE: Credentials are encrypted in the secret store
+  // (AES-GCM with a non-extractable key). The `secretRef` field
+  // references the encrypted record. Inline credential fields below
+  // are kept for backward compatibility with catalogs created before
+  // the secret store was introduced. On restore, inline credentials
+  // are migrated into the secret store automatically.
   // ──────────────────────────────────────────────────────────────────
 
-  /** OAuth2 client ID */
+  /**
+   * Reference to the encrypted secret store entry holding credentials.
+   * When present, inline credential fields are ignored.
+   */
+  secretRef?: SecretId;
+
+  /** @deprecated Use secretRef. OAuth2 client ID */
   clientId?: string;
 
-  /** OAuth2 client secret */
+  /** @deprecated Use secretRef. OAuth2 client secret */
   clientSecret?: string;
 
-  /** Bearer token */
+  /** @deprecated Use secretRef. Bearer token */
   token?: string;
 
-  /** AWS access key ID */
+  /** @deprecated Use secretRef. AWS access key ID */
   awsKeyId?: string;
 
-  /** AWS secret access key */
+  /** @deprecated Use secretRef. AWS secret access key */
   awsSecret?: string;
 }
 

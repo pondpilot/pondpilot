@@ -10,7 +10,9 @@ import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { deleteTab } from '@controllers/tab';
 import { IcebergCatalog, PersistentDataSourceId } from '@models/data-source';
+import { AppIdbSchema } from '@models/persisted-store';
 import { TabId } from '@models/tab';
+import { getSecret, putSecret, SecretPayload } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { executeWithRetry } from '@utils/connection-manager';
@@ -19,6 +21,7 @@ import {
   buildDropSecretQuery,
   buildIcebergAttachQuery,
 } from '@utils/iceberg-sql-builder';
+import { IDBPDatabase } from 'idb';
 
 /**
  * Updates the connection state of an Iceberg catalog in the store.
@@ -59,6 +62,74 @@ export interface IcebergCredentials {
   awsKeyId?: string;
   awsSecret?: string;
   defaultRegion?: string;
+}
+
+/**
+ * Resolves credentials for an Iceberg catalog.
+ *
+ * - If `secretRef` is set, reads from the encrypted secret store.
+ * - Falls back to inline (deprecated) credential fields.
+ * - Returns null if no credentials are available.
+ */
+export async function resolveIcebergCredentials(
+  iDb: IDBPDatabase<AppIdbSchema>,
+  catalog: IcebergCatalog,
+): Promise<IcebergCredentials | null> {
+  if (catalog.secretRef) {
+    const secret = await getSecret(iDb, catalog.secretRef);
+    if (secret) {
+      return {
+        authType: (secret.data.authType as IcebergCatalog['authType']) ?? catalog.authType,
+        clientId: secret.data.clientId,
+        clientSecret: secret.data.clientSecret,
+        oauth2ServerUri: secret.data.oauth2ServerUri,
+        token: secret.data.token,
+        awsKeyId: secret.data.awsKeyId,
+        awsSecret: secret.data.awsSecret,
+        defaultRegion: secret.data.defaultRegion,
+      };
+    }
+    // Secret was lost (key cleared, etc.) — fall through to inline
+  }
+
+  // Inline fields (backward compatibility)
+  const hasInlineCredentials =
+    catalog.authType !== 'none' &&
+    !!(catalog.clientId || catalog.clientSecret || catalog.token || catalog.awsKeyId);
+
+  if (hasInlineCredentials) {
+    return {
+      authType: catalog.authType,
+      clientId: catalog.clientId,
+      clientSecret: catalog.clientSecret,
+      oauth2ServerUri: catalog.oauth2ServerUri,
+      token: catalog.token,
+      awsKeyId: catalog.awsKeyId,
+      awsSecret: catalog.awsSecret,
+      defaultRegion: catalog.defaultRegion,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Build a SecretPayload from Iceberg credentials for storage in the secret store.
+ */
+export function buildIcebergSecretPayload(
+  label: string,
+  credentials: IcebergCredentials,
+): SecretPayload {
+  const data: Record<string, string> = {};
+  data.authType = credentials.authType;
+  if (credentials.clientId) data.clientId = credentials.clientId;
+  if (credentials.clientSecret) data.clientSecret = credentials.clientSecret;
+  if (credentials.oauth2ServerUri) data.oauth2ServerUri = credentials.oauth2ServerUri;
+  if (credentials.token) data.token = credentials.token;
+  if (credentials.awsKeyId) data.awsKeyId = credentials.awsKeyId;
+  if (credentials.awsSecret) data.awsSecret = credentials.awsSecret;
+  if (credentials.defaultRegion) data.defaultRegion = credentials.defaultRegion;
+  return { label, data };
 }
 
 /**
@@ -148,22 +219,38 @@ export async function reconnectIcebergCatalog(
       }
     }
 
-    // Persist updated credentials to the catalog model
+    // Persist updated credentials to the secret store
+    const { dataSources, _iDbConn } = useAppStore.getState();
+
+    let { secretRef } = catalog;
+    if (_iDbConn) {
+      const { makeSecretId } = await import('@services/secret-store');
+      if (!secretRef) {
+        secretRef = makeSecretId();
+      }
+      const payload = buildIcebergSecretPayload(
+        `Iceberg: ${catalog.catalogAlias}`,
+        credentials,
+      );
+      await putSecret(_iDbConn, secretRef, payload);
+    }
+
     const updatedCatalog: IcebergCatalog = {
       ...catalog,
       connectionState: 'connected',
       connectionError: undefined,
       authType: credentials.authType,
-      clientId: credentials.clientId,
-      clientSecret: credentials.clientSecret,
+      secretRef,
+      // Clear inline fields — credentials live in the secret store now
+      clientId: undefined,
+      clientSecret: undefined,
       oauth2ServerUri: credentials.oauth2ServerUri,
-      token: credentials.token,
-      awsKeyId: credentials.awsKeyId,
-      awsSecret: credentials.awsSecret,
+      token: undefined,
+      awsKeyId: undefined,
+      awsSecret: undefined,
       defaultRegion: credentials.defaultRegion,
     };
 
-    const { dataSources, _iDbConn } = useAppStore.getState();
     const newDataSources = new Map(dataSources);
     newDataSources.set(catalog.id, updatedCatalog);
     useAppStore.setState(
