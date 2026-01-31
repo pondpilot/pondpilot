@@ -12,7 +12,7 @@ import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry, executeWithRetry } from '@utils/connection-manager';
 import { isRemoteDatabase, isIcebergCatalog } from '@utils/data-source';
-import { updateIcebergCatalogConnectionState } from '@utils/iceberg-catalog';
+import { resolveIcebergCredentials, updateIcebergCatalogConnectionState } from '@utils/iceberg-catalog';
 import {
   buildIcebergSecretQuery,
   buildIcebergAttachQuery,
@@ -25,23 +25,17 @@ import { useShowPermsAlert } from './use-show-perm-alert';
 
 // Reconnect to remote databases after app initialization
 async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promise<void> {
-  const { dataSources } = useAppStore.getState();
+  const { dataSources, _iDbConn } = useAppStore.getState();
   const connectedDatabases: string[] = [];
 
   for (const [id, dataSource] of dataSources) {
     if (isIcebergCatalog(dataSource)) {
-      // Catalogs created via SQL ATTACH don't store credentials — skip reconnection
-      // and let the user re-enter credentials via the IcebergReconnectModal.
-      const hasCredentials =
-        dataSource.authType !== 'none' &&
-        !!(
-          dataSource.clientId ||
-          dataSource.clientSecret ||
-          dataSource.token ||
-          dataSource.awsKeyId
-        );
+      // Resolve credentials from secret store (or inline fallback)
+      const credentials = _iDbConn
+        ? await resolveIcebergCredentials(_iDbConn, dataSource)
+        : null;
 
-      if (!hasCredentials) {
+      if (!credentials) {
         updateIcebergCatalogConnectionState(id, 'credentials-required');
         continue;
       }
@@ -53,18 +47,18 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
           dataSource.endpointType === 'GLUE' ||
           dataSource.endpointType === 'S3_TABLES';
 
-        // Recreate the secret (in-memory only, lost on page refresh)
+        // Recreate the DuckDB in-memory secret (lost on page refresh)
         const secretQuery = buildIcebergSecretQuery({
           secretName: dataSource.secretName,
-          authType: dataSource.authType,
+          authType: credentials.authType,
           useS3SecretType: isManagedEndpoint,
-          clientId: dataSource.clientId,
-          clientSecret: dataSource.clientSecret,
-          oauth2ServerUri: dataSource.oauth2ServerUri,
-          token: dataSource.token,
-          awsKeyId: dataSource.awsKeyId,
-          awsSecret: dataSource.awsSecret,
-          defaultRegion: dataSource.defaultRegion,
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          oauth2ServerUri: credentials.oauth2ServerUri,
+          token: credentials.token,
+          awsKeyId: credentials.awsKeyId,
+          awsSecret: credentials.awsSecret,
+          defaultRegion: credentials.defaultRegion,
         });
         await conn.query(secretQuery);
 

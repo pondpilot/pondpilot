@@ -16,10 +16,12 @@ import {
 import { useInputState } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { IcebergAuthType, IcebergCatalog } from '@models/data-source';
+import { makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { executeWithRetry } from '@utils/connection-manager';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
 import {
   buildIcebergSecretQuery,
   buildDropSecretQuery,
@@ -200,6 +202,25 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
     const secretName = generateSecretName(alias);
 
     try {
+      // Store credentials in the encrypted secret store
+      const secretRefId = makeSecretId();
+      const credentials = {
+        authType: effectiveAuthType,
+        clientId: clientId.trim() || undefined,
+        clientSecret: clientSecret.trim() || undefined,
+        oauth2ServerUri: oauth2ServerUri.trim() || undefined,
+        token: token.trim() || undefined,
+        awsKeyId: awsKeyId.trim() || undefined,
+        awsSecret: awsSecret.trim() || undefined,
+        defaultRegion: defaultRegion.trim() || undefined,
+      };
+
+      const { _iDbConn } = useAppStore.getState();
+      if (_iDbConn) {
+        const payload = buildIcebergSecretPayload(`Iceberg: ${alias}`, credentials);
+        await putSecret(_iDbConn, secretRefId, payload);
+      }
+
       const catalog: IcebergCatalog = {
         type: 'iceberg-catalog',
         id: makePersistentDataSourceId(),
@@ -214,11 +235,7 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
         endpointType: isManagedEndpoint ? (endpointType as 'GLUE' | 'S3_TABLES') : undefined,
         defaultRegion: defaultRegion.trim() || undefined,
         oauth2ServerUri: oauth2ServerUri.trim() || undefined,
-        clientId: clientId.trim() || undefined,
-        clientSecret: clientSecret.trim() || undefined,
-        token: token.trim() || undefined,
-        awsKeyId: awsKeyId.trim() || undefined,
-        awsSecret: awsSecret.trim() || undefined,
+        secretRef: secretRefId,
       };
 
       const { dataSources, databaseMetadata } = useAppStore.getState();
@@ -305,9 +322,9 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
         );
       }
 
-      const { _iDbConn } = useAppStore.getState();
-      if (_iDbConn) {
-        await persistPutDataSources(_iDbConn, [catalog]);
+      const { _iDbConn: iDbConn } = useAppStore.getState();
+      if (iDbConn) {
+        await persistPutDataSources(iDbConn, [catalog]);
       }
 
       showSuccess({

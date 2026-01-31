@@ -19,7 +19,11 @@ import { ChartConfig, DEFAULT_CHART_CONFIG, DEFAULT_VIEW_MODE, ViewMode } from '
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
 import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
-import { handleAttachStatements, handleDetachStatements } from '@utils/attach-detach-handler';
+import {
+  handleAttachStatements,
+  handleCreateSecretStatements,
+  handleDetachStatements,
+} from '@utils/attach-detach-handler';
 import {
   splitSQLByStats,
   classifySQLStatements,
@@ -382,8 +386,10 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
 
           // Handle newly attached remote databases / Iceberg catalogs and detached databases
           if (hasAttachDetach) {
+            // Process CREATE SECRET statements first so ATTACH can reference them
+            const secretMapping = await handleCreateSecretStatements(classifiedStatements);
             const handlerContext = { dataSources, updatedDataSources, updatedMetadata };
-            await handleAttachStatements(classifiedStatements, handlerContext);
+            await handleAttachStatements(classifiedStatements, handlerContext, secretMapping);
             await handleDetachStatements(classifiedStatements, handlerContext);
           }
 

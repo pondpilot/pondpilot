@@ -7,6 +7,69 @@ import {
   isPollyProvider,
 } from '../models/ai-service';
 import { LOCAL_STORAGE_KEYS } from '../models/local-storage';
+import type { SecretId } from '../services/secret-store';
+
+/**
+ * Well-known SecretId used for persisting AI API keys in the secret store.
+ */
+export const AI_API_KEYS_SECRET_ID = 'ai-api-keys' as SecretId;
+
+// Module-level cache for API keys loaded from the secret store.
+// Populated by `initAIConfigFromSecretStore()` during app initialization,
+// before any sync callers of `getAIConfig()` run.
+let cachedApiKeys: Record<string, string> | null = null;
+
+/**
+ * Initialize the AI config cache from the encrypted secret store.
+ * Must be called during app startup before any `getAIConfig()` calls.
+ * Falls back to cookie-based keys if the secret store has no entry yet
+ * (first run or migration).
+ */
+export async function initAIConfigFromSecretStore(
+  iDb: import('idb').IDBPDatabase<import('@models/persisted-store').AppIdbSchema>,
+): Promise<void> {
+  try {
+    const { getSecret, putSecret } = await import('../services/secret-store');
+    const secret = await getSecret(iDb, AI_API_KEYS_SECRET_ID);
+
+    if (secret) {
+      cachedApiKeys = secret.data;
+      return;
+    }
+
+    // First run or migration: check if there are keys in the cookie
+    const cookieConfig = getJSONCookie<Partial<AIServiceConfig>>(
+      LOCAL_STORAGE_KEYS.AI_SERVICE_CONFIG,
+    );
+    if (cookieConfig?.apiKeys && Object.keys(cookieConfig.apiKeys).length > 0) {
+      // Migrate cookie keys to secret store
+      const keysToMigrate: Record<string, string> = {};
+      for (const [provider, key] of Object.entries(cookieConfig.apiKeys)) {
+        if (typeof key === 'string' && key.trim()) {
+          keysToMigrate[provider] = key.trim();
+        }
+      }
+
+      if (Object.keys(keysToMigrate).length > 0) {
+        await putSecret(iDb, AI_API_KEYS_SECRET_ID, {
+          label: 'AI API Keys',
+          data: keysToMigrate,
+        });
+        cachedApiKeys = keysToMigrate;
+
+        // Remove keys from cookie (keep other non-sensitive fields)
+        const { apiKey: _key, apiKeys: _keys, ...nonSensitive } = cookieConfig;
+        setJSONCookie(LOCAL_STORAGE_KEYS.AI_SERVICE_CONFIG, nonSensitive, {
+          secure: window.location.protocol === 'https:',
+          sameSite: 'strict',
+          maxAge: 777 * 24 * 60 * 60,
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to initialize AI config from secret store:', error);
+  }
+}
 
 function sanitizeConfig(config: Partial<AIServiceConfig>): Partial<AIServiceConfig> {
   const sanitized: Partial<AIServiceConfig> = {};
@@ -80,11 +143,24 @@ export function getAIConfig(): AIServiceConfig {
     if (stored) {
       const sanitized = sanitizeConfig(stored);
       const config = { ...DEFAULT_AI_CONFIG, ...sanitized };
+
+      // Overlay API keys from the encrypted secret store cache
+      if (cachedApiKeys) {
+        config.apiKeys = { ...config.apiKeys, ...cachedApiKeys };
+      }
+
       return normalizeConfig(config);
     }
   } catch (error) {
     console.warn('Failed to load AI config:', error);
   }
+
+  // Even with no cookie, overlay cached keys
+  if (cachedApiKeys) {
+    const config = { ...DEFAULT_AI_CONFIG, apiKeys: { ...cachedApiKeys } };
+    return normalizeConfig(config);
+  }
+
   return DEFAULT_AI_CONFIG;
 }
 
@@ -124,7 +200,22 @@ export function saveAIConfig(config: AIServiceConfig): void {
     const baseConfig = { ...DEFAULT_AI_CONFIG, ...sanitized };
     const configToStore = normalizeConfig(baseConfig);
 
-    setJSONCookie(LOCAL_STORAGE_KEYS.AI_SERVICE_CONFIG, configToStore, {
+    // Update the module cache with the new keys
+    if (configToStore.apiKeys) {
+      cachedApiKeys = { ...cachedApiKeys, ...configToStore.apiKeys };
+    }
+
+    // Persist API keys to the secret store asynchronously
+    if (configToStore.apiKeys && Object.keys(configToStore.apiKeys).length > 0) {
+      // Fire-and-forget: persist to encrypted store
+      persistApiKeysToSecretStore(configToStore.apiKeys).catch((error) => {
+        console.warn('Failed to persist AI API keys to secret store:', error);
+      });
+    }
+
+    // Save non-sensitive config to cookie (strip API keys)
+    const { apiKey: _key, apiKeys: _keys, ...nonSensitive } = configToStore;
+    setJSONCookie(LOCAL_STORAGE_KEYS.AI_SERVICE_CONFIG, nonSensitive, {
       secure: window.location.protocol === 'https:',
       sameSite: 'strict',
       maxAge: 777 * 24 * 60 * 60, // 777 days
@@ -133,6 +224,20 @@ export function saveAIConfig(config: AIServiceConfig): void {
     console.error('Failed to save AI config to cookies:', error);
     throw new Error('Failed to save AI configuration. Please try again.');
   }
+}
+
+async function persistApiKeysToSecretStore(
+  apiKeys: Record<string, string>,
+): Promise<void> {
+  const { useAppStore } = await import('@store/app-store');
+  const { _iDbConn } = useAppStore.getState();
+  if (!_iDbConn) return;
+
+  const { putSecret } = await import('../services/secret-store');
+  await putSecret(_iDbConn, AI_API_KEYS_SECRET_ID, {
+    label: 'AI API Keys',
+    data: apiKeys,
+  });
 }
 
 /**
