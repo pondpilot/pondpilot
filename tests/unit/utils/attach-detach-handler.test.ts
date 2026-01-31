@@ -9,7 +9,20 @@ import type { SecretMappingEntry } from '@utils/attach-detach-handler';
 const mockPersistPut = jest.fn<any>().mockResolvedValue(undefined);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockPersistDelete = jest.fn<any>().mockResolvedValue(undefined);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockPutSecret = jest.fn<any>().mockResolvedValue(undefined);
+let mockSecretIdCounter = 0;
 let mockStoreState: Record<string, unknown>;
+
+jest.mock('@services/secret-store', () => ({
+  putSecret: (...args: unknown[]) => mockPutSecret(...args),
+  makeSecretId: () => {
+    mockSecretIdCounter += 1;
+    return `test-secret-id-${mockSecretIdCounter}`;
+  },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  deleteSecret: jest.fn<any>().mockResolvedValue(undefined),
+}));
 
 jest.mock('@controllers/data-source/persist', () => ({
   persistPutDataSources: (...args: unknown[]) => mockPersistPut(...args),
@@ -36,7 +49,7 @@ jest.mock('@utils/data-source', () => {
 });
 
 // eslint-disable-next-line import/first -- Module-under-test import must come after jest.mock calls
-import { handleAttachStatements, handleDetachStatements } from '@utils/attach-detach-handler';
+import { handleAttachStatements, handleCreateSecretStatements, handleDetachStatements } from '@utils/attach-detach-handler';
 // eslint-disable-next-line import/first
 import { ClassifiedSQLStatement, SQLStatement, SQLStatementType } from '@utils/editor/sql';
 
@@ -69,8 +82,10 @@ function makeContext(
 describe('attach-detach-handler', () => {
   beforeEach(() => {
     idCounter = 0;
+    mockSecretIdCounter = 0;
     mockPersistPut.mockClear();
     mockPersistDelete.mockClear();
+    mockPutSecret.mockClear();
     mockStoreState = { _iDbConn: { fake: true } };
   });
 
@@ -372,6 +387,92 @@ describe('attach-detach-handler', () => {
       expect(ctx.updatedDataSources.size).toBe(1);
       // But persist should not be called
       expect(mockPersistPut).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleCreateSecretStatements', () => {
+    it('should persist CREATE SECRET to encrypted store', async () => {
+      const statements = [
+        makeStatement(
+          "CREATE SECRET my_secret (TYPE s3, KEY_ID 'AKID', SECRET 'skey', REGION 'us-east-1')",
+          SQLStatement.CREATE,
+        ),
+      ];
+
+      const mapping = await handleCreateSecretStatements(statements);
+
+      expect(mapping.size).toBe(1);
+      expect(mapping.has('my_secret')).toBe(true);
+      expect(mockPutSecret).toHaveBeenCalledTimes(1);
+    });
+
+    it('should skip non-CREATE statements', async () => {
+      const statements = [
+        makeStatement('SELECT 1', SQLStatement.SELECT),
+      ];
+
+      const mapping = await handleCreateSecretStatements(statements);
+
+      expect(mapping.size).toBe(0);
+      expect(mockPutSecret).not.toHaveBeenCalled();
+    });
+
+    it('should derive sigv4 auth type for s3 secret type', async () => {
+      const statements = [
+        makeStatement(
+          "CREATE SECRET aws_creds (TYPE s3, KEY_ID 'AKID', SECRET 'skey')",
+          SQLStatement.CREATE,
+        ),
+      ];
+
+      const mapping = await handleCreateSecretStatements(statements);
+
+      const entry = mapping.get('aws_creds');
+      expect(entry?.authType).toBe('sigv4');
+      expect(entry?.secretType).toBe('s3');
+    });
+
+    it('should derive oauth2 auth type when CLIENT_ID present', async () => {
+      const statements = [
+        makeStatement(
+          "CREATE SECRET oauth_creds (TYPE iceberg, CLIENT_ID 'cid', CLIENT_SECRET 'csec')",
+          SQLStatement.CREATE,
+        ),
+      ];
+
+      const mapping = await handleCreateSecretStatements(statements);
+
+      const entry = mapping.get('oauth_creds');
+      expect(entry?.authType).toBe('oauth2');
+    });
+
+    it('should derive bearer auth type when TOKEN present', async () => {
+      const statements = [
+        makeStatement(
+          "CREATE SECRET token_creds (TYPE iceberg, TOKEN 'tok123')",
+          SQLStatement.CREATE,
+        ),
+      ];
+
+      const mapping = await handleCreateSecretStatements(statements);
+
+      const entry = mapping.get('token_creds');
+      expect(entry?.authType).toBe('bearer');
+    });
+
+    it('should return empty mapping when _iDbConn is null', async () => {
+      mockStoreState = { _iDbConn: null };
+      const statements = [
+        makeStatement(
+          "CREATE SECRET my_secret (TYPE s3, KEY_ID 'AKID', SECRET 'skey')",
+          SQLStatement.CREATE,
+        ),
+      ];
+
+      const mapping = await handleCreateSecretStatements(statements);
+
+      expect(mapping.size).toBe(0);
+      expect(mockPutSecret).not.toHaveBeenCalled();
     });
   });
 

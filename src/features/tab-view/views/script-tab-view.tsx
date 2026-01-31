@@ -362,6 +362,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         const hasAttachDetach = classifiedStatements.some(
           (s) => s.type === SQLStatement.ATTACH || s.type === SQLStatement.DETACH,
         );
+        const hasCreateSecret = classifiedStatements.some(
+          (s) =>
+            s.type === SQLStatement.CREATE &&
+            SECRET_STATEMENT_PATTERN.test(s.code),
+        );
 
         if (hasDDL || hasAttachDetach) {
           // Get all currently attached databases
@@ -401,6 +406,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             undefined,
             'AppStore/runScript/refreshMetadata',
           );
+        } else if (hasCreateSecret) {
+          // Standalone CREATE SECRET without ATTACH/DETACH — persist to encrypted store
+          await handleCreateSecretStatements(classifiedStatements);
         }
       } finally {
         // Release the pooled connection
