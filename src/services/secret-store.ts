@@ -52,6 +52,12 @@ let cachedKey: CryptoKey | null = null;
 export async function getOrCreateCryptoKey(): Promise<CryptoKey> {
   if (cachedKey) return cachedKey;
 
+  if (typeof crypto === 'undefined' || !crypto.subtle) {
+    throw new Error(
+      'Web Crypto API is not available. Secret storage requires a secure context (HTTPS or localhost).',
+    );
+  }
+
   // Open the dedicated key DB (separate from app-data)
   const keyDb = await openKeyDb();
 
