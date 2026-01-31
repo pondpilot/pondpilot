@@ -98,11 +98,7 @@ async function openKeyDb(): Promise<IDBPDatabase> {
 
 export function bufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i += 1) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
+  return btoa(String.fromCharCode(...bytes));
 }
 
 export function base64ToBuffer(base64: string): ArrayBuffer {
