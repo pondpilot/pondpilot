@@ -8,6 +8,15 @@
  * Each secret value is encrypted with a unique random 12-byte IV.
  * Labels are stored unencrypted for listing without decryption.
  * If the key is lost (browser partial clear), decryption fails gracefully.
+ *
+ * Security considerations:
+ * - This does NOT protect against XSS or malicious JS on the same origin.
+ *   The non-extractable key prevents raw key exfiltration, but JS can still
+ *   call encrypt/decrypt through the Web Crypto API.
+ * - If the browser clears the key database (pondpilot-secret-key) while
+ *   retaining app-data, all encrypted secrets become unrecoverable.
+ * - There is currently no key rotation mechanism. Adding rotation would
+ *   require re-encrypting all secrets with a new key on access.
  */
 
 import { NewId } from '@models/new-id';
