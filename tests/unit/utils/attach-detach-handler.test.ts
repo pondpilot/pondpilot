@@ -451,7 +451,7 @@ describe('attach-detach-handler', () => {
       expect(entry?.authType).toBe('bearer');
     });
 
-    it('should return empty mapping when _iDbConn is null', async () => {
+    it('should populate mapping but skip persistence when _iDbConn is null', async () => {
       mockStoreState = { _iDbConn: null };
       const statements = [
         makeStatement(
@@ -462,7 +462,10 @@ describe('attach-detach-handler', () => {
 
       const mapping = await handleCreateSecretStatements(statements);
 
-      expect(mapping.size).toBe(0);
+      // Mapping should be populated for in-batch inference
+      expect(mapping.size).toBe(1);
+      expect(mapping.has('my_secret')).toBe(true);
+      // But persistence should be skipped
       expect(mockPutSecret).not.toHaveBeenCalled();
     });
   });

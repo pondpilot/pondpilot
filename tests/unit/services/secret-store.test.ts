@@ -40,6 +40,11 @@ describe('secret-store', () => {
       const result = new Uint8Array(base64ToBuffer(b64));
       expect(result).toEqual(original);
     });
+
+    it('should throw for buffers exceeding 65 KB', () => {
+      const oversized = new ArrayBuffer(65_537);
+      expect(() => bufferToBase64(oversized)).toThrow(/exceeds maximum/);
+    });
   });
 
   describe('encrypt / decrypt roundtrip', () => {
