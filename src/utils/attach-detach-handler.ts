@@ -18,6 +18,7 @@ import {
   parseIcebergAttachStatement,
 } from '@utils/attach-parser';
 import { normalizeRemoteUrl } from '@utils/cors-proxy-config';
+import { isManagedIcebergEndpoint } from '@utils/iceberg-catalog';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { ClassifiedSQLStatement, SQLStatement } from '@utils/editor/sql';
 
@@ -109,10 +110,7 @@ function inferSecretFromBatch(
   secretMapping: Map<string, SecretMappingEntry>,
   endpointType?: string,
 ): { secretName: string; entry: SecretMappingEntry } | undefined {
-  const requiredSecretType =
-    endpointType?.toUpperCase() === 'S3_TABLES' || endpointType?.toUpperCase() === 'GLUE'
-      ? 's3'
-      : 'iceberg';
+  const requiredSecretType = isManagedIcebergEndpoint(endpointType) ? 's3' : 'iceberg';
 
   const candidates: { secretName: string; entry: SecretMappingEntry }[] = [];
 

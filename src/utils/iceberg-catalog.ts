@@ -24,6 +24,17 @@ import {
 import { escapeSqlStringValue } from '@utils/sql-security';
 import { IDBPDatabase } from 'idb';
 
+/**
+ * Whether the given endpoint type is a managed AWS service (Glue or S3 Tables).
+ * Managed endpoints require SigV4 auth and use TYPE s3 secrets.
+ */
+export function isManagedIcebergEndpoint(
+  endpointType?: string,
+): boolean {
+  const upper = endpointType?.toUpperCase();
+  return upper === 'GLUE' || upper === 'S3_TABLES';
+}
+
 /** Delay (ms) before verifying catalog attachment after ATTACH completes. */
 const ATTACH_SETTLE_DELAY_MS = 2000;
 
@@ -156,8 +167,7 @@ export async function reconnectIcebergCatalog(
 
     // Create secret
     const isManagedEndpoint =
-      catalog.endpointType === 'GLUE' ||
-      catalog.endpointType === 'S3_TABLES' ||
+      isManagedIcebergEndpoint(catalog.endpointType) ||
       credentials.authType === 'sigv4';
     const secretQuery = buildIcebergSecretQuery({
       secretName: catalog.secretName,
