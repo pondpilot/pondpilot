@@ -1,6 +1,4 @@
-import { showError, showSuccess } from '@components/app-notifications';
-import { persistPutDataSources } from '@controllers/data-source/persist';
-import { getDatabaseModel } from '@controllers/db/duckdb-meta';
+import { showError } from '@components/app-notifications';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import {
   Stack,
@@ -15,22 +13,12 @@ import {
 } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IcebergAuthType, IcebergCatalog } from '@models/data-source';
-import { makeSecretId, putSecret } from '@services/secret-store';
-import { useAppStore } from '@store/app-store';
-import { executeWithRetry } from '@utils/connection-manager';
-import { makePersistentDataSourceId } from '@utils/data-source';
-import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
-import { buildIcebergSecretPayload, isManagedIcebergEndpoint } from '@utils/iceberg-catalog';
-import { sanitizeErrorMessage } from '@utils/sanitize-error';
-import { escapeSqlStringValue } from '@utils/sql-security';
-import {
-  buildIcebergSecretQuery,
-  buildDropSecretQuery,
-  buildIcebergAttachQuery,
-} from '@utils/iceberg-sql-builder';
+import { IcebergAuthType } from '@models/data-source';
+import { isManagedIcebergEndpoint } from '@utils/iceberg-catalog';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
+
+import { useIcebergConnection } from '../hooks/use-iceberg-connection';
 
 interface IcebergCatalogConfigProps {
   pool: AsyncDuckDBConnectionPool | null;
@@ -53,14 +41,6 @@ const authTypeOptions: { value: IcebergAuthType; label: string }[] = [
   { value: 'none', label: 'None' },
 ];
 
-/**
- * Generate a unique secret name for DuckDB, based on the catalog alias.
- */
-function generateSecretName(alias: string): string {
-  const suffix = Date.now().toString(36);
-  return `iceberg_secret_${alias}_${suffix}`;
-}
-
 export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogConfigProps) {
   const [catalogAlias, setCatalogAlias] = useInputState('');
   const [warehouseName, setWarehouseName] = useInputState('');
@@ -75,8 +55,8 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
   const [awsSecret, setAwsSecret] = useInputState('');
   const [defaultRegion, setDefaultRegion] = useInputState('');
   const [useCorsProxy, setUseCorsProxy] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
+
+  const { isLoading, isTesting, testConnection, addCatalog } = useIcebergConnection(pool);
 
   const isManagedEndpoint = isManagedIcebergEndpoint(endpointType);
   const effectiveAuthType = isManagedEndpoint ? 'sigv4' : authType;
@@ -87,26 +67,23 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
     return true;
   };
 
-  const handleTest = async () => {
-    if (isTesting || isLoading) return;
+  const connectionParams = {
+    catalogAlias,
+    warehouseName,
+    endpoint,
+    endpointType,
+    authType: effectiveAuthType,
+    clientId,
+    clientSecret,
+    oauth2ServerUri,
+    token,
+    awsKeyId,
+    awsSecret,
+    defaultRegion,
+    useCorsProxy,
+  };
 
-    setIsTesting(true);
-
-    const finishTesting = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      setIsTesting(false);
-    };
-
-    if (!pool) {
-      showError({
-        title: 'App not ready',
-        message: 'Please wait for the app to initialize',
-        autoClose: false,
-      });
-      await finishTesting();
-      return;
-    }
-
+  const handleTest = () => {
     if (!isFormValid()) {
       notifications.clean();
       showError({
@@ -114,85 +91,12 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
         message: 'Please fill in all required fields',
         autoClose: false,
       });
-      await finishTesting();
       return;
     }
-
-    const secretName = generateSecretName(catalogAlias.trim());
-
-    try {
-      // Create secret
-      const secretQuery = buildIcebergSecretQuery({
-        secretName,
-        authType: effectiveAuthType,
-        useS3SecretType: isManagedEndpoint,
-        clientId: clientId.trim(),
-        clientSecret: clientSecret.trim(),
-        oauth2ServerUri: oauth2ServerUri.trim() || undefined,
-        token: token.trim(),
-        awsKeyId: awsKeyId.trim() || undefined,
-        awsSecret: awsSecret.trim() || undefined,
-        defaultRegion: defaultRegion.trim() || undefined,
-      });
-      await pool.query(secretQuery);
-
-      // Attach
-      const alias = catalogAlias.trim();
-      const attachQuery = buildIcebergAttachQuery({
-        warehouseName: warehouseName.trim(),
-        catalogAlias: alias,
-        endpoint: isManagedEndpoint ? undefined : endpoint.trim(),
-        endpointType: isManagedEndpoint ? (endpointType as 'GLUE' | 'S3_TABLES') : undefined,
-        secretName,
-        useCorsProxy,
-      });
-      await executeWithRetry(pool, attachQuery, {
-        maxRetries: 1,
-        timeout: 15000,
-      });
-
-      // Verify
-      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(alias)}'`;
-      await pool.query(checkQuery);
-
-      // Clean up test resources
-      const detachQuery = `DETACH DATABASE ${toDuckDBIdentifier(alias)}`;
-      await pool.query(detachQuery);
-      await pool.query(buildDropSecretQuery(secretName));
-
-      showSuccess({
-        title: 'Connection successful',
-        message: 'Iceberg catalog connection test passed',
-      });
-    } catch (error) {
-      const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
-      showError({
-        title: 'Connection failed',
-        message: `Failed to connect: ${message}`,
-      });
-
-      // Best-effort cleanup
-      try {
-        await pool.query(buildDropSecretQuery(secretName));
-      } catch {
-        // Ignore cleanup errors
-      }
-    } finally {
-      await finishTesting();
-    }
+    testConnection(connectionParams);
   };
 
-  const handleAdd = async () => {
-    if (isLoading || isTesting) return;
-
-    if (!pool) {
-      showError({
-        title: 'App not ready',
-        message: 'Please wait for the app to initialize',
-      });
-      return;
-    }
-
+  const handleAdd = () => {
     if (!isFormValid()) {
       showError({
         title: 'Missing fields',
@@ -200,158 +104,7 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
       });
       return;
     }
-
-    setIsLoading(true);
-    const alias = catalogAlias.trim();
-    const secretName = generateSecretName(alias);
-
-    try {
-      // Store credentials in the encrypted secret store
-      const secretRefId = makeSecretId();
-      const credentials = {
-        authType: effectiveAuthType,
-        clientId: clientId.trim() || undefined,
-        clientSecret: clientSecret.trim() || undefined,
-        oauth2ServerUri: oauth2ServerUri.trim() || undefined,
-        token: token.trim() || undefined,
-        awsKeyId: awsKeyId.trim() || undefined,
-        awsSecret: awsSecret.trim() || undefined,
-        defaultRegion: defaultRegion.trim() || undefined,
-      };
-
-      const { _iDbConn } = useAppStore.getState();
-      if (_iDbConn) {
-        const payload = buildIcebergSecretPayload(`Iceberg: ${alias}`, credentials);
-        await putSecret(_iDbConn, secretRefId, payload);
-      }
-
-      const catalog: IcebergCatalog = {
-        type: 'iceberg-catalog',
-        id: makePersistentDataSourceId(),
-        catalogAlias: alias,
-        warehouseName: warehouseName.trim(),
-        endpoint: endpoint.trim(),
-        authType: effectiveAuthType,
-        connectionState: 'connecting',
-        attachedAt: Date.now(),
-        useCorsProxy,
-        secretName,
-        endpointType: isManagedEndpoint ? (endpointType as 'GLUE' | 'S3_TABLES') : undefined,
-        defaultRegion: defaultRegion.trim() || undefined,
-        oauth2ServerUri: oauth2ServerUri.trim() || undefined,
-        secretRef: secretRefId,
-      };
-
-      const { dataSources, databaseMetadata } = useAppStore.getState();
-      const newDataSources = new Map(dataSources);
-      newDataSources.set(catalog.id, catalog);
-
-      // Create secret
-      const secretQuery = buildIcebergSecretQuery({
-        secretName,
-        authType: effectiveAuthType,
-        useS3SecretType: isManagedEndpoint,
-        clientId: clientId.trim(),
-        clientSecret: clientSecret.trim(),
-        oauth2ServerUri: oauth2ServerUri.trim() || undefined,
-        token: token.trim(),
-        awsKeyId: awsKeyId.trim() || undefined,
-        awsSecret: awsSecret.trim() || undefined,
-        defaultRegion: defaultRegion.trim() || undefined,
-      });
-      await pool.query(secretQuery);
-
-      // Attach
-      const attachQuery = buildIcebergAttachQuery({
-        warehouseName: catalog.warehouseName,
-        catalogAlias: alias,
-        endpoint: isManagedEndpoint ? undefined : catalog.endpoint,
-        endpointType: catalog.endpointType,
-        secretName,
-        useCorsProxy,
-      });
-      await executeWithRetry(pool, attachQuery, {
-        maxRetries: 3,
-        timeout: 30000,
-        retryDelay: 2000,
-        exponentialBackoff: true,
-      });
-
-      // Verify
-      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(alias)}'`;
-      let dbFound = false;
-      let attempts = 0;
-      const maxAttempts = 3;
-
-      while (!dbFound && attempts < maxAttempts) {
-        try {
-          const result = await pool.query(checkQuery);
-          if (result && result.numRows > 0) {
-            dbFound = true;
-          } else {
-            throw new Error('Catalog not found in duckdb_databases');
-          }
-        } catch (error) {
-          attempts += 1;
-          if (attempts >= maxAttempts) {
-            throw new Error(
-              `Catalog ${alias} could not be verified after ${maxAttempts} attempts`,
-            );
-          }
-          console.warn(`Attempt ${attempts}: Catalog not ready yet, waiting...`);
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-      }
-
-      catalog.connectionState = 'connected';
-      newDataSources.set(catalog.id, catalog);
-
-      try {
-        const remoteMetadata = await getDatabaseModel(pool, [alias]);
-        const newMetadata = new Map(databaseMetadata);
-        for (const [dbName, dbModel] of remoteMetadata) {
-          newMetadata.set(dbName, dbModel);
-        }
-        useAppStore.setState(
-          { dataSources: newDataSources, databaseMetadata: newMetadata },
-          false,
-          'DatasourceWizard/addIcebergCatalog',
-        );
-      } catch (metadataError) {
-        console.error('Failed to load metadata:', metadataError);
-        useAppStore.setState(
-          { dataSources: newDataSources },
-          false,
-          'DatasourceWizard/addIcebergCatalog',
-        );
-      }
-
-      const { _iDbConn: iDbConn } = useAppStore.getState();
-      if (iDbConn) {
-        await persistPutDataSources(iDbConn, [catalog]);
-      }
-
-      showSuccess({
-        title: 'Catalog added',
-        message: `Successfully connected to Iceberg catalog '${alias}'`,
-      });
-      onClose();
-    } catch (error) {
-      const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
-      showError({
-        title: 'Failed to add catalog',
-        message: `Error: ${message}`,
-      });
-
-      // Best-effort cleanup
-      try {
-        await pool.query(buildDropSecretQuery(secretName));
-      } catch {
-        // Ignore cleanup errors
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    addCatalog(connectionParams, onClose);
   };
 
   return (
