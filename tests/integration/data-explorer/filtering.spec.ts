@@ -46,7 +46,7 @@ test.describe('Data Explorer Filtering', () => {
     await expect(page.getByRole('button', { name: 'Show all' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Files' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Local databases' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Remote databases' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remote data sources' })).toBeVisible();
   });
 
   // eslint-disable-next-line playwright/expect-expect
