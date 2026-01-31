@@ -328,8 +328,8 @@ export async function reconnectIcebergCatalog(
     // Clean up secret on failure
     try {
       await pool.query(buildDropSecretQuery(catalog.secretName));
-    } catch {
-      // Ignore cleanup errors
+    } catch (cleanupError) {
+      console.warn('Failed to drop DuckDB secret during cleanup:', cleanupError);
     }
 
     updateIcebergCatalogConnectionState(catalog.id, 'error', errorMessage);

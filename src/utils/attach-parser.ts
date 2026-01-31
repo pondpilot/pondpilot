@@ -114,6 +114,10 @@ export interface ParsedIcebergAttachStatement {
  * 2: The catalog alias if double-quoted (e.g. "my-catalog")
  * 3: The catalog alias if unquoted (word characters only)
  * 4: The options block content inside parentheses
+ *
+ * Limitation: uses `[^)]+` for the options block, so a literal `)` inside an
+ * option value would break the match. This is unlikely for real-world inputs
+ * (URLs, identifiers, regions) and acceptable for the current use case.
  */
 const ICEBERG_ATTACH_REGEX =
   /ATTACH\s+(?:DATABASE\s+)?(?:IF\s+NOT\s+EXISTS\s+)?['"]([^'"]+)['"]\s+AS\s+(?:"([^"]+)"|(\w+))\s*\(([^)]+)\)/i;
@@ -206,6 +210,8 @@ export interface ParsedCreateSecretStatement {
  * 1: Secret name if double-quoted (e.g. "my-secret")
  * 2: Secret name if unquoted (word characters only)
  * 3: Options block content inside parentheses
+ *
+ * Same `[^)]+` limitation as ICEBERG_ATTACH_REGEX above.
  */
 const CREATE_SECRET_REGEX =
   /CREATE\s+(?:OR\s+REPLACE\s+)?SECRET\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"([^"]+)"|(\w+))\s*\(([^)]+)\)/i;

@@ -105,6 +105,13 @@ async function openKeyDb(): Promise<IDBPDatabase> {
 
 // ── Crypto helpers ──────────────────────────────────────────────────────
 
+/**
+ * Converts an ArrayBuffer to a base64 string.
+ *
+ * Uses `String.fromCharCode` spread which has a practical size limit of ~65 KB
+ * due to max call stack arguments. This is safe for the current use case
+ * (small JSON credential payloads) but should not be used for large buffers.
+ */
 export function bufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   return btoa(String.fromCharCode(...bytes));

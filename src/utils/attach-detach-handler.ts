@@ -130,6 +130,13 @@ function inferSecretFromBatch(
     return candidates[0];
   }
 
+  if (candidates.length > 1) {
+    console.warn(
+      `Ambiguous secret inference: ${candidates.length} ${requiredSecretType} secrets found in batch. ` +
+        'Use an explicit SECRET option in the ATTACH statement to resolve.',
+    );
+  }
+
   return undefined;
 }
 
@@ -275,8 +282,8 @@ export async function handleDetachStatements(
         if (ds.type === 'iceberg-catalog' && ds.secretRef) {
           try {
             await deleteSecret(_iDbConn, ds.secretRef);
-          } catch {
-            // Best-effort cleanup
+          } catch (cleanupError) {
+            console.warn('Failed to delete encrypted secret during detach:', cleanupError);
           }
         }
         await persistDeleteDataSource(_iDbConn, [dbId], []);

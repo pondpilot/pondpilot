@@ -13,11 +13,13 @@ import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry, executeWithRetry } from '@utils/connection-manager';
 import { isRemoteDatabase, isIcebergCatalog } from '@utils/data-source';
 import {
+  isManagedIcebergEndpoint,
   resolveIcebergCredentials,
   updateIcebergCatalogConnectionState,
 } from '@utils/iceberg-catalog';
 import { buildIcebergSecretQuery, buildIcebergAttachQuery } from '@utils/iceberg-sql-builder';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { useEffect } from 'react';
 
@@ -41,9 +43,10 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
       try {
         updateIcebergCatalogConnectionState(id, 'connecting');
 
+        // sigv4 fallback: catalogs persisted before the ENDPOINT_TYPE parser fix
+        // have endpointType undefined, but sigv4 credentials always need TYPE s3
         const isManagedEndpoint =
-          dataSource.endpointType === 'GLUE' ||
-          dataSource.endpointType === 'S3_TABLES' ||
+          isManagedIcebergEndpoint(dataSource.endpointType) ||
           credentials.authType === 'sigv4';
 
         // Recreate the DuckDB in-memory secret (lost on page refresh)
@@ -96,11 +99,12 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
           errorMessage = String(error);
         }
 
+        const sanitized = sanitizeErrorMessage(errorMessage);
         console.warn(
           `Failed to reconnect iceberg catalog ${dataSource.catalogAlias}:`,
-          errorMessage,
+          sanitized,
         );
-        updateIcebergCatalogConnectionState(id, 'error', errorMessage);
+        updateIcebergCatalogConnectionState(id, 'error', sanitized);
       }
       continue;
     }
@@ -149,8 +153,9 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
           errorMessage = String(error);
         }
 
-        console.warn(`Failed to reconnect to remote database ${dataSource.dbName}:`, errorMessage);
-        updateRemoteDbConnectionState(id, 'error', errorMessage);
+        const sanitized = sanitizeErrorMessage(errorMessage);
+        console.warn(`Failed to reconnect to remote database ${dataSource.dbName}:`, sanitized);
+        updateRemoteDbConnectionState(id, 'error', sanitized);
       }
     }
   }
