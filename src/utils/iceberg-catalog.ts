@@ -26,6 +26,14 @@ import { escapeSqlStringValue } from '@utils/sql-security';
 import { IDBPDatabase } from 'idb';
 
 /**
+ * Error handling convention for Iceberg operations:
+ * - Public functions (reconnect, disconnect) catch all errors
+ * - Errors are reported via updateIcebergCatalogConnectionState + showError
+ * - Functions return boolean success or void — callers check connection state
+ * - Error messages are sanitized via sanitizeErrorMessage before display
+ */
+
+/**
  * Whether the given endpoint type is a managed AWS service (Glue or S3 Tables).
  * Managed endpoints require SigV4 auth and use TYPE s3 secrets.
  */
