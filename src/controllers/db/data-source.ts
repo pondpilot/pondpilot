@@ -1,7 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { ReadStatViewType } from '@models/data-source';
+import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { isReadStatViewType } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
@@ -31,7 +31,12 @@ async function createReadStatView(
   fileExt: ReadStatViewType,
   fileName: string,
 ): Promise<void> {
-  const query = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_stat(${quote(fileName, { single: true })}, format=${quote(fileExt, { single: true })});`;
+  const sanitizedView = toDuckDBIdentifier(viewName);
+  const sanitizedFile = quote(fileName, { single: true });
+  const sanitizedFormat = quote(fileExt, { single: true });
+  const query =
+    `CREATE OR REPLACE VIEW ${sanitizedView} ` +
+    `AS SELECT * FROM read_stat(${sanitizedFile}, format=${sanitizedFormat});`;
   await conn.query(query);
 }
 

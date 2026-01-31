@@ -2,7 +2,11 @@ import {
   DataExplorerFilterType,
   FileTypeFilter,
 } from '@features/data-explorer/components/data-explorer-filters';
+import { READSTAT_VIEW_TYPES } from '@models/data-source';
 import { describe, it, expect } from '@jest/globals';
+
+// 4 base flat file types (csv, json, parquet, xlsx) + readstat types
+const FILE_TYPE_COUNT = 4 + READSTAT_VIEW_TYPES.length;
 
 // Since we're in a Node test environment, we'll test the types and logic
 // rather than the React component rendering
@@ -37,7 +41,7 @@ describe('DataExplorerFilters Types', () => {
         dta: false,
       };
 
-      expect(Object.keys(filter)).toHaveLength(10);
+      expect(Object.keys(filter)).toHaveLength(FILE_TYPE_COUNT);
       expect(filter).toHaveProperty('csv');
       expect(filter).toHaveProperty('json');
       expect(filter).toHaveProperty('parquet');
@@ -86,7 +90,7 @@ describe('DataExplorerFilters Types', () => {
       };
 
       const activeFileTypes = Object.entries(allSelected).filter(([_, enabled]) => enabled);
-      const allFileTypesSelected = activeFileTypes.length === 10;
+      const allFileTypesSelected = activeFileTypes.length === FILE_TYPE_COUNT;
 
       expect(allFileTypesSelected).toBe(true);
     });
@@ -106,7 +110,8 @@ describe('DataExplorerFilters Types', () => {
       };
 
       const activeFileTypes = Object.entries(someSelected).filter(([_, enabled]) => enabled);
-      const someFileTypesSelected = activeFileTypes.length > 0 && activeFileTypes.length < 10;
+      const someFileTypesSelected =
+        activeFileTypes.length > 0 && activeFileTypes.length < FILE_TYPE_COUNT;
 
       expect(someFileTypesSelected).toBe(true);
     });
@@ -152,7 +157,7 @@ describe('DataExplorerFilters Types', () => {
       };
 
       const activeFileTypes = Object.entries(filter).filter(([_, enabled]) => enabled);
-      const allFileTypesSelected = activeFileTypes.length === 10;
+      const allFileTypesSelected = activeFileTypes.length === FILE_TYPE_COUNT;
 
       const newFilter = allFileTypesSelected
         ? {
@@ -198,7 +203,7 @@ describe('DataExplorerFilters Types', () => {
       };
 
       const activeFileTypes = Object.entries(filter).filter(([_, enabled]) => enabled);
-      const allFileTypesSelected = activeFileTypes.length === 10;
+      const allFileTypesSelected = activeFileTypes.length === FILE_TYPE_COUNT;
 
       const newFilter = allFileTypesSelected
         ? {

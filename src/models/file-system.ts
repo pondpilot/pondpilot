@@ -1,5 +1,6 @@
 import { assertNeverType } from '@utils/typing';
 
+import { READSTAT_VIEW_TYPES } from './data-source';
 import { NewId } from './new-id';
 
 export type LocalEntryId = NewId<'LocalEntryId'>;
@@ -12,12 +13,7 @@ export const SUPPORTED_DATA_SOURCE_FILE_EXTS = [
   'duckdb',
   'parquet',
   'json',
-  'sas7bdat',
-  'xpt',
-  'sav',
-  'zsav',
-  'por',
-  'dta',
+  ...READSTAT_VIEW_TYPES,
 ] as const;
 export type supportedDataSourceFileExt = (typeof SUPPORTED_DATA_SOURCE_FILE_EXTS)[number];
 export type supportedDataSourceFileExtArray = readonly supportedDataSourceFileExt[number][];

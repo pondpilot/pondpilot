@@ -1,4 +1,5 @@
 import { ActionIcon, Group, Tooltip, Menu, Checkbox, TextInput, Box } from '@mantine/core';
+import { READSTAT_VIEW_TYPES, ReadStatViewType } from '@models/data-source';
 import { supportedDataSourceFileExt } from '@models/file-system';
 import {
   IconListCheck,
@@ -17,31 +18,16 @@ import './data-explorer-filters.css';
 
 export type DataExplorerFilterType = 'all' | 'databases' | 'files' | 'remote';
 
-export type FileTypeFilter = {
-  csv: boolean;
-  json: boolean;
-  parquet: boolean;
-  xlsx: boolean;
-  sas7bdat: boolean;
-  xpt: boolean;
-  sav: boolean;
-  zsav: boolean;
-  por: boolean;
-  dta: boolean;
-};
+export type FileTypeFilter = Record<
+  'csv' | 'json' | 'parquet' | 'xlsx' | ReadStatViewType,
+  boolean
+>;
 
-export const DEFAULT_FILE_TYPE_FILTER: FileTypeFilter = {
-  csv: true,
-  json: true,
-  parquet: true,
-  xlsx: true,
-  sas7bdat: true,
-  xpt: true,
-  sav: true,
-  zsav: true,
-  por: true,
-  dta: true,
-};
+const FILE_TYPE_FILTER_KEYS = ['csv', 'json', 'parquet', 'xlsx', ...READSTAT_VIEW_TYPES] as const;
+
+export const DEFAULT_FILE_TYPE_FILTER: FileTypeFilter = Object.fromEntries(
+  FILE_TYPE_FILTER_KEYS.map((k) => [k, true]),
+) as FileTypeFilter;
 
 interface FilterButton {
   type: DataExplorerFilterType;
@@ -111,7 +97,8 @@ export const DataExplorerFilters = memo(
     const activeFileTypes = Object.entries(fileTypeFilter).filter(([_, enabled]) => enabled);
 
     // Calculate selection state based on available types
-    const availableTypesCount = availableFileTypes?.size || Object.keys(fileTypeLabels).length;
+    const availableTypesCount =
+      availableFileTypes?.size || Object.keys(DEFAULT_FILE_TYPE_FILTER).length;
     const activeAvailableTypes = activeFileTypes.filter(
       ([type]) => !availableFileTypes || availableFileTypes.has(type as keyof FileTypeFilter),
     );
