@@ -19,6 +19,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:readstat": "VITE_READ_STAT_EXTENSION_URL=/duckdb-extensions/read_stat/read_stat.duckdb_extension.wasm vite",
     "build": "tsc && vite build",
     "build:test": "yarn build --mode int-test-build",
     "test": "yarn build:test && playwright test",
@@ -35,7 +36,8 @@
     "lint:stylelint": "stylelint '**/*.css' --cache",
     "lint:stylelint:fix": "stylelint '**/*.css' --cache --fix",
     "prettier": "prettier --check \"**/*.{ts,tsx}\"",
-    "prettier:write": "prettier --write \"**/*.{ts,tsx}\""
+    "prettier:write": "prettier --write \"**/*.{ts,tsx}\"",
+    "readstat:install": "node scripts/install-readstat-wasm.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

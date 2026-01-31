@@ -103,6 +103,18 @@ export const DuckDBConnectionPoolProvider = ({
   const workerBlobUrl = useRef<string | null>(null);
   const cancelTokenRef = useRef(0);
   const isCleaningUpRef = useRef(false);
+  const READ_STAT_EXTENSION_URL = (() => {
+    const raw = import.meta.env.VITE_READ_STAT_EXTENSION_URL ?? '';
+    if (!raw) return '';
+    try {
+      return new URL(raw, window.location.href).toString();
+    } catch (error) {
+      console.warn('Invalid read_stat extension URL:', raw, error);
+      return '';
+    }
+  })();
+  const ALLOW_UNSIGNED_EXTENSIONS =
+    import.meta.env.VITE_DUCKDB_ALLOW_UNSIGNED_EXTENSIONS === 'true' || !!READ_STAT_EXTENSION_URL;
 
   const cleanupWorkerResources = useCallback(() => {
     if (worker.current != null) {
@@ -332,6 +344,7 @@ export const DuckDBConnectionPoolProvider = ({
           await newDb.open({
             path: dbPath,
             accessMode: duckdb.DuckDBAccessMode.READ_WRITE,
+            allowUnsignedExtensions: ALLOW_UNSIGNED_EXTENSIONS,
             query: {
               // Enable Apache Arrow type and value patching DECIMAL -> DOUBLE on query materialization
               // https://github.com/apache/arrow/issues/37920
@@ -373,6 +386,7 @@ export const DuckDBConnectionPoolProvider = ({
               logCheckpoints: import.meta.env.DEV,
             },
           );
+
           /**
            * WORKAROUND: Addresses an issue with OPFS (Origin Private File System) and write mode
            * after a page reload in DuckDB-WASM.
@@ -432,6 +446,14 @@ export const DuckDBConnectionPoolProvider = ({
           } catch (cleanupError) {
             // Don't fail initialization if cleanup fails, just log it
             console.warn('Failed to cleanup temporary UUID tables:', cleanupError);
+          }
+
+          if (READ_STAT_EXTENSION_URL) {
+            try {
+              await pool.query(`LOAD '${READ_STAT_EXTENSION_URL}';`);
+            } catch (error) {
+              console.warn('Failed to load read_stat extension:', error);
+            }
           }
 
           ensureNotCancelled();

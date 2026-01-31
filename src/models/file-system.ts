@@ -12,6 +12,12 @@ export const SUPPORTED_DATA_SOURCE_FILE_EXTS = [
   'duckdb',
   'parquet',
   'json',
+  'sas7bdat',
+  'xpt',
+  'sav',
+  'zsav',
+  'por',
+  'dta',
 ] as const;
 export type supportedDataSourceFileExt = (typeof SUPPORTED_DATA_SOURCE_FILE_EXTS)[number];
 export type supportedDataSourceFileExtArray = readonly supportedDataSourceFileExt[number][];
@@ -27,6 +33,12 @@ export type AllDataSourceFileExt =
   | 'parquet'
   | 'arrow'
   | 'xlsx'
+  | 'sas7bdat'
+  | 'xpt'
+  | 'sav'
+  | 'zsav'
+  | 'por'
+  | 'dta'
   | 'url';
 
 export const dataSourceMimeTypes = [
@@ -39,6 +51,12 @@ export const dataSourceMimeTypes = [
   'application/parquet',
   'application/arrow',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/octet-stream',
+  'application/octet-stream',
+  'application/octet-stream',
+  'application/octet-stream',
+  'application/octet-stream',
+  'application/octet-stream',
   'text/x-uri',
 ] as const;
 
@@ -54,6 +72,12 @@ export const dataSourceExtMap = {
   parquet: 'application/parquet',
   arrow: 'application/arrow',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  sas7bdat: 'application/octet-stream',
+  xpt: 'application/octet-stream',
+  sav: 'application/octet-stream',
+  zsav: 'application/octet-stream',
+  por: 'application/octet-stream',
+  dta: 'application/octet-stream',
   url: 'text/x-uri', // remote sources
 } as const;
 

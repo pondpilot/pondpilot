@@ -162,12 +162,18 @@ export const DataViewInfoPane = ({
 
       if (tab.dataSourceType === 'file') {
         // For file-based sources, use the system database
-        // File types include: csv, json, parquet, xlsx-sheet
+        // File types include: csv, json, parquet, xlsx-sheet, sas7bdat, xpt, sav, zsav, por, dta
         if (
           dataSource.type !== 'csv' &&
           dataSource.type !== 'json' &&
           dataSource.type !== 'parquet' &&
-          dataSource.type !== 'xlsx-sheet'
+          dataSource.type !== 'xlsx-sheet' &&
+          dataSource.type !== 'sas7bdat' &&
+          dataSource.type !== 'xpt' &&
+          dataSource.type !== 'sav' &&
+          dataSource.type !== 'zsav' &&
+          dataSource.type !== 'por' &&
+          dataSource.type !== 'dta'
         ) {
           showWarningWithAction({
             title: 'Cannot create comparison',

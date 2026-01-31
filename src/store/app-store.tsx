@@ -15,6 +15,7 @@ import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab, TabId, TabReactiveState, TabType } from '@models/tab';
+import { isFlatFileDataSource } from '@utils/data-source';
 import { getTabIcon, getTabName } from '@utils/navigation';
 import { IDBPDatabase } from 'idb';
 import { create } from 'zustand';
@@ -354,12 +355,7 @@ export function useDataSourceObjectSchema(
     useShallow((state) => {
       let dbName: string;
 
-      if (
-        dataSource.type === 'csv' ||
-        dataSource.type === 'parquet' ||
-        dataSource.type === 'xlsx-sheet' ||
-        dataSource.type === 'json'
-      ) {
+      if (isFlatFileDataSource(dataSource)) {
         dbName = PERSISTENT_DB_NAME;
         schemaName = 'main';
         objectName = dataSource.viewName;

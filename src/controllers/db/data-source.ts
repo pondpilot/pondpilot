@@ -23,6 +23,17 @@ async function createCSVView(
   );
 }
 
+const READSTAT_EXTS = new Set(['sas7bdat', 'xpt', 'sav', 'zsav', 'por', 'dta']);
+async function createReadStatView(
+  conn: AsyncDuckDBConnectionPool,
+  viewName: string,
+  fileExt: supportedFlatFileDataSourceFileExt,
+  fileName: string,
+): Promise<void> {
+  const query = `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_stat(${quote(fileName, { single: true })}, format=${quote(fileExt, { single: true })});`;
+  await conn.query(query);
+}
+
 /**
  * Register regular data source file (not a databse) and create a view
  *
@@ -57,6 +68,11 @@ export async function registerFileSourceAndCreateView(
    * Register file handle
    */
   await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+
+  if (READSTAT_EXTS.has(fileExt)) {
+    await createReadStatView(conn, viewName, fileExt, fileName);
+    return file;
+  }
 
   /**
    * Create view
@@ -135,6 +151,11 @@ export async function reCreateView(
   /**
    * Create view with the new name
    */
+
+  if (READSTAT_EXTS.has(fileExt)) {
+    await createReadStatView(conn, newViewName, fileExt, fileName);
+    return;
+  }
 
   if (fileExt === 'csv') {
     await createCSVView(conn, newViewName, fileName);

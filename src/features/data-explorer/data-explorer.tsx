@@ -78,7 +78,18 @@ export const DataExplorer = memo(() => {
       if (entry.kind === 'file' && entry.fileType === 'data-source') {
         const { ext } = entry;
         // Only include flat file types (exclude .duckdb)
-        if (ext === 'csv' || ext === 'json' || ext === 'parquet' || ext === 'xlsx') {
+        if (
+          ext === 'csv' ||
+          ext === 'json' ||
+          ext === 'parquet' ||
+          ext === 'xlsx' ||
+          ext === 'sas7bdat' ||
+          ext === 'xpt' ||
+          ext === 'sav' ||
+          ext === 'zsav' ||
+          ext === 'por' ||
+          ext === 'dta'
+        ) {
           fileTypes.add(ext);
         }
       }

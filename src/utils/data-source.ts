@@ -100,20 +100,14 @@ export function addFlatFileDataSource(
 
   switch (localEntry.ext) {
     case 'csv':
-      return {
-        id: dataSourceId,
-        type: localEntry.ext,
-        fileSourceId: localEntry.id,
-        viewName,
-      };
     case 'json':
-      return {
-        id: dataSourceId,
-        type: localEntry.ext,
-        fileSourceId: localEntry.id,
-        viewName,
-      };
     case 'parquet':
+    case 'sas7bdat':
+    case 'xpt':
+    case 'sav':
+    case 'zsav':
+    case 'por':
+    case 'dta':
       return {
         id: dataSourceId,
         type: localEntry.ext,
@@ -178,7 +172,13 @@ export function isFlatFileDataSource(
     dataSource.type === 'csv' ||
     dataSource.type === 'json' ||
     dataSource.type === 'parquet' ||
-    dataSource.type === 'xlsx-sheet'
+    dataSource.type === 'xlsx-sheet' ||
+    dataSource.type === 'sas7bdat' ||
+    dataSource.type === 'xpt' ||
+    dataSource.type === 'sav' ||
+    dataSource.type === 'zsav' ||
+    dataSource.type === 'por' ||
+    dataSource.type === 'dta'
   );
 }
 

@@ -22,6 +22,12 @@ export type FileTypeFilter = {
   json: boolean;
   parquet: boolean;
   xlsx: boolean;
+  sas7bdat: boolean;
+  xpt: boolean;
+  sav: boolean;
+  zsav: boolean;
+  por: boolean;
+  dta: boolean;
 };
 
 interface FilterButton {
@@ -42,6 +48,12 @@ const fileTypeLabels: Partial<Record<supportedDataSourceFileExt, string>> = {
   json: 'JSON',
   parquet: 'Parquet',
   xlsx: 'Excel',
+  sas7bdat: 'SAS',
+  xpt: 'SAS XPT',
+  sav: 'SPSS',
+  zsav: 'SPSS (Z)',
+  por: 'SPSS (POR)',
+  dta: 'Stata',
 };
 
 interface DataExplorerFiltersProps {
@@ -68,6 +80,12 @@ export const DataExplorerFilters = memo(
       json: true,
       parquet: true,
       xlsx: true,
+      sas7bdat: true,
+      xpt: true,
+      sav: true,
+      zsav: true,
+      por: true,
+      dta: true,
     },
     onFileTypeFilterChange,
     searchQuery = '',
@@ -91,7 +109,7 @@ export const DataExplorerFilters = memo(
     const activeFileTypes = Object.entries(fileTypeFilter).filter(([_, enabled]) => enabled);
 
     // Calculate selection state based on available types
-    const availableTypesCount = availableFileTypes?.size || 4;
+    const availableTypesCount = availableFileTypes?.size || Object.keys(fileTypeLabels).length;
     const activeAvailableTypes = activeFileTypes.filter(
       ([type]) => !availableFileTypes || availableFileTypes.has(type as keyof FileTypeFilter),
     );

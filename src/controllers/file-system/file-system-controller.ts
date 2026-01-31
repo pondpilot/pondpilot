@@ -621,7 +621,13 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
             (ds.type === 'csv' ||
               ds.type === 'json' ||
               ds.type === 'parquet' ||
-              ds.type === 'xlsx-sheet') &&
+              ds.type === 'xlsx-sheet' ||
+              ds.type === 'sas7bdat' ||
+              ds.type === 'xpt' ||
+              ds.type === 'sav' ||
+              ds.type === 'zsav' ||
+              ds.type === 'por' ||
+              ds.type === 'dta') &&
             ds.fileSourceId === source.id,
         );
 
@@ -637,11 +643,17 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
           } else if (
             dataSource.type === 'csv' ||
             dataSource.type === 'json' ||
-            dataSource.type === 'parquet'
+            dataSource.type === 'parquet' ||
+            dataSource.type === 'sas7bdat' ||
+            dataSource.type === 'xpt' ||
+            dataSource.type === 'sav' ||
+            dataSource.type === 'zsav' ||
+            dataSource.type === 'por' ||
+            dataSource.type === 'dta'
           ) {
             await reCreateView(
               conn,
-              source.ext as 'csv' | 'json' | 'parquet',
+              dataSource.type,
               `${source.uniqueAlias}.${source.ext}`,
               dataSource.viewName,
               dataSource.viewName,

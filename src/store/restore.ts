@@ -1075,7 +1075,13 @@ export const restoreAppDataFromIDB = async (
             } else if (
               dataSource.type === 'csv' ||
               dataSource.type === 'json' ||
-              dataSource.type === 'parquet'
+              dataSource.type === 'parquet' ||
+              dataSource.type === 'sas7bdat' ||
+              dataSource.type === 'xpt' ||
+              dataSource.type === 'sav' ||
+              dataSource.type === 'zsav' ||
+              dataSource.type === 'por' ||
+              dataSource.type === 'dta'
             ) {
               await dropViewAndUnregisterFile(conn, dataSource.viewName, undefined);
             }

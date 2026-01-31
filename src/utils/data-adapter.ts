@@ -208,7 +208,17 @@ function getFlatFileDataAdapterQueries(
     getChartAggregatedData: getGetChartAggregatedDataFromFQN(pool, fqn),
   };
 
-  if (dataSource.type === 'csv' || dataSource.type === 'json' || dataSource.type === 'xlsx-sheet') {
+  if (
+    dataSource.type === 'csv' ||
+    dataSource.type === 'json' ||
+    dataSource.type === 'xlsx-sheet' ||
+    dataSource.type === 'sas7bdat' ||
+    dataSource.type === 'xpt' ||
+    dataSource.type === 'sav' ||
+    dataSource.type === 'zsav' ||
+    dataSource.type === 'por' ||
+    dataSource.type === 'dta'
+  ) {
     return {
       ...baseAttrs,
       getRowCount: async (abortSignal: AbortSignal) => {
@@ -244,7 +254,6 @@ function getFlatFileDataAdapterQueries(
     };
   }
 
-  const _: never = dataSource;
   throw new Error('Unexpected data source type');
 }
 
@@ -370,7 +379,13 @@ export function getFileDataAdapterQueries({
     dataSource.type === 'csv' ||
     dataSource.type === 'json' ||
     dataSource.type === 'xlsx-sheet' ||
-    dataSource.type === 'parquet'
+    dataSource.type === 'parquet' ||
+    dataSource.type === 'sas7bdat' ||
+    dataSource.type === 'xpt' ||
+    dataSource.type === 'sav' ||
+    dataSource.type === 'zsav' ||
+    dataSource.type === 'por' ||
+    dataSource.type === 'dta'
   ) {
     if (tab.dataSourceType !== 'file') {
       return {
@@ -407,7 +422,6 @@ export function getFileDataAdapterQueries({
     };
   }
 
-  const _: never = dataSource;
   return {
     adapter: null,
     userErrors: [],
