@@ -2,6 +2,7 @@ import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
 import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import { isReadStatViewType } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
@@ -23,7 +24,6 @@ async function createCSVView(
   );
 }
 
-const READSTAT_EXTS = new Set(['sas7bdat', 'xpt', 'sav', 'zsav', 'por', 'dta']);
 async function createReadStatView(
   conn: AsyncDuckDBConnectionPool,
   viewName: string,
@@ -69,7 +69,7 @@ export async function registerFileSourceAndCreateView(
    */
   await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
 
-  if (READSTAT_EXTS.has(fileExt)) {
+  if (isReadStatViewType(fileExt)) {
     await createReadStatView(conn, viewName, fileExt, fileName);
     return file;
   }
@@ -152,7 +152,7 @@ export async function reCreateView(
    * Create view with the new name
    */
 
-  if (READSTAT_EXTS.has(fileExt)) {
+  if (isReadStatViewType(fileExt)) {
     await createReadStatView(conn, newViewName, fileExt, fileName);
     return;
   }

@@ -1,7 +1,9 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const projectRoot = process.cwd();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.resolve(__dirname, '..');
 const source = process.env.READ_STAT_WASM_SOURCE;
 const destDir = path.join(projectRoot, 'public', 'duckdb-extensions', 'read_stat');
 const destPath = path.join(destDir, 'read_stat.duckdb_extension.wasm');

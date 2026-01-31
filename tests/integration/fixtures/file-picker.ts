@@ -227,7 +227,7 @@ export const test = baseTest.extend<FilePickerFixtures>({
           case 'por':
           case 'dta':
           case 'duckdb':
-            // For CSV and JSON files, we create them locally and upload
+            // For flat file data sources, we create them locally and upload
             // the local copy to the storage
             // eslint-disable-next-line no-case-declarations
             const textFilePath = testTmp.join(file.path);

@@ -10,7 +10,7 @@ import { test as storageTest } from '../fixtures/storage';
 
 const test = mergeTests(baseTest, filePickerTest, dataViewTest, fileSystemExplorerTest, storageTest);
 
-test('should import read_stat files (dta)', async ({
+test('should import Stata files (.dta)', async ({
   page,
   storage,
   filePicker,
@@ -42,6 +42,74 @@ test('should import read_stat files (dta)', async ({
       ['c', '-1,000.3', '1960-01-01', '1960-01-01 00:00:00', '1', '3', '00:00:00'],
       ['d', '-1.4', '1583-01-01', '1583-01-01 00:00:00', '2', '1', '16:10:10'],
       ['e', '1,000.3', 'NULL', 'NULL', '1', '1', 'NULL'],
+    ],
+  });
+});
+
+test('should import SPSS files (.sav)', async ({
+  page,
+  storage,
+  filePicker,
+  addFile,
+  assertFileExplorerItems,
+  openFileFromExplorer,
+  assertDataTableMatches,
+}) => {
+  const fixturePath = path.resolve(__dirname, '../../fixtures/readstat/sample.sav');
+
+  await storage.uploadFile(fixturePath, 'sample_sav.sav');
+  await filePicker.selectFiles(['sample_sav.sav']);
+  await addFile();
+
+  await page.waitForSelector(
+    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
+    {
+      timeout: 10000,
+    },
+  );
+  await assertFileExplorerItems(['sample_sav']);
+  await openFileFromExplorer('sample_sav');
+
+  await assertDataTableMatches({
+    columnNames: ['name', 'age', 'score'],
+    data: [
+      ['Alice', '30', '95.5'],
+      ['Bob', '25', '87.3'],
+      ['Carol', '35', '91'],
+    ],
+  });
+});
+
+test('should import SAS Transport files (.xpt)', async ({
+  page,
+  storage,
+  filePicker,
+  addFile,
+  assertFileExplorerItems,
+  openFileFromExplorer,
+  assertDataTableMatches,
+}) => {
+  const fixturePath = path.resolve(__dirname, '../../fixtures/readstat/sample.xpt');
+
+  await storage.uploadFile(fixturePath, 'sample_xpt.xpt');
+  await filePicker.selectFiles(['sample_xpt.xpt']);
+  await addFile();
+
+  await page.waitForSelector(
+    '[data-testid^="data-explorer-fs-tree-node-"][data-testid$="-container"]',
+    {
+      timeout: 10000,
+    },
+  );
+  await assertFileExplorerItems(['sample_xpt']);
+  await openFileFromExplorer('sample_xpt');
+
+  await assertDataTableMatches({
+    columnNames: ['name', 'age', 'score'],
+    data: [
+      ['Alice', '30', '95.5'],
+      ['Bob', '25', '87.3'],
+      ['Carol', '35', '91'],
     ],
   });
 });

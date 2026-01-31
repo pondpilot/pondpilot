@@ -3,6 +3,9 @@ import {
   AnyFlatFileDataSource,
   LocalDB,
   PersistentDataSourceId,
+  READSTAT_VIEW_TYPES,
+  ReadStatView,
+  ReadStatViewType,
   RemoteDB,
 } from '@models/data-source';
 import { DataSourceLocalFile } from '@models/file-system';
@@ -165,6 +168,16 @@ export function addLocalDB(localEntry: DataSourceLocalFile, reservedDbs: Set<str
   }
 }
 
+const READSTAT_VIEW_TYPES_SET: ReadonlySet<string> = new Set<string>(READSTAT_VIEW_TYPES);
+
+export function isReadStatViewType(type: string): type is ReadStatViewType {
+  return READSTAT_VIEW_TYPES_SET.has(type);
+}
+
+export function isReadStatDataSource(dataSource: AnyDataSource): dataSource is ReadStatView {
+  return READSTAT_VIEW_TYPES_SET.has(dataSource.type);
+}
+
 export function isFlatFileDataSource(
   dataSource: AnyDataSource,
 ): dataSource is AnyFlatFileDataSource {
@@ -173,12 +186,7 @@ export function isFlatFileDataSource(
     dataSource.type === 'json' ||
     dataSource.type === 'parquet' ||
     dataSource.type === 'xlsx-sheet' ||
-    dataSource.type === 'sas7bdat' ||
-    dataSource.type === 'xpt' ||
-    dataSource.type === 'sav' ||
-    dataSource.type === 'zsav' ||
-    dataSource.type === 'por' ||
-    dataSource.type === 'dta'
+    isReadStatDataSource(dataSource)
   );
 }
 

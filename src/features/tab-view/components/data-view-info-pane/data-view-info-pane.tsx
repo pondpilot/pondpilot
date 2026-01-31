@@ -21,6 +21,7 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { ChartConfig, ViewMode } from '@models/chart';
 import { DataAdapterApi } from '@models/data-adapter';
 import { SYSTEM_DATABASE_NAME } from '@models/data-source';
+import { isFlatFileDataSource } from '@utils/data-source';
 import { DBColumn } from '@models/db';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
@@ -162,19 +163,7 @@ export const DataViewInfoPane = ({
 
       if (tab.dataSourceType === 'file') {
         // For file-based sources, use the system database
-        // File types include: csv, json, parquet, xlsx-sheet, sas7bdat, xpt, sav, zsav, por, dta
-        if (
-          dataSource.type !== 'csv' &&
-          dataSource.type !== 'json' &&
-          dataSource.type !== 'parquet' &&
-          dataSource.type !== 'xlsx-sheet' &&
-          dataSource.type !== 'sas7bdat' &&
-          dataSource.type !== 'xpt' &&
-          dataSource.type !== 'sav' &&
-          dataSource.type !== 'zsav' &&
-          dataSource.type !== 'por' &&
-          dataSource.type !== 'dta'
-        ) {
+        if (!isFlatFileDataSource(dataSource)) {
           showWarningWithAction({
             title: 'Cannot create comparison',
             message: 'Invalid data source type',

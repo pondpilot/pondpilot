@@ -26,7 +26,12 @@ import {
 import { SQL_SCRIPT_TABLE_NAME } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { useAppStore } from '@store/app-store';
-import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
+import {
+  addLocalDB,
+  addFlatFileDataSource,
+  addXlsxSheetDataSource,
+  isFlatFileDataSource,
+} from '@utils/data-source';
 import { localEntryFromHandle } from '@utils/file-system';
 import { findUniqueName } from '@utils/helpers';
 import { makeSQLScriptId } from '@utils/sql-script';
@@ -616,20 +621,9 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
         newRegisteredFiles.set(source.id, regFile);
 
         // Find and recreate all views associated with this file
-        const associatedDataSources = Array.from(dataSources.values()).filter(
-          (ds) =>
-            (ds.type === 'csv' ||
-              ds.type === 'json' ||
-              ds.type === 'parquet' ||
-              ds.type === 'xlsx-sheet' ||
-              ds.type === 'sas7bdat' ||
-              ds.type === 'xpt' ||
-              ds.type === 'sav' ||
-              ds.type === 'zsav' ||
-              ds.type === 'por' ||
-              ds.type === 'dta') &&
-            ds.fileSourceId === source.id,
-        );
+        const associatedDataSources = Array.from(dataSources.values())
+          .filter(isFlatFileDataSource)
+          .filter((ds) => ds.fileSourceId === source.id);
 
         for (const dataSource of associatedDataSources) {
           if (dataSource.type === 'xlsx-sheet') {
@@ -640,17 +634,7 @@ export const syncFiles = async (conn: AsyncDuckDBConnectionPool) => {
               dataSource.viewName,
               dataSource.viewName,
             );
-          } else if (
-            dataSource.type === 'csv' ||
-            dataSource.type === 'json' ||
-            dataSource.type === 'parquet' ||
-            dataSource.type === 'sas7bdat' ||
-            dataSource.type === 'xpt' ||
-            dataSource.type === 'sav' ||
-            dataSource.type === 'zsav' ||
-            dataSource.type === 'por' ||
-            dataSource.type === 'dta'
-          ) {
+          } else {
             await reCreateView(
               conn,
               dataSource.type,

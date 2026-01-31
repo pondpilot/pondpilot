@@ -72,6 +72,7 @@ export const dataSourceExtMap = {
   parquet: 'application/parquet',
   arrow: 'application/arrow',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  // Statistical file formats use octet-stream; type detection relies on file extension
   sas7bdat: 'application/octet-stream',
   xpt: 'application/octet-stream',
   sav: 'application/octet-stream',

@@ -51,7 +51,12 @@ import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ComparisonTab, TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { makeComparisonId } from '@utils/comparison';
-import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
+import {
+  addLocalDB,
+  addFlatFileDataSource,
+  addXlsxSheetDataSource,
+  isFlatFileDataSource,
+} from '@utils/data-source';
 import {
   collectFileHandlePersmissions,
   isAvailableFileHandle,
@@ -1070,19 +1075,7 @@ export const restoreAppDataFromIDB = async (
         if (dataSource && dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db') {
           // Drop the view from DuckDB
           try {
-            if (dataSource.type === 'xlsx-sheet') {
-              await dropViewAndUnregisterFile(conn, dataSource.viewName, undefined);
-            } else if (
-              dataSource.type === 'csv' ||
-              dataSource.type === 'json' ||
-              dataSource.type === 'parquet' ||
-              dataSource.type === 'sas7bdat' ||
-              dataSource.type === 'xpt' ||
-              dataSource.type === 'sav' ||
-              dataSource.type === 'zsav' ||
-              dataSource.type === 'por' ||
-              dataSource.type === 'dta'
-            ) {
+            if (isFlatFileDataSource(dataSource)) {
               await dropViewAndUnregisterFile(conn, dataSource.viewName, undefined);
             }
           } catch (error) {

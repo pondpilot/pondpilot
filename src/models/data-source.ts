@@ -59,7 +59,8 @@ export interface ParquetView extends FlatFileDataSource {
   readonly type: 'parquet';
 }
 
-export type ReadStatViewType = 'sas7bdat' | 'xpt' | 'sav' | 'zsav' | 'por' | 'dta';
+export const READSTAT_VIEW_TYPES = ['sas7bdat', 'xpt', 'sav', 'zsav', 'por', 'dta'] as const;
+export type ReadStatViewType = (typeof READSTAT_VIEW_TYPES)[number];
 
 export interface ReadStatView extends FlatFileDataSource {
   readonly type: ReadStatViewType;
