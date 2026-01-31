@@ -15,6 +15,7 @@ import { TabId } from '@models/tab';
 import { getSecret, putSecret, SecretPayload } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { executeWithRetry } from '@utils/connection-manager';
 import {
   buildIcebergSecretQuery,
@@ -313,11 +314,13 @@ export async function reconnectIcebergCatalog(
     let errorMessage: string;
 
     if (error instanceof MaxRetriesExceededError) {
-      errorMessage = `Connection timeout after ${error.attempts} attempts: ${error.lastError.message}`;
+      errorMessage = sanitizeErrorMessage(
+        `Connection timeout after ${error.attempts} attempts: ${error.lastError.message}`,
+      );
     } else if (error instanceof Error) {
-      errorMessage = error.message;
+      errorMessage = sanitizeErrorMessage(error.message);
     } else {
-      errorMessage = String(error);
+      errorMessage = sanitizeErrorMessage(String(error));
     }
 
     // Clean up secret on failure
@@ -394,7 +397,7 @@ export async function disconnectIcebergCatalog(
       message: `Successfully disconnected from Iceberg catalog '${catalog.catalogAlias}'`,
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
 
     showError({
       title: 'Disconnection Failed',
