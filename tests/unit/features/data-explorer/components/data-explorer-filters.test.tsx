@@ -2,8 +2,8 @@ import {
   DataExplorerFilterType,
   FileTypeFilter,
 } from '@features/data-explorer/components/data-explorer-filters';
-import { READSTAT_VIEW_TYPES } from '@models/data-source';
 import { describe, it, expect } from '@jest/globals';
+import { READSTAT_VIEW_TYPES } from '@models/data-source';
 
 // 4 base flat file types (csv, json, parquet, xlsx) + readstat types
 const FILE_TYPE_COUNT = 4 + READSTAT_VIEW_TYPES.length;
