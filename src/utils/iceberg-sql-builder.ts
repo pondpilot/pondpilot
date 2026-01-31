@@ -60,13 +60,9 @@ export function buildIcebergSecretQuery(options: IcebergSecretOptions): string {
     switch (authType) {
       case 'oauth2':
         parts.push(`CLIENT_ID ${quote(options.clientId ?? '', { single: true })}`);
-        parts.push(
-          `CLIENT_SECRET ${quote(options.clientSecret ?? '', { single: true })}`,
-        );
+        parts.push(`CLIENT_SECRET ${quote(options.clientSecret ?? '', { single: true })}`);
         if (options.oauth2ServerUri) {
-          parts.push(
-            `OAUTH2_SERVER_URI ${quote(options.oauth2ServerUri, { single: true })}`,
-          );
+          parts.push(`OAUTH2_SERVER_URI ${quote(options.oauth2ServerUri, { single: true })}`);
         }
         break;
       case 'bearer':
@@ -121,8 +117,7 @@ interface IcebergAttachOptions {
  * - Use ENDPOINT_TYPE for managed services (GLUE, S3_TABLES)
  */
 export function buildIcebergAttachQuery(options: IcebergAttachOptions): string {
-  const { warehouseName, catalogAlias, endpoint, endpointType, secretName, useCorsProxy } =
-    options;
+  const { warehouseName, catalogAlias, endpoint, endpointType, secretName, useCorsProxy } = options;
 
   const escapedAlias = toDuckDBIdentifier(catalogAlias);
   const escapedWarehouse = quote(warehouseName, { single: true });

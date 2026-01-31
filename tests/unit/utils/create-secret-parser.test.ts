@@ -54,8 +54,7 @@ describe('parseCreateSecretStatement', () => {
   });
 
   it('should be case-insensitive for keywords', () => {
-    const sql =
-      "create secret my_secret (type S3, key_id 'key', secret 'sec')";
+    const sql = "create secret my_secret (type S3, key_id 'key', secret 'sec')";
     const result = parseCreateSecretStatement(sql);
 
     expect(result).not.toBeNull();
@@ -66,8 +65,7 @@ describe('parseCreateSecretStatement', () => {
   });
 
   it('should handle double-quoted values', () => {
-    const sql =
-      'CREATE SECRET my_secret (TYPE s3, KEY_ID "my_key", SECRET "my_secret_val")';
+    const sql = 'CREATE SECRET my_secret (TYPE s3, KEY_ID "my_key", SECRET "my_secret_val")';
     const result = parseCreateSecretStatement(sql);
 
     expect(result).not.toBeNull();

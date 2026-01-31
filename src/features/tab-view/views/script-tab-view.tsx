@@ -363,9 +363,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
           (s) => s.type === SQLStatement.ATTACH || s.type === SQLStatement.DETACH,
         );
         const hasCreateSecret = classifiedStatements.some(
-          (s) =>
-            s.type === SQLStatement.CREATE &&
-            SECRET_STATEMENT_PATTERN.test(s.code),
+          (s) => s.type === SQLStatement.CREATE && SECRET_STATEMENT_PATTERN.test(s.code),
         );
 
         if (hasDDL || hasAttachDetach) {

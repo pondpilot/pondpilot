@@ -49,14 +49,15 @@ jest.mock('@utils/data-source', () => {
 });
 
 // eslint-disable-next-line import/first -- Module-under-test import must come after jest.mock calls
-import { handleAttachStatements, handleCreateSecretStatements, handleDetachStatements } from '@utils/attach-detach-handler';
+import {
+  handleAttachStatements,
+  handleCreateSecretStatements,
+  handleDetachStatements,
+} from '@utils/attach-detach-handler';
 // eslint-disable-next-line import/first
 import { ClassifiedSQLStatement, SQLStatement, SQLStatementType } from '@utils/editor/sql';
 
-function makeStatement(
-  code: string,
-  type: SQLStatement,
-): ClassifiedSQLStatement {
+function makeStatement(code: string, type: SQLStatement): ClassifiedSQLStatement {
   return {
     code,
     type,
@@ -69,9 +70,7 @@ function makeStatement(
   };
 }
 
-function makeContext(
-  dataSources: Map<PersistentDataSourceId, AnyDataSource> = new Map(),
-) {
+function makeContext(dataSources: Map<PersistentDataSourceId, AnyDataSource> = new Map()) {
   return {
     dataSources,
     updatedDataSources: new Map(dataSources),
@@ -117,10 +116,7 @@ describe('attach-detach-handler', () => {
 
     it('should create a RemoteDB data source for remote URL ATTACH', async () => {
       const statements = [
-        makeStatement(
-          "ATTACH 'https://example.com/db.duckdb' AS remote_db",
-          SQLStatement.ATTACH,
-        ),
+        makeStatement("ATTACH 'https://example.com/db.duckdb' AS remote_db", SQLStatement.ATTACH),
       ];
       const ctx = makeContext();
 
@@ -185,14 +181,8 @@ describe('attach-detach-handler', () => {
 
     it('should handle multiple ATTACH statements in one batch', async () => {
       const statements = [
-        makeStatement(
-          "ATTACH 'wh1' AS cat1 (TYPE ICEBERG, SECRET s1)",
-          SQLStatement.ATTACH,
-        ),
-        makeStatement(
-          "ATTACH 'https://example.com/db.duckdb' AS remote_db",
-          SQLStatement.ATTACH,
-        ),
+        makeStatement("ATTACH 'wh1' AS cat1 (TYPE ICEBERG, SECRET s1)", SQLStatement.ATTACH),
+        makeStatement("ATTACH 'https://example.com/db.duckdb' AS remote_db", SQLStatement.ATTACH),
       ];
       const ctx = makeContext();
 
@@ -292,8 +282,14 @@ describe('attach-detach-handler', () => {
 
     it('should not infer secret when multiple CREATE SECRETs exist in batch', async () => {
       const secretMapping = new Map<string, SecretMappingEntry>([
-        ['secret_a', { secretRef: 'ref-a' as unknown as SecretId, secretType: 's3', authType: 'sigv4' }],
-        ['secret_b', { secretRef: 'ref-b' as unknown as SecretId, secretType: 's3', authType: 'sigv4' }],
+        [
+          'secret_a',
+          { secretRef: 'ref-a' as unknown as SecretId, secretType: 's3', authType: 'sigv4' },
+        ],
+        [
+          'secret_b',
+          { secretRef: 'ref-b' as unknown as SecretId, secretType: 's3', authType: 'sigv4' },
+        ],
       ]);
       const statements = [
         makeStatement(
@@ -374,10 +370,7 @@ describe('attach-detach-handler', () => {
     it('should not persist when _iDbConn is null', async () => {
       mockStoreState = { _iDbConn: null };
       const statements = [
-        makeStatement(
-          "ATTACH 'wh' AS cat (TYPE ICEBERG, SECRET s)",
-          SQLStatement.ATTACH,
-        ),
+        makeStatement("ATTACH 'wh' AS cat (TYPE ICEBERG, SECRET s)", SQLStatement.ATTACH),
       ];
       const ctx = makeContext();
 
@@ -407,9 +400,7 @@ describe('attach-detach-handler', () => {
     });
 
     it('should skip non-CREATE statements', async () => {
-      const statements = [
-        makeStatement('SELECT 1', SQLStatement.SELECT),
-      ];
+      const statements = [makeStatement('SELECT 1', SQLStatement.SELECT)];
 
       const mapping = await handleCreateSecretStatements(statements);
 
@@ -493,9 +484,7 @@ describe('attach-detach-handler', () => {
           },
         ],
       ]);
-      const statements = [
-        makeStatement('DETACH remote_db', SQLStatement.DETACH),
-      ];
+      const statements = [makeStatement('DETACH remote_db', SQLStatement.DETACH)];
       const ctx = makeContext(existing);
 
       await handleDetachStatements(statements, ctx);
@@ -522,9 +511,7 @@ describe('attach-detach-handler', () => {
           },
         ],
       ]);
-      const statements = [
-        makeStatement('DETACH my_catalog', SQLStatement.DETACH),
-      ];
+      const statements = [makeStatement('DETACH my_catalog', SQLStatement.DETACH)];
       const ctx = makeContext(existing);
 
       await handleDetachStatements(statements, ctx);
@@ -547,9 +534,7 @@ describe('attach-detach-handler', () => {
           },
         ],
       ]);
-      const statements = [
-        makeStatement('DETACH local_db', SQLStatement.DETACH),
-      ];
+      const statements = [makeStatement('DETACH local_db', SQLStatement.DETACH)];
       const ctx = makeContext(existing);
 
       await handleDetachStatements(statements, ctx);
@@ -559,9 +544,7 @@ describe('attach-detach-handler', () => {
     });
 
     it('should ignore non-DETACH statements', async () => {
-      const statements = [
-        makeStatement('SELECT 1', SQLStatement.SELECT),
-      ];
+      const statements = [makeStatement('SELECT 1', SQLStatement.SELECT)];
       const ctx = makeContext();
 
       await handleDetachStatements(statements, ctx);
@@ -570,9 +553,7 @@ describe('attach-detach-handler', () => {
     });
 
     it('should handle DETACH of non-existent database gracefully', async () => {
-      const statements = [
-        makeStatement('DETACH nonexistent', SQLStatement.DETACH),
-      ];
+      const statements = [makeStatement('DETACH nonexistent', SQLStatement.DETACH)];
       const ctx = makeContext();
 
       await handleDetachStatements(statements, ctx);

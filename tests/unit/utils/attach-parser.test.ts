@@ -217,26 +217,22 @@ describe('attach-parser', () => {
     });
 
     it('should parse quoted ENDPOINT_TYPE GLUE', () => {
-      const sql =
-        "ATTACH 'wh' AS glue_cat (TYPE ICEBERG, SECRET aws_creds, ENDPOINT_TYPE 'GLUE')";
+      const sql = "ATTACH 'wh' AS glue_cat (TYPE ICEBERG, SECRET aws_creds, ENDPOINT_TYPE 'GLUE')";
       const result = parseIcebergAttachStatement(sql);
       expect(result).not.toBeNull();
       expect(result?.endpointType).toBe('GLUE');
     });
 
     it('should be case-insensitive for TYPE ICEBERG', () => {
-      const lower =
-        "attach 'wh' as cat (type iceberg, endpoint 'https://example.com', secret s)";
-      const mixed =
-        "Attach 'wh' AS cat (Type Iceberg, Endpoint 'https://example.com', Secret s)";
+      const lower = "attach 'wh' as cat (type iceberg, endpoint 'https://example.com', secret s)";
+      const mixed = "Attach 'wh' AS cat (Type Iceberg, Endpoint 'https://example.com', Secret s)";
 
       expect(parseIcebergAttachStatement(lower)).not.toBeNull();
       expect(parseIcebergAttachStatement(mixed)).not.toBeNull();
     });
 
     it('should handle DATABASE and IF NOT EXISTS keywords', () => {
-      const sql =
-        "ATTACH DATABASE IF NOT EXISTS 'wh' AS cat (TYPE ICEBERG, SECRET s)";
+      const sql = "ATTACH DATABASE IF NOT EXISTS 'wh' AS cat (TYPE ICEBERG, SECRET s)";
       const result = parseIcebergAttachStatement(sql);
       expect(result).not.toBeNull();
       expect(result?.warehouseName).toBe('wh');
@@ -254,8 +250,7 @@ describe('attach-parser', () => {
     });
 
     it('should handle missing SECRET option', () => {
-      const sql =
-        "ATTACH 'wh' AS cat (TYPE ICEBERG, ENDPOINT 'https://rest.example.com')";
+      const sql = "ATTACH 'wh' AS cat (TYPE ICEBERG, ENDPOINT 'https://rest.example.com')";
       const result = parseIcebergAttachStatement(sql);
       expect(result).not.toBeNull();
       expect(result?.secretName).toBeUndefined();
@@ -274,22 +269,21 @@ describe('attach-parser', () => {
     });
 
     it('should handle double-quoted alias', () => {
-      const sql =
-        "ATTACH 'wh' AS \"my_catalog\" (TYPE ICEBERG, SECRET s)";
+      const sql = 'ATTACH \'wh\' AS "my_catalog" (TYPE ICEBERG, SECRET s)';
       const result = parseIcebergAttachStatement(sql);
       expect(result).not.toBeNull();
       expect(result?.catalogAlias).toBe('my_catalog');
     });
 
     it('should parse Iceberg ATTACH with hyphenated quoted alias', () => {
-      const sql = "ATTACH 'wh' AS \"my-catalog\" (TYPE ICEBERG, SECRET s)";
+      const sql = 'ATTACH \'wh\' AS "my-catalog" (TYPE ICEBERG, SECRET s)';
       const result = parseIcebergAttachStatement(sql);
       expect(result).not.toBeNull();
       expect(result?.catalogAlias).toBe('my-catalog');
     });
 
     it('should parse Iceberg ATTACH with dotted quoted alias', () => {
-      const sql = "ATTACH 'wh' AS \"my.catalog\" (TYPE ICEBERG, SECRET s)";
+      const sql = 'ATTACH \'wh\' AS "my.catalog" (TYPE ICEBERG, SECRET s)';
       const result = parseIcebergAttachStatement(sql);
       expect(result).not.toBeNull();
       expect(result?.catalogAlias).toBe('my.catalog');
@@ -307,21 +301,22 @@ describe('attach-parser', () => {
     });
 
     it('should parse CREATE SECRET with quoted name', () => {
-      const sql = "CREATE SECRET \"my-secret\" (TYPE s3, KEY_ID 'AKID')";
+      const sql = 'CREATE SECRET "my-secret" (TYPE s3, KEY_ID \'AKID\')';
       const result = parseCreateSecretStatement(sql);
       expect(result).not.toBeNull();
       expect(result?.secretName).toBe('my-secret');
     });
 
     it('should parse CREATE OR REPLACE SECRET with quoted name', () => {
-      const sql = "CREATE OR REPLACE SECRET \"my.secret\" (TYPE iceberg, TOKEN 'tok')";
+      const sql = 'CREATE OR REPLACE SECRET "my.secret" (TYPE iceberg, TOKEN \'tok\')';
       const result = parseCreateSecretStatement(sql);
       expect(result).not.toBeNull();
       expect(result?.secretName).toBe('my.secret');
     });
 
     it('should parse unquoted option values for known keys', () => {
-      const sql = "CREATE SECRET my_secret (TYPE s3, KEY_ID 'AKID', SECRET 'skey', REGION us-east-1)";
+      const sql =
+        "CREATE SECRET my_secret (TYPE s3, KEY_ID 'AKID', SECRET 'skey', REGION us-east-1)";
       const result = parseCreateSecretStatement(sql);
       expect(result).not.toBeNull();
       expect(result?.options.REGION).toBe('us-east-1');

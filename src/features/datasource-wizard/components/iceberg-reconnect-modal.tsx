@@ -1,14 +1,5 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import {
-  Modal,
-  Stack,
-  TextInput,
-  PasswordInput,
-  Text,
-  Button,
-  Group,
-  Select,
-} from '@mantine/core';
+import { Modal, Stack, TextInput, PasswordInput, Text, Button, Group, Select } from '@mantine/core';
 import { useInputState } from '@mantine/hooks';
 import { IcebergAuthType, IcebergCatalog } from '@models/data-source';
 import { reconnectIcebergCatalog, IcebergCredentials } from '@utils/iceberg-catalog';
@@ -69,12 +60,7 @@ export function IcebergReconnectModal({
   };
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title="Reconnect Iceberg Catalog"
-      size="md"
-    >
+    <Modal opened={opened} onClose={onClose} title="Reconnect Iceberg Catalog" size="md">
       <Stack gap={16}>
         <Stack gap={4}>
           <Text size="sm" c="text-secondary">

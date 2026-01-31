@@ -125,11 +125,7 @@ export async function encrypt(
 ): Promise<{ ciphertext: string; iv: string }> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(plaintext);
-  const ciphertextBuffer = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    encoded,
-  );
+  const ciphertextBuffer = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
   return {
     ciphertext: bufferToBase64(ciphertextBuffer),
     iv: bufferToBase64(iv.buffer),
@@ -204,10 +200,7 @@ export async function getSecret(
 /**
  * Delete a secret by ID.
  */
-export async function deleteSecret(
-  iDb: IDBPDatabase<AppIdbSchema>,
-  id: SecretId,
-): Promise<void> {
+export async function deleteSecret(iDb: IDBPDatabase<AppIdbSchema>, id: SecretId): Promise<void> {
   await iDb.delete(SECRET_TABLE_NAME, id);
 }
 

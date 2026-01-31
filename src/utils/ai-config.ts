@@ -226,9 +226,7 @@ export function saveAIConfig(config: AIServiceConfig): void {
   }
 }
 
-async function persistApiKeysToSecretStore(
-  apiKeys: Record<string, string>,
-): Promise<void> {
+async function persistApiKeysToSecretStore(apiKeys: Record<string, string>): Promise<void> {
   const { useAppStore } = await import('@store/app-store');
   const { _iDbConn } = useAppStore.getState();
   if (!_iDbConn) {
