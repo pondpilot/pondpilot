@@ -22,6 +22,7 @@ import { executeWithRetry } from '@utils/connection-manager';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { buildIcebergSecretPayload, isManagedIcebergEndpoint } from '@utils/iceberg-catalog';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { escapeSqlStringValue } from '@utils/sql-security';
 import {
   buildIcebergSecretQuery,
@@ -164,7 +165,7 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
         message: 'Iceberg catalog connection test passed',
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
       showError({
         title: 'Connection failed',
         message: `Failed to connect: ${message}`,
@@ -334,7 +335,7 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
       });
       onClose();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
       showError({
         title: 'Failed to add catalog',
         message: `Error: ${message}`,
