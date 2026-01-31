@@ -454,6 +454,11 @@ export const DuckDBConnectionPoolProvider = ({
                 'read_stat extension requires unsigned extensions to be allowed. ' +
                   'Set VITE_DUCKDB_ALLOW_UNSIGNED_EXTENSIONS=true to enable.',
               );
+            } else if (/['";]/.test(READ_STAT_EXTENSION_URL)) {
+              console.error(
+                'read_stat extension URL contains invalid characters. ' +
+                  'URL must not contain single quotes, double quotes, or semicolons.',
+              );
             } else {
               try {
                 await pool.query(`LOAD '${READ_STAT_EXTENSION_URL}';`);

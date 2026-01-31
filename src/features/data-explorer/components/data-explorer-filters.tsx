@@ -30,6 +30,19 @@ export type FileTypeFilter = {
   dta: boolean;
 };
 
+export const DEFAULT_FILE_TYPE_FILTER: FileTypeFilter = {
+  csv: true,
+  json: true,
+  parquet: true,
+  xlsx: true,
+  sas7bdat: true,
+  xpt: true,
+  sav: true,
+  zsav: true,
+  por: true,
+  dta: true,
+};
+
 interface FilterButton {
   type: DataExplorerFilterType;
   Icon: Icon;
@@ -75,18 +88,7 @@ export const DataExplorerFilters = memo(
   ({
     activeFilter,
     onFilterChange,
-    fileTypeFilter = {
-      csv: true,
-      json: true,
-      parquet: true,
-      xlsx: true,
-      sas7bdat: true,
-      xpt: true,
-      sav: true,
-      zsav: true,
-      por: true,
-      dta: true,
-    },
+    fileTypeFilter = DEFAULT_FILE_TYPE_FILTER,
     onFileTypeFilterChange,
     searchQuery = '',
     onSearchChange,
@@ -222,30 +224,13 @@ export const DataExplorerFilters = memo(
                         if (onFileTypeFilterChange) {
                           const newFilter = { ...fileTypeFilter };
 
-                          if (allFileTypesSelected) {
-                            // Deselect all available types
-                            if (availableFileTypes) {
-                              availableFileTypes.forEach((type) => {
-                                newFilter[type] = false;
-                              });
-                            } else {
-                              // Fallback to deselect all
-                              newFilter.csv = false;
-                              newFilter.json = false;
-                              newFilter.parquet = false;
-                              newFilter.xlsx = false;
-                            }
-                          } else if (availableFileTypes) {
-                            // Select all available types
-                            availableFileTypes.forEach((type) => {
-                              newFilter[type] = true;
-                            });
-                          } else {
-                            // Fallback to select all
-                            newFilter.csv = true;
-                            newFilter.json = true;
-                            newFilter.parquet = true;
-                            newFilter.xlsx = true;
+                          const typesToToggle = availableFileTypes
+                            ? Array.from(availableFileTypes)
+                            : (Object.keys(DEFAULT_FILE_TYPE_FILTER) as (keyof FileTypeFilter)[]);
+                          const targetValue = !allFileTypesSelected;
+
+                          for (const type of typesToToggle) {
+                            newFilter[type] = targetValue;
                           }
 
                           onFileTypeFilterChange(newFilter);

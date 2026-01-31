@@ -81,12 +81,7 @@ export interface XlsxSheetView extends FlatFileDataSource {
   sheetName: string;
 }
 
-export type AnyFlatFileDataSource =
-  | CSVView
-  | ParquetView
-  | XlsxSheetView
-  | JSONView
-  | ReadStatView;
+export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView | JSONView | ReadStatView;
 
 export interface LocalDB extends SingleFileDataSourceBase {
   readonly type: 'attached-db';

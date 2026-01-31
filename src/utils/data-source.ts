@@ -168,14 +168,14 @@ export function addLocalDB(localEntry: DataSourceLocalFile, reservedDbs: Set<str
   }
 }
 
-const READSTAT_VIEW_TYPES_SET: ReadonlySet<string> = new Set<string>(READSTAT_VIEW_TYPES);
+const READSTAT_VIEW_TYPES_SET: ReadonlySet<ReadStatViewType> = new Set(READSTAT_VIEW_TYPES);
 
 export function isReadStatViewType(type: string): type is ReadStatViewType {
-  return READSTAT_VIEW_TYPES_SET.has(type);
+  return READSTAT_VIEW_TYPES_SET.has(type as ReadStatViewType);
 }
 
 export function isReadStatDataSource(dataSource: AnyDataSource): dataSource is ReadStatView {
-  return READSTAT_VIEW_TYPES_SET.has(dataSource.type);
+  return READSTAT_VIEW_TYPES_SET.has(dataSource.type as ReadStatViewType);
 }
 
 export function isFlatFileDataSource(
