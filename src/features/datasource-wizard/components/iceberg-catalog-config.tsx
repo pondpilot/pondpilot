@@ -183,6 +183,8 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
   };
 
   const handleAdd = async () => {
+    if (isLoading || isTesting) return;
+
     if (!pool) {
       showError({
         title: 'App not ready',
