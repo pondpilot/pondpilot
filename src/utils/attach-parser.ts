@@ -111,12 +111,12 @@ export interface ParsedIcebergAttachStatement {
  *
  * Capture groups:
  * 1: The warehouse/URL value (required, quoted with ' or ")
- * 2: Optional opening quote for alias (" or empty)
- * 3: The catalog alias (required, optionally quoted)
+ * 2: The catalog alias if double-quoted (e.g. "my-catalog")
+ * 3: The catalog alias if unquoted (word characters only)
  * 4: The options block content inside parentheses
  */
 const ICEBERG_ATTACH_REGEX =
-  /ATTACH\s+(?:DATABASE\s+)?(?:IF\s+NOT\s+EXISTS\s+)?['"]([^'"]+)['"]\s+AS\s+(['"]?)(\w+)\2\s*\(([^)]+)\)/i;
+  /ATTACH\s+(?:DATABASE\s+)?(?:IF\s+NOT\s+EXISTS\s+)?['"]([^'"]+)['"]\s+AS\s+(?:"([^"]+)"|(\w+))\s*\(([^)]+)\)/i;
 
 /**
  * Parse an Iceberg ATTACH statement to extract warehouse, alias, and options.
@@ -138,7 +138,8 @@ export function parseIcebergAttachStatement(
     return null;
   }
 
-  const [, warehouseName, , catalogAlias, optionsBlock] = match;
+  const [, warehouseName, quotedAlias, unquotedAlias, optionsBlock] = match;
+  const catalogAlias = (quotedAlias ?? unquotedAlias);
 
   // Verify TYPE ICEBERG is present in the options block
   if (!/\bTYPE\s+ICEBERG\b/i.test(optionsBlock)) {
@@ -177,7 +178,7 @@ function extractQuotedOption(optionsBlock: string, key: string): string | undefi
  * Matches: KEY value (word characters only)
  */
 function extractUnquotedOption(optionsBlock: string, key: string): string | undefined {
-  const regex = new RegExp(`\\b${key}\\s+(\\w+)`, 'i');
+  const regex = new RegExp(`\\b${key}\\s+([\\w-]+)`, 'i');
   const match = optionsBlock.match(regex);
   return match?.[1];
 }
@@ -202,11 +203,12 @@ export interface ParsedCreateSecretStatement {
  * Supports: CREATE [OR REPLACE] SECRET [IF NOT EXISTS] name (TYPE type, ...)
  *
  * Capture groups:
- * 1: Secret name
- * 2: Options block content inside parentheses
+ * 1: Secret name if double-quoted (e.g. "my-secret")
+ * 2: Secret name if unquoted (word characters only)
+ * 3: Options block content inside parentheses
  */
 const CREATE_SECRET_REGEX =
-  /CREATE\s+(?:OR\s+REPLACE\s+)?SECRET\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(([^)]+)\)/i;
+  /CREATE\s+(?:OR\s+REPLACE\s+)?SECRET\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"([^"]+)"|(\w+))\s*\(([^)]+)\)/i;
 
 /**
  * Parse a CREATE SECRET statement to extract the secret name, type, and options.
@@ -220,7 +222,8 @@ export function parseCreateSecretStatement(
   const match = statement.match(CREATE_SECRET_REGEX);
   if (!match) return null;
 
-  const [, secretName, optionsBlock] = match;
+  const [, quotedName, unquotedName, optionsBlock] = match;
+  const secretName = quotedName ?? unquotedName;
 
   // Extract TYPE (required)
   const typeMatch = optionsBlock.match(/\bTYPE\s+(\w+)/i);
@@ -237,6 +240,17 @@ export function parseCreateSecretStatement(
     const key = rawKey.toUpperCase();
     if (key !== 'TYPE') {
       options[key] = value;
+    }
+  }
+
+  // Also extract unquoted values for known keys like REGION
+  const KNOWN_UNQUOTED_KEYS = ['REGION', 'ENDPOINT', 'ENDPOINT_TYPE'];
+  for (const knownKey of KNOWN_UNQUOTED_KEYS) {
+    if (!options[knownKey]) {
+      const unquotedVal = extractUnquotedOption(optionsBlock, knownKey);
+      if (unquotedVal && unquotedVal.toUpperCase() !== 'TYPE') {
+        options[knownKey] = unquotedVal;
+      }
     }
   }
 
