@@ -1108,6 +1108,8 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     isFetchingData: isFetchingData || isCreatingReader,
     isSorting,
     dataReadCancelled: dataReadCancelled.current,
+    sourceQuery: queries.sourceQuery ?? null,
+    pool,
     reset: resetApi,
     getDataTableSlice,
     getAllTableData,

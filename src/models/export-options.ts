@@ -3,7 +3,7 @@ import { NormalizedSQLType } from './db';
 /**
  * Available data export formats
  */
-export type ExportFormat = 'csv' | 'tsv' | 'xlsx' | 'xml' | 'sql' | 'md';
+export type ExportFormat = 'csv' | 'tsv' | 'xlsx' | 'xml' | 'sql' | 'md' | 'parquet';
 
 /**
  * Common export options for all formats
@@ -52,6 +52,23 @@ export interface XmlExportOptions extends BaseExportOptions {
 }
 
 /**
+ * Valid Parquet compression codecs — the single source of truth for validation and UI.
+ */
+export const PARQUET_COMPRESSIONS = ['snappy', 'gzip', 'zstd', 'uncompressed'] as const;
+
+/**
+ * Parquet compression codec options
+ */
+export type ParquetCompression = (typeof PARQUET_COMPRESSIONS)[number];
+
+/**
+ * Options specific to Parquet export
+ */
+export interface ParquetExportOptions extends BaseExportOptions {
+  compression: ParquetCompression;
+}
+
+/**
  * Union type for all export options
  */
 export type ExportOptions =
@@ -59,7 +76,8 @@ export type ExportOptions =
   | XlsxExportOptions
   | SqlExportOptions
   | MarkdownExportOptions
-  | XmlExportOptions;
+  | XmlExportOptions
+  | ParquetExportOptions;
 
 export const sqlTypeMap: Record<NormalizedSQLType, string> = {
   float: 'DOUBLE',

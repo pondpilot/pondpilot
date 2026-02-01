@@ -12,6 +12,7 @@ import {
 } from '@models/data-source';
 import { DataBaseModel, DBFunctionsMetadata, DBTableOrViewSchema } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { ExportFormat } from '@models/export-options';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
@@ -146,6 +147,13 @@ type AppStore = {
    * Not persisted — purely transient UI state.
    */
   icebergReconnectCatalogId: PersistentDataSourceId | null;
+
+  /**
+   * Pending "Convert To" action from the data explorer context menu.
+   * When set, the data view info pane will open the export modal
+   * with the specified format pre-selected once the tab's data adapter is ready.
+   */
+  pendingConvert: { tabId: TabId; format: ExportFormat } | null;
 } & ContentViewState;
 
 const initialState: AppStore = {
@@ -167,6 +175,7 @@ const initialState: AppStore = {
   spotlightView: 'home',
   comparisonExecutionProgress: new Map(),
   icebergReconnectCatalogId: null,
+  pendingConvert: null,
   // From ContentViewState
   activeTabId: null,
   previewTabId: null,
@@ -649,6 +658,18 @@ export const setIDbConn = (iDbConn: IDBPDatabase<AppIdbSchema>) => {
 
 export const setDuckDBFunctions = (functions: DBFunctionsMetadata[]) => {
   useAppStore.setState({ duckDBFunctions: functions }, undefined, 'AppStore/setDuckDBFunctions');
+};
+
+export const setPendingConvert = (tabId: TabId, format: ExportFormat) => {
+  useAppStore.setState(
+    { pendingConvert: { tabId, format } },
+    undefined,
+    'AppStore/setPendingConvert',
+  );
+};
+
+export const clearPendingConvert = () => {
+  useAppStore.setState({ pendingConvert: null }, undefined, 'AppStore/clearPendingConvert');
 };
 
 export const resetAppState = async () => {

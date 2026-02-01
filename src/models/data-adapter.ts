@@ -1,3 +1,4 @@
+import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
 
 import { ColumnSortSpecList, DataTable, DBColumn, DBTableOrViewSchema } from './db';
@@ -251,6 +252,20 @@ export interface DataAdapterApi {
   ) => Promise<ChartAggregatedData | undefined>;
 
   /**
+   * The SQL source query that produces this adapter's data.
+   * Used by formats like Parquet that leverage DuckDB's native COPY TO.
+   * May be null if the source query is not available.
+   */
+  sourceQuery: string | null;
+
+  /**
+   * Reference to the DuckDB connection pool.
+   * Used by formats like Parquet that need direct DuckDB access for
+   * native COPY TO operations.
+   */
+  pool: AsyncDuckDBConnectionPool | null;
+
+  /**
    * Cancels the current data read and prevents further reads
    * until user asks for more data by paging/scrolling
    */
@@ -268,6 +283,11 @@ export interface DataAdapterApi {
  * Type definitions for internal functions that perform various data related queries.
  */
 export interface DataAdapterQueries {
+  /**
+   * The SQL source query that produces this adapter's data.
+   * Used by formats like Parquet that leverage DuckDB's native COPY TO.
+   */
+  sourceQuery?: string;
   /**
    * If data source supports quick precise row count retrieval, returns the count.
    */

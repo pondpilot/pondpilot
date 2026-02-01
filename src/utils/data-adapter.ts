@@ -204,7 +204,9 @@ function getFlatFileDataAdapterQueries(
 ): DataAdapterQueries {
   const fqn = `main.${toDuckDBIdentifier(dataSource.viewName)}`;
 
+  const sourceQuery = `SELECT * FROM ${fqn}`;
   const baseAttrs: Partial<DataAdapterQueries> = {
+    sourceQuery,
     getSortableReader: getGetSortableReaderApiFromFQN(pool, fqn),
     getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn),
     getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
@@ -261,12 +263,13 @@ function getDatabaseDataAdapterApi(
 
   return {
     adapter: {
+      sourceQuery: `SELECT * FROM ${fqn}`,
       getEstimatedRowCount:
         'dbType' in dataSource && dataSource.dbType === 'duckdb'
           ? tab.objectType === 'table'
             ? async (abortSignal: AbortSignal) => {
                 const { value, aborted } = await pool.queryAbortable(
-                  `SELECT estimated_size 
+                  `SELECT estimated_size
                 FROM duckdb_tables
                 WHERE
                   database_name = ${quote(dbName, { single: true })}
@@ -457,6 +460,7 @@ export function getScriptAdapterQueries({
 
   return {
     adapter: {
+      sourceQuery: classifiedStmt.isAllowedInSubquery ? trimmedQuery : undefined,
       // As of today we do not allow runnig even an estimated row count on
       // arbitrary queries, so we do no create these functions
       getSortableReader: classifiedStmt.isAllowedInSubquery

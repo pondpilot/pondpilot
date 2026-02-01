@@ -1,10 +1,13 @@
 import { DataAdapterApi } from '@models/data-adapter';
 import { DataTable, DBTableOrViewSchema } from '@models/db';
+import { getFormatDefinition, getFormatExtension } from '@models/export-format-registry';
 import {
   BaseExportOptions,
   DelimitedTextExportOptions,
   ExportFormat,
   MarkdownExportOptions,
+  PARQUET_COMPRESSIONS,
+  ParquetExportOptions,
   SqlExportOptions,
   XlsxExportOptions,
   XmlExportOptions,
@@ -44,7 +47,7 @@ export function sanitizeForExcel(value: string): string {
  */
 export function createExportFileName(tabName: string, format: ExportFormat): string {
   const sanitizedName = sanitizeFileName(tabName);
-  const extension = format === 'tsv' ? 'tsv' : format;
+  const extension = getFormatExtension(format);
   return `${sanitizedName}.${extension}`;
 }
 
@@ -439,6 +442,57 @@ export async function exportAsMarkdown(
 }
 
 /**
+ * Exports data as Parquet using DuckDB's native COPY TO.
+ * Requires the data adapter to provide a source query and a DuckDB connection pool.
+ */
+export async function exportAsParquet(
+  dataAdapter: DataAdapterApi,
+  options: ParquetExportOptions,
+  fileName: string,
+): Promise<void> {
+  const { sourceQuery, pool } = dataAdapter;
+  if (!sourceQuery) {
+    throw new Error(
+      'Parquet export requires a source query. This data source does not support it.',
+    );
+  }
+  if (!pool) {
+    throw new Error('DuckDB connection pool is not available for Parquet export.');
+  }
+
+  const tempFileName = `__parquet_export_${Date.now()}_${Math.random().toString(36).slice(2)}.parquet`;
+  const compression = options.compression || 'snappy';
+
+  if (!(PARQUET_COMPRESSIONS as readonly string[]).includes(compression)) {
+    throw new Error(
+      `Invalid Parquet compression codec: "${compression}". Supported: ${PARQUET_COMPRESSIONS.join(', ')}`,
+    );
+  }
+
+  try {
+    // Safety: sourceQuery is safe to embed in a subquery context because:
+    // - For flat files / DB objects it is built from identifiers via toDuckDBIdentifier.
+    // - For user SQL it is only set when classifiedStmt.isAllowedInSubquery is true.
+    await pool.query(
+      `COPY (${sourceQuery}) TO '${tempFileName}' (FORMAT PARQUET, COMPRESSION '${compression}')`,
+    );
+
+    // Read the file from DuckDB's virtual file system
+    const buffer = await pool.copyFileToBuffer(tempFileName);
+
+    // Trigger browser download
+    downloadFile(new Blob([buffer], { type: 'application/vnd.apache.parquet' }), fileName);
+  } finally {
+    // Clean up the temp file
+    try {
+      await pool.dropFile(tempFileName);
+    } catch (cleanupError) {
+      console.warn(`Failed to clean up temporary Parquet file: ${tempFileName}`, cleanupError);
+    }
+  }
+}
+
+/**
  * Helper function to download a file
  */
 function downloadFile(content: string | Blob, fileName: string, mimeType?: string): void {
@@ -470,26 +524,9 @@ export async function exportData(
   options: BaseExportOptions,
   fileName: string,
 ): Promise<void> {
-  switch (format) {
-    case 'csv':
-      await exportAsDelimitedText(dataAdapter, options as DelimitedTextExportOptions, fileName);
-      break;
-    case 'tsv':
-      await exportAsDelimitedText(dataAdapter, options as DelimitedTextExportOptions, fileName);
-      break;
-    case 'xlsx':
-      await exportAsXlsx(dataAdapter, options as XlsxExportOptions, fileName);
-      break;
-    case 'sql':
-      await exportAsSql(dataAdapter, options as SqlExportOptions, fileName);
-      break;
-    case 'xml':
-      await exportAsXml(dataAdapter, options as XmlExportOptions, fileName);
-      break;
-    case 'md':
-      await exportAsMarkdown(dataAdapter, options as MarkdownExportOptions, fileName);
-      break;
-    default:
-      throw new Error(`Unsupported export format: ${format}`);
+  const definition = getFormatDefinition(format);
+  if (!definition) {
+    throw new Error(`Unsupported export format: ${format}`);
   }
+  await definition.exportFn(dataAdapter, options, fileName);
 }

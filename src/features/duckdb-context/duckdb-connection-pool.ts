@@ -631,4 +631,24 @@ export class AsyncDuckDBConnectionPool {
       throw error;
     }
   }
+
+  /**
+   * Copies a file from the DuckDB virtual file system into a buffer.
+   * Used by export operations that write to the DuckDB VFS (e.g. COPY TO).
+   *
+   * @param fileName The name of the file in the DuckDB VFS to read
+   * @returns A promise that resolves to the file contents as a Uint8Array
+   */
+  public async copyFileToBuffer(fileName: string): Promise<Uint8Array> {
+    return this._bindings.copyFileToBuffer(fileName);
+  }
+
+  /**
+   * Drops (removes) a file from the DuckDB virtual file system.
+   *
+   * @param fileName The name of the file in the DuckDB VFS to remove
+   */
+  public async dropFile(fileName: string): Promise<void> {
+    await this._bindings.dropFile(fileName);
+  }
 }
