@@ -4,4 +4,5 @@ export { XlsxOptions } from './xlsx-options';
 export { SqlOptions } from './sql-options';
 export { XmlOptions } from './xml-options';
 export { MarkdownOptions } from './markdown-options';
+export { ParquetOptions } from './parquet-options';
 export { FormatSelector } from './format-selector';

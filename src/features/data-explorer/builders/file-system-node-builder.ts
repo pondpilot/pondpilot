@@ -19,6 +19,7 @@ import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-conne
 import { AnyFlatFileDataSource, XlsxSheetView } from '@models/data-source';
 import { DBColumn, DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
+import { ExportFormat } from '@models/export-options';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
 import { copyToClipboard } from '@utils/clipboard';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
@@ -32,6 +33,7 @@ import {
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
 import { buildComparisonMenuItems } from '../utils/comparison-menu-items';
+import { buildConvertToMenuItems } from '../utils/convert-to-menu-items';
 import { validateFileRename, validateXlsxFileRename } from '../utils/validation';
 
 interface FileSystemBuilderContext {
@@ -219,6 +221,16 @@ function buildXlsxSheetNode(
             },
           },
           ...buildComparisonMenuItems(() => dataSourceToComparisonSource(sheet)),
+          ...buildConvertToMenuItems(() => {
+            const existingTab = findTabFromFlatFileDataSource(sheet.id);
+            if (existingTab) {
+              setActiveTabId(existingTab.id);
+              return existingTab.id;
+            }
+            const tab = getOrCreateTabFromFlatFileDataSource(sheet.id, true);
+            setActiveTabId(tab.id);
+            return tab.id;
+          }, 'xlsx'),
         ],
       },
     ],
@@ -430,6 +442,28 @@ export function buildFileNode(
 
   contextMenuItems.push(
     ...buildComparisonMenuItems(() => dataSourceToComparisonSource(relatedSource)),
+  );
+
+  // Map data source type to export format key for filtering same-format from Convert To
+  const sourceFormatMap: Record<string, ExportFormat> = {
+    csv: 'csv',
+    tsv: 'tsv',
+    parquet: 'parquet',
+    'xlsx-sheet': 'xlsx',
+  };
+  const sourceFormat: ExportFormat | null = sourceFormatMap[relatedSource.type] ?? null;
+
+  contextMenuItems.push(
+    ...buildConvertToMenuItems(() => {
+      const existingTab = findTabFromFlatFileDataSource(relatedSource.id);
+      if (existingTab) {
+        setActiveTabId(existingTab.id);
+        return existingTab.id;
+      }
+      const tab = getOrCreateTabFromFlatFileDataSource(relatedSource.id, true);
+      setActiveTabId(tab.id);
+      return tab.id;
+    }, sourceFormat),
   );
 
   return {

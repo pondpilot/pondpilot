@@ -499,12 +499,13 @@ describe('file-system-node-builder', () => {
       const node = buildFileNode(csvEntry, source, mockContext);
       const menuItems = node.contextMenu?.[0].children || [];
 
-      expect(menuItems).toHaveLength(4);
+      expect(menuItems).toHaveLength(5);
       expect(menuItems.map((item) => item.label)).toEqual([
         'Copy Full Name',
         'Create a Query',
         'Show Schema',
         'Comparison',
+        'Convert To',
       ]);
 
       // Test Create a Query
