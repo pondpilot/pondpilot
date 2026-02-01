@@ -39,6 +39,12 @@ export type IconType =
   | 'csv'
   | 'json'
   | 'parquet'
+  | 'sas7bdat'
+  | 'xpt'
+  | 'sav'
+  | 'zsav'
+  | 'por'
+  | 'dta'
   | 'xlsx-sheet'
   // Tab types
   | 'comparison'
@@ -127,6 +133,13 @@ export const NamedIcon: React.FC<NamedIconProps> = ({ iconType, ...iconProps }) 
     case 'json':
       return <IconJson {...iconProps} />;
     case 'parquet':
+      return <IconTable {...iconProps} />;
+    case 'sas7bdat':
+    case 'xpt':
+    case 'sav':
+    case 'zsav':
+    case 'por':
+    case 'dta':
       return <IconTable {...iconProps} />;
     case 'xlsx':
       return <IconFileTypeXls {...iconProps} />;

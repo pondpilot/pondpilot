@@ -3,9 +3,10 @@ import {
   AnyFlatFileDataSource,
   LocalDB,
   PersistentDataSourceId,
+  ReadStatView,
   RemoteDB,
 } from '@models/data-source';
-import { DataSourceLocalFile } from '@models/file-system';
+import { DataSourceLocalFile, READSTAT_VIEW_TYPES, ReadStatViewType } from '@models/file-system';
 import { findUniqueName } from '@utils/helpers';
 
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from './duckdb/identifier';
@@ -100,20 +101,14 @@ export function addFlatFileDataSource(
 
   switch (localEntry.ext) {
     case 'csv':
-      return {
-        id: dataSourceId,
-        type: localEntry.ext,
-        fileSourceId: localEntry.id,
-        viewName,
-      };
     case 'json':
-      return {
-        id: dataSourceId,
-        type: localEntry.ext,
-        fileSourceId: localEntry.id,
-        viewName,
-      };
     case 'parquet':
+    case 'sas7bdat':
+    case 'xpt':
+    case 'sav':
+    case 'zsav':
+    case 'por':
+    case 'dta':
       return {
         id: dataSourceId,
         type: localEntry.ext,
@@ -171,6 +166,16 @@ export function addLocalDB(localEntry: DataSourceLocalFile, reservedDbs: Set<str
   }
 }
 
+const READSTAT_VIEW_TYPES_SET: ReadonlySet<ReadStatViewType> = new Set(READSTAT_VIEW_TYPES);
+
+export function isReadStatViewType(type: string): type is ReadStatViewType {
+  return READSTAT_VIEW_TYPES_SET.has(type as ReadStatViewType);
+}
+
+export function isReadStatDataSource(dataSource: AnyDataSource): dataSource is ReadStatView {
+  return READSTAT_VIEW_TYPES_SET.has(dataSource.type as ReadStatViewType);
+}
+
 export function isFlatFileDataSource(
   dataSource: AnyDataSource,
 ): dataSource is AnyFlatFileDataSource {
@@ -178,7 +183,8 @@ export function isFlatFileDataSource(
     dataSource.type === 'csv' ||
     dataSource.type === 'json' ||
     dataSource.type === 'parquet' ||
-    dataSource.type === 'xlsx-sheet'
+    dataSource.type === 'xlsx-sheet' ||
+    isReadStatDataSource(dataSource)
   );
 }
 

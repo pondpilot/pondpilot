@@ -25,6 +25,7 @@ import { DBColumn } from '@models/db';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { IconX, IconCopy, IconRefresh, IconChevronDown, IconScale } from '@tabler/icons-react';
+import { isFlatFileDataSource } from '@utils/data-source';
 import { setDataTestId } from '@utils/test-id';
 import { assertNeverValueType } from '@utils/typing';
 import { RefObject, useMemo, useCallback } from 'react';
@@ -162,13 +163,7 @@ export const DataViewInfoPane = ({
 
       if (tab.dataSourceType === 'file') {
         // For file-based sources, use the system database
-        // File types include: csv, json, parquet, xlsx-sheet
-        if (
-          dataSource.type !== 'csv' &&
-          dataSource.type !== 'json' &&
-          dataSource.type !== 'parquet' &&
-          dataSource.type !== 'xlsx-sheet'
-        ) {
+        if (!isFlatFileDataSource(dataSource)) {
           showWarningWithAction({
             title: 'Cannot create comparison',
             message: 'Invalid data source type',

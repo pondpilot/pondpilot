@@ -58,6 +58,12 @@ describe('useFilterNodes', () => {
       json: true,
       parquet: true,
       xlsx: true,
+      sas7bdat: true,
+      xpt: true,
+      sav: true,
+      zsav: true,
+      por: true,
+      dta: true,
     },
     searchQuery: '',
     localEntriesValues: new Map([

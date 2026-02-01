@@ -5,7 +5,11 @@ import { dataSourceToComparisonSource } from '@features/comparison/utils/source-
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { ComparisonSource } from '@models/comparison';
 import { AnyFlatFileDataSource } from '@models/data-source';
-import { LocalEntryId, supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import {
+  LocalEntryId,
+  SUPPORTED_DATA_SOURCE_FILE_EXTS,
+  supportedFlatFileDataSourceFileExt,
+} from '@models/file-system';
 import { memo, useMemo, useCallback } from 'react';
 
 import { DataExplorerFilters, DataExplorerContent } from './components';
@@ -78,7 +82,7 @@ export const DataExplorer = memo(() => {
       if (entry.kind === 'file' && entry.fileType === 'data-source') {
         const { ext } = entry;
         // Only include flat file types (exclude .duckdb)
-        if (ext === 'csv' || ext === 'json' || ext === 'parquet' || ext === 'xlsx') {
+        if (ext !== 'duckdb' && SUPPORTED_DATA_SOURCE_FILE_EXTS.includes(ext)) {
           fileTypes.add(ext);
         }
       }

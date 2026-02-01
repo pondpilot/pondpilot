@@ -1,7 +1,8 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
-import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import { ReadStatViewType, supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import { isReadStatViewType } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 import { buildAttachQuery, buildDetachQuery, buildDropViewQuery } from '@utils/sql-builder';
@@ -21,6 +22,23 @@ async function createCSVView(
   await conn.query(
     `CREATE OR REPLACE VIEW ${toDuckDBIdentifier(viewName)} AS SELECT * FROM read_csv(${quote(fileName, { single: true })}, strict_mode=false, max_line_size=${CSV_MAX_LINE_SIZE});`,
   );
+}
+
+async function createReadStatView(
+  conn: AsyncDuckDBConnectionPool,
+  viewName: string,
+  fileExt: ReadStatViewType,
+  fileName: string,
+): Promise<void> {
+  const sanitizedView = toDuckDBIdentifier(viewName);
+  const sanitizedFile = quote(fileName, { single: true });
+  // zsav is compressed SPSS; the read_stat extension uses 'sav' for both
+  const format = fileExt === 'zsav' ? 'sav' : fileExt;
+  const sanitizedFormat = quote(format, { single: true });
+  const query =
+    `CREATE OR REPLACE VIEW ${sanitizedView} ` +
+    `AS SELECT * FROM read_stat(${sanitizedFile}, format=${sanitizedFormat});`;
+  await conn.query(query);
 }
 
 /**
@@ -57,6 +75,11 @@ export async function registerFileSourceAndCreateView(
    * Register file handle
    */
   await db.registerFileHandle(fileName, file, duckdb.DuckDBDataProtocol.BROWSER_FILEREADER, true);
+
+  if (isReadStatViewType(fileExt)) {
+    await createReadStatView(conn, viewName, fileExt, fileName);
+    return file;
+  }
 
   /**
    * Create view
@@ -135,6 +158,11 @@ export async function reCreateView(
   /**
    * Create view with the new name
    */
+
+  if (isReadStatViewType(fileExt)) {
+    await createReadStatView(conn, newViewName, fileExt, fileName);
+    return;
+  }
 
   if (fileExt === 'csv') {
     await createCSVView(conn, newViewName, fileName);
