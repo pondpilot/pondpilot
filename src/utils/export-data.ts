@@ -6,6 +6,7 @@ import {
   DelimitedTextExportOptions,
   ExportFormat,
   MarkdownExportOptions,
+  PARQUET_COMPRESSIONS,
   ParquetExportOptions,
   SqlExportOptions,
   XlsxExportOptions,
@@ -459,16 +460,19 @@ export async function exportAsParquet(
     throw new Error('DuckDB connection pool is not available for Parquet export.');
   }
 
-  const tempFileName = `__parquet_export_${Date.now()}.parquet`;
+  const tempFileName = `__parquet_export_${Date.now()}_${Math.random().toString(36).slice(2)}.parquet`;
   const compression = options.compression || 'snappy';
 
-  const validCompressions = ['snappy', 'gzip', 'zstd', 'uncompressed'] as const;
-  if (!validCompressions.includes(compression as (typeof validCompressions)[number])) {
-    throw new Error(`Invalid Parquet compression codec: ${compression}`);
+  if (!(PARQUET_COMPRESSIONS as readonly string[]).includes(compression)) {
+    throw new Error(
+      `Invalid Parquet compression codec: "${compression}". Supported: ${PARQUET_COMPRESSIONS.join(', ')}`,
+    );
   }
 
   try {
-    // Use COPY TO to write Parquet via DuckDB
+    // Safety: sourceQuery is safe to embed in a subquery context because:
+    // - For flat files / DB objects it is built from identifiers via toDuckDBIdentifier.
+    // - For user SQL it is only set when classifiedStmt.isAllowedInSubquery is true.
     await pool.query(
       `COPY (${sourceQuery}) TO '${tempFileName}' (FORMAT PARQUET, COMPRESSION '${compression}')`,
     );
@@ -482,8 +486,8 @@ export async function exportAsParquet(
     // Clean up the temp file
     try {
       await pool.dropFile(tempFileName);
-    } catch {
-      // Ignore cleanup errors
+    } catch (cleanupError) {
+      console.warn(`Failed to clean up temporary Parquet file: ${tempFileName}`, cleanupError);
     }
   }
 }

@@ -5,6 +5,7 @@ import {
   getFormatDefinition,
   getFormatExtension,
 } from '@models/export-format-registry';
+import { ExportFormat } from '@models/export-options';
 
 describe('export-format-registry', () => {
   describe('exportFormatRegistry', () => {
@@ -82,7 +83,7 @@ describe('export-format-registry', () => {
     });
 
     it('should return undefined for an unknown key', () => {
-      const unknown = getFormatDefinition('nonexistent');
+      const unknown = getFormatDefinition('nonexistent' as ExportFormat);
       expect(unknown).toBeUndefined();
     });
   });
@@ -99,7 +100,7 @@ describe('export-format-registry', () => {
     });
 
     it('should fall back to the key itself for unknown formats', () => {
-      expect(getFormatExtension('unknown')).toBe('unknown');
+      expect(getFormatExtension('unknown' as ExportFormat)).toBe('unknown');
     });
   });
 

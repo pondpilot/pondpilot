@@ -52,9 +52,14 @@ export interface XmlExportOptions extends BaseExportOptions {
 }
 
 /**
+ * Valid Parquet compression codecs — the single source of truth for validation and UI.
+ */
+export const PARQUET_COMPRESSIONS = ['snappy', 'gzip', 'zstd', 'uncompressed'] as const;
+
+/**
  * Parquet compression codec options
  */
-export type ParquetCompression = 'snappy' | 'gzip' | 'zstd' | 'uncompressed';
+export type ParquetCompression = (typeof PARQUET_COMPRESSIONS)[number];
 
 /**
  * Options specific to Parquet export

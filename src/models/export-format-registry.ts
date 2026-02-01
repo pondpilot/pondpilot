@@ -136,7 +136,7 @@ export const formatOptions = exportFormatRegistry.map((def) => ({
 /**
  * Looks up a format definition by key. Returns undefined if not found.
  */
-export function getFormatDefinition(key: string): ExportFormatDefinition | undefined {
+export function getFormatDefinition(key: ExportFormat): ExportFormatDefinition | undefined {
   return exportFormatRegistry.find((def) => def.key === key);
 }
 
@@ -144,6 +144,6 @@ export function getFormatDefinition(key: string): ExportFormatDefinition | undef
  * Gets the file extension for a given format key.
  * Falls back to the key itself if the format is not found.
  */
-export function getFormatExtension(key: string): string {
+export function getFormatExtension(key: ExportFormat): string {
   return getFormatDefinition(key)?.extension ?? key;
 }
