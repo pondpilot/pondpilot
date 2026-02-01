@@ -25,6 +25,7 @@ import { DBColumn } from '@models/db';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { IconX, IconCopy, IconRefresh, IconChevronDown, IconScale } from '@tabler/icons-react';
+import { getDatabaseIdentifier, isDatabaseDataSource } from '@utils/data-source';
 import { setDataTestId } from '@utils/test-id';
 import { assertNeverValueType } from '@utils/typing';
 import { RefObject, useMemo, useCallback } from 'react';
@@ -185,7 +186,7 @@ export const DataViewInfoPane = ({
         };
       } else if (tab.dataSourceType === 'db') {
         // For database sources
-        if (dataSource.type !== 'remote-db' && dataSource.type !== 'attached-db') {
+        if (!isDatabaseDataSource(dataSource)) {
           showWarningWithAction({
             title: 'Cannot create comparison',
             message: 'Invalid database source type',
@@ -197,7 +198,7 @@ export const DataViewInfoPane = ({
           type: 'table' as const,
           tableName: tab.objectName,
           schemaName: tab.schemaName,
-          databaseName: dataSource.dbName,
+          databaseName: getDatabaseIdentifier(dataSource),
         };
       } else {
         showWarningWithAction({

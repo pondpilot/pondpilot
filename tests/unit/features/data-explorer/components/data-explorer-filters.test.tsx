@@ -145,7 +145,7 @@ describe('DataExplorerFilters Types', () => {
         { type: 'all', tooltip: 'Show all' },
         { type: 'files', tooltip: 'Files' },
         { type: 'databases', tooltip: 'Local databases' },
-        { type: 'remote', tooltip: 'Remote databases' },
+        { type: 'remote', tooltip: 'Remote data sources' },
       ];
 
       expectedOrder.forEach((button, _index) => {

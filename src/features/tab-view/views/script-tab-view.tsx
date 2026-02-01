@@ -1,5 +1,4 @@
 import { showError, showErrorWithAction, showSuccess } from '@components/app-notifications';
-import { persistPutDataSources, persistDeleteDataSource } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
 import { updateSQLScriptContent } from '@controllers/sql-script';
@@ -17,13 +16,14 @@ import { AsyncDuckDBPooledPreparedStatement } from '@features/duckdb-context/duc
 import { ScriptEditor } from '@features/script-editor';
 import { useEditorPreferences } from '@hooks/use-editor-preferences';
 import { ChartConfig, DEFAULT_CHART_CONFIG, DEFAULT_VIEW_MODE, ViewMode } from '@models/chart';
-import { RemoteDB } from '@models/data-source';
 import { ScriptExecutionState } from '@models/sql-script';
 import { ScriptTab, TabId } from '@models/tab';
 import { useAppStore, useProtectedViews, useTabReactiveState } from '@store/app-store';
-import { parseAttachStatement, parseDetachStatement } from '@utils/attach-parser';
-import { normalizeRemoteUrl } from '@utils/cors-proxy-config';
-import { makePersistentDataSourceId } from '@utils/data-source';
+import {
+  handleAttachStatements,
+  handleCreateSecretStatements,
+  handleDetachStatements,
+} from '@utils/attach-detach-handler';
 import {
   splitSQLByStats,
   classifySQLStatements,
@@ -31,6 +31,7 @@ import {
   SelectableStatements,
   SQLStatement,
   SQLStatementType,
+  ClassifiedSQLStatement,
 } from '@utils/editor/sql';
 import { isNotReadableError, getErrorMessage } from '@utils/error-classification';
 import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
@@ -45,6 +46,22 @@ interface ScriptTabViewProps {
   tabId: TabId;
   active: boolean;
 }
+
+const SECRET_STATEMENT_PATTERN = /\b(ALTER|CREATE)\s+(?:OR\s+REPLACE\s+)?SECRET\b/i;
+
+const redactSensitiveLastQuery = (
+  statement: ClassifiedSQLStatement,
+  fallback: string | null,
+): string | null => {
+  if (
+    (statement.type === SQLStatement.CREATE || statement.type === SQLStatement.ALTER) &&
+    SECRET_STATEMENT_PATTERN.test(statement.code)
+  ) {
+    return null;
+  }
+
+  return fallback;
+};
 
 export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
   // Get the reactive portion of tab state
@@ -292,7 +309,7 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             });
             return;
           }
-          lastExecutedQuery = lastStatement.code;
+          lastExecutedQuery = redactSensitiveLastQuery(lastStatement, lastStatement.code);
         } else {
           // The last statement is not a SELECT statement
           // Execute it immediately
@@ -329,7 +346,10 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             });
             return;
           }
-          lastExecutedQuery = "SELECT 'All statements executed successfully' as Result";
+          lastExecutedQuery = redactSensitiveLastQuery(
+            lastStatement,
+            "SELECT 'All statements executed successfully' as Result",
+          );
         }
 
         // All statements executed successfully
@@ -341,6 +361,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
         const hasDDL = classifiedStatements.some((s) => s.sqlType === SQLStatementType.DDL);
         const hasAttachDetach = classifiedStatements.some(
           (s) => s.type === SQLStatement.ATTACH || s.type === SQLStatement.DETACH,
+        );
+        const hasCreateSecret = classifiedStatements.some(
+          (s) => s.type === SQLStatement.CREATE && SECRET_STATEMENT_PATTERN.test(s.code),
         );
 
         if (hasDDL || hasAttachDetach) {
@@ -364,76 +387,17 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             updatedMetadata.set(dbName, dbModel);
           }
 
-          // Handle newly attached remote databases and detached databases
+          // Process CREATE SECRET statements so ATTACH can reference them.
+          let secretMapping: Awaited<ReturnType<typeof handleCreateSecretStatements>> | undefined;
+          if (hasCreateSecret) {
+            secretMapping = await handleCreateSecretStatements(classifiedStatements);
+          }
+
+          // Handle newly attached remote databases / Iceberg catalogs and detached databases
           if (hasAttachDetach) {
-            // Check for remote databases that were attached or detached
-            for (const statement of classifiedStatements) {
-              if (statement.type === SQLStatement.ATTACH) {
-                // Parse ATTACH statement to extract URL and database name
-                const parsed = parseAttachStatement(statement.code);
-                if (parsed) {
-                  const { rawUrl, dbName } = parsed;
-
-                  // Normalize the URL and check if it's remote
-                  const { url, isRemote } = normalizeRemoteUrl(rawUrl);
-
-                  if (isRemote) {
-                    // Check if this database is already registered
-                    const existingDb = Array.from(dataSources.values()).find(
-                      (ds) =>
-                        (ds.type === 'remote-db' && ds.dbName === dbName) ||
-                        (ds.type === 'attached-db' && ds.dbName === dbName),
-                    );
-
-                    if (!existingDb) {
-                      // Create RemoteDB entry
-                      const remoteDb: RemoteDB = {
-                        type: 'remote-db',
-                        id: makePersistentDataSourceId(),
-                        url,
-                        dbName,
-                        dbType: 'duckdb',
-                        connectionState: 'connected',
-                        attachedAt: Date.now(),
-                      };
-
-                      updatedDataSources.set(remoteDb.id, remoteDb);
-
-                      // Persist to IndexedDB
-                      const { _iDbConn } = useAppStore.getState();
-                      if (_iDbConn) {
-                        await persistPutDataSources(_iDbConn, [remoteDb]);
-                      }
-                    }
-                  }
-                }
-              } else if (statement.type === SQLStatement.DETACH) {
-                // Parse DETACH statement to extract database name
-                const dbName = parseDetachStatement(statement.code);
-                if (dbName) {
-                  // Find and remove the database from dataSources
-                  const dbToRemove = Array.from(updatedDataSources.entries()).find(
-                    ([, ds]) =>
-                      (ds.type === 'remote-db' && ds.dbName === dbName) ||
-                      (ds.type === 'attached-db' && ds.dbName === dbName),
-                  );
-
-                  if (dbToRemove) {
-                    const [dbId] = dbToRemove;
-                    updatedDataSources.delete(dbId);
-
-                    // Remove from metadata
-                    updatedMetadata.delete(dbName);
-
-                    // Remove from IndexedDB
-                    const { _iDbConn } = useAppStore.getState();
-                    if (_iDbConn) {
-                      await persistDeleteDataSource(_iDbConn, [dbId], []);
-                    }
-                  }
-                }
-              }
-            }
+            const handlerContext = { dataSources, updatedDataSources, updatedMetadata };
+            await handleAttachStatements(classifiedStatements, handlerContext, secretMapping);
+            await handleDetachStatements(classifiedStatements, handlerContext);
           }
 
           useAppStore.setState(
@@ -444,6 +408,11 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             undefined,
             'AppStore/runScript/refreshMetadata',
           );
+        } else if (hasCreateSecret) {
+          // Standalone CREATE SECRET without ATTACH/DETACH — DuckDB manages
+          // these in-memory. We parse them but don't persist to the encrypted
+          // store since there's no associated data source for lifecycle cleanup.
+          await handleCreateSecretStatements(classifiedStatements);
         }
       } finally {
         // Release the pooled connection

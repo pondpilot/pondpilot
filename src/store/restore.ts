@@ -15,9 +15,9 @@ import { Comparison, ComparisonId } from '@models/comparison';
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
+  IcebergCatalog,
   PersistentDataSourceId,
   XlsxSheetView,
-  RemoteDB,
   LocalDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
@@ -49,9 +49,15 @@ import {
 } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { ComparisonTab, TabId } from '@models/tab';
+import { makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import { makeComparisonId } from '@utils/comparison';
-import { addLocalDB, addFlatFileDataSource, addXlsxSheetDataSource } from '@utils/data-source';
+import {
+  addLocalDB,
+  addFlatFileDataSource,
+  addXlsxSheetDataSource,
+  isDatabaseDataSource,
+} from '@utils/data-source';
 import {
   collectFileHandlePersmissions,
   isAvailableFileHandle,
@@ -60,6 +66,7 @@ import {
 } from '@utils/file-system';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { findUniqueName } from '@utils/helpers';
+import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
 
@@ -452,6 +459,13 @@ export const restoreAppDataFromIDB = async (
   onBeforeRequestFilePermission: (handles: FileSystemHandle[]) => Promise<boolean>,
 ): Promise<{ discardedEntries: DiscardedEntry[]; warnings: string[] }> => {
   const iDbConn = await getAppDataDBConnection();
+
+  // Initialize AI config from the encrypted secret store (or migrate from cookie).
+  // This must happen before reconnection triggers any `getAIConfig()` calls.
+  // Dynamic import to avoid pulling ai-service.ts (which uses import.meta) into
+  // the static import graph — Jest doesn't support import.meta outside modules.
+  const { initAIConfigFromSecretStore } = await import('@utils/ai-config');
+  await initAIConfigFromSecretStore(iDbConn);
 
   const warnings: string[] = [];
   // iDB doesn't allow holding transaction while we await something
@@ -881,7 +895,7 @@ export const restoreAppDataFromIDB = async (
           // Get the existing data source for this entry
           let dataSource = dataSourceByLocalEntryId.get(localEntry.id);
 
-          if (!dataSource || dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+          if (!dataSource || isDatabaseDataSource(dataSource)) {
             // This is a data corruption, but we can recover from it
             dataSource = addFlatFileDataSource(localEntry, _reservedViews);
             _reservedViews.add(dataSource.viewName);
@@ -928,17 +942,62 @@ export const restoreAppDataFromIDB = async (
 
   await Promise.all(registerPromises);
 
-  // Handle remote databases - they need to be re-attached
-  const remoteDatabases = Array.from(dataSources.values()).filter(
-    (ds) => ds.type === 'remote-db',
-  ) as RemoteDB[];
-
-  // We don't re-attach remote databases here because:
+  // Handle remote databases and iceberg catalogs - they need to be re-attached.
+  // We don't re-attach them here because:
   // 1. They will be re-attached in reconnectRemoteDatabases() after app init
   // 2. We want to handle connection errors properly
   // Just mark them as valid so they don't get deleted
-  for (const remoteDb of remoteDatabases) {
-    validDataSources.add(remoteDb.id);
+  for (const ds of dataSources.values()) {
+    if (ds.type === 'remote-db' || ds.type === 'iceberg-catalog') {
+      validDataSources.add(ds.id);
+    }
+  }
+
+  // Migrate Iceberg catalogs that have inline credentials but no secretRef
+  const catalogsToMigrate: IcebergCatalog[] = [];
+  for (const ds of dataSources.values()) {
+    if (
+      ds.type === 'iceberg-catalog' &&
+      !ds.secretRef &&
+      (ds.clientId || ds.clientSecret || ds.token || ds.awsKeyId || ds.awsSecret)
+    ) {
+      catalogsToMigrate.push(ds);
+    }
+  }
+
+  for (const catalog of catalogsToMigrate) {
+    try {
+      const secretRef = makeSecretId();
+      const payload = buildIcebergSecretPayload(`Iceberg: ${catalog.catalogAlias}`, {
+        authType: catalog.authType,
+        clientId: catalog.clientId,
+        clientSecret: catalog.clientSecret,
+        oauth2ServerUri: catalog.oauth2ServerUri,
+        token: catalog.token,
+        awsKeyId: catalog.awsKeyId,
+        awsSecret: catalog.awsSecret,
+        defaultRegion: catalog.defaultRegion,
+      });
+      await putSecret(iDbConn, secretRef, payload);
+
+      const migrated: IcebergCatalog = {
+        ...catalog,
+        secretRef,
+        clientId: undefined,
+        clientSecret: undefined,
+        token: undefined,
+        awsKeyId: undefined,
+        awsSecret: undefined,
+      };
+
+      // Persist each catalog individually so a partial batch failure
+      // cannot leave catalogs with cleared inline fields but no secretRef.
+      await persistPutDataSources(iDbConn, [migrated]);
+      dataSources.set(catalog.id, migrated);
+    } catch (error) {
+      // On failure the catalog retains its inline credentials — no data loss.
+      console.warn(`Failed to migrate credentials for catalog ${catalog.catalogAlias}:`, error);
+    }
   }
 
   if (missingDataSources.size > 0) {
@@ -1046,7 +1105,7 @@ export const restoreAppDataFromIDB = async (
 
     // Find all file-based data sources that don't have corresponding local entries
     for (const [dataSourceId, dataSource] of dataSources) {
-      if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+      if (isDatabaseDataSource(dataSource)) {
         continue;
       }
 
@@ -1067,7 +1126,7 @@ export const restoreAppDataFromIDB = async (
     if (orphanedDataSourceIds.size > 0) {
       for (const dataSourceId of orphanedDataSourceIds) {
         const dataSource = dataSources.get(dataSourceId);
-        if (dataSource && dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db') {
+        if (dataSource && !isDatabaseDataSource(dataSource)) {
           // Drop the view from DuckDB
           try {
             if (dataSource.type === 'xlsx-sheet') {

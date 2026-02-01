@@ -4,11 +4,13 @@ import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { LocalDB, RemoteDB } from '@models/data-source';
+import { IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry } from '@models/file-system';
+import { useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
+import { disconnectIcebergCatalog } from '@utils/iceberg-catalog';
 import { getLocalDBDataSourceName } from '@utils/navigation';
 import { reconnectRemoteDatabase, disconnectRemoteDatabase } from '@utils/remote-database';
 
@@ -234,6 +236,149 @@ export function buildDatabaseNode(
         fileViewNames: isSystemDb ? fileViewNames : undefined,
         comparisonTableNames: isSystemDb ? comparisonTableNames : undefined,
         conn: isSystemDb ? conn : undefined,
+        context: {
+          nodeMap,
+          anyNodeIdToNodeTypeMap,
+          flatFileSources: context.flatFileSources,
+          comparisonByTableName,
+          comparisonTableNames,
+        },
+        initialExpandedState,
+      }),
+    ),
+  };
+}
+
+/**
+ * Builds a tree node for an Iceberg catalog.
+ * Follows the same pattern as buildDatabaseNode but uses catalogAlias instead of dbName
+ * and supports the 'credentials-required' connection state.
+ */
+export function buildIcebergCatalogNode(
+  catalog: IcebergCatalog,
+  context: DatabaseTreeBuilderContext,
+): TreeNodeData<DataExplorerNodeTypeMap> {
+  const { id: catalogId, catalogAlias } = catalog;
+  const {
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    comparisonTableNames,
+    comparisonByTableName,
+  } = context;
+
+  // Build label with connection state indicator
+  const stateIcon =
+    catalog.connectionState === 'connected'
+      ? '\u2713'
+      : catalog.connectionState === 'connecting'
+        ? '\u27F3'
+        : catalog.connectionState === 'credentials-required'
+          ? '\uD83D\uDD12'
+          : catalog.connectionState === 'error'
+            ? '\u26A0'
+            : '\u2715';
+  const dbLabel = `${catalogAlias} ${stateIcon}`;
+
+  nodeMap.set(catalogId, { db: catalogId, schemaName: null, objectName: null, columnName: null });
+  anyNodeIdToNodeTypeMap.set(catalogId, 'db');
+
+  const metadata = databaseMetadata.get(catalogAlias);
+  const sortedSchemas = metadata
+    ? [...metadata.schemas].sort((a, b) => a.name.localeCompare(b.name))
+    : [];
+
+  // Base context menu items
+  const baseContextMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [
+    {
+      label: 'Copy name',
+      onClick: () => {
+        copyToClipboard(catalogAlias, { showNotification: true });
+      },
+    },
+    {
+      label: 'Show Schema',
+      onClick: () => {
+        const firstSchema = sortedSchemas?.[0];
+        getOrCreateSchemaBrowserTab({
+          sourceId: catalogId,
+          sourceType: 'db',
+          schemaName: firstSchema?.name,
+          setActive: true,
+        });
+      },
+    },
+  ];
+
+  // Iceberg-specific menu items
+  const icebergMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [];
+
+  if (catalog.connectionState === 'connected' && catalog.endpoint) {
+    icebergMenuItems.push({
+      label: 'Copy Endpoint',
+      onClick: () => {
+        copyToClipboard(catalog.endpoint, {
+          showNotification: true,
+          notificationTitle: 'Endpoint Copied',
+        });
+      },
+    });
+  }
+
+  if (catalog.connectionState === 'connected') {
+    icebergMenuItems.push({
+      label: 'Refresh',
+      onClick: async () => {
+        await refreshDatabaseMetadata(conn, [catalogAlias]);
+      },
+    });
+    icebergMenuItems.push({
+      label: 'Disconnect',
+      onClick: async () => {
+        await disconnectIcebergCatalog(conn, catalog);
+      },
+    });
+  }
+
+  // For non-connected states, provide a "Reconnect" action.
+  // Opens the reconnect modal via a store action.
+  if (catalog.connectionState !== 'connected' && catalog.connectionState !== 'connecting') {
+    icebergMenuItems.push({
+      label: 'Reconnect',
+      onClick: () => {
+        useAppStore.setState(
+          { icebergReconnectCatalogId: catalog.id },
+          false,
+          'IcebergCatalog/requestReconnect',
+        );
+      },
+    });
+  }
+
+  return {
+    nodeType: 'db',
+    value: catalogId,
+    label: dbLabel,
+    iconType: 'db',
+    isDisabled: false,
+    isSelectable: true,
+    onDelete: (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
+      if (node.nodeType === 'db') {
+        deleteDataSources(conn, [node.value]);
+      }
+    },
+    contextMenu: [
+      {
+        children: [...baseContextMenuItems, ...icebergMenuItems],
+      },
+    ],
+    children: sortedSchemas?.map((schema) =>
+      buildSchemaTreeNode({
+        dbId: catalogId,
+        dbName: catalogAlias,
+        schema,
         context: {
           nodeMap,
           anyNodeIdToNodeTypeMap,

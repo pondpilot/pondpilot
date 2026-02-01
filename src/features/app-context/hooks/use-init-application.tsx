@@ -11,8 +11,14 @@ import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry } from '@utils/connection-manager';
-import { isRemoteDatabase } from '@utils/data-source';
+import { isRemoteDatabase, isIcebergCatalog } from '@utils/data-source';
+import {
+  attachAndVerifyIcebergCatalog,
+  resolveIcebergCredentials,
+  updateIcebergCatalogConnectionState,
+} from '@utils/iceberg-catalog';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
+import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { useEffect } from 'react';
 
@@ -20,10 +26,56 @@ import { useShowPermsAlert } from './use-show-perm-alert';
 
 // Reconnect to remote databases after app initialization
 async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promise<void> {
-  const { dataSources } = useAppStore.getState();
+  const { dataSources, _iDbConn } = useAppStore.getState();
   const connectedDatabases: string[] = [];
 
   for (const [id, dataSource] of dataSources) {
+    if (isIcebergCatalog(dataSource)) {
+      // Resolve credentials from secret store (or inline fallback)
+      const credentials = _iDbConn ? await resolveIcebergCredentials(_iDbConn, dataSource) : null;
+
+      if (!credentials) {
+        updateIcebergCatalogConnectionState(id, 'credentials-required');
+        continue;
+      }
+
+      try {
+        updateIcebergCatalogConnectionState(id, 'connecting');
+
+        // Use shared attach-and-verify utility. Skip the settle delay
+        // during startup reconnection — catalogs attach synchronously.
+        await attachAndVerifyIcebergCatalog({
+          pool: conn,
+          secretName: dataSource.secretName,
+          catalogAlias: dataSource.catalogAlias,
+          warehouseName: dataSource.warehouseName,
+          credentials,
+          endpoint: dataSource.endpoint,
+          endpointType: dataSource.endpointType,
+          useCorsProxy: dataSource.useCorsProxy,
+          settleDelayMs: 0,
+          maxVerifyAttempts: 3,
+        });
+
+        updateIcebergCatalogConnectionState(id, 'connected');
+        connectedDatabases.push(dataSource.catalogAlias);
+      } catch (error) {
+        let errorMessage: string;
+        if (error instanceof MaxRetriesExceededError) {
+          errorMessage = `Connection timeout after ${error.attempts} attempts: ${error.lastError.message}`;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = String(error);
+        }
+
+        const sanitized = sanitizeErrorMessage(errorMessage);
+        console.warn(`Failed to reconnect iceberg catalog ${dataSource.catalogAlias}:`, sanitized);
+        updateIcebergCatalogConnectionState(id, 'error', sanitized);
+      }
+      continue;
+    }
+
     if (isRemoteDatabase(dataSource)) {
       try {
         updateRemoteDbConnectionState(id, 'connecting');
@@ -68,8 +120,9 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
           errorMessage = String(error);
         }
 
-        console.warn(`Failed to reconnect to remote database ${dataSource.dbName}:`, errorMessage);
-        updateRemoteDbConnectionState(id, 'error', errorMessage);
+        const sanitized = sanitizeErrorMessage(errorMessage);
+        console.warn(`Failed to reconnect to remote database ${dataSource.dbName}:`, sanitized);
+        updateRemoteDbConnectionState(id, 'error', sanitized);
       }
     }
   }

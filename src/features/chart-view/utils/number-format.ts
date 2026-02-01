@@ -40,7 +40,8 @@ export function formatCompactNumber(value: number): string {
  * Format number for tooltip display - shows full precision with locale formatting.
  * Examples: 1500 → "1,500", 2500000.50 → "2,500,000.5"
  */
-export function formatTooltipNumber(value: number): string {
+export function formatTooltipNumber(value: number | undefined): string {
+  if (value == null) return '';
   if (Number.isInteger(value)) {
     return value.toLocaleString();
   }
