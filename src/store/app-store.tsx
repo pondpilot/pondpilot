@@ -5,6 +5,7 @@ import { ContentViewState } from '@models/content-view';
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
+  IcebergCatalog,
   LocalDB,
   RemoteDB,
   PersistentDataSourceId,
@@ -15,7 +16,7 @@ import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
 import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab, TabId, TabReactiveState, TabType } from '@models/tab';
-import { isFlatFileDataSource } from '@utils/data-source';
+import { getDatabaseIdentifier, isFlatFileDataSource } from '@utils/data-source';
 import { getTabIcon, getTabName } from '@utils/navigation';
 import { IDBPDatabase } from 'idb';
 import { create } from 'zustand';
@@ -139,6 +140,12 @@ type AppStore = {
    * Runtime execution progress for comparison jobs (not persisted).
    */
   comparisonExecutionProgress: Map<ComparisonId, ComparisonExecutionProgress>;
+
+  /**
+   * When set, the iceberg reconnect modal will be shown for this catalog.
+   * Not persisted — purely transient UI state.
+   */
+  icebergReconnectCatalogId: PersistentDataSourceId | null;
 } & ContentViewState;
 
 const initialState: AppStore = {
@@ -159,6 +166,7 @@ const initialState: AppStore = {
   comparisonSourceSelectionCallback: null,
   spotlightView: 'home',
   comparisonExecutionProgress: new Map(),
+  icebergReconnectCatalogId: null,
   // From ContentViewState
   activeTabId: null,
   previewTabId: null,
@@ -360,12 +368,11 @@ export function useDataSourceObjectSchema(
         schemaName = 'main';
         objectName = dataSource.viewName;
       } else {
-        dbName = dataSource.dbName;
+        dbName = getDatabaseIdentifier(dataSource);
 
         if (!schemaName || !objectName) {
-          // Local DB without schema and object name
           console.error(
-            'Schema name and object name were missing when trying to read schema of local db object',
+            'Schema name and object name were missing when trying to read schema of database object',
           );
           return [];
         }
@@ -406,7 +413,10 @@ export function useProtectedViews(): Set<string> {
         new Set([
           ...Array.from(state.dataSources.values())
             .filter(
-              (dataSource) => dataSource.type !== 'attached-db' && dataSource.type !== 'remote-db',
+              (dataSource) =>
+                dataSource.type !== 'attached-db' &&
+                dataSource.type !== 'remote-db' &&
+                dataSource.type !== 'iceberg-catalog',
             )
             .map((dataSource): string => (dataSource as AnyFlatFileDataSource).viewName),
           ...Array.from(state.comparisons.values())
@@ -424,10 +434,12 @@ export function useFlatFileDataSourceEMap(): Map<PersistentDataSourceId, AnyFlat
         new Map(
           Array.from(state.dataSources.entries())
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
-            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as [
-            PersistentDataSourceId,
-            AnyFlatFileDataSource,
-          ][],
+            .filter(
+              ([, dataSource]) =>
+                dataSource.type !== 'attached-db' &&
+                dataSource.type !== 'remote-db' &&
+                dataSource.type !== 'iceberg-catalog',
+            ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
     ),
   );
@@ -440,10 +452,12 @@ export function useFlatFileDataSourceMap(): Map<PersistentDataSourceId, AnyFlatF
         new Map(
           Array.from(state.dataSources.entries())
             // Unfortunately, typescript doesn't infer from filter here, hence explicit cast
-            .filter(([, dataSource]) => dataSource.type !== 'attached-db') as [
-            PersistentDataSourceId,
-            AnyFlatFileDataSource,
-          ][],
+            .filter(
+              ([, dataSource]) =>
+                dataSource.type !== 'attached-db' &&
+                dataSource.type !== 'remote-db' &&
+                dataSource.type !== 'iceberg-catalog',
+            ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
     ),
   );
@@ -465,17 +479,22 @@ export function useLocalDBDataSourceMap(): Map<PersistentDataSourceId, LocalDB> 
   );
 }
 
-export function useDatabaseDataSourceMap(): Map<PersistentDataSourceId, LocalDB | RemoteDB> {
+export function useDatabaseDataSourceMap(): Map<
+  PersistentDataSourceId,
+  LocalDB | RemoteDB | IcebergCatalog
+> {
   return useAppStore(
     useShallow(
       (state) =>
         new Map(
           Array.from(state.dataSources.entries())
-            // Include both local and remote databases
+            // Include local, remote, and iceberg catalog databases
             .filter(
               ([, dataSource]) =>
-                dataSource.type === 'attached-db' || dataSource.type === 'remote-db',
-            ) as [PersistentDataSourceId, LocalDB | RemoteDB][],
+                dataSource.type === 'attached-db' ||
+                dataSource.type === 'remote-db' ||
+                dataSource.type === 'iceberg-catalog',
+            ) as [PersistentDataSourceId, LocalDB | RemoteDB | IcebergCatalog][],
         ),
     ),
   );

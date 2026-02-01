@@ -5,6 +5,7 @@ import { sanitizeChartLabel } from '@features/chart-view/utils/sanitize-label';
 import { ChartConfig, ViewMode } from '@models/chart';
 import {
   AnyFlatFileDataSource,
+  IcebergCatalog,
   LocalDB,
   PersistentDataSourceId,
   RemoteDB,
@@ -23,7 +24,11 @@ import {
   TabId,
 } from '@models/tab';
 import { useAppStore } from '@store/app-store';
-import { ensureDatabaseDataSource, ensureFlatFileDataSource } from '@utils/data-source';
+import {
+  ensureDatabaseDataSource,
+  ensureFlatFileDataSource,
+  getDatabaseIdentifier,
+} from '@utils/data-source';
 import {
   updateDataSourceLastUsed,
   updateSQLScriptLastUsed,
@@ -229,7 +234,7 @@ export const getOrCreateSchemaBrowserTab = (options: {
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const getOrCreateTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | RemoteDB | PersistentDataSourceId,
+  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
   objectType: 'table' | 'view',
@@ -490,7 +495,7 @@ export const findSchemaBrowserTab = (
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const findTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | PersistentDataSourceId,
+  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
 ): LocalDBDataTab | undefined => {
@@ -953,8 +958,14 @@ function updateTabLRUTracking(tabId: TabId): void {
 
     if (tab.dataSourceType === 'db') {
       const dataSource = dataSources.get(tab.dataSourceId);
-      if (dataSource && (dataSource.type === 'attached-db' || dataSource.type === 'remote-db')) {
-        updateTableAccessTime(dataSource.dbName, tab.schemaName, tab.objectName);
+      if (
+        dataSource &&
+        (dataSource.type === 'attached-db' ||
+          dataSource.type === 'remote-db' ||
+          dataSource.type === 'iceberg-catalog')
+      ) {
+        const dbIdentifier = getDatabaseIdentifier(dataSource);
+        updateTableAccessTime(dbIdentifier, tab.schemaName, tab.objectName);
       }
     }
   }

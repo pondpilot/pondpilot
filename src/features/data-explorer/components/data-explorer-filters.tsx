@@ -42,7 +42,7 @@ const allFilterButtons: FilterButton[] = [
   { type: 'all', Icon: IconListCheck, tooltip: 'Show all' },
   { type: 'files', Icon: IconFile, tooltip: 'Files' },
   { type: 'databases', Icon: IconDatabase, tooltip: 'Local databases' },
-  { type: 'remote', Icon: IconCloud, tooltip: 'Remote databases' },
+  { type: 'remote', Icon: IconCloud, tooltip: 'Remote data sources' },
 ];
 
 const fileTypeLabels: Partial<Record<supportedDataSourceFileExt, string>> = {

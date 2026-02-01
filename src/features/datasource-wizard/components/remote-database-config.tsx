@@ -13,6 +13,7 @@ import { makePersistentDataSourceId } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { validateRemoteDatabaseUrl } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
+import { escapeSqlStringValue } from '@utils/sql-security';
 import { setDataTestId } from '@utils/test-id';
 import { useState } from 'react';
 
@@ -155,7 +156,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
 
       // Verify the database is attached by checking the catalog
       // This replaces the arbitrary 1-second delay with a proper readiness check
-      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${remoteDb.dbName}'`;
+      const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(remoteDb.dbName)}'`;
 
       let dbFound = false;
       let attempts = 0;

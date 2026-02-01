@@ -1,5 +1,6 @@
 import { AnyDataSource, AnyFlatFileDataSource, SYSTEM_DATABASE_NAME } from '@models/data-source';
 import { ComparisonSource } from '@models/tab';
+import { getDatabaseIdentifier } from '@utils/data-source';
 
 /**
  * Converts a data source selection to a ComparisonSource
@@ -14,8 +15,12 @@ export function dataSourceToComparisonSource(
   schemaName?: string,
   tableName?: string,
 ): ComparisonSource | null {
-  // Handle database sources (attached or remote)
-  if (dataSource.type === 'attached-db' || dataSource.type === 'remote-db') {
+  // Handle database sources (attached, remote, or iceberg catalog)
+  if (
+    dataSource.type === 'attached-db' ||
+    dataSource.type === 'remote-db' ||
+    dataSource.type === 'iceberg-catalog'
+  ) {
     if (!schemaName || !tableName) {
       console.error(
         'dataSourceToComparisonSource: schemaName and tableName required for database sources',
@@ -27,7 +32,7 @@ export function dataSourceToComparisonSource(
       type: 'table',
       tableName,
       schemaName,
-      databaseName: dataSource.dbName,
+      databaseName: getDatabaseIdentifier(dataSource),
     };
   }
 

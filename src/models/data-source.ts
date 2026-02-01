@@ -1,6 +1,7 @@
 import { PERSISTENT_DB_NAME } from './db-persistence';
 import { LocalEntryId, ReadStatViewType } from './file-system';
 import { NewId } from './new-id';
+import type { SecretId } from '../services/secret-store';
 
 // We have two types of data view sources:
 // 1. Persistent - these are stored in app state to allow
@@ -80,6 +81,108 @@ export interface XlsxSheetView extends FlatFileDataSource {
 
 export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView | JSONView | ReadStatView;
 
+export type IcebergAuthType = 'oauth2' | 'bearer' | 'sigv4' | 'none';
+
+export interface IcebergCatalog {
+  readonly type: 'iceberg-catalog';
+  id: PersistentDataSourceId;
+
+  /**
+   * Name used in the ATTACH ... AS clause
+   */
+  catalogAlias: string;
+
+  /**
+   * Warehouse value passed to ATTACH
+   */
+  warehouseName: string;
+
+  /**
+   * REST catalog endpoint URL
+   */
+  endpoint: string;
+
+  /**
+   * Authentication type for the catalog
+   */
+  authType: IcebergAuthType;
+
+  /**
+   * Connection state for handling network issues
+   */
+  connectionState: 'connected' | 'disconnected' | 'error' | 'connecting' | 'credentials-required';
+
+  /**
+   * Error message if connection failed
+   */
+  connectionError?: string;
+
+  /**
+   * Timestamp of when this catalog was attached
+   */
+  attachedAt: number;
+
+  /**
+   * Optional comment/description
+   */
+  comment?: string;
+
+  /**
+   * Whether to use CORS proxy when connecting
+   */
+  useCorsProxy?: boolean;
+
+  /**
+   * DuckDB secret name for drop/recreate
+   */
+  secretName: string;
+
+  /**
+   * Endpoint type for managed services (GLUE, S3_TABLES)
+   */
+  endpointType?: 'GLUE' | 'S3_TABLES';
+
+  /**
+   * Default AWS region for SigV4 auth
+   */
+  defaultRegion?: string;
+
+  /**
+   * OAuth2 server URI for token exchange
+   */
+  oauth2ServerUri?: string;
+
+  // ──────────────────────────────────────────────────────────────────
+  // SECURITY NOTE: Credentials are encrypted in the secret store
+  // (AES-GCM with a non-extractable key). The `secretRef` field
+  // references the encrypted record. Inline credential fields below
+  // are kept for backward compatibility with catalogs created before
+  // the secret store was introduced. On restore, inline credentials
+  // are migrated into the secret store automatically.
+  // ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Reference to the encrypted secret store entry holding credentials.
+   * When present, inline credential fields are ignored.
+   */
+  secretRef?: SecretId;
+
+  /** @deprecated Use secretRef. OAuth2 client ID */
+  clientId?: string;
+
+  /** @deprecated Use secretRef. OAuth2 client secret */
+  clientSecret?: string;
+
+  /** @deprecated Use secretRef. Bearer token */
+  token?: string;
+
+  /** @deprecated Use secretRef. AWS access key ID */
+  awsKeyId?: string;
+
+  /** @deprecated Use secretRef. AWS secret access key */
+  awsSecret?: string;
+}
+
 export interface LocalDB extends SingleFileDataSourceBase {
   readonly type: 'attached-db';
 
@@ -147,7 +250,7 @@ export interface RemoteDB {
   useCorsProxy?: boolean;
 }
 
-export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB;
+export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB | IcebergCatalog;
 
 // Special constant for the system database
 export const SYSTEM_DATABASE_ID = 'pondpilot-system-db' as PersistentDataSourceId;

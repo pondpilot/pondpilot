@@ -41,7 +41,7 @@ import {
   IconMap,
   IconMapOff,
 } from '@tabler/icons-react';
-import { isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
+import { isIcebergCatalog, isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
@@ -194,6 +194,58 @@ export const SpotlightMenu = () => {
     const dataSourceActions: Action[] = [];
 
     for (const dataSource of dataSources.values()) {
+      if (isIcebergCatalog(dataSource)) {
+        // For iceberg catalogs, use catalogAlias for metadata lookup
+        const dbMetadata = databaseMetadata.get(dataSource.catalogAlias);
+        if (!dbMetadata) {
+          continue;
+        }
+
+        dbMetadata.schemas.forEach((schema) => {
+          schema.objects.forEach((tableOrView) => {
+            const tableLastUsed = getTableAccessTime(
+              dataSource.catalogAlias,
+              schema.name,
+              tableOrView.name,
+            );
+            const dataSourceLastUsed = getDataSourceAccessTime(dataSource.id);
+            const lastUsed = tableLastUsed > 0 ? tableLastUsed : dataSourceLastUsed;
+
+            dataSourceActions.push({
+              id: `open-data-source-${dataSource.id}-${schema.name}-${tableOrView.type}-${tableOrView.name}`,
+              label: tableOrView.label,
+              description: `${dataSource.catalogAlias}.${schema.name}`,
+              icon: (
+                <NamedIcon
+                  iconType={tableOrView.type === 'table' ? 'db-table' : 'db-view'}
+                  size={20}
+                  className={ICON_CLASSES}
+                />
+              ),
+              metadata: { lastUsed },
+              handler: () => {
+                if (comparisonSourceSelectionCallback) {
+                  comparisonSourceSelectionCallback(dataSource, schema.name, tableOrView.name);
+                  Spotlight.close();
+                } else {
+                  getOrCreateTabFromLocalDBObject(
+                    dataSource,
+                    schema.name,
+                    tableOrView.name,
+                    tableOrView.type,
+                    true,
+                  );
+                  Spotlight.close();
+                  ensureHome();
+                }
+              },
+            });
+          });
+        });
+
+        continue;
+      }
+
       if (isLocalDatabase(dataSource) || isRemoteDatabase(dataSource)) {
         // For databases we need to read all tables and views from metadata
         const dbMetadata = databaseMetadata.get(dataSource.dbName);

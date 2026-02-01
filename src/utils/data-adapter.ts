@@ -9,6 +9,7 @@ import {
 import {
   AnyDataSource,
   AnyFlatFileDataSource,
+  IcebergCatalog,
   LocalDB,
   RemoteDB,
   SYSTEM_DATABASE_ID,
@@ -17,6 +18,7 @@ import {
 import { DBColumn } from '@models/db';
 import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
+import { getDatabaseIdentifier } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 import { convertArrowTable } from './arrow';
@@ -248,10 +250,11 @@ function getFlatFileDataAdapterQueries(
 // for database operations (both have dbName and dbType fields)
 function getDatabaseDataAdapterApi(
   pool: AsyncDuckDBConnectionPool,
-  dataSource: LocalDB | RemoteDB,
+  dataSource: LocalDB | RemoteDB | IcebergCatalog,
   tab: TabReactiveState<LocalDBDataTab>,
 ): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
-  const dbName = toDuckDBIdentifier(dataSource.dbName);
+  const rawDbName = getDatabaseIdentifier(dataSource);
+  const dbName = toDuckDBIdentifier(rawDbName);
   const schemaName = toDuckDBIdentifier(tab.schemaName);
   const tableName = toDuckDBIdentifier(tab.objectName);
   const fqn = `${dbName}.${schemaName}.${tableName}`;
@@ -259,7 +262,7 @@ function getDatabaseDataAdapterApi(
   return {
     adapter: {
       getEstimatedRowCount:
-        dataSource.dbType === 'duckdb'
+        'dbType' in dataSource && dataSource.dbType === 'duckdb'
           ? tab.objectType === 'table'
             ? async (abortSignal: AbortSignal) => {
                 const { value, aborted } = await pool.queryAbortable(
@@ -396,6 +399,30 @@ export function getFileDataAdapterQueries({
       userErrors: [],
       internalErrors: [],
     };
+  }
+
+  if (dataSource.type === 'iceberg-catalog') {
+    if (tab.dataSourceType !== 'db') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: [
+          `Tried creating an iceberg catalog data adapter from a tab with different source type: ${tab.dataSourceType}`,
+        ],
+      };
+    }
+
+    // Check connection state
+    if (dataSource.connectionState !== 'connected') {
+      return {
+        adapter: null,
+        userErrors: [`Iceberg catalog '${dataSource.catalogAlias}' is not connected`],
+        internalErrors: [],
+      };
+    }
+
+    // Iceberg catalogs use the same logic as other databases
+    return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 
   const _exhaustiveCheck: never = dataSource;
