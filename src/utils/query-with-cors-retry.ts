@@ -15,7 +15,7 @@ import { getCorsProxySettings, getS3EndpointFromSession, PROXY_PREFIX } from './
 import { getErrorMessage, isCorsError } from './error-classification';
 
 /**
- * Internal: Generic CORS retry logic
+ * Internal: Generic CORS retry logic for ATTACH statements.
  *
  * Encapsulates the common retry pattern for all query execution types.
  * This function handles:
@@ -25,11 +25,17 @@ import { getErrorMessage, isCorsError } from './error-classification';
  * - Proxy error handling
  * - Custom S3 endpoint from DuckDB session variable
  *
+ * Note: This wrapper can issue a ROLLBACK when a CORS error is detected. It is
+ * intended for UI-driven ATTACH operations that run outside user-managed
+ * transactions. When used inside an explicit transaction, disable rollback
+ * via options to avoid aborting the caller's transaction.
+ *
  * @param query - The SQL query to execute
  * @param executor - Function to execute the query directly
  * @param retryExecutor - Function to execute the rewritten query on retry
  * @param getS3Endpoint - Function to get the s3_endpoint variable from DuckDB session
  * @param rollback - Function to rollback the transaction (needed after CORS error aborts transaction)
+ * @param options - Optional behavior flags
  * @returns Query result
  * @internal
  */
@@ -39,8 +45,10 @@ async function executeWithCorsRetry<TResult>(
   retryExecutor: (rewrittenQuery: string) => Promise<TResult>,
   getS3Endpoint: () => Promise<string | null>,
   rollback: () => Promise<void>,
+  options: { rollbackOnCorsError?: boolean } = {},
 ): Promise<TResult> {
   const settings = getCorsProxySettings();
+  const rollbackOnCorsError = options.rollbackOnCorsError ?? true;
 
   // First, check for explicit proxy: prefix in ATTACH statements
   // This must be done BEFORE sending to DuckDB to avoid it being parsed as an extension
@@ -64,6 +72,9 @@ async function executeWithCorsRetry<TResult>(
   } catch (error) {
     // Only retry if it's a CORS error and an ATTACH statement (auto mode)
     if (settings.behavior === 'auto' && isCorsError(error) && isAttachStatement(query)) {
+      if (!rollbackOnCorsError) {
+        throw error;
+      }
       // A failed ATTACH due to CORS error leaves DuckDB's transaction in an aborted state.
       // DuckDB-WASM wraps ATTACH in an implicit transaction, and when the HTTP request
       // fails due to CORS, that transaction becomes "aborted" rather than cleanly rolled back.
@@ -72,8 +83,13 @@ async function executeWithCorsRetry<TResult>(
       // "transaction is aborted" errors.
       try {
         await rollback();
-      } catch {
-        // Ignore rollback errors - transaction might not be active or already rolled back
+      } catch (rollbackError) {
+        // Only ignore expected "no active transaction" errors — log anything else
+        // to help diagnose connection-level or pool-level issues.
+        const msg = getErrorMessage(rollbackError).toLowerCase();
+        if (!msg.includes('no active transaction') && !msg.includes('not in a transaction')) {
+          console.warn('[CORS Retry] Unexpected rollback error:', rollbackError);
+        }
       }
 
       // Check if this is an S3 URL for better messaging
@@ -205,13 +221,18 @@ export async function queryAbortableWithCorsRetry<
  *
  * @param conn The pooled connection
  * @param query The SQL query to execute
+ * @param options Optional behavior flags
  * @returns Query result
  */
 export async function pooledConnectionQueryWithCorsRetry<
   T extends {
     [key: string]: arrow.DataType;
   } = any,
->(conn: AsyncDuckDBPooledConnection, query: string): Promise<arrow.Table<T>> {
+>(
+  conn: AsyncDuckDBPooledConnection,
+  query: string,
+  options: { rollbackOnCorsError?: boolean } = {},
+): Promise<arrow.Table<T>> {
   return executeWithCorsRetry(
     query,
     () => conn.query<T>(query),
@@ -220,5 +241,6 @@ export async function pooledConnectionQueryWithCorsRetry<
     async () => {
       await conn.query('ROLLBACK');
     },
+    options,
   );
 }

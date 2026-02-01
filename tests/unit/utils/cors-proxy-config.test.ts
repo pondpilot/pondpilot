@@ -644,6 +644,16 @@ describe('cors-proxy-config', () => {
         const result = convertS3ToHttps('s3://mybucket/file.csv', 'example.com#fragment');
         expect(result).toBe('https://mybucket.s3.amazonaws.com/file.csv');
       });
+
+      it('should use http for [::1] IPv6 localhost endpoint', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', '[::1]:9000');
+        expect(result).toBe('http://[::1]:9000/mybucket/file.csv');
+      });
+
+      it('should fall back to AWS for bare ::1 (invalid URL format without brackets)', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', '::1');
+        expect(result).toBe('https://mybucket.s3.amazonaws.com/file.csv');
+      });
     });
   });
 

@@ -50,7 +50,8 @@ export interface RewriteAttachUrlOptions {
  *   → (tries native s3:// first, converts to https:// + proxy on CORS error)
  *
  * @param query - The SQL query to rewrite
- * @param optionsOrForceWrap - Options object or boolean for backward compatibility
+ * @param optionsOrForceWrap - Options object or boolean for backward compatibility.
+ *   @deprecated Passing a boolean is deprecated; use a {@link RewriteAttachUrlOptions} object instead.
  */
 export function rewriteAttachUrl(
   query: string,

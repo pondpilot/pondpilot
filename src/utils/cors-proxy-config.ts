@@ -402,9 +402,11 @@ export async function getS3EndpointFromSession(
     const strValue = String(value);
     // Check for null-ish string representations
     return strValue && strValue !== 'null' && strValue !== 'undefined' ? strValue : null;
-  } catch {
+  } catch (error) {
     // Variable not set or query failed - this is expected when users
     // haven't configured a custom S3 endpoint
+    // eslint-disable-next-line no-console
+    console.debug('[S3 Endpoint] Failed to query session variable:', error);
     return null;
   }
 }
@@ -508,8 +510,12 @@ export function convertS3ToHttps(s3Url: string, endpoint?: string): string | nul
         if (trimmedEndpoint.startsWith('http://') || trimmedEndpoint.startsWith('https://')) {
           return `${trimmedEndpoint}/${bucket}${path}${search}`;
         }
-        // For localhost/127.0.0.1, default to http (common for local dev)
-        if (trimmedEndpoint.startsWith('localhost') || trimmedEndpoint.startsWith('127.0.0.1')) {
+        // For localhost/127.0.0.1/[::1], default to http (common for local dev)
+        if (
+          trimmedEndpoint.startsWith('localhost') ||
+          trimmedEndpoint.startsWith('127.0.0.1') ||
+          trimmedEndpoint.startsWith('[::1]')
+        ) {
           return `http://${trimmedEndpoint}/${bucket}${path}${search}`;
         }
         // Otherwise default to https

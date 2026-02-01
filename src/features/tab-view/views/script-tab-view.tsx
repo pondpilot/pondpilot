@@ -194,13 +194,18 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       // Create a pooled connection
       const conn = await pool.getPooledConnection();
 
+      // No need transaction if there is only one statement
+      const needsTransaction =
+        classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
+      const rollbackOnCorsError = !needsTransaction;
+
       const runQueryWithFileSyncAndRetry = async (code: string) => {
         try {
-          await pooledConnectionQueryWithCorsRetry(conn, code);
+          await pooledConnectionQueryWithCorsRetry(conn, code, { rollbackOnCorsError });
         } catch (error: unknown) {
           if (isNotReadableError(error)) {
             await syncFiles(pool);
-            await pooledConnectionQueryWithCorsRetry(conn, code);
+            await pooledConnectionQueryWithCorsRetry(conn, code, { rollbackOnCorsError });
           } else {
             throw error;
           }
@@ -222,10 +227,6 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
       };
 
       try {
-        // No need transaction if there is only one statement
-        const needsTransaction =
-          classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
-
         if (needsTransaction) {
           await conn.query('BEGIN TRANSACTION');
         }
