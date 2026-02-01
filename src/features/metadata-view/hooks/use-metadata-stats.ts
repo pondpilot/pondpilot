@@ -189,10 +189,10 @@ export function useMetadataStats(
       }
     }
 
-    // Clear any remaining loading indicators when loop ends (including early abort)
-    setLoadingDistributions(new Set());
-
     if (controller.signal.aborted) return;
+
+    // Clear any remaining loading indicators when loop ends
+    setLoadingDistributions(new Set());
 
     if (newErrors.size > 0) {
       setErrors((prev) => new Map([...prev, ...newErrors]));

@@ -215,6 +215,10 @@ const NUM_HISTOGRAM_BUCKETS = 20;
  * Returns one row per column with: column_name, total_count, distinct_count, null_count, min_value, max_value, mean_value.
  */
 export function buildColumnStatsQuery(source: string, columnNames: string[]): string {
+  if (columnNames.length === 0) {
+    return 'SELECT NULL AS column_name, NULL AS total_count, NULL AS distinct_count, NULL AS null_count, NULL AS min_value, NULL AS max_value, NULL AS mean_value WHERE 1=0';
+  }
+
   const perColumn = columnNames.map((name) => {
     const col = toDuckDBIdentifier(name);
     const nameStr = `'${name.replace(/'/g, "''")}'`;

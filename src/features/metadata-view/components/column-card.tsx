@@ -112,9 +112,9 @@ function BarHistogram({ buckets }: { buckets: { label: string; count: number }[]
   return (
     <div className="flex gap-2">
       <div className="flex flex-col shrink-0" style={{ gap: BAR_GAP }}>
-        {buckets.map((bucket) => (
+        {buckets.map((bucket, i) => (
           <Text
-            key={bucket.label}
+            key={i}
             size="xs"
             c="text-tertiary"
             className="whitespace-nowrap tabular-nums text-right"
@@ -150,9 +150,9 @@ function BarHistogram({ buckets }: { buckets: { label: string; count: number }[]
         })}
       </svg>
       <div className="flex flex-col shrink-0" style={{ gap: BAR_GAP }}>
-        {buckets.map((bucket) => (
+        {buckets.map((bucket, i) => (
           <Text
-            key={bucket.label}
+            key={i}
             size="xs"
             c="text-tertiary"
             className="whitespace-nowrap tabular-nums"
