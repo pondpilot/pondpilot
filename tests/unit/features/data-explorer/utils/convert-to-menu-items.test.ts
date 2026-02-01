@@ -64,10 +64,7 @@ describe('buildConvertToMenuItems', () => {
     csvItem.onClick({} as any, {} as any);
 
     expect(getOrCreateTab).toHaveBeenCalled();
-    expect(setPendingConvert).toHaveBeenCalledWith(
-      mockTabId,
-      'csv',
-    );
+    expect(setPendingConvert).toHaveBeenCalledWith(mockTabId, 'csv');
   });
 
   it('should show all formats for database objects (null source)', () => {

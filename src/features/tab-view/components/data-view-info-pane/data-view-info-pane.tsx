@@ -111,9 +111,14 @@ export const DataViewInfoPane = ({
       openExportOptions();
       clearPendingConvert();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingConvert, tabId, dataAdapter.currentSchema.length,
-    dataAdapter.isFetchingData, openExportOptions]);
+  }, [
+    pendingConvert,
+    tabId,
+    dataAdapter.currentSchema.length,
+    dataAdapter.isFetchingData,
+    openExportOptions,
+    clearPendingConvert,
+  ]);
 
   // Clear initial format after modal closes
   const handleCloseExportOptions = useCallback(() => {

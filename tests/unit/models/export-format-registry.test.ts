@@ -58,12 +58,8 @@ describe('export-format-registry', () => {
     it('should be derived from the registry', () => {
       expect(formatOptions.length).toBe(exportFormatRegistry.length);
       for (let i = 0; i < exportFormatRegistry.length; i += 1) {
-        expect(formatOptions[i].label).toBe(
-          exportFormatRegistry[i].label,
-        );
-        expect(formatOptions[i].value).toBe(
-          exportFormatRegistry[i].key,
-        );
+        expect(formatOptions[i].label).toBe(exportFormatRegistry[i].label);
+        expect(formatOptions[i].value).toBe(exportFormatRegistry[i].key);
       }
     });
   });

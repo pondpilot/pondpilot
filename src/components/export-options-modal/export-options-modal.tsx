@@ -193,10 +193,7 @@ export function ExportOptionsModal({
         );
       case 'parquet':
         return (
-          <ParquetOptions
-            compression={parquetCompression}
-            setCompression={setParquetCompression}
-          />
+          <ParquetOptions compression={parquetCompression} setCompression={setParquetCompression} />
         );
       default:
         return null;

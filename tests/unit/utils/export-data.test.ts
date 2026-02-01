@@ -58,9 +58,7 @@ describe('export-data utils', () => {
   describe('createExportFileName', () => {
     it('should use format extension from registry', () => {
       expect(createExportFileName('myfile', 'csv')).toBe('myfile.csv');
-      expect(createExportFileName('myfile', 'parquet')).toBe(
-        'myfile.parquet',
-      );
+      expect(createExportFileName('myfile', 'parquet')).toBe('myfile.parquet');
       expect(createExportFileName('myfile', 'xlsx')).toBe('myfile.xlsx');
       expect(createExportFileName('myfile', 'md')).toBe('myfile.md');
     });
@@ -88,11 +86,7 @@ describe('export-data utils', () => {
       } as unknown as DataAdapterApi;
 
       await expect(
-        exportAsParquet(
-          adapter,
-          { includeHeader: true, compression: 'snappy' },
-          'test.parquet',
-        ),
+        exportAsParquet(adapter, { includeHeader: true, compression: 'snappy' }, 'test.parquet'),
       ).rejects.toThrow('source query');
     });
 
@@ -103,22 +97,16 @@ describe('export-data utils', () => {
       } as unknown as DataAdapterApi;
 
       await expect(
-        exportAsParquet(
-          adapter,
-          { includeHeader: true, compression: 'snappy' },
-          'test.parquet',
-        ),
+        exportAsParquet(adapter, { includeHeader: true, compression: 'snappy' }, 'test.parquet'),
       ).rejects.toThrow('connection pool');
     });
 
     it('should call pool.query with correct COPY TO statement', async () => {
-      const mockQuery = jest.fn<() => Promise<any>>().mockResolvedValue({});
+      const mockQuery = jest.fn<(sql: string) => Promise<any>>().mockResolvedValue({});
       const mockCopyFileToBuffer = jest
         .fn<() => Promise<Uint8Array>>()
         .mockResolvedValue(new Uint8Array([1, 2, 3]));
-      const mockDropFile = jest
-        .fn<() => Promise<void>>()
-        .mockResolvedValue(undefined);
+      const mockDropFile = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
 
       const adapter = {
         sourceQuery: 'SELECT * FROM main."my_table"',
@@ -142,8 +130,7 @@ describe('export-data utils', () => {
 
       // Verify COPY TO query was called with correct compression
       expect(mockQuery).toHaveBeenCalledTimes(1);
-      const [firstCall] = mockQuery.mock.calls;
-      const queryArg = String(firstCall);
+      const queryArg = mockQuery.mock.calls[0][0];
       expect(queryArg).toContain('COPY');
       expect(queryArg).toContain('SELECT * FROM main."my_table"');
       expect(queryArg).toContain('FORMAT PARQUET');

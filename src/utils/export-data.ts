@@ -451,7 +451,9 @@ export async function exportAsParquet(
 ): Promise<void> {
   const { sourceQuery, pool } = dataAdapter;
   if (!sourceQuery) {
-    throw new Error('Parquet export requires a source query. This data source does not support it.');
+    throw new Error(
+      'Parquet export requires a source query. This data source does not support it.',
+    );
   }
   if (!pool) {
     throw new Error('DuckDB connection pool is not available for Parquet export.');
@@ -459,6 +461,11 @@ export async function exportAsParquet(
 
   const tempFileName = `__parquet_export_${Date.now()}.parquet`;
   const compression = options.compression || 'snappy';
+
+  const validCompressions = ['snappy', 'gzip', 'zstd', 'uncompressed'] as const;
+  if (!validCompressions.includes(compression as (typeof validCompressions)[number])) {
+    throw new Error(`Invalid Parquet compression codec: ${compression}`);
+  }
 
   try {
     // Use COPY TO to write Parquet via DuckDB

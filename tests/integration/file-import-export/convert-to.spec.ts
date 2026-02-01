@@ -10,9 +10,7 @@ import {
 import { test as baseTest } from '../fixtures/page';
 import { test as storageTest } from '../fixtures/storage';
 import { test as testTmpTest } from '../fixtures/test-tmp';
-import {
-  openExplorerTreeNodeMenuByName,
-} from '../fixtures/utils/explorer-tree';
+import { openExplorerTreeNodeMenuByName } from '../fixtures/utils/explorer-tree';
 
 const test = mergeTests(
   baseTest,

@@ -1,10 +1,6 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
 import { TabId } from '@models/tab';
-import {
-  useAppStore,
-  setPendingConvert,
-  clearPendingConvert,
-} from '@store/app-store';
+import { useAppStore, setPendingConvert, clearPendingConvert } from '@store/app-store';
 
 describe('pendingConvert state management', () => {
   beforeEach(() => {
