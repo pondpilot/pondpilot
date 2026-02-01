@@ -11,12 +11,11 @@ import {
   Select,
   Tooltip,
 } from '@mantine/core';
-import { useInputState } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { IcebergAuthType } from '@models/data-source';
 import { isManagedIcebergEndpoint } from '@utils/iceberg-catalog';
 import { setDataTestId } from '@utils/test-id';
-import { useState } from 'react';
+import { useState, useCallback, type ChangeEvent } from 'react';
 
 import { useIcebergConnection } from '../hooks/use-iceberg-connection';
 
@@ -41,46 +40,78 @@ const authTypeOptions: { value: IcebergAuthType; label: string }[] = [
   { value: 'none', label: 'None' },
 ];
 
+interface IcebergFormState {
+  catalogAlias: string;
+  warehouseName: string;
+  endpointType: EndpointTypeOption;
+  endpoint: string;
+  authType: IcebergAuthType;
+  clientId: string;
+  clientSecret: string;
+  oauth2ServerUri: string;
+  token: string;
+  awsKeyId: string;
+  awsSecret: string;
+  defaultRegion: string;
+  useCorsProxy: boolean;
+}
+
+const INITIAL_FORM_STATE: IcebergFormState = {
+  catalogAlias: '',
+  warehouseName: '',
+  endpointType: 'generic',
+  endpoint: '',
+  authType: 'oauth2',
+  clientId: '',
+  clientSecret: '',
+  oauth2ServerUri: '',
+  token: '',
+  awsKeyId: '',
+  awsSecret: '',
+  defaultRegion: '',
+  useCorsProxy: false,
+};
+
 export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogConfigProps) {
-  const [catalogAlias, setCatalogAlias] = useInputState('');
-  const [warehouseName, setWarehouseName] = useInputState('');
-  const [endpointType, setEndpointType] = useState<EndpointTypeOption>('generic');
-  const [endpoint, setEndpoint] = useInputState('');
-  const [authType, setAuthType] = useState<IcebergAuthType>('oauth2');
-  const [clientId, setClientId] = useInputState('');
-  const [clientSecret, setClientSecret] = useInputState('');
-  const [oauth2ServerUri, setOauth2ServerUri] = useInputState('');
-  const [token, setToken] = useInputState('');
-  const [awsKeyId, setAwsKeyId] = useInputState('');
-  const [awsSecret, setAwsSecret] = useInputState('');
-  const [defaultRegion, setDefaultRegion] = useInputState('');
-  const [useCorsProxy, setUseCorsProxy] = useState(false);
+  const [form, setForm] = useState<IcebergFormState>(INITIAL_FORM_STATE);
+
+  const updateField = useCallback(
+    <K extends keyof IcebergFormState>(field: K) =>
+      (value: IcebergFormState[K] | ChangeEvent<HTMLInputElement>) => {
+        const resolved =
+          typeof value === 'object' && value !== null && 'currentTarget' in value
+            ? (value.currentTarget.value as IcebergFormState[K])
+            : value;
+        setForm((prev) => ({ ...prev, [field]: resolved }));
+      },
+    [],
+  );
 
   const { isLoading, isTesting, testConnection, addCatalog } = useIcebergConnection(pool);
 
-  const isManagedEndpoint = isManagedIcebergEndpoint(endpointType);
-  const effectiveAuthType = isManagedEndpoint ? 'sigv4' : authType;
+  const isManagedEndpoint = isManagedIcebergEndpoint(form.endpointType);
+  const effectiveAuthType = isManagedEndpoint ? 'sigv4' : form.authType;
 
   const isFormValid = (): boolean => {
-    if (!catalogAlias.trim() || !warehouseName.trim()) return false;
-    if (!isManagedEndpoint && !endpoint.trim()) return false;
+    if (!form.catalogAlias.trim() || !form.warehouseName.trim()) return false;
+    if (!isManagedEndpoint && !form.endpoint.trim()) return false;
     return true;
   };
 
   const connectionParams = {
-    catalogAlias,
-    warehouseName,
-    endpoint,
-    endpointType,
+    catalogAlias: form.catalogAlias,
+    warehouseName: form.warehouseName,
+    endpoint: form.endpoint,
+    endpointType: form.endpointType,
     authType: effectiveAuthType,
-    clientId,
-    clientSecret,
-    oauth2ServerUri,
-    token,
-    awsKeyId,
-    awsSecret,
-    defaultRegion,
-    useCorsProxy,
+    clientId: form.clientId,
+    clientSecret: form.clientSecret,
+    oauth2ServerUri: form.oauth2ServerUri,
+    token: form.token,
+    awsKeyId: form.awsKeyId,
+    awsSecret: form.awsSecret,
+    defaultRegion: form.defaultRegion,
+    useCorsProxy: form.useCorsProxy,
   };
 
   const handleTest = () => {
@@ -118,8 +149,8 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
           label="Catalog Alias"
           data-testid={setDataTestId('iceberg-catalog-alias-input')}
           placeholder="my_iceberg"
-          value={catalogAlias}
-          onChange={setCatalogAlias}
+          value={form.catalogAlias}
+          onChange={updateField('catalogAlias')}
           description="Name to reference this catalog in queries (used in ATTACH ... AS)"
           required
         />
@@ -128,8 +159,8 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
           label="Warehouse Name"
           data-testid={setDataTestId('iceberg-warehouse-input')}
           placeholder="my_warehouse"
-          value={warehouseName}
-          onChange={setWarehouseName}
+          value={form.warehouseName}
+          onChange={updateField('warehouseName')}
           description="Warehouse identifier passed to the ATTACH statement"
           required
         />
@@ -138,13 +169,14 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
           label="Endpoint Type"
           data-testid={setDataTestId('iceberg-endpoint-type-select')}
           data={endpointTypeOptions}
-          value={endpointType}
+          value={form.endpointType}
           onChange={(v) => {
             if (v) {
-              setEndpointType(v as EndpointTypeOption);
+              const next: Partial<IcebergFormState> = { endpointType: v as EndpointTypeOption };
               if (v === 'GLUE' || v === 'S3_TABLES') {
-                setAuthType('sigv4');
+                next.authType = 'sigv4';
               }
+              setForm((prev) => ({ ...prev, ...next }));
             }
           }}
           description="Use Generic REST for custom endpoints, or select a managed service"
@@ -155,8 +187,8 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
             label="Endpoint"
             data-testid={setDataTestId('iceberg-endpoint-input')}
             placeholder="https://catalog.example.com"
-            value={endpoint}
-            onChange={setEndpoint}
+            value={form.endpoint}
+            onChange={updateField('endpoint')}
             description="REST catalog endpoint URL"
             required
           />
@@ -167,9 +199,9 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
             label="Auth Type"
             data-testid={setDataTestId('iceberg-auth-type-select')}
             data={authTypeOptions}
-            value={authType}
+            value={form.authType}
             onChange={(v) => {
-              if (v) setAuthType(v as IcebergAuthType);
+              if (v) setForm((prev) => ({ ...prev, authType: v as IcebergAuthType }));
             }}
           />
         )}
@@ -180,22 +212,22 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
               label="Client ID"
               data-testid={setDataTestId('iceberg-client-id-input')}
               placeholder="client_id"
-              value={clientId}
-              onChange={setClientId}
+              value={form.clientId}
+              onChange={updateField('clientId')}
             />
             <PasswordInput
               label="Client Secret"
               data-testid={setDataTestId('iceberg-client-secret-input')}
               placeholder="client_secret"
-              value={clientSecret}
-              onChange={setClientSecret}
+              value={form.clientSecret}
+              onChange={updateField('clientSecret')}
             />
             <TextInput
               label="OAuth2 Server URI"
               data-testid={setDataTestId('iceberg-oauth2-uri-input')}
               placeholder="https://auth.example.com/oauth/token"
-              value={oauth2ServerUri}
-              onChange={setOauth2ServerUri}
+              value={form.oauth2ServerUri}
+              onChange={updateField('oauth2ServerUri')}
               description="Optional: token endpoint URL"
             />
           </>
@@ -206,8 +238,8 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
             label="Bearer Token"
             data-testid={setDataTestId('iceberg-token-input')}
             placeholder="your-token"
-            value={token}
-            onChange={setToken}
+            value={form.token}
+            onChange={updateField('token')}
           />
         )}
 
@@ -217,24 +249,24 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
               label="Access Key ID"
               data-testid={setDataTestId('iceberg-aws-key-id-input')}
               placeholder="AKIA..."
-              value={awsKeyId}
-              onChange={setAwsKeyId}
+              value={form.awsKeyId}
+              onChange={updateField('awsKeyId')}
               description="AWS access key ID"
             />
             <PasswordInput
               label="Secret Access Key"
               data-testid={setDataTestId('iceberg-aws-secret-input')}
               placeholder="secret access key"
-              value={awsSecret}
-              onChange={setAwsSecret}
+              value={form.awsSecret}
+              onChange={updateField('awsSecret')}
               description="AWS secret access key"
             />
             <TextInput
               label="Default Region"
               data-testid={setDataTestId('iceberg-region-input')}
               placeholder="us-east-1"
-              value={defaultRegion}
-              onChange={setDefaultRegion}
+              value={form.defaultRegion}
+              onChange={updateField('defaultRegion')}
               description="Optional: AWS region"
             />
           </>
@@ -249,8 +281,10 @@ export function IcebergCatalogConfig({ onBack, onClose, pool }: IcebergCatalogCo
         >
           <Checkbox
             label="Use CORS proxy"
-            checked={useCorsProxy}
-            onChange={(event) => setUseCorsProxy(event.currentTarget.checked)}
+            checked={form.useCorsProxy}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, useCorsProxy: event.currentTarget.checked }))
+            }
             className="pl-4"
           />
         </Tooltip>

@@ -56,6 +56,7 @@ import {
   addLocalDB,
   addFlatFileDataSource,
   addXlsxSheetDataSource,
+  isDatabaseDataSource,
   isFlatFileDataSource,
 } from '@utils/data-source';
 import {
@@ -895,12 +896,7 @@ export const restoreAppDataFromIDB = async (
           // Get the existing data source for this entry
           let dataSource = dataSourceByLocalEntryId.get(localEntry.id);
 
-          if (
-            !dataSource ||
-            dataSource.type === 'attached-db' ||
-            dataSource.type === 'remote-db' ||
-            dataSource.type === 'iceberg-catalog'
-          ) {
+          if (!dataSource || isDatabaseDataSource(dataSource)) {
             // This is a data corruption, but we can recover from it
             dataSource = addFlatFileDataSource(localEntry, _reservedViews);
             _reservedViews.add(dataSource.viewName);
@@ -970,41 +966,38 @@ export const restoreAppDataFromIDB = async (
     }
   }
 
-  if (catalogsToMigrate.length > 0) {
-    const migratedCatalogs: IcebergCatalog[] = [];
-    for (const catalog of catalogsToMigrate) {
-      try {
-        const secretRef = makeSecretId();
-        const payload = buildIcebergSecretPayload(`Iceberg: ${catalog.catalogAlias}`, {
-          authType: catalog.authType,
-          clientId: catalog.clientId,
-          clientSecret: catalog.clientSecret,
-          oauth2ServerUri: catalog.oauth2ServerUri,
-          token: catalog.token,
-          awsKeyId: catalog.awsKeyId,
-          awsSecret: catalog.awsSecret,
-          defaultRegion: catalog.defaultRegion,
-        });
-        await putSecret(iDbConn, secretRef, payload);
+  for (const catalog of catalogsToMigrate) {
+    try {
+      const secretRef = makeSecretId();
+      const payload = buildIcebergSecretPayload(`Iceberg: ${catalog.catalogAlias}`, {
+        authType: catalog.authType,
+        clientId: catalog.clientId,
+        clientSecret: catalog.clientSecret,
+        oauth2ServerUri: catalog.oauth2ServerUri,
+        token: catalog.token,
+        awsKeyId: catalog.awsKeyId,
+        awsSecret: catalog.awsSecret,
+        defaultRegion: catalog.defaultRegion,
+      });
+      await putSecret(iDbConn, secretRef, payload);
 
-        const migrated: IcebergCatalog = {
-          ...catalog,
-          secretRef,
-          clientId: undefined,
-          clientSecret: undefined,
-          token: undefined,
-          awsKeyId: undefined,
-          awsSecret: undefined,
-        };
-        dataSources.set(catalog.id, migrated);
-        migratedCatalogs.push(migrated);
-      } catch (error) {
-        console.warn(`Failed to migrate credentials for catalog ${catalog.catalogAlias}:`, error);
-      }
-    }
+      const migrated: IcebergCatalog = {
+        ...catalog,
+        secretRef,
+        clientId: undefined,
+        clientSecret: undefined,
+        token: undefined,
+        awsKeyId: undefined,
+        awsSecret: undefined,
+      };
 
-    if (migratedCatalogs.length > 0) {
-      await persistPutDataSources(iDbConn, migratedCatalogs);
+      // Persist each catalog individually so a partial batch failure
+      // cannot leave catalogs with cleared inline fields but no secretRef.
+      await persistPutDataSources(iDbConn, [migrated]);
+      dataSources.set(catalog.id, migrated);
+    } catch (error) {
+      // On failure the catalog retains its inline credentials — no data loss.
+      console.warn(`Failed to migrate credentials for catalog ${catalog.catalogAlias}:`, error);
     }
   }
 
@@ -1113,11 +1106,7 @@ export const restoreAppDataFromIDB = async (
 
     // Find all file-based data sources that don't have corresponding local entries
     for (const [dataSourceId, dataSource] of dataSources) {
-      if (
-        dataSource.type === 'attached-db' ||
-        dataSource.type === 'remote-db' ||
-        dataSource.type === 'iceberg-catalog'
-      ) {
+      if (isDatabaseDataSource(dataSource)) {
         continue;
       }
 
@@ -1138,12 +1127,7 @@ export const restoreAppDataFromIDB = async (
     if (orphanedDataSourceIds.size > 0) {
       for (const dataSourceId of orphanedDataSourceIds) {
         const dataSource = dataSources.get(dataSourceId);
-        if (
-          dataSource &&
-          dataSource.type !== 'attached-db' &&
-          dataSource.type !== 'remote-db' &&
-          dataSource.type !== 'iceberg-catalog'
-        ) {
+        if (dataSource && !isDatabaseDataSource(dataSource)) {
           // Drop the view from DuckDB
           try {
             if (isFlatFileDataSource(dataSource)) {

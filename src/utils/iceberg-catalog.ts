@@ -161,6 +161,123 @@ export function buildIcebergSecretPayload(
 }
 
 /**
+ * Low-level utility: creates a DuckDB secret, attaches an Iceberg catalog,
+ * and verifies the catalog appears in duckdb_databases.
+ *
+ * Shared by reconnectIcebergCatalog, useIcebergConnection.addCatalog,
+ * and reconnectRemoteDatabases so attach logic stays in one place.
+ *
+ * Throws on failure (caller is responsible for cleanup).
+ */
+export interface AttachIcebergOptions {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pool: any;
+  secretName: string;
+  catalogAlias: string;
+  warehouseName: string;
+  credentials: IcebergCredentials;
+  endpoint?: string;
+  endpointType?: 'GLUE' | 'S3_TABLES';
+  useCorsProxy?: boolean;
+  /** Settle delay before verification (default: ATTACH_SETTLE_DELAY_MS). */
+  settleDelayMs?: number;
+  /** Max verification attempts (default: VERIFICATION_MAX_ATTEMPTS). */
+  maxVerifyAttempts?: number;
+}
+
+export async function attachAndVerifyIcebergCatalog(options: AttachIcebergOptions): Promise<void> {
+  const {
+    pool,
+    secretName,
+    catalogAlias,
+    warehouseName,
+    credentials,
+    endpoint,
+    endpointType,
+    useCorsProxy,
+    settleDelayMs = ATTACH_SETTLE_DELAY_MS,
+    maxVerifyAttempts = VERIFICATION_MAX_ATTEMPTS,
+  } = options;
+
+  const isManagedEndpoint =
+    isManagedIcebergEndpoint(endpointType) || credentials.authType === 'sigv4';
+
+  // Create DuckDB secret
+  const secretQuery = buildIcebergSecretQuery({
+    secretName,
+    authType: credentials.authType,
+    useS3SecretType: isManagedEndpoint,
+    clientId: credentials.clientId,
+    clientSecret: credentials.clientSecret,
+    oauth2ServerUri: credentials.oauth2ServerUri,
+    token: credentials.token,
+    awsKeyId: credentials.awsKeyId,
+    awsSecret: credentials.awsSecret,
+    defaultRegion: credentials.defaultRegion,
+  });
+  await pool.query(secretQuery);
+
+  // Attach catalog
+  const attachQuery = buildIcebergAttachQuery({
+    warehouseName,
+    catalogAlias,
+    endpoint: endpointType ? undefined : endpoint,
+    endpointType,
+    secretName,
+    useCorsProxy,
+  });
+
+  try {
+    await executeWithRetry(pool, attachQuery, {
+      maxRetries: 3,
+      timeout: 30000,
+      retryDelay: 2000,
+      exponentialBackoff: true,
+    });
+  } catch (attachError: any) {
+    const errorMsg = attachError.message || '';
+    const isAlreadyAttached =
+      errorMsg.includes('already in use') ||
+      errorMsg.includes('already attached') ||
+      errorMsg.includes('Unique file handle conflict');
+
+    if (!isAlreadyAttached) {
+      throw attachError;
+    }
+  }
+
+  // Wait for catalog to settle
+  if (settleDelayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, settleDelayMs));
+  }
+
+  // Verify the catalog is attached
+  const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(catalogAlias)}'`;
+  let dbFound = false;
+  let attempts = 0;
+
+  while (!dbFound && attempts < maxVerifyAttempts) {
+    try {
+      const result = await pool.query(checkQuery);
+      if (result && result.numRows > 0) {
+        dbFound = true;
+      } else {
+        throw new Error('Catalog not found in duckdb_databases');
+      }
+    } catch (error) {
+      attempts += 1;
+      if (attempts >= maxVerifyAttempts) {
+        throw new Error(
+          `Catalog ${catalogAlias} could not be verified after ${maxVerifyAttempts} attempts`,
+        );
+      }
+      console.warn(`Attempt ${attempts}: Catalog not ready yet, waiting...`);
+      await new Promise((resolve) => setTimeout(resolve, VERIFICATION_RETRY_DELAY_MS));
+    }
+  }
+}
+
+/**
  * Reconnects an Iceberg catalog after user provides credentials.
  * Creates a new secret, attaches the catalog, verifies, and loads metadata.
  */
@@ -172,79 +289,17 @@ export async function reconnectIcebergCatalog(
   try {
     updateIcebergCatalogConnectionState(catalog.id, 'connecting');
 
-    // Create secret
-    const isManagedEndpoint =
-      isManagedIcebergEndpoint(catalog.endpointType) || credentials.authType === 'sigv4';
-    const secretQuery = buildIcebergSecretQuery({
+    // Attach and verify using shared utility
+    await attachAndVerifyIcebergCatalog({
+      pool,
       secretName: catalog.secretName,
-      authType: credentials.authType,
-      useS3SecretType: isManagedEndpoint,
-      clientId: credentials.clientId,
-      clientSecret: credentials.clientSecret,
-      oauth2ServerUri: credentials.oauth2ServerUri,
-      token: credentials.token,
-      awsKeyId: credentials.awsKeyId,
-      awsSecret: credentials.awsSecret,
-      defaultRegion: credentials.defaultRegion,
-    });
-    await pool.query(secretQuery);
-
-    // Attach catalog
-    const attachQuery = buildIcebergAttachQuery({
-      warehouseName: catalog.warehouseName,
       catalogAlias: catalog.catalogAlias,
-      endpoint: catalog.endpointType ? undefined : catalog.endpoint,
+      warehouseName: catalog.warehouseName,
+      credentials,
+      endpoint: catalog.endpoint,
       endpointType: catalog.endpointType,
-      secretName: catalog.secretName,
       useCorsProxy: catalog.useCorsProxy,
     });
-
-    try {
-      await executeWithRetry(pool, attachQuery, {
-        maxRetries: 3,
-        timeout: 30000,
-        retryDelay: 2000,
-        exponentialBackoff: true,
-      });
-    } catch (attachError: any) {
-      const errorMsg = attachError.message || '';
-      const isAlreadyAttached =
-        errorMsg.includes('already in use') ||
-        errorMsg.includes('already attached') ||
-        errorMsg.includes('Unique file handle conflict');
-
-      if (!isAlreadyAttached) {
-        throw attachError;
-      }
-    }
-
-    // Wait for catalog to be fully loaded
-    await new Promise((resolve) => setTimeout(resolve, ATTACH_SETTLE_DELAY_MS));
-
-    // Verify the catalog is attached
-    const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(catalog.catalogAlias)}'`;
-    let dbFound = false;
-    let attempts = 0;
-
-    while (!dbFound && attempts < VERIFICATION_MAX_ATTEMPTS) {
-      try {
-        const result = await pool.query(checkQuery);
-        if (result && result.numRows > 0) {
-          dbFound = true;
-        } else {
-          throw new Error('Catalog not found in duckdb_databases');
-        }
-      } catch (error) {
-        attempts += 1;
-        if (attempts >= VERIFICATION_MAX_ATTEMPTS) {
-          throw new Error(
-            `Catalog ${catalog.catalogAlias} could not be verified after ${VERIFICATION_MAX_ATTEMPTS} attempts`,
-          );
-        }
-        console.warn(`Attempt ${attempts}: Catalog not ready yet, waiting...`);
-        await new Promise((resolve) => setTimeout(resolve, VERIFICATION_RETRY_DELAY_MS));
-      }
-    }
 
     // Persist updated credentials to the secret store
     const { dataSources, _iDbConn } = useAppStore.getState();

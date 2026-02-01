@@ -10,14 +10,13 @@ import {
 import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
-import { attachDatabaseWithRetry, executeWithRetry } from '@utils/connection-manager';
+import { attachDatabaseWithRetry } from '@utils/connection-manager';
 import { isRemoteDatabase, isIcebergCatalog } from '@utils/data-source';
 import {
-  isManagedIcebergEndpoint,
+  attachAndVerifyIcebergCatalog,
   resolveIcebergCredentials,
   updateIcebergCatalogConnectionState,
 } from '@utils/iceberg-catalog';
-import { buildIcebergSecretQuery, buildIcebergAttachQuery } from '@utils/iceberg-sql-builder';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery } from '@utils/sql-builder';
@@ -43,49 +42,20 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
       try {
         updateIcebergCatalogConnectionState(id, 'connecting');
 
-        // sigv4 fallback: catalogs persisted before the ENDPOINT_TYPE parser fix
-        // have endpointType undefined, but sigv4 credentials always need TYPE s3
-        const isManagedEndpoint =
-          isManagedIcebergEndpoint(dataSource.endpointType) ||
-          credentials.authType === 'sigv4';
-
-        // Recreate the DuckDB in-memory secret (lost on page refresh)
-        const secretQuery = buildIcebergSecretQuery({
+        // Use shared attach-and-verify utility. Skip the settle delay
+        // during startup reconnection — catalogs attach synchronously.
+        await attachAndVerifyIcebergCatalog({
+          pool: conn,
           secretName: dataSource.secretName,
-          authType: credentials.authType,
-          useS3SecretType: isManagedEndpoint,
-          clientId: credentials.clientId,
-          clientSecret: credentials.clientSecret,
-          oauth2ServerUri: credentials.oauth2ServerUri,
-          token: credentials.token,
-          awsKeyId: credentials.awsKeyId,
-          awsSecret: credentials.awsSecret,
-          defaultRegion: credentials.defaultRegion,
-        });
-        await conn.query(secretQuery);
-
-        // Re-attach the catalog
-        const attachQuery = buildIcebergAttachQuery({
-          warehouseName: dataSource.warehouseName,
           catalogAlias: dataSource.catalogAlias,
-          endpoint: isManagedEndpoint ? undefined : dataSource.endpoint,
+          warehouseName: dataSource.warehouseName,
+          credentials,
+          endpoint: dataSource.endpoint,
           endpointType: dataSource.endpointType,
-          secretName: dataSource.secretName,
           useCorsProxy: dataSource.useCorsProxy,
+          settleDelayMs: 0,
+          maxVerifyAttempts: 3,
         });
-
-        try {
-          await executeWithRetry(conn, attachQuery, {
-            maxRetries: 3,
-            timeout: 30000,
-            retryDelay: 2000,
-            exponentialBackoff: true,
-          });
-        } catch (attachError: any) {
-          if (!attachError.message?.includes('already in use')) {
-            throw attachError;
-          }
-        }
 
         updateIcebergCatalogConnectionState(id, 'connected');
         connectedDatabases.push(dataSource.catalogAlias);
@@ -100,10 +70,7 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
         }
 
         const sanitized = sanitizeErrorMessage(errorMessage);
-        console.warn(
-          `Failed to reconnect iceberg catalog ${dataSource.catalogAlias}:`,
-          sanitized,
-        );
+        console.warn(`Failed to reconnect iceberg catalog ${dataSource.catalogAlias}:`, sanitized);
         updateIcebergCatalogConnectionState(id, 'error', sanitized);
       }
       continue;
