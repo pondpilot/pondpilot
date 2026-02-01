@@ -155,8 +155,8 @@ export function useMetadataStats(
 
     setLoadingDistributions(new Set(distributionColumns.map((c) => c.name)));
 
-    const newDistributions = new Map<string, ColumnDistribution>();
     const newErrors = new Map<string, string>();
+    let completedDistributions = new Map<string, ColumnDistribution>();
 
     for (const col of distributionColumns) {
       if (controller.signal.aborted) break;
@@ -167,7 +167,8 @@ export function useMetadataStats(
         if (controller.signal.aborted) break;
 
         if (result !== undefined) {
-          newDistributions.set(col.name, result);
+          completedDistributions = new Map([...completedDistributions, [col.name, result]]);
+          setColumnDistributions(completedDistributions);
         }
       } catch (err) {
         if (controller.signal.aborted) break;
@@ -185,9 +186,11 @@ export function useMetadataStats(
       }
     }
 
+    // Clear any remaining loading indicators when loop ends (including early abort)
+    setLoadingDistributions(new Set());
+
     if (controller.signal.aborted) return;
 
-    setColumnDistributions(newDistributions);
     if (newErrors.size > 0) {
       setErrors((prev) => new Map([...prev, ...newErrors]));
     }
@@ -197,7 +200,7 @@ export function useMetadataStats(
     cache.current = {
       version: dataSourceVersion,
       stats: statsMap,
-      distributions: newDistributions,
+      distributions: completedDistributions,
     };
   }, [
     enabled,

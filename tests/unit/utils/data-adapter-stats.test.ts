@@ -120,22 +120,22 @@ describe('buildDateDistributionQuery', () => {
   it('should build a time-bucketed distribution query', () => {
     const query = buildDateDistributionQuery('events', 'created_at');
 
-    expect(query).toContain('MIN(created_at)');
-    expect(query).toContain('MAX(created_at)');
     expect(query).toContain("DATEDIFF('day'");
-    expect(query).toContain('DATE_TRUNC(');
+    expect(query).toContain("DATE_TRUNC('day'");
+    expect(query).toContain("DATE_TRUNC('month'");
+    expect(query).toContain("DATE_TRUNC('year'");
     expect(query).toContain('WHERE created_at IS NOT NULL');
     expect(query).toContain('AS label');
     expect(query).toContain('COUNT(*) AS count');
   });
 
-  it('should select interval based on day span', () => {
+  it('should use CASE expression with literal interval strings for DATE_TRUNC', () => {
     const query = buildDateDistributionQuery('data', 'ts');
 
-    // Should have the day/month/year logic
-    expect(query).toContain("WHEN day_span <= 31 THEN 'day'");
-    expect(query).toContain("WHEN day_span <= 365 THEN 'month'");
-    expect(query).toContain("ELSE 'year'");
+    // Should use CASE with literal strings (not column references) for DATE_TRUNC
+    expect(query).toContain("WHEN dr.day_span <= 31 THEN DATE_TRUNC('day'");
+    expect(query).toContain("WHEN dr.day_span <= 365 THEN DATE_TRUNC('month'");
+    expect(query).toContain("ELSE DATE_TRUNC('year'");
   });
 
   it('should escape column names with spaces', () => {

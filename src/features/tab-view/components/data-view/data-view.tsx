@@ -488,20 +488,22 @@ export const DataView = ({
       {/* Metadata view */}
       {showMetadata && (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <Suspense
-            fallback={
-              <Center className="h-full">
-                <Stack align="center" gap="xs">
-                  <Loader size="md" />
-                  <Text size="sm" c="dimmed">
-                    Loading metadata...
-                  </Text>
-                </Stack>
-              </Center>
-            }
-          >
-            <MetadataView dataAdapter={dataAdapter} />
-          </Suspense>
+          <ChartErrorBoundary onSwitchToTable={() => onViewModeChange?.('table')}>
+            <Suspense
+              fallback={
+                <Center className="h-full">
+                  <Stack align="center" gap="xs">
+                    <Loader size="md" />
+                    <Text size="sm" c="dimmed">
+                      Loading metadata...
+                    </Text>
+                  </Stack>
+                </Center>
+              }
+            >
+              <MetadataView dataAdapter={dataAdapter} />
+            </Suspense>
+          </ChartErrorBoundary>
         </div>
       )}
     </Stack>

@@ -284,34 +284,31 @@ LIMIT ${MAX_TOP_VALUES}`;
 
 /**
  * Builds a SQL query for date/timestamp column distribution using auto time buckets.
+ * Uses a CASE expression for DATE_TRUNC because DuckDB requires a string literal
+ * (not a column reference) as the first argument.
  */
 export function buildDateDistributionQuery(source: string, columnName: string): string {
   const col = toDuckDBIdentifier(columnName);
 
   return `WITH date_range AS (
   SELECT
-    MIN(${col}) AS min_date,
-    MAX(${col}) AS max_date,
     DATEDIFF('day', MIN(${col}), MAX(${col})) AS day_span
   FROM ${source}
   WHERE ${col} IS NOT NULL
-),
-bucket_interval AS (
-  SELECT
-    CASE
-      WHEN day_span <= 31 THEN 'day'
-      WHEN day_span <= 365 THEN 'month'
-      ELSE 'year'
-    END AS interval_type
-  FROM date_range
 )
 SELECT
-  CAST(DATE_TRUNC(bi.interval_type, ${col}) AS VARCHAR) AS label,
+  CAST(
+    CASE
+      WHEN dr.day_span <= 31 THEN DATE_TRUNC('day', ${col})
+      WHEN dr.day_span <= 365 THEN DATE_TRUNC('month', ${col})
+      ELSE DATE_TRUNC('year', ${col})
+    END
+  AS VARCHAR) AS label,
   COUNT(*) AS count
-FROM ${source}, bucket_interval bi
+FROM ${source}, date_range dr
 WHERE ${col} IS NOT NULL
-GROUP BY DATE_TRUNC(bi.interval_type, ${col})
-ORDER BY DATE_TRUNC(bi.interval_type, ${col})`;
+GROUP BY label
+ORDER BY label`;
 }
 
 /**
