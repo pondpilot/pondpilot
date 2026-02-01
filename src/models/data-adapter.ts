@@ -87,6 +87,48 @@ export type ChartAggregatedDataPoint = {
 export type ChartAggregatedData = ChartAggregatedDataPoint[];
 
 /**
+ * Column type classification for metadata stats queries.
+ */
+export type MetadataColumnType = 'text' | 'numeric' | 'date';
+
+/**
+ * Summary statistics for a single column.
+ */
+export type ColumnStats = {
+  columnName: string;
+  totalCount: number;
+  distinctCount: number;
+  nullCount: number;
+  min: string | null;
+  max: string | null;
+  mean: string | null;
+};
+
+/**
+ * A single bucket in a distribution (for numeric/date histograms).
+ */
+export type DistributionBucket = {
+  label: string;
+  count: number;
+};
+
+/**
+ * A single value entry in a distribution (for text top-N values).
+ */
+export type DistributionValue = {
+  value: string;
+  count: number;
+};
+
+/**
+ * Distribution data for a column — either histogram buckets or top values.
+ */
+export type ColumnDistribution =
+  | { type: 'numeric'; buckets: DistributionBucket[] }
+  | { type: 'date'; buckets: DistributionBucket[] }
+  | { type: 'text'; values: DistributionValue[] };
+
+/**
  * Interface defining the API for a data adapter component.
  * This interface provides methods and properties for fetching, managing, and manipulating tabular data.
  */
@@ -252,6 +294,28 @@ export interface DataAdapterApi {
   ) => Promise<ChartAggregatedData | undefined>;
 
   /**
+   * Retrieves summary statistics for the specified columns.
+   *
+   * @param columnNames - Column names to compute stats for
+   * @throws CancelledOperation if the operation was cancelled
+   * @returns Array of stats per column, or undefined if not supported
+   */
+  getColumnStats: (columnNames: string[]) => Promise<ColumnStats[] | undefined>;
+
+  /**
+   * Retrieves distribution data for a single column.
+   *
+   * @param columnName - Column to compute distribution for
+   * @param columnType - Classification of the column type
+   * @throws CancelledOperation if the operation was cancelled
+   * @returns Distribution data, or undefined if not supported
+   */
+  getColumnDistribution: (
+    columnName: string,
+    columnType: MetadataColumnType,
+  ) => Promise<ColumnDistribution | undefined>;
+
+  /**
    * The SQL source query that produces this adapter's data.
    * Used by formats like Parquet that leverage DuckDB's native COPY TO.
    * May be null if the source query is not available.
@@ -337,6 +401,23 @@ export interface DataAdapterQueries {
     columns: DBColumn[],
     abortSignal: AbortSignal,
   ) => Promise<{ value: DataTable; aborted: boolean }>;
+
+  /**
+   * Returns summary statistics for the specified columns.
+   */
+  getColumnStats?: (
+    columnNames: string[],
+    abortSignal: AbortSignal,
+  ) => Promise<{ value: ColumnStats[]; aborted: boolean }>;
+
+  /**
+   * Returns distribution data for a single column.
+   */
+  getColumnDistribution?: (
+    columnName: string,
+    columnType: MetadataColumnType,
+    abortSignal: AbortSignal,
+  ) => Promise<{ value: ColumnDistribution; aborted: boolean }>;
 
   /**
    * Returns aggregated data for chart visualization.

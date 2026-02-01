@@ -4,7 +4,10 @@ import {
   ChartAggregationType,
   ChartSortOrder,
   ColumnAggregateType,
+  ColumnDistribution,
+  ColumnStats,
   DataAdapterQueries,
+  MetadataColumnType,
 } from '@models/data-adapter';
 import {
   AnyDataSource,
@@ -197,6 +200,239 @@ function getGetChartAggregatedDataFromFQN(
   };
 }
 
+/**
+ * Maximum number of top values to return for text column distributions.
+ */
+const MAX_TOP_VALUES = 20;
+
+/**
+ * Number of histogram buckets for numeric/date column distributions.
+ */
+const NUM_HISTOGRAM_BUCKETS = 20;
+
+/**
+ * Builds a SQL query that computes summary statistics for multiple columns in a single pass.
+ * Returns one row per column with: column_name, total_count, distinct_count, null_count, min_value, max_value, mean_value.
+ */
+export function buildColumnStatsQuery(source: string, columnNames: string[]): string {
+  const perColumn = columnNames.map((name) => {
+    const col = toDuckDBIdentifier(name);
+    const nameStr = `'${name.replace(/'/g, "''")}'`;
+
+    return `SELECT
+      ${nameStr} AS column_name,
+      COUNT(*) AS total_count,
+      COUNT(DISTINCT ${col}) AS distinct_count,
+      COUNT(*) - COUNT(${col}) AS null_count,
+      CAST(MIN(${col}) AS VARCHAR) AS min_value,
+      CAST(MAX(${col}) AS VARCHAR) AS max_value,
+      CAST(AVG(TRY_CAST(${col} AS DOUBLE)) AS VARCHAR) AS mean_value
+    FROM ${source}`;
+  });
+
+  return perColumn.join('\nUNION ALL\n');
+}
+
+/**
+ * Builds a SQL query for numeric column distribution using equi-width buckets.
+ */
+export function buildNumericDistributionQuery(source: string, columnName: string): string {
+  const col = toDuckDBIdentifier(columnName);
+
+  return `WITH stats AS (
+  SELECT MIN(${col}) AS min_val, MAX(${col}) AS max_val FROM ${source} WHERE ${col} IS NOT NULL
+),
+buckets AS (
+  SELECT
+    CASE
+      WHEN stats.max_val = stats.min_val THEN 0
+      ELSE LEAST(
+        FLOOR((${col} - stats.min_val) / ((stats.max_val - stats.min_val) / ${NUM_HISTOGRAM_BUCKETS}.0)),
+        ${NUM_HISTOGRAM_BUCKETS} - 1
+      )
+    END AS bucket,
+    stats.min_val,
+    stats.max_val
+  FROM ${source}, stats
+  WHERE ${col} IS NOT NULL
+)
+SELECT
+  CAST(min_val + bucket * ((max_val - min_val) / ${NUM_HISTOGRAM_BUCKETS}.0) AS VARCHAR)
+    || ' - '
+    || CAST(min_val + (bucket + 1) * ((max_val - min_val) / ${NUM_HISTOGRAM_BUCKETS}.0) AS VARCHAR) AS label,
+  COUNT(*) AS count
+FROM buckets
+GROUP BY bucket, min_val, max_val
+ORDER BY bucket`;
+}
+
+/**
+ * Builds a SQL query for text column distribution (top N values by frequency).
+ */
+export function buildTextDistributionQuery(source: string, columnName: string): string {
+  const col = toDuckDBIdentifier(columnName);
+
+  return `SELECT
+  CAST(${col} AS VARCHAR) AS value,
+  COUNT(*) AS count
+FROM ${source}
+WHERE ${col} IS NOT NULL
+GROUP BY ${col}
+ORDER BY count DESC
+LIMIT ${MAX_TOP_VALUES}`;
+}
+
+/**
+ * Builds a SQL query for date/timestamp column distribution using auto time buckets.
+ */
+export function buildDateDistributionQuery(source: string, columnName: string): string {
+  const col = toDuckDBIdentifier(columnName);
+
+  return `WITH date_range AS (
+  SELECT
+    MIN(${col}) AS min_date,
+    MAX(${col}) AS max_date,
+    DATEDIFF('day', MIN(${col}), MAX(${col})) AS day_span
+  FROM ${source}
+  WHERE ${col} IS NOT NULL
+),
+bucket_interval AS (
+  SELECT
+    CASE
+      WHEN day_span <= 31 THEN 'day'
+      WHEN day_span <= 365 THEN 'month'
+      ELSE 'year'
+    END AS interval_type
+  FROM date_range
+)
+SELECT
+  CAST(DATE_TRUNC(bi.interval_type, ${col}) AS VARCHAR) AS label,
+  COUNT(*) AS count
+FROM ${source}, bucket_interval bi
+WHERE ${col} IS NOT NULL
+GROUP BY DATE_TRUNC(bi.interval_type, ${col})
+ORDER BY DATE_TRUNC(bi.interval_type, ${col})`;
+}
+
+/**
+ * Parses column stats from an Arrow table result.
+ */
+function convertArrowToColumnStats(arrowTable: any): ColumnStats[] {
+  const result: ColumnStats[] = [];
+  const { numRows } = arrowTable;
+
+  for (let i = 0; i < numRows; i += 1) {
+    const columnName = arrowTable.getChildAt(0)?.get(i);
+    const totalCount = arrowTable.getChildAt(1)?.get(i);
+    const distinctCount = arrowTable.getChildAt(2)?.get(i);
+    const nullCount = arrowTable.getChildAt(3)?.get(i);
+    const minValue = arrowTable.getChildAt(4)?.get(i);
+    const maxValue = arrowTable.getChildAt(5)?.get(i);
+    const meanValue = arrowTable.getChildAt(6)?.get(i);
+
+    result.push({
+      columnName: String(columnName),
+      totalCount: Number(totalCount),
+      distinctCount: Number(distinctCount),
+      nullCount: Number(nullCount),
+      min: minValue != null ? String(minValue) : null,
+      max: maxValue != null ? String(maxValue) : null,
+      mean: meanValue != null ? String(meanValue) : null,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Parses distribution data from an Arrow table result.
+ */
+function convertArrowToDistribution(
+  arrowTable: any,
+  columnType: MetadataColumnType,
+): ColumnDistribution {
+  const { numRows } = arrowTable;
+
+  if (columnType === 'text') {
+    const values: ColumnDistribution & { type: 'text' } = { type: 'text', values: [] };
+    for (let i = 0; i < numRows; i += 1) {
+      const value = arrowTable.getChildAt(0)?.get(i);
+      const count = arrowTable.getChildAt(1)?.get(i);
+      if (value != null) {
+        values.values.push({ value: String(value), count: Number(count) });
+      }
+    }
+    return values;
+  }
+
+  const buckets: ColumnDistribution & { type: 'numeric' | 'date' } = {
+    type: columnType,
+    buckets: [],
+  };
+  for (let i = 0; i < numRows; i += 1) {
+    const label = arrowTable.getChildAt(0)?.get(i);
+    const count = arrowTable.getChildAt(1)?.get(i);
+    if (label != null) {
+      buckets.buckets.push({ label: String(label), count: Number(count) });
+    }
+  }
+  return buckets;
+}
+
+function getGetColumnStatsFromFQN(
+  pool: AsyncDuckDBConnectionPool,
+  fqn: string,
+): DataAdapterQueries['getColumnStats'] {
+  return async (columnNames: string[], abortSignal: AbortSignal) => {
+    if (columnNames.length === 0) {
+      return { value: [], aborted: false };
+    }
+    const query = buildColumnStatsQuery(fqn, columnNames);
+    const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+
+    if (aborted) {
+      return { value: [], aborted };
+    }
+    return { value: convertArrowToColumnStats(value), aborted };
+  };
+}
+
+function getGetColumnDistributionFromFQN(
+  pool: AsyncDuckDBConnectionPool,
+  fqn: string,
+): DataAdapterQueries['getColumnDistribution'] {
+  return async (
+    columnName: string,
+    columnType: MetadataColumnType,
+    abortSignal: AbortSignal,
+  ) => {
+    let query: string;
+
+    switch (columnType) {
+      case 'numeric':
+        query = buildNumericDistributionQuery(fqn, columnName);
+        break;
+      case 'date':
+        query = buildDateDistributionQuery(fqn, columnName);
+        break;
+      case 'text':
+        query = buildTextDistributionQuery(fqn, columnName);
+        break;
+    }
+
+    const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+
+    if (aborted) {
+      return {
+        value: columnType === 'text' ? { type: 'text' as const, values: [] } : { type: columnType, buckets: [] },
+        aborted,
+      };
+    }
+
+    return { value: convertArrowToDistribution(value, columnType), aborted };
+  };
+}
+
 function getFlatFileDataAdapterQueries(
   pool: AsyncDuckDBConnectionPool,
   dataSource: AnyFlatFileDataSource,
@@ -211,6 +447,8 @@ function getFlatFileDataAdapterQueries(
     getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn),
     getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
     getChartAggregatedData: getGetChartAggregatedDataFromFQN(pool, fqn),
+    getColumnStats: getGetColumnStatsFromFQN(pool, fqn),
+    getColumnDistribution: getGetColumnDistributionFromFQN(pool, fqn),
   };
 
   if (dataSource.type === 'parquet') {
@@ -291,6 +529,8 @@ function getDatabaseDataAdapterApi(
       getColumnAggregate: getGetColumnAggregateFromFQN(pool, fqn),
       getColumnsData: getGetColumnsDataApiFromFQN(pool, fqn),
       getChartAggregatedData: getGetChartAggregatedDataFromFQN(pool, fqn),
+      getColumnStats: getGetColumnStatsFromFQN(pool, fqn),
+      getColumnDistribution: getGetColumnDistributionFromFQN(pool, fqn),
     },
     userErrors: [],
     internalErrors: [],
@@ -533,6 +773,51 @@ export function getScriptAdapterQueries({
             }
 
             return { value: convertArrowToChartData(value, groupByColumn !== null), aborted };
+          }
+        : undefined,
+      getColumnStats: classifiedStmt.isAllowedInSubquery
+        ? async (columnNames: string[], abortSignal: AbortSignal) => {
+            if (columnNames.length === 0) {
+              return { value: [], aborted: false };
+            }
+            const query = buildColumnStatsQuery(`(${trimmedQuery})`, columnNames);
+            const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+
+            if (aborted) {
+              return { value: [], aborted };
+            }
+            return { value: convertArrowToColumnStats(value), aborted };
+          }
+        : undefined,
+      getColumnDistribution: classifiedStmt.isAllowedInSubquery
+        ? async (
+            columnName: string,
+            columnType: MetadataColumnType,
+            abortSignal: AbortSignal,
+          ) => {
+            let query: string;
+            switch (columnType) {
+              case 'numeric':
+                query = buildNumericDistributionQuery(`(${trimmedQuery})`, columnName);
+                break;
+              case 'date':
+                query = buildDateDistributionQuery(`(${trimmedQuery})`, columnName);
+                break;
+              case 'text':
+                query = buildTextDistributionQuery(`(${trimmedQuery})`, columnName);
+                break;
+            }
+            const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+
+            if (aborted) {
+              return {
+                value: columnType === 'text'
+                  ? { type: 'text' as const, values: [] }
+                  : { type: columnType, buckets: [] },
+                aborted,
+              };
+            }
+            return { value: convertArrowToDistribution(value, columnType), aborted };
           }
         : undefined,
     },

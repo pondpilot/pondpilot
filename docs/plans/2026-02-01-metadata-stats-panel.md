@@ -31,17 +31,17 @@ Add the `'metadata'` value to the `ViewMode` type and integrate it into the tab 
 
 Add two new methods to the `DataAdapterApi` interface: `getColumnStats()` for summary statistics (distinct count, null count, min/max/mean) and `getColumnDistribution()` for distribution data (histogram buckets for numeric, top-N values for text). Implement the underlying DuckDB SQL queries in the data adapter. This provides the data layer for the metadata view.
 
-- [ ] Define `ColumnStats` type in `src/models/data-adapter.ts` (distinctCount, nullCount, totalCount, min, max, mean — per column type)
-- [ ] Define `ColumnDistribution` type in `src/models/data-adapter.ts` (buckets array for numeric with label/count, values array for text with value/count)
-- [ ] Add `getColumnStats(columnNames: string[])` method to `DataAdapterApi` interface
-- [ ] Add `getColumnDistribution(columnName: string, columnType: 'text' | 'numeric' | 'date')` method to `DataAdapterApi` interface
-- [ ] Add corresponding query functions to `DataAdapterQueries` interface
-- [ ] Implement `getColumnStats` SQL query (batch all columns in a single query using DuckDB aggregate functions: COUNT, COUNT(DISTINCT ...), MIN, MAX, AVG, COUNT(*) FILTER (WHERE col IS NULL))
-- [ ] Implement `getColumnDistribution` SQL query for numeric columns (use `histogram()` or generate fixed-width buckets via `WIDTH_BUCKET`)
-- [ ] Implement `getColumnDistribution` SQL query for text columns (GROUP BY with ORDER BY count DESC LIMIT N)
-- [ ] Implement `getColumnDistribution` SQL query for date/timestamp columns (bucket by appropriate time intervals)
-- [ ] Wire the new query functions into `use-data-adapter.ts` to expose them via the adapter API
-- [ ] Add unit tests for the stats SQL query generation
+- [x] Define `ColumnStats` type in `src/models/data-adapter.ts` (distinctCount, nullCount, totalCount, min, max, mean — per column type)
+- [x] Define `ColumnDistribution` type in `src/models/data-adapter.ts` (buckets array for numeric with label/count, values array for text with value/count)
+- [x] Add `getColumnStats(columnNames: string[])` method to `DataAdapterApi` interface
+- [x] Add `getColumnDistribution(columnName: string, columnType: 'text' | 'numeric' | 'date')` method to `DataAdapterApi` interface
+- [x] Add corresponding query functions to `DataAdapterQueries` interface
+- [x] Implement `getColumnStats` SQL query (batch all columns in a single query using DuckDB aggregate functions: COUNT, COUNT(DISTINCT ...), MIN, MAX, AVG, COUNT(*) FILTER (WHERE col IS NULL))
+- [x] Implement `getColumnDistribution` SQL query for numeric columns (use `histogram()` or generate fixed-width buckets via `WIDTH_BUCKET`)
+- [x] Implement `getColumnDistribution` SQL query for text columns (GROUP BY with ORDER BY count DESC LIMIT N)
+- [x] Implement `getColumnDistribution` SQL query for date/timestamp columns (bucket by appropriate time intervals)
+- [x] Wire the new query functions into `use-data-adapter.ts` to expose them via the adapter API
+- [x] Add unit tests for the stats SQL query generation
 
 ### Task 3: Build the useMetadataStats hook
 
