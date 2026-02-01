@@ -500,7 +500,7 @@ export const DataView = ({
               </Center>
             }
           >
-            <MetadataView />
+            <MetadataView dataAdapter={dataAdapter} />
           </Suspense>
         </div>
       )}

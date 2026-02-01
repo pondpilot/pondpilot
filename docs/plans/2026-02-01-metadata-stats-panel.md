@@ -88,14 +88,14 @@ Create the right panel with horizontally scrollable cards, one per dataset colum
 
 Wire the Summary and Detail panels into the MetadataView layout as a two-panel split. Handle edge cases: empty datasets, datasets with many columns, columns with all nulls, single-value columns. Add integration between summary row click and detail card scroll-to. Add comprehensive tests.
 
-- [ ] Compose `MetadataView` with Summary panel (left, fixed width ~450px) and Detail panel (right, flex)
-- [ ] Add click interaction: clicking a row in the Summary panel scrolls the detail panel to the corresponding column card
-- [ ] Handle empty dataset state (no columns / no rows)
-- [ ] Handle columns with all NULL values gracefully
-- [ ] Handle datasets with large column counts (50+ columns) — virtualize the summary list if needed
-- [ ] Show dataset-level info: total column count and row count at the top (as shown in Figma: "10 columns, 3,567 rows")
-- [ ] Ensure dark mode theming works for all new components
-- [ ] Add unit tests for Summary panel rendering
-- [ ] Add unit tests for Column card rendering
-- [ ] Add unit tests for MetadataView integration
-- [ ] Verify no regressions in Table and Chart views
+- [x] Compose `MetadataView` with Summary panel (left, fixed width ~450px) and Detail panel (right, flex)
+- [x] Add click interaction: clicking a row in the Summary panel scrolls the detail panel to the corresponding column card
+- [x] Handle empty dataset state (no columns / no rows)
+- [x] Handle columns with all NULL values gracefully
+- [x] Handle datasets with large column counts (50+ columns) — virtualize the summary list if needed
+- [x] Show dataset-level info: total column count and row count at the top (as shown in Figma: "10 columns, 3,567 rows")
+- [x] Ensure dark mode theming works for all new components
+- [x] Add unit tests for Summary panel rendering
+- [x] Add unit tests for Column card rendering
+- [x] Add unit tests for MetadataView integration
+- [x] Verify no regressions in Table and Chart views
