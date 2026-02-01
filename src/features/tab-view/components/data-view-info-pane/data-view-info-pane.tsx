@@ -25,7 +25,11 @@ import { DBColumn } from '@models/db';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { IconX, IconCopy, IconRefresh, IconChevronDown, IconScale } from '@tabler/icons-react';
-import { getDatabaseIdentifier, isDatabaseDataSource, isFlatFileDataSource } from '@utils/data-source';
+import {
+  getDatabaseIdentifier,
+  isDatabaseDataSource,
+  isFlatFileDataSource,
+} from '@utils/data-source';
 import { setDataTestId } from '@utils/test-id';
 import { assertNeverValueType } from '@utils/typing';
 import { RefObject, useMemo, useCallback } from 'react';
