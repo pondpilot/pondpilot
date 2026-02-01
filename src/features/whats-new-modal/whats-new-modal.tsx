@@ -1,68 +1,56 @@
-/* eslint-disable unused-imports/no-unused-vars */
-import { showError } from '@components/app-notifications';
 import { DotAnimation } from '@components/dots-animation';
-import { Text, Stack, Title, List, Button, Group, ScrollArea, Center } from '@mantine/core';
+import { Button, Center, Group, Stack, Text } from '@mantine/core';
 import { ModalSettings } from '@mantine/modals/lib/context';
-import { APP_RELEASE_TAGS_GITHUB_API_URL, APP_RELEASES_URL } from '@models/app-urls';
+import { APP_RELEASES_URL } from '@models/app-urls';
+import { isVersionGreater } from '@utils/compare-versions';
 import { setDataTestId } from '@utils/test-id';
-import { useEffect, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { useEffect, useMemo, useState } from 'react';
 
-interface GitHubReleaseData {
-  body: string;
-  tag_name: string;
-  name: string;
-  html_url: string;
-  published_at: string;
-}
+import { ReleaseDetail } from './release-detail';
+import { GitHubReleaseData } from './types';
+import { useReleases } from './use-releases';
+import { VersionList } from './version-list';
 
 export const WHATS_NEW_MODAL_OPTIONS: ModalSettings = {
-  size: 675,
+  size: 900,
   styles: { body: { paddingBottom: 0 }, header: { paddingInlineEnd: 16 } },
 };
 
-const stripFullChangelogLink = (body: string): string => {
-  if (!body || typeof body !== 'string') {
-    return '';
-  }
-  return body.replace(/\*\*Full Changelog\*\*:.*$/m, '').trim();
-};
+interface WhatsNewModalProps {
+  onClose: () => void;
+  lastSeenVersion?: string | null;
+}
 
-export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
-  const [ghReleaseNotesData, setGhReleaseNotesData] = useState<GitHubReleaseData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export const WhatsNewModal = ({ onClose, lastSeenVersion = null }: WhatsNewModalProps) => {
+  const { releases, isLoading, error } = useReleases();
+  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
 
+  // Auto-select first unread version, or latest release
   useEffect(() => {
-    const fetchGhReleaseNotesData = async () => {
-      try {
-        const response = await fetch(`${APP_RELEASE_TAGS_GITHUB_API_URL}/${__VERSION__}`);
+    if (releases.length === 0) return;
 
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(`Error fetching release notes: ${data.message}`);
-        }
-
-        setGhReleaseNotesData(data);
-      } catch (error) {
-        console.error(error);
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        showError({
-          title: 'Cannot load release notes',
-          message,
-          autoClose: 5000,
-        });
-        onClose();
-      } finally {
-        setIsLoading(false);
+    if (lastSeenVersion) {
+      const firstUnread = releases.find((r) => isVersionGreater(r.tag_name, lastSeenVersion));
+      if (firstUnread) {
+        setSelectedVersion(firstUnread.tag_name);
+        return;
       }
-    };
+    }
 
-    fetchGhReleaseNotesData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setSelectedVersion(releases[0].tag_name);
+  }, [releases, lastSeenVersion]);
+
+  const selectedRelease = useMemo<GitHubReleaseData | null>(
+    () => releases.find((r) => r.tag_name === selectedVersion) ?? null,
+    [releases, selectedVersion],
+  );
+
+  if (error) {
+    return null;
+  }
 
   return (
-    <Stack gap={16} maw={660} data-testid={setDataTestId('whats-new-modal')} className="relative">
+    <Stack gap={0} data-testid={setDataTestId('whats-new-modal')} className="relative">
       {isLoading && (
         <Center h={300}>
           <Text size="md" c="text-secondary">
@@ -71,43 +59,18 @@ export const WhatsNewModal = ({ onClose }: { onClose: () => void }) => {
         </Center>
       )}
 
-      {ghReleaseNotesData?.body && (
-        <div data-testid={setDataTestId('whats-new-modal-content')}>
-          <ScrollArea h={600} scrollHideDelay={500} type="hover">
-            <ReactMarkdown
-              components={{
-                // TODO: Add more components and styles if needed
-                h1: ({ node, ...props }) => <Title className="py-2" order={1} {...props} />,
-                h2: ({ node, ...props }) => <Title className="py-2" order={2} {...props} />,
-                h3: ({ node, ...props }) => <Title className="py-2" order={3} {...props} />,
-                h4: ({ node, ...props }) => <Title className="py-2" order={4} {...props} />,
-                p: ({ node, ...props }) => <Text className="py-2" {...props} />,
-                ul: ({ node, ...props }) => (
-                  <List
-                    className="py-2 list-disc list-inside"
-                    {...props}
-                    c="text-primary"
-                    maw={600}
-                    size="sm"
-                  />
-                ),
-                li: ({ node, ...props }) => <List.Item {...props} />,
-                a: ({ node, ...props }) => (
-                  <Text
-                    component="a"
-                    {...props}
-                    c="text-accent"
-                    target="_blank"
-                    className="underline py-2"
-                  />
-                ),
-              }}
-            >
-              {stripFullChangelogLink(ghReleaseNotesData.body)}
-            </ReactMarkdown>
-          </ScrollArea>
+      {!isLoading && releases.length > 0 && (
+        <div className="flex">
+          <VersionList
+            releases={releases}
+            selectedVersion={selectedVersion}
+            onSelect={setSelectedVersion}
+            lastSeenVersion={lastSeenVersion}
+          />
+          <ReleaseDetail release={selectedRelease} isLoading={false} />
         </div>
       )}
+
       <Group
         justify="space-between"
         className="sticky bottom-0 bg-backgroundPrimary-light py-6 px-4 dark:bg-backgroundPrimary-dark"

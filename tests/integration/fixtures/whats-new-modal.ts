@@ -4,6 +4,7 @@ type WhatsNewModalFixtures = {
   whatsNewModal: Locator;
   whatsNewModalContent: Locator;
   whatsNewModalSubmitButton: Locator;
+  whatsNewVersionList: Locator;
   newVersionAlert: Locator;
   newVersionAlertOpenButton: Locator;
   newVersionAlertCancelButton: Locator;
@@ -21,6 +22,10 @@ export const test = base.extend<WhatsNewModalFixtures>({
 
   whatsNewModalSubmitButton: async ({ page }, use) => {
     await use(page.getByTestId('whats-new-modal-submit-button'));
+  },
+
+  whatsNewVersionList: async ({ page }, use) => {
+    await use(page.getByTestId('whats-new-version-list'));
   },
 
   newVersionAlert: async ({ page }, use) => {

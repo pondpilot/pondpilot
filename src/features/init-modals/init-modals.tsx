@@ -77,7 +77,12 @@ export const InitModals = () => {
                     const modalId = modals.open({
                       ...WHATS_NEW_MODAL_OPTIONS,
                       onClose: setCurrentVersion,
-                      children: <WhatsNewModal onClose={() => modals.close(modalId)} />,
+                      children: (
+                        <WhatsNewModal
+                          onClose={() => modals.close(modalId)}
+                          lastSeenVersion={whatsNewVersionShown}
+                        />
+                      ),
                     });
                   }}
                 >

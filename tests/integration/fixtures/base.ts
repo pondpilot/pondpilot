@@ -38,15 +38,46 @@ export const test = base.extend<{ forEachTest: void }>({
 
         // Mock GitHub API responses
         if (requestUrl.includes('api.github.com')) {
-          await safeFulfill(route, {
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-              body: '# Test Release\n\n## Features\n- Mock feature 1\n- Mock feature 2\n\n## Bug Fixes\n- Fixed mock issue',
-              tag_name: 'v1.0.0',
-              name: 'Test Release',
-            }),
-          });
+          // Return an array for the releases list endpoint
+          if (requestUrl.includes('/releases?')) {
+            await safeFulfill(route, {
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify([
+                {
+                  body: '# Test Release v1.0.0\n\n## Features\n- Mock feature 1\n- Mock feature 2\n\n## Bug Fixes\n- Fixed mock issue',
+                  tag_name: 'v1.0.0',
+                  name: 'Test Release v1.0.0',
+                  html_url: 'https://github.com/pondpilot/pondpilot/releases/tag/v1.0.0',
+                  published_at: '2025-01-15T00:00:00Z',
+                },
+                {
+                  body: '# Test Release v0.9.0\n\n## Features\n- Older feature\n\n## Bug Fixes\n- Older fix',
+                  tag_name: 'v0.9.0',
+                  name: 'Test Release v0.9.0',
+                  html_url: 'https://github.com/pondpilot/pondpilot/releases/tag/v0.9.0',
+                  published_at: '2024-12-01T00:00:00Z',
+                },
+                {
+                  body: '# Test Release v0.5.0\n\n## Features\n- Initial feature',
+                  tag_name: 'v0.5.0',
+                  name: 'Test Release v0.5.0',
+                  html_url: 'https://github.com/pondpilot/pondpilot/releases/tag/v0.5.0',
+                  published_at: '2024-06-01T00:00:00Z',
+                },
+              ]),
+            });
+          } else {
+            await safeFulfill(route, {
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                body: '# Test Release\n\n## Features\n- Mock feature 1\n- Mock feature 2\n\n## Bug Fixes\n- Fixed mock issue',
+                tag_name: 'v1.0.0',
+                name: 'Test Release',
+              }),
+            });
+          }
           return;
         }
 

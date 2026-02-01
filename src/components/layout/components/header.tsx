@@ -5,8 +5,10 @@ import { SpotlightMenu } from '@components/spotlight';
 import { WHATS_NEW_MODAL_OPTIONS, WhatsNewModal } from '@features/whats-new-modal';
 import { useOsModifierIcon } from '@hooks/use-os-modifier-icon';
 import { Group, Text, TextInput, Tooltip } from '@mantine/core';
+import { useLocalStorage } from '@mantine/hooks';
 import { modals } from '@mantine/modals';
 import { spotlight } from '@mantine/spotlight';
+import { LOCAL_STORAGE_KEYS } from '@models/local-storage';
 import { IconSearch } from '@tabler/icons-react';
 import { setDataTestId } from '@utils/test-id';
 import { cn } from '@utils/ui/styles';
@@ -18,6 +20,9 @@ export const Header = memo(() => {
   const location = useLocation();
   const mod = useOsModifierIcon();
   const isSettingsPage = location.pathname.includes('settings');
+  const [lastSeenVersion] = useLocalStorage({
+    key: LOCAL_STORAGE_KEYS.WHATS_NEW_VERSION_SHOWN,
+  });
 
   const logoSection = isSettingsPage ? (
     <Group className="gap-2">
@@ -48,7 +53,12 @@ export const Header = memo(() => {
               e.stopPropagation();
               const modalId = modals.open({
                 ...WHATS_NEW_MODAL_OPTIONS,
-                children: <WhatsNewModal onClose={() => modals.close(modalId)} />,
+                children: (
+                  <WhatsNewModal
+                    onClose={() => modals.close(modalId)}
+                    lastSeenVersion={lastSeenVersion}
+                  />
+                ),
               });
             }}
           >
