@@ -14,11 +14,14 @@ import {
   Stack,
 } from '@mantine/core';
 import { DataAdapterApi } from '@models/data-adapter';
+import { getFormatExtension } from '@models/export-format-registry';
 import {
   BaseExportOptions,
   DelimitedTextExportOptions,
   ExportFormat,
   MarkdownExportOptions,
+  ParquetCompression,
+  ParquetExportOptions,
   SqlExportOptions,
   XlsxExportOptions,
   XmlExportOptions,
@@ -35,6 +38,7 @@ import {
   SqlOptions,
   XmlOptions,
   MarkdownOptions,
+  ParquetOptions,
   FormatSelector,
 } from './components';
 import { LARGE_DATASET_THRESHOLD } from './constants';
@@ -50,6 +54,8 @@ interface ExportOptionsModalProps {
   ) => Promise<ExportResult>;
   filename: string;
   dataAdapter?: DataAdapterApi;
+  /** When provided, pre-selects this format when the modal opens */
+  initialFormat?: ExportFormat;
 }
 
 export function ExportOptionsModal({
@@ -58,6 +64,7 @@ export function ExportOptionsModal({
   onExport,
   filename,
   dataAdapter,
+  initialFormat,
 }: ExportOptionsModalProps) {
   const [format, setFormat] = useState<ExportFormat>('csv');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,7 +73,7 @@ export function ExportOptionsModal({
 
   // Filename handling
   const sanitizedInput = sanitizeFileName(filename) || 'export';
-  const defaultExtension = format === 'xlsx' ? 'xlsx' : format;
+  const defaultExtension = getFormatExtension(format);
   const initialBaseName = (() => {
     const idx = sanitizedInput.lastIndexOf('.');
     if (idx > 0) {
@@ -82,7 +89,7 @@ export function ExportOptionsModal({
   const updateFilenameOnFormatChange = (newFormat: ExportFormat) => {
     const idx = exportFilename.lastIndexOf('.');
     const currentBaseName = idx > 0 ? exportFilename.substring(0, idx) : exportFilename;
-    const newExt = newFormat === 'xlsx' ? 'xlsx' : newFormat;
+    const newExt = getFormatExtension(newFormat);
     setExportFilename(`${currentBaseName}.${newExt}`);
   };
 
@@ -109,6 +116,9 @@ export function ExportOptionsModal({
   // Markdown options
   const [mdFormat, setMdFormat] = useState<'github' | 'standard'>('github');
   const [alignColumns, setAlignColumns] = useState(true);
+
+  // Parquet options
+  const [parquetCompression, setParquetCompression] = useState<ParquetCompression>('snappy');
 
   // Data size warning state
   const [largeDatasetSize, setLargeDatasetSize] = useState(0);
@@ -179,6 +189,13 @@ export function ExportOptionsModal({
             setMdFormat={setMdFormat}
             alignColumns={alignColumns}
             setAlignColumns={setAlignColumns}
+          />
+        );
+      case 'parquet':
+        return (
+          <ParquetOptions
+            compression={parquetCompression}
+            setCompression={setParquetCompression}
           />
         );
       default:
@@ -261,6 +278,14 @@ export function ExportOptionsModal({
           _result = await onExport(format, mdOptions, exportFilename);
           break;
         }
+        case 'parquet': {
+          const parquetOptions: ParquetExportOptions = {
+            includeHeader,
+            compression: parquetCompression,
+          };
+          _result = await onExport(format, parquetOptions, exportFilename);
+          break;
+        }
         default:
           _result = await onExport(format, baseOptions, exportFilename);
           break;
@@ -283,6 +308,14 @@ export function ExportOptionsModal({
     onClose();
     performExport();
   };
+
+  // Pre-select format when initialFormat is provided and modal opens
+  useEffect(() => {
+    if (opened && initialFormat) {
+      handleFormatChange(initialFormat);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened, initialFormat]);
 
   // Focus filename input when modal opens
   useEffect(() => {

@@ -22,8 +22,9 @@ import { ChartConfig, ViewMode } from '@models/chart';
 import { DataAdapterApi } from '@models/data-adapter';
 import { SYSTEM_DATABASE_NAME } from '@models/data-source';
 import { DBColumn } from '@models/db';
+import { ExportFormat } from '@models/export-options';
 import { TabId, TabType } from '@models/tab';
-import { useAppStore } from '@store/app-store';
+import { useAppStore, clearPendingConvert } from '@store/app-store';
 import { IconX, IconCopy, IconRefresh, IconChevronDown, IconScale } from '@tabler/icons-react';
 import {
   getDatabaseIdentifier,
@@ -32,7 +33,7 @@ import {
 } from '@utils/data-source';
 import { setDataTestId } from '@utils/test-id';
 import { assertNeverValueType } from '@utils/typing';
-import { RefObject, useMemo, useCallback } from 'react';
+import { RefObject, useMemo, useCallback, useState, useEffect } from 'react';
 
 import { ColRowCount } from './components/col-row-count';
 
@@ -90,6 +91,35 @@ export const DataViewInfoPane = ({
     isCopying: isChartCopying,
     isExporting: isChartExporting,
   } = useChartExport(chartRef ?? { current: null }, tabName);
+
+  // Track initial format for Convert To flow
+  const [initialExportFormat, setInitialExportFormat] = useState<ExportFormat | undefined>(
+    undefined,
+  );
+
+  // Subscribe to pending convert state from the store
+  const pendingConvert = useAppStore((state) => state.pendingConvert);
+
+  useEffect(() => {
+    if (
+      pendingConvert &&
+      pendingConvert.tabId === tabId &&
+      dataAdapter.currentSchema.length > 0 &&
+      !dataAdapter.isFetchingData
+    ) {
+      setInitialExportFormat(pendingConvert.format);
+      openExportOptions();
+      clearPendingConvert();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingConvert, tabId, dataAdapter.currentSchema.length,
+    dataAdapter.isFetchingData, openExportOptions]);
+
+  // Clear initial format after modal closes
+  const handleCloseExportOptions = useCallback(() => {
+    closeExportOptions();
+    setInitialExportFormat(undefined);
+  }, [closeExportOptions]);
 
   const tabs = useAppStore.use.tabs();
   const dataSources = useAppStore.use.dataSources();
@@ -461,10 +491,11 @@ export const DataViewInfoPane = ({
 
       <ExportOptionsModal
         opened={exportModalOpen}
-        onClose={closeExportOptions}
+        onClose={handleCloseExportOptions}
         onExport={handleExport}
         filename={tabName}
         dataAdapter={dataAdapter}
+        initialFormat={initialExportFormat}
       />
     </Group>
   );

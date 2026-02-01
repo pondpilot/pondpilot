@@ -28,6 +28,7 @@ import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 import { DataExplorerNodeMap, DataExplorerNodeTypeMap } from '../model';
 import { buildComparisonMenuItems } from '../utils/comparison-menu-items';
+import { buildConvertToMenuItems } from '../utils/convert-to-menu-items';
 import { refreshDatabaseMetadata } from '../utils/metadata-refresh';
 
 interface BuilderContext {
@@ -316,6 +317,40 @@ export function buildObjectTreeNode({
             schemaName,
             databaseName: dbName,
           })),
+          ...buildConvertToMenuItems(() => {
+            // Handle file views in system database
+            if (isFileView && context.flatFileSources) {
+              const fileDataSource = Array.from(context.flatFileSources.values()).find(
+                (ds) => ds.viewName === objectName,
+              );
+              if (fileDataSource) {
+                const existingTab = findTabFromFlatFileDataSource(fileDataSource);
+                if (existingTab) {
+                  setActiveTabId(existingTab.id);
+                  return existingTab.id;
+                }
+                const tab = getOrCreateTabFromFlatFileDataSource(fileDataSource, true);
+                setActiveTabId(tab.id);
+                return tab.id;
+              }
+            }
+
+            // Regular table/view handling
+            const existingTab = findTabFromLocalDBObject(dbId, schemaName, objectName);
+            if (existingTab) {
+              setActiveTabId(existingTab.id);
+              return existingTab.id;
+            }
+            const tab = getOrCreateTabFromLocalDBObject(
+              dbId,
+              schemaName,
+              objectName,
+              object.type,
+              true,
+            );
+            setActiveTabId(tab.id);
+            return tab.id;
+          }, null),
           ...devMenuItems,
         ],
       },
