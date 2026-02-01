@@ -60,15 +60,15 @@ Create a React hook that orchestrates fetching column stats and distributions wh
 
 Create the left panel component showing a table where each row represents a column in the dataset. Each row displays: type icon, column name, and either a COUNTD percentage bar (for text columns) or a frequency distribution sparkline (for numeric/date columns). Uses inline SVGs for the visualizations.
 
-- [ ] Create `src/features/metadata-view/components/summary-panel.tsx`
-- [ ] Render a table/list with one row per dataset column
-- [ ] Show column type icon (reuse existing `NamedIcon` component with type-based icons)
-- [ ] Show column name
-- [ ] For text columns: render a percentage bar showing COUNTD % (distinct count / total count) with the percentage label
-- [ ] For numeric columns: render an inline SVG sparkline histogram from the distribution data
-- [ ] For date/timestamp columns: render an inline SVG sparkline from the time-bucketed distribution
-- [ ] Style consistently with the existing Mantine theme (light/dark mode support)
-- [ ] Handle loading state (skeleton placeholders while stats are computing)
+- [x] Create `src/features/metadata-view/components/summary-panel.tsx`
+- [x] Render a table/list with one row per dataset column
+- [x] Show column type icon (reuse existing `NamedIcon` component with type-based icons)
+- [x] Show column name
+- [x] For text columns: render a percentage bar showing COUNTD % (distinct count / total count) with the percentage label
+- [x] For numeric columns: render an inline SVG sparkline histogram from the distribution data
+- [x] For date/timestamp columns: render an inline SVG sparkline from the time-bucketed distribution
+- [x] Style consistently with the existing Mantine theme (light/dark mode support)
+- [x] Handle loading state (skeleton placeholders while stats are computing)
 
 ### Task 5: Build the All Columns detail panel (right side)
 
