@@ -1,7 +1,7 @@
 import { Text } from '@mantine/core';
 import { ColumnDistribution, ColumnStats } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
-import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 
 import { ColumnCard } from './column-card';
 
@@ -16,6 +16,8 @@ export interface ColumnDetailPanelProps {
   loadingDistributions: Set<string>;
   /** Per-column error messages, keyed by column name */
   errors?: Map<string, string>;
+  /** Called when the set of visible column cards changes (for scroll indicator) */
+  onVisibleColumnsChange?: (visible: Set<string>) => void;
 }
 
 export interface ColumnDetailPanelHandle {
@@ -26,24 +28,65 @@ export interface ColumnDetailPanelHandle {
 /**
  * Detail panel showing horizontally scrollable cards, one per dataset column.
  * Each card displays distribution details: top values for text columns,
- * or bar histograms for numeric/date columns.
+ * or bar histograms for numeric/date columns. Includes a scroll position
+ * indicator with pills representing each column.
  */
 export const ColumnDetailPanel = forwardRef<ColumnDetailPanelHandle, ColumnDetailPanelProps>(
   (
-    { columns, columnStats, columnDistributions, loadingDistributions, errors },
+    {
+      columns, columnStats, columnDistributions,
+      loadingDistributions, errors, onVisibleColumnsChange,
+    },
     ref,
   ) => {
     const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const scrollRef = useRef<HTMLDivElement>(null);
+    const visibleRef = useRef<Set<string>>(new Set());
 
-    useImperativeHandle(ref, () => ({
-      scrollToColumn(columnName: string) {
-        const card = cardRefs.current.get(columnName);
-        if (card && scrollRef.current) {
-          card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-        }
-      },
-    }));
+    const scrollToColumn = useCallback((columnName: string) => {
+      const card = cardRefs.current.get(columnName);
+      const container = scrollRef.current;
+      if (card && container) {
+        container.scrollTo({
+          left: card.offsetLeft - container.offsetLeft,
+          behavior: 'smooth',
+        });
+      }
+    }, []);
+
+    useImperativeHandle(ref, () => ({ scrollToColumn }));
+
+    // Track which cards are visible using IntersectionObserver
+    useEffect(() => {
+      const container = scrollRef.current;
+      if (!container) return;
+
+      visibleRef.current = new Set();
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const next = new Set(visibleRef.current);
+          for (const entry of entries) {
+            const name = (entry.target as HTMLElement).dataset.columnName;
+            if (!name) continue;
+            if (entry.isIntersecting) {
+              next.add(name);
+            } else {
+              next.delete(name);
+            }
+          }
+          visibleRef.current = next;
+          onVisibleColumnsChange?.(next);
+        },
+        { root: container, threshold: 0.3 },
+      );
+
+      for (const el of cardRefs.current.values()) {
+        observer.observe(el);
+      }
+
+      return () => observer.disconnect();
+    }, [columns, onVisibleColumnsChange]);
 
     if (columns.length === 0) {
       return (
@@ -63,6 +106,8 @@ export const ColumnDetailPanel = forwardRef<ColumnDetailPanelHandle, ColumnDetai
         {columns.map((column) => (
           <div
             key={column.name}
+            data-column-name={column.name}
+            className="h-full shrink-0"
             ref={(el) => {
               if (el) {
                 cardRefs.current.set(column.name, el);

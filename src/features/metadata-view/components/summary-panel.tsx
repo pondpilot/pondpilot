@@ -1,7 +1,8 @@
 import { NamedIcon } from '@components/named-icon/named-icon';
-import { Group, Skeleton, Stack, Text } from '@mantine/core';
+import { Group, Skeleton, Text } from '@mantine/core';
 import { ColumnDistribution, ColumnStats } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
+import { cn } from '@utils/ui/styles';
 
 import { classifyColumnType, getColumnIconType } from '../hooks';
 
@@ -65,7 +66,7 @@ function PercentageBar({ stats }: { stats: ColumnStats }) {
           width={PERCENTAGE_BAR_WIDTH}
           height={8}
           rx={4}
-          className="fill-[var(--mantine-color-transparent008)]"
+          className="fill-transparent008-light dark:fill-transparent008-dark"
         />
         {/* Filled portion */}
         <rect
@@ -74,7 +75,7 @@ function PercentageBar({ stats }: { stats: ColumnStats }) {
           width={barWidth}
           height={8}
           rx={4}
-          className="fill-[var(--mantine-color-icon-accent)]"
+          className="fill-iconAccent-light dark:fill-iconAccent-dark"
         />
       </svg>
       <Text size="xs" c="text-tertiary" className="whitespace-nowrap tabular-nums">
@@ -128,7 +129,7 @@ function SparklineHistogram({
             width={barWidth}
             height={barHeight}
             rx={0.5}
-            className="fill-[var(--mantine-color-icon-accent)]"
+            className="fill-iconAccent-light dark:fill-iconAccent-dark"
           />
         );
       })}
@@ -187,6 +188,8 @@ function SummaryRow({
   distribution,
   isDistributionLoading,
   isSelected,
+  isOdd,
+  isLast,
   error,
   onClick,
 }: {
@@ -195,6 +198,8 @@ function SummaryRow({
   distribution: ColumnDistribution | undefined;
   isDistributionLoading: boolean;
   isSelected: boolean;
+  isOdd: boolean;
+  isLast: boolean;
   error?: string;
   onClick?: () => void;
 }) {
@@ -202,18 +207,21 @@ function SummaryRow({
     <Group
       gap="sm"
       wrap="nowrap"
-      className={`px-3 py-1.5 cursor-pointer rounded-md transition-colors ${
+      className={cn(
+        'px-3 py-1.5 cursor-pointer transition-colors border-b border-borderLight-light dark:border-borderLight-dark',
+        isOdd && 'bg-transparent004-light dark:bg-transparent004-dark',
+        isLast && 'rounded-b-xl border-b',
         isSelected
-          ? 'bg-[var(--mantine-color-transparentBrandBlue_palette-012)]'
-          : 'hover:bg-[var(--mantine-color-transparent004)]'
-      }`}
+          ? 'bg-transparentBrandBlue_palette-012-light dark:bg-transparentBrandBlue_palette-012-dark'
+          : 'hover:bg-transparent004-light dark:hover:bg-transparent004-dark',
+      )}
       onClick={onClick}
     >
       <NamedIcon
         iconType={getColumnIconType(column)}
         size={16}
         stroke={1.5}
-        className="text-[var(--mantine-color-icon-default)] shrink-0"
+        className="text-iconDefault-light dark:text-iconDefault-dark shrink-0"
       />
       <Text
         size="sm"
@@ -236,7 +244,7 @@ function SummaryRow({
 }
 
 /**
- * Summary panel showing a list where each row represents a column in the dataset.
+ * Summary panel showing a table-like list where each row represents a column in the dataset.
  * Each row displays: type icon, column name, and a visualization
  * (percentage bar for text, sparkline histogram for numeric/date).
  */
@@ -252,15 +260,23 @@ export function SummaryPanel({
 }: SummaryPanelProps) {
   if (isLoading) {
     return (
-      <Stack gap={4} className="p-2">
-        {Array.from({ length: Math.min(columns.length || 8, 20) }).map((_, i) => (
-          <Group key={i} gap="sm" wrap="nowrap" className="px-3 py-1.5">
-            <Skeleton height={16} width={16} circle />
-            <Skeleton height={14} className="flex-1" />
-            <Skeleton height={SPARKLINE_HEIGHT} width={SPARKLINE_WIDTH} />
-          </Group>
-        ))}
-      </Stack>
+      <div className="p-3 h-full">
+        <div className="rounded-xl border border-borderLight-light dark:border-borderLight-dark overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark rounded-t-xl">
+            <Skeleton height={14} width={100} />
+            <div className="ml-auto">
+              <Skeleton height={14} width={140} />
+            </div>
+          </div>
+          {Array.from({ length: Math.min(columns.length || 8, 20) }).map((_, i) => (
+            <Group key={i} gap="sm" wrap="nowrap" className="px-3 py-1.5 border-b border-borderLight-light dark:border-borderLight-dark">
+              <Skeleton height={16} width={16} circle />
+              <Skeleton height={14} className="flex-1" />
+              <Skeleton height={SPARKLINE_HEIGHT} width={SPARKLINE_WIDTH} />
+            </Group>
+          ))}
+        </div>
+      </div>
     );
   }
 
@@ -269,19 +285,45 @@ export function SummaryPanel({
   }
 
   return (
-    <Stack gap={2} className="p-2 overflow-y-auto h-full">
-      {columns.map((column) => (
-        <SummaryRow
-          key={column.name}
-          column={column}
-          stats={columnStats.get(column.name)}
-          distribution={columnDistributions.get(column.name)}
-          isDistributionLoading={loadingDistributions.has(column.name)}
-          isSelected={selectedColumn === column.name}
-          error={errors?.get(column.name)}
-          onClick={() => onColumnClick?.(column.name)}
-        />
-      ))}
-    </Stack>
+    <div className="p-3 overflow-y-auto h-full">
+      <div className="rounded-xl border border-borderLight-light dark:border-borderLight-dark overflow-hidden">
+        {/* Table header */}
+        <Group
+          gap="sm"
+          wrap="nowrap"
+          className="px-3 py-[11px] bg-backgroundTertiary-light dark:bg-backgroundTertiary-dark rounded-t-xl"
+        >
+          <Text size="sm" fw={500} className="min-w-0 flex-1">
+            Column Name
+          </Text>
+          <Group gap={4} wrap="nowrap" className="shrink-0">
+            <NamedIcon iconType="column-string" size={14} stroke={1.5} className="text-iconDefault-light dark:text-iconDefault-dark" />
+            <Text size="xs" c="text-secondary" className="whitespace-nowrap">
+              COUNTD %
+            </Text>
+            <Text size="xs" c="text-tertiary">|</Text>
+            <NamedIcon iconType="column-integer" size={14} stroke={1.5} className="text-iconDefault-light dark:text-iconDefault-dark" />
+            <Text size="xs" c="text-secondary" className="whitespace-nowrap">
+              Freq.Distr
+            </Text>
+          </Group>
+        </Group>
+        {/* Table body */}
+        {columns.map((column, index) => (
+          <SummaryRow
+            key={column.name}
+            column={column}
+            stats={columnStats.get(column.name)}
+            distribution={columnDistributions.get(column.name)}
+            isDistributionLoading={loadingDistributions.has(column.name)}
+            isSelected={selectedColumn === column.name}
+            isOdd={index % 2 !== 0}
+            isLast={index === columns.length - 1}
+            error={errors?.get(column.name)}
+            onClick={() => onColumnClick?.(column.name)}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
