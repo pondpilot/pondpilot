@@ -3,12 +3,10 @@ import {
   AnyFlatFileDataSource,
   LocalDB,
   PersistentDataSourceId,
-  READSTAT_VIEW_TYPES,
   ReadStatView,
-  ReadStatViewType,
   RemoteDB,
 } from '@models/data-source';
-import { DataSourceLocalFile } from '@models/file-system';
+import { DataSourceLocalFile, READSTAT_VIEW_TYPES, ReadStatViewType } from '@models/file-system';
 import { findUniqueName } from '@utils/helpers';
 
 import { DUCKDB_FORBIDDEN_ATTACHED_DB_NAMES } from './duckdb/identifier';

@@ -1,8 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { ReadStatViewType } from '@models/data-source';
 import { CSV_MAX_LINE_SIZE } from '@models/db';
-import { supportedFlatFileDataSourceFileExt } from '@models/file-system';
+import { ReadStatViewType, supportedFlatFileDataSourceFileExt } from '@models/file-system';
 import { isReadStatViewType } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';

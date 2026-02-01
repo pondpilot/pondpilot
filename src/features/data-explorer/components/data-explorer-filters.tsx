@@ -1,6 +1,9 @@
 import { ActionIcon, Group, Tooltip, Menu, Checkbox, TextInput, Box } from '@mantine/core';
-import { READSTAT_VIEW_TYPES, ReadStatViewType } from '@models/data-source';
-import { supportedDataSourceFileExt } from '@models/file-system';
+import {
+  READSTAT_VIEW_TYPES,
+  ReadStatViewType,
+  supportedDataSourceFileExt,
+} from '@models/file-system';
 import {
   IconListCheck,
   IconDatabase,

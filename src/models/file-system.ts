@@ -1,7 +1,9 @@
 import { assertNeverType } from '@utils/typing';
 
-import { READSTAT_VIEW_TYPES } from './data-source';
 import { NewId } from './new-id';
+
+export const READSTAT_VIEW_TYPES = ['sas7bdat', 'xpt', 'sav', 'zsav', 'por', 'dta'] as const;
+export type ReadStatViewType = (typeof READSTAT_VIEW_TYPES)[number];
 
 export type LocalEntryId = NewId<'LocalEntryId'>;
 

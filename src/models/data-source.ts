@@ -1,5 +1,5 @@
 import { PERSISTENT_DB_NAME } from './db-persistence';
-import { LocalEntryId } from './file-system';
+import { LocalEntryId, ReadStatViewType } from './file-system';
 import { NewId } from './new-id';
 
 // We have two types of data view sources:
@@ -58,9 +58,6 @@ export interface JSONView extends FlatFileDataSource {
 export interface ParquetView extends FlatFileDataSource {
   readonly type: 'parquet';
 }
-
-export const READSTAT_VIEW_TYPES = ['sas7bdat', 'xpt', 'sav', 'zsav', 'por', 'dta'] as const;
-export type ReadStatViewType = (typeof READSTAT_VIEW_TYPES)[number];
 
 export interface ReadStatView extends FlatFileDataSource {
   readonly type: ReadStatViewType;
