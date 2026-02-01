@@ -26,6 +26,11 @@ const ChartView = lazy(() =>
   import('@features/chart-view').then((module) => ({ default: module.ChartView })),
 );
 
+// Lazy load MetadataView to keep initial bundle small
+const MetadataView = lazy(() =>
+  import('@features/metadata-view').then((module) => ({ default: module.MetadataView })),
+);
+
 interface DataViewProps {
   /**
    * Inactive data views disable all hotkeys and UI interactions.
@@ -181,6 +186,9 @@ export const DataView = ({
 
   // Whether to show chart view
   const showChart = hasData && viewMode === 'chart';
+
+  // Whether to show metadata view
+  const showMetadata = hasData && viewMode === 'metadata';
 
   // The actual row range to show in pagination. It may be different from the expected row range.
   // If we have 0 rows, than return 0, but if we have rows, we show 1-indexed range.
@@ -475,6 +483,25 @@ export const DataView = ({
               />
             </Suspense>
           </ChartErrorBoundary>
+        </div>
+      )}
+      {/* Metadata view */}
+      {showMetadata && (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <Suspense
+            fallback={
+              <Center className="h-full">
+                <Stack align="center" gap="xs">
+                  <Loader size="md" />
+                  <Text size="sm" c="dimmed">
+                    Loading metadata...
+                  </Text>
+                </Stack>
+              </Center>
+            }
+          >
+            <MetadataView />
+          </Suspense>
         </div>
       )}
     </Stack>

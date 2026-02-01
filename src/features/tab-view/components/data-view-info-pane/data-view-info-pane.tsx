@@ -363,7 +363,7 @@ export const DataViewInfoPane = ({
         className="overflow-x-auto flex-shrink min-w-0 custom-scroll-hidden"
       >
         <Group gap={4} wrap="nowrap" className="flex-shrink-0">
-          {hasData && viewMode !== 'chart' && (
+          {hasData && viewMode === 'table' && (
             <ColRowCount
               rowCount={rowCountToShow}
               columnCount={columnCount}
@@ -426,6 +426,10 @@ export const DataViewInfoPane = ({
               {
                 value: 'chart',
                 label: 'Chart',
+              },
+              {
+                value: 'metadata',
+                label: 'Metadata',
               },
             ]}
             disabled={!hasData}

@@ -80,6 +80,6 @@ export const SORT_ORDER_LABELS: Record<SortOrder, string> = {
   desc: 'Descending',
 };
 
-export type ViewMode = 'table' | 'chart';
+export type ViewMode = 'table' | 'chart' | 'metadata';
 
 export const DEFAULT_VIEW_MODE: ViewMode = 'table';
