@@ -3,6 +3,10 @@ import {
   FileTypeFilter,
 } from '@features/data-explorer/components/data-explorer-filters';
 import { describe, it, expect } from '@jest/globals';
+import { READSTAT_VIEW_TYPES } from '@models/file-system';
+
+// 4 base flat file types (csv, json, parquet, xlsx) + readstat types
+const FILE_TYPE_COUNT = 4 + READSTAT_VIEW_TYPES.length;
 
 // Since we're in a Node test environment, we'll test the types and logic
 // rather than the React component rendering
@@ -29,13 +33,25 @@ describe('DataExplorerFilters Types', () => {
         json: false,
         parquet: true,
         xlsx: false,
+        sas7bdat: true,
+        xpt: false,
+        sav: true,
+        zsav: false,
+        por: true,
+        dta: false,
       };
 
-      expect(Object.keys(filter)).toHaveLength(4);
+      expect(Object.keys(filter)).toHaveLength(FILE_TYPE_COUNT);
       expect(filter).toHaveProperty('csv');
       expect(filter).toHaveProperty('json');
       expect(filter).toHaveProperty('parquet');
       expect(filter).toHaveProperty('xlsx');
+      expect(filter).toHaveProperty('sas7bdat');
+      expect(filter).toHaveProperty('xpt');
+      expect(filter).toHaveProperty('sav');
+      expect(filter).toHaveProperty('zsav');
+      expect(filter).toHaveProperty('por');
+      expect(filter).toHaveProperty('dta');
     });
 
     it('should only accept boolean values', () => {
@@ -44,6 +60,12 @@ describe('DataExplorerFilters Types', () => {
         json: true,
         parquet: true,
         xlsx: true,
+        sas7bdat: true,
+        xpt: true,
+        sav: true,
+        zsav: true,
+        por: true,
+        dta: true,
       };
 
       Object.values(filter).forEach((value) => {
@@ -59,10 +81,16 @@ describe('DataExplorerFilters Types', () => {
         json: true,
         parquet: true,
         xlsx: true,
+        sas7bdat: true,
+        xpt: true,
+        sav: true,
+        zsav: true,
+        por: true,
+        dta: true,
       };
 
       const activeFileTypes = Object.entries(allSelected).filter(([_, enabled]) => enabled);
-      const allFileTypesSelected = activeFileTypes.length === 4;
+      const allFileTypesSelected = activeFileTypes.length === FILE_TYPE_COUNT;
 
       expect(allFileTypesSelected).toBe(true);
     });
@@ -73,10 +101,17 @@ describe('DataExplorerFilters Types', () => {
         json: false,
         parquet: true,
         xlsx: false,
+        sas7bdat: false,
+        xpt: true,
+        sav: false,
+        zsav: true,
+        por: false,
+        dta: true,
       };
 
       const activeFileTypes = Object.entries(someSelected).filter(([_, enabled]) => enabled);
-      const someFileTypesSelected = activeFileTypes.length > 0 && activeFileTypes.length < 4;
+      const someFileTypesSelected =
+        activeFileTypes.length > 0 && activeFileTypes.length < FILE_TYPE_COUNT;
 
       expect(someFileTypesSelected).toBe(true);
     });
@@ -87,6 +122,12 @@ describe('DataExplorerFilters Types', () => {
         json: true,
         parquet: true,
         xlsx: true,
+        sas7bdat: true,
+        xpt: true,
+        sav: true,
+        zsav: true,
+        por: true,
+        dta: true,
       };
 
       const fileType: keyof FileTypeFilter = 'csv';
@@ -107,14 +148,42 @@ describe('DataExplorerFilters Types', () => {
         json: true,
         parquet: true,
         xlsx: true,
+        sas7bdat: true,
+        xpt: true,
+        sav: true,
+        zsav: true,
+        por: true,
+        dta: true,
       };
 
       const activeFileTypes = Object.entries(filter).filter(([_, enabled]) => enabled);
-      const allFileTypesSelected = activeFileTypes.length === 4;
+      const allFileTypesSelected = activeFileTypes.length === FILE_TYPE_COUNT;
 
       const newFilter = allFileTypesSelected
-        ? { csv: false, json: false, parquet: false, xlsx: false }
-        : { csv: true, json: true, parquet: true, xlsx: true };
+        ? {
+            csv: false,
+            json: false,
+            parquet: false,
+            xlsx: false,
+            sas7bdat: false,
+            xpt: false,
+            sav: false,
+            zsav: false,
+            por: false,
+            dta: false,
+          }
+        : {
+            csv: true,
+            json: true,
+            parquet: true,
+            xlsx: true,
+            sas7bdat: true,
+            xpt: true,
+            sav: true,
+            zsav: true,
+            por: true,
+            dta: true,
+          };
 
       expect(Object.values(newFilter).every((v) => v === false)).toBe(true);
     });
@@ -125,14 +194,42 @@ describe('DataExplorerFilters Types', () => {
         json: false,
         parquet: true,
         xlsx: false,
+        sas7bdat: false,
+        xpt: true,
+        sav: false,
+        zsav: true,
+        por: false,
+        dta: true,
       };
 
       const activeFileTypes = Object.entries(filter).filter(([_, enabled]) => enabled);
-      const allFileTypesSelected = activeFileTypes.length === 4;
+      const allFileTypesSelected = activeFileTypes.length === FILE_TYPE_COUNT;
 
       const newFilter = allFileTypesSelected
-        ? { csv: false, json: false, parquet: false, xlsx: false }
-        : { csv: true, json: true, parquet: true, xlsx: true };
+        ? {
+            csv: false,
+            json: false,
+            parquet: false,
+            xlsx: false,
+            sas7bdat: false,
+            xpt: false,
+            sav: false,
+            zsav: false,
+            por: false,
+            dta: false,
+          }
+        : {
+            csv: true,
+            json: true,
+            parquet: true,
+            xlsx: true,
+            sas7bdat: true,
+            xpt: true,
+            sav: true,
+            zsav: true,
+            por: true,
+            dta: true,
+          };
 
       expect(Object.values(newFilter).every((v) => v === true)).toBe(true);
     });
@@ -168,12 +265,24 @@ describe('DataExplorerFilters Types', () => {
         json: 'JSON',
         parquet: 'Parquet',
         xlsx: 'Excel',
+        sas7bdat: 'SAS',
+        xpt: 'SAS XPT',
+        sav: 'SPSS',
+        zsav: 'SPSS (Z)',
+        por: 'SPSS (POR)',
+        dta: 'Stata',
       };
 
       expect(fileTypeLabels.csv).toBe('CSV');
       expect(fileTypeLabels.json).toBe('JSON');
       expect(fileTypeLabels.parquet).toBe('Parquet');
       expect(fileTypeLabels.xlsx).toBe('Excel');
+      expect(fileTypeLabels.sas7bdat).toBe('SAS');
+      expect(fileTypeLabels.xpt).toBe('SAS XPT');
+      expect(fileTypeLabels.sav).toBe('SPSS');
+      expect(fileTypeLabels.zsav).toBe('SPSS (Z)');
+      expect(fileTypeLabels.por).toBe('SPSS (POR)');
+      expect(fileTypeLabels.dta).toBe('Stata');
     });
   });
 });

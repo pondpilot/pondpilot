@@ -1,5 +1,9 @@
 import { ActionIcon, Group, Tooltip, Menu, Checkbox, TextInput, Box } from '@mantine/core';
-import { supportedDataSourceFileExt } from '@models/file-system';
+import {
+  READSTAT_VIEW_TYPES,
+  ReadStatViewType,
+  supportedDataSourceFileExt,
+} from '@models/file-system';
 import {
   IconListCheck,
   IconDatabase,
@@ -17,12 +21,16 @@ import './data-explorer-filters.css';
 
 export type DataExplorerFilterType = 'all' | 'databases' | 'files' | 'remote';
 
-export type FileTypeFilter = {
-  csv: boolean;
-  json: boolean;
-  parquet: boolean;
-  xlsx: boolean;
-};
+export type FileTypeFilter = Record<
+  'csv' | 'json' | 'parquet' | 'xlsx' | ReadStatViewType,
+  boolean
+>;
+
+const FILE_TYPE_FILTER_KEYS = ['csv', 'json', 'parquet', 'xlsx', ...READSTAT_VIEW_TYPES] as const;
+
+export const DEFAULT_FILE_TYPE_FILTER: FileTypeFilter = Object.fromEntries(
+  FILE_TYPE_FILTER_KEYS.map((k) => [k, true]),
+) as FileTypeFilter;
 
 interface FilterButton {
   type: DataExplorerFilterType;
@@ -42,6 +50,12 @@ const fileTypeLabels: Partial<Record<supportedDataSourceFileExt, string>> = {
   json: 'JSON',
   parquet: 'Parquet',
   xlsx: 'Excel',
+  sas7bdat: 'SAS',
+  xpt: 'SAS XPT',
+  sav: 'SPSS',
+  zsav: 'SPSS (Z)',
+  por: 'SPSS (POR)',
+  dta: 'Stata',
 };
 
 interface DataExplorerFiltersProps {
@@ -63,12 +77,7 @@ export const DataExplorerFilters = memo(
   ({
     activeFilter,
     onFilterChange,
-    fileTypeFilter = {
-      csv: true,
-      json: true,
-      parquet: true,
-      xlsx: true,
-    },
+    fileTypeFilter = DEFAULT_FILE_TYPE_FILTER,
     onFileTypeFilterChange,
     searchQuery = '',
     onSearchChange,
@@ -91,7 +100,8 @@ export const DataExplorerFilters = memo(
     const activeFileTypes = Object.entries(fileTypeFilter).filter(([_, enabled]) => enabled);
 
     // Calculate selection state based on available types
-    const availableTypesCount = availableFileTypes?.size || 4;
+    const availableTypesCount =
+      availableFileTypes?.size || Object.keys(DEFAULT_FILE_TYPE_FILTER).length;
     const activeAvailableTypes = activeFileTypes.filter(
       ([type]) => !availableFileTypes || availableFileTypes.has(type as keyof FileTypeFilter),
     );
@@ -204,30 +214,13 @@ export const DataExplorerFilters = memo(
                         if (onFileTypeFilterChange) {
                           const newFilter = { ...fileTypeFilter };
 
-                          if (allFileTypesSelected) {
-                            // Deselect all available types
-                            if (availableFileTypes) {
-                              availableFileTypes.forEach((type) => {
-                                newFilter[type] = false;
-                              });
-                            } else {
-                              // Fallback to deselect all
-                              newFilter.csv = false;
-                              newFilter.json = false;
-                              newFilter.parquet = false;
-                              newFilter.xlsx = false;
-                            }
-                          } else if (availableFileTypes) {
-                            // Select all available types
-                            availableFileTypes.forEach((type) => {
-                              newFilter[type] = true;
-                            });
-                          } else {
-                            // Fallback to select all
-                            newFilter.csv = true;
-                            newFilter.json = true;
-                            newFilter.parquet = true;
-                            newFilter.xlsx = true;
+                          const typesToToggle = availableFileTypes
+                            ? Array.from(availableFileTypes)
+                            : (Object.keys(DEFAULT_FILE_TYPE_FILTER) as (keyof FileTypeFilter)[]);
+                          const targetValue = !allFileTypesSelected;
+
+                          for (const type of typesToToggle) {
+                            newFilter[type] = targetValue;
                           }
 
                           onFileTypeFilterChange(newFilter);

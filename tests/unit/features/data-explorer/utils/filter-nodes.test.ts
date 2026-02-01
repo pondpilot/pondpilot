@@ -106,6 +106,12 @@ describe('filterTreeNodes', () => {
         json: false,
         parquet: true,
         xlsx: false,
+        sas7bdat: false,
+        xpt: false,
+        sav: false,
+        zsav: false,
+        por: false,
+        dta: false,
       };
 
       const result = filterTreeNodes(testNodes, 'files', fileTypeFilter, getFileExtension);
@@ -124,6 +130,12 @@ describe('filterTreeNodes', () => {
         json: false,
         parquet: false,
         xlsx: false,
+        sas7bdat: false,
+        xpt: false,
+        sav: false,
+        zsav: false,
+        por: false,
+        dta: false,
       };
 
       const result = filterTreeNodes(testNodes, 'files', fileTypeFilter, getFileExtension);
@@ -140,6 +152,12 @@ describe('filterTreeNodes', () => {
         json: false,
         parquet: false,
         xlsx: false,
+        sas7bdat: false,
+        xpt: false,
+        sav: false,
+        zsav: false,
+        por: false,
+        dta: false,
       };
 
       const result = filterTreeNodes(testNodes, 'files', fileTypeFilter, getFileExtension);
@@ -215,6 +233,12 @@ describe('filterTreeNodes', () => {
         json: true,
         parquet: false,
         xlsx: false,
+        sas7bdat: false,
+        xpt: false,
+        sav: false,
+        zsav: false,
+        por: false,
+        dta: false,
       };
 
       const result = filterTreeNodes(nestedNodes, 'files', fileTypeFilter, getFileExtension);

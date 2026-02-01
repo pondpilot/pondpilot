@@ -1,5 +1,5 @@
 import { PERSISTENT_DB_NAME } from './db-persistence';
-import { LocalEntryId } from './file-system';
+import { LocalEntryId, ReadStatViewType } from './file-system';
 import { NewId } from './new-id';
 
 // We have two types of data view sources:
@@ -59,6 +59,10 @@ export interface ParquetView extends FlatFileDataSource {
   readonly type: 'parquet';
 }
 
+export interface ReadStatView extends FlatFileDataSource {
+  readonly type: ReadStatViewType;
+}
+
 /**
  * Xlsx themselves are non-flat file data source as it may contain
  * multiple sheets. But we create a persistent data source for each
@@ -74,7 +78,7 @@ export interface XlsxSheetView extends FlatFileDataSource {
   sheetName: string;
 }
 
-export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView | JSONView;
+export type AnyFlatFileDataSource = CSVView | ParquetView | XlsxSheetView | JSONView | ReadStatView;
 
 export interface LocalDB extends SingleFileDataSourceBase {
   readonly type: 'attached-db';

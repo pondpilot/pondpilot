@@ -20,6 +20,7 @@ import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 
 import { convertArrowTable } from './arrow';
+import { isFlatFileDataSource } from './data-source';
 import { classifySQLStatement, trimQuery } from './editor/sql';
 import { quote } from './helpers';
 
@@ -208,24 +209,6 @@ function getFlatFileDataAdapterQueries(
     getChartAggregatedData: getGetChartAggregatedDataFromFQN(pool, fqn),
   };
 
-  if (dataSource.type === 'csv' || dataSource.type === 'json' || dataSource.type === 'xlsx-sheet') {
-    return {
-      ...baseAttrs,
-      getRowCount: async (abortSignal: AbortSignal) => {
-        const { value, aborted } = await pool.queryAbortable(
-          `SELECT count(*) FROM ${toDuckDBIdentifier(dataSource.viewName)}`,
-          abortSignal,
-        );
-
-        if (aborted) {
-          // Value is not used when aborted, so doesn't matter
-          return { value: 0, aborted };
-        }
-        return { value: Number(value.getChildAt(0)?.get(0)), aborted };
-      },
-    };
-  }
-
   if (dataSource.type === 'parquet') {
     return {
       ...baseAttrs,
@@ -244,8 +227,21 @@ function getFlatFileDataAdapterQueries(
     };
   }
 
-  const _: never = dataSource;
-  throw new Error('Unexpected data source type');
+  // All other flat file types (csv, json, xlsx-sheet, readstat formats)
+  return {
+    ...baseAttrs,
+    getRowCount: async (abortSignal: AbortSignal) => {
+      const { value, aborted } = await pool.queryAbortable(
+        `SELECT count(*) FROM ${toDuckDBIdentifier(dataSource.viewName)}`,
+        abortSignal,
+      );
+
+      if (aborted) {
+        return { value: 0, aborted };
+      }
+      return { value: Number(value.getChildAt(0)?.get(0)), aborted };
+    },
+  };
 }
 
 // Generic function that works for both LocalDB and RemoteDB since they share the same interface
@@ -366,12 +362,7 @@ export function getFileDataAdapterQueries({
     return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 
-  if (
-    dataSource.type === 'csv' ||
-    dataSource.type === 'json' ||
-    dataSource.type === 'xlsx-sheet' ||
-    dataSource.type === 'parquet'
-  ) {
+  if (isFlatFileDataSource(dataSource)) {
     if (tab.dataSourceType !== 'file') {
       return {
         adapter: null,
@@ -407,11 +398,11 @@ export function getFileDataAdapterQueries({
     };
   }
 
-  const _: never = dataSource;
+  const _exhaustiveCheck: never = dataSource;
   return {
     adapter: null,
     userErrors: [],
-    internalErrors: [`Unexpected unsupported data source type: ${dataSource}`],
+    internalErrors: [`Unexpected unsupported data source type: ${_exhaustiveCheck}`],
   };
 }
 

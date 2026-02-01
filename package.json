@@ -35,7 +35,8 @@
     "lint:stylelint": "stylelint '**/*.css' --cache",
     "lint:stylelint:fix": "stylelint '**/*.css' --cache --fix",
     "prettier": "prettier --check \"**/*.{ts,tsx}\"",
-    "prettier:write": "prettier --write \"**/*.{ts,tsx}\""
+    "prettier:write": "prettier --write \"**/*.{ts,tsx}\"",
+    "readstat:install": "node scripts/install-readstat-wasm.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

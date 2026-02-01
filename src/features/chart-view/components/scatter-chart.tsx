@@ -138,7 +138,7 @@ export function ScatterChart({
           }}
           labelStyle={{ color: chartTheme.tooltipText }}
           itemStyle={{ color: chartTheme.tooltipText }}
-          formatter={(value: number, name: string) => [formatTooltipNumber(value), name]}
+          formatter={(value, name) => [formatTooltipNumber(Number(value ?? 0)), name ?? '']}
           labelFormatter={(_, payload) => {
             if (payload && payload.length > 0) {
               return `${(payload[0].payload as ScatterDataPoint).name}`;
