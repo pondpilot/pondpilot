@@ -31,6 +31,8 @@ export interface SummaryPanelProps {
   isLoading: boolean;
   /** Set of column names whose distributions are still loading */
   loadingDistributions: Set<string>;
+  /** Per-column error messages, keyed by column name */
+  errors?: Map<string, string>;
   /** Callback when a column row is clicked */
   onColumnClick?: (columnName: string) => void;
   /** Currently selected column name */
@@ -142,14 +144,24 @@ function ColumnVisualization({
   stats,
   distribution,
   isDistributionLoading,
+  error,
 }: {
   column: DBColumn;
   stats: ColumnStats | undefined;
   distribution: ColumnDistribution | undefined;
   isDistributionLoading: boolean;
+  error?: string;
 }) {
   if (isDistributionLoading || !stats) {
     return <Skeleton height={SPARKLINE_HEIGHT} width={SPARKLINE_WIDTH} />;
+  }
+
+  if (error) {
+    return (
+      <Text size="xs" c="red" className="truncate" title={error}>
+        Error
+      </Text>
+    );
   }
 
   const columnType = classifyColumnType(column);
@@ -175,6 +187,7 @@ function SummaryRow({
   distribution,
   isDistributionLoading,
   isSelected,
+  error,
   onClick,
 }: {
   column: DBColumn;
@@ -182,6 +195,7 @@ function SummaryRow({
   distribution: ColumnDistribution | undefined;
   isDistributionLoading: boolean;
   isSelected: boolean;
+  error?: string;
   onClick?: () => void;
 }) {
   return (
@@ -214,6 +228,7 @@ function SummaryRow({
           stats={stats}
           distribution={distribution}
           isDistributionLoading={isDistributionLoading}
+          error={error}
         />
       </div>
     </Group>
@@ -231,6 +246,7 @@ export function SummaryPanel({
   columnDistributions,
   isLoading,
   loadingDistributions,
+  errors,
   onColumnClick,
   selectedColumn,
 }: SummaryPanelProps) {
@@ -262,6 +278,7 @@ export function SummaryPanel({
           distribution={columnDistributions.get(column.name)}
           isDistributionLoading={loadingDistributions.has(column.name)}
           isSelected={selectedColumn === column.name}
+          error={errors?.get(column.name)}
           onClick={() => onColumnClick?.(column.name)}
         />
       ))}

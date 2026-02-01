@@ -137,7 +137,10 @@ export function useMetadataStats(
       setColumnStats(statsMap);
     } catch (err) {
       if (controller.signal.aborted) return;
-      if (err instanceof CancelledOperation && err.isSystemCancelled) return;
+      if (err instanceof CancelledOperation && err.isSystemCancelled) {
+        setIsLoading(false);
+        return;
+      }
 
       const message = err instanceof Error ? err.message : 'Failed to load column stats';
       setErrors(new Map([['__stats__', message]]));

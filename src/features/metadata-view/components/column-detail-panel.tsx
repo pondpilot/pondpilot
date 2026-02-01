@@ -14,6 +14,8 @@ export interface ColumnDetailPanelProps {
   columnDistributions: Map<string, ColumnDistribution>;
   /** Set of column names whose distributions are still loading */
   loadingDistributions: Set<string>;
+  /** Per-column error messages, keyed by column name */
+  errors?: Map<string, string>;
 }
 
 export interface ColumnDetailPanelHandle {
@@ -28,7 +30,7 @@ export interface ColumnDetailPanelHandle {
  */
 export const ColumnDetailPanel = forwardRef<ColumnDetailPanelHandle, ColumnDetailPanelProps>(
   (
-    { columns, columnStats, columnDistributions, loadingDistributions },
+    { columns, columnStats, columnDistributions, loadingDistributions, errors },
     ref,
   ) => {
     const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -74,6 +76,7 @@ export const ColumnDetailPanel = forwardRef<ColumnDetailPanelHandle, ColumnDetai
               stats={columnStats.get(column.name)}
               distribution={columnDistributions.get(column.name)}
               isDistributionLoading={loadingDistributions.has(column.name)}
+              error={errors?.get(column.name)}
             />
           </div>
         ))}

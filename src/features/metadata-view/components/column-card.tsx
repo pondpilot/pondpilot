@@ -35,6 +35,8 @@ export interface ColumnCardProps {
   distribution: ColumnDistribution | undefined;
   /** Whether the distribution is still loading */
   isDistributionLoading: boolean;
+  /** Error message if distribution loading failed for this column */
+  error?: string;
 }
 
 /**
@@ -171,10 +173,12 @@ function CardBody({
   column,
   distribution,
   isDistributionLoading,
+  error,
 }: {
   column: DBColumn;
   distribution: ColumnDistribution | undefined;
   isDistributionLoading: boolean;
+  error?: string;
 }) {
   if (isDistributionLoading) {
     return (
@@ -183,6 +187,14 @@ function CardBody({
           <Skeleton key={i} height={BAR_HEIGHT} />
         ))}
       </Stack>
+    );
+  }
+
+  if (error) {
+    return (
+      <Text size="xs" c="red" title={error}>
+        Failed to load distribution
+      </Text>
     );
   }
 
@@ -216,6 +228,7 @@ export function ColumnCard({
   stats,
   distribution,
   isDistributionLoading,
+  error,
 }: ColumnCardProps) {
   return (
     <div className="shrink-0 w-72 rounded-lg border border-[var(--mantine-color-transparent008)] p-3 snap-start">
@@ -243,6 +256,7 @@ export function ColumnCard({
           column={column}
           distribution={distribution}
           isDistributionLoading={isDistributionLoading}
+          error={error}
         />
       </Stack>
     </div>

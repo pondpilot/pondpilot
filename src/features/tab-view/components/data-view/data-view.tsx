@@ -488,7 +488,10 @@ export const DataView = ({
       {/* Metadata view */}
       {showMetadata && (
         <div className="flex-1 min-h-0 overflow-hidden">
-          <ChartErrorBoundary onSwitchToTable={() => onViewModeChange?.('table')}>
+          <ChartErrorBoundary
+            errorTitle="Metadata rendering failed"
+            onSwitchToTable={() => onViewModeChange?.('table')}
+          >
             <Suspense
               fallback={
                 <Center className="h-full">

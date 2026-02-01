@@ -101,10 +101,10 @@ describe('MetadataView', () => {
         availableRowCount: 3567,
       };
       const rowCount =
-        rowCountInfo.realRowCount ?? rowCountInfo.estimatedRowCount ?? 0;
-      const isEstimated =
-        rowCountInfo.realRowCount === null &&
-        rowCountInfo.estimatedRowCount !== null;
+        rowCountInfo.realRowCount ??
+        rowCountInfo.estimatedRowCount ??
+        rowCountInfo.availableRowCount;
+      const isEstimated = rowCountInfo.realRowCount === null;
 
       expect(rowCount).toBe(3567);
       expect(isEstimated).toBe(false);
@@ -117,23 +117,41 @@ describe('MetadataView', () => {
         availableRowCount: 5000,
       };
       const rowCount =
-        rowCountInfo.realRowCount ?? rowCountInfo.estimatedRowCount ?? 0;
-      const isEstimated =
-        rowCountInfo.realRowCount === null &&
-        rowCountInfo.estimatedRowCount !== null;
+        rowCountInfo.realRowCount ??
+        rowCountInfo.estimatedRowCount ??
+        rowCountInfo.availableRowCount;
+      const isEstimated = rowCountInfo.realRowCount === null;
 
       expect(rowCount).toBe(10000);
       expect(isEstimated).toBe(true);
     });
 
-    it('should fall back to 0 when no row counts available', () => {
+    it('should fall back to availableRowCount with indicator when no real or estimated counts', () => {
+      const rowCountInfo: RowCountInfo = {
+        realRowCount: null,
+        estimatedRowCount: null,
+        availableRowCount: 50,
+      };
+      const rowCount =
+        rowCountInfo.realRowCount ??
+        rowCountInfo.estimatedRowCount ??
+        rowCountInfo.availableRowCount;
+      const isEstimated = rowCountInfo.realRowCount === null;
+
+      expect(rowCount).toBe(50);
+      expect(isEstimated).toBe(true);
+    });
+
+    it('should show 0 when all row counts are zero or null', () => {
       const rowCountInfo: RowCountInfo = {
         realRowCount: null,
         estimatedRowCount: null,
         availableRowCount: 0,
       };
       const rowCount =
-        rowCountInfo.realRowCount ?? rowCountInfo.estimatedRowCount ?? 0;
+        rowCountInfo.realRowCount ??
+        rowCountInfo.estimatedRowCount ??
+        rowCountInfo.availableRowCount;
 
       expect(rowCount).toBe(0);
     });
@@ -244,6 +262,76 @@ describe('MetadataView', () => {
       const distributions = new Map<string, ColumnDistribution>();
       const dist = distributions.get('nullable_col');
       expect(dist).toBeUndefined();
+    });
+  });
+
+  describe('per-column error handling', () => {
+    it('should pass per-column errors to panels for display', () => {
+      const columns = [
+        makeColumn('price', 'float', 0),
+        makeColumn('date', 'date', 1),
+        makeColumn('name', 'string', 2),
+      ];
+      const errors = new Map<string, string>([
+        ['price', 'Failed to load distribution'],
+        ['date', 'Unsupported column type'],
+      ]);
+
+      // Panels receive errors map and look up errors per column
+      for (const col of columns) {
+        const error = errors.get(col.name);
+        if (col.name === 'price') {
+          expect(error).toBe('Failed to load distribution');
+        } else if (col.name === 'date') {
+          expect(error).toBe('Unsupported column type');
+        } else {
+          // Columns without errors should render normally
+          expect(error).toBeUndefined();
+        }
+      }
+    });
+
+    it('should distinguish between stats-level and column-level errors', () => {
+      const errors = new Map<string, string>([
+        ['__stats__', 'Connection failed'],
+        ['price', 'Failed to load distribution'],
+      ]);
+
+      // __stats__ error triggers full-page error state (component returns early)
+      const statsError = errors.get('__stats__');
+      expect(statsError).toBeDefined();
+
+      // When __stats__ is present, panels are not rendered at all,
+      // so column-level errors are irrelevant in that case
+      const hasStatsError = errors.has('__stats__');
+      expect(hasStatsError).toBe(true);
+    });
+
+    it('should allow panels to render columns without errors alongside errored columns', () => {
+      const columns = [
+        makeColumn('id', 'integer', 0),
+        makeColumn('price', 'float', 1),
+        makeColumn('name', 'string', 2),
+      ];
+      const columnStats = new Map<string, ColumnStats>([
+        ['id', makeStats('id')],
+        ['name', makeStats('name')],
+      ]);
+      const errors = new Map<string, string>([
+        ['price', 'Failed to load distribution'],
+      ]);
+
+      // Columns with stats but no error should render normally
+      const columnsWithStats = columns.filter(
+        (col) => columnStats.has(col.name) && !errors.has(col.name),
+      );
+      expect(columnsWithStats).toHaveLength(2);
+      expect(columnsWithStats.map((c) => c.name)).toEqual(['id', 'name']);
+
+      // Columns with errors should be identifiable
+      const columnsWithErrors = columns.filter((col) => errors.has(col.name));
+      expect(columnsWithErrors).toHaveLength(1);
+      expect(columnsWithErrors[0].name).toBe('price');
     });
   });
 

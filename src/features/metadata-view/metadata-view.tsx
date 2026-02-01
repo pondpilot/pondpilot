@@ -87,8 +87,9 @@ export const MetadataView = ({ dataAdapter }: MetadataViewProps) => {
     );
   }
 
-  const rowCount = rowCountInfo.realRowCount ?? rowCountInfo.estimatedRowCount ?? 0;
-  const isEstimated = rowCountInfo.realRowCount === null && rowCountInfo.estimatedRowCount !== null;
+  const rowCount =
+    rowCountInfo.realRowCount ?? rowCountInfo.estimatedRowCount ?? rowCountInfo.availableRowCount;
+  const isEstimated = rowCountInfo.realRowCount === null;
 
   return (
     <div className="flex flex-col h-full">
@@ -111,6 +112,7 @@ export const MetadataView = ({ dataAdapter }: MetadataViewProps) => {
             columnDistributions={columnDistributions}
             isLoading={isLoading}
             loadingDistributions={loadingDistributions}
+            errors={errors}
             onColumnClick={handleColumnClick}
             selectedColumn={selectedColumn}
           />
@@ -124,6 +126,7 @@ export const MetadataView = ({ dataAdapter }: MetadataViewProps) => {
             columnStats={columnStats}
             columnDistributions={columnDistributions}
             loadingDistributions={loadingDistributions}
+            errors={errors}
           />
         </div>
       </div>
