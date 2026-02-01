@@ -14,6 +14,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import type { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 
 import { ChartLoading } from './chart-loading';
 import { SMALL_MULTIPLES_MIN_CHART_HEIGHT, X_AXIS_LABEL_MAX_LENGTH } from '../constants';
@@ -88,8 +89,8 @@ function SingleChart({ data, yColumn, chartType, color, isFirst, isLast }: Singl
     },
     labelStyle: { color: chartTheme.tooltipText },
     itemStyle: { color: chartTheme.tooltipText },
-    formatter: (value: number | undefined, name: string | undefined) =>
-      [formatTooltipNumber(value ?? 0), name ?? ''] as [string, string],
+    formatter: (value: ValueType | undefined, name: NameType | undefined) =>
+      [formatTooltipNumber(Number(value ?? 0)), name ?? ''] as [string, string],
   };
 
   // Tighter margins for stacked charts
