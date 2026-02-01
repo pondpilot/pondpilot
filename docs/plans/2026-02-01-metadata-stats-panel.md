@@ -47,14 +47,14 @@ Add two new methods to the `DataAdapterApi` interface: `getColumnStats()` for su
 
 Create a React hook that orchestrates fetching column stats and distributions when the metadata view is active. Follows the `useChartData` pattern: lazy fetch on view activation, abort on view switch, cache results keyed on `dataSourceVersion`. Returns loading states and computed stats for all columns.
 
-- [ ] Create `src/features/metadata-view/hooks/use-metadata-stats.ts`
-- [ ] Fetch column stats for all columns in one batch call when `viewMode === 'metadata'`
-- [ ] Fetch column distributions for each column (can be parallelized per column)
-- [ ] Cache results using `dataSourceVersion` as cache key (clear on source change)
-- [ ] Support abort via `AbortController` (cancel in-flight queries when switching away from metadata view)
-- [ ] Expose loading state (isLoading, per-column loading for distributions)
-- [ ] Handle errors gracefully (show error state per column, don't crash the whole view)
-- [ ] Add unit tests for the hook's caching and abort behavior
+- [x] Create `src/features/metadata-view/hooks/use-metadata-stats.ts`
+- [x] Fetch column stats for all columns in one batch call when `viewMode === 'metadata'`
+- [x] Fetch column distributions for each column (can be parallelized per column)
+- [x] Cache results using `dataSourceVersion` as cache key (clear on source change)
+- [x] Support abort via `AbortController` (cancel in-flight queries when switching away from metadata view)
+- [x] Expose loading state (isLoading, per-column loading for distributions)
+- [x] Handle errors gracefully (show error state per column, don't crash the whole view)
+- [x] Add unit tests for the hook's caching and abort behavior
 
 ### Task 4: Build the Summary panel (left side)
 
