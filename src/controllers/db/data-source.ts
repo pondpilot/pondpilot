@@ -32,7 +32,9 @@ async function createReadStatView(
 ): Promise<void> {
   const sanitizedView = toDuckDBIdentifier(viewName);
   const sanitizedFile = quote(fileName, { single: true });
-  const sanitizedFormat = quote(fileExt, { single: true });
+  // zsav is compressed SPSS; the read_stat extension uses 'sav' for both
+  const format = fileExt === 'zsav' ? 'sav' : fileExt;
+  const sanitizedFormat = quote(format, { single: true });
   const query =
     `CREATE OR REPLACE VIEW ${sanitizedView} ` +
     `AS SELECT * FROM read_stat(${sanitizedFile}, format=${sanitizedFormat});`;
