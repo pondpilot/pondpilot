@@ -776,49 +776,10 @@ export function getScriptAdapterQueries({
           }
         : undefined,
       getColumnStats: classifiedStmt.isAllowedInSubquery
-        ? async (columnNames: string[], abortSignal: AbortSignal) => {
-            if (columnNames.length === 0) {
-              return { value: [], aborted: false };
-            }
-            const query = buildColumnStatsQuery(`(${trimmedQuery})`, columnNames);
-            const { value, aborted } = await pool.queryAbortable(query, abortSignal);
-
-            if (aborted) {
-              return { value: [], aborted };
-            }
-            return { value: convertArrowToColumnStats(value), aborted };
-          }
+        ? getGetColumnStatsFromFQN(pool, `(${trimmedQuery})`)
         : undefined,
       getColumnDistribution: classifiedStmt.isAllowedInSubquery
-        ? async (
-            columnName: string,
-            columnType: MetadataColumnType,
-            abortSignal: AbortSignal,
-          ) => {
-            let query: string;
-            switch (columnType) {
-              case 'numeric':
-                query = buildNumericDistributionQuery(`(${trimmedQuery})`, columnName);
-                break;
-              case 'date':
-                query = buildDateDistributionQuery(`(${trimmedQuery})`, columnName);
-                break;
-              case 'text':
-                query = buildTextDistributionQuery(`(${trimmedQuery})`, columnName);
-                break;
-            }
-            const { value, aborted } = await pool.queryAbortable(query, abortSignal);
-
-            if (aborted) {
-              return {
-                value: columnType === 'text'
-                  ? { type: 'text' as const, values: [] }
-                  : { type: columnType, buckets: [] },
-                aborted,
-              };
-            }
-            return { value: convertArrowToDistribution(value, columnType), aborted };
-          }
+        ? getGetColumnDistributionFromFQN(pool, `(${trimmedQuery})`)
         : undefined,
     },
     userErrors: [],

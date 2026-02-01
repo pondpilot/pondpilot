@@ -1,9 +1,10 @@
-import { NamedIcon, IconType } from '@components/named-icon/named-icon';
+import { NamedIcon } from '@components/named-icon/named-icon';
 import { Group, Skeleton, Stack, Text } from '@mantine/core';
 import { ColumnDistribution, ColumnStats } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
+import { formatNumber } from '@utils/helpers';
 
-import { classifyColumnType } from '../hooks';
+import { classifyColumnType, getColumnIconType } from '../hooks';
 
 /**
  * Height of a single bar in the horizontal bar histogram.
@@ -34,20 +35,6 @@ export interface ColumnCardProps {
   distribution: ColumnDistribution | undefined;
   /** Whether the distribution is still loading */
   isDistributionLoading: boolean;
-}
-
-/**
- * Maps a DBColumn's sqlType to the NamedIcon iconType.
- */
-function getColumnIconType(column: DBColumn): IconType {
-  return `column-${column.sqlType}` as IconType;
-}
-
-/**
- * Formats a count number for display (e.g. 1234 -> "1,234").
- */
-function formatCount(count: number): string {
-  return count.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 /**
@@ -88,7 +75,7 @@ function TextDistribution({ values }: { values: { value: string; count: number }
               </Text>
             </div>
             <Text size="xs" c="text-tertiary" className="whitespace-nowrap tabular-nums shrink-0">
-              {formatCount(item.count)}
+              {formatNumber(item.count)}
             </Text>
           </Group>
         );
@@ -169,7 +156,7 @@ function BarHistogram({ buckets }: { buckets: { label: string; count: number }[]
             className="whitespace-nowrap tabular-nums"
             style={{ height: BAR_HEIGHT, lineHeight: `${BAR_HEIGHT}px` }}
           >
-            {formatCount(bucket.count)}
+            {formatNumber(bucket.count)}
           </Text>
         ))}
       </div>
@@ -246,7 +233,7 @@ export function ColumnCard({
           </Text>
           {stats && (
             <Text size="xs" c="text-tertiary" className="whitespace-nowrap shrink-0">
-              {formatCount(stats.distinctCount)} distinct
+              {formatNumber(stats.distinctCount)} distinct
             </Text>
           )}
         </Group>

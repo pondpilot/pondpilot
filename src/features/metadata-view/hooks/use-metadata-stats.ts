@@ -1,4 +1,3 @@
-import { useDidUpdate } from '@mantine/hooks';
 import {
   CancelledOperation,
   ColumnDistribution,
@@ -146,7 +145,9 @@ export function useMetadataStats(
       return;
     }
 
-    // Fetch distributions for each column in parallel
+    // Fetch distributions for each column sequentially. The data adapter's
+    // getColumnDistribution calls abortUserTasks() which uses a shared abort
+    // controller, so parallel calls would cancel each other.
     const distributionColumns = currentSchema.map((col) => ({
       name: col.name,
       type: classifyColumnType(col),
@@ -157,18 +158,20 @@ export function useMetadataStats(
     const newDistributions = new Map<string, ColumnDistribution>();
     const newErrors = new Map<string, string>();
 
-    const distributionPromises = distributionColumns.map(async (col) => {
+    for (const col of distributionColumns) {
+      if (controller.signal.aborted) break;
+
       try {
         const result = await getColumnDistribution(col.name, col.type);
 
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) break;
 
         if (result !== undefined) {
           newDistributions.set(col.name, result);
         }
       } catch (err) {
-        if (controller.signal.aborted) return;
-        if (err instanceof CancelledOperation && err.isSystemCancelled) return;
+        if (controller.signal.aborted) break;
+        if (err instanceof CancelledOperation && err.isSystemCancelled) break;
 
         newErrors.set(col.name, err instanceof Error ? err.message : 'Failed to load distribution');
       } finally {
@@ -180,9 +183,7 @@ export function useMetadataStats(
           });
         }
       }
-    });
-
-    await Promise.all(distributionPromises);
+    }
 
     if (controller.signal.aborted) return;
 
@@ -225,11 +226,6 @@ export function useMetadataStats(
       }
     };
   }, [enabled]);
-
-  // Clear cache when data source changes
-  useDidUpdate(() => {
-    cache.current = null;
-  }, [dataSourceVersion]);
 
   return {
     columnStats,

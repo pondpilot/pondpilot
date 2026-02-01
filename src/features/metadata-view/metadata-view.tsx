@@ -1,6 +1,6 @@
 import { Center, Stack, Text } from '@mantine/core';
 import { DataAdapterApi } from '@models/data-adapter';
-import { IconTableColumn } from '@tabler/icons-react';
+import { IconAlertTriangle, IconTableColumn } from '@tabler/icons-react';
 import { formatNumber } from '@utils/helpers';
 import { useCallback, useRef, useState } from 'react';
 
@@ -27,6 +27,7 @@ export const MetadataView = ({ dataAdapter }: MetadataViewProps) => {
     isLoading,
     loadingDistributions,
     isSupported,
+    errors,
   } = useMetadataStats(dataAdapter);
 
   const [selectedColumn, setSelectedColumn] = useState<string | undefined>();
@@ -62,6 +63,24 @@ export const MetadataView = ({ dataAdapter }: MetadataViewProps) => {
           <IconTableColumn size={32} stroke={1} />
           <Text size="sm" c="dimmed">
             Metadata stats are not available for this data source
+          </Text>
+        </Stack>
+      </Center>
+    );
+  }
+
+  // Stats fetch failed entirely
+  const statsError = errors.get('__stats__');
+  if (statsError && !isLoading) {
+    return (
+      <Center className="h-full">
+        <Stack align="center" gap="xs">
+          <IconAlertTriangle size={32} stroke={1} />
+          <Text size="sm" c="dimmed">
+            Failed to load column statistics
+          </Text>
+          <Text size="xs" c="dimmed">
+            {statsError}
           </Text>
         </Stack>
       </Center>

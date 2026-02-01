@@ -1,9 +1,9 @@
-import { NamedIcon, IconType } from '@components/named-icon/named-icon';
+import { NamedIcon } from '@components/named-icon/named-icon';
 import { Group, Skeleton, Stack, Text } from '@mantine/core';
 import { ColumnDistribution, ColumnStats } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
 
-import { classifyColumnType } from '../hooks';
+import { classifyColumnType, getColumnIconType } from '../hooks';
 
 /**
  * Height of each sparkline SVG in pixels.
@@ -35,13 +35,6 @@ export interface SummaryPanelProps {
   onColumnClick?: (columnName: string) => void;
   /** Currently selected column name */
   selectedColumn?: string;
-}
-
-/**
- * Maps a DBColumn's sqlType to the NamedIcon iconType.
- */
-function getColumnIconType(column: DBColumn): IconType {
-  return `column-${column.sqlType}` as IconType;
 }
 
 /**
