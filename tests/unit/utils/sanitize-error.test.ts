@@ -65,4 +65,34 @@ describe('sanitizeErrorMessage', () => {
   it('should handle empty strings', () => {
     expect(sanitizeErrorMessage('')).toBe('');
   });
+
+  it('should redact CREATE OR REPLACE SECRET blocks entirely', () => {
+    const msg =
+      "Error in CREATE OR REPLACE SECRET my_secret (TYPE s3, KEY_ID 'AKID', SECRET 'skey', REGION 'us-east-1')";
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('AKID');
+    expect(result).not.toContain('skey');
+    expect(result).not.toContain('us-east-1');
+  });
+
+  it('should redact CREATE SECRET with SQL comments inside body', () => {
+    const msg = "CREATE SECRET test (TYPE s3, KEY_ID /**/'AKIA1234'/**/, SECRET 'leaked')";
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('AKIA1234');
+    expect(result).not.toContain('leaked');
+  });
+
+  it('should redact CREATE SECRET with IF NOT EXISTS clause', () => {
+    const msg = "CREATE SECRET IF NOT EXISTS my_secret (TYPE iceberg, TOKEN 'tok123')";
+    const result = sanitizeErrorMessage(msg);
+    expect(result).not.toContain('tok123');
+  });
+
+  it('should preserve text before and after CREATE SECRET block', () => {
+    const msg = "Error: CREATE SECRET my_secret (TYPE s3, SECRET 'leaked') failed at line 1";
+    const result = sanitizeErrorMessage(msg);
+    expect(result).toContain('Error:');
+    expect(result).toContain('failed at line 1');
+    expect(result).not.toContain('leaked');
+  });
 });

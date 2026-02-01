@@ -53,6 +53,7 @@ import {
   handleAttachStatements,
   handleCreateSecretStatements,
   handleDetachStatements,
+  persistSecretMappingEntries,
 } from '@utils/attach-detach-handler';
 // eslint-disable-next-line import/first
 import { ClassifiedSQLStatement, SQLStatement, SQLStatementType } from '@utils/editor/sql';
@@ -384,7 +385,7 @@ describe('attach-detach-handler', () => {
   });
 
   describe('handleCreateSecretStatements', () => {
-    it('should persist CREATE SECRET to encrypted store', async () => {
+    it('should parse CREATE SECRET into mapping without persisting', async () => {
       const statements = [
         makeStatement(
           "CREATE SECRET my_secret (TYPE s3, KEY_ID 'AKID', SECRET 'skey', REGION 'us-east-1')",
@@ -396,7 +397,12 @@ describe('attach-detach-handler', () => {
 
       expect(mapping.size).toBe(1);
       expect(mapping.has('my_secret')).toBe(true);
-      expect(mockPutSecret).toHaveBeenCalledTimes(1);
+      // Secrets are not persisted until consumed by an ATTACH via persistSecretMappingEntries
+      expect(mockPutSecret).not.toHaveBeenCalled();
+      // Credential data is held in-memory for deferred persistence
+      expect(mapping.get('my_secret')?.data).toEqual(
+        expect.objectContaining({ awsKeyId: 'AKID', awsSecret: 'skey' }),
+      );
     });
 
     it('should skip non-CREATE statements', async () => {
@@ -451,7 +457,7 @@ describe('attach-detach-handler', () => {
       expect(entry?.authType).toBe('bearer');
     });
 
-    it('should populate mapping but skip persistence when _iDbConn is null', async () => {
+    it('should populate mapping regardless of _iDbConn state', async () => {
       mockStoreState = { _iDbConn: null };
       const statements = [
         makeStatement(
@@ -465,7 +471,71 @@ describe('attach-detach-handler', () => {
       // Mapping should be populated for in-batch inference
       expect(mapping.size).toBe(1);
       expect(mapping.has('my_secret')).toBe(true);
-      // But persistence should be skipped
+      // handleCreateSecretStatements never persists directly
+      expect(mockPutSecret).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('persistSecretMappingEntries', () => {
+    it('should persist entries to the encrypted store', async () => {
+      const entries = [
+        {
+          secretName: 'my_secret',
+          entry: {
+            secretRef: 'ref-1' as SecretId,
+            secretType: 's3',
+            authType: 'sigv4' as const,
+            data: { authType: 'sigv4', awsKeyId: 'AKID', awsSecret: 'skey' },
+          },
+        },
+      ];
+
+      await persistSecretMappingEntries(entries);
+
+      expect(mockPutSecret).toHaveBeenCalledTimes(1);
+      expect(mockPutSecret).toHaveBeenCalledWith(
+        { fake: true },
+        'ref-1',
+        expect.objectContaining({
+          label: 'SQL Secret: my_secret',
+          data: expect.objectContaining({ awsKeyId: 'AKID' }),
+        }),
+      );
+    });
+
+    it('should skip persistence when _iDbConn is null', async () => {
+      mockStoreState = { _iDbConn: null };
+      const entries = [
+        {
+          secretName: 'my_secret',
+          entry: {
+            secretRef: 'ref-1' as SecretId,
+            secretType: 's3',
+            authType: 'sigv4' as const,
+            data: { authType: 'sigv4', awsKeyId: 'AKID' },
+          },
+        },
+      ];
+
+      await persistSecretMappingEntries(entries);
+
+      expect(mockPutSecret).not.toHaveBeenCalled();
+    });
+
+    it('should skip entries without data', async () => {
+      const entries = [
+        {
+          secretName: 'my_secret',
+          entry: {
+            secretRef: 'ref-1' as SecretId,
+            secretType: 's3',
+            authType: 'sigv4' as const,
+          },
+        },
+      ];
+
+      await persistSecretMappingEntries(entries);
+
       expect(mockPutSecret).not.toHaveBeenCalled();
     });
   });

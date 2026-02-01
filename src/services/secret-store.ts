@@ -103,9 +103,15 @@ export async function getOrCreateCryptoKey(): Promise<CryptoKey> {
   })();
 
   try {
-    return await pendingKeyPromise;
-  } finally {
+    const result = await pendingKeyPromise;
+    // Clear the in-flight promise on success so future calls use the cache
     pendingKeyPromise = null;
+    return result;
+  } catch (error) {
+    // Clear on failure so subsequent callers can retry instead of
+    // being stuck with a rejected promise reference.
+    pendingKeyPromise = null;
+    throw error;
   }
 }
 

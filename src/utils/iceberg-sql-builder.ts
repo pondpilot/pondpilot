@@ -36,6 +36,9 @@ interface IcebergSecretOptions {
  *
  * For managed AWS services (S3 Tables, Glue), uses TYPE s3 with KEY_ID/SECRET.
  * For generic REST catalogs, uses TYPE iceberg with auth-specific params.
+ *
+ * @param options - Secret configuration including name, auth type, and credentials.
+ * @returns A DuckDB CREATE OR REPLACE SECRET SQL string.
  */
 export function buildIcebergSecretQuery(options: IcebergSecretOptions): string {
   const { secretName, authType, useS3SecretType } = options;
@@ -92,6 +95,9 @@ export function buildIcebergSecretQuery(options: IcebergSecretOptions): string {
 
 /**
  * Builds a DROP SECRET IF EXISTS statement.
+ *
+ * @param secretName - The DuckDB secret name to drop.
+ * @returns A DuckDB DROP SECRET IF EXISTS SQL string.
  */
 export function buildDropSecretQuery(secretName: string): string {
   const escapedName = toDuckDBIdentifier(secretName);
@@ -115,6 +121,9 @@ interface IcebergAttachOptions {
  * ENDPOINT and ENDPOINT_TYPE are mutually exclusive:
  * - Use ENDPOINT for generic REST catalog URLs
  * - Use ENDPOINT_TYPE for managed services (GLUE, S3_TABLES)
+ *
+ * @param options - Attach configuration including warehouse, alias, endpoint, and secret.
+ * @returns A DuckDB ATTACH SQL string with TYPE ICEBERG.
  */
 export function buildIcebergAttachQuery(options: IcebergAttachOptions): string {
   const { warehouseName, catalogAlias, endpoint, endpointType, secretName, useCorsProxy } = options;

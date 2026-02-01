@@ -3,20 +3,18 @@ import { persistPutDataSources } from '@controllers/data-source/persist';
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { IcebergAuthType, IcebergCatalog } from '@models/data-source';
-import { makeSecretId, putSecret } from '@services/secret-store';
+import { deleteSecret, makeSecretId, putSecret } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
-import { executeWithRetry } from '@utils/connection-manager';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
-import { buildIcebergSecretPayload, isManagedIcebergEndpoint } from '@utils/iceberg-catalog';
 import {
-  buildIcebergSecretQuery,
-  buildDropSecretQuery,
-  buildIcebergAttachQuery,
-} from '@utils/iceberg-sql-builder';
+  attachAndVerifyIcebergCatalog,
+  buildIcebergSecretPayload,
+  isManagedIcebergEndpoint,
+} from '@utils/iceberg-catalog';
+import { buildDropSecretQuery } from '@utils/iceberg-sql-builder';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
-import { escapeSqlStringValue } from '@utils/sql-security';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 export interface IcebergConnectionParams {
   catalogAlias: string;
@@ -46,14 +44,24 @@ export function useIcebergConnection(pool: AsyncDuckDBConnectionPool | null) {
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
+  // Synchronous refs guard against double-click races. React state updates
+  // are batched asynchronously, so two rapid clicks could both see
+  // isLoading/isTesting as false. The refs are updated immediately.
+  const testingRef = useRef(false);
+  const loadingRef = useRef(false);
+
   const testConnection = useCallback(
     async (params: IcebergConnectionParams): Promise<boolean> => {
-      if (!pool || isTesting || isLoading) return false;
+      if (!pool || testingRef.current || loadingRef.current) return false;
+      testingRef.current = true;
 
       setIsTesting(true);
 
+      // Defer the state reset via microtask to avoid React state updates
+      // during the same render cycle that triggered the async callback.
       const finishTesting = async () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
+        testingRef.current = false;
         setIsTesting(false);
       };
 
@@ -62,40 +70,30 @@ export function useIcebergConnection(pool: AsyncDuckDBConnectionPool | null) {
       const secretName = generateSecretName(alias);
 
       try {
-        // Create secret
-        const secretQuery = buildIcebergSecretQuery({
+        // Use shared attach-and-verify with short settle delay for testing
+        await attachAndVerifyIcebergCatalog({
+          pool,
           secretName,
-          authType: params.authType,
-          useS3SecretType: isManagedEndpoint,
-          clientId: params.clientId.trim(),
-          clientSecret: params.clientSecret.trim(),
-          oauth2ServerUri: params.oauth2ServerUri.trim() || undefined,
-          token: params.token.trim(),
-          awsKeyId: params.awsKeyId.trim() || undefined,
-          awsSecret: params.awsSecret.trim() || undefined,
-          defaultRegion: params.defaultRegion.trim() || undefined,
-        });
-        await pool.query(secretQuery);
-
-        // Attach
-        const attachQuery = buildIcebergAttachQuery({
-          warehouseName: params.warehouseName.trim(),
           catalogAlias: alias,
+          warehouseName: params.warehouseName.trim(),
+          credentials: {
+            authType: params.authType,
+            clientId: params.clientId.trim() || undefined,
+            clientSecret: params.clientSecret.trim() || undefined,
+            oauth2ServerUri: params.oauth2ServerUri.trim() || undefined,
+            token: params.token.trim() || undefined,
+            awsKeyId: params.awsKeyId.trim() || undefined,
+            awsSecret: params.awsSecret.trim() || undefined,
+            defaultRegion: params.defaultRegion.trim() || undefined,
+          },
           endpoint: isManagedEndpoint ? undefined : params.endpoint.trim(),
           endpointType: isManagedEndpoint
             ? (params.endpointType as 'GLUE' | 'S3_TABLES')
             : undefined,
-          secretName,
           useCorsProxy: params.useCorsProxy,
+          settleDelayMs: 0,
+          maxVerifyAttempts: 1,
         });
-        await executeWithRetry(pool, attachQuery, {
-          maxRetries: 1,
-          timeout: 15000,
-        });
-
-        // Verify
-        const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(alias)}'`;
-        await pool.query(checkQuery);
 
         // Clean up test resources
         const detachQuery = `DETACH DATABASE ${toDuckDBIdentifier(alias)}`;
@@ -129,21 +127,24 @@ export function useIcebergConnection(pool: AsyncDuckDBConnectionPool | null) {
         return false;
       }
     },
-    [pool, isTesting, isLoading],
+    [pool],
   );
 
   const addCatalog = useCallback(
     async (params: IcebergConnectionParams, onClose: () => void): Promise<boolean> => {
-      if (!pool || isLoading || isTesting) return false;
+      if (!pool || loadingRef.current || testingRef.current) return false;
+      loadingRef.current = true;
 
       setIsLoading(true);
       const isManagedEndpoint = isManagedIcebergEndpoint(params.endpointType);
       const alias = params.catalogAlias.trim();
       const secretName = generateSecretName(alias);
+      const secretRefId = makeSecretId();
+      const { _iDbConn: iDbConn } = useAppStore.getState();
+      let secretPersisted = false;
 
       try {
         // Store credentials in the encrypted secret store
-        const secretRefId = makeSecretId();
         const credentials = {
           authType: params.authType,
           clientId: params.clientId.trim() || undefined,
@@ -155,10 +156,10 @@ export function useIcebergConnection(pool: AsyncDuckDBConnectionPool | null) {
           defaultRegion: params.defaultRegion.trim() || undefined,
         };
 
-        const { _iDbConn } = useAppStore.getState();
-        if (_iDbConn) {
+        if (iDbConn) {
           const payload = buildIcebergSecretPayload(`Iceberg: ${alias}`, credentials);
-          await putSecret(_iDbConn, secretRefId, payload);
+          await putSecret(iDbConn, secretRefId, payload);
+          secretPersisted = true;
         }
 
         const catalog: IcebergCatalog = {
@@ -184,62 +185,27 @@ export function useIcebergConnection(pool: AsyncDuckDBConnectionPool | null) {
         const newDataSources = new Map(dataSources);
         newDataSources.set(catalog.id, catalog);
 
-        // Create secret
-        const secretQuery = buildIcebergSecretQuery({
+        // Attach and verify using shared utility
+        await attachAndVerifyIcebergCatalog({
+          pool,
           secretName,
-          authType: params.authType,
-          useS3SecretType: isManagedEndpoint,
-          clientId: params.clientId.trim(),
-          clientSecret: params.clientSecret.trim(),
-          oauth2ServerUri: params.oauth2ServerUri.trim() || undefined,
-          token: params.token.trim(),
-          awsKeyId: params.awsKeyId.trim() || undefined,
-          awsSecret: params.awsSecret.trim() || undefined,
-          defaultRegion: params.defaultRegion.trim() || undefined,
-        });
-        await pool.query(secretQuery);
-
-        // Attach
-        const attachQuery = buildIcebergAttachQuery({
-          warehouseName: catalog.warehouseName,
           catalogAlias: alias,
+          warehouseName: catalog.warehouseName,
+          credentials: {
+            authType: params.authType,
+            clientId: params.clientId.trim() || undefined,
+            clientSecret: params.clientSecret.trim() || undefined,
+            oauth2ServerUri: params.oauth2ServerUri.trim() || undefined,
+            token: params.token.trim() || undefined,
+            awsKeyId: params.awsKeyId.trim() || undefined,
+            awsSecret: params.awsSecret.trim() || undefined,
+            defaultRegion: params.defaultRegion.trim() || undefined,
+          },
           endpoint: isManagedEndpoint ? undefined : catalog.endpoint,
           endpointType: catalog.endpointType,
-          secretName,
           useCorsProxy: params.useCorsProxy,
+          maxVerifyAttempts: 3,
         });
-        await executeWithRetry(pool, attachQuery, {
-          maxRetries: 3,
-          timeout: 30000,
-          retryDelay: 2000,
-          exponentialBackoff: true,
-        });
-
-        // Verify
-        const checkQuery = `SELECT database_name FROM duckdb_databases WHERE database_name = '${escapeSqlStringValue(alias)}'`;
-        let dbFound = false;
-        let attempts = 0;
-        const maxAttempts = 3;
-
-        while (!dbFound && attempts < maxAttempts) {
-          try {
-            const result = await pool.query(checkQuery);
-            if (result && result.numRows > 0) {
-              dbFound = true;
-            } else {
-              throw new Error('Catalog not found in duckdb_databases');
-            }
-          } catch (error) {
-            attempts += 1;
-            if (attempts >= maxAttempts) {
-              throw new Error(
-                `Catalog ${alias} could not be verified after ${maxAttempts} attempts`,
-              );
-            }
-            console.warn(`Attempt ${attempts}: Catalog not ready yet, waiting...`);
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
-        }
 
         catalog.connectionState = 'connected';
         newDataSources.set(catalog.id, catalog);
@@ -264,9 +230,9 @@ export function useIcebergConnection(pool: AsyncDuckDBConnectionPool | null) {
           );
         }
 
-        const { _iDbConn: iDbConn } = useAppStore.getState();
-        if (iDbConn) {
-          await persistPutDataSources(iDbConn, [catalog]);
+        const { _iDbConn: currentIDbConn } = useAppStore.getState();
+        if (currentIDbConn) {
+          await persistPutDataSources(currentIDbConn, [catalog]);
         }
 
         showSuccess({
@@ -291,12 +257,21 @@ export function useIcebergConnection(pool: AsyncDuckDBConnectionPool | null) {
           // Ignore cleanup errors
         }
 
+        if (secretPersisted && iDbConn) {
+          try {
+            await deleteSecret(iDbConn, secretRefId);
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
+
         return false;
       } finally {
+        loadingRef.current = false;
         setIsLoading(false);
       }
     },
-    [pool, isLoading, isTesting],
+    [pool],
   );
 
   return { isLoading, isTesting, testConnection, addCatalog };

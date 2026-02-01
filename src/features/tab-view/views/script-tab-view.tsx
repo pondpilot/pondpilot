@@ -387,10 +387,14 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             updatedMetadata.set(dbName, dbModel);
           }
 
+          // Process CREATE SECRET statements so ATTACH can reference them.
+          let secretMapping: Awaited<ReturnType<typeof handleCreateSecretStatements>> | undefined;
+          if (hasCreateSecret) {
+            secretMapping = await handleCreateSecretStatements(classifiedStatements);
+          }
+
           // Handle newly attached remote databases / Iceberg catalogs and detached databases
           if (hasAttachDetach) {
-            // Process CREATE SECRET statements first so ATTACH can reference them
-            const secretMapping = await handleCreateSecretStatements(classifiedStatements);
             const handlerContext = { dataSources, updatedDataSources, updatedMetadata };
             await handleAttachStatements(classifiedStatements, handlerContext, secretMapping);
             await handleDetachStatements(classifiedStatements, handlerContext);
@@ -405,7 +409,9 @@ export const ScriptTabView = memo(({ tabId, active }: ScriptTabViewProps) => {
             'AppStore/runScript/refreshMetadata',
           );
         } else if (hasCreateSecret) {
-          // Standalone CREATE SECRET without ATTACH/DETACH — persist to encrypted store
+          // Standalone CREATE SECRET without ATTACH/DETACH — DuckDB manages
+          // these in-memory. We parse them but don't persist to the encrypted
+          // store since there's no associated data source for lifecycle cleanup.
           await handleCreateSecretStatements(classifiedStatements);
         }
       } finally {

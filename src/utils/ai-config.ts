@@ -19,13 +19,34 @@ export const AI_API_KEYS_SECRET_ID = 'ai-api-keys' as SecretId;
 // before any sync callers of `getAIConfig()` run.
 let cachedApiKeys: Record<string, string> | null = null;
 
+/** Guards against concurrent or repeated initialization. */
+let initPromise: Promise<void> | null = null;
+
 /**
  * Initialize the AI config cache from the encrypted secret store.
  * Must be called during app startup before any `getAIConfig()` calls.
  * Falls back to cookie-based keys if the secret store has no entry yet
  * (first run or migration).
+ *
+ * Concurrent calls are coalesced — only the first call performs the
+ * actual work; subsequent calls await the same promise.
  */
 export async function initAIConfigFromSecretStore(
+  iDb: import('idb').IDBPDatabase<import('@models/persisted-store').AppIdbSchema>,
+): Promise<void> {
+  if (initPromise) return initPromise;
+
+  initPromise = doInitAIConfig(iDb);
+  try {
+    await initPromise;
+  } finally {
+    // Clear after completion so the guard only coalesces concurrent calls,
+    // not sequential ones (e.g. across test runs or app restarts).
+    initPromise = null;
+  }
+}
+
+async function doInitAIConfig(
   iDb: import('idb').IDBPDatabase<import('@models/persisted-store').AppIdbSchema>,
 ): Promise<void> {
   try {

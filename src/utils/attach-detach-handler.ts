@@ -13,7 +13,7 @@ import {
   AnyDataSource,
   PersistentDataSourceId,
 } from '@models/data-source';
-import { makeSecretId, putSecret, deleteSecret } from '@services/secret-store';
+import { makeSecretId, putSecret } from '@services/secret-store';
 import type { SecretId } from '@services/secret-store';
 import { useAppStore } from '@store/app-store';
 import {
@@ -38,18 +38,26 @@ export interface SecretMappingEntry {
   secretRef: SecretId;
   secretType: string;
   authType: IcebergCatalog['authType'];
+  /** Credential data, held in memory until persisted by persistSecretMappingEntries. */
+  data?: Record<string, string>;
 }
 
 /**
- * Process CREATE SECRET statements, persisting credentials into the encrypted
- * secret store. Returns a mapping from DuckDB secret name to SecretMappingEntry
- * so the attach handler can look up auth type without re-parsing.
+ * Process CREATE SECRET statements, building a mapping from DuckDB secret name
+ * to SecretMappingEntry so the attach handler can look up auth type without
+ * re-parsing.
+ *
+ * Secrets are NOT persisted to the encrypted store at this stage — they are
+ * only persisted when actually consumed by an ATTACH statement in the same
+ * batch. This avoids accumulating orphaned secrets that have no associated
+ * data source and no UI path for cleanup.
+ *
+ * @see persistSecretMappingEntries for the persistence step.
  */
 export async function handleCreateSecretStatements(
   statements: ClassifiedSQLStatement[],
 ): Promise<Map<string, SecretMappingEntry>> {
   const secretMapping = new Map<string, SecretMappingEntry>();
-  const { _iDbConn } = useAppStore.getState();
 
   for (const statement of statements) {
     if (statement.type !== SQLStatement.CREATE) continue;
@@ -73,28 +81,35 @@ export async function handleCreateSecretStatements(
     if (options.REGION) data.defaultRegion = options.REGION;
     if (options.OAUTH2_SERVER_URI) data.oauth2ServerUri = options.OAUTH2_SERVER_URI;
 
-    // Persist to the encrypted store when the app-data DB is available.
-    // The in-memory mapping is always populated so in-batch inference
-    // (ATTACH after CREATE SECRET in the same script) works regardless.
-    if (_iDbConn) {
-      await putSecret(_iDbConn, id, {
-        label: `SQL Secret: ${parsed.secretName}`,
-        data,
-      });
-    } else {
-      console.warn(
-        `Secret "${parsed.secretName}" parsed but not persisted: app-data DB unavailable.`,
-      );
-    }
-
     secretMapping.set(parsed.secretName, {
       secretRef: id,
       secretType: parsed.secretType,
       authType,
+      data,
     });
   }
 
   return secretMapping;
+}
+
+/**
+ * Persist a subset of secret mapping entries to the encrypted store.
+ * Called after ATTACH processing to persist only secrets that are
+ * actually referenced by a data source.
+ */
+export async function persistSecretMappingEntries(
+  entries: { secretName: string; entry: SecretMappingEntry }[],
+): Promise<void> {
+  const { _iDbConn } = useAppStore.getState();
+  if (!_iDbConn || entries.length === 0) return;
+
+  for (const { secretName, entry } of entries) {
+    if (!entry.data) continue;
+    await putSecret(_iDbConn, entry.secretRef, {
+      label: `SQL Secret: ${secretName}`,
+      data: entry.data,
+    });
+  }
 }
 
 /**
@@ -166,9 +181,15 @@ export async function handleAttachStatements(
     const icebergParsed = parseIcebergAttachStatement(statement.code);
     if (icebergParsed) {
       // Check if this catalog is already registered by alias
-      const existingCatalog = Array.from(context.dataSources.values()).find(
-        (ds) => ds.type === 'iceberg-catalog' && ds.catalogAlias === icebergParsed.catalogAlias,
-      );
+      // Search both the original and in-batch-updated maps to handle
+      // multiple ATTACHes with the same alias in a single script batch.
+      const existingCatalog =
+        Array.from(context.updatedDataSources.values()).find(
+          (ds) => ds.type === 'iceberg-catalog' && ds.catalogAlias === icebergParsed.catalogAlias,
+        ) ??
+        Array.from(context.dataSources.values()).find(
+          (ds) => ds.type === 'iceberg-catalog' && ds.catalogAlias === icebergParsed.catalogAlias,
+        );
 
       if (!existingCatalog) {
         // Resolve the secret reference and auth type from the mapping
@@ -176,12 +197,15 @@ export async function handleAttachStatements(
         let secretRef: SecretId | undefined;
         let authType: IcebergCatalog['authType'] = 'none';
 
+        let matchedEntry: SecretMappingEntry | undefined;
+
         if (resolvedSecretName) {
           // Explicit SECRET in ATTACH
           const entry = secretMapping?.get(resolvedSecretName);
           if (entry) {
             secretRef = entry.secretRef;
             authType = entry.authType;
+            matchedEntry = entry;
           }
         } else if (secretMapping && secretMapping.size > 0) {
           // No explicit SECRET — try to infer from batch
@@ -190,7 +214,16 @@ export async function handleAttachStatements(
             resolvedSecretName = match.secretName;
             secretRef = match.entry.secretRef;
             authType = match.entry.authType;
+            matchedEntry = match.entry;
           }
+        }
+
+        // Persist the secret to the encrypted store now that it's consumed
+        // by an actual ATTACH (avoids orphaned secrets from standalone CREATE SECRET).
+        if (matchedEntry && resolvedSecretName) {
+          await persistSecretMappingEntries([
+            { secretName: resolvedSecretName, entry: matchedEntry },
+          ]);
         }
 
         const catalog: IcebergCatalog = {
@@ -224,11 +257,18 @@ export async function handleAttachStatements(
       const { url, isRemote } = normalizeRemoteUrl(rawUrl);
 
       if (isRemote) {
-        const existingDb = Array.from(context.dataSources.values()).find(
-          (ds) =>
-            (ds.type === 'remote-db' && ds.dbName === dbName) ||
-            (ds.type === 'attached-db' && ds.dbName === dbName),
-        );
+        // Search both original and in-batch-updated maps (same reason as Iceberg above)
+        const existingDb =
+          Array.from(context.updatedDataSources.values()).find(
+            (ds) =>
+              (ds.type === 'remote-db' && ds.dbName === dbName) ||
+              (ds.type === 'attached-db' && ds.dbName === dbName),
+          ) ??
+          Array.from(context.dataSources.values()).find(
+            (ds) =>
+              (ds.type === 'remote-db' && ds.dbName === dbName) ||
+              (ds.type === 'attached-db' && ds.dbName === dbName),
+          );
 
         if (!existingDb) {
           const remoteDb: RemoteDB = {
@@ -286,14 +326,10 @@ export async function handleDetachStatements(
 
       const { _iDbConn } = useAppStore.getState();
       if (_iDbConn) {
-        // Clean up the encrypted secret if this was an Iceberg catalog with a secretRef
-        if (ds.type === 'iceberg-catalog' && ds.secretRef) {
-          try {
-            await deleteSecret(_iDbConn, ds.secretRef);
-          } catch (cleanupError) {
-            console.warn('Failed to delete encrypted secret during detach:', cleanupError);
-          }
-        }
+        // Encrypted secrets are intentionally NOT deleted on DETACH.
+        // DETACH only affects the current DuckDB session; credentials
+        // remain in the secret store so the user can re-attach later.
+        // Secrets are only deleted through the explicit UI delete path.
         await persistDeleteDataSource(_iDbConn, [dbId], []);
       }
     }

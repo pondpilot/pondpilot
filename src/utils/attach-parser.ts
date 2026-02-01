@@ -155,7 +155,8 @@ export function parseIcebergAttachStatement(
   const endpointType =
     extractQuotedOption(optionsBlock, 'ENDPOINT_TYPE') ??
     extractUnquotedOption(optionsBlock, 'ENDPOINT_TYPE');
-  const secretName = extractUnquotedOption(optionsBlock, 'SECRET');
+  const secretName =
+    extractQuotedOption(optionsBlock, 'SECRET') ?? extractUnquotedOption(optionsBlock, 'SECRET');
 
   return {
     warehouseName,
