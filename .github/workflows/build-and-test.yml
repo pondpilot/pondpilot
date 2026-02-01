@@ -102,6 +102,8 @@ jobs:
         run: yarn build --mode int-test-build
         env:
           VITE_BUG_REPORT_PROXY_URL: ${{ vars.VITE_BUG_REPORT_PROXY_URL }}
+          VITE_DUCKDB_ALLOW_UNSIGNED_EXTENSIONS: 'true'
+          VITE_READ_STAT_EXTENSION_URL: /duckdb-extensions/read_stat/read_stat.duckdb_extension.wasm
 
       - name: Run Playwright tests
         run: |
