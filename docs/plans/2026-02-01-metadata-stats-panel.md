@@ -74,15 +74,15 @@ Create the left panel component showing a table where each row represents a colu
 
 Create the right panel with horizontally scrollable cards, one per dataset column. Text column cards show top values as labeled items with counts. Numeric/date column cards show a larger horizontal bar histogram with axis labels. Each card header shows the column type icon, name, and count of distinct values.
 
-- [ ] Create `src/features/metadata-view/components/column-detail-panel.tsx`
-- [ ] Create `src/features/metadata-view/components/column-card.tsx` (individual card component)
-- [ ] Implement horizontal scroll container with fixed-width cards
-- [ ] Card header: type icon, column name, distinct value count
-- [ ] Text column card body: list of top values with their occurrence counts (styled as tags/pills)
-- [ ] Numeric column card body: horizontal bar histogram using inline SVG with axis labels (min/max on axis)
-- [ ] Date column card body: horizontal bar histogram bucketed by time intervals
-- [ ] Handle loading state per card (skeleton while distribution is loading)
-- [ ] Ensure horizontal scroll works smoothly (consider scroll snap for better UX)
+- [x] Create `src/features/metadata-view/components/column-detail-panel.tsx`
+- [x] Create `src/features/metadata-view/components/column-card.tsx` (individual card component)
+- [x] Implement horizontal scroll container with fixed-width cards
+- [x] Card header: type icon, column name, distinct value count
+- [x] Text column card body: list of top values with their occurrence counts (styled as tags/pills)
+- [x] Numeric column card body: horizontal bar histogram using inline SVG with axis labels (min/max on axis)
+- [x] Date column card body: horizontal bar histogram bucketed by time intervals
+- [x] Handle loading state per card (skeleton while distribution is loading)
+- [x] Ensure horizontal scroll works smoothly (consider scroll snap for better UX)
 
 ### Task 6: Integration, polish, and tests
 
