@@ -316,6 +316,17 @@ export interface DataAdapterApi {
   ) => Promise<ColumnDistribution | undefined>;
 
   /**
+   * Retrieves distribution data for all columns in a single batch query.
+   *
+   * @param columns - Columns with their types to compute distributions for
+   * @throws CancelledOperation if the operation was cancelled
+   * @returns Map of column name to distribution data, or undefined if not supported
+   */
+  getAllColumnDistributions: (
+    columns: Array<{ name: string; type: MetadataColumnType }>,
+  ) => Promise<Map<string, ColumnDistribution> | undefined>;
+
+  /**
    * The SQL source query that produces this adapter's data.
    * Used by formats like Parquet that leverage DuckDB's native COPY TO.
    * May be null if the source query is not available.
@@ -418,6 +429,14 @@ export interface DataAdapterQueries {
     columnType: MetadataColumnType,
     abortSignal: AbortSignal,
   ) => Promise<{ value: ColumnDistribution; aborted: boolean }>;
+
+  /**
+   * Returns distribution data for all columns in a single batch query.
+   */
+  getAllColumnDistributions?: (
+    columns: Array<{ name: string; type: MetadataColumnType }>,
+    abortSignal: AbortSignal,
+  ) => Promise<{ value: Map<string, ColumnDistribution>; aborted: boolean }>;
 
   /**
    * Returns aggregated data for chart visualization.

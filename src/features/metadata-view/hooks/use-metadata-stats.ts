@@ -69,8 +69,14 @@ export function useMetadataStats(
   const [isSupported, setIsSupported] = useState(true);
 
   // Destructure stable function references
-  const { getColumnStats, getColumnDistribution, currentSchema, isStale, dataSourceVersion } =
-    dataAdapter;
+  const {
+    getColumnStats,
+    getColumnDistribution,
+    getAllColumnDistributions,
+    currentSchema,
+    isStale,
+    dataSourceVersion,
+  } = dataAdapter;
   const hasData = currentSchema.length > 0 && !isStale;
 
   // Cache keyed on dataSourceVersion
@@ -109,6 +115,7 @@ export function useMetadataStats(
     const controller = new AbortController();
     abortRef.current = controller;
 
+    setIsSupported(true);
     setIsLoading(true);
     setErrors(new Map());
     setColumnStats(new Map());
@@ -135,6 +142,9 @@ export function useMetadataStats(
         statsMap.set(stat.columnName, stat);
       }
       setColumnStats(statsMap);
+      // Stats are ready — show the summary panel immediately.
+      // Per-column distribution loading is tracked by loadingDistributions.
+      setIsLoading(false);
     } catch (err) {
       if (controller.signal.aborted) return;
       if (err instanceof CancelledOperation && err.isSystemCancelled) {
@@ -148,9 +158,7 @@ export function useMetadataStats(
       return;
     }
 
-    // Fetch distributions for each column sequentially. The data adapter's
-    // getColumnDistribution calls abortUserTasks() which uses a shared abort
-    // controller, so parallel calls would cancel each other.
+    // Fetch distributions for all columns
     const distributionColumns = currentSchema.map((col) => ({
       name: col.name,
       type: classifyColumnType(col),
@@ -158,46 +166,75 @@ export function useMetadataStats(
 
     setLoadingDistributions(new Set(distributionColumns.map((c) => c.name)));
 
-    const newErrors = new Map<string, string>();
     let completedDistributions = new Map<string, ColumnDistribution>();
+    let useBatch = !!getAllColumnDistributions;
 
-    for (const col of distributionColumns) {
-      if (controller.signal.aborted) break;
-
+    // Try batch first; on failure (e.g. OOM) fall back to sequential
+    if (useBatch) {
       try {
-        const result = await getColumnDistribution(col.name, col.type);
+        const batchResult = await getAllColumnDistributions(distributionColumns);
 
-        if (controller.signal.aborted) break;
+        if (controller.signal.aborted) return;
 
-        if (result !== undefined) {
-          completedDistributions = new Map([...completedDistributions, [col.name, result]]);
+        if (batchResult !== undefined) {
+          completedDistributions = batchResult;
           setColumnDistributions(completedDistributions);
         }
       } catch (err) {
-        if (controller.signal.aborted) break;
-        if (err instanceof CancelledOperation && err.isSystemCancelled) break;
-
-        newErrors.set(col.name, err instanceof Error ? err.message : 'Failed to load distribution');
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoadingDistributions((prev) => {
-            const next = new Set(prev);
-            next.delete(col.name);
-            return next;
-          });
+        if (controller.signal.aborted) return;
+        if (err instanceof CancelledOperation && err.isSystemCancelled) {
+          setLoadingDistributions(new Set());
+          return;
         }
+        // Batch failed (likely OOM), fall back to sequential
+        useBatch = false;
+      }
+    }
+
+    if (!useBatch) {
+      // Sequential fallback: one query per column
+      const newErrors = new Map<string, string>();
+
+      for (const col of distributionColumns) {
+        if (controller.signal.aborted) break;
+
+        try {
+          const result = await getColumnDistribution(col.name, col.type);
+
+          if (controller.signal.aborted) break;
+
+          if (result !== undefined) {
+            completedDistributions = new Map([...completedDistributions, [col.name, result]]);
+            setColumnDistributions(completedDistributions);
+          }
+        } catch (err) {
+          if (controller.signal.aborted) break;
+          if (err instanceof CancelledOperation && err.isSystemCancelled) {
+            break;
+          }
+          newErrors.set(
+            col.name,
+            err instanceof Error ? err.message : 'Failed to load distribution',
+          );
+        } finally {
+          if (!controller.signal.aborted) {
+            setLoadingDistributions((prev) => {
+              const next = new Set(prev);
+              next.delete(col.name);
+              return next;
+            });
+          }
+        }
+      }
+
+      if (newErrors.size > 0) {
+        setErrors((prev) => new Map([...prev, ...newErrors]));
       }
     }
 
     if (controller.signal.aborted) return;
 
-    // Clear any remaining loading indicators when loop ends
     setLoadingDistributions(new Set());
-
-    if (newErrors.size > 0) {
-      setErrors((prev) => new Map([...prev, ...newErrors]));
-    }
-    setIsLoading(false);
 
     // Update cache with the fetched data
     cache.current = {
@@ -205,7 +242,15 @@ export function useMetadataStats(
       stats: statsMap,
       distributions: completedDistributions,
     };
-  }, [enabled, hasData, currentSchema, dataSourceVersion, getColumnStats, getColumnDistribution]);
+  }, [
+    enabled,
+    hasData,
+    currentSchema,
+    dataSourceVersion,
+    getColumnStats,
+    getColumnDistribution,
+    getAllColumnDistributions,
+  ]);
 
   // Trigger fetch when dependencies change
   useEffect(() => {

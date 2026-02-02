@@ -1111,6 +1111,31 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     [queries, abortUserTasks, getUserTasksAbortSignal],
   );
 
+  const getAllColumnDistributions = useCallback(
+    async (
+      columns: Array<{ name: string; type: MetadataColumnType }>,
+    ): Promise<Map<string, ColumnDistribution> | undefined> => {
+      if (!queries.getAllColumnDistributions) {
+        return Promise.resolve(undefined);
+      }
+
+      abortUserTasks();
+      const signal = getUserTasksAbortSignal();
+
+      const { value, aborted } = await queries.getAllColumnDistributions(columns, signal);
+
+      if (aborted) {
+        throw new CancelledOperation({
+          isUser: false,
+          reason: 'Operation cancelled as it was replaced by a newer batch distribution request',
+        });
+      }
+
+      return value;
+    },
+    [queries, abortUserTasks, getUserTasksAbortSignal],
+  );
+
   const cancelDataRead = useCallback(() => {
     // this will ensure that fetching doesn't resume
     fetchTo.current = actualData.current.length;
@@ -1174,6 +1199,7 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
     getChartAggregatedData,
     getColumnStats,
     getColumnDistribution,
+    getAllColumnDistributions,
     cancelDataRead,
     ackDataReadCancelled,
   };

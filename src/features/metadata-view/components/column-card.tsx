@@ -104,7 +104,13 @@ function TextDistribution({ values }: { values: { value: string; count: number }
  * Count labels sit to the left; bars extend right from the label.
  * The count IS the label — no separate count column needed.
  */
-function BarHistogram({ buckets }: { buckets: { label: string; count: number }[] }) {
+function BarHistogram({
+  buckets,
+  formatLabels = true,
+}: {
+  buckets: { label: string; count: number }[];
+  formatLabels?: boolean;
+}) {
   if (buckets.length === 0) {
     return (
       <Text size="xs" c="text-tertiary">
@@ -126,7 +132,7 @@ function BarHistogram({ buckets }: { buckets: { label: string; count: number }[]
     <Stack gap={2}>
       {buckets.map((bucket, i) => {
         const ratio = bucket.count / maxCount;
-        const formattedLabel = formatBucketLabel(bucket.label);
+        const formattedLabel = formatLabels ? formatBucketLabel(bucket.label) : bucket.label;
 
         return (
           <Tooltip
@@ -208,7 +214,9 @@ function CardBody({
   }
 
   if (distribution.type !== 'text') {
-    return <BarHistogram buckets={distribution.buckets} />;
+    return (
+      <BarHistogram buckets={distribution.buckets} formatLabels={distribution.type === 'numeric'} />
+    );
   }
 
   return null;

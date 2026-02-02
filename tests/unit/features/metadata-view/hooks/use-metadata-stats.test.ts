@@ -17,6 +17,10 @@ type StatsFn = (columnNames: string[]) => Promise<ColumnStats[] | undefined>;
 
 type DistFn = (name: string, type: any) => Promise<ColumnDistribution | undefined>;
 
+type BatchDistFn = (
+  columns: Array<{ name: string; type: any }>,
+) => Promise<Map<string, ColumnDistribution> | undefined>;
+
 jest.mock('react', () => ({
   useState: jest.fn((initialValue: unknown) => {
     const key = `state_${Object.keys(mockState).length}`;
@@ -74,6 +78,7 @@ function createMockAdapter(overrides: Partial<DataAdapterApi> = {}): DataAdapter
   return {
     getColumnStats: jest.fn<StatsFn>().mockResolvedValue([]),
     getColumnDistribution: jest.fn<DistFn>().mockResolvedValue(undefined),
+    getAllColumnDistributions: jest.fn<BatchDistFn>().mockResolvedValue(undefined),
     currentSchema: [],
     isStale: false,
     dataSourceVersion: 1,
@@ -219,16 +224,23 @@ describe('useMetadataStats', () => {
       },
     ];
 
+    const batchDistributions = new Map<string, ColumnDistribution>([
+      [
+        'amount',
+        {
+          type: 'numeric',
+          buckets: [
+            { label: '0-50', count: 40 },
+            { label: '50-100', count: 55 },
+          ],
+        },
+      ],
+    ]);
+
     const adapter = createMockAdapter({
       currentSchema: [createMockColumn('amount', 'integer')],
       getColumnStats: jest.fn<StatsFn>().mockResolvedValue(mockStats),
-      getColumnDistribution: jest.fn<DistFn>().mockResolvedValue({
-        type: 'numeric',
-        buckets: [
-          { label: '0-50', count: 40 },
-          { label: '50-100', count: 55 },
-        ],
-      }),
+      getAllColumnDistributions: jest.fn<BatchDistFn>().mockResolvedValue(batchDistributions),
     });
 
     useMetadataStats(adapter);
@@ -236,7 +248,9 @@ describe('useMetadataStats', () => {
     await flushPromises();
 
     expect(adapter.getColumnStats).toHaveBeenCalledWith(['amount']);
-    expect(adapter.getColumnDistribution).toHaveBeenCalledWith('amount', 'numeric');
+    expect(adapter.getAllColumnDistributions).toHaveBeenCalledWith([
+      { name: 'amount', type: 'numeric' },
+    ]);
   });
 
   it('should handle unsupported data sources', async () => {
@@ -287,7 +301,7 @@ describe('useMetadataStats', () => {
     expect(errorsMap.get('__stats__')).toBe('Query failed');
   });
 
-  it('should handle per-column distribution errors', async () => {
+  it('should fall back to sequential when batch distributions fail', async () => {
     const adapter = createMockAdapter({
       currentSchema: [createMockColumn('good', 'integer'), createMockColumn('bad', 'string')],
       getColumnStats: jest.fn<StatsFn>().mockResolvedValue([
@@ -310,14 +324,13 @@ describe('useMetadataStats', () => {
           mean: null,
         },
       ]),
-      getColumnDistribution: jest.fn<DistFn>().mockImplementation(async (name: string) => {
-        if (name === 'bad') {
-          throw new Error('Distribution failed');
-        }
-        return {
-          type: 'numeric',
-          buckets: [{ label: '1-10', count: 10 }],
-        };
+      // Batch fails (e.g. OOM), should fall back to sequential
+      getAllColumnDistributions: jest
+        .fn<BatchDistFn>()
+        .mockRejectedValue(new Error('Out of Memory Error')),
+      getColumnDistribution: jest.fn<DistFn>().mockResolvedValue({
+        type: 'numeric',
+        buckets: [{ label: '1-10', count: 10 }],
       }),
     });
 
@@ -325,6 +338,9 @@ describe('useMetadataStats', () => {
     runEffects();
     await flushPromises();
 
+    // Batch was attempted first
+    expect(adapter.getAllColumnDistributions).toHaveBeenCalledTimes(1);
+    // Then fell back to sequential
     expect(adapter.getColumnDistribution).toHaveBeenCalledTimes(2);
   });
 
@@ -348,16 +364,18 @@ describe('useMetadataStats', () => {
           mean: null,
         })),
       ),
-      getColumnDistribution: jest.fn<DistFn>().mockResolvedValue(undefined),
+      getAllColumnDistributions: jest.fn<BatchDistFn>().mockResolvedValue(new Map()),
     });
 
     useMetadataStats(adapter);
     runEffects();
     await flushPromises();
 
-    expect(adapter.getColumnDistribution).toHaveBeenCalledWith('id', 'numeric');
-    expect(adapter.getColumnDistribution).toHaveBeenCalledWith('name', 'text');
-    expect(adapter.getColumnDistribution).toHaveBeenCalledWith('created', 'date');
+    expect(adapter.getAllColumnDistributions).toHaveBeenCalledWith([
+      { name: 'id', type: 'numeric' },
+      { name: 'name', type: 'text' },
+      { name: 'created', type: 'date' },
+    ]);
   });
 
   it('should invalidate cache when dataSourceVersion changes', () => {
@@ -372,5 +390,83 @@ describe('useMetadataStats', () => {
     // The fetchStats callback depends on dataSourceVersion via useCallback,
     // so a new version triggers a new fetchStats which skips stale cache.
     expect(effectCallbacks.length).toBeGreaterThan(0);
+  });
+
+  it('should use batch getAllColumnDistributions when available', async () => {
+    const mockStats: ColumnStats[] = [
+      {
+        columnName: 'price',
+        totalCount: 100,
+        distinctCount: 50,
+        nullCount: 0,
+        min: '1',
+        max: '100',
+        mean: '50',
+      },
+      {
+        columnName: 'name',
+        totalCount: 100,
+        distinctCount: 30,
+        nullCount: 2,
+        min: null,
+        max: null,
+        mean: null,
+      },
+    ];
+
+    const batchDistributions = new Map<string, ColumnDistribution>([
+      ['price', { type: 'numeric', buckets: [{ label: '0-50', count: 40 }] }],
+      ['name', { type: 'text', values: [{ value: 'Alice', count: 10 }] }],
+    ]);
+
+    const adapter = createMockAdapter({
+      currentSchema: [createMockColumn('price', 'integer'), createMockColumn('name', 'string')],
+      getColumnStats: jest.fn<StatsFn>().mockResolvedValue(mockStats),
+      getColumnDistribution: jest.fn<DistFn>().mockResolvedValue(undefined),
+      getAllColumnDistributions: jest.fn<BatchDistFn>().mockResolvedValue(batchDistributions),
+    });
+
+    useMetadataStats(adapter);
+    runEffects();
+    await flushPromises();
+
+    // Should use batch method
+    expect(adapter.getAllColumnDistributions).toHaveBeenCalledWith([
+      { name: 'price', type: 'numeric' },
+      { name: 'name', type: 'text' },
+    ]);
+    // Should NOT use sequential method
+    expect(adapter.getColumnDistribution).not.toHaveBeenCalled();
+  });
+
+  it('should fall back to sequential when getAllColumnDistributions is not available', async () => {
+    const mockStats: ColumnStats[] = [
+      {
+        columnName: 'amount',
+        totalCount: 100,
+        distinctCount: 50,
+        nullCount: 0,
+        min: '1',
+        max: '100',
+        mean: '50',
+      },
+    ];
+
+    const adapter = createMockAdapter({
+      currentSchema: [createMockColumn('amount', 'integer')],
+      getColumnStats: jest.fn<StatsFn>().mockResolvedValue(mockStats),
+      getColumnDistribution: jest.fn<DistFn>().mockResolvedValue({
+        type: 'numeric',
+        buckets: [{ label: '0-100', count: 100 }],
+      }),
+      // Not providing getAllColumnDistributions triggers fallback
+      getAllColumnDistributions: undefined as any,
+    });
+
+    useMetadataStats(adapter);
+    runEffects();
+    await flushPromises();
+
+    expect(adapter.getColumnDistribution).toHaveBeenCalledWith('amount', 'numeric');
   });
 });

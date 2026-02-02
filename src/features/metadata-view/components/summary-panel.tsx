@@ -47,38 +47,29 @@ export interface SummaryPanelProps {
 function PercentageBar({ stats }: { stats: ColumnStats }) {
   const percentage =
     stats.totalCount > 0 ? Math.round((stats.distinctCount / stats.totalCount) * 100) : 0;
-  const barWidth = Math.round((percentage / 100) * PERCENTAGE_BAR_WIDTH);
+  // Ensure minimum width so the percentage label is always readable on the filled bar
+  const barWidth = Math.max(30, Math.round((percentage / 100) * PERCENTAGE_BAR_WIDTH));
 
   return (
     <Group gap={8} wrap="nowrap">
-      <svg
-        width={PERCENTAGE_BAR_WIDTH}
-        height={8}
+      <div
+        className="relative"
+        style={{ width: PERCENTAGE_BAR_WIDTH, height: SPARKLINE_HEIGHT }}
         role="img"
         aria-label={`${percentage}% distinct values`}
       >
         {/* Background track */}
-        <rect
-          x={0}
-          y={0}
-          width={PERCENTAGE_BAR_WIDTH}
-          height={8}
-          rx={4}
-          className="fill-transparent008-light dark:fill-transparent008-dark"
-        />
+        <div className="absolute inset-0 rounded bg-transparent008-light dark:bg-transparent008-dark" />
         {/* Filled portion */}
-        <rect
-          x={0}
-          y={0}
-          width={barWidth}
-          height={8}
-          rx={4}
-          className="fill-iconAccent-light dark:fill-iconAccent-dark"
+        <div
+          className="absolute inset-y-0 left-0 rounded bg-iconAccent-light dark:bg-iconAccent-dark"
+          style={{ width: barWidth }}
         />
-      </svg>
-      <Text size="xs" c="text-tertiary" className="whitespace-nowrap tabular-nums">
-        {percentage}%
-      </Text>
+        {/* Percentage label overlaid on bar */}
+        <span className="absolute inset-y-0 left-1.5 flex items-center text-[11px] font-medium tabular-nums text-white">
+          {percentage}%
+        </span>
+      </div>
     </Group>
   );
 }
