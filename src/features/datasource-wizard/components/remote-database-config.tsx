@@ -9,13 +9,18 @@ import { RemoteDB } from '@models/data-source';
 import { useAppStore } from '@store/app-store';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { executeWithRetry } from '@utils/connection-manager';
+import {
+  getS3EndpointFromSession,
+  isValidS3Endpoint,
+  S3_ENDPOINT_VARIABLE,
+} from '@utils/cors-proxy-config';
 import { makePersistentDataSourceId } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { validateRemoteDatabaseUrl } from '@utils/remote-database';
 import { buildAttachQuery } from '@utils/sql-builder';
 import { escapeSqlStringValue } from '@utils/sql-security';
 import { setDataTestId } from '@utils/test-id';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 interface RemoteDatabaseConfigProps {
   pool: AsyncDuckDBConnectionPool | null;
@@ -28,8 +33,55 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
   const [dbName, setDbName] = useInputState('');
   const [readOnly, setReadOnly] = useState(true);
   const [useCorsProxy, setUseCorsProxy] = useState(true);
+  const [s3Endpoint, setS3Endpoint] = useInputState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [s3EndpointFromSession, setS3EndpointFromSession] = useState(false);
+  const [s3EndpointError, setS3EndpointError] = useState<string | null>(null);
+
+  // Check if URL is an S3 URL (trim to handle leading whitespace)
+  const isS3Url = url.trim().toLowerCase().startsWith('s3://');
+  const isS3EndpointApplicable = isS3Url && useCorsProxy;
+  const hasS3EndpointError = isS3EndpointApplicable && !!s3EndpointError;
+
+  // Memoize the effective S3 endpoint to avoid duplicate logic
+  const effectiveS3Endpoint = useMemo(
+    () => (isS3EndpointApplicable && s3Endpoint.trim() ? s3Endpoint.trim() : undefined),
+    [isS3EndpointApplicable, s3Endpoint],
+  );
+
+  // Query DuckDB for s3_endpoint variable when pool becomes available
+  useEffect(() => {
+    if (!pool) return;
+
+    let cancelled = false;
+
+    const loadS3Endpoint = async () => {
+      try {
+        const endpoint = await getS3EndpointFromSession((sql) => pool.query(sql));
+        if (!cancelled && endpoint) {
+          setS3Endpoint(endpoint);
+          setS3EndpointFromSession(true);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('[S3 Endpoint] Failed to load from session:', error);
+        }
+      }
+    };
+
+    loadS3Endpoint();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pool, setS3Endpoint]);
+
+  useEffect(() => {
+    if (!isS3EndpointApplicable && s3EndpointError) {
+      setS3EndpointError(null);
+    }
+  }, [isS3EndpointApplicable, s3EndpointError]);
 
   const handleTest = async () => {
     if (isTesting || isLoading) {
@@ -76,7 +128,11 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
     }
 
     try {
-      const attachQuery = buildAttachQuery(url, dbName, { readOnly, useCorsProxy });
+      const attachQuery = buildAttachQuery(url, dbName, {
+        readOnly,
+        useCorsProxy,
+        s3Endpoint: effectiveS3Endpoint,
+      });
       await executeWithRetry(pool, attachQuery, {
         maxRetries: 1,
         timeout: 10000,
@@ -137,6 +193,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         connectionState: 'connecting',
         attachedAt: Date.now(),
         useCorsProxy,
+        s3Endpoint: effectiveS3Endpoint,
       };
 
       const { dataSources, databaseMetadata } = useAppStore.getState();
@@ -146,6 +203,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
       const attachQuery = buildAttachQuery(remoteDb.url, remoteDb.dbName, {
         readOnly,
         useCorsProxy,
+        s3Endpoint: effectiveS3Endpoint,
       });
       await executeWithRetry(pool, attachQuery, {
         maxRetries: 3,
@@ -262,6 +320,44 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
           required
         />
 
+        {isS3EndpointApplicable && (
+          <Tooltip
+            label={`For non-AWS S3-compatible services (MinIO, DigitalOcean Spaces, etc.). You can also set this via: SET VARIABLE ${S3_ENDPOINT_VARIABLE} = 'your-endpoint';`}
+            multiline
+            w={350}
+            withArrow
+            position="right"
+          >
+            <TextInput
+              label="S3 Endpoint (optional)"
+              data-testid={setDataTestId('remote-database-s3-endpoint-input')}
+              placeholder="s3.amazonaws.com"
+              value={s3Endpoint}
+              onChange={(event) => {
+                setS3Endpoint(event);
+                // Validate on change for immediate feedback
+                const value =
+                  typeof event === 'string' ? event : (event.currentTarget?.value ?? '');
+                if (value.trim() && !isValidS3Endpoint(value)) {
+                  setS3EndpointError('Invalid endpoint format');
+                } else {
+                  setS3EndpointError(null);
+                }
+                // Clear the "from session" indicator when user manually edits
+                if (s3EndpointFromSession) {
+                  setS3EndpointFromSession(false);
+                }
+              }}
+              error={s3EndpointError}
+              description={
+                s3EndpointFromSession && s3Endpoint
+                  ? `Loaded from session variable (${S3_ENDPOINT_VARIABLE})`
+                  : 'Custom endpoint for non-AWS S3 services (e.g., minio.example.com:9000)'
+              }
+            />
+          </Tooltip>
+        )}
+
         <Checkbox
           label="Read-only access (Recommended for remote databases)"
           checked={readOnly}
@@ -293,7 +389,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
           variant="outline"
           onClick={handleTest}
           loading={isTesting}
-          disabled={!url.trim() || !dbName.trim() || isLoading}
+          disabled={!url.trim() || !dbName.trim() || isLoading || hasS3EndpointError}
           data-testid={setDataTestId('test-remote-database-connection-button')}
         >
           Test Connection
@@ -301,7 +397,7 @@ export function RemoteDatabaseConfig({ onBack, onClose, pool }: RemoteDatabaseCo
         <Button
           onClick={handleAdd}
           loading={isLoading || isTesting}
-          disabled={!url.trim() || !dbName.trim() || isTesting}
+          disabled={!url.trim() || !dbName.trim() || isTesting || hasS3EndpointError}
           data-testid={setDataTestId('add-remote-database-button')}
         >
           Add Database

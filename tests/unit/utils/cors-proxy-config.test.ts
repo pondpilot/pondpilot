@@ -6,9 +6,12 @@ import {
   isRemoteUrl,
   isCloudStorageUrl,
   convertS3ToHttps,
+  getS3EndpointFromSession,
+  isValidS3Endpoint,
   CORS_PROXY_BEHAVIORS,
   PROXY_PREFIX,
   REMOTE_PROTOCOLS,
+  S3_ENDPOINT_VARIABLE,
 } from '@utils/cors-proxy-config';
 
 describe('cors-proxy-config', () => {
@@ -555,6 +558,270 @@ describe('cors-proxy-config', () => {
     it('should use virtual-hosted-style for bucket without dots', () => {
       const result = convertS3ToHttps('s3://mybucket123/file.csv');
       expect(result).toBe('https://mybucket123.s3.amazonaws.com/file.csv');
+    });
+
+    describe('with custom S3 endpoint', () => {
+      it('should use custom endpoint with path-style URL', () => {
+        const result = convertS3ToHttps(
+          's3://mybucket/path/to/file.duckdb',
+          'minio.example.com:9000',
+        );
+        expect(result).toBe('https://minio.example.com:9000/mybucket/path/to/file.duckdb');
+      });
+
+      it('should use custom endpoint for dotted bucket names', () => {
+        const result = convertS3ToHttps('s3://my.dotted.bucket/data.csv', 'storage.example.com');
+        expect(result).toBe('https://storage.example.com/my.dotted.bucket/data.csv');
+      });
+
+      it('should preserve query strings with custom endpoint', () => {
+        const result = convertS3ToHttps(
+          's3://mybucket/file.csv?versionId=abc123',
+          'minio.example.com:9000',
+        );
+        expect(result).toBe('https://minio.example.com:9000/mybucket/file.csv?versionId=abc123');
+      });
+
+      it('should use http for localhost endpoints', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', 'localhost:9000');
+        expect(result).toBe('http://localhost:9000/mybucket/file.csv');
+      });
+
+      it('should use http for 127.0.0.1 endpoints', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', '127.0.0.1:9000');
+        expect(result).toBe('http://127.0.0.1:9000/mybucket/file.csv');
+      });
+
+      it('should respect explicit http:// protocol in endpoint', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', 'http://minio.example.com:9000');
+        expect(result).toBe('http://minio.example.com:9000/mybucket/file.csv');
+      });
+
+      it('should respect explicit https:// protocol in endpoint', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', 'https://minio.example.com:9000');
+        expect(result).toBe('https://minio.example.com:9000/mybucket/file.csv');
+      });
+
+      it('should handle endpoint with port number', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', '192.168.1.100:9000');
+        expect(result).toBe('https://192.168.1.100:9000/mybucket/file.csv');
+      });
+
+      it('should handle endpoint without port', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', 's3.digitaloceanspaces.com');
+        expect(result).toBe('https://s3.digitaloceanspaces.com/mybucket/file.csv');
+      });
+
+      it('should handle complex paths with custom endpoint', () => {
+        const result = convertS3ToHttps(
+          's3://mybucket/folder1/folder2/file.parquet',
+          'minio.example.com',
+        );
+        expect(result).toBe('https://minio.example.com/mybucket/folder1/folder2/file.parquet');
+      });
+
+      it('should handle bucket with root path and custom endpoint', () => {
+        const result = convertS3ToHttps('s3://mybucket/', 'minio.example.com:9000');
+        expect(result).toBe('https://minio.example.com:9000/mybucket/');
+      });
+
+      it('should fall back to AWS when endpoint is undefined', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', undefined);
+        expect(result).toBe('https://mybucket.s3.amazonaws.com/file.csv');
+      });
+
+      it('should fall back to AWS when endpoint is empty string', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', '');
+        expect(result).toBe('https://mybucket.s3.amazonaws.com/file.csv');
+      });
+
+      it('should fall back to AWS when endpoint contains injection characters', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', 'user:pass@malicious.com');
+        expect(result).toBe('https://mybucket.s3.amazonaws.com/file.csv');
+      });
+
+      it('should fall back to AWS when endpoint contains # character', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', 'example.com#fragment');
+        expect(result).toBe('https://mybucket.s3.amazonaws.com/file.csv');
+      });
+
+      it('should use http for [::1] IPv6 localhost endpoint', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', '[::1]:9000');
+        expect(result).toBe('http://[::1]:9000/mybucket/file.csv');
+      });
+
+      it('should fall back to AWS for bare ::1 (invalid URL format without brackets)', () => {
+        const result = convertS3ToHttps('s3://mybucket/file.csv', '::1');
+        expect(result).toBe('https://mybucket.s3.amazonaws.com/file.csv');
+      });
+    });
+  });
+
+  describe('isValidS3Endpoint', () => {
+    describe('valid endpoints', () => {
+      it('should return true for valid hostname', () => {
+        expect(isValidS3Endpoint('minio.example.com')).toBe(true);
+      });
+
+      it('should return true for hostname with port', () => {
+        expect(isValidS3Endpoint('minio.example.com:9000')).toBe(true);
+      });
+
+      it('should return true for IP address', () => {
+        expect(isValidS3Endpoint('192.168.1.100')).toBe(true);
+      });
+
+      it('should return true for IP with port', () => {
+        expect(isValidS3Endpoint('192.168.1.100:9000')).toBe(true);
+      });
+
+      it('should return true for localhost', () => {
+        expect(isValidS3Endpoint('localhost')).toBe(true);
+      });
+
+      it('should return true for localhost with port', () => {
+        expect(isValidS3Endpoint('localhost:9000')).toBe(true);
+      });
+
+      it('should return true for http:// URL', () => {
+        expect(isValidS3Endpoint('http://minio.example.com:9000')).toBe(true);
+      });
+
+      it('should return true for https:// URL', () => {
+        expect(isValidS3Endpoint('https://minio.example.com')).toBe(true);
+      });
+
+      it('should trim whitespace', () => {
+        expect(isValidS3Endpoint('  minio.example.com  ')).toBe(true);
+      });
+    });
+
+    describe('invalid endpoints', () => {
+      it('should return false for empty string', () => {
+        expect(isValidS3Endpoint('')).toBe(false);
+      });
+
+      it('should return false for whitespace only', () => {
+        expect(isValidS3Endpoint('   ')).toBe(false);
+      });
+
+      it('should return false for endpoint with @ character', () => {
+        expect(isValidS3Endpoint('user:pass@minio.example.com')).toBe(false);
+      });
+
+      it('should return false for endpoint with # character', () => {
+        expect(isValidS3Endpoint('minio.example.com#fragment')).toBe(false);
+      });
+
+      it('should return false for URL with credentials', () => {
+        expect(isValidS3Endpoint('http://user:pass@minio.example.com')).toBe(false);
+      });
+
+      it('should return false for invalid URL format', () => {
+        expect(isValidS3Endpoint('not a valid endpoint!')).toBe(false);
+      });
+    });
+  });
+
+  describe('getS3EndpointFromSession', () => {
+    it('should return endpoint when variable is set', async () => {
+      const mockQueryFn = async () => ({
+        getChildAt: () => ({
+          get: () => 'minio.example.com:9000',
+        }),
+      });
+      const result = await getS3EndpointFromSession(mockQueryFn);
+      expect(result).toBe('minio.example.com:9000');
+    });
+
+    it('should return null when variable returns null', async () => {
+      const mockQueryFn = async () => ({
+        getChildAt: () => ({
+          get: () => null,
+        }),
+      });
+      const result = await getS3EndpointFromSession(mockQueryFn);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when variable returns undefined', async () => {
+      const mockQueryFn = async () => ({
+        getChildAt: () => ({
+          get: () => undefined,
+        }),
+      });
+      const result = await getS3EndpointFromSession(mockQueryFn);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when getChildAt returns null', async () => {
+      const mockQueryFn = async () => ({
+        getChildAt: () => null,
+      });
+      const result = await getS3EndpointFromSession(mockQueryFn);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when value is string "null"', async () => {
+      const mockQueryFn = async () => ({
+        getChildAt: () => ({
+          get: () => 'null',
+        }),
+      });
+      const result = await getS3EndpointFromSession(mockQueryFn);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when value is string "undefined"', async () => {
+      const mockQueryFn = async () => ({
+        getChildAt: () => ({
+          get: () => 'undefined',
+        }),
+      });
+      const result = await getS3EndpointFromSession(mockQueryFn);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when value is empty string', async () => {
+      const mockQueryFn = async () => ({
+        getChildAt: () => ({
+          get: () => '',
+        }),
+      });
+      const result = await getS3EndpointFromSession(mockQueryFn);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when query throws', async () => {
+      const mockQueryFn = async () => {
+        throw new Error('Query failed');
+      };
+      const result = await getS3EndpointFromSession(mockQueryFn);
+      expect(result).toBeNull();
+    });
+
+    it('should convert non-string values to string', async () => {
+      const mockQueryFn = async () => ({
+        getChildAt: () => ({
+          get: () => ({ toString: () => 'custom.endpoint.com' }),
+        }),
+      });
+      const result = await getS3EndpointFromSession(mockQueryFn);
+      expect(result).toBe('custom.endpoint.com');
+    });
+
+    it('should use correct SQL variable name', async () => {
+      let capturedSql = '';
+      const mockQueryFn = async (sql: string) => {
+        capturedSql = sql;
+        return {
+          getChildAt: () => ({
+            get: () => 'test.endpoint.com',
+          }),
+        };
+      };
+      await getS3EndpointFromSession(mockQueryFn);
+      expect(capturedSql).toBe(`SELECT getvariable('${S3_ENDPOINT_VARIABLE}')`);
     });
   });
 });

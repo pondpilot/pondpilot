@@ -6,6 +6,19 @@ import {
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
 import { quote } from '@utils/helpers';
 
+export interface AttachQueryOptions {
+  /** Whether to attach as read-only */
+  readOnly?: boolean;
+  /** Whether to use CORS proxy for remote URLs */
+  useCorsProxy?: boolean;
+  /**
+   * Custom S3 endpoint for non-AWS S3-compatible services (e.g., MinIO).
+   * Example: 'minio.example.com:9000'
+   * When set, S3 URLs will be converted to use this endpoint instead of AWS S3.
+   */
+  s3Endpoint?: string;
+}
+
 /**
  * Safely build an ATTACH DATABASE query with proper escaping
  *
@@ -20,14 +33,14 @@ import { quote } from '@utils/helpers';
 export function buildAttachQuery(
   filePath: string,
   dbName: string,
-  options?: { readOnly?: boolean; useCorsProxy?: boolean },
+  options?: AttachQueryOptions,
 ): string {
   // Wrap with CORS proxy only if explicitly enabled
   let finalPath = filePath;
   if (options?.useCorsProxy === true && isRemoteUrl(filePath)) {
     // Convert S3 URLs to HTTPS before wrapping with proxy
     // The proxy can't handle s3:// protocol directly
-    const httpsUrl = convertS3ToHttps(filePath);
+    const httpsUrl = convertS3ToHttps(filePath, options.s3Endpoint);
     // Use path-based proxy for database files to allow DuckDB to construct URLs for related files
     finalPath = wrapWithCorsProxyPathBased(httpsUrl || filePath);
   }

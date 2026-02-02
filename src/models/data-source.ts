@@ -248,6 +248,13 @@ export interface RemoteDB {
    * Whether to use CORS proxy when connecting to this remote database
    */
   useCorsProxy?: boolean;
+
+  /**
+   * Custom S3 endpoint for non-AWS S3-compatible services (e.g., MinIO).
+   * Only used when URL starts with s3:// and useCorsProxy is true.
+   * Example: 'minio.example.com:9000'
+   */
+  s3Endpoint?: string;
 }
 
 export type AnyDataSource = AnyFlatFileDataSource | LocalDB | RemoteDB | IcebergCatalog;
