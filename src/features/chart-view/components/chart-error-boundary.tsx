@@ -52,8 +52,7 @@ export class ChartErrorBoundary extends Component<
               {this.props.errorTitle ?? 'Chart rendering failed'}
             </Text>
             <Text c="dimmed" size="xs" maw={300} ta="center">
-              {this.state.error?.message ||
-                'An unexpected error occurred.'}
+              {this.state.error?.message || 'An unexpected error occurred.'}
             </Text>
             <Stack gap="xs" mt="xs">
               <Button size="xs" variant="outline" onClick={this.handleRetry}>

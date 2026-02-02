@@ -34,8 +34,12 @@ export interface ColumnDetailPanelHandle {
 export const ColumnDetailPanel = forwardRef<ColumnDetailPanelHandle, ColumnDetailPanelProps>(
   (
     {
-      columns, columnStats, columnDistributions,
-      loadingDistributions, errors, onVisibleColumnsChange,
+      columns,
+      columnStats,
+      columnDistributions,
+      loadingDistributions,
+      errors,
+      onVisibleColumnsChange,
     },
     ref,
   ) => {
@@ -99,10 +103,7 @@ export const ColumnDetailPanel = forwardRef<ColumnDetailPanelHandle, ColumnDetai
     }
 
     return (
-      <div
-        ref={scrollRef}
-        className="flex gap-3 overflow-x-auto h-full p-3 snap-x snap-mandatory"
-      >
+      <div ref={scrollRef} className="flex gap-3 overflow-x-auto h-full p-3 snap-x snap-mandatory">
         {columns.map((column) => (
           <div
             key={column.name}

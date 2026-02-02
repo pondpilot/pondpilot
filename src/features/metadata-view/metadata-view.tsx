@@ -22,33 +22,21 @@ export const MetadataView = ({ dataAdapter }: MetadataViewProps) => {
   const { currentSchema, rowCountInfo } = dataAdapter;
   const columns = currentSchema;
 
-  const {
-    columnStats,
-    columnDistributions,
-    isLoading,
-    loadingDistributions,
-    isSupported,
-    errors,
-  } = useMetadataStats(dataAdapter);
+  const { columnStats, columnDistributions, isLoading, loadingDistributions, isSupported, errors } =
+    useMetadataStats(dataAdapter);
 
   const [selectedColumn, setSelectedColumn] = useState<string | undefined>();
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
   const detailPanelRef = useRef<ColumnDetailPanelHandle>(null);
 
-  const handleColumnClick = useCallback(
-    (columnName: string) => {
-      setSelectedColumn(columnName);
-      detailPanelRef.current?.scrollToColumn(columnName);
-    },
-    [],
-  );
+  const handleColumnClick = useCallback((columnName: string) => {
+    setSelectedColumn(columnName);
+    detailPanelRef.current?.scrollToColumn(columnName);
+  }, []);
 
-  const handlePillClick = useCallback(
-    (columnName: string) => {
-      detailPanelRef.current?.scrollToColumn(columnName);
-    },
-    [],
-  );
+  const handlePillClick = useCallback((columnName: string) => {
+    detailPanelRef.current?.scrollToColumn(columnName);
+  }, []);
 
   // Empty dataset: no columns or no rows
   if (columns.length === 0) {
@@ -105,8 +93,7 @@ export const MetadataView = ({ dataAdapter }: MetadataViewProps) => {
       {/* Dataset-level info header with scroll indicator pills */}
       <div className="shrink-0 px-4 py-1 flex items-center">
         <Text size="sm" c="text-secondary" className="font-medium">
-          {columns.length} column{columns.length !== 1 ? 's' : ''},{' '}
-          {formatNumber(rowCount)}
+          {columns.length} column{columns.length !== 1 ? 's' : ''}, {formatNumber(rowCount)}
           {isEstimated ? '+' : ''} row{rowCount !== 1 ? 's' : ''}
         </Text>
         {columns.length > 1 && (

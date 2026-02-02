@@ -8,11 +8,7 @@ import { DBColumn, DBColumnId } from '@models/db';
  * processing, formatting, and routing logic used by the component.
  */
 
-function makeColumn(
-  name: string,
-  sqlType: DBColumn['sqlType'],
-  index: number,
-): DBColumn {
+function makeColumn(name: string, sqlType: DBColumn['sqlType'], index: number): DBColumn {
   return {
     name,
     databaseType: sqlType,
@@ -23,10 +19,7 @@ function makeColumn(
   };
 }
 
-function makeStats(
-  columnName: string,
-  overrides: Partial<ColumnStats> = {},
-): ColumnStats {
+function makeStats(columnName: string, overrides: Partial<ColumnStats> = {}): ColumnStats {
   return {
     columnName,
     totalCount: 1000,
@@ -130,9 +123,7 @@ describe('ColumnCard', () => {
       const maxBarWidth = 160;
       const maxCount = Math.max(...values.map((v) => v.count));
 
-      const barWidths = values.map((v) =>
-        Math.max(2, (v.count / maxCount) * maxBarWidth),
-      );
+      const barWidths = values.map((v) => Math.max(2, (v.count / maxCount) * maxBarWidth));
 
       expect(barWidths[0]).toBe(160);
       expect(barWidths[1]).toBe(80);
@@ -172,9 +163,7 @@ describe('ColumnCard', () => {
       const maxBarWidth = 160;
       const maxCount = Math.max(...buckets.map((b) => b.count));
 
-      const barWidths = buckets.map((b) =>
-        Math.max(2, (b.count / maxCount) * maxBarWidth),
-      );
+      const barWidths = buckets.map((b) => Math.max(2, (b.count / maxCount) * maxBarWidth));
 
       expect(barWidths[0]).toBe(80);
       expect(barWidths[1]).toBe(160);

@@ -46,9 +46,7 @@ export interface SummaryPanelProps {
  */
 function PercentageBar({ stats }: { stats: ColumnStats }) {
   const percentage =
-    stats.totalCount > 0
-      ? Math.round((stats.distinctCount / stats.totalCount) * 100)
-      : 0;
+    stats.totalCount > 0 ? Math.round((stats.distinctCount / stats.totalCount) * 100) : 0;
   const barWidth = Math.round((percentage / 100) * PERCENTAGE_BAR_WIDTH);
 
   return (
@@ -89,11 +87,7 @@ function PercentageBar({ stats }: { stats: ColumnStats }) {
  * Renders an inline SVG sparkline histogram from distribution buckets.
  * Used for numeric and date columns.
  */
-function SparklineHistogram({
-  buckets,
-}: {
-  buckets: { label: string; count: number }[];
-}) {
+function SparklineHistogram({ buckets }: { buckets: { label: string; count: number }[] }) {
   if (buckets.length === 0) {
     return null;
   }
@@ -104,10 +98,7 @@ function SparklineHistogram({
   }
 
   const barGap = 1;
-  const barWidth = Math.max(
-    1,
-    (SPARKLINE_WIDTH - (buckets.length - 1) * barGap) / buckets.length,
-  );
+  const barWidth = Math.max(1, (SPARKLINE_WIDTH - (buckets.length - 1) * barGap) / buckets.length);
 
   return (
     <svg
@@ -223,11 +214,7 @@ function SummaryRow({
         stroke={1.5}
         className="text-iconDefault-light dark:text-iconDefault-dark shrink-0"
       />
-      <Text
-        size="sm"
-        className="truncate min-w-0 flex-1"
-        title={column.name}
-      >
+      <Text size="sm" className="truncate min-w-0 flex-1" title={column.name}>
         {column.name}
       </Text>
       <div className="shrink-0">
@@ -269,7 +256,12 @@ export function SummaryPanel({
             </div>
           </div>
           {Array.from({ length: Math.min(columns.length || 8, 20) }).map((_, i) => (
-            <Group key={i} gap="sm" wrap="nowrap" className="px-3 py-1.5 border-b border-borderLight-light dark:border-borderLight-dark">
+            <Group
+              key={i}
+              gap="sm"
+              wrap="nowrap"
+              className="px-3 py-1.5 border-b border-borderLight-light dark:border-borderLight-dark"
+            >
               <Skeleton height={16} width={16} circle />
               <Skeleton height={14} className="flex-1" />
               <Skeleton height={SPARKLINE_HEIGHT} width={SPARKLINE_WIDTH} />
@@ -297,12 +289,24 @@ export function SummaryPanel({
             Column Name
           </Text>
           <Group gap={4} wrap="nowrap" className="shrink-0">
-            <NamedIcon iconType="column-string" size={14} stroke={1.5} className="text-iconDefault-light dark:text-iconDefault-dark" />
+            <NamedIcon
+              iconType="column-string"
+              size={14}
+              stroke={1.5}
+              className="text-iconDefault-light dark:text-iconDefault-dark"
+            />
             <Text size="xs" c="text-secondary" className="whitespace-nowrap">
               COUNTD %
             </Text>
-            <Text size="xs" c="text-tertiary">|</Text>
-            <NamedIcon iconType="column-integer" size={14} stroke={1.5} className="text-iconDefault-light dark:text-iconDefault-dark" />
+            <Text size="xs" c="text-tertiary">
+              |
+            </Text>
+            <NamedIcon
+              iconType="column-integer"
+              size={14}
+              stroke={1.5}
+              className="text-iconDefault-light dark:text-iconDefault-dark"
+            />
             <Text size="xs" c="text-secondary" className="whitespace-nowrap">
               Freq.Distr
             </Text>

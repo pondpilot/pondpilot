@@ -402,11 +402,7 @@ function getGetColumnDistributionFromFQN(
   pool: AsyncDuckDBConnectionPool,
   fqn: string,
 ): DataAdapterQueries['getColumnDistribution'] {
-  return async (
-    columnName: string,
-    columnType: MetadataColumnType,
-    abortSignal: AbortSignal,
-  ) => {
+  return async (columnName: string, columnType: MetadataColumnType, abortSignal: AbortSignal) => {
     let query: string;
 
     switch (columnType) {
@@ -425,7 +421,10 @@ function getGetColumnDistributionFromFQN(
 
     if (aborted) {
       return {
-        value: columnType === 'text' ? { type: 'text' as const, values: [] } : { type: columnType, buckets: [] },
+        value:
+          columnType === 'text'
+            ? { type: 'text' as const, values: [] }
+            : { type: columnType, buckets: [] },
         aborted,
       };
     }

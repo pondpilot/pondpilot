@@ -205,14 +205,7 @@ export function useMetadataStats(
       stats: statsMap,
       distributions: completedDistributions,
     };
-  }, [
-    enabled,
-    hasData,
-    currentSchema,
-    dataSourceVersion,
-    getColumnStats,
-    getColumnDistribution,
-  ]);
+  }, [enabled, hasData, currentSchema, dataSourceVersion, getColumnStats, getColumnDistribution]);
 
   // Trigger fetch when dependencies change
   useEffect(() => {

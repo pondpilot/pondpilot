@@ -8,11 +8,7 @@ import { DBColumn, DBColumnId } from '@models/db';
  * processing and interface contracts used by the component.
  */
 
-function makeColumn(
-  name: string,
-  sqlType: DBColumn['sqlType'],
-  index: number,
-): DBColumn {
+function makeColumn(name: string, sqlType: DBColumn['sqlType'], index: number): DBColumn {
   return {
     name,
     databaseType: sqlType,
@@ -23,10 +19,7 @@ function makeColumn(
   };
 }
 
-function makeStats(
-  columnName: string,
-  overrides: Partial<ColumnStats> = {},
-): ColumnStats {
+function makeStats(columnName: string, overrides: Partial<ColumnStats> = {}): ColumnStats {
   return {
     columnName,
     totalCount: 1000,
@@ -50,10 +43,7 @@ describe('ColumnDetailPanel', () => {
       }
 
       const props: ColumnDetailPanelProps = {
-        columns: [
-          makeColumn('id', 'integer', 0),
-          makeColumn('name', 'string', 1),
-        ],
+        columns: [makeColumn('id', 'integer', 0), makeColumn('name', 'string', 1)],
         columnStats: new Map(),
         columnDistributions: new Map(),
         loadingDistributions: new Set(),
@@ -91,10 +81,7 @@ describe('ColumnDetailPanel', () => {
     });
 
     it('should pass correct stats to each card', () => {
-      const columns = [
-        makeColumn('id', 'integer', 0),
-        makeColumn('name', 'string', 1),
-      ];
+      const columns = [makeColumn('id', 'integer', 0), makeColumn('name', 'string', 1)];
 
       const stats = new Map<string, ColumnStats>([
         ['id', makeStats('id', { distinctCount: 500 })],
@@ -109,10 +96,7 @@ describe('ColumnDetailPanel', () => {
     });
 
     it('should pass correct distribution to each card', () => {
-      const columns = [
-        makeColumn('price', 'float', 0),
-        makeColumn('category', 'string', 1),
-      ];
+      const columns = [makeColumn('price', 'float', 0), makeColumn('category', 'string', 1)];
 
       const distributions = new Map<string, ColumnDistribution>([
         ['price', { type: 'numeric', buckets: [{ label: '0-50', count: 10 }] }],
@@ -144,10 +128,7 @@ describe('ColumnDetailPanel', () => {
   describe('scroll behavior', () => {
     it('should maintain card refs keyed by column name', () => {
       const cardRefs = new Map<string, unknown>();
-      const columns = [
-        makeColumn('id', 'integer', 0),
-        makeColumn('name', 'string', 1),
-      ];
+      const columns = [makeColumn('id', 'integer', 0), makeColumn('name', 'string', 1)];
 
       // Simulate ref callback behavior
       for (const col of columns) {

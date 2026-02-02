@@ -13,29 +13,20 @@ let mockState: Record<string, unknown> = {};
 let mockRefs: Record<string, { current: unknown }> = {};
 let effectCallbacks: Array<() => (() => void) | void> = [];
 
-type StatsFn = (
-  columnNames: string[],
-) => Promise<ColumnStats[] | undefined>;
+type StatsFn = (columnNames: string[]) => Promise<ColumnStats[] | undefined>;
 
-type DistFn = (
-  name: string,
-  type: any,
-) => Promise<ColumnDistribution | undefined>;
+type DistFn = (name: string, type: any) => Promise<ColumnDistribution | undefined>;
 
 jest.mock('react', () => ({
   useState: jest.fn((initialValue: unknown) => {
     const key = `state_${Object.keys(mockState).length}`;
     if (!(key in mockState)) {
       mockState[key] =
-        typeof initialValue === 'function'
-          ? (initialValue as () => unknown)()
-          : initialValue;
+        typeof initialValue === 'function' ? (initialValue as () => unknown)() : initialValue;
     }
     const setStateFn = (newValue: unknown) => {
       if (typeof newValue === 'function') {
-        mockState[key] = (
-          newValue as (prev: unknown) => unknown
-        )(mockState[key]);
+        mockState[key] = (newValue as (prev: unknown) => unknown)(mockState[key]);
       } else {
         mockState[key] = newValue;
       }
@@ -50,11 +41,9 @@ jest.mock('react', () => ({
     return mockRefs[key];
   }),
   useCallback: jest.fn((fn: unknown) => fn),
-  useEffect: jest.fn(
-    (effect: () => (() => void) | void) => {
-      effectCallbacks.push(effect);
-    },
-  ),
+  useEffect: jest.fn((effect: () => (() => void) | void) => {
+    effectCallbacks.push(effect);
+  }),
 }));
 
 jest.mock('@mantine/hooks', () => ({
@@ -63,9 +52,7 @@ jest.mock('@mantine/hooks', () => ({
 
 jest.mock('@utils/db', () => ({
   isNumberType: jest.fn((type: string) => {
-    return ['bigint', 'float', 'decimal', 'integer'].includes(
-      type,
-    );
+    return ['bigint', 'float', 'decimal', 'integer'].includes(type);
   }),
 }));
 
@@ -75,10 +62,7 @@ import {
   useMetadataStats,
 } from '@features/metadata-view/hooks/use-metadata-stats';
 
-function createMockColumn(
-  name: string,
-  sqlType: string,
-): DBColumn {
+function createMockColumn(name: string, sqlType: string): DBColumn {
   return {
     name,
     sqlType,
@@ -86,16 +70,10 @@ function createMockColumn(
   } as unknown as DBColumn;
 }
 
-function createMockAdapter(
-  overrides: Partial<DataAdapterApi> = {},
-): DataAdapterApi {
+function createMockAdapter(overrides: Partial<DataAdapterApi> = {}): DataAdapterApi {
   return {
-    getColumnStats: jest
-      .fn<StatsFn>()
-      .mockResolvedValue([]),
-    getColumnDistribution: jest
-      .fn<DistFn>()
-      .mockResolvedValue(undefined),
+    getColumnStats: jest.fn<StatsFn>().mockResolvedValue([]),
+    getColumnDistribution: jest.fn<DistFn>().mockResolvedValue(undefined),
     currentSchema: [],
     isStale: false,
     dataSourceVersion: 1,
@@ -141,37 +119,24 @@ function getState(key: keyof typeof STATE): unknown {
 
 describe('classifyColumnType', () => {
   it('should classify numeric types as numeric', () => {
-    expect(classifyColumnType(createMockColumn('a', 'integer')))
-      .toBe('numeric');
-    expect(classifyColumnType(createMockColumn('b', 'float')))
-      .toBe('numeric');
-    expect(classifyColumnType(createMockColumn('c', 'decimal')))
-      .toBe('numeric');
-    expect(classifyColumnType(createMockColumn('d', 'bigint')))
-      .toBe('numeric');
+    expect(classifyColumnType(createMockColumn('a', 'integer'))).toBe('numeric');
+    expect(classifyColumnType(createMockColumn('b', 'float'))).toBe('numeric');
+    expect(classifyColumnType(createMockColumn('c', 'decimal'))).toBe('numeric');
+    expect(classifyColumnType(createMockColumn('d', 'bigint'))).toBe('numeric');
   });
 
   it('should classify date types as date', () => {
-    expect(classifyColumnType(createMockColumn('a', 'date')))
-      .toBe('date');
-    expect(classifyColumnType(createMockColumn('b', 'timestamp')))
-      .toBe('date');
-    expect(
-      classifyColumnType(createMockColumn('c', 'timestamptz')),
-    ).toBe('date');
+    expect(classifyColumnType(createMockColumn('a', 'date'))).toBe('date');
+    expect(classifyColumnType(createMockColumn('b', 'timestamp'))).toBe('date');
+    expect(classifyColumnType(createMockColumn('c', 'timestamptz'))).toBe('date');
   });
 
   it('should classify everything else as text', () => {
-    expect(classifyColumnType(createMockColumn('a', 'string')))
-      .toBe('text');
-    expect(classifyColumnType(createMockColumn('b', 'boolean')))
-      .toBe('text');
-    expect(classifyColumnType(createMockColumn('c', 'other')))
-      .toBe('text');
-    expect(classifyColumnType(createMockColumn('d', 'array')))
-      .toBe('text');
-    expect(classifyColumnType(createMockColumn('e', 'object')))
-      .toBe('text');
+    expect(classifyColumnType(createMockColumn('a', 'string'))).toBe('text');
+    expect(classifyColumnType(createMockColumn('b', 'boolean'))).toBe('text');
+    expect(classifyColumnType(createMockColumn('c', 'other'))).toBe('text');
+    expect(classifyColumnType(createMockColumn('d', 'array'))).toBe('text');
+    expect(classifyColumnType(createMockColumn('e', 'object'))).toBe('text');
   });
 });
 
@@ -217,8 +182,7 @@ describe('useMetadataStats', () => {
     runEffects();
 
     expect(adapter.getColumnStats).not.toHaveBeenCalled();
-    expect(adapter.getColumnDistribution)
-      .not.toHaveBeenCalled();
+    expect(adapter.getColumnDistribution).not.toHaveBeenCalled();
   });
 
   it('should not fetch when no data is available', () => {
@@ -257,36 +221,28 @@ describe('useMetadataStats', () => {
 
     const adapter = createMockAdapter({
       currentSchema: [createMockColumn('amount', 'integer')],
-      getColumnStats: jest
-        .fn<StatsFn>()
-        .mockResolvedValue(mockStats),
-      getColumnDistribution: jest
-        .fn<DistFn>()
-        .mockResolvedValue({
-          type: 'numeric',
-          buckets: [
-            { label: '0-50', count: 40 },
-            { label: '50-100', count: 55 },
-          ],
-        }),
+      getColumnStats: jest.fn<StatsFn>().mockResolvedValue(mockStats),
+      getColumnDistribution: jest.fn<DistFn>().mockResolvedValue({
+        type: 'numeric',
+        buckets: [
+          { label: '0-50', count: 40 },
+          { label: '50-100', count: 55 },
+        ],
+      }),
     });
 
     useMetadataStats(adapter);
     runEffects();
     await flushPromises();
 
-    expect(adapter.getColumnStats)
-      .toHaveBeenCalledWith(['amount']);
-    expect(adapter.getColumnDistribution)
-      .toHaveBeenCalledWith('amount', 'numeric');
+    expect(adapter.getColumnStats).toHaveBeenCalledWith(['amount']);
+    expect(adapter.getColumnDistribution).toHaveBeenCalledWith('amount', 'numeric');
   });
 
   it('should handle unsupported data sources', async () => {
     const adapter = createMockAdapter({
       currentSchema: [createMockColumn('a', 'string')],
-      getColumnStats: jest
-        .fn<StatsFn>()
-        .mockResolvedValue(undefined),
+      getColumnStats: jest.fn<StatsFn>().mockResolvedValue(undefined),
     });
 
     useMetadataStats(adapter);
@@ -305,9 +261,7 @@ describe('useMetadataStats', () => {
 
     const adapter = createMockAdapter({
       currentSchema: [createMockColumn('a', 'string')],
-      getColumnStats: jest
-        .fn<StatsFn>()
-        .mockRejectedValue(cancelledError),
+      getColumnStats: jest.fn<StatsFn>().mockRejectedValue(cancelledError),
     });
 
     useMetadataStats(adapter);
@@ -321,9 +275,7 @@ describe('useMetadataStats', () => {
   it('should handle real errors in getColumnStats', async () => {
     const adapter = createMockAdapter({
       currentSchema: [createMockColumn('a', 'string')],
-      getColumnStats: jest
-        .fn<StatsFn>()
-        .mockRejectedValue(new Error('Query failed')),
+      getColumnStats: jest.fn<StatsFn>().mockRejectedValue(new Error('Query failed')),
     });
 
     useMetadataStats(adapter);
@@ -337,10 +289,7 @@ describe('useMetadataStats', () => {
 
   it('should handle per-column distribution errors', async () => {
     const adapter = createMockAdapter({
-      currentSchema: [
-        createMockColumn('good', 'integer'),
-        createMockColumn('bad', 'string'),
-      ],
+      currentSchema: [createMockColumn('good', 'integer'), createMockColumn('bad', 'string')],
       getColumnStats: jest.fn<StatsFn>().mockResolvedValue([
         {
           columnName: 'good',
@@ -361,25 +310,22 @@ describe('useMetadataStats', () => {
           mean: null,
         },
       ]),
-      getColumnDistribution: jest
-        .fn<DistFn>()
-        .mockImplementation(async (name: string) => {
-          if (name === 'bad') {
-            throw new Error('Distribution failed');
-          }
-          return {
-            type: 'numeric',
-            buckets: [{ label: '1-10', count: 10 }],
-          };
-        }),
+      getColumnDistribution: jest.fn<DistFn>().mockImplementation(async (name: string) => {
+        if (name === 'bad') {
+          throw new Error('Distribution failed');
+        }
+        return {
+          type: 'numeric',
+          buckets: [{ label: '1-10', count: 10 }],
+        };
+      }),
     });
 
     useMetadataStats(adapter);
     runEffects();
     await flushPromises();
 
-    expect(adapter.getColumnDistribution)
-      .toHaveBeenCalledTimes(2);
+    expect(adapter.getColumnDistribution).toHaveBeenCalledTimes(2);
   });
 
   it('should fetch distributions with correct types', async () => {
@@ -391,34 +337,27 @@ describe('useMetadataStats', () => {
 
     const adapter = createMockAdapter({
       currentSchema: columns,
-      getColumnStats: jest
-        .fn<StatsFn>()
-        .mockResolvedValue(
-          columns.map((c) => ({
-            columnName: c.name,
-            totalCount: 100,
-            distinctCount: 50,
-            nullCount: 0,
-            min: null,
-            max: null,
-            mean: null,
-          })),
-        ),
-      getColumnDistribution: jest
-        .fn<DistFn>()
-        .mockResolvedValue(undefined),
+      getColumnStats: jest.fn<StatsFn>().mockResolvedValue(
+        columns.map((c) => ({
+          columnName: c.name,
+          totalCount: 100,
+          distinctCount: 50,
+          nullCount: 0,
+          min: null,
+          max: null,
+          mean: null,
+        })),
+      ),
+      getColumnDistribution: jest.fn<DistFn>().mockResolvedValue(undefined),
     });
 
     useMetadataStats(adapter);
     runEffects();
     await flushPromises();
 
-    expect(adapter.getColumnDistribution)
-      .toHaveBeenCalledWith('id', 'numeric');
-    expect(adapter.getColumnDistribution)
-      .toHaveBeenCalledWith('name', 'text');
-    expect(adapter.getColumnDistribution)
-      .toHaveBeenCalledWith('created', 'date');
+    expect(adapter.getColumnDistribution).toHaveBeenCalledWith('id', 'numeric');
+    expect(adapter.getColumnDistribution).toHaveBeenCalledWith('name', 'text');
+    expect(adapter.getColumnDistribution).toHaveBeenCalledWith('created', 'date');
   });
 
   it('should invalidate cache when dataSourceVersion changes', () => {

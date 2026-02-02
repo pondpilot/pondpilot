@@ -8,11 +8,7 @@ import { DBColumn, DBColumnId } from '@models/db';
  * processing, layout decisions, and state management used by the component.
  */
 
-function makeColumn(
-  name: string,
-  sqlType: DBColumn['sqlType'],
-  index: number,
-): DBColumn {
+function makeColumn(name: string, sqlType: DBColumn['sqlType'], index: number): DBColumn {
   return {
     name,
     databaseType: sqlType,
@@ -23,10 +19,7 @@ function makeColumn(
   };
 }
 
-function makeStats(
-  columnName: string,
-  overrides: Partial<ColumnStats> = {},
-): ColumnStats {
+function makeStats(columnName: string, overrides: Partial<ColumnStats> = {}): ColumnStats {
   return {
     columnName,
     totalCount: 1000,
@@ -187,10 +180,7 @@ describe('MetadataView', () => {
     });
 
     it('should pass stats and distributions to both panels', () => {
-      const columns = [
-        makeColumn('id', 'integer', 0),
-        makeColumn('name', 'string', 1),
-      ];
+      const columns = [makeColumn('id', 'integer', 0), makeColumn('name', 'string', 1)];
 
       const stats = new Map<string, ColumnStats>([
         ['id', makeStats('id', { distinctCount: 500 })],
@@ -199,10 +189,7 @@ describe('MetadataView', () => {
 
       const distributions = new Map<string, ColumnDistribution>([
         ['id', { type: 'numeric', buckets: [{ label: '0-100', count: 500 }] }],
-        [
-          'name',
-          { type: 'text', values: [{ value: 'Alice', count: 100 }] },
-        ],
+        ['name', { type: 'text', values: [{ value: 'Alice', count: 100 }] }],
       ]);
 
       // Both panels get the same data
@@ -317,9 +304,7 @@ describe('MetadataView', () => {
         ['id', makeStats('id')],
         ['name', makeStats('name')],
       ]);
-      const errors = new Map<string, string>([
-        ['price', 'Failed to load distribution'],
-      ]);
+      const errors = new Map<string, string>([['price', 'Failed to load distribution']]);
 
       // Columns with stats but no error should render normally
       const columnsWithStats = columns.filter(

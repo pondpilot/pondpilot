@@ -7,11 +7,7 @@ import { DBColumn, DBColumnId } from '@models/db';
  * the component's data logic, interface contracts, and design decisions.
  */
 
-function makeColumn(
-  name: string,
-  sqlType: DBColumn['sqlType'],
-  index: number,
-): DBColumn {
+function makeColumn(name: string, sqlType: DBColumn['sqlType'], index: number): DBColumn {
   return {
     name,
     databaseType: sqlType,
@@ -22,10 +18,7 @@ function makeColumn(
   };
 }
 
-function makeStats(
-  columnName: string,
-  overrides: Partial<ColumnStats> = {},
-): ColumnStats {
+function makeStats(columnName: string, overrides: Partial<ColumnStats> = {}): ColumnStats {
   return {
     columnName,
     totalCount: 1000,
@@ -112,9 +105,7 @@ describe('SummaryPanel', () => {
         totalCount: 1000,
         distinctCount: 250,
       });
-      const percentage = Math.round(
-        (stats.distinctCount / stats.totalCount) * 100,
-      );
+      const percentage = Math.round((stats.distinctCount / stats.totalCount) * 100);
       expect(percentage).toBe(25);
     });
 
@@ -124,9 +115,7 @@ describe('SummaryPanel', () => {
         distinctCount: 0,
       });
       const percentage =
-        stats.totalCount > 0
-          ? Math.round((stats.distinctCount / stats.totalCount) * 100)
-          : 0;
+        stats.totalCount > 0 ? Math.round((stats.distinctCount / stats.totalCount) * 100) : 0;
       expect(percentage).toBe(0);
     });
 
@@ -135,9 +124,7 @@ describe('SummaryPanel', () => {
         totalCount: 500,
         distinctCount: 500,
       });
-      const percentage = Math.round(
-        (stats.distinctCount / stats.totalCount) * 100,
-      );
+      const percentage = Math.round((stats.distinctCount / stats.totalCount) * 100);
       expect(percentage).toBe(100);
     });
 
@@ -146,9 +133,7 @@ describe('SummaryPanel', () => {
         totalCount: 1000,
         distinctCount: 1,
       });
-      const percentage = Math.round(
-        (stats.distinctCount / stats.totalCount) * 100,
-      );
+      const percentage = Math.round((stats.distinctCount / stats.totalCount) * 100);
       expect(percentage).toBe(0); // rounds down from 0.1%
     });
   });
@@ -173,9 +158,7 @@ describe('SummaryPanel', () => {
       const maxCount = Math.max(...buckets.map((b) => b.count));
       const height = 20; // SPARKLINE_HEIGHT
 
-      const heights = buckets.map((b) =>
-        Math.max(1, (b.count / maxCount) * height),
-      );
+      const heights = buckets.map((b) => Math.max(1, (b.count / maxCount) * height));
 
       expect(heights[0]).toBe(10); // 10/20 * 20
       expect(heights[1]).toBe(20); // 20/20 * 20
@@ -201,10 +184,7 @@ describe('SummaryPanel', () => {
       const barGap = 1;
       const numBuckets = 20;
 
-      const barWidth = Math.max(
-        1,
-        (sparklineWidth - (numBuckets - 1) * barGap) / numBuckets,
-      );
+      const barWidth = Math.max(1, (sparklineWidth - (numBuckets - 1) * barGap) / numBuckets);
 
       // (120 - 19) / 20 = 5.05
       expect(barWidth).toBeCloseTo(5.05, 1);
@@ -244,12 +224,7 @@ describe('SummaryPanel', () => {
     });
 
     it('should use sparkline histogram for numeric columns', () => {
-      const numericTypes: DBColumn['sqlType'][] = [
-        'float',
-        'decimal',
-        'integer',
-        'bigint',
-      ];
+      const numericTypes: DBColumn['sqlType'][] = ['float', 'decimal', 'integer', 'bigint'];
 
       for (const sqlType of numericTypes) {
         const col = makeColumn('test', sqlType, 0);
@@ -258,11 +233,7 @@ describe('SummaryPanel', () => {
     });
 
     it('should use sparkline histogram for date columns', () => {
-      const dateTypes: DBColumn['sqlType'][] = [
-        'date',
-        'timestamp',
-        'timestamptz',
-      ];
+      const dateTypes: DBColumn['sqlType'][] = ['date', 'timestamp', 'timestamptz'];
 
       for (const sqlType of dateTypes) {
         const col = makeColumn('test', sqlType, 0);
@@ -321,9 +292,7 @@ describe('SummaryPanel', () => {
       ];
 
       const selectedColumn = 'name';
-      const selectedIndex = columns.findIndex(
-        (c) => c.name === selectedColumn,
-      );
+      const selectedIndex = columns.findIndex((c) => c.name === selectedColumn);
       expect(selectedIndex).toBe(1);
     });
 
