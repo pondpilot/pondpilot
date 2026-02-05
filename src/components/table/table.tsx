@@ -145,8 +145,39 @@ export const Table = memo(
     useHotkeys([
       [
         'mod+C',
-        () => {
+        (event) => {
           if (!visible) return;
+
+          // Don't intercept copy if the event target or active element is in
+          // a text-editable context (like Monaco editor or input fields).
+          // This allows users to copy text from the query editor even when
+          // a table cell is selected.
+          const target = event.target as HTMLElement | null;
+          const activeElement = document.activeElement as HTMLElement | null;
+
+          // Check event target
+          if (target) {
+            const isTargetInMonaco = target.closest('.monaco-editor') !== null;
+            const isTargetEditable =
+              target.tagName === 'INPUT' ||
+              target.tagName === 'TEXTAREA' ||
+              target.isContentEditable;
+            if (isTargetInMonaco || isTargetEditable) return;
+          }
+
+          // Also check active element (for cases where event target differs)
+          if (activeElement) {
+            const isActiveInMonaco = activeElement.closest('.monaco-editor') !== null;
+            const isActiveEditable =
+              activeElement.tagName === 'INPUT' ||
+              activeElement.tagName === 'TEXTAREA' ||
+              activeElement.isContentEditable;
+            if (isActiveInMonaco || isActiveEditable) return;
+          }
+
+          // Only prevent default if we're actually handling the copy
+          event.preventDefault();
+
           if (selectedCell.formattedValue) {
             copyToClipboard(selectedCell.formattedValue.formattedValue, {
               showNotification: true,
@@ -161,6 +192,7 @@ export const Table = memo(
             onSelectedColsCopy(selectedSchemaColumns);
           }
         },
+        { preventDefault: false },
       ],
       ['Escape', clearSelection],
     ]);
