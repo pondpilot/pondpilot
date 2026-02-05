@@ -343,6 +343,48 @@ test('Should copy column selection from large table', async ({
   expect(clipboardContent).toBe(expectedContentAllColumns);
 });
 
+test('Should copy from editor when editor has focus, even if table cell is selected', async ({
+  createScriptAndSwitchToItsTab,
+  fillScript,
+  runScript,
+  waitForDataTable,
+  scriptEditorContent,
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+  const testQuery = 'select 42 as answer';
+
+  // Create and run script
+  await createScriptAndSwitchToItsTab();
+  await fillScript(testQuery);
+  await runScript();
+
+  // Get the data table and select a cell
+  const dataTable = await waitForDataTable();
+  const cellContainer = getDataCellContainer(dataTable, getTableColumnId('answer', 0), 0);
+  await cellContainer.click();
+
+  // Verify the cell is selected by copying - should get cell value
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
+  let clipboardContent = await getClipboardContent(page);
+  expect(clipboardContent).toBe('42');
+
+  // Now click on the editor and select some text
+  await scriptEditorContent.click();
+
+  // Select all text in the editor
+  await page.keyboard.press('ControlOrMeta+a');
+
+  // Copy from editor - should get editor content, not cell value
+  await page.keyboard.press('ControlOrMeta+c', { delay: 100 });
+  clipboardContent = await getClipboardContent(page);
+
+  // Should have copied the editor text, not the cell value
+  expect(clipboardContent).toBe(testQuery);
+});
+
 test('Should copy entire table when using copy table button', async ({
   createScriptAndSwitchToItsTab,
   fillScript,
