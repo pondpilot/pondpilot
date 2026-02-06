@@ -25,7 +25,16 @@ import { DBColumn } from '@models/db';
 import { ExportFormat } from '@models/export-options';
 import { TabId, TabType } from '@models/tab';
 import { useAppStore, clearPendingConvert } from '@store/app-store';
-import { IconX, IconCopy, IconRefresh, IconChevronDown, IconScale } from '@tabler/icons-react';
+import {
+  IconX,
+  IconCopy,
+  IconRefresh,
+  IconChevronDown,
+  IconScale,
+  IconTable,
+  IconChartBar,
+  IconTableColumn,
+} from '@tabler/icons-react';
 import {
   getDatabaseIdentifier,
   isDatabaseDataSource,
@@ -357,13 +366,9 @@ export const DataViewInfoPane = ({
       wrap="nowrap"
       className="h-7 mt-2 mb-3 px-3 relative z-10 bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark"
     >
-      <Group
-        gap="sm"
-        wrap="nowrap"
-        className="overflow-x-auto flex-shrink min-w-0 custom-scroll-hidden"
-      >
+      <Group gap="sm" wrap="nowrap" className="overflow-x-auto flex-1 min-w-0 custom-scroll-hidden">
         <Group gap={4} wrap="nowrap" className="flex-shrink-0">
-          {hasData && viewMode !== 'chart' && (
+          {hasData && viewMode === 'table' && (
             <ColRowCount
               rowCount={rowCountToShow}
               columnCount={columnCount}
@@ -421,11 +426,27 @@ export const DataViewInfoPane = ({
             data={[
               {
                 value: 'table',
-                label: 'Table',
+                label: (
+                  <Tooltip label="Table" openDelay={400}>
+                    <IconTable size={16} stroke={1.5} />
+                  </Tooltip>
+                ),
               },
               {
                 value: 'chart',
-                label: 'Chart',
+                label: (
+                  <Tooltip label="Chart" openDelay={400}>
+                    <IconChartBar size={16} stroke={1.5} />
+                  </Tooltip>
+                ),
+              },
+              {
+                value: 'metadata',
+                label: (
+                  <Tooltip label="Metadata" openDelay={400}>
+                    <IconTableColumn size={16} stroke={1.5} />
+                  </Tooltip>
+                ),
               },
             ]}
             disabled={!hasData}
