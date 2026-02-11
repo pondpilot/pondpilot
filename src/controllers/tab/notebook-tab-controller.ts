@@ -1,5 +1,6 @@
-import { Notebook, NotebookId } from '@models/notebook';
-import { NotebookTab } from '@models/tab';
+import { CellId, Notebook, NotebookId } from '@models/notebook';
+import { TAB_TABLE_NAME } from '@models/persisted-store';
+import { NotebookTab, TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { ensureNotebook } from '@utils/notebook';
 import { makeTabId } from '@utils/tab';
@@ -77,4 +78,30 @@ export const getOrCreateTabFromNotebook = (
   }
 
   return tab;
+};
+
+/**
+ * Updates the active cell ID on a notebook tab.
+ */
+export const setNotebookActiveCellId = (tabId: TabId, activeCellId: CellId | null): void => {
+  const state = useAppStore.getState();
+  const tab = state.tabs.get(tabId);
+
+  if (!tab || tab.type !== 'notebook') {
+    return;
+  }
+
+  const updatedTab: NotebookTab = {
+    ...tab,
+    activeCellId,
+  };
+
+  const newTabs = new Map(state.tabs).set(tabId, updatedTab);
+
+  useAppStore.setState({ tabs: newTabs }, undefined, 'AppStore/setNotebookActiveCellId');
+
+  const iDb = state._iDbConn;
+  if (iDb) {
+    iDb.put(TAB_TABLE_NAME, updatedTab, tabId);
+  }
 };

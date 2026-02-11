@@ -58,30 +58,30 @@ Register the notebook as a first-class tab type in PondPilot's tab system. After
 
 Build the main notebook interface with SQL cells (Monaco editors), markdown cells (react-markdown with edit toggle), cell toolbars, add-cell buttons, and drag-and-drop reordering. This is the largest UI task and delivers the core notebook interaction model.
 
-- [ ] Create `src/features/notebook/components/notebook-cell.tsx` — the cell container component:
+- [x] Create `src/features/notebook/components/notebook-cell.tsx` — the cell container component:
   - Renders SQL cells with `SqlEditor` (from `src/features/editor/sql-editor.tsx`), using unique `path` prop per cell (`notebook-${notebookId}-cell-${cellId}`) for Monaco model isolation
   - Renders markdown cells with `react-markdown` in view mode, switches to a plain textarea (or Monaco with markdown language) in edit mode on double-click
   - Cell toolbar: run button (SQL only), cell type toggle (SQL↔Markdown), move up/down, delete, drag handle
   - Visual indicators: cell number, execution status badge, focused cell highlight
   - SQL cell height auto-adjusts to content (Monaco `automaticLayout` + min/max height constraints)
-- [ ] Create `src/features/notebook/components/add-cell-button.tsx` — appears between cells and at the bottom:
+- [x] Create `src/features/notebook/components/add-cell-button.tsx` — appears between cells and at the bottom:
   - "+" button that expands to show "SQL" and "Markdown" options
   - Inserts new cell at that position using `addCell()` controller
-- [ ] Create `src/features/notebook/components/notebook-toolbar.tsx` — toolbar above the cell list:
+- [x] Create `src/features/notebook/components/notebook-toolbar.tsx` — toolbar above the cell list:
   - Notebook name (editable inline)
   - "Run All" button
   - "Add Cell" dropdown (SQL / Markdown)
   - Export dropdown (placeholder for Task 7)
-- [ ] Update `src/features/notebook/notebook-tab-view.tsx` to render the full notebook:
+- [x] Update `src/features/notebook/notebook-tab-view.tsx` to render the full notebook:
   - Scrollable cell list with `@dnd-kit/sortable` for drag-and-drop reordering
   - Each cell wrapped in a `SortableItem` with drag handle
   - On reorder: call `updateNotebookCells()` with new order
   - Active cell tracking: clicking a cell sets `activeCellId` on the tab
-- [ ] Wire up cell content changes: typing in a SQL/markdown cell calls `updateCellContent()` with debounced persistence
-- [ ] Wire up cell type toggling: changing a cell from SQL to Markdown (or vice versa) preserves content, updates type
-- [ ] Style the notebook to match PondPilot's existing design language (Mantine theme, consistent spacing, border treatment matching existing panels)
-- [ ] Handle empty notebook state: show a welcoming prompt with "Add your first cell" button
-- [ ] Verify: can add/remove/reorder cells, SQL cells have working Monaco editors with syntax highlighting and autocompletion, markdown cells render and can be edited, changes persist across reload
+- [x] Wire up cell content changes: typing in a SQL/markdown cell calls `updateCellContent()` with debounced persistence
+- [x] Wire up cell type toggling: changing a cell from SQL to Markdown (or vice versa) preserves content, updates type
+- [x] Style the notebook to match PondPilot's existing design language (Mantine theme, consistent spacing, border treatment matching existing panels)
+- [x] Handle empty notebook state: show a welcoming prompt with "Add your first cell" button
+- [x] Verify: can add/remove/reorder cells, SQL cells have working Monaco editors with syntax highlighting and autocompletion, markdown cells render and can be edited, changes persist across reload
 
 ### Task 4: Cell Execution Engine & Inline Results
 
