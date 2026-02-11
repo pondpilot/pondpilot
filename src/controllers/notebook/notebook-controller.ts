@@ -322,10 +322,9 @@ export const deleteNotebooks = async (notebookIds: Iterable<NotebookId>) => {
   const newNotebooks = deleteNotebookImpl(idArray, notebooks);
 
   // Find and delete associated notebook tabs.
-  // Cast to string for comparison since the 'notebook' tab type is added in a later task.
   const tabsToDelete: TabId[] = [];
   for (const [tabId, tab] of tabs.entries()) {
-    if ((tab.type as string) === 'notebook' && idsToDeleteSet.has((tab as any).notebookId)) {
+    if (tab.type === 'notebook' && idsToDeleteSet.has(tab.notebookId)) {
       tabsToDelete.push(tabId);
     }
   }

@@ -85,12 +85,18 @@ export const useDataAdapterQueries = ({
           internalErrors: [],
         };
       }
+      case 'notebook': {
+        // Notebook tab handles data adapters per-cell, not at the tab level
+        return {
+          userErrors: [],
+          internalErrors: [],
+        };
+      }
       default:
         assertNeverValueType(tab);
         return {
           userErrors: [],
-          // @ts-expect-error
-          internalErrors: [`Unknown tab type: ${tab.type}`],
+          internalErrors: [`Unknown tab type: ${(tab as { type: string }).type}`],
         };
     }
     // we need sourceVersion to be a dependency, because it allows us to re-create the queries

@@ -624,6 +624,7 @@ export function useTabNameMap(): Map<TabId, string> {
               state.dataSources,
               state.localEntries,
               state.comparisons,
+              state.notebooks,
             ),
           ]),
         ),

@@ -38,21 +38,21 @@ Create the core data types and persistence layer for notebooks. This establishes
 
 Register the notebook as a first-class tab type in PondPilot's tab system. After this task, notebooks can be opened as tabs (with a placeholder view), and tab lifecycle (create, close, persist, restore on reload) works correctly.
 
-- [ ] Update `src/models/tab.ts`:
+- [x] Update `src/models/tab.ts`:
   - Add `'notebook'` to the `TabType` union
   - Create `NotebookTab` interface extending `TabBase` with fields: `type: 'notebook'`, `notebookId: NotebookId`, `activeCellId: CellId | null`
   - Add `NotebookTab` to the `AnyTab` union type
   - Update `TabReactiveState` conditional type to handle `'notebook'`
-- [ ] Update `src/controllers/tab/tab-controller.ts`:
+- [x] Update `src/controllers/tab/tab-controller.ts`:
   - Add `findTabFromNotebook(notebookId: NotebookId): NotebookTab | undefined` — searches existing tabs
   - Add `getOrCreateTabFromNotebook(notebookOrId: Notebook | NotebookId, setActive?: boolean): NotebookTab` — follows `getOrCreateTabFromScript` pattern exactly (check existing tab, create if needed, persist, set active)
-- [ ] Update `src/features/tab-view/tab-view.tsx`: add routing case `{tabType === 'notebook' && <NotebookTabView tabId={tabId} active={isActive} />}` — initially render a placeholder component
-- [ ] Create placeholder `src/features/notebook/notebook-tab-view.tsx` that shows notebook name and cell count (proves tab integration works)
-- [ ] Update tab icon mapping to show a notebook icon for the `'notebook'` tab type (use appropriate Tabler icon, e.g. `IconNotebook`)
-- [ ] Update tab title logic to display the notebook name in the tab bar
-- [ ] Handle tab close: closing a notebook tab should NOT delete the notebook (same pattern as script tabs)
-- [ ] Handle notebook deletion: deleting a notebook should close its tab if open
-- [ ] Verify: can create a notebook tab programmatically, tab appears in tab bar with correct name/icon, tab persists across page reload, closing and reopening works
+- [x] Update `src/features/tab-view/tab-view.tsx`: add routing case `{tabType === 'notebook' && <NotebookTabView tabId={tabId} active={isActive} />}` — initially render a placeholder component
+- [x] Create placeholder `src/features/notebook/notebook-tab-view.tsx` that shows notebook name and cell count (proves tab integration works)
+- [x] Update tab icon mapping to show a notebook icon for the `'notebook'` tab type (use appropriate Tabler icon, e.g. `IconNotebook`)
+- [x] Update tab title logic to display the notebook name in the tab bar
+- [x] Handle tab close: closing a notebook tab should NOT delete the notebook (same pattern as script tabs)
+- [x] Handle notebook deletion: deleting a notebook should close its tab if open
+- [x] Verify: can create a notebook tab programmatically, tab appears in tab bar with correct name/icon, tab persists across page reload, closing and reopening works
 
 ### Task 3: Core Notebook UI — Cell Rendering & Reordering
 

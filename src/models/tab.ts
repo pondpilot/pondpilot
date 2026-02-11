@@ -14,6 +14,7 @@ import {
 } from './db';
 import { LocalEntryId } from './file-system';
 import { NewId } from './new-id';
+import { CellId, NotebookId } from './notebook';
 import { SQLScriptId } from './sql-script';
 
 // Re-export comparison types for backward compatibility with existing code
@@ -41,7 +42,7 @@ export type TabDataViewStateCache = {
   chartConfig: ChartConfig | null;
 };
 
-export type TabType = 'script' | 'data-source' | 'schema-browser' | 'comparison';
+export type TabType = 'script' | 'data-source' | 'schema-browser' | 'comparison' | 'notebook';
 
 export interface TabBase {
   readonly type: TabType;
@@ -122,8 +123,14 @@ export interface ComparisonTab extends TabBase {
   comparisonResultsTable: string | null;
 }
 
+export interface NotebookTab extends TabBase {
+  readonly type: 'notebook';
+  notebookId: NotebookId;
+  activeCellId: CellId | null;
+}
+
 export type AnyFileSourceTab = FlatFileDataSourceTab | LocalDBDataTab;
-export type AnyTab = ScriptTab | AnyFileSourceTab | SchemaBrowserTab | ComparisonTab;
+export type AnyTab = ScriptTab | AnyFileSourceTab | SchemaBrowserTab | ComparisonTab | NotebookTab;
 export type TabReactiveState<T extends AnyTab> = T extends ScriptTab
   ? Omit<ScriptTab, 'dataViewStateCache'>
   : T extends FlatFileDataSourceTab
@@ -132,4 +139,6 @@ export type TabReactiveState<T extends AnyTab> = T extends ScriptTab
       ? Omit<SchemaBrowserTab, 'dataViewStateCache'>
       : T extends ComparisonTab
         ? Omit<ComparisonTab, 'dataViewStateCache'>
-        : Omit<LocalDBDataTab, 'dataViewStateCache'>;
+        : T extends NotebookTab
+          ? Omit<NotebookTab, 'dataViewStateCache'>
+          : Omit<LocalDBDataTab, 'dataViewStateCache'>;
