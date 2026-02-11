@@ -15,24 +15,24 @@ Architecture: new `NotebookTab` tab type following the ComparisonTab pattern, `N
 
 Create the core data types and persistence layer for notebooks. This establishes the `Notebook` and `NotebookCell` models, adds a new IndexedDB object store, extends the Zustand store, and implements CRUD controller functions. Everything else builds on this foundation.
 
-- [ ] Create `src/models/notebook.ts` with `NotebookId` branded type, `CellId` branded type, `NotebookCellType` union (`'sql' | 'markdown'`), `NotebookCell` interface (`id`, `type`, `content`, `order`), and `Notebook` interface (`id`, `name`, `cells`, `createdAt`, `updatedAt`)
-- [ ] Create ID factory functions `makeNotebookId()` and `makeCellId()` following the existing `makeTabId()` pattern in `src/models/tab.ts`
-- [ ] Update `src/models/persisted-store.ts`: add `NOTEBOOK_TABLE_NAME = 'notebook'`, extend `AppIdbSchema` with the notebook object store, and bump `DB_VERSION` from current value to next
-- [ ] Update `src/store/app-store.tsx`: add `notebooks: Map<NotebookId, Notebook>` to the store state, add `notebookAccessTimes: Map<NotebookId, number>` for recency tracking, initialize both as empty Maps
-- [ ] Add notebook loading to the app initialization flow — load notebooks from IndexedDB on startup (follow the pattern used for `sqlScripts` loading)
-- [ ] Create `src/controllers/notebook/notebook-controller.ts` with CRUD functions:
+- [x] Create `src/models/notebook.ts` with `NotebookId` branded type, `CellId` branded type, `NotebookCellType` union (`'sql' | 'markdown'`), `NotebookCell` interface (`id`, `type`, `content`, `order`), and `Notebook` interface (`id`, `name`, `cells`, `createdAt`, `updatedAt`)
+- [x] Create ID factory functions `makeNotebookId()` and `makeCellId()` following the existing `makeTabId()` pattern in `src/models/tab.ts`
+- [x] Update `src/models/persisted-store.ts`: add `NOTEBOOK_TABLE_NAME = 'notebook'`, extend `AppIdbSchema` with the notebook object store, and bump `DB_VERSION` from current value to next
+- [x] Update `src/store/app-store.tsx`: add `notebooks: Map<NotebookId, Notebook>` to the store state, add `notebookAccessTimes: Map<NotebookId, number>` for recency tracking, initialize both as empty Maps
+- [x] Add notebook loading to the app initialization flow — load notebooks from IndexedDB on startup (follow the pattern used for `sqlScripts` loading)
+- [x] Create `src/controllers/notebook/notebook-controller.ts` with CRUD functions:
   - `createNotebook(name: string): Notebook` — creates notebook with a single empty SQL cell, persists to IndexedDB, updates store
   - `deleteNotebook(notebookId: NotebookId)` — removes from store and IndexedDB, closes associated tabs
   - `renameNotebook(notebookId: NotebookId, name: string)` — updates name in store and IndexedDB
   - `updateNotebookCells(notebookId: NotebookId, cells: NotebookCell[])` — replaces cell array, persists
-- [ ] Create cell manipulation helpers in the same controller:
+- [x] Create cell manipulation helpers in the same controller:
   - `addCell(notebookId: NotebookId, type: NotebookCellType, afterCellId?: CellId): NotebookCell` — inserts cell at position, reorders
   - `removeCell(notebookId: NotebookId, cellId: CellId)` — removes cell, reorders remaining
   - `moveCellUp(notebookId: NotebookId, cellId: CellId)` / `moveCellDown(...)` — swaps order with adjacent cell
   - `updateCellContent(notebookId: NotebookId, cellId: CellId, content: string)` — updates content, debounced persist
   - `updateCellType(notebookId: NotebookId, cellId: CellId, type: NotebookCellType)` — toggles between sql/markdown
-- [ ] Add auto-save logic with debounced persistence (follow the `ScriptEditor` debounce pattern — configurable interval, dirty tracking)
-- [ ] Verify: app starts without errors, notebooks load from IndexedDB on refresh, CRUD operations persist correctly
+- [x] Add auto-save logic with debounced persistence (follow the `ScriptEditor` debounce pattern — configurable interval, dirty tracking)
+- [x] Verify: app starts without errors, notebooks load from IndexedDB on refresh, CRUD operations persist correctly
 
 ### Task 2: NotebookTab Type & Tab System Integration
 

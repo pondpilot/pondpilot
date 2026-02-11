@@ -31,6 +31,7 @@ import {
   LocalFile,
   LocalFolder,
 } from '@models/file-system';
+import { Notebook, NotebookId } from '@models/notebook';
 import {
   ALL_TABLE_NAMES,
   APP_DB_NAME,
@@ -40,6 +41,8 @@ import {
   DATA_SOURCE_TABLE_NAME,
   DB_VERSION,
   LOCAL_ENTRY_TABLE_NAME,
+  NOTEBOOK_TABLE_NAME,
+  NOTEBOOK_ACCESS_TIME_TABLE_NAME,
   SCRIPT_ACCESS_TIME_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
   SCRIPT_VERSION_TABLE_NAME,
@@ -517,6 +520,12 @@ export const restoreAppDataFromIDB = async (
     }),
   );
 
+  // Read notebooks
+  const notebooksArray = await tx.objectStore(NOTEBOOK_TABLE_NAME).getAll();
+  const notebooks = new Map<NotebookId, Notebook>(
+    notebooksArray.map((notebook) => [notebook.id as NotebookId, notebook as Notebook]),
+  );
+
   const comparisonsArray = await tx.objectStore(COMPARISON_TABLE_NAME).getAll();
   const comparisons = new Map<ComparisonId, Comparison>(
     comparisonsArray.map((comparison) => [comparison.id as ComparisonId, comparison as Comparison]),
@@ -725,6 +734,24 @@ export const restoreAppDataFromIDB = async (
     } else {
       // eslint-disable-next-line no-console
       console.warn('Error loading table access times, starting with empty map:', error);
+    }
+  }
+
+  const notebookAccessTimes = new Map<NotebookId, number>();
+  try {
+    const notebookAccessStore = tx.objectStore(NOTEBOOK_ACCESS_TIME_TABLE_NAME);
+    const notebookAccessValues = await notebookAccessStore.getAll();
+    const notebookAccessKeys = await notebookAccessStore.getAllKeys();
+    notebookAccessKeys.forEach((key, index) => {
+      notebookAccessTimes.set(key as NotebookId, notebookAccessValues[index] as number);
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotFoundError') {
+      // eslint-disable-next-line no-console
+      console.info('Notebook access times store not found, initializing empty map');
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn('Error loading notebook access times, starting with empty map:', error);
     }
   }
 
@@ -1186,6 +1213,7 @@ export const restoreAppDataFromIDB = async (
       localEntries: localEntriesMap,
       registeredFiles,
       sqlScripts,
+      notebooks,
       comparisons,
       tabs: newTabs,
       tabOrder: newTabOrder,
@@ -1193,6 +1221,7 @@ export const restoreAppDataFromIDB = async (
       previewTabId: newPreviewTabId,
       dataSourceAccessTimes,
       scriptAccessTimes,
+      notebookAccessTimes,
       tableAccessTimes,
     },
     undefined,

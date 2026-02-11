@@ -1,0 +1,377 @@
+// Public notebook controller API's
+// By convention the order should follow CRUD groups!
+
+import { persistDeleteTab } from '@controllers/tab/persist';
+import { deleteTabImpl } from '@controllers/tab/pure';
+import {
+  CellId,
+  Notebook,
+  NotebookCell,
+  NotebookCellType,
+  NotebookId,
+} from '@models/notebook';
+import { NOTEBOOK_TABLE_NAME } from '@models/persisted-store';
+import { TabId } from '@models/tab';
+import { useAppStore } from '@store/app-store';
+import { findUniqueName, getAllExistingNames } from '@utils/helpers';
+import { ensureNotebook, makeCellId, makeNotebookId } from '@utils/notebook';
+import { createPersistenceCatchHandler } from '@utils/persistence-logger';
+
+import { persistDeleteNotebook } from './persist';
+import { deleteNotebookImpl, insertCellAfter, removeCellImpl, reorderCells, swapCellOrder } from './pure';
+
+/**
+ * Debounce timer for notebook persistence.
+ * Keyed by NotebookId to allow independent debouncing per notebook.
+ */
+const persistTimers = new Map<NotebookId, ReturnType<typeof setTimeout>>();
+const NOTEBOOK_SAVE_DEBOUNCE_MS = 300;
+
+/**
+ * Persists a notebook to IndexedDB, optionally debounced.
+ */
+const persistNotebook = (notebook: Notebook, debounce: boolean = false): void => {
+  const iDb = useAppStore.getState()._iDbConn;
+  if (!iDb) return;
+
+  if (!debounce) {
+    iDb
+      .put(NOTEBOOK_TABLE_NAME, notebook, notebook.id)
+      .catch(createPersistenceCatchHandler('persist notebook'));
+    return;
+  }
+
+  // Cancel any existing timer for this notebook
+  const existingTimer = persistTimers.get(notebook.id);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  const timer = setTimeout(() => {
+    persistTimers.delete(notebook.id);
+    iDb
+      .put(NOTEBOOK_TABLE_NAME, notebook, notebook.id)
+      .catch(createPersistenceCatchHandler('persist notebook (debounced)'));
+  }, NOTEBOOK_SAVE_DEBOUNCE_MS);
+
+  persistTimers.set(notebook.id, timer);
+};
+
+/**
+ * Updates a notebook in the store and optionally persists it.
+ */
+const updateNotebookInStore = (
+  notebook: Notebook,
+  action: string,
+  debounce: boolean = false,
+): void => {
+  useAppStore.setState(
+    (state) => ({
+      notebooks: new Map(state.notebooks).set(notebook.id, notebook),
+    }),
+    undefined,
+    action,
+  );
+
+  persistNotebook(notebook, debounce);
+};
+
+/**
+ * ------------------------------------------------------------
+ * -------------------------- Create --------------------------
+ * ------------------------------------------------------------
+ */
+
+export const createNotebook = (name: string = 'notebook'): Notebook => {
+  const { sqlScripts, comparisons, notebooks } = useAppStore.getState();
+
+  const allExistingNames = getAllExistingNames({ comparisons, sqlScripts, notebooks });
+  const uniqueName = findUniqueName(name, (value) => allExistingNames.has(value));
+
+  const notebookId = makeNotebookId();
+  const cellId = makeCellId();
+  const now = new Date().toISOString();
+
+  const notebook: Notebook = {
+    id: notebookId,
+    name: uniqueName,
+    cells: [
+      {
+        id: cellId,
+        type: 'sql',
+        content: '',
+        order: 0,
+      },
+    ],
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  updateNotebookInStore(notebook, 'AppStore/createNotebook');
+
+  return notebook;
+};
+
+/**
+ * ------------------------------------------------------------
+ * -------------------------- Read ---------------------------
+ * ------------------------------------------------------------
+ */
+
+/**
+ * ------------------------------------------------------------
+ * -------------------------- Update --------------------------
+ * ------------------------------------------------------------
+ */
+
+export const renameNotebook = (
+  notebookOrId: Notebook | NotebookId,
+  newName: string,
+): void => {
+  const { notebooks, sqlScripts, comparisons } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  const allExistingNames = getAllExistingNames({
+    comparisons,
+    sqlScripts,
+    notebooks,
+    excludeId: notebook.id,
+  });
+
+  const uniqueName = findUniqueName(newName, (value) => allExistingNames.has(value));
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    name: uniqueName,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/renameNotebook');
+};
+
+export const updateNotebookCells = (
+  notebookOrId: Notebook | NotebookId,
+  cells: NotebookCell[],
+): void => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: reorderCells(cells),
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/updateNotebookCells');
+};
+
+/**
+ * ------------------------------------------------------------
+ * Cell Manipulation Helpers
+ * ------------------------------------------------------------
+ */
+
+export const addCell = (
+  notebookOrId: Notebook | NotebookId,
+  type: NotebookCellType,
+  afterCellId?: CellId,
+): NotebookCell => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  const newCell: NotebookCell = {
+    id: makeCellId(),
+    type,
+    content: '',
+    order: 0,
+  };
+
+  const updatedCells = insertCellAfter(notebook.cells, newCell, afterCellId);
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: updatedCells,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/addCell');
+
+  return newCell;
+};
+
+export const removeCell = (
+  notebookOrId: Notebook | NotebookId,
+  cellId: CellId,
+): void => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  // Don't remove the last cell
+  if (notebook.cells.length <= 1) return;
+
+  const updatedCells = removeCellImpl(notebook.cells, cellId);
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: updatedCells,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/removeCell');
+};
+
+export const moveCellUp = (
+  notebookOrId: Notebook | NotebookId,
+  cellId: CellId,
+): void => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  const updatedCells = swapCellOrder(notebook.cells, cellId, 'up');
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: updatedCells,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/moveCellUp');
+};
+
+export const moveCellDown = (
+  notebookOrId: Notebook | NotebookId,
+  cellId: CellId,
+): void => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  const updatedCells = swapCellOrder(notebook.cells, cellId, 'down');
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: updatedCells,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/moveCellDown');
+};
+
+export const updateCellContent = (
+  notebookOrId: Notebook | NotebookId,
+  cellId: CellId,
+  content: string,
+): void => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  const updatedCells = notebook.cells.map((cell) =>
+    cell.id === cellId ? { ...cell, content } : cell,
+  );
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: updatedCells,
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Use debounced persistence for cell content changes (user typing)
+  updateNotebookInStore(updatedNotebook, 'AppStore/updateCellContent', true);
+};
+
+export const updateCellType = (
+  notebookOrId: Notebook | NotebookId,
+  cellId: CellId,
+  type: NotebookCellType,
+): void => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  const updatedCells = notebook.cells.map((cell) =>
+    cell.id === cellId ? { ...cell, type } : cell,
+  );
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: updatedCells,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/updateCellType');
+};
+
+/**
+ * ------------------------------------------------------------
+ * -------------------------- Delete --------------------------
+ * ------------------------------------------------------------
+ */
+
+export const deleteNotebooks = async (notebookIds: Iterable<NotebookId>) => {
+  const {
+    notebooks,
+    notebookAccessTimes,
+    tabs,
+    tabOrder,
+    activeTabId,
+    previewTabId,
+    _iDbConn: iDbConn,
+  } = useAppStore.getState();
+
+  const idArray = Array.from(notebookIds);
+  const idsToDeleteSet = new Set(idArray);
+
+  const newNotebooks = deleteNotebookImpl(idArray, notebooks);
+
+  // Find and delete associated notebook tabs.
+  // Cast to string for comparison since the 'notebook' tab type is added in a later task.
+  const tabsToDelete: TabId[] = [];
+  for (const [tabId, tab] of tabs.entries()) {
+    if ((tab.type as string) === 'notebook' && idsToDeleteSet.has((tab as any).notebookId)) {
+      tabsToDelete.push(tabId);
+    }
+  }
+
+  let newTabs = tabs;
+  let newTabOrder = tabOrder;
+  let newActiveTabId = activeTabId;
+  let newPreviewTabId = previewTabId;
+
+  if (tabsToDelete.length > 0) {
+    const result = deleteTabImpl({
+      deleteTabIds: tabsToDelete,
+      tabs,
+      tabOrder,
+      activeTabId,
+      previewTabId,
+    });
+
+    newTabs = result.newTabs;
+    newTabOrder = result.newTabOrder;
+    newActiveTabId = result.newActiveTabId;
+    newPreviewTabId = result.newPreviewTabId;
+  }
+
+  const newNotebookAccessTimes = new Map(
+    Array.from(notebookAccessTimes).filter(([id]) => !idsToDeleteSet.has(id)),
+  );
+
+  useAppStore.setState(
+    {
+      notebooks: newNotebooks,
+      notebookAccessTimes: newNotebookAccessTimes,
+      tabs: newTabs,
+      tabOrder: newTabOrder,
+      activeTabId: newActiveTabId,
+      previewTabId: newPreviewTabId,
+    },
+    undefined,
+    'AppStore/deleteNotebooks',
+  );
+
+  if (iDbConn) {
+    persistDeleteNotebook(iDbConn, idArray);
+
+    if (tabsToDelete.length) {
+      persistDeleteTab(iDbConn, tabsToDelete, newActiveTabId, newPreviewTabId, newTabOrder);
+    }
+  }
+};

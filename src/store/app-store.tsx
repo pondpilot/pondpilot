@@ -14,6 +14,7 @@ import { DataBaseModel, DBFunctionsMetadata, DBTableOrViewSchema } from '@models
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { ExportFormat } from '@models/export-options';
 import { LocalEntry, LocalEntryId, LocalFile } from '@models/file-system';
+import { Notebook, NotebookId } from '@models/notebook';
 import { AppIdbSchema } from '@models/persisted-store';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab, TabId, TabReactiveState, TabType } from '@models/tab';
@@ -69,6 +70,11 @@ type AppStore = {
   sqlScripts: Map<SQLScriptId, SQLScript>;
 
   /**
+   * A mapping of notebook identifiers to their corresponding Notebook objects.
+   */
+  notebooks: Map<NotebookId, Notebook>;
+
+  /**
    * A mapping of comparison identifiers to their corresponding Comparison objects.
    */
   comparisons: Map<ComparisonId, Comparison>;
@@ -117,6 +123,11 @@ type AppStore = {
   scriptAccessTimes: Map<SQLScriptId, number>;
 
   /**
+   * A mapping of notebook identifiers to their last access times.
+   */
+  notebookAccessTimes: Map<NotebookId, number>;
+
+  /**
    * A mapping of database table/view identifiers to their last access times.
    */
   tableAccessTimes: Map<string, number>;
@@ -163,6 +174,7 @@ const initialState: AppStore = {
   localEntries: new Map(),
   registeredFiles: new Map(),
   sqlScripts: new Map(),
+  notebooks: new Map(),
   comparisons: new Map(),
   tabs: new Map(),
   databaseMetadata: new Map(),
@@ -170,6 +182,7 @@ const initialState: AppStore = {
   tabExecutionErrors: new Map(),
   dataSourceAccessTimes: new Map(),
   scriptAccessTimes: new Map(),
+  notebookAccessTimes: new Map(),
   tableAccessTimes: new Map(),
   comparisonSourceSelectionCallback: null,
   spotlightView: 'home',
