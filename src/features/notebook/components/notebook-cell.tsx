@@ -7,6 +7,7 @@ import {
   ActionIcon,
   Group,
   Loader,
+  Menu,
   Text,
   Tooltip,
   Textarea,
@@ -48,6 +49,8 @@ import { CellResultContainer } from './cell-result-container';
 import { CellExecutionState } from '../hooks/use-notebook-execution-state';
 import { CellMode } from '../hooks/use-notebook-keyboard';
 
+export type CellRunMode = 'run' | 'upstream' | 'downstream';
+
 interface NotebookCellProps {
   cell: NotebookCellModel;
   cellIndex: number;
@@ -77,7 +80,7 @@ interface NotebookCellProps {
   onMoveDown: (cellId: CellId) => void;
   onDelete: (cellId: CellId) => void;
   onRenameAlias?: (cellId: CellId, nextName: string | null) => void;
-  onRun?: (cellId: CellId) => void;
+  onRun?: (cellId: CellId, mode?: CellRunMode) => void;
   onFocus: (cellId: CellId) => void;
   onEscape: () => void;
   onToggleCollapse: (cellId: CellId) => void;
@@ -171,9 +174,12 @@ export const NotebookCell = memo(
       [cell.id, onContentChange],
     );
 
-    const handleRun = useCallback(() => {
-      onRun?.(cell.id);
-    }, [cell.id, onRun]);
+    const handleRun = useCallback(
+      (mode: CellRunMode = 'run') => {
+        onRun?.(cell.id, mode);
+      },
+      [cell.id, onRun],
+    );
 
     const handleBlur = useCallback(() => {
       // no-op for now
@@ -430,19 +436,56 @@ export const NotebookCell = memo(
           <Group gap={2} onClick={(e) => e.stopPropagation()}>
             {/* Run button (SQL only) */}
             {cell.type === 'sql' && (
-              <Tooltip label="Run cell (Ctrl+Enter)" position="top">
-                <ActionIcon
-                  data-testid="notebook-cell-run"
-                  size="xs"
-                  variant="subtle"
-                  onClick={handleRun}
-                >
-                  <IconPlayerPlay
-                    size={14}
-                    className="text-iconDefault-light dark:text-iconDefault-dark"
-                  />
-                </ActionIcon>
-              </Tooltip>
+              <Group gap={0}>
+                <Tooltip label="Run cell (Ctrl+Enter)" position="top">
+                  <ActionIcon
+                    data-testid="notebook-cell-run"
+                    size="xs"
+                    variant="subtle"
+                    onClick={() => handleRun('run')}
+                  >
+                    <IconPlayerPlay
+                      size={14}
+                      className="text-iconDefault-light dark:text-iconDefault-dark"
+                    />
+                  </ActionIcon>
+                </Tooltip>
+                <Menu width={170} shadow="md" position="bottom-end">
+                  <Menu.Target>
+                    <ActionIcon
+                      data-testid="notebook-cell-run-menu"
+                      aria-label="Run options"
+                      size="xs"
+                      variant="subtle"
+                    >
+                      <IconChevronDown
+                        size={12}
+                        className="text-iconDefault-light dark:text-iconDefault-dark"
+                      />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Item
+                      data-testid="notebook-cell-run-option-run"
+                      onClick={() => handleRun('run')}
+                    >
+                      Run
+                    </Menu.Item>
+                    <Menu.Item
+                      data-testid="notebook-cell-run-option-upstream"
+                      onClick={() => handleRun('upstream')}
+                    >
+                      Run upstream
+                    </Menu.Item>
+                    <Menu.Item
+                      data-testid="notebook-cell-run-option-downstream"
+                      onClick={() => handleRun('downstream')}
+                    >
+                      Run downstream
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
+              </Group>
             )}
 
             {cell.type === 'sql' && (

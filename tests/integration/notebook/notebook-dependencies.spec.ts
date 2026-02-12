@@ -36,8 +36,27 @@ const renameAlias = async (page: Page, index: number, alias: string) => {
   await input.press('Enter');
 };
 
-const runCell = async (page: Page, index: number) => {
-  await getNotebookCell(page, index).getByTestId('notebook-cell-run').click();
+const runCell = async (
+  page: Page,
+  index: number,
+  mode: 'run' | 'upstream' | 'downstream' = 'run',
+) => {
+  const cell = getNotebookCell(page, index);
+  if (mode === 'run') {
+    await cell.getByTestId('notebook-cell-run').click();
+    return;
+  }
+
+  const runMenuByTestId = cell.getByTestId('notebook-cell-run-menu');
+  if (await runMenuByTestId.count()) {
+    await runMenuByTestId.click();
+  } else {
+    await cell.getByTestId('notebook-cell-run')
+      .locator('xpath=following-sibling::button')
+      .first()
+      .click();
+  }
+  await page.getByTestId(`notebook-cell-run-option-${mode}`).click();
 };
 
 test('reorder keeps references valid with stable refs', async ({ page, createNotebookViaSpotlight }) => {
@@ -86,6 +105,50 @@ test('run all executes SQL cells in dependency order', async ({ page, createNote
 
   await expect(getNotebookCell(page, 0).getByTestId('data-table')).toBeVisible();
   await expect(getNotebookCell(page, 0).getByTestId('data-table').getByText('3', { exact: true })).toBeVisible();
+});
+
+test('run auto-materializes missing upstream while run upstream executes dependency chain', async ({ page, createNotebookViaSpotlight }) => {
+  await createNotebookViaSpotlight();
+  await waitForNotebookReady(page);
+
+  await addSqlCellFromToolbar(page);
+  await renameAlias(page, 0, 'source_alias');
+
+  await fillSqlCell(page, 0, 'SELECT 1 AS x');
+  await fillSqlCell(page, 1, 'SELECT x + 1 AS x FROM source_alias');
+
+  await runCell(page, 1, 'run');
+
+  await expect(getNotebookCell(page, 0).getByTestId('data-table')).toBeVisible();
+  await expect(getNotebookCell(page, 1).getByTestId('data-table')).toBeVisible();
+  await expect(getNotebookCell(page, 1).getByTestId('data-table').getByText('2', { exact: true })).toBeVisible();
+
+  await runCell(page, 1, 'upstream');
+  await expect(getNotebookCell(page, 0).getByTestId('data-table')).toBeVisible();
+  await expect(getNotebookCell(page, 1).getByTestId('data-table')).toBeVisible();
+  await expect(getNotebookCell(page, 1).getByTestId('data-table').getByText('2', { exact: true })).toBeVisible();
+});
+
+test('run downstream executes dependent cells in order', async ({ page, createNotebookViaSpotlight }) => {
+  await createNotebookViaSpotlight();
+  await waitForNotebookReady(page);
+
+  await addSqlCellFromToolbar(page);
+  await renameAlias(page, 0, 'source_alias');
+  await renameAlias(page, 1, 'mid_alias');
+  await fillSqlCell(page, 0, 'SELECT 1 AS x');
+  await fillSqlCell(page, 1, 'SELECT x + 1 AS x FROM source_alias');
+
+  await addSqlCellFromToolbar(page);
+  await renameAlias(page, 2, 'final_alias');
+  await fillSqlCell(page, 2, 'SELECT x + 1 AS x FROM mid_alias');
+
+  await runCell(page, 0, 'downstream');
+
+  await expect(getNotebookCell(page, 0).getByTestId('data-table')).toBeVisible();
+  await expect(getNotebookCell(page, 1).getByTestId('data-table')).toBeVisible();
+  await expect(getNotebookCell(page, 2).getByTestId('data-table')).toBeVisible();
+  await expect(getNotebookCell(page, 2).getByTestId('data-table').getByText('3', { exact: true })).toBeVisible();
 });
 
 test('duplicate alias is blocked at rename time', async ({ page, createNotebookViaSpotlight }) => {

@@ -1,7 +1,8 @@
 import { NotebookCell } from '@models/notebook';
-import { ensureCellRef } from '@utils/notebook';
+import { ensureCellRef, NOTEBOOK_CELL_REF_PREFIX } from '@utils/notebook';
 
 import { extractCellReferences, normalizeCellName } from './cell-naming';
+import { getFlowScopeClient } from '../../../workers/flowscope-client';
 
 export type CellDependencyMap = Map<string, string[]>;
 
@@ -43,6 +44,121 @@ export function computeCellDependencies(
     if (refs.length > 0) {
       deps.set(cell.id, refs);
     }
+  }
+
+  return deps;
+}
+
+function stripIdentifierWrapping(identifier: string): string {
+  const trimmed = identifier.trim();
+  if (!trimmed) return '';
+
+  // Remove single layer of common SQL identifier quoting.
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith('`') && trimmed.endsWith('`')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
+}
+
+function buildIdentifierCandidates(identifier?: string): string[] {
+  if (!identifier) return [];
+
+  const parts = identifier.split('.')
+    .map((part) => stripIdentifierWrapping(part))
+    .filter(Boolean);
+
+  const candidates = new Set<string>();
+  const raw = stripIdentifierWrapping(identifier);
+  if (raw) candidates.add(raw);
+  if (parts.length > 0) {
+    candidates.add(parts.join('.'));
+    candidates.add(parts[parts.length - 1]);
+  }
+
+  return [...candidates];
+}
+
+async function extractCellReferencesFromLineage(
+  sql: string,
+  availableNames: Set<string>,
+): Promise<string[] | null> {
+  if (!sql.trim()) return [];
+
+  const canonicalByLower = new Map<string, string>();
+  for (const name of availableNames) {
+    canonicalByLower.set(name.toLowerCase(), name);
+  }
+
+  try {
+    const analysis = await getFlowScopeClient().analyze(sql, undefined, 'duckdb');
+    if (analysis.summary.hasErrors || analysis.statements.length === 0) {
+      return null;
+    }
+
+    const references: string[] = [];
+    const seen = new Set<string>();
+    const refPrefix = NOTEBOOK_CELL_REF_PREFIX.toLowerCase();
+
+    for (const statement of analysis.statements) {
+      for (const node of statement.nodes) {
+        if (node.type !== 'table' && node.type !== 'view') continue;
+
+        const candidates = [
+          ...buildIdentifierCandidates(node.label),
+          ...buildIdentifierCandidates(node.qualifiedName),
+        ];
+
+        for (const candidate of candidates) {
+          const canonicalName = canonicalByLower.get(candidate.toLowerCase());
+          if (canonicalName) {
+            if (seen.has(canonicalName)) continue;
+            seen.add(canonicalName);
+            references.push(canonicalName);
+            continue;
+          }
+
+          if (candidate.toLowerCase().startsWith(refPrefix)) {
+            if (seen.has(candidate)) continue;
+            seen.add(candidate);
+            references.push(candidate);
+          }
+        }
+      }
+    }
+
+    return references;
+  } catch (_error) {
+    return null;
+  }
+}
+
+export async function computeCellDependenciesWithLineage(
+  sortedCells: NotebookCell[],
+  availableNames: Set<string>,
+): Promise<CellDependencyMap> {
+  const depEntries = await Promise.all(sortedCells.map(async (cell) => {
+    if (cell.type !== 'sql') return null;
+
+    const ownNames = getProvidedNames(cell);
+    const namesExcludingSelf = new Set([...availableNames].filter((name) => !ownNames.has(name)));
+    const lineageRefs = await extractCellReferencesFromLineage(cell.content, namesExcludingSelf);
+    const refs = lineageRefs && lineageRefs.length > 0
+      ? lineageRefs
+      : extractCellReferences(cell.content, namesExcludingSelf);
+    if (refs.length === 0) return null;
+
+    return [cell.id, refs] as const;
+  }));
+
+  const deps = new Map<string, string[]>();
+  for (const entry of depEntries) {
+    if (!entry) continue;
+    deps.set(entry[0], entry[1]);
   }
 
   return deps;
@@ -154,6 +270,66 @@ export function detectCircularDependencyCells(
   }
 
   return cyclicCells;
+}
+
+export function findUpstreamDependencyCells(
+  targetCellId: string,
+  graph: Map<string, Set<string>>,
+): Set<string> {
+  const upstreamCellIds = new Set<string>();
+  const stack = [targetCellId];
+
+  while (stack.length > 0) {
+    const nextCellId = stack.pop();
+    if (!nextCellId || upstreamCellIds.has(nextCellId)) continue;
+
+    upstreamCellIds.add(nextCellId);
+    const providers = graph.get(nextCellId);
+    if (!providers) continue;
+
+    for (const providerCellId of providers) {
+      if (!upstreamCellIds.has(providerCellId)) {
+        stack.push(providerCellId);
+      }
+    }
+  }
+
+  return upstreamCellIds;
+}
+
+export function findDownstreamDependencyCells(
+  targetCellId: string,
+  graph: Map<string, Set<string>>,
+): Set<string> {
+  const consumersByProvider = new Map<string, Set<string>>();
+  for (const [consumerCellId, providerCellIds] of graph.entries()) {
+    for (const providerCellId of providerCellIds) {
+      if (!consumersByProvider.has(providerCellId)) {
+        consumersByProvider.set(providerCellId, new Set<string>());
+      }
+      consumersByProvider.get(providerCellId)?.add(consumerCellId);
+    }
+  }
+
+  const downstreamCellIds = new Set<string>();
+  const queue = [targetCellId];
+
+  while (queue.length > 0) {
+    const nextCellId = queue.shift();
+    if (!nextCellId || downstreamCellIds.has(nextCellId)) continue;
+
+    downstreamCellIds.add(nextCellId);
+    const consumers = consumersByProvider.get(nextCellId);
+    if (!consumers) continue;
+
+    for (const consumerCellId of consumers) {
+      if (!downstreamCellIds.has(consumerCellId)) {
+        queue.push(consumerCellId);
+      }
+    }
+  }
+
+  return downstreamCellIds;
 }
 
 export function findCellsReferencingTargetCell(

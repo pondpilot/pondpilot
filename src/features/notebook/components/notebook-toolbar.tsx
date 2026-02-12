@@ -3,7 +3,6 @@ import {
   Group,
   Loader,
   Menu,
-  Text,
   TextInput,
   Tooltip,
 } from '@mantine/core';
@@ -17,6 +16,7 @@ import {
   IconMarkdown,
   IconPlayerPlay,
   IconPlus,
+  IconPencil,
 } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
 import { memo, useCallback, useState, useRef, useEffect } from 'react';
@@ -83,15 +83,17 @@ export const NotebookToolbar = memo(
     );
 
     return (
-      <Group
-        className={cn(
-          'px-3 h-10 justify-between',
-          'border-b border-borderPrimary-light dark:border-borderPrimary-dark',
-          'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
-        )}
-      >
-        <Group gap={8}>
-          {/* Notebook name */}
+      <div className="absolute top-3 right-4 z-20 pointer-events-none">
+        <Group
+          gap={4}
+          wrap="nowrap"
+          className={cn(
+            'pointer-events-auto h-10 px-2 rounded-xl',
+            'border border-borderPrimary-light dark:border-borderPrimary-dark',
+            'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
+            'shadow-sm',
+          )}
+        >
           {editing ? (
             <TextInput
               ref={inputRef}
@@ -100,29 +102,28 @@ export const NotebookToolbar = memo(
               onBlur={handleNameSubmit}
               onKeyDown={handleKeyDown}
               size="xs"
-              variant="unstyled"
+              className="w-[180px]"
               styles={{
                 input: {
                   fontWeight: 600,
-                  fontSize: '14px',
+                  fontSize: '13px',
                 },
               }}
             />
           ) : (
-            <span
-              className={cn(
-                'text-sm font-semibold cursor-pointer select-none',
-                'text-textPrimary-light dark:text-textPrimary-dark',
-                'hover:underline',
-              )}
-              onDoubleClick={() => setEditing(true)}
-            >
-              {notebookName}
-            </span>
+            <Tooltip label="Rename notebook" position="top">
+              <ActionIcon
+                data-testid="notebook-rename-button"
+                size="sm"
+                variant="subtle"
+                className="text-iconDefault-light dark:text-iconDefault-dark"
+                onClick={() => setEditing(true)}
+              >
+                <IconPencil size={15} />
+              </ActionIcon>
+            </Tooltip>
           )}
-        </Group>
 
-        <Group gap={4}>
           {/* Run All button */}
           {onRunAll && (
             <Group gap={4}>
@@ -145,11 +146,6 @@ export const NotebookToolbar = memo(
                   {runAllState?.running ? <Loader size={14} /> : <IconPlayerPlay size={16} />}
                 </ActionIcon>
               </Tooltip>
-              {runAllState?.running && (
-                <Text size="xs" c="dimmed">
-                  {runAllState.current}/{runAllState.total}
-                </Text>
-              )}
             </Group>
           )}
 
@@ -249,7 +245,7 @@ export const NotebookToolbar = memo(
             </Menu.Dropdown>
           </Menu>
         </Group>
-      </Group>
+      </div>
     );
   },
 );

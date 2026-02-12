@@ -5,9 +5,11 @@ import { ScriptTab, TabId } from '@models/tab';
 import { NOTEBOOK_CELL_REF_PREFIX } from '@utils/notebook';
 import { useMemo, useRef } from 'react';
 
+import { resolveReusableNotebookLastQuery } from '../utils/query-restoration';
 import { CellExecutionState } from './use-notebook-execution-state';
 
 const NOTEBOOK_CELL_REF_PREFIX_LOWER = NOTEBOOK_CELL_REF_PREFIX.toLowerCase();
+
 
 /**
  * Per-cell data adapter that wraps the existing useDataAdapter hook.
@@ -34,19 +36,13 @@ export function useCellDataAdapter(
   }
   prevStatusRef.current = cellState.status;
 
-  // Persisted notebook executions may contain temp-view queries that cannot be
-  // re-run after app reload (the connection-scoped views no longer exist).
-  // Suppress those queries until the user re-executes the cell.
-  const safeLastQuery = useMemo(() => {
-    const query = cellState.lastQuery?.trim();
-    if (!query) return null;
-
-    if (query.toLowerCase().includes(NOTEBOOK_CELL_REF_PREFIX_LOWER)) {
-      return null;
-    }
-
-    return query;
-  }, [cellState.lastQuery]);
+  // Persisted notebook executions may reference context that no longer exists
+  // after reload (temp views, detached sources, etc.). Only replay queries that
+  // were executed in the current browser session.
+  const safeLastQuery = useMemo(
+    () => resolveReusableNotebookLastQuery(cellState, NOTEBOOK_CELL_REF_PREFIX_LOWER),
+    [cellState.lastQuery, cellState.lastRunAt],
+  );
 
   // Build a virtual ScriptTab-like object for this cell's data adapter.
   // The data adapter only reads `type`, `lastExecutedQuery`, and `id` from the tab.

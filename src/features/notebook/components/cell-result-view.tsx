@@ -137,6 +137,18 @@ export const CellResultView = memo(({
 
   // Success state - show results
   if (!dataAdapter) {
+    if (cellState.snapshot) {
+      return (
+        <SnapshotResultView
+          snapshot={cellState.snapshot}
+          executionTime={cellState.executionTime}
+          collapsed={collapsed}
+          onToggleCollapsed={toggleCollapsed}
+          active={active}
+        />
+      );
+    }
+
     return (
       <div
         className={cn(
@@ -412,6 +424,101 @@ const CellResultTable = memo(
 );
 
 CellResultTable.displayName = 'CellResultTable';
+
+interface SnapshotResultViewProps {
+  snapshot: NonNullable<CellExecutionState['snapshot']>;
+  executionTime: number | null;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  active: boolean;
+}
+
+const SnapshotResultView = memo(({
+  snapshot,
+  executionTime,
+  collapsed,
+  onToggleCollapsed,
+  active,
+}: SnapshotResultViewProps) => {
+  const capturedAtLabel = useMemo(() => {
+    const capturedAtMs = Date.parse(snapshot.capturedAt);
+    if (Number.isNaN(capturedAtMs)) return 'unknown time';
+    return new Date(capturedAtMs).toLocaleString();
+  }, [snapshot.capturedAt]);
+
+  const snapshotDataSlice = useMemo(
+    () => ({ data: snapshot.data, rowOffset: 0 }),
+    [snapshot.data],
+  );
+
+  const staleMessage = snapshot.truncated
+    ? [
+      'Showing first ',
+      String(snapshot.data.length),
+      ' rows from the last run. Re-run the cell to refresh.',
+    ].join('')
+    : 'Showing saved snapshot from the last run. Re-run the cell to refresh.';
+
+  const emptySort = useMemo(() => [], []);
+  const noopSelectChange = useCallback(() => {}, []);
+  const noopColumnSelect = useCallback((_col: DBColumn | null) => {}, []);
+
+  return (
+    <div
+      className={cn(
+        'border-t border-borderPrimary-light dark:border-borderPrimary-dark',
+        'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
+      )}
+    >
+      <Group
+        gap={4}
+        justify="space-between"
+        wrap="nowrap"
+        className="px-3 py-1 select-none"
+      >
+        <Group gap={6} wrap="nowrap" className="cursor-pointer" onClick={onToggleCollapsed}>
+          <ActionIcon size="xs" variant="subtle">
+            {collapsed ? <IconChevronDown size={14} /> : <IconChevronUp size={14} />}
+          </ActionIcon>
+          <IconClock size={14} className="text-yellow-500 dark:text-yellow-400" />
+          <Text size="xs" c="dimmed">
+            Showing saved results from {capturedAtLabel}
+          </Text>
+          {executionTime !== null && <ExecutionTimeLabel timeMs={executionTime} />}
+        </Group>
+      </Group>
+
+      {!collapsed && (
+        <>
+          <div className="px-3 pb-1">
+            <Text size="xs" c="dimmed">{staleMessage}</Text>
+          </div>
+          {snapshot.schema.length > 0 && (
+            <div className="relative">
+              <div
+                className="overflow-auto px-3 pb-1 custom-scroll-hidden"
+                style={{ maxHeight: MAX_RESULT_HEIGHT }}
+              >
+                <Table
+                  dataSlice={snapshotDataSlice}
+                  schema={snapshot.schema}
+                  sort={emptySort}
+                  visible={active}
+                  onSort={undefined}
+                  onRowSelectChange={noopSelectChange}
+                  onCellSelectChange={noopSelectChange}
+                  onColumnSelectChange={noopColumnSelect}
+                />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+});
+
+SnapshotResultView.displayName = 'SnapshotResultView';
 
 function ExecutionTimeLabel({ timeMs }: { timeMs: number }) {
   const formatted = timeMs < 1000 ? `${timeMs}ms` : `${(timeMs / 1000).toFixed(1)}s`;
