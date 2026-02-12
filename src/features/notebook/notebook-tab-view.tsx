@@ -27,16 +27,19 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { Button, Center, ScrollArea, Stack, Text } from '@mantine/core';
 import { CellId, NotebookCellType } from '@models/notebook';
 import { NotebookTab, TabId } from '@models/tab';
-import { useAppStore, useTabReactiveState } from '@store/app-store';
+import { useAppStore, useTabReactiveState, useProtectedViews } from '@store/app-store';
 import { IconNotebook, IconPlus } from '@tabler/icons-react';
-import { memo, useCallback, ReactNode } from 'react';
+import { memo, useCallback, useRef, ReactNode } from 'react';
 
 import { AddCellButton } from './components/add-cell-button';
 import { NotebookCell } from './components/notebook-cell';
 import { NotebookToolbar } from './components/notebook-toolbar';
+import { executeCellSQL } from './hooks/use-cell-execution';
+import { useNotebookExecutionState } from './hooks/use-notebook-execution-state';
 
 interface NotebookTabViewProps {
   tabId: TabId;
@@ -70,12 +73,141 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
   const tab = useTabReactiveState<NotebookTab>(tabId, 'notebook');
   const notebook = useAppStore((state) => state.notebooks.get(tab.notebookId));
 
+  // Execution state for all cells
+  const { getCellState, setCellState } = useNotebookExecutionState();
+
+  // DuckDB pool and protected views from hooks
+  const pool = useInitializedDuckDBConnectionPool();
+  const protectedViews = useProtectedViews();
+
+  // Track whether Run All is in progress
+  const runAllAbortRef = useRef<AbortController | null>(null);
+
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+
+  const handleRunCell = useCallback(
+    async (cellId: CellId) => {
+      if (!notebook) return;
+      const cell = notebook.cells.find((c) => c.id === cellId);
+      if (!cell || cell.type !== 'sql') return;
+
+      const startTime = Date.now();
+      setCellState(cellId, {
+        status: 'running',
+        error: null,
+        executionTime: null,
+        lastQuery: null,
+      });
+
+      try {
+        const { lastQuery, error } = await executeCellSQL(
+          pool,
+          cell.content,
+          protectedViews,
+          new AbortController().signal,
+        );
+
+        const executionTime = Date.now() - startTime;
+
+        if (error) {
+          setCellState(cellId, {
+            status: 'error',
+            error,
+            executionTime,
+            lastQuery: null,
+          });
+        } else {
+          setCellState(cellId, {
+            status: 'success',
+            error: null,
+            executionTime,
+            lastQuery,
+          });
+        }
+      } catch (error: any) {
+        const executionTime = Date.now() - startTime;
+        setCellState(cellId, {
+          status: 'error',
+          error: error?.message || 'Unknown error',
+          executionTime,
+          lastQuery: null,
+        });
+      }
+    },
+    [notebook, pool, protectedViews, setCellState],
+  );
+
+  // Run All cells sequentially
+  const handleRunAll = useCallback(async () => {
+    if (!notebook) return;
+
+    // Cancel any existing Run All
+    if (runAllAbortRef.current) {
+      runAllAbortRef.current.abort();
+    }
+    const abortController = new AbortController();
+    runAllAbortRef.current = abortController;
+
+    const sortedCells = [...notebook.cells].sort((a, b) => a.order - b.order);
+    const sqlCells = sortedCells.filter((c) => c.type === 'sql');
+
+    for (const cell of sqlCells) {
+      if (abortController.signal.aborted) break;
+
+      const startTime = Date.now();
+      setCellState(cell.id, {
+        status: 'running',
+        error: null,
+        executionTime: null,
+        lastQuery: null,
+      });
+
+      try {
+        const { lastQuery, error } = await executeCellSQL(
+          pool,
+          cell.content,
+          protectedViews,
+          abortController.signal,
+        );
+
+        const executionTime = Date.now() - startTime;
+
+        if (error) {
+          setCellState(cell.id, {
+            status: 'error',
+            error,
+            executionTime,
+            lastQuery: null,
+          });
+          // Stop on first error
+          break;
+        }
+
+        setCellState(cell.id, {
+          status: 'success',
+          error: null,
+          executionTime,
+          lastQuery,
+        });
+      } catch (error: any) {
+        const executionTime = Date.now() - startTime;
+        setCellState(cell.id, {
+          status: 'error',
+          error: error?.message || 'Unknown error',
+          executionTime,
+          lastQuery: null,
+        });
+        break;
+      }
+    }
+
+    runAllAbortRef.current = null;
+  }, [notebook, pool, protectedViews, setCellState]);
 
   const handleContentChange = useCallback(
     (cellId: CellId, content: string) => {
@@ -190,6 +322,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         notebookName={notebook.name}
         onRename={handleRename}
         onAddCell={handleAddCellAtEnd}
+        onRunAll={handleRunAll}
       />
 
       <ScrollArea className="flex-1" type="hover" scrollHideDelay={500}>
@@ -217,12 +350,15 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
                             isLast={index === sortedCells.length - 1}
                             isActive={tab.activeCellId === cell.id}
                             isOnlyCell={sortedCells.length <= 1}
+                            isTabActive={active}
+                            cellState={getCellState(cell.id)}
                             dragHandleProps={dragHandleProps}
                             onContentChange={handleContentChange}
                             onTypeChange={handleTypeChange}
                             onMoveUp={handleMoveUp}
                             onMoveDown={handleMoveDown}
                             onDelete={handleDelete}
+                            onRun={handleRunCell}
                             onFocus={handleFocus}
                           />
                         )}

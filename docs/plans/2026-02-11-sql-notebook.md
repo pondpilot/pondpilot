@@ -87,7 +87,7 @@ Build the main notebook interface with SQL cells (Monaco editors), markdown cell
 
 Connect SQL cells to DuckDB for execution and render results inline beneath each cell. Each cell operates independently with its own data adapter, execution state, and result view (table or chart).
 
-- [ ] Create `src/features/notebook/hooks/use-cell-execution.ts` — hook managing execution for a single SQL cell:
+- [x] Create `src/features/notebook/hooks/use-cell-execution.ts` — hook managing execution for a single SQL cell:
   - Gets a pooled DuckDB connection via `useDuckDBConnectionPool()`
   - Splits cell content into statements using `splitSQLByStats` (reuse existing utility)
   - Executes all statements; last SELECT-like statement provides the result set
@@ -95,27 +95,27 @@ Connect SQL cells to DuckDB for execution and render results inline beneath each
   - On success: stores the prepared statement reference for the DataAdapter to stream from
   - On error: stores error message with line number for display
   - Supports cancellation via AbortController
-- [ ] Create `src/features/notebook/hooks/use-cell-data-adapter.ts` — per-cell data adapter:
+- [x] Create `src/features/notebook/hooks/use-cell-data-adapter.ts` — per-cell data adapter:
   - Wraps the existing `DataAdapterApi` pattern from `use-data-adapter.ts`
   - Creates a lightweight "virtual tab" object for each cell so the data adapter can operate independently
   - Manages its own pagination, sorting, and schema state
   - Result set is independent per cell (cell 1 showing page 2 doesn't affect cell 3)
-- [ ] Create `src/features/notebook/components/cell-result-view.tsx` — inline result display beneath SQL cells:
+- [x] Create `src/features/notebook/components/cell-result-view.tsx` — inline result display beneath SQL cells:
   - Renders the data table (reuse existing `Table` component from `src/components/table/`)
   - Renders charts (reuse existing `ChartView` from `src/features/chart-view/`)
   - Toggle between table and chart view per cell
   - Shows row count, execution time, error messages
   - Collapsible: click to collapse/expand results
   - Respects a max-height with internal scrolling (notebook shouldn't be dominated by one huge result)
-- [ ] Wire up Ctrl+Enter in SQL cells: the `onRun` prop from `SqlEditor` triggers `useCellExecution` for that cell
-- [ ] Implement "Run All" in notebook toolbar:
+- [x] Wire up Ctrl+Enter in SQL cells: the `onRun` prop from `SqlEditor` triggers `useCellExecution` for that cell
+- [x] Implement "Run All" in notebook toolbar:
   - Executes cells sequentially from top to bottom
   - Stops on first error (with option to continue)
   - Shows progress indicator (cell 3/7 running...)
   - Updates each cell's execution state as it progresses
-- [ ] Display execution errors inline beneath the cell with the error message, affected line highlighted in the editor
-- [ ] Handle cell re-execution: running a cell again replaces its previous results (data adapter gets new source version)
-- [ ] Verify: can execute individual SQL cells and see results inline, Run All works sequentially, errors display correctly, pagination/sorting work per cell, results persist visually (but not data — re-execute on reload)
+- [x] Display execution errors inline beneath the cell with the error message, affected line highlighted in the editor
+- [x] Handle cell re-execution: running a cell again replaces its previous results (data adapter gets new source version)
+- [x] Verify: can execute individual SQL cells and see results inline, Run All works sequentially, errors display correctly, pagination/sorting work per cell, results persist visually (but not data — re-execute on reload)
 
 ### Task 5: Cell Referencing via DuckDB Temp Views
 

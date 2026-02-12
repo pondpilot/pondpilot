@@ -5,6 +5,7 @@ import { useAppTheme } from '@hooks/use-app-theme';
 import {
   ActionIcon,
   Group,
+  Loader,
   Text,
   Tooltip,
   Textarea,
@@ -21,11 +22,16 @@ import {
   IconGripVertical,
   IconCode,
   IconMarkdown,
+  IconCheck,
+  IconAlertTriangle,
 } from '@tabler/icons-react';
 import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip';
 import { cn } from '@utils/ui/styles';
 import { memo, useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+
+import { CellResultContainer } from './cell-result-container';
+import { CellExecutionState } from '../hooks/use-notebook-execution-state';
 
 interface NotebookCellProps {
   cell: NotebookCellModel;
@@ -35,6 +41,8 @@ interface NotebookCellProps {
   isLast: boolean;
   isActive: boolean;
   isOnlyCell: boolean;
+  isTabActive: boolean;
+  cellState: CellExecutionState;
   dragHandleProps?: {
     attributes: ReturnType<typeof useSortable>['attributes'];
     listeners: ReturnType<typeof useSortable>['listeners'];
@@ -57,6 +65,8 @@ export const NotebookCell = memo(
     isLast,
     isActive,
     isOnlyCell,
+    isTabActive,
+    cellState,
     dragHandleProps,
     onContentChange,
     onTypeChange,
@@ -169,6 +179,17 @@ export const NotebookCell = memo(
             <Text size="xs" c="dimmed" className="select-none">
               [{cellIndex + 1}] {cell.type === 'sql' ? 'SQL' : 'Markdown'}
             </Text>
+
+            {/* Execution status badge */}
+            {cell.type === 'sql' && cellState.status === 'running' && (
+              <Loader size={12} />
+            )}
+            {cell.type === 'sql' && cellState.status === 'success' && (
+              <IconCheck size={12} className="text-green-600 dark:text-green-400" />
+            )}
+            {cell.type === 'sql' && cellState.status === 'error' && (
+              <IconAlertTriangle size={12} className="text-red-500 dark:text-red-400" />
+            )}
           </Group>
 
           <Group gap={2}>
@@ -333,6 +354,15 @@ export const NotebookCell = memo(
             </div>
           )}
         </div>
+
+        {/* Inline result view for SQL cells */}
+        {cell.type === 'sql' && cellState.status !== 'idle' && (
+          <CellResultContainer
+            cellId={cell.id}
+            cellState={cellState}
+            active={isTabActive}
+          />
+        )}
       </div>
     );
   },

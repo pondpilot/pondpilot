@@ -10,6 +10,7 @@ import {
   IconCode,
   IconDownload,
   IconMarkdown,
+  IconPlayerPlay,
   IconPlus,
 } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
@@ -19,10 +20,11 @@ interface NotebookToolbarProps {
   notebookName: string;
   onRename: (name: string) => void;
   onAddCell: (type: NotebookCellType) => void;
+  onRunAll?: () => void;
 }
 
 export const NotebookToolbar = memo(
-  ({ notebookName, onRename, onAddCell }: NotebookToolbarProps) => {
+  ({ notebookName, onRename, onAddCell, onRunAll }: NotebookToolbarProps) => {
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(notebookName);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -101,6 +103,20 @@ export const NotebookToolbar = memo(
         </Group>
 
         <Group gap={4}>
+          {/* Run All button */}
+          {onRunAll && (
+            <Tooltip label="Run all SQL cells" position="top">
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                className="text-iconDefault-light dark:text-iconDefault-dark"
+                onClick={onRunAll}
+              >
+                <IconPlayerPlay size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+
           {/* Add Cell dropdown */}
           <Menu width={160} shadow="md" position="bottom-end">
             <Menu.Target>
