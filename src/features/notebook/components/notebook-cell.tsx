@@ -1,5 +1,5 @@
 import { useSortable } from '@dnd-kit/sortable';
-import { SqlEditor } from '@features/editor';
+import { SqlEditor, AdditionalCompletion } from '@features/editor';
 import { convertToFlowScopeSchema } from '@features/editor/auto-complete';
 import { useAppTheme } from '@hooks/use-app-theme';
 import {
@@ -24,6 +24,8 @@ import {
   IconMarkdown,
   IconCheck,
   IconAlertTriangle,
+  IconClock,
+  IconLink,
 } from '@tabler/icons-react';
 import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip';
 import { cn } from '@utils/ui/styles';
@@ -43,6 +45,9 @@ interface NotebookCellProps {
   isOnlyCell: boolean;
   isTabActive: boolean;
   cellState: CellExecutionState;
+  isStale: boolean;
+  cellDependencies: string[] | null;
+  additionalCompletions?: AdditionalCompletion[];
   dragHandleProps?: {
     attributes: ReturnType<typeof useSortable>['attributes'];
     listeners: ReturnType<typeof useSortable>['listeners'];
@@ -67,6 +72,9 @@ export const NotebookCell = memo(
     isOnlyCell,
     isTabActive,
     cellState,
+    isStale,
+    cellDependencies,
+    additionalCompletions,
     dragHandleProps,
     onContentChange,
     onTypeChange,
@@ -184,11 +192,31 @@ export const NotebookCell = memo(
             {cell.type === 'sql' && cellState.status === 'running' && (
               <Loader size={12} />
             )}
-            {cell.type === 'sql' && cellState.status === 'success' && (
+            {cell.type === 'sql' && cellState.status === 'success' && !isStale && (
               <IconCheck size={12} className="text-green-600 dark:text-green-400" />
             )}
             {cell.type === 'sql' && cellState.status === 'error' && (
               <IconAlertTriangle size={12} className="text-red-500 dark:text-red-400" />
+            )}
+
+            {/* Stale indicator: upstream cell was re-executed */}
+            {cell.type === 'sql' && isStale && cellState.status === 'success' && (
+              <Tooltip label="Results may be stale — an upstream cell was re-executed" position="top">
+                <IconClock size={12} className="text-yellow-500 dark:text-yellow-400" />
+              </Tooltip>
+            )}
+
+            {/* Dependency indicator: shows referenced cell views */}
+            {cell.type === 'sql' && cellDependencies && cellDependencies.length > 0 && (
+              <Tooltip
+                label={`References: ${cellDependencies.join(', ')}`}
+                position="top"
+              >
+                <Group gap={2}>
+                  <IconLink size={12} className="text-iconDefault-light dark:text-iconDefault-dark" />
+                  <Text size="xs" c="dimmed">{cellDependencies.length}</Text>
+                </Group>
+              </Tooltip>
             )}
           </Group>
 
@@ -289,6 +317,7 @@ export const NotebookCell = memo(
                 schema={schema}
                 functionTooltips={functionTooltips}
                 path={editorPath}
+                additionalCompletions={additionalCompletions}
               />
             </div>
           ) : markdownEditing || cell.content.length === 0 ? (

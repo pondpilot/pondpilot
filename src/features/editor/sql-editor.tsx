@@ -201,6 +201,16 @@ export interface SqlEditorHandle {
   getStatementRangeAtOffset: (offset: number) => { start: number; end: number } | null;
 }
 
+/**
+ * Additional completion items to inject into the SQL editor's autocomplete.
+ * Used by notebooks to suggest cell view names (__cell_N and user-defined).
+ */
+export type AdditionalCompletion = {
+  label: string;
+  detail?: string;
+  insertText?: string;
+};
+
 interface SqlEditorProps {
   colorSchemeDark: boolean;
   value: string;
@@ -214,6 +224,7 @@ interface SqlEditorProps {
   onBlur: () => void;
   functionTooltips: FunctionTooltip;
   path?: string;
+  additionalCompletions?: AdditionalCompletion[];
 }
 
 type AnalysisCache = {
@@ -483,6 +494,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       onBlur,
       functionTooltips,
       path,
+      additionalCompletions,
     }: SqlEditorProps,
     ref,
   ) => {
@@ -513,6 +525,8 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
     const statementAnalysisCacheRef = useRef(new Map<string, AnalysisCache['result']>());
     const cursorOffsetRef = useRef(0);
     const mountedRef = useRef(true);
+    const additionalCompletionsRef = useRef(additionalCompletions);
+    additionalCompletionsRef.current = additionalCompletions;
     const [assistantVisible, setAssistantVisible] = useState(false);
     const [structuredResponseVisible, setStructuredResponseVisible] = useState(false);
 
@@ -1352,13 +1366,37 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
               triggerChar,
             );
 
-            const suggestions = result.items.map((item: CompletionItem) => ({
-              label: item.label,
-              kind: mapCompletionItemKind(item.kind),
-              insertText: item.insertText,
-              detail: getCompletionDetail(item),
-              range,
-            }));
+            const suggestions: monaco.languages.CompletionItem[] = result.items.map(
+              (item: CompletionItem) => ({
+                label: item.label,
+                kind: mapCompletionItemKind(item.kind),
+                insertText: item.insertText,
+                detail: getCompletionDetail(item),
+                range,
+              }),
+            );
+
+            // Inject additional completions (e.g., notebook cell view names)
+            const extras = additionalCompletionsRef.current;
+            if (extras && extras.length > 0) {
+              const wordRange = completionModel.getWordUntilPosition(position);
+              const extraRange = new monacoInstance.Range(
+                position.lineNumber,
+                wordRange.startColumn,
+                position.lineNumber,
+                wordRange.endColumn,
+              );
+
+              for (const extra of extras) {
+                suggestions.push({
+                  label: extra.label,
+                  kind: monacoInstance.languages.CompletionItemKind.Reference,
+                  insertText: extra.insertText ?? extra.label,
+                  detail: extra.detail ?? 'cell reference',
+                  range: extraRange,
+                });
+              }
+            }
 
             debugLog(
               'completion: SUCCESS, total time:',

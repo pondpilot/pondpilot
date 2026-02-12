@@ -1,6 +1,7 @@
 import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
 import { useAppStore } from '@store/app-store';
 import {
   handleAttachStatements,
@@ -18,7 +19,28 @@ import {
 import { isNotReadableError, getErrorMessage } from '@utils/error-classification';
 import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
 
+import { getAutoCellViewName, parseUserCellName, validateCellName } from '../utils/cell-naming';
+
 const SECRET_STATEMENT_PATTERN = /\b(ALTER|CREATE)\s+(?:OR\s+REPLACE\s+)?SECRET\b/i;
+
+/**
+ * Options for cell execution. When a shared notebook connection is provided,
+ * temp views are created for cross-cell referencing.
+ */
+export type CellExecutionOptions = {
+  /** The DuckDB connection pool (used for metadata refresh) */
+  pool: AsyncDuckDBConnectionPool;
+  /** SQL content of the cell */
+  sql: string;
+  /** Protected view names that cannot be modified */
+  protectedViews: Set<string>;
+  /** Signal to cancel execution */
+  abortSignal: AbortSignal;
+  /** Shared notebook connection for temp view persistence */
+  sharedConnection?: AsyncDuckDBPooledConnection;
+  /** 0-based index of the cell in the notebook (for auto-naming) */
+  cellIndex?: number;
+};
 
 /**
  * Executes a single SQL cell's content using the DuckDB connection pool.
@@ -29,16 +51,16 @@ const SECRET_STATEMENT_PATTERN = /\b(ALTER|CREATE)\s+(?:OR\s+REPLACE\s+)?SECRET\
  * 3. Execute in transaction if multiple DDL statements
  * 4. For the last SELECT-like statement, validate via prepare (return query for data adapter)
  * 5. Refresh metadata on DDL
+ * 6. Create temp views for cross-cell referencing (when shared connection is used)
  *
  * Returns the last SELECT-like query for the data adapter to stream from,
  * or null if no displayable result was produced (e.g., DDL-only cell).
  */
 export async function executeCellSQL(
-  pool: AsyncDuckDBConnectionPool,
-  sql: string,
-  protectedViews: Set<string>,
-  abortSignal: AbortSignal,
+  options: CellExecutionOptions,
 ): Promise<{ lastQuery: string | null; error: string | null }> {
+  const { pool, sql, protectedViews, abortSignal, sharedConnection, cellIndex } = options;
+
   if (!sql.trim()) {
     return { lastQuery: null, error: null };
   }
@@ -57,7 +79,9 @@ export async function executeCellSQL(
     return { lastQuery: null, error: null };
   }
 
-  const conn = await pool.getPooledConnection();
+  // Use shared connection if available, otherwise get a fresh one from the pool
+  const conn = sharedConnection ?? (await pool.getPooledConnection());
+  const ownsConnection = !sharedConnection;
 
   const needsTransaction =
     classifiedStatements.length > 1 && classifiedStatements.some((s) => s.needsTransaction);
@@ -154,6 +178,11 @@ export async function executeCellSQL(
       await conn.query('COMMIT');
     }
 
+    // Create temp views for cross-cell referencing (only with shared connection)
+    if (sharedConnection && cellIndex !== undefined) {
+      await createCellTempViews(conn, sql, cellIndex);
+    }
+
     // Handle DDL side effects (refresh metadata)
     const hasDDL = classifiedStatements.some((s) => s.sqlType === SQLStatementType.DDL);
     const hasAttachDetach = classifiedStatements.some(
@@ -204,6 +233,60 @@ export async function executeCellSQL(
 
     return { lastQuery, error: null };
   } finally {
-    await conn.close();
+    // Only close if we own the connection (not shared)
+    if (ownsConnection) {
+      await conn.close();
+    }
+  }
+}
+
+/**
+ * Creates temp views for a cell's SQL result so downstream cells can reference it.
+ *
+ * Creates both an auto-generated view (`__cell_N`) and optionally a user-defined
+ * view if a `-- @name: my_view` annotation is present in the first line.
+ *
+ * Only creates views when the cell contains a single SELECT-like statement that
+ * can be wrapped in `CREATE OR REPLACE TEMP VIEW ... AS (...)`.
+ * Multi-statement cells or DDL-only cells are skipped gracefully.
+ */
+async function createCellTempViews(
+  conn: AsyncDuckDBPooledConnection,
+  sql: string,
+  cellIndex: number,
+): Promise<void> {
+  // Determine the SQL to wrap in a view — use the full cell SQL.
+  // Multi-statement cells may fail to create a view, which is fine.
+  const viewSql = sql.trim();
+  if (!viewSql) return;
+
+  // Strip any user-name annotation line from the SQL used for the view body
+  const lines = viewSql.split('\n');
+  const userCellName = parseUserCellName(viewSql);
+  const bodyLines = userCellName ? lines.slice(1) : lines;
+  const viewBody = bodyLines.join('\n').trim();
+
+  if (!viewBody) return;
+
+  // Create the auto-generated view: __cell_N
+  const autoName = getAutoCellViewName(cellIndex);
+  try {
+    await conn.query(`CREATE OR REPLACE TEMP VIEW ${autoName} AS (${viewBody})`);
+  } catch {
+    // View creation can fail for multi-statement cells, DDL, etc. — skip gracefully
+  }
+
+  // Create the user-defined view if a valid name annotation exists
+  if (userCellName) {
+    const validationError = validateCellName(userCellName);
+    if (!validationError) {
+      try {
+        await conn.query(
+          `CREATE OR REPLACE TEMP VIEW ${userCellName} AS (${viewBody})`,
+        );
+      } catch {
+        // Skip gracefully — the SQL may not be wrappable as a view
+      }
+    }
   }
 }

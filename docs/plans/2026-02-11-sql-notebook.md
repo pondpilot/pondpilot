@@ -121,23 +121,23 @@ Connect SQL cells to DuckDB for execution and render results inline beneath each
 
 Enable cross-cell data flow: each executed SQL cell's result becomes a queryable temp view that downstream cells can reference. This is the key differentiator from "just stacked editors."
 
-- [ ] Define naming convention: cell results are available as `__cell_N` where N is the 1-based position of the cell in the notebook (not the cell ID, so reordering updates references)
+- [x] Define naming convention: cell results are available as `__cell_N` where N is the 1-based position of the cell in the notebook (not the cell ID, so reordering updates references)
   - Alternative: use user-assignable cell names (e.g., `-- @name: revenue_by_month` in a comment) — implement both: auto-generated `__cell_N` names AND optional user-defined names parsed from first-line comments
-- [ ] Update `use-cell-execution.ts`: after successful execution of a SQL cell, execute `CREATE OR REPLACE TEMP VIEW __cell_N AS (cell_sql)` on the same connection
+- [x] Update `use-cell-execution.ts`: after successful execution of a SQL cell, execute `CREATE OR REPLACE TEMP VIEW __cell_N AS (cell_sql)` on the same connection
   - If cell has a user-defined name, also create `CREATE OR REPLACE TEMP VIEW user_defined_name AS (cell_sql)`
   - Handle errors gracefully (e.g., if the SQL can't be wrapped in a view because it's a multi-statement cell, skip view creation)
-- [ ] Update "Run All" to use a **single DuckDB connection** for the entire notebook execution, so temp views from earlier cells are visible to later cells
-- [ ] For individual cell execution, manage a **shared notebook connection** that persists across cell runs within the same notebook session (so running cell 1, then manually running cell 3, still has cell 1's view available)
-- [ ] Add cell reference autocomplete: extend the SQL editor's completion provider to suggest `__cell_N` and user-defined cell names when the user types
+- [x] Update "Run All" to use a **single DuckDB connection** for the entire notebook execution, so temp views from earlier cells are visible to later cells
+- [x] For individual cell execution, manage a **shared notebook connection** that persists across cell runs within the same notebook session (so running cell 1, then manually running cell 3, still has cell 1's view available)
+- [x] Add cell reference autocomplete: extend the SQL editor's completion provider to suggest `__cell_N` and user-defined cell names when the user types
   - Show cell preview (first line of SQL) in the autocomplete tooltip
-- [ ] Add visual indicators for cell dependencies:
+- [x] Add visual indicators for cell dependencies:
   - When a cell references `__cell_2`, show a subtle link/badge indicating the dependency
   - When an upstream cell is re-executed, mark downstream dependent cells as "stale" (visual indicator, not auto-re-execution)
-- [ ] Handle edge cases:
+- [x] Handle edge cases:
   - Cell reordering: when cells are reordered, `__cell_N` numbers change — show a warning or auto-update references in downstream cells
   - Cell deletion: when a cell is deleted, warn if other cells reference it
   - Circular references: detect and prevent (cell A references cell B which references cell A)
-- [ ] Verify: execute cell 1 with `SELECT 1 as x`, execute cell 2 with `SELECT * FROM __cell_1` — cell 2 shows `x: 1`. User-defined names work. Stale indicators appear when upstream cell changes.
+- [x] Verify: execute cell 1 with `SELECT 1 as x`, execute cell 2 with `SELECT * FROM __cell_1` — cell 2 shows `x: 1`. User-defined names work. Stale indicators appear when upstream cell changes.
 
 ### Task 6: Sidebar Integration & Create Flow
 

@@ -28,18 +28,21 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { AdditionalCompletion } from '@features/editor';
 import { Button, Center, ScrollArea, Stack, Text } from '@mantine/core';
-import { CellId, NotebookCellType } from '@models/notebook';
+import { CellId, NotebookCell as NotebookCellModel, NotebookCellType } from '@models/notebook';
 import { NotebookTab, TabId } from '@models/tab';
 import { useAppStore, useTabReactiveState, useProtectedViews } from '@store/app-store';
 import { IconNotebook, IconPlus } from '@tabler/icons-react';
-import { memo, useCallback, useRef, ReactNode } from 'react';
+import { memo, useCallback, useMemo, useRef, ReactNode } from 'react';
 
 import { AddCellButton } from './components/add-cell-button';
 import { NotebookCell } from './components/notebook-cell';
 import { NotebookToolbar } from './components/notebook-toolbar';
 import { executeCellSQL } from './hooks/use-cell-execution';
+import { useNotebookConnection } from './hooks/use-notebook-connection';
 import { useNotebookExecutionState } from './hooks/use-notebook-execution-state';
+import { extractCellReferences, getAutoCellViewName, parseUserCellName } from './utils/cell-naming';
 
 interface NotebookTabViewProps {
   tabId: TabId;
@@ -69,16 +72,98 @@ const SortableCellWrapper = ({ id, children }: SortableCellWrapperProps) => {
   );
 };
 
+/**
+ * Builds the set of available cell view names for autocomplete and dependency tracking.
+ * Returns both auto-generated (__cell_N) and user-defined names.
+ */
+function buildAvailableCellNames(sortedCells: NotebookCellModel[]): Set<string> {
+  const names = new Set<string>();
+  sortedCells.forEach((cell, index) => {
+    if (cell.type === 'sql') {
+      names.add(getAutoCellViewName(index));
+      const userName = parseUserCellName(cell.content);
+      if (userName) names.add(userName);
+    }
+  });
+  return names;
+}
+
+/**
+ * Computes which cells depend on which other cells, based on cell content referencing
+ * temp view names (__cell_N or user-defined names).
+ * Returns a map from cellId to the set of view names it references.
+ */
+function computeCellDependencies(
+  sortedCells: NotebookCellModel[],
+  availableNames: Set<string>,
+): Map<string, string[]> {
+  const deps = new Map<string, string[]>();
+  for (const cell of sortedCells) {
+    if (cell.type === 'sql') {
+      const refs = extractCellReferences(cell.content, availableNames);
+      if (refs.length > 0) {
+        deps.set(cell.id, refs);
+      }
+    }
+  }
+  return deps;
+}
+
+/**
+ * Given a cell that was just (re-)executed, find downstream cells that reference it
+ * (directly or transitively) and should be marked stale.
+ */
+function findStaleCells(
+  executedCellIndex: number,
+  sortedCells: NotebookCellModel[],
+  dependencies: Map<string, string[]>,
+): Set<string> {
+  const staleCellIds = new Set<string>();
+  const executedCell = sortedCells[executedCellIndex];
+  if (!executedCell || executedCell.type !== 'sql') return staleCellIds;
+
+  // Names this cell provides
+  const providedNames = new Set<string>();
+  providedNames.add(getAutoCellViewName(executedCellIndex));
+  const userName = parseUserCellName(executedCell.content);
+  if (userName) providedNames.add(userName);
+
+  // Check all downstream cells (cells after the executed one)
+  for (let i = executedCellIndex + 1; i < sortedCells.length; i += 1) {
+    const cell = sortedCells[i];
+    const cellDeps = dependencies.get(cell.id);
+    if (!cellDeps) continue;
+
+    // If this cell references any name provided by the executed cell, it's stale
+    for (const dep of cellDeps) {
+      if (providedNames.has(dep)) {
+        staleCellIds.add(cell.id);
+        // Also add this cell's provided names for transitive staleness
+        providedNames.add(getAutoCellViewName(i));
+        const cellUserName = parseUserCellName(cell.content);
+        if (cellUserName) providedNames.add(cellUserName);
+        break;
+      }
+    }
+  }
+
+  return staleCellIds;
+}
+
 export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) => {
   const tab = useTabReactiveState<NotebookTab>(tabId, 'notebook');
   const notebook = useAppStore((state) => state.notebooks.get(tab.notebookId));
 
   // Execution state for all cells
-  const { getCellState, setCellState } = useNotebookExecutionState();
+  const { getCellState, setCellState, staleCells, markCellsStale, clearStaleCells } =
+    useNotebookExecutionState();
 
   // DuckDB pool and protected views from hooks
   const pool = useInitializedDuckDBConnectionPool();
   const protectedViews = useProtectedViews();
+
+  // Shared notebook connection for temp view persistence across cell executions
+  const { getConnection } = useNotebookConnection(pool);
 
   // Track whether Run All is in progress
   const runAllAbortRef = useRef<AbortController | null>(null);
@@ -90,10 +175,49 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     }),
   );
 
+  // Compute sorted cells and dependency info
+  const sortedCells = useMemo(() => {
+    if (!notebook) return [];
+    return [...notebook.cells].sort((a, b) => a.order - b.order);
+  }, [notebook]);
+
+  const availableCellNames = useMemo(() => buildAvailableCellNames(sortedCells), [sortedCells]);
+
+  const cellDependencies = useMemo(
+    () => computeCellDependencies(sortedCells, availableCellNames),
+    [sortedCells, availableCellNames],
+  );
+
+  // Build additional completions for cell reference autocomplete
+  const cellCompletions: AdditionalCompletion[] = useMemo(() => {
+    const completions: AdditionalCompletion[] = [];
+    sortedCells.forEach((cell, index) => {
+      if (cell.type !== 'sql') return;
+      const autoName = getAutoCellViewName(index);
+      const firstLine = cell.content.split('\n')[0]?.trim() ?? '';
+      const preview = firstLine.length > 60 ? `${firstLine.slice(0, 60)}...` : firstLine;
+
+      completions.push({
+        label: autoName,
+        detail: `Cell ${index + 1}: ${preview}`,
+      });
+
+      const userName = parseUserCellName(cell.content);
+      if (userName) {
+        completions.push({
+          label: userName,
+          detail: `Cell ${index + 1} (named): ${preview}`,
+        });
+      }
+    });
+    return completions;
+  }, [sortedCells]);
+
   const handleRunCell = useCallback(
     async (cellId: CellId) => {
       if (!notebook) return;
-      const cell = notebook.cells.find((c) => c.id === cellId);
+      const cellIndex = sortedCells.findIndex((c) => c.id === cellId);
+      const cell = sortedCells[cellIndex];
       if (!cell || cell.type !== 'sql') return;
 
       const startTime = Date.now();
@@ -105,12 +229,15 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       });
 
       try {
-        const { lastQuery, error } = await executeCellSQL(
+        const sharedConnection = await getConnection();
+        const { lastQuery, error } = await executeCellSQL({
           pool,
-          cell.content,
+          sql: cell.content,
           protectedViews,
-          new AbortController().signal,
-        );
+          abortSignal: new AbortController().signal,
+          sharedConnection,
+          cellIndex,
+        });
 
         const executionTime = Date.now() - startTime;
 
@@ -128,6 +255,12 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
             executionTime,
             lastQuery,
           });
+
+          // Mark downstream dependent cells as stale
+          const staleIds = findStaleCells(cellIndex, sortedCells, cellDependencies);
+          if (staleIds.size > 0) {
+            markCellsStale(staleIds);
+          }
         }
       } catch (error: any) {
         const executionTime = Date.now() - startTime;
@@ -139,10 +272,19 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         });
       }
     },
-    [notebook, pool, protectedViews, setCellState],
+    [
+      notebook,
+      sortedCells,
+      pool,
+      protectedViews,
+      setCellState,
+      getConnection,
+      cellDependencies,
+      markCellsStale,
+    ],
   );
 
-  // Run All cells sequentially
+  // Run All cells sequentially using the shared notebook connection
   const handleRunAll = useCallback(async () => {
     if (!notebook) return;
 
@@ -153,61 +295,74 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     const abortController = new AbortController();
     runAllAbortRef.current = abortController;
 
-    const sortedCells = [...notebook.cells].sort((a, b) => a.order - b.order);
-    const sqlCells = sortedCells.filter((c) => c.type === 'sql');
+    // Clear stale markers since we're re-running everything
+    clearStaleCells();
 
-    for (const cell of sqlCells) {
-      if (abortController.signal.aborted) break;
+    const sqlCellsWithIndex = sortedCells
+      .map((cell, index) => ({ cell, index }))
+      .filter(({ cell }) => cell.type === 'sql');
 
-      const startTime = Date.now();
-      setCellState(cell.id, {
-        status: 'running',
-        error: null,
-        executionTime: null,
-        lastQuery: null,
-      });
+    try {
+      // Use the shared connection for all cells so temp views persist
+      const sharedConnection = await getConnection();
 
-      try {
-        const { lastQuery, error } = await executeCellSQL(
-          pool,
-          cell.content,
-          protectedViews,
-          abortController.signal,
-        );
+      for (const { cell, index } of sqlCellsWithIndex) {
+        if (abortController.signal.aborted) break;
 
-        const executionTime = Date.now() - startTime;
+        const startTime = Date.now();
+        setCellState(cell.id, {
+          status: 'running',
+          error: null,
+          executionTime: null,
+          lastQuery: null,
+        });
 
-        if (error) {
+        try {
+          const { lastQuery, error } = await executeCellSQL({
+            pool,
+            sql: cell.content,
+            protectedViews,
+            abortSignal: abortController.signal,
+            sharedConnection,
+            cellIndex: index,
+          });
+
+          const executionTime = Date.now() - startTime;
+
+          if (error) {
+            setCellState(cell.id, {
+              status: 'error',
+              error,
+              executionTime,
+              lastQuery: null,
+            });
+            // Stop on first error
+            break;
+          }
+
+          setCellState(cell.id, {
+            status: 'success',
+            error: null,
+            executionTime,
+            lastQuery,
+          });
+        } catch (error: any) {
+          const executionTime = Date.now() - startTime;
           setCellState(cell.id, {
             status: 'error',
-            error,
+            error: error?.message || 'Unknown error',
             executionTime,
             lastQuery: null,
           });
-          // Stop on first error
           break;
         }
-
-        setCellState(cell.id, {
-          status: 'success',
-          error: null,
-          executionTime,
-          lastQuery,
-        });
-      } catch (error: any) {
-        const executionTime = Date.now() - startTime;
-        setCellState(cell.id, {
-          status: 'error',
-          error: error?.message || 'Unknown error',
-          executionTime,
-          lastQuery: null,
-        });
-        break;
       }
+    } catch (error: any) {
+      console.error('Failed to acquire shared notebook connection:', error);
     }
 
     runAllAbortRef.current = null;
-  }, [notebook, pool, protectedViews, setCellState]);
+  }, [notebook, sortedCells, pool, protectedViews, setCellState, getConnection, clearStaleCells]);
 
   const handleContentChange = useCallback(
     (cellId: CellId, content: string) => {
@@ -297,8 +452,21 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
 
       const reorderedCells = arrayMove(notebook.cells, oldIndex, newIndex);
       updateNotebookCells(notebook.id, reorderedCells);
+
+      // When cells are reordered, __cell_N numbers shift.
+      // Mark all cells that have __cell_N references as stale since
+      // the temp views on the shared connection still use old numbering.
+      const cellsWithAutoRefs = new Set<string>();
+      for (const cell of notebook.cells) {
+        if (cell.type === 'sql' && /__cell_\d+/.test(cell.content)) {
+          cellsWithAutoRefs.add(cell.id);
+        }
+      }
+      if (cellsWithAutoRefs.size > 0) {
+        markCellsStale(cellsWithAutoRefs);
+      }
     },
-    [notebook],
+    [notebook, markCellsStale],
   );
 
   if (!notebook) {
@@ -313,7 +481,6 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     return null;
   }
 
-  const sortedCells = [...notebook.cells].sort((a, b) => a.order - b.order);
   const cellIds = sortedCells.map((c) => c.id);
 
   return (
@@ -352,6 +519,9 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
                             isOnlyCell={sortedCells.length <= 1}
                             isTabActive={active}
                             cellState={getCellState(cell.id)}
+                            isStale={staleCells.has(cell.id)}
+                            cellDependencies={cellDependencies.get(cell.id) ?? null}
+                            additionalCompletions={cellCompletions}
                             dragHandleProps={dragHandleProps}
                             onContentChange={handleContentChange}
                             onTypeChange={handleTypeChange}
