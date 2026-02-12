@@ -1,7 +1,9 @@
 import {
   ActionIcon,
   Group,
+  Loader,
   Menu,
+  Text,
   TextInput,
   Tooltip,
 } from '@mantine/core';
@@ -23,19 +25,25 @@ interface NotebookToolbarProps {
   notebookName: string;
   onRename: (name: string) => void;
   onAddCell: (type: NotebookCellType) => void;
-  onRunAll?: () => void;
+  onRunAll?: (options?: { continueOnError?: boolean }) => void;
   onExportSqlnb?: () => void;
   onExportHtml?: () => void;
   onClearAllOutputs?: () => void;
   onCollapseAll?: () => void;
   onExpandAll?: () => void;
+  runAllState?: {
+    running: boolean;
+    current: number;
+    total: number;
+    continueOnError: boolean;
+  };
 }
 
 export const NotebookToolbar = memo(
   (props: NotebookToolbarProps) => {
     const {
       notebookName, onRename, onAddCell, onRunAll, onExportSqlnb, onExportHtml,
-      onClearAllOutputs, onCollapseAll, onExpandAll,
+      onClearAllOutputs, onCollapseAll, onExpandAll, runAllState,
     } = props;
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(notebookName);
@@ -117,22 +125,39 @@ export const NotebookToolbar = memo(
         <Group gap={4}>
           {/* Run All button */}
           {onRunAll && (
-            <Tooltip label="Run all SQL cells" position="top">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                className="text-iconDefault-light dark:text-iconDefault-dark"
-                onClick={onRunAll}
+            <Group gap={4}>
+              <Tooltip
+                label={
+                  runAllState?.running
+                    ? `Running ${runAllState.current}/${runAllState.total} SQL cells`
+                    : 'Run all SQL cells'
+                }
+                position="top"
               >
-                <IconPlayerPlay size={16} />
-              </ActionIcon>
-            </Tooltip>
+                <ActionIcon
+                  data-testid="notebook-run-all-button"
+                  size="sm"
+                  variant="subtle"
+                  className="text-iconDefault-light dark:text-iconDefault-dark"
+                  onClick={() => onRunAll()}
+                  disabled={runAllState?.running}
+                >
+                  {runAllState?.running ? <Loader size={14} /> : <IconPlayerPlay size={16} />}
+                </ActionIcon>
+              </Tooltip>
+              {runAllState?.running && (
+                <Text size="xs" c="dimmed">
+                  {runAllState.current}/{runAllState.total}
+                </Text>
+              )}
+            </Group>
           )}
 
           {/* Clear All Outputs */}
           {onClearAllOutputs && (
             <Tooltip label="Clear all outputs" position="top">
               <ActionIcon
+                data-testid="notebook-clear-all-outputs-button"
                 size="sm"
                 variant="subtle"
                 className="text-iconDefault-light dark:text-iconDefault-dark"
@@ -147,6 +172,7 @@ export const NotebookToolbar = memo(
           {onCollapseAll && (
             <Tooltip label="Collapse all cells" position="top">
               <ActionIcon
+                data-testid="notebook-collapse-all-button"
                 size="sm"
                 variant="subtle"
                 className="text-iconDefault-light dark:text-iconDefault-dark"
@@ -161,6 +187,7 @@ export const NotebookToolbar = memo(
           {onExpandAll && (
             <Tooltip label="Expand all cells" position="top">
               <ActionIcon
+                data-testid="notebook-expand-all-button"
                 size="sm"
                 variant="subtle"
                 className="text-iconDefault-light dark:text-iconDefault-dark"
@@ -176,6 +203,7 @@ export const NotebookToolbar = memo(
             <Menu.Target>
               <Tooltip label="Add cell" position="top">
                 <ActionIcon
+                  data-testid="notebook-add-cell-menu-button"
                   size="sm"
                   variant="subtle"
                   className="text-iconDefault-light dark:text-iconDefault-dark"
@@ -186,12 +214,14 @@ export const NotebookToolbar = memo(
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Item
+                data-testid="notebook-add-sql-cell-menu-item"
                 leftSection={<IconCode size={14} />}
                 onClick={() => onAddCell('sql')}
               >
                 SQL Cell
               </Menu.Item>
               <Menu.Item
+                data-testid="notebook-add-markdown-cell-menu-item"
                 leftSection={<IconMarkdown size={14} />}
                 onClick={() => onAddCell('markdown')}
               >

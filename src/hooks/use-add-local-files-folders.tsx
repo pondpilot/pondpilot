@@ -9,7 +9,7 @@ import { notifications } from '@mantine/notifications';
 import { LocalEntry, WebkitFile } from '@models/file-system';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { createFileHandleWrapper } from '@utils/file-system-adapter/handle-converter';
-import { importNotebookFromFile } from '@utils/import-notebook-file';
+import { importNotebookFromFile, isNotebookFileName } from '@utils/import-notebook-file';
 import { useCallback } from 'react';
 
 export const useAddLocalFilesOrFolders = () => {
@@ -39,13 +39,47 @@ export const useAddLocalFilesOrFolders = () => {
       return;
     }
 
+    // Intercept .sqlnb files for notebook import before data source processing
+    const notebookFiles: File[] = [];
+    const dataSourceHandles: FileSystemFileHandle[] = [];
+    const dataSourceFallbackFiles: File[] = [];
+
+    for (const handle of handles) {
+      if (isNotebookFileName(handle.name)) {
+        const file = await handle.getFile();
+        notebookFiles.push(file);
+      } else {
+        dataSourceHandles.push(handle);
+      }
+    }
+
+    for (const file of fallbackFiles ?? []) {
+      if (isNotebookFileName(file.name)) {
+        notebookFiles.push(file);
+      } else {
+        dataSourceFallbackFiles.push(file);
+      }
+    }
+
+    // Import notebook files first
+    for (const file of notebookFiles) {
+      await importNotebookFromFile(file);
+    }
+
+    // If only notebooks were selected, finish early.
+    if (dataSourceHandles.length === 0 && dataSourceFallbackFiles.length === 0) {
+      if (notebookFiles.length > 0) {
+        return;
+      }
+    }
+
     const {
       skippedExistingEntries,
       skippedUnsupportedFiles,
       skippedEmptySheets,
       skippedEmptyDatabases,
       errors,
-    } = await addLocalFileOrFoldersCompat(pool, handles, fallbackFiles);
+    } = await addLocalFileOrFoldersCompat(pool, dataSourceHandles, dataSourceFallbackFiles);
 
     if (skippedExistingEntries.length) {
       showWarning({
@@ -281,7 +315,7 @@ export const useAddLocalFilesOrFolders = () => {
       const dataSourceFallbackFiles: File[] = [];
 
       for (const handle of handles) {
-        if (handle.kind === 'file' && handle.name.endsWith('.sqlnb')) {
+        if (handle.kind === 'file' && isNotebookFileName(handle.name)) {
           const file = await (handle as FileSystemFileHandle).getFile();
           notebookFiles.push(file);
         } else {
@@ -290,7 +324,7 @@ export const useAddLocalFilesOrFolders = () => {
       }
 
       for (const file of fallbackFiles) {
-        if (file.name.endsWith('.sqlnb')) {
+        if (isNotebookFileName(file.name)) {
           notebookFiles.push(file);
         } else {
           dataSourceFallbackFiles.push(file);

@@ -41,7 +41,7 @@ jest.mock('@controllers/tab/tab-controller', () => ({
   setActiveTabId: jest.fn(),
 }));
 
-import { getOrCreateTabFromNotebook } from '@controllers/tab/notebook-tab-controller';
+import { getOrCreateTabFromNotebook, setNotebookActiveCellId } from '@controllers/tab/notebook-tab-controller';
 import { persistCreateTab } from '@controllers/tab/persist';
 import { findTabFromNotebookImpl } from '@controllers/tab/pure';
 import { setActiveTabId } from '@controllers/tab/tab-controller';
@@ -53,7 +53,14 @@ describe('notebook-tab-controller', () => {
   const notebook: Notebook = {
     id: notebookId,
     name: 'Notebook',
-    cells: [{ id: cellId, type: 'sql', content: 'SELECT 1', order: 0 }],
+    cells: [{
+      id: cellId,
+      ref: '__pp_cell_1' as any,
+      name: null,
+      type: 'sql',
+      content: 'SELECT 1',
+      order: 0,
+    }],
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
   };
@@ -65,12 +72,44 @@ describe('notebook-tab-controller', () => {
       tabs: new Map(),
       tabOrder: [],
       activeTabId: 'existing-tab' as TabId,
-      _iDbConn: { mock: true },
+      _iDbConn: { put: jest.fn() },
     };
 
     (findTabFromNotebookImpl as jest.Mock).mockReset();
     (persistCreateTab as jest.Mock).mockReset();
     (setActiveTabId as jest.Mock).mockReset();
+  });
+
+  it('does not update state when setting the same active cell id', () => {
+    const existingTab: NotebookTab = {
+      type: 'notebook',
+      id: 'existing-notebook-tab' as TabId,
+      notebookId,
+      activeCellId: cellId,
+      dataViewStateCache: null,
+    };
+    mockState.tabs = new Map([[existingTab.id, existingTab]]);
+
+    setNotebookActiveCellId(existingTab.id, cellId);
+
+    expect(mockSetState).not.toHaveBeenCalled();
+  });
+
+  it('updates state when active cell id changes', () => {
+    const existingTab: NotebookTab = {
+      type: 'notebook',
+      id: 'existing-notebook-tab' as TabId,
+      notebookId,
+      activeCellId: null,
+      dataViewStateCache: null,
+    };
+    mockState.tabs = new Map([[existingTab.id, existingTab]]);
+
+    setNotebookActiveCellId(existingTab.id, cellId);
+
+    expect(mockSetState).toHaveBeenCalledTimes(1);
+    const stateUpdate = mockSetState.mock.calls[0][0] as { tabs: Map<TabId, NotebookTab> };
+    expect(stateUpdate.tabs.get(existingTab.id)?.activeCellId).toBe(cellId);
   });
 
   it('activates a newly-created notebook tab through setActiveTabId to update LRU tracking', () => {

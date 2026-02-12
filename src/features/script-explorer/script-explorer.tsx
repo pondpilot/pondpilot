@@ -485,24 +485,14 @@ export const ScriptExplorer = memo(() => {
     [notebooksArray, notebookRenameCallbacks, notebookContextMenu, handleNodeDelete],
   );
 
-  const collator = useMemo(
-    () => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }),
-    [],
+  const allNodes = useMemo(
+    () => [
+      ...sqlScriptTree,
+      ...comparisonTree,
+      ...notebookTree,
+    ],
+    [sqlScriptTree, comparisonTree, notebookTree],
   );
-
-  const allNodes = useMemo(() => {
-    const getSortKey = (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>) => {
-      if (node.nodeType === 'script') {
-        return node.label.replace(/\.sql$/, '').toLowerCase();
-      }
-      return node.label.toLowerCase();
-    };
-
-    return [...sqlScriptTree, ...comparisonTree, ...notebookTree].sort((a, b) => {
-      const order = collator.compare(getSortKey(a), getSortKey(b));
-      return order !== 0 ? order : collator.compare(a.label.toLowerCase(), b.label.toLowerCase());
-    });
-  }, [sqlScriptTree, comparisonTree, notebookTree, collator]);
 
   // Create Sets for efficient O(1) lookup instead of O(n) array search
   const scriptIdsSet = useMemo(() => new Set(scriptsArray.map(([id]) => id)), [scriptsArray]);

@@ -34,7 +34,9 @@ import {
 import {
   Notebook,
   NotebookId,
+  isNotebookCellExecutionEqual,
   isNotebookCellOutputEqual,
+  normalizeNotebookCellExecution,
   normalizeNotebookCellOutput,
 } from '@models/notebook';
 import {
@@ -76,8 +78,23 @@ import {
 import { fileSystemService } from '@utils/file-system-adapter';
 import { findUniqueName } from '@utils/helpers';
 import { buildIcebergSecretPayload } from '@utils/iceberg-catalog';
+import { ensureCellRef, NOTEBOOK_CELL_REF_PREFIX } from '@utils/notebook';
 import { getXlsxSheetNames } from '@utils/xlsx';
 import { IDBPDatabase, openDB } from 'idb';
+
+const NOTEBOOK_CELL_NAME_PATTERN = /^--\s*@name[:\s]\s*([a-zA-Z_]\w*)\s*$/;
+
+const parseNotebookCellNameFromContent = (content: string): string | null => {
+  const firstLine = content.split('\n')[0]?.trim();
+  if (!firstLine) return null;
+
+  const match = firstLine.match(NOTEBOOK_CELL_NAME_PATTERN);
+  return match ? match[1] : null;
+};
+
+const containsEphemeralNotebookRef = (query: string | null | undefined): boolean => (
+  !!query && query.toLowerCase().includes(NOTEBOOK_CELL_REF_PREFIX.toLowerCase())
+);
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
@@ -543,21 +560,56 @@ export const restoreAppDataFromIDB = async (
   const comparisonWrites: Map<ComparisonId, Comparison> = new Map();
   const tabWrites: Map<TabId, ComparisonTab> = new Map();
 
-  // Normalize existing notebook entries to include SQL cell output settings.
+  // Normalize existing notebook entries to include stable cell refs/names and SQL state.
   for (const [notebookId, notebookData] of notebooks.entries()) {
     let notebookChanged = false;
     const normalizedCells = notebookData.cells.map((cell) => {
-      if (cell.type !== 'sql') return cell;
+      const normalizedRef = ensureCellRef(cell.id, cell.ref);
+      const normalizedName = cell.type === 'sql'
+        ? ((cell.name?.trim() || parseNotebookCellNameFromContent(cell.content)) ?? null)
+        : null;
+
+      const identityUnchanged = cell.ref === normalizedRef && cell.name === normalizedName;
+
+      if (cell.type !== 'sql') {
+        if (identityUnchanged) {
+          return cell;
+        }
+        notebookChanged = true;
+        return {
+          ...cell,
+          ref: normalizedRef,
+          name: normalizedName,
+        };
+      }
 
       const normalizedOutput = normalizeNotebookCellOutput(cell.output);
-      if (cell.output && isNotebookCellOutputEqual(cell.output, normalizedOutput)) {
+      const normalizedExecution = normalizeNotebookCellExecution(cell.execution);
+      const sanitizedExecution = containsEphemeralNotebookRef(normalizedExecution.lastQuery)
+        ? {
+          ...normalizedExecution,
+          lastQuery: null,
+        }
+        : normalizedExecution;
+
+      const outputUnchanged = cell.output
+        ? isNotebookCellOutputEqual(cell.output, normalizedOutput)
+        : false;
+      const executionUnchanged = cell.execution
+        ? isNotebookCellExecutionEqual(cell.execution, sanitizedExecution)
+        : false;
+
+      if (identityUnchanged && outputUnchanged && executionUnchanged) {
         return cell;
       }
 
       notebookChanged = true;
       return {
         ...cell,
+        ref: normalizedRef,
+        name: normalizedName,
         output: normalizedOutput,
+        execution: sanitizedExecution,
       };
     });
 

@@ -1,20 +1,12 @@
+import {
+  NotebookCellExecution as CellExecutionState,
+  normalizeNotebookCellExecution,
+} from '@models/notebook';
 import { useCallback, useRef, useState } from 'react';
 
-export type CellExecutionStatus = 'idle' | 'running' | 'success' | 'error';
+export type { CellExecutionState };
 
-export type CellExecutionState = {
-  status: CellExecutionStatus;
-  error: string | null;
-  executionTime: number | null;
-  lastQuery: string | null;
-};
-
-const IDLE_STATE: CellExecutionState = {
-  status: 'idle',
-  error: null,
-  executionTime: null,
-  lastQuery: null,
-};
+const IDLE_STATE: CellExecutionState = normalizeNotebookCellExecution();
 
 /**
  * Manages execution state for all cells in a notebook,
@@ -24,8 +16,8 @@ const IDLE_STATE: CellExecutionState = {
  * a version counter so consumers can subscribe to changes without
  * needing the full map in their dependency arrays.
  */
-export function useNotebookExecutionState() {
-  const stateRef = useRef(new Map<string, CellExecutionState>());
+export function useNotebookExecutionState(initialState?: Map<string, CellExecutionState>) {
+  const stateRef = useRef(new Map<string, CellExecutionState>(initialState ?? []));
   const [version, setVersion] = useState(0);
   const [staleCells, setStaleCells] = useState<Set<string>>(new Set());
 
@@ -57,6 +49,12 @@ export function useNotebookExecutionState() {
     setVersion((v) => v + 1);
   }, []);
 
+  const replaceAllStates = useCallback((nextState: Map<string, CellExecutionState>) => {
+    stateRef.current = new Map(nextState);
+    setStaleCells(new Set());
+    setVersion((v) => v + 1);
+  }, []);
+
   const markCellsStale = useCallback((cellIds: Set<string>) => {
     setStaleCells((prev) => {
       const next = new Set(prev);
@@ -75,6 +73,7 @@ export function useNotebookExecutionState() {
     getCellState,
     setCellState,
     clearAllStates,
+    replaceAllStates,
     staleCells,
     markCellsStale,
     clearStaleCells,

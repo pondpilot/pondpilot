@@ -54,6 +54,13 @@ function useNodeActive(node: { nodeType: string; value: string } | null): boolea
   return false;
 }
 
+function getSectionLabel(nodeType: string): string {
+  if (nodeType === 'script') return 'SQL Scripts';
+  if (nodeType === 'comparison') return 'Comparisons';
+  if (nodeType === 'notebook') return 'Notebooks';
+  return '';
+}
+
 export const ScriptExplorerNode = (
   props: RenderTreeNodePayload<ScriptNodeTypeToIdTypeMap, ScriptExplorerContext>,
 ) => {
@@ -80,13 +87,23 @@ export const ScriptExplorerNode = (
   const overrideContextMenu =
     tree.selectedState.length > 1 ? extraData.getOverrideContextMenu(tree.selectedState) : null;
 
+  const showSectionHeader = !prevNode || prevNode.nodeType !== node.nodeType;
+  const sectionLabel = getSectionLabel(node.nodeType);
+
   return (
-    <MemoizedBaseTreeNode<ScriptNodeTypeToIdTypeMap>
-      {...props}
-      isActive={isActive}
-      isPrevActive={isPrevActive}
-      isNextActive={isNextActive}
-      overrideContextMenu={overrideContextMenu}
-    />
+    <>
+      {showSectionHeader && sectionLabel ? (
+        <div className="px-2 pt-2 pb-1 text-[10px] uppercase tracking-wide text-textTertiary-light dark:text-textTertiary-dark select-none">
+          {sectionLabel}
+        </div>
+      ) : null}
+      <MemoizedBaseTreeNode<ScriptNodeTypeToIdTypeMap>
+        {...props}
+        isActive={isActive}
+        isPrevActive={isPrevActive}
+        isNextActive={isNextActive}
+        overrideContextMenu={overrideContextMenu}
+      />
+    </>
   );
 };

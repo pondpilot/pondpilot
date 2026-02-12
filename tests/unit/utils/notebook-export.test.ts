@@ -10,27 +10,43 @@ import {
 } from '@utils/notebook-export';
 
 // Helper to create a test notebook
-function makeNotebook(overrides?: Partial<Notebook>): Notebook {
+function makeNotebook(
+  overrides?: Partial<Omit<Notebook, 'cells'>> & { cells?: any[] },
+): Notebook {
+  const baseCells = [
+    {
+      id: 'cell-1' as CellId,
+      ref: '__pp_cell_cell_1' as any,
+      name: null,
+      type: 'sql' as const,
+      content: 'SELECT * FROM users',
+      order: 0,
+    },
+    {
+      id: 'cell-2' as CellId,
+      ref: '__pp_cell_cell_2' as any,
+      name: null,
+      type: 'markdown' as const,
+      content: '## Analysis\nThis shows user data.',
+      order: 1,
+    },
+  ];
+
+  const rawCells = overrides?.cells ?? baseCells;
+  const normalizedCells = rawCells.map((cell: any, index: number) => ({
+    ...cell,
+    ref: cell.ref ?? `__pp_cell_${String(cell.id).replace(/-/g, '_')}`,
+    name: cell.name ?? null,
+    order: typeof cell.order === 'number' ? cell.order : index,
+  }));
+
   return {
     id: 'test-notebook-id' as NotebookId,
     name: 'Test Notebook',
-    cells: [
-      {
-        id: 'cell-1' as CellId,
-        type: 'sql',
-        content: 'SELECT * FROM users',
-        order: 0,
-      },
-      {
-        id: 'cell-2' as CellId,
-        type: 'markdown',
-        content: '## Analysis\nThis shows user data.',
-        order: 1,
-      },
-    ],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T12:00:00.000Z',
     ...overrides,
+    cells: normalizedCells,
   };
 }
 
@@ -312,41 +328,58 @@ describe('sqlnbCellsToNotebookCells', () => {
       { type: 'sql' as const, content: 'SELECT 2' },
     ];
 
-    const result = sqlnbCellsToNotebookCells(sqlnbCells, makeCellId);
+    const result = sqlnbCellsToNotebookCells(
+      sqlnbCells,
+      makeCellId,
+      (cellId) => `__pp_cell_${String(cellId).replace(/-/g, '_')}` as any,
+    );
 
     expect(result).toHaveLength(3);
     expect(result[0].id).toBe('cell-0');
+    expect(result[0].ref).toBe('__pp_cell_cell_0');
+    expect(result[0].name).toBeNull();
     expect(result[0].type).toBe('sql');
     expect(result[0].content).toBe('SELECT 1');
     expect(result[0].order).toBe(0);
     expect(result[0].output?.viewMode).toBe('table');
+    expect(result[0].execution?.status).toBe('idle');
     expect(result[1].id).toBe('cell-1');
     expect(result[1].order).toBe(1);
+    expect(result[1].execution).toBeUndefined();
     expect(result[2].id).toBe('cell-2');
     expect(result[2].order).toBe(2);
     expect(result[2].output?.viewMode).toBe('table');
+    expect(result[2].execution?.status).toBe('idle');
   });
 
-  it('should preserve sqlnb name metadata by injecting @name annotation', () => {
+  it('should preserve sqlnb name metadata in cell.name', () => {
     const result = sqlnbCellsToNotebookCells(
       [{ type: 'sql' as const, content: 'SELECT * FROM x', name: 'my_view' }],
       () => 'cell-0' as CellId,
+      (cellId) => `__pp_cell_${String(cellId).replace(/-/g, '_')}` as any,
     );
 
-    expect(result[0].content).toBe('-- @name: my_view\nSELECT * FROM x');
+    expect(result[0].content).toBe('SELECT * FROM x');
+    expect(result[0].name).toBe('my_view');
   });
 
-  it('should override an existing @name annotation with sqlnb metadata name', () => {
+  it('should prefer sqlnb metadata name over inline annotation', () => {
     const result = sqlnbCellsToNotebookCells(
       [{ type: 'sql' as const, content: '-- @name: old_name\nSELECT * FROM x', name: 'new_name' }],
       () => 'cell-0' as CellId,
+      (cellId) => `__pp_cell_${String(cellId).replace(/-/g, '_')}` as any,
     );
 
-    expect(result[0].content).toBe('-- @name: new_name\nSELECT * FROM x');
+    expect(result[0].content).toBe('-- @name: old_name\nSELECT * FROM x');
+    expect(result[0].name).toBe('new_name');
   });
 
   it('should handle empty cell array', () => {
-    const result = sqlnbCellsToNotebookCells([], () => 'id' as CellId);
+    const result = sqlnbCellsToNotebookCells(
+      [],
+      () => 'id' as CellId,
+      (cellId) => `__pp_cell_${String(cellId).replace(/-/g, '_')}` as any,
+    );
     expect(result).toHaveLength(0);
   });
 
@@ -366,6 +399,7 @@ describe('sqlnbCellsToNotebookCells', () => {
         },
       ],
       () => 'cell-0' as CellId,
+      (cellId) => `__pp_cell_${String(cellId).replace(/-/g, '_')}` as any,
     );
 
     expect(result[0].output?.viewMode).toBe('chart');
@@ -395,6 +429,106 @@ describe('notebookToHtml', () => {
     expect(html).toContain('SELECT * FROM users');
     expect(html).toContain('<pre');
     expect(html).toContain('<code>');
+  });
+
+  it('embeds SQL result snapshots as HTML tables', () => {
+    const notebook = makeNotebook({
+      cells: [
+        {
+          id: 'c1' as CellId,
+          type: 'sql',
+          content: 'SELECT 1 AS value',
+          order: 0,
+          execution: {
+            status: 'success',
+            error: null,
+            executionTime: 12,
+            lastQuery: 'SELECT 1 AS value',
+            executionCount: 1,
+            lastRunAt: '2026-01-01T00:00:00.000Z',
+            snapshot: {
+              schema: [{
+                name: 'value',
+                sqlType: 'INTEGER',
+                nullable: true,
+                databaseType: 'duckdb',
+                id: 'value',
+                columnIndex: 0,
+              }] as any,
+              data: [{ value: 1 }] as any,
+              truncated: false,
+              capturedAt: '2026-01-01T00:00:00.000Z',
+            },
+          },
+        },
+      ],
+    });
+
+    const html = notebookToHtml(notebook);
+
+    expect(html).toContain('result-table');
+    expect(html).toContain('<td>1</td>');
+    expect(html).toContain('1 row captured for export');
+  });
+
+  it('embeds chart output as inline SVG when view mode is chart', () => {
+    const notebook = makeNotebook({
+      cells: [
+        {
+          id: 'c1' as CellId,
+          type: 'sql',
+          content: 'SELECT * FROM chart_data',
+          order: 0,
+          output: {
+            viewMode: 'chart',
+            chartConfig: {
+              ...DEFAULT_CHART_CONFIG,
+              xAxisColumn: 'label',
+              yAxisColumn: 'value',
+            },
+          },
+          execution: {
+            status: 'success',
+            error: null,
+            executionTime: 20,
+            lastQuery: 'SELECT * FROM chart_data',
+            executionCount: 2,
+            lastRunAt: '2026-01-01T00:00:00.000Z',
+            snapshot: {
+              schema: [
+                {
+                  name: 'label',
+                  sqlType: 'VARCHAR',
+                  nullable: true,
+                  databaseType: 'duckdb',
+                  id: 'label',
+                  columnIndex: 0,
+                },
+                {
+                  name: 'value',
+                  sqlType: 'DOUBLE',
+                  nullable: true,
+                  databaseType: 'duckdb',
+                  id: 'value',
+                  columnIndex: 1,
+                },
+              ] as any,
+              data: [
+                { label: 'A', value: 10 },
+                { label: 'B', value: 20 },
+              ] as any,
+              truncated: false,
+              capturedAt: '2026-01-01T00:00:00.000Z',
+            },
+          },
+        },
+      ],
+    });
+
+    const html = notebookToHtml(notebook);
+
+    expect(html).toContain('result-chart');
+    expect(html).toContain('<svg');
   });
 
   it('should render markdown cells', () => {

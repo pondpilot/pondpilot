@@ -19,7 +19,7 @@ import {
 import { isNotReadableError, getErrorMessage } from '@utils/error-classification';
 import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
 
-import { getAutoCellViewName, parseUserCellName, validateCellName } from '../utils/cell-naming';
+import { normalizeCellName, validateCellName } from '../utils/cell-naming';
 
 const SECRET_STATEMENT_PATTERN = /\b(ALTER|CREATE)\s+(?:OR\s+REPLACE\s+)?SECRET\b/i;
 
@@ -38,8 +38,10 @@ export type CellExecutionOptions = {
   abortSignal: AbortSignal;
   /** Shared notebook connection for temp view persistence */
   sharedConnection?: AsyncDuckDBPooledConnection;
-  /** 0-based index of the cell in the notebook (for auto-naming) */
-  cellIndex?: number;
+  /** Stable SQL view reference for this cell (e.g. __pp_cell_xxx) */
+  cellRef?: string;
+  /** Optional human alias for this cell. */
+  cellName?: string | null;
 };
 
 /**
@@ -59,7 +61,15 @@ export type CellExecutionOptions = {
 export async function executeCellSQL(
   options: CellExecutionOptions,
 ): Promise<{ lastQuery: string | null; error: string | null }> {
-  const { pool, sql, protectedViews, abortSignal, sharedConnection, cellIndex } = options;
+  const {
+    pool,
+    sql,
+    protectedViews,
+    abortSignal,
+    sharedConnection,
+    cellRef,
+    cellName,
+  } = options;
 
   if (!sql.trim()) {
     return { lastQuery: null, error: null };
@@ -180,11 +190,11 @@ export async function executeCellSQL(
 
     // Create temp views for cross-cell referencing (only with shared connection).
     // Use the last SELECT statement for the view body so multi-statement cells work.
-    if (sharedConnection && cellIndex !== undefined) {
+    if (sharedConnection && cellRef) {
       const viewQuery = lastQuery && lastQuery !== "SELECT 'All statements executed successfully' as Result"
         ? lastQuery
         : null;
-      await createCellTempViews(conn, sql, cellIndex, viewQuery);
+      await createCellTempViews(conn, sql, cellRef, cellName, viewQuery);
     }
 
     // Handle DDL side effects (refresh metadata)
@@ -247,8 +257,7 @@ export async function executeCellSQL(
 /**
  * Creates temp views for a cell's SQL result so downstream cells can reference it.
  *
- * Creates both an auto-generated view (`__cell_N`) and optionally a user-defined
- * view if a `-- @name: my_view` annotation is present in the first line.
+ * Creates the stable machine view (`cellRef`) and optionally a user alias view.
  *
  * When `lastSelectQuery` is provided (the last SELECT-like statement from
  * execution), it is used as the view body. This allows multi-statement cells
@@ -259,37 +268,32 @@ export async function executeCellSQL(
 async function createCellTempViews(
   conn: AsyncDuckDBPooledConnection,
   sql: string,
-  cellIndex: number,
+  cellRef: string,
+  cellName: string | null | undefined,
   lastSelectQuery: string | null,
 ): Promise<void> {
-  // Prefer the extracted last SELECT statement; fall back to full cell SQL
-  // with the @name annotation stripped.
+  // Prefer the extracted last SELECT statement; fall back to full cell SQL.
   let viewBody: string;
   if (lastSelectQuery) {
     viewBody = lastSelectQuery.trim();
   } else {
     const viewSql = sql.trim();
     if (!viewSql) return;
-
-    const lines = viewSql.split('\n');
-    const userCellName = parseUserCellName(viewSql);
-    const bodyLines = userCellName ? lines.slice(1) : lines;
-    viewBody = bodyLines.join('\n').trim();
+    viewBody = viewSql;
   }
 
   if (!viewBody) return;
 
-  const userCellName = parseUserCellName(sql);
+  const userCellName = normalizeCellName(cellName);
 
-  // Create the auto-generated view: __cell_N
-  const autoName = getAutoCellViewName(cellIndex);
+  // Create the stable machine view for this cell (e.g. __pp_cell_<id>)
   try {
-    await conn.query(`CREATE OR REPLACE TEMP VIEW "${autoName}" AS (${viewBody})`);
+    await conn.query(`CREATE OR REPLACE TEMP VIEW "${cellRef}" AS (${viewBody})`);
   } catch {
     // View creation can fail for non-SELECT content — skip gracefully
   }
 
-  // Create the user-defined view if a valid name annotation exists
+  // Create the user-defined view when a valid alias is set.
   if (userCellName) {
     const validationError = validateCellName(userCellName);
     if (!validationError) {

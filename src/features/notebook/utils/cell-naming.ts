@@ -1,11 +1,13 @@
+import { NOTEBOOK_CELL_REF_PREFIX } from '@utils/notebook';
+
 /**
  * Cell naming utilities for notebook temp views.
  *
- * Each executed SQL cell's result can be referenced by downstream cells via:
- * 1. Auto-generated names: `__cell_N` where N is the 1-based cell position
- * 2. User-defined names: parsed from `-- @name: my_view` comment on the first line
+ * Each SQL cell can provide:
+ * 1) a stable machine reference (`cell.ref`)
+ * 2) an optional user-defined alias (`cell.name`)
  *
- * Names are used to create DuckDB temp views after cell execution.
+ * For compatibility, `-- @name: my_view` on the first line is still parsed.
  */
 
 /**
@@ -27,68 +29,74 @@ export function parseUserCellName(sqlContent: string): string | null {
   return match ? match[1] : null;
 }
 
-/**
- * Generate the automatic cell view name based on 1-based position.
- * Example: cell at position 0 (first) → `__cell_1`
- */
-export function getAutoCellViewName(cellIndex: number): string {
-  return `__cell_${cellIndex + 1}`;
+export function normalizeCellName(name?: string | null): string | null {
+  const trimmed = name?.trim();
+  return trimmed || null;
 }
 
 /**
  * Reserved prefixes that user-defined cell names cannot start with.
  * Prevents conflicts with auto-generated names.
  */
-const RESERVED_PREFIXES = ['__cell_'];
+const RESERVED_PREFIXES = [NOTEBOOK_CELL_REF_PREFIX];
 
 /**
  * Validates a user-defined cell name.
  * Returns an error message if invalid, null if valid.
  */
-export function validateCellName(name: string): string | null {
+export function validateCellName(name: string, existingNames?: Set<string>): string | null {
   if (!/^[a-zA-Z_]\w*$/.test(name)) {
     return `Invalid cell name "${name}": must be a valid SQL identifier (letters, digits, underscores, no leading digit)`;
   }
 
+  const lowerName = name.toLowerCase();
   for (const prefix of RESERVED_PREFIXES) {
-    if (name.startsWith(prefix)) {
+    if (lowerName.startsWith(prefix.toLowerCase())) {
       return `Cell name "${name}" cannot start with reserved prefix "${prefix}"`;
     }
+  }
+
+  if (existingNames?.has(name.toLowerCase())) {
+    return `Cell name "${name}" is already used by another cell`;
   }
 
   return null;
 }
 
 /**
- * Extracts all cell view references (both __cell_N and user-defined names)
- * from a SQL string. Used for dependency tracking.
+ * Extracts all cell view references from SQL using identifier token matching.
+ * `availableNames` are matched case-insensitively and returned in canonical form.
  */
 export function extractCellReferences(
   sql: string,
   availableNames: Set<string>,
 ): string[] {
-  const references: string[] = [];
+  if (!sql.trim()) return [];
 
-  // Match __cell_N patterns that correspond to actual cells
-  const autoCellPattern = /__cell_\d+/g;
-  let match;
-  while ((match = autoCellPattern.exec(sql)) !== null) {
-    if (availableNames.has(match[0]) && !references.includes(match[0])) {
-      references.push(match[0]);
-    }
+  const canonicalByLower = new Map<string, string>();
+  for (const name of availableNames) {
+    canonicalByLower.set(name.toLowerCase(), name);
   }
 
-  // Match user-defined names that appear as identifiers in the SQL
-  for (const name of availableNames) {
-    // Skip auto-generated names (already handled above)
-    if (name.startsWith('__cell_')) continue;
+  const references: string[] = [];
+  const seen = new Set<string>();
+  const identifierPattern = /\b[a-zA-Z_]\w*\b/g;
 
-    // Use word boundary matching to avoid false positives
-    const namePattern = new RegExp(`\\b${name}\\b`, 'g');
-    if (namePattern.test(sql)) {
-      if (!references.includes(name)) {
-        references.push(name);
-      }
+  let match;
+  while ((match = identifierPattern.exec(sql)) !== null) {
+    const identifier = match[0];
+    const canonicalName = canonicalByLower.get(identifier.toLowerCase());
+    if (canonicalName) {
+      if (seen.has(canonicalName)) continue;
+      seen.add(canonicalName);
+      references.push(canonicalName);
+      continue;
+    }
+
+    if (identifier.toLowerCase().startsWith(NOTEBOOK_CELL_REF_PREFIX.toLowerCase())) {
+      if (seen.has(identifier)) continue;
+      seen.add(identifier);
+      references.push(identifier);
     }
   }
 

@@ -16,6 +16,8 @@ function makeCell(
 ) {
   return {
     id: id as CellId,
+    ref: (`__pp_cell_${id}` as any),
+    name: null,
     type,
     content: `content-${id}`,
     order,

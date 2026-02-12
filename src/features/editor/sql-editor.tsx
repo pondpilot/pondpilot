@@ -61,6 +61,21 @@ function debugLog(label: string, ...args: unknown[]) {
   }
 }
 
+// Monaco themes are global; re-defining the same theme for each mounted editor
+// can trigger expensive global theme churn during rapid notebook cell reorders.
+const definedThemeCache = new Map<string, string>();
+
+function ensureMonacoThemeDefined(
+  monacoInstance: typeof monaco,
+  themeName: string,
+  themeData: monaco.editor.IStandaloneThemeData,
+) {
+  const serialized = JSON.stringify(themeData);
+  if (definedThemeCache.get(themeName) === serialized) return;
+  monacoInstance.editor.defineTheme(themeName, themeData);
+  definedThemeCache.set(themeName, serialized);
+}
+
 /**
  * Incremental span tracking for efficient statement splitting.
  * Instead of re-parsing the entire document on every keystroke,
@@ -225,6 +240,7 @@ interface SqlEditorProps {
   functionTooltips: FunctionTooltip;
   path?: string;
   additionalCompletions?: AdditionalCompletion[];
+  highlightedLineNumbers?: number[];
 }
 
 type AnalysisCache = {
@@ -495,6 +511,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       functionTooltips,
       path,
       additionalCompletions,
+      highlightedLineNumbers,
     }: SqlEditorProps,
     ref,
   ) => {
@@ -509,9 +526,11 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
     const analysisCacheRef = useRef<AnalysisCache>({ sql: '', result: null, promise: null });
     const statementDecorationsRef = useRef<string[]>([]);
     const tableDecorationsRef = useRef<string[]>([]);
+    const errorLineDecorationsRef = useRef<string[]>([]);
     const fullAnalysisTimerRef = useRef<number | null>(null);
     const fullAnalysisRunRef = useRef(0);
     const statementSplitTimerRef = useRef<number | null>(null);
+    const highlightRafRef = useRef<number | null>(null);
     // Incremental span tracking - avoids re-parsing entire document on each keystroke
     const incrementalSpansRef = useRef<IncrementalSpanState>({
       baselineSql: '',
@@ -527,10 +546,19 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
     const mountedRef = useRef(true);
     const additionalCompletionsRef = useRef(additionalCompletions);
     additionalCompletionsRef.current = additionalCompletions;
+    const highlightedLineNumbersRef = useRef(highlightedLineNumbers);
+    highlightedLineNumbersRef.current = highlightedLineNumbers;
     const [assistantVisible, setAssistantVisible] = useState(false);
     const [structuredResponseVisible, setStructuredResponseVisible] = useState(false);
 
     const schemaCacheKey = useMemo(() => (schema ? JSON.stringify(schema) : ''), [schema]);
+
+    const isEditorRenderable = useCallback((editor: monaco.editor.IStandaloneCodeEditor | null) => {
+      if (!editor) return false;
+      const model = editor.getModel();
+      const domNode = editor.getDomNode();
+      return Boolean(model && !model.isDisposed() && domNode && domNode.isConnected);
+    }, []);
 
     useEffect(() => {
       analysisCacheRef.current = { sql: '', result: null, promise: null };
@@ -840,11 +868,12 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
     const updateStatementHighlight = useCallback(
       (model: monaco.editor.ITextModel, cursorOffset: number) => {
-        if (!editorRef.current || !monacoRef.current) return;
+        const editor = editorRef.current;
+        if (!editor || !monacoRef.current || !isEditorRenderable(editor)) return;
 
         const sqlText = model.getValue();
         if (!sqlText.trim()) {
-          statementDecorationsRef.current = editorRef.current.deltaDecorations(
+          statementDecorationsRef.current = editor.deltaDecorations(
             statementDecorationsRef.current,
             [],
           );
@@ -854,7 +883,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         // Use incremental spans for immediate highlight (no waiting for full split)
         const spans = getSpansImmediate(sqlText);
         if (!spans || spans.length === 0) {
-          statementDecorationsRef.current = editorRef.current.deltaDecorations(
+          statementDecorationsRef.current = editor.deltaDecorations(
             statementDecorationsRef.current,
             [],
           );
@@ -863,7 +892,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
         const statementSpan = findStatementSpan(spans, cursorOffset);
         if (!statementSpan) {
-          statementDecorationsRef.current = editorRef.current.deltaDecorations(
+          statementDecorationsRef.current = editor.deltaDecorations(
             statementDecorationsRef.current,
             [],
           );
@@ -873,7 +902,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         const endPos = model.getPositionAt(statementSpan.end);
 
         // Use a single multi-line decoration instead of one per line for better performance
-        statementDecorationsRef.current = editorRef.current.deltaDecorations(
+        statementDecorationsRef.current = editor.deltaDecorations(
           statementDecorationsRef.current,
           [
             {
@@ -891,14 +920,15 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           ],
         );
       },
-      [findStatementSpan, getSpansImmediate],
+      [findStatementSpan, getSpansImmediate, isEditorRenderable],
     );
 
     const applyTableHighlights = useCallback(
       (model: monaco.editor.ITextModel, analysis: AnalysisCache['result']) => {
-        if (!editorRef.current) return;
+        const editor = editorRef.current;
+        if (!editor || !isEditorRenderable(editor)) return;
         if (!analysis) {
-          tableDecorationsRef.current = editorRef.current.deltaDecorations(
+          tableDecorationsRef.current = editor.deltaDecorations(
             tableDecorationsRef.current,
             [],
           );
@@ -931,13 +961,38 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
           });
         });
 
-        tableDecorationsRef.current = editorRef.current.deltaDecorations(
+        tableDecorationsRef.current = editor.deltaDecorations(
           tableDecorationsRef.current,
           decorations,
         );
       },
-      [],
+      [isEditorRenderable],
     );
+
+    const applyHighlightedLineDecorations = useCallback((model: monaco.editor.ITextModel) => {
+      const editor = editorRef.current;
+      if (!editor || !monacoRef.current || !isEditorRenderable(editor)) return;
+
+      const requestedLines = highlightedLineNumbersRef.current ?? [];
+      const maxLine = model.getLineCount();
+      const uniqueValidLines = Array.from(new Set(requestedLines.filter((line) => (
+        Number.isInteger(line) && line > 0 && line <= maxLine
+      ))));
+
+      const decorations: monaco.editor.IModelDeltaDecoration[] = uniqueValidLines.map((line) => ({
+        range: new monaco.Range(line, 1, line, model.getLineMaxColumn(line)),
+        options: {
+          isWholeLine: true,
+          className: 'monaco-error-line-highlight',
+          linesDecorationsClassName: 'monaco-error-line-gutter',
+        },
+      }));
+
+      errorLineDecorationsRef.current = editor.deltaDecorations(
+        errorLineDecorationsRef.current,
+        decorations,
+      );
+    }, [isEditorRenderable]);
 
     const applyDiagnostics = useCallback(
       (model: monaco.editor.ITextModel, analysis: AnalysisCache['result']) => {
@@ -1094,14 +1149,41 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         if (statementSplitTimerRef.current) {
           window.clearTimeout(statementSplitTimerRef.current);
         }
+        if (highlightRafRef.current !== null) {
+          window.cancelAnimationFrame(highlightRafRef.current);
+          highlightRafRef.current = null;
+        }
+        const editor = editorRef.current;
+        if (editor) {
+          if (isEditorRenderable(editor)) {
+            errorLineDecorationsRef.current = editor.deltaDecorations(
+              errorLineDecorationsRef.current,
+              [],
+            );
+          }
+        }
+
         disposablesRef.current.forEach((disposable) => disposable.dispose());
         disposablesRef.current = [];
+        if (editor) {
+          // Explicitly dispose the editor instance so global Monaco services
+          // (theme/render queues) don't keep stale references during fast reorders.
+          editor.dispose();
+        }
+        editorRef.current = null;
+        monacoRef.current = null;
         // Terminate the FlowScope worker to free resources
         // Note: This is safe because FlowScopeClient is lazily initialized,
         // so a new worker will be created if needed after remounting
         terminateFlowScopeClients();
       };
-    }, []);
+    }, [isEditorRenderable]);
+
+    useEffect(() => {
+      const model = editorRef.current?.getModel();
+      if (!model) return;
+      applyHighlightedLineDecorations(model);
+    }, [applyHighlightedLineDecorations, highlightedLineNumbers, value]);
 
     const handleEditorMount = (
       editor: monaco.editor.IStandaloneCodeEditor,
@@ -1110,13 +1192,18 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       editorRef.current = editor;
       monacoRef.current = monacoInstance;
 
-      monacoInstance.editor.defineTheme(themeName, themeData as monaco.editor.IStandaloneThemeData);
+      ensureMonacoThemeDefined(
+        monacoInstance,
+        themeName,
+        themeData as monaco.editor.IStandaloneThemeData,
+      );
       monacoInstance.editor.setTheme(themeName);
 
       const editorModel = editor.getModel();
       if (editorModel) {
         scheduleStatementSplit(editorModel);
         scheduleFullAnalysis(editorModel);
+        applyHighlightedLineDecorations(editorModel);
       }
 
       editor.updateOptions({
@@ -1197,8 +1284,10 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
             // Coalesce multiple edits into one RAF to avoid redundant layout work.
             if (!highlightRafPending) {
               highlightRafPending = true;
-              requestAnimationFrame(() => {
+              highlightRafRef.current = requestAnimationFrame(() => {
                 highlightRafPending = false;
+                highlightRafRef.current = null;
+                if (!mountedRef.current || !isEditorRenderable(editorRef.current)) return;
                 if (editorModel && !editorModel.isDisposed()) {
                   updateStatementHighlight(editorModel, cursorOffsetRef.current);
                 }
@@ -1207,6 +1296,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
             // Schedule full re-split in background (for accuracy, with long debounce)
             scheduleStatementSplit(editorModel);
+            applyHighlightedLineDecorations(editorModel);
           }
         }),
       );
@@ -2062,13 +2152,16 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
 
     useEffect(() => {
       if (monacoRef.current) {
-        monacoRef.current.editor.defineTheme(
+        ensureMonacoThemeDefined(
+          monacoRef.current,
           themeName,
           themeData as monaco.editor.IStandaloneThemeData,
         );
-        monacoRef.current.editor.setTheme(themeName);
+        if (editorRef.current && isEditorRenderable(editorRef.current)) {
+          monacoRef.current.editor.setTheme(themeName);
+        }
       }
-    }, [themeName, themeData]);
+    }, [themeName, themeData, isEditorRenderable]);
 
     useEffect(() => {
       const model = editorRef.current?.getModel();

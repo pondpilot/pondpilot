@@ -1,6 +1,6 @@
 import {
   parseUserCellName,
-  getAutoCellViewName,
+  normalizeCellName,
   validateCellName,
   extractCellReferences,
 } from '@features/notebook/utils/cell-naming';
@@ -42,11 +42,11 @@ describe('parseUserCellName', () => {
   });
 });
 
-describe('getAutoCellViewName', () => {
-  it('generates 1-based names', () => {
-    expect(getAutoCellViewName(0)).toBe('__cell_1');
-    expect(getAutoCellViewName(1)).toBe('__cell_2');
-    expect(getAutoCellViewName(9)).toBe('__cell_10');
+describe('normalizeCellName', () => {
+  it('normalizes blank names to null', () => {
+    expect(normalizeCellName('  my_view  ')).toBe('my_view');
+    expect(normalizeCellName('   ')).toBeNull();
+    expect(normalizeCellName(undefined)).toBeNull();
   });
 });
 
@@ -66,25 +66,30 @@ describe('validateCellName', () => {
     expect(validateCellName('my view')).not.toBeNull();
   });
 
-  it('rejects reserved prefix __cell_', () => {
-    expect(validateCellName('__cell_1')).not.toBeNull();
-    expect(validateCellName('__cell_custom')).not.toBeNull();
+  it('rejects reserved prefix __pp_cell_', () => {
+    expect(validateCellName('__pp_cell_1')).not.toBeNull();
+    expect(validateCellName('__pp_cell_custom')).not.toBeNull();
+  });
+
+  it('rejects reserved prefix case-insensitively', () => {
+    expect(validateCellName('__PP_CELL_custom')).not.toBeNull();
+    expect(validateCellName('__Pp_CeLl_1')).not.toBeNull();
   });
 });
 
 describe('extractCellReferences', () => {
-  it('extracts __cell_N references that exist in availableNames', () => {
-    const sql = 'SELECT * FROM __cell_1 JOIN __cell_3 ON __cell_1.id = __cell_3.id';
-    const available = new Set(['__cell_1', '__cell_3']);
+  it('extracts stable ref names that exist in availableNames', () => {
+    const sql = 'SELECT * FROM __pp_cell_1 JOIN __pp_cell_3 ON __pp_cell_1.id = __pp_cell_3.id';
+    const available = new Set(['__pp_cell_1', '__pp_cell_3']);
     const refs = extractCellReferences(sql, available);
-    expect(refs).toEqual(['__cell_1', '__cell_3']);
+    expect(refs).toEqual(['__pp_cell_1', '__pp_cell_3']);
   });
 
-  it('ignores __cell_N references not in availableNames', () => {
-    const sql = 'SELECT * FROM __cell_1 JOIN __cell_99';
-    const available = new Set(['__cell_1']);
+  it('includes explicit notebook refs even when unavailable', () => {
+    const sql = 'SELECT * FROM __pp_cell_1 JOIN __pp_cell_99';
+    const available = new Set(['__pp_cell_1']);
     const refs = extractCellReferences(sql, available);
-    expect(refs).toEqual(['__cell_1']);
+    expect(refs).toEqual(['__pp_cell_1', '__pp_cell_99']);
   });
 
   it('extracts user-defined name references', () => {
@@ -94,18 +99,18 @@ describe('extractCellReferences', () => {
     expect(refs).toEqual(['revenue_data']);
   });
 
-  it('extracts both auto and user-defined references', () => {
-    const sql = 'SELECT * FROM __cell_1 JOIN my_view ON __cell_1.id = my_view.id';
-    const available = new Set(['__cell_1', 'my_view']);
+  it('extracts both stable refs and user-defined references', () => {
+    const sql = 'SELECT * FROM __pp_cell_1 JOIN my_view ON __pp_cell_1.id = my_view.id';
+    const available = new Set(['__pp_cell_1', 'my_view']);
     const refs = extractCellReferences(sql, available);
-    expect(refs).toEqual(['__cell_1', 'my_view']);
+    expect(refs).toEqual(['__pp_cell_1', 'my_view']);
   });
 
   it('deduplicates references', () => {
-    const sql = 'SELECT * FROM __cell_1 UNION SELECT * FROM __cell_1';
-    const available = new Set(['__cell_1']);
+    const sql = 'SELECT * FROM __pp_cell_1 UNION SELECT * FROM __pp_cell_1';
+    const available = new Set(['__pp_cell_1']);
     const refs = extractCellReferences(sql, available);
-    expect(refs).toEqual(['__cell_1']);
+    expect(refs).toEqual(['__pp_cell_1']);
   });
 
   it('returns empty for SQL without references', () => {

@@ -1,6 +1,12 @@
 import { parseUserCellName } from '@features/notebook/utils/cell-naming';
 import { ChartConfig, ViewMode } from '@models/chart';
-import { Notebook, NotebookCell, normalizeNotebookCellOutput } from '@models/notebook';
+import {
+  CellRef,
+  Notebook,
+  NotebookCell,
+  normalizeNotebookCellExecution,
+  normalizeNotebookCellOutput,
+} from '@models/notebook';
 import { sanitizeFileName } from '@utils/export-data';
 
 /**
@@ -43,7 +49,7 @@ export function notebookToSqlnb(notebook: Notebook, appVersion: string): SqlnbFo
         content: cell.content,
       };
       if (cell.type === 'sql') {
-        const name = parseUserCellName(cell.content);
+        const name = cell.name ?? parseUserCellName(cell.content);
         if (name) {
           sqlnbCell.name = name;
         }
@@ -288,6 +294,165 @@ function markdownToHtml(md: string): string {
 /**
  * Generates a self-contained HTML export of a notebook.
  */
+const HTML_EXPORT_MAX_ROWS = 1000;
+const HTML_EXPORT_MAX_CHART_POINTS = 40;
+
+function formatSnapshotValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'bigint') return value.toString();
+  if (value instanceof Date) return value.toISOString();
+
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  return String(value);
+}
+
+function renderSnapshotTable(snapshot: NonNullable<ReturnType<typeof normalizeNotebookCellExecution>['snapshot']>): string {
+  const schemaColumns = snapshot.schema.map((column) => column.name);
+  const limitedRows = snapshot.data.slice(0, HTML_EXPORT_MAX_ROWS) as Record<string, unknown>[];
+  const isTruncated = snapshot.truncated || snapshot.data.length > HTML_EXPORT_MAX_ROWS;
+
+  if (schemaColumns.length === 0) {
+    return '<div class="result-meta">No result columns available.</div>';
+  }
+
+  const headerHtml = schemaColumns
+    .map((columnName) => `<th>${escapeHtml(columnName)}</th>`)
+    .join('');
+
+  const rowsHtml = limitedRows
+    .map((row) => {
+      const cellsHtml = schemaColumns
+        .map((columnName) => {
+          const raw = row[columnName];
+          const value = formatSnapshotValue(raw);
+          return `<td>${escapeHtml(value)}</td>`;
+        })
+        .join('');
+      return `<tr>${cellsHtml}</tr>`;
+    })
+    .join('');
+
+  return `
+      <div class="result-meta">${snapshot.data.length} row${snapshot.data.length !== 1 ? 's' : ''} captured for export.</div>
+      <div class="result-table-wrap">
+        <table class="result-table">
+          <thead><tr>${headerHtml}</tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+      ${isTruncated ? '<div class="result-note">Result truncated for export.</div>' : ''}
+  `;
+}
+
+function renderSimpleChartSvg(
+  snapshot: NonNullable<ReturnType<typeof normalizeNotebookCellExecution>['snapshot']>,
+  chartConfig: ChartConfig,
+): string {
+  const schemaColumns = snapshot.schema.map((column) => column.name);
+  if (schemaColumns.length === 0) {
+    return '<div class="chart-placeholder">Chart unavailable: no columns.</div>';
+  }
+
+  const xColumn = chartConfig.xAxisColumn ?? schemaColumns[0];
+  const numericColumns = schemaColumns.filter((columnName) =>
+    snapshot.data.some((row) => {
+      const value = (row as Record<string, unknown>)[columnName];
+      return typeof value === 'number' && Number.isFinite(value);
+    }),
+  );
+
+  const yColumn = chartConfig.yAxisColumn ?? numericColumns[0] ?? null;
+  if (!yColumn) {
+    return '<div class="chart-placeholder">Chart unavailable: no numeric Y-axis column.</div>';
+  }
+
+  const points = (snapshot.data as Record<string, unknown>[])
+    .slice(0, HTML_EXPORT_MAX_CHART_POINTS)
+    .map((row, index) => {
+      const rawY = row[yColumn];
+      const y = typeof rawY === 'number' ? rawY : Number(rawY);
+      if (!Number.isFinite(y)) return null;
+
+      const rawLabel = row[xColumn];
+      const label = rawLabel === undefined || rawLabel === null
+        ? `Row ${index + 1}`
+        : formatSnapshotValue(rawLabel);
+
+      return { label, y };
+    })
+    .filter((point): point is { label: string; y: number } => point !== null);
+
+  if (points.length === 0) {
+    return '<div class="chart-placeholder">Chart unavailable: no plottable data points.</div>';
+  }
+
+  const width = 760;
+  const height = 260;
+  const left = 44;
+  const right = 12;
+  const top = 16;
+  const bottom = 52;
+  const chartWidth = width - left - right;
+  const chartHeight = height - top - bottom;
+  const maxY = Math.max(1, ...points.map((point) => point.y));
+  const slotWidth = chartWidth / points.length;
+  const barWidth = Math.max(4, slotWidth * 0.7);
+
+  const bars = points
+    .map((point, index) => {
+      const x = left + index * slotWidth + (slotWidth - barWidth) / 2;
+      const clampedY = Math.max(0, point.y);
+      const barHeight = (clampedY / maxY) * chartHeight;
+      const y = top + chartHeight - barHeight;
+      const label = point.label.length > 14 ? `${point.label.slice(0, 14)}...` : point.label;
+      return `
+        <g>
+          <rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${barHeight.toFixed(2)}" fill="#228be6" rx="2" />
+          <text x="${(x + barWidth / 2).toFixed(2)}" y="${(top + chartHeight + 14).toFixed(2)}" text-anchor="middle" font-size="10" fill="#868e96">${escapeHtml(label)}</text>
+        </g>
+      `;
+    })
+    .join('');
+
+  const yTicks = [0, maxY / 2, maxY]
+    .map((tick) => {
+      const y = top + chartHeight - (tick / maxY) * chartHeight;
+      return `
+        <g>
+          <line x1="${left}" y1="${y.toFixed(2)}" x2="${left + chartWidth}" y2="${y.toFixed(2)}" stroke="#dee2e6" stroke-width="1" />
+          <text x="${left - 6}" y="${(y + 3).toFixed(2)}" text-anchor="end" font-size="10" fill="#868e96">${escapeHtml(tick.toFixed(2))}</text>
+        </g>
+      `;
+    })
+    .join('');
+
+  const xAxisLabel = chartConfig.xAxisLabel ?? xColumn;
+  const yAxisLabel = chartConfig.yAxisLabel ?? yColumn;
+
+  return `
+      <div class="chart-wrapper">
+        <svg class="result-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Chart export">
+          ${yTicks}
+          <line x1="${left}" y1="${top + chartHeight}" x2="${left + chartWidth}" y2="${top + chartHeight}" stroke="#adb5bd" stroke-width="1" />
+          <line x1="${left}" y1="${top}" x2="${left}" y2="${top + chartHeight}" stroke="#adb5bd" stroke-width="1" />
+          ${bars}
+          <text x="${left + chartWidth / 2}" y="${height - 10}" text-anchor="middle" font-size="11" fill="#868e96">${escapeHtml(xAxisLabel)}</text>
+          <text x="14" y="${top + chartHeight / 2}" text-anchor="middle" font-size="11" fill="#868e96" transform="rotate(-90 14 ${top + chartHeight / 2})">${escapeHtml(yAxisLabel)}</text>
+        </svg>
+      </div>
+  `;
+}
+
+/**
+ * Generates a self-contained HTML export of a notebook.
+ */
 export function notebookToHtml(notebook: Notebook): string {
   const sortedCells = [...notebook.cells].sort((a, b) => a.order - b.order);
   const title = escapeHtml(notebook.name);
@@ -295,15 +460,38 @@ export function notebookToHtml(notebook: Notebook): string {
   const cellsHtml = sortedCells
     .map((cell, index) => {
       if (cell.type === 'sql') {
+        const execution = normalizeNotebookCellExecution(cell.execution);
+        const output = normalizeNotebookCellOutput(cell.output);
+        const { snapshot } = execution;
+
+        let resultHtml = '';
+        if (snapshot) {
+          const chartHtml = output.viewMode === 'chart'
+            ? renderSimpleChartSvg(snapshot, output.chartConfig)
+            : '';
+
+          resultHtml = `
+      <div class="cell-result">
+        ${chartHtml}
+        ${renderSnapshotTable(snapshot)}
+      </div>`;
+        } else if (execution.status === 'error' && execution.error) {
+          resultHtml = `
+      <div class="cell-result">
+        <div class="result-error">${escapeHtml(execution.error)}</div>
+      </div>`;
+        }
+
         return `
     <div class="cell sql-cell">
       <div class="cell-header">
         <span class="cell-badge sql">SQL</span>
         <span class="cell-number">Cell ${index + 1}</span>
       </div>
-      <pre class="sql-code"><code>${escapeHtml(cell.content)}</code></pre>
+      <pre class="sql-code"><code>${escapeHtml(cell.content)}</code></pre>${resultHtml}
     </div>`;
       }
+
       return `
     <div class="cell markdown-cell">
       <div class="cell-header">
@@ -331,6 +519,7 @@ export function notebookToHtml(notebook: Notebook): string {
       --border-color: #dee2e6;
       --accent-sql: #228be6;
       --accent-md: #40c057;
+      --error: #fa5252;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -342,6 +531,7 @@ export function notebookToHtml(notebook: Notebook): string {
         --border-color: #373a40;
         --accent-sql: #4dabf7;
         --accent-md: #69db7c;
+        --error: #ff8787;
       }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -429,6 +619,73 @@ export function notebookToHtml(notebook: Notebook): string {
       padding-left: 1.5rem;
       margin-bottom: 0.75rem;
     }
+    .cell-result {
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-secondary);
+      padding: 0.75rem 1rem;
+    }
+    .result-meta {
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .result-note {
+      color: var(--text-secondary);
+      font-size: 0.72rem;
+      margin-top: 0.35rem;
+    }
+    .result-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: var(--bg-primary);
+    }
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+    .result-table th,
+    .result-table td {
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.35rem 0.5rem;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .result-table th {
+      background: var(--bg-code);
+      font-weight: 600;
+    }
+    .result-table tr:last-child td {
+      border-bottom: none;
+    }
+    .chart-wrapper {
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: var(--bg-primary);
+      margin-bottom: 0.6rem;
+      padding: 0.4rem;
+    }
+    .result-chart {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .chart-placeholder {
+      border: 1px dashed var(--border-color);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      padding: 0.55rem 0.65rem;
+      margin-bottom: 0.6rem;
+      background: var(--bg-primary);
+    }
+    .result-error {
+      color: var(--error);
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    }
     .footer {
       text-align: center;
       color: var(--text-secondary);
@@ -467,45 +724,27 @@ export function exportNotebookAsHtml(notebook: Notebook): void {
 }
 
 /**
- * Injects or updates the SQL cell name annotation used by notebook execution.
- * This preserves .sqlnb name metadata on import without changing NotebookCell shape.
- */
-function withSqlCellNameAnnotation(content: string, name?: string): string {
-  const trimmedName = name?.trim();
-  if (!trimmedName) {
-    return content;
-  }
-
-  const existingName = parseUserCellName(content);
-  if (existingName === trimmedName) {
-    return content;
-  }
-
-  if (existingName) {
-    const lines = content.split('\n');
-    lines[0] = `-- @name: ${trimmedName}`;
-    return lines.join('\n');
-  }
-
-  return `-- @name: ${trimmedName}\n${content}`;
-}
-
-/**
  * Converts parsed .sqlnb cells into NotebookCell array with generated IDs and order.
- * Requires the cell ID factory to be passed in.
+ * Requires the cell ID + cell ref factories to be passed in.
  */
 export function sqlnbCellsToNotebookCells(
   sqlnbCells: SqlnbCell[],
   makeCellIdFn: () => NotebookCell['id'],
+  makeCellRefFn: (cellId: NotebookCell['id']) => CellRef,
 ): NotebookCell[] {
-  return sqlnbCells.map((cell, index) => ({
-    id: makeCellIdFn(),
-    type: cell.type,
-    content:
-      cell.type === 'sql'
-        ? withSqlCellNameAnnotation(cell.content, cell.name)
-        : cell.content,
-    order: index,
-    output: cell.type === 'sql' ? normalizeNotebookCellOutput(cell.output) : undefined,
-  }));
+  return sqlnbCells.map((cell, index) => {
+    const cellId = makeCellIdFn();
+    const parsedName = cell.type === 'sql' ? parseUserCellName(cell.content) : null;
+
+    return {
+      id: cellId,
+      ref: makeCellRefFn(cellId),
+      name: cell.type === 'sql' ? cell.name?.trim() || parsedName : null,
+      type: cell.type,
+      content: cell.content,
+      order: index,
+      output: cell.type === 'sql' ? normalizeNotebookCellOutput(cell.output) : undefined,
+      execution: cell.type === 'sql' ? normalizeNotebookCellExecution() : undefined,
+    };
+  });
 }

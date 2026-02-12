@@ -2,9 +2,12 @@ import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-poo
 import { useDataAdapter } from '@features/tab-view/hooks/use-data-adapter';
 import { DataAdapterApi } from '@models/data-adapter';
 import { ScriptTab, TabId } from '@models/tab';
+import { NOTEBOOK_CELL_REF_PREFIX } from '@utils/notebook';
 import { useMemo, useRef } from 'react';
 
 import { CellExecutionState } from './use-notebook-execution-state';
+
+const NOTEBOOK_CELL_REF_PREFIX_LOWER = NOTEBOOK_CELL_REF_PREFIX.toLowerCase();
 
 /**
  * Per-cell data adapter that wraps the existing useDataAdapter hook.
@@ -14,7 +17,7 @@ import { CellExecutionState } from './use-notebook-execution-state';
  * Each cell gets its own pagination, sorting, and schema state.
  *
  * When `getConnection` is provided, notebook-scoped queries are resolved
- * with the shared connection context so temp views (__cell_N) remain visible.
+ * with the shared connection context so per-cell temp views remain visible.
  */
 export function useCellDataAdapter(
   cellId: string,
@@ -31,6 +34,20 @@ export function useCellDataAdapter(
   }
   prevStatusRef.current = cellState.status;
 
+  // Persisted notebook executions may contain temp-view queries that cannot be
+  // re-run after app reload (the connection-scoped views no longer exist).
+  // Suppress those queries until the user re-executes the cell.
+  const safeLastQuery = useMemo(() => {
+    const query = cellState.lastQuery?.trim();
+    if (!query) return null;
+
+    if (query.toLowerCase().includes(NOTEBOOK_CELL_REF_PREFIX_LOWER)) {
+      return null;
+    }
+
+    return query;
+  }, [cellState.lastQuery]);
+
   // Build a virtual ScriptTab-like object for this cell's data adapter.
   // The data adapter only reads `type`, `lastExecutedQuery`, and `id` from the tab.
   const virtualTab = useMemo(() => {
@@ -38,11 +55,11 @@ export function useCellDataAdapter(
       type: 'script' as const,
       id: `notebook-cell-${cellId}` as TabId,
       sqlScriptId: '' as any,
-      lastExecutedQuery: cellState.lastQuery,
+      lastExecutedQuery: safeLastQuery,
       dataViewPaneHeight: 300,
       editorPaneHeight: 200,
     } satisfies Omit<ScriptTab, 'dataViewStateCache'>;
-  }, [cellId, cellState.lastQuery]);
+  }, [cellId, safeLastQuery]);
 
   const dataAdapter = useDataAdapter({
     tab: virtualTab,
@@ -50,5 +67,5 @@ export function useCellDataAdapter(
     getSharedConnection: getConnection,
   });
 
-  return cellState.lastQuery ? dataAdapter : null;
+  return safeLastQuery ? dataAdapter : null;
 }

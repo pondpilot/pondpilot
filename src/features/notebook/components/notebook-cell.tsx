@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
-import { SqlEditor, AdditionalCompletion } from '@features/editor';
+import { SqlEditor, AdditionalCompletion, SqlEditorHandle } from '@features/editor';
 import { convertToFlowScopeSchema } from '@features/editor/auto-complete';
 import { useAppTheme } from '@hooks/use-app-theme';
 import {
@@ -10,6 +10,7 @@ import {
   Text,
   Tooltip,
   Textarea,
+  TextInput,
   List,
   Title,
 } from '@mantine/core';
@@ -35,6 +36,8 @@ import {
   IconLink,
   IconChevronRight,
   IconChevronDown,
+  IconPencil,
+  IconX,
 } from '@tabler/icons-react';
 import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip';
 import { cn } from '@utils/ui/styles';
@@ -57,6 +60,8 @@ interface NotebookCellProps {
   cellState: CellExecutionState;
   isStale: boolean;
   cellDependencies: string[] | null;
+  hasCircularDependency?: boolean;
+  hasReferenceConflict?: boolean;
   additionalCompletions?: AdditionalCompletion[];
   dragHandleProps?: {
     attributes: ReturnType<typeof useSortable>['attributes'];
@@ -71,6 +76,7 @@ interface NotebookCellProps {
   onMoveUp: (cellId: CellId) => void;
   onMoveDown: (cellId: CellId) => void;
   onDelete: (cellId: CellId) => void;
+  onRenameAlias?: (cellId: CellId, nextName: string | null) => void;
   onRun?: (cellId: CellId) => void;
   onFocus: (cellId: CellId) => void;
   onEscape: () => void;
@@ -91,6 +97,8 @@ export const NotebookCell = memo(
     cellState,
     isStale,
     cellDependencies,
+    hasCircularDependency = false,
+    hasReferenceConflict = false,
     additionalCompletions,
     dragHandleProps,
     cellMode,
@@ -102,6 +110,7 @@ export const NotebookCell = memo(
     onMoveUp,
     onMoveDown,
     onDelete,
+    onRenameAlias,
     onRun,
     onFocus,
     onEscape,
@@ -111,7 +120,11 @@ export const NotebookCell = memo(
     const colorScheme = useAppTheme();
     const colorSchemeDark = colorScheme === 'dark';
     const [markdownEditing, setMarkdownEditing] = useState(false);
+    const [aliasEditing, setAliasEditing] = useState(false);
+    const [aliasValue, setAliasValue] = useState(cell.name ?? '');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const sqlEditorRef = useRef<SqlEditorHandle>(null);
+    const aliasInputRef = useRef<HTMLInputElement>(null);
     const cellContainerRef = useRef<HTMLDivElement>(null);
 
     const databaseMetadata = useAppStore.use.databaseMetadata();
@@ -135,6 +148,21 @@ export const NotebookCell = memo(
 
     const editorPath = `notebook-${notebookId}-cell-${cell.id}`;
     const sqlCellOutput = useMemo(() => normalizeNotebookCellOutput(cell.output), [cell.output]);
+    const errorLineNumbers = useMemo(() => {
+      if (cell.type !== 'sql' || cellState.status !== 'error' || !cellState.error) {
+        return [] as number[];
+      }
+
+      const match = cellState.error.match(/\bLine\s+(\d+)\b/i);
+      if (!match) return [] as number[];
+
+      const lineNumber = Number.parseInt(match[1], 10);
+      if (!Number.isFinite(lineNumber) || lineNumber <= 0) {
+        return [] as number[];
+      }
+
+      return [lineNumber];
+    }, [cell.type, cellState.status, cellState.error]);
 
     const handleContentChange = useCallback(
       (value: string) => {
@@ -187,12 +215,58 @@ export const NotebookCell = memo(
       setMarkdownEditing(false);
     }, []);
 
+    const handleAliasSubmit = useCallback(() => {
+      const trimmed = aliasValue.trim();
+      const nextName = trimmed.length > 0 ? trimmed : null;
+      onRenameAlias?.(cell.id, nextName);
+      setAliasEditing(false);
+    }, [aliasValue, cell.id, onRenameAlias]);
+
+    const handleCancelAliasEdit = useCallback(() => {
+      setAliasValue(cell.name ?? '');
+      setAliasEditing(false);
+    }, [cell.name]);
+
+    const handleAliasKeyDown = useCallback(
+      (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleAliasSubmit();
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          handleCancelAliasEdit();
+        }
+      },
+      [handleAliasSubmit, handleCancelAliasEdit],
+    );
+
     // Focus textarea when entering markdown edit mode
     useEffect(() => {
       if (markdownEditing && textareaRef.current) {
         textareaRef.current.focus();
       }
     }, [markdownEditing]);
+
+    // Ensure SQL cell editor gets focus when this cell enters edit mode.
+    useEffect(() => {
+      if (cell.type !== 'sql' || !isActive || cellMode !== 'edit') return;
+      sqlEditorRef.current?.editor?.focus();
+    }, [cell.type, isActive, cellMode]);
+
+    useEffect(() => {
+      if (!aliasEditing) {
+        setAliasValue(cell.name ?? '');
+      }
+    }, [aliasEditing, cell.name]);
+
+    useEffect(() => {
+      if (aliasEditing && aliasInputRef.current) {
+        aliasInputRef.current.focus();
+        aliasInputRef.current.select();
+      }
+    }, [aliasEditing]);
 
     // Compute the number of lines for the SQL editor height
     const lineCount = cell.content.split('\n').length;
@@ -215,6 +289,8 @@ export const NotebookCell = memo(
       // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
       <div
         ref={cellContainerRef}
+        data-testid="notebook-cell"
+        data-cell-id={cell.id}
         className={cn(
           'rounded-md border-2',
           isCommandMode
@@ -271,6 +347,34 @@ export const NotebookCell = memo(
               {execLabel} {cell.type === 'sql' ? 'SQL' : 'Markdown'}
             </Text>
 
+            {cell.type === 'sql' && (
+              aliasEditing ? (
+                <TextInput
+                  ref={aliasInputRef}
+                  data-testid="notebook-cell-alias-input"
+                  size="xs"
+                  value={aliasValue}
+                  placeholder="alias"
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => setAliasValue(e.currentTarget.value)}
+                  onBlur={handleCancelAliasEdit}
+                  onKeyDown={handleAliasKeyDown}
+                  className="w-[160px]"
+                />
+              ) : (
+                <Tooltip label={`Stable ref: ${cell.ref}`} position="top">
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    className="font-mono select-none"
+                    data-testid="notebook-cell-alias-value"
+                  >
+                    {cell.name ?? '(no alias)'}
+                  </Text>
+                </Tooltip>
+              )
+            )}
+
             {/* Execution status badge */}
             {cell.type === 'sql' && cellState.status === 'running' && (
               <Loader size={12} />
@@ -302,6 +406,18 @@ export const NotebookCell = memo(
               </Tooltip>
             )}
 
+            {cell.type === 'sql' && hasCircularDependency && (
+              <Tooltip label="Circular dependency detected" position="top">
+                <IconAlertTriangle size={12} className="text-red-500 dark:text-red-400" />
+              </Tooltip>
+            )}
+
+            {cell.type === 'sql' && !hasCircularDependency && hasReferenceConflict && (
+              <Tooltip label="Reference name conflict detected" position="top">
+                <IconAlertTriangle size={12} className="text-orange-500 dark:text-orange-400" />
+              </Tooltip>
+            )}
+
             {/* Collapsed preview */}
             {isCollapsed && (
               <Text size="xs" c="dimmed" className="truncate max-w-[400px]">
@@ -315,7 +431,12 @@ export const NotebookCell = memo(
             {/* Run button (SQL only) */}
             {cell.type === 'sql' && (
               <Tooltip label="Run cell (Ctrl+Enter)" position="top">
-                <ActionIcon size="xs" variant="subtle" onClick={handleRun}>
+                <ActionIcon
+                  data-testid="notebook-cell-run"
+                  size="xs"
+                  variant="subtle"
+                  onClick={handleRun}
+                >
                   <IconPlayerPlay
                     size={14}
                     className="text-iconDefault-light dark:text-iconDefault-dark"
@@ -324,12 +445,60 @@ export const NotebookCell = memo(
               </Tooltip>
             )}
 
+            {cell.type === 'sql' && (
+              aliasEditing ? (
+                <>
+                  <Tooltip label="Apply alias" position="top">
+                    <ActionIcon
+                      data-testid="notebook-cell-alias-save"
+                      size="xs"
+                      variant="subtle"
+                      onClick={handleAliasSubmit}
+                    >
+                      <IconCheck
+                        size={14}
+                        className="text-iconDefault-light dark:text-iconDefault-dark"
+                      />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="Cancel alias edit" position="top">
+                    <ActionIcon
+                      data-testid="notebook-cell-alias-cancel"
+                      size="xs"
+                      variant="subtle"
+                      onClick={handleCancelAliasEdit}
+                    >
+                      <IconX
+                        size={14}
+                        className="text-iconDefault-light dark:text-iconDefault-dark"
+                      />
+                    </ActionIcon>
+                  </Tooltip>
+                </>
+              ) : (
+                <Tooltip label="Rename cell alias" position="top">
+                  <ActionIcon
+                    data-testid="notebook-cell-alias-edit"
+                    size="xs"
+                    variant="subtle"
+                    onClick={() => setAliasEditing(true)}
+                  >
+                    <IconPencil
+                      size={14}
+                      className="text-iconDefault-light dark:text-iconDefault-dark"
+                    />
+                  </ActionIcon>
+                </Tooltip>
+              )
+            )}
+
             {/* Type toggle */}
             <Tooltip
               label={cell.type === 'sql' ? 'Convert to Markdown' : 'Convert to SQL'}
               position="top"
             >
               <ActionIcon
+                data-testid="notebook-cell-type-toggle"
                 size="xs"
                 variant="subtle"
                 onClick={() => onTypeChange(cell.id)}
@@ -351,6 +520,7 @@ export const NotebookCell = memo(
             {/* Move up */}
             <Tooltip label="Move up" position="top">
               <ActionIcon
+                data-testid="notebook-cell-move-up"
                 size="xs"
                 variant="subtle"
                 disabled={isFirst}
@@ -366,6 +536,7 @@ export const NotebookCell = memo(
             {/* Move down */}
             <Tooltip label="Move down" position="top">
               <ActionIcon
+                data-testid="notebook-cell-move-down"
                 size="xs"
                 variant="subtle"
                 disabled={isLast}
@@ -381,6 +552,7 @@ export const NotebookCell = memo(
             {/* Delete */}
             <Tooltip label="Delete cell" position="top">
               <ActionIcon
+                data-testid="notebook-cell-delete"
                 size="xs"
                 variant="subtle"
                 disabled={isOnlyCell}
@@ -400,22 +572,27 @@ export const NotebookCell = memo(
           <div className="min-h-[60px]">
             {cell.type === 'sql' ? (
               <div style={{ height: editorHeight }}>
-                <SqlEditor
-                  colorSchemeDark={colorSchemeDark}
-                  value={cell.content}
-                  onChange={handleContentChange}
-                  onRun={handleRun}
-                  onBlur={handleBlur}
-                  schema={schema}
-                  functionTooltips={functionTooltips}
-                  path={editorPath}
-                  additionalCompletions={additionalCompletions}
-                />
+                <div data-testid="notebook-cell-sql-editor" className="h-full">
+                  <SqlEditor
+                    ref={sqlEditorRef}
+                    colorSchemeDark={colorSchemeDark}
+                    value={cell.content}
+                    onChange={handleContentChange}
+                    onRun={handleRun}
+                    onBlur={handleBlur}
+                    schema={schema}
+                    functionTooltips={functionTooltips}
+                    path={editorPath}
+                    additionalCompletions={additionalCompletions}
+                    highlightedLineNumbers={errorLineNumbers}
+                  />
+                </div>
               </div>
             ) : markdownEditing || cell.content.length === 0 ? (
               <Textarea
                 ref={textareaRef}
                 value={cell.content}
+                onFocus={() => setMarkdownEditing(true)}
                 onChange={(e) => handleContentChange(e.currentTarget.value)}
                 onBlur={handleMarkdownBlur}
                 onKeyDown={handleKeyDown}

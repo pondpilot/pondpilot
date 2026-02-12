@@ -97,6 +97,10 @@ export const setNotebookActiveCellId = (tabId: TabId, activeCellId: CellId | nul
     return;
   }
 
+  if (tab.activeCellId === activeCellId) {
+    return;
+  }
+
   const updatedTab: NotebookTab = {
     ...tab,
     activeCellId,

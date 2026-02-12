@@ -32,6 +32,7 @@ export const AddCellButton = memo(({ onAddCell }: AddCellButtonProps) => {
           <Group gap={4} style={styles}>
             <Tooltip label="Add SQL cell" position="top">
               <ActionIcon
+                data-testid="notebook-add-sql-cell-inline-button"
                 size="sm"
                 variant="subtle"
                 onClick={handleAddSQL}
@@ -44,6 +45,7 @@ export const AddCellButton = memo(({ onAddCell }: AddCellButtonProps) => {
             </Tooltip>
             <Tooltip label="Add Markdown cell" position="top">
               <ActionIcon
+                data-testid="notebook-add-markdown-cell-inline-button"
                 size="sm"
                 variant="subtle"
                 onClick={handleAddMarkdown}
@@ -63,6 +65,7 @@ export const AddCellButton = memo(({ onAddCell }: AddCellButtonProps) => {
           <div style={styles}>
             <Tooltip label="Add cell" position="top">
               <ActionIcon
+                data-testid="notebook-add-cell-inline-button"
                 size="sm"
                 variant="subtle"
                 className={cn(

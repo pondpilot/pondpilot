@@ -5,6 +5,8 @@ import { getOrCreateTabFromNotebook } from '@controllers/tab/notebook-tab-contro
 import { fileSystemService } from './file-system-adapter';
 import { parseSqlnb } from './notebook-export';
 
+export const isNotebookFileName = (name: string): boolean => name.toLowerCase().endsWith('.sqlnb');
+
 /**
  * Opens a file picker for .sqlnb files and imports them as notebooks.
  */
@@ -49,7 +51,7 @@ export const importNotebookFiles = async (): Promise<void> => {
  */
 export const importNotebookFromFile = async (file: File): Promise<boolean> => {
   try {
-    if (!file.name.endsWith('.sqlnb')) {
+    if (!isNotebookFileName(file.name)) {
       return false;
     }
 

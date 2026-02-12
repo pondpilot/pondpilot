@@ -10,6 +10,8 @@ import { CellId, Notebook, NotebookCell, NotebookId } from '@models/notebook';
 
 const makeCell = (id: string, order: number, type: 'sql' | 'markdown' = 'sql'): NotebookCell => ({
   id: id as CellId,
+  ref: `__pp_cell_${id}` as any,
+  name: null,
   type,
   content: `cell-${id}`,
   order,

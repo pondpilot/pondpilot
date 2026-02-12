@@ -7,17 +7,28 @@ import {
   CellId,
   Notebook,
   NotebookCell,
-  NotebookCellOutput,
+  NotebookCellExecution,
+  NotebookCellExecutionPatch,
+  NotebookCellOutputPatch,
   NotebookCellType,
   NotebookId,
+  isNotebookCellExecutionEqual,
   isNotebookCellOutputEqual,
+  normalizeNotebookCellExecution,
   normalizeNotebookCellOutput,
 } from '@models/notebook';
 import { NOTEBOOK_TABLE_NAME } from '@models/persisted-store';
 import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { findUniqueName, getAllExistingNames } from '@utils/helpers';
-import { ensureNotebook, makeCellId, makeNotebookId } from '@utils/notebook';
+import {
+  ensureCellRef,
+  ensureNotebook,
+  makeCellId,
+  makeCellRef,
+  makeNotebookId,
+  NOTEBOOK_CELL_REF_PREFIX,
+} from '@utils/notebook';
 import { SqlnbCell, sqlnbCellsToNotebookCells } from '@utils/notebook-export';
 import { createPersistenceCatchHandler } from '@utils/persistence-logger';
 
@@ -30,6 +41,32 @@ import { deleteNotebookImpl, insertCellAfter, insertCellAtStart, removeCellImpl,
  */
 const persistTimers = new Map<NotebookId, ReturnType<typeof setTimeout>>();
 const NOTEBOOK_SAVE_DEBOUNCE_MS = 300;
+
+const normalizeCellName = (name?: string | null): string | null => {
+  const trimmed = name?.trim();
+  return trimmed || null;
+};
+
+const validateNotebookCellName = (name: string, existingLowercase: Set<string>): string | null => {
+  if (!/^[a-zA-Z_]\w*$/.test(name)) {
+    return `Invalid cell name "${name}": must be a valid SQL identifier (letters, digits, underscores, no leading digit)`;
+  }
+  if (name.startsWith(NOTEBOOK_CELL_REF_PREFIX)) {
+    return `Cell name "${name}" cannot start with reserved prefix "${NOTEBOOK_CELL_REF_PREFIX}"`;
+  }
+  if (existingLowercase.has(name.toLowerCase())) {
+    return `Cell name "${name}" is already used by another SQL cell`;
+  }
+  return null;
+};
+
+const normalizeNotebookCellIdentity = (cell: NotebookCell): NotebookCell => ({
+  ...cell,
+  ref: ensureCellRef(cell.id, cell.ref),
+  name: cell.type === 'sql'
+    ? normalizeCellName(cell.name)
+    : null,
+});
 
 /**
  * Persists a notebook to IndexedDB, optionally debounced.
@@ -109,10 +146,13 @@ export const createNotebook = (name: string = 'notebook'): Notebook => {
     cells: [
       {
         id: cellId,
+        ref: makeCellRef(cellId),
+        name: null,
         type: 'sql',
         content: '',
         order: 0,
         output: normalizeNotebookCellOutput(),
+        execution: normalizeNotebookCellExecution(),
       },
     ],
     createdAt: now,
@@ -141,14 +181,20 @@ export const createNotebookFromImport = (
 
   const notebookCells =
     cells.length > 0
-      ? sqlnbCellsToNotebookCells(cells, makeCellId)
-      : [{
-        id: makeCellId(),
-        type: 'sql' as const,
-        content: '',
-        order: 0,
-        output: normalizeNotebookCellOutput(),
-      }];
+      ? sqlnbCellsToNotebookCells(cells, makeCellId, makeCellRef)
+      : (() => {
+        const emptyCellId = makeCellId();
+        return [{
+          id: emptyCellId,
+          ref: makeCellRef(emptyCellId),
+          name: null,
+          type: 'sql' as const,
+          content: '',
+          order: 0,
+          output: normalizeNotebookCellOutput(),
+          execution: normalizeNotebookCellExecution(),
+        }];
+      })();
 
   const notebook: Notebook = {
     id: notebookId,
@@ -181,26 +227,44 @@ export const duplicateNotebook = (
   const notebookId = makeNotebookId();
   const now = new Date().toISOString();
 
-  const copiedCells: NotebookCell[] = notebook.cells.map((cell, index) => ({
-    id: makeCellId(),
-    type: cell.type,
-    content: cell.content,
-    order: index,
-    output: cell.type === 'sql'
-      ? normalizeNotebookCellOutput(cell.output)
-      : cell.output,
-  }));
+  const copiedCells: NotebookCell[] = notebook.cells.map((cell, index) => {
+    const cellId = makeCellId();
+    return {
+      id: cellId,
+      ref: makeCellRef(cellId),
+      name: cell.type === 'sql'
+        ? normalizeCellName(cell.name)
+        : null,
+      type: cell.type,
+      content: cell.content,
+      order: index,
+      output: cell.type === 'sql'
+        ? normalizeNotebookCellOutput(cell.output)
+        : cell.output,
+      execution: cell.type === 'sql'
+        ? normalizeNotebookCellExecution(cell.execution)
+        : cell.execution,
+    };
+  });
 
   const newNotebook: Notebook = {
     id: notebookId,
     name: uniqueName,
-    cells: copiedCells.length > 0 ? copiedCells : [{
-      id: makeCellId(),
-      type: 'sql' as const,
-      content: '',
-      order: 0,
-      output: normalizeNotebookCellOutput(),
-    }],
+    cells: copiedCells.length > 0
+      ? copiedCells
+      : (() => {
+        const fallbackCellId = makeCellId();
+        return [{
+          id: fallbackCellId,
+          ref: makeCellRef(fallbackCellId),
+          name: null,
+          type: 'sql' as const,
+          content: '',
+          order: 0,
+          output: normalizeNotebookCellOutput(),
+          execution: normalizeNotebookCellExecution(),
+        }];
+      })(),
     createdAt: now,
     updatedAt: now,
   };
@@ -256,7 +320,7 @@ export const updateNotebookCells = (
 
   const updatedNotebook: Notebook = {
     ...notebook,
-    cells: reorderCells(cells),
+    cells: reorderCells(cells).map(normalizeNotebookCellIdentity),
     updatedAt: new Date().toISOString(),
   };
 
@@ -276,13 +340,17 @@ export const addCell = (
 ): NotebookCell => {
   const { notebooks } = useAppStore.getState();
   const notebook = ensureNotebook(notebookOrId, notebooks);
+  const newCellId = makeCellId();
 
   const newCell: NotebookCell = {
-    id: makeCellId(),
+    id: newCellId,
+    ref: makeCellRef(newCellId),
+    name: null,
     type,
     content: '',
     order: 0,
     output: type === 'sql' ? normalizeNotebookCellOutput() : undefined,
+    execution: type === 'sql' ? normalizeNotebookCellExecution() : undefined,
   };
 
   const updatedCells = insertCellAfter(notebook.cells, newCell, afterCellId);
@@ -304,13 +372,17 @@ export const addCellAtStart = (
 ): NotebookCell => {
   const { notebooks } = useAppStore.getState();
   const notebook = ensureNotebook(notebookOrId, notebooks);
+  const newCellId = makeCellId();
 
   const newCell: NotebookCell = {
-    id: makeCellId(),
+    id: newCellId,
+    ref: makeCellRef(newCellId),
+    name: null,
     type,
     content: '',
     order: 0,
     output: type === 'sql' ? normalizeNotebookCellOutput() : undefined,
+    execution: type === 'sql' ? normalizeNotebookCellExecution() : undefined,
   };
 
   const updatedCells = insertCellAtStart(notebook.cells, newCell);
@@ -391,9 +463,10 @@ export const updateCellContent = (
   const { notebooks } = useAppStore.getState();
   const notebook = ensureNotebook(notebookOrId, notebooks);
 
-  const updatedCells = notebook.cells.map((cell) =>
-    cell.id === cellId ? { ...cell, content } : cell,
-  );
+  const updatedCells = notebook.cells.map((cell) => {
+    if (cell.id !== cellId) return normalizeNotebookCellIdentity(cell);
+    return normalizeNotebookCellIdentity({ ...cell, content });
+  });
 
   const updatedNotebook: Notebook = {
     ...notebook,
@@ -405,6 +478,100 @@ export const updateCellContent = (
   updateNotebookInStore(updatedNotebook, 'AppStore/updateCellContent', true);
 };
 
+export type UpdateCellNameResult =
+  | { success: true; name: string | null }
+  | { success: false; error: string };
+
+export const updateCellName = (
+  notebookOrId: Notebook | NotebookId,
+  cellId: CellId,
+  name: string | null,
+): UpdateCellNameResult => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+  const normalizedName = normalizeCellName(name);
+  const targetCell = notebook.cells.find((cell) => cell.id === cellId);
+
+  if (!targetCell || targetCell.type !== 'sql') {
+    return { success: false, error: 'Only SQL cells can have a name.' };
+  }
+
+  const existingNames = new Set(
+    notebook.cells
+      .filter((cell) => cell.type === 'sql' && cell.id !== cellId)
+      .map((cell) => normalizeCellName(cell.name))
+      .filter((value): value is string => !!value)
+      .map((value) => value.toLowerCase()),
+  );
+
+  if (normalizedName) {
+    const validationError = validateNotebookCellName(normalizedName, existingNames);
+    if (validationError) {
+      return { success: false, error: validationError };
+    }
+  }
+
+  if (normalizeCellName(targetCell.name) === normalizedName) {
+    return { success: true, name: normalizedName };
+  }
+
+  const updatedCells = notebook.cells.map((cell) => (
+    cell.id === cellId
+      ? normalizeNotebookCellIdentity({ ...cell, name: normalizedName })
+      : normalizeNotebookCellIdentity(cell)
+  ));
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: updatedCells,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/updateCellName');
+  return { success: true, name: normalizedName };
+};
+
+export type NotebookCellContentPatch = {
+  cellId: CellId;
+  content: string;
+};
+
+export const applyNotebookCellContentPatches = (
+  notebookOrId: Notebook | NotebookId,
+  patches: NotebookCellContentPatch[],
+): number => {
+  if (patches.length === 0) return 0;
+
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+  const patchMap = new Map<CellId, string>(patches.map((patch) => [patch.cellId, patch.content]));
+  let changedCount = 0;
+
+  const updatedCells = notebook.cells.map((cell) => {
+    const nextContent = patchMap.get(cell.id);
+    if (nextContent === undefined || nextContent === cell.content) {
+      return normalizeNotebookCellIdentity(cell);
+    }
+
+    changedCount += 1;
+    return normalizeNotebookCellIdentity({
+      ...cell,
+      content: nextContent,
+    });
+  });
+
+  if (changedCount === 0) return 0;
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: updatedCells,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/applyNotebookCellContentPatches');
+  return changedCount;
+};
+
 export const updateCellType = (
   notebookOrId: Notebook | NotebookId,
   cellId: CellId,
@@ -413,15 +580,23 @@ export const updateCellType = (
   const { notebooks } = useAppStore.getState();
   const notebook = ensureNotebook(notebookOrId, notebooks);
 
-  const updatedCells = notebook.cells.map((cell) =>
-    cell.id === cellId
-      ? {
-        ...cell,
-        type,
-        output: type === 'sql' ? normalizeNotebookCellOutput(cell.output) : cell.output,
-      }
-      : cell,
-  );
+  const updatedCells = notebook.cells.map((cell) => {
+    if (cell.id !== cellId) return normalizeNotebookCellIdentity(cell);
+
+    const updated = {
+      ...cell,
+      type,
+      name: type === 'sql'
+        ? normalizeCellName(cell.name)
+        : null,
+      output: type === 'sql' ? normalizeNotebookCellOutput(cell.output) : cell.output,
+      execution: type === 'sql'
+        ? normalizeNotebookCellExecution(cell.execution)
+        : cell.execution,
+    } as NotebookCell;
+
+    return normalizeNotebookCellIdentity(updated);
+  });
 
   const updatedNotebook: Notebook = {
     ...notebook,
@@ -435,7 +610,7 @@ export const updateCellType = (
 export const updateCellOutput = (
   notebookOrId: Notebook | NotebookId,
   cellId: CellId,
-  output: Partial<NotebookCellOutput>,
+  output: NotebookCellOutputPatch,
 ): void => {
   const { notebooks } = useAppStore.getState();
   const notebook = ensureNotebook(notebookOrId, notebooks);
@@ -470,6 +645,77 @@ export const updateCellOutput = (
   };
 
   updateNotebookInStore(updatedNotebook, 'AppStore/updateCellOutput');
+};
+
+export const updateCellExecution = (
+  notebookOrId: Notebook | NotebookId,
+  cellId: CellId,
+  execution: NotebookCellExecutionPatch,
+): void => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  let changed = false;
+  const updatedCells = notebook.cells.map((cell) => {
+    if (cell.id !== cellId || cell.type !== 'sql') return cell;
+
+    const currentExecution = normalizeNotebookCellExecution(cell.execution);
+    const nextExecution: NotebookCellExecution = normalizeNotebookCellExecution({
+      ...currentExecution,
+      ...execution,
+      snapshot: execution.snapshot === undefined
+        ? currentExecution.snapshot
+        : execution.snapshot,
+    });
+
+    if (isNotebookCellExecutionEqual(currentExecution, nextExecution)) {
+      return cell;
+    }
+
+    changed = true;
+    return { ...cell, execution: nextExecution };
+  });
+
+  if (!changed) return;
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: updatedCells,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/updateCellExecution');
+};
+
+export const clearNotebookCellExecutions = (
+  notebookOrId: Notebook | NotebookId,
+): void => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  let changed = false;
+  const updatedCells = notebook.cells.map((cell) => {
+    if (cell.type !== 'sql') return cell;
+
+    const nextExecution = normalizeNotebookCellExecution();
+    const currentExecution = normalizeNotebookCellExecution(cell.execution);
+    if (isNotebookCellExecutionEqual(currentExecution, nextExecution)) {
+      return cell;
+    }
+
+    changed = true;
+    return { ...cell, execution: nextExecution };
+  });
+
+  if (!changed) return;
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: updatedCells,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/clearNotebookCellExecutions');
 };
 
 /**

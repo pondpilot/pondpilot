@@ -12,6 +12,7 @@ type SpotlightFixtures = {
   spotlight: Locator;
   openSpotlight: (v?: OpenSpotlightProps) => Promise<Locator>;
   createScriptViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
+  createNotebookViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
   openSettingsViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
   addDirectoryViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
   openImportSharedScriptModalViaSpotlight: (v?: SpotlightActionProps) => Promise<void>;
@@ -103,6 +104,12 @@ export const test = base.extend<SpotlightFixtures>({
   createScriptViaSpotlight: async ({ page, openSpotlight }, use) => {
     await use(async (props) => {
       await openAndTriggerSpotlightActionById(page, openSpotlight, 'create-new-script', props);
+    });
+  },
+
+  createNotebookViaSpotlight: async ({ page, openSpotlight }, use) => {
+    await use(async (props) => {
+      await openAndTriggerSpotlightActionById(page, openSpotlight, 'create-new-notebook', props);
     });
   },
 
