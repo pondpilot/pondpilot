@@ -26,6 +26,8 @@ import {
   IconAlertTriangle,
   IconClock,
   IconLink,
+  IconChevronRight,
+  IconChevronDown,
 } from '@tabler/icons-react';
 import { convertFunctionsToTooltips } from '@utils/convert-functions-to-tooltip';
 import { cn } from '@utils/ui/styles';
@@ -34,6 +36,7 @@ import ReactMarkdown from 'react-markdown';
 
 import { CellResultContainer } from './cell-result-container';
 import { CellExecutionState } from '../hooks/use-notebook-execution-state';
+import { CellMode } from '../hooks/use-notebook-keyboard';
 
 interface NotebookCellProps {
   cell: NotebookCellModel;
@@ -52,6 +55,9 @@ interface NotebookCellProps {
     attributes: ReturnType<typeof useSortable>['attributes'];
     listeners: ReturnType<typeof useSortable>['listeners'];
   };
+  cellMode: CellMode;
+  isCollapsed: boolean;
+  executionCount: number | null;
   onContentChange: (cellId: CellId, content: string) => void;
   onTypeChange: (cellId: CellId) => void;
   onMoveUp: (cellId: CellId) => void;
@@ -59,6 +65,8 @@ interface NotebookCellProps {
   onDelete: (cellId: CellId) => void;
   onRun?: (cellId: CellId) => void;
   onFocus: (cellId: CellId) => void;
+  onEscape: () => void;
+  onToggleCollapse: (cellId: CellId) => void;
 }
 
 export const NotebookCell = memo(
@@ -76,6 +84,9 @@ export const NotebookCell = memo(
     cellDependencies,
     additionalCompletions,
     dragHandleProps,
+    cellMode,
+    isCollapsed,
+    executionCount,
     onContentChange,
     onTypeChange,
     onMoveUp,
@@ -83,11 +94,14 @@ export const NotebookCell = memo(
     onDelete,
     onRun,
     onFocus,
+    onEscape,
+    onToggleCollapse,
   }: NotebookCellProps) => {
     const colorScheme = useAppTheme();
     const colorSchemeDark = colorScheme === 'dark';
     const [markdownEditing, setMarkdownEditing] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const cellContainerRef = useRef<HTMLDivElement>(null);
 
     const databaseMetadata = useAppStore.use.databaseMetadata();
     const databaseModelsArray = useMemo(
@@ -125,9 +139,33 @@ export const NotebookCell = memo(
       // no-op for now
     }, []);
 
+    // Handle Escape key to enter command mode
+    const handleKeyDown = useCallback(
+      (e: React.KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          onEscape();
+          // Blur the editor/textarea to visually exit edit mode
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+        }
+      },
+      [onEscape],
+    );
+
     const handleCellClick = useCallback(() => {
       onFocus(cell.id);
     }, [cell.id, onFocus]);
+
+    const handleHeaderClick = useCallback(
+      (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onToggleCollapse(cell.id);
+      },
+      [cell.id, onToggleCollapse],
+    );
 
     const handleMarkdownDoubleClick = useCallback(() => {
       setMarkdownEditing(true);
@@ -148,32 +186,65 @@ export const NotebookCell = memo(
     const lineCount = cell.content.split('\n').length;
     const editorHeight = Math.max(60, Math.min(400, lineCount * 20 + 20));
 
+    // Determine border style based on active state and cell mode
+    const isCommandMode = isActive && cellMode === 'command';
+    const isEditMode = isActive && cellMode === 'edit';
+
+    // Build the execution counter label
+    const execLabel = executionCount !== null ? `In [${executionCount}]` : `[${cellIndex + 1}]`;
+
+    // First line preview for collapsed cells
+    const firstLinePreview = cell.content.split('\n')[0]?.trim() || '(empty)';
+    const collapsedPreview = firstLinePreview.length > 80
+      ? `${firstLinePreview.slice(0, 80)}...`
+      : firstLinePreview;
+
     return (
       // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
       <div
+        ref={cellContainerRef}
         className={cn(
-          'rounded-md border',
-          isActive
-            ? 'border-borderAccent-light dark:border-borderAccent-dark'
-            : 'border-borderPrimary-light dark:border-borderPrimary-dark',
+          'rounded-md border-2',
+          isCommandMode
+            ? 'border-blue-500 dark:border-blue-400'
+            : isEditMode
+              ? 'border-green-500 dark:border-green-400'
+              : 'border-borderPrimary-light dark:border-borderPrimary-dark',
           'bg-backgroundPrimary-light dark:bg-backgroundPrimary-dark',
         )}
         onClick={handleCellClick}
+        onKeyDown={handleKeyDown}
       >
         {/* Cell header */}
         <Group
           gap={4}
           className={cn(
-            'px-2 py-1 justify-between',
+            'px-2 py-1 justify-between cursor-pointer select-none',
             'border-b border-borderPrimary-light dark:border-borderPrimary-dark',
             'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
             'rounded-t-md',
           )}
+          onClick={handleHeaderClick}
         >
           <Group gap={4}>
+            {/* Collapse chevron */}
+            {isCollapsed ? (
+              <IconChevronRight
+                size={14}
+                className="text-iconDefault-light dark:text-iconDefault-dark"
+              />
+            ) : (
+              <IconChevronDown
+                size={14}
+                className="text-iconDefault-light dark:text-iconDefault-dark"
+              />
+            )}
+
             {/* Drag handle */}
+            {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
             <div
               className="cursor-grab active:cursor-grabbing"
+              onClick={(e) => e.stopPropagation()}
               {...(dragHandleProps?.attributes ?? {})}
               {...(dragHandleProps?.listeners ?? {})}
             >
@@ -183,9 +254,9 @@ export const NotebookCell = memo(
               />
             </div>
 
-            {/* Cell number and type badge */}
-            <Text size="xs" c="dimmed" className="select-none">
-              [{cellIndex + 1}] {cell.type === 'sql' ? 'SQL' : 'Markdown'}
+            {/* Cell number/execution counter and type badge */}
+            <Text size="xs" c="dimmed" className="select-none font-mono">
+              {execLabel} {cell.type === 'sql' ? 'SQL' : 'Markdown'}
             </Text>
 
             {/* Execution status badge */}
@@ -199,14 +270,14 @@ export const NotebookCell = memo(
               <IconAlertTriangle size={12} className="text-red-500 dark:text-red-400" />
             )}
 
-            {/* Stale indicator: upstream cell was re-executed */}
+            {/* Stale indicator */}
             {cell.type === 'sql' && isStale && cellState.status === 'success' && (
               <Tooltip label="Results may be stale — an upstream cell was re-executed" position="top">
                 <IconClock size={12} className="text-yellow-500 dark:text-yellow-400" />
               </Tooltip>
             )}
 
-            {/* Dependency indicator: shows referenced cell views */}
+            {/* Dependency indicator */}
             {cell.type === 'sql' && cellDependencies && cellDependencies.length > 0 && (
               <Tooltip
                 label={`References: ${cellDependencies.join(', ')}`}
@@ -218,9 +289,17 @@ export const NotebookCell = memo(
                 </Group>
               </Tooltip>
             )}
+
+            {/* Collapsed preview */}
+            {isCollapsed && (
+              <Text size="xs" c="dimmed" className="truncate max-w-[400px]">
+                {collapsedPreview}
+              </Text>
+            )}
           </Group>
 
-          <Group gap={2}>
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+          <Group gap={2} onClick={(e) => e.stopPropagation()}>
             {/* Run button (SQL only) */}
             {cell.type === 'sql' && (
               <Tooltip label="Run cell (Ctrl+Enter)" position="top">
@@ -304,85 +383,88 @@ export const NotebookCell = memo(
           </Group>
         </Group>
 
-        {/* Cell content */}
-        <div className="min-h-[60px]">
-          {cell.type === 'sql' ? (
-            <div style={{ height: editorHeight }}>
-              <SqlEditor
-                colorSchemeDark={colorSchemeDark}
+        {/* Cell content - hidden when collapsed */}
+        {!isCollapsed && (
+          <div className="min-h-[60px]">
+            {cell.type === 'sql' ? (
+              <div style={{ height: editorHeight }}>
+                <SqlEditor
+                  colorSchemeDark={colorSchemeDark}
+                  value={cell.content}
+                  onChange={handleContentChange}
+                  onRun={handleRun}
+                  onBlur={handleBlur}
+                  schema={schema}
+                  functionTooltips={functionTooltips}
+                  path={editorPath}
+                  additionalCompletions={additionalCompletions}
+                />
+              </div>
+            ) : markdownEditing || cell.content.length === 0 ? (
+              <Textarea
+                ref={textareaRef}
                 value={cell.content}
-                onChange={handleContentChange}
-                onRun={handleRun}
-                onBlur={handleBlur}
-                schema={schema}
-                functionTooltips={functionTooltips}
-                path={editorPath}
-                additionalCompletions={additionalCompletions}
-              />
-            </div>
-          ) : markdownEditing || cell.content.length === 0 ? (
-            <Textarea
-              ref={textareaRef}
-              value={cell.content}
-              onChange={(e) => handleContentChange(e.currentTarget.value)}
-              onBlur={handleMarkdownBlur}
-              placeholder="Write markdown here..."
-              autosize
-              minRows={3}
-              variant="unstyled"
-              className="px-3 py-2"
-              styles={{
-                input: {
-                  fontFamily: "'IBM Plex Mono', monospace",
-                  fontSize: '14px',
-                },
-              }}
-            />
-          ) : (
-            <div
-              className="px-3 py-2 cursor-text min-h-[60px]"
-              onDoubleClick={handleMarkdownDoubleClick}
-            >
-              <ReactMarkdown
-                components={{
-                  h1: ({ node: _node, ...props }) => (
-                    <Title className="py-1" order={1} {...props} />
-                  ),
-                  h2: ({ node: _node, ...props }) => (
-                    <Title className="py-1" order={2} {...props} />
-                  ),
-                  h3: ({ node: _node, ...props }) => (
-                    <Title className="py-1" order={3} {...props} />
-                  ),
-                  h4: ({ node: _node, ...props }) => (
-                    <Title className="py-1" order={4} {...props} />
-                  ),
-                  p: ({ node: _node, ...props }) => <Text className="py-1" {...props} />,
-                  ul: ({ node: _node, ...props }) => (
-                    <List
-                      className="py-1 list-disc list-inside"
-                      {...props}
-                      c="text-primary"
-                      size="sm"
-                    />
-                  ),
-                  li: ({ node: _node, ...props }) => <List.Item {...props} />,
-                  a: ({ node: _node, ...props }) => (
-                    <Text
-                      component="a"
-                      {...props}
-                      c="text-accent"
-                      target="_blank"
-                      className="underline"
-                    />
-                  ),
+                onChange={(e) => handleContentChange(e.currentTarget.value)}
+                onBlur={handleMarkdownBlur}
+                onKeyDown={handleKeyDown}
+                placeholder="Write markdown here..."
+                autosize
+                minRows={3}
+                variant="unstyled"
+                className="px-3 py-2"
+                styles={{
+                  input: {
+                    fontFamily: "'IBM Plex Mono', monospace",
+                    fontSize: '14px',
+                  },
                 }}
+              />
+            ) : (
+              <div
+                className="px-3 py-2 cursor-text min-h-[60px]"
+                onDoubleClick={handleMarkdownDoubleClick}
               >
-                {cell.content}
-              </ReactMarkdown>
-            </div>
-          )}
-        </div>
+                <ReactMarkdown
+                  components={{
+                    h1: ({ node: _node, ...props }) => (
+                      <Title className="py-1" order={1} {...props} />
+                    ),
+                    h2: ({ node: _node, ...props }) => (
+                      <Title className="py-1" order={2} {...props} />
+                    ),
+                    h3: ({ node: _node, ...props }) => (
+                      <Title className="py-1" order={3} {...props} />
+                    ),
+                    h4: ({ node: _node, ...props }) => (
+                      <Title className="py-1" order={4} {...props} />
+                    ),
+                    p: ({ node: _node, ...props }) => <Text className="py-1" {...props} />,
+                    ul: ({ node: _node, ...props }) => (
+                      <List
+                        className="py-1 list-disc list-inside"
+                        {...props}
+                        c="text-primary"
+                        size="sm"
+                      />
+                    ),
+                    li: ({ node: _node, ...props }) => <List.Item {...props} />,
+                    a: ({ node: _node, ...props }) => (
+                      <Text
+                        component="a"
+                        {...props}
+                        c="text-accent"
+                        target="_blank"
+                        className="underline"
+                      />
+                    ),
+                  }}
+                >
+                  {cell.content}
+                </ReactMarkdown>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Inline result view for SQL cells */}
         {cell.type === 'sql' && cellState.status !== 'idle' && (

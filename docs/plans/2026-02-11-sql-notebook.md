@@ -210,7 +210,7 @@ Enable sharing notebooks via a custom JSON format and as self-contained HTML doc
 
 Add Jupyter-style keyboard navigation, visual polish, and quality-of-life features that make the notebook feel professional and efficient to use.
 
-- [ ] Implement cell selection mode (Jupyter-style):
+- [x] Implement cell selection mode (Jupyter-style):
   - `Escape` in a cell editor → enters cell selection mode (blue border on selected cell, editor loses focus)
   - `Enter` in selection mode → enters edit mode (cursor in editor)
   - `ArrowUp` / `ArrowDown` in selection mode → moves selection between cells
@@ -220,17 +220,17 @@ Add Jupyter-style keyboard navigation, visual polish, and quality-of-life featur
   - `DD` (double-tap D) in selection mode → delete cell (with brief undo toast)
   - `M` in selection mode → convert to markdown
   - `Y` in selection mode → convert to SQL (code)
-- [ ] Add cell folding/collapsing:
+- [x] Add cell folding/collapsing:
   - Click cell header to collapse/expand cell content
   - Collapsed cells show just the first line of content + type badge
   - Collapse all / Expand all buttons in notebook toolbar
-- [ ] Add cell output collapsing:
+- [x] Add cell output collapsing:
   - Toggle to hide/show results per cell
   - Collapsed output shows just row count summary
-- [ ] Add cell execution counter: show `[N]` next to each cell indicating execution order (increments on each run, like Jupyter's `In [N]:`)
-- [ ] Add "Clear All Outputs" action in notebook toolbar — resets all cells to idle state, removes all result displays
-- [ ] Add undo/redo for cell operations (add, delete, reorder) — at minimum, support undo of cell deletion via a toast notification with "Undo" button
-- [ ] Ensure proper focus management: Tab/Shift+Tab between cell editor and cell toolbar, focus trap within modals
-- [ ] Add smooth scroll-to-cell when navigating with keyboard (cell should be visible in viewport)
-- [ ] Test multi-cell workflows end-to-end: create notebook, add cells, write SQL, execute, reference previous cells, reorder, export
-- [ ] Verify: keyboard navigation works fluidly, cell selection mode matches expected Jupyter-like behavior, all shortcuts work, focus management is correct, exported notebooks look professional
+- [x] Add cell execution counter: show `[N]` next to each cell indicating execution order (increments on each run, like Jupyter's `In [N]:`)
+- [x] Add "Clear All Outputs" action in notebook toolbar — resets all cells to idle state, removes all result displays
+- [x] Add undo/redo for cell operations (add, delete, reorder) — at minimum, support undo of cell deletion via a toast notification with "Undo" button
+- [x] Ensure proper focus management: Tab/Shift+Tab between cell editor and cell toolbar, focus trap within modals
+- [x] Add smooth scroll-to-cell when navigating with keyboard (cell should be visible in viewport)
+- [x] Test multi-cell workflows end-to-end: create notebook, add cells, write SQL, execute, reference previous cells, reorder, export
+- [x] Verify: keyboard navigation works fluidly, cell selection mode matches expected Jupyter-like behavior, all shortcuts work, focus management is correct, exported notebooks look professional

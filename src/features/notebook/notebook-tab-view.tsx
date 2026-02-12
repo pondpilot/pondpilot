@@ -1,3 +1,4 @@
+import { showAlert } from '@components/app-notifications';
 import {
   addCell,
   moveCellDown,
@@ -35,7 +36,7 @@ import { NotebookTab, TabId } from '@models/tab';
 import { useAppStore, useTabReactiveState, useProtectedViews } from '@store/app-store';
 import { IconNotebook, IconPlus } from '@tabler/icons-react';
 import { exportNotebookAsHtml, exportNotebookAsSqlnb } from '@utils/notebook-export';
-import { memo, useCallback, useMemo, useRef, ReactNode } from 'react';
+import { memo, useCallback, useMemo, useRef, useState, ReactNode } from 'react';
 
 import { AddCellButton } from './components/add-cell-button';
 import { NotebookCell } from './components/notebook-cell';
@@ -43,6 +44,7 @@ import { NotebookToolbar } from './components/notebook-toolbar';
 import { executeCellSQL } from './hooks/use-cell-execution';
 import { useNotebookConnection } from './hooks/use-notebook-connection';
 import { useNotebookExecutionState } from './hooks/use-notebook-execution-state';
+import { useNotebookKeyboard, CellMode } from './hooks/use-notebook-keyboard';
 import { extractCellReferences, getAutoCellViewName, parseUserCellName } from './utils/cell-naming';
 
 interface NotebookTabViewProps {
@@ -156,8 +158,14 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
   const notebook = useAppStore((state) => state.notebooks.get(tab.notebookId));
 
   // Execution state for all cells
-  const { getCellState, setCellState, staleCells, markCellsStale, clearStaleCells } =
-    useNotebookExecutionState();
+  const {
+    getCellState,
+    setCellState,
+    staleCells,
+    markCellsStale,
+    clearStaleCells,
+    clearAllStates,
+  } = useNotebookExecutionState();
 
   // DuckDB pool and protected views from hooks
   const pool = useInitializedDuckDBConnectionPool();
@@ -168,6 +176,30 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
 
   // Track whether Run All is in progress
   const runAllAbortRef = useRef<AbortController | null>(null);
+
+  // Execution counter - increments each time any cell is executed
+  const executionCounterRef = useRef<number>(0);
+  const [cellExecutionCounts, setCellExecutionCounts] = useState<Map<string, number>>(new Map());
+
+  // Cell collapse state (cell content folding)
+  const [collapsedCells, setCollapsedCells] = useState<Set<string>>(new Set());
+
+  // Undo state for cell deletion
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const undoDeleteRef = useRef<{
+    cell: NotebookCellModel;
+    afterCellId: CellId | undefined;
+    notebookId: string;
+  } | null>(null);
+
+  // Cell refs for scroll-to-cell
+  const cellRefsMap = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Cell selection mode: 'edit' = cursor in editor, 'command' = cell selected (Jupyter-style)
+  const [cellMode, setCellMode] = useState<CellMode>('edit');
+
+  const enterCommandMode = useCallback(() => setCellMode('command'), []);
+  const enterEditMode = useCallback(() => setCellMode('edit'), []);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -181,6 +213,8 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     if (!notebook) return [];
     return [...notebook.cells].sort((a, b) => a.order - b.order);
   }, [notebook]);
+
+  const cellIds = useMemo(() => sortedCells.map((c) => c.id), [sortedCells]);
 
   const availableCellNames = useMemo(() => buildAvailableCellNames(sortedCells), [sortedCells]);
 
@@ -214,12 +248,47 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     return completions;
   }, [sortedCells]);
 
+  // Scroll a cell into view smoothly
+  const scrollToCell = useCallback((cellId: CellId) => {
+    const el = cellRefsMap.current.get(cellId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, []);
+
+  // Cell ref callback for scroll management
+  const setCellRef = useCallback((cellId: string, el: HTMLDivElement | null) => {
+    if (el) {
+      cellRefsMap.current.set(cellId, el);
+    } else {
+      cellRefsMap.current.delete(cellId);
+    }
+  }, []);
+
+  // Get cell type by ID helper for keyboard hook
+  const getCellType = useCallback(
+    (cellId: CellId) => {
+      if (!notebook) return undefined;
+      return notebook.cells.find((c) => c.id === cellId)?.type;
+    },
+    [notebook],
+  );
+
   const handleRunCell = useCallback(
     async (cellId: CellId) => {
       if (!notebook) return;
       const cellIndex = sortedCells.findIndex((c) => c.id === cellId);
       const cell = sortedCells[cellIndex];
       if (!cell || cell.type !== 'sql') return;
+
+      // Increment execution counter
+      executionCounterRef.current += 1;
+      const execCount = executionCounterRef.current;
+      setCellExecutionCounts((prev) => {
+        const next = new Map(prev);
+        next.set(cellId, execCount);
+        return next;
+      });
 
       const startTime = Date.now();
       setCellState(cellId, {
@@ -403,9 +472,54 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
   const handleDelete = useCallback(
     (cellId: CellId) => {
       if (!notebook) return;
+      if (notebook.cells.length <= 1) return;
+
+      // Save cell data for undo before deleting
+      const cellToDelete = sortedCells.find((c) => c.id === cellId);
+      if (!cellToDelete) return;
+
+      const cellIndex = sortedCells.indexOf(cellToDelete);
+      const afterCellId = cellIndex > 0 ? sortedCells[cellIndex - 1].id : undefined;
+
       removeCell(notebook.id, cellId);
+
+      // Move active cell after deletion
+      if (tab.activeCellId === cellId) {
+        const newActiveCellId = cellIndex > 0
+          ? sortedCells[cellIndex - 1].id
+          : sortedCells.length > 1 ? sortedCells[1].id : null;
+        if (newActiveCellId) {
+          setNotebookActiveCellId(tabId, newActiveCellId);
+        }
+      }
+
+      // Clear any existing undo timer
+      if (undoTimerRef.current) {
+        clearTimeout(undoTimerRef.current);
+      }
+
+      // Store undo info
+      undoDeleteRef.current = {
+        cell: cellToDelete,
+        afterCellId,
+        notebookId: notebook.id,
+      };
+
+      // Show undo notification
+      showAlert({
+        title: 'Cell deleted',
+        message: undefined,
+        autoClose: 5000,
+        withCloseButton: true,
+      });
+
+      // Clear undo state after timeout
+      undoTimerRef.current = setTimeout(() => {
+        undoDeleteRef.current = null;
+        undoTimerRef.current = null;
+      }, 10000);
     },
-    [notebook],
+    [notebook, sortedCells, tab.activeCellId, tabId],
   );
 
   const handleAddCell = useCallback(
@@ -413,8 +527,10 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       if (!notebook) return;
       const newCell = addCell(notebook.id, type, afterCellId);
       setNotebookActiveCellId(tabId, newCell.id);
+      // Scroll to the new cell after a short delay to let the DOM update
+      setTimeout(() => scrollToCell(newCell.id), 50);
     },
-    [notebook, tabId],
+    [notebook, tabId, scrollToCell],
   );
 
   const handleAddCellAtEnd = useCallback(
@@ -429,9 +545,58 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
   const handleFocus = useCallback(
     (cellId: CellId) => {
       setNotebookActiveCellId(tabId, cellId);
+      enterEditMode();
     },
-    [tabId],
+    [tabId, enterEditMode],
   );
+
+  // Wrap onActiveCellChange to scroll into view
+  const handleActiveCellChange = useCallback(
+    (cellId: CellId) => {
+      setNotebookActiveCellId(tabId, cellId);
+      scrollToCell(cellId);
+    },
+    [tabId, scrollToCell],
+  );
+
+  // Convert cell type (used by keyboard shortcut M/Y)
+  const handleConvertCellType = useCallback(
+    (cellId: CellId, type: NotebookCellType) => {
+      if (!notebook) return;
+      const cell = notebook.cells.find((c) => c.id === cellId);
+      if (!cell || cell.type === type) return;
+      updateCellType(notebook.id, cellId, type);
+    },
+    [notebook],
+  );
+
+  // Clear all outputs
+  const handleClearAllOutputs = useCallback(() => {
+    clearAllStates();
+    setCellExecutionCounts(new Map());
+  }, [clearAllStates]);
+
+  // Toggle cell content collapse
+  const handleToggleCellCollapse = useCallback((cellId: CellId) => {
+    setCollapsedCells((prev) => {
+      const next = new Set(prev);
+      if (next.has(cellId)) {
+        next.delete(cellId);
+      } else {
+        next.add(cellId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Collapse/expand all cells
+  const handleCollapseAll = useCallback(() => {
+    setCollapsedCells(new Set(sortedCells.map((c) => c.id)));
+  }, [sortedCells]);
+
+  const handleExpandAll = useCallback(() => {
+    setCollapsedCells(new Set());
+  }, []);
 
   const handleRename = useCallback(
     (name: string) => {
@@ -480,6 +645,21 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     [notebook, markCellsStale],
   );
 
+  // Keyboard navigation hook
+  useNotebookKeyboard({
+    cellIds,
+    activeCellId: tab.activeCellId,
+    cellMode,
+    isTabActive: active,
+    onActiveCellChange: handleActiveCellChange,
+    onRunCell: handleRunCell,
+    onAddCell: handleAddCell,
+    onDeleteCell: handleDelete,
+    onConvertCellType: handleConvertCellType,
+    onEnterEditMode: enterEditMode,
+    getCellType,
+  });
+
   if (!notebook) {
     return (
       <Center className="h-full">
@@ -492,8 +672,6 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     return null;
   }
 
-  const cellIds = sortedCells.map((c) => c.id);
-
   return (
     <Stack className="h-full gap-0">
       <NotebookToolbar
@@ -503,6 +681,9 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         onRunAll={handleRunAll}
         onExportSqlnb={handleExportSqlnb}
         onExportHtml={handleExportHtml}
+        onClearAllOutputs={handleClearAllOutputs}
+        onCollapseAll={handleCollapseAll}
+        onExpandAll={handleExpandAll}
       />
 
       <ScrollArea className="flex-1" type="hover" scrollHideDelay={500}>
@@ -519,7 +700,10 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
               <SortableContext items={cellIds} strategy={verticalListSortingStrategy}>
                 <Stack gap={0}>
                   {sortedCells.map((cell, index) => (
-                    <div key={cell.id}>
+                    <div
+                      key={cell.id}
+                      ref={(el) => setCellRef(cell.id, el)}
+                    >
                       <SortableCellWrapper id={cell.id}>
                         {(dragHandleProps) => (
                           <NotebookCell
@@ -536,6 +720,9 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
                             cellDependencies={cellDependencies.get(cell.id) ?? null}
                             additionalCompletions={cellCompletions}
                             dragHandleProps={dragHandleProps}
+                            cellMode={tab.activeCellId === cell.id ? cellMode : 'edit'}
+                            isCollapsed={collapsedCells.has(cell.id)}
+                            executionCount={cellExecutionCounts.get(cell.id) ?? null}
                             onContentChange={handleContentChange}
                             onTypeChange={handleTypeChange}
                             onMoveUp={handleMoveUp}
@@ -543,6 +730,8 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
                             onDelete={handleDelete}
                             onRun={handleRunCell}
                             onFocus={handleFocus}
+                            onEscape={enterCommandMode}
+                            onToggleCollapse={handleToggleCellCollapse}
                           />
                         )}
                       </SortableCellWrapper>

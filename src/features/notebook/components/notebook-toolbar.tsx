@@ -8,7 +8,10 @@ import {
 import { NotebookCellType } from '@models/notebook';
 import {
   IconCode,
+  IconClearAll,
   IconDownload,
+  IconFold,
+  IconFoldDown,
   IconMarkdown,
   IconPlayerPlay,
   IconPlus,
@@ -23,12 +26,16 @@ interface NotebookToolbarProps {
   onRunAll?: () => void;
   onExportSqlnb?: () => void;
   onExportHtml?: () => void;
+  onClearAllOutputs?: () => void;
+  onCollapseAll?: () => void;
+  onExpandAll?: () => void;
 }
 
 export const NotebookToolbar = memo(
   (props: NotebookToolbarProps) => {
     const {
       notebookName, onRename, onAddCell, onRunAll, onExportSqlnb, onExportHtml,
+      onClearAllOutputs, onCollapseAll, onExpandAll,
     } = props;
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(notebookName);
@@ -118,6 +125,48 @@ export const NotebookToolbar = memo(
                 onClick={onRunAll}
               >
                 <IconPlayerPlay size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+
+          {/* Clear All Outputs */}
+          {onClearAllOutputs && (
+            <Tooltip label="Clear all outputs" position="top">
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                className="text-iconDefault-light dark:text-iconDefault-dark"
+                onClick={onClearAllOutputs}
+              >
+                <IconClearAll size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+
+          {/* Collapse All */}
+          {onCollapseAll && (
+            <Tooltip label="Collapse all cells" position="top">
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                className="text-iconDefault-light dark:text-iconDefault-dark"
+                onClick={onCollapseAll}
+              >
+                <IconFold size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+
+          {/* Expand All */}
+          {onExpandAll && (
+            <Tooltip label="Expand all cells" position="top">
+              <ActionIcon
+                size="sm"
+                variant="subtle"
+                className="text-iconDefault-light dark:text-iconDefault-dark"
+                onClick={onExpandAll}
+              >
+                <IconFoldDown size={16} />
               </ActionIcon>
             </Tooltip>
           )}
