@@ -9,6 +9,7 @@ import { notifications } from '@mantine/notifications';
 import { LocalEntry, WebkitFile } from '@models/file-system';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { createFileHandleWrapper } from '@utils/file-system-adapter/handle-converter';
+import { importNotebookFromFile } from '@utils/import-notebook-file';
 import { useCallback } from 'react';
 
 export const useAddLocalFilesOrFolders = () => {
@@ -274,6 +275,38 @@ export const useAddLocalFilesOrFolders = () => {
         }
       }
 
+      // Intercept .sqlnb files for notebook import before data source processing
+      const notebookFiles: File[] = [];
+      const dataSourceHandles: (FileSystemFileHandle | FileSystemDirectoryHandle)[] = [];
+      const dataSourceFallbackFiles: File[] = [];
+
+      for (const handle of handles) {
+        if (handle.kind === 'file' && handle.name.endsWith('.sqlnb')) {
+          const file = await (handle as FileSystemFileHandle).getFile();
+          notebookFiles.push(file);
+        } else {
+          dataSourceHandles.push(handle);
+        }
+      }
+
+      for (const file of fallbackFiles) {
+        if (file.name.endsWith('.sqlnb')) {
+          notebookFiles.push(file);
+        } else {
+          dataSourceFallbackFiles.push(file);
+        }
+      }
+
+      // Import notebook files
+      for (const file of notebookFiles) {
+        await importNotebookFromFile(file);
+      }
+
+      // If only notebook files were dropped, we're done
+      if (dataSourceHandles.length === 0 && dataSourceFallbackFiles.length === 0) {
+        if (notebookFiles.length > 0) return;
+      }
+
       const notificationId = showAlert({
         title: 'Processing dropped items',
         loading: true,
@@ -283,7 +316,7 @@ export const useAddLocalFilesOrFolders = () => {
       });
 
       try {
-        if (handles.length === 0 && fallbackFiles.length === 0) {
+        if (dataSourceHandles.length === 0 && dataSourceFallbackFiles.length === 0) {
           notifications.hide(notificationId);
           showAlert({
             title: 'No valid items',
@@ -293,7 +326,7 @@ export const useAddLocalFilesOrFolders = () => {
         }
 
         const { skippedExistingEntries, skippedUnsupportedFiles, skippedEmptyDatabases, errors } =
-          await addLocalFileOrFoldersCompat(pool, handles, fallbackFiles);
+          await addLocalFileOrFoldersCompat(pool, dataSourceHandles, dataSourceFallbackFiles);
 
         notifications.hide(notificationId);
         if (skippedExistingEntries.length) {

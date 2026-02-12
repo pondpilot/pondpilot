@@ -21,10 +21,15 @@ interface NotebookToolbarProps {
   onRename: (name: string) => void;
   onAddCell: (type: NotebookCellType) => void;
   onRunAll?: () => void;
+  onExportSqlnb?: () => void;
+  onExportHtml?: () => void;
 }
 
 export const NotebookToolbar = memo(
-  ({ notebookName, onRename, onAddCell, onRunAll }: NotebookToolbarProps) => {
+  (props: NotebookToolbarProps) => {
+    const {
+      notebookName, onRename, onAddCell, onRunAll, onExportSqlnb, onExportHtml,
+    } = props;
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(notebookName);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -146,7 +151,7 @@ export const NotebookToolbar = memo(
             </Menu.Dropdown>
           </Menu>
 
-          {/* Export dropdown (placeholder for Task 7) */}
+          {/* Export dropdown */}
           <Menu width={160} shadow="md" position="bottom-end">
             <Menu.Target>
               <Tooltip label="Export" position="top">
@@ -160,8 +165,8 @@ export const NotebookToolbar = memo(
               </Tooltip>
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu.Item disabled>Export as .sqlnb</Menu.Item>
-              <Menu.Item disabled>Export as HTML</Menu.Item>
+              <Menu.Item onClick={onExportSqlnb}>Export as .sqlnb</Menu.Item>
+              <Menu.Item onClick={onExportHtml}>Export as HTML</Menu.Item>
             </Menu.Dropdown>
           </Menu>
         </Group>

@@ -15,6 +15,7 @@ import { TabId } from '@models/tab';
 import { useAppStore } from '@store/app-store';
 import { findUniqueName, getAllExistingNames } from '@utils/helpers';
 import { ensureNotebook, makeCellId, makeNotebookId } from '@utils/notebook';
+import { sqlnbCellsToNotebookCells } from '@utils/notebook-export';
 import { createPersistenceCatchHandler } from '@utils/persistence-logger';
 
 import { persistDeleteNotebook } from './persist';
@@ -108,6 +109,39 @@ export const createNotebook = (name: string = 'notebook'): Notebook => {
   };
 
   updateNotebookInStore(notebook, 'AppStore/createNotebook');
+
+  return notebook;
+};
+
+/**
+ * Creates a notebook from imported .sqlnb data.
+ */
+export const createNotebookFromImport = (
+  name: string,
+  cells: Array<{ type: 'sql' | 'markdown'; content: string; name?: string }>,
+): Notebook => {
+  const { sqlScripts, comparisons, notebooks } = useAppStore.getState();
+
+  const allExistingNames = getAllExistingNames({ comparisons, sqlScripts, notebooks });
+  const uniqueName = findUniqueName(name, (value) => allExistingNames.has(value));
+
+  const notebookId = makeNotebookId();
+  const now = new Date().toISOString();
+
+  const notebookCells =
+    cells.length > 0
+      ? sqlnbCellsToNotebookCells(cells, makeCellId)
+      : [{ id: makeCellId(), type: 'sql' as const, content: '', order: 0 }];
+
+  const notebook: Notebook = {
+    id: notebookId,
+    name: uniqueName,
+    cells: notebookCells,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  updateNotebookInStore(notebook, 'AppStore/createNotebookFromImport');
 
   return notebook;
 };

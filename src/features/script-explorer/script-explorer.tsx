@@ -27,6 +27,7 @@ import { NotebookId } from '@models/notebook';
 import { SQLScriptId } from '@models/sql-script';
 import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
+import { exportNotebookAsHtml, exportNotebookAsSqlnb } from '@utils/notebook-export';
 import { exportSingleScript } from '@utils/script-export';
 import { createShareableScriptUrl } from '@utils/script-sharing';
 import { memo, useMemo, useCallback } from 'react';
@@ -354,6 +355,22 @@ export const ScriptExplorer = memo(() => {
               if (!isNotebookNode(node)) return;
               const newNotebook = duplicateNotebook(node.value);
               getOrCreateTabFromNotebook(newNotebook.id, true);
+            },
+          },
+          {
+            label: 'Export as .sqlnb',
+            onClick: (node) => {
+              if (!isNotebookNode(node)) return;
+              const notebook = useAppStore.getState().notebooks.get(node.value);
+              if (notebook) exportNotebookAsSqlnb(notebook, __VERSION__);
+            },
+          },
+          {
+            label: 'Export as HTML',
+            onClick: (node) => {
+              if (!isNotebookNode(node)) return;
+              const notebook = useAppStore.getState().notebooks.get(node.value);
+              if (notebook) exportNotebookAsHtml(notebook);
             },
           },
         ],

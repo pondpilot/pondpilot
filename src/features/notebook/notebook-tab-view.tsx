@@ -34,6 +34,7 @@ import { CellId, NotebookCell as NotebookCellModel, NotebookCellType } from '@mo
 import { NotebookTab, TabId } from '@models/tab';
 import { useAppStore, useTabReactiveState, useProtectedViews } from '@store/app-store';
 import { IconNotebook, IconPlus } from '@tabler/icons-react';
+import { exportNotebookAsHtml, exportNotebookAsSqlnb } from '@utils/notebook-export';
 import { memo, useCallback, useMemo, useRef, ReactNode } from 'react';
 
 import { AddCellButton } from './components/add-cell-button';
@@ -440,6 +441,16 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     [notebook],
   );
 
+  const handleExportSqlnb = useCallback(() => {
+    if (!notebook) return;
+    exportNotebookAsSqlnb(notebook, __VERSION__);
+  }, [notebook]);
+
+  const handleExportHtml = useCallback(() => {
+    if (!notebook) return;
+    exportNotebookAsHtml(notebook);
+  }, [notebook]);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       if (!notebook) return;
@@ -490,6 +501,8 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         onRename={handleRename}
         onAddCell={handleAddCellAtEnd}
         onRunAll={handleRunAll}
+        onExportSqlnb={handleExportSqlnb}
+        onExportHtml={handleExportHtml}
       />
 
       <ScrollArea className="flex-1" type="hover" scrollHideDelay={500}>
