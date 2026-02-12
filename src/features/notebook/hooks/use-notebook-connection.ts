@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef } from 'react';
 export function useNotebookConnection(pool: AsyncDuckDBConnectionPool) {
   const connRef = useRef<AsyncDuckDBPooledConnection | null>(null);
   const acquiringRef = useRef<Promise<AsyncDuckDBPooledConnection> | null>(null);
+  const unmountedRef = useRef(false);
 
   const getConnection = useCallback(async (): Promise<AsyncDuckDBPooledConnection> => {
     // If we have a live connection, return it
@@ -29,8 +30,13 @@ export function useNotebookConnection(pool: AsyncDuckDBConnectionPool) {
 
     // Acquire a new connection from the pool
     const acquirePromise = pool.getPooledConnection().then((conn) => {
-      connRef.current = conn;
       acquiringRef.current = null;
+      // If unmounted while acquiring, close immediately to avoid leak
+      if (unmountedRef.current) {
+        conn.close();
+        throw new Error('Component unmounted during connection acquisition');
+      }
+      connRef.current = conn;
       return conn;
     });
 
@@ -47,6 +53,7 @@ export function useNotebookConnection(pool: AsyncDuckDBConnectionPool) {
   // Release the connection when the notebook tab unmounts
   useEffect(() => {
     return () => {
+      unmountedRef.current = true;
       if (connRef.current && !connRef.current.closed) {
         connRef.current.close();
         connRef.current = null;

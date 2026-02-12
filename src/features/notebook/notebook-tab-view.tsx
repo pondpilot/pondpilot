@@ -528,13 +528,17 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       }
 
       // Store undo info
-      undoDeleteRef.current = {
+      const undoInfo = {
         cell: cellToDelete,
         afterCellId,
         notebookId: notebook.id,
       };
+      undoDeleteRef.current = undoInfo;
 
-      // Show undo notification with action button
+      // Show undo notification with action button.
+      // Capture undoInfo in the closure so each notification's Undo button
+      // restores the correct cell, even if another cell is deleted before
+      // the user clicks Undo.
       showAlertWithAction({
         title: 'Cell deleted',
         message: undefined,
@@ -543,8 +547,6 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         action: {
           label: 'Undo',
           onClick: () => {
-            const undoInfo = undoDeleteRef.current;
-            if (!undoInfo) return;
             // Re-insert the original cell (with its content preserved)
             const { notebooks: currentNotebooks } = useAppStore.getState();
             const currentNotebook = currentNotebooks.get(undoInfo.notebookId as any);
@@ -554,7 +556,9 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
                 : insertCellAtStart(currentNotebook.cells, undoInfo.cell);
               updateNotebookCells(undoInfo.notebookId as any, restoredCells);
             }
-            undoDeleteRef.current = null;
+            if (undoDeleteRef.current === undoInfo) {
+              undoDeleteRef.current = null;
+            }
             if (undoTimerRef.current) {
               clearTimeout(undoTimerRef.current);
               undoTimerRef.current = null;
@@ -727,10 +731,6 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         <Text c="dimmed">Notebook not found</Text>
       </Center>
     );
-  }
-
-  if (!active) {
-    return null;
   }
 
   return (

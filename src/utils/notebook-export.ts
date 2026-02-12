@@ -178,17 +178,16 @@ function markdownToHtml(md: string): string {
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
+  // Links: [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
   // Unordered lists
   html = html.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
-  html = html.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>');
-  // Collapse consecutive ul tags
-  html = html.replace(/<\/ul>\s*<ul>/g, '');
+  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
 
   // Ordered lists
   html = html.replace(/^\d+\.\s+(.+)$/gm, '<oli>$1</oli>');
-  html = html.replace(/(<oli>[\s\S]*?<\/oli>)/g, '<ol>$1</ol>');
-  // Collapse consecutive ol tags
-  html = html.replace(/<\/ol>\s*<ol>/g, '');
+  html = html.replace(/((?:<oli>.*<\/oli>\n?)+)/g, '<ol>$1</ol>');
   // Convert oli placeholders back to li
   html = html.replace(/<oli>/g, '<li>');
   html = html.replace(/<\/oli>/g, '</li>');
