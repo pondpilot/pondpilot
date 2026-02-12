@@ -143,22 +143,22 @@ Enable cross-cell data flow: each executed SQL cell's result becomes a queryable
 
 Make notebooks discoverable and manageable from the sidebar. Users should be able to create, find, rename, and delete notebooks with the same ease as SQL scripts.
 
-- [ ] Update `src/features/script-explorer/script-explorer.tsx`:
+- [x] Update `src/features/script-explorer/script-explorer.tsx`:
   - Extend `ScriptNodeTypeToIdTypeMap` with `notebook: NotebookId`
   - Build notebook tree nodes from `store.notebooks` (same pattern as script nodes, lines 306-348)
   - Add a "Notebooks" section/group in the explorer tree (separate from SQL Scripts, with its own header)
   - Handle `onNodeClick` for notebook nodes: call `getOrCreateTabFromNotebook(notebookId, true)`
   - Add context menu for notebook nodes: Rename, Delete, Duplicate, Export
-- [ ] Add "New Notebook" to the create menu:
+- [x] Add "New Notebook" to the create menu:
   - Update the existing "New Script" dropdown/button to also offer "New Notebook"
   - Or add a separate "New Notebook" entry to the spotlight/command palette (`@mantine/spotlight`)
   - Keyboard shortcut: Ctrl+Alt+B (or similar, avoiding conflicts)
-- [ ] Implement notebook rename inline in the sidebar (reuse the script rename pattern with `renameCallbacks`)
-- [ ] Implement notebook delete with confirmation dialog (reuse existing pattern from script deletion)
-- [ ] Implement notebook duplicate: creates a deep copy with "(Copy)" suffix
-- [ ] Add notebook access time tracking: update `notebookAccessTimes` when a notebook is opened (for "Recent" section sorting)
-- [ ] Ensure notebooks appear in the global search/spotlight results
-- [ ] Verify: notebooks appear in sidebar, clicking opens them, context menu works (rename, delete, duplicate), new notebook flow works from both menu and keyboard shortcut
+- [x] Implement notebook rename inline in the sidebar (reuse the script rename pattern with `renameCallbacks`)
+- [x] Implement notebook delete with confirmation dialog (reuse existing pattern from script deletion)
+- [x] Implement notebook duplicate: creates a deep copy with "(Copy)" suffix
+- [x] Add notebook access time tracking: update `notebookAccessTimes` when a notebook is opened (for "Recent" section sorting)
+- [x] Ensure notebooks appear in the global search/spotlight results
+- [x] Verify: notebooks appear in sidebar, clicking opens them, context menu works (rename, delete, duplicate), new notebook flow works from both menu and keyboard shortcut
 
 ### Task 7: Import/Export — .sqlnb & HTML
 

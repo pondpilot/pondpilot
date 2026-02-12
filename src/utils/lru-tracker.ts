@@ -8,6 +8,7 @@
 
 export {
   updateDataSourceAccessTime as updateDataSourceLastUsed,
+  updateNotebookAccessTime as updateNotebookLastUsed,
   updateScriptAccessTime as updateSQLScriptLastUsed,
   updateTableAccessTime,
 } from './table-access';

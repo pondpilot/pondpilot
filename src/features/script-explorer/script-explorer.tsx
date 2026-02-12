@@ -2,6 +2,7 @@ import { ExplorerTree } from '@components/explorer-tree/explorer-tree';
 import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { TreeNodeMenuType, TreeNodeData } from '@components/explorer-tree/model';
 import { deleteComparisons, renameComparison } from '@controllers/comparison';
+import { deleteNotebooks, duplicateNotebook, renameNotebook } from '@controllers/notebook';
 import { deleteSqlScripts, renameSQLScript } from '@controllers/sql-script';
 import {
   deleteTabByScriptId,
@@ -15,9 +16,14 @@ import {
   findTabFromComparison,
   getOrCreateTabFromComparison,
 } from '@controllers/tab/comparison-tab-controller';
+import {
+  findTabFromNotebook,
+  getOrCreateTabFromNotebook,
+} from '@controllers/tab/notebook-tab-controller';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { RenderTreeNodePayload as MantineRenderTreeNodePayload } from '@mantine/core';
 import { ComparisonId } from '@models/comparison';
+import { NotebookId } from '@models/notebook';
 import { SQLScriptId } from '@models/sql-script';
 import { useSqlScriptNameMap, useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
@@ -44,6 +50,15 @@ const isScriptNode = (
   return node.nodeType === 'script';
 };
 
+const isNotebookNode = (
+  node: TreeNodeData<ScriptNodeTypeToIdTypeMap>,
+): node is TreeNodeData<ScriptNodeTypeToIdTypeMap> & {
+  nodeType: 'notebook';
+  value: NotebookId;
+} => {
+  return node.nodeType === 'notebook';
+};
+
 // We could have used closure, but this is possibly slightly more performant
 const onNodeClick = (
   node: TreeNodeData<ScriptNodeTypeToIdTypeMap>,
@@ -68,6 +83,17 @@ const onNodeClick = (
     return;
   }
 
+  if (isNotebookNode(node)) {
+    const existingTab = findTabFromNotebook(node.value);
+    if (existingTab) {
+      setActiveTabId(existingTab.id);
+      return;
+    }
+    const tab = getOrCreateTabFromNotebook(node.value, true);
+    setPreviewTabId(tab.id);
+    return;
+  }
+
   if (isScriptNode(node)) {
     // For script tabs
     // Check if the tab is already open
@@ -88,6 +114,11 @@ const onNodeClick = (
 const onCloseItemClick = async (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>): Promise<void> => {
   if (isComparisonNode(node)) {
     const tab = findTabFromComparison(node.value);
+    if (tab) {
+      await deleteTab([tab.id]);
+    }
+  } else if (isNotebookNode(node)) {
+    const tab = findTabFromNotebook(node.value);
     if (tab) {
       await deleteTab([tab.id]);
     }
@@ -130,7 +161,7 @@ const validateRename = (
 };
 
 const prepareRenameValue = (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>): string => {
-  if (node.nodeType === 'comparison') {
+  if (node.nodeType === 'comparison' || node.nodeType === 'notebook') {
     return node.label;
   }
   // Strip the .sql extension for scripts
@@ -165,17 +196,33 @@ function useComparisonsList(): ReadonlyArray<readonly [ComparisonId, string]> {
   );
 }
 
+// Custom hook to get notebooks with proper memoization
+function useNotebooksList(): ReadonlyArray<readonly [NotebookId, string]> {
+  const notebooks = useAppStore((state) => state.notebooks);
+
+  return useMemo(
+    () =>
+      Array.from(notebooks.entries()).map(([id, notebook]) => [id, notebook.name] as const),
+    [notebooks],
+  );
+}
+
 export const ScriptExplorer = memo(() => {
   /**
    * Global state
    */
   const sqlScripts = useSqlScriptNameMap();
   const comparisons = useComparisonsList();
+  const notebooks = useNotebooksList();
   const pool = useInitializedDuckDBConnectionPool();
 
   const hasActiveElement = useAppStore((state) => {
     const activeTab = state.activeTabId && state.tabs.get(state.activeTabId);
-    return activeTab?.type === 'script' || activeTab?.type === 'comparison';
+    return (
+      activeTab?.type === 'script' ||
+      activeTab?.type === 'comparison' ||
+      activeTab?.type === 'notebook'
+    );
   });
 
   /**
@@ -197,6 +244,14 @@ export const ScriptExplorer = memo(() => {
     [comparisons],
   );
 
+  const notebooksArray = useMemo(
+    () =>
+      Array.from(notebooks).sort(([, leftName], [, rightName]) =>
+        leftName.localeCompare(rightName),
+      ),
+    [notebooks],
+  );
+
   // Get all names for validation (excluding current node's name in validateRename)
   const getAllNamesExcept = useMemo(
     () => (nodeId: string) => {
@@ -204,9 +259,12 @@ export const ScriptExplorer = memo(() => {
       const comparisonNames = comparisonsArray
         .filter(([id]) => id !== nodeId)
         .map(([, name]) => name);
-      return [...scriptNames, ...comparisonNames];
+      const notebookNames = notebooksArray
+        .filter(([id]) => id !== nodeId)
+        .map(([, name]) => name);
+      return [...scriptNames, ...comparisonNames, ...notebookNames];
     },
-    [scriptsArray, comparisonsArray],
+    [scriptsArray, comparisonsArray, notebooksArray],
   );
 
   const scriptContextMenu: TreeNodeMenuType<TreeNodeData<ScriptNodeTypeToIdTypeMap>> = useMemo(
@@ -253,6 +311,10 @@ export const ScriptExplorer = memo(() => {
         deleteComparisons([node.value], pool).catch(() => {
           // Ignored: error handling happens via global notifications
         });
+      } else if (isNotebookNode(node)) {
+        deleteNotebooks([node.value]).catch(() => {
+          // Ignored: error handling happens via global notifications
+        });
       } else if (isScriptNode(node)) {
         deleteSqlScripts([node.value]);
       }
@@ -268,6 +330,30 @@ export const ScriptExplorer = memo(() => {
             label: 'Copy name',
             onClick: (node) => {
               copyToClipboard(node.label, { showNotification: true });
+            },
+          },
+        ],
+      },
+    ],
+    [],
+  );
+
+  const notebookContextMenu: TreeNodeMenuType<TreeNodeData<ScriptNodeTypeToIdTypeMap>> = useMemo(
+    () => [
+      {
+        children: [
+          {
+            label: 'Copy name',
+            onClick: (node) => {
+              copyToClipboard(node.label, { showNotification: true });
+            },
+          },
+          {
+            label: 'Duplicate',
+            onClick: (node) => {
+              if (!isNotebookNode(node)) return;
+              const newNotebook = duplicateNotebook(node.value);
+              getOrCreateTabFromNotebook(newNotebook.id, true);
             },
           },
         ],
@@ -296,6 +382,19 @@ export const ScriptExplorer = memo(() => {
       onRenameSubmit: (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>, newName: string) => {
         if (isComparisonNode(node)) {
           renameComparison(node.value, newName);
+        }
+      },
+      prepareRenameValue,
+    }),
+    [getAllNamesExcept],
+  );
+
+  const notebookRenameCallbacks = useMemo(
+    () => ({
+      validateRename: createValidateRename(getAllNamesExcept),
+      onRenameSubmit: (node: TreeNodeData<ScriptNodeTypeToIdTypeMap>, newName: string) => {
+        if (isNotebookNode(node)) {
+          renameNotebook(node.value, newName);
         }
       },
       prepareRenameValue,
@@ -347,6 +446,28 @@ export const ScriptExplorer = memo(() => {
     [comparisonsArray, comparisonRenameCallbacks, comparisonContextMenu, handleNodeDelete],
   );
 
+  const notebookTree: TreeNodeData<ScriptNodeTypeToIdTypeMap>[] = useMemo(
+    () =>
+      notebooksArray.map(
+        ([notebookId, notebookName]) =>
+          ({
+            nodeType: 'notebook',
+            value: notebookId,
+            label: notebookName,
+            iconType: 'notebook',
+            isDisabled: false,
+            isSelectable: true,
+            onNodeClick,
+            renameCallbacks: notebookRenameCallbacks,
+            onDelete: handleNodeDelete,
+            onCloseItemClick,
+            contextMenu: notebookContextMenu,
+            // no children
+          }) as TreeNodeData<ScriptNodeTypeToIdTypeMap>,
+      ),
+    [notebooksArray, notebookRenameCallbacks, notebookContextMenu, handleNodeDelete],
+  );
+
   const collator = useMemo(
     () => new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }),
     [],
@@ -360,11 +481,11 @@ export const ScriptExplorer = memo(() => {
       return node.label.toLowerCase();
     };
 
-    return [...sqlScriptTree, ...comparisonTree].sort((a, b) => {
+    return [...sqlScriptTree, ...comparisonTree, ...notebookTree].sort((a, b) => {
       const order = collator.compare(getSortKey(a), getSortKey(b));
       return order !== 0 ? order : collator.compare(a.label.toLowerCase(), b.label.toLowerCase());
     });
-  }, [sqlScriptTree, comparisonTree, collator]);
+  }, [sqlScriptTree, comparisonTree, notebookTree, collator]);
 
   // Create Sets for efficient O(1) lookup instead of O(n) array search
   const scriptIdsSet = useMemo(() => new Set(scriptsArray.map(([id]) => id)), [scriptsArray]);
@@ -372,12 +493,17 @@ export const ScriptExplorer = memo(() => {
     () => new Set(comparisonsArray.map(([id]) => id)),
     [comparisonsArray],
   );
+  const notebookIdsSet = useMemo(
+    () => new Set(notebooksArray.map(([id]) => id)),
+    [notebooksArray],
+  );
 
   // Memoize the delete handler to prevent unnecessary re-renders
   const handleDeleteSelected = useMemo(
-    () => (ids: (SQLScriptId | ComparisonId)[]) => {
+    () => (ids: (SQLScriptId | ComparisonId | NotebookId)[]) => {
       const scriptIds: SQLScriptId[] = [];
       const comparisonIds: ComparisonId[] = [];
+      const notebookIds: NotebookId[] = [];
 
       // Use Set lookups for O(1) performance instead of O(n) array.some()
       ids.forEach((id) => {
@@ -385,6 +511,8 @@ export const ScriptExplorer = memo(() => {
           scriptIds.push(id as SQLScriptId);
         } else if (comparisonIdsSet.has(id as ComparisonId)) {
           comparisonIds.push(id as ComparisonId);
+        } else if (notebookIdsSet.has(id as NotebookId)) {
+          notebookIds.push(id as NotebookId);
         }
       });
 
@@ -396,8 +524,13 @@ export const ScriptExplorer = memo(() => {
           // Ignored: error handling happens via global notifications
         });
       }
+      if (notebookIds.length > 0) {
+        deleteNotebooks(notebookIds).catch(() => {
+          // Ignored: error handling happens via global notifications
+        });
+      }
     },
-    [scriptIdsSet, comparisonIdsSet, pool],
+    [scriptIdsSet, comparisonIdsSet, notebookIdsSet, pool],
   );
 
   // Use the common explorer context hook

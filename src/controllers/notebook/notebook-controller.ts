@@ -113,6 +113,49 @@ export const createNotebook = (name: string = 'notebook'): Notebook => {
 };
 
 /**
+ * Creates a deep copy of an existing notebook with a "(Copy)" suffix.
+ */
+export const duplicateNotebook = (
+  notebookOrId: Notebook | NotebookId,
+): Notebook => {
+  const { notebooks, sqlScripts, comparisons } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  const allExistingNames = getAllExistingNames({ comparisons, sqlScripts, notebooks });
+  const uniqueName = findUniqueName(
+    `${notebook.name} (Copy)`,
+    (value) => allExistingNames.has(value),
+  );
+
+  const notebookId = makeNotebookId();
+  const now = new Date().toISOString();
+
+  const copiedCells: NotebookCell[] = notebook.cells.map((cell, index) => ({
+    id: makeCellId(),
+    type: cell.type,
+    content: cell.content,
+    order: index,
+  }));
+
+  const newNotebook: Notebook = {
+    id: notebookId,
+    name: uniqueName,
+    cells: copiedCells.length > 0 ? copiedCells : [{
+      id: makeCellId(),
+      type: 'sql' as const,
+      content: '',
+      order: 0,
+    }],
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  updateNotebookInStore(newNotebook, 'AppStore/duplicateNotebook');
+
+  return newNotebook;
+};
+
+/**
  * ------------------------------------------------------------
  * -------------------------- Read ---------------------------
  * ------------------------------------------------------------
