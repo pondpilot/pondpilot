@@ -35,6 +35,14 @@ const persistNotebook = (notebook: Notebook, debounce: boolean = false): void =>
   const iDb = useAppStore.getState()._iDbConn;
   if (!iDb) return;
 
+  // Always cancel any pending debounced timer for this notebook to prevent
+  // a stale closure from overwriting a newer immediate save.
+  const existingTimer = persistTimers.get(notebook.id);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+    persistTimers.delete(notebook.id);
+  }
+
   if (!debounce) {
     iDb
       .put(NOTEBOOK_TABLE_NAME, notebook, notebook.id)
@@ -42,20 +50,19 @@ const persistNotebook = (notebook: Notebook, debounce: boolean = false): void =>
     return;
   }
 
-  // Cancel any existing timer for this notebook
-  const existingTimer = persistTimers.get(notebook.id);
-  if (existingTimer) {
-    clearTimeout(existingTimer);
-  }
-
+  const notebookId = notebook.id;
   const timer = setTimeout(() => {
-    persistTimers.delete(notebook.id);
+    persistTimers.delete(notebookId);
+    // Read the latest notebook from the store to avoid persisting a stale snapshot
+    // captured by the closure.
+    const currentNotebook = useAppStore.getState().notebooks.get(notebookId);
+    if (!currentNotebook) return;
     iDb
-      .put(NOTEBOOK_TABLE_NAME, notebook, notebook.id)
+      .put(NOTEBOOK_TABLE_NAME, currentNotebook, notebookId)
       .catch(createPersistenceCatchHandler('persist notebook (debounced)'));
   }, NOTEBOOK_SAVE_DEBOUNCE_MS);
 
-  persistTimers.set(notebook.id, timer);
+  persistTimers.set(notebookId, timer);
 };
 
 /**

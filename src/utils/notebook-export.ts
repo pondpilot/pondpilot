@@ -153,9 +153,13 @@ function escapeHtml(text: string): string {
 function markdownToHtml(md: string): string {
   let html = escapeHtml(md);
 
-  // Code blocks (```)
+  // Code blocks (```) — extract and replace with placeholders to protect
+  // their content from subsequent inline transformations (bold, italic, etc.)
+  const codeBlocks: string[] = [];
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_match, _lang, code) => {
-    return `<pre><code>${code.trim()}</code></pre>`;
+    const placeholder = `\x00CODEBLOCK${codeBlocks.length}\x00`;
+    codeBlocks.push(`<pre><code>${code.trim()}</code></pre>`);
+    return placeholder;
   });
 
   // Inline code
@@ -181,7 +185,13 @@ function markdownToHtml(md: string): string {
   html = html.replace(/<\/ul>\s*<ul>/g, '');
 
   // Ordered lists
-  html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
+  html = html.replace(/^\d+\.\s+(.+)$/gm, '<oli>$1</oli>');
+  html = html.replace(/(<oli>[\s\S]*?<\/oli>)/g, '<ol>$1</ol>');
+  // Collapse consecutive ol tags
+  html = html.replace(/<\/ol>\s*<ol>/g, '');
+  // Convert oli placeholders back to li
+  html = html.replace(/<oli>/g, '<li>');
+  html = html.replace(/<\/oli>/g, '</li>');
 
   // Horizontal rules
   html = html.replace(/^---+$/gm, '<hr/>');
@@ -201,6 +211,7 @@ function markdownToHtml(md: string): string {
       trimmed.startsWith('<li') ||
       trimmed.startsWith('<hr') ||
       trimmed.startsWith('</') ||
+      trimmed.startsWith('\x00CODEBLOCK') ||
       trimmed.length === 0
     ) {
       if (inParagraph) {
@@ -222,7 +233,14 @@ function markdownToHtml(md: string): string {
     result.push('</p>');
   }
 
-  return result.join('\n');
+  // Restore code blocks from placeholders after all block-level processing
+  // so that list/paragraph regexes cannot mutate code block content.
+  let output = result.join('\n');
+  for (let i = 0; i < codeBlocks.length; i += 1) {
+    output = output.replace(`\x00CODEBLOCK${i}\x00`, codeBlocks[i]);
+  }
+
+  return output;
 }
 
 /**

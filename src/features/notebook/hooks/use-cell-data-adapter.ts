@@ -16,15 +16,15 @@ export function useCellDataAdapter(
   cellId: string,
   cellState: CellExecutionState,
 ): DataAdapterApi | null {
-  // Track the last query to detect re-executions of the same SQL.
-  // Increment sourceVersion on every new query assignment (even if text is the same)
-  // so the data adapter refetches results.
+  // Track source version to force the data adapter to refetch on every execution,
+  // even when the SQL text is identical. We increment when a cell transitions from
+  // 'running' to 'success', which happens exactly once per completed execution.
   const sourceVersionRef = useRef(0);
-  const prevQueryRef = useRef<string | null>(null);
-  if (cellState.lastQuery !== prevQueryRef.current) {
-    prevQueryRef.current = cellState.lastQuery;
+  const prevStatusRef = useRef<CellExecutionState['status']>('idle');
+  if (cellState.status === 'success' && prevStatusRef.current === 'running') {
     sourceVersionRef.current += 1;
   }
+  prevStatusRef.current = cellState.status;
 
   // Build a virtual ScriptTab-like object for this cell's data adapter.
   // The data adapter only reads `type`, `lastExecutedQuery`, and `id` from the tab.
