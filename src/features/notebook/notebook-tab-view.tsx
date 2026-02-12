@@ -6,6 +6,7 @@ import {
   moveCellUp,
   removeCell,
   renameNotebook,
+  updateCellOutput,
   updateCellContent,
   updateCellType,
   updateNotebookCells,
@@ -33,7 +34,12 @@ import { CSS } from '@dnd-kit/utilities';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { AdditionalCompletion } from '@features/editor';
 import { Button, Center, ScrollArea, Stack, Text } from '@mantine/core';
-import { CellId, NotebookCell as NotebookCellModel, NotebookCellType } from '@models/notebook';
+import {
+  CellId,
+  NotebookCell as NotebookCellModel,
+  NotebookCellOutput,
+  NotebookCellType,
+} from '@models/notebook';
 import { NotebookTab, TabId } from '@models/tab';
 import { useAppStore, useTabReactiveState, useProtectedViews } from '@store/app-store';
 import { IconNotebook, IconPlus } from '@tabler/icons-react';
@@ -733,6 +739,14 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     [notebook, sortedCells, markCellsStale],
   );
 
+  const handleCellOutputChange = useCallback(
+    (cellId: CellId, output: Partial<NotebookCellOutput>) => {
+      if (!notebook) return;
+      updateCellOutput(notebook.id, cellId, output);
+    },
+    [notebook],
+  );
+
   // Keyboard navigation hook
   useNotebookKeyboard({
     cellIds,
@@ -809,6 +823,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
                             isCollapsed={collapsedCells.has(cell.id)}
                             executionCount={cellExecutionCounts.get(cell.id) ?? null}
                             onContentChange={handleContentChange}
+                            onOutputChange={handleCellOutputChange}
                             onTypeChange={handleTypeChange}
                             onMoveUp={handleMoveUp}
                             onMoveDown={handleMoveDown}

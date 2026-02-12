@@ -1,4 +1,5 @@
 import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
+import { NotebookCellOutput } from '@models/notebook';
 import { memo } from 'react';
 
 import { CellResultView } from './cell-result-view';
@@ -10,6 +11,8 @@ interface CellResultContainerProps {
   cellState: CellExecutionState;
   active: boolean;
   getConnection: () => Promise<AsyncDuckDBPooledConnection>;
+  cellOutput: NotebookCellOutput;
+  onOutputChange: (output: Partial<NotebookCellOutput>) => void;
 }
 
 /**
@@ -23,7 +26,14 @@ interface CellResultContainerProps {
  * can see connection-scoped temp views created during cell execution.
  */
 export const CellResultContainer = memo(
-  ({ cellId, cellState, active, getConnection }: CellResultContainerProps) => {
+  ({
+    cellId,
+    cellState,
+    active,
+    getConnection,
+    cellOutput,
+    onOutputChange,
+  }: CellResultContainerProps) => {
     const dataAdapter = useCellDataAdapter(cellId, cellState, getConnection);
 
     return (
@@ -31,6 +41,8 @@ export const CellResultContainer = memo(
         cellState={cellState}
         dataAdapter={dataAdapter}
         active={active}
+        cellOutput={cellOutput}
+        onOutputChange={onOutputChange}
       />
     );
   },

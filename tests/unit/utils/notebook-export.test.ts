@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
+import { DEFAULT_CHART_CONFIG } from '@models/chart';
 import { Notebook, CellId, NotebookId } from '@models/notebook';
 import {
   notebookToSqlnb,
@@ -76,6 +77,34 @@ describe('notebookToSqlnb', () => {
     const result = notebookToSqlnb(notebook, '0.7.0');
 
     expect(result.cells[0].name).toBe('revenue');
+  });
+
+  it('should include SQL cell output settings', () => {
+    const notebook = makeNotebook({
+      cells: [
+        {
+          id: 'cell-1' as CellId,
+          type: 'sql',
+          content: 'SELECT 1',
+          order: 0,
+          output: {
+            viewMode: 'chart',
+            chartConfig: {
+              ...DEFAULT_CHART_CONFIG,
+              xAxisColumn: 'name',
+              yAxisColumn: 'value',
+            },
+          },
+        },
+      ],
+    });
+
+    const result = notebookToSqlnb(notebook, '0.7.0');
+
+    expect(result.cells[0].output).toBeDefined();
+    expect(result.cells[0].output?.viewMode).toBe('chart');
+    expect(result.cells[0].output?.chartConfig?.xAxisColumn).toBe('name');
+    expect(result.cells[0].output?.chartConfig?.yAxisColumn).toBe('value');
   });
 
   it('should not include name for cells without @name annotation', () => {
@@ -199,6 +228,49 @@ describe('parseSqlnb', () => {
     expect(result.cells[0].name).toBe('my_view');
   });
 
+  it('should accept cells with optional output field', () => {
+    const input = {
+      version: 1,
+      name: 'x',
+      cells: [
+        {
+          type: 'sql',
+          content: 'SELECT 1',
+          output: {
+            viewMode: 'chart',
+            chartConfig: {
+              xAxisColumn: 'name',
+              yAxisColumn: 'value',
+            },
+          },
+        },
+      ],
+      metadata: { createdAt: '', pondpilotVersion: '0.7.0' },
+    };
+    const result = parseSqlnb(JSON.stringify(input));
+    expect(result.cells[0].output?.viewMode).toBe('chart');
+    expect(result.cells[0].output?.chartConfig?.xAxisColumn).toBe('name');
+  });
+
+  it('should reject cell with invalid output.viewMode', () => {
+    expect(() =>
+      parseSqlnb(
+        JSON.stringify({
+          version: 1,
+          name: 'x',
+          cells: [
+            {
+              type: 'sql',
+              content: '',
+              output: { viewMode: 'graph' },
+            },
+          ],
+          metadata: {},
+        }),
+      ),
+    ).toThrow('invalid output.viewMode');
+  });
+
   it('should reject cell with non-string name', () => {
     expect(() =>
       parseSqlnb(
@@ -247,10 +319,12 @@ describe('sqlnbCellsToNotebookCells', () => {
     expect(result[0].type).toBe('sql');
     expect(result[0].content).toBe('SELECT 1');
     expect(result[0].order).toBe(0);
+    expect(result[0].output?.viewMode).toBe('table');
     expect(result[1].id).toBe('cell-1');
     expect(result[1].order).toBe(1);
     expect(result[2].id).toBe('cell-2');
     expect(result[2].order).toBe(2);
+    expect(result[2].output?.viewMode).toBe('table');
   });
 
   it('should preserve sqlnb name metadata by injecting @name annotation', () => {
@@ -274,6 +348,28 @@ describe('sqlnbCellsToNotebookCells', () => {
   it('should handle empty cell array', () => {
     const result = sqlnbCellsToNotebookCells([], () => 'id' as CellId);
     expect(result).toHaveLength(0);
+  });
+
+  it('should preserve provided output settings for SQL cells', () => {
+    const result = sqlnbCellsToNotebookCells(
+      [
+        {
+          type: 'sql' as const,
+          content: 'SELECT 1',
+          output: {
+            viewMode: 'chart',
+            chartConfig: {
+              ...DEFAULT_CHART_CONFIG,
+              xAxisColumn: 'name',
+            },
+          },
+        },
+      ],
+      () => 'cell-0' as CellId,
+    );
+
+    expect(result[0].output?.viewMode).toBe('chart');
+    expect(result[0].output?.chartConfig?.xAxisColumn).toBe('name');
   });
 });
 

@@ -31,7 +31,12 @@ import {
   LocalFile,
   LocalFolder,
 } from '@models/file-system';
-import { Notebook, NotebookId } from '@models/notebook';
+import {
+  Notebook,
+  NotebookId,
+  isNotebookCellOutputEqual,
+  normalizeNotebookCellOutput,
+} from '@models/notebook';
 import {
   ALL_TABLE_NAMES,
   APP_DB_NAME,
@@ -534,8 +539,38 @@ export const restoreAppDataFromIDB = async (
   const tabsArray = await tx.objectStore(TAB_TABLE_NAME).getAll();
   const tabs = new Map<TabId, any>(tabsArray.map((tab) => [tab.id as TabId, tab]));
 
+  const notebookWrites: Map<NotebookId, Notebook> = new Map();
   const comparisonWrites: Map<ComparisonId, Comparison> = new Map();
   const tabWrites: Map<TabId, ComparisonTab> = new Map();
+
+  // Normalize existing notebook entries to include SQL cell output settings.
+  for (const [notebookId, notebookData] of notebooks.entries()) {
+    let notebookChanged = false;
+    const normalizedCells = notebookData.cells.map((cell) => {
+      if (cell.type !== 'sql') return cell;
+
+      const normalizedOutput = normalizeNotebookCellOutput(cell.output);
+      if (cell.output && isNotebookCellOutputEqual(cell.output, normalizedOutput)) {
+        return cell;
+      }
+
+      notebookChanged = true;
+      return {
+        ...cell,
+        output: normalizedOutput,
+      };
+    });
+
+    if (!notebookChanged) continue;
+
+    const normalizedNotebook: Notebook = {
+      ...notebookData,
+      cells: normalizedCells,
+    };
+
+    notebooks.set(notebookId, normalizedNotebook);
+    notebookWrites.set(notebookId, normalizedNotebook);
+  }
 
   // Normalize existing comparison entries to include newer persistence fields
   for (const [comparisonId, comparisonData] of comparisons.entries()) {
@@ -757,8 +792,16 @@ export const restoreAppDataFromIDB = async (
 
   await tx.done;
 
-  if (comparisonWrites.size > 0 || tabWrites.size > 0) {
-    const migrationTx = iDbConn.transaction([COMPARISON_TABLE_NAME, TAB_TABLE_NAME], 'readwrite');
+  if (notebookWrites.size > 0 || comparisonWrites.size > 0 || tabWrites.size > 0) {
+    const migrationTx = iDbConn.transaction(
+      [NOTEBOOK_TABLE_NAME, COMPARISON_TABLE_NAME, TAB_TABLE_NAME],
+      'readwrite',
+    );
+
+    const notebookStore = migrationTx.objectStore(NOTEBOOK_TABLE_NAME);
+    for (const notebook of notebookWrites.values()) {
+      await notebookStore.put(notebook, notebook.id);
+    }
 
     const comparisonStore = migrationTx.objectStore(COMPARISON_TABLE_NAME);
     for (const comparison of comparisonWrites.values()) {

@@ -13,7 +13,13 @@ import {
   List,
   Title,
 } from '@mantine/core';
-import { CellId, NotebookCell as NotebookCellModel, NotebookId } from '@models/notebook';
+import {
+  CellId,
+  NotebookCell as NotebookCellModel,
+  NotebookCellOutput,
+  NotebookId,
+  normalizeNotebookCellOutput,
+} from '@models/notebook';
 import { useAppStore, useDuckDBFunctions } from '@store/app-store';
 import {
   IconPlayerPlay,
@@ -60,6 +66,7 @@ interface NotebookCellProps {
   isCollapsed: boolean;
   executionCount: number | null;
   onContentChange: (cellId: CellId, content: string) => void;
+  onOutputChange: (cellId: CellId, output: Partial<NotebookCellOutput>) => void;
   onTypeChange: (cellId: CellId) => void;
   onMoveUp: (cellId: CellId) => void;
   onMoveDown: (cellId: CellId) => void;
@@ -90,6 +97,7 @@ export const NotebookCell = memo(
     isCollapsed,
     executionCount,
     onContentChange,
+    onOutputChange,
     onTypeChange,
     onMoveUp,
     onMoveDown,
@@ -126,6 +134,7 @@ export const NotebookCell = memo(
     }, [duckDBFunctions]);
 
     const editorPath = `notebook-${notebookId}-cell-${cell.id}`;
+    const sqlCellOutput = useMemo(() => normalizeNotebookCellOutput(cell.output), [cell.output]);
 
     const handleContentChange = useCallback(
       (value: string) => {
@@ -477,6 +486,8 @@ export const NotebookCell = memo(
             cellState={cellState}
             active={isTabActive}
             getConnection={getConnection}
+            cellOutput={sqlCellOutput}
+            onOutputChange={(output) => onOutputChange(cell.id, output)}
           />
         )}
       </div>

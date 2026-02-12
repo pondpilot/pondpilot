@@ -1,5 +1,6 @@
 import { parseUserCellName } from '@features/notebook/utils/cell-naming';
-import { Notebook, NotebookCell } from '@models/notebook';
+import { ChartConfig, ViewMode } from '@models/chart';
+import { Notebook, NotebookCell, normalizeNotebookCellOutput } from '@models/notebook';
 import { sanitizeFileName } from '@utils/export-data';
 
 /**
@@ -15,10 +16,14 @@ export interface SqlnbFormat {
   };
 }
 
-interface SqlnbCell {
+export interface SqlnbCell {
   type: 'sql' | 'markdown';
   content: string;
   name?: string;
+  output?: {
+    viewMode?: ViewMode;
+    chartConfig?: Partial<ChartConfig>;
+  };
 }
 
 const SQLNB_FORMAT_VERSION = 1 as const;
@@ -42,6 +47,7 @@ export function notebookToSqlnb(notebook: Notebook, appVersion: string): SqlnbFo
         if (name) {
           sqlnbCell.name = name;
         }
+        sqlnbCell.output = normalizeNotebookCellOutput(cell.output);
       }
       return sqlnbCell;
     }),
@@ -103,6 +109,36 @@ export function parseSqlnb(jsonString: string): SqlnbFormat {
       throw new Error(
         `Invalid .sqlnb format: cell at index ${i} has invalid name. Expected a string or undefined.`,
       );
+    }
+    if (cell.output !== undefined) {
+      if (typeof cell.output !== 'object' || cell.output === null || Array.isArray(cell.output)) {
+        throw new Error(
+          `Invalid .sqlnb format: cell at index ${i} has invalid output. Expected an object or undefined.`,
+        );
+      }
+
+      const output = cell.output as Record<string, unknown>;
+      if (
+        output.viewMode !== undefined &&
+        output.viewMode !== 'table' &&
+        output.viewMode !== 'chart'
+      ) {
+        throw new Error(
+          `Invalid .sqlnb format: cell at index ${i} has invalid output.viewMode.`,
+        );
+      }
+
+      if (output.chartConfig !== undefined) {
+        if (
+          typeof output.chartConfig !== 'object' ||
+          output.chartConfig === null ||
+          Array.isArray(output.chartConfig)
+        ) {
+          throw new Error(
+            `Invalid .sqlnb format: cell at index ${i} has invalid output.chartConfig.`,
+          );
+        }
+      }
     }
   }
 
@@ -470,5 +506,6 @@ export function sqlnbCellsToNotebookCells(
         ? withSqlCellNameAnnotation(cell.content, cell.name)
         : cell.content,
     order: index,
+    output: cell.type === 'sql' ? normalizeNotebookCellOutput(cell.output) : undefined,
   }));
 }

@@ -1,15 +1,25 @@
 import { RowCountAndPaginationControl } from '@components/row-count-and-pagination-control/row-count-and-pagination-control';
 import { Table } from '@components/table/table';
 import {
+  ChartConfigToolbar,
+  ChartErrorBoundary,
+  ChartView,
+  useChartData,
+  useSmallMultiplesData,
+} from '@features/chart-view';
+import {
   ActionIcon,
   Center,
   Group,
   Loader,
+  SegmentedControl,
   Text,
 } from '@mantine/core';
 import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
+import { ChartConfig, ViewMode } from '@models/chart';
 import { DataAdapterApi, DataTableSlice } from '@models/data-adapter';
 import { DBColumn } from '@models/db';
+import { NotebookCellOutput } from '@models/notebook';
 import { MAX_DATA_VIEW_PAGE_SIZE } from '@models/tab';
 import {
   IconAlertTriangle,
@@ -19,7 +29,7 @@ import {
   IconClock,
 } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
-import { memo, useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 
 import { CellExecutionState } from '../hooks/use-notebook-execution-state';
 
@@ -27,17 +37,49 @@ interface CellResultViewProps {
   cellState: CellExecutionState;
   dataAdapter: DataAdapterApi | null;
   active: boolean;
+  cellOutput: NotebookCellOutput;
+  onOutputChange: (output: Partial<NotebookCellOutput>) => void;
 }
 
 const MAX_RESULT_HEIGHT = 400;
 
-export const CellResultView = memo(({ cellState, dataAdapter, active }: CellResultViewProps) => {
+export const CellResultView = memo(({
+  cellState,
+  dataAdapter,
+  active,
+  cellOutput,
+  onOutputChange,
+}: CellResultViewProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [requestedPage, setRequestedPage] = useState(0);
   const [dataSlice, setDataSlice] = useState<DataTableSlice | null>(null);
   const lastDataSourceVersion = useRef<number>(0);
 
   const toggleCollapsed = useCallback(() => setCollapsed((c) => !c), []);
+
+  const handleViewModeChange = useCallback(
+    (newMode: ViewMode) => {
+      if (cellOutput.viewMode === newMode) return;
+      onOutputChange({ viewMode: newMode });
+    },
+    [cellOutput.viewMode, onOutputChange],
+  );
+
+  const handleChartConfigChange = useCallback(
+    (newConfig: Partial<ChartConfig>) => {
+      const hasChanges = Object.entries(newConfig).some(
+        ([key, value]) => cellOutput.chartConfig[key as keyof ChartConfig] !== value,
+      );
+      if (!hasChanges) return;
+      onOutputChange({
+        chartConfig: {
+          ...cellOutput.chartConfig,
+          ...newConfig,
+        },
+      });
+    },
+    [cellOutput.chartConfig, onOutputChange],
+  );
 
   // Show nothing for idle cells
   if (cellState.status === 'idle') {
@@ -128,6 +170,10 @@ export const CellResultView = memo(({ cellState, dataAdapter, active }: CellResu
       onDataSliceChange={setDataSlice}
       lastDataSourceVersionRef={lastDataSourceVersion}
       active={active}
+      viewMode={cellOutput.viewMode}
+      onViewModeChange={handleViewModeChange}
+      chartConfig={cellOutput.chartConfig}
+      onChartConfigChange={handleChartConfigChange}
     />
   );
 });
@@ -145,6 +191,10 @@ interface CellResultTableProps {
   onDataSliceChange: (slice: DataTableSlice | null) => void;
   lastDataSourceVersionRef: React.MutableRefObject<number>;
   active: boolean;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
+  chartConfig: ChartConfig;
+  onChartConfigChange: (config: Partial<ChartConfig>) => void;
 }
 
 const CellResultTable = memo(
@@ -159,10 +209,26 @@ const CellResultTable = memo(
     onDataSliceChange,
     lastDataSourceVersionRef,
     active,
+    viewMode,
+    onViewModeChange,
+    chartConfig,
+    onChartConfigChange,
   }: CellResultTableProps) => {
     const hasData = dataAdapter.currentSchema.length > 0;
     const [isDebouncedFetching] = useDebouncedValue(dataAdapter.isFetchingData, 200);
     const isFetching = isDebouncedFetching && dataAdapter.isFetchingData;
+    const isChartMode = viewMode === 'chart';
+
+    const isSmallMultiplesMode = chartConfig.additionalYColumns.length > 0;
+    const shouldFetchChartData = isChartMode && !isSmallMultiplesMode && !collapsed;
+    const smallMultiplesConfig = useMemo(
+      () => (isChartMode ? chartConfig : { ...chartConfig, additionalYColumns: [] }),
+      [isChartMode, chartConfig],
+    );
+    const chartDataResult = useChartData(dataAdapter, chartConfig, {
+      enabled: shouldFetchChartData,
+    });
+    const smallMultiplesResult = useSmallMultiplesData(dataAdapter, smallMultiplesConfig);
 
     const { realRowCount, estimatedRowCount, availableRowCount } = dataAdapter.rowCountInfo;
     const isEstimatedRowCount = realRowCount === null;
@@ -236,13 +302,14 @@ const CellResultTable = memo(
         {/* Result header */}
         <Group
           gap={4}
-          className="px-3 py-1 cursor-pointer select-none"
-          onClick={onToggleCollapsed}
+          justify="space-between"
+          wrap="nowrap"
+          className="px-3 py-1 select-none"
         >
-          <ActionIcon size="xs" variant="subtle">
-            {collapsed ? <IconChevronDown size={14} /> : <IconChevronUp size={14} />}
-          </ActionIcon>
-          <Group gap={6}>
+          <Group gap={6} wrap="nowrap" className="cursor-pointer" onClick={onToggleCollapsed}>
+            <ActionIcon size="xs" variant="subtle">
+              {collapsed ? <IconChevronDown size={14} /> : <IconChevronUp size={14} />}
+            </ActionIcon>
             <IconCheck size={14} className="text-green-600 dark:text-green-400" />
             <Text size="xs" c="dimmed">
               {rowCountToShow} row{rowCountToShow !== 1 ? 's' : ''}
@@ -251,10 +318,34 @@ const CellResultTable = memo(
             {executionTime !== null && <ExecutionTimeLabel timeMs={executionTime} />}
             {isFetching && <Loader size={10} />}
           </Group>
+
+          <SegmentedControl
+            size="xs"
+            value={viewMode}
+            onChange={(value) => onViewModeChange(value as ViewMode)}
+            data={[
+              { value: 'table', label: 'Table' },
+              { value: 'chart', label: 'Chart' },
+            ]}
+            disabled={!hasData}
+          />
         </Group>
 
+        {/* Chart toolbar */}
+        {!collapsed && hasData && isChartMode && (
+          <div className="px-3 pb-2 overflow-auto custom-scroll-hidden">
+            <ChartConfigToolbar
+              chartConfig={chartConfig}
+              xAxisCandidates={chartDataResult.xAxisCandidates}
+              yAxisCandidates={chartDataResult.yAxisCandidates}
+              groupByCandidates={chartDataResult.groupByCandidates}
+              onConfigChange={onChartConfigChange}
+            />
+          </div>
+        )}
+
         {/* Result table */}
-        {!collapsed && hasData && dataSlice && (
+        {!collapsed && hasData && dataSlice && !isChartMode && (
           <div className="relative">
             <div
               className="overflow-auto px-3 pb-1 custom-scroll-hidden"
@@ -287,6 +378,20 @@ const CellResultTable = memo(
                 />
               </div>
             )}
+          </div>
+        )}
+
+        {/* Result chart */}
+        {!collapsed && hasData && isChartMode && (
+          <div className="px-3 pb-2 h-[340px]">
+            <ChartErrorBoundary onSwitchToTable={() => onViewModeChange('table')}>
+              <ChartView
+                chartConfig={chartConfig}
+                onConfigChange={onChartConfigChange}
+                chartDataResult={chartDataResult}
+                smallMultiplesResult={smallMultiplesResult}
+              />
+            </ChartErrorBoundary>
           </div>
         )}
 
