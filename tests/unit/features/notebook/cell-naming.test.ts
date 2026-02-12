@@ -3,7 +3,6 @@ import {
   getAutoCellViewName,
   validateCellName,
   extractCellReferences,
-  parseCellIndex,
 } from '@features/notebook/utils/cell-naming';
 import { describe, expect, it } from '@jest/globals';
 
@@ -74,10 +73,18 @@ describe('validateCellName', () => {
 });
 
 describe('extractCellReferences', () => {
-  it('extracts __cell_N references', () => {
+  it('extracts __cell_N references that exist in availableNames', () => {
     const sql = 'SELECT * FROM __cell_1 JOIN __cell_3 ON __cell_1.id = __cell_3.id';
-    const refs = extractCellReferences(sql, new Set());
+    const available = new Set(['__cell_1', '__cell_3']);
+    const refs = extractCellReferences(sql, available);
     expect(refs).toEqual(['__cell_1', '__cell_3']);
+  });
+
+  it('ignores __cell_N references not in availableNames', () => {
+    const sql = 'SELECT * FROM __cell_1 JOIN __cell_99';
+    const available = new Set(['__cell_1']);
+    const refs = extractCellReferences(sql, available);
+    expect(refs).toEqual(['__cell_1']);
   });
 
   it('extracts user-defined name references', () => {
@@ -89,14 +96,15 @@ describe('extractCellReferences', () => {
 
   it('extracts both auto and user-defined references', () => {
     const sql = 'SELECT * FROM __cell_1 JOIN my_view ON __cell_1.id = my_view.id';
-    const available = new Set(['my_view']);
+    const available = new Set(['__cell_1', 'my_view']);
     const refs = extractCellReferences(sql, available);
     expect(refs).toEqual(['__cell_1', 'my_view']);
   });
 
   it('deduplicates references', () => {
     const sql = 'SELECT * FROM __cell_1 UNION SELECT * FROM __cell_1';
-    const refs = extractCellReferences(sql, new Set());
+    const available = new Set(['__cell_1']);
+    const refs = extractCellReferences(sql, available);
     expect(refs).toEqual(['__cell_1']);
   });
 
@@ -111,19 +119,5 @@ describe('extractCellReferences', () => {
     const available = new Set(['my_view']);
     const refs = extractCellReferences(sql, available);
     expect(refs).toEqual([]);
-  });
-});
-
-describe('parseCellIndex', () => {
-  it('parses valid auto-cell names to 0-based index', () => {
-    expect(parseCellIndex('__cell_1')).toBe(0);
-    expect(parseCellIndex('__cell_5')).toBe(4);
-    expect(parseCellIndex('__cell_10')).toBe(9);
-  });
-
-  it('returns -1 for invalid names', () => {
-    expect(parseCellIndex('my_view')).toBe(-1);
-    expect(parseCellIndex('__cell_')).toBe(-1);
-    expect(parseCellIndex('cell_1')).toBe(-1);
   });
 });

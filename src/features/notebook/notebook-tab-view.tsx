@@ -1,6 +1,7 @@
-import { showAlert } from '@components/app-notifications';
+import { showAlertWithAction } from '@components/app-notifications';
 import {
   addCell,
+  addCellAtStart,
   moveCellDown,
   moveCellUp,
   removeCell,
@@ -9,6 +10,7 @@ import {
   updateCellType,
   updateNotebookCells,
 } from '@controllers/notebook/notebook-controller';
+import { insertCellAfter, insertCellAtStart } from '@controllers/notebook/pure';
 import { setNotebookActiveCellId } from '@controllers/tab';
 import {
   DndContext,
@@ -177,6 +179,9 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
   // Track whether Run All is in progress
   const runAllAbortRef = useRef<AbortController | null>(null);
 
+  // Per-cell abort controllers so individual executions can be cancelled on re-run
+  const cellAbortControllersRef = useRef<Map<string, AbortController>>(new Map());
+
   // Execution counter - increments each time any cell is executed
   const executionCounterRef = useRef<number>(0);
   const [cellExecutionCounts, setCellExecutionCounts] = useState<Map<string, number>>(new Map());
@@ -299,12 +304,17 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       });
 
       try {
+        // Cancel any previous execution of this cell
+        cellAbortControllersRef.current.get(cellId)?.abort();
+        const abortController = new AbortController();
+        cellAbortControllersRef.current.set(cellId, abortController);
+
         const sharedConnection = await getConnection();
         const { lastQuery, error } = await executeCellSQL({
           pool,
           sql: cell.content,
           protectedViews,
-          abortSignal: new AbortController().signal,
+          abortSignal: abortController.signal,
           sharedConnection,
           cellIndex,
         });
@@ -505,12 +515,33 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         notebookId: notebook.id,
       };
 
-      // Show undo notification
-      showAlert({
+      // Show undo notification with action button
+      showAlertWithAction({
         title: 'Cell deleted',
         message: undefined,
         autoClose: 5000,
         withCloseButton: true,
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            const undoInfo = undoDeleteRef.current;
+            if (!undoInfo) return;
+            // Re-insert the original cell (with its content preserved)
+            const { notebooks: currentNotebooks } = useAppStore.getState();
+            const currentNotebook = currentNotebooks.get(undoInfo.notebookId as any);
+            if (currentNotebook) {
+              const restoredCells = undoInfo.afterCellId
+                ? insertCellAfter(currentNotebook.cells, undoInfo.cell, undoInfo.afterCellId)
+                : insertCellAtStart(currentNotebook.cells, undoInfo.cell);
+              updateNotebookCells(undoInfo.notebookId as any, restoredCells);
+            }
+            undoDeleteRef.current = null;
+            if (undoTimerRef.current) {
+              clearTimeout(undoTimerRef.current);
+              undoTimerRef.current = null;
+            }
+          },
+        },
       });
 
       // Clear undo state after timeout
@@ -533,13 +564,23 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     [notebook, tabId, scrollToCell],
   );
 
+  const handleAddCellAtStart = useCallback(
+    (type: NotebookCellType) => {
+      if (!notebook) return;
+      const newCell = addCellAtStart(notebook.id, type);
+      setNotebookActiveCellId(tabId, newCell.id);
+      setTimeout(() => scrollToCell(newCell.id), 50);
+    },
+    [notebook, tabId, scrollToCell],
+  );
+
   const handleAddCellAtEnd = useCallback(
     (type: NotebookCellType) => {
       if (!notebook) return;
-      const lastCell = notebook.cells[notebook.cells.length - 1];
+      const lastCell = sortedCells[sortedCells.length - 1];
       handleAddCell(type, lastCell?.id);
     },
-    [notebook, handleAddCell],
+    [notebook, sortedCells, handleAddCell],
   );
 
   const handleFocus = useCallback(
@@ -622,18 +663,18 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       const { active: dragActive, over } = event;
       if (!over || dragActive.id === over.id) return;
 
-      const oldIndex = notebook.cells.findIndex((c) => c.id === dragActive.id);
-      const newIndex = notebook.cells.findIndex((c) => c.id === over.id);
+      const oldIndex = sortedCells.findIndex((c) => c.id === dragActive.id);
+      const newIndex = sortedCells.findIndex((c) => c.id === over.id);
       if (oldIndex === -1 || newIndex === -1) return;
 
-      const reorderedCells = arrayMove(notebook.cells, oldIndex, newIndex);
+      const reorderedCells = arrayMove(sortedCells, oldIndex, newIndex);
       updateNotebookCells(notebook.id, reorderedCells);
 
       // When cells are reordered, __cell_N numbers shift.
       // Mark all cells that have __cell_N references as stale since
       // the temp views on the shared connection still use old numbering.
       const cellsWithAutoRefs = new Set<string>();
-      for (const cell of notebook.cells) {
+      for (const cell of sortedCells) {
         if (cell.type === 'sql' && /__cell_\d+/.test(cell.content)) {
           cellsWithAutoRefs.add(cell.id);
         }
@@ -642,7 +683,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         markCellsStale(cellsWithAutoRefs);
       }
     },
-    [notebook, markCellsStale],
+    [notebook, sortedCells, markCellsStale],
   );
 
   // Keyboard navigation hook
@@ -654,6 +695,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     onActiveCellChange: handleActiveCellChange,
     onRunCell: handleRunCell,
     onAddCell: handleAddCell,
+    onAddCellAtStart: handleAddCellAtStart,
     onDeleteCell: handleDelete,
     onConvertCellType: handleConvertCellType,
     onEnterEditMode: enterEditMode,

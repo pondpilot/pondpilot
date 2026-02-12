@@ -16,6 +16,7 @@ interface UseNotebookKeyboardOptions {
   onActiveCellChange: (cellId: CellId) => void;
   onRunCell: (cellId: CellId) => void;
   onAddCell: (type: NotebookCellType, afterCellId?: CellId) => void;
+  onAddCellAtStart: (type: NotebookCellType) => void;
   onDeleteCell: (cellId: CellId) => void;
   onConvertCellType: (cellId: CellId, type: NotebookCellType) => void;
   onEnterEditMode: () => void;
@@ -46,6 +47,7 @@ export function useNotebookKeyboard(options: UseNotebookKeyboardOptions) {
     onActiveCellChange,
     onRunCell,
     onAddCell,
+    onAddCellAtStart,
     onDeleteCell,
     onConvertCellType,
     onEnterEditMode,
@@ -136,9 +138,11 @@ export function useNotebookKeyboard(options: UseNotebookKeyboardOptions) {
         case 'a':
           if (!e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            const prevCellId =
-              activeCellIndex > 0 ? cellIds[activeCellIndex - 1] : undefined;
-            onAddCell('sql', prevCellId);
+            if (activeCellIndex > 0) {
+              onAddCell('sql', cellIds[activeCellIndex - 1]);
+            } else {
+              onAddCellAtStart('sql');
+            }
           }
           break;
 
@@ -193,6 +197,7 @@ export function useNotebookKeyboard(options: UseNotebookKeyboardOptions) {
     cellIds,
     navigateToCell,
     onAddCell,
+    onAddCellAtStart,
     onConvertCellType,
     onDeleteCell,
     onEnterEditMode,

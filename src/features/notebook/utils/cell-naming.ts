@@ -69,11 +69,11 @@ export function extractCellReferences(
 ): string[] {
   const references: string[] = [];
 
-  // Match __cell_N patterns
+  // Match __cell_N patterns that correspond to actual cells
   const autoCellPattern = /__cell_\d+/g;
   let match;
   while ((match = autoCellPattern.exec(sql)) !== null) {
-    if (!references.includes(match[0])) {
+    if (availableNames.has(match[0]) && !references.includes(match[0])) {
       references.push(match[0]);
     }
   }
@@ -93,14 +93,4 @@ export function extractCellReferences(
   }
 
   return references;
-}
-
-/**
- * Determines which cell index a __cell_N reference points to.
- * Returns the 0-based index, or -1 if not a valid auto-cell reference.
- */
-export function parseCellIndex(viewName: string): number {
-  const match = viewName.match(/^__cell_(\d+)$/);
-  if (!match) return -1;
-  return parseInt(match[1], 10) - 1; // Convert 1-based to 0-based
 }

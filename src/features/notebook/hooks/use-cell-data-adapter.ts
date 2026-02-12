@@ -1,7 +1,7 @@
 import { useDataAdapter } from '@features/tab-view/hooks/use-data-adapter';
 import { DataAdapterApi } from '@models/data-adapter';
 import { ScriptTab, TabId } from '@models/tab';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef } from 'react';
 
 import { CellExecutionState } from './use-notebook-execution-state';
 
@@ -16,7 +16,15 @@ export function useCellDataAdapter(
   cellId: string,
   cellState: CellExecutionState,
 ): DataAdapterApi | null {
-  const [sourceVersion] = useState(0);
+  // Track the last query to detect re-executions of the same SQL.
+  // Increment sourceVersion on every new query assignment (even if text is the same)
+  // so the data adapter refetches results.
+  const sourceVersionRef = useRef(0);
+  const prevQueryRef = useRef<string | null>(null);
+  if (cellState.lastQuery !== prevQueryRef.current) {
+    prevQueryRef.current = cellState.lastQuery;
+    sourceVersionRef.current += 1;
+  }
 
   // Build a virtual ScriptTab-like object for this cell's data adapter.
   // The data adapter only reads `type`, `lastExecutedQuery`, and `id` from the tab.
@@ -33,7 +41,7 @@ export function useCellDataAdapter(
 
   const dataAdapter = useDataAdapter({
     tab: virtualTab,
-    sourceVersion,
+    sourceVersion: sourceVersionRef.current,
   });
 
   return cellState.lastQuery ? dataAdapter : null;

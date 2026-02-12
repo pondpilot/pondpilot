@@ -19,7 +19,7 @@ import { sqlnbCellsToNotebookCells } from '@utils/notebook-export';
 import { createPersistenceCatchHandler } from '@utils/persistence-logger';
 
 import { persistDeleteNotebook } from './persist';
-import { deleteNotebookImpl, insertCellAfter, removeCellImpl, reorderCells, swapCellOrder } from './pure';
+import { deleteNotebookImpl, insertCellAfter, insertCellAtStart, removeCellImpl, reorderCells, swapCellOrder } from './pure';
 
 /**
  * Debounce timer for notebook persistence.
@@ -272,6 +272,33 @@ export const addCell = (
   };
 
   updateNotebookInStore(updatedNotebook, 'AppStore/addCell');
+
+  return newCell;
+};
+
+export const addCellAtStart = (
+  notebookOrId: Notebook | NotebookId,
+  type: NotebookCellType,
+): NotebookCell => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+
+  const newCell: NotebookCell = {
+    id: makeCellId(),
+    type,
+    content: '',
+    order: 0,
+  };
+
+  const updatedCells = insertCellAtStart(notebook.cells, newCell);
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    cells: updatedCells,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/addCellAtStart');
 
   return newCell;
 };

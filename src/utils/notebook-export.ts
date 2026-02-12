@@ -1,3 +1,4 @@
+import { parseUserCellName } from '@features/notebook/utils/cell-naming';
 import { Notebook, NotebookCell } from '@models/notebook';
 import { sanitizeFileName } from '@utils/export-data';
 
@@ -23,16 +24,6 @@ interface SqlnbCell {
 const SQLNB_FORMAT_VERSION = 1 as const;
 
 /**
- * Parses an optional `-- @name: <name>` annotation from the first line of cell content.
- */
-function parseCellName(content: string): string | undefined {
-  const firstLine = content.split('\n')[0]?.trim();
-  if (!firstLine) return undefined;
-  const match = firstLine.match(/^--\s*@name[:\s]\s*([a-zA-Z_]\w*)\s*$/);
-  return match ? match[1] : undefined;
-}
-
-/**
  * Serializes a Notebook into the .sqlnb JSON format.
  */
 export function notebookToSqlnb(notebook: Notebook, appVersion: string): SqlnbFormat {
@@ -47,7 +38,7 @@ export function notebookToSqlnb(notebook: Notebook, appVersion: string): SqlnbFo
         content: cell.content,
       };
       if (cell.type === 'sql') {
-        const name = parseCellName(cell.content);
+        const name = parseUserCellName(cell.content);
         if (name) {
           sqlnbCell.name = name;
         }

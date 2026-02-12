@@ -78,6 +78,5 @@ export function useNotebookExecutionState() {
     staleCells,
     markCellsStale,
     clearStaleCells,
-    version,
   };
 }
