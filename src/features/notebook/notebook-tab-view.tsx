@@ -316,12 +316,12 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         lastQuery: prevState.lastQuery,
       });
 
-      try {
-        // Cancel any previous execution of this cell
-        cellAbortControllersRef.current.get(cellId)?.abort();
-        const abortController = new AbortController();
-        cellAbortControllersRef.current.set(cellId, abortController);
+      // Cancel any previous execution of this cell
+      cellAbortControllersRef.current.get(cellId)?.abort();
+      const abortController = new AbortController();
+      cellAbortControllersRef.current.set(cellId, abortController);
 
+      try {
         const sharedConnection = await getConnection();
         const { lastQuery, error } = await executeCellSQL({
           pool,
@@ -356,6 +356,9 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
           }
         }
       } catch (error: any) {
+        // If this execution was superseded by a newer one, don't overwrite its state
+        if (abortController.signal.aborted) return;
+
         const executionTime = Date.now() - startTime;
         setCellState(cellId, {
           status: 'error',
@@ -402,6 +405,15 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
 
       for (const { cell, index } of sqlCellsWithIndex) {
         if (abortController.signal.aborted) break;
+
+        // Update execution counter
+        executionCounterRef.current += 1;
+        const execCount = executionCounterRef.current;
+        setCellExecutionCounts((prev) => {
+          const next = new Map(prev);
+          next.set(cell.id, execCount);
+          return next;
+        });
 
         const startTime = Date.now();
         // Preserve previous lastQuery during running state to avoid flashing results away
@@ -567,11 +579,11 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         },
       });
 
-      // Clear undo state after timeout
+      // Clear undo state after timeout (matches notification autoClose duration)
       undoTimerRef.current = setTimeout(() => {
         undoDeleteRef.current = null;
         undoTimerRef.current = null;
-      }, 10000);
+      }, 5000);
     },
     [notebook, sortedCells, tab.activeCellId, tabId],
   );

@@ -271,7 +271,7 @@ async function createCellTempViews(
   // Create the auto-generated view: __cell_N
   const autoName = getAutoCellViewName(cellIndex);
   try {
-    await conn.query(`CREATE OR REPLACE TEMP VIEW ${autoName} AS (${viewBody})`);
+    await conn.query(`CREATE OR REPLACE TEMP VIEW "${autoName}" AS (${viewBody})`);
   } catch {
     // View creation can fail for multi-statement cells, DDL, etc. — skip gracefully
   }
@@ -282,7 +282,7 @@ async function createCellTempViews(
     if (!validationError) {
       try {
         await conn.query(
-          `CREATE OR REPLACE TEMP VIEW ${userCellName} AS (${viewBody})`,
+          `CREATE OR REPLACE TEMP VIEW "${userCellName}" AS (${viewBody})`,
         );
       } catch {
         // Skip gracefully — the SQL may not be wrappable as a view

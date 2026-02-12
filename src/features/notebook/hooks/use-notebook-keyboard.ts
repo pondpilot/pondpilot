@@ -108,9 +108,14 @@ export function useNotebookKeyboard(options: UseNotebookKeyboardOptions) {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!activeCellId) return;
 
-      // Ignore if typing in an input/textarea (e.g. notebook name editing)
+      // Ignore if typing in an interactive element (inputs, textareas, contenteditable, Monaco editors)
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.getAttribute('contenteditable') === 'true' ||
+        target.closest('.monaco-editor')
+      ) return;
 
       switch (e.key) {
         case 'Enter':

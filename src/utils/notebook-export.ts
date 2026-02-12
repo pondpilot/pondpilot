@@ -121,7 +121,9 @@ function downloadFile(content: string, fileName: string, mimeType: string): void
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(link.href);
+  // Defer revocation so the browser has time to start the download
+  const { href } = link;
+  setTimeout(() => URL.revokeObjectURL(href), 1000);
 }
 
 /**
@@ -178,8 +180,13 @@ function markdownToHtml(md: string): string {
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-  // Links: [text](url)
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  // Links: [text](url) — only allow safe URL schemes
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, text, url) => {
+    if (/^(https?:|mailto:|#)/i.test(url)) {
+      return `<a href="${url}">${text}</a>`;
+    }
+    return text;
+  });
 
   // Unordered lists
   html = html.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');

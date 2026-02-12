@@ -50,16 +50,20 @@ export function useNotebookConnection(pool: AsyncDuckDBConnectionPool) {
     }
   }, [pool]);
 
-  // Release the connection when the notebook tab unmounts
+  // Release the connection when the notebook tab unmounts or pool changes
   useEffect(() => {
+    // Reset unmounted flag on mount / pool change
+    unmountedRef.current = false;
+
     return () => {
       unmountedRef.current = true;
       if (connRef.current && !connRef.current.closed) {
         connRef.current.close();
-        connRef.current = null;
       }
+      connRef.current = null;
+      acquiringRef.current = null;
     };
-  }, []);
+  }, [pool]);
 
   return { getConnection };
 }
