@@ -431,6 +431,30 @@ export function exportNotebookAsHtml(notebook: Notebook): void {
 }
 
 /**
+ * Injects or updates the SQL cell name annotation used by notebook execution.
+ * This preserves .sqlnb name metadata on import without changing NotebookCell shape.
+ */
+function withSqlCellNameAnnotation(content: string, name?: string): string {
+  const trimmedName = name?.trim();
+  if (!trimmedName) {
+    return content;
+  }
+
+  const existingName = parseUserCellName(content);
+  if (existingName === trimmedName) {
+    return content;
+  }
+
+  if (existingName) {
+    const lines = content.split('\n');
+    lines[0] = `-- @name: ${trimmedName}`;
+    return lines.join('\n');
+  }
+
+  return `-- @name: ${trimmedName}\n${content}`;
+}
+
+/**
  * Converts parsed .sqlnb cells into NotebookCell array with generated IDs and order.
  * Requires the cell ID factory to be passed in.
  */
@@ -441,7 +465,10 @@ export function sqlnbCellsToNotebookCells(
   return sqlnbCells.map((cell, index) => ({
     id: makeCellIdFn(),
     type: cell.type,
-    content: cell.content,
+    content:
+      cell.type === 'sql'
+        ? withSqlCellNameAnnotation(cell.content, cell.name)
+        : cell.content,
     order: index,
   }));
 }

@@ -13,8 +13,8 @@ import { CellExecutionState } from './use-notebook-execution-state';
  * standard data adapter infrastructure can operate independently per cell.
  * Each cell gets its own pagination, sorting, and schema state.
  *
- * When `getConnection` is provided, adapter queries run on the shared
- * notebook connection so temp views (__cell_N) are visible.
+ * When `getConnection` is provided, notebook-scoped queries are resolved
+ * with the shared connection context so temp views (__cell_N) remain visible.
  */
 export function useCellDataAdapter(
   cellId: string,

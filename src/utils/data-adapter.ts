@@ -1,5 +1,6 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
+import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
 import {
   ChartAggregatedData,
   ChartAggregationType,
@@ -21,6 +22,7 @@ import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
 import { getDatabaseIdentifier } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import type * as arrow from 'apache-arrow';
 
 import { convertArrowTable } from './arrow';
 import { isFlatFileDataSource } from './data-source';
@@ -462,23 +464,64 @@ export function getScriptAdapterQueries({
 
   const trimmedQuery = trimQuery(lastExecutedQuery);
 
-  // Helper to run a streaming query on either the shared connection or pool
+  class InMemoryDuckDBReader<T extends { [key: string]: arrow.DataType }> {
+    private _batches: arrow.RecordBatch<T>[] | null;
+    private _index: number;
+
+    constructor(batches: arrow.RecordBatch<T>[]) {
+      this._batches = batches;
+      this._index = 0;
+    }
+
+    public get closed(): boolean {
+      return this._batches === null;
+    }
+
+    public async close() {
+      this._batches = null;
+      this._index = 0;
+    }
+
+    public async cancel() {
+      await this.close();
+    }
+
+    public async next(): Promise<
+      | { done: false; value: arrow.RecordBatch<T> }
+      | { done: true; value: null }
+    > {
+      if (!this._batches || this._index >= this._batches.length) {
+        await this.close();
+        return { done: true, value: null };
+      }
+
+      const value = this._batches[this._index];
+      this._index += 1;
+
+      return { done: false, value };
+    }
+  }
+
+  // Helper to run a "streaming" query. For notebook shared connections we
+  // materialize the result first and return an in-memory reader. This avoids
+  // keeping a live stream open on the shared execution connection.
   const sendQuery = async (
     queryToRun: string,
     abortSignal: AbortSignal,
   ) => {
     if (getSharedConnection) {
-      const conn = await getSharedConnection();
-      // Use the shared connection's send() so temp views are visible.
-      // Note: the shared connection can only have one active reader at
-      // a time. The data adapter closes readers before creating new ones,
-      // so this works in practice.
-      const reader = await conn.send(queryToRun, true);
       if (abortSignal.aborted) {
-        await reader.cancel();
         return null;
       }
-      return reader;
+
+      const conn = await getSharedConnection();
+      const table = await conn.query(queryToRun);
+      if (abortSignal.aborted) {
+        return null;
+      }
+
+      return new InMemoryDuckDBReader(table.batches) as unknown as
+        AsyncDuckDBPooledStreamReader<any>;
     }
     return pool.sendAbortable(queryToRun, abortSignal, true);
   };

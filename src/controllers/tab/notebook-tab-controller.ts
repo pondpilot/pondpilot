@@ -62,11 +62,9 @@ export const getOrCreateTabFromNotebook = (
 
   const newTabs = new Map(state.tabs).set(tabId, tab);
   const newTabOrder = [...state.tabOrder, tabId];
-  const newActiveTabId = setActive ? tabId : state.activeTabId;
 
   useAppStore.setState(
     {
-      activeTabId: newActiveTabId,
       tabs: newTabs,
       tabOrder: newTabOrder,
     },
@@ -76,7 +74,13 @@ export const getOrCreateTabFromNotebook = (
 
   const iDb = state._iDbConn;
   if (iDb) {
+    const newActiveTabId = setActive ? tabId : state.activeTabId;
     persistCreateTab(iDb, tab, newTabOrder, newActiveTabId);
+  }
+
+  // Set as active after creating the tab so notebook last-used tracking is updated.
+  if (setActive) {
+    setActiveTabId(tabId);
   }
 
   return tab;

@@ -253,6 +253,24 @@ describe('sqlnbCellsToNotebookCells', () => {
     expect(result[2].order).toBe(2);
   });
 
+  it('should preserve sqlnb name metadata by injecting @name annotation', () => {
+    const result = sqlnbCellsToNotebookCells(
+      [{ type: 'sql' as const, content: 'SELECT * FROM x', name: 'my_view' }],
+      () => 'cell-0' as CellId,
+    );
+
+    expect(result[0].content).toBe('-- @name: my_view\nSELECT * FROM x');
+  });
+
+  it('should override an existing @name annotation with sqlnb metadata name', () => {
+    const result = sqlnbCellsToNotebookCells(
+      [{ type: 'sql' as const, content: '-- @name: old_name\nSELECT * FROM x', name: 'new_name' }],
+      () => 'cell-0' as CellId,
+    );
+
+    expect(result[0].content).toBe('-- @name: new_name\nSELECT * FROM x');
+  });
+
   it('should handle empty cell array', () => {
     const result = sqlnbCellsToNotebookCells([], () => 'id' as CellId);
     expect(result).toHaveLength(0);

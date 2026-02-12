@@ -44,10 +44,9 @@ type UseDataAdapterProps = {
    */
   sourceVersion: number;
   /**
-   * Optional getter for a shared DuckDB connection. When provided, adapter
-   * queries will run on this connection instead of acquiring one from the pool.
-   * Used by notebook cells so that temp views created during execution
-   * (which are connection-scoped) remain visible to the data adapter.
+   * Optional getter for a shared DuckDB connection. When provided, notebook
+   * adapter queries can resolve using this connection context so connection-
+   * scoped temp views created during execution remain visible.
    */
   getSharedConnection?: () => Promise<
     import('@features/duckdb-context/duckdb-pooled-connection')
