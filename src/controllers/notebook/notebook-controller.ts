@@ -423,6 +423,15 @@ export const deleteNotebooks = async (notebookIds: Iterable<NotebookId>) => {
   const idArray = Array.from(notebookIds);
   const idsToDeleteSet = new Set(idArray);
 
+  // Clear any pending debounced persist timers to prevent zombie persistence
+  for (const id of idArray) {
+    const timer = persistTimers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      persistTimers.delete(id);
+    }
+  }
+
   const newNotebooks = deleteNotebookImpl(idArray, notebooks);
 
   // Find and delete associated notebook tabs.

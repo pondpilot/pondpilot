@@ -103,9 +103,20 @@ function computeCellDependencies(
   availableNames: Set<string>,
 ): Map<string, string[]> {
   const deps = new Map<string, string[]>();
-  for (const cell of sortedCells) {
+  for (let i = 0; i < sortedCells.length; i += 1) {
+    const cell = sortedCells[i];
     if (cell.type === 'sql') {
-      const refs = extractCellReferences(cell.content, availableNames);
+      // Exclude the cell's own provided names to prevent false self-references
+      const ownNames = new Set<string>();
+      ownNames.add(getAutoCellViewName(i));
+      const ownUserName = parseUserCellName(cell.content);
+      if (ownUserName) ownNames.add(ownUserName);
+
+      const namesExcludingSelf = new Set(
+        [...availableNames].filter((name) => !ownNames.has(name)),
+      );
+
+      const refs = extractCellReferences(cell.content, namesExcludingSelf);
       if (refs.length > 0) {
         deps.set(cell.id, refs);
       }
@@ -296,11 +307,13 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       });
 
       const startTime = Date.now();
+      // Preserve previous lastQuery during running state to avoid flashing results away
+      const prevState = getCellState(cellId);
       setCellState(cellId, {
         status: 'running',
         error: null,
         executionTime: null,
-        lastQuery: null,
+        lastQuery: prevState.lastQuery,
       });
 
       try {
@@ -357,6 +370,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       sortedCells,
       pool,
       protectedViews,
+      getCellState,
       setCellState,
       getConnection,
       cellDependencies,
@@ -390,11 +404,13 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         if (abortController.signal.aborted) break;
 
         const startTime = Date.now();
+        // Preserve previous lastQuery during running state to avoid flashing results away
+        const prevCellState = getCellState(cell.id);
         setCellState(cell.id, {
           status: 'running',
           error: null,
           executionTime: null,
-          lastQuery: null,
+          lastQuery: prevCellState.lastQuery,
         });
 
         try {
@@ -442,7 +458,10 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     }
 
     runAllAbortRef.current = null;
-  }, [notebook, sortedCells, pool, protectedViews, setCellState, getConnection, clearStaleCells]);
+  }, [
+    notebook, sortedCells, pool, protectedViews,
+    getCellState, setCellState, getConnection, clearStaleCells,
+  ]);
 
   const handleContentChange = useCallback(
     (cellId: CellId, content: string) => {

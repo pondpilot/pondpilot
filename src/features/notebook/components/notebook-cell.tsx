@@ -454,6 +454,7 @@ export const NotebookCell = memo(
                         {...props}
                         c="text-accent"
                         target="_blank"
+                        rel="noopener noreferrer"
                         className="underline"
                       />
                     ),
