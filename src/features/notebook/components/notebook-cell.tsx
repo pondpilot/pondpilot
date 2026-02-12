@@ -1,4 +1,5 @@
 import { useSortable } from '@dnd-kit/sortable';
+import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
 import { SqlEditor, AdditionalCompletion } from '@features/editor';
 import { convertToFlowScopeSchema } from '@features/editor/auto-complete';
 import { useAppTheme } from '@hooks/use-app-theme';
@@ -67,6 +68,7 @@ interface NotebookCellProps {
   onFocus: (cellId: CellId) => void;
   onEscape: () => void;
   onToggleCollapse: (cellId: CellId) => void;
+  getConnection: () => Promise<AsyncDuckDBPooledConnection>;
 }
 
 export const NotebookCell = memo(
@@ -96,6 +98,7 @@ export const NotebookCell = memo(
     onFocus,
     onEscape,
     onToggleCollapse,
+    getConnection,
   }: NotebookCellProps) => {
     const colorScheme = useAppTheme();
     const colorSchemeDark = colorScheme === 'dark';
@@ -473,6 +476,7 @@ export const NotebookCell = memo(
             cellId={cell.id}
             cellState={cellState}
             active={isTabActive}
+            getConnection={getConnection}
           />
         )}
       </div>

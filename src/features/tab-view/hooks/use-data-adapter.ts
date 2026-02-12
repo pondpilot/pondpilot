@@ -43,15 +43,27 @@ type UseDataAdapterProps = {
    * can match exactly, but should force a new data version.
    */
   sourceVersion: number;
+  /**
+   * Optional getter for a shared DuckDB connection. When provided, adapter
+   * queries will run on this connection instead of acquiring one from the pool.
+   * Used by notebook cells so that temp views created during execution
+   * (which are connection-scoped) remain visible to the data adapter.
+   */
+  getSharedConnection?: () => Promise<
+    import('@features/duckdb-context/duckdb-pooled-connection')
+      .AsyncDuckDBPooledConnection
+  >;
 };
 
-export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): DataAdapterApi => {
+export const useDataAdapter = (
+  { tab, sourceVersion, getSharedConnection }: UseDataAdapterProps,
+): DataAdapterApi => {
   const pool = useInitializedDuckDBConnectionPool();
 
   /**
    * Hooks
    */
-  const queries = useDataAdapterQueries({ tab, sourceVersion });
+  const queries = useDataAdapterQueries({ tab, sourceVersion, getSharedConnection });
 
   // We use a couple of abort controllers to cancel various queries that this
   // hook may run.

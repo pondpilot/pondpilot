@@ -1,3 +1,4 @@
+import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
 import { memo } from 'react';
 
 import { CellResultView } from './cell-result-view';
@@ -8,6 +9,7 @@ interface CellResultContainerProps {
   cellId: string;
   cellState: CellExecutionState;
   active: boolean;
+  getConnection: () => Promise<AsyncDuckDBPooledConnection>;
 }
 
 /**
@@ -16,10 +18,13 @@ interface CellResultContainerProps {
  * Each SQL cell gets its own CellResultContainer, which creates an
  * independent data adapter instance. This ensures per-cell pagination
  * and sorting isolation.
+ *
+ * The shared notebook connection is passed through so the data adapter
+ * can see connection-scoped temp views created during cell execution.
  */
 export const CellResultContainer = memo(
-  ({ cellId, cellState, active }: CellResultContainerProps) => {
-    const dataAdapter = useCellDataAdapter(cellId, cellState);
+  ({ cellId, cellState, active, getConnection }: CellResultContainerProps) => {
+    const dataAdapter = useCellDataAdapter(cellId, cellState, getConnection);
 
     return (
       <CellResultView

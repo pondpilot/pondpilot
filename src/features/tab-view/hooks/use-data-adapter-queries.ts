@@ -1,4 +1,5 @@
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
+import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
 import { DataAdapterQueries } from '@models/data-adapter';
 import { AnyTab, TabReactiveState } from '@models/tab';
 import { useAppStore } from '@store/app-store';
@@ -19,11 +20,18 @@ type UseDataAdapterQueriesProps = {
    * can match exactly, but should force a new data version.
    */
   sourceVersion: number;
+  /**
+   * Optional getter for a shared DuckDB connection. When provided, adapter
+   * queries will run on this connection instead of the pool. Used by notebook
+   * cells so that connection-scoped temp views remain visible.
+   */
+  getSharedConnection?: () => Promise<AsyncDuckDBPooledConnection>;
 };
 
 export const useDataAdapterQueries = ({
   tab,
   sourceVersion,
+  getSharedConnection,
 }: UseDataAdapterQueriesProps): UseDataAdapterQueriesRetType => {
   // Get pool
   const pool = useInitializedDuckDBConnectionPool();
@@ -63,6 +71,7 @@ export const useDataAdapterQueries = ({
         const { adapter, userErrors, internalErrors } = getScriptAdapterQueries({
           pool,
           tab,
+          getSharedConnection,
         });
 
         return {
@@ -102,7 +111,7 @@ export const useDataAdapterQueries = ({
     // we need sourceVersion to be a dependency, because it allows us to re-create the queries
     // when the script is re-executed, even if the data source is "the same"
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, pool, dataSource, sourceFile, sourceVersion]);
+  }, [tab, pool, dataSource, sourceFile, sourceVersion, getSharedConnection]);
 
   return ret;
 };

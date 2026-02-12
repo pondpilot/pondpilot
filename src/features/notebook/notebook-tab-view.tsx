@@ -293,8 +293,14 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
   const handleRunCell = useCallback(
     async (cellId: CellId) => {
       if (!notebook) return;
-      const cellIndex = sortedCells.findIndex((c) => c.id === cellId);
-      const cell = sortedCells[cellIndex];
+
+      // Read the latest notebook state from the store to avoid executing stale
+      // content. The user may have edited the cell since the last render.
+      const currentNotebook = useAppStore.getState().notebooks.get(notebook.id);
+      if (!currentNotebook) return;
+      const currentCells = [...currentNotebook.cells].sort((a, b) => a.order - b.order);
+      const cellIndex = currentCells.findIndex((c) => c.id === cellId);
+      const cell = currentCells[cellIndex];
       if (!cell || cell.type !== 'sql') return;
 
       // Increment execution counter
@@ -349,8 +355,11 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
             lastQuery,
           });
 
-          // Mark downstream dependent cells as stale
-          const staleIds = findStaleCells(cellIndex, sortedCells, cellDependencies);
+          // Mark downstream dependent cells as stale.
+          // Recompute dependencies from the fresh cell state.
+          const freshNames = buildAvailableCellNames(currentCells);
+          const freshDeps = computeCellDependencies(currentCells, freshNames);
+          const staleIds = findStaleCells(cellIndex, currentCells, freshDeps);
           if (staleIds.size > 0) {
             markCellsStale(staleIds);
           }
@@ -370,13 +379,11 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     },
     [
       notebook,
-      sortedCells,
       pool,
       protectedViews,
       getCellState,
       setCellState,
       getConnection,
-      cellDependencies,
       markCellsStale,
     ],
   );
@@ -395,7 +402,12 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     // Clear stale markers since we're re-running everything
     clearStaleCells();
 
-    const sqlCellsWithIndex = sortedCells
+    // Read fresh cell content from the store
+    const currentNotebook = useAppStore.getState().notebooks.get(notebook.id);
+    if (!currentNotebook) return;
+    const currentCells = [...currentNotebook.cells].sort((a, b) => a.order - b.order);
+
+    const sqlCellsWithIndex = currentCells
       .map((cell, index) => ({ cell, index }))
       .filter(({ cell }) => cell.type === 'sql');
 
@@ -471,7 +483,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
 
     runAllAbortRef.current = null;
   }, [
-    notebook, sortedCells, pool, protectedViews,
+    notebook, pool, protectedViews,
     getCellState, setCellState, getConnection, clearStaleCells,
   ]);
 
@@ -805,6 +817,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
                             onFocus={handleFocus}
                             onEscape={enterCommandMode}
                             onToggleCollapse={handleToggleCellCollapse}
+                            getConnection={getConnection}
                           />
                         )}
                       </SortableCellWrapper>

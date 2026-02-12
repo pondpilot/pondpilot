@@ -178,9 +178,13 @@ export async function executeCellSQL(
       await conn.query('COMMIT');
     }
 
-    // Create temp views for cross-cell referencing (only with shared connection)
+    // Create temp views for cross-cell referencing (only with shared connection).
+    // Use the last SELECT statement for the view body so multi-statement cells work.
     if (sharedConnection && cellIndex !== undefined) {
-      await createCellTempViews(conn, sql, cellIndex);
+      const viewQuery = lastQuery && lastQuery !== "SELECT 'All statements executed successfully' as Result"
+        ? lastQuery
+        : null;
+      await createCellTempViews(conn, sql, cellIndex, viewQuery);
     }
 
     // Handle DDL side effects (refresh metadata)
@@ -246,34 +250,43 @@ export async function executeCellSQL(
  * Creates both an auto-generated view (`__cell_N`) and optionally a user-defined
  * view if a `-- @name: my_view` annotation is present in the first line.
  *
- * Only creates views when the cell contains a single SELECT-like statement that
- * can be wrapped in `CREATE OR REPLACE TEMP VIEW ... AS (...)`.
- * Multi-statement cells or DDL-only cells are skipped gracefully.
+ * When `lastSelectQuery` is provided (the last SELECT-like statement from
+ * execution), it is used as the view body. This allows multi-statement cells
+ * (e.g. `CREATE TABLE t(...); SELECT * FROM t`) to still produce a temp view
+ * from their final SELECT. Falls back to the full cell SQL when no specific
+ * SELECT query is available.
  */
 async function createCellTempViews(
   conn: AsyncDuckDBPooledConnection,
   sql: string,
   cellIndex: number,
+  lastSelectQuery: string | null,
 ): Promise<void> {
-  // Determine the SQL to wrap in a view — use the full cell SQL.
-  // Multi-statement cells may fail to create a view, which is fine.
-  const viewSql = sql.trim();
-  if (!viewSql) return;
+  // Prefer the extracted last SELECT statement; fall back to full cell SQL
+  // with the @name annotation stripped.
+  let viewBody: string;
+  if (lastSelectQuery) {
+    viewBody = lastSelectQuery.trim();
+  } else {
+    const viewSql = sql.trim();
+    if (!viewSql) return;
 
-  // Strip any user-name annotation line from the SQL used for the view body
-  const lines = viewSql.split('\n');
-  const userCellName = parseUserCellName(viewSql);
-  const bodyLines = userCellName ? lines.slice(1) : lines;
-  const viewBody = bodyLines.join('\n').trim();
+    const lines = viewSql.split('\n');
+    const userCellName = parseUserCellName(viewSql);
+    const bodyLines = userCellName ? lines.slice(1) : lines;
+    viewBody = bodyLines.join('\n').trim();
+  }
 
   if (!viewBody) return;
+
+  const userCellName = parseUserCellName(sql);
 
   // Create the auto-generated view: __cell_N
   const autoName = getAutoCellViewName(cellIndex);
   try {
     await conn.query(`CREATE OR REPLACE TEMP VIEW "${autoName}" AS (${viewBody})`);
   } catch {
-    // View creation can fail for multi-statement cells, DDL, etc. — skip gracefully
+    // View creation can fail for non-SELECT content — skip gracefully
   }
 
   // Create the user-defined view if a valid name annotation exists

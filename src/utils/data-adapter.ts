@@ -1,4 +1,5 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
 import {
   ChartAggregatedData,
   ChartAggregationType,
@@ -439,9 +440,12 @@ export function getFileDataAdapterQueries({
 export function getScriptAdapterQueries({
   pool,
   tab,
+  getSharedConnection,
 }: {
   pool: AsyncDuckDBConnectionPool;
   tab: TabReactiveState<ScriptTab>;
+  /** When provided, queries run on this connection (for notebook temp views). */
+  getSharedConnection?: () => Promise<AsyncDuckDBPooledConnection>;
 }): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
   const { lastExecutedQuery } = tab;
 
@@ -458,6 +462,43 @@ export function getScriptAdapterQueries({
 
   const trimmedQuery = trimQuery(lastExecutedQuery);
 
+  // Helper to run a streaming query on either the shared connection or pool
+  const sendQuery = async (
+    queryToRun: string,
+    abortSignal: AbortSignal,
+  ) => {
+    if (getSharedConnection) {
+      const conn = await getSharedConnection();
+      // Use the shared connection's send() so temp views are visible.
+      // Note: the shared connection can only have one active reader at
+      // a time. The data adapter closes readers before creating new ones,
+      // so this works in practice.
+      const reader = await conn.send(queryToRun, true);
+      if (abortSignal.aborted) {
+        await reader.cancel();
+        return null;
+      }
+      return reader;
+    }
+    return pool.sendAbortable(queryToRun, abortSignal, true);
+  };
+
+  // Helper to run a one-shot query on either the shared connection or pool
+  const runQuery = async (
+    queryToRun: string,
+    abortSignal: AbortSignal,
+  ) => {
+    if (getSharedConnection) {
+      const conn = await getSharedConnection();
+      const value = await conn.query(queryToRun);
+      if (abortSignal.aborted) {
+        return { value, aborted: true as const };
+      }
+      return { value, aborted: false as const };
+    }
+    return pool.queryAbortable(queryToRun, abortSignal);
+  };
+
   return {
     adapter: {
       sourceQuery: classifiedStmt.isAllowedInSubquery ? trimmedQuery : undefined,
@@ -473,20 +514,18 @@ export function getScriptAdapterQueries({
                 .join(', ');
               queryToRun = `SELECT * FROM (${trimmedQuery}) ORDER BY ${orderBy}`;
             }
-            const reader = await pool.sendAbortable(queryToRun, abortSignal, true);
-            return reader;
+            return sendQuery(queryToRun, abortSignal);
           }
         : undefined,
       getReader: !classifiedStmt.isAllowedInSubquery
         ? async (abortSignal) => {
-            const reader = await pool.sendAbortable(trimmedQuery, abortSignal, true);
-            return reader;
+            return sendQuery(trimmedQuery, abortSignal);
           }
         : undefined,
       getColumnAggregate: classifiedStmt.isAllowedInSubquery
         ? async (columnName: string, aggType: ColumnAggregateType, abortSignal: AbortSignal) => {
             const queryToRun = `SELECT ${aggType}(${columnName}) FROM (${trimmedQuery})`;
-            const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+            const { value, aborted } = await runQuery(queryToRun, abortSignal);
 
             if (aborted) {
               return { value: undefined, aborted };
@@ -498,7 +537,7 @@ export function getScriptAdapterQueries({
         ? async (columns: DBColumn[], abortSignal: AbortSignal) => {
             const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
             const queryToRun = `SELECT ${columnNames} FROM (${trimmedQuery})`;
-            const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+            const { value, aborted } = await runQuery(queryToRun, abortSignal);
 
             if (aborted) {
               return { value: [], aborted };
@@ -526,7 +565,7 @@ export function getScriptAdapterQueries({
               sortOrder,
             );
 
-            const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+            const { value, aborted } = await runQuery(query, abortSignal);
 
             if (aborted) {
               return { value: [], aborted };

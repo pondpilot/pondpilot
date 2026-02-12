@@ -1,3 +1,4 @@
+import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
 import { useDataAdapter } from '@features/tab-view/hooks/use-data-adapter';
 import { DataAdapterApi } from '@models/data-adapter';
 import { ScriptTab, TabId } from '@models/tab';
@@ -11,10 +12,14 @@ import { CellExecutionState } from './use-notebook-execution-state';
  * Creates a lightweight "virtual tab" that mimics a ScriptTab so the
  * standard data adapter infrastructure can operate independently per cell.
  * Each cell gets its own pagination, sorting, and schema state.
+ *
+ * When `getConnection` is provided, adapter queries run on the shared
+ * notebook connection so temp views (__cell_N) are visible.
  */
 export function useCellDataAdapter(
   cellId: string,
   cellState: CellExecutionState,
+  getConnection?: () => Promise<AsyncDuckDBPooledConnection>,
 ): DataAdapterApi | null {
   // Track source version to force the data adapter to refetch on every execution,
   // even when the SQL text is identical. We increment when a cell transitions from
@@ -42,6 +47,7 @@ export function useCellDataAdapter(
   const dataAdapter = useDataAdapter({
     tab: virtualTab,
     sourceVersion: sourceVersionRef.current,
+    getSharedConnection: getConnection,
   });
 
   return cellState.lastQuery ? dataAdapter : null;
