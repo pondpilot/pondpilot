@@ -13,6 +13,7 @@ interface CellResultContainerProps {
   getConnection: () => Promise<AsyncDuckDBPooledConnection>;
   cellOutput: NotebookCellOutput;
   onOutputChange: (output: Partial<NotebookCellOutput>) => void;
+  defaultCollapsed?: boolean;
 }
 
 /**
@@ -33,6 +34,7 @@ export const CellResultContainer = memo(
     getConnection,
     cellOutput,
     onOutputChange,
+    defaultCollapsed,
   }: CellResultContainerProps) => {
     const dataAdapter = useCellDataAdapter(cellId, cellState, getConnection);
 
@@ -43,6 +45,7 @@ export const CellResultContainer = memo(
         active={active}
         cellOutput={cellOutput}
         onOutputChange={onOutputChange}
+        defaultCollapsed={defaultCollapsed}
       />
     );
   },

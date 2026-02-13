@@ -60,6 +60,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, ReactNode } fr
 
 import { AddCellButton } from './components/add-cell-button';
 import { NotebookCell, type CellRunMode } from './components/notebook-cell';
+import { NotebookDependencyGraph } from './components/notebook-dependency-graph';
 import { NotebookToolbar } from './components/notebook-toolbar';
 import { executeCellSQL } from './hooks/use-cell-execution';
 import { useNotebookConnection } from './hooks/use-notebook-connection';
@@ -69,6 +70,7 @@ import { normalizeCellName } from './utils/cell-naming';
 import {
   buildAvailableCellNames,
   buildResolvedDependencyGraph,
+  CellDependencyMap,
   computeCellDependencies,
   computeCellDependenciesWithLineage,
   detectCircularDependencyCells,
@@ -113,6 +115,8 @@ type RunAllState = {
   total: number;
   continueOnError: boolean;
 };
+
+type NotebookViewMode = 'list' | 'graph';
 
 const MAX_PERSISTED_SNAPSHOT_ROWS = 200;
 
@@ -300,9 +304,15 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     total: 0,
     continueOnError: false,
   });
+  const [viewMode, setViewMode] = useState<NotebookViewMode>('list');
+  const [fullscreenCellId, setFullscreenCellId] = useState<CellId | null>(null);
 
   // Per-cell abort controllers so individual executions can be cancelled on re-run
   const cellAbortControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const graphDependencyRequestRef = useRef(0);
+  const [graphCellDependencies, setGraphCellDependencies] = useState<CellDependencyMap>(
+    () => new Map(),
+  );
 
   // Execution counter - increments each time any cell is executed
   const executionCounterRef = useRef<number>(0);
@@ -358,6 +368,34 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     [sortedCells, availableCellNames],
   );
 
+  useEffect(() => {
+    setGraphCellDependencies(cellDependencies);
+  }, [cellDependencies]);
+
+  useEffect(() => {
+    if (viewMode !== 'graph') return;
+
+    const requestId = graphDependencyRequestRef.current + 1;
+    graphDependencyRequestRef.current = requestId;
+    let cancelled = false;
+    const timeoutId = setTimeout(() => {
+      computeCellDependenciesWithLineage(sortedCells, availableCellNames)
+        .then((nextDependencies) => {
+          if (cancelled || graphDependencyRequestRef.current !== requestId) return;
+          setGraphCellDependencies(nextDependencies);
+        })
+        .catch(() => {
+          if (cancelled || graphDependencyRequestRef.current !== requestId) return;
+          setGraphCellDependencies(cellDependencies);
+        });
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [viewMode, sortedCells, availableCellNames, cellDependencies]);
+
   const resolvedDependencyGraph = useMemo(
     () => buildResolvedDependencyGraph(sortedCells, cellDependencies),
     [sortedCells, cellDependencies],
@@ -366,6 +404,16 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
   const circularDependencyCells = useMemo(
     () => detectCircularDependencyCells(resolvedDependencyGraph.edges),
     [resolvedDependencyGraph],
+  );
+
+  const graphResolvedDependencyGraph = useMemo(
+    () => buildResolvedDependencyGraph(sortedCells, graphCellDependencies),
+    [sortedCells, graphCellDependencies],
+  );
+
+  const graphCircularDependencyCells = useMemo(
+    () => detectCircularDependencyCells(graphResolvedDependencyGraph.edges),
+    [graphResolvedDependencyGraph],
   );
   const unresolvedReferenceCells = useMemo(
     () => new Set(resolvedDependencyGraph.unresolvedReferences.keys()),
@@ -786,7 +834,10 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         return;
       } finally {
         for (const selectedId of abortControllerCellIds) {
-          if (abortController && cellAbortControllersRef.current.get(selectedId) === abortController) {
+          if (
+            abortController
+            && cellAbortControllersRef.current.get(selectedId) === abortController
+          ) {
             cellAbortControllersRef.current.delete(selectedId);
           }
         }
@@ -1528,6 +1579,44 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     getCellType,
   });
 
+  const handleViewModeChange = useCallback((nextMode: NotebookViewMode) => {
+    setViewMode(nextMode);
+  }, []);
+
+  const handleToggleCellFullscreen = useCallback((cellId: CellId) => {
+    setFullscreenCellId((current) => {
+      if (current === cellId) return null;
+      return cellId;
+    });
+    setNotebookActiveCellId(tabId, cellId);
+    enterEditMode();
+  }, [tabId, enterEditMode]);
+
+  const handleOpenGraphCell = useCallback((cellId: CellId) => {
+    setNotebookActiveCellId(tabId, cellId);
+    setViewMode('list');
+    enterEditMode();
+    setTimeout(() => {
+      scrollToCell(cellId);
+    }, 40);
+  }, [tabId, enterEditMode, scrollToCell]);
+
+  useEffect(() => {
+    if (!fullscreenCellId) return;
+    const exists = sortedCells.some((cell) => cell.id === fullscreenCellId);
+    if (!exists) setFullscreenCellId(null);
+  }, [fullscreenCellId, sortedCells]);
+
+  useEffect(() => {
+    if (!fullscreenCellId) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setFullscreenCellId(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fullscreenCellId]);
+
   if (!notebook) {
     return (
       <Center className="h-full">
@@ -1542,6 +1631,8 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         notebookName={notebook.name}
         onRename={handleRename}
         onAddCell={handleAddCellAtEnd}
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
         onRunAll={handleRunAll}
         runAllState={runAllState}
         onExportSqlnb={handleExportSqlnb}
@@ -1551,77 +1642,152 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         onExpandAll={handleExpandAll}
       />
 
-      <ScrollArea className="flex-1" type="hover" scrollHideDelay={500}>
-        <div className="max-w-[1280px] mx-auto px-4 pt-14 pb-4">
-          {sortedCells.length === 0 ? (
-            <EmptyNotebookState onAddCell={handleAddCellAtEnd} />
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-              modifiers={[restrictToVerticalAxis]}
-            >
-              <SortableContext items={cellIds} strategy={verticalListSortingStrategy}>
-                <Stack gap={0}>
-                  {sortedCells.map((cell, index) => {
-                    const cellState = getCellState(cell.id);
-                    return (
-                      <div
-                        key={cell.id}
-                        ref={(el) => setCellRef(cell.id, el)}
-                      >
-                        <SortableCellWrapper id={cell.id}>
-                          {(dragHandleProps) => (
-                            <NotebookCell
-                              cell={cell}
-                              cellIndex={index}
-                              notebookId={notebook.id}
-                              isFirst={index === 0}
-                              isLast={index === sortedCells.length - 1}
-                              isActive={tab.activeCellId === cell.id}
-                              isOnlyCell={sortedCells.length <= 1}
-                              isTabActive={active}
-                              cellState={cellState}
-                              isStale={staleCells.has(cell.id)}
-                              cellDependencies={cellDependencies.get(cell.id) ?? null}
-                              hasCircularDependency={circularDependencyCells.has(cell.id)}
-                              hasReferenceConflict={
-                                resolvedDependencyGraph.duplicateNameCells.has(cell.id) ||
-                                resolvedDependencyGraph.unresolvedReferences.has(cell.id)
-                              }
-                              additionalCompletions={cellCompletions}
-                              dragHandleProps={dragHandleProps}
-                              cellMode={tab.activeCellId === cell.id ? cellMode : 'edit'}
-                              isCollapsed={collapsedCells.has(cell.id)}
-                              executionCount={cellState.executionCount}
-                              onContentChange={handleContentChange}
-                              onOutputChange={handleCellOutputChange}
-                              onTypeChange={handleTypeChange}
-                              onMoveUp={handleMoveUp}
-                              onMoveDown={handleMoveDown}
-                              onDelete={handleDelete}
-                              onRenameAlias={handleRenameAlias}
-                              onRun={handleRunCell}
-                              onFocus={handleFocus}
-                              onEscape={enterCommandMode}
-                              onToggleCollapse={handleToggleCellCollapse}
-                              getConnection={getConnection}
-                            />
-                          )}
-                        </SortableCellWrapper>
-                        <AddCellButton
-                          onAddCell={(type) => handleAddCell(type, cell.id)}
-                        />
-                      </div>
-                    );
-                  })}
-                </Stack>
-              </SortableContext>
-            </DndContext>
-          )}
+      {viewMode === 'graph' ? (
+        <div className="flex-1 pt-14">
+          <NotebookDependencyGraph
+            sortedCells={sortedCells}
+            dependencies={graphCellDependencies}
+            resolvedDependencyGraph={graphResolvedDependencyGraph}
+            circularDependencyCells={graphCircularDependencyCells}
+            staleCells={staleCells}
+            activeCellId={tab.activeCellId}
+            fullscreenCellId={fullscreenCellId}
+            isTabActive={active}
+            getConnection={getConnection}
+            getCellState={getCellState}
+            onCellOutputChange={handleCellOutputChange}
+            onRunCell={handleRunCell}
+            onOpenCell={handleOpenGraphCell}
+            onToggleFullscreen={handleToggleCellFullscreen}
+          />
         </div>
-      </ScrollArea>
+      ) : (
+        <ScrollArea className="flex-1" type="hover" scrollHideDelay={500}>
+          <div className="max-w-[1280px] mx-auto px-4 pt-14 pb-4">
+            {sortedCells.length === 0 ? (
+              <EmptyNotebookState onAddCell={handleAddCellAtEnd} />
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+                modifiers={[restrictToVerticalAxis]}
+              >
+                <SortableContext items={cellIds} strategy={verticalListSortingStrategy}>
+                  <Stack gap={0}>
+                    {sortedCells.map((cell, index) => {
+                      const cellState = getCellState(cell.id);
+                      return (
+                        <div
+                          key={cell.id}
+                          ref={(el) => setCellRef(cell.id, el)}
+                        >
+                          <SortableCellWrapper id={cell.id}>
+                            {(dragHandleProps) => (
+                              <NotebookCell
+                                cell={cell}
+                                cellIndex={index}
+                                notebookId={notebook.id}
+                                isFirst={index === 0}
+                                isLast={index === sortedCells.length - 1}
+                                isActive={tab.activeCellId === cell.id}
+                                isOnlyCell={sortedCells.length <= 1}
+                                isTabActive={active}
+                                cellState={cellState}
+                                isStale={staleCells.has(cell.id)}
+                                cellDependencies={cellDependencies.get(cell.id) ?? null}
+                                hasCircularDependency={circularDependencyCells.has(cell.id)}
+                                hasReferenceConflict={
+                                  resolvedDependencyGraph.duplicateNameCells.has(cell.id) ||
+                                  resolvedDependencyGraph.unresolvedReferences.has(cell.id)
+                                }
+                                additionalCompletions={cellCompletions}
+                                dragHandleProps={dragHandleProps}
+                                cellMode={tab.activeCellId === cell.id ? cellMode : 'edit'}
+                                isCollapsed={collapsedCells.has(cell.id)}
+                                executionCount={cellState.executionCount}
+                                onContentChange={handleContentChange}
+                                onOutputChange={handleCellOutputChange}
+                                onTypeChange={handleTypeChange}
+                                onMoveUp={handleMoveUp}
+                                onMoveDown={handleMoveDown}
+                                onDelete={handleDelete}
+                                onRenameAlias={handleRenameAlias}
+                                onRun={handleRunCell}
+                                onFocus={handleFocus}
+                                onEscape={enterCommandMode}
+                                onToggleCollapse={handleToggleCellCollapse}
+                                onToggleFullscreen={handleToggleCellFullscreen}
+                                isFullscreen={fullscreenCellId === cell.id}
+                                getConnection={getConnection}
+                              />
+                            )}
+                          </SortableCellWrapper>
+                          <AddCellButton
+                            onAddCell={(type) => handleAddCell(type, cell.id)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </Stack>
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
+        </ScrollArea>
+      )}
+
+      {fullscreenCellId && (
+        <div className="fixed inset-0 z-[300] bg-black/50 p-4 flex items-center justify-center">
+          <div className="w-full max-w-[1400px] max-h-[calc(100vh-2rem)] overflow-auto">
+            {sortedCells
+              .filter((cell) => cell.id === fullscreenCellId)
+              .map((cell) => {
+                const index = sortedCells.findIndex((nextCell) => nextCell.id === cell.id);
+                const cellState = getCellState(cell.id);
+                return (
+                  <NotebookCell
+                    key={`fullscreen-${cell.id}`}
+                    cell={cell}
+                    cellIndex={Math.max(index, 0)}
+                    notebookId={notebook.id}
+                    isFirst={index <= 0}
+                    isLast={index === sortedCells.length - 1}
+                    isActive
+                    isOnlyCell={sortedCells.length <= 1}
+                    isTabActive={active}
+                    cellState={cellState}
+                    isStale={staleCells.has(cell.id)}
+                    cellDependencies={cellDependencies.get(cell.id) ?? null}
+                    hasCircularDependency={circularDependencyCells.has(cell.id)}
+                    hasReferenceConflict={
+                      resolvedDependencyGraph.duplicateNameCells.has(cell.id) ||
+                      resolvedDependencyGraph.unresolvedReferences.has(cell.id)
+                    }
+                    additionalCompletions={cellCompletions}
+                    cellMode="edit"
+                    isCollapsed={collapsedCells.has(cell.id)}
+                    executionCount={cellState.executionCount}
+                    onContentChange={handleContentChange}
+                    onOutputChange={handleCellOutputChange}
+                    onTypeChange={handleTypeChange}
+                    onMoveUp={handleMoveUp}
+                    onMoveDown={handleMoveDown}
+                    onDelete={handleDelete}
+                    onRenameAlias={handleRenameAlias}
+                    onRun={handleRunCell}
+                    onFocus={handleFocus}
+                    onEscape={() => setFullscreenCellId(null)}
+                    onToggleCollapse={handleToggleCellCollapse}
+                    onToggleFullscreen={handleToggleCellFullscreen}
+                    isFullscreen
+                    getConnection={getConnection}
+                  />
+                );
+              })}
+          </div>
+        </div>
+      )}
     </Stack>
   );
 });

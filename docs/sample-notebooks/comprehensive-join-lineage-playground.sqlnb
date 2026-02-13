@@ -1,0 +1,150 @@
+{
+  "version": 1,
+  "name": "Comprehensive Join Lineage Playground",
+  "cells": [
+    {
+      "type": "markdown",
+      "content": "# PondPilot Stress Test Notebook\n\nThis notebook is intentionally dense for testing:\n- many SQL cells with deep dependency chains\n- multiple join types (inner/left/full)\n- window functions and attribution logic\n- rollups used by several downstream cells\n- chart-configured result cells\n\nRecommended flow:\n1. Run **all** cells once.\n2. Switch to graph mode and inspect upstream/downstream highlighting.\n3. Re-run selective cells (upstream/downstream) and verify stale indicators.\n4. Test fullscreen in both list and graph views."
+    },
+    {
+      "type": "sql",
+      "name": "dim_customers",
+      "content": "SELECT *\nFROM (VALUES\n  (1, 'Ava Logistics', 'Enterprise', 'NA', DATE '2024-11-04'),\n  (2, 'Blue Harbor', 'SMB', 'NA', DATE '2024-12-13'),\n  (3, 'Cinder Retail', 'Mid-Market', 'EU', DATE '2024-10-01'),\n  (4, 'Delta Labs', 'Enterprise', 'EU', DATE '2024-09-19'),\n  (5, 'Evergreen Foods', 'SMB', 'APAC', DATE '2024-12-27'),\n  (6, 'Fjord Mobility', 'Mid-Market', 'NA', DATE '2024-08-15'),\n  (7, 'Granite Home', 'SMB', 'EU', DATE '2025-01-08'),\n  (8, 'Helios Care', 'Enterprise', 'APAC', DATE '2024-07-11'),\n  (9, 'Iris Outfitters', 'Mid-Market', 'NA', DATE '2024-06-22'),\n  (10, 'Juniper Tech', 'Enterprise', 'EU', DATE '2024-05-30')\n) AS t(customer_id, customer_name, segment, region, signup_date);"
+    },
+    {
+      "type": "sql",
+      "name": "dim_products",
+      "content": "SELECT *\nFROM (VALUES\n  (101, 'River Laptop', 'Hardware', 1299.00, 'Premium'),\n  (102, 'River Keyboard', 'Accessories', 119.00, 'Core'),\n  (103, 'River Mouse', 'Accessories', 79.00, 'Core'),\n  (104, 'Cloud Sync Pro', 'Software', 49.00, 'Subscription'),\n  (105, 'Cloud Sync Team', 'Software', 129.00, 'Subscription'),\n  (106, 'Data Bridge', 'Software', 199.00, 'Premium'),\n  (107, 'Dock Station', 'Hardware', 249.00, 'Core'),\n  (108, 'Support Plus', 'Service', 299.00, 'Service')\n) AS t(product_id, product_name, category, list_price, price_tier);"
+    },
+    {
+      "type": "sql",
+      "name": "dim_calendar",
+      "content": "SELECT\n  d::DATE AS calendar_date,\n  date_trunc('week', d)::DATE AS week_start,\n  date_trunc('month', d)::DATE AS month_start,\n  strftime(d, '%Y-%m') AS month_key\nFROM generate_series(DATE '2025-01-01', DATE '2025-03-31', INTERVAL 1 DAY) AS s(d);"
+    },
+    {
+      "type": "sql",
+      "name": "fct_sessions",
+      "content": "SELECT *\nFROM (VALUES\n  ('S001', 1, TIMESTAMP '2025-01-03 09:15:00', 'desktop', 'paid_search', '/pricing'),\n  ('S002', 2, TIMESTAMP '2025-01-04 11:40:00', 'mobile', 'organic_search', '/blog/cohort-playbook'),\n  ('S003', 3, TIMESTAMP '2025-01-07 16:22:00', 'desktop', 'paid_social', '/product/cloud-sync-pro'),\n  ('S004', 4, TIMESTAMP '2025-01-09 08:08:00', 'desktop', 'direct', '/enterprise'),\n  ('S005', 5, TIMESTAMP '2025-01-13 19:11:00', 'tablet', 'email', '/offers/q1-bundle'),\n  ('S006', 6, TIMESTAMP '2025-01-20 13:55:00', 'mobile', 'affiliate', '/compare'),\n  ('S007', 7, TIMESTAMP '2025-02-01 10:10:00', 'desktop', 'paid_search', '/pricing'),\n  ('S008', 8, TIMESTAMP '2025-02-03 12:45:00', 'desktop', 'direct', '/security'),\n  ('S009', 9, TIMESTAMP '2025-02-08 09:30:00', 'mobile', 'organic_search', '/docs/getting-started'),\n  ('S010', 10, TIMESTAMP '2025-02-11 15:00:00', 'desktop', 'paid_social', '/product/data-bridge'),\n  ('S011', 1, TIMESTAMP '2025-02-19 17:05:00', 'desktop', 'email', '/renewal'),\n  ('S012', 3, TIMESTAMP '2025-02-25 07:50:00', 'mobile', 'paid_search', '/pricing')\n) AS t(session_id, customer_id, session_started_at, device_type, source_channel, landing_page);"
+    },
+    {
+      "type": "sql",
+      "name": "fct_events",
+      "content": "SELECT *\nFROM (VALUES\n  (1001, 'S001', 'page_view', TIMESTAMP '2025-01-03 09:15:10', NULL),\n  (1002, 'S001', 'trial_start', TIMESTAMP '2025-01-03 09:22:00', NULL),\n  (1003, 'S001', 'checkout', TIMESTAMP '2025-01-03 09:35:00', NULL),\n  (1004, 'S002', 'page_view', TIMESTAMP '2025-01-04 11:40:08', NULL),\n  (1005, 'S002', 'download', TIMESTAMP '2025-01-04 11:47:12', NULL),\n  (1006, 'S003', 'page_view', TIMESTAMP '2025-01-07 16:22:09', NULL),\n  (1007, 'S003', 'checkout', TIMESTAMP '2025-01-07 16:40:40', NULL),\n  (1008, 'S004', 'page_view', TIMESTAMP '2025-01-09 08:08:20', NULL),\n  (1009, 'S004', 'demo_request', TIMESTAMP '2025-01-09 08:31:03', NULL),\n  (1010, 'S005', 'page_view', TIMESTAMP '2025-01-13 19:11:03', NULL),\n  (1011, 'S006', 'page_view', TIMESTAMP '2025-01-20 13:55:05', NULL),\n  (1012, 'S007', 'page_view', TIMESTAMP '2025-02-01 10:10:05', NULL),\n  (1013, 'S007', 'checkout', TIMESTAMP '2025-02-01 10:21:52', NULL),\n  (1014, 'S008', 'page_view', TIMESTAMP '2025-02-03 12:45:02', NULL),\n  (1015, 'S009', 'page_view', TIMESTAMP '2025-02-08 09:30:10', NULL),\n  (1016, 'S009', 'checkout', TIMESTAMP '2025-02-08 09:47:00', NULL),\n  (1017, 'S010', 'page_view', TIMESTAMP '2025-02-11 15:00:12', NULL),\n  (1018, 'S010', 'checkout', TIMESTAMP '2025-02-11 15:22:17', NULL),\n  (1019, 'S011', 'page_view', TIMESTAMP '2025-02-19 17:05:21', NULL),\n  (1020, 'S012', 'page_view', TIMESTAMP '2025-02-25 07:50:02', NULL)\n) AS t(event_id, session_id, event_type, event_ts, attributed_revenue);"
+    },
+    {
+      "type": "sql",
+      "name": "fct_marketing_touches",
+      "content": "SELECT *\nFROM (VALUES\n  (2001, 1, TIMESTAMP '2025-01-01 08:00:00', 'paid_search', 'na-brand-q1', 180.00),\n  (2002, 1, TIMESTAMP '2025-01-02 19:00:00', 'email', 'welcome-series', 20.00),\n  (2003, 2, TIMESTAMP '2025-01-03 12:00:00', 'organic_search', 'seo-platform-page', 0.00),\n  (2004, 3, TIMESTAMP '2025-01-06 10:00:00', 'paid_social', 'eu-video-01', 145.00),\n  (2005, 4, TIMESTAMP '2025-01-08 11:00:00', 'direct', 'brand-typein', 0.00),\n  (2006, 5, TIMESTAMP '2025-01-11 18:00:00', 'email', 'q1-bundle', 25.00),\n  (2007, 6, TIMESTAMP '2025-01-18 09:00:00', 'affiliate', 'partner-grid', 95.00),\n  (2008, 7, TIMESTAMP '2025-01-31 08:30:00', 'paid_search', 'eu-competitor-terms', 160.00),\n  (2009, 8, TIMESTAMP '2025-02-02 07:45:00', 'direct', 'security-webinar', 0.00),\n  (2010, 9, TIMESTAMP '2025-02-06 14:20:00', 'organic_search', 'docs-index', 0.00),\n  (2011, 10, TIMESTAMP '2025-02-10 13:15:00', 'paid_social', 'retargeting-bridge', 130.00),\n  (2012, 3, TIMESTAMP '2025-02-23 11:35:00', 'paid_search', 'eu-brand-q1', 120.00)\n) AS t(touch_id, customer_id, touch_ts, channel, campaign, cost_amount);"
+    },
+    {
+      "type": "sql",
+      "name": "fct_orders",
+      "content": "SELECT *\nFROM (VALUES\n  ('O1001', 1, 'S001', TIMESTAMP '2025-01-03 09:39:00', 'completed', 'US'),\n  ('O1002', 2, 'S002', TIMESTAMP '2025-01-04 11:58:00', 'completed', 'US'),\n  ('O1003', 3, 'S003', TIMESTAMP '2025-01-07 16:43:00', 'completed', 'DE'),\n  ('O1004', 4, 'S004', TIMESTAMP '2025-01-09 08:34:00', 'completed', 'FR'),\n  ('O1005', 5, 'S005', TIMESTAMP '2025-01-13 19:33:00', 'completed', 'SG'),\n  ('O1006', 6, 'S006', TIMESTAMP '2025-01-20 14:10:00', 'completed', 'US'),\n  ('O1007', 7, 'S007', TIMESTAMP '2025-02-01 10:29:00', 'completed', 'NL'),\n  ('O1008', 8, 'S008', TIMESTAMP '2025-02-03 13:05:00', 'completed', 'JP'),\n  ('O1009', 9, 'S009', TIMESTAMP '2025-02-08 09:54:00', 'completed', 'US'),\n  ('O1010', 10, 'S010', TIMESTAMP '2025-02-11 15:29:00', 'completed', 'IE'),\n  ('O1011', 1, 'S011', TIMESTAMP '2025-02-19 17:20:00', 'completed', 'US'),\n  ('O1012', 3, 'S012', TIMESTAMP '2025-02-25 08:05:00', 'completed', 'DE'),\n  ('O1013', 5, NULL, TIMESTAMP '2025-03-03 10:12:00', 'completed', 'SG'),\n  ('O1014', 2, NULL, TIMESTAMP '2025-03-05 09:21:00', 'pending', 'US')\n) AS t(order_id, customer_id, session_id, order_ts, order_status, shipping_country);"
+    },
+    {
+      "type": "sql",
+      "name": "fct_order_items",
+      "content": "SELECT *\nFROM (VALUES\n  ('O1001', 1, 101, 1, 1299.00, 0.05),\n  ('O1001', 2, 102, 2, 119.00, 0.00),\n  ('O1002', 1, 104, 5, 49.00, 0.10),\n  ('O1003', 1, 106, 2, 199.00, 0.00),\n  ('O1004', 1, 101, 3, 1299.00, 0.08),\n  ('O1005', 1, 105, 2, 129.00, 0.00),\n  ('O1005', 2, 108, 1, 299.00, 0.00),\n  ('O1006', 1, 107, 2, 249.00, 0.15),\n  ('O1007', 1, 101, 1, 1299.00, 0.03),\n  ('O1007', 2, 104, 12, 49.00, 0.20),\n  ('O1008', 1, 108, 2, 299.00, 0.00),\n  ('O1009', 1, 102, 4, 119.00, 0.00),\n  ('O1010', 1, 106, 1, 199.00, 0.00),\n  ('O1011', 1, 105, 3, 129.00, 0.05),\n  ('O1012', 1, 107, 1, 249.00, 0.00),\n  ('O1013', 1, 104, 8, 49.00, 0.00),\n  ('O1014', 1, 101, 1, 1299.00, 0.00)\n) AS t(order_id, line_no, product_id, quantity, unit_price, discount_pct);"
+    },
+    {
+      "type": "sql",
+      "name": "fct_payments",
+      "content": "SELECT *\nFROM (VALUES\n  ('O1001', TIMESTAMP '2025-01-03 09:40:00', 'card', 'paid', 21.70),\n  ('O1002', TIMESTAMP '2025-01-04 11:59:00', 'card', 'paid', 6.10),\n  ('O1003', TIMESTAMP '2025-01-07 16:45:00', 'wire', 'paid', 8.20),\n  ('O1004', TIMESTAMP '2025-01-09 08:35:00', 'wire', 'paid', 95.00),\n  ('O1005', TIMESTAMP '2025-01-13 19:34:00', 'card', 'paid', 7.80),\n  ('O1006', TIMESTAMP '2025-01-20 14:12:00', 'card', 'paid', 5.20),\n  ('O1007', TIMESTAMP '2025-02-01 10:31:00', 'card', 'paid', 26.50),\n  ('O1008', TIMESTAMP '2025-02-03 13:06:00', 'wire', 'paid', 8.10),\n  ('O1009', TIMESTAMP '2025-02-08 09:55:00', 'card', 'paid', 4.40),\n  ('O1010', TIMESTAMP '2025-02-11 15:30:00', 'card', 'paid', 3.30),\n  ('O1011', TIMESTAMP '2025-02-19 17:22:00', 'card', 'paid', 4.80),\n  ('O1012', TIMESTAMP '2025-02-25 08:06:00', 'wire', 'paid', 4.10),\n  ('O1013', TIMESTAMP '2025-03-03 10:13:00', 'card', 'paid', 5.00),\n  ('O1014', NULL, 'card', 'pending', 0.00)\n) AS t(order_id, payment_ts, payment_method, payment_status, fee_amount);"
+    },
+    {
+      "type": "sql",
+      "name": "fct_support_tickets",
+      "content": "SELECT *\nFROM (VALUES\n  ('T001', 1, TIMESTAMP '2025-01-10 08:00:00', TIMESTAMP '2025-01-10 12:00:00', 'billing', 4),\n  ('T002', 3, TIMESTAMP '2025-01-15 14:15:00', TIMESTAMP '2025-01-16 09:00:00', 'onboarding', 5),\n  ('T003', 4, TIMESTAMP '2025-01-21 07:45:00', TIMESTAMP '2025-01-22 10:10:00', 'integration', 3),\n  ('T004', 7, TIMESTAMP '2025-02-02 16:32:00', TIMESTAMP '2025-02-03 09:55:00', 'billing', 4),\n  ('T005', 8, TIMESTAMP '2025-02-05 10:00:00', TIMESTAMP '2025-02-05 18:00:00', 'security', 5),\n  ('T006', 10, TIMESTAMP '2025-02-17 11:11:00', TIMESTAMP '2025-02-18 15:45:00', 'contract', 4),\n  ('T007', 2, TIMESTAMP '2025-03-06 09:00:00', NULL, 'delivery', NULL)\n) AS t(ticket_id, customer_id, opened_at, resolved_at, category, csat_score);"
+    },
+    {
+      "type": "sql",
+      "name": "fct_returns",
+      "content": "SELECT *\nFROM (VALUES\n  ('R001', 'O1004', TIMESTAMP '2025-01-29 12:30:00', 'damaged', 600.00),\n  ('R002', 'O1007', TIMESTAMP '2025-02-14 09:15:00', 'wrong_item', 220.00),\n  ('R003', 'O1009', TIMESTAMP '2025-02-19 18:20:00', 'changed_mind', 119.00)\n) AS t(return_id, order_id, returned_at, reason, return_amount);"
+    },
+    {
+      "type": "sql",
+      "name": "bridge_session_orders",
+      "content": "WITH candidate_sessions AS (\n  SELECT\n    o.order_id,\n    o.customer_id,\n    o.order_ts,\n    o.session_id AS declared_session_id,\n    s.session_id AS candidate_session_id,\n    s.session_started_at,\n    abs(epoch(o.order_ts) - epoch(s.session_started_at)) AS seconds_diff\n  FROM fct_orders o\n  LEFT JOIN fct_sessions s\n    ON o.customer_id = s.customer_id\n   AND s.session_started_at <= o.order_ts\n   AND s.session_started_at >= o.order_ts - INTERVAL '2 days'\n), ranked AS (\n  SELECT\n    *,\n    row_number() OVER (PARTITION BY order_id ORDER BY seconds_diff, candidate_session_id) AS match_rank\n  FROM candidate_sessions\n)\nSELECT\n  order_id,\n  customer_id,\n  order_ts,\n  declared_session_id,\n  candidate_session_id AS matched_session_id,\n  declared_session_id IS NOT NULL AND declared_session_id = candidate_session_id AS is_direct_match\nFROM ranked\nWHERE match_rank = 1;"
+    },
+    {
+      "type": "sql",
+      "name": "order_line_enriched",
+      "content": "WITH returns_by_order AS (\n  SELECT order_id, sum(return_amount) AS total_return_amount\n  FROM fct_returns\n  GROUP BY order_id\n), line_base AS (\n  SELECT\n    oi.order_id,\n    oi.line_no,\n    o.customer_id,\n    o.order_ts,\n    o.order_status,\n    o.shipping_country,\n    oi.product_id,\n    p.product_name,\n    p.category,\n    oi.quantity,\n    oi.unit_price,\n    oi.discount_pct,\n    (oi.quantity * oi.unit_price) AS gross_line_revenue,\n    (oi.quantity * oi.unit_price * oi.discount_pct) AS discount_amount,\n    (oi.quantity * oi.unit_price * (1 - oi.discount_pct)) AS net_line_revenue\n  FROM fct_order_items oi\n  JOIN fct_orders o ON o.order_id = oi.order_id\n  JOIN dim_products p ON p.product_id = oi.product_id\n)\nSELECT\n  lb.*,\n  pay.payment_method,\n  pay.payment_status,\n  pay.fee_amount AS order_fee_amount,\n  coalesce(rbo.total_return_amount, 0) AS total_return_amount,\n  greatest(lb.net_line_revenue - coalesce(rbo.total_return_amount, 0), 0) AS line_net_after_returns\nFROM line_base lb\nLEFT JOIN fct_payments pay ON pay.order_id = lb.order_id\nLEFT JOIN returns_by_order rbo ON rbo.order_id = lb.order_id;"
+    },
+    {
+      "type": "sql",
+      "name": "customer_order_rollup",
+      "content": "SELECT\n  c.customer_id,\n  c.customer_name,\n  c.segment,\n  c.region,\n  count(DISTINCT ole.order_id) AS order_count,\n  sum(ole.gross_line_revenue) AS gross_revenue,\n  sum(ole.discount_amount) AS total_discount,\n  sum(ole.total_return_amount) AS total_returns,\n  sum(ole.line_net_after_returns) AS net_revenue,\n  avg(ole.line_net_after_returns) AS avg_line_net_revenue,\n  max(ole.order_ts) AS last_order_ts\nFROM dim_customers c\nLEFT JOIN order_line_enriched ole ON ole.customer_id = c.customer_id\nGROUP BY c.customer_id, c.customer_name, c.segment, c.region;"
+    },
+    {
+      "type": "sql",
+      "name": "customer_engagement_rollup",
+      "content": "WITH session_spans AS (\n  SELECT\n    s.session_id,\n    s.customer_id,\n    s.source_channel,\n    min(e.event_ts) AS first_event_ts,\n    max(e.event_ts) AS last_event_ts,\n    count(*) AS event_count\n  FROM fct_sessions s\n  LEFT JOIN fct_events e ON e.session_id = s.session_id\n  GROUP BY s.session_id, s.customer_id, s.source_channel\n), support_rollup AS (\n  SELECT\n    customer_id,\n    count(*) AS ticket_count,\n    avg(csat_score) AS avg_csat\n  FROM fct_support_tickets\n  GROUP BY customer_id\n)\nSELECT\n  c.customer_id,\n  count(DISTINCT ss.session_id) AS session_count,\n  sum(coalesce(ss.event_count, 0)) AS total_events,\n  avg(coalesce(epoch(ss.last_event_ts) - epoch(ss.first_event_ts), 0)) AS avg_session_span_seconds,\n  count_if(ss.source_channel = 'paid_search') AS paid_search_sessions,\n  count_if(ss.source_channel = 'organic_search') AS organic_sessions,\n  coalesce(sr.ticket_count, 0) AS ticket_count,\n  sr.avg_csat\nFROM dim_customers c\nLEFT JOIN session_spans ss ON ss.customer_id = c.customer_id\nLEFT JOIN support_rollup sr ON sr.customer_id = c.customer_id\nGROUP BY c.customer_id, sr.ticket_count, sr.avg_csat;"
+    },
+    {
+      "type": "sql",
+      "name": "marketing_attribution_rollup",
+      "content": "WITH order_totals AS (\n  SELECT order_id, customer_id, sum(line_net_after_returns) AS order_net_revenue\n  FROM order_line_enriched\n  GROUP BY order_id, customer_id\n), touch_matches AS (\n  SELECT\n    o.order_id,\n    o.customer_id,\n    o.order_ts,\n    ot.order_net_revenue,\n    t.channel,\n    t.campaign,\n    t.touch_ts,\n    row_number() OVER (PARTITION BY o.order_id ORDER BY t.touch_ts ASC) AS first_touch_rank,\n    row_number() OVER (PARTITION BY o.order_id ORDER BY t.touch_ts DESC) AS last_touch_rank\n  FROM fct_orders o\n  LEFT JOIN order_totals ot ON ot.order_id = o.order_id\n  LEFT JOIN fct_marketing_touches t\n    ON t.customer_id = o.customer_id\n   AND t.touch_ts <= o.order_ts\n   AND t.touch_ts >= o.order_ts - INTERVAL '30 days'\n), order_attribution AS (\n  SELECT\n    order_id,\n    customer_id,\n    max(order_net_revenue) AS order_net_revenue,\n    max(CASE WHEN first_touch_rank = 1 THEN channel END) AS first_touch_channel,\n    max(CASE WHEN last_touch_rank = 1 THEN channel END) AS last_touch_channel\n  FROM touch_matches\n  GROUP BY order_id, customer_id\n)\nSELECT\n  customer_id,\n  count(*) AS attributed_orders,\n  sum(order_net_revenue) AS attributed_net_revenue,\n  count_if(first_touch_channel = 'paid_search') AS first_touch_paid_search_orders,\n  count_if(last_touch_channel = 'paid_social') AS last_touch_paid_social_orders,\n  count_if(last_touch_channel = 'email') AS last_touch_email_orders\nFROM order_attribution\nGROUP BY customer_id;"
+    },
+    {
+      "type": "sql",
+      "name": "customer_360",
+      "content": "SELECT\n  c.customer_id,\n  c.customer_name,\n  c.segment,\n  c.region,\n  c.signup_date,\n  coalesce(cor.order_count, 0) AS order_count,\n  coalesce(cor.net_revenue, 0) AS net_revenue,\n  cor.last_order_ts,\n  coalesce(cer.session_count, 0) AS session_count,\n  coalesce(cer.total_events, 0) AS total_events,\n  coalesce(cer.ticket_count, 0) AS ticket_count,\n  cer.avg_csat,\n  coalesce(mar.attributed_orders, 0) AS attributed_orders,\n  coalesce(mar.attributed_net_revenue, 0) AS attributed_net_revenue,\n  round(\n    coalesce(cor.net_revenue, 0) * 0.5\n    + coalesce(cer.total_events, 0) * 3\n    + coalesce(cer.avg_csat, 0) * 25\n    - coalesce(cer.ticket_count, 0) * 10,\n    2\n  ) AS health_score,\n  dense_rank() OVER (ORDER BY coalesce(cor.net_revenue, 0) DESC) AS revenue_rank\nFROM dim_customers c\nLEFT JOIN customer_order_rollup cor ON cor.customer_id = c.customer_id\nLEFT JOIN customer_engagement_rollup cer ON cer.customer_id = c.customer_id\nLEFT JOIN marketing_attribution_rollup mar ON mar.customer_id = c.customer_id;"
+    },
+    {
+      "type": "sql",
+      "name": "revenue_waterfall",
+      "content": "WITH month_category AS (\n  SELECT\n    cal.month_start,\n    ole.category,\n    sum(ole.line_net_after_returns) AS net_revenue\n  FROM order_line_enriched ole\n  JOIN dim_calendar cal ON cal.calendar_date = CAST(ole.order_ts AS DATE)\n  WHERE ole.order_status = 'completed'\n  GROUP BY cal.month_start, ole.category\n)\nSELECT\n  month_start,\n  category,\n  net_revenue,\n  sum(net_revenue) OVER (PARTITION BY category ORDER BY month_start) AS category_cumulative_revenue,\n  sum(net_revenue) OVER (ORDER BY month_start) AS total_cumulative_revenue\nFROM month_category\nORDER BY month_start, category;",
+      "output": {
+        "viewMode": "chart",
+        "chartConfig": {
+          "chartType": "line",
+          "xAxisColumn": "month_start",
+          "yAxisColumn": "net_revenue",
+          "groupByColumn": "category",
+          "aggregation": "sum",
+          "sortBy": "x",
+          "sortOrder": "asc",
+          "title": "Monthly Net Revenue by Category",
+          "xAxisLabel": "Month",
+          "yAxisLabel": "Net Revenue",
+          "colorScheme": "blue"
+        }
+      }
+    },
+    {
+      "type": "sql",
+      "name": "qa_join_diagnostics",
+      "content": "WITH payment_alignment AS (\n  SELECT\n    coalesce(o.order_id, p.order_id) AS order_id,\n    o.customer_id,\n    o.order_status,\n    p.payment_status,\n    CASE\n      WHEN o.order_id IS NULL THEN 'payment_without_order'\n      WHEN p.order_id IS NULL THEN 'order_without_payment'\n      WHEN p.payment_status <> 'paid' AND o.order_status = 'completed' THEN 'completed_not_paid'\n      ELSE 'ok'\n    END AS payment_alignment_status\n  FROM fct_orders o\n  FULL OUTER JOIN fct_payments p ON p.order_id = o.order_id\n), session_alignment AS (\n  SELECT\n    bso.order_id,\n    bso.declared_session_id,\n    bso.matched_session_id,\n    CASE\n      WHEN bso.matched_session_id IS NULL THEN 'missing_session_match'\n      WHEN bso.declared_session_id IS NULL THEN 'inferred_session'\n      WHEN bso.is_direct_match THEN 'direct_session_match'\n      ELSE 'fallback_session_match'\n    END AS session_alignment_status\n  FROM bridge_session_orders bso\n)\nSELECT\n  pa.order_id,\n  pa.customer_id,\n  pa.order_status,\n  pa.payment_status,\n  pa.payment_alignment_status,\n  sa.declared_session_id,\n  sa.matched_session_id,\n  sa.session_alignment_status,\n  r.return_id\nFROM payment_alignment pa\nLEFT JOIN session_alignment sa ON sa.order_id = pa.order_id\nLEFT JOIN fct_returns r ON r.order_id = pa.order_id\nORDER BY pa.order_id;"
+    },
+    {
+      "type": "sql",
+      "name": "final_dashboard",
+      "content": "WITH monthly_segment AS (\n  SELECT\n    cal.month_start,\n    c.segment,\n    count(DISTINCT o.order_id) AS orders,\n    sum(ole.line_net_after_returns) AS net_revenue,\n    avg(ole.line_net_after_returns) AS avg_line_revenue\n  FROM dim_calendar cal\n  LEFT JOIN fct_orders o ON CAST(o.order_ts AS DATE) = cal.calendar_date\n  LEFT JOIN dim_customers c ON c.customer_id = o.customer_id\n  LEFT JOIN order_line_enriched ole ON ole.order_id = o.order_id\n  WHERE cal.month_start BETWEEN DATE '2025-01-01' AND DATE '2025-03-01'\n    AND (o.order_status = 'completed' OR o.order_status IS NULL)\n  GROUP BY cal.month_start, c.segment\n), segment_health AS (\n  SELECT\n    segment,\n    avg(health_score) AS avg_health_score,\n    sum(order_count) AS total_orders_customer360\n  FROM customer_360\n  GROUP BY segment\n)\nSELECT\n  ms.month_start,\n  coalesce(ms.segment, 'Unknown') AS segment,\n  coalesce(ms.orders, 0) AS orders,\n  coalesce(ms.net_revenue, 0) AS net_revenue,\n  coalesce(ms.avg_line_revenue, 0) AS avg_line_revenue,\n  coalesce(sh.avg_health_score, 0) AS avg_health_score,\n  coalesce(sh.total_orders_customer360, 0) AS total_orders_customer360\nFROM monthly_segment ms\nLEFT JOIN segment_health sh ON sh.segment = ms.segment\nORDER BY ms.month_start, segment;",
+      "output": {
+        "viewMode": "chart",
+        "chartConfig": {
+          "chartType": "bar",
+          "xAxisColumn": "segment",
+          "yAxisColumn": "net_revenue",
+          "groupByColumn": "month_start",
+          "aggregation": "sum",
+          "sortBy": "y",
+          "sortOrder": "desc",
+          "title": "Net Revenue by Segment and Month",
+          "xAxisLabel": "Segment",
+          "yAxisLabel": "Net Revenue",
+          "colorScheme": "green"
+        }
+      }
+    },
+    {
+      "type": "markdown",
+      "content": "## Suggested Validation Steps\n\n- Run `final_dashboard` in isolation to test upstream auto-run behavior.\n- In graph mode, click `customer_360` and verify upstream/downstream highlighting.\n- Toggle fullscreen from both a list cell and a graph node.\n- Drag graph nodes into custom positions and verify positions persist while interacting.\n- Expand a result manually and change focus: it should stay expanded."
+    }
+  ],
+  "metadata": {
+    "createdAt": "2026-02-12T23:42:28.526Z",
+    "pondpilotVersion": "dev-sample"
+  }
+}

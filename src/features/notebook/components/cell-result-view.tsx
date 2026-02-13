@@ -29,7 +29,7 @@ import {
   IconClock,
 } from '@tabler/icons-react';
 import { cn } from '@utils/ui/styles';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CellExecutionState } from '../hooks/use-notebook-execution-state';
 
@@ -39,6 +39,7 @@ interface CellResultViewProps {
   active: boolean;
   cellOutput: NotebookCellOutput;
   onOutputChange: (output: Partial<NotebookCellOutput>) => void;
+  defaultCollapsed?: boolean;
 }
 
 const MAX_RESULT_HEIGHT = 400;
@@ -49,13 +50,23 @@ export const CellResultView = memo(({
   active,
   cellOutput,
   onOutputChange,
+  defaultCollapsed = false,
 }: CellResultViewProps) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [userToggledCollapse, setUserToggledCollapse] = useState(false);
   const [requestedPage, setRequestedPage] = useState(0);
   const [dataSlice, setDataSlice] = useState<DataTableSlice | null>(null);
   const lastDataSourceVersion = useRef<number>(0);
 
-  const toggleCollapsed = useCallback(() => setCollapsed((c) => !c), []);
+  useEffect(() => {
+    if (userToggledCollapse) return;
+    setCollapsed(defaultCollapsed);
+  }, [defaultCollapsed, userToggledCollapse]);
+
+  const toggleCollapsed = useCallback(() => {
+    setUserToggledCollapse(true);
+    setCollapsed((c) => !c);
+  }, []);
 
   const handleViewModeChange = useCallback(
     (newMode: ViewMode) => {

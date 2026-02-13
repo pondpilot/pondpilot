@@ -13,6 +13,8 @@ import {
   IconDownload,
   IconFold,
   IconFoldDown,
+  IconLayoutRows,
+  IconMap,
   IconMarkdown,
   IconPlayerPlay,
   IconPlus,
@@ -31,6 +33,8 @@ interface NotebookToolbarProps {
   onClearAllOutputs?: () => void;
   onCollapseAll?: () => void;
   onExpandAll?: () => void;
+  viewMode?: 'list' | 'graph';
+  onViewModeChange?: (mode: 'list' | 'graph') => void;
   runAllState?: {
     running: boolean;
     current: number;
@@ -43,7 +47,7 @@ export const NotebookToolbar = memo(
   (props: NotebookToolbarProps) => {
     const {
       notebookName, onRename, onAddCell, onRunAll, onExportSqlnb, onExportHtml,
-      onClearAllOutputs, onCollapseAll, onExpandAll, runAllState,
+      onClearAllOutputs, onCollapseAll, onExpandAll, viewMode, onViewModeChange, runAllState,
     } = props;
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(notebookName);
@@ -144,6 +148,33 @@ export const NotebookToolbar = memo(
                   disabled={runAllState?.running}
                 >
                   {runAllState?.running ? <Loader size={14} /> : <IconPlayerPlay size={16} />}
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+          )}
+
+          {onViewModeChange && (
+            <Group gap={2}>
+              <Tooltip label="List view" position="top">
+                <ActionIcon
+                  data-testid="notebook-list-view-button"
+                  size="sm"
+                  variant={viewMode === 'list' ? 'light' : 'subtle'}
+                  className="text-iconDefault-light dark:text-iconDefault-dark"
+                  onClick={() => onViewModeChange('list')}
+                >
+                  <IconLayoutRows size={15} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Dependency graph view" position="top">
+                <ActionIcon
+                  data-testid="notebook-graph-view-button"
+                  size="sm"
+                  variant={viewMode === 'graph' ? 'light' : 'subtle'}
+                  className="text-iconDefault-light dark:text-iconDefault-dark"
+                  onClick={() => onViewModeChange('graph')}
+                >
+                  <IconMap size={15} />
                 </ActionIcon>
               </Tooltip>
             </Group>

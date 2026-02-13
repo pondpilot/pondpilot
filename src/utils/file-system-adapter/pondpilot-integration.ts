@@ -145,7 +145,7 @@ export async function pickDataSourceFiles(): Promise<PickFilesResult> {
  * Pick SQL script files
  */
 export async function pickSQLScriptFiles(): Promise<PickFilesResult> {
-  return pickFilesForPondPilot(['.sql'], 'SQL Script Files', true);
+  return pickFilesForPondPilot(['.sql', '.sqlnb'], 'Query Files', true);
 }
 
 /**

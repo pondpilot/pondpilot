@@ -12,7 +12,6 @@ import {
   Tooltip,
   Textarea,
   TextInput,
-  List,
   Title,
 } from '@mantine/core';
 import {
@@ -35,6 +34,7 @@ import {
   IconAlertTriangle,
   IconClock,
   IconLink,
+  IconArrowsMaximize,
   IconChevronRight,
   IconChevronDown,
   IconPencil,
@@ -84,6 +84,8 @@ interface NotebookCellProps {
   onFocus: (cellId: CellId) => void;
   onEscape: () => void;
   onToggleCollapse: (cellId: CellId) => void;
+  onToggleFullscreen?: (cellId: CellId) => void;
+  isFullscreen?: boolean;
   getConnection: () => Promise<AsyncDuckDBPooledConnection>;
 }
 
@@ -118,6 +120,8 @@ export const NotebookCell = memo(
     onFocus,
     onEscape,
     onToggleCollapse,
+    onToggleFullscreen,
+    isFullscreen = false,
     getConnection,
   }: NotebookCellProps) => {
     const colorScheme = useAppTheme();
@@ -607,6 +611,32 @@ export const NotebookCell = memo(
                 />
               </ActionIcon>
             </Tooltip>
+
+            {onToggleFullscreen && (
+              <Tooltip
+                label={isFullscreen ? 'Exit fullscreen' : 'Expand to fullscreen'}
+                position="top"
+              >
+                <ActionIcon
+                  data-testid="notebook-cell-fullscreen-toggle"
+                  size="xs"
+                  variant="subtle"
+                  onClick={() => onToggleFullscreen(cell.id)}
+                >
+                  {isFullscreen ? (
+                    <IconX
+                      size={14}
+                      className="text-iconDefault-light dark:text-iconDefault-dark"
+                    />
+                  ) : (
+                    <IconArrowsMaximize
+                      size={14}
+                      className="text-iconDefault-light dark:text-iconDefault-dark"
+                    />
+                  )}
+                </ActionIcon>
+              </Tooltip>
+            )}
           </Group>
         </Group>
 
@@ -672,14 +702,12 @@ export const NotebookCell = memo(
                     ),
                     p: ({ node: _node, ...props }) => <Text className="py-1" {...props} />,
                     ul: ({ node: _node, ...props }) => (
-                      <List
-                        className="py-1 list-disc list-inside"
-                        {...props}
-                        c="text-primary"
-                        size="sm"
-                      />
+                      <ul className="py-1 list-disc list-inside" {...props} />
                     ),
-                    li: ({ node: _node, ...props }) => <List.Item {...props} />,
+                    ol: ({ node: _node, ...props }) => (
+                      <ol className="py-1 list-decimal list-inside" {...props} />
+                    ),
+                    li: ({ node: _node, ...props }) => <li className="py-0.5" {...props} />,
                     a: ({ node: _node, ...props }) => (
                       <Text
                         component="a"
