@@ -902,23 +902,20 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         const endPos = model.getPositionAt(statementSpan.end);
 
         // Use a single multi-line decoration instead of one per line for better performance
-        statementDecorationsRef.current = editor.deltaDecorations(
-          statementDecorationsRef.current,
-          [
-            {
-              range: new monaco.Range(
-                startPos.lineNumber,
-                1,
-                endPos.lineNumber,
-                model.getLineMaxColumn(endPos.lineNumber),
-              ),
-              options: {
-                isWholeLine: true,
-                className: 'monaco-statement-highlight',
-              },
+        statementDecorationsRef.current = editor.deltaDecorations(statementDecorationsRef.current, [
+          {
+            range: new monaco.Range(
+              startPos.lineNumber,
+              1,
+              endPos.lineNumber,
+              model.getLineMaxColumn(endPos.lineNumber),
+            ),
+            options: {
+              isWholeLine: true,
+              className: 'monaco-statement-highlight',
             },
-          ],
-        );
+          },
+        ]);
       },
       [findStatementSpan, getSpansImmediate, isEditorRenderable],
     );
@@ -928,10 +925,7 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
         const editor = editorRef.current;
         if (!editor || !isEditorRenderable(editor)) return;
         if (!analysis) {
-          tableDecorationsRef.current = editor.deltaDecorations(
-            tableDecorationsRef.current,
-            [],
-          );
+          tableDecorationsRef.current = editor.deltaDecorations(tableDecorationsRef.current, []);
           return;
         }
 
@@ -969,30 +963,35 @@ export const SqlEditor = forwardRef<SqlEditorHandle, SqlEditorProps>(
       [isEditorRenderable],
     );
 
-    const applyHighlightedLineDecorations = useCallback((model: monaco.editor.ITextModel) => {
-      const editor = editorRef.current;
-      if (!editor || !monacoRef.current || !isEditorRenderable(editor)) return;
+    const applyHighlightedLineDecorations = useCallback(
+      (model: monaco.editor.ITextModel) => {
+        const editor = editorRef.current;
+        if (!editor || !monacoRef.current || !isEditorRenderable(editor)) return;
 
-      const requestedLines = highlightedLineNumbersRef.current ?? [];
-      const maxLine = model.getLineCount();
-      const uniqueValidLines = Array.from(new Set(requestedLines.filter((line) => (
-        Number.isInteger(line) && line > 0 && line <= maxLine
-      ))));
+        const requestedLines = highlightedLineNumbersRef.current ?? [];
+        const maxLine = model.getLineCount();
+        const uniqueValidLines = Array.from(
+          new Set(
+            requestedLines.filter((line) => Number.isInteger(line) && line > 0 && line <= maxLine),
+          ),
+        );
 
-      const decorations: monaco.editor.IModelDeltaDecoration[] = uniqueValidLines.map((line) => ({
-        range: new monaco.Range(line, 1, line, model.getLineMaxColumn(line)),
-        options: {
-          isWholeLine: true,
-          className: 'monaco-error-line-highlight',
-          linesDecorationsClassName: 'monaco-error-line-gutter',
-        },
-      }));
+        const decorations: monaco.editor.IModelDeltaDecoration[] = uniqueValidLines.map((line) => ({
+          range: new monaco.Range(line, 1, line, model.getLineMaxColumn(line)),
+          options: {
+            isWholeLine: true,
+            className: 'monaco-error-line-highlight',
+            linesDecorationsClassName: 'monaco-error-line-gutter',
+          },
+        }));
 
-      errorLineDecorationsRef.current = editor.deltaDecorations(
-        errorLineDecorationsRef.current,
-        decorations,
-      );
-    }, [isEditorRenderable]);
+        errorLineDecorationsRef.current = editor.deltaDecorations(
+          errorLineDecorationsRef.current,
+          decorations,
+        );
+      },
+      [isEditorRenderable],
+    );
 
     const applyDiagnostics = useCallback(
       (model: monaco.editor.ITextModel, analysis: AnalysisCache['result']) => {

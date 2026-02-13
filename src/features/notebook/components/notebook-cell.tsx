@@ -291,9 +291,8 @@ export const NotebookCell = memo(
 
     // First line preview for collapsed cells
     const firstLinePreview = cell.content.split('\n')[0]?.trim() || '(empty)';
-    const collapsedPreview = firstLinePreview.length > 80
-      ? `${firstLinePreview.slice(0, 80)}...`
-      : firstLinePreview;
+    const collapsedPreview =
+      firstLinePreview.length > 80 ? `${firstLinePreview.slice(0, 80)}...` : firstLinePreview;
 
     return (
       // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
@@ -357,8 +356,8 @@ export const NotebookCell = memo(
               {execLabel} {cell.type === 'sql' ? 'SQL' : 'Markdown'}
             </Text>
 
-            {cell.type === 'sql' && (
-              aliasEditing ? (
+            {cell.type === 'sql' &&
+              (aliasEditing ? (
                 <TextInput
                   ref={aliasInputRef}
                   data-testid="notebook-cell-alias-input"
@@ -382,13 +381,10 @@ export const NotebookCell = memo(
                     {cell.name ?? '(no alias)'}
                   </Text>
                 </Tooltip>
-              )
-            )}
+              ))}
 
             {/* Execution status badge */}
-            {cell.type === 'sql' && cellState.status === 'running' && (
-              <Loader size={12} />
-            )}
+            {cell.type === 'sql' && cellState.status === 'running' && <Loader size={12} />}
             {cell.type === 'sql' && cellState.status === 'success' && !isStale && (
               <IconCheck size={12} className="text-green-600 dark:text-green-400" />
             )}
@@ -398,20 +394,25 @@ export const NotebookCell = memo(
 
             {/* Stale indicator */}
             {cell.type === 'sql' && isStale && cellState.status === 'success' && (
-              <Tooltip label="Results may be stale — an upstream cell was re-executed" position="top">
+              <Tooltip
+                label="Results may be stale — an upstream cell was re-executed"
+                position="top"
+              >
                 <IconClock size={12} className="text-yellow-500 dark:text-yellow-400" />
               </Tooltip>
             )}
 
             {/* Dependency indicator */}
             {cell.type === 'sql' && cellDependencies && cellDependencies.length > 0 && (
-              <Tooltip
-                label={`References: ${cellDependencies.join(', ')}`}
-                position="top"
-              >
+              <Tooltip label={`References: ${cellDependencies.join(', ')}`} position="top">
                 <Group gap={2}>
-                  <IconLink size={12} className="text-iconDefault-light dark:text-iconDefault-dark" />
-                  <Text size="xs" c="dimmed">{cellDependencies.length}</Text>
+                  <IconLink
+                    size={12}
+                    className="text-iconDefault-light dark:text-iconDefault-dark"
+                  />
+                  <Text size="xs" c="dimmed">
+                    {cellDependencies.length}
+                  </Text>
                 </Group>
               </Tooltip>
             )}
@@ -492,8 +493,8 @@ export const NotebookCell = memo(
               </Group>
             )}
 
-            {cell.type === 'sql' && (
-              aliasEditing ? (
+            {cell.type === 'sql' &&
+              (aliasEditing ? (
                 <>
                   <Tooltip label="Apply alias" position="top">
                     <ActionIcon
@@ -536,8 +537,7 @@ export const NotebookCell = memo(
                     />
                   </ActionIcon>
                 </Tooltip>
-              )
-            )}
+              ))}
 
             {/* Type toggle */}
             <Tooltip

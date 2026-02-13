@@ -115,7 +115,9 @@ export function useNotebookKeyboard(options: UseNotebookKeyboardOptions) {
         target.tagName === 'TEXTAREA' ||
         target.getAttribute('contenteditable') === 'true' ||
         target.closest('.monaco-editor')
-      ) return;
+      ) {
+        return;
+      }
 
       switch (e.key) {
         case 'Enter':

@@ -201,9 +201,10 @@ export async function executeCellSQL(
     // Create temp views for cross-cell referencing (only with shared connection).
     // Use the last SELECT statement for the view body so multi-statement cells work.
     if (sharedConnection && cellRef) {
-      const viewQuery = lastQuery && lastQuery !== "SELECT 'All statements executed successfully' as Result"
-        ? lastQuery
-        : null;
+      const viewQuery =
+        lastQuery && lastQuery !== "SELECT 'All statements executed successfully' as Result"
+          ? lastQuery
+          : null;
       await createCellTempViews(conn, resolvedSql.sql, cellRef, cellName, viewQuery);
     }
 
@@ -308,9 +309,7 @@ async function createCellTempViews(
     const validationError = validateCellName(userCellName);
     if (!validationError) {
       try {
-        await conn.query(
-          `CREATE OR REPLACE TEMP VIEW "${userCellName}" AS (${viewBody})`,
-        );
+        await conn.query(`CREATE OR REPLACE TEMP VIEW "${userCellName}" AS (${viewBody})`);
       } catch {
         // Skip gracefully — the SQL may not be wrappable as a view
       }

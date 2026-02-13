@@ -36,9 +36,7 @@ export const AddCellButton = memo(({ onAddCell }: AddCellButtonProps) => {
                 size="sm"
                 variant="subtle"
                 onClick={handleAddSQL}
-                className={cn(
-                  'text-iconDefault-light dark:text-iconDefault-dark',
-                )}
+                className={cn('text-iconDefault-light dark:text-iconDefault-dark')}
               >
                 <IconCode size={16} />
               </ActionIcon>
@@ -49,9 +47,7 @@ export const AddCellButton = memo(({ onAddCell }: AddCellButtonProps) => {
                 size="sm"
                 variant="subtle"
                 onClick={handleAddMarkdown}
-                className={cn(
-                  'text-iconDefault-light dark:text-iconDefault-dark',
-                )}
+                className={cn('text-iconDefault-light dark:text-iconDefault-dark')}
               >
                 <IconMarkdown size={16} />
               </ActionIcon>

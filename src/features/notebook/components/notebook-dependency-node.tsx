@@ -44,9 +44,7 @@ function getExecutionBadge(data: NotebookDependencyNodeViewData) {
   if (data.cellState.status === 'error') {
     return <IconAlertTriangle size={12} className="text-red-600 dark:text-red-400" />;
   }
-  return (
-    <div className="h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-500" />
-  );
+  return <div className="h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-500" />;
 }
 
 const NotebookDependencyNodeComponent = ({
@@ -54,13 +52,16 @@ const NotebookDependencyNodeComponent = ({
   sourcePosition = Position.Right,
   targetPosition = Position.Left,
 }: NodeProps<NotebookDependencyNodeViewData>) => {
-  const executionLabel = data.cellState.executionCount !== null
-    ? `In [${data.cellState.executionCount}]`
-    : `[${data.index + 1}]`;
+  const executionLabel =
+    data.cellState.executionCount !== null
+      ? `In [${data.cellState.executionCount}]`
+      : `[${data.index + 1}]`;
   const hasWarning = data.hasCircularDependency || data.hasReferenceConflict;
   const hasPathHighlight = data.isSelected || data.isHighlighted;
   const borderColor = hasWarning
-    ? (data.hasCircularDependency ? '#ef4444' : '#f59e0b')
+    ? data.hasCircularDependency
+      ? '#ef4444'
+      : '#f59e0b'
     : hasPathHighlight
       ? '#3b82f6'
       : data.accentColor;
@@ -117,15 +118,15 @@ const NotebookDependencyNodeComponent = ({
             )}
             {hasWarning && (
               <Tooltip
-                label={data.hasCircularDependency
-                  ? 'Circular dependency'
-                  : 'Reference conflict'}
+                label={data.hasCircularDependency ? 'Circular dependency' : 'Reference conflict'}
               >
                 <IconAlertTriangle
                   size={12}
-                  className={data.hasCircularDependency
-                    ? 'text-red-500 dark:text-red-400'
-                    : 'text-orange-500 dark:text-orange-400'}
+                  className={
+                    data.hasCircularDependency
+                      ? 'text-red-500 dark:text-red-400'
+                      : 'text-orange-500 dark:text-orange-400'
+                  }
                 />
               </Tooltip>
             )}

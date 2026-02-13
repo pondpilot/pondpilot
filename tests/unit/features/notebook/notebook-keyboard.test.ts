@@ -9,14 +9,10 @@ import { describe, expect, it } from '@jest/globals';
 import { CellId } from '@models/notebook';
 
 // Test helpers
-function makeCell(
-  id: string,
-  order: number,
-  type: 'sql' | 'markdown' = 'sql',
-) {
+function makeCell(id: string, order: number, type: 'sql' | 'markdown' = 'sql') {
   return {
     id: id as CellId,
-    ref: (`__pp_cell_${id}` as any),
+    ref: `__pp_cell_${id}` as any,
     name: null,
     type,
     content: `content-${id}`,
@@ -225,11 +221,7 @@ describe('undo cell deletion logic', () => {
 
     // Restore: insert after the previous cell
     const remaining = removeCellImpl(cells, 'b' as CellId);
-    const restored = insertCellAfter(
-      remaining,
-      undoInfo.cell,
-      undoInfo.afterCellId,
-    );
+    const restored = insertCellAfter(remaining, undoInfo.cell, undoInfo.afterCellId);
 
     expect(restored).toHaveLength(3);
     expect(restored[0].id).toBe('a');

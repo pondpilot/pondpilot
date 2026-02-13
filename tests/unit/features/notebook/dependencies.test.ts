@@ -37,11 +37,8 @@ const makeSqlCell = (
 describe('notebook dependencies', () => {
   beforeEach(() => {
     analyzeMock.mockReset();
-    (getFlowScopeClient() as any).analyze = (
-      sql: string,
-      schema?: unknown,
-      dialect?: string,
-    ) => analyzeMock(sql, schema, dialect);
+    (getFlowScopeClient() as any).analyze = (sql: string, schema?: unknown, dialect?: string) =>
+      analyzeMock(sql, schema, dialect);
   });
 
   it('keeps stable references valid after reorder', () => {

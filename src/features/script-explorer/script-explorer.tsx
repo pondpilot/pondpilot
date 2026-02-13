@@ -202,8 +202,7 @@ function useNotebooksList(): ReadonlyArray<readonly [NotebookId, string]> {
   const notebooks = useAppStore((state) => state.notebooks);
 
   return useMemo(
-    () =>
-      Array.from(notebooks.entries()).map(([id, notebook]) => [id, notebook.name] as const),
+    () => Array.from(notebooks.entries()).map(([id, notebook]) => [id, notebook.name] as const),
     [notebooks],
   );
 }
@@ -260,9 +259,7 @@ export const ScriptExplorer = memo(() => {
       const comparisonNames = comparisonsArray
         .filter(([id]) => id !== nodeId)
         .map(([, name]) => name);
-      const notebookNames = notebooksArray
-        .filter(([id]) => id !== nodeId)
-        .map(([, name]) => name);
+      const notebookNames = notebooksArray.filter(([id]) => id !== nodeId).map(([, name]) => name);
       return [...scriptNames, ...comparisonNames, ...notebookNames];
     },
     [scriptsArray, comparisonsArray, notebooksArray],
@@ -486,11 +483,7 @@ export const ScriptExplorer = memo(() => {
   );
 
   const allNodes = useMemo(
-    () => [
-      ...sqlScriptTree,
-      ...comparisonTree,
-      ...notebookTree,
-    ],
+    () => [...sqlScriptTree, ...comparisonTree, ...notebookTree],
     [sqlScriptTree, comparisonTree, notebookTree],
   );
 
@@ -500,10 +493,7 @@ export const ScriptExplorer = memo(() => {
     () => new Set(comparisonsArray.map(([id]) => id)),
     [comparisonsArray],
   );
-  const notebookIdsSet = useMemo(
-    () => new Set(notebooksArray.map(([id]) => id)),
-    [notebooksArray],
-  );
+  const notebookIdsSet = useMemo(() => new Set(notebooksArray.map(([id]) => id)), [notebooksArray]);
 
   // Memoize the delete handler to prevent unnecessary re-renders
   const handleDeleteSelected = useMemo(

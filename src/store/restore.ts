@@ -93,9 +93,8 @@ const parseNotebookCellNameFromContent = (content: string): string | null => {
   return match ? match[1] : null;
 };
 
-const containsEphemeralNotebookRef = (query: string | null | undefined): boolean => (
-  !!query && query.toLowerCase().includes(NOTEBOOK_CELL_REF_PREFIX.toLowerCase())
-);
+const containsEphemeralNotebookRef = (query: string | null | undefined): boolean =>
+  !!query && query.toLowerCase().includes(NOTEBOOK_CELL_REF_PREFIX.toLowerCase());
 
 async function getAppDataDBConnection(): Promise<IDBPDatabase<AppIdbSchema>> {
   return openDB<AppIdbSchema>(APP_DB_NAME, DB_VERSION, {
@@ -565,14 +564,15 @@ export const restoreAppDataFromIDB = async (
   for (const [notebookId, notebookData] of notebooks.entries()) {
     let notebookChanged = false;
     const normalizedParameters = normalizeNotebookParameters(notebookData.parameters);
-    const parametersUnchanged = Array.isArray(notebookData.parameters)
-      && notebookData.parameters.length === normalizedParameters.length
-      && notebookData.parameters.every((parameter, index) => {
+    const parametersUnchanged =
+      Array.isArray(notebookData.parameters) &&
+      notebookData.parameters.length === normalizedParameters.length &&
+      notebookData.parameters.every((parameter, index) => {
         const nextParameter = normalizedParameters[index];
         return (
-          parameter.name === nextParameter.name
-          && parameter.type === nextParameter.type
-          && parameter.value === nextParameter.value
+          parameter.name === nextParameter.name &&
+          parameter.type === nextParameter.type &&
+          parameter.value === nextParameter.value
         );
       });
 
@@ -582,9 +582,10 @@ export const restoreAppDataFromIDB = async (
 
     const normalizedCells = notebookData.cells.map((cell) => {
       const normalizedRef = ensureCellRef(cell.id, cell.ref);
-      const normalizedName = cell.type === 'sql'
-        ? ((cell.name?.trim() || parseNotebookCellNameFromContent(cell.content)) ?? null)
-        : null;
+      const normalizedName =
+        cell.type === 'sql'
+          ? ((cell.name?.trim() || parseNotebookCellNameFromContent(cell.content)) ?? null)
+          : null;
 
       const identityUnchanged = cell.ref === normalizedRef && cell.name === normalizedName;
 
@@ -604,9 +605,9 @@ export const restoreAppDataFromIDB = async (
       const normalizedExecution = normalizeNotebookCellExecution(cell.execution);
       const sanitizedExecution = containsEphemeralNotebookRef(normalizedExecution.lastQuery)
         ? {
-          ...normalizedExecution,
-          lastQuery: null,
-        }
+            ...normalizedExecution,
+            lastQuery: null,
+          }
         : normalizedExecution;
 
       const outputUnchanged = cell.output

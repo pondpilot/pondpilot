@@ -27,13 +27,13 @@ export function validateNotebookParameterName(
 export function parameterValueToSqlLiteral(parameter: NotebookParameter): string {
   switch (parameter.type) {
     case 'text': {
-      const value = typeof parameter.value === 'string' ? parameter.value : String(parameter.value ?? '');
+      const value =
+        typeof parameter.value === 'string' ? parameter.value : String(parameter.value ?? '');
       return `'${value.replace(/'/g, "''")}'`;
     }
     case 'number': {
-      const numericValue = typeof parameter.value === 'number'
-        ? parameter.value
-        : Number(parameter.value);
+      const numericValue =
+        typeof parameter.value === 'number' ? parameter.value : Number(parameter.value);
       if (!Number.isFinite(numericValue)) {
         throw new Error(`Parameter "${parameter.name}" must be a finite number.`);
       }

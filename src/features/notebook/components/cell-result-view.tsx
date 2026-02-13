@@ -7,14 +7,7 @@ import {
   useChartData,
   useSmallMultiplesData,
 } from '@features/chart-view';
-import {
-  ActionIcon,
-  Center,
-  Group,
-  Loader,
-  SegmentedControl,
-  Text,
-} from '@mantine/core';
+import { ActionIcon, Center, Group, Loader, SegmentedControl, Text } from '@mantine/core';
 import { useDebouncedValue, useDidUpdate } from '@mantine/hooks';
 import { ChartConfig, ViewMode } from '@models/chart';
 import { DataAdapterApi, DataTableSlice } from '@models/data-adapter';
@@ -44,162 +37,164 @@ interface CellResultViewProps {
 
 const MAX_RESULT_HEIGHT = 400;
 
-export const CellResultView = memo(({
-  cellState,
-  dataAdapter,
-  active,
-  cellOutput,
-  onOutputChange,
-  defaultCollapsed = false,
-}: CellResultViewProps) => {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
-  const [userToggledCollapse, setUserToggledCollapse] = useState(false);
-  const [requestedPage, setRequestedPage] = useState(0);
-  const [dataSlice, setDataSlice] = useState<DataTableSlice | null>(null);
-  const lastDataSourceVersion = useRef<number>(0);
+export const CellResultView = memo(
+  ({
+    cellState,
+    dataAdapter,
+    active,
+    cellOutput,
+    onOutputChange,
+    defaultCollapsed = false,
+  }: CellResultViewProps) => {
+    const [collapsed, setCollapsed] = useState(defaultCollapsed);
+    const [userToggledCollapse, setUserToggledCollapse] = useState(false);
+    const [requestedPage, setRequestedPage] = useState(0);
+    const [dataSlice, setDataSlice] = useState<DataTableSlice | null>(null);
+    const lastDataSourceVersion = useRef<number>(0);
 
-  useEffect(() => {
-    if (userToggledCollapse) return;
-    setCollapsed(defaultCollapsed);
-  }, [defaultCollapsed, userToggledCollapse]);
+    useEffect(() => {
+      if (userToggledCollapse) return;
+      setCollapsed(defaultCollapsed);
+    }, [defaultCollapsed, userToggledCollapse]);
 
-  const toggleCollapsed = useCallback(() => {
-    setUserToggledCollapse(true);
-    setCollapsed((c) => !c);
-  }, []);
+    const toggleCollapsed = useCallback(() => {
+      setUserToggledCollapse(true);
+      setCollapsed((c) => !c);
+    }, []);
 
-  const handleViewModeChange = useCallback(
-    (newMode: ViewMode) => {
-      if (cellOutput.viewMode === newMode) return;
-      onOutputChange({ viewMode: newMode });
-    },
-    [cellOutput.viewMode, onOutputChange],
-  );
-
-  const handleChartConfigChange = useCallback(
-    (newConfig: Partial<ChartConfig>) => {
-      const hasChanges = Object.entries(newConfig).some(
-        ([key, value]) => cellOutput.chartConfig[key as keyof ChartConfig] !== value,
-      );
-      if (!hasChanges) return;
-      onOutputChange({
-        chartConfig: {
-          ...cellOutput.chartConfig,
-          ...newConfig,
-        },
-      });
-    },
-    [cellOutput.chartConfig, onOutputChange],
-  );
-
-  // Show nothing for idle cells
-  if (cellState.status === 'idle') {
-    return null;
-  }
-
-  // Error display
-  if (cellState.status === 'error') {
-    return (
-      <div
-        className={cn(
-          'border-t border-borderPrimary-light dark:border-borderPrimary-dark',
-          'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
-          'px-3 py-2',
-        )}
-      >
-        <Group gap={6} align="flex-start">
-          <IconAlertTriangle
-            size={16}
-            className="text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5"
-          />
-          <Text
-            size="sm"
-            className="font-mono whitespace-pre-wrap text-red-600 dark:text-red-400"
-          >
-            {cellState.error}
-          </Text>
-        </Group>
-        {cellState.executionTime !== null && (
-          <ExecutionTimeLabel timeMs={cellState.executionTime} />
-        )}
-      </div>
+    const handleViewModeChange = useCallback(
+      (newMode: ViewMode) => {
+        if (cellOutput.viewMode === newMode) return;
+        onOutputChange({ viewMode: newMode });
+      },
+      [cellOutput.viewMode, onOutputChange],
     );
-  }
 
-  // Running state
-  if (cellState.status === 'running') {
-    return (
-      <div
-        className={cn(
-          'border-t border-borderPrimary-light dark:border-borderPrimary-dark',
-          'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
-          'px-3 py-3',
-        )}
-      >
-        <Group gap={6}>
-          <Loader size={14} />
-          <Text size="sm" c="dimmed">
-            Running...
-          </Text>
-        </Group>
-      </div>
+    const handleChartConfigChange = useCallback(
+      (newConfig: Partial<ChartConfig>) => {
+        const hasChanges = Object.entries(newConfig).some(
+          ([key, value]) => cellOutput.chartConfig[key as keyof ChartConfig] !== value,
+        );
+        if (!hasChanges) return;
+        onOutputChange({
+          chartConfig: {
+            ...cellOutput.chartConfig,
+            ...newConfig,
+          },
+        });
+      },
+      [cellOutput.chartConfig, onOutputChange],
     );
-  }
 
-  // Success state - show results
-  if (!dataAdapter) {
-    if (cellState.snapshot) {
+    // Show nothing for idle cells
+    if (cellState.status === 'idle') {
+      return null;
+    }
+
+    // Error display
+    if (cellState.status === 'error') {
       return (
-        <SnapshotResultView
-          snapshot={cellState.snapshot}
-          executionTime={cellState.executionTime}
-          collapsed={collapsed}
-          onToggleCollapsed={toggleCollapsed}
-          active={active}
-        />
+        <div
+          className={cn(
+            'border-t border-borderPrimary-light dark:border-borderPrimary-dark',
+            'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
+            'px-3 py-2',
+          )}
+        >
+          <Group gap={6} align="flex-start">
+            <IconAlertTriangle
+              size={16}
+              className="text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5"
+            />
+            <Text
+              size="sm"
+              className="font-mono whitespace-pre-wrap text-red-600 dark:text-red-400"
+            >
+              {cellState.error}
+            </Text>
+          </Group>
+          {cellState.executionTime !== null && (
+            <ExecutionTimeLabel timeMs={cellState.executionTime} />
+          )}
+        </div>
+      );
+    }
+
+    // Running state
+    if (cellState.status === 'running') {
+      return (
+        <div
+          className={cn(
+            'border-t border-borderPrimary-light dark:border-borderPrimary-dark',
+            'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
+            'px-3 py-3',
+          )}
+        >
+          <Group gap={6}>
+            <Loader size={14} />
+            <Text size="sm" c="dimmed">
+              Running...
+            </Text>
+          </Group>
+        </div>
+      );
+    }
+
+    // Success state - show results
+    if (!dataAdapter) {
+      if (cellState.snapshot) {
+        return (
+          <SnapshotResultView
+            snapshot={cellState.snapshot}
+            executionTime={cellState.executionTime}
+            collapsed={collapsed}
+            onToggleCollapsed={toggleCollapsed}
+            active={active}
+          />
+        );
+      }
+
+      return (
+        <div
+          className={cn(
+            'border-t border-borderPrimary-light dark:border-borderPrimary-dark',
+            'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
+            'px-3 py-2',
+          )}
+        >
+          <Group gap={6}>
+            <IconCheck size={14} className="text-green-600 dark:text-green-400" />
+            <Text size="sm" c="dimmed">
+              Executed successfully
+            </Text>
+            {cellState.executionTime !== null && (
+              <ExecutionTimeLabel timeMs={cellState.executionTime} />
+            )}
+          </Group>
+        </div>
       );
     }
 
     return (
-      <div
-        className={cn(
-          'border-t border-borderPrimary-light dark:border-borderPrimary-dark',
-          'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
-          'px-3 py-2',
-        )}
-      >
-        <Group gap={6}>
-          <IconCheck size={14} className="text-green-600 dark:text-green-400" />
-          <Text size="sm" c="dimmed">
-            Executed successfully
-          </Text>
-          {cellState.executionTime !== null && (
-            <ExecutionTimeLabel timeMs={cellState.executionTime} />
-          )}
-        </Group>
-      </div>
+      <CellResultTable
+        dataAdapter={dataAdapter}
+        executionTime={cellState.executionTime}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
+        requestedPage={requestedPage}
+        onPageChange={setRequestedPage}
+        dataSlice={dataSlice}
+        onDataSliceChange={setDataSlice}
+        lastDataSourceVersionRef={lastDataSourceVersion}
+        active={active}
+        viewMode={cellOutput.viewMode}
+        onViewModeChange={handleViewModeChange}
+        chartConfig={cellOutput.chartConfig}
+        onChartConfigChange={handleChartConfigChange}
+      />
     );
-  }
-
-  return (
-    <CellResultTable
-      dataAdapter={dataAdapter}
-      executionTime={cellState.executionTime}
-      collapsed={collapsed}
-      onToggleCollapsed={toggleCollapsed}
-      requestedPage={requestedPage}
-      onPageChange={setRequestedPage}
-      dataSlice={dataSlice}
-      onDataSliceChange={setDataSlice}
-      lastDataSourceVersionRef={lastDataSourceVersion}
-      active={active}
-      viewMode={cellOutput.viewMode}
-      onViewModeChange={handleViewModeChange}
-      chartConfig={cellOutput.chartConfig}
-      onChartConfigChange={handleChartConfigChange}
-    />
-  );
-});
+  },
+);
 
 CellResultView.displayName = 'CellResultView';
 
@@ -323,12 +318,7 @@ const CellResultTable = memo(
         )}
       >
         {/* Result header */}
-        <Group
-          gap={4}
-          justify="space-between"
-          wrap="nowrap"
-          className="px-3 py-1 select-none"
-        >
+        <Group gap={4} justify="space-between" wrap="nowrap" className="px-3 py-1 select-none">
           <Group gap={6} wrap="nowrap" className="cursor-pointer" onClick={onToggleCollapsed}>
             <ActionIcon size="xs" variant="subtle">
               {collapsed ? <IconChevronDown size={14} /> : <IconChevronUp size={14} />}
@@ -444,90 +434,83 @@ interface SnapshotResultViewProps {
   active: boolean;
 }
 
-const SnapshotResultView = memo(({
-  snapshot,
-  executionTime,
-  collapsed,
-  onToggleCollapsed,
-  active,
-}: SnapshotResultViewProps) => {
-  const capturedAtLabel = useMemo(() => {
-    const capturedAtMs = Date.parse(snapshot.capturedAt);
-    if (Number.isNaN(capturedAtMs)) return 'unknown time';
-    return new Date(capturedAtMs).toLocaleString();
-  }, [snapshot.capturedAt]);
+const SnapshotResultView = memo(
+  ({ snapshot, executionTime, collapsed, onToggleCollapsed, active }: SnapshotResultViewProps) => {
+    const capturedAtLabel = useMemo(() => {
+      const capturedAtMs = Date.parse(snapshot.capturedAt);
+      if (Number.isNaN(capturedAtMs)) return 'unknown time';
+      return new Date(capturedAtMs).toLocaleString();
+    }, [snapshot.capturedAt]);
 
-  const snapshotDataSlice = useMemo(
-    () => ({ data: snapshot.data, rowOffset: 0 }),
-    [snapshot.data],
-  );
+    const snapshotDataSlice = useMemo(
+      () => ({ data: snapshot.data, rowOffset: 0 }),
+      [snapshot.data],
+    );
 
-  const staleMessage = snapshot.truncated
-    ? [
-      'Showing first ',
-      String(snapshot.data.length),
-      ' rows from the last run. Re-run the cell to refresh.',
-    ].join('')
-    : 'Showing saved snapshot from the last run. Re-run the cell to refresh.';
+    const staleMessage = snapshot.truncated
+      ? [
+          'Showing first ',
+          String(snapshot.data.length),
+          ' rows from the last run. Re-run the cell to refresh.',
+        ].join('')
+      : 'Showing saved snapshot from the last run. Re-run the cell to refresh.';
 
-  const emptySort = useMemo(() => [], []);
-  const noopSelectChange = useCallback(() => {}, []);
-  const noopColumnSelect = useCallback((_col: DBColumn | null) => {}, []);
+    const emptySort = useMemo(() => [], []);
+    const noopSelectChange = useCallback(() => {}, []);
+    const noopColumnSelect = useCallback((_col: DBColumn | null) => {}, []);
 
-  return (
-    <div
-      className={cn(
-        'border-t border-borderPrimary-light dark:border-borderPrimary-dark',
-        'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
-      )}
-    >
-      <Group
-        gap={4}
-        justify="space-between"
-        wrap="nowrap"
-        className="px-3 py-1 select-none"
+    return (
+      <div
+        className={cn(
+          'border-t border-borderPrimary-light dark:border-borderPrimary-dark',
+          'bg-backgroundSecondary-light dark:bg-backgroundSecondary-dark',
+        )}
       >
-        <Group gap={6} wrap="nowrap" className="cursor-pointer" onClick={onToggleCollapsed}>
-          <ActionIcon size="xs" variant="subtle">
-            {collapsed ? <IconChevronDown size={14} /> : <IconChevronUp size={14} />}
-          </ActionIcon>
-          <IconClock size={14} className="text-yellow-500 dark:text-yellow-400" />
-          <Text size="xs" c="dimmed">
-            Showing saved results from {capturedAtLabel}
-          </Text>
-          {executionTime !== null && <ExecutionTimeLabel timeMs={executionTime} />}
+        <Group gap={4} justify="space-between" wrap="nowrap" className="px-3 py-1 select-none">
+          <Group gap={6} wrap="nowrap" className="cursor-pointer" onClick={onToggleCollapsed}>
+            <ActionIcon size="xs" variant="subtle">
+              {collapsed ? <IconChevronDown size={14} /> : <IconChevronUp size={14} />}
+            </ActionIcon>
+            <IconClock size={14} className="text-yellow-500 dark:text-yellow-400" />
+            <Text size="xs" c="dimmed">
+              Showing saved results from {capturedAtLabel}
+            </Text>
+            {executionTime !== null && <ExecutionTimeLabel timeMs={executionTime} />}
+          </Group>
         </Group>
-      </Group>
 
-      {!collapsed && (
-        <>
-          <div className="px-3 pb-1">
-            <Text size="xs" c="dimmed">{staleMessage}</Text>
-          </div>
-          {snapshot.schema.length > 0 && (
-            <div className="relative">
-              <div
-                className="overflow-auto px-3 pb-1 custom-scroll-hidden"
-                style={{ maxHeight: MAX_RESULT_HEIGHT }}
-              >
-                <Table
-                  dataSlice={snapshotDataSlice}
-                  schema={snapshot.schema}
-                  sort={emptySort}
-                  visible={active}
-                  onSort={undefined}
-                  onRowSelectChange={noopSelectChange}
-                  onCellSelectChange={noopSelectChange}
-                  onColumnSelectChange={noopColumnSelect}
-                />
-              </div>
+        {!collapsed && (
+          <>
+            <div className="px-3 pb-1">
+              <Text size="xs" c="dimmed">
+                {staleMessage}
+              </Text>
             </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-});
+            {snapshot.schema.length > 0 && (
+              <div className="relative">
+                <div
+                  className="overflow-auto px-3 pb-1 custom-scroll-hidden"
+                  style={{ maxHeight: MAX_RESULT_HEIGHT }}
+                >
+                  <Table
+                    dataSlice={snapshotDataSlice}
+                    schema={snapshot.schema}
+                    sort={emptySort}
+                    visible={active}
+                    onSort={undefined}
+                    onRowSelectChange={noopSelectChange}
+                    onCellSelectChange={noopSelectChange}
+                    onColumnSelectChange={noopColumnSelect}
+                  />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  },
+);
 
 SnapshotResultView.displayName = 'SnapshotResultView';
 

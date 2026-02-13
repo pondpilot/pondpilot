@@ -16,10 +16,7 @@ export const persistDeleteNotebook = async (
   deletedNotebookIds: Iterable<NotebookId>,
 ) => {
   const ids = Array.from(deletedNotebookIds);
-  const tx = iDb.transaction(
-    [NOTEBOOK_TABLE_NAME, NOTEBOOK_ACCESS_TIME_TABLE_NAME],
-    'readwrite',
-  );
+  const tx = iDb.transaction([NOTEBOOK_TABLE_NAME, NOTEBOOK_ACCESS_TIME_TABLE_NAME], 'readwrite');
 
   const notebookStore = tx.objectStore(NOTEBOOK_TABLE_NAME);
   for (const id of ids) {

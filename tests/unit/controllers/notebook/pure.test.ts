@@ -208,10 +208,7 @@ describe('notebook pure functions', () => {
         ['n3' as NotebookId, makeNotebook('n3', 'third')],
       ]);
 
-      const result = deleteNotebookImpl(
-        ['n1' as NotebookId, 'n3' as NotebookId],
-        notebooks,
-      );
+      const result = deleteNotebookImpl(['n1' as NotebookId, 'n3' as NotebookId], notebooks);
 
       expect(result.size).toBe(1);
       expect(result.has('n2' as NotebookId)).toBe(true);
@@ -238,10 +235,7 @@ describe('notebook pure functions', () => {
     });
 
     it('should handle empty notebooks map', () => {
-      const result = deleteNotebookImpl(
-        ['n1' as NotebookId],
-        new Map(),
-      );
+      const result = deleteNotebookImpl(['n1' as NotebookId], new Map());
 
       expect(result.size).toBe(0);
     });

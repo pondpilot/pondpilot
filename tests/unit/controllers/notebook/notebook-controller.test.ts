@@ -91,10 +91,10 @@ describe('notebook-controller/updateCellOutput', () => {
       cells: baseNotebook.cells.map((cell) =>
         cell.type === 'sql'
           ? {
-            ...cell,
-            output: normalizeNotebookCellOutput(cell.output),
-            execution: normalizeNotebookCellExecution(cell.execution),
-          }
+              ...cell,
+              output: normalizeNotebookCellOutput(cell.output),
+              execution: normalizeNotebookCellExecution(cell.execution),
+            }
           : { ...cell },
       ),
     };
@@ -137,11 +137,7 @@ describe('notebook-controller/updateCellOutput', () => {
   });
 
   it('merges partial chartConfig updates with existing output settings', () => {
-    updateCellOutput(
-      notebookId,
-      sqlCellId,
-      { chartConfig: { xAxisColumn: 'name' } as any },
-    );
+    updateCellOutput(notebookId, sqlCellId, { chartConfig: { xAxisColumn: 'name' } as any });
 
     expect(mockSetState).toHaveBeenCalledTimes(1);
 
@@ -184,25 +180,29 @@ describe('notebook-controller/updateCellExecution', () => {
 
   beforeEach(() => {
     mockState = {
-      notebooks: new Map([[
-        notebookId,
-        {
-          id: notebookId,
-          name: 'Notebook',
-          cells: [{
-            id: sqlCellId,
-            ref: 'ref-sql-1' as any,
-            name: null,
-            type: 'sql',
-            content: 'SELECT 1',
-            order: 0,
-            output: normalizeNotebookCellOutput(),
-            execution: normalizeNotebookCellExecution(),
-          }],
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-01T00:00:00.000Z',
-        } satisfies Notebook,
-      ]]),
+      notebooks: new Map([
+        [
+          notebookId,
+          {
+            id: notebookId,
+            name: 'Notebook',
+            cells: [
+              {
+                id: sqlCellId,
+                ref: 'ref-sql-1' as any,
+                name: null,
+                type: 'sql',
+                content: 'SELECT 1',
+                order: 0,
+                output: normalizeNotebookCellOutput(),
+                execution: normalizeNotebookCellExecution(),
+              },
+            ],
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          } satisfies Notebook,
+        ],
+      ]),
       _iDbConn: null,
     };
 
@@ -275,37 +275,39 @@ describe('notebook-controller/updateCellName', () => {
 
   beforeEach(() => {
     mockState = {
-      notebooks: new Map([[
-        notebookId,
-        {
-          id: notebookId,
-          name: 'Notebook',
-          cells: [
-            {
-              id: sqlCellId,
-              ref: 'ref-sql-1' as any,
-              name: 'source_alias',
-              type: 'sql',
-              content: 'SELECT 1',
-              order: 0,
-              output: normalizeNotebookCellOutput(),
-              execution: normalizeNotebookCellExecution(),
-            },
-            {
-              id: otherSqlCellId,
-              ref: 'ref-sql-2' as any,
-              name: 'other_alias',
-              type: 'sql',
-              content: 'SELECT 2',
-              order: 1,
-              output: normalizeNotebookCellOutput(),
-              execution: normalizeNotebookCellExecution(),
-            },
-          ],
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-01T00:00:00.000Z',
-        } satisfies Notebook,
-      ]]),
+      notebooks: new Map([
+        [
+          notebookId,
+          {
+            id: notebookId,
+            name: 'Notebook',
+            cells: [
+              {
+                id: sqlCellId,
+                ref: 'ref-sql-1' as any,
+                name: 'source_alias',
+                type: 'sql',
+                content: 'SELECT 1',
+                order: 0,
+                output: normalizeNotebookCellOutput(),
+                execution: normalizeNotebookCellExecution(),
+              },
+              {
+                id: otherSqlCellId,
+                ref: 'ref-sql-2' as any,
+                name: 'other_alias',
+                type: 'sql',
+                content: 'SELECT 2',
+                order: 1,
+                output: normalizeNotebookCellOutput(),
+                execution: normalizeNotebookCellExecution(),
+              },
+            ],
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          } satisfies Notebook,
+        ],
+      ]),
       _iDbConn: null,
     };
 
@@ -351,37 +353,39 @@ describe('notebook-controller/applyNotebookCellContentPatches', () => {
 
   beforeEach(() => {
     mockState = {
-      notebooks: new Map([[
-        notebookId,
-        {
-          id: notebookId,
-          name: 'Notebook',
-          cells: [
-            {
-              id: sqlCellId,
-              ref: 'ref-sql-1' as any,
-              name: 'a',
-              type: 'sql',
-              content: 'SELECT * FROM a',
-              order: 0,
-              output: normalizeNotebookCellOutput(),
-              execution: normalizeNotebookCellExecution(),
-            },
-            {
-              id: otherSqlCellId,
-              ref: 'ref-sql-2' as any,
-              name: 'b',
-              type: 'sql',
-              content: 'SELECT * FROM a',
-              order: 1,
-              output: normalizeNotebookCellOutput(),
-              execution: normalizeNotebookCellExecution(),
-            },
-          ],
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-01T00:00:00.000Z',
-        } satisfies Notebook,
-      ]]),
+      notebooks: new Map([
+        [
+          notebookId,
+          {
+            id: notebookId,
+            name: 'Notebook',
+            cells: [
+              {
+                id: sqlCellId,
+                ref: 'ref-sql-1' as any,
+                name: 'a',
+                type: 'sql',
+                content: 'SELECT * FROM a',
+                order: 0,
+                output: normalizeNotebookCellOutput(),
+                execution: normalizeNotebookCellExecution(),
+              },
+              {
+                id: otherSqlCellId,
+                ref: 'ref-sql-2' as any,
+                name: 'b',
+                type: 'sql',
+                content: 'SELECT * FROM a',
+                order: 1,
+                output: normalizeNotebookCellOutput(),
+                execution: normalizeNotebookCellExecution(),
+              },
+            ],
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          } satisfies Notebook,
+        ],
+      ]),
       _iDbConn: null,
     };
 

@@ -49,19 +49,19 @@ type UseDataAdapterProps = {
    * scoped temp views created during execution remain visible.
    */
   getSharedConnection?: () => Promise<
-    import('@features/duckdb-context/duckdb-pooled-connection')
-      .AsyncDuckDBPooledConnection
+    import('@features/duckdb-context/duckdb-pooled-connection').AsyncDuckDBPooledConnection
   >;
 };
 
-const isExpectedConnectionUnmountError = (error: unknown): boolean => (
-  error instanceof Error
-  && error.message.includes('Component unmounted during connection acquisition')
-);
+const isExpectedConnectionUnmountError = (error: unknown): boolean =>
+  error instanceof Error &&
+  error.message.includes('Component unmounted during connection acquisition');
 
-export const useDataAdapter = (
-  { tab, sourceVersion, getSharedConnection }: UseDataAdapterProps,
-): DataAdapterApi => {
+export const useDataAdapter = ({
+  tab,
+  sourceVersion,
+  getSharedConnection,
+}: UseDataAdapterProps): DataAdapterApi => {
   const pool = useInitializedDuckDBConnectionPool();
 
   /**

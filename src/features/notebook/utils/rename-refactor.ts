@@ -77,11 +77,11 @@ function replaceIdentifiersInChunk(
     }
 
     // Strings
-    if (char === '\'') {
+    if (char === "'") {
       let end = index + 1;
       while (end < chunk.length) {
-        if (chunk[end] === '\'') {
-          if (chunk[end + 1] === '\'') {
+        if (chunk[end] === "'") {
+          if (chunk[end + 1] === "'") {
             end += 2;
             continue;
           }

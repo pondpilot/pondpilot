@@ -68,7 +68,8 @@ function stripIdentifierWrapping(identifier: string): string {
 function buildIdentifierCandidates(identifier?: string): string[] {
   if (!identifier) return [];
 
-  const parts = identifier.split('.')
+  const parts = identifier
+    .split('.')
     .map((part) => stripIdentifierWrapping(part))
     .filter(Boolean);
 
@@ -141,19 +142,22 @@ export async function computeCellDependenciesWithLineage(
   sortedCells: NotebookCell[],
   availableNames: Set<string>,
 ): Promise<CellDependencyMap> {
-  const depEntries = await Promise.all(sortedCells.map(async (cell) => {
-    if (cell.type !== 'sql') return null;
+  const depEntries = await Promise.all(
+    sortedCells.map(async (cell) => {
+      if (cell.type !== 'sql') return null;
 
-    const ownNames = getProvidedNames(cell);
-    const namesExcludingSelf = new Set([...availableNames].filter((name) => !ownNames.has(name)));
-    const lineageRefs = await extractCellReferencesFromLineage(cell.content, namesExcludingSelf);
-    const refs = lineageRefs && lineageRefs.length > 0
-      ? lineageRefs
-      : extractCellReferences(cell.content, namesExcludingSelf);
-    if (refs.length === 0) return null;
+      const ownNames = getProvidedNames(cell);
+      const namesExcludingSelf = new Set([...availableNames].filter((name) => !ownNames.has(name)));
+      const lineageRefs = await extractCellReferencesFromLineage(cell.content, namesExcludingSelf);
+      const refs =
+        lineageRefs && lineageRefs.length > 0
+          ? lineageRefs
+          : extractCellReferences(cell.content, namesExcludingSelf);
+      if (refs.length === 0) return null;
 
-    return [cell.id, refs] as const;
-  }));
+      return [cell.id, refs] as const;
+    }),
+  );
 
   const deps = new Map<string, string[]>();
   for (const entry of depEntries) {
@@ -230,9 +234,7 @@ export function buildResolvedDependencyGraph(
   return { edges, duplicateNameCells, unresolvedReferences };
 }
 
-export function detectCircularDependencyCells(
-  graph: Map<string, Set<string>>,
-): Set<string> {
+export function detectCircularDependencyCells(graph: Map<string, Set<string>>): Set<string> {
   const visitState = new Map<string, 'visiting' | 'visited'>();
   const path: string[] = [];
   const cyclicCells = new Set<string>();

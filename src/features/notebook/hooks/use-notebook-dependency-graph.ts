@@ -210,9 +210,10 @@ export function useNotebookDependencyGraph({
         const provider = cellById.get(providerId as CellId);
         if (!provider) continue;
         const references = getEdgeReferences(provider, consumerRefs);
-        const label = references.length > 0
-          ? references.slice(0, 2).join(', ') + (references.length > 2 ? '...' : '')
-          : undefined;
+        const label =
+          references.length > 0
+            ? references.slice(0, 2).join(', ') + (references.length > 2 ? '...' : '')
+            : undefined;
         edges.push({
           id: `${providerId}->${consumerId}`,
           source: providerId,

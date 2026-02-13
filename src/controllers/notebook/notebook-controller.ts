@@ -36,7 +36,14 @@ import { SqlnbCell, sqlnbCellsToNotebookCells } from '@utils/notebook-export';
 import { createPersistenceCatchHandler } from '@utils/persistence-logger';
 
 import { persistDeleteNotebook } from './persist';
-import { deleteNotebookImpl, insertCellAfter, insertCellAtStart, removeCellImpl, reorderCells, swapCellOrder } from './pure';
+import {
+  deleteNotebookImpl,
+  insertCellAfter,
+  insertCellAtStart,
+  removeCellImpl,
+  reorderCells,
+  swapCellOrder,
+} from './pure';
 
 /**
  * Debounce timer for notebook persistence.
@@ -66,9 +73,7 @@ const validateNotebookCellName = (name: string, existingLowercase: Set<string>):
 const normalizeNotebookCellIdentity = (cell: NotebookCell): NotebookCell => ({
   ...cell,
   ref: ensureCellRef(cell.id, cell.ref),
-  name: cell.type === 'sql'
-    ? normalizeCellName(cell.name)
-    : null,
+  name: cell.type === 'sql' ? normalizeCellName(cell.name) : null,
 });
 
 /**
@@ -188,18 +193,20 @@ export const createNotebookFromImport = (
     cells.length > 0
       ? sqlnbCellsToNotebookCells(cells, makeCellId, makeCellRef)
       : (() => {
-        const emptyCellId = makeCellId();
-        return [{
-          id: emptyCellId,
-          ref: makeCellRef(emptyCellId),
-          name: null,
-          type: 'sql' as const,
-          content: '',
-          order: 0,
-          output: normalizeNotebookCellOutput(),
-          execution: normalizeNotebookCellExecution(),
-        }];
-      })();
+          const emptyCellId = makeCellId();
+          return [
+            {
+              id: emptyCellId,
+              ref: makeCellRef(emptyCellId),
+              name: null,
+              type: 'sql' as const,
+              content: '',
+              order: 0,
+              output: normalizeNotebookCellOutput(),
+              execution: normalizeNotebookCellExecution(),
+            },
+          ];
+        })();
 
   const notebook: Notebook = {
     id: notebookId,
@@ -218,16 +225,13 @@ export const createNotebookFromImport = (
 /**
  * Creates a deep copy of an existing notebook with a "(Copy)" suffix.
  */
-export const duplicateNotebook = (
-  notebookOrId: Notebook | NotebookId,
-): Notebook => {
+export const duplicateNotebook = (notebookOrId: Notebook | NotebookId): Notebook => {
   const { notebooks, sqlScripts, comparisons } = useAppStore.getState();
   const notebook = ensureNotebook(notebookOrId, notebooks);
 
   const allExistingNames = getAllExistingNames({ comparisons, sqlScripts, notebooks });
-  const uniqueName = findUniqueName(
-    `${notebook.name} (Copy)`,
-    (value) => allExistingNames.has(value),
+  const uniqueName = findUniqueName(`${notebook.name} (Copy)`, (value) =>
+    allExistingNames.has(value),
   );
 
   const notebookId = makeNotebookId();
@@ -238,39 +242,37 @@ export const duplicateNotebook = (
     return {
       id: cellId,
       ref: makeCellRef(cellId),
-      name: cell.type === 'sql'
-        ? normalizeCellName(cell.name)
-        : null,
+      name: cell.type === 'sql' ? normalizeCellName(cell.name) : null,
       type: cell.type,
       content: cell.content,
       order: index,
-      output: cell.type === 'sql'
-        ? normalizeNotebookCellOutput(cell.output)
-        : cell.output,
-      execution: cell.type === 'sql'
-        ? normalizeNotebookCellExecution(cell.execution)
-        : cell.execution,
+      output: cell.type === 'sql' ? normalizeNotebookCellOutput(cell.output) : cell.output,
+      execution:
+        cell.type === 'sql' ? normalizeNotebookCellExecution(cell.execution) : cell.execution,
     };
   });
 
   const newNotebook: Notebook = {
     id: notebookId,
     name: uniqueName,
-    cells: copiedCells.length > 0
-      ? copiedCells
-      : (() => {
-        const fallbackCellId = makeCellId();
-        return [{
-          id: fallbackCellId,
-          ref: makeCellRef(fallbackCellId),
-          name: null,
-          type: 'sql' as const,
-          content: '',
-          order: 0,
-          output: normalizeNotebookCellOutput(),
-          execution: normalizeNotebookCellExecution(),
-        }];
-      })(),
+    cells:
+      copiedCells.length > 0
+        ? copiedCells
+        : (() => {
+            const fallbackCellId = makeCellId();
+            return [
+              {
+                id: fallbackCellId,
+                ref: makeCellRef(fallbackCellId),
+                name: null,
+                type: 'sql' as const,
+                content: '',
+                order: 0,
+                output: normalizeNotebookCellOutput(),
+                execution: normalizeNotebookCellExecution(),
+              },
+            ];
+          })(),
     parameters: normalizeNotebookParameters(notebook.parameters),
     createdAt: now,
     updatedAt: now,
@@ -293,10 +295,7 @@ export const duplicateNotebook = (
  * ------------------------------------------------------------
  */
 
-export const renameNotebook = (
-  notebookOrId: Notebook | NotebookId,
-  newName: string,
-): void => {
+export const renameNotebook = (notebookOrId: Notebook | NotebookId, newName: string): void => {
   const { notebooks, sqlScripts, comparisons } = useAppStore.getState();
   const notebook = ensureNotebook(notebookOrId, notebooks);
 
@@ -427,10 +426,7 @@ export const addCellAtStart = (
   return newCell;
 };
 
-export const removeCell = (
-  notebookOrId: Notebook | NotebookId,
-  cellId: CellId,
-): void => {
+export const removeCell = (notebookOrId: Notebook | NotebookId, cellId: CellId): void => {
   const { notebooks } = useAppStore.getState();
   const notebook = ensureNotebook(notebookOrId, notebooks);
 
@@ -448,10 +444,7 @@ export const removeCell = (
   updateNotebookInStore(updatedNotebook, 'AppStore/removeCell');
 };
 
-export const moveCellUp = (
-  notebookOrId: Notebook | NotebookId,
-  cellId: CellId,
-): void => {
+export const moveCellUp = (notebookOrId: Notebook | NotebookId, cellId: CellId): void => {
   const { notebooks } = useAppStore.getState();
   const notebook = ensureNotebook(notebookOrId, notebooks);
 
@@ -466,10 +459,7 @@ export const moveCellUp = (
   updateNotebookInStore(updatedNotebook, 'AppStore/moveCellUp');
 };
 
-export const moveCellDown = (
-  notebookOrId: Notebook | NotebookId,
-  cellId: CellId,
-): void => {
+export const moveCellDown = (notebookOrId: Notebook | NotebookId, cellId: CellId): void => {
   const { notebooks } = useAppStore.getState();
   const notebook = ensureNotebook(notebookOrId, notebooks);
 
@@ -544,11 +534,11 @@ export const updateCellName = (
     return { success: true, name: normalizedName };
   }
 
-  const updatedCells = notebook.cells.map((cell) => (
+  const updatedCells = notebook.cells.map((cell) =>
     cell.id === cellId
       ? normalizeNotebookCellIdentity({ ...cell, name: normalizedName })
-      : normalizeNotebookCellIdentity(cell)
-  ));
+      : normalizeNotebookCellIdentity(cell),
+  );
 
   const updatedNotebook: Notebook = {
     ...notebook,
@@ -615,13 +605,9 @@ export const updateCellType = (
     const updated = {
       ...cell,
       type,
-      name: type === 'sql'
-        ? normalizeCellName(cell.name)
-        : null,
+      name: type === 'sql' ? normalizeCellName(cell.name) : null,
       output: type === 'sql' ? normalizeNotebookCellOutput(cell.output) : cell.output,
-      execution: type === 'sql'
-        ? normalizeNotebookCellExecution(cell.execution)
-        : cell.execution,
+      execution: type === 'sql' ? normalizeNotebookCellExecution(cell.execution) : cell.execution,
     } as NotebookCell;
 
     return normalizeNotebookCellIdentity(updated);
@@ -692,9 +678,7 @@ export const updateCellExecution = (
     const nextExecution: NotebookCellExecution = normalizeNotebookCellExecution({
       ...currentExecution,
       ...execution,
-      snapshot: execution.snapshot === undefined
-        ? currentExecution.snapshot
-        : execution.snapshot,
+      snapshot: execution.snapshot === undefined ? currentExecution.snapshot : execution.snapshot,
     });
 
     if (isNotebookCellExecutionEqual(currentExecution, nextExecution)) {
@@ -716,9 +700,7 @@ export const updateCellExecution = (
   updateNotebookInStore(updatedNotebook, 'AppStore/updateCellExecution');
 };
 
-export const clearNotebookCellExecutions = (
-  notebookOrId: Notebook | NotebookId,
-): void => {
+export const clearNotebookCellExecutions = (notebookOrId: Notebook | NotebookId): void => {
   const { notebooks } = useAppStore.getState();
   const notebook = ensureNotebook(notebookOrId, notebooks);
 

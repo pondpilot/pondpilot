@@ -54,9 +54,10 @@ export const getOrCreateTabFromNotebook = (
     type: 'notebook',
     id: tabId,
     notebookId: notebook.id,
-    activeCellId: notebook.cells.length > 0
-      ? [...notebook.cells].sort((a, b) => a.order - b.order)[0].id
-      : null,
+    activeCellId:
+      notebook.cells.length > 0
+        ? [...notebook.cells].sort((a, b) => a.order - b.order)[0].id
+        : null,
     dataViewStateCache: null,
   };
 

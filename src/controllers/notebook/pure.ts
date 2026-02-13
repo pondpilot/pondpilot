@@ -58,10 +58,7 @@ export const insertCellAfter = (
 /**
  * Inserts a cell at the beginning of the cell list (before all existing cells).
  */
-export const insertCellAtStart = (
-  cells: NotebookCell[],
-  newCell: NotebookCell,
-): NotebookCell[] => {
+export const insertCellAtStart = (cells: NotebookCell[], newCell: NotebookCell): NotebookCell[] => {
   const sorted = [...cells].sort((a, b) => a.order - b.order);
   return assignOrder([newCell, ...sorted]);
 };
@@ -69,10 +66,7 @@ export const insertCellAtStart = (
 /**
  * Removes a cell from the list and reorders the remaining cells.
  */
-export const removeCellImpl = (
-  cells: NotebookCell[],
-  cellId: CellId,
-): NotebookCell[] => {
+export const removeCellImpl = (cells: NotebookCell[], cellId: CellId): NotebookCell[] => {
   const filtered = cells.filter((c) => c.id !== cellId);
   return reorderCells(filtered);
 };

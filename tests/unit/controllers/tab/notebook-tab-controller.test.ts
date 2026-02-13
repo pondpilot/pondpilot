@@ -41,7 +41,10 @@ jest.mock('@controllers/tab/tab-controller', () => ({
   setActiveTabId: jest.fn(),
 }));
 
-import { getOrCreateTabFromNotebook, setNotebookActiveCellId } from '@controllers/tab/notebook-tab-controller';
+import {
+  getOrCreateTabFromNotebook,
+  setNotebookActiveCellId,
+} from '@controllers/tab/notebook-tab-controller';
 import { persistCreateTab } from '@controllers/tab/persist';
 import { findTabFromNotebookImpl } from '@controllers/tab/pure';
 import { setActiveTabId } from '@controllers/tab/tab-controller';
@@ -53,14 +56,16 @@ describe('notebook-tab-controller', () => {
   const notebook: Notebook = {
     id: notebookId,
     name: 'Notebook',
-    cells: [{
-      id: cellId,
-      ref: '__pp_cell_1' as any,
-      name: null,
-      type: 'sql',
-      content: 'SELECT 1',
-      order: 0,
-    }],
+    cells: [
+      {
+        id: cellId,
+        ref: '__pp_cell_1' as any,
+        name: null,
+        type: 'sql',
+        content: 'SELECT 1',
+        order: 0,
+      },
+    ],
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
   };

@@ -67,10 +67,7 @@ export function validateCellName(name: string, existingNames?: Set<string>): str
  * Extracts all cell view references from SQL using identifier token matching.
  * `availableNames` are matched case-insensitively and returned in canonical form.
  */
-export function extractCellReferences(
-  sql: string,
-  availableNames: Set<string>,
-): string[] {
+export function extractCellReferences(sql: string, availableNames: Set<string>): string[] {
   if (!sql.trim()) return [];
 
   const canonicalByLower = new Map<string, string>();

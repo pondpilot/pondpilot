@@ -5,11 +5,10 @@ import { ScriptTab, TabId } from '@models/tab';
 import { NOTEBOOK_CELL_REF_PREFIX } from '@utils/notebook';
 import { useMemo, useRef } from 'react';
 
-import { resolveReusableNotebookLastQuery } from '../utils/query-restoration';
 import { CellExecutionState } from './use-notebook-execution-state';
+import { resolveReusableNotebookLastQuery } from '../utils/query-restoration';
 
 const NOTEBOOK_CELL_REF_PREFIX_LOWER = NOTEBOOK_CELL_REF_PREFIX.toLowerCase();
-
 
 /**
  * Per-cell data adapter that wraps the existing useDataAdapter hook.
@@ -41,7 +40,7 @@ export function useCellDataAdapter(
   // were executed in the current browser session.
   const safeLastQuery = useMemo(
     () => resolveReusableNotebookLastQuery(cellState, NOTEBOOK_CELL_REF_PREFIX_LOWER),
-    [cellState.lastQuery, cellState.lastRunAt],
+    [cellState],
   );
 
   // Build a virtual ScriptTab-like object for this cell's data adapter.

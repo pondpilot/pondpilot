@@ -20,7 +20,9 @@ const addSqlCellFromToolbar = async (page: Page) => {
 };
 
 const fillSqlCell = async (page: Page, index: number, sql: string) => {
-  const editor = getNotebookCell(page, index).getByTestId('notebook-cell-sql-editor').locator('.monaco-editor');
+  const editor = getNotebookCell(page, index)
+    .getByTestId('notebook-cell-sql-editor')
+    .locator('.monaco-editor');
   await expect(editor).toBeVisible();
   await editor.click();
   await page.keyboard.press('ControlOrMeta+A');
@@ -51,7 +53,8 @@ const runCell = async (
   if (await runMenuByTestId.count()) {
     await runMenuByTestId.click();
   } else {
-    await cell.getByTestId('notebook-cell-run')
+    await cell
+      .getByTestId('notebook-cell-run')
       .locator('xpath=following-sibling::button')
       .first()
       .click();
@@ -59,7 +62,10 @@ const runCell = async (
   await page.getByTestId(`notebook-cell-run-option-${mode}`).click();
 };
 
-test('reorder keeps references valid with stable refs', async ({ page, createNotebookViaSpotlight }) => {
+test('reorder keeps references valid with stable refs', async ({
+  page,
+  createNotebookViaSpotlight,
+}) => {
   await createNotebookViaSpotlight();
   await waitForNotebookReady(page);
 
@@ -81,10 +87,15 @@ test('reorder keeps references valid with stable refs', async ({ page, createNot
   await expect(page.getByTestId('notebook-run-all-button')).toBeEnabled({ timeout: 30000 });
 
   await expect(getNotebookCell(page, 0).getByTestId('data-table')).toBeVisible();
-  await expect(getNotebookCell(page, 0).getByTestId('data-table').getByText('2', { exact: true })).toBeVisible();
+  await expect(
+    getNotebookCell(page, 0).getByTestId('data-table').getByText('2', { exact: true }),
+  ).toBeVisible();
 });
 
-test('run all executes SQL cells in dependency order', async ({ page, createNotebookViaSpotlight }) => {
+test('run all executes SQL cells in dependency order', async ({
+  page,
+  createNotebookViaSpotlight,
+}) => {
   await createNotebookViaSpotlight();
   await waitForNotebookReady(page);
 
@@ -104,10 +115,15 @@ test('run all executes SQL cells in dependency order', async ({ page, createNote
   await expect(page.getByTestId('notebook-run-all-button')).toBeEnabled({ timeout: 30000 });
 
   await expect(getNotebookCell(page, 0).getByTestId('data-table')).toBeVisible();
-  await expect(getNotebookCell(page, 0).getByTestId('data-table').getByText('3', { exact: true })).toBeVisible();
+  await expect(
+    getNotebookCell(page, 0).getByTestId('data-table').getByText('3', { exact: true }),
+  ).toBeVisible();
 });
 
-test('run auto-materializes missing upstream while run upstream executes dependency chain', async ({ page, createNotebookViaSpotlight }) => {
+test('run auto-materializes missing upstream while run upstream executes dependency chain', async ({
+  page,
+  createNotebookViaSpotlight,
+}) => {
   await createNotebookViaSpotlight();
   await waitForNotebookReady(page);
 
@@ -121,15 +137,22 @@ test('run auto-materializes missing upstream while run upstream executes depende
 
   await expect(getNotebookCell(page, 0).getByTestId('data-table')).toBeVisible();
   await expect(getNotebookCell(page, 1).getByTestId('data-table')).toBeVisible();
-  await expect(getNotebookCell(page, 1).getByTestId('data-table').getByText('2', { exact: true })).toBeVisible();
+  await expect(
+    getNotebookCell(page, 1).getByTestId('data-table').getByText('2', { exact: true }),
+  ).toBeVisible();
 
   await runCell(page, 1, 'upstream');
   await expect(getNotebookCell(page, 0).getByTestId('data-table')).toBeVisible();
   await expect(getNotebookCell(page, 1).getByTestId('data-table')).toBeVisible();
-  await expect(getNotebookCell(page, 1).getByTestId('data-table').getByText('2', { exact: true })).toBeVisible();
+  await expect(
+    getNotebookCell(page, 1).getByTestId('data-table').getByText('2', { exact: true }),
+  ).toBeVisible();
 });
 
-test('run downstream executes dependent cells in order', async ({ page, createNotebookViaSpotlight }) => {
+test('run downstream executes dependent cells in order', async ({
+  page,
+  createNotebookViaSpotlight,
+}) => {
   await createNotebookViaSpotlight();
   await waitForNotebookReady(page);
 
@@ -148,7 +171,9 @@ test('run downstream executes dependent cells in order', async ({ page, createNo
   await expect(getNotebookCell(page, 0).getByTestId('data-table')).toBeVisible();
   await expect(getNotebookCell(page, 1).getByTestId('data-table')).toBeVisible();
   await expect(getNotebookCell(page, 2).getByTestId('data-table')).toBeVisible();
-  await expect(getNotebookCell(page, 2).getByTestId('data-table').getByText('3', { exact: true })).toBeVisible();
+  await expect(
+    getNotebookCell(page, 2).getByTestId('data-table').getByText('3', { exact: true }),
+  ).toBeVisible();
 });
 
 test('duplicate alias is blocked at rename time', async ({ page, createNotebookViaSpotlight }) => {
@@ -173,5 +198,7 @@ test('cycle is surfaced as an execution error', async ({ page, createNotebookVia
   await fillSqlCell(page, 1, 'SELECT * FROM a_ref');
 
   await runCell(page, 0);
-  await expect(getNotebookCell(page, 0).getByText('Circular dependency detected for this cell')).toBeVisible();
+  await expect(
+    getNotebookCell(page, 0).getByText('Circular dependency detected for this cell'),
+  ).toBeVisible();
 });

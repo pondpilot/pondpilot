@@ -1,4 +1,8 @@
-import { showAlertWithAction, showWarning, showWarningWithAction } from '@components/app-notifications';
+import {
+  showAlertWithAction,
+  showWarning,
+  showWarningWithAction,
+} from '@components/app-notifications';
 import {
   addCell,
   addCellAtStart,
@@ -260,11 +264,9 @@ async function getExistingTempViews(
   connection: AsyncDuckDBPooledConnection,
   viewNames: Iterable<string>,
 ): Promise<Set<string>> {
-  const normalized = [...new Set(
-    [...viewNames]
-      .map((viewName) => viewName.trim().toLowerCase())
-      .filter(Boolean),
-  )];
+  const normalized = [
+    ...new Set([...viewNames].map((viewName) => viewName.trim().toLowerCase()).filter(Boolean)),
+  ];
 
   if (normalized.length === 0) return new Set();
 
@@ -273,9 +275,7 @@ async function getExistingTempViews(
     `SELECT lower(view_name) AS view_name FROM duckdb_views() WHERE lower(view_name) IN (${inClause})`,
   );
   const rows = result.toArray() as Array<Record<string, unknown>>;
-  return new Set(rows
-    .map((row) => String(row.view_name ?? '').toLowerCase())
-    .filter(Boolean));
+  return new Set(rows.map((row) => String(row.view_name ?? '').toLowerCase()).filter(Boolean));
 }
 
 export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) => {
@@ -426,10 +426,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     [resolvedDependencyGraph],
   );
 
-  const initialExecutionState = useMemo(
-    () => buildExecutionStateMap(sortedCells),
-    [sortedCells],
-  );
+  const initialExecutionState = useMemo(() => buildExecutionStateMap(sortedCells), [sortedCells]);
 
   useEffect(() => {
     if (!notebook) {
@@ -655,8 +652,9 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
           for (const upstreamCell of upstreamProviderCells) {
             const upstreamState = getCellState(upstreamCell.id);
             const hasSuccessfulExecution = upstreamState.status === 'success';
-            const requiredViewNames = getCellMaterializedViewNames(upstreamCell)
-              .map((viewName) => viewName.toLowerCase());
+            const requiredViewNames = getCellMaterializedViewNames(upstreamCell).map((viewName) =>
+              viewName.toLowerCase(),
+            );
             const hasRequiredViews = existingViewNames
               ? requiredViewNames.every((viewName) => existingViewNames.has(viewName))
               : hasSuccessfulExecution;
@@ -713,8 +711,9 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
           }
 
           const providerIds = freshResolvedGraph.edges.get(executionCell.id) ?? new Set<string>();
-          const failedProviderId = [...providerIds].find((providerId) =>
-            executionPlanCellIds.has(providerId) && failedExecutionCellIds.has(providerId),
+          const failedProviderId = [...providerIds].find(
+            (providerId) =>
+              executionPlanCellIds.has(providerId) && failedExecutionCellIds.has(providerId),
           );
           if (failedProviderId) {
             const failedProviderCell = currentCells.find(
@@ -723,8 +722,8 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
             const providerLabel = failedProviderCell
               ? getCellReferenceLabel(failedProviderCell)
               : failedProviderId;
-            const providerFailureMessage = failureReasonByCellId.get(failedProviderId)
-              ?? 'Execution failed.';
+            const providerFailureMessage =
+              failureReasonByCellId.get(failedProviderId) ?? 'Execution failed.';
             const dependencyFailureMessage = `Upstream dependency "${providerLabel}" failed: ${providerFailureMessage}`;
             const blockedByDependencyState = normalizeNotebookCellExecution({
               ...prevState,
@@ -880,8 +879,8 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       } finally {
         for (const selectedId of abortControllerCellIds) {
           if (
-            abortController
-            && cellAbortControllersRef.current.get(selectedId) === abortController
+            abortController &&
+            cellAbortControllersRef.current.get(selectedId) === abortController
           ) {
             cellAbortControllersRef.current.delete(selectedId);
           }
@@ -901,216 +900,278 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
   );
 
   // Run All cells sequentially using the shared notebook connection
-  const handleRunAll = useCallback(async function runAll(options?: { continueOnError?: boolean }) {
-    if (!notebook) return;
+  const handleRunAll = useCallback(
+    async function runAll(options?: { continueOnError?: boolean }) {
+      if (!notebook) return;
 
-    const continueOnError = options?.continueOnError ?? false;
+      const continueOnError = options?.continueOnError ?? false;
 
-    // Cancel any existing Run All
-    if (runAllAbortRef.current) {
-      runAllAbortRef.current.abort();
-    }
-    const abortController = new AbortController();
-    runAllAbortRef.current = abortController;
+      // Cancel any existing Run All
+      if (runAllAbortRef.current) {
+        runAllAbortRef.current.abort();
+      }
+      const abortController = new AbortController();
+      runAllAbortRef.current = abortController;
 
-    // Clear stale markers since we're re-running notebook cells
-    clearStaleCells();
+      // Clear stale markers since we're re-running notebook cells
+      clearStaleCells();
 
-    // Read fresh cell content from the store
-    const currentNotebook = useAppStore.getState().notebooks.get(notebook.id);
-    if (!currentNotebook) {
-      setRunAllState((prev) => ({ ...prev, running: false }));
-      return;
-    }
-    const notebookParameters = normalizeNotebookParameters(currentNotebook.parameters);
+      // Read fresh cell content from the store
+      const currentNotebook = useAppStore.getState().notebooks.get(notebook.id);
+      if (!currentNotebook) {
+        setRunAllState((prev) => ({ ...prev, running: false }));
+        return;
+      }
+      const notebookParameters = normalizeNotebookParameters(currentNotebook.parameters);
 
-    const currentCells = [...currentNotebook.cells].sort((a, b) => a.order - b.order);
-    const sqlCellsWithIndex = currentCells
-      .map((cell, index) => ({ cell, index }))
-      .filter(({ cell }) => cell.type === 'sql');
+      const currentCells = [...currentNotebook.cells].sort((a, b) => a.order - b.order);
+      const sqlCellsWithIndex = currentCells
+        .map((cell, index) => ({ cell, index }))
+        .filter(({ cell }) => cell.type === 'sql');
 
-    const totalSqlCells = sqlCellsWithIndex.length;
-    setRunAllState({
-      running: true,
-      current: 0,
-      total: totalSqlCells,
-      continueOnError,
-    });
+      const totalSqlCells = sqlCellsWithIndex.length;
+      setRunAllState({
+        running: true,
+        current: 0,
+        total: totalSqlCells,
+        continueOnError,
+      });
 
-    const runAllNames = buildAvailableCellNames(currentCells);
-    const runAllDeps = await computeCellDependenciesWithLineage(currentCells, runAllNames);
-    const runAllResolvedGraph = buildResolvedDependencyGraph(currentCells, runAllDeps);
-    const runAllCircularCells = detectCircularDependencyCells(runAllResolvedGraph.edges);
-    const blockedCellIds = new Set<string>([
-      ...runAllCircularCells,
-      ...runAllResolvedGraph.duplicateNameCells,
-      ...runAllResolvedGraph.unresolvedReferences.keys(),
-    ]);
-    const orderedSqlCellsWithIndex = buildTopologicalExecutionOrder(
-      sqlCellsWithIndex,
-      runAllResolvedGraph.edges,
-      blockedCellIds,
-    );
+      const runAllNames = buildAvailableCellNames(currentCells);
+      const runAllDeps = await computeCellDependenciesWithLineage(currentCells, runAllNames);
+      const runAllResolvedGraph = buildResolvedDependencyGraph(currentCells, runAllDeps);
+      const runAllCircularCells = detectCircularDependencyCells(runAllResolvedGraph.edges);
+      const blockedCellIds = new Set<string>([
+        ...runAllCircularCells,
+        ...runAllResolvedGraph.duplicateNameCells,
+        ...runAllResolvedGraph.unresolvedReferences.keys(),
+      ]);
+      const orderedSqlCellsWithIndex = buildTopologicalExecutionOrder(
+        sqlCellsWithIndex,
+        runAllResolvedGraph.edges,
+        blockedCellIds,
+      );
 
-    const orderedSqlCellIds = new Set(orderedSqlCellsWithIndex.map(({ cell }) => cell.id));
-    const blockedSqlCellsWithIndex = sqlCellsWithIndex.filter(
-      ({ cell }) => blockedCellIds.has(cell.id) && !orderedSqlCellIds.has(cell.id),
-    );
-    const executionPlan = [...orderedSqlCellsWithIndex, ...blockedSqlCellsWithIndex];
-    const executionPlanCellIds = new Set<string>(executionPlan.map(({ cell }) => cell.id));
+      const orderedSqlCellIds = new Set(orderedSqlCellsWithIndex.map(({ cell }) => cell.id));
+      const blockedSqlCellsWithIndex = sqlCellsWithIndex.filter(
+        ({ cell }) => blockedCellIds.has(cell.id) && !orderedSqlCellIds.has(cell.id),
+      );
+      const executionPlan = [...orderedSqlCellsWithIndex, ...blockedSqlCellsWithIndex];
+      const executionPlanCellIds = new Set<string>(executionPlan.map(({ cell }) => cell.id));
 
-    let firstErrorMessage: string | null = null;
-    let stoppedOnError = false;
-    const failedExecutionCellIds = new Set<string>();
-    const failureReasonByCellId = new Map<string, string>();
+      let firstErrorMessage: string | null = null;
+      let stoppedOnError = false;
+      const failedExecutionCellIds = new Set<string>();
+      const failureReasonByCellId = new Map<string, string>();
 
-    try {
-      // Use the shared connection for all cells so temp views persist
-      const sharedConnection = await getConnection();
+      try {
+        // Use the shared connection for all cells so temp views persist
+        const sharedConnection = await getConnection();
 
-      for (let offset = 0; offset < executionPlan.length; offset += 1) {
-        const { cell } = executionPlan[offset];
-        if (abortController.signal.aborted) {
-          break;
-        }
-
-        setRunAllState((prev) => ({
-          ...prev,
-          running: true,
-          current: Math.min(offset + 1, totalSqlCells),
-          total: totalSqlCells,
-          continueOnError,
-        }));
-
-        const startTime = Date.now();
-        const prevCellState = getCellState(cell.id);
-        executionCounterRef.current += 1;
-        const executionCount = executionCounterRef.current;
-
-        if (
-          runAllCircularCells.has(cell.id) ||
-          runAllResolvedGraph.duplicateNameCells.has(cell.id) ||
-          runAllResolvedGraph.unresolvedReferences.has(cell.id)
-        ) {
-          const message = runAllCircularCells.has(cell.id)
-            ? 'Circular dependency detected for this cell. Remove cyclical references before execution.'
-            : runAllResolvedGraph.unresolvedReferences.has(cell.id)
-              ? `Unresolved cell references: ${(runAllResolvedGraph.unresolvedReferences.get(cell.id) ?? []).join(', ')}`
-              : 'Duplicate SQL cell names detected. Ensure each SQL cell ref/name is unique before execution.';
-
-          const blockedState = normalizeNotebookCellExecution({
-            ...prevCellState,
-            status: 'error',
-            error: message,
-            executionTime: 0,
-            lastQuery: null,
-            executionCount,
-            lastRunAt: new Date().toISOString(),
-            snapshot: null,
-          });
-
-          setCellState(cell.id, blockedState);
-          persistCellExecution(notebook.id, cell.id, blockedState);
-          failedExecutionCellIds.add(cell.id);
-          failureReasonByCellId.set(cell.id, message);
-
-          if (!firstErrorMessage) {
-            firstErrorMessage = message;
-          }
-
-          if (!continueOnError) {
-            stoppedOnError = true;
+        for (let offset = 0; offset < executionPlan.length; offset += 1) {
+          const { cell } = executionPlan[offset];
+          if (abortController.signal.aborted) {
             break;
           }
 
-          continue;
-        }
+          setRunAllState((prev) => ({
+            ...prev,
+            running: true,
+            current: Math.min(offset + 1, totalSqlCells),
+            total: totalSqlCells,
+            continueOnError,
+          }));
 
-        const providerIds = runAllResolvedGraph.edges.get(cell.id) ?? new Set<string>();
-        const failedProviderId = [...providerIds].find((providerId) =>
-          executionPlanCellIds.has(providerId) && failedExecutionCellIds.has(providerId),
-        );
-        if (failedProviderId) {
-          const failedProviderCell = currentCells.find(
-            (currentCell) => currentCell.id === failedProviderId,
+          const startTime = Date.now();
+          const prevCellState = getCellState(cell.id);
+          executionCounterRef.current += 1;
+          const executionCount = executionCounterRef.current;
+
+          if (
+            runAllCircularCells.has(cell.id) ||
+            runAllResolvedGraph.duplicateNameCells.has(cell.id) ||
+            runAllResolvedGraph.unresolvedReferences.has(cell.id)
+          ) {
+            const message = runAllCircularCells.has(cell.id)
+              ? 'Circular dependency detected for this cell. Remove cyclical references before execution.'
+              : runAllResolvedGraph.unresolvedReferences.has(cell.id)
+                ? `Unresolved cell references: ${(runAllResolvedGraph.unresolvedReferences.get(cell.id) ?? []).join(', ')}`
+                : 'Duplicate SQL cell names detected. Ensure each SQL cell ref/name is unique before execution.';
+
+            const blockedState = normalizeNotebookCellExecution({
+              ...prevCellState,
+              status: 'error',
+              error: message,
+              executionTime: 0,
+              lastQuery: null,
+              executionCount,
+              lastRunAt: new Date().toISOString(),
+              snapshot: null,
+            });
+
+            setCellState(cell.id, blockedState);
+            persistCellExecution(notebook.id, cell.id, blockedState);
+            failedExecutionCellIds.add(cell.id);
+            failureReasonByCellId.set(cell.id, message);
+
+            if (!firstErrorMessage) {
+              firstErrorMessage = message;
+            }
+
+            if (!continueOnError) {
+              stoppedOnError = true;
+              break;
+            }
+
+            continue;
+          }
+
+          const providerIds = runAllResolvedGraph.edges.get(cell.id) ?? new Set<string>();
+          const failedProviderId = [...providerIds].find(
+            (providerId) =>
+              executionPlanCellIds.has(providerId) && failedExecutionCellIds.has(providerId),
           );
-          const failedProviderLabel = failedProviderCell
-            ? (
-              normalizeCellName(failedProviderCell.name)
-              ?? ensureCellRef(failedProviderCell.id, failedProviderCell.ref)
-            )
-            : failedProviderId;
-          const providerFailureReason = failureReasonByCellId.get(failedProviderId)
-            ?? 'Execution failed.';
-          const dependencyFailureMessage = `Upstream dependency "${failedProviderLabel}" failed: ${providerFailureReason}`;
+          if (failedProviderId) {
+            const failedProviderCell = currentCells.find(
+              (currentCell) => currentCell.id === failedProviderId,
+            );
+            const failedProviderLabel = failedProviderCell
+              ? (normalizeCellName(failedProviderCell.name) ??
+                ensureCellRef(failedProviderCell.id, failedProviderCell.ref))
+              : failedProviderId;
+            const providerFailureReason =
+              failureReasonByCellId.get(failedProviderId) ?? 'Execution failed.';
+            const dependencyFailureMessage = `Upstream dependency "${failedProviderLabel}" failed: ${providerFailureReason}`;
 
-          const blockedByDependencyState = normalizeNotebookCellExecution({
+            const blockedByDependencyState = normalizeNotebookCellExecution({
+              ...prevCellState,
+              status: 'error',
+              error: dependencyFailureMessage,
+              executionTime: 0,
+              lastQuery: null,
+              executionCount,
+              lastRunAt: new Date().toISOString(),
+              snapshot: null,
+            });
+            setCellState(cell.id, blockedByDependencyState);
+            persistCellExecution(notebook.id, cell.id, blockedByDependencyState);
+            failedExecutionCellIds.add(cell.id);
+            failureReasonByCellId.set(cell.id, dependencyFailureMessage);
+
+            if (!firstErrorMessage) {
+              firstErrorMessage = dependencyFailureMessage;
+            }
+
+            if (!continueOnError) {
+              stoppedOnError = true;
+              break;
+            }
+
+            continue;
+          }
+
+          const runningState = normalizeNotebookCellExecution({
             ...prevCellState,
-            status: 'error',
-            error: dependencyFailureMessage,
-            executionTime: 0,
-            lastQuery: null,
+            status: 'running',
+            error: null,
+            executionTime: null,
+            lastQuery: prevCellState.lastQuery,
             executionCount,
-            lastRunAt: new Date().toISOString(),
-            snapshot: null,
-          });
-          setCellState(cell.id, blockedByDependencyState);
-          persistCellExecution(notebook.id, cell.id, blockedByDependencyState);
-          failedExecutionCellIds.add(cell.id);
-          failureReasonByCellId.set(cell.id, dependencyFailureMessage);
-
-          if (!firstErrorMessage) {
-            firstErrorMessage = dependencyFailureMessage;
-          }
-
-          if (!continueOnError) {
-            stoppedOnError = true;
-            break;
-          }
-
-          continue;
-        }
-
-        const runningState = normalizeNotebookCellExecution({
-          ...prevCellState,
-          status: 'running',
-          error: null,
-          executionTime: null,
-          lastQuery: prevCellState.lastQuery,
-          executionCount,
-          snapshot: prevCellState.snapshot,
-        });
-
-        setCellState(cell.id, runningState);
-        persistCellExecution(notebook.id, cell.id, {
-          status: runningState.status,
-          error: runningState.error,
-          executionTime: runningState.executionTime,
-          lastQuery: runningState.lastQuery,
-          executionCount: runningState.executionCount,
-          snapshot: runningState.snapshot,
-        });
-
-        try {
-          const { lastQuery, error } = await executeCellSQL({
-            pool,
-            sql: cell.content,
-            protectedViews,
-            abortSignal: abortController.signal,
-            sharedConnection,
-            cellRef: ensureCellRef(cell.id, cell.ref),
-            cellName: normalizeCellName(cell.name),
-            parameters: notebookParameters,
+            snapshot: prevCellState.snapshot,
           });
 
-          const executionTime = Date.now() - startTime;
-          const lastRunAt = new Date().toISOString();
+          setCellState(cell.id, runningState);
+          persistCellExecution(notebook.id, cell.id, {
+            status: runningState.status,
+            error: runningState.error,
+            executionTime: runningState.executionTime,
+            lastQuery: runningState.lastQuery,
+            executionCount: runningState.executionCount,
+            snapshot: runningState.snapshot,
+          });
 
-          if (error) {
+          try {
+            const { lastQuery, error } = await executeCellSQL({
+              pool,
+              sql: cell.content,
+              protectedViews,
+              abortSignal: abortController.signal,
+              sharedConnection,
+              cellRef: ensureCellRef(cell.id, cell.ref),
+              cellName: normalizeCellName(cell.name),
+              parameters: notebookParameters,
+            });
+
+            const executionTime = Date.now() - startTime;
+            const lastRunAt = new Date().toISOString();
+
+            if (error) {
+              const errorState = normalizeNotebookCellExecution({
+                ...runningState,
+                status: 'error',
+                error,
+                executionTime,
+                lastQuery: null,
+                lastRunAt,
+                snapshot: null,
+              });
+              setCellState(cell.id, errorState);
+              persistCellExecution(notebook.id, cell.id, {
+                status: errorState.status,
+                error: errorState.error,
+                executionTime: errorState.executionTime,
+                lastQuery: errorState.lastQuery,
+                executionCount: errorState.executionCount,
+                lastRunAt: errorState.lastRunAt,
+                snapshot: errorState.snapshot,
+              });
+              failedExecutionCellIds.add(cell.id);
+              failureReasonByCellId.set(cell.id, error);
+
+              if (!firstErrorMessage) {
+                firstErrorMessage = error;
+              }
+
+              if (!continueOnError) {
+                stoppedOnError = true;
+                break;
+              }
+
+              continue;
+            }
+
+            const snapshot = await captureCellSnapshot(sharedConnection, lastQuery);
+            const successState = normalizeNotebookCellExecution({
+              ...runningState,
+              status: 'success',
+              error: null,
+              executionTime,
+              lastQuery,
+              lastRunAt,
+              snapshot,
+            });
+            setCellState(cell.id, successState);
+            persistCellExecution(notebook.id, cell.id, {
+              status: successState.status,
+              error: successState.error,
+              executionTime: successState.executionTime,
+              lastQuery: successState.lastQuery,
+              executionCount: successState.executionCount,
+              lastRunAt: successState.lastRunAt,
+              snapshot: successState.snapshot,
+            });
+          } catch (error: any) {
+            if (abortController.signal.aborted) {
+              break;
+            }
+
+            const executionTime = Date.now() - startTime;
+            const lastRunAt = new Date().toISOString();
+            const message = error?.message || 'Unknown error';
             const errorState = normalizeNotebookCellExecution({
               ...runningState,
               status: 'error',
-              error,
+              error: message,
               executionTime,
               lastQuery: null,
               lastRunAt,
@@ -1127,121 +1188,59 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
               snapshot: errorState.snapshot,
             });
             failedExecutionCellIds.add(cell.id);
-            failureReasonByCellId.set(cell.id, error);
+            failureReasonByCellId.set(cell.id, message);
 
             if (!firstErrorMessage) {
-              firstErrorMessage = error;
+              firstErrorMessage = message;
             }
 
             if (!continueOnError) {
               stoppedOnError = true;
               break;
             }
-
-            continue;
-          }
-
-          const snapshot = await captureCellSnapshot(sharedConnection, lastQuery);
-          const successState = normalizeNotebookCellExecution({
-            ...runningState,
-            status: 'success',
-            error: null,
-            executionTime,
-            lastQuery,
-            lastRunAt,
-            snapshot,
-          });
-          setCellState(cell.id, successState);
-          persistCellExecution(notebook.id, cell.id, {
-            status: successState.status,
-            error: successState.error,
-            executionTime: successState.executionTime,
-            lastQuery: successState.lastQuery,
-            executionCount: successState.executionCount,
-            lastRunAt: successState.lastRunAt,
-            snapshot: successState.snapshot,
-          });
-        } catch (error: any) {
-          if (abortController.signal.aborted) {
-            break;
-          }
-
-          const executionTime = Date.now() - startTime;
-          const lastRunAt = new Date().toISOString();
-          const message = error?.message || 'Unknown error';
-          const errorState = normalizeNotebookCellExecution({
-            ...runningState,
-            status: 'error',
-            error: message,
-            executionTime,
-            lastQuery: null,
-            lastRunAt,
-            snapshot: null,
-          });
-          setCellState(cell.id, errorState);
-          persistCellExecution(notebook.id, cell.id, {
-            status: errorState.status,
-            error: errorState.error,
-            executionTime: errorState.executionTime,
-            lastQuery: errorState.lastQuery,
-            executionCount: errorState.executionCount,
-            lastRunAt: errorState.lastRunAt,
-            snapshot: errorState.snapshot,
-          });
-          failedExecutionCellIds.add(cell.id);
-          failureReasonByCellId.set(cell.id, message);
-
-          if (!firstErrorMessage) {
-            firstErrorMessage = message;
-          }
-
-          if (!continueOnError) {
-            stoppedOnError = true;
-            break;
           }
         }
+      } catch (error: any) {
+        const message = error?.message || 'Failed to acquire shared notebook connection.';
+        if (!firstErrorMessage) {
+          firstErrorMessage = message;
+        }
+        if (!continueOnError) {
+          stoppedOnError = true;
+        }
+        console.error('Failed to acquire shared notebook connection:', error);
+      } finally {
+        if (runAllAbortRef.current === abortController) {
+          runAllAbortRef.current = null;
+        }
+        setRunAllState((prev) => ({ ...prev, running: false }));
       }
-    } catch (error: any) {
-      const message = error?.message || 'Failed to acquire shared notebook connection.';
-      if (!firstErrorMessage) {
-        firstErrorMessage = message;
-      }
-      if (!continueOnError) {
-        stoppedOnError = true;
-      }
-      console.error('Failed to acquire shared notebook connection:', error);
-    } finally {
-      if (runAllAbortRef.current === abortController) {
-        runAllAbortRef.current = null;
-      }
-      setRunAllState((prev) => ({ ...prev, running: false }));
-    }
 
-    if (abortController.signal.aborted) {
-      // If another Run All started immediately after this one,
-      // skip cancellation noise for the superseded run.
-      if (runAllAbortRef.current) {
+      if (abortController.signal.aborted) {
+        // If another Run All started immediately after this one,
+        // skip cancellation noise for the superseded run.
+        if (runAllAbortRef.current) {
+          return;
+        }
+
+        showWarning({
+          title: 'Run all cancelled',
+          message: 'Notebook execution was cancelled before completion.',
+        });
         return;
       }
 
-      showWarning({
-        title: 'Run all cancelled',
-        message: 'Notebook execution was cancelled before completion.',
-      });
-      return;
-    }
+      if (firstErrorMessage && continueOnError) {
+        showWarning({
+          title: 'Run all completed with errors',
+          message: 'Some cells failed. Review inline errors and re-run failed cells as needed.',
+        });
+        return;
+      }
 
-    if (firstErrorMessage && continueOnError) {
-      showWarning({
-        title: 'Run all completed with errors',
-        message: 'Some cells failed. Review inline errors and re-run failed cells as needed.',
-      });
-      return;
-    }
-
-    if (firstErrorMessage && stoppedOnError) {
-      showWarningWithAction({
-        title: 'Run all stopped on error',
+      if (firstErrorMessage && stoppedOnError) {
+        showWarningWithAction({
+          title: 'Run all stopped on error',
           message: firstErrorMessage,
           action: {
             label: 'Continue',
@@ -1250,17 +1249,19 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
             },
           },
         });
-    }
-  }, [
-    notebook,
-    pool,
-    protectedViews,
-    getCellState,
-    setCellState,
-    getConnection,
-    clearStaleCells,
-    persistCellExecution,
-  ]);
+      }
+    },
+    [
+      notebook,
+      pool,
+      protectedViews,
+      getCellState,
+      setCellState,
+      getConnection,
+      clearStaleCells,
+      persistCellExecution,
+    ],
+  );
 
   const handleContentChange = useCallback(
     (cellId: CellId, content: string) => {
@@ -1312,9 +1313,12 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
 
       // Move active cell after deletion
       if (tab.activeCellId === cellId) {
-        const newActiveCellId = cellIndex > 0
-          ? sortedCells[cellIndex - 1].id
-          : sortedCells.length > 1 ? sortedCells[1].id : null;
+        const newActiveCellId =
+          cellIndex > 0
+            ? sortedCells[cellIndex - 1].id
+            : sortedCells.length > 1
+              ? sortedCells[1].id
+              : null;
         if (newActiveCellId) {
           setNotebookActiveCellId(tabId, newActiveCellId);
         }
@@ -1610,10 +1614,13 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     setParametersModalOpen(false);
   }, []);
 
-  const handleSaveParameters = useCallback((parameters: NotebookParameter[]) => {
-    if (!notebook) return;
-    updateNotebookParameters(notebook.id, parameters);
-  }, [notebook]);
+  const handleSaveParameters = useCallback(
+    (parameters: NotebookParameter[]) => {
+      if (!notebook) return;
+      updateNotebookParameters(notebook.id, parameters);
+    },
+    [notebook],
+  );
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -1640,7 +1647,8 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       ) {
         showWarning({
           title: 'Invalid references after reorder',
-          message: 'Some cells now have circular dependencies, duplicate names, or unresolved references.',
+          message:
+            'Some cells now have circular dependencies, duplicate names, or unresolved references.',
         });
       }
     },
@@ -1675,23 +1683,29 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     setViewMode(nextMode);
   }, []);
 
-  const handleToggleCellFullscreen = useCallback((cellId: CellId) => {
-    setFullscreenCellId((current) => {
-      if (current === cellId) return null;
-      return cellId;
-    });
-    setNotebookActiveCellId(tabId, cellId);
-    enterEditMode();
-  }, [tabId, enterEditMode]);
+  const handleToggleCellFullscreen = useCallback(
+    (cellId: CellId) => {
+      setFullscreenCellId((current) => {
+        if (current === cellId) return null;
+        return cellId;
+      });
+      setNotebookActiveCellId(tabId, cellId);
+      enterEditMode();
+    },
+    [tabId, enterEditMode],
+  );
 
-  const handleOpenGraphCell = useCallback((cellId: CellId) => {
-    setNotebookActiveCellId(tabId, cellId);
-    setViewMode('list');
-    enterEditMode();
-    setTimeout(() => {
-      scrollToCell(cellId);
-    }, 40);
-  }, [tabId, enterEditMode, scrollToCell]);
+  const handleOpenGraphCell = useCallback(
+    (cellId: CellId) => {
+      setNotebookActiveCellId(tabId, cellId);
+      setViewMode('list');
+      enterEditMode();
+      setTimeout(() => {
+        scrollToCell(cellId);
+      }, 40);
+    },
+    [tabId, enterEditMode, scrollToCell],
+  );
 
   useEffect(() => {
     if (!fullscreenCellId) return;
@@ -1772,10 +1786,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
                     {sortedCells.map((cell, index) => {
                       const cellState = getCellState(cell.id);
                       return (
-                        <div
-                          key={cell.id}
-                          ref={(el) => setCellRef(cell.id, el)}
-                        >
+                        <div key={cell.id} ref={(el) => setCellRef(cell.id, el)}>
                           <SortableCellWrapper id={cell.id}>
                             {(dragHandleProps) => (
                               <NotebookCell
@@ -1817,9 +1828,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
                               />
                             )}
                           </SortableCellWrapper>
-                          <AddCellButton
-                            onAddCell={(type) => handleAddCell(type, cell.id)}
-                          />
+                          <AddCellButton onAddCell={(type) => handleAddCell(type, cell.id)} />
                         </div>
                       );
                     })}

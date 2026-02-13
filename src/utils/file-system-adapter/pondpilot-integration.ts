@@ -134,10 +134,7 @@ export async function pickFolderForPondPilot(): Promise<PickFolderResult> {
  * Pick data source files specifically for PondPilot
  */
 export async function pickDataSourceFiles(): Promise<PickFilesResult> {
-  const extensions = [
-    ...SUPPORTED_DATA_SOURCE_FILE_EXTS.map((ext) => `.${ext}`),
-    '.sqlnb',
-  ];
+  const extensions = [...SUPPORTED_DATA_SOURCE_FILE_EXTS.map((ext) => `.${ext}`), '.sqlnb'];
   return pickFilesForPondPilot(extensions, 'Data Source & Notebook Files', true);
 }
 

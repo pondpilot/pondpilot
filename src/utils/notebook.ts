@@ -13,9 +13,7 @@ export const makeCellRef = (cellId: CellId): CellRef => {
   return `${NOTEBOOK_CELL_REF_PREFIX}${normalizedId}` as CellRef;
 };
 
-export const ensureCellRef = (cellId: CellId, ref?: CellRef): CellRef => (
-  ref ?? makeCellRef(cellId)
-);
+export const ensureCellRef = (cellId: CellId, ref?: CellRef): CellRef => ref ?? makeCellRef(cellId);
 
 export function ensureNotebook(
   notebookOrId: Notebook | NotebookId,

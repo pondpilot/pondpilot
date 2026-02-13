@@ -1,9 +1,4 @@
-import {
-  ChartConfig,
-  DEFAULT_CHART_CONFIG,
-  DEFAULT_VIEW_MODE,
-  ViewMode,
-} from './chart';
+import { ChartConfig, DEFAULT_CHART_CONFIG, DEFAULT_VIEW_MODE, ViewMode } from './chart';
 import { DataTable, DBTableOrViewSchema } from './db';
 import { NewId } from './new-id';
 
@@ -182,11 +177,10 @@ export const normalizeNotebookCellExecution = (
   snapshot: execution?.snapshot ?? null,
 });
 
-const equalStringArray = (a: string[], b: string[]): boolean => (
-  a.length === b.length && a.every((value, index) => value === b[index])
-);
+const equalStringArray = (a: string[], b: string[]): boolean =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
 
-const equalSchema = (a: DBTableOrViewSchema, b: DBTableOrViewSchema): boolean => (
+const equalSchema = (a: DBTableOrViewSchema, b: DBTableOrViewSchema): boolean =>
   a.length === b.length &&
   a.every((col, index) => {
     const other = b[index];
@@ -198,8 +192,7 @@ const equalSchema = (a: DBTableOrViewSchema, b: DBTableOrViewSchema): boolean =>
       col.id === other.id &&
       col.columnIndex === other.columnIndex
     );
-  })
-);
+  });
 
 const equalDataTable = (a: DataTable, b: DataTable): boolean => {
   if (a.length !== b.length) return false;
@@ -241,10 +234,7 @@ const equalSnapshot = (
 /**
  * Deep equality for notebook SQL cell output settings.
  */
-export const isNotebookCellOutputEqual = (
-  a: NotebookCellOutput,
-  b: NotebookCellOutput,
-): boolean => (
+export const isNotebookCellOutputEqual = (a: NotebookCellOutput, b: NotebookCellOutput): boolean =>
   a.viewMode === b.viewMode &&
   a.chartConfig.chartType === b.chartConfig.chartType &&
   a.chartConfig.xAxisColumn === b.chartConfig.xAxisColumn &&
@@ -257,26 +247,24 @@ export const isNotebookCellOutputEqual = (
   a.chartConfig.xAxisLabel === b.chartConfig.xAxisLabel &&
   a.chartConfig.yAxisLabel === b.chartConfig.yAxisLabel &&
   a.chartConfig.colorScheme === b.chartConfig.colorScheme &&
-  equalStringArray(a.chartConfig.additionalYColumns, b.chartConfig.additionalYColumns)
-);
+  equalStringArray(a.chartConfig.additionalYColumns, b.chartConfig.additionalYColumns);
 
 export const isNotebookCellExecutionEqual = (
   a: NotebookCellExecution,
   b: NotebookCellExecution,
-): boolean => (
+): boolean =>
   a.status === b.status &&
   a.error === b.error &&
   a.executionTime === b.executionTime &&
   a.lastQuery === b.lastQuery &&
   a.executionCount === b.executionCount &&
   a.lastRunAt === b.lastRunAt &&
-  equalSnapshot(a.snapshot, b.snapshot)
-);
+  equalSnapshot(a.snapshot, b.snapshot);
 
 export const isNotebookParametersEqual = (
   a: NotebookParameter[],
   b: NotebookParameter[],
-): boolean => (
+): boolean =>
   a.length === b.length &&
   a.every((parameter, index) => {
     const other = b[index];
@@ -285,5 +273,4 @@ export const isNotebookParametersEqual = (
       parameter.type === other.type &&
       parameter.value === other.value
     );
-  })
-);
+  });

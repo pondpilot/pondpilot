@@ -35,10 +35,11 @@ import { importNotebookFromFile, isNotebookFileName } from '@utils/import-notebo
 
 type TestFile = Pick<File, 'name' | 'text'>;
 
-const makeFile = (name: string, content = '{}'): File => ({
-  name,
-  text: async () => content,
-} as TestFile as File);
+const makeFile = (name: string, content = '{}'): File =>
+  ({
+    name,
+    text: async () => content,
+  }) as TestFile as File;
 
 describe('import-notebook-file', () => {
   beforeEach(() => {

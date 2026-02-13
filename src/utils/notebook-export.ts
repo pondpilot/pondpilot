@@ -191,9 +191,7 @@ export function parseSqlnb(jsonString: string): SqlnbFormat {
         output.viewMode !== 'table' &&
         output.viewMode !== 'chart'
       ) {
-        throw new Error(
-          `Invalid .sqlnb format: cell at index ${i} has invalid output.viewMode.`,
-        );
+        throw new Error(`Invalid .sqlnb format: cell at index ${i} has invalid output.viewMode.`);
       }
 
       if (output.chartConfig !== undefined) {
@@ -383,7 +381,9 @@ function formatSnapshotValue(value: unknown): string {
   return String(value);
 }
 
-function renderSnapshotTable(snapshot: NonNullable<ReturnType<typeof normalizeNotebookCellExecution>['snapshot']>): string {
+function renderSnapshotTable(
+  snapshot: NonNullable<ReturnType<typeof normalizeNotebookCellExecution>['snapshot']>,
+): string {
   const schemaColumns = snapshot.schema.map((column) => column.name);
   const limitedRows = snapshot.data.slice(0, HTML_EXPORT_MAX_ROWS) as Record<string, unknown>[];
   const isTruncated = snapshot.truncated || snapshot.data.length > HTML_EXPORT_MAX_ROWS;
@@ -451,9 +451,10 @@ function renderSimpleChartSvg(
       if (!Number.isFinite(y)) return null;
 
       const rawLabel = row[xColumn];
-      const label = rawLabel === undefined || rawLabel === null
-        ? `Row ${index + 1}`
-        : formatSnapshotValue(rawLabel);
+      const label =
+        rawLabel === undefined || rawLabel === null
+          ? `Row ${index + 1}`
+          : formatSnapshotValue(rawLabel);
 
       return { label, y };
     })
@@ -536,9 +537,8 @@ export function notebookToHtml(notebook: Notebook): string {
 
         let resultHtml = '';
         if (snapshot) {
-          const chartHtml = output.viewMode === 'chart'
-            ? renderSimpleChartSvg(snapshot, output.chartConfig)
-            : '';
+          const chartHtml =
+            output.viewMode === 'chart' ? renderSimpleChartSvg(snapshot, output.chartConfig) : '';
 
           resultHtml = `
       <div class="cell-result">

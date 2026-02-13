@@ -51,9 +51,10 @@ function toEditorRows(parameters: NotebookParameter[]): ParameterEditorRow[] {
   });
 }
 
-function parseRows(
-  rows: ParameterEditorRow[],
-): { parameters: NotebookParameter[]; error: string | null } {
+function parseRows(rows: ParameterEditorRow[]): {
+  parameters: NotebookParameter[];
+  error: string | null;
+} {
   const parameters: NotebookParameter[] = [];
   const existingNames = new Set<string>();
 
@@ -120,171 +121,176 @@ function parseRows(
   return { parameters, error: null };
 }
 
-export const NotebookParametersModal = memo(({
-  opened,
-  parameters,
-  onClose,
-  onSave,
-}: NotebookParametersModalProps) => {
-  const [rows, setRows] = useState<ParameterEditorRow[]>(() => toEditorRows(parameters));
-  const [error, setError] = useState<string | null>(null);
+export const NotebookParametersModal = memo(
+  ({ opened, parameters, onClose, onSave }: NotebookParametersModalProps) => {
+    const [rows, setRows] = useState<ParameterEditorRow[]>(() => toEditorRows(parameters));
+    const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!opened) return;
-    setRows(toEditorRows(parameters));
-    setError(null);
-  }, [opened, parameters]);
+    useEffect(() => {
+      if (!opened) return;
+      setRows(toEditorRows(parameters));
+      setError(null);
+    }, [opened, parameters]);
 
-  const hasRows = rows.length > 0;
-  const placeholderLabel = useMemo(
-    () => 'Use in SQL as {{param_name}}',
-    [],
-  );
+    const hasRows = rows.length > 0;
+    const placeholderLabel = useMemo(() => 'Use in SQL as {{param_name}}', []);
 
-  return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title="Notebook Parameters"
-      size="lg"
-      centered
-    >
-      <Stack gap="sm">
-        {!hasRows && (
-          <Text size="sm" c="dimmed">
-            No parameters yet. Add one and reference it in SQL as <code>{'{{param_name}}'}</code>.
-          </Text>
-        )}
+    return (
+      <Modal opened={opened} onClose={onClose} title="Notebook Parameters" size="lg" centered>
+        <Stack gap="sm">
+          {!hasRows && (
+            <Text size="sm" c="dimmed">
+              No parameters yet. Add one and reference it in SQL as <code>{'{{param_name}}'}</code>.
+            </Text>
+          )}
 
-        {rows.map((row, index) => (
-          <Group key={row.id} align="flex-end" wrap="nowrap" gap="xs">
-            <TextInput
-              label={index === 0 ? 'Name' : undefined}
-              placeholder="region"
-              value={row.name}
-              onChange={(event) => {
-                const nextValue = event.currentTarget.value;
-                setRows((prev) => prev.map((item) => (
-                  item.id === row.id ? { ...item, name: nextValue } : item
-                )));
-              }}
-              className="flex-1"
-            />
-
-            <Select
-              label={index === 0 ? 'Type' : undefined}
-              data={TYPE_OPTIONS as unknown as { value: string; label: string }[]}
-              value={row.type}
-              onChange={(nextValue) => {
-                if (!nextValue) return;
-                const nextType = nextValue as NotebookParameterType;
-                setRows((prev) => prev.map((item) => {
-                  if (item.id !== row.id) return item;
-                  if (nextType === 'boolean') {
-                    return { ...item, type: nextType, value: item.value === 'false' ? 'false' : 'true' };
-                  }
-                  if (nextType === 'null') {
-                    return { ...item, type: nextType, value: '' };
-                  }
-                  if (nextType === 'number' && item.value.trim() === '') {
-                    return { ...item, type: nextType, value: '0' };
-                  }
-                  return { ...item, type: nextType };
-                }));
-              }}
-              w={110}
-            />
-
-            {row.type === 'boolean' ? (
-              <Select
-                label={index === 0 ? 'Value' : undefined}
-                data={[
-                  { value: 'true', label: 'true' },
-                  { value: 'false', label: 'false' },
-                ]}
-                value={row.value || 'true'}
-                onChange={(nextValue) => {
-                  if (!nextValue) return;
-                  setRows((prev) => prev.map((item) => (
-                    item.id === row.id ? { ...item, value: nextValue } : item
-                  )));
-                }}
-                w={120}
-              />
-            ) : (
+          {rows.map((row, index) => (
+            <Group key={row.id} align="flex-end" wrap="nowrap" gap="xs">
               <TextInput
-                label={index === 0 ? 'Value' : undefined}
-                placeholder={row.type === 'null' ? 'NULL' : row.type === 'number' ? '42' : 'us-east'}
-                value={row.type === 'null' ? '' : row.value}
-                disabled={row.type === 'null'}
+                label={index === 0 ? 'Name' : undefined}
+                placeholder="region"
+                value={row.name}
                 onChange={(event) => {
                   const nextValue = event.currentTarget.value;
-                  setRows((prev) => prev.map((item) => (
-                    item.id === row.id ? { ...item, value: nextValue } : item
-                  )));
+                  setRows((prev) =>
+                    prev.map((item) => (item.id === row.id ? { ...item, name: nextValue } : item)),
+                  );
                 }}
                 className="flex-1"
               />
-            )}
 
-            <ActionIcon
+              <Select
+                label={index === 0 ? 'Type' : undefined}
+                data={TYPE_OPTIONS as unknown as { value: string; label: string }[]}
+                value={row.type}
+                onChange={(nextValue) => {
+                  if (!nextValue) return;
+                  const nextType = nextValue as NotebookParameterType;
+                  setRows((prev) =>
+                    prev.map((item) => {
+                      if (item.id !== row.id) return item;
+                      if (nextType === 'boolean') {
+                        return {
+                          ...item,
+                          type: nextType,
+                          value: item.value === 'false' ? 'false' : 'true',
+                        };
+                      }
+                      if (nextType === 'null') {
+                        return { ...item, type: nextType, value: '' };
+                      }
+                      if (nextType === 'number' && item.value.trim() === '') {
+                        return { ...item, type: nextType, value: '0' };
+                      }
+                      return { ...item, type: nextType };
+                    }),
+                  );
+                }}
+                w={110}
+              />
+
+              {row.type === 'boolean' ? (
+                <Select
+                  label={index === 0 ? 'Value' : undefined}
+                  data={[
+                    { value: 'true', label: 'true' },
+                    { value: 'false', label: 'false' },
+                  ]}
+                  value={row.value || 'true'}
+                  onChange={(nextValue) => {
+                    if (!nextValue) return;
+                    setRows((prev) =>
+                      prev.map((item) =>
+                        item.id === row.id ? { ...item, value: nextValue } : item,
+                      ),
+                    );
+                  }}
+                  w={120}
+                />
+              ) : (
+                <TextInput
+                  label={index === 0 ? 'Value' : undefined}
+                  placeholder={
+                    row.type === 'null' ? 'NULL' : row.type === 'number' ? '42' : 'us-east'
+                  }
+                  value={row.type === 'null' ? '' : row.value}
+                  disabled={row.type === 'null'}
+                  onChange={(event) => {
+                    const nextValue = event.currentTarget.value;
+                    setRows((prev) =>
+                      prev.map((item) =>
+                        item.id === row.id ? { ...item, value: nextValue } : item,
+                      ),
+                    );
+                  }}
+                  className="flex-1"
+                />
+              )}
+
+              <ActionIcon
+                variant="subtle"
+                color="red"
+                onClick={() => {
+                  setRows((prev) => prev.filter((item) => item.id !== row.id));
+                }}
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Group>
+          ))}
+
+          <Group justify="space-between" mt="xs">
+            <Button
               variant="subtle"
-              color="red"
+              leftSection={<IconPlus size={14} />}
               onClick={() => {
-                setRows((prev) => prev.filter((item) => item.id !== row.id));
+                setRows((prev) => [
+                  ...prev,
+                  {
+                    id: makeRowId(),
+                    name: '',
+                    type: 'text',
+                    value: '',
+                  },
+                ]);
               }}
             >
-              <IconTrash size={16} />
-            </ActionIcon>
+              Add parameter
+            </Button>
+
+            <Text size="xs" c="dimmed">
+              {placeholderLabel}
+            </Text>
           </Group>
-        ))}
 
-        <Group justify="space-between" mt="xs">
-          <Button
-            variant="subtle"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => {
-              setRows((prev) => [...prev, {
-                id: makeRowId(),
-                name: '',
-                type: 'text',
-                value: '',
-              }]);
-            }}
-          >
-            Add parameter
-          </Button>
+          {error && (
+            <Text size="sm" c="red">
+              {error}
+            </Text>
+          )}
 
-          <Text size="xs" c="dimmed">
-            {placeholderLabel}
-          </Text>
-        </Group>
-
-        {error && (
-          <Text size="sm" c="red">
-            {error}
-          </Text>
-        )}
-
-        <Group justify="flex-end" mt="sm">
-          <Button variant="default" onClick={onClose}>Cancel</Button>
-          <Button
-            onClick={() => {
-              const parsed = parseRows(rows);
-              if (parsed.error) {
-                setError(parsed.error);
-                return;
-              }
-              onSave(parsed.parameters);
-              onClose();
-            }}
-          >
-            Save
-          </Button>
-        </Group>
-      </Stack>
-    </Modal>
-  );
-});
+          <Group justify="flex-end" mt="sm">
+            <Button variant="default" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const parsed = parseRows(rows);
+                if (parsed.error) {
+                  setError(parsed.error);
+                  return;
+                }
+                onSave(parsed.parameters);
+                onClose();
+              }}
+            >
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    );
+  },
+);
 
 NotebookParametersModal.displayName = 'NotebookParametersModal';

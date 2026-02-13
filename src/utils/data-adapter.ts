@@ -487,8 +487,7 @@ export function getScriptAdapterQueries({
     }
 
     public async next(): Promise<
-      | { done: false; value: arrow.RecordBatch<T> }
-      | { done: true; value: null }
+      { done: false; value: arrow.RecordBatch<T> } | { done: true; value: null }
     > {
       if (!this._batches || this._index >= this._batches.length) {
         await this.close();
@@ -505,10 +504,7 @@ export function getScriptAdapterQueries({
   // Helper to run a "streaming" query. For notebook shared connections we
   // materialize the result first and return an in-memory reader. This avoids
   // keeping a live stream open on the shared execution connection.
-  const sendQuery = async (
-    queryToRun: string,
-    abortSignal: AbortSignal,
-  ) => {
+  const sendQuery = async (queryToRun: string, abortSignal: AbortSignal) => {
     if (getSharedConnection) {
       if (abortSignal.aborted) {
         return null;
@@ -520,17 +516,15 @@ export function getScriptAdapterQueries({
         return null;
       }
 
-      return new InMemoryDuckDBReader(table.batches) as unknown as
-        AsyncDuckDBPooledStreamReader<any>;
+      return new InMemoryDuckDBReader(
+        table.batches,
+      ) as unknown as AsyncDuckDBPooledStreamReader<any>;
     }
     return pool.sendAbortable(queryToRun, abortSignal, true);
   };
 
   // Helper to run a one-shot query on either the shared connection or pool
-  const runQuery = async (
-    queryToRun: string,
-    abortSignal: AbortSignal,
-  ) => {
+  const runQuery = async (queryToRun: string, abortSignal: AbortSignal) => {
     if (getSharedConnection) {
       const conn = await getSharedConnection();
       const value = await conn.query(queryToRun);

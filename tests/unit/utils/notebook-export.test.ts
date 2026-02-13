@@ -10,9 +10,7 @@ import {
 } from '@utils/notebook-export';
 
 // Helper to create a test notebook
-function makeNotebook(
-  overrides?: Partial<Omit<Notebook, 'cells'>> & { cells?: any[] },
-): Notebook {
+function makeNotebook(overrides?: Partial<Omit<Notebook, 'cells'>> & { cells?: any[] }): Notebook {
   const baseCells = [
     {
       id: 'cell-1' as CellId,
@@ -125,9 +123,7 @@ describe('notebookToSqlnb', () => {
 
   it('should not include name for cells without @name annotation', () => {
     const notebook = makeNotebook({
-      cells: [
-        { id: 'cell-1' as CellId, type: 'sql', content: 'SELECT 1', order: 0 },
-      ],
+      cells: [{ id: 'cell-1' as CellId, type: 'sql', content: 'SELECT 1', order: 0 }],
     });
     const result = notebookToSqlnb(notebook, '0.7.0');
 
@@ -202,9 +198,9 @@ describe('parseSqlnb', () => {
   });
 
   it('should reject missing cells array', () => {
-    expect(() =>
-      parseSqlnb(JSON.stringify({ version: 1, name: 'x', metadata: {} })),
-    ).toThrow('"cells" must be an array');
+    expect(() => parseSqlnb(JSON.stringify({ version: 1, name: 'x', metadata: {} }))).toThrow(
+      '"cells" must be an array',
+    );
   });
 
   it('should reject cell with invalid type', () => {
@@ -419,9 +415,7 @@ describe('notebookToHtml', () => {
 
   it('should render SQL cells with code blocks', () => {
     const notebook = makeNotebook({
-      cells: [
-        { id: 'c1' as CellId, type: 'sql', content: 'SELECT * FROM users', order: 0 },
-      ],
+      cells: [{ id: 'c1' as CellId, type: 'sql', content: 'SELECT * FROM users', order: 0 }],
     });
     const html = notebookToHtml(notebook);
 
@@ -447,14 +441,16 @@ describe('notebookToHtml', () => {
             executionCount: 1,
             lastRunAt: '2026-01-01T00:00:00.000Z',
             snapshot: {
-              schema: [{
-                name: 'value',
-                sqlType: 'INTEGER',
-                nullable: true,
-                databaseType: 'duckdb',
-                id: 'value',
-                columnIndex: 0,
-              }] as any,
+              schema: [
+                {
+                  name: 'value',
+                  sqlType: 'INTEGER',
+                  nullable: true,
+                  databaseType: 'duckdb',
+                  id: 'value',
+                  columnIndex: 0,
+                },
+              ] as any,
               data: [{ value: 1 }] as any,
               truncated: false,
               capturedAt: '2026-01-01T00:00:00.000Z',
@@ -533,9 +529,7 @@ describe('notebookToHtml', () => {
 
   it('should render markdown cells', () => {
     const notebook = makeNotebook({
-      cells: [
-        { id: 'c1' as CellId, type: 'markdown', content: '## Hello World', order: 0 },
-      ],
+      cells: [{ id: 'c1' as CellId, type: 'markdown', content: '## Hello World', order: 0 }],
     });
     const html = notebookToHtml(notebook);
 
@@ -545,9 +539,7 @@ describe('notebookToHtml', () => {
 
   it('should escape HTML in cell content', () => {
     const notebook = makeNotebook({
-      cells: [
-        { id: 'c1' as CellId, type: 'sql', content: 'SELECT "<script>" FROM t', order: 0 },
-      ],
+      cells: [{ id: 'c1' as CellId, type: 'sql', content: 'SELECT "<script>" FROM t', order: 0 }],
     });
     const html = notebookToHtml(notebook);
 
