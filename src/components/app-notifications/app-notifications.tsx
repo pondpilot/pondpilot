@@ -149,6 +149,9 @@ const showAppAlertWithAction = (
   );
 };
 
+export const showAlertWithAction = (data: NotificationWithActionData) =>
+  showAppAlertWithAction(data, 'info');
+
 export const showErrorWithAction = (data: NotificationWithActionData) =>
   showAppAlertWithAction(data, 'error');
 

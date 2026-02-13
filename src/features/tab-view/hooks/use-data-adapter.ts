@@ -43,15 +43,31 @@ type UseDataAdapterProps = {
    * can match exactly, but should force a new data version.
    */
   sourceVersion: number;
+  /**
+   * Optional getter for a shared DuckDB connection. When provided, notebook
+   * adapter queries can resolve using this connection context so connection-
+   * scoped temp views created during execution remain visible.
+   */
+  getSharedConnection?: () => Promise<
+    import('@features/duckdb-context/duckdb-pooled-connection').AsyncDuckDBPooledConnection
+  >;
 };
 
-export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): DataAdapterApi => {
+const isExpectedConnectionUnmountError = (error: unknown): boolean =>
+  error instanceof Error &&
+  error.message.includes('Component unmounted during connection acquisition');
+
+export const useDataAdapter = ({
+  tab,
+  sourceVersion,
+  getSharedConnection,
+}: UseDataAdapterProps): DataAdapterApi => {
   const pool = useInitializedDuckDBConnectionPool();
 
   /**
    * Hooks
    */
-  const queries = useDataAdapterQueries({ tab, sourceVersion });
+  const queries = useDataAdapterQueries({ tab, sourceVersion, getSharedConnection });
 
   // We use a couple of abort controllers to cancel various queries that this
   // hook may run.
@@ -370,6 +386,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
         if (!aborted) setEstimatedRowCount(value);
       }
     } catch (error) {
+      if (isExpectedConnectionUnmountError(error)) {
+        return;
+      }
+
       if (!(error instanceof PoolTimeoutError)) {
         console.error('Failed to fetch row count:', error);
         if (error instanceof Error && error.message?.includes('Out of Memory Error')) {
@@ -415,6 +435,10 @@ export const useDataAdapter = ({ tab, sourceVersion }: UseDataAdapterProps): Dat
           }
         }
       } catch (error: any) {
+        if (isExpectedConnectionUnmountError(error)) {
+          return;
+        }
+
         if (error instanceof PoolTimeoutError) {
           setAppendDataSourceReadError(
             'Too many tabs open or operations running. Please wait and re-open this tab.',

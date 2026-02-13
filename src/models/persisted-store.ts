@@ -2,6 +2,7 @@ import { Comparison, ComparisonId } from '@models/comparison';
 import { ContentViewPersistence } from '@models/content-view';
 import { PersistentDataSourceId, AnyDataSource } from '@models/data-source';
 import { LocalEntryId, LocalEntryPersistence } from '@models/file-system';
+import { Notebook, NotebookId } from '@models/notebook';
 import { ScriptVersion, ScriptVersionId, SCRIPT_VERSION_TABLE_NAME } from '@models/script-version';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab, TabId } from '@models/tab';
@@ -10,7 +11,7 @@ import { DBSchema } from 'idb';
 import type { SecretId, PersistedSecret } from '../services/secret-store';
 
 export const APP_DB_NAME = 'app-data';
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 // Stores
 export const TAB_TABLE_NAME = 'tab';
@@ -22,6 +23,8 @@ export const DATA_SOURCE_TABLE_NAME = 'data-source';
 export const DATA_SOURCE_ACCESS_TIME_TABLE_NAME = 'data-source-access-time';
 export const SCRIPT_ACCESS_TIME_TABLE_NAME = 'script-access-time';
 export const TABLE_ACCESS_TIME_TABLE_NAME = 'table-access-time';
+export const NOTEBOOK_TABLE_NAME = 'notebook';
+export const NOTEBOOK_ACCESS_TIME_TABLE_NAME = 'notebook-access-time';
 export const SECRET_TABLE_NAME = 'secret';
 
 // Re-export from script-version model
@@ -33,6 +36,8 @@ export const ALL_TABLE_NAMES = [
   DATA_SOURCE_TABLE_NAME,
   DATA_SOURCE_ACCESS_TIME_TABLE_NAME,
   LOCAL_ENTRY_TABLE_NAME,
+  NOTEBOOK_TABLE_NAME,
+  NOTEBOOK_ACCESS_TIME_TABLE_NAME,
   SCRIPT_ACCESS_TIME_TABLE_NAME,
   SECRET_TABLE_NAME,
   SQL_SCRIPT_TABLE_NAME,
@@ -82,6 +87,14 @@ export type AppIdbSchema = DBSchema & {
     key: ScriptVersionId;
     value: ScriptVersion;
     indexes: { 'by-script': SQLScriptId };
+  };
+  [NOTEBOOK_TABLE_NAME]: {
+    key: NotebookId;
+    value: Notebook;
+  };
+  [NOTEBOOK_ACCESS_TIME_TABLE_NAME]: {
+    key: NotebookId;
+    value: number;
   };
   [SECRET_TABLE_NAME]: {
     key: SecretId;

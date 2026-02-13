@@ -1,5 +1,6 @@
 import { showError, showWarning } from '@components/app-notifications';
 import { NamedIcon } from '@components/named-icon';
+import { createNotebook } from '@controllers/notebook';
 import { formatAndApplySQLScript } from '@controllers/sql-formatter';
 import { createSQLScript } from '@controllers/sql-script';
 import {
@@ -12,6 +13,7 @@ import {
   getOrCreateTabFromComparison,
   createComparisonTab,
 } from '@controllers/tab/comparison-tab-controller';
+import { getOrCreateTabFromNotebook } from '@controllers/tab/notebook-tab-controller';
 import { useOpenDataWizardModal } from '@features/datasource-wizard/utils';
 import { ImportScriptModalContent } from '@features/script-import';
 import { useAddLocalFilesOrFolders } from '@hooks/use-add-local-files-folders';
@@ -38,6 +40,7 @@ import {
   IconLayoutGridRemove,
   IconLayoutNavbarCollapse,
   IconScale,
+  IconNotebook,
   IconMap,
   IconMapOff,
 } from '@tabler/icons-react';
@@ -47,6 +50,7 @@ import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
 import {
   getDataSourceAccessTime,
+  getNotebookAccessTime,
   getScriptAccessTime,
   getTableAccessTime,
 } from '@utils/table-access';
@@ -59,6 +63,7 @@ import { renderActionsGroup } from './components/action';
 import {
   DATA_SOURCE_GROUP_DISPLAY_NAME,
   ICON_CLASSES,
+  NOTEBOOK_GROUP_DISPLAY_NAME,
   SCRIPT_DISPLAY_NAME,
   SCRIPT_GROUP_DISPLAY_NAME,
   COMPARISON_GROUP_DISPLAY_NAME,
@@ -129,11 +134,13 @@ export const SpotlightMenu = () => {
    */
   const sqlScripts = useAppStore.use.sqlScripts();
   const comparisonsMap = useAppStore.use.comparisons();
+  const notebooksMap = useAppStore.use.notebooks();
   const dataSources = useAppStore.use.dataSources();
   const databaseMetadata = useAppStore.use.databaseMetadata();
   const localEntries = useAppStore.use.localEntries();
   const dataSourceAccessTimes = useAppStore.use.dataSourceAccessTimes();
   const scriptAccessTimes = useAppStore.use.scriptAccessTimes();
+  const notebookAccessTimes = useAppStore.use.notebookAccessTimes();
   const tableAccessTimes = useAppStore.use.tableAccessTimes();
   const comparisonSourceSelectionCallback = useAppStore.use.comparisonSourceSelectionCallback();
   const protectedViews = useProtectedViews();
@@ -366,6 +373,22 @@ export const SpotlightMenu = () => {
     },
   }));
 
+  const sortedNotebookActions = useMemo(() => {
+    const notebookActions = Array.from(notebooksMap.values()).map((notebook) => ({
+      id: `open-notebook-${notebook.id}`,
+      label: notebook.name,
+      icon: <NamedIcon iconType="notebook" size={20} className={ICON_CLASSES} />,
+      metadata: { lastUsed: getNotebookAccessTime(notebook.id) },
+      handler: () => {
+        getOrCreateTabFromNotebook(notebook.id, true);
+        Spotlight.close();
+        ensureHome();
+      },
+    }));
+
+    return sortActionsByLRU(notebookActions);
+  }, [notebooksMap, notebookAccessTimes]);
+
   const browserInfo = fileSystemService.getBrowserInfo();
   const dataSourceGroupActions: Action[] = [
     {
@@ -417,6 +440,18 @@ export const SpotlightMenu = () => {
       handler: async () => {
         const newEmptyScript = createSQLScript();
         getOrCreateTabFromScript(newEmptyScript, true);
+        resetSpotlight();
+        ensureHome();
+      },
+    },
+    {
+      id: 'create-new-notebook',
+      label: 'New Notebook',
+      icon: <IconNotebook size={20} className={ICON_CLASSES} />,
+      hotkey: [control, option, 'B'],
+      handler: async () => {
+        const newNotebook = createNotebook();
+        getOrCreateTabFromNotebook(newNotebook, true);
         resetSpotlight();
         ensureHome();
       },
@@ -614,6 +649,9 @@ export const SpotlightMenu = () => {
       ? filterActions(sortedDataSourceActions, searchValue, { preserveOrder: true })
       : [];
     const filteredComparisons = searchValue ? filterActions(comparisonActions, searchValue) : [];
+    const filteredNotebooks = searchValue
+      ? filterActions(sortedNotebookActions, searchValue, { preserveOrder: true })
+      : [];
 
     return (
       <>
@@ -621,6 +659,8 @@ export const SpotlightMenu = () => {
           <>
             {filteredScripts.length > 0 &&
               renderActionsGroup(filteredScripts, SCRIPT_GROUP_DISPLAY_NAME)}
+            {filteredNotebooks.length > 0 &&
+              renderActionsGroup(filteredNotebooks, NOTEBOOK_GROUP_DISPLAY_NAME)}
             {filteredComparisons.length > 0 &&
               renderActionsGroup(filteredComparisons, COMPARISON_GROUP_DISPLAY_NAME)}
             {filteredDataSources.length > 0 &&
@@ -654,6 +694,9 @@ export const SpotlightMenu = () => {
     const filteredActions = filterActions(scriptGroupActions, searchValue);
     const filteredScripts = filterActions(sortedScriptActions, searchValue);
     const filteredComparisons = filterActions(comparisonActions, searchValue);
+    const filteredNotebooks = filterActions(sortedNotebookActions, searchValue, {
+      preserveOrder: true,
+    });
 
     // Can't be empty but ok...
     return (
@@ -661,6 +704,8 @@ export const SpotlightMenu = () => {
         {filteredActions.length > 0 &&
           renderActionsGroup(filteredActions, SCRIPT_GROUP_DISPLAY_NAME)}
         {filteredScripts.length > 0 && renderActionsGroup(filteredScripts, 'Recent Queries')}
+        {filteredNotebooks.length > 0 &&
+          renderActionsGroup(filteredNotebooks, NOTEBOOK_GROUP_DISPLAY_NAME)}
         {filteredComparisons.length > 0 &&
           renderActionsGroup(filteredComparisons, COMPARISON_GROUP_DISPLAY_NAME)}
       </>

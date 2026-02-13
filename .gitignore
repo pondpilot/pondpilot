@@ -144,3 +144,6 @@ tests/test-tmp
 
 # WASM build artifacts
 /public/wasm/
+
+# ralphex progress logs
+progress*.txt

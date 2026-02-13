@@ -35,6 +35,7 @@ export const useTableExport = (dataAdapter: DataAdapterApi, tabId: TabId) => {
       state.dataSources,
       state.localEntries,
       state.comparisons,
+      state.notebooks,
     ),
   );
 

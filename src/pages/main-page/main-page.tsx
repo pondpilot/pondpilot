@@ -1,7 +1,9 @@
 import { BrowserCompatibilityAlert } from '@components/browser-compatibility-alert';
+import { createNotebook } from '@controllers/notebook';
 import { createSQLScript } from '@controllers/sql-script';
 import { getOrCreateTabFromScript } from '@controllers/tab';
 import { createComparisonTab } from '@controllers/tab/comparison-tab-controller';
+import { getOrCreateTabFromNotebook } from '@controllers/tab/notebook-tab-controller';
 import { StartGuide } from '@features/start-guide';
 import { TabView } from '@features/tab-view/tab-view';
 import { TabsPane } from '@features/tabs-pane';
@@ -42,6 +44,11 @@ export const MainPage = () => {
   const handleAddScript = () => {
     const newEmptyScript = createSQLScript();
     getOrCreateTabFromScript(newEmptyScript, true);
+  };
+
+  const handleAddNotebook = () => {
+    const notebook = createNotebook();
+    getOrCreateTabFromNotebook(notebook, true);
   };
 
   /**
@@ -157,6 +164,13 @@ export const MainPage = () => {
       'Ctrl+Alt+C',
       () => {
         createComparisonTab({ setActive: true });
+        Spotlight.close();
+      },
+    ],
+    [
+      'Ctrl+Alt+B',
+      () => {
+        handleAddNotebook();
         Spotlight.close();
       },
     ],

@@ -1,4 +1,6 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
+import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
+import { AsyncDuckDBPooledStreamReader } from '@features/duckdb-context/duckdb-pooled-streaming-reader';
 import {
   ChartAggregatedData,
   ChartAggregationType,
@@ -20,6 +22,7 @@ import { LocalEntry, LocalFile } from '@models/file-system';
 import { AnyFileSourceTab, LocalDBDataTab, ScriptTab, TabReactiveState } from '@models/tab';
 import { getDatabaseIdentifier } from '@utils/data-source';
 import { toDuckDBIdentifier } from '@utils/duckdb/identifier';
+import type * as arrow from 'apache-arrow';
 
 import { convertArrowTable } from './arrow';
 import { isFlatFileDataSource } from './data-source';
@@ -439,9 +442,12 @@ export function getFileDataAdapterQueries({
 export function getScriptAdapterQueries({
   pool,
   tab,
+  getSharedConnection,
 }: {
   pool: AsyncDuckDBConnectionPool;
   tab: TabReactiveState<ScriptTab>;
+  /** When provided, queries run on this connection (for notebook temp views). */
+  getSharedConnection?: () => Promise<AsyncDuckDBPooledConnection>;
 }): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
   const { lastExecutedQuery } = tab;
 
@@ -458,6 +464,78 @@ export function getScriptAdapterQueries({
 
   const trimmedQuery = trimQuery(lastExecutedQuery);
 
+  class InMemoryDuckDBReader<T extends { [key: string]: arrow.DataType }> {
+    private _batches: arrow.RecordBatch<T>[] | null;
+    private _index: number;
+
+    constructor(batches: arrow.RecordBatch<T>[]) {
+      this._batches = batches;
+      this._index = 0;
+    }
+
+    public get closed(): boolean {
+      return this._batches === null;
+    }
+
+    public async close() {
+      this._batches = null;
+      this._index = 0;
+    }
+
+    public async cancel() {
+      await this.close();
+    }
+
+    public async next(): Promise<
+      { done: false; value: arrow.RecordBatch<T> } | { done: true; value: null }
+    > {
+      if (!this._batches || this._index >= this._batches.length) {
+        await this.close();
+        return { done: true, value: null };
+      }
+
+      const value = this._batches[this._index];
+      this._index += 1;
+
+      return { done: false, value };
+    }
+  }
+
+  // Helper to run a "streaming" query. For notebook shared connections we
+  // materialize the result first and return an in-memory reader. This avoids
+  // keeping a live stream open on the shared execution connection.
+  const sendQuery = async (queryToRun: string, abortSignal: AbortSignal) => {
+    if (getSharedConnection) {
+      if (abortSignal.aborted) {
+        return null;
+      }
+
+      const conn = await getSharedConnection();
+      const table = await conn.query(queryToRun);
+      if (abortSignal.aborted) {
+        return null;
+      }
+
+      return new InMemoryDuckDBReader(
+        table.batches,
+      ) as unknown as AsyncDuckDBPooledStreamReader<any>;
+    }
+    return pool.sendAbortable(queryToRun, abortSignal, true);
+  };
+
+  // Helper to run a one-shot query on either the shared connection or pool
+  const runQuery = async (queryToRun: string, abortSignal: AbortSignal) => {
+    if (getSharedConnection) {
+      const conn = await getSharedConnection();
+      const value = await conn.query(queryToRun);
+      if (abortSignal.aborted) {
+        return { value, aborted: true as const };
+      }
+      return { value, aborted: false as const };
+    }
+    return pool.queryAbortable(queryToRun, abortSignal);
+  };
+
   return {
     adapter: {
       sourceQuery: classifiedStmt.isAllowedInSubquery ? trimmedQuery : undefined,
@@ -473,20 +551,18 @@ export function getScriptAdapterQueries({
                 .join(', ');
               queryToRun = `SELECT * FROM (${trimmedQuery}) ORDER BY ${orderBy}`;
             }
-            const reader = await pool.sendAbortable(queryToRun, abortSignal, true);
-            return reader;
+            return sendQuery(queryToRun, abortSignal);
           }
         : undefined,
       getReader: !classifiedStmt.isAllowedInSubquery
         ? async (abortSignal) => {
-            const reader = await pool.sendAbortable(trimmedQuery, abortSignal, true);
-            return reader;
+            return sendQuery(trimmedQuery, abortSignal);
           }
         : undefined,
       getColumnAggregate: classifiedStmt.isAllowedInSubquery
         ? async (columnName: string, aggType: ColumnAggregateType, abortSignal: AbortSignal) => {
             const queryToRun = `SELECT ${aggType}(${columnName}) FROM (${trimmedQuery})`;
-            const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+            const { value, aborted } = await runQuery(queryToRun, abortSignal);
 
             if (aborted) {
               return { value: undefined, aborted };
@@ -498,7 +574,7 @@ export function getScriptAdapterQueries({
         ? async (columns: DBColumn[], abortSignal: AbortSignal) => {
             const columnNames = columns.map((col) => toDuckDBIdentifier(col.name)).join(', ');
             const queryToRun = `SELECT ${columnNames} FROM (${trimmedQuery})`;
-            const { value, aborted } = await pool.queryAbortable(queryToRun, abortSignal);
+            const { value, aborted } = await runQuery(queryToRun, abortSignal);
 
             if (aborted) {
               return { value: [], aborted };
@@ -526,7 +602,7 @@ export function getScriptAdapterQueries({
               sortOrder,
             );
 
-            const { value, aborted } = await pool.queryAbortable(query, abortSignal);
+            const { value, aborted } = await runQuery(query, abortSignal);
 
             if (aborted) {
               return { value: [], aborted };

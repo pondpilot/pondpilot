@@ -115,7 +115,10 @@ async function ensureWasmInitialized(): Promise<void> {
   if (wasmInitialized) return;
 
   if (!wasmInitPromise) {
-    wasmInitPromise = initWasm({ wasmUrl }).then(async () => {
+    // flowscope-core currently forwards `wasmUrl` directly to wasm-bindgen init.
+    // Pass the newer object form expected by wasm-bindgen to avoid deprecation warnings.
+    const wasmInitPath = { module_or_path: wasmUrl } as unknown as string;
+    wasmInitPromise = initWasm({ wasmUrl: wasmInitPath }).then(async () => {
       wasmInitialized = true;
       // Validate UTF-16 encoding in dev mode
       if (import.meta.env.DEV) {

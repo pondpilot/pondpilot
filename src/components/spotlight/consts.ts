@@ -3,6 +3,7 @@ export const ICON_CLASSES = 'text-iconDefault-light dark:text-iconDefault-dark';
 export const SCRIPT_GROUP_DISPLAY_NAME = 'Queries';
 export const SCRIPT_DISPLAY_NAME = 'Query';
 export const COMPARISON_GROUP_DISPLAY_NAME = 'Comparisons';
+export const NOTEBOOK_GROUP_DISPLAY_NAME = 'Notebooks';
 
 export const DATA_SOURCE_GROUP_DISPLAY_NAME = 'Files';
 

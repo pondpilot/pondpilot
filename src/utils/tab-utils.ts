@@ -1,6 +1,7 @@
 import { Comparison, ComparisonId } from '@models/comparison';
 import { AnyDataSource, PersistentDataSourceId } from '@models/data-source';
 import { LocalEntry, LocalEntryId } from '@models/file-system';
+import { Notebook, NotebookId } from '@models/notebook';
 import { SQLScript, SQLScriptId } from '@models/sql-script';
 import { AnyTab } from '@models/tab';
 import { getTabName } from '@utils/navigation';
@@ -23,10 +24,11 @@ export function getTabNameFromStore(
   dataSources: Map<PersistentDataSourceId, AnyDataSource>,
   localEntries: Map<LocalEntryId, LocalEntry>,
   comparisons: Map<ComparisonId, Comparison>,
+  notebooks: Map<NotebookId, Notebook>,
 ): string {
   const tab = tabs.get(tabId);
 
   return tab
-    ? getTabName(tab, sqlScripts, dataSources, localEntries, comparisons)
+    ? getTabName(tab, sqlScripts, dataSources, localEntries, comparisons, notebooks)
     : 'unknown-tab-export';
 }
