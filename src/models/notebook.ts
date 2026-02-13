@@ -15,6 +15,16 @@ export type CellRef = NewId<'CellRef'>;
 
 export type NotebookCellType = 'sql' | 'markdown';
 
+export type NotebookParameterType = 'text' | 'number' | 'boolean' | 'null';
+
+export type NotebookParameterValue = string | number | boolean | null;
+
+export type NotebookParameter = {
+  name: string;
+  type: NotebookParameterType;
+  value: NotebookParameterValue;
+};
+
 export type NotebookCellOutput = {
   viewMode: ViewMode;
   chartConfig: ChartConfig;
@@ -73,8 +83,71 @@ export type Notebook = {
   id: NotebookId;
   name: string;
   cells: NotebookCell[];
+  parameters?: NotebookParameter[];
   createdAt: string;
   updatedAt: string;
+};
+
+const normalizeParameterValue = (
+  type: NotebookParameterType,
+  value: unknown,
+): NotebookParameterValue => {
+  if (type === 'text') {
+    return typeof value === 'string' ? value : String(value ?? '');
+  }
+
+  if (type === 'number') {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  if (type === 'boolean') {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') return true;
+      if (normalized === 'false') return false;
+    }
+    if (typeof value === 'number') return value !== 0;
+    return false;
+  }
+
+  return null;
+};
+
+/**
+ * Builds normalized notebook parameters and removes invalid/duplicate names.
+ */
+export const normalizeNotebookParameters = (
+  parameters?: NotebookParameter[] | null,
+): NotebookParameter[] => {
+  if (!Array.isArray(parameters)) return [];
+
+  const normalized: NotebookParameter[] = [];
+  const seen = new Set<string>();
+
+  for (const parameter of parameters) {
+    const name = parameter?.name?.trim();
+    if (!name) continue;
+
+    const lowerName = name.toLowerCase();
+    if (seen.has(lowerName)) continue;
+
+    const type = parameter?.type;
+    if (type !== 'text' && type !== 'number' && type !== 'boolean' && type !== 'null') {
+      continue;
+    }
+
+    seen.add(lowerName);
+    normalized.push({
+      name,
+      type,
+      value: normalizeParameterValue(type, parameter.value),
+    });
+  }
+
+  return normalized;
 };
 
 /**
@@ -198,4 +271,19 @@ export const isNotebookCellExecutionEqual = (
   a.executionCount === b.executionCount &&
   a.lastRunAt === b.lastRunAt &&
   equalSnapshot(a.snapshot, b.snapshot)
+);
+
+export const isNotebookParametersEqual = (
+  a: NotebookParameter[],
+  b: NotebookParameter[],
+): boolean => (
+  a.length === b.length &&
+  a.every((parameter, index) => {
+    const other = b[index];
+    return (
+      parameter.name === other.name &&
+      parameter.type === other.type &&
+      parameter.value === other.value
+    );
+  })
 );

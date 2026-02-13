@@ -10,12 +10,15 @@ import {
   NotebookCellExecution,
   NotebookCellExecutionPatch,
   NotebookCellOutputPatch,
+  NotebookParameter,
   NotebookCellType,
   NotebookId,
   isNotebookCellExecutionEqual,
   isNotebookCellOutputEqual,
+  isNotebookParametersEqual,
   normalizeNotebookCellExecution,
   normalizeNotebookCellOutput,
+  normalizeNotebookParameters,
 } from '@models/notebook';
 import { NOTEBOOK_TABLE_NAME } from '@models/persisted-store';
 import { TabId } from '@models/tab';
@@ -155,6 +158,7 @@ export const createNotebook = (name: string = 'notebook'): Notebook => {
         execution: normalizeNotebookCellExecution(),
       },
     ],
+    parameters: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -170,6 +174,7 @@ export const createNotebook = (name: string = 'notebook'): Notebook => {
 export const createNotebookFromImport = (
   name: string,
   cells: SqlnbCell[],
+  parameters?: NotebookParameter[],
 ): Notebook => {
   const { sqlScripts, comparisons, notebooks } = useAppStore.getState();
 
@@ -200,6 +205,7 @@ export const createNotebookFromImport = (
     id: notebookId,
     name: uniqueName,
     cells: notebookCells,
+    parameters: normalizeNotebookParameters(parameters),
     createdAt: now,
     updatedAt: now,
   };
@@ -265,6 +271,7 @@ export const duplicateNotebook = (
           execution: normalizeNotebookCellExecution(),
         }];
       })(),
+    parameters: normalizeNotebookParameters(notebook.parameters),
     createdAt: now,
     updatedAt: now,
   };
@@ -325,6 +332,28 @@ export const updateNotebookCells = (
   };
 
   updateNotebookInStore(updatedNotebook, 'AppStore/updateNotebookCells');
+};
+
+export const updateNotebookParameters = (
+  notebookOrId: Notebook | NotebookId,
+  parameters: NotebookParameter[],
+): void => {
+  const { notebooks } = useAppStore.getState();
+  const notebook = ensureNotebook(notebookOrId, notebooks);
+  const currentParameters = normalizeNotebookParameters(notebook.parameters);
+  const nextParameters = normalizeNotebookParameters(parameters);
+
+  if (isNotebookParametersEqual(currentParameters, nextParameters)) {
+    return;
+  }
+
+  const updatedNotebook: Notebook = {
+    ...notebook,
+    parameters: nextParameters,
+    updatedAt: new Date().toISOString(),
+  };
+
+  updateNotebookInStore(updatedNotebook, 'AppStore/updateNotebookParameters');
 };
 
 /**

@@ -58,7 +58,7 @@ export const importNotebookFromFile = async (file: File): Promise<boolean> => {
     const content = await file.text();
     const sqlnb = parseSqlnb(content);
 
-    const notebook = createNotebookFromImport(sqlnb.name, sqlnb.cells);
+    const notebook = createNotebookFromImport(sqlnb.name, sqlnb.cells, sqlnb.parameters);
     getOrCreateTabFromNotebook(notebook.id, true);
 
     showSuccess({

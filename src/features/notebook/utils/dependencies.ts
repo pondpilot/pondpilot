@@ -297,11 +297,35 @@ export function findUpstreamDependencyCells(
   return upstreamCellIds;
 }
 
-export function findDownstreamDependencyCells(
-  targetCellId: string,
+export function expandSelectionWithUpstreamDependencies(
+  selectedCellIds: Set<string>,
   graph: Map<string, Set<string>>,
 ): Set<string> {
+  const expanded = new Set<string>(selectedCellIds);
+  const stack = [...selectedCellIds];
+
+  while (stack.length > 0) {
+    const nextCellId = stack.pop();
+    if (!nextCellId) continue;
+
+    const providers = graph.get(nextCellId);
+    if (!providers) continue;
+
+    for (const providerCellId of providers) {
+      if (expanded.has(providerCellId)) continue;
+      expanded.add(providerCellId);
+      stack.push(providerCellId);
+    }
+  }
+
+  return expanded;
+}
+
+export function buildConsumersByProvider(
+  graph: Map<string, Set<string>>,
+): Map<string, Set<string>> {
   const consumersByProvider = new Map<string, Set<string>>();
+
   for (const [consumerCellId, providerCellIds] of graph.entries()) {
     for (const providerCellId of providerCellIds) {
       if (!consumersByProvider.has(providerCellId)) {
@@ -310,6 +334,15 @@ export function findDownstreamDependencyCells(
       consumersByProvider.get(providerCellId)?.add(consumerCellId);
     }
   }
+
+  return consumersByProvider;
+}
+
+export function findDownstreamDependencyCells(
+  targetCellId: string,
+  graph: Map<string, Set<string>>,
+): Set<string> {
+  const consumersByProvider = buildConsumersByProvider(graph);
 
   const downstreamCellIds = new Set<string>();
   const queue = [targetCellId];
@@ -356,15 +389,7 @@ export function findStaleCells(
   const { edges } = buildResolvedDependencyGraph(sortedCells, dependencies);
 
   // Reverse graph: provider -> consumers
-  const consumersByProvider = new Map<string, Set<string>>();
-  for (const [consumerId, providers] of edges.entries()) {
-    for (const providerId of providers) {
-      if (!consumersByProvider.has(providerId)) {
-        consumersByProvider.set(providerId, new Set<string>());
-      }
-      consumersByProvider.get(providerId)?.add(consumerId);
-    }
-  }
+  const consumersByProvider = buildConsumersByProvider(edges);
 
   const staleCellIds = new Set<string>();
   const queue = [...(consumersByProvider.get(executedCellId) ?? [])];

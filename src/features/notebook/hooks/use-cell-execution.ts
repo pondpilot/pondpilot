@@ -2,6 +2,7 @@ import { getDatabaseModel } from '@controllers/db/duckdb-meta';
 import { syncFiles } from '@controllers/file-system';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { AsyncDuckDBPooledConnection } from '@features/duckdb-context/duckdb-pooled-connection';
+import { NotebookParameter } from '@models/notebook';
 import { useAppStore } from '@store/app-store';
 import {
   handleAttachStatements,
@@ -20,6 +21,7 @@ import { isNotReadableError, getErrorMessage } from '@utils/error-classification
 import { pooledConnectionQueryWithCorsRetry } from '@utils/query-with-cors-retry';
 
 import { normalizeCellName, validateCellName } from '../utils/cell-naming';
+import { resolveNotebookParametersInSql } from '../utils/parameters';
 
 const SECRET_STATEMENT_PATTERN = /\b(ALTER|CREATE)\s+(?:OR\s+REPLACE\s+)?SECRET\b/i;
 
@@ -42,6 +44,8 @@ export type CellExecutionOptions = {
   cellRef?: string;
   /** Optional human alias for this cell. */
   cellName?: string | null;
+  /** Notebook parameters for SQL interpolation. */
+  parameters?: NotebookParameter[];
 };
 
 /**
@@ -69,14 +73,20 @@ export async function executeCellSQL(
     sharedConnection,
     cellRef,
     cellName,
+    parameters,
   } = options;
 
   if (!sql.trim()) {
     return { lastQuery: null, error: null };
   }
 
+  const resolvedSql = resolveNotebookParametersInSql(sql, parameters);
+  if (resolvedSql.errors.length > 0) {
+    return { lastQuery: null, error: resolvedSql.errors.join('\n') };
+  }
+
   // Split and classify statements
-  const statements = await splitSQLByStats(sql);
+  const statements = await splitSQLByStats(resolvedSql.sql);
   const classifiedStatements = classifySQLStatements(statements);
 
   // Validate
@@ -194,7 +204,7 @@ export async function executeCellSQL(
       const viewQuery = lastQuery && lastQuery !== "SELECT 'All statements executed successfully' as Result"
         ? lastQuery
         : null;
-      await createCellTempViews(conn, sql, cellRef, cellName, viewQuery);
+      await createCellTempViews(conn, resolvedSql.sql, cellRef, cellName, viewQuery);
     }
 
     // Handle DDL side effects (refresh metadata)

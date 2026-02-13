@@ -8,6 +8,7 @@ import {
   moveCellUp,
   removeCell,
   renameNotebook,
+  updateNotebookParameters,
   updateCellName,
   updateCellExecution,
   updateCellOutput,
@@ -47,8 +48,10 @@ import {
   NotebookCell as NotebookCellModel,
   NotebookId,
   NotebookCellOutput,
+  NotebookParameter,
   NotebookCellType,
   normalizeNotebookCellExecution,
+  normalizeNotebookParameters,
 } from '@models/notebook';
 import { NotebookTab, TabId } from '@models/tab';
 import { useAppStore, useTabReactiveState, useProtectedViews } from '@store/app-store';
@@ -61,6 +64,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, ReactNode } fr
 import { AddCellButton } from './components/add-cell-button';
 import { NotebookCell, type CellRunMode } from './components/notebook-cell';
 import { NotebookDependencyGraph } from './components/notebook-dependency-graph';
+import { NotebookParametersModal } from './components/notebook-parameters-modal';
 import { NotebookToolbar } from './components/notebook-toolbar';
 import { executeCellSQL } from './hooks/use-cell-execution';
 import { useNotebookConnection } from './hooks/use-notebook-connection';
@@ -71,6 +75,7 @@ import {
   buildAvailableCellNames,
   buildResolvedDependencyGraph,
   CellDependencyMap,
+  expandSelectionWithUpstreamDependencies,
   computeCellDependencies,
   computeCellDependenciesWithLineage,
   detectCircularDependencyCells,
@@ -304,6 +309,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     total: 0,
     continueOnError: false,
   });
+  const [parametersModalOpen, setParametersModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<NotebookViewMode>('list');
   const [fullscreenCellId, setFullscreenCellId] = useState<CellId | null>(null);
 
@@ -540,6 +546,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       // content. The user may have edited the cell since the last render.
       const currentNotebook = useAppStore.getState().notebooks.get(notebook.id);
       if (!currentNotebook) return;
+      const notebookParameters = normalizeNotebookParameters(currentNotebook.parameters);
       const currentCells = [...currentNotebook.cells].sort((a, b) => a.order - b.order);
       const cell = currentCells.find((c) => c.id === cellId);
       if (!cell || cell.type !== 'sql') return;
@@ -610,7 +617,10 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
           selectedCellIds = new Set(upstreamCellIds);
           break;
         case 'downstream':
-          selectedCellIds = findDownstreamDependencyCells(cellId, freshResolvedGraph.edges);
+          selectedCellIds = expandSelectionWithUpstreamDependencies(
+            findDownstreamDependencyCells(cellId, freshResolvedGraph.edges),
+            freshResolvedGraph.edges,
+          );
           break;
         case 'run':
         default:
@@ -618,8 +628,8 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
           break;
       }
 
-      let failedCellId: string | null = null;
-      let failedMessage: string | null = null;
+      const failedExecutionCellIds = new Set<string>();
+      const failureReasonByCellId = new Map<string, string>();
       let abortController: AbortController | null = null;
       let abortControllerCellIds = new Set<string>();
 
@@ -671,6 +681,9 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         }
 
         const executionPlan = buildExecutionPlan(selectedCellIds);
+        const executionPlanCellIds = new Set<string>(
+          executionPlan.map(({ cell: nextCell }) => nextCell.id),
+        );
         for (let offset = 0; offset < executionPlan.length; offset += 1) {
           if (abortController.signal.aborted) return;
 
@@ -694,9 +707,40 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
             });
             setCellState(executionCell.id, blockedState);
             persistCellExecution(notebook.id, executionCell.id, blockedState);
-            failedCellId = executionCell.id;
-            failedMessage = blockedMessage;
-            break;
+            failedExecutionCellIds.add(executionCell.id);
+            failureReasonByCellId.set(executionCell.id, blockedMessage);
+            continue;
+          }
+
+          const providerIds = freshResolvedGraph.edges.get(executionCell.id) ?? new Set<string>();
+          const failedProviderId = [...providerIds].find((providerId) =>
+            executionPlanCellIds.has(providerId) && failedExecutionCellIds.has(providerId),
+          );
+          if (failedProviderId) {
+            const failedProviderCell = currentCells.find(
+              (nextCell) => nextCell.id === failedProviderId,
+            );
+            const providerLabel = failedProviderCell
+              ? getCellReferenceLabel(failedProviderCell)
+              : failedProviderId;
+            const providerFailureMessage = failureReasonByCellId.get(failedProviderId)
+              ?? 'Execution failed.';
+            const dependencyFailureMessage = `Upstream dependency "${providerLabel}" failed: ${providerFailureMessage}`;
+            const blockedByDependencyState = normalizeNotebookCellExecution({
+              ...prevState,
+              status: 'error',
+              error: dependencyFailureMessage,
+              executionTime: 0,
+              lastQuery: null,
+              executionCount,
+              lastRunAt: new Date().toISOString(),
+              snapshot: null,
+            });
+            setCellState(executionCell.id, blockedByDependencyState);
+            persistCellExecution(notebook.id, executionCell.id, blockedByDependencyState);
+            failedExecutionCellIds.add(executionCell.id);
+            failureReasonByCellId.set(executionCell.id, dependencyFailureMessage);
+            continue;
           }
 
           const runningState = normalizeNotebookCellExecution({
@@ -727,6 +771,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
               sharedConnection,
               cellRef: ensureCellRef(executionCell.id, executionCell.ref),
               cellName: normalizeCellName(executionCell.name),
+              parameters: notebookParameters,
             });
 
             const executionTime = Date.now() - startTime;
@@ -752,9 +797,9 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
                 lastRunAt: errorState.lastRunAt,
                 snapshot: errorState.snapshot,
               });
-              failedCellId = executionCell.id;
-              failedMessage = error;
-              break;
+              failedExecutionCellIds.add(executionCell.id);
+              failureReasonByCellId.set(executionCell.id, error);
+              continue;
             }
 
             const snapshot = await captureCellSnapshot(sharedConnection, lastQuery);
@@ -807,9 +852,9 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
               lastRunAt: errorState.lastRunAt,
               snapshot: errorState.snapshot,
             });
-            failedCellId = executionCell.id;
-            failedMessage = message;
-            break;
+            failedExecutionCellIds.add(executionCell.id);
+            failureReasonByCellId.set(executionCell.id, message);
+            continue;
           }
         }
       } catch (error: any) {
@@ -842,28 +887,6 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
           }
         }
       }
-
-      if (!failedCellId || !failedMessage) return;
-      if (failedCellId === cellId) return;
-      if (runMode === 'downstream') return;
-
-      const failedCell = currentCells.find((currentCell) => currentCell.id === failedCellId);
-      const failureLabel = failedCell ? getCellReferenceLabel(failedCell) : failedCellId;
-      const prevState = getCellState(cellId);
-      executionCounterRef.current += 1;
-      const executionCount = executionCounterRef.current;
-      const blockedByDependencyState = normalizeNotebookCellExecution({
-        ...prevState,
-        status: 'error',
-        error: `Upstream dependency "${failureLabel}" failed: ${failedMessage}`,
-        executionTime: 0,
-        lastQuery: null,
-        executionCount,
-        lastRunAt: new Date().toISOString(),
-        snapshot: null,
-      });
-      setCellState(cellId, blockedByDependencyState);
-      persistCellExecution(notebook.id, cellId, blockedByDependencyState);
     },
     [
       notebook,
@@ -899,6 +922,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       setRunAllState((prev) => ({ ...prev, running: false }));
       return;
     }
+    const notebookParameters = normalizeNotebookParameters(currentNotebook.parameters);
 
     const currentCells = [...currentNotebook.cells].sort((a, b) => a.order - b.order);
     const sqlCellsWithIndex = currentCells
@@ -933,9 +957,12 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
       ({ cell }) => blockedCellIds.has(cell.id) && !orderedSqlCellIds.has(cell.id),
     );
     const executionPlan = [...orderedSqlCellsWithIndex, ...blockedSqlCellsWithIndex];
+    const executionPlanCellIds = new Set<string>(executionPlan.map(({ cell }) => cell.id));
 
     let firstErrorMessage: string | null = null;
     let stoppedOnError = false;
+    const failedExecutionCellIds = new Set<string>();
+    const failureReasonByCellId = new Map<string, string>();
 
     try {
       // Use the shared connection for all cells so temp views persist
@@ -984,9 +1011,56 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
 
           setCellState(cell.id, blockedState);
           persistCellExecution(notebook.id, cell.id, blockedState);
+          failedExecutionCellIds.add(cell.id);
+          failureReasonByCellId.set(cell.id, message);
 
           if (!firstErrorMessage) {
             firstErrorMessage = message;
+          }
+
+          if (!continueOnError) {
+            stoppedOnError = true;
+            break;
+          }
+
+          continue;
+        }
+
+        const providerIds = runAllResolvedGraph.edges.get(cell.id) ?? new Set<string>();
+        const failedProviderId = [...providerIds].find((providerId) =>
+          executionPlanCellIds.has(providerId) && failedExecutionCellIds.has(providerId),
+        );
+        if (failedProviderId) {
+          const failedProviderCell = currentCells.find(
+            (currentCell) => currentCell.id === failedProviderId,
+          );
+          const failedProviderLabel = failedProviderCell
+            ? (
+              normalizeCellName(failedProviderCell.name)
+              ?? ensureCellRef(failedProviderCell.id, failedProviderCell.ref)
+            )
+            : failedProviderId;
+          const providerFailureReason = failureReasonByCellId.get(failedProviderId)
+            ?? 'Execution failed.';
+          const dependencyFailureMessage = `Upstream dependency "${failedProviderLabel}" failed: ${providerFailureReason}`;
+
+          const blockedByDependencyState = normalizeNotebookCellExecution({
+            ...prevCellState,
+            status: 'error',
+            error: dependencyFailureMessage,
+            executionTime: 0,
+            lastQuery: null,
+            executionCount,
+            lastRunAt: new Date().toISOString(),
+            snapshot: null,
+          });
+          setCellState(cell.id, blockedByDependencyState);
+          persistCellExecution(notebook.id, cell.id, blockedByDependencyState);
+          failedExecutionCellIds.add(cell.id);
+          failureReasonByCellId.set(cell.id, dependencyFailureMessage);
+
+          if (!firstErrorMessage) {
+            firstErrorMessage = dependencyFailureMessage;
           }
 
           if (!continueOnError) {
@@ -1026,6 +1100,7 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
             sharedConnection,
             cellRef: ensureCellRef(cell.id, cell.ref),
             cellName: normalizeCellName(cell.name),
+            parameters: notebookParameters,
           });
 
           const executionTime = Date.now() - startTime;
@@ -1051,6 +1126,8 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
               lastRunAt: errorState.lastRunAt,
               snapshot: errorState.snapshot,
             });
+            failedExecutionCellIds.add(cell.id);
+            failureReasonByCellId.set(cell.id, error);
 
             if (!firstErrorMessage) {
               firstErrorMessage = error;
@@ -1111,6 +1188,8 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
             lastRunAt: errorState.lastRunAt,
             snapshot: errorState.snapshot,
           });
+          failedExecutionCellIds.add(cell.id);
+          failureReasonByCellId.set(cell.id, message);
 
           if (!firstErrorMessage) {
             firstErrorMessage = message;
@@ -1523,6 +1602,19 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
     exportNotebookAsHtml(notebook);
   }, [notebook]);
 
+  const handleOpenParameters = useCallback(() => {
+    setParametersModalOpen(true);
+  }, []);
+
+  const handleCloseParameters = useCallback(() => {
+    setParametersModalOpen(false);
+  }, []);
+
+  const handleSaveParameters = useCallback((parameters: NotebookParameter[]) => {
+    if (!notebook) return;
+    updateNotebookParameters(notebook.id, parameters);
+  }, [notebook]);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       if (!notebook) return;
@@ -1635,6 +1727,8 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
         onViewModeChange={handleViewModeChange}
         onRunAll={handleRunAll}
         runAllState={runAllState}
+        onEditParameters={handleOpenParameters}
+        parameterCount={normalizeNotebookParameters(notebook.parameters).length}
         onExportSqlnb={handleExportSqlnb}
         onExportHtml={handleExportHtml}
         onClearAllOutputs={handleClearAllOutputs}
@@ -1788,6 +1882,13 @@ export const NotebookTabView = memo(({ tabId, active }: NotebookTabViewProps) =>
           </div>
         </div>
       )}
+
+      <NotebookParametersModal
+        opened={parametersModalOpen}
+        parameters={normalizeNotebookParameters(notebook.parameters)}
+        onClose={handleCloseParameters}
+        onSave={handleSaveParameters}
+      />
     </Stack>
   );
 });

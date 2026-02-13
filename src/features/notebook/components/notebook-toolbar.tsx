@@ -8,6 +8,7 @@ import {
 } from '@mantine/core';
 import { NotebookCellType } from '@models/notebook';
 import {
+  IconAdjustments,
   IconCode,
   IconClearAll,
   IconDownload,
@@ -28,6 +29,8 @@ interface NotebookToolbarProps {
   onRename: (name: string) => void;
   onAddCell: (type: NotebookCellType) => void;
   onRunAll?: (options?: { continueOnError?: boolean }) => void;
+  onEditParameters?: () => void;
+  parameterCount?: number;
   onExportSqlnb?: () => void;
   onExportHtml?: () => void;
   onClearAllOutputs?: () => void;
@@ -46,7 +49,14 @@ interface NotebookToolbarProps {
 export const NotebookToolbar = memo(
   (props: NotebookToolbarProps) => {
     const {
-      notebookName, onRename, onAddCell, onRunAll, onExportSqlnb, onExportHtml,
+      notebookName,
+      onRename,
+      onAddCell,
+      onRunAll,
+      onEditParameters,
+      parameterCount,
+      onExportSqlnb,
+      onExportHtml,
       onClearAllOutputs, onCollapseAll, onExpandAll, viewMode, onViewModeChange, runAllState,
     } = props;
     const [editing, setEditing] = useState(false);
@@ -151,6 +161,23 @@ export const NotebookToolbar = memo(
                 </ActionIcon>
               </Tooltip>
             </Group>
+          )}
+
+          {onEditParameters && (
+            <Tooltip
+              label={`Notebook parameters${parameterCount ? ` (${parameterCount})` : ''}`}
+              position="top"
+            >
+              <ActionIcon
+                data-testid="notebook-parameters-button"
+                size="sm"
+                variant="subtle"
+                className="text-iconDefault-light dark:text-iconDefault-dark"
+                onClick={onEditParameters}
+              >
+                <IconAdjustments size={16} />
+              </ActionIcon>
+            </Tooltip>
           )}
 
           {onViewModeChange && (

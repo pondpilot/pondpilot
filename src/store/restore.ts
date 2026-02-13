@@ -38,6 +38,7 @@ import {
   isNotebookCellOutputEqual,
   normalizeNotebookCellExecution,
   normalizeNotebookCellOutput,
+  normalizeNotebookParameters,
 } from '@models/notebook';
 import {
   ALL_TABLE_NAMES,
@@ -563,6 +564,22 @@ export const restoreAppDataFromIDB = async (
   // Normalize existing notebook entries to include stable cell refs/names and SQL state.
   for (const [notebookId, notebookData] of notebooks.entries()) {
     let notebookChanged = false;
+    const normalizedParameters = normalizeNotebookParameters(notebookData.parameters);
+    const parametersUnchanged = Array.isArray(notebookData.parameters)
+      && notebookData.parameters.length === normalizedParameters.length
+      && notebookData.parameters.every((parameter, index) => {
+        const nextParameter = normalizedParameters[index];
+        return (
+          parameter.name === nextParameter.name
+          && parameter.type === nextParameter.type
+          && parameter.value === nextParameter.value
+        );
+      });
+
+    if (!parametersUnchanged) {
+      notebookChanged = true;
+    }
+
     const normalizedCells = notebookData.cells.map((cell) => {
       const normalizedRef = ensureCellRef(cell.id, cell.ref);
       const normalizedName = cell.type === 'sql'
@@ -618,6 +635,7 @@ export const restoreAppDataFromIDB = async (
     const normalizedNotebook: Notebook = {
       ...notebookData,
       cells: normalizedCells,
+      parameters: normalizedParameters,
     };
 
     notebooks.set(notebookId, normalizedNotebook);

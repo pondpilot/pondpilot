@@ -4,8 +4,10 @@ import {
   CellRef,
   Notebook,
   NotebookCell,
+  NotebookParameter,
   normalizeNotebookCellExecution,
   normalizeNotebookCellOutput,
+  normalizeNotebookParameters,
 } from '@models/notebook';
 import { sanitizeFileName } from '@utils/export-data';
 
@@ -16,10 +18,17 @@ export interface SqlnbFormat {
   version: 1;
   name: string;
   cells: SqlnbCell[];
+  parameters?: SqlnbParameter[];
   metadata: {
     createdAt: string;
     pondpilotVersion: string;
   };
+}
+
+export interface SqlnbParameter {
+  name: string;
+  type: 'text' | 'number' | 'boolean' | 'null';
+  value: string | number | boolean | null;
 }
 
 export interface SqlnbCell {
@@ -39,6 +48,7 @@ const SQLNB_FORMAT_VERSION = 1 as const;
  */
 export function notebookToSqlnb(notebook: Notebook, appVersion: string): SqlnbFormat {
   const sortedCells = [...notebook.cells].sort((a, b) => a.order - b.order);
+  const normalizedParameters = normalizeNotebookParameters(notebook.parameters);
 
   return {
     version: SQLNB_FORMAT_VERSION,
@@ -57,6 +67,7 @@ export function notebookToSqlnb(notebook: Notebook, appVersion: string): SqlnbFo
       }
       return sqlnbCell;
     }),
+    ...(normalizedParameters.length > 0 ? { parameters: normalizedParameters } : {}),
     metadata: {
       createdAt: notebook.createdAt,
       pondpilotVersion: appVersion,
@@ -94,6 +105,57 @@ export function parseSqlnb(jsonString: string): SqlnbFormat {
 
   if (!Array.isArray(obj.cells)) {
     throw new Error('Invalid .sqlnb format: "cells" must be an array.');
+  }
+
+  if (obj.parameters !== undefined) {
+    if (!Array.isArray(obj.parameters)) {
+      throw new Error('Invalid .sqlnb format: "parameters" must be an array when present.');
+    }
+
+    for (let i = 0; i < obj.parameters.length; i += 1) {
+      const parameter = obj.parameters[i] as Record<string, unknown>;
+      if (typeof parameter !== 'object' || parameter === null) {
+        throw new Error(`Invalid .sqlnb format: parameter at index ${i} must be an object.`);
+      }
+
+      if (typeof parameter.name !== 'string' || parameter.name.trim().length === 0) {
+        throw new Error(
+          `Invalid .sqlnb format: parameter at index ${i} has invalid name. Expected a non-empty string.`,
+        );
+      }
+
+      if (
+        parameter.type !== 'text' &&
+        parameter.type !== 'number' &&
+        parameter.type !== 'boolean' &&
+        parameter.type !== 'null'
+      ) {
+        throw new Error(
+          `Invalid .sqlnb format: parameter at index ${i} has invalid type "${String(parameter.type)}".`,
+        );
+      }
+
+      if (parameter.type === 'text' && typeof parameter.value !== 'string') {
+        throw new Error(
+          `Invalid .sqlnb format: parameter at index ${i} with type "text" must have a string value.`,
+        );
+      }
+      if (parameter.type === 'number' && typeof parameter.value !== 'number') {
+        throw new Error(
+          `Invalid .sqlnb format: parameter at index ${i} with type "number" must have a numeric value.`,
+        );
+      }
+      if (parameter.type === 'boolean' && typeof parameter.value !== 'boolean') {
+        throw new Error(
+          `Invalid .sqlnb format: parameter at index ${i} with type "boolean" must have a boolean value.`,
+        );
+      }
+      if (parameter.type === 'null' && parameter.value !== null) {
+        throw new Error(
+          `Invalid .sqlnb format: parameter at index ${i} with type "null" must have null value.`,
+        );
+      }
+    }
   }
 
   for (let i = 0; i < obj.cells.length; i += 1) {
@@ -148,7 +210,15 @@ export function parseSqlnb(jsonString: string): SqlnbFormat {
     }
   }
 
-  return parsed as SqlnbFormat;
+  const parsedFormat = parsed as SqlnbFormat;
+  const normalizedParameters = normalizeNotebookParameters(
+    (parsedFormat.parameters ?? []) as NotebookParameter[],
+  );
+
+  return {
+    ...parsedFormat,
+    parameters: normalizedParameters,
+  };
 }
 
 /**
