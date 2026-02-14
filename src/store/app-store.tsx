@@ -8,6 +8,7 @@ import {
   DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
   RemoteDB,
   PersistentDataSourceId,
 } from '@models/data-source';
@@ -150,6 +151,12 @@ type AppStore = {
   icebergReconnectCatalogId: PersistentDataSourceId | null;
 
   /**
+   * When set, the MotherDuck reconnect modal will be shown for this connection.
+   * Not persisted — purely transient UI state.
+   */
+  motherduckReconnectConnectionId: PersistentDataSourceId | null;
+
+  /**
    * Pending "Convert To" action from the data explorer context menu.
    * When set, the data view info pane will open the export modal
    * with the specified format pre-selected once the tab's data adapter is ready.
@@ -176,6 +183,7 @@ const initialState: AppStore = {
   spotlightView: 'home',
   comparisonExecutionProgress: new Map(),
   icebergReconnectCatalogId: null,
+  motherduckReconnectConnectionId: null,
   pendingConvert: null,
   // From ContentViewState
   activeTabId: null,
@@ -427,7 +435,8 @@ export function useProtectedViews(): Set<string> {
                 dataSource.type !== 'attached-db' &&
                 dataSource.type !== 'remote-db' &&
                 dataSource.type !== 'iceberg-catalog' &&
-                dataSource.type !== 'ducklake-catalog',
+                dataSource.type !== 'ducklake-catalog' &&
+                dataSource.type !== 'motherduck',
             )
             .map((dataSource): string => (dataSource as AnyFlatFileDataSource).viewName),
           ...Array.from(state.comparisons.values())
@@ -450,7 +459,8 @@ export function useFlatFileDataSourceEMap(): Map<PersistentDataSourceId, AnyFlat
                 dataSource.type !== 'attached-db' &&
                 dataSource.type !== 'remote-db' &&
                 dataSource.type !== 'iceberg-catalog' &&
-                dataSource.type !== 'ducklake-catalog',
+                dataSource.type !== 'ducklake-catalog' &&
+                dataSource.type !== 'motherduck',
             ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
     ),
@@ -469,7 +479,8 @@ export function useFlatFileDataSourceMap(): Map<PersistentDataSourceId, AnyFlatF
                 dataSource.type !== 'attached-db' &&
                 dataSource.type !== 'remote-db' &&
                 dataSource.type !== 'iceberg-catalog' &&
-                dataSource.type !== 'ducklake-catalog',
+                dataSource.type !== 'ducklake-catalog' &&
+                dataSource.type !== 'motherduck',
             ) as [PersistentDataSourceId, AnyFlatFileDataSource][],
         ),
     ),
@@ -494,21 +505,25 @@ export function useLocalDBDataSourceMap(): Map<PersistentDataSourceId, LocalDB> 
 
 export function useDatabaseDataSourceMap(): Map<
   PersistentDataSourceId,
-  LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog
+  LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | MotherDuckConnection
 > {
   return useAppStore(
     useShallow(
       (state) =>
         new Map(
           Array.from(state.dataSources.entries())
-            // Include local, remote, iceberg, and ducklake catalog databases
+            // Include local, remote, iceberg, ducklake catalog, and MotherDuck databases
             .filter(
               ([, dataSource]) =>
                 dataSource.type === 'attached-db' ||
                 dataSource.type === 'remote-db' ||
                 dataSource.type === 'iceberg-catalog' ||
-                dataSource.type === 'ducklake-catalog',
-            ) as [PersistentDataSourceId, LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog][],
+                dataSource.type === 'ducklake-catalog' ||
+                dataSource.type === 'motherduck',
+            ) as [
+            PersistentDataSourceId,
+            LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | MotherDuckConnection,
+          ][],
         ),
     ),
   );

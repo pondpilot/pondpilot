@@ -949,11 +949,15 @@ export const restoreAppDataFromIDB = async (
   // 2. We want to handle connection errors properly
   // Just mark them as valid so they don't get deleted
   for (const ds of dataSources.values()) {
+<<<<<<< HEAD
     if (
       ds.type === 'remote-db' ||
       ds.type === 'iceberg-catalog' ||
       ds.type === 'ducklake-catalog'
     ) {
+=======
+    if (ds.type === 'remote-db' || ds.type === 'iceberg-catalog' || ds.type === 'motherduck') {
+>>>>>>> fe3e1d0 (feat: Add MotherDuck cloud database integration)
       validDataSources.add(ds.id);
     }
   }

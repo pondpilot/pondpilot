@@ -92,6 +92,12 @@ export interface LocalDBDataTab extends TabBase {
    * Name of the table/view in the database.
    */
   objectName: string;
+
+  /**
+   * DuckDB database name for multi-database data sources (e.g. MotherDuck).
+   * When set, used instead of deriving the database name from the data source.
+   */
+  databaseName?: string;
 }
 
 export interface SchemaBrowserTab extends TabBase {

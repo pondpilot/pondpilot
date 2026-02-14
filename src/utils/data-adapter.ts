@@ -13,6 +13,7 @@ import {
   DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
   RemoteDB,
   SYSTEM_DATABASE_ID,
   SYSTEM_DATABASE_NAME,
@@ -370,13 +371,13 @@ function getFlatFileDataAdapterQueries(
 // for database operations (both have dbName and dbType fields)
 function getDatabaseDataAdapterApi(
   pool: AsyncDuckDBConnectionPool,
-  dataSource: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog,
+  dataSource: LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | MotherDuckConnection,
   tab: TabReactiveState<LocalDBDataTab>,
   options: {
     usePagedReader?: boolean;
   } = {},
 ): { adapter: DataAdapterQueries | null; userErrors: string[]; internalErrors: string[] } {
-  const rawDbName = getDatabaseIdentifier(dataSource);
+  const rawDbName = tab.databaseName ?? getDatabaseIdentifier(dataSource);
   const dbName = toDuckDBIdentifier(rawDbName);
   const schemaName = toDuckDBIdentifier(tab.schemaName);
   const tableName = toDuckDBIdentifier(tab.objectName);
@@ -574,6 +575,28 @@ export function getFileDataAdapterQueries({
     return getDatabaseDataAdapterApi(pool, dataSource, tab, {
       usePagedReader: true,
     });
+  }
+
+  if (dataSource.type === 'motherduck') {
+    if (tab.dataSourceType !== 'db') {
+      return {
+        adapter: null,
+        userErrors: [],
+        internalErrors: [
+          `Tried creating a MotherDuck data adapter from a tab with different source type: ${tab.dataSourceType}`,
+        ],
+      };
+    }
+
+    if (dataSource.connectionState !== 'connected') {
+      return {
+        adapter: null,
+        userErrors: ['MotherDuck is not connected'],
+        internalErrors: [],
+      };
+    }
+
+    return getDatabaseDataAdapterApi(pool, dataSource, tab);
   }
 
   const _exhaustiveCheck: never = dataSource;

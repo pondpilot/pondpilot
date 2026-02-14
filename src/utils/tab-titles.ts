@@ -33,7 +33,8 @@ export function getSchemaBrowserTabTitle(
       dataSource.type !== 'attached-db' &&
       dataSource.type !== 'remote-db' &&
       dataSource.type !== 'iceberg-catalog' &&
-      dataSource.type !== 'ducklake-catalog'
+      dataSource.type !== 'ducklake-catalog' &&
+      dataSource.type !== 'motherduck'
     ) {
       return `File: ${(dataSource as AnyFlatFileDataSource).viewName}`;
     }
@@ -42,6 +43,9 @@ export function getSchemaBrowserTabTitle(
 
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
+    if (dataSource && dataSource.type === 'motherduck') {
+      return 'MotherDuck';
+    }
     if (
       dataSource &&
       (dataSource.type === 'iceberg-catalog' || dataSource.type === 'ducklake-catalog')
@@ -123,7 +127,8 @@ export function getSchemaBrowserDisplayTitle(
       dataSource.type !== 'attached-db' &&
       dataSource.type !== 'remote-db' &&
       dataSource.type !== 'iceberg-catalog' &&
-      dataSource.type !== 'ducklake-catalog'
+      dataSource.type !== 'ducklake-catalog' &&
+      dataSource.type !== 'motherduck'
     ) {
       return {
         prefix: 'File:',
@@ -135,6 +140,9 @@ export function getSchemaBrowserDisplayTitle(
 
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
+    if (dataSource && dataSource.type === 'motherduck') {
+      return { prefix: 'Cloud:', title: 'MotherDuck' };
+    }
     if (
       dataSource &&
       (dataSource.type === 'iceberg-catalog' || dataSource.type === 'ducklake-catalog')

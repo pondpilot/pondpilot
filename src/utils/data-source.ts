@@ -4,6 +4,7 @@ import {
   DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
   PersistentDataSourceId,
   ReadStatView,
   RemoteDB,
@@ -38,7 +39,8 @@ export function ensureFlatFileDataSource(
     obj.type === 'attached-db' ||
     obj.type === 'remote-db' ||
     obj.type === 'iceberg-catalog' ||
-    obj.type === 'ducklake-catalog'
+    obj.type === 'ducklake-catalog' ||
+    obj.type === 'motherduck'
   ) {
     throw new Error(`Data source with id ${obj.id} is not a flat file data source`);
   }
@@ -211,24 +213,33 @@ export function isDuckLakeCatalog(dataSource: AnyDataSource): dataSource is Duck
   return dataSource.type === 'ducklake-catalog';
 }
 
-export type DatabaseDataSource = LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog;
+export function isMotherDuckConnection(
+  dataSource: AnyDataSource,
+): dataSource is MotherDuckConnection {
+  return dataSource.type === 'motherduck';
+}
+
+export type DatabaseDataSource = LocalDB | RemoteDB | IcebergCatalog | DuckLakeCatalog | MotherDuckConnection;
 
 export function isDatabaseDataSource(dataSource: AnyDataSource): dataSource is DatabaseDataSource {
   return (
     dataSource.type === 'attached-db' ||
     dataSource.type === 'remote-db' ||
     dataSource.type === 'iceberg-catalog' ||
-    dataSource.type === 'ducklake-catalog'
+    dataSource.type === 'ducklake-catalog' ||
+    dataSource.type === 'motherduck'
   );
 }
 
 /**
  * Returns the DuckDB database name for a database data source.
  * For iceberg/ducklake catalogs this is the catalog alias; for others, the dbName.
+ * MotherDuck connections don't have a single database name — returns 'md:'.
  */
 export function getDatabaseIdentifier(dataSource: DatabaseDataSource): string {
   if (dataSource.type === 'iceberg-catalog') return dataSource.catalogAlias;
   if (dataSource.type === 'ducklake-catalog') return dataSource.catalogAlias;
+  if (dataSource.type === 'motherduck') return 'md:';
   return dataSource.dbName;
 }
 

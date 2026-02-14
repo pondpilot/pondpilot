@@ -6,6 +6,7 @@ export * from './use-local-db-nodes';
 export * from './use-remote-db-nodes';
 export * from './use-iceberg-catalog-nodes';
 export * from './use-ducklake-catalog-nodes';
+export * from './use-motherduck-nodes';
 export * from './use-system-db-node';
 export * from './use-data-explorer-state';
 export * from './use-data-explorer-data';

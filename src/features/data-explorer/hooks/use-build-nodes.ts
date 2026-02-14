@@ -1,11 +1,12 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { DuckLakeCatalog, IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
+import { DuckLakeCatalog, IcebergCatalog, LocalDB, MotherDuckConnection, RemoteDB } from '@models/data-source';
 
 import { DataExplorerNodeMap } from '../model';
 import { useDuckLakeCatalogNodes } from './use-ducklake-catalog-nodes';
 import { useIcebergCatalogNodes } from './use-iceberg-catalog-nodes';
 import { useLocalDbNodes } from './use-local-db-nodes';
+import { useMotherDuckNodes } from './use-motherduck-nodes';
 import { useRemoteDbNodes } from './use-remote-db-nodes';
 import { useSystemDbNode } from './use-system-db-node';
 
@@ -15,6 +16,7 @@ type UseBuildNodesProps = {
   remoteDatabases: RemoteDB[];
   icebergCatalogs: IcebergCatalog[];
   duckLakeCatalogs: DuckLakeCatalog[];
+  motherduckConnections: MotherDuckConnection[];
   nodeMap: DataExplorerNodeMap;
   anyNodeIdToNodeTypeMap: Map<string, any>;
   conn: AsyncDuckDBConnectionPool;
@@ -38,6 +40,7 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     remoteDatabases,
     icebergCatalogs,
     duckLakeCatalogs,
+    motherduckConnections,
     nodeMap,
     anyNodeIdToNodeTypeMap,
     conn,
@@ -104,6 +107,19 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     comparisonByTableName,
   });
 
+  // Build MotherDuck connection nodes
+  const motherduckConnectionNodes = useMotherDuckNodes({
+    motherduckConnections,
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    flatFileSources,
+    comparisonTableNames,
+    comparisonByTableName,
+  });
+
   // Build system database node
   const { systemDbNode, systemDbNodeForDisplay } = useSystemDbNode({
     systemDatabase,
@@ -124,6 +140,7 @@ export const useBuildNodes = (props: UseBuildNodesProps) => {
     remoteDatabaseNodes,
     icebergCatalogNodes,
     duckLakeCatalogNodes,
+    motherduckConnectionNodes,
     systemDbNode,
     systemDbNodeForDisplay,
   };

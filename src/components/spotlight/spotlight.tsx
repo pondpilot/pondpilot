@@ -45,6 +45,7 @@ import {
   isDuckLakeCatalog,
   isIcebergCatalog,
   isLocalDatabase,
+  isMotherDuckConnection,
   isRemoteDatabase,
 } from '@utils/data-source';
 import { fileSystemService } from '@utils/file-system-adapter';
@@ -360,6 +361,11 @@ export const SpotlightMenu = () => {
           });
         });
 
+        continue;
+      }
+
+      // MotherDuck connections are not shown as individual spotlight entries
+      if (isMotherDuckConnection(dataSource)) {
         continue;
       }
 

@@ -2,6 +2,7 @@ import {
   DuckLakeCatalog,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
   RemoteDB,
   SYSTEM_DATABASE_ID,
   AnyDataSource,
@@ -15,6 +16,7 @@ export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>
     const remoteDbs: RemoteDB[] = [];
     const icebergCatalogs: IcebergCatalog[] = [];
     const duckLakeCatalogs: DuckLakeCatalog[] = [];
+    const motherduckConnections: MotherDuckConnection[] = [];
 
     allDataSources.forEach((dataSource) => {
       if (dataSource.type === 'attached-db') {
@@ -29,6 +31,8 @@ export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>
         icebergCatalogs.push(dataSource);
       } else if (dataSource.type === 'ducklake-catalog') {
         duckLakeCatalogs.push(dataSource);
+      } else if (dataSource.type === 'motherduck') {
+        motherduckConnections.push(dataSource);
       }
     });
 
@@ -37,6 +41,7 @@ export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>
     remoteDbs.sort((a, b) => a.dbName.localeCompare(b.dbName));
     icebergCatalogs.sort((a, b) => a.catalogAlias.localeCompare(b.catalogAlias));
     duckLakeCatalogs.sort((a, b) => a.catalogAlias.localeCompare(b.catalogAlias));
+    motherduckConnections.sort((a, b) => a.attachedAt - b.attachedAt);
 
     return {
       systemDatabase: systemDb,
@@ -44,6 +49,7 @@ export const useDatabaseSeparation = (allDataSources: Map<string, AnyDataSource>
       remoteDatabases: remoteDbs,
       icebergCatalogs,
       duckLakeCatalogs,
+      motherduckConnections,
     };
   }, [allDataSources]);
 };

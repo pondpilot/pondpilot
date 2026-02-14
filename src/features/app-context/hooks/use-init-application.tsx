@@ -11,7 +11,12 @@ import { useAppStore, setAppLoadState } from '@store/app-store';
 import { restoreAppDataFromIDB } from '@store/restore';
 import { MaxRetriesExceededError } from '@utils/connection-errors';
 import { attachDatabaseWithRetry } from '@utils/connection-manager';
-import { isRemoteDatabase, isIcebergCatalog, isDuckLakeCatalog } from '@utils/data-source';
+import {
+  isRemoteDatabase,
+  isIcebergCatalog,
+  isDuckLakeCatalog,
+  isMotherDuckConnection,
+} from '@utils/data-source';
 import {
   attachAndVerifyDuckLakeCatalog,
   updateDuckLakeConnectionState,
@@ -21,6 +26,11 @@ import {
   resolveIcebergCredentials,
   updateIcebergCatalogConnectionState,
 } from '@utils/iceberg-catalog';
+import {
+  resolveMotherDuckToken,
+  reconnectMotherDuck,
+  updateMotherDuckConnectionState,
+} from '@utils/motherduck';
 import { updateRemoteDbConnectionState } from '@utils/remote-database';
 import { sanitizeErrorMessage } from '@utils/sanitize-error';
 import { buildAttachQuery } from '@utils/sql-builder';
@@ -110,6 +120,27 @@ async function reconnectRemoteDatabases(conn: AsyncDuckDBConnectionPool): Promis
         const sanitized = sanitizeErrorMessage(errorMessage);
         console.warn(`Failed to reconnect DuckLake catalog ${dataSource.catalogAlias}:`, sanitized);
         updateDuckLakeConnectionState(id, 'error', sanitized);
+      }
+      continue;
+    }
+
+    if (isMotherDuckConnection(dataSource)) {
+      // Resolve token from the encrypted secret store
+      const token = _iDbConn ? await resolveMotherDuckToken(_iDbConn, dataSource) : null;
+
+      if (!token) {
+        updateMotherDuckConnectionState(id, 'credentials-required');
+        continue;
+      }
+
+      try {
+        // reconnectMotherDuck handles metadata loading internally
+        await reconnectMotherDuck(conn, dataSource, token);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const sanitized = sanitizeErrorMessage(errorMessage);
+        console.warn('Failed to reconnect to MotherDuck:', sanitized);
+        updateMotherDuckConnectionState(id, 'error', sanitized);
       }
       continue;
     }

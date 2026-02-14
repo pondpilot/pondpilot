@@ -205,6 +205,31 @@ export const deleteDataSources = async (
       continue;
     }
 
+    if (dataSource.type === 'motherduck') {
+      // For MotherDuck connections: disconnect and remove encrypted secret
+      try {
+        const { disconnectMotherDuck } = await import('@utils/motherduck');
+        await disconnectMotherDuck(conn);
+      } catch (disconnectError) {
+        console.warn('Failed to disconnect MotherDuck during deletion:', disconnectError);
+      }
+      if (dataSource.secretRef) {
+        try {
+          const { _iDbConn } = useAppStore.getState();
+          if (_iDbConn) {
+            const { deleteSecret } = await import('@services/secret-store');
+            await deleteSecret(_iDbConn, dataSource.secretRef);
+          }
+        } catch (storeError) {
+          console.warn(
+            'Failed to delete MotherDuck secret from store during deletion:',
+            storeError,
+          );
+        }
+      }
+      continue;
+    }
+
     if (dataSource.type === 'remote-db') {
       // For remote databases, just detach
       detachAndUnregisterDatabase(conn, dataSource.dbName, dataSource.url);
