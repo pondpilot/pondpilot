@@ -3,6 +3,7 @@ import {
   AnyFlatFileDataSource,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
   PersistentDataSourceId,
   ReadStatView,
   RemoteDB,
@@ -33,7 +34,12 @@ export function ensureFlatFileDataSource(
     obj = dataSourceOrId;
   }
 
-  if (obj.type === 'attached-db' || obj.type === 'remote-db' || obj.type === 'iceberg-catalog') {
+  if (
+    obj.type === 'attached-db' ||
+    obj.type === 'remote-db' ||
+    obj.type === 'iceberg-catalog' ||
+    obj.type === 'motherduck'
+  ) {
     throw new Error(`Data source with id ${obj.id} is not a flat file data source`);
   }
 
@@ -66,9 +72,14 @@ export function ensureLocalDBDataSource(
 }
 
 export function ensureDatabaseDataSource(
-  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | PersistentDataSourceId,
+  dataSourceOrId:
+    | LocalDB
+    | RemoteDB
+    | IcebergCatalog
+    | MotherDuckConnection
+    | PersistentDataSourceId,
   dataSources: Map<PersistentDataSourceId, AnyDataSource>,
-): LocalDB | RemoteDB | IcebergCatalog {
+): LocalDB | RemoteDB | IcebergCatalog | MotherDuckConnection {
   let obj: AnyDataSource;
 
   if (typeof dataSourceOrId === 'string') {
@@ -83,11 +94,16 @@ export function ensureDatabaseDataSource(
     obj = dataSourceOrId;
   }
 
-  if (obj.type !== 'attached-db' && obj.type !== 'remote-db' && obj.type !== 'iceberg-catalog') {
+  if (
+    obj.type !== 'attached-db' &&
+    obj.type !== 'remote-db' &&
+    obj.type !== 'iceberg-catalog' &&
+    obj.type !== 'motherduck'
+  ) {
     throw new Error(`Data source with id ${obj.id} is not a database data source`);
   }
 
-  return obj as LocalDB | RemoteDB | IcebergCatalog;
+  return obj as LocalDB | RemoteDB | IcebergCatalog | MotherDuckConnection;
 }
 
 export function addFlatFileDataSource(
@@ -201,22 +217,32 @@ export function isIcebergCatalog(dataSource: AnyDataSource): dataSource is Icebe
   return dataSource.type === 'iceberg-catalog';
 }
 
-export type DatabaseDataSource = LocalDB | RemoteDB | IcebergCatalog;
+export function isMotherDuckConnection(
+  dataSource: AnyDataSource,
+): dataSource is MotherDuckConnection {
+  return dataSource.type === 'motherduck';
+}
+
+export type DatabaseDataSource = LocalDB | RemoteDB | IcebergCatalog | MotherDuckConnection;
 
 export function isDatabaseDataSource(dataSource: AnyDataSource): dataSource is DatabaseDataSource {
   return (
     dataSource.type === 'attached-db' ||
     dataSource.type === 'remote-db' ||
-    dataSource.type === 'iceberg-catalog'
+    dataSource.type === 'iceberg-catalog' ||
+    dataSource.type === 'motherduck'
   );
 }
 
 /**
  * Returns the DuckDB database name for a database data source.
  * For iceberg catalogs this is the catalog alias; for others, the dbName.
+ * MotherDuck connections don't have a single database name — returns 'md:'.
  */
 export function getDatabaseIdentifier(dataSource: DatabaseDataSource): string {
-  return dataSource.type === 'iceberg-catalog' ? dataSource.catalogAlias : dataSource.dbName;
+  if (dataSource.type === 'iceberg-catalog') return dataSource.catalogAlias;
+  if (dataSource.type === 'motherduck') return 'md:';
+  return dataSource.dbName;
 }
 
 export function getFlatFileDataSourceFromMap(

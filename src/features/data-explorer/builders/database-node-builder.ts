@@ -129,6 +129,7 @@ export function buildObjectTreeNode({
   comparisonTableNames,
   conn,
   context,
+  databaseName,
 }: {
   dbId: PersistentDataSourceId;
   dbName: string;
@@ -138,6 +139,7 @@ export function buildObjectTreeNode({
   comparisonTableNames?: Set<string>;
   conn?: AsyncDuckDBConnectionPool;
   context: ExtendedBuilderContext;
+  databaseName?: string;
 }): TreeNodeData<DataExplorerNodeTypeMap> {
   const { name: objectName, columns } = object;
   const objectNodeId = `${dbId}.${schemaName}.${objectName}`;
@@ -259,7 +261,7 @@ export function buildObjectTreeNode({
       }
 
       // Regular table/view handling
-      const existingTab = findTabFromLocalDBObject(dbId, schemaName, objectName);
+      const existingTab = findTabFromLocalDBObject(dbId, schemaName, objectName, databaseName);
       if (existingTab) {
         // If the tab is already open, just set as active and do not change preview
         setActiveTabId(existingTab.id);
@@ -267,7 +269,14 @@ export function buildObjectTreeNode({
       }
 
       // Net new. Create an active tab
-      const tab = getOrCreateTabFromLocalDBObject(dbId, schemaName, objectName, object.type, true);
+      const tab = getOrCreateTabFromLocalDBObject(
+        dbId,
+        schemaName,
+        objectName,
+        object.type,
+        true,
+        databaseName,
+      );
       // Then set as & preview
       setPreviewTabId(tab.id);
     },
@@ -336,7 +345,12 @@ export function buildObjectTreeNode({
             }
 
             // Regular table/view handling
-            const existingTab = findTabFromLocalDBObject(dbId, schemaName, objectName);
+            const existingTab = findTabFromLocalDBObject(
+              dbId,
+              schemaName,
+              objectName,
+              databaseName,
+            );
             if (existingTab) {
               setActiveTabId(existingTab.id);
               return existingTab.id;
@@ -347,6 +361,7 @@ export function buildObjectTreeNode({
               objectName,
               object.type,
               true,
+              databaseName,
             );
             setActiveTabId(tab.id);
             return tab.id;
@@ -393,6 +408,7 @@ export function buildSchemaTreeNode({
   conn,
   context,
   initialExpandedState,
+  databaseName,
 }: {
   dbId: PersistentDataSourceId;
   dbName: string;
@@ -402,6 +418,7 @@ export function buildSchemaTreeNode({
   conn?: AsyncDuckDBConnectionPool;
   context: ExtendedBuilderContext;
   initialExpandedState: Record<string, boolean>;
+  databaseName?: string;
 }): TreeNodeData<DataExplorerNodeTypeMap> {
   const { name: schemaName, objects } = schema;
   const schemaNodeId = `${dbId}.${schemaName}`;
@@ -453,6 +470,7 @@ export function buildSchemaTreeNode({
         comparisonTableNames,
         conn,
         context,
+        databaseName,
       }),
     );
 
@@ -485,6 +503,7 @@ export function buildSchemaTreeNode({
             comparisonTableNames,
             conn,
             context,
+            databaseName,
           }),
         ),
       });
@@ -516,6 +535,7 @@ export function buildSchemaTreeNode({
           comparisonTableNames,
           conn,
           context,
+          databaseName,
         }),
       );
 
@@ -542,6 +562,7 @@ export function buildSchemaTreeNode({
         comparisonTableNames,
         conn,
         context,
+        databaseName,
       }),
     );
   }

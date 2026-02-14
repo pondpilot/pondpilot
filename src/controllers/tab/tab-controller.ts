@@ -7,6 +7,7 @@ import {
   AnyFlatFileDataSource,
   IcebergCatalog,
   LocalDB,
+  MotherDuckConnection,
   PersistentDataSourceId,
   RemoteDB,
 } from '@models/data-source';
@@ -234,11 +235,17 @@ export const getOrCreateSchemaBrowserTab = (options: {
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const getOrCreateTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | PersistentDataSourceId,
+  dataSourceOrId:
+    | LocalDB
+    | RemoteDB
+    | IcebergCatalog
+    | MotherDuckConnection
+    | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
   objectType: 'table' | 'view',
   setActive: boolean = false,
+  databaseName?: string,
 ): LocalDBDataTab => {
   const state = useAppStore.getState();
 
@@ -246,7 +253,13 @@ export const getOrCreateTabFromLocalDBObject = (
   const dataSource = ensureDatabaseDataSource(dataSourceOrId, state.dataSources);
 
   // Check if object already has an associated tab
-  const existingTab = findTabFromLocalDBObjectImpl(state.tabs, dataSource, schemaName, objectName);
+  const existingTab = findTabFromLocalDBObjectImpl(
+    state.tabs,
+    dataSource,
+    schemaName,
+    objectName,
+    databaseName,
+  );
 
   // No need to create a new tab if one already exists
   if (existingTab) {
@@ -268,6 +281,7 @@ export const getOrCreateTabFromLocalDBObject = (
     objectName,
     objectType,
     dataViewStateCache: null,
+    ...(databaseName ? { databaseName } : {}),
   };
 
   // Add the new tab to the store
@@ -495,9 +509,15 @@ export const findSchemaBrowserTab = (
  * @throws An error if the Local DB with the given ID does not exist.
  */
 export const findTabFromLocalDBObject = (
-  dataSourceOrId: LocalDB | RemoteDB | IcebergCatalog | PersistentDataSourceId,
+  dataSourceOrId:
+    | LocalDB
+    | RemoteDB
+    | IcebergCatalog
+    | MotherDuckConnection
+    | PersistentDataSourceId,
   schemaName: string,
   objectName: string,
+  databaseName?: string,
 ): LocalDBDataTab | undefined => {
   const state = useAppStore.getState();
 
@@ -505,7 +525,7 @@ export const findTabFromLocalDBObject = (
   const dataSource = ensureDatabaseDataSource(dataSourceOrId, state.dataSources);
 
   // Check if the script already has an associated tab
-  return findTabFromLocalDBObjectImpl(state.tabs, dataSource, schemaName, objectName);
+  return findTabFromLocalDBObjectImpl(state.tabs, dataSource, schemaName, objectName, databaseName);
 };
 
 /**
@@ -962,7 +982,8 @@ function updateTabLRUTracking(tabId: TabId): void {
         dataSource &&
         (dataSource.type === 'attached-db' ||
           dataSource.type === 'remote-db' ||
-          dataSource.type === 'iceberg-catalog')
+          dataSource.type === 'iceberg-catalog' ||
+          dataSource.type === 'motherduck')
       ) {
         const dbIdentifier = getDatabaseIdentifier(dataSource);
         updateTableAccessTime(dbIdentifier, tab.schemaName, tab.objectName);

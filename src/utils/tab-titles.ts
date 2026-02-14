@@ -32,7 +32,8 @@ export function getSchemaBrowserTabTitle(
       dataSource &&
       dataSource.type !== 'attached-db' &&
       dataSource.type !== 'remote-db' &&
-      dataSource.type !== 'iceberg-catalog'
+      dataSource.type !== 'iceberg-catalog' &&
+      dataSource.type !== 'motherduck'
     ) {
       return `File: ${(dataSource as AnyFlatFileDataSource).viewName}`;
     }
@@ -41,6 +42,9 @@ export function getSchemaBrowserTabTitle(
 
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
+    if (dataSource && dataSource.type === 'motherduck') {
+      return 'MotherDuck';
+    }
     if (dataSource && dataSource.type === 'iceberg-catalog') {
       let tabName = `Catalog: ${dataSource.catalogAlias}`;
       if (tab.schemaName) {
@@ -118,7 +122,8 @@ export function getSchemaBrowserDisplayTitle(
       dataSource &&
       dataSource.type !== 'attached-db' &&
       dataSource.type !== 'remote-db' &&
-      dataSource.type !== 'iceberg-catalog'
+      dataSource.type !== 'iceberg-catalog' &&
+      dataSource.type !== 'motherduck'
     ) {
       return {
         prefix: 'File:',
@@ -130,6 +135,9 @@ export function getSchemaBrowserDisplayTitle(
 
   if (sourceType === 'db') {
     const dataSource = dataSources.get(sourceId as PersistentDataSourceId);
+    if (dataSource && dataSource.type === 'motherduck') {
+      return { prefix: 'Cloud:', title: 'MotherDuck' };
+    }
     if (dataSource && dataSource.type === 'iceberg-catalog') {
       const alias = dataSource.catalogAlias;
       if (tab.schemaName) {

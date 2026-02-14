@@ -41,7 +41,12 @@ import {
   IconMap,
   IconMapOff,
 } from '@tabler/icons-react';
-import { isIcebergCatalog, isLocalDatabase, isRemoteDatabase } from '@utils/data-source';
+import {
+  isIcebergCatalog,
+  isLocalDatabase,
+  isMotherDuckConnection,
+  isRemoteDatabase,
+} from '@utils/data-source';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { importSQLFiles } from '@utils/import-script-file';
 import { getFlatFileDataSourceName } from '@utils/navigation';
@@ -304,6 +309,11 @@ export const SpotlightMenu = () => {
           });
         });
 
+        continue;
+      }
+
+      // MotherDuck connections are not shown as individual spotlight entries
+      if (isMotherDuckConnection(dataSource)) {
         continue;
       }
 

@@ -2,6 +2,7 @@ import { showError } from '@components/app-notifications';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Group, Stack, Title, ActionIcon, Text, Button, Alert } from '@mantine/core';
 import {
+  IconCloud,
   IconDatabasePlus,
   IconFilePlus,
   IconFolderPlus,
@@ -16,6 +17,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { BaseActionCard } from './components/base-action-card';
 import { ClipboardImportConfig } from './components/clipboard-import-config';
 import { IcebergCatalogConfig } from './components/iceberg-catalog-config';
+import { MotherDuckConfig } from './components/motherduck-config';
 import { RemoteDatabaseConfig } from './components/remote-database-config';
 import { validateJSON, validateCSV } from './utils/clipboard-import';
 
@@ -31,6 +33,7 @@ export type WizardStep =
   | 'selection'
   | 'remote-config'
   | 'iceberg-config'
+  | 'motherduck-config'
   | 'clipboard-csv'
   | 'clipboard-json';
 
@@ -40,6 +43,8 @@ const getStepTitle = (step: WizardStep): string => {
       return 'REMOTE DATABASE';
     case 'iceberg-config':
       return 'ICEBERG CATALOG';
+    case 'motherduck-config':
+      return 'MOTHERDUCK';
     case 'clipboard-csv':
       return 'IMPORT CSV FROM CLIPBOARD';
     case 'clipboard-json':
@@ -154,6 +159,10 @@ export function DatasourceWizardModal({
 
   const handleIcebergCatalogClick = () => {
     setStep('iceberg-config');
+  };
+
+  const handleMotherDuckClick = () => {
+    setStep('motherduck-config');
   };
 
   const handleBack = () => {
@@ -365,6 +374,20 @@ export function DatasourceWizardModal({
       description: 'REST, S3 Tables, Glue',
       testId: 'add-iceberg-catalog-card',
     },
+    {
+      type: 'motherduck' as const,
+      onClick: handleMotherDuckClick,
+      icon: (
+        <IconCloud
+          size={48}
+          className="text-textSecondary-light dark:text-textSecondary-dark"
+          stroke={1.5}
+        />
+      ),
+      title: 'MotherDuck',
+      description: 'Cloud DuckDB',
+      testId: 'add-motherduck-card',
+    },
   ];
 
   return (
@@ -422,6 +445,10 @@ export function DatasourceWizardModal({
 
       {step === 'iceberg-config' && (
         <IcebergCatalogConfig onBack={handleBack} onClose={onClose} pool={pool} />
+      )}
+
+      {step === 'motherduck-config' && (
+        <MotherDuckConfig onBack={handleBack} onClose={onClose} pool={pool} />
       )}
 
       {(step === 'clipboard-csv' || step === 'clipboard-json') && (

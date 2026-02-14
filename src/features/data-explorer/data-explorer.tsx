@@ -3,9 +3,10 @@ import { useExplorerContext } from '@components/explorer-tree/hooks';
 import { createComparisonWithSources } from '@controllers/tab/comparison-tab-controller';
 import { dataSourceToComparisonSource } from '@features/comparison/utils/source-selection';
 import { IcebergReconnectModal } from '@features/datasource-wizard/components/iceberg-reconnect-modal';
+import { MotherDuckReconnectModal } from '@features/datasource-wizard/components/motherduck-reconnect-modal';
 import { useInitializedDuckDBConnectionPool } from '@features/duckdb-context/duckdb-context';
 import { ComparisonSource } from '@models/comparison';
-import { AnyFlatFileDataSource, IcebergCatalog } from '@models/data-source';
+import { AnyFlatFileDataSource, IcebergCatalog, MotherDuckConnection } from '@models/data-source';
 import {
   LocalEntryId,
   SUPPORTED_DATA_SOURCE_FILE_EXTS,
@@ -62,8 +63,13 @@ export const DataExplorer = memo(() => {
   } = useDataExplorerData();
 
   // Separate databases by type
-  const { systemDatabase, localDatabases, remoteDatabases, icebergCatalogs } =
-    useDatabaseSeparation(allDataSources);
+  const {
+    systemDatabase,
+    localDatabases,
+    remoteDatabases,
+    icebergCatalogs,
+    motherduckConnections,
+  } = useDatabaseSeparation(allDataSources);
 
   // Build file system tree
   const fileSystemNodes = useFileSystemTreeBuilder({
@@ -101,17 +107,19 @@ export const DataExplorer = memo(() => {
     const hasLocalDbs = localDatabases.length > 0;
     const hasRemoteDbs = remoteDatabases.length > 0;
     const hasIcebergCatalogs = icebergCatalogs.length > 0;
+    const hasMotherDuck = motherduckConnections.length > 0;
 
     return {
       files: hasFiles,
       databases: hasLocalDbs,
-      remote: hasRemoteDbs || hasIcebergCatalogs,
+      remote: hasRemoteDbs || hasIcebergCatalogs || hasMotherDuck,
     };
   }, [
     fileSystemNodes.length,
     localDatabases.length,
     remoteDatabases.length,
     icebergCatalogs.length,
+    motherduckConnections.length,
   ]);
 
   // Build database nodes
@@ -119,6 +127,7 @@ export const DataExplorer = memo(() => {
     localDbNodes,
     remoteDatabaseNodes,
     icebergCatalogNodes,
+    motherduckConnectionNodes,
     systemDbNode,
     systemDbNodeForDisplay,
   } = useBuildNodes({
@@ -126,6 +135,7 @@ export const DataExplorer = memo(() => {
     localDatabases,
     remoteDatabases,
     icebergCatalogs,
+    motherduckConnections,
     nodeMap,
     anyNodeIdToNodeTypeMap,
     conn,
@@ -145,6 +155,7 @@ export const DataExplorer = memo(() => {
     ...localDbNodes,
     ...remoteDatabaseNodes,
     ...icebergCatalogNodes,
+    ...motherduckConnectionNodes,
   ];
 
   // Actions
@@ -194,7 +205,8 @@ export const DataExplorer = memo(() => {
           !dataSource ||
           (dataSource.type !== 'attached-db' &&
             dataSource.type !== 'remote-db' &&
-            dataSource.type !== 'iceberg-catalog')
+            dataSource.type !== 'iceberg-catalog' &&
+            dataSource.type !== 'motherduck')
         ) {
           return null;
         }
@@ -299,6 +311,7 @@ export const DataExplorer = memo(() => {
     localDbNodes,
     remoteDatabaseNodes,
     icebergCatalogNodes,
+    motherduckConnectionNodes,
     activeFilter,
     fileTypeFilter,
     searchQuery,
@@ -318,6 +331,22 @@ export const DataExplorer = memo(() => {
       { icebergReconnectCatalogId: null },
       false,
       'IcebergCatalog/closeReconnect',
+    );
+  }, []);
+
+  // MotherDuck reconnect modal state
+  const mdReconnectConnectionId = useAppStore.use.motherduckReconnectConnectionId();
+  const mdReconnectConnection = useMemo(() => {
+    if (!mdReconnectConnectionId) return null;
+    const ds = allDataSources.get(mdReconnectConnectionId);
+    return ds?.type === 'motherduck' ? (ds as MotherDuckConnection) : null;
+  }, [mdReconnectConnectionId, allDataSources]);
+
+  const closeMdReconnectModal = useCallback(() => {
+    useAppStore.setState(
+      { motherduckReconnectConnectionId: null },
+      false,
+      'MotherDuck/closeReconnect',
     );
   }, []);
 
@@ -344,6 +373,8 @@ export const DataExplorer = memo(() => {
         remoteDbNodes={filteredSections.filteredRemoteDbNodes}
         showIcebergCatalogs={filteredSections.showIcebergCatalogs}
         icebergCatalogNodes={filteredSections.filteredIcebergCatalogNodes}
+        showMotherDuck={filteredSections.showMotherDuck}
+        motherduckNodes={filteredSections.filteredMotherDuckNodes}
         initialExpandedState={initialExpandedState}
         searchExpandedState={searchExpandedState}
         extraData={enhancedExtraData}
@@ -355,6 +386,14 @@ export const DataExplorer = memo(() => {
           pool={conn}
           opened={!!reconnectCatalog}
           onClose={closeReconnectModal}
+        />
+      )}
+      {mdReconnectConnection && conn && (
+        <MotherDuckReconnectModal
+          connection={mdReconnectConnection}
+          pool={conn}
+          opened={!!mdReconnectConnection}
+          onClose={closeMdReconnectModal}
         />
       )}
     </div>

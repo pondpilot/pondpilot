@@ -1,5 +1,11 @@
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
-import { IcebergCatalog, LocalDB, RemoteDB, PersistentDataSourceId } from '@models/data-source';
+import {
+  IcebergCatalog,
+  LocalDB,
+  MotherDuckConnection,
+  RemoteDB,
+  PersistentDataSourceId,
+} from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { SchemaBrowserTab } from '@models/tab';
 import { getDatabaseIdentifier } from '@utils/data-source';
@@ -16,7 +22,10 @@ import { createSchemaNode } from '../schema-extraction';
 export async function processDbSource(
   tab: Omit<SchemaBrowserTab, 'dataViewStateCache'>,
   pool: AsyncDuckDBConnectionPool,
-  dbSources: Map<PersistentDataSourceId, LocalDB | RemoteDB | IcebergCatalog>,
+  dbSources: Map<
+    PersistentDataSourceId,
+    LocalDB | RemoteDB | IcebergCatalog | MotherDuckConnection
+  >,
   dbMetadata: Map<string, DataBaseModel>,
   abortSignal: AbortSignal,
 ): Promise<SchemaGraph> {

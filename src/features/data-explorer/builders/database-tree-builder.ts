@@ -4,13 +4,14 @@ import { renameDB } from '@controllers/db-explorer';
 import { getOrCreateSchemaBrowserTab } from '@controllers/tab';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Comparison } from '@models/comparison';
-import { IcebergCatalog, LocalDB, RemoteDB } from '@models/data-source';
+import { IcebergCatalog, LocalDB, MotherDuckConnection, RemoteDB } from '@models/data-source';
 import { DataBaseModel } from '@models/db';
 import { PERSISTENT_DB_NAME } from '@models/db-persistence';
 import { LocalEntry } from '@models/file-system';
 import { useAppStore } from '@store/app-store';
 import { copyToClipboard } from '@utils/clipboard';
 import { disconnectIcebergCatalog } from '@utils/iceberg-catalog';
+import { disconnectMotherDuckConnection, getMotherDuckDatabaseModel } from '@utils/motherduck';
 import { getLocalDBDataSourceName } from '@utils/navigation';
 import { reconnectRemoteDatabase, disconnectRemoteDatabase } from '@utils/remote-database';
 
@@ -389,5 +390,195 @@ export function buildIcebergCatalogNode(
         initialExpandedState,
       }),
     ),
+  };
+}
+
+/**
+ * Builds a tree node for a MotherDuck connection.
+ * Shows as a top-level node with MotherDuck databases as children.
+ * Each child database is a full database node with schemas/tables.
+ */
+export function buildMotherDuckConnectionNode(
+  connection: MotherDuckConnection,
+  context: DatabaseTreeBuilderContext,
+): TreeNodeData<DataExplorerNodeTypeMap> {
+  const { id: connectionId } = connection;
+  const {
+    nodeMap,
+    anyNodeIdToNodeTypeMap,
+    conn,
+    databaseMetadata,
+    initialExpandedState,
+    comparisonTableNames,
+    comparisonByTableName,
+  } = context;
+
+  // Build label with connection state indicator
+  const stateIcon =
+    connection.connectionState === 'connected'
+      ? '\u2713'
+      : connection.connectionState === 'connecting'
+        ? '\u27F3'
+        : connection.connectionState === 'credentials-required'
+          ? '\uD83D\uDD12'
+          : connection.connectionState === 'error'
+            ? '\u26A0'
+            : '\u2715';
+  const dbLabel = `MotherDuck ${stateIcon}`;
+
+  nodeMap.set(connectionId, {
+    db: connectionId,
+    schemaName: null,
+    objectName: null,
+    columnName: null,
+  });
+  anyNodeIdToNodeTypeMap.set(connectionId, 'db');
+
+  // MotherDuck database metadata is stored with "md:" prefixed keys (e.g. "md:my_db")
+  // to avoid collisions with local databases. The plain name is used for SQL queries.
+  const mdPlainNames: string[] = [];
+  const childNodes: TreeNodeData<DataExplorerNodeTypeMap>[] = [];
+
+  if (connection.connectionState === 'connected') {
+    for (const [dbName, dbModel] of databaseMetadata) {
+      // MotherDuck databases are stored with "md:" prefix (skip bare "md:")
+      if (!dbName.startsWith('md:') || dbName === 'md:') continue;
+
+      const plainName = dbName.slice(3);
+      mdPlainNames.push(plainName);
+
+      // Display name without the "md:" prefix
+      const displayName = dbName.slice(3);
+
+      const sortedSchemas = dbModel.schemas
+        ? [...dbModel.schemas].sort((a, b) => a.name.localeCompare(b.name))
+        : [];
+
+      // Use the full database name (with md: prefix) as the node ID
+      const dbNodeId = dbName as any;
+      nodeMap.set(dbNodeId, {
+        db: connectionId,
+        schemaName: null,
+        objectName: null,
+        columnName: null,
+      });
+      anyNodeIdToNodeTypeMap.set(dbNodeId, 'db');
+
+      childNodes.push({
+        nodeType: 'db',
+        value: dbNodeId,
+        label: displayName,
+        iconType: 'db',
+        isDisabled: false,
+        isSelectable: true,
+        contextMenu: [
+          {
+            children: [
+              {
+                label: 'Copy name',
+                onClick: () => {
+                  copyToClipboard(displayName, { showNotification: true });
+                },
+              },
+              {
+                label: 'Show Schema',
+                onClick: () => {
+                  const firstSchema = sortedSchemas?.[0];
+                  getOrCreateSchemaBrowserTab({
+                    sourceId: connectionId,
+                    sourceType: 'db',
+                    schemaName: firstSchema?.name,
+                    setActive: true,
+                  });
+                },
+              },
+            ],
+          },
+        ],
+        children: sortedSchemas.map((schema) =>
+          buildSchemaTreeNode({
+            dbId: connectionId,
+            // Use plain name for SQL queries (DuckDB knows it as 'my_db', not 'md:my_db')
+            dbName: displayName,
+            schema,
+            context: {
+              nodeMap,
+              anyNodeIdToNodeTypeMap,
+              flatFileSources: context.flatFileSources,
+              comparisonByTableName,
+              comparisonTableNames,
+            },
+            initialExpandedState,
+            databaseName: displayName,
+          }),
+        ),
+      });
+    }
+  }
+
+  // Context menu items
+  const contextMenuItems: TreeNodeMenuItemType<TreeNodeData<DataExplorerNodeTypeMap>>[] = [
+    {
+      label: 'Copy name',
+      onClick: () => {
+        copyToClipboard('MotherDuck', { showNotification: true });
+      },
+    },
+  ];
+
+  if (connection.connectionState === 'connected') {
+    contextMenuItems.push({
+      label: 'Refresh',
+      onClick: async () => {
+        if (mdPlainNames.length > 0) {
+          const metadata = await getMotherDuckDatabaseModel(conn, mdPlainNames);
+          const currentMetadata = useAppStore.getState().databaseMetadata;
+          const newMetadata = new Map(currentMetadata);
+          for (const [key, model] of metadata) {
+            newMetadata.set(key, model);
+          }
+          useAppStore.setState({ databaseMetadata: newMetadata }, false, 'MotherDuck/refresh');
+        }
+      },
+    });
+    contextMenuItems.push({
+      label: 'Disconnect',
+      onClick: async () => {
+        await disconnectMotherDuckConnection(conn, connection);
+      },
+    });
+  }
+
+  if (connection.connectionState !== 'connected' && connection.connectionState !== 'connecting') {
+    contextMenuItems.push({
+      label: 'Reconnect',
+      onClick: () => {
+        useAppStore.setState(
+          { motherduckReconnectConnectionId: connection.id },
+          false,
+          'MotherDuck/requestReconnect',
+        );
+      },
+    });
+  }
+
+  return {
+    nodeType: 'db',
+    value: connectionId,
+    label: dbLabel,
+    iconType: 'db',
+    isDisabled: false,
+    isSelectable: true,
+    onDelete: (node: TreeNodeData<DataExplorerNodeTypeMap>): void => {
+      if (node.nodeType === 'db') {
+        deleteDataSources(conn, [node.value]);
+      }
+    },
+    contextMenu: [
+      {
+        children: contextMenuItems,
+      },
+    ],
+    children: childNodes.length > 0 ? childNodes : undefined,
   };
 }
