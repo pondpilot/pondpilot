@@ -110,6 +110,9 @@ export interface SchemaBrowserTab extends TabBase {
   schemaName?: string;
   // Object names (tables/views) for object-specific views. Sorted lexicographically
   objectNames?: string[];
+  // DuckDB database name for multi-database data sources (e.g. MotherDuck).
+  // When set, used to resolve the correct metadata entry.
+  databaseName?: string;
   // For visualizing relationships and positions
   layoutState?: Record<string, unknown>;
 }

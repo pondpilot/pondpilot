@@ -36,7 +36,12 @@ export async function processDbSource(
 
   if (tab.sourceId && dbSources.has(tab.sourceId as PersistentDataSourceId)) {
     const dbSource = dbSources.get(tab.sourceId as PersistentDataSourceId)!;
-    const dbName = getDatabaseIdentifier(dbSource);
+    // For MotherDuck, use databaseName from the tab to resolve the correct per-database metadata.
+    // getDatabaseIdentifier returns the bare 'md:' prefix, but metadata keys are 'md:<dbname>'.
+    const dbName =
+      dbSource.type === 'motherduck' && tab.databaseName
+        ? `md:${tab.databaseName}`
+        : getDatabaseIdentifier(dbSource);
     const metadata = dbMetadata.get(dbName);
 
     if (metadata) {

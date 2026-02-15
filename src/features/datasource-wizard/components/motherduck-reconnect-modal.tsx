@@ -40,16 +40,19 @@ export function MotherDuckReconnectModal({
     if (!opened || attemptedAutoRef.current) return;
     attemptedAutoRef.current = true;
 
+    let cancelled = false;
+
     const tryAutoReconnect = async () => {
       const { _iDbConn } = useAppStore.getState();
       if (!_iDbConn) return;
 
       const storedToken = await resolveMotherDuckToken(_iDbConn, connection);
-      if (!storedToken) return;
+      if (!storedToken || cancelled) return;
 
       setAutoReconnecting(true);
       try {
         const success = await reconnectMotherDuck(pool, connection, storedToken);
+        if (cancelled) return;
         if (success) {
           onClose();
           return;
@@ -57,11 +60,17 @@ export function MotherDuckReconnectModal({
       } catch {
         // Stored token failed — fall through to manual entry
       }
-      setAutoReconnecting(false);
+      if (!cancelled) {
+        setAutoReconnecting(false);
+      }
     };
 
     tryAutoReconnect();
-  }, [opened]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [opened, connection, pool, onClose]);
 
   // Reset state when modal closes
   useEffect(() => {

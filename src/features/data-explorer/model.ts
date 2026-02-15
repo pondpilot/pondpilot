@@ -21,6 +21,7 @@ export type DataExplorerNodeTypeMap = {
 // Node info for database items (similar to DB explorer)
 type DBNodeInfo = {
   db: PersistentDataSourceId | null;
+  databaseName?: string;
   schemaName: string | null;
   objectName: string | null;
   columnName: string | null;

@@ -57,6 +57,7 @@ export const deleteDataSources = async (
     dataSources,
     dataSourceAccessTimes,
     tableAccessTimes,
+    databaseMetadata,
     tabs,
     tabOrder,
     activeTabId,
@@ -91,11 +92,19 @@ export const deleteDataSources = async (
     Array.from(dataSourceAccessTimes).filter(([id]) => !dataSourceIdsToDelete.has(id)),
   );
 
-  const deletedDbNames = new Set(
+  const deletedDataBases = new Set(
     deletedDataSources
       .filter(isDatabaseDataSource)
       .map((dataSource) => getDatabaseIdentifier(dataSource)),
   );
+  const shouldClearMotherDuckMetadata = deletedDataSources.some((dataSource) => dataSource.type === 'motherduck');
+  if (shouldClearMotherDuckMetadata) {
+    for (const dbName of databaseMetadata.keys()) {
+      if (dbName.startsWith('md:') && dbName !== 'md:') {
+        deletedDataBases.add(dbName);
+      }
+    }
+  }
   const newTableAccessTimes = new Map(
     Array.from(tableAccessTimes).filter(([key]) => {
       const parsed = parseTableAccessKey(key);
@@ -103,7 +112,7 @@ export const deleteDataSources = async (
         return true;
       }
       const [dbName] = parsed;
-      return !deletedDbNames.has(dbName);
+      return !deletedDataBases.has(dbName);
     }),
   );
 
@@ -253,10 +262,6 @@ export const deleteDataSources = async (
   }
 
   // After database is updated (views are dropped), create the updated state for database metadata
-  const { databaseMetadata } = useAppStore.getState();
-  const deletedDataBases = new Set(
-    deletedDataSources.filter(isDatabaseDataSource).map((ds) => getDatabaseIdentifier(ds)),
-  );
   // Filter out deleted databases from the metadata
   // eslint-disable-next-line prefer-const
   let newDatabaseMetadata = new Map(

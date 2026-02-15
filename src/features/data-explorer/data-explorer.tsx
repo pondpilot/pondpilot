@@ -196,7 +196,7 @@ export const DataExplorer = memo(() => {
       }
 
       if ('db' in info) {
-        const { db, schemaName, objectName } = info;
+        const { db, schemaName, objectName, databaseName } = info;
         if (!db || !schemaName || !objectName) {
           return null;
         }
@@ -210,11 +210,13 @@ export const DataExplorer = memo(() => {
         ) {
           return null;
         }
+        const comparisonDatabaseName = databaseName ?? getDatabaseIdentifier(dataSource);
+
         return {
           type: 'table' as const,
           tableName: objectName,
           schemaName,
-          databaseName: getDatabaseIdentifier(dataSource),
+          databaseName: comparisonDatabaseName,
         };
       }
 

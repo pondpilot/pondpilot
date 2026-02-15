@@ -1,6 +1,7 @@
 import { showError } from '@components/app-notifications';
 import { AsyncDuckDBConnectionPool } from '@features/duckdb-context/duckdb-connection-pool';
 import { Group, Stack, Title, ActionIcon, Text, Button, Alert } from '@mantine/core';
+import { useAppStore } from '@store/app-store';
 import {
   IconCloud,
   IconDatabasePlus,
@@ -12,7 +13,7 @@ import {
 } from '@tabler/icons-react';
 import { fileSystemService } from '@utils/file-system-adapter';
 import { setDataTestId } from '@utils/test-id';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 import { BaseActionCard } from './components/base-action-card';
 import { ClipboardImportConfig } from './components/clipboard-import-config';
@@ -62,6 +63,11 @@ export function DatasourceWizardModal({
   handleAddFile,
 }: DatasourceWizardModalProps) {
   const [step, setStep] = useState<WizardStep>(initialStep);
+  const dataSources = useAppStore((state) => state.dataSources);
+  const hasMotherDuckConnection = useMemo(
+    () => Array.from(dataSources.values()).some((ds) => ds.type === 'motherduck'),
+    [dataSources],
+  );
   const [hasClipboardContent, setHasClipboardContent] = useState(false);
   const [clipboardContent, setClipboardContent] = useState('');
   const [clipboardFormat, setClipboardFormat] = useState<'csv' | 'json'>('csv');
@@ -385,8 +391,9 @@ export function DatasourceWizardModal({
         />
       ),
       title: 'MotherDuck',
-      description: 'Cloud DuckDB',
+      description: hasMotherDuckConnection ? 'Already connected' : 'Cloud DuckDB',
       testId: 'add-motherduck-card',
+      disabled: hasMotherDuckConnection,
     },
   ];
 
@@ -432,6 +439,7 @@ export function DatasourceWizardModal({
                   title={card.title}
                   description={card.description}
                   testId={card.testId}
+                  disabled={'disabled' in card ? card.disabled : undefined}
                 />
               ))}
             </Group>
