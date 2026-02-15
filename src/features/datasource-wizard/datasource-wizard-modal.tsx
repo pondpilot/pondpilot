@@ -323,7 +323,7 @@ export function DatasourceWizardModal({
     );
   };
 
-  const datasourceCards = [
+  const localCards = [
     {
       type: 'file' as const,
       onClick: handleCardClick('file'),
@@ -352,6 +352,9 @@ export function DatasourceWizardModal({
       description: 'Browse entire directories',
       testId: 'add-folder-card',
     },
+  ];
+
+  const remoteCards = [
     {
       type: 'remote' as const,
       onClick: handleRemoteDatabaseClick,
@@ -429,9 +432,30 @@ export function DatasourceWizardModal({
           {renderPasteDataBanner()}
           {renderClipboardBlockedAlert()}
 
-          <Group>
+          <Stack gap={4}>
+            <Text size="xs" fw={500} c="text-secondary" className="uppercase">
+              Local
+            </Text>
             <Group gap="md" className="justify-center md:justify-start">
-              {datasourceCards.map((card) => (
+              {localCards.map((card) => (
+                <BaseActionCard
+                  key={card.type}
+                  onClick={card.onClick}
+                  icon={card.icon}
+                  title={card.title}
+                  description={card.description}
+                  testId={card.testId}
+                />
+              ))}
+            </Group>
+          </Stack>
+
+          <Stack gap={4}>
+            <Text size="xs" fw={500} c="text-secondary" className="uppercase">
+              Remote
+            </Text>
+            <Group gap="md" className="justify-center md:justify-start">
+              {remoteCards.map((card) => (
                 <BaseActionCard
                   key={card.type}
                   onClick={card.onClick}
@@ -443,7 +467,7 @@ export function DatasourceWizardModal({
                 />
               ))}
             </Group>
-          </Group>
+          </Stack>
         </Stack>
       )}
 
